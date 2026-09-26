@@ -109,6 +109,7 @@
     "test/crawl-store.test.js",
     "test/crawler.test.js",
     "test/crawl-recorder.test.js",
+    "test/crawl-recorder-integration.test.js",
     "test/crawl-identify.test.js",
     "test/crawl-vaca.test.js",
     "test/crawl-vaca-hardening.test.js",

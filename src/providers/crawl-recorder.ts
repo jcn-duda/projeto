@@ -11,12 +11,20 @@
 //   - `partial` do índice PRESERVA o registro existente e marca `true` quando
 //     a obra ainda não tinha registro (mesma régua da sonda dirigida): uma
 //     página de site não é cobertura completa da obra no índice, então ela não
-//     pode destravar o fast-path como se cobrisse tudo.
+//     pode destravar o fast-path como se cobrisse tudo. A escrita usa
+//     `keepPartial` para que nem uma corrida consiga rebaixar a parcial.
 //   - o `matchContext` vem do CATÁLOGO (Cinemeta/TMDB pelo IMDb já
 //     identificado), nunca do título cru da página: é ele que dá a precisão do
 //     filtro contra releases de outra obra no mesmo post (o caso "O Corvo The
 //     Crow e Dual"). Sem nomes de catálogo, a gravação é RECUSADA (erro
 //     retentável do motor) — admitir tudo seria contaminar o índice.
+//
+// E uma ordem que não pode inverter: a gravação no acervo viva usa FILA
+// assíncrona, então o recorder chama `flushBarrier()` e só segue para o índice
+// se o lote PERSISTIU. Falha de flush vira erro retentável (métrica
+// `crawl.record.flushFailed`): a página volta a `error` em vez de marcar `done`
+// sobre um acervo que não gravou. A barreira é síncrona e nunca aguarda rede —
+// a busca ao vivo continua sem esperar o disco.
 //
 // Os colaboradores são injetáveis (fábrica) porque os módulos são namespaces
 // ESM congelados: o teste prova o fio com dublês sem depender de patch de
@@ -26,7 +34,8 @@ import * as tmdb from '../utils/tmdb.js';
 import * as bank from '../utils/magnet-bank.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { brTransition, invalidateStreamsForObra } from '../utils/br-gap.js';
-import { extractInfoHash, filterRelevantRaw, resolveSearchNames } from '../utils/format.js';
+import { filterRelevantRaw, resolveSearchNames } from '../utils/format.js';
+import { markBankFilterOutcome } from './magnet-bank-hook.js';
 import * as metrics from '../utils/metrics.js';
 import type { MatchContext, RawItem } from '../../types/domain.js';
 
@@ -52,16 +61,24 @@ export interface RecordReport {
 /** Colaboradores do recorder — trocáveis em teste (ver cabeçalho). */
 export interface CrawlRecorderDeps {
   captureItems(items: readonly RawItem[], indexer: string, ctx: Record<string, unknown>): void;
-  markFilterResult(
-    all: Iterable<string>, surviving: Iterable<string>, ctx: Record<string, unknown>,
+  /**
+   * Resultado do filtro de título. Reusa a MESMA ponte da busca viva
+   * (`markBankFilterOutcome`): exclusões `fromAccount`/`fromFallback`, hash
+   * canônico e as obras declaradas (pack/série) idênticas — duplicar a seleção
+   * aqui divergiria em silêncio do acervo.
+   */
+  markFilterOutcome(
+    entered: readonly RawItem[], survivors: readonly RawItem[], ctx: Record<string, unknown>,
   ): void;
+  /** Barreira de persistência do banco vivo: `ok:false` = o lote não gravou. */
+  flush(): { ok: boolean; written: number };
   lookupQuiet(imdb: string, location: { season?: number | null; episode?: number | null }): unknown[];
   isPartial(imdb: string, location: { season?: number | null; episode?: number | null }): boolean;
   record(
     imdb: string,
     location: { season?: number | null; episode?: number | null },
     items: unknown[],
-    opts: { partial?: boolean },
+    opts: { partial?: boolean; keepPartial?: boolean },
   ): number;
   transition(before: unknown[] | null | undefined, after: unknown[] | null | undefined): 'none' | 'br' | 'upgrade';
   invalidate(imdb: string): number;
@@ -87,20 +104,6 @@ async function defaultBuildContext(obra: CrawlObra): Promise<MatchContext | null
   };
 }
 
-/** Hashes de conteúdo de uma leva (o que o banco e o filtro indexam). */
-function hashesOf(items: readonly RawItem[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const item of Array.isArray(items) ? items : []) {
-    const hash = String(extractInfoHash(item?.infoHash || item?.magnet || '') || '').toLowerCase();
-    if (hash && !seen.has(hash)) {
-      seen.add(hash);
-      out.push(hash);
-    }
-  }
-  return out;
-}
-
 export interface CrawlRecorder {
   record(siteId: string, obra: CrawlObra, releases: RawItem[]): Promise<RecordReport>;
 }
@@ -109,7 +112,8 @@ export interface CrawlRecorder {
 export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): CrawlRecorder {
   const d: CrawlRecorderDeps = {
     captureItems: (items, indexer, ctx) => bank.captureItems(items, indexer, ctx as never),
-    markFilterResult: (all, surviving, ctx) => bank.markFilterResult(all, surviving, ctx as never),
+    markFilterOutcome: (entered, survivors, ctx) => markBankFilterOutcome(entered, survivors, ctx as never),
+    flush: () => bank.flushBarrier(),
     lookupQuiet: (imdb, location) => releaseIndex.lookupQuiet(imdb, location),
     isPartial: (imdb, location) => releaseIndex.isPartial(imdb, location),
     record: (imdb, location, items, opts) => releaseIndex.record(imdb, location, items, opts),
@@ -125,20 +129,27 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
       const context = await d.buildContext(obra);
       if (!context) throw new Error('catalogo-sem-nomes');
       const location = {};
+      const ctx = { imdbId: obra.imdb, season: null, episode: null };
       // 1. Banco vivo: a página inteira entra ANTES do filtro (mesma régua da
       //    busca — o acervo guarda o que o site devolveu, o filtro só marca).
-      d.captureItems(releases, siteId, { imdbId: obra.imdb, season: null, episode: null });
+      d.captureItems(releases, siteId, ctx);
       // 2. Filtro de título estrito com o contexto da obra.
       const relevant = filterRelevantRaw(releases, context as never);
-      // 3. `passed_filter`: as duas levas, como o stream-builder faria.
-      d.markFilterResult(hashesOf(releases), hashesOf(relevant), {
-        imdbId: obra.imdb, season: null, episode: null,
-      });
-      // 4. Índice: preserva `partial` existente; obra nova nasce parcial.
+      // 3. `passed_filter`: MESMAS exclusões e obras declaradas da busca viva.
+      d.markFilterOutcome(releases, relevant, ctx);
+      // 4. Barreira: sem persistência confirmada do acervo, a página NÃO pode
+      //    marcar `done` (erro retentável — o próximo ciclo refaz o lote).
+      const flushed = d.flush();
+      if (!flushed.ok) {
+        d.count('crawl.record.flushFailed');
+        throw new Error('magnetbank-flush-falhou');
+      }
+      // 5. Índice: preserva `partial` existente; obra nova nasce parcial. O
+      //    `keepPartial` impede a escrita de rebaixar a parcial por corrida.
       const before = d.lookupQuiet(obra.imdb, location);
       const partial = d.isPartial(obra.imdb, location) || before.length === 0;
-      const added = d.record(obra.imdb, location, relevant, { partial });
-      // 5. Transição BR invalida listas prontas da obra.
+      const added = d.record(obra.imdb, location, relevant, { partial, keepPartial: true });
+      // 6. Transição BR invalida listas prontas da obra.
       const after = d.lookupQuiet(obra.imdb, location);
       const transition = d.transition(before, after);
       const cleared = transition === 'none' ? 0 : d.invalidate(obra.imdb);

@@ -32,9 +32,13 @@ import {
 import type { MagnetInput, SourceInput, WorkCtx, WorkMark } from './magnet-bank-merge.js';
 import { releaseWorkTargets } from './release-work.js';
 import { magnetDisplayName } from './title-normalization.js';
+import { readEngine } from './magnet-bank-read.js';
 
 export { hashOf } from './magnet-bank-merge.js';
 export { failNextWriteForTests } from './magnet-bank-rows.js';
+// Reexporta a camada de leitura (extraída para `magnet-bank-read.ts`): o
+// contrato público de `magnet-bank.js` segue idêntico para os consumidores.
+export { readEngine, isOpen, lookup, sourcesFor, worksFor, findByWork, findByIndexer } from './magnet-bank-read.js';
 export type { WorkCtx, MagnetInput, SourceInput };
 
 const normHash = (hash: string): string => String(hash || '').toLowerCase();
@@ -92,21 +96,53 @@ function scheduleFlush(): void {
   else setTimeout(run, 0);
 }
 
-/** Aplica o lote acumulado (síncrono). Chamado pelo agendador, por `close()` e pelos testes. */
-export function flushNow(): number {
+/**
+ * Esvazia a fila e aplica o lote (síncrono). Pode LANÇAR: a falha de escrita
+ * pertence a quem chamou decidir. Compartilhado por `flushNow` (engole) e
+ * `flushBarrier` (reporta).
+ */
+function drainQueue(): number {
   const ops = queue.splice(0, queue.length);
   flushScheduled = false;
   try {
     if (ops.length === 0) return 0;
     return applyOps(ops);
-  } catch (err: unknown) {
-    metrics.count('magnetbank.flush.failed');
-    log.warn('[magnetbank] falha ao gravar lote:', log.errorMessage(err));
-    return 0;
   } finally {
     // O gatilho de teste vale para UM flush: nunca fica armado atravessando um
     // lote vazio (ou um lote sem escrita) para falhar uma busca real depois.
     disarmFailNextWrite();
+  }
+}
+
+/** Aplica o lote acumulado (síncrono). Chamado pelo agendador, por `close()` e pelos testes.
+ * A falha é engolida de propósito: o caminho da BUSCA nunca espera o disco e não
+ * pode ser derrubado por ele. */
+export function flushNow(): number {
+  try {
+    return drainQueue();
+  } catch (err: unknown) {
+    metrics.count('magnetbank.flush.failed');
+    log.warn('[magnetbank] falha ao gravar lote:', log.errorMessage(err));
+    return 0;
+  }
+}
+
+/**
+ * Barreira OBSERVÁVEL do lote para quem precisa da verdade da persistência — o
+ * crawler de gravação. Aplica a fila AGORA e devolve `ok:false` quando a escrita
+ * NÃO efetivou (o ROLLBACK desfez o lote), em vez de mentir `0` como o
+ * `flushNow`. É síncrono porque a fila é alimentada de forma síncrona por
+ * `captureItems`/`markFilterResult`: drenar aqui captura exatamente o lote do
+ * crawler (mais o que já estava na fila — persistir antes nunca faz mal) sem
+ * jamais aguardar rede. O caminho ao vivo continua sem esperar o disco.
+ */
+export function flushBarrier(): { ok: boolean; written: number } {
+  try {
+    return { ok: true, written: drainQueue() };
+  } catch (err: unknown) {
+    metrics.count('magnetbank.flush.failed');
+    log.warn('[magnetbank] barreira de gravação falhou:', log.errorMessage(err));
+    return { ok: false, written: 0 };
   }
 }
 
@@ -249,52 +285,9 @@ export function markFilterResult(
 // Leitura
 // ---------------------------------------------------------------------------
 
-/**
- * Engine para LEITURA: reusa o aberto; se ainda não há, abre — mas com o banco
- * DESLIGADO devolve null em vez de criar o SQLite à toa (status/consulta em
- * instância com a captura desligada não paga disco).
- */
-export function readEngine(): Engine | null {
-  const open = currentEngine();
-  if (open) return open;
-  if (!config.magnetBank?.enabled) return null;
-  return engine();
-}
-
-/** Armazenamento JÁ aberto, SEM abrir nada (a via instantânea não cria o arquivo). */
-export function isOpen(): boolean { return currentEngine() !== null; }
-
-const clampLimit = (limit: number): number => Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
-
-/** Lookup síncrono por hash (PK). Alimenta o play na Etapa 3. */
-export function lookup(hash: string): MagnetRow | null {
-  return readEngine()?.getMagnet(normHash(hash)) ?? null;
-}
-
-export function sourcesFor(hash: string): SourceRow[] {
-  return readEngine()?.listSources(normHash(hash)) ?? [];
-}
-
-export function worksFor(hash: string): WorkRow[] {
-  return readEngine()?.listWorks(normHash(hash)) ?? [];
-}
-
-/** Obras indexadas para (imdb, season, episode) — prepara a consulta do fallback. */
-export function findByWork(imdb: string, season: number | null, episode: number | null, limit = 100): Array<{ work: WorkRow; magnet: MagnetRow | null }> {
-  const e = readEngine();
-  if (!e) return [];
-  const ep = workTuple({ season, episode });
-  return e.listWorksByObra(String(imdb || ''), ep.season, ep.episode, clampLimit(limit))
-    .map((work) => ({ work, magnet: e.getMagnet(work.hash) }));
-}
-
-/** Fontes de um indexer (mais recentes primeiro) — prepara a consulta do fallback. */
-export function findByIndexer(indexer: string, limit = 100): Array<{ source: SourceRow; magnet: MagnetRow | null }> {
-  const e = readEngine();
-  if (!e) return [];
-  return e.listSourcesByIndexer(String(indexer || '').toLowerCase(), clampLimit(limit))
-    .map((source) => ({ source, magnet: e.getMagnet(source.hash) }));
-}
+// Os helpers síncronos de leitura (readEngine/isOpen/lookup/sourcesFor/
+// worksFor/findByWork/findByIndexer) foram extraídos para `magnet-bank-read.ts`
+// pela catraca de 400 linhas; a fachada reexporta para os consumidores.
 
 /**
  * Memo do status. A leitura é síncrona (agregação na engine), então não há

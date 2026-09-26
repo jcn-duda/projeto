@@ -73,13 +73,19 @@ function record(
   imdbId: string,
   location: ObraLocation,
   items: any[],
-  opts: { partial?: boolean; source?: 'autofetch' } = {},
+  opts: { partial?: boolean; keepPartial?: boolean; source?: 'autofetch' } = {},
 ) {
   if (!enabled() || !imdbId || !String(imdbId).startsWith('tt') || !Array.isArray(items) || items.length === 0) return 0;
   const now = Date.now();
   // Marca de registro PARCIAL (colheita interrompida por teto/preempção): cada
   // chave escrita recebe o flag. Gravação completa/default limpa (last-write-wins).
-  const partial = Boolean(opts.partial);
+  const requestedPartial = Boolean(opts.partial);
+  // `keepPartial`: a escrita NUNCA rebaixa uma chave que já era parcial a
+  // completa. A raspagem cobre UMA página, não a obra inteira; sem isto uma
+  // corrida (ler `isPartial` antes, gravar depois) limpava o flag e destravava o
+  // fast-path sobre cobertura incompleta. NÃO usar em writers que provam a obra
+  // inteira (busca ao vivo/colheita concluída) — para eles `false` é correto.
+  const keepPartial = Boolean(opts.keepPartial);
   const pedida = obraKey(imdbId, location);
   // Candidatos ANTES do agrupamento: o bank precisa alimentar destinoDe (dn
   // mais específico que o título) — carregar depois do agrupamento chegava
@@ -153,6 +159,8 @@ function record(
     // Corte do teto com proteção BR/dublado — regras em release-index-cut.ts.
     const releases = cutProtected(existing.values(), Math.max(1, config.releaseIndex.maxReleases));
     added += releases.filter((r) => novos.has(r.hash)).length;
+    // `keepPartial`: nunca rebaixa a chave que JÁ era parcial; OR com o pedido.
+    const partial = keepPartial ? (Boolean(entry?.partial) || requestedPartial) : requestedPartial;
     cache.set(key, { at: now, partial, releases } satisfies IndexEntry, config.releaseIndex.ttl);
   }
   metrics.count('search.idx.recorded', added);

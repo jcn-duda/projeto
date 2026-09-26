@@ -158,6 +158,10 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     }
 
     try {
+      // `record` só resolve com o lote JÁ persistido no acervo (barreira do
+      // recorder). Rejeição (ex.: flush falho) cai no catch como erro
+      // retentável: a URL volta a `error` — nunca `done` sobre acervo que não
+      // gravou.
       const report = await collab.record(site.id, {
         imdb: String(imdb),
         title: String(result.title || ''),

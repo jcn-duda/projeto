@@ -109,6 +109,29 @@ test('helper: index-only passa mesmo fora do ji (só chega pelo idx/banco)', () 
   }
 });
 
+test('helper: vacatorrent (card local do piloto) não fica invisível pelo ji', () => {
+  // O id do piloto é o do card REAL (`crawl.indexer_identity`) e NÃO é
+  // index-only. O `ji` o governa como qualquer indexer BR comum: incluído (ou
+  // lista vazia = tudo) entra; fora por escolha explícita do usuário, segue
+  // oculto — o acervo raspado não fura a seleção da instalação.
+  const savedIndexOnly = config.jackett.indexOnlyIndexers;
+  config.jackett.indexOnlyIndexers = [];
+  try {
+    withOpts({ providers: ['jackett'], jackettIndexers: ['vacatorrent', 'bludv-cardigann'] }, () => {
+      assert.equal(allowedSourceIndexer('vacatorrent'), true);
+      assert.equal(allowedSourceIndexer('Vacatorrent'), true);
+    });
+    withOpts({ providers: ['jackett'], jackettIndexers: [] }, () => {
+      assert.equal(allowedSourceIndexer('vacatorrent'), true, 'ji vazio passa tudo');
+    });
+    withOpts({ providers: ['jackett'], jackettIndexers: ['thepiratebay'] }, () => {
+      assert.equal(allowedSourceIndexer('vacatorrent'), false, 'fora do ji, oculto (não é index-only)');
+    });
+  } finally {
+    config.jackett.indexOnlyIndexers = savedIndexOnly;
+  }
+});
+
 test('idxReleasesToRaw preserva tracker gravado (fallback para indexer)', () => {
   const withTracker = [{
     hash: hex('1'), title: 'Filme 1080p', seeders: 3, size: 1,
