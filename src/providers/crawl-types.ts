@@ -24,9 +24,15 @@ export type CrawlPageKind = 'movie' | 'tv_show';
  * - `no-work`: tem magnet, mas a obra não foi identificada — obra errada é
  *   pior que obra nenhuma, então NUNCA se chuta; aparece no painel;
  * - `error`: falha de rede/parse; `tries`/`next_at` com backoff e, esgotado o
- *   `maxTries`, a URL dorme até o "Reprocessar erros" do painel.
+ *   `maxTries`, a URL dorme até o "Reprocessar erros" do painel;
+ * - `simulated`: página COM releases e obra identificada lida em dry-run — a
+ *   leitura aconteceu, mas NADA foi gravado no acervo. Não é `done` (mentiria
+ *   "gravado") nem volta a `pending` sozinha (perderia o registro da leitura).
+ *   Quando o dry-run desliga (true→false), o motor reenfileira as `simulated`
+ *   do site ANTES de processar (one-shot, ver `requeueSimulated`), para a
+ *   carga não se perder — era isso que o `done` de dry-run escondia.
  */
-export type CrawlUrlStatus = 'pending' | 'inflight' | 'done' | 'no-torrent' | 'no-work' | 'error';
+export type CrawlUrlStatus = 'pending' | 'inflight' | 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated';
 
 /** Resultado que o `markResult` aceita (`pending`/`inflight` são estados do
  * ciclo, nunca resultado de processamento). */

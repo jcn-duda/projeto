@@ -80,6 +80,8 @@ export interface CrawlSiteCard {
   noTorrent: number;
   noWork: number;
   error: number;
+  /** Páginas lidas em dry-run aguardando gravação real. */
+  simulated: number;
   progressPercent: number;
   /** % de páginas PROCESSADAS que resultaram em torrent (done ÷ processadas). */
   torrentPercent: number;
@@ -229,6 +231,7 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
   const noTorrent = num(byStatus['no-torrent']);
   const noWork = num(byStatus['no-work']);
   const error = num(byStatus.error);
+  const simulated = num(byStatus.simulated);
   const processed = done + noTorrent + noWork + error;
   // progressPercent do backend já é done/total; derivamos só quando ausente.
   const progressPercent = numOrNull(site.progressPercent) ?? (total > 0 ? Math.round((done / total) * 100) : 0);
@@ -247,6 +250,7 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
     noTorrent,
     noWork,
     error,
+    simulated,
     progressPercent: Math.max(0, Math.min(100, progressPercent)),
     torrentPercent,
     magnetsFound: num(site.magnetsFound),

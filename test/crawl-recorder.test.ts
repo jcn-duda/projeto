@@ -95,7 +95,10 @@ describe('crawl-page: identificação (Vaca + crawl-identify)', () => {
     };
     const process = createPageProcessor({ identify });
     const outId = await process(site, store.engine().getUrl('fake', '/id') as CrawlUrlRow);
-    assert.equal(outId.kind, 'done');
+    // config dryRun=true default do teste: página lida fica `simulated` (com a
+    // obra identificada preservada), nunca `done` — nada foi gravado.
+    assert.equal(outId.kind, 'simulated');
+    assert.equal(store.engine().getUrl('fake', '/id')?.status, 'simulated');
     assert.equal(store.engine().getUrl('fake', '/id')?.imdb, 'tt999');
     const outUn = await process(site, store.engine().getUrl('fake', '/un') as CrawlUrlRow);
     assert.equal(outUn.kind, 'error');

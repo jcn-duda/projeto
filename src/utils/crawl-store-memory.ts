@@ -120,6 +120,16 @@ export function memoryCrawlEngine(): CrawlEngine {
       }
       return n;
     },
+    requeueSimulated(site): number {
+      const s = String(site || '');
+      let n = 0;
+      for (const [k, row] of urls) {
+        if (row.site !== s || row.status !== 'simulated') continue;
+        urls.set(k, { ...row, status: 'pending', nextAt: 0 });
+        n += 1;
+      }
+      return n;
+    },
     requeueUrl(site, url): boolean {
       const k = key(site, url);
       const row = urls.get(k);

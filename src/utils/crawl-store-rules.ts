@@ -140,7 +140,7 @@ export function renderUrl(row: CrawlUrlRow): (string | number | null)[] {
  * a ser processada em vez de sumir dos contadores). */
 export function parseStatus(value: unknown): CrawlUrlStatus {
   return value === 'inflight' || value === 'done' || value === 'no-torrent'
-    || value === 'no-work' || value === 'error' ? value : 'pending';
+    || value === 'no-work' || value === 'error' || value === 'simulated' ? value : 'pending';
 }
 
 export function parseUrlRow(r: Record<string, unknown>): CrawlUrlRow {
@@ -162,5 +162,5 @@ export function parseUrlRow(r: Record<string, unknown>): CrawlUrlRow {
 
 /** Contadores zerados com TODOS os status — o painel lê a série inteira. */
 export function emptyCounters(): Record<CrawlUrlStatus, number> {
-  return { pending: 0, inflight: 0, done: 0, 'no-torrent': 0, 'no-work': 0, error: 0 };
+  return { pending: 0, inflight: 0, done: 0, 'no-torrent': 0, 'no-work': 0, error: 0, simulated: 0 };
 }

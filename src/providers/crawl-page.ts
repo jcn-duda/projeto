@@ -13,7 +13,9 @@
 //       `unavailable` → `error` (TMDB fora é retentável, NÃO é veredicto);
 //       `unidentified`/`ambiguous` → `no-work` (obra errada é pior que nenhuma);
 //   - `done` sem release nenhuma → `no-torrent` (defensivo; o adaptador do Vaca
-//     já lança nesse caso, mas nenhum contrato deve mentir "página lida").
+//     já lança nesse caso, mas nenhum contrato deve mentir "página lida");
+//   - DRY-RUN com releases + obra identificada → `simulated` (NUNCA `done`:
+//     nada foi gravado; o motor reenfileira quando o dry-run desliga).
 //
 // Os colaboradores (identificação e gravação) são injetáveis: módulos são
 // namespaces ESM congelados e o teste prova o fio sem patch de módulo.
@@ -29,7 +31,7 @@ import type { CrawlSite, CrawlUrlRow } from './crawl-types.js';
 import type { CrawlRecorder } from './crawl-recorder.js';
 
 export interface PageOutcome {
-  kind: 'done' | 'no-torrent' | 'no-work' | 'error';
+  kind: 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated';
   /** O erro prova o SITE fora/bloqueado (entra no streak de pausa). */
   siteLevelError: boolean;
   /** Releases válidas vistas na página (mesmo em `no-work`/erro de gravação). */
@@ -150,11 +152,17 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     }
 
     if (dryRun) {
+      // Dry-run com releases + obra identificada NÃO é `done`: nada foi
+      // gravado, e marcar done escondia páginas cuja gravação nunca aconteceria
+      // — a carga se perdia no switch do dry-run. `simulated` é terminal na
+      // fila até o motor reenfileirar (dryRun true→false, one-shot). As
+      // no-torrent/no-work ACIMA continuam terminais de verdade: sem releases
+      // ou sem obra não há nada a gravar, em nenhum modo.
       if (persist) {
-        store.engine().markResult(site.id, row.url, { status: 'done', imdb, releases: releases.length }, Date.now());
+        store.engine().markResult(site.id, row.url, { status: 'simulated', imdb, releases: releases.length }, Date.now());
       }
-      metrics.count('crawl.page.done');
-      return { kind: 'done', siteLevelError: false, releases: releases.length };
+      metrics.count('crawl.page.simulated');
+      return { kind: 'simulated', siteLevelError: false, releases: releases.length };
     }
 
     try {

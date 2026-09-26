@@ -107,6 +107,8 @@
     "test/catalog-audit.test.js",
     "test/catalog-panel.test.js",
     "test/crawl-store.test.js",
+    "test/crawl-simulated.test.js",
+    "test/crawl-boot-enable.test.js",
     "test/crawler.test.js",
     "test/crawler-incremental.test.js",
     "test/crawl-recorder.test.js",

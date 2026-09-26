@@ -69,7 +69,7 @@ export interface PauseLimits {
 
 /** Desfecho de UMA página, na forma que a política entende. */
 export interface PageOutcomeSignal {
-  kind: 'done' | 'no-torrent' | 'no-work' | 'error';
+  kind: 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated';
   siteLevelError?: boolean;
   releases?: number;
 }
@@ -110,10 +110,12 @@ export class CrawlPausePolicy {
       }
       return null;
     }
-    if (signal.kind === 'done' && (signal.releases ?? 0) > 0) {
+    if ((signal.kind === 'done' || signal.kind === 'simulated') && (signal.releases ?? 0) > 0) {
       this.rememberPrior(key, signal.releases as number);
     }
-    if (signal.kind === 'done' || signal.kind === 'no-work') {
+    // `simulated` provou o MESMO layout com botões que o `done` (leu releases);
+    // só não gravou — para o canário e o streak ela vale como página sã.
+    if (signal.kind === 'done' || signal.kind === 'no-work' || signal.kind === 'simulated') {
       this.errorStreak = 0;
       this.canaryStreak = 0;
       return null;

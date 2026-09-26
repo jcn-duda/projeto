@@ -108,7 +108,7 @@ test('crawl-simulate roda em dry-run e devolve o que seria gravado', async () =>
   assert.equal(res.status, 200);
   assert.equal(res.json.ok, true);
   assert.equal(res.json.pages, 2);
-  assert.equal(res.json.results[0].kind, 'done');
+  assert.equal(res.json.results[0].kind, 'simulated'); // simulação não é done
   // NÃ£o consumiu a fila: as duas URLs continuam pendentes.
   assert.equal(store.engine().counters('fake').byStatus.pending, 2);
 });

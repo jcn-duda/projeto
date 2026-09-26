@@ -126,13 +126,14 @@ describe('crawler: status por site (Fase 4)', () => {
     assert.ok(site, 'card do site existe');
     assert.equal(site?.label, 'Fake Site');
     assert.equal(site?.total, 2);
-    assert.equal(site?.byStatus.done, 1);
-    assert.equal(site?.progressPercent, 50);
+    assert.equal(site?.byStatus.simulated, 1); // motor em dryRun:true
+    assert.equal(site?.simulatedAwaiting, 1, 'painel recebe o N de simuladas aguardando gravação');
+    // Progresso conta só gravação real: em dry-run a página lida não é "feita".
+    assert.equal(site?.progressPercent, 0);
     assert.equal(site?.magnetsFound, 1);
     assert.ok(site ? site.ratePerHour >= 1 : false);
-    assert.equal(site?.etaHours, 0, 'uma página restante em 1000/h arredonda para 0');
-    assert.equal(site?.recentWorks.length, 1);
-    assert.equal(site?.recentWorks[0].imdb, 'tt1000000');
+    assert.equal(site?.etaHours, 0, 'uma página restante (simulated) em 1000/h arredonda para 0');
+    assert.equal(site?.recentWorks.length, 0, 'sem gravação não há obra "feita" no histórico');
     assert.deepEqual(site?.noWork, []);
   });
 
@@ -154,7 +155,7 @@ describe('crawler: status por site (Fase 4)', () => {
     assert.equal(result.ok, true);
     assert.equal(result.pages, 2);
     assert.equal(result.results.length, 2);
-    assert.ok(result.results.some((r) => r.kind === 'done' && r.releases === 1));
+    assert.ok(result.results.some((r) => r.kind === 'simulated' && r.releases === 1));
     const after = store.engine().counters('fake');
     assert.deepEqual(after.byStatus, before.byStatus, 'status da fila inalterado');
     assert.equal(after.total, before.total);

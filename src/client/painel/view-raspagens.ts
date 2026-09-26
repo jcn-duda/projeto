@@ -225,6 +225,11 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
         Total: ${card.total} · feitas: ${card.done} · pendentes: ${card.pending} · inflight: ${card.inflight}
         · sem torrent: ${card.noTorrent} · sem obra: ${card.noWork} · erros: ${card.error}
       </p>
+      ${card.simulated > 0 ? html`
+        <p style="color: var(--warn, #b58900); margin-top: var(--space-1); font-size: var(--font-floor);">
+          ${card.simulated} simulada(s) aguardando gravação — desligue o modo simulação para gravá-las.
+        </p>
+      ` : null}
       <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
         Última rodada:
         ${last

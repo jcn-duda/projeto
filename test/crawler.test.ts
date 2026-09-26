@@ -89,15 +89,15 @@ describe('crawler: motor', () => {
     crawler._forceDiscoveryForTest();
     await crawler.tick(); // descoberta
     await crawler.tick(); // dentro da pausa: segura
-    assert.equal(store.engine().counters('fake').byStatus.done, 0, 'ritmo segura a página após a descoberta');
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 0, 'ritmo segura a página após a descoberta');
     await sleep(170);
     await crawler.tick();
-    assert.equal(store.engine().counters('fake').byStatus.done, 1);
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 1);
     await crawler.tick();
-    assert.equal(store.engine().counters('fake').byStatus.done, 1, '2ª página respeita a pausa');
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 1, '2ª página respeita a pausa');
     await sleep(170);
     await crawler.tick();
-    assert.equal(store.engine().counters('fake').byStatus.done, 2);
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 2);
   });
 
   test('freio: tráfego recente trava; janela 0 libera', async () => {
@@ -111,7 +111,7 @@ describe('crawler: motor', () => {
     freshCrawl({ idleWindowMs: 0 });
     await crawler.tick(); // descoberta
     await crawler.tick(); // página
-    assert.equal(store.engine().counters('fake').byStatus.done, 1);
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 1);
   });
 
   test('teto horário: CRAWL_MAX_PER_HOUR corta e reporta no status', async () => {
@@ -125,7 +125,7 @@ describe('crawler: motor', () => {
     assert.equal(crawler.status().pagesThisHour, 2);
     assert.equal(crawler.status().maxPerHour, 2);
     await crawler.tick(); // teto
-    assert.equal(store.engine().counters('fake').byStatus.done, 2);
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 2);
     assert.equal(store.engine().counters('fake').byStatus.pending, 1, '3ª página fica na fila');
   });
 
@@ -138,7 +138,7 @@ describe('crawler: motor', () => {
     crawler._forceDiscoveryForTest();
     await crawler.tick(); // descoberta
     await crawler.tick(); // página
-    assert.equal(store.engine().getUrl('fake', '/a')?.status, 'done');
+    assert.equal(store.engine().getUrl('fake', '/a')?.status, 'simulated');
   });
 
   test('descoberta parcial não avança o cursor; completa avança e alimenta o since', async () => {
@@ -278,7 +278,8 @@ describe('crawler: motor', () => {
     await crawler.tick(); // descoberta
     await crawler.tick(); // página
     const row = store.engine().getUrl('fake', '/a') as CrawlUrlRow;
-    assert.equal(row.status, 'done');
+    // Dry-run NÃO marca done (nada foi gravado): status próprio `simulated`.
+    assert.equal(row.status, 'simulated');
     assert.equal(row.imdb, imdb);
     assert.equal(row.releases, 1);
     assert.equal(releaseIndex.lookupQuiet(imdb, {}).length, 0, 'índice intacto');

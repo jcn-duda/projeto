@@ -13,6 +13,9 @@ import * as store from '../utils/crawl-store.js';
 import * as activity from './activity.js';
 import { CrawlPausePolicy, maxLastmod } from './crawl-pauses.js';
 import { processCrawlPage } from './crawl-page.js';
+import { freshCycle } from './crawl-cycle.js';
+import type { CycleCounters } from './crawl-cycle.js';
+import * as recovery from './crawl-recovery.js';
 import { buildCrawlerStatus } from './crawl-status.js';
 import { createCrawlActions } from './crawl-actions.js';
 import { createCrawlScheduler } from './crawl-scheduler.js';
@@ -60,18 +63,13 @@ let lastRequestAt = 0;
 /** 1ª passagem após enabled false→true: requeue inflight mesmo com pending. */
 let needInflightRecovery = false;
 let liveWasEnabled = false;
-
-interface CycleCounters {
-  pages: number; done: number; noTorrent: number; noWork: number; errors: number; releases: number;
-  newReleases: number; discoveryAdded: number; discoveryRefreshed: number; discoveryFailures: number;
-}
-
-function freshCycle(): CycleCounters {
-  return {
-    pages: 0, done: 0, noTorrent: 0, noWork: 0, errors: 0, releases: 0,
-    newReleases: 0, discoveryAdded: 0, discoveryRefreshed: 0, discoveryFailures: 0,
-  };
-}
+/** Dry-run desligou (true→false): requeue das `simulated`, one-shot. LEGADO:
+ * `done` antigas de dry-run não são recuperadas — ver crawl-recovery.ts. */
+let needSimulatedRecovery = false;
+let liveWasDryRun: boolean | null = null;
+/** Passada de `simulated` já rodou neste processo. Boot DESABILITADO com
+ * dry-run desligado adia a passada para a 1ª step pós-enable. */
+let simulatedRecoveryDone = false;
 
 let cycle = freshCycle();
 const policy = new CrawlPausePolicy();
@@ -160,8 +158,7 @@ async function runDiscovery(site: CrawlSite, live: CrawlerEffectiveConfig): Prom
     log.warn('[crawl] descoberta falhou:', message);
     const reason = policy.observeSiteFailure(message, limits(live));
     if (reason) triggerAutoPause(reason, message);
-    // Falha total: fecha a rodada e re-tenta em breve (base do backoff do store),
-    // em vez de esperar o ciclo incremental inteiro.
+    // Falha total: re-tenta em breve (base do backoff), não no ciclo incremental.
     closeRun(DEFAULT_RETRY_BASE_MS);
   }
 }
@@ -176,7 +173,7 @@ async function processClaimed(site: CrawlSite, row: CrawlUrlRow, live: CrawlerEf
     cycle.done += 1;
     cycle.releases += outcome.releases;
     cycle.newReleases += outcome.addedNew ?? 0;
-  } else if (outcome.kind === 'no-torrent') cycle.noTorrent += 1;
+  } else if (outcome.kind === 'simulated') { cycle.simulated += 1; cycle.releases += outcome.releases; } else if (outcome.kind === 'no-torrent') cycle.noTorrent += 1;
   else if (outcome.kind === 'no-work') cycle.noWork += 1;
   else cycle.errors += 1;
   const reason = policy.observePage(row.url, {
@@ -187,11 +184,13 @@ async function processClaimed(site: CrawlSite, row: CrawlUrlRow, live: CrawlerEf
 
 /** Um passo: descoberta quando devida, senão uma página. */
 async function step(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void> {
-  // Religar: órfã volta ANTES do takeNext (mesmo com pending — idle path não cobre).
-  if (needInflightRecovery) {
-    needInflightRecovery = false;
-    const n = store.engine().requeueInflight(site.id, 0, Date.now());
-    if (n > 0) log.info(`[crawl] ${n} URL(s) inflight retomada(s) ao religar`);
+  // Recuperações ANTES do takeNext (one-shot; simulated reabre rodada com
+  // nextDiscoverAt = 0, senão o pending novo esperaria o ciclo incremental):
+  if (needInflightRecovery) { needInflightRecovery = false; recovery.requeueInflight(site.id); }
+  if (needSimulatedRecovery) {
+    needSimulatedRecovery = false;
+    simulatedRecoveryDone = true;
+    if (recovery.requeueSimulated(site.id)) { nextDiscoverAt = 0; discoveryPartial = false; }
   }
   if (openRunId == null) {
     const counters = store.engine().counters(site.id);
@@ -256,12 +255,18 @@ function start(): void {
   started = true;
   crawlerLive.onConfigChange(() => {
     const next = crawlerLive.effective();
-    if (next.enabled && !liveWasEnabled) needInflightRecovery = true;
-    liveWasEnabled = next.enabled;
+    if (next.enabled && !liveWasEnabled) {
+      needInflightRecovery = true;
+      // Boot desabilitado adiou a passada de `simulated`: roda na 1ª step.
+      if (!simulatedRecoveryDone && next.dryRun === false) needSimulatedRecovery = true;
+    }
+    if (liveWasDryRun === true && next.dryRun === false) needSimulatedRecovery = true;
+    liveWasEnabled = next.enabled; liveWasDryRun = next.dryRun;
     scheduler.sync(next);
   });
   const live = crawlerLive.effective();
   liveWasEnabled = live.enabled;
+  liveWasDryRun = live.dryRun;
   if (!live.enabled) {
     log.info('[crawl] desativado (enabled=false)');
     return;
@@ -272,9 +277,12 @@ function start(): void {
     return;
   }
   // Start: processo novo ⇒ todo inflight é órfão. Painel usa needInflightRecovery.
-  const recovered = store.engine().requeueInflight(siteId, 0, Date.now());
-  if (recovered) log.info(`[crawl] ${recovered} URL(s) inflight retomada(s) do processo anterior`);
+  recovery.requeueInflight(siteId);
   needInflightRecovery = false;
+  // Restart já COM dry-run desligado: recupera `simulated` sobrevivente a crash
+  // antes do switch (mesmo one-shot do caminho ao vivo). Boot DESABILITADO não
+  // roda aqui — a passada fica para a primeira `step` após o false→true.
+  if (live.dryRun === false) { recovery.requeueSimulated(siteId); simulatedRecoveryDone = true; }
   // Fase 6: cursor durável — restart retoma o incremental do estado
   // persistido, sem reprocessar o acervo como carga inicial.
   const savedCursor = store.engine().getState(siteId, CURSOR_KEY);
@@ -381,6 +389,9 @@ export function _resetForTest(): void {
   testSiteFactory = null;
   needInflightRecovery = false;
   liveWasEnabled = false;
+  liveWasDryRun = null;
+  needSimulatedRecovery = false;
+  simulatedRecoveryDone = false;
   crawlerLive.onConfigChange(null);
 }
 

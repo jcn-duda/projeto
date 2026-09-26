@@ -41,6 +41,7 @@ import {
   URL_COLUMNS, applyResult, decideUpsert, emptyCounters, parseStatus, parseUrlRow, renderUrl,
 } from './crawl-store-rules.js';
 import { memoryCrawlEngine } from './crawl-store-memory.js';
+import { ensureCrawlSchema } from './crawl-store-migrate.js';
 
 export type {
   CrawlErrorGroup, CrawlPageKind, CrawlResultStatus, CrawlRunPhase, CrawlRunRow, CrawlUrlRow,
@@ -64,6 +65,9 @@ export interface CrawlEngine {
   requeueInflight(site: string, olderThanMs: number, now: number): number;
   /** "Reprocessar erros": zera tries/next_at e reenfileira (ação do painel). */
   requeueErrors(site: string): number;
+  /** Dry-run desligou (true→false): `simulated` do site voltam a `pending`
+   * (one-shot/idempotente — só toca linhas `simulated`). */
+  requeueSimulated(site: string): number;
   /** Devolve UMA URL à fila (`pending`), preservando o resto — a simulação
    * usa isto para não consumir a página do ciclo de verdade. */
   requeueUrl(site: string, url: string): boolean;
@@ -104,43 +108,10 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const { DatabaseSync } = _require('node:sqlite');
     const db = new DatabaseSync(dbPath);
-    db.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA busy_timeout = 5000;
-      CREATE TABLE IF NOT EXISTS crawl_url (
-        site TEXT NOT NULL,
-        url TEXT NOT NULL,
-        lastmod TEXT NOT NULL DEFAULT '',
-        kind TEXT NOT NULL DEFAULT 'movie',
-        status TEXT NOT NULL DEFAULT 'pending',
-        imdb TEXT,
-        tries INTEGER NOT NULL DEFAULT 0,
-        next_at INTEGER NOT NULL DEFAULT 0,
-        checked_at INTEGER NOT NULL DEFAULT 0,
-        releases INTEGER NOT NULL DEFAULT 0,
-        error TEXT NOT NULL DEFAULT '',
-        added_at INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (site, url)
-      );
-      CREATE INDEX IF NOT EXISTS crawl_url_due ON crawl_url (site, status, next_at);
-      CREATE TABLE IF NOT EXISTS crawl_run (
-        id INTEGER PRIMARY KEY,
-        site TEXT NOT NULL,
-        phase TEXT NOT NULL DEFAULT 'initial',
-        cursor TEXT NOT NULL DEFAULT '',
-        started_at INTEGER NOT NULL DEFAULT 0,
-        finished_at INTEGER,
-        counters TEXT NOT NULL DEFAULT '{}'
-      );
-      CREATE INDEX IF NOT EXISTS crawl_run_site ON crawl_run (site, started_at);
-      CREATE TABLE IF NOT EXISTS crawl_state (
-        site TEXT NOT NULL,
-        key TEXT NOT NULL,
-        value TEXT NOT NULL DEFAULT '',
-        updated_at INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (site, key)
-      );
-    `);
+    db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+    // Criação das tabelas + migração defensiva de `crawl_url` com CHECK legada
+    // (que rejeitaria o status `simulated`): ver `crawl-store-migrate.ts`.
+    ensureCrawlSchema(db as unknown as import('./crawl-store-migrate.js').CrawlSchemaDb);
     const putUrlStmt = db.prepare(
       `INSERT OR REPLACE INTO crawl_url (${URL_COLUMNS.join(', ')}) VALUES (${URL_COLUMNS.map(() => '?').join(', ')})`,
     );
@@ -163,6 +134,13 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     );
     const requeueErrorsStmt = db.prepare(
       "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '' WHERE site = ? AND status = 'error'",
+    );
+    // Dry-run desligou (true→false): as `simulated` daquele site voltam a
+    // `pending` para serem processadas COM gravação. One-shot por natureza: só
+    // toca linhas `simulated`, então repetir é no-op. O conteúdo visto na
+    // simulação (imdb/releases) fica como pista — a marcação final sobrescreve.
+    const requeueSimulatedStmt = db.prepare(
+      "UPDATE crawl_url SET status = 'pending', next_at = 0 WHERE site = ? AND status = 'simulated'",
     );
     const countersStmt = db.prepare('SELECT status, COUNT(*) AS n FROM crawl_url WHERE site = ? GROUP BY status');
     const totalStmt = db.prepare('SELECT COUNT(*) AS n FROM crawl_url WHERE site = ?');
@@ -266,6 +244,10 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
       },
       requeueErrors(site) {
         const r = requeueErrorsStmt.run(String(site || '')) as { changes?: number | bigint };
+        return Number(r?.changes) || 0;
+      },
+      requeueSimulated(site) {
+        const r = requeueSimulatedStmt.run(String(site || '')) as { changes?: number | bigint };
         return Number(r?.changes) || 0;
       },
       requeueUrl(site, url) {

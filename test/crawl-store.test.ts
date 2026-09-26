@@ -209,7 +209,7 @@ test('engine de memória: mesmos verbos, mesmos resultados (paridade)', () => {
   store.engine().markResult('vacatorrent', '/b', { status: 'error', error: '403' }, 2500, { retryBaseMs: 60000, maxTries: 1 });
   assert.deepEqual(store.engine().counters('vacatorrent'), {
     total: 2,
-    byStatus: { pending: 0, inflight: 0, done: 1, 'no-torrent': 0, 'no-work': 0, error: 1 },
+    byStatus: { pending: 0, inflight: 0, done: 1, 'no-torrent': 0, 'no-work': 0, error: 1, simulated: 0 },
   });
   const b = store.engine().getUrl('vacatorrent', '/b') as CrawlUrlRow;
   assert.ok(b.nextAt >= 2500 + CRAWL_GIVE_UP_MS, 'maxTries esgota também na memória');

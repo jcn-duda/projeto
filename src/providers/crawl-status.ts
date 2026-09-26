@@ -43,6 +43,8 @@ export interface SiteStatus {
   latestRun: CrawlRunRow | null;
   recentWorks: Array<{ url: string; imdb: string | null; releases: number; checkedAt: number }>;
   noWork: Array<{ url: string; checkedAt: number }>;
+  /** Páginas lidas em dry-run aguardando gravação real (contagem do store). */
+  simulatedAwaiting: number;
   errors: Array<{ url: string; error: string; tries: number; checkedAt: number }>;
   errorGroups: Array<{ reason: string; count: number }>;
 }
@@ -69,7 +71,10 @@ export function buildSiteStatus(
   const counters = engine.counters(siteId);
   const latest = engine.latestRun(siteId);
   const rate = rateFor(live);
-  const remaining = counters.byStatus.pending + counters.byStatus.error + counters.byStatus.inflight;
+  // `simulated` é trabalho restante: a página foi lida em dry-run e ainda
+  // precisa de uma passada com gravação.
+  const remaining = counters.byStatus.pending + counters.byStatus.error
+    + counters.byStatus.inflight + counters.byStatus.simulated;
   return {
     id: siteId,
     label: state.activeSiteId === siteId && state.activeLabel ? state.activeLabel : siteId,
@@ -89,6 +94,8 @@ export function buildSiteStatus(
       url: r.url, imdb: r.imdb, releases: r.releases, checkedAt: r.checkedAt,
     })),
     noWork: engine.listByStatus(siteId, 'no-work', STATUS_LIST_LIMIT).map((r) => ({ url: r.url, checkedAt: r.checkedAt })),
+    /** Páginas lidas em dry-run aguardando gravação (dry-run desligar reenfileira). */
+    simulatedAwaiting: counters.byStatus.simulated,
     errors: engine.listByStatus(siteId, 'error', STATUS_LIST_LIMIT).map((r) => ({
       url: r.url, error: r.error, tries: r.tries, checkedAt: r.checkedAt,
     })),

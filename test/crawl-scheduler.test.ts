@@ -218,7 +218,7 @@ describe('crawler: enabled ao vivo (start desligado → ligar pelo painel)', () 
     // aqui o motor é dirigido direto para não depender de flush de microtask.
     await crawler.tick(); // descoberta (sem URLs novas)
     await crawler.tick(); // processa a página pendente
-    assert.equal(store.engine().counters('fake').byStatus.done, 1, 'o motor processa após habilitar ao vivo');
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 1, 'o motor processa após habilitar ao vivo (dry-run)');
   });
 
   test('desligar ao vivo desarma o timer e para o processamento', () => {
@@ -248,6 +248,6 @@ describe('crawler: enabled ao vivo (start desligado → ligar pelo painel)', () 
     await crawler.tick();
     const c = store.engine().counters('fake');
     assert.equal(c.byStatus.inflight, 0, 'nenhuma URL ficou inflight');
-    assert.equal(c.byStatus.done, 2, 'órfã e pending foram processadas');
+    assert.equal(c.byStatus.simulated, 2, 'órfã e pending foram processadas (dry-run)');
   });
 });

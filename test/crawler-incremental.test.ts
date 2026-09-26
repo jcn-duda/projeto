@@ -139,7 +139,7 @@ describe('crawler: ciclo incremental (Fase 6)', () => {
     await crawler.tick(); // descoberta inicial
     await drainAll();
     const aBefore = store.engine().getUrl('fake', '/a') as CrawlUrlRow;
-    assert.equal(aBefore.status, 'done');
+    assert.equal(aBefore.status, 'simulated'); // motor em dryRun:true
 
     phase2 = true;
     crawler._forceDiscoveryForTest();
