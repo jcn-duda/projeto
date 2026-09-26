@@ -21,6 +21,9 @@ export interface CrawlSummary {
   sitesConfigured: string[];
   engine: string | null;
   cursor: string | null;
+  /** Próxima descoberta agendada (epoch ms); 0 = devida; `null` = campo
+   * ausente no payload (backend antigo). Fase 6. */
+  nextDiscoveryAt: number | null;
   pagesThisHour: number;
   maxPerHour: number;
   delayMs: number;
@@ -145,6 +148,7 @@ export function crawlSummary(crawl: Record<string, any> | null | undefined): Cra
     sitesConfigured: asArray(c.sitesConfigured).map((s) => String(s || '')).filter(Boolean),
     engine: strOrNull(c.engine),
     cursor: strOrNull(c.cursor),
+    nextDiscoveryAt: numOrNull(c.nextDiscoveryAt),
     pagesThisHour: num(c.pagesThisHour),
     maxPerHour: num(c.maxPerHour),
     delayMs: num(c.delayMs),
@@ -169,6 +173,18 @@ export function phaseLabel(phase: 'initial' | 'incremental' | null): string {
   if (phase === 'initial') return 'Carga inicial';
   if (phase === 'incremental') return 'Incremental';
   return '—';
+}
+
+/** Próxima descoberta agendada → rótulo relativo. Campo ausente é `—`; hora
+ * no passado (ou 0) é "devida" — nunca uma hora inventada. */
+export function nextDiscoveryLabel(nextDiscoveryAt: number | null, now = Date.now()): string {
+  if (nextDiscoveryAt == null) return '—';
+  const minutes = Math.ceil((nextDiscoveryAt - now) / 60_000);
+  if (minutes <= 0) return 'devida';
+  if (minutes < 60) return `em ${minutes}min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `em ${h}h ${m}min` : `em ${h}h`;
 }
 
 /** Rótulo do estado do SITE dentro do motor (o ativo é quem avança agora). */

@@ -14,6 +14,8 @@ export interface CrawlMotorState {
   paused: boolean;
   autoPause: { reason: string; at: number; detail: string } | null;
   cursor: string;
+  /** Próxima descoberta agendada (epoch ms); 0 = devida. Fase 6. */
+  nextDiscoveryAt: number;
   pagesThisHour: number;
   openRunId: number | null;
   errorStreak: number;
@@ -118,6 +120,7 @@ export function buildCrawlerStatus(
     sitesConfigured: configuredSites,
     engine: engine ? engine.kind : null,
     cursor: state.cursor || null,
+    nextDiscoveryAt: state.nextDiscoveryAt,
     pagesThisHour: state.pagesThisHour,
     maxPerHour: live.maxPerHour,
     delayMs: live.delayMs,

@@ -10,6 +10,7 @@ import {
   crawlSummary,
   crawlSiteCards,
   motorBadge,
+  nextDiscoveryLabel,
   phaseLabel,
   siteStateLabel,
   workLabel,
@@ -72,6 +73,7 @@ function sampleCrawl() {
     sitesConfigured: ['vacatorrent', 'nerdfilmes'],
     engine: 'sql',
     cursor: '2026-09-01',
+    nextDiscoveryAt: Date.now() + 30 * 60_000,
     pagesThisHour: 12,
     maxPerHour: 500,
     delayMs: 700,
@@ -129,6 +131,7 @@ test('crawlSummary é tolerante: payload ausente não inventa estado', () => {
   assert.equal(empty.site, null);
   assert.deepEqual(empty.sitesConfigured, []);
   assert.equal(empty.engine, null);
+  assert.equal(empty.nextDiscoveryAt, null, 'campo ausente é null, não 0 afirmativo');
   assert.equal(empty.pagesThisHour, 0);
   assert.equal(empty.runOpen, false);
 
@@ -137,6 +140,7 @@ test('crawlSummary é tolerante: payload ausente não inventa estado', () => {
   assert.equal(s.site, 'vacatorrent');
   assert.deepEqual(s.sitesConfigured, ['vacatorrent', 'nerdfilmes']);
   assert.equal(s.pagesThisHour, 12);
+  assert.ok(s.nextDiscoveryAt != null && Math.abs(s.nextDiscoveryAt - Date.now() - 30 * 60_000) < 5000);
 
   // autoPause malformado não vira objeto afirmativo.
   assert.equal(crawlSummary({ autoPause: 'x' }).autoPause, null);
@@ -218,6 +222,18 @@ test('phaseLabel, siteStateLabel, workLabel, runDurationMs e etaLabel', () => {
   assert.equal(etaLabel(3), '3h');
 });
 
+test('nextDiscoveryLabel mapeia a próxima descoberta sem inventar hora (Fase 6)', () => {
+  const agora = Date.now();
+  assert.equal(nextDiscoveryLabel(null), '—', 'campo ausente é —');
+  assert.equal(nextDiscoveryLabel(undefined as any), '—');
+  assert.equal(nextDiscoveryLabel(0, agora), 'devida', '0 é "devida", não —');
+  assert.equal(nextDiscoveryLabel(agora - 1000, agora), 'devida', 'passado é devida');
+  assert.equal(nextDiscoveryLabel(agora + 30_000, agora), 'em 1min');
+  assert.equal(nextDiscoveryLabel(agora + 45 * 60_000, agora), 'em 45min');
+  assert.equal(nextDiscoveryLabel(agora + 2 * 3600_000, agora), 'em 2h');
+  assert.equal(nextDiscoveryLabel(agora + 2 * 3600_000 + 30 * 60_000, agora), 'em 2h 30min');
+});
+
 test('SiteCard renderiza estado, progresso, listas e botões por site', () => {
   const summary = crawlSummary(sampleCrawl());
   const [card] = crawlSiteCards(sampleCrawl());
@@ -279,6 +295,13 @@ test('wiring: ações, confirmação destrutiva e LiveConfigCard no cliente da r
 
   assert.match(view, /role="status"/, 'o feedback precisa ser anunciado (role=status)');
   assert.match(view, /aria-live="polite"/, 'o anúncio do feedback é não-urgente (aria-live=polite)');
+});
+
+test('view renderiza a próxima descoberta quando ela existe (Fase 6)', () => {
+  const read = (rel: string) => readFileSync(new URL('../../src/client/painel/' + rel, import.meta.url), 'utf8');
+  const view = read('view-raspagens.ts');
+  assert.match(view, /nextDiscoveryLabel/, 'o rótulo vem do modelo, não é montado na view');
+  assert.match(view, /summary\.nextDiscoveryAt != null/, 'ausente no payload não renderiza hora');
 });
 
 test('TAB_IDS inclui raspagens e o hash abre a aba', () => {

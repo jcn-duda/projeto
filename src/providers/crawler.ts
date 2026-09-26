@@ -4,8 +4,10 @@
 // freio de tráfego; cursor incremental só com `complete`; retomada de
 // `inflight` no start E na 1ª passagem após religar ao vivo (enabled
 // false→true, mesmo com pending na fila); pausa auto (streak/canário) +
-// manual. Fase 4: knobs ao vivo (`crawler-live`). Cursor em memória —
-// restart relê o sitemap (upsert idempotente), sem verbo novo no store.
+// manual. Fase 4: knobs ao vivo (`crawler-live`). Fase 6: cursor incremental
+// PERSISTIDO no `crawl.db` (`crawl_state`) — restart retoma incremental sem
+// recarregar o acervo; descoberta PARCIAL não agenda como completa (volta no
+// retry curto, não no intervalo inteiro).
 import * as crawlerLive from '../utils/crawler-live.js';
 import * as store from '../utils/crawl-store.js';
 import * as activity from './activity.js';
@@ -14,6 +16,7 @@ import { processCrawlPage } from './crawl-page.js';
 import { buildCrawlerStatus } from './crawl-status.js';
 import { createCrawlActions } from './crawl-actions.js';
 import { createCrawlScheduler } from './crawl-scheduler.js';
+import { createHourCounter } from './crawl-rate.js';
 import { DEFAULT_RETRY_BASE_MS } from '../utils/crawl-store-rules.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -47,8 +50,12 @@ let activeSite: CrawlSite | null = null;
 let activeSiteId = '';
 let adapterWarned = false;
 let cursor = '';
+/** Chave do cursor incremental no estado durável do site (`crawl_state`). */
+const CURSOR_KEY = 'cursor';
 let openRunId: number | null = null;
 let nextDiscoverAt = 0;
+/** A descoberta da rodada aberta veio parcial (Fase 6: fecha em retry curto). */
+let discoveryPartial = false;
 let lastRequestAt = 0;
 /** 1ª passagem após enabled false→true: requeue inflight mesmo com pending. */
 let needInflightRecovery = false;
@@ -68,24 +75,10 @@ function freshCycle(): CycleCounters {
 
 let cycle = freshCycle();
 const policy = new CrawlPausePolicy();
-const hourPages = new Map<number, number>();
+const hourPages = createHourCounter();
 
 function limits(live: CrawlerEffectiveConfig): PauseLimits {
   return { errorPauseStreak: live.errorPauseStreak, layoutCanary: live.layoutCanary };
-}
-
-/** Páginas processadas na hora civil atual (teto horário). */
-function pagesThisHour(): number {
-  const hour = Math.floor(Date.now() / 3_600_000);
-  for (const bucket of [...hourPages.keys()]) {
-    if (bucket < hour) hourPages.delete(bucket);
-  }
-  return hourPages.get(hour) || 0;
-}
-
-function notePage(): void {
-  const hour = Math.floor(Date.now() / 3_600_000);
-  hourPages.set(hour, (hourPages.get(hour) || 0) + 1);
 }
 
 function triggerAutoPause(reason: AutoPauseReason, detail: string): void {
@@ -132,6 +125,7 @@ async function runDiscovery(site: CrawlSite, live: CrawlerEffectiveConfig): Prom
   const phase = cursor ? 'incremental' : 'initial';
   openRunId = store.engine().startRun(site.id, phase, cursor, now);
   cycle = freshCycle();
+  discoveryPartial = false;
   try {
     const discovery = await site.discover(phase === 'incremental' ? cursor : null);
     const report = store.engine().upsertUrls(site.id, discovery.urls, now);
@@ -141,12 +135,21 @@ async function runDiscovery(site: CrawlSite, live: CrawlerEffectiveConfig): Prom
       // Cursor só anda com descoberta COMPLETA: parcial pode ter perdido o
       // lastmod novo, e avançar por cima disso o deixaria invisível para sempre.
       const max = maxLastmod(discovery.urls);
-      if (max) cursor = max;
+      if (max) {
+        cursor = max;
+        // Fase 6: cursor durável — restart retoma incremental sem refazer a
+        // carga inicial inteira.
+        store.engine().setState(site.id, CURSOR_KEY, max);
+      }
       policy.observeSiteSuccess();
       metrics.count('crawl.discovery.ok');
       if (report.added) metrics.count('crawl.discovery.added', report.added);
     } else {
       cycle.discoveryFailures = discovery.failures.length;
+      // Parcial NÃO agenda como completa: quando a fila desta rodada drenar,
+      // a releitura volta no prazo curto de retry (ver `step`), não no ciclo
+      // incremental inteiro — o pedaço perdido do sitemap não espera 1h.
+      discoveryPartial = true;
       metrics.count('crawl.discovery.partial');
       log.warn('[crawl] descoberta parcial:', discovery.failures.join(' | ').slice(0, 400));
     }
@@ -166,7 +169,7 @@ async function runDiscovery(site: CrawlSite, live: CrawlerEffectiveConfig): Prom
 /** Processa UMA página reclamada e alimenta a política de pausa. */
 async function processClaimed(site: CrawlSite, row: CrawlUrlRow, live: CrawlerEffectiveConfig): Promise<void> {
   lastRequestAt = Date.now();
-  notePage();
+  hourPages.note();
   const outcome = await processCrawlPage(site, row, { dryRun: live.dryRun, maxTries: live.maxTries });
   cycle.pages += 1;
   if (outcome.kind === 'done') {
@@ -210,7 +213,9 @@ async function step(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void
 
   const row = store.engine().takeNext(site.id, Date.now());
   if (!row) {
-    closeRun(live.incrementalIntervalMin * 60_000);
+    // Fila esgotada: fecha a rodada (initial OU incremental); parcial agenda
+    // retry curto, nunca como se a descoberta tivesse coberto tudo.
+    closeRun(discoveryPartial ? DEFAULT_RETRY_BASE_MS : live.incrementalIntervalMin * 60_000);
     return;
   }
   await processClaimed(site, row, live);
@@ -234,7 +239,7 @@ async function tick(): Promise<void> {
   if (!siteId) return;
   const site = await ensureActiveSite(siteId);
   if (!site) return;
-  if (pagesThisHour() >= live.maxPerHour) return;
+  if (hourPages.current() >= live.maxPerHour) return;
   if (activity.recentUserTraffic(live.idleWindowMs)) return;
   if (Date.now() - lastRequestAt < live.delayMs) return;
   busy = true;
@@ -270,6 +275,13 @@ function start(): void {
   const recovered = store.engine().requeueInflight(siteId, 0, Date.now());
   if (recovered) log.info(`[crawl] ${recovered} URL(s) inflight retomada(s) do processo anterior`);
   needInflightRecovery = false;
+  // Fase 6: cursor durável — restart retoma o incremental do estado
+  // persistido, sem reprocessar o acervo como carga inicial.
+  const savedCursor = store.engine().getState(siteId, CURSOR_KEY);
+  if (savedCursor) {
+    cursor = savedCursor;
+    log.info(`[crawl] cursor incremental restaurado do crawl.db (${savedCursor})`);
+  }
   scheduler.rearm(live);
   log.info(`[crawl] motor armado (site=${siteId}, delay=${live.delayMs}ms, dryRun=${live.dryRun})`);
 }
@@ -295,6 +307,7 @@ function forgetActiveRun(): void {
   cycle = freshCycle();
   cursor = '';
   nextDiscoverAt = 0;
+  discoveryPartial = false;
 }
 
 // As ações (simular/reprocessar/zerar) moram em `crawl-actions.ts`; o motor
@@ -321,7 +334,8 @@ function status() {
     paused,
     autoPause,
     cursor,
-    pagesThisHour: pagesThisHour(),
+    nextDiscoveryAt: nextDiscoverAt,
+    pagesThisHour: hourPages.current(),
     openRunId,
     errorStreak: policy.errorStreakCount,
     canaryStreak: policy.canaryStreakCount,
@@ -359,6 +373,7 @@ export function _resetForTest(): void {
   cursor = '';
   openRunId = null;
   nextDiscoverAt = 0;
+  discoveryPartial = false;
   lastRequestAt = 0;
   cycle = freshCycle();
   hourPages.clear();

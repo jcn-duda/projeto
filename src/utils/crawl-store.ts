@@ -82,6 +82,11 @@ export interface CrawlEngine {
   startRun(site: string, phase: CrawlRunPhase, cursor: string, now: number): number;
   finishRun(runId: number, now: number, counters?: Record<string, number>): void;
   latestRun(site: string): CrawlRunRow | null;
+  /** Estado pequeno e durável por site (Fase 6: o cursor incremental).
+   * `null` quando a chave nunca foi gravada. */
+  getState(site: string, key: string): string | null;
+  /** Grava estado do site (upsert); valor vazio é estado válido (''). */
+  setState(site: string, key: string, value: string): void;
   /** Teto de linhas da engine de MEMÓRIA; `null` no SQLite (permanente). */
   memoryMax(): number | null;
   /** Evictions da engine de memória desde o boot; `0` no SQLite. */
@@ -128,6 +133,13 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         counters TEXT NOT NULL DEFAULT '{}'
       );
       CREATE INDEX IF NOT EXISTS crawl_run_site ON crawl_run (site, started_at);
+      CREATE TABLE IF NOT EXISTS crawl_state (
+        site TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL DEFAULT '',
+        updated_at INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (site, key)
+      );
     `);
     const putUrlStmt = db.prepare(
       `INSERT OR REPLACE INTO crawl_url (${URL_COLUMNS.join(', ')}) VALUES (${URL_COLUMNS.map(() => '?').join(', ')})`,
@@ -172,8 +184,14 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     const finishRunStmt = db.prepare('UPDATE crawl_run SET finished_at = ?, counters = ? WHERE id = ?');
     const latestRunStmt = db.prepare('SELECT * FROM crawl_run WHERE site = ? ORDER BY started_at DESC, id DESC LIMIT 1');
     const nextRunIdStmt = db.prepare('SELECT COALESCE(MAX(id), 0) + 1 AS id FROM crawl_run');
+    const getStateStmt = db.prepare('SELECT value FROM crawl_state WHERE site = ? AND key = ?');
+    const setStateStmt = db.prepare(
+      'INSERT OR REPLACE INTO crawl_state (site, key, value, updated_at) VALUES (?, ?, ?, ?)',
+    );
     const clearUrlsStmt = db.prepare('DELETE FROM crawl_url');
     const clearRunsStmt = db.prepare('DELETE FROM crawl_run');
+    const clearStateStmt = db.prepare('DELETE FROM crawl_state');
+    const clearSiteStateStmt = db.prepare('DELETE FROM crawl_state WHERE site = ?');
 
     const selectUrl = (site: string, url: string): CrawlUrlRow | null => {
       const r = getUrlStmt.get(String(site || ''), String(url || '')) as Record<string, unknown> | null;
@@ -204,16 +222,24 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         const report: UpsertReport = { added: 0, refreshed: 0, unchanged: 0 };
         // Uma transação por leva de descoberta (um sitemap/página de listagem):
         // ou a leva inteira entra, ou nada — a fila nunca fica pela metade.
-        db.exec('BEGIN');
+        // `transactionStarted` guarda o que de fato abriu: se o BEGIN falhar,
+        // NÃO há o que desfazer; se o COMMIT falhar e o ROLLBACK também
+        // falhar, o erro ORIGINAL é o que sobe — o da limpeza não o mascara.
+        let transactionStarted = false;
         try {
+          db.exec('BEGIN');
+          transactionStarted = true;
           for (const entry of entries) {
             const { row, outcome } = decideUpsert(s, selectUrl(s, String(entry.url || '')), entry, now);
             putUrlStmt.run(...renderUrl(row));
             report[outcome] += 1;
           }
           db.exec('COMMIT');
+          transactionStarted = false;
         } catch (err) {
-          try { db.exec('ROLLBACK'); } catch { /* já em transação quebrada */ }
+          if (transactionStarted) {
+            try { db.exec('ROLLBACK'); } catch { /* já em transação quebrada: preserva o erro original */ }
+          }
           throw err;
         }
         return report;
@@ -273,6 +299,10 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         const s = String(site || '');
         const urls = Number((clearSiteUrlsStmt.run(s) as { changes?: number | bigint })?.changes) || 0;
         const runs = Number((clearSiteRunsStmt.run(s) as { changes?: number | bigint })?.changes) || 0;
+        // Estado derivado do site (cursor incremental) também é "o estado
+        // daquele site": sem isto, o Zerar site deixaria o cursor apontando
+        // para um sitemap que não existe mais na fila.
+        clearSiteStateStmt.run(s);
         return { urls, runs };
       },
       startRun(site, phase, cursor, now) {
@@ -291,8 +321,17 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         const r = latestRunStmt.get(String(site || '')) as Record<string, unknown> | null;
         return r ? parseRun(r) : null;
       },
+      getState(site, key) {
+        const r = getStateStmt.get(String(site || ''), String(key || '')) as Record<string, unknown> | null;
+        return r ? String(r.value ?? '') : null;
+      },
+      setState(site, key, value) {
+        setStateStmt.run(String(site || ''), String(key || ''), String(value ?? ''), Date.now());
+      },
       clearRows() {
-        try { clearUrlsStmt.run(); clearRunsStmt.run(); } catch { /* ignore */ }
+        // MESMA regra da memória: estado por site (cursor) também sai — cada
+        // teste começa limpo de verdade, sem cursor sobrevivente.
+        try { clearUrlsStmt.run(); clearRunsStmt.run(); clearStateStmt.run(); } catch { /* ignore */ }
       },
       closeEngine() {
         try {

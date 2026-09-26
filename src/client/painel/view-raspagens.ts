@@ -7,6 +7,7 @@ import {
   crawlSummary,
   crawlSiteCards,
   motorBadge,
+  nextDiscoveryLabel,
   phaseLabel,
   siteStateLabel,
   workLabel,
@@ -104,6 +105,7 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
             Engine: ${summary.engine || '—'} · Site ativo: ${summary.site || '—'}${summary.siteReady ? '' : ' (adaptador ainda não resolvido)'}
             ${summary.cursor ? html` · Cursor: <code>${summary.cursor}</code>` : null}
+            ${summary.nextDiscoveryAt != null && !summary.runOpen ? html` · Próxima descoberta: ${nextDiscoveryLabel(summary.nextDiscoveryAt)}` : null}
             ${summary.runOpen ? html` · Rodada aberta` : null}
           </p>
         </${Card}>

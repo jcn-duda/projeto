@@ -36,10 +36,13 @@ export function memoryCrawlEngine(): CrawlEngine {
   // Chave `site\0url`; a ordem de inserção do Map é a fila de eviction.
   const urls = new Map<string, CrawlUrlRow>();
   const runs = new Map<number, CrawlRunRow>();
+  /** Estado pequeno por site (cursor incremental) — MESMOS verbos da SQL. */
+  const state = new Map<string, string>();
   let evictions = 0;
   let nextRunId = 1;
 
   const key = (site: string, url: string) => `${String(site || '')}\u0000${String(url || '')}`;
+  const stateKey = (site: string, k: string) => `${String(site || '')}\u0000${String(k || '')}`;
 
   const evictOldest = (): void => {
     while (urls.size > MEMORY_MAX_URLS) {
@@ -183,6 +186,10 @@ export function memoryCrawlEngine(): CrawlEngine {
         runs.delete(id);
         removedRuns += 1;
       }
+      // MESMA regra da SQL: cursor do site sai junto (é estado daquele site).
+      for (const k of [...state.keys()]) {
+        if (k.split('\u0000')[0] === s) state.delete(k);
+      }
       return { urls: removedUrls, runs: removedRuns };
     },
     startRun(site, phase, cursor, now): number {
@@ -217,7 +224,14 @@ export function memoryCrawlEngine(): CrawlEngine {
       }
       return best;
     },
-    clearRows() { urls.clear(); runs.clear(); },
-    closeEngine() { urls.clear(); runs.clear(); },
+    getState(site, k) {
+      const v = state.get(stateKey(site, k));
+      return v === undefined ? null : v;
+    },
+    setState(site, k, value) {
+      state.set(stateKey(site, k), String(value ?? ''));
+    },
+    clearRows() { urls.clear(); runs.clear(); state.clear(); },
+    closeEngine() { urls.clear(); runs.clear(); state.clear(); },
   };
 }

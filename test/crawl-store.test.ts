@@ -166,6 +166,36 @@ test('SQLite persiste entre aberturas: retomada lê a fila gravada', () => {
   store.open(path.join(freshDir(), 'crawl.db'));
 });
 
+test('upsert é atômico: erro ORIGINAL sobe e a leva NÃO fica pela metade', () => {
+  // Entrada-bomba: o acesso a `url` explode no meio do lote (depois do BEGIN),
+  // provando que o rollback roda e que o erro da linha — não um erro de
+  // transação mascarado — é o que chega ao chamador.
+  const bomb: any = {};
+  Object.defineProperty(bomb, 'url', { get() { throw new Error('boom'); } });
+  assert.throws(
+    () => store.engine().upsertUrls('vacatorrent', [movie('/ok'), bomb], 1000),
+    /boom/,
+    'o erro original da entrada sobe, não um erro de BEGIN/ROLLBACK',
+  );
+  assert.equal(store.engine().getUrl('vacatorrent', '/ok'), null, 'a leva inteira voltou (sem half-write)');
+  assert.equal(store.engine().counters('vacatorrent').total, 0);
+  // E o store segue utilizável (nenhuma transação pendurada).
+  assert.deepEqual(store.engine().upsertUrls('vacatorrent', [movie('/a')], 2000), { added: 1, refreshed: 0, unchanged: 0 });
+});
+
+test('clearRows limpa TAMBÉM o crawl_state (paridade com a memória)', () => {
+  store.engine().setState('vacatorrent', 'cursor', '2026-09-01');
+  assert.equal(store.engine().getState('vacatorrent', 'cursor'), '2026-09-01');
+  store.engine().clearRows();
+  assert.equal(store.engine().getState('vacatorrent', 'cursor'), null, 'cursor não sobrevive ao clear');
+  // "Zerar site" limpa o estado daquele site — e só dele.
+  store.engine().setState('vacatorrent', 'cursor', '2026-09-02');
+  store.engine().setState('nerdfilmes', 'cursor', '2026-09-03');
+  store.engine().clearSite('vacatorrent');
+  assert.equal(store.engine().getState('vacatorrent', 'cursor'), null, 'cursor do site zerado sai');
+  assert.equal(store.engine().getState('nerdfilmes', 'cursor'), '2026-09-03', 'outro site intacto');
+});
+
 test('engine de memória: mesmos verbos, mesmos resultados (paridade)', () => {
   store.resetForTests();
   store.open(undefined, { forceMemory: true });
