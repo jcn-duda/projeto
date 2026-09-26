@@ -46,11 +46,33 @@ export interface DiscoveredUrl {
 /** Entrada de descoberta tal como o store recebe (alias de leitura no store). */
 export type DiscoveredEntry = DiscoveredUrl;
 
+/**
+ * Resultado de uma rodada de descoberta. A lista plana escondia a descoberta
+ * PARCIAL: sitemap que falhou tem URL ainda não vista cujo lastmod pode estar
+ * exatamente dentro do pedaço perdido, então o motor (fase 3) NÃO pode
+ * avançar o cursor incremental como se a rodada cobrisse tudo quando
+ * `complete: false`. As `urls` parciais continuam válidas (o upsert do store
+ * é idempotente); só o cursor não anda. Entrada REJEITADA por host safety não
+ * é falha — ela é ruído determinístico, não conteúdo que pudesse ser lido.
+ */
+export interface CrawlDiscovery {
+  urls: DiscoveredUrl[];
+  /** `false` quando parte das fontes da descoberta falhou (fora do ar/desafio). */
+  complete: boolean;
+  /** Origem de cada falha (`<loc>: <motivo>`), para diagnóstico no painel. */
+  failures: string[];
+}
+
 /** Resultado do processamento de UMA página pelo adaptador. */
 export interface CrawlWorkResult {
   url: string;
   status: CrawlResultStatus;
-  /** IMDb da página. Ausente/null = identificar depois (fase 2) ou ficou sem obra. */
+  /**
+   * IMDb da OBRA, ancorado na ficha técnica da página. `null` quando a página
+   * não tem o link OU quando é ambíguo (duas fichas com tt distintos, tt solto
+   * que pode ser de recomendação): obra errada é pior que obra nenhuma — o
+   * chute vira identificação por título/ano (fase 2), nunca IMDb inválido.
+   */
   imdb?: string | null;
   title?: string;
   year?: number | null;
@@ -70,8 +92,13 @@ export interface CrawlSite {
   id: string;
   /** Rótulo humano para o painel. */
   label: string;
-  /** Descoberta: URLs + lastmod + tipo. `since` filtra o incremental. */
-  discover(since?: string | null): Promise<DiscoveredUrl[]>;
+  /**
+   * Descoberta: URLs + lastmod + tipo, com o sinal de parcialidade. Falha
+   * TOTAL (índice ilegível, todas as fontes fora) continua sendo exceção —
+   * é o motor que retenta; falha PARCIAL vem em `failures` com
+   * `complete: false`.
+   */
+  discover(since?: string | null): Promise<CrawlDiscovery>;
   /** Processa UMA página e devolve o resultado para o store gravar. */
   fetchWork(url: string): Promise<CrawlWorkResult>;
 }

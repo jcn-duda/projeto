@@ -107,6 +107,8 @@
     "test/catalog-panel.test.js",
     "test/crawl-store.test.js",
     "test/crawl-vaca.test.js",
+    "test/crawl-vaca-hardening.test.js",
+    "test/crawl-vaca-direct-fetch.test.js",
     "test/client-esm.test.js",
     "test/operator-env-account.test.js",
     "test/br-parsers.test.js",

@@ -9,7 +9,7 @@
 //   movie-links-streaming.html   /movie-links/54688/ — SÓ o grupo Assistir;
 //   movie-page-no-imdb.html      /pt/movie/um-dia-de-sorte-em-nova-york/ — SEM
 //                                IMDb algum; movie-links 60009 com 1 botão;
-//   sitemap-index.xml            índice Yoast íntegro (18 sitemaps, 11 de filmes);
+//   sitemap-index.xml            índice Yoast íntegro (38 sitemaps, 11 de filmes);
 //   movie-sitemap11.xml          sitemap de filmes ÍNTEGRO (118 URLs reais);
 //   protector-processar.html     hop REAL do protetor (const next → t.co);
 //   protector-tco.html           hop REAL do t.co (meta refresh → relay);
@@ -97,16 +97,22 @@ function protectorRoutesFailingFirst(): Record<string, () => string> {
 }
 
 describe('crawl-sites/vaca: discover (sitemap real, sem rede)', () => {
-  test('lê o movie-sitemap íntegro: 118 obras com lastmod, acervo fora, resto do índice falho não derruba', async () => {
+  test('lê o movie-sitemap íntegro: 118 obras com lastmod, acervo fora, resto do índice falho vira descoberta PARCIAL', async () => {
     const stub = stubRoutes({
       'sitemap_index.xml': () => fixture('sitemap-index.xml'),
       'movie-sitemap11.xml': () => fixture('movie-sitemap11.xml'),
     });
     try {
       const site = createVacaCrawlSite(resolverSurface());
-      const urls = await site.discover();
+      const disc = await site.discover();
+      const urls = disc.urls;
       // O índice REAL lista 11 sitemaps de filme; só o 11 está no mapa — os
-      // outros 10 falham no dublê e NÃO derrubam a descoberta (fail-open).
+      // outros 10 falham no dublê e NÃO derrubam a descoberta, mas a rodada
+      // vem PARCIAL (complete:false): o motor não pode avançar o cursor
+      // incremental por cima do lastmod que ficou nos sitemaps perdidos.
+      assert.equal(disc.complete, false, '10 fontes falharam = descoberta parcial');
+      assert.equal(disc.failures.length, 10, 'uma falha por sitemap ausente');
+      assert.ok(disc.failures.every((f) => /movie-sitemap\d*\.xml/.test(f)), 'falha cita o loc de origem');
       assert.equal(urls.length, 118, 'todas as URLs do sitemap íntegro entram');
       assert.ok(urls.every((u) => u.kind === 'movie'), 'tipo movie');
       assert.ok(urls.every((u) => /^\/pt\/movie\/[^/]+\/$/.test(new URL(u.url).pathname)), 'só obra com slug');
@@ -121,6 +127,26 @@ describe('crawl-sites/vaca: discover (sitemap real, sem rede)', () => {
     }
   });
 
+  test('descoberta COMPLETA quando todas as fontes respondem', async () => {
+    // Índice mínimo com UM sitemap só, atendido no dublê: failures vazio.
+    const index = `<?xml version="1.0"?><sitemapindex>
+      <sitemap><loc>${SITE}/movie-sitemap12.xml</loc><lastmod>2026-09-25T00:00:00+00:00</lastmod></sitemap>
+    </sitemapindex>`;
+    const sitemap = `<?xml version="1.0"?><urlset>
+      <url><loc>${SITE}/pt/movie/filme-a/</loc><lastmod>2026-09-25T01:00:00+00:00</lastmod></url>
+    </urlset>`;
+    const stub = stubRoutes({ 'sitemap_index.xml': () => index, 'movie-sitemap12.xml': () => sitemap });
+    try {
+      const disc = await createVacaCrawlSite(resolverSurface()).discover();
+      assert.equal(disc.complete, true);
+      assert.deepEqual(disc.failures, []);
+      assert.equal(disc.urls.length, 1);
+      assert.equal(disc.urls[0].url, `${SITE}/pt/movie/filme-a/`);
+    } finally {
+      stub.restore();
+    }
+  });
+
   test('since filtra o incremental: só lastmod mais novo que o cursor volta', async () => {
     const stub = stubRoutes({
       'sitemap_index.xml': () => fixture('sitemap-index.xml'),
@@ -129,7 +155,7 @@ describe('crawl-sites/vaca: discover (sitemap real, sem rede)', () => {
     try {
       const site = createVacaCrawlSite(resolverSurface());
       const since = '2026-09-25T15:00:00+00:00';
-      const urls = await site.discover(since);
+      const urls = (await site.discover(since)).urls;
       // Expectativa calculada do PRÓPRIO fixture (contagem independente): os
       // lastmod reais do sitemap decidem, não um número cravado à mão.
       const xml = fixture('movie-sitemap11.xml');

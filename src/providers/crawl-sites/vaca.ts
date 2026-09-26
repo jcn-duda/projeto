@@ -4,17 +4,31 @@
 //
 //   discover()   → sitemap_index.xml do domínio ATIVO do resolver, entradas
 //                  `movie-sitemap*.xml` (Yoast), com lastmod e tipo `movie`;
+//                  falha de sitemap NÃO derruba a rodada — vem como descoberta
+//                  parcial (`complete:false` + `failures`) para o motor não
+//                  avançar o cursor incremental por cima de pedaço perdido;
 //   fetchWork()  → página da obra → página `movie-links/<n>` → magnets, tudo
 //                  pelo resolver JÁ CARREGADO (`br-resolvers.instance`), que
-//                  aporta domínio vivo, Cloudflare/FlareSolverr, protetores e
-//                  extração de magnet.
+//                  aporta domínio vivo, protetores e extração de magnet.
+//
+// Travas da revisão da Fase 1 (não negociáveis):
+//   - Host safety em TODA URL derivada de conteúdo do site (loc do índice,
+//     URL de obra, movie-links): só hostname candidato do site serve como
+//     página; protetor fica por conta do transporte. Sitemap adulterado não
+//     vira vetor de SSRF — o motor busca o que a fila guardar.
+//   - Crawl NÃO aciona FlareSolverr: o fetch é o caminho DIRETO do perfil
+//     (`fetchTextDirect`), que reusa passivamente a sessão quente e devolve
+//     ERRO no desafio (gatilho de pausa futuro). A busca ao vivo segue com o
+//     fallback dela, intacta.
+//   - IMDb só ancorado na ficha técnica da página; ambíguo → null (obra
+//     errada é pior que obra nenhuma).
 //
 // Nada aqui grava banco, agenda nada nem liga o crawler: a Fase 1 entrega o
 // adaptador puro e os testes com fixtures reais (fetch dublê, sem rede).
 import type { RawItem } from '../../../types/domain.js';
 import type { ResolverLink } from '../../../resolvers/types.js';
 import type { ReleaseTitleInput, ReleaseTitlePost } from '../../../resolvers/release-format.js';
-import type { CrawlSite, CrawlWorkResult, DiscoveredUrl } from '../crawl-types.js';
+import type { CrawlDiscovery, CrawlSite, CrawlWorkResult, DiscoveredUrl } from '../crawl-types.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 
@@ -22,12 +36,16 @@ import * as log from '../../utils/logger.js';
  * Recorte da instância do profile vacatorrent que o adaptador consome. Declarar
  * a superfície aqui (em vez de `any`) faz o compilador cobrar os métodos que o
  * adaptador usa contra a API REAL do profile — quebra em compilação se o
- * profile renomear algo.
+ * profile renomear algo. O `fetchText` com fallback Flare fica FORA do recorte
+ * de propósito: o crawl não tem como acioná-lo sem trocar o contrato.
  */
 export interface VacaResolverSurface {
   siteSelector: { url(): string };
   assertAllowedUrl(value: string | null | undefined): URL;
-  fetchText(url: string, accept?: string): Promise<string>;
+  /** Host candidato do SITE (allowlist do failover) — páginas só dele. */
+  isDetailHost(hostname: string | null | undefined): boolean;
+  /** Fetch direto do perfil, SEM fallback FlareSolverr (desafio = erro). */
+  fetchTextDirect(url: string, accept?: string): Promise<string>;
   extractMovieLinks(html: string | null | undefined, baseUrl?: string): string | null;
   parseDownloadLinks(html: string | null | undefined, baseUrl?: string, options?: Record<string, unknown>): ResolverLink[];
   fetchFollowingAllowed(value: string, referer?: string | null): Promise<string>;
@@ -45,6 +63,11 @@ const MOVIE_SITEMAP_RE = /\/movie-sitemap\d*\.xml$/i;
 const MOVIE_WORK_RE = /\/(?:pt\/)?movie\/[^/]+\/$/i;
 const SITEMAP_LOC_RE = /<loc>\s*([^<\s]+)\s*<\/loc>/i;
 const SITEMAP_LASTMOD_RE = /<lastmod>\s*([^<\s]+)\s*<\/lastmod>/i;
+/** IMDb: âncora da FICHA TÉCNICA da página ("Avaliação da IMDb: <a …>").
+ * A janela curta depois do rótulo impede que o match cruze para um link de
+ * recomendação vizinho — pegar "o primeiro imdb.com do HTML" devolvia o tt de
+ * OUTRA obra (widgets de relacionados linkam filmes alheios). */
+const IMDB_ANCHOR_RE = /Avalia[^<]{0,16}IMDb[\s\S]{0,120}?imdb\.com\/title\/(tt\d{5,})/gi;
 
 /** Bloco de URL do sitemap (ou bloco de sitemap do índice) em pares loc/lastmod. */
 function parseSitemapEntries(xml: string): { loc: string; lastmod: string }[] {
@@ -69,9 +92,17 @@ function parseTitleYear(html: string): { title: string; year: number | null } {
   return { title, year: year && year >= 1900 && year <= 2100 ? year : null };
 }
 
-/** IMDb da página: o link "Avaliação da IMDb" aponta para /title/tt<id>/. */
+/**
+ * IMDb da OBRA, pelo âncora da ficha técnica. Um tt ancorado é o da página;
+ * dois ancorados distintos é página ambígua e SEM âncora nenhum tt entra —
+ * um link solto pode ser de recomendação, e obra errada é pior que obra
+ * nenhuma (a identificação por título/ano é fase 2, nunca IMDb alheio).
+ */
 function parseImdbId(html: string): string | null {
-  return /imdb\.com\/title\/(tt\d{5,})/i.exec(String(html || ''))?.[1] ?? null;
+  const anchored = new Set(
+    [...String(html || '').matchAll(IMDB_ANCHOR_RE)].map((m) => m[1]),
+  );
+  return anchored.size === 1 ? [...anchored][0] : null;
 }
 
 /** Dedupe por btih do magnet: o mesmo hash duas vezes na página é um só item. */
@@ -109,14 +140,32 @@ function releaseToRawItem(
  * fora dos dois métodos do contrato.
  */
 export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
+  /**
+   * Página do SITE (host safety): loc de sitemap, URL de obra e movie-links
+   * derivam de conteúdo do site — só hostname candidato serve. O detalhe do
+   * host vai no erro (diagnóstico do painel); o assert canônico do resolver
+   * fica como segunda camada (protocolo + allowlist completa).
+   */
+  function assertSiteUrl(value: string): URL {
+    let parsed: URL;
+    try { parsed = new URL(value); } catch { throw new Error('invalid_url'); }
+    if (!surface.isDetailHost(parsed.hostname)) {
+      throw new Error(`blocked_host:${parsed.hostname.toLowerCase()}`);
+    }
+    return surface.assertAllowedUrl(value);
+  }
+
   /** Um sitemap do índice: baixa e devolve as obras (slug + lastmod). */
   async function readMovieSitemap(loc: string, since: string | null): Promise<DiscoveredUrl[]> {
-    const xml = await surface.fetchText(loc);
+    const xml = await surface.fetchTextDirect(loc);
     const out: DiscoveredUrl[] = [];
     for (const entry of parseSitemapEntries(xml)) {
-      let path: string;
-      try { path = new URL(entry.loc).pathname; } catch { continue; }
-      if (!MOVIE_WORK_RE.test(path)) continue; // acervo `/movie/` e páginas estranhas
+      // URL de obra é INPUT do site: resolve relativa, exige forma de obra E
+      // host do site — sitemap adulterado não planta URL alheia na fila.
+      let href: URL;
+      try { href = new URL(entry.loc, loc); } catch { continue; }
+      if (!MOVIE_WORK_RE.test(href.pathname)) continue; // acervo `/movie/` e páginas estranhas
+      if (!surface.isDetailHost(href.hostname)) continue;
       // Incremental: lastmod ≤ since já foi processado (upsert do store é
       // idempotente, então o filtro é economia, não correção). Lastmod
       // ilegível entra — não se perde obra por ruído de data.
@@ -125,7 +174,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
         const floor = Date.parse(since);
         if (Number.isFinite(t) && Number.isFinite(floor) && t <= floor) continue;
       }
-      out.push({ url: entry.loc, lastmod: entry.lastmod, kind: 'movie' });
+      out.push({ url: href.href, lastmod: entry.lastmod, kind: 'movie' });
     }
     return out;
   }
@@ -134,38 +183,48 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
     id: SITE_ID,
     label: TRACKER_LABEL,
 
-    async discover(since?: string | null): Promise<DiscoveredUrl[]> {
+    async discover(since?: string | null): Promise<CrawlDiscovery> {
       const base = surface.siteSelector.url();
       const indexUrl = new URL('sitemap_index.xml', base).href;
-      const indexXml = await surface.fetchText(indexUrl);
-      const sitemaps = parseSitemapEntries(indexXml)
-        .map((entry) => {
-          try { return new URL(entry.loc, base).href; } catch { return null; }
-        })
-        .filter((href): href is string => !!href && MOVIE_SITEMAP_RE.test(new URL(href).pathname));
+      const indexXml = await surface.fetchTextDirect(indexUrl);
+      const sitemaps: string[] = [];
+      for (const entry of parseSitemapEntries(indexXml)) {
+        let href: URL;
+        try { href = new URL(entry.loc, base); } catch { continue; }
+        if (!MOVIE_SITEMAP_RE.test(href.pathname)) continue;
+        // Loc do índice é input do site: host de fora NEM É CONSULTADO.
+        try { assertSiteUrl(href.href); } catch { continue; }
+        sitemaps.push(href.href);
+      }
       if (!sitemaps.length) throw new Error('vacatorrent: nenhum movie-sitemap no índice');
-      // Sequencial (constraint crawl.search_isolation): um pedido por vez, sem
-      // rajada no site nem no FlareSolverr. Sitemap que falha não derruba a
-      // descoberta — só uma rodada toda falha é erro para o motor retentar.
+      // Sequencial (constraint crawl.search_isolation): um pedido por vez, no
+      // caminho direto (sem FlareSolverr). Sitemap que falha não derruba a
+      // rodada — vira descoberta PARCIAL (`complete:false`): as URLs colhidas
+      // seguem válidas, mas o motor não pode avançar o cursor incremental
+      // por cima do lastmod que ficou no sitemap perdido. Só uma rodada TODA
+      // falha é erro para o motor retentar.
       const out: DiscoveredUrl[] = [];
-      let ok = 0;
+      const failures: string[] = [];
       for (const loc of sitemaps) {
         try {
           out.push(...await readMovieSitemap(loc, since || null));
-          ok += 1;
         } catch (err) {
+          failures.push(`${loc}: ${log.errorMessage(err)}`);
           log.warn(`[crawl] vacatorrent: sitemap falhou (${loc}):`, log.errorMessage(err));
         }
       }
-      if (!ok) throw new Error('vacatorrent: todos os movie-sitemap falharam');
-      return out;
+      if (sitemaps.length && !out.length && failures.length === sitemaps.length) {
+        throw new Error('vacatorrent: todos os movie-sitemap falharam');
+      }
+      return { urls: out, complete: failures.length === 0, failures };
     },
 
     async fetchWork(url: string): Promise<CrawlWorkResult> {
       // Defesa em profundidade: a fila nasce da nossa descoberta, mas o store
-      // pode ter sido editado — host de fora do site é rejeitado na porta.
-      surface.assertAllowedUrl(url);
-      const pageHtml = await surface.fetchText(url);
+      // pode ter sido editado — host de fora do site (e protetor como página)
+      // é rejeitado na porta, antes de qualquer fetch.
+      const workUrl = assertSiteUrl(url);
+      const pageHtml = await surface.fetchTextDirect(workUrl.href);
       const { title, year } = parseTitleYear(pageHtml);
       if (!title) {
         // Página sem título é quebra de layout, não obra sem nome: erro para o
@@ -173,13 +232,16 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
         return { url, status: 'error', error: 'layout: página sem <h1> de título' };
       }
       const imdb = parseImdbId(pageHtml);
-      const linksUrl = surface.extractMovieLinks(pageHtml, url);
+      const linksUrl = surface.extractMovieLinks(pageHtml, workUrl.href);
       if (!linksUrl) {
         // Página só de streaming (ou recém-criada, sem botões): sem magnet.
         return { url, status: 'no-torrent', imdb, title, year, type: 'movie' };
       }
-      const linksHtml = await surface.fetchText(linksUrl);
-      const links = surface.parseDownloadLinks(linksHtml, linksUrl);
+      // movie-links também é página do site: href adulterado para host de fora
+      // é erro diagnosticável, nunca `no-torrent` (que mentiria sobre o acervo).
+      const linksChecked = assertSiteUrl(linksUrl);
+      const linksHtml = await surface.fetchTextDirect(linksChecked.href);
+      const links = surface.parseDownloadLinks(linksHtml, linksChecked.href);
       if (!links.length) {
         // A página movie-links existe mas só tem "Assistir" (players não são
         // âncora de protetor, o coletor os ignora): sem torrent publicado.
@@ -187,9 +249,14 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
       }
 
       // Protetor → magnet, UM botão por vez, na ordem da página. Falha de um
-      // botão não perde os demais; TODOS falharem é erro da página (o motor
-      // retenta com backoff) — página com botões que ninguém resolveu não vira
-      // `no-torrent`, que mentiria "não tem torrent".
+      // botão não perde os demais — botão individual falho é tolerado quando
+      // outro rende release. TODOS falharem (erro OU cadeia resolvida sem
+      // magnet nenhum) é falha TOTAL da página: erro para o motor retentar
+      // com backoff, nunca `done` com 0 releases (mentiria "página lida") nem
+      // `no-torrent` (mentiria "não tem torrent" — quebra de layout/protetor
+      // tem os botões na página). O transporte valida cada salto; o assert na
+      // entrada só antecipa o erro por botão (magnet: não é buscado, segue
+      // direto como no transporte).
       const obra = { title, year };
       const releases: RawItem[] = [];
       const seen = new Set<string>();
@@ -197,7 +264,8 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
       let lastError: unknown = null;
       for (const link of links) {
         try {
-          const finalHtml = await surface.fetchFollowingAllowed(link.url, url);
+          if (!/^magnet:/i.test(link.url)) surface.assertAllowedUrl(link.url);
+          const finalHtml = await surface.fetchFollowingAllowed(link.url, workUrl.href);
           followed += 1;
           const magnet = surface.extractMagnet(finalHtml);
           if (!magnet) continue; // cadeia resolveu mas não há magnet: não inventa
@@ -210,7 +278,19 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
           log.warn(`[crawl] vacatorrent: botão falhou (${url}):`, log.errorMessage(err));
         }
       }
-      if (!followed && lastError) throw lastError;
+      if (!releases.length) {
+        // Nenhuma cadeia foi adiante: o erro real do transporte é a causa e
+        // segue como está. Caso contrário, cadeias resolveram e nenhum magnet
+        // veio — o motivo conta os dois lados (sem magnet × com falha) e cita
+        // o último erro de botão, para o painel separar layout de rede.
+        if (!followed && lastError) throw lastError;
+        const failed = links.length - followed;
+        const detail = lastError ? `; último erro: ${log.errorMessage(lastError)}` : '';
+        throw new Error(
+          `vacatorrent: ${links.length} botão(ões) anunciados, nenhum magnet `
+          + `(${followed} sem magnet, ${failed} com falha)${detail}`,
+        );
+      }
       return { url, status: 'done', imdb, title, year, type: 'movie', releases };
     },
   };
@@ -223,7 +303,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
  */
 export function vacaCrawlSite(): CrawlSite {
   const surface = instance(SITE_ID) as VacaResolverSurface | null;
-  if (!surface || typeof surface.fetchText !== 'function') {
+  if (!surface || typeof surface.fetchTextDirect !== 'function') {
     throw new Error('vacatorrent: resolvedor embutido não carregado — raspagem indisponível');
   }
   return createVacaCrawlSite(surface);

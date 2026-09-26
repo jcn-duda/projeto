@@ -157,4 +157,49 @@ async function followProtectedUrl(
   throw new Error('too_many_redirects');
 }
 
-export { followProtectedUrl };
+/** Opções do laço de redirects HTTP do fetch DIRETO (crawl). */
+export interface FetchRedirectsOptions {
+  /** Teto de saltos — o mesmo maxHops do transporte do protetor. */
+  maxHops: number;
+  /** Prazo da CADEIA inteira, não por hop (o teto antigo era de UMA resposta). */
+  timeoutMs: number;
+  /** Assert canônico da allowlist: cada salto passa por ele ANTES do fetch. */
+  assertAllowedUrl(value: string): URL;
+  /**
+   * Headers por hop. O caller reconstrói por host — cookie/sessão passiva são
+   * POR HOST (cf_clearance do host anterior no host seguinte só garante
+   * rejeição), e é também o que preserva a sessão quente no mesmo host.
+   */
+  headersFor(url: URL): Record<string, string>;
+}
+
+/**
+ * Laço de redirects HTTP com `redirect: 'manual'` para o fetch DIRETO do
+ * crawl. `follow` entrega o destino final SEM passar pela allowlist — um 302
+ * para loopback/metadado de nuvem sairia em rede. Cada salto resolve o
+ * Location (absoluto ou relativo) e é validado no assert canônico ANTES do
+ * fetch seguinte; sem FlareSolverr (o desafio sobe como erro para quem
+ * chamou). 3xx sem Location é erro, e o teto vira `too_many_redirects`.
+ */
+async function fetchFollowRedirects(url: string, opts: FetchRedirectsOptions): Promise<Response> {
+  let current = opts.assertAllowedUrl(url);
+  const deadlineAt = Date.now() + opts.timeoutMs;
+  for (let hop = 0; hop <= opts.maxHops; hop += 1) {
+    const remaining = deadlineAt - Date.now();
+    const response = await fetch(current, {
+      redirect: 'manual',
+      headers: opts.headersFor(current),
+      signal: AbortSignal.timeout(Math.max(remaining, 1)),
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) throw new Error('missing_redirect');
+      current = opts.assertAllowedUrl(new URL(location, current).href);
+      continue;
+    }
+    return response;
+  }
+  throw new Error('too_many_redirects');
+}
+
+export { followProtectedUrl, fetchFollowRedirects };

@@ -22,6 +22,7 @@ import {
   pickButton,
 } from '../matching.js';
 import { createProfile } from '../site-profile.js';
+import { fetchFollowRedirects } from '../transport.js';
 import { buildProfileConfig } from '../env-config.js';
 import type { ProfileOverrides } from '../env-config.js';
 import {
@@ -197,6 +198,37 @@ function createResolver(overrides: ProfileOverrides = {}) {
     return accept.includes('application/json') ? unwrapSearchJson(body) : body;
   }
 
+  /**
+   * Fetch DIRETO, sem fallback FlareSolverr — caminho do CRAWL. A raspagem é
+   * sequencial e em massa: acionar o browser por página detonaria o Chromium
+   * único e a busca ao vivo (que divide a fila). Reusa PASSIVAMENTE a sessão
+   * quente, segue redirects manualmente com allowlist por salto e, com
+   * desafio, devolve ERRO (gatilho de pausa do motor, nunca fallback). A
+   * busca ao vivo segue no fetchText de cima, intacta.
+   */
+  async function fetchTextDirect(url: string, accept = 'text/html,application/xhtml+xml'): Promise<string> {
+    // Redirect MANUAL com allowlist por salto (o transporte é o dono do laço):
+    // `follow` entregaria o destino final sem validar — 302 para loopback/
+    // metadado sairia em rede. Headers por hop: a sessão passiva é POR HOST.
+    const response = await fetchFollowRedirects(url, {
+      maxHops: MAX_HOPS,
+      timeoutMs: TIMEOUT_MS,
+      assertAllowedUrl,
+      headersFor: (target) => ({ ...buildFlareHeaders(target.href), Accept: accept }),
+    });
+    const body = await response.text();
+    if ((response.ok || response.status === 403 || response.status === 503) && isVacaChallenge(body, response.headers)) {
+      throw new Error('vacatorrent: desafio Cloudflare no caminho direto (crawl sem Flare)');
+    }
+    if (!response.ok) throw new Error(`http_${response.status}`);
+    if (/<body\b[^>]*\bid\s*=\s*["']error-page["']|<(?:div|p)\b[^>]*\bclass\s*=\s*["'][^"']*\bwp-die-message\b/i.test(body)) {
+      throw new Error('vacatorrent: página de erro do WordPress');
+    }
+    // Mesma semântica do fetchText (menos o fallback): o JSON da busca AJAX,
+    // se um dia o crawl pedi-lo, sai desempacotado igual.
+    return accept.includes('application/json') ? unwrapSearchJson(body) : body;
+  }
+
   const { fetchMovieLinks, fetchSeriesLinks, postToItems } = createVacaContent({
     cachedPost, postCacheMs: POST_CACHE_MS, fetchText, parseDownloadLinks,
   });
@@ -356,7 +388,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     computeWantedTokens,
     normalizeFilterText,
     isGenericListPost,
-    getFlareSession, buildFlareHeaders, fetchText, fetchTextViaFlare,
+    getFlareSession, buildFlareHeaders, fetchText, fetchTextDirect, fetchTextViaFlare,
     postCache,
     searchCache,
     magnetCache,
