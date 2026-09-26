@@ -38,6 +38,8 @@ import {
   parseSeasonInternal,
   filterSeasonCards,
   extractBatchTitle,
+  normalizeEpisodeMarkup,
+  isWatchAnchor,
 } from './vacatorrent-shapes.js';
 export type { VacaSeasonCard } from './vacatorrent-shapes.js';
 
@@ -281,10 +283,20 @@ function createParseDownloadLinks(options: VacaParseDownloadLinksOptions = {}) {
   const decode = options.decodeEntities || decodeEntities;
   const strip = options.stripTags || stripTags;
   const attr = options.attribute || attribute;
+  const protectorHref = createProtectorHrefResolver({ isProtectorHost: isProtector, decodeEntities: decode, attribute: attr });
 
   const cfg: LinkCollectorConfig = {
     anchorRe: /<a\b([^>]*)>([\s\S]*?)<\/a>/gi,
-    resolveHref: createProtectorHrefResolver({ isProtectorHost: isProtector, decodeEntities: decode, attribute: attr }),
+    resolveHref: (match, html, baseUrl) => {
+      // "Veja Online"/player nunca é botão de download: pula SEM avançar o
+      // cursor (o ss-ep-num/título do bloco continua no segmento do botão de
+      // download seguinte) e SEM emitir item — mesmo quando o href aponta para
+      // o protetor, porque o player da página /episodes usa o MESMO
+      // systemtech dos downloads. A identificação é pela forma da âncora
+      // (classe/texto), nunca pelo host: a allowlist do protetor fica intacta.
+      if (isWatchAnchor(match[1], strip(match[2] || ''))) return { skip: true };
+      return protectorHref(match, html, baseUrl);
+    },
     anchorTextOf: (match) => strip(match[2] || ''),
     stripTags: strip,
     decodeHtml: decode,
@@ -296,7 +308,12 @@ function createParseDownloadLinks(options: VacaParseDownloadLinksOptions = {}) {
     sourceFn: normalizeSource,
     extrasOf: (opts) => ({ season: opts.season ?? null, realTitle: opts.realTitle ?? null }),
   };
-  return createLinkCollector(cfg);
+  const collector = createLinkCollector(cfg);
+  return function parseDownloadLinks(html: string | null | undefined, baseUrl?: string, options: Record<string, unknown> = {}): ResolverLink[] {
+    // Os blocos por-episódio numeram só com número puro; normalizar antes do
+    // coletor para a máquina de episódios ler "Episódio N" (ver shapes).
+    return collector(normalizeEpisodeMarkup(html), baseUrl, options);
+  };
 }
 
 const parseDownloadLinks = createParseDownloadLinks();
@@ -368,5 +385,6 @@ export {
   createNextProtectedUrl, nextProtectedUrl, unwrapSearchJson, parseSearchJson, filterSearchPosts,
   createParseDownloadLinks, parseDownloadLinks, extractMovieLinks, decodeDataU,
   seriesSeasonInternalUrl, parseSeasonInternal, filterSeasonCards, extractBatchTitle,
+  normalizeEpisodeMarkup, isWatchAnchor,
   cleanMarkTitle, releaseTitle, createVacaSearchPageHtml, searchPageHtml, scoreLink,
 };

@@ -149,6 +149,7 @@
     "test/comandotorrents-resolver.test.js",
     "test/transport-cookiejar.test.js",
     "test/vacatorrent-resolver.test.js",
+    "test/vacatorrent-season-episodes.test.js",
     "test/vacatorrent-flare.test.js",
     "test/vacatorrent-recovery.test.js",
     "test/concurrency.test.js",

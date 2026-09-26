@@ -95,6 +95,28 @@ function extractBatchTitle(html: string | null | undefined): string | null {
   return h ? stripTags(h[1]) : null;
 }
 
+// Página por-episódio (layout .ss-ep): os blocos são numerados só com número
+// puro (<div class="ss-ep-num">01</div>, <span class="ss-ep-num-inline">01</span>)
+// — sem marcador "EPISÓDIO", que a máquina de episódios não lê. Normaliza para
+// texto ANTES do coletor: com o cursor preservado na âncora "Veja Online" (que
+// não avança), o número entra no segmento do botão de download do próprio bloco.
+const SS_EP_NUM_RE = /<(span|div)\b[^>]*\bss-ep-num(?:-inline)?\b[^>]*>\s*(\d{1,3})\s*<\/\1>/gi;
+
+function normalizeEpisodeMarkup(html: string | null | undefined): string {
+  return String(html ?? '').replace(SS_EP_NUM_RE, 'Episódio $2 ');
+}
+
+// Âncoras de assistir (player) das páginas movie-links (.ml-btn-video) e
+// por-episódio (.ss-ep-btn-video, texto "Veja Online"): nunca são botões de
+// download — nem quando o href aponta para o protetor (o player da página
+// /episodes usa o MESMO systemtech dos downloads). Identificar pela FORMA da
+// âncora, nunca pelo host do href, é o que mantém a allowlist intocada.
+const WATCH_ANCHOR_CLASS_RE = /\bclass\s*=\s*["'][^"']*\b(?:ss-ep-btn-video|ml-btn-video)\b/i;
+
+function isWatchAnchor(attrs: string | null | undefined, anchorText: string | null | undefined): boolean {
+  return WATCH_ANCHOR_CLASS_RE.test(String(attrs || '')) || /veja\s+online/i.test(String(anchorText || ''));
+}
+
 export {
   extractMovieLinks,
   decodeDataU,
@@ -102,4 +124,6 @@ export {
   parseSeasonInternal,
   filterSeasonCards,
   extractBatchTitle,
+  normalizeEpisodeMarkup,
+  isWatchAnchor,
 };
