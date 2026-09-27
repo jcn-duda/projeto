@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "stremio-adom",
   "version": "1.0.0",
   "type": "module",
@@ -402,5 +402,3 @@
     "test/stream-builder-idx-episode.test.js"
   ]
 }
-
-
