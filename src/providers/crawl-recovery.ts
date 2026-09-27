@@ -15,8 +15,14 @@ export function requeueInflight(siteId: string): number {
 }
 
 /**
- * Dry-run desligou (true→false, ao vivo ou override persistido no boot): as
- * `simulated` daquele site voltam a `pending` para serem gravadas de verdade.
+ * Dry-run desligou (true→false, ao vivo ou override persistido no boot): toda
+ * linha do site contaminada pelo passe seco volta a `pending` do zero —
+ * `simulated` E qualquer linha com progresso `"dry":1` (partial, error,
+ * pending, inflight: o crash/falha preserva o progresso seco e o resume
+ * pularia cards nunca gravados). Roda DEPOIS do `requeueInflight` (ordem do
+ * `crawler.start`/`step`): inflight órfã é devolvida primeiro e o match por
+ * progresso a alcança no mesmo passe. Idempotente: o reset limpa o
+ * `progress`, então repetir é no-op.
  *
  * LEGADO: versões antigas gravavam `done` em dry-run SEM gravar acervo — não
  * há evidência segura para distinguir essas `done` de gravações reais, então

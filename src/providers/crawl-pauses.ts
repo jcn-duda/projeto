@@ -69,7 +69,7 @@ export interface PauseLimits {
 
 /** Desfecho de UMA página, na forma que a política entende. */
 export interface PageOutcomeSignal {
-  kind: 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated';
+  kind: 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated' | 'partial';
   siteLevelError?: boolean;
   releases?: number;
 }
@@ -112,6 +112,15 @@ export class CrawlPausePolicy {
     }
     if ((signal.kind === 'done' || signal.kind === 'simulated') && (signal.releases ?? 0) > 0) {
       this.rememberPrior(key, signal.releases as number);
+    }
+    // `partial` (Fase 7 v2): a página respondeu e produziu trabalho — ZERA o
+    // streak de erros (a truncagem de série não pode mais pausar o site),
+    // alimenta a memória do canário quando teve releases, e é NEUTRA no
+    // canário em si: tentativa parcial não prova layout são nem quebrado.
+    if (signal.kind === 'partial') {
+      this.errorStreak = 0;
+      if ((signal.releases ?? 0) > 0) this.rememberPrior(key, signal.releases as number);
+      return null;
     }
     // `simulated` provou o MESMO layout com botões que o `done` (leu releases);
     // só não gravou — para o canário e o streak ela vale como página sã.

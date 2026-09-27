@@ -34,13 +34,14 @@ const CRAWL_URL_DDL = `
     checked_at INTEGER NOT NULL DEFAULT 0,
     releases INTEGER NOT NULL DEFAULT 0,
     error TEXT NOT NULL DEFAULT '',
+    progress TEXT NOT NULL DEFAULT '',
     added_at INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (site, url)
   )`;
 
 const CRAWL_URL_COLUMNS = [
   'site', 'url', 'lastmod', 'kind', 'status', 'imdb',
-  'tries', 'next_at', 'checked_at', 'releases', 'error', 'added_at',
+  'tries', 'next_at', 'checked_at', 'releases', 'error', 'progress', 'added_at',
 ];
 
 /** A definição da tabela existente trava `status` com CHECK? */
@@ -58,7 +59,12 @@ function hasStatusCheck(db: CrawlSchemaDb): boolean {
  * memória em vez de abrir um banco pela metade. */
 function rebuildCrawlUrl(db: CrawlSchemaDb): void {
   const total = Number((db.prepare('SELECT COUNT(*) AS n FROM crawl_url').get() as Record<string, unknown>)?.n) || 0;
-  const cols = CRAWL_URL_COLUMNS.join(', ');
+  // A tabela legada pode não ter colunas novas (`progress`): o INSERT usa a
+  // INTERSEÇÃO das colunas existentes — a que falta nasce com o DEFAULT do
+  // DDL novo ('' para progress), nunca erro de coluna desconhecida.
+  const existingCols = ((db.prepare('PRAGMA table_info(crawl_url)').all() as Array<Record<string, unknown>>)
+    .map((c) => String(c?.name || '')));
+  const cols = CRAWL_URL_COLUMNS.filter((c) => existingCols.includes(c)).join(', ');
   let started = false;
   try {
     db.exec('BEGIN');
@@ -93,6 +99,7 @@ export function ensureCrawlSchema(db: CrawlSchemaDb): void {
       checked_at INTEGER NOT NULL DEFAULT 0,
       releases INTEGER NOT NULL DEFAULT 0,
       error TEXT NOT NULL DEFAULT '',
+      progress TEXT NOT NULL DEFAULT '',
       added_at INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (site, url)
     );
@@ -115,4 +122,18 @@ export function ensureCrawlSchema(db: CrawlSchemaDb): void {
       PRIMARY KEY (site, key)
     );
   `);
+  ensureProgressColumn(db);
+}
+
+/** Banco existente sem a coluna `progress` (formato anterior à Fase 7 v2):
+ * ALTER idempotente. O rebuild do CHECK legado já copia pelas colunas, então
+ * o caso dele é coberto; aqui sobra o banco criado pela versão anterior SEM
+ * CHECK. Falha sobe — o sqliteEngine cai na engine de memória (defesa já
+ * existente), em vez de abrir um banco pela metade. */
+function ensureProgressColumn(db: CrawlSchemaDb): void {
+  const cols = db.prepare('PRAGMA table_info(crawl_url)').all() as Array<Record<string, unknown>>;
+  const has = cols.some((c) => String(c?.name || '') === 'progress');
+  if (has) return;
+  db.exec("ALTER TABLE crawl_url ADD COLUMN progress TEXT NOT NULL DEFAULT ''");
+  log.warn('[crawl] coluna progress adicionada a crawl_url (linhas preservadas)');
 }

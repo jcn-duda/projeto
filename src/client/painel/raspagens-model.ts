@@ -86,6 +86,8 @@ export interface CrawlSiteCard {
   error: number;
   /** Páginas lidas em dry-run aguardando gravação real. */
   simulated: number;
+  /** Páginas de série em andamento (Fase 7 v2): releases gravadas + progresso. */
+  partial: number;
   progressPercent: number;
   /** % de páginas PROCESSADAS que resultaram em torrent (done ÷ processadas). */
   torrentPercent: number;
@@ -99,6 +101,16 @@ export interface CrawlSiteCard {
   noWorkList: CrawlNoWorkRef[];
   errors: CrawlErrorRef[];
   errorGroups: CrawlErrorGroupView[];
+  /** Séries em andamento: cards lidos/total (retomada por passes). */
+  partialWork: CrawlPartialRef[];
+}
+
+/** Uma página de série `partial` com o progresso retomável (Fase 7 v2). */
+export interface CrawlPartialRef {
+  url: string;
+  done: number;
+  total: number;
+  checkedAt: number;
 }
 
 export type BadgeVariant = 'ok' | 'warn' | 'err' | 'neutral';
@@ -250,6 +262,7 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
   const noWork = num(byStatus['no-work']);
   const error = num(byStatus.error);
   const simulated = num(byStatus.simulated);
+  const partial = num(byStatus.partial);
   const processed = done + noTorrent + noWork + error;
   // progressPercent do backend já é done/total; derivamos só quando ausente.
   const progressPercent = numOrNull(site.progressPercent) ?? (total > 0 ? Math.round((done / total) * 100) : 0);
@@ -269,11 +282,12 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
     noWork,
     error,
     simulated,
+    partial,
     progressPercent: Math.max(0, Math.min(100, progressPercent)),
     torrentPercent,
     magnetsFound: num(site.magnetsFound),
     newReleases: num(site.newReleases),
-    pendingRemaining: num(site.pendingRemaining, processed === 0 ? total : num(byStatus.pending) + error + num(byStatus.inflight)),
+    pendingRemaining: num(site.pendingRemaining, processed === 0 ? total : num(byStatus.pending) + error + num(byStatus.inflight) + partial),
     ratePerHour: num(site.ratePerHour),
     etaHours: etaRaw != null && etaRaw > 0 ? etaRaw : null,
     latestRun: normalizeRun(site.latestRun),
@@ -303,6 +317,15 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
       const item = asObject(g) || {};
       return { reason: String(item.reason ?? ''), count: num(item.count) };
     }).filter((g) => g.reason !== ''),
+    partialWork: asArray(site.partialWork).map((p) => {
+      const item = asObject(p) || {};
+      return {
+        url: String(item.url ?? ''),
+        done: num(item.done),
+        total: num(item.total),
+        checkedAt: num(item.checkedAt),
+      };
+    }).filter((p) => p.url !== ''),
   };
 }
 

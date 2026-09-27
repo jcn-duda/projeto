@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import * as store from '../src/utils/crawl-store.js';
-import { errorBackoffMs, CRAWL_GIVE_UP_MS } from '../src/utils/crawl-store-rules.js';
+import { errorBackoffMs, CRAWL_GIVE_UP_MS, parseProgress } from '../src/utils/crawl-store-rules.js';
 import type { CrawlUrlRow } from '../src/providers/crawl-types.js';
 
 // `node:sqlite` só existe no Node 22+; no 20 (que o CI também roda) o store cai
@@ -220,7 +220,7 @@ test('engine de memória: mesmos verbos, mesmos resultados (paridade)', () => {
   store.engine().markResult('vacatorrent', '/b', { status: 'error', error: '403' }, 2500, { retryBaseMs: 60000, maxTries: 1 });
   assert.deepEqual(store.engine().counters('vacatorrent'), {
     total: 2,
-    byStatus: { pending: 0, inflight: 0, done: 1, 'no-torrent': 0, 'no-work': 0, error: 1, simulated: 0 },
+    byStatus: { pending: 0, inflight: 0, done: 1, 'no-torrent': 0, 'no-work': 0, error: 1, simulated: 0, partial: 0 },
   });
   const b = store.engine().getUrl('vacatorrent', '/b') as CrawlUrlRow;
   assert.ok(b.nextAt >= 2500 + CRAWL_GIVE_UP_MS, 'maxTries esgota também na memória');
@@ -233,4 +233,48 @@ test('engine de memória: mesmos verbos, mesmos resultados (paridade)', () => {
   const cap = store.engine().memoryMax();
   assert.ok(typeof cap === 'number' && (cap as number) > 0, 'memória declara teto (nunca ilimitada)');
   assert.equal(store.engine().memoryEvictions(), 0);
+});
+
+test('partial: due/claim com progresso; codec roundtrip na coluna (SQL)', { skip: skipSemSqlite }, () => {
+  assert.equal(store.engine().kind, 'sql');
+  store.engine().upsertUrls('vacatorrent', [movie('/s1', '2026-01-01')], 1000);
+  store.engine().markResult('vacatorrent', '/s1', {
+    status: 'partial', imdb: 'tt1', releases: 3,
+    error: 'series_truncated: teto de série atingido (cards 10/24, botões 0/40)',
+    progress: '{"card":{"skip":2,"url":"/c"},"doneCards":["/a","/b"],"totalCards":24,"v":1}',
+  }, 2000);
+  const row = store.engine().getUrl('vacatorrent', '/s1') as CrawlUrlRow;
+  assert.equal(row.status, 'partial');
+  assert.equal(row.releases, 3);
+  assert.deepEqual(parseProgress(row.progress)?.doneCards, ['/a', '/b'], 'roundtrip preserva a forma canônica');
+  assert.equal(parseProgress(row.progress)?.card?.skip, 2);
+  // nextAt = now + base (60s): devido depois da base, antes do backoff longo.
+  const claimed = store.engine().takeNext('vacatorrent', 2000 + 60_000) as CrawlUrlRow;
+  assert.equal(claimed.url, '/s1', 'partial é devido pelo next_at curto');
+  assert.equal(claimed.status, 'inflight');
+});
+
+test('migração: banco no formato anterior (sem progress) ganha a coluna preservando linhas', { skip: skipSemSqlite }, async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const d = freshDir();
+  const db = new DatabaseSync(path.join(d, 'crawl.db'));
+  db.exec(`
+    CREATE TABLE crawl_url (
+      site TEXT NOT NULL, url TEXT NOT NULL, lastmod TEXT NOT NULL DEFAULT '',
+      kind TEXT NOT NULL DEFAULT 'movie', status TEXT NOT NULL DEFAULT 'pending',
+      imdb TEXT, tries INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0,
+      checked_at INTEGER NOT NULL DEFAULT 0, releases INTEGER NOT NULL DEFAULT 0,
+      error TEXT NOT NULL DEFAULT '', added_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (site, url)
+    );
+    INSERT INTO crawl_url (site, url, status, releases) VALUES ('vacatorrent', '/antiga', 'done', 5);
+  `);
+  db.close();
+  store.resetForTests();
+  store.open(path.join(d, 'crawl.db'));
+  const row = store.engine().getUrl('vacatorrent', '/antiga') as CrawlUrlRow;
+  assert.ok(row, 'linha do formato anterior preservada');
+  assert.equal(row.status, 'done');
+  assert.equal(row.releases, 5);
+  assert.equal(row.progress, '', 'coluna nova nasce vazia');
 });

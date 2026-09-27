@@ -20,6 +20,7 @@ import type {
   DiscoveredEntry,
   MarkOpts,
   MarkResultInput,
+  SeriesWorkProgress,
   UpsertReport,
 } from '../providers/crawl-types.js';
 
@@ -43,6 +44,76 @@ export function errorBackoffMs(baseMs: number, tries: number): number {
   return Math.min(base * 2 ** Math.max(0, tries - 1), ERROR_BACKOFF_CAP_MS);
 }
 
+// --- Codec do progresso de série parcial (Fase 7 v2) ------------------------
+
+/**
+ * Parse validado do JSON da coluna `progress`. Ilegível/fora de forma →
+ * `null` (a linha é tratada como sem progresso — nunca lança, nunca adota
+ * forma estranha como verdade).
+ */
+export function parseProgress(raw: unknown): SeriesWorkProgress | null {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return null; }
+  const p = value as Partial<SeriesWorkProgress> | null;
+  if (!p || typeof p !== 'object' || p.v !== 1 || !Array.isArray(p.doneCards)) return null;
+  const doneCards = p.doneCards.map((u) => String(u || '')).filter(Boolean);
+  const card = p.card && typeof p.card === 'object'
+    ? { url: String((p.card as { url?: unknown }).url || ''), skip: Number((p.card as { skip?: unknown }).skip) || 0 }
+    : undefined;
+  return {
+    v: 1,
+    doneCards,
+    ...(card && card.url ? { card } : {}),
+    totalCards: Number(p.totalCards) || 0,
+    ...(p.dry === 1 ? { dry: 1 as const } : {}),
+  };
+}
+
+/**
+ * Serialização canônica: ordem de chaves FIXA (v, doneCards, card,
+ * totalCards, dry) e arrays na ordem dada — a comparação de avanço é textual
+ * e só é honesta com forma estável.
+ */
+export function renderProgress(p: SeriesWorkProgress): string {
+  const card = p.card && p.card.url ? { url: String(p.card.url), skip: Math.max(0, Math.trunc(Number(p.card.skip) || 0)) } : null;
+  return JSON.stringify({
+    v: 1,
+    doneCards: (Array.isArray(p.doneCards) ? p.doneCards : []).map((u) => String(u || '')).filter(Boolean),
+    ...(card ? { card } : {}),
+    totalCards: Math.max(0, Math.trunc(Number(p.totalCards) || 0)),
+    ...(p.dry === 1 ? { dry: 1 } : {}),
+  });
+}
+
+/**
+ * A marcação de progresso `next` avança em relação ao `prevRaw` (coluna)?
+ * - `next` inválido/ausente → false (defensivo: um `partial` sem progresso
+ *   nunca prova avanço, nunca vira `done` por comparação vazia);
+ * - `prev` não parseia → true (1ª marcação da linha);
+ * - senão, compara a forma canônica SEM o campo `dry` (dry é metadado do
+ *   passe, não avanço de leitura).
+ */
+export function progressAdvanced(prevRaw: unknown, next?: SeriesWorkProgress | string | null): boolean {
+  let parsedNext: SeriesWorkProgress | null = null;
+  if (typeof next === 'string') parsedNext = parseProgress(next);
+  else if (next && typeof next === 'object') parsedNext = next;
+  if (!parsedNext) return false;
+  const prev = parseProgress(prevRaw);
+  if (!prev) return true;
+  const { dry: _prevDry, ...prevCore } = prev;
+  const { dry: _nextDry, ...nextCore } = parsedNext;
+  return renderProgress(prevCore as SeriesWorkProgress) !== renderProgress(nextCore as SeriesWorkProgress);
+}
+
+/** Re-render do JSON cru com o flag `dry:1` (passe de dry-run). Cru ilegível
+ * volta vazio — nada a marcar. */
+export function withDryFlag(raw: unknown): string {
+  const p = parseProgress(raw);
+  return p ? renderProgress({ ...p, dry: 1 }) : '';
+}
+
 /** Decisão PURA do upsert idempotente (ver cabeçalho). Ambas as engines a
  * consomem dentro de sua própria escrita, então o relatório `UpsertReport`
  * tem o mesmo significado nas duas. */
@@ -62,7 +133,7 @@ export function decideUpsert(
         site, url, lastmod, kind,
         status: 'pending',
         imdb: null, tries: 0, nextAt: 0, checkedAt: 0,
-        releases: 0, error: '', addedAt: now,
+        releases: 0, error: '', progress: '', addedAt: now,
       },
     };
   }
@@ -70,6 +141,8 @@ export function decideUpsert(
     return { outcome: 'unchanged', row: existing };
   }
   // lastmod novo: reprocessa do zero, preservando só a identidade da fila.
+  // `progress: ''` explícito: o spread herdaria o progresso — conteúdo novo
+  // reexecuta o varrimento do zero (o card antigo pode nem existir mais).
   return {
     outcome: 'refreshed',
     row: {
@@ -77,7 +150,7 @@ export function decideUpsert(
       lastmod, kind,
       status: 'pending',
       imdb: null, tries: 0, nextAt: 0, checkedAt: 0,
-      releases: 0, error: '',
+      releases: 0, error: '', progress: '',
     },
   };
 }
@@ -105,12 +178,41 @@ export function applyResult(
       nextAt,
       checkedAt: now,
       error: String(result.error || 'erro'),
+      // O spread preserva o `progress`: uma tentativa que falhou NÃO perde o
+      // avanço anterior (o retry retoma dos cards já feitos).
+    };
+  }
+  if (result.status === 'partial') {
+    // AVANÇO (progresso novo e diferente do anterior): progresso, não falha —
+    // `tries: 0` e retry no prazo curto da base. O guarda anti-loop é o
+    // avanço em si (monotônico por invariante do `SeriesWorkProgress`); a
+    // ESTAGNAÇÃO não passa por aqui: o crawl-page compara antes de marcar e
+    // manda estouro como `error series_stall`. Um `partial` sem progresso
+    // nunca chega ao store pelo caminho de produção (o crawl-page recusa);
+    // se chegar, o progresso preservado do spread mantém o estado honesto.
+    return {
+      ...existing,
+      status: 'partial',
+      tries: 0,
+      // Retry ≥ base (60s): o `pending` com next_at=0 continua vindo primeiro
+      // na ordem da fila — parcial espera o pending da mesma rodada.
+      nextAt: now + (opts.retryBaseMs ?? DEFAULT_RETRY_BASE_MS),
+      checkedAt: now,
+      releases: result.releases ?? 0,
+      imdb: result.imdb !== undefined ? result.imdb : existing.imdb,
+      // Motivo do recorte como diagnóstico (errorGroups só conta 'error').
+      error: String(result.error || ''),
+      progress: typeof result.progress === 'string' ? result.progress : existing.progress,
     };
   }
   // Terminais: sucesso limpa erro e fila de retry. A releitura futura é
   // decisão do lastmod (upsert), não do relógio — `done` não ganha nextAt.
   // `done` sem contagem explícita preserva a anterior (merge conservador);
-  // `no-torrent`/`no-work` provam ausência, então zeram.
+  // `no-torrent`/`no-work` provam ausência, então zeram. `progress: ''`
+  // explícito: um `simulated`/`done` terminal NÃO herda progresso — um
+  // `simulated` que completou um dry-run manteria o progresso seco e, no
+  // flip true→false, a linha viraria `pending` e o resume pularia cards
+  // nunca gravados.
   const releases = result.releases ?? (result.status === 'done' ? existing.releases : 0);
   const imdb = result.imdb !== undefined ? result.imdb : existing.imdb;
   return {
@@ -121,18 +223,19 @@ export function applyResult(
     nextAt: 0,
     checkedAt: now,
     error: '',
+    progress: '',
   };
 }
 
 export const URL_COLUMNS = [
   'site', 'url', 'lastmod', 'kind', 'status', 'imdb',
-  'tries', 'next_at', 'checked_at', 'releases', 'error', 'added_at',
+  'tries', 'next_at', 'checked_at', 'releases', 'error', 'progress', 'added_at',
 ];
 
 export function renderUrl(row: CrawlUrlRow): (string | number | null)[] {
   return [
     row.site, row.url, row.lastmod, row.kind, row.status, row.imdb,
-    row.tries, row.nextAt, row.checkedAt, row.releases, row.error, row.addedAt,
+    row.tries, row.nextAt, row.checkedAt, row.releases, row.error, row.progress, row.addedAt,
   ];
 }
 
@@ -140,7 +243,8 @@ export function renderUrl(row: CrawlUrlRow): (string | number | null)[] {
  * a ser processada em vez de sumir dos contadores). */
 export function parseStatus(value: unknown): CrawlUrlStatus {
   return value === 'inflight' || value === 'done' || value === 'no-torrent'
-    || value === 'no-work' || value === 'error' || value === 'simulated' ? value : 'pending';
+    || value === 'no-work' || value === 'error' || value === 'simulated'
+    || value === 'partial' ? value : 'pending';
 }
 
 export function parseUrlRow(r: Record<string, unknown>): CrawlUrlRow {
@@ -156,11 +260,12 @@ export function parseUrlRow(r: Record<string, unknown>): CrawlUrlRow {
     checkedAt: Number(r.checked_at) || 0,
     releases: Number(r.releases) || 0,
     error: String(r.error || ''),
+    progress: String(r.progress || ''),
     addedAt: Number(r.added_at) || 0,
   };
 }
 
 /** Contadores zerados com TODOS os status — o painel lê a série inteira. */
 export function emptyCounters(): Record<CrawlUrlStatus, number> {
-  return { pending: 0, inflight: 0, done: 0, 'no-torrent': 0, 'no-work': 0, error: 0, simulated: 0 };
+  return { pending: 0, inflight: 0, done: 0, 'no-torrent': 0, 'no-work': 0, error: 0, simulated: 0, partial: 0 };
 }

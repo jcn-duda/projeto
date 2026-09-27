@@ -269,7 +269,7 @@ describe('crawl-status: custo e limites das consultas', () => {
     assert.equal(calls.counters, 1, 'counters do site ativo é consultado UMA vez');
     assert.equal(calls.latestRun, 1, 'latestRun é consultado UMA vez');
     assert.equal(calls.sumReleases, 1);
-    assert.equal(calls.listByStatus, 3, 'done/no-work/error, um LIMIT cada');
+    assert.equal(calls.listByStatus, 4, 'done/no-work/error/partial (Fase 7 v2), um LIMIT cada');
     assert.equal(calls.errorGroups, 1);
     assert.equal(status.counters?.total, 1, 'o topo reusa o card do site ativo');
     assert.equal(status.latestRun?.phase ?? null, null);
@@ -286,7 +286,7 @@ describe('crawl-status: custo e limites das consultas', () => {
     assert.equal(status.sites.length, 3);
     assert.equal(calls.counters, 3);
     assert.equal(calls.latestRun, 3);
-    assert.equal(calls.listByStatus, 9);
+    assert.equal(calls.listByStatus, 12);
     assert.equal(calls.errorGroups, 3);
   });
 
@@ -302,6 +302,29 @@ describe('crawl-status: custo e limites das consultas', () => {
     assert.equal(card.total, 25);
     assert.equal(card.recentWorks.length, STATUS_LIST_LIMIT);
     assert.ok(card.recentWorks.length < card.total, 'a lista é um resumo, não o site inteiro');
+  });
+
+  test('partial (Fase 7 v2): remaining/ETA incluem, partialWork traz x/y do progresso', () => {
+    freshCrawl({ sites: ['fake'] });
+    store.engine().upsertUrls('fake', [
+      { url: '/s1', lastmod: 'x', kind: 'tv_show' as const },
+      { url: '/s2', lastmod: 'x', kind: 'tv_show' as const },
+    ], 1);
+    store.engine().markResult('fake', '/s1', {
+      status: 'partial', releases: 2,
+      progress: '{"card":{"skip":1,"url":"/c3"},"doneCards":["/c1","/c2"],"totalCards":9,"v":1}',
+    }, 100);
+    const card = buildSiteStatus('fake', store.engine(), live.effective(), motorState());
+    assert.equal(card.byStatus.partial, 1);
+    assert.ok(card.pendingRemaining >= 1, 'partial é trabalho restante');
+    assert.deepEqual(card.partialWork, [{ url: '/s1', done: 2, total: 9, checkedAt: card.partialWork[0]?.checkedAt }]);
+  });
+
+  test('stableErrorReason agrupa series_stall (estouro de progresso) pelo motivo estável', async () => {
+    const { stableErrorReason } = await import('../src/providers/crawl-status.js');
+    assert.equal(stableErrorReason('series_stall: progresso não avançou (cards 10/24)'), 'series_stall');
+    assert.equal(stableErrorReason('series_truncated: teto (cards 2/4)'), 'series_truncated');
+    assert.equal(stableErrorReason(''), 'erro');
   });
 
   test('status com o store fechado não abre o crawl.db', () => {

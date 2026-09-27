@@ -200,6 +200,23 @@ test('crawlSiteCards normaliza contadores, deriva % torrent e marca o site ativo
   assert.deepEqual(crawlSiteCards(null), []);
 });
 
+test('partial (Fase 7 v2): byStatus.partial vira campo, partialWork traz x/y, processed não muda', () => {
+  const crawl = sampleCrawl() as Record<string, any>;
+  crawl.sites[0].byStatus.partial = 3;
+  crawl.sites[0].partialWork = [
+    { url: 'https://x/one-piece', done: 14, total: 24, checkedAt: Date.now() - 1000 },
+    { url: '', done: 0, total: 0, checkedAt: 0 },
+  ];
+  const [card] = crawlSiteCards(crawl);
+  assert.equal(card.partial, 3);
+  assert.equal(card.torrentPercent, 90, 'página parcial NÃO entra nas processadas');
+  assert.deepEqual(card.partialWork, [{ url: 'https://x/one-piece', done: 14, total: 24, checkedAt: card.partialWork[0].checkedAt }]);
+  // pendingRemaining do backend não inclui partial neste fixture, mas o
+  // fallback sim: pending + error + inflight + partial.
+  const fallback = crawlSiteCards({ site: 'a', sites: [{ id: 'a', label: 'A', total: 10, byStatus: { pending: 2, error: 1, inflight: 1, partial: 4 } }] })[0];
+  assert.equal(fallback.pendingRemaining, 8, 'fallback soma partial como restante');
+});
+
 test('phaseLabel, siteStateLabel, workLabel, runDurationMs e etaLabel', () => {
   assert.equal(phaseLabel('initial'), 'Carga inicial');
   assert.equal(phaseLabel('incremental'), 'Incremental');

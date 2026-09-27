@@ -30,9 +30,39 @@ export type CrawlPageKind = 'movie' | 'tv_show';
  *   "gravado") nem volta a `pending` sozinha (perderia o registro da leitura).
  *   Quando o dry-run desliga (true→false), o motor reenfileira as `simulated`
  *   do site ANTES de processar (one-shot, ver `requeueSimulated`), para a
- *   carga não se perder — era isso que o `done` de dry-run escondia.
+ *   carga não se perder — era isso que o `done` de dry-run escondia;
+ * - `partial` (Fase 7 v2): página de série lida PARCIALMENTE (teto de
+ *   cards/botões ou card falho após progresso) COM releases gravadas e
+ *   progresso monotônico na coluna `progress`. É um estado SAUDÁVEL de
+ *   trabalho em andamento — não é `error` (não alimenta errorStreak/pausa
+ *   automática): a própria linha se auto-retoma pelo `next_at` curto, e a
+ *   retomada recomeça dos cards feitos (`SeriesWorkProgress`). Estagnação
+ *   (progresso que não avança) vira `error series_stall` pela regra do
+ *   `crawl-page`, com backoff e escape no "Reprocessar erros".
  */
-export type CrawlUrlStatus = 'pending' | 'inflight' | 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated';
+export type CrawlUrlStatus = 'pending' | 'inflight' | 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated' | 'partial';
+
+/**
+ * Progresso de UMA página de série entre tentativas (JSON na coluna
+ * `progress` do `crawl_url`). Invariante de monotonia: `doneCards` SÓ cresce
+ * (união com o resume anterior) e `card.skip` só avança dentro do MESMO
+ * `card.url` — é isso que permite ao store decidir "avançou × estagnou"
+ * comparando a representação canônica. Site que muda os cards sem lastmod
+ * diverge o `card.url` → skip recomeça → comparação detecta não-avanço →
+ * `series_stall` (erro visível), nunca loop.
+ */
+export interface SeriesWorkProgress {
+  v: 1;
+  /** Cards concluídos com sucesso (URL); só cresce. */
+  doneCards: string[];
+  /** Card interrompido pelo teto de botões: botões já seguidos. */
+  card?: { url: string; skip: number };
+  /** Todos os cards da página da série (painel mostra x/y). */
+  totalCards: number;
+  /** Marcado pelo `crawl-page` quando o passe é dry-run (o flip
+   * `true→false` reenfileira só progresso SECO). */
+  dry?: 1;
+}
 
 /** Resultado que o `markResult` aceita (`pending`/`inflight` são estados do
  * ciclo, nunca resultado de processamento). */
@@ -103,6 +133,9 @@ export interface CrawlDiscoverOptions {
  * config viva no snapshot do tick). */
 export interface CrawlPageOptions extends CrawlDiscoverOptions {
   kind?: CrawlPageKind;
+  /** Progresso retomável da página de série (da coluna `progress` da linha).
+   * O `discover` ignora o campo; quem o usa é `fetchWork` do adaptador. */
+  resume?: SeriesWorkProgress | null;
 }
 
 /** Grupo de releases por LOCALIZAÇÃO declarada da obra (Fase 7 séries). Uma
@@ -137,6 +170,12 @@ export interface CrawlWorkResult {
    */
   groups?: CrawlReleaseGroup[];
   /**
+   * Progresso retomável de página de série parcial (Fase 7 v2). Presente em
+   * `partial` (e anexado a `done` de conclusão por resume); o codec vive no
+   * `crawl-store-rules.ts` (`renderProgress`/`parseProgress`).
+   */
+  progress?: SeriesWorkProgress;
+  /**
    * Custo REAL de requisições HTTP da página (contagem medida no adaptador,
    * por HOP — redirect e salto de protetor contam cada um, ver
    * `TransportOptions.onRequest`). O motor cobra no teto por hora: 1 página de
@@ -146,7 +185,10 @@ export interface CrawlWorkResult {
    * gasto antes de falhar.
    */
   requestCost?: number;
-  /** Motivo do erro (`status: 'error'`); o painel agrupa por ele. */
+  /** Motivo do erro (`status: 'error'`); o painel agrupa por ele. Em
+   * `partial` carrega o MOTIVO DO RECORTE (`series_truncated: …`/
+   * `cards_failed: …`) como diagnóstico — gravado na coluna `error` da linha
+   * partial, mas o `errorGroups` só conta `status='error'`. */
   error?: string;
 }
 
@@ -189,6 +231,8 @@ export interface CrawlUrlRow {
   /** Releases válidas gravadas na última visita bem-sucedida. */
   releases: number;
   error: string;
+  /** Progresso retomável de série parcial (JSON cru; `''` = sem progresso). */
+  progress: string;
   /** Quando a URL entrou na fila (ordem determinística do próximo pendente). */
   addedAt: number;
 }
@@ -217,7 +261,10 @@ export interface MarkResultInput {
   imdb?: string | null;
   /** Contagem de releases válidas gravadas nesta visita. */
   releases?: number;
+  /** Motivo do erro/recorte (`error`, ou diagnóstico em `partial`). */
   error?: string;
+  /** Progresso retomável em JSON cru (o codec é na fronteira do store). */
+  progress?: string;
 }
 
 /** Opções do `markResult`: base do backoff e teto de tentativas do motor. */

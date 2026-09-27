@@ -4,6 +4,7 @@
 // captura o próprio estado e entrega aqui; assim o formato do card é testável
 // sem subir o motor.
 import type { CrawlEngine } from '../utils/crawl-store.js';
+import { parseProgress } from '../utils/crawl-store-rules.js';
 import type { CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 import type { CrawlRunRow } from './crawl-types.js';
 
@@ -50,6 +51,8 @@ export interface SiteStatus {
   noWork: Array<{ url: string; checkedAt: number }>;
   /** Páginas lidas em dry-run aguardando gravação real (contagem do store). */
   simulatedAwaiting: number;
+  /** Páginas de série em andamento (Fase 7 v2) com o progresso x/y. */
+  partialWork: Array<{ url: string; done: number; total: number; checkedAt: number }>;
   errors: Array<{ url: string; error: string; tries: number; checkedAt: number }>;
   errorGroups: Array<{ reason: string; count: number }>;
 }
@@ -76,6 +79,10 @@ export const STATUS_ERROR_GROUPS_LIMIT = 10;
 export function stableErrorReason(rawError: string): string {
   const text = String(rawError || '').trim();
   if (/^series_truncated\b/i.test(text)) return 'series_truncated';
+  // Estouro de progresso (Fase 7 v2): o detalhe (cards x/y) varia — o motivo
+  // estável agrupa; convive com o legado `series_truncated` (linhas `error`
+  // antigas) e com o estouro novo.
+  if (/^series_stall\b/i.test(text)) return 'series_stall';
   return text || 'erro';
 }
 
@@ -116,9 +123,10 @@ export function buildSiteStatus(
     ? state.avgRequestCost
     : null;
   // `simulated` é trabalho restante: a página foi lida em dry-run e ainda
-  // precisa de uma passada com gravação.
+  // precisa de uma passada com gravação. `partial` idem: página de série em
+  // andamento (Fase 7 v2).
   const remaining = counters.byStatus.pending + counters.byStatus.error
-    + counters.byStatus.inflight + counters.byStatus.simulated;
+    + counters.byStatus.inflight + counters.byStatus.simulated + counters.byStatus.partial;
   const etaHours = remaining > 0
     ? (avgCost != null ? Math.round(((remaining * avgCost) / rate) * 10) / 10 : null)
     : 0;
@@ -143,6 +151,16 @@ export function buildSiteStatus(
     noWork: engine.listByStatus(siteId, 'no-work', STATUS_LIST_LIMIT).map((r) => ({ url: r.url, checkedAt: r.checkedAt })),
     /** Páginas lidas em dry-run aguardando gravação (dry-run desligar reenfileira). */
     simulatedAwaiting: counters.byStatus.simulated,
+    // Séries em andamento (Fase 7 v2): x/y cards lidos, do progresso gravado.
+    partialWork: engine.listByStatus(siteId, 'partial', STATUS_LIST_LIMIT).map((r) => {
+      const p = parseProgress(r.progress);
+      return {
+        url: r.url,
+        done: p ? p.doneCards.length : 0,
+        total: p ? p.totalCards : 0,
+        checkedAt: r.checkedAt,
+      };
+    }),
     errors: engine.listByStatus(siteId, 'error', STATUS_LIST_LIMIT).map((r) => ({
       url: r.url, error: r.error, tries: r.tries, checkedAt: r.checkedAt,
     })),

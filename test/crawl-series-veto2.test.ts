@@ -2,9 +2,10 @@
 //   B1 `sinceOf` distingue mapa presente com null EXPLÍCITO — provado na
 //      CHAMADA REAL do motor (cursor de filme !=null, tv null): o corte de
 //      filme não pode filtrar a carga inicial de séries;
-//   B2 QUALQUER truncagem vira `series_truncated` (erro retentável) ANTES de
-//      no-torrent — inclusive entries=0, cards sem botões e terminal expirado;
-//      sondas A (truncado → erro) e B (controle sem truncagem → no-torrent);
+//   B2 QUALQUER truncagem vira `partial` (Fase 7 v2) ANTES de no-torrent —
+//      inclusive entries=0, cards sem botões e terminal expirado; grupos e
+//      progresso preservados, NUNCA `done` silencioso nem `no-torrent`;
+//      sondas A (truncado → partial) e B (controle sem truncagem → no-torrent);
 //   terminal REAL do protetor: HTTP 400 com "Link inválido ou expirado";
 //   magnet: não paga hop (a cadeia que resolve em Location magnet: custa só
 //      os hops feitos);
@@ -153,8 +154,8 @@ describe('B1 na CHAMADA REAL do motor: cursor de filme NÃO vira corte de série
   });
 });
 
-describe('B2: QUALQUER truncagem vira series_truncated ANTES de no-torrent', () => {
-  test('SONDA A: truncado com 0 magnets e botão terminal expirado → series_truncated, nunca no-torrent', async () => {
+describe('B2: QUALQUER truncagem vira partial ANTES de no-torrent', () => {
+  test('SONDA A: truncado com 0 magnets e botão terminal expirado → partial com progresso, nunca no-torrent', async () => {
     const stub = runStub(seriesRoutes({
       internal: TWO_CARDS,
       card: cardHtml(dlBtn('gate')),
@@ -163,9 +164,13 @@ describe('B2: QUALQUER truncagem vira series_truncated ANTES de no-torrent', () 
     try {
       const r: CrawlWorkResult = await createVacaCrawlSite(resolverSurface())
         .fetchWork(SHOW, { kind: 'tv_show', series: { enabled: true, maxCards: 1, maxButtons: 40 } });
-      assert.equal(r.status, 'error', 'o card NÃO visitado pode ter o torrent — truncagem não vira no-torrent');
+      assert.equal(r.status, 'partial', 'o card NÃO visitado pode ter o torrent — truncagem não vira no-torrent');
       assert.match(r.error || '', /^series_truncated:/);
       assert.match(r.error || '', /cards 1\/2/, 'declara o card que ficou de fora');
+      assert.ok(r.progress, 'partial carrega progresso retomável');
+      assert.equal(r.progress?.doneCards.length, 1, 'o card lido entrou no checkpoint');
+      assert.equal(r.progress?.totalCards, 2);
+      assert.equal(r.groups, undefined, 'sem magnet nenhum não há grupo (nada inventado)');
     } finally { stub.restore(); }
   });
 

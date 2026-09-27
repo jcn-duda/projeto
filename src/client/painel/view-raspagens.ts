@@ -231,6 +231,11 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
           ${card.simulated} simulada(s) aguardando gravação — desligue o modo simulação para gravá-las.
         </p>
       ` : null}
+      ${card.partial > 0 ? html`
+        <p style="color: var(--warn, #b58900); margin-top: var(--space-1); font-size: var(--font-floor);">
+          ${card.partial} página(s) de série em andamento — retomam pelos cards já lidos${card.partialWork.length ? html` (${card.partialWork.map((p) => `${p.done}/${p.total}`).join(', ')})` : ''}.
+        </p>
+      ` : null}
       <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
         Última rodada:
         ${last

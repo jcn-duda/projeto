@@ -45,10 +45,10 @@ import { ensureCrawlSchema } from './crawl-store-migrate.js';
 
 export type {
   CrawlErrorGroup, CrawlPageKind, CrawlResultStatus, CrawlRunPhase, CrawlRunRow, CrawlUrlRow,
-  CrawlUrlStatus, ClearSiteReport, DiscoveredEntry, MarkOpts, MarkResultInput, SiteCounters,
-  UpsertReport,
+  CrawlUrlStatus, ClearSiteReport, DiscoveredEntry, MarkOpts, MarkResultInput, SeriesWorkProgress,
+  SiteCounters, UpsertReport,
 } from '../providers/crawl-types.js';
-export { errorBackoffMs, CRAWL_GIVE_UP_MS } from './crawl-store-rules.js';
+export { errorBackoffMs, CRAWL_GIVE_UP_MS, parseProgress, renderProgress, progressAdvanced, withDryFlag } from './crawl-store-rules.js';
 
 /** Contrato único das duas engines (SQL e memória). */
 export interface CrawlEngine {
@@ -65,8 +65,9 @@ export interface CrawlEngine {
   requeueInflight(site: string, olderThanMs: number, now: number): number;
   /** "Reprocessar erros": zera tries/next_at e reenfileira (ação do painel). */
   requeueErrors(site: string): number;
-  /** Dry-run desligou (true→false): `simulated` do site voltam a `pending`
-   * (one-shot/idempotente — só toca linhas `simulated`). */
+  /** Dry-run desligou (true→false): `simulated` E qualquer linha com
+   * progresso seco (`"dry":1`, em qualquer status) voltam a `pending` do zero
+   * (one-shot/idempotente — o reset limpa o progresso). */
   requeueSimulated(site: string): number;
   /** Devolve UMA URL à fila (`pending`), preservando o resto — a simulação
    * usa isto para não consumir a página do ciclo de verdade. */
@@ -120,27 +121,39 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     // mesma rodada de descoberta, a ordem de inserção e depois a própria URL.
     // `error` NÃO vencido espera o backoff; vencido, volta a ser servido com o
     // `tries` preservado — é o retry automático até o `maxTries` do motor.
+    // `partial` (Fase 7 v2) é trabalho em andamento: entra na fila com o
+    // `next_at` curto que o `applyResult` lhe deu.
     const dueStmt = db.prepare(
-      "SELECT * FROM crawl_url WHERE site = ? AND status IN ('pending', 'error') AND next_at <= ?"
+      "SELECT * FROM crawl_url WHERE site = ? AND status IN ('pending', 'error', 'partial') AND next_at <= ?"
       + ' ORDER BY next_at ASC, added_at ASC, url ASC LIMIT 1',
     );
     // Claim com guarda de status: a linha reivindicada é SEMPRE uma due
-    // (`pending` ou `error` com backoff vencido) — nunca terminal.
+    // (pending, error com backoff vencido ou partial com retry vencido) —
+    // nunca terminal.
     const claimStmt = db.prepare(
-      "UPDATE crawl_url SET status = 'inflight', checked_at = ? WHERE site = ? AND url = ? AND status IN ('pending', 'error')",
+      "UPDATE crawl_url SET status = 'inflight', checked_at = ? WHERE site = ? AND url = ? AND status IN ('pending', 'error', 'partial')",
     );
     const requeueInflightStmt = db.prepare(
       "UPDATE crawl_url SET status = 'pending', next_at = 0 WHERE site = ? AND status = 'inflight' AND checked_at <= ?",
     );
+    // "Reprocessar erros" é o escape do estagnado: limpa progresso das
+    // `error` (recomeça do zero de propósito). `partial` NÃO é tocado — ele
+    // se auto-retoma pelo next_at.
     const requeueErrorsStmt = db.prepare(
-      "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '' WHERE site = ? AND status = 'error'",
+      "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', progress = '' WHERE site = ? AND status = 'error'",
     );
-    // Dry-run desligou (true→false): as `simulated` daquele site voltam a
-    // `pending` para serem processadas COM gravação. One-shot por natureza: só
-    // toca linhas `simulated`, então repetir é no-op. O conteúdo visto na
-    // simulação (imdb/releases) fica como pista — a marcação final sobrescreve.
+    // Dry-run desligou (true→false): qualquer linha do site que carregue
+    // progresso SECO (`"dry":1`) ou status `simulated` volta a `pending` do
+    // zero. Fase 7 v2 (F1/F2): o match é pelo PROGRESSO, não pelo status —
+    // uma fatia seca pode ter virado `error` (falha preserva progresso),
+    // `pending`/`inflight` (crash entre marcação e claim) ou `partial`; o
+    // resume de qualquer uma delas pularia cards nunca gravados. One-shot por
+    // natureza: o reset limpa o `progress`, então repetir é no-op; linha com
+    // progresso ao vivo (sem `dry:1`) NÃO é tocada. Reset completo
+    // (tries/error/progress): passe seco não provou nada.
     const requeueSimulatedStmt = db.prepare(
-      "UPDATE crawl_url SET status = 'pending', next_at = 0 WHERE site = ? AND status = 'simulated'",
+      "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', progress = ''"
+      + " WHERE site = ? AND (status = 'simulated' OR progress LIKE '%\"dry\":1%')",
     );
     const countersStmt = db.prepare('SELECT status, COUNT(*) AS n FROM crawl_url WHERE site = ? GROUP BY status');
     const totalStmt = db.prepare('SELECT COUNT(*) AS n FROM crawl_url WHERE site = ?');

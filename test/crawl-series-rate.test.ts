@@ -125,4 +125,38 @@ describe('motor Fase 7: descoberta gated e teto horário com o custo REAL', () =
     counter.note(0); // piso 1
     assert.equal(counter.current(), 10);
   });
+
+  test('partial: custo cobrado no teto, cycle.partial (NÃO errors), errorStreak zerado', async () => {
+    const crawlerLive = await import('../src/utils/crawler-live.js');
+    crawlerLive._resetForTest();
+    const { CrawlPausePolicy } = await import('../src/providers/crawl-pauses.js');
+    store.engine().upsertUrls('fake', [{ url: SHOW, lastmod: '2026-01-01', kind: 'tv_show' }], 1);
+    const partialSite: CrawlSite = {
+      id: 'fake', label: 'Fake',
+      discover: async () => ({ urls: [], complete: true, failures: [] }),
+      fetchWork: async (url) => ({
+        url, status: 'partial', imdb: 'tt1', title: 'Outer Banks', year: 2020, type: 'series',
+        groups: [{ season: 2, episode: 1, releases: [rel('b2'.repeat(20))] }],
+        error: 'series_truncated: teto de série atingido (cards 2/4, botões 40/40)',
+        progress: { v: 1, doneCards: ['/c1', '/c2'], totalCards: 4 },
+        requestCost: 9,
+      }),
+    };
+    crawler._setSitesForTest(() => partialSite);
+    config.crawl.maxPerHour = 9;
+    crawler._forceDiscoveryForTest();
+    await crawler.tick(); // descoberta
+    await crawler.tick(); // página partial (custa 9 → teto esgotado)
+    assert.equal(crawler.status().pagesThisHour, 9, 'custo REAL do partial é cobrado');
+    assert.equal(crawler.status().cycle.partial, 1, 'cycle conta partial próprio');
+    assert.equal(crawler.status().cycle.errors, 0, 'trabalho em andamento não é erro');
+    assert.equal(crawler.status().errorStreak, 0, 'partial zera o streak (o site respondeu)');
+    // Política pura: partial não toca o canário nem pausa por streak.
+    const policy = new CrawlPausePolicy();
+    policy.observePage('/x', { kind: 'error', siteLevelError: true }, { errorPauseStreak: 1, layoutCanary: 2 });
+    const reason = policy.observePage(SHOW, { kind: 'partial', releases: 2 }, { errorPauseStreak: 1, layoutCanary: 2 });
+    assert.equal(reason, null, 'partial não dispara pausa');
+    assert.equal(policy.errorStreakCount, 0);
+    assert.equal(policy.canaryStreakCount, 0, 'partial é neutro no canário');
+  });
 });

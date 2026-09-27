@@ -76,9 +76,10 @@ export function memoryCrawlEngine(): CrawlEngine {
       const s = String(site || '');
       let best: CrawlUrlRow | null = null;
       for (const row of urls.values()) {
-        // MESMA elegibilidade da SQL: pending, ou error cujo backoff venceu.
+        // MESMA elegibilidade da SQL: pending, partial com retry vencido, ou
+        // error cujo backoff venceu.
         if (row.site !== s) continue;
-        if (row.status !== 'pending' && row.status !== 'error') continue;
+        if (row.status !== 'pending' && row.status !== 'error' && row.status !== 'partial') continue;
         if (row.nextAt > now) continue;
         // MESMA ordem da SQL: next_at, added_at, url — retomada determinística.
         if (!best
@@ -115,7 +116,8 @@ export function memoryCrawlEngine(): CrawlEngine {
       let n = 0;
       for (const [k, row] of urls) {
         if (row.site !== s || row.status !== 'error') continue;
-        urls.set(k, { ...row, status: 'pending', tries: 0, nextAt: 0, error: '' });
+        // MESMA SQL: o escape do estagnado limpa progresso (recomeça do zero).
+        urls.set(k, { ...row, status: 'pending', tries: 0, nextAt: 0, error: '', progress: '' });
         n += 1;
       }
       return n;
@@ -124,8 +126,13 @@ export function memoryCrawlEngine(): CrawlEngine {
       const s = String(site || '');
       let n = 0;
       for (const [k, row] of urls) {
-        if (row.site !== s || row.status !== 'simulated') continue;
-        urls.set(k, { ...row, status: 'pending', nextAt: 0 });
+        // MESMA SQL: `simulated` OU QUALQUER linha com progresso seco
+        // (`"dry":1`) — error/pending/inflight/partial — é resetada do zero
+        // (resume de passe que não gravava pularia cards nunca gravados).
+        // Idempotente: o reset limpa o `progress`; linha seca ao vivo fica.
+        const dryProgress = row.progress.includes('"dry":1');
+        if (row.site !== s || (row.status !== 'simulated' && !dryProgress)) continue;
+        urls.set(k, { ...row, status: 'pending', tries: 0, nextAt: 0, error: '', progress: '' });
         n += 1;
       }
       return n;

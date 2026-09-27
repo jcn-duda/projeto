@@ -18,6 +18,7 @@ const { createPageProcessor } = await import('../src/providers/crawl-page.js');
 const {
   seasonFromCardSlug, groupSeriesReleases,
 } = await import('../src/providers/crawl-sites/vaca-series.js');
+const { declaredSeriesLocation } = await import('../src/providers/crawl-sites/vaca-series-locate.js');
 const { createResolver } = await import('../resolvers/profiles/vacatorrent.js');
 const { createVacaCrawlSite } = await import('../src/providers/crawl-sites/vaca.js');
 import { stubFetch } from './helpers/stub.js';
@@ -199,19 +200,19 @@ describe('crawl-sites/vaca Fase 7: fetchWork de série (fixtures reais, sem rede
       const groups = result.groups ?? [];
       const byKey = new Map(groups.map((g) => [`${g.season}:${g.episode}`, g]));
       // Cards: temporada-2 (parser) + 2a-temporada (slug ordinal, mesma página
-      // ⇒ mesmos hashes ⇒ dedupe no registro) + especial (season null,
-      // conservador) + batch de OUTRA série (raiz). Episódio fica na chave S/E
-      // (régua do releaseWorkTargets); sem botão de pack não há grupo S:null.
+      // ⇒ mesmos hashes ⇒ dedupe no registro). O batch de OUTRA série declara
+      // S05 no realTitle ("BATCH – Sacrifício de Sangue S05") — pela evidência
+      // (Fase 7 v2) ele vai para {5,null}, não mais para a raiz. Episódio fica
+      // na chave S/E (régua do releaseWorkTargets).
       const e01 = byKey.get('2:1');
       assert.ok(e01, 'grupo S02E01 existe');
       assert.match(e01!.releases[0].title || '', /Outer Banks \(2020\) S02E01/, 'título por-episódio sai SxxEyy');
       assert.match(e01!.releases[0].title || '', /2\.10 GB/, 'tamanho real do botão');
       assert.ok(byKey.has('2:2'), 'grupo S02E02 existe');
       assert.equal(byKey.has('2:null'), false, 'sem botão de pack não há grupo de temporada');
-      const root = byKey.get('null:null');
-      assert.ok(root, 'batch/sem-temporada vai para a raiz');
-      assert.equal(root!.releases.length, 1);
-      assert.match(root!.releases[0].magnet || '', new RegExp(MAG_BATCH.slice(21)));
+      const s5 = byKey.get('5:null');
+      assert.ok(s5, 'batch com temporada declarada no realTitle vai para S05 (evidência v2)');
+      assert.equal(byKey.has('null:null'), false, 'nada cai na raiz sem evidência de série inteira');
       // Custo REAL: 1 página + 1 season-internal + 4 cards + 7 botões (os
       // cards repetidos re-buscam o mesmo magnet; o dedupe por hash é no
       // registro, não na rede).
@@ -220,18 +221,23 @@ describe('crawl-sites/vaca Fase 7: fetchWork de série (fixtures reais, sem rede
     } finally { stub.restore(); }
   });
 
-  test('caps: teto de cards/botões corta a leitura e vira series_truncated (NUNCA done) — F5', async () => {
+  test('caps: teto de cards/botões corta a leitura e vira partial com progresso (NUNCA done) — F5 v2', async () => {
     const capped = runStub(seriesRoutes());
     try {
       const site = createVacaCrawlSite(resolverSurface());
       const r2 = await site.fetchWork(SHOW, { kind: 'tv_show', series: { enabled: true, maxCards: 2, maxButtons: 40 } });
       const cardFetches = capped.calls.filter((c) => /\/season\/|batch-sacrificio/.test(c.url)).length;
       assert.equal(cardFetches, 2, 'só 2 cards visitados');
-      // F5: página cortada pelo teto NÃO é done silencioso nem "done parcial" —
-      // é erro retentável rotulado, revisitável (e o maxTries é o freio).
-      assert.equal(r2.status, 'error');
+      // F5 v2: página cortada pelo teto NÃO é done silencioso nem erro de
+      // site — é `partial` com progresso retomável e grupos preservados; a
+      // retomada (resume) completa em passes sem recomeçar do zero.
+      assert.equal(r2.status, 'partial');
       assert.match(r2.error || '', /^series_truncated:/);
       assert.match(r2.error || '', /cards 2\/4/, 'declara quanto ficou de fora');
+      assert.ok(r2.progress, 'partial carrega progresso');
+      assert.equal(r2.progress!.doneCards.length, 2, 'os 2 cards lidos entraram no checkpoint');
+      assert.equal(r2.progress!.totalCards, 4);
+      assert.ok((r2.groups ?? []).length > 0, 'grupos coletados NÃO são descartados');
     } finally { capped.restore(); }
     const btnCap = runStub(seriesRoutes());
     try {
@@ -241,16 +247,18 @@ describe('crawl-sites/vaca Fase 7: fetchWork de série (fixtures reais, sem rede
       const buttons = btnCap.calls.filter((c) => c.url.includes('systemtech')).length;
       assert.equal(buttons, 1, 'teto de botões respeitado');
       assert.equal(r3.requestCost, 4, '1 página + 1 internal + 1 card + 1 botão');
-      assert.equal(r3.status, 'error', 'teto de botão atingido também não é done');
+      assert.equal(r3.status, 'partial', 'teto de botão atingido também não é done');
       assert.match(r3.error || '', /^series_truncated:/);
+      assert.equal(r3.progress!.card?.skip, 1, 'checkpoint NO botão onde cortou');
     } finally { btnCap.restore(); }
-    // F5: o freio anti-loop é o maxTries do motor — a URL truncada vira error
-    // com backoff e DORME após maxTries, não martela para sempre.
+    // O freio anti-loop de estagnação (series_stall) é exercitado em
+    // test/crawl-series-resume.test.ts; aqui fica o contrato do ERRO puro do
+    // motor — URL que falha de verdade acumula tries e dorme após maxTries.
     store.engine().upsertUrls('fake', [{ url: SHOW, lastmod: '2026-01-01', kind: 'tv_show' }], 1);
     const truncSite: CrawlSite = {
       id: 'fake', label: 'Fake',
       discover: async () => ({ urls: [], complete: true, failures: [] }),
-      fetchWork: async (u) => ({ url: u, status: 'error', error: 'series_truncated: teto de série atingido (cards 2/4, botões 40/40)', type: 'series' }),
+      fetchWork: async (u) => ({ url: u, status: 'error', error: 'series_stall: progresso não avançou (cards 2/4)', type: 'series' }),
     };
     const process = createPageProcessor({
       identify: async () => ({ outcome: 'identified', imdb: 'tt1', reason: 'ok' }),
@@ -262,8 +270,8 @@ describe('crawl-sites/vaca Fase 7: fetchWork de série (fixtures reais, sem rede
       if (i === 0) store.engine().requeueUrl('fake', SHOW);
     }
     const slept = store.engine().getUrl('fake', SHOW) as CrawlUrlRow;
-    assert.equal(slept.tries, 2, 'tentativas acumulam no erro truncado');
-    assert.ok(slept.nextAt > Date.now(), 'após maxTries a URL dorme (backoff longo, sem loop eterno) — o operador levanta o teto e usa "Reprocessar erros"');
+    assert.equal(slept.tries, 2, 'tentativas acumulam no erro de estagnação');
+    assert.ok(slept.nextAt > Date.now(), 'após maxTries a URL dorme (backoff longo, sem loop eterno) — o operador usa "Reprocessar erros"');
   });
 
   test('host safety: season-internal apontando para host de fora é erro, nunca no-torrent', async () => {

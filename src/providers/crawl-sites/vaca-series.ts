@@ -24,21 +24,30 @@
 //     viraria loop eterno. O operador levanta `CRAWL_SERIES_MAX_*` e
 //     reprocessa; a métrica `crawl.page.series-truncated` e o grupo de erro no
 //     painel tornam o recorte visível;
-//   - PACK × EPISÓDIO: por-episódio usa `link.episode` (o título sai SxxEyy);
-//     pack único de temporada limpa o episódio e mantém a temporada; card de
-//     slug desconhecido é conservador (season null → raiz da obra);
+//   - PACK × EPISÓDIO: a LOCAÇÃO de cada botão nasce de EVIDÊNCIA REAL
+//     (`declaredSeriesLocation` em `vaca-series-locate.ts`): o dn do magnet
+//     vence (é conteúdo), o slug/título do card é página. Pack "todas as
+//     temporadas"/temporada única vai S ou raiz legítima — NUNCA um `E01`
+//     fictício do marcador `ss-ep-num`; por-episódio usa `link.episode`;
 //   - LOCAÇÃO: cada release é roteada por `releaseWorkTargets` (título × dn,
 //     mesma régua do índice) e agrupada por locação declarada (S/E, S, raiz) —
-//     é o recorder que grava cada grupo na chave que o cobre, sempre partial.
+//     é o recorder que grava cada grupo na chave que o cobre, sempre partial;
+//   - RETOMADA (Fase 7 v2, Parte B): página cortada por teto vira status
+//     `partial` com progresso monotônico (`doneCards`/`card.skip`) gravado no
+//     `crawl.db` — a próxima tentativa recomeça dos cards feitos em vez de
+//     refazer a série do zero (One Piece/TWD: o teto de cards deixava a série
+//     em `error series_truncated` para sempre). Avanço zera `tries`; estagnação
+//     vira `error series_stall` com backoff (decisão no `crawl-page`).
 //
 // Nada aqui grava banco nem decide quando rodar: o motor chama, o recorder
 // grava, a config (CRAWL_SERIES_*) limita.
 import type { RawItem } from '../../../types/domain.js';
-import type { ResolverLink } from '../../../resolvers/types.js';
+import type { ParsedResolverLink, ResolverLink } from '../../../resolvers/types.js';
 import { seriesSeasonInternalUrl, parseSeasonInternal, extractBatchTitle } from '../../../resolvers/profiles/vacatorrent-parsers.js';
 import type { VacaResolverSurface } from './vaca.js';
-import type { CrawlReleaseGroup, CrawlSeriesLimits, CrawlWorkResult } from '../crawl-types.js';
-import { releaseWorkTargets } from '../../utils/release-work.js';
+import type { CrawlReleaseGroup, CrawlSeriesLimits, CrawlWorkResult, SeriesWorkProgress } from '../crawl-types.js';
+import { declaredSeriesLocation, groupSeriesReleases, seasonFromCardSlug } from './vaca-series-locate.js';
+import type { SeriesReleaseEntry } from './vaca-series-locate.js';
 import { magnetDisplayName } from '../../utils/title-normalization.js';
 import * as log from '../../utils/logger.js';
 
@@ -79,69 +88,11 @@ export function withRequestCost(err: unknown, cost: number): Error {
   return e;
 }
 
-/**
- * Temporada declarada no SLUG do card: `/tv/<série>/season/temporada-5/` e
- * os ordinais pt (`1a-temporada`, `2ª-temporada`, `3o-temporada`). Slug que
- * não declara temporada (batch `/batch/…`, layout novo) volta `null` —
- * conservador: a release vai para a raiz da obra em vez de chutar a estação.
- */
-export function seasonFromCardSlug(value: string): number | null {
-  let path = '';
-  try {
-    path = decodeURIComponent(new URL(value).pathname).toLowerCase();
-  } catch {
-    return null;
-  }
-  const segment = /\/season\/([^/]+)\/?$/.exec(path)?.[1] ?? '';
-  const straight = /^temporada-(\d{1,2})$/.exec(segment);
-  if (straight) return seasonOrNull(Number(straight[1]));
-  // Ordinal antes: "1a-temporada", "2ª-temporada", "3o-temporada" (o
-  // ordinal pode vir com ª/º/° ou letra a/o, com ou sem hífen do meio).
-  const ordinal = /^(\d{1,2})[-_]*(?:[ªº°]|[ao])?[-_]*temporada$/.exec(segment);
-  if (ordinal) return seasonOrNull(Number(ordinal[1]));
-  return null;
-}
-
-function seasonOrNull(n: number): number | null {
-  return Number.isFinite(n) && n >= 1 && n <= 99 ? n : null;
-}
-
-/** Entrada de release com a locação PEDIDA pelo card que a produziu. */
-export interface SeriesReleaseEntry {
-  release: RawItem;
-  request: { season: number | null; episode: number | null };
-}
-
-/**
- * Agrupa releases por LOCAÇÃO DECLARADA (título × dn, via
- * `releaseWorkTargets` — a MESMA régua do índice e do banco vivo). Uma
- * release por-episódio cobre S/E e a temporada; um pack cobre a temporada;
- * card sem temporada vai para a raiz. O mesmo hash pode aparecer em dois
- * grupos de propósito: o índice faz merge por hash e o banco dedupe por hash.
- */
-export function groupSeriesReleases(entries: readonly SeriesReleaseEntry[]): CrawlReleaseGroup[] {
-  const groups = new Map<string, CrawlReleaseGroup>();
-  for (const { release, request } of entries) {
-    const dn = magnetDisplayName(release) || undefined;
-    for (const target of releaseWorkTargets(String(release.title || ''), request, dn)) {
-      const key = `${target.season ?? -1}:${target.episode ?? -1}`;
-      let group = groups.get(key);
-      if (!group) {
-        group = { season: target.season, episode: target.episode, releases: [] };
-        groups.set(key, group);
-      }
-      group.releases.push(release);
-    }
-  }
-  // Ordem determinística: episódio > temporada > raiz (o recorder grava na
-  // ordem; a raiz por último espelha a especificidade do destinoDe).
-  return [...groups.values()].sort((a, b) => {
-    if (a.season == null && b.season != null) return 1;
-    if (b.season == null && a.season != null) return -1;
-    if (a.season !== b.season) return (a.season ?? 0) - (b.season ?? 0);
-    return (a.episode ?? -1) - (b.episode ?? -1);
-  });
-}
+// Roteamento por slug e agrupamento por locação mudaram para
+// `vaca-series-locate.ts` (catraca de linhas): reexportados para não mudar
+// o consumo existente (testes e o próprio motor).
+export { seasonFromCardSlug, groupSeriesReleases } from './vaca-series-locate.js';
+export type { SeriesReleaseEntry } from './vaca-series-locate.js';
 
 const isExpired = (err: unknown) => /protector_link_expired/i.test(
   err instanceof Error ? err.message : String(err),
@@ -160,15 +111,20 @@ const isBlockedHost = (err: unknown) => /blocked_host:/i.test(
 /**
  * Processa UMA página de série e devolve o resultado GRUPADO por locação.
  * Falha de UM card ou de UM botão não perde os demais (mesma tolerância do
- * filme); todos-falhando é exceção (o motor retenta com backoff). F1: cards
- * com falha NUNCA viram `no-torrent` (erro retentável); F5: página cortada
- * por teto vira `series_truncated`; F6: card com host de fora sobe
- * `blocked_host:<host>` na porta.
+ * filme); F1: cards com falha NUNCA viram `no-torrent`; F5/Fase 7 v2: página
+ * cortada por teto (ou com card falho depois de progresso) vira `partial` com
+ * progresso retomável; F6: card com host de fora sobe `blocked_host:<host>`.
+ *
+ * `resume` é o progresso da tentativa anterior (coluna `progress` da linha):
+ * cards em `doneCards` não são re-visados; `card.skip` recomeça o laço de
+ * botões no ponto onde o teto cortou (o card é re-buscado — 1 request —, os
+ * botões já seguidos não).
  */
 export async function fetchSeriesWork(
   ctx: VacaSeriesContext,
   url: string,
   limitsArg?: CrawlSeriesLimits,
+  resume?: SeriesWorkProgress | null,
 ): Promise<CrawlWorkResult> {
   const limits = limitsArg ?? DEFAULT_SERIES_LIMITS;
   // Defesa em profundidade (mesma do filme): a fila nasce da nossa descoberta,
@@ -204,14 +160,22 @@ export async function fetchSeriesWork(
   let cardsFailed = 0;
   let lastError: unknown = null;
 
-  // F5: truncagem declarada. Card cortado pelo slice e botão/card seguinte
-  // cortado pelo teto marcam a página como PARCIAL — o pedaço não lido vira
-  // `series_truncated` (erro retentável), nunca `done` silencioso.
+  // F5/Parte B: a contagem da truncagem é sobre os cards QUE FALTAM — o
+  // resume pula os `doneCards`, então uma série maior que o teto converge em
+  // passes (One Piece: 24 cards, teto 10 → 3 passes), sem recomeçar do zero.
   const allCards = parseSeasonInternal(internalHtml, internalChecked.href);
+  const resumeDone = Array.isArray(resume?.doneCards) ? resume!.doneCards : [];
+  const remaining = allCards.filter((c) => !resumeDone.includes(c.url));
   const maxCards = Math.max(1, limits.maxCards);
-  const cardCapHit = allCards.length > maxCards;
-  const cards = allCards.slice(0, maxCards);
+  const cardCapHit = remaining.length > maxCards;
+  const cards = remaining.slice(0, maxCards);
   let buttonCapHit = false;
+  // Progresso monotônico: `doneCards` só cresce (união com o resume) e o
+  // `card.skip` só avança dentro do mesmo card.url — a comparação de avanço
+  // no store/crawl-page detecta estagnação e vira `series_stall`.
+  const doneCards = new Set<string>(resumeDone);
+  let interruptedCard: { url: string; skip: number } | null = null;
+  let cardsCompletedThisPass = 0;
 
   for (const card of cards) {
     if (buttons >= limits.maxButtons) { buttonCapHit = true; break; }
@@ -231,18 +195,36 @@ export async function fetchSeriesWork(
       continue;
     }
     // Temporada do card: o parser dá a do `temporada-N`; slug com ordinal pt
-    // ou indefinido passa pelo slug conservador (null → raiz).
+    // ou indefinido passa pelo slug conservador (null → evidência decide).
     const season = card.season ?? seasonFromCardSlug(card.url);
+    // Hoisted para o escopo do card: é a evidência de TÍTULO da regra 3 do
+    // roteador (e o realTitle que o releaseTitle usa, como antes).
+    const batchTitle = extractBatchTitle(cardHtml) || null;
     const links = ctx.surface.parseDownloadLinks(cardHtml, card.url, {
       season,
       // Pack (batch) publica o título real do pack, que é o que o
       // releaseTitle usa — o bloqueio de pack genérico não se aplica aqui
       // porque a locação é decidida pelo roteador (title × dn), não pelo rótulo.
-      ...(card.isBatch ? { realTitle: extractBatchTitle(cardHtml) || null } : {}),
+      ...(card.isBatch ? { realTitle: batchTitle } : {}),
     });
-    for (const link of links) {
-      if (buttons >= limits.maxButtons) { buttonCapHit = true; break; }
+    // Retomada do meio do card: `skip` é o índice do PRÓXIMO botão a seguir.
+    const skip = resume?.card && resume.card.url === card.url
+      ? Math.max(0, Math.trunc(Number(resume.card.skip) || 0))
+      : 0;
+    let followedInCard = 0;
+    let cardCutByCap = false;
+    for (let index = 0; index < links.length; index += 1) {
+      const link = links[index];
+      if (index < skip) continue; // botões já seguidos numa tentativa anterior
+      if (buttons >= limits.maxButtons) {
+        buttonCapHit = true;
+        cardCutByCap = true;
+        // Checkpoint NO botão onde cortou: a retomada refaz a partir daqui.
+        interruptedCard = { url: card.url, skip: index };
+        break;
+      }
       buttons += 1;
+      followedInCard += 1;
       try {
         if (!/^magnet:/i.test(link.url)) ctx.surface.assertAllowedUrl(link.url);
         // F3: magnet: não faz rede (custo 0); cadeia http conta cada hop.
@@ -253,15 +235,24 @@ export async function fetchSeriesWork(
         const hash = ctx.magnetHash(magnet);
         if (hash && seen.has(hash)) continue; // mesmo hash, botão repetido
         if (hash) seen.add(hash);
-        // Locação PEDIDA: pack único limpa o episódio e mantém a temporada;
-        // por-episódio usa o link.episode da máquina de episódios (o título
-        // sai SxxEyy pelo releaseTitle do filme, mesma régua). Card sem
-        // temporada é conservador: episódio sem estação não existe — raiz.
-        const request = {
-          season: season ?? null,
-          episode: season == null || card.isBatch ? null : (link.episode ?? null),
-        };
-        entries.push({ release: ctx.releaseToRawItem(obra, link, magnet), request });
+        // Locação POR EVIDÊNCIA (Parte A): o dn do magnet é conteúdo e vence
+        // a página; o card (slug/título/batch) é a evidência de página. Pack
+        // de temporada única sai {S, null} — o marcador `ss-ep-num` NÃO vira
+        // `E01` fictício; por-episódio real sai {S, E}; sem evidência, raiz.
+        const dn = magnetDisplayName({ magnet }) || null;
+        const loc = declaredSeriesLocation({
+          cardSeason: season,
+          cardTitle: card.title,
+          isBatch: card.isBatch,
+          realTitle: batchTitle,
+          dn,
+          linkEpisode: link.episode ?? null,
+        });
+        // `season`/`episode` no link alimentam o seasonOf/episodeOf do
+        // releaseTitle (S01 no pack, SxxEyy no episódio real) — é o título
+        // que nasce coerente com a locação, em vez do `E01` do bloco.
+        const linkWithLoc: ParsedResolverLink = { ...link, season: loc.season, episode: loc.episode };
+        entries.push({ release: ctx.releaseToRawItem(obra, linkWithLoc, magnet), request: loc });
       } catch (err: unknown) {
         lastError = err;
         if (isExpired(err)) expiredFails += 1;
@@ -270,69 +261,97 @@ export async function fetchSeriesWork(
         log.warn(`[crawl] vacatorrent: botão de série falhou (${url}):`, log.errorMessage(err));
       }
     }
+    // Card concluído (o laço de botões acabou sem teto): checkpoint. Card
+    // falho NUNCA entra — a retomada o refaz. Falha de BOTÃO é tolerância de
+    // hoje (não atrasa card nem vira partial; limitação documentada).
+    if (!cardCutByCap) {
+      doneCards.add(card.url);
+      cardsCompletedThisPass += 1;
+    }
   }
 
-  // F5/B2: página cortada por teto NUNCA é `done` nem `no-torrent` — o resto
-  // da série ficaria invisível até o lastmod mudar. Vale para QUALQUER
-  // truncagem, inclusive a que coletou 0 magnets: cards ainda não visitados
-  // ou botões ainda não seguidos podem conter o torrent que um `no-torrent`
-  // mentiria que não existe. Erro retentável rotulado; o `maxTries` do motor
-  // é o freio anti-loop (a URL dorme até o operador levantar o teto e usar
-  // "Reprocessar erros").
+  // Progresso desta passada (união monotônica; `card` só quando o teto de
+  // botões cortou no meio de um card).
+  const progress: SeriesWorkProgress = {
+    v: 1,
+    doneCards: [...doneCards],
+    ...(interruptedCard ? { card: interruptedCard } : {}),
+    totalCards: allCards.length,
+  };
+
+  // Matriz de retorno (Fase 7 v2). Ordem importa:
+  // 1) truncagem (teto de card/botão) OU card falho com ≥1 concluído nesta
+  //    passada → `partial` com grupos e progresso — NADA descartado. A
+  //    truncagem deixa de ser `error`: trabalho em andamento não é falha de
+  //    site (não alimenta errorStreak/pausa automática).
   const truncated = cardCapHit || buttonCapHit;
-  if (truncated) {
+  if (truncated || (cardsFailed > 0 && cardsCompletedThisPass > 0)) {
+    const motivo = truncated
+      ? `series_truncated: teto de série atingido (cards ${cards.length}/${allCards.length}, botões ${buttons}/${limits.maxButtons})`
+      : `cards_failed: ${cardsFailed} card(s) com falha`;
     return {
       url,
-      status: 'error',
-      error: `series_truncated: teto de série atingido (cards ${cards.length}/${allCards.length}, botões ${buttons}/${limits.maxButtons})`,
+      status: 'partial',
+      error: motivo,
       imdb,
       title,
       year,
       type: 'series',
+      ...(entries.length ? { groups: groupSeriesReleases(entries) } : {}),
+      progress,
     };
   }
 
-  if (!entries.length) {
-    const terminalFails = expiredFails + nonMagnetFails;
+  // 2) card falho e NENHUMA card concluída: a causa real sobe (motor retenta
+  //    com backoff); o markError do crawl-page preserva o progresso anterior.
+  if (cardsFailed > 0) {
     const allButtonsFailed = expiredFails + nonMagnetFails + otherFails === buttons;
-    // F1: cards TODOS/parcialmente falhando é erro retentável — nunca
-    // `no-torrent` por comparação 0===0 (o caso `buttons===0, cardsFailed>0`
-    // era tragado como "sem torrent" e a série inteira saía do acervo por um
-    // sintoma de rede).
-    if (cardsFailed > 0) {
-      if (!followed && lastError && (buttons === 0 || allButtonsFailed)) {
-        throw lastError;
-      }
-      throw new Error(
-        `vacatorrent: série sem magnet — cards com falha `
-        + `(${cards.length} card(s), ${cardsFailed} com falha, ${buttons} botão(ões))`
-        + (lastError ? `; último erro: ${log.errorMessage(lastError)}` : ''),
-      );
-    }
-    // Cards OK e NENHUM botão publicado (card sem links): sem torrent, honesto.
-    // Cards OK e TODOS os botões terminais (expirado + non_magnet, F1):
-    // sem torrent útil — magnet morto/download direto não merece retry.
-    if (cards.length > 0 && (buttons === 0 || (terminalFails === buttons && otherFails === 0 && followed === 0))) {
-      return { url, status: 'no-torrent', imdb, title, year, type: 'series' };
-    }
-    // Nenhuma cadeia foi adiante e houve falha de transporte: o erro real sobe
-    // (motor retenta).
     if (!followed && lastError && (buttons === 0 || allButtonsFailed)) {
       throw lastError;
     }
-    const detail = lastError ? `; último erro: ${log.errorMessage(lastError)}` : '';
     throw new Error(
-      `vacatorrent: série sem magnet (${cards.length} card(s), ${cardsFailed} com falha, `
-      + `${buttons} botão(ões), ${followed} sem magnet${detail})`,
+      `vacatorrent: série sem magnet — cards com falha `
+      + `(${cards.length} card(s), ${cardsFailed} com falha, ${buttons} botão(ões))`
+      + (lastError ? `; último erro: ${log.errorMessage(lastError)}` : ''),
     );
   }
-  return {
-    url,
-    status: 'done',
-    imdb,
-    title,
-    year,
-    type: 'series',
-    groups: groupSeriesReleases(entries),
-  };
+
+  // 3) sem cap e sem falha de card: conclusão. Com releases, `done` + grupos
+  //    (como sempre). Sem releases MAS com resume (a leitura secou num passe
+  //    anterior): `done` SEM grupos — devolver `no-torrent` aqui apagaria a
+  //    contagem e mentiria "sem torrent" sobre uma série já colhida. O
+  //    crawl-page preserva a contagem da última visita com gravação.
+  if (entries.length) {
+    return {
+      url,
+      status: 'done',
+      imdb,
+      title,
+      year,
+      type: 'series',
+      groups: groupSeriesReleases(entries),
+      progress,
+    };
+  }
+  if (resumeDone.length > 0 || !!resume?.card) {
+    return { url, status: 'done', imdb, title, year, type: 'series', progress };
+  }
+  const terminalFails = expiredFails + nonMagnetFails;
+  const allButtonsFailed = expiredFails + nonMagnetFails + otherFails === buttons;
+  // Cards OK e NENHUM botão publicado (card sem links): sem torrent, honesto.
+  // Cards OK e TODOS os botões terminais (expirado + non_magnet, F1):
+  // sem torrent útil — magnet morto/download direto não merece retry.
+  if (cards.length > 0 && (buttons === 0 || (terminalFails === buttons && otherFails === 0 && followed === 0))) {
+    return { url, status: 'no-torrent', imdb, title, year, type: 'series' };
+  }
+  // Nenhuma cadeia foi adiante e houve falha de transporte: o erro real sobe
+  // (motor retenta).
+  if (!followed && lastError && (buttons === 0 || allButtonsFailed)) {
+    throw lastError;
+  }
+  const detail = lastError ? `; último erro: ${log.errorMessage(lastError)}` : '';
+  throw new Error(
+    `vacatorrent: série sem magnet (${cards.length} card(s), ${cardsFailed} com falha, `
+    + `${buttons} botão(ões), ${followed} sem magnet${detail})`,
+  );
 }

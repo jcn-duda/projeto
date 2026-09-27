@@ -144,7 +144,15 @@ async function processClaimed(site: CrawlSite, row: CrawlUrlRow, live: CrawlerEf
     cycle.done += 1;
     cycle.releases += outcome.releases;
     cycle.newReleases += outcome.addedNew ?? 0;
-  } else if (outcome.kind === 'simulated') { cycle.simulated += 1; cycle.releases += outcome.releases; } else if (outcome.kind === 'no-torrent') cycle.noTorrent += 1;
+  } else if (outcome.kind === 'simulated') { cycle.simulated += 1; cycle.releases += outcome.releases; }
+  // `partial` (Fase 7 v2) é trabalho em andamento, não erro: releases contam
+  // no ciclo e NÃO caem no balde de erros.
+  else if (outcome.kind === 'partial') {
+    cycle.partial += 1;
+    cycle.releases += outcome.releases;
+    cycle.newReleases += outcome.addedNew ?? 0;
+  }
+  else if (outcome.kind === 'no-torrent') cycle.noTorrent += 1;
   else if (outcome.kind === 'no-work') cycle.noWork += 1;
   else cycle.errors += 1;
   const reason = policy.observePage(row.url, {
@@ -174,7 +182,10 @@ async function step(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void
       const recovered = store.engine().requeueInflight(site.id, 0, Date.now());
       if (recovered > 0) log.warn(`[crawl] ${recovered} URL(s) inflight órfã(s) devolvida(s)`);
     }
-    if (counters.byStatus.error > 0 || counters.byStatus.inflight > 0) {
+    // `partial` incluído: página de série em andamento com `next_at` futuro
+    // (retry da base) tem que ser servida fora de uma rodada aberta, senão
+    // One Piece/TWD esperariam o ciclo incremental inteiro entre passes.
+    if (counters.byStatus.error > 0 || counters.byStatus.inflight > 0 || counters.byStatus.partial > 0) {
       const row = store.engine().takeNext(site.id, Date.now());
       if (row) await processClaimed(site, row, live);
     }
