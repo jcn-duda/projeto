@@ -143,6 +143,68 @@ describe('vaca-series-locate: locação por evidência (regras 1–5)', () => {
   });
 });
 
+// Bug 2026-09-27: entidades HTML na evidência ("4&ordf;" sem decodificar não
+// declara temporada nenhuma) e título coerente com a locação (pack ⇒ Sxx SEM E
+// herdado do bloco ss-ep-num).
+describe('evidência com entidade HTML e título coerente com a locação', () => {
+  const base = { cardSeason: null, cardTitle: '', isBatch: false, realTitle: null, dn: null, linkEpisode: null };
+
+  test('dn com &ordf; vira 4ª: pack TWD T4 sai {S4,null} e NUNCA herda o E07 do bloco', () => {
+    assert.deepEqual(
+      declaredSeriesLocation({
+        ...base, cardSeason: 4,
+        cardTitle: 'The Walking Dead 4&ordf; Temporada',
+        dn: 'The.Walking.Dead.4&ordf;.Temporada.Completa.1080p.DUAL',
+        linkEpisode: 7,
+      }),
+      { season: 4, episode: null }, 'o E07 do bloco ss-ep-num não vira episódio do pack',
+    );
+  });
+
+  test('dn duplamente codificado (&amp;#170;) e entidade sem ";" também decodificam', () => {
+    assert.deepEqual(
+      declaredSeriesLocation({ ...base, dn: 'TWD.4&amp;#170;.Temporada.Completa.1080p', linkEpisode: 2 }),
+      { season: 4, episode: null },
+    );
+    assert.deepEqual(
+      declaredSeriesLocation({ ...base, dn: 'TWD.4&ordf Temporada.Completa', linkEpisode: 2 }),
+      { season: 4, episode: null },
+    );
+  });
+
+  test('título do card com &ordf; declara a temporada (regra 3) com dn silencioso', () => {
+    assert.deepEqual(
+      declaredSeriesLocation({ ...base, cardTitle: 'The Walking Dead 4&#170; Temporada', linkEpisode: 7 }),
+      { season: 4, episode: 7 }, 'dn silencioso: episódio do bloco por-episódio permanece',
+    );
+  });
+
+  test('seasonFromCardSlug lê ordinal com entidade ("4&ordf;-temporada")', async () => {
+    const { seasonFromCardSlug } = await import('../src/providers/crawl-sites/vaca-series-locate.js');
+    assert.equal(seasonFromCardSlug('https://x/tv/twd/season/4&ordf;-temporada/'), 4);
+    assert.equal(seasonFromCardSlug('https://x/tv/twd/season/temporada-4/'), 4, 'regressão');
+  });
+
+  test('groupSeriesReleases com título/dn com entidade: work APENAS S4 (nunca S1/S5)', async () => {
+    const { groupSeriesReleases } = await import('../src/providers/crawl-sites/vaca-series-locate.js');
+    const release = {
+      title: 'The Walking Dead 4&#170; Temporada Completa DUAL 1080p',
+      magnet: `magnet:?xt=urn:btih:${'ab'.repeat(20)}&dn=${encodeURIComponent('The.Walking.Dead.4&ordf;.Temporada.Completa.1080p')}`,
+      indexer: 'vacatorrent', tracker: 'Vaca Torrent', isBr: true, seeders: 1,
+    };
+    const groups = groupSeriesReleases([{ release, request: { season: 4, episode: null } }]);
+    const keys = groups.map((g) => `${g.season}:${g.episode}`);
+    assert.deepEqual(keys, ['4:null'], 'work apenas na S4 — sem raiz, sem outra temporada');
+  });
+
+  test('matchesEpisode: pack da S4 atende E05 e NÃO atende a S3', async () => {
+    const { matchesEpisode } = await import('../src/utils/episode-matching.js');
+    const title = 'The Walking Dead 4ª Temporada Completa DUAL 1080p';
+    assert.equal(matchesEpisode(title, { season: 4, episode: 5 }), true, 'pack cobre o E05 da própria temporada');
+    assert.equal(matchesEpisode(title, { season: 3, episode: 5 }), false, 'pack da S4 não vira S3');
+  });
+});
+
 describe('Stranger Things via fetchWork real: nunca raiz, nunca E01 fictício', () => {
   beforeEach(() => { store.resetForTests(); store.open(undefined, { forceMemory: true }); });
   after(() => { store.resetForTests(); });
@@ -162,6 +224,49 @@ describe('Stranger Things via fetchWork real: nunca raiz, nunca E01 fictício', 
       const s1 = result.groups!.find((g) => g.season === 1)!.releases[0];
       assert.match(s1.title || '', /S01/, 'pack de temporada ganha Sxx no título');
       assert.doesNotMatch(s1.title || '', /E01/, 'NENHUM E01 fictício');
+    } finally { stub.restore(); }
+  });
+});
+
+// Bug 2026-09-27 via fetchWork real: o título FINAL de cada release é gerado
+// pela locação — season pack ⇒ Sxx SEM o E fictício herdado do bloco
+// ss-ep-num; entidades na evidência não atrapalham a inferência.
+describe('ST T1 e TWD T4 via fetchWork real: pack sai Sxx sem E herdado do bloco', () => {
+  beforeEach(() => { store.resetForTests(); store.open(undefined, { forceMemory: true }); });
+  after(() => { store.resetForTests(); });
+
+  const TWD = `${SITE}/pt/tv-shows/the-walking-dead/`;
+  const TWD_PAGE = `<html><body><h1>The Walking Dead (2010)</h1>`
+    + `Avaliação da IMDb: <a href="https://www.imdb.com/title/tt1520211/">IMDb</a>`
+    + `<div data-u="${Buffer.from(`${SITE}/pt/season-internal/?show=99`).toString('base64')}"></div></body></html>`;
+  const twdRoutes = () => ({
+    'pt/tv-shows/the-walking-dead': () => TWD_PAGE,
+    'season-internal': () => `<html><body><div class="sa-grid">`
+      + `<a href="${SITE}/tv/the-walking-dead/season/the-walking-dead-1/" class="sa-card-title">The Walking Dead 1</a>`
+      + `<a href="${SITE}/tv/the-walking-dead/season/the-walking-dead-4/" class="sa-card-title">The Walking Dead 4</a>`
+      + `</div></body></html>`,
+    // T1: bloco ss-ep-num 01 herdado; dn declara pack da 1ª.
+    'the-walking-dead-1/': () => packCard('twdt1', 'COMPLETE'),
+    // T4: bloco ss-ep-num 07 herdado; dn com &ordf; que declara o pack da 4ª.
+    'the-walking-dead-4/': () => packCard('twdt4', 'COMPLETE'),
+    'id=twdt1': () => magnet('99'.repeat(20), 'The.Walking.Dead.1TemporadaCompleta.1080p.DUAL'),
+    'id=twdt4': () => magnet('88'.repeat(20), 'The.Walking.Dead.4&ordf;.Temporada.Completa.1080p.DUAL'),
+  });
+
+  test('T1: título S01 SEM E01 fictício; T4 (dn com &ordf;): S04 SEM E07 fictício', async () => {
+    const stub = runStub(twdRoutes());
+    try {
+      const result: CrawlWorkResult = await createVacaCrawlSite(resolverSurface())
+        .fetchWork(TWD, { kind: 'tv_show', series: LIMITS });
+      assert.equal(result.status, 'done');
+      const keys = (result.groups ?? []).map((g) => `${g.season}:${g.episode}`).sort();
+      assert.deepEqual(keys, ['1:null', '4:null'], 'packs nas temporadas declaradas, sem episódio herdado');
+      const t1 = result.groups!.find((g) => g.season === 1)!.releases[0];
+      assert.match(t1.title || '', /S01/);
+      assert.doesNotMatch(t1.title || '', /E01/, 'T1: NENHUM E01 fictício do bloco ss-ep-num');
+      const t4 = result.groups!.find((g) => g.season === 4)!.releases[0];
+      assert.match(t4.title || '', /S04/);
+      assert.doesNotMatch(t4.title || '', /E07/, 'T4: NENHUM E07 fictício — dn com &ordf; vence o bloco');
     } finally { stub.restore(); }
   });
 });

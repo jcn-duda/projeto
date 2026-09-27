@@ -7,7 +7,13 @@ raiz de Reacher/Dexter/The Last of Us).
 
 ## O que o script faz (nesta ordem)
 
-1. **magnets.db** — varre `magnet_work` raiz; a régua é a MESMA do runtime
+0. **Escopo (crawl.db primeiro)** — SOMENTE IMDb comprovadamente SÉRIE: linha
+   `kind='tv_show'` no `crawl.db`. O banco é aberto ANTES de qualquer
+   relatório/movimento/delete/requeue; linha raiz de FILME (ou IMDb sem linha
+   no crawl) NUNCA entra — sem prova de série, sem movimento. crawl.db
+   ausente ⇒ escopo vazio e saída sem tocar em nada.
+1. **magnets.db** — varre `magnet_work` raiz DO ESCOPO; a régua é a MESMA do
+   runtime
    (`declaredSeriesLocation`, `src/providers/crawl-sites/vaca-series-locate.ts`):
    o `dn=` do magnet VENCE o título do post. Linha que declara temporada única
    é movida para `(hash,imdb,S,E|-1)` preservando first/last_seen/
@@ -15,9 +21,9 @@ raiz de Reacher/Dexter/The Last of Us).
    pista) fica. Uma transação com rollback.
 2. **cache.db** — apaga as chaves raiz `idx:v13:<imdb>` do escopo (o erro foi
    todo para a raiz). Transação própria.
-3. **crawl.db** — URLs do escopo DO SITE `vacatorrent` (por imdb no escopo OU
-   `error series_truncated:%` daquele site) voltam a `pending` do zero; o
-   motor reprocessa com o adaptador corrigido. Transação própria.
+3. **crawl.db** — URLs `tv_show` do escopo DO SITE `vacatorrent` (por imdb no
+   escopo OU `error series_truncated:%` daquele site) voltam a `pending` do
+   zero; o motor reprocessa com o adaptador corrigido. Transação própria.
 
 ## Pré-requisitos do `--apply` (gates; sem eles o script recusa)
 
@@ -33,7 +39,12 @@ raiz de Reacher/Dexter/The Last of Us).
   `crawl.db*`, sufixo livre).
 
 Conexões usam `busy_timeout=5000`; cada banco muta em UMA transação com
-rollback (ou o passo inteiro, ou nada).
+rollback (ou o passo inteiro, ou nada). O dry-run abre TODOS os bancos com
+`readOnly: true` — a conexão não cria WAL/SHM, não faz checkpoint no close e
+recusa escrita por construção — e nem `wal_checkpoint` roda nele (checkpoint é
+escrita no arquivo; o mtime/hash dos bancos só muda no `--apply`, coberto por
+teste, inclusive com WAL quente de crash). crawl.db ausente ou VAZIO (0 bytes)
+⇒ mensagem amigável de escopo vazio e exit 0 antes de abrir qualquer banco.
 
 ## Procedimento
 

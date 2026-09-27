@@ -25,8 +25,29 @@
 import type { RawItem } from '../../../types/domain.js';
 import { parseTitleSeasonEpisode } from '../../utils/episode-matching.js';
 import { releaseWorkTargets } from '../../utils/release-work.js';
-import { magnetDisplayName } from '../../utils/title-normalization.js';
+import { decodeEntities, magnetDisplayName } from '../../utils/title-normalization.js';
 import type { CrawlReleaseGroup } from '../crawl-types.js';
+
+/**
+ * Decodifica ENTIDADES HTML da evidência ANTES de inferir temporada/agrupar.
+ * Os sites BR publicam o ordinal como entidade ("4&ordf; Temporada") e a
+ * evidência chega com resíduos: o dn do magnet pode vir duplamente codificado
+ * ("&amp;ordf;") e o slug/URL solta a entidade sem o ";" final ("4ordf").
+ * Sem decodificar, `parseTitleSeasonEpisode` não lê temporada nenhuma — o pack
+ * da 4ª caía na regra do dígito final/raiz e a obra herdava locação errada
+ * (TWD: work na S1/S5 em vez da S4, medido em produção 2026-09-27).
+ *
+ * Duas passadas: a primeira repara ";" ausente (sem tocar "&" solto — "&"
+ * seguido de espaço/letra única, como "Tom & Jerry" e "A&B", não é entidade),
+ * e `decodeEntities` roda duas vezes porque "&amp;#170;" só vira "ª" na
+ * segunda. `decodeEntities` é a MESMA função do resto do pipeline (armadilha
+ * do dn percent-decoded: o `%26` já virou "&" antes daqui).
+ */
+function decodeEvidence(text: string): string {
+  const repaired = String(text || '')
+    .replace(/&(#[0-9]+|#x[0-9a-f]+|[a-z]{2,8})(?![a-z0-9;])/gi, '&$1;');
+  return decodeEntities(decodeEntities(repaired));
+}
 
 export type SeriesLocation = { season: number | null; episode: number | null };
 
@@ -60,7 +81,9 @@ export interface SeriesReleaseEntry {
 export function seasonFromCardSlug(value: string): number | null {
   let path = '';
   try {
-    path = decodeURIComponent(new URL(value).pathname).toLowerCase();
+    // Entidade no slug ("%26ordf%3B" → "&ordf;"): decodificar ANTES de casar
+    // o ordinal — "4&ordf;-temporada" é a 4ª, não slug desconhecido.
+    path = decodeEvidence(decodeURIComponent(new URL(value).pathname)).toLowerCase();
   } catch {
     return null;
   }
@@ -119,8 +142,9 @@ function trailingSeasonOf(title: string): number | null {
  */
 export function declaredSeriesLocation(e: LinkEvidence): SeriesLocation {
   // Regra 1 — dn é conteúdo: o nome REAL do torrent vence qualquer página.
-  const dn = String(e.dn || '').trim();
-  if (dn) {
+  // Entidades decodificadas antes do parse ("4&ordf;" vira "4ª" — bug 2).
+  const dn = decodeEvidence(String(e.dn || ''));
+  if (dn.trim()) {
     const fromDn = locationOfParse(parseTitleSeasonEpisode(dn));
     if (fromDn) return fromDn;
   }
@@ -131,14 +155,14 @@ export function declaredSeriesLocation(e: LinkEvidence): SeriesLocation {
   // Regra 3 — título do batch (mais específico) ou do card declara. Título
   // que declara complete/multi manda para a raiz; temporada única nomeia S.
   for (const candidate of [e.realTitle, e.cardTitle]) {
-    const text = String(candidate || '').trim();
-    if (!text) continue;
+    const text = decodeEvidence(String(candidate || ''));
+    if (!text.trim()) continue;
     const p = parseTitleSeasonEpisode(text);
     if (parseDeclaresRoot(p)) return { season: null, episode: null };
     if (p.seasons.length === 1) return { season: p.seasons[0], episode: pageEpisode };
   }
   // Regra 4 — última defesa sem dn: dígito final do card ("East Blue1").
-  const trailing = trailingSeasonOf(e.cardTitle);
+  const trailing = trailingSeasonOf(decodeEvidence(e.cardTitle));
   if (trailing != null) return { season: trailing, episode: pageEpisode };
   // Regra 5 — nada declara: raiz conservadora.
   return { season: null, episode: null };
@@ -154,8 +178,12 @@ export function declaredSeriesLocation(e: LinkEvidence): SeriesLocation {
 export function groupSeriesReleases(entries: readonly SeriesReleaseEntry[]): CrawlReleaseGroup[] {
   const groups = new Map<string, CrawlReleaseGroup>();
   for (const { release, request } of entries) {
-    const dn = magnetDisplayName(release) || undefined;
-    for (const target of releaseWorkTargets(String(release.title || ''), request, dn)) {
+    // Agrupar com a evidência DECODIFICADA: título/dn com entidade crua não
+    // declara temporada nenhuma e a release era roteada pela chave do pedido
+    // (ou da raiz) em vez da chave que o pack cobre (TWD: S1/S5 em vez de S4).
+    const title = decodeEvidence(String(release.title || ''));
+    const dn = decodeEvidence(magnetDisplayName(release)) || undefined;
+    for (const target of releaseWorkTargets(title, request, dn)) {
       const key = `${target.season ?? -1}:${target.episode ?? -1}`;
       let group = groups.get(key);
       if (!group) {

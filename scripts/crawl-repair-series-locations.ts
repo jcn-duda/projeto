@@ -4,6 +4,13 @@
 // Stranger Things `E01..E08` medidos em produção, os batches raiz de
 // Reacher/Dexter/The Last of Us etc.
 //
+// ESCOPO (bug 2026-09-27): SOMENTE IMDb comprovadamente SÉRIE — linha
+// `kind='tv_show'` no `crawl.db`, aberto ANTES de qualquer
+// relatório/movimento/cache delete/requeue. Linha raiz de FILME é o lugar
+// certo, e IMDb sem linha no crawl NÃO é tocado: sem prova de série, sem
+// movimento (medido: 136 filmes falsos contra 5 séries alvo; filmes válidos
+// preservados). crawl.db ausente ⇒ escopo vazio, saída sem tocar em nada.
+//
 // O que faz (nesta ordem — deploy do fix ANTES deste script; a mutação segue
 // a MESMA ordem do reporte: magnets → cache → crawl):
 //   1. magnets.db: varre `magnet_work` raiz agrupado por imdb; a régua de
@@ -100,10 +107,23 @@ function verifyBackup(dirPath: string): void {
 const { parseTitleSeasonEpisode } = await import('../src/utils/episode-matching.js');
 const { declaredSeriesLocation } = await import('../src/providers/crawl-sites/vaca-series-locate.js');
 
-function openDb(file: string): any {
+function openDb(file: string, readOnly = false): any {
   const { DatabaseSync } = _require('node:sqlite');
   if (!fs.existsSync(file)) {
     throw new Error(`banco não encontrado: ${file}`);
+  }
+  if (readOnly) {
+    // Dry-run read-only DE VERDADE: a conexão não cria WAL/SHM, não faz
+    // checkpoint no close e recusa escrita por construção — o relatório não
+    // pode nem tocar o mtime/hash dos bancos. Node antigo sem a opção cai no
+    // fallback RW (o dry-run nunca emite UPDATE/checkpoint de qualquer forma).
+    try {
+      const ro = new DatabaseSync(file, { readOnly: true });
+      ro.exec('PRAGMA busy_timeout = 5000');
+      return ro;
+    } catch {
+      // segue para a abertura comum
+    }
   }
   const db = new DatabaseSync(file);
   // F6: o addon parado pode ter deixado WAL quente / outro leitor (backup,
@@ -126,16 +146,55 @@ function inTransaction(db: any, body: () => void): void {
   }
 }
 
+// --- escopo: SOMENTE IMDb comprovadamente SÉRIE no crawl.db (bug 2026-09-27) --
+// A régua de locação só faz sentido para SÉRIE: linha raiz de FILME é o lugar
+// certo (`season=-1` é a chave natural do filme) e mover por inferência de
+// título apagava/acumulava lixo — 136 filmes falsos medidos contra 5 séries
+// alvo. A prova de série é a LINHA do crawl (`kind='tv_show'`); IMDb sem linha
+// no crawl.db NÃO é tocado (sem prova, sem movimento). O crawl.db é aberto
+// ANTES de qualquer relatório/movimento/delete/requeue: sem ele, o escopo é
+// vazio e o script sai sem tocar em nada.
+
+let seriesImdbs = new Set<string>();
+let crawlDb: any = null;
+// O dry-run abre TODOS os bancos read-only; o --apply segue RW (gates acima).
+const readOnly = !apply;
+if (!fs.existsSync(crawlPath)) {
+  console.log(`[repair] crawl.db ausente (${crawlPath}): escopo vazio — nenhuma obra é comprovadamente série; NADA a fazer.`);
+  process.exit(0);
+}
+if (fs.statSync(crawlPath).size === 0) {
+  // Arquivo de 0 bytes não é banco: abriria como SQLite vazio e a query de
+  // escopo morreria em "no such table". Mensagem amigável, saída controlada.
+  console.log(`[repair] crawl.db vazio (0 bytes) em ${crawlPath}: escopo vazio — nenhuma obra é comprovadamente série; NADA a fazer.`);
+  process.exit(0);
+}
+crawlDb = openDb(crawlPath, readOnly);
+{
+  const rows = crawlDb.prepare(`
+    SELECT DISTINCT imdb FROM crawl_url
+    WHERE imdb IS NOT NULL AND imdb != '' AND kind = 'tv_show'
+  `).all() as Array<Record<string, unknown>>;
+  seriesImdbs = new Set(rows.map((r) => String(r.imdb)));
+  console.log(`[repair] escopo: ${seriesImdbs.size} IMDb comprovadamente série (kind='tv_show') no crawl.db`);
+}
+
 // --- 1. magnets.db: relatório ------------------------------------------------
 
-const db = openDb(magnetsPath);
-const rootRows = db.prepare(`
+const db = openDb(magnetsPath, readOnly);
+const allRootRows = db.prepare(`
   SELECT w.hash, w.imdb, w.first_seen, w.last_seen, w.passed_filter,
          m.title, m.uri
   FROM magnet_work w JOIN magnet m ON m.hash = w.hash
   WHERE w.season = -1 AND w.episode = -1
   ORDER BY w.imdb, w.hash
 `).all() as Array<Record<string, unknown>>;
+// Filtro de escopo ANTES do relatório: filme comprovado (kind='movie') ou sem
+// linha no crawl NUNCA entra em relatório de movimento, delete de cache nem
+// requeue — e as 4+ obras de filme válidas ficam intactas.
+const rootRows = allRootRows.filter((r) => seriesImdbs.has(String(r.imdb || '')));
+const excludedMovies = allRootRows.length - rootRows.length;
+console.log(`[repair] fora do escopo (filme ou sem linha tv_show no crawl): ${excludedMovies} linha(s) de raiz — preservadas`);
 
 /** Locação declarada (F4): MESMA função do runtime — o dn do magnet vence
  * qualquer evidência de página, e a raiz (legítima ou silenciosa) fica. */
@@ -216,7 +275,7 @@ const scopedImdbs = new Set(moves.map((mv) => mv.imdb));
 const idxRoots = [...scopedImdbs].map((imdb) => `idx:v13:${imdb}`);
 let cacheDeleted = 0;
 if (fs.existsSync(cachePath)) {
-  const cache = openDb(cachePath);
+  const cache = openDb(cachePath, readOnly);
   const sel = cache.prepare('SELECT key FROM cache WHERE key = ?');
   const del = cache.prepare('DELETE FROM cache WHERE key = ?');
   const hits = idxRoots.filter((key) => sel.get(key));
@@ -232,17 +291,20 @@ if (fs.existsSync(cachePath)) {
 }
 
 // --- 3. crawl.db (URLs do escopo DAQUELE SITE + series_truncated do site) ----
+// O banco já está aberto (escopo): o requeue também só alcança linha `tv_show`
+// — `series_truncated` de filme (não existe, mas a fila pode carregar lixo) e
+// IMDb de filme nunca são reenfileirados por aqui.
 
 let crawlReset = 0;
-if (fs.existsSync(crawlPath)) {
-  const crawl = openDb(crawlPath);
-  const urls = crawl.prepare(`
+{
+  const urls = crawlDb.prepare(`
     SELECT site, url, imdb, status FROM crawl_url
     WHERE site = ?
+      AND kind = 'tv_show'
       AND ((imdb IS NOT NULL AND imdb IN (${[...scopedImdbs].map(() => '?').join(', ') || "''"}))
         OR (status = 'error' AND error LIKE 'series_truncated:%'))
   `).all(REPAIR_SITE, ...[...scopedImdbs]) as Array<Record<string, unknown>>;
-  const reset = crawl.prepare(`
+  const reset = crawlDb.prepare(`
     UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', releases = 0, progress = ''
     WHERE site = ? AND url = ?
   `);
@@ -251,17 +313,18 @@ if (fs.existsSync(crawlPath)) {
     console.log(`[repair]   fila: ${u.site} ${u.url} (status=${u.status}, imdb=${u.imdb ?? '—'}) -> pending`);
   }
   if (apply && urls.length > 0) {
-    inTransaction(crawl, () => {
+    inTransaction(crawlDb, () => {
       for (const u of urls) reset.run(String(u.site), String(u.url));
     });
-    try { crawl.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best-effort */ }
+    try { crawlDb.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best-effort */ }
   }
-  crawl.close();
-} else {
-  console.log(`[repair] crawl.db ausente (${crawlPath}): passo 3 ignorado`);
+  crawlDb.close();
 }
 
-try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best-effort */ }
+// Checkpoint é ESCRITA no arquivo (trunca o WAL no banco principal): só no
+// --apply. O dry-run não pode nem tocar o mtime/hash dos bancos — o relatório
+// é read-only de verdade.
+if (apply) { try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best-effort */ } }
 db.close();
 
 console.log(`[repair] resumo: ${moves.length} linha(s) a mover, ${cacheDeleted} chave(s) idx raiz, ${crawlReset} URL(s) da fila — ${apply ? 'APLICADO' : 'DRY-RUN (nada gravado; use --apply)'}`);
