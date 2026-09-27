@@ -37,7 +37,8 @@ export type RelevanceRejectReason =
   | 'named-sequel'
   | 'episode'
   | 'series-work'
-  | 'movie-is-series';
+  | 'movie-is-series'
+  | 'series-is-movie';
 
 /**
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
@@ -151,6 +152,15 @@ function filterRelevantRaw(
         return false;
       }
     }
+    // Série: o espelho do veto acima — release de FILME homônimo. "Sobrenatural"
+    // é o pt-BR de Supernatural (2005) E de Insidious (2010); o post do filme
+    // não tem marcador de episódio (matchesEpisode deixa passar) e o ano 2010
+    // não é anterior à estreia (yearContradicts também). Medido: "Sobrenatural
+    // (2010) … Dublado" pronto na AllDebrid era o 1º stream de S01E01.
+    if (isSeries && season != null && seriesReleaseLooksLikeMovie(title, item, year)) {
+      onRejected?.(item, 'series-is-movie');
+      return false;
+    }
     // Séries: se o dn= do magnet contradizer a temporada ou episódio pedido, descarta.
     if (isSeries && season != null && magnetSeasonContradicts(item, season, episode)) {
       onRejected?.(item, 'episode');
@@ -200,6 +210,24 @@ function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: nu
   const someNear = years.some((y) => Math.abs(y - catalogYear) <= 2);
   if (someNear) return false;
   return catalogYear < minYear || catalogYear > maxYear;
+}
+
+/**
+ * Release sem NENHUMA pista de série (marcador de temporada/episódio/pack,
+ * rótulo "a série"/"minissérie", no título e no dn=) que declara UM único ano
+ * depois da estreia (+1) é filme homônimo, não a série. Conservador de
+ * propósito: sem ano, com ano da estreia ou com faixa de anos ("2005-2020")
+ * a release fica — falso negativo aqui tiraria temporada boa da lista.
+ */
+function seriesReleaseLooksLikeMovie(title: string, item: RawItem, year: number | string | null | undefined) {
+  const premiere = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (!premiere) return false;
+  const displayText = `${title} ${magnetDisplayName(item)}`.replace(/\d{3,4}x\d{3,4}/gi, ' ');
+  const years = [...new Set([...displayText.matchAll(/(?<!\d)(?:19|20)\d{2}(?!\d)/g)].map((m) => Number(m[0])))];
+  if (years.length !== 1 || years[0] <= premiere + 1) return false;
+  if (/\b(?:a|the)\s+s[eé]rie\b|\bminiss[eé]rie\b|\bs[eé]ries?\b|\btemporadas?\b/i.test(displayText)) return false;
+  const parsed = parseTitleSeasonEpisode(displayText.replace(/(?:19|20)\d{2}/g, ' '));
+  return !(parsed.seasons.length || parsed.episodes.length || parsed.seasonPack || parsed.complete);
 }
 
 /**

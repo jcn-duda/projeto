@@ -384,3 +384,17 @@ test('account.search avalia itens pt-BR com matchesBrTitle (invariante 5)', asyn
     cache.clear();
   }
 });
+
+test('série: filme homônimo pronto na conta não entra no episódio (Sobrenatural 2010 × Supernatural)', () => {
+  // "Sobrenatural" é o pt-BR de Supernatural (2005) e de Insidious (2010).
+  const ctx = { names: ['Supernatural', 'Sobrenatural'], year: '2005–2020', isSeries: true, season: 1, episode: 1 };
+  const filme = { title: 'Sobrenatural (2010) 1080p BluRay Dublado', isBr: true };
+  const rejeitados: string[] = [];
+  assert.equal(filterInventoryRelevant([filme], ctx, (_i, r) => rejeitados.push(r)).length, 0);
+  assert.equal(rejeitados[0], 'series-is-movie');
+  // Pistas de série continuam passando: temporada, faixa de anos, ano da estreia, sem ano.
+  const mantidos = ['Sobrenatural 1ª Temporada (2020) 1080p Dublado', 'Sobrenatural Série Completa (2005-2020) Dublado',
+    'Sobrenatural (2005) 1080p Dublado', 'Sobrenatural 1080p Dublado', 'Supernatural.S01E01.2010.1080p.BluRay.DUAL',
+  ].map((title) => ({ title, isBr: true }));
+  assert.equal(filterInventoryRelevant(mantidos, ctx).length, mantidos.length);
+});
