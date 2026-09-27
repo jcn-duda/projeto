@@ -2046,6 +2046,15 @@ release mesmo com o título casando. Só roda fora de série/pack (o ano do pack
 o da temporada) e DEPOIS do titleMatches — falso negativo aqui descartaria
 release boa por ruído de ano no nome; por isso exige um único ano contraditório.
 
+O espelho em SÉRIE é o veto `series-is-movie` (`seriesReleaseLooksLikeMovie`):
+"Sobrenatural" é o pt-BR de Supernatural (2005) e de Insidious (2010), e o post
+do filme — sem marcador de episódio e com ano posterior à estreia — passava por
+`matchesEpisode` e `yearContradicts` e virava o 1º stream de S01E01 (item pronto
+na conta). Com temporada pedida, release SEM pista de série (SxxEyy, temporada,
+pack, "série"/"minissérie", no título e no `dn=`) e com UM único ano > estreia+1
+sai. Sem ano, ano da estreia ou faixa de anos ficam. Medido no magnets.db
+(2026-09-26): 9 de 6.165 releases de série cortadas, todas lixo.
+
 A exceção de franquia do inventário da conta (`filterInventoryRelevant`) **não**
 se aplica aos indexers. Globais usam `matchesName` + estrutura + identidade de
 obra delimitada pelo marcador de episódio (`matchesEpisodeWorkIdentity`) —
