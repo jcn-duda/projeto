@@ -19,10 +19,12 @@ export function requeueInflight(siteId: string): number {
  * linha do site contaminada pelo passe seco volta a `pending` do zero —
  * `simulated` E qualquer linha com progresso `"dry":1` (partial, error,
  * pending, inflight: o crash/falha preserva o progresso seco e o resume
- * pularia cards nunca gravados). Roda DEPOIS do `requeueInflight` (ordem do
- * `crawler.start`/`step`): inflight órfã é devolvida primeiro e o match por
- * progresso a alcança no mesmo passe. Idempotente: o reset limpa o
- * `progress`, então repetir é no-op.
+ * pularia cards nunca gravados). O reset zera também a CONTAGEM seca de
+ * releases (`releases` acumulada no dry é descoberta, não gravação): sem
+ * isso, o passe ao vivo somaria seco+vivo e o painel duplicaria o total.
+ * Roda DEPOIS do `requeueInflight` (ordem do `crawler.start`/`step`): inflight
+ * órfã é devolvida primeiro e o match por progresso a alcança no mesmo passe.
+ * Idempotente: o reset limpa o `progress`, então repetir é no-op.
  *
  * LEGADO: versões antigas gravavam `done` em dry-run SEM gravar acervo — não
  * há evidência segura para distinguir essas `done` de gravações reais, então

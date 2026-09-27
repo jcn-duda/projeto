@@ -122,6 +122,7 @@
     "test/crawl-series-locate.test.js",
     "test/crawl-partial-store.test.js",
     "test/crawl-series-resume.test.js",
+    "test/crawl-series-flip.test.js",
     "test/crawl-repair-series-locations.test.js",
     "test/crawl-cursor-kinds.test.js",
     "test/crawl-vaca-hardening.test.js",

@@ -12,16 +12,17 @@
 //   - `partial` (Fase 7 v2) → grava os grupos ANTES de marcar o progresso e
 //     marca `partial` com o progresso retomável. Estouro (progresso igual ao
 //     anterior) vira `error series_stall` (backoff + escape no "Reprocessar
-//     erros"); dry-run marca partial com `dry:1` e NADA no acervo;
+//     erros"); dry-run marca partial com `dry:1`, NADA no acervo e a contagem
+//     DISCOBERTA acumula na linha (contador do painel; o flip reenfileira);
 //   - `done` sem IMDb ancorado → `identifyWork`:
 //       `identified`  → grava com o IMDb do TMDB;
 //       `unavailable` → `error` (TMDB fora é retentável, NÃO é veredicto);
 //       `unidentified`/`ambiguous` → `no-work` (obra errada é pior que nenhuma);
 //   - `done` sem release nenhuma → `no-torrent` (defensivo) — EXCETO quando a
-//     linha tem progresso: a leitura secou num passe de resume e a série já
-//     foi colhida → `done` (ou `simulated` em dry) preservando a contagem;
-//   - DRY-RUN com releases + obra identificada → `simulated` (NUNCA `done`:
-//     nada foi gravado; o motor reenfileira quando o dry-run desliga).
+//     linha tem progresso E contagem acumulada > 0: a leitura secou num passe
+//     de resume e a série já foi colhida → `done` (ou `simulated` em dry);
+//     resume com acumulado 0 nunca colheu e segue `no-torrent`;
+//   - DRY-RUN com releases + obra identificada → `simulated` (NUNCA `done`; o flip reenfileira).
 //
 // Os colaboradores (identificação e gravação) são injetáveis: módulos são
 // namespaces ESM congelados e o teste prova o fio sem patch de módulo.
@@ -162,15 +163,20 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       const progressJson = renderProgress(result.progress!);
       if (dryRun) {
         // 2) DRY: nada no acervo; progresso com o flag `dry:1` — é o que o
-        //    flip true→false reenfileira (requeueSimulated estendido). A
-        //    contagem da linha é PRESERVADA: zero aqui apagaria o acumulado
-        //    das fatias anteriores (o painel somaria errado).
+        //    flip true→false reenfileira (requeueSimulated estendido). B1
+        //    pós-v2 (One Piece): a CONTAGEM DISCOBERTA acumula na linha —
+        //    contador, NUNCA prova de gravação; o flip reseta, e sem ela a
+        //    conclusão por resume viraria `no-torrent`.
+        const dryGroups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length ? result.groups : null;
+        const discovered = dryGroups ? dryGroups.flatMap((g) => (Array.isArray(g.releases) ? g.releases : [])).length : 0;
         if (persist) {
           store.engine().markResult(site.id, row.url, {
-            status: 'partial', imdb: result.imdb ?? row.imdb, releases: row.releases, error: detail, progress: withDryFlag(progressJson),
+            status: 'partial', imdb: result.imdb ?? row.imdb,
+            releases: (Number(row.releases) || 0) + discovered,
+            error: detail, progress: withDryFlag(progressJson),
           }, Date.now());
         }
-        return { kind: 'partial', siteLevelError: false, releases: 0, detail, requestCost: result.requestCost };
+        return { kind: 'partial', siteLevelError: false, releases: discovered, detail, requestCost: result.requestCost };
       }
       const groups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length
         ? result.groups
@@ -253,8 +259,10 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     // `no-torrent` — `done` com 0 releases mentiria "página lida".
     // EXCEÇÃO (Fase 7 v2): a linha com progresso concluiu por resume e a
     // última fatia não tem release — a série JÁ foi colhida; `no-torrent`
-    // apagaria a contagem e mentiria sobre o acervo. Em dry-run, `simulated`
-    // (o flip reenfileira para gravar; `done` aqui perderia a carga).
+    // apagaria a contagem e mentiria sobre o acervo. A exceção EXIGE contagem
+    // acumulada > 0 (bug One Piece 2026-09-27): resume com ACUMULADO 0 nunca
+    // colheu nada — o honesto é `no-torrent` (terminal nos dois modos). Em
+    // dry-run com acúmulo, `simulated` (o flip reenfileira para gravar).
     // Série (Fase 7): os grupos são a verdade da página; a soma plana só
     // alimenta contadores. Filme (sem grupos) segue com o lote único na raiz.
     const groups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length
@@ -265,7 +273,8 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       : (Array.isArray(result.releases) ? result.releases : []);
     const isSeries = result.type === 'series' || row.kind === 'tv_show';
     if (!releases.length) {
-      const resumedConclusion = Boolean(row.progress && row.progress !== '');
+      const resumedConclusion = Boolean(row.progress && row.progress !== '')
+        && (Number(row.releases) || 0) > 0;
       if (resumedConclusion) {
         if (persist) {
           store.engine().markResult(
@@ -337,7 +346,13 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       // no-torrent/no-work ACIMA continuam terminais de verdade: sem releases
       // ou sem obra não há nada a gravar, em nenhum modo.
       if (persist) {
-        store.engine().markResult(site.id, row.url, { status: 'simulated', imdb, releases: releases.length }, Date.now());
+        // Multi-passa (B2): acumulado das fatias secas + a fatia final —
+        // sobrescrever pela última perderia descoberta já marcada (o flip
+        // zera a linha; o passe ao vivo re-acumula sem somar seco+vivo).
+        store.engine().markResult(site.id, row.url, {
+          status: 'simulated', imdb,
+          releases: (Number(row.releases) || 0) + releases.length,
+        }, Date.now());
       }
       metrics.count('crawl.page.simulated');
       return { kind: 'simulated', siteLevelError: false, releases: releases.length, requestCost: result.requestCost };

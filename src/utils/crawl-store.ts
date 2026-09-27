@@ -67,7 +67,8 @@ export interface CrawlEngine {
   requeueErrors(site: string): number;
   /** Dry-run desligou (true→false): `simulated` E qualquer linha com
    * progresso seco (`"dry":1`, em qualquer status) voltam a `pending` do zero
-   * (one-shot/idempotente — o reset limpa o progresso). */
+   * (one-shot/idempotente — o reset limpa o progresso E a contagem seca de
+   * releases, que era descoberta, não gravação). */
   requeueSimulated(site: string): number;
   /** Devolve UMA URL à fila (`pending`), preservando o resto — a simulação
    * usa isto para não consumir a página do ciclo de verdade. */
@@ -150,9 +151,11 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     // resume de qualquer uma delas pularia cards nunca gravados. One-shot por
     // natureza: o reset limpa o `progress`, então repetir é no-op; linha com
     // progresso ao vivo (sem `dry:1`) NÃO é tocada. Reset completo
-    // (tries/error/progress): passe seco não provou nada.
+    // (tries/error/progress) E `releases = 0`: a contagem acumulada no passe
+    // seco é DESCOBERTA (nada foi gravado) — somá-la à releitura ao vivo
+    // duplicaria o total no painel; o passe ao vivo re-acumula o real.
     const requeueSimulatedStmt = db.prepare(
-      "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', progress = ''"
+      "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', releases = 0, progress = ''"
       + " WHERE site = ? AND (status = 'simulated' OR progress LIKE '%\"dry\":1%')",
     );
     const countersStmt = db.prepare('SELECT status, COUNT(*) AS n FROM crawl_url WHERE site = ? GROUP BY status');

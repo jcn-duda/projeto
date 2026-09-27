@@ -159,7 +159,10 @@ describe('store: requeueSimulated one-shot e seletivo', () => {
     const s1 = e.getUrl('fake', '/s1') as CrawlUrlRow;
     assert.equal(s1.status, 'pending');
     assert.equal(s1.imdb, 'tt1', 'pista da simulação preservada até a gravação real');
-    assert.equal(s1.releases, 3);
+    // A contagem seca era DESCOBERTA (nada gravado): o flip zera, senão a
+    // releitura ao vivo somaria seco+vivo e o painel duplicaria o total.
+    assert.equal(s1.releases, 0, 'contagem seca zerada pelo flip');
+    assert.equal(e.sumReleases('fake'), 5, 'só a gravação real (done) soma no painel');
   });
 
   test('reenfileiramento é POR SITE', () => {

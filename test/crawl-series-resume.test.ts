@@ -124,7 +124,7 @@ describe('crawl-page: desfecho partial (Fase 7 v2)', () => {
     assert.equal(row.progress, '', 'sem progresso anterior, nada é marcado como avançado');
   });
 
-  test('dry-run: partial com dry:1, record NUNCA chamado', async () => {
+  test('dry-run: partial com dry:1, record NUNCA chamado; descobertas ACUMULAM (contador, sem acervo)', async () => {
     let recorded = 0;
     const process = createPageProcessor({
       identify: collabs.identify,
@@ -132,11 +132,12 @@ describe('crawl-page: desfecho partial (Fase 7 v2)', () => {
     });
     const outcome = await process(partialSite(), claimedRow(), { dryRun: true });
     assert.equal(outcome.kind, 'partial');
-    assert.equal(recorded, 0);
+    assert.equal(recorded, 0, 'dry nunca grava');
+    assert.equal(outcome.releases, 1, 'descoberta é reportada');
     const row = store.engine().getUrl('fake', SHOW) as CrawlUrlRow;
     assert.equal(row.status, 'partial');
     assert.equal(parseProgress(row.progress)?.dry, 1, 'flag seco é o que o flip reseta');
-    assert.equal(row.releases, 0, 'dry não conta releases gravadas');
+    assert.equal(row.releases, 1, 'contador DISCOBERTA acumula no dry (sem acervo; B1 pós-v2)');
   });
 
   test('TMDB indisponível no partial com releases ⅎ error preservando progresso', async () => {
@@ -252,6 +253,96 @@ describe('crawl-page: conclusão por resume (fatia vazia não vira no-torrent)',
   test('done com 0 releases SEM progresso continua no-torrent (filme intacto)', async () => {
     const outcome = await createPageProcessor(collabs)(doneSite(), claimedRow('/m', 'movie'), { dryRun: false });
     assert.equal(outcome.kind, 'no-torrent');
+  });
+
+  // Bug 2026-09-27 (One Piece): resume com ACUMULADO 0 nunca colheu —
+  // `done` mentiria "série colhida". Terminal honesto: no-torrent.
+  test('resume com acumulado 0 ⅎ no-torrent (One Piece nunca colheu nada)', async () => {
+    store.engine().upsertUrls('fake', [{ url: SHOW, lastmod: 'x', kind: 'tv_show' }], 1);
+    store.engine().markResult('fake', SHOW, {
+      status: 'partial', imdb: 'tt1', releases: 0, progress: renderProgress({ v: 1, doneCards: ['/c1', '/c2'], totalCards: 4 }),
+    }, 100);
+    store.engine().requeueUrl('fake', SHOW);
+    const row = store.engine().takeNext('fake', Date.now() + 3_600_000) as CrawlUrlRow;
+    const outcome = await createPageProcessor(collabs)(doneSite(), row, { dryRun: false });
+    assert.equal(outcome.kind, 'no-torrent', 'resume com 0 acumulado NÃO é done');
+    const after = store.engine().getUrl('fake', SHOW) as CrawlUrlRow;
+    assert.equal(after.status, 'no-torrent');
+    assert.equal(after.releases, 0);
+  });
+
+  test('dry equivalente coerente: resume com acumulado 0 no dry-run TAMBÉM é no-torrent', async () => {
+    store.engine().upsertUrls('fake', [{ url: SHOW, lastmod: 'x', kind: 'tv_show' }], 1);
+    store.engine().markResult('fake', SHOW, {
+      status: 'partial', imdb: 'tt1', releases: 0, progress: renderProgress({ v: 1, doneCards: ['/c1'], totalCards: 4 }),
+    }, 100);
+    store.engine().requeueUrl('fake', SHOW);
+    const row = store.engine().takeNext('fake', Date.now() + 3_600_000) as CrawlUrlRow;
+    const outcome = await createPageProcessor(collabs)(doneSite(), row, { dryRun: true });
+    assert.equal(outcome.kind, 'no-torrent', 'no-torrent é terminal nos dois modos — sem divergência dry×vivo');
+  });
+
+  // B1 pós-v2 (bug 2026-09-27): série multi-passa INTEIRA em dry-run — as
+  // fatias secas DESCOBRIRAM releases (contador na linha) e a fatia final done
+  // vem sem groups/releases. `no-torrent` perderia o requeue do flip; o
+  // desfecho é `simulated` (estado que o flip dry→live reenfileira), com a
+  // prova das fatias secas preservada na contagem — sem fingir gravação.
+  test('B1: duas fatias dry (1ª com N, final vazia) ⅎ simulated com descobertas preservadas + flip requeue', async () => {
+    let recorded = 0;
+    const process = createPageProcessor({
+      identify: collabs.identify,
+      record: async () => { recorded += 1; return { kept: 0, added: 0, transition: 'none', cleared: 0 }; },
+    });
+    // Fatia 1 (dry): 1 release descoberta ⅎ partial com dry:1 e acumulado 1.
+    const out1 = await process(partialSite(), claimedRow(), { dryRun: true });
+    assert.equal(out1.kind, 'partial');
+    const mid = store.engine().getUrl('fake', SHOW) as CrawlUrlRow;
+    assert.equal(mid.releases, 1, 'descoberta da fatia seca fica na linha');
+    assert.equal(parseProgress(mid.progress)?.dry, 1);
+    // Fatia final (dry): done SEM groups/releases — resume concluiu.
+    store.engine().requeueUrl('fake', SHOW);
+    const row2 = store.engine().takeNext('fake', Date.now() + 3_600_000) as CrawlUrlRow;
+    const out2 = await process(doneSite(), row2, { dryRun: true });
+    assert.equal(out2.kind, 'simulated', 'resume seco com descobertas NÃO vira no-torrent');
+    const after = store.engine().getUrl('fake', SHOW) as CrawlUrlRow;
+    assert.equal(after.status, 'simulated');
+    assert.equal(after.releases, 1, 'prova das fatias secas preservada (sem fingir gravação)');
+    assert.equal(recorded, 0, 'nenhuma gravação no dry');
+    // Flip dry→live: simulated (e o progresso seco) voltam à fila para gravar.
+    assert.equal(store.engine().requeueSimulated('fake'), 1, 'flip reenfileira');
+    const requeued = store.engine().getUrl('fake', SHOW) as CrawlUrlRow;
+    assert.equal(requeued.status, 'pending');
+    assert.equal(requeued.progress, '', 'resume seco NÃO sobrevive: passe ao vivo reprocessa do zero');
+  });
+
+  // B2 (flip×releases seca e fatia final com releases): extraído para
+  // `crawl-series-flip.test.ts` pela catraca de linhas.
+  test('B1: dry verdadeiramente zero (nenhuma descoberta em fatia nenhuma) ⅎ no-torrent', async () => {
+    const process = createPageProcessor(collabs);
+    // Fatia 1 (dry) SEM releases: partial com acumulado 0.
+    const out1 = await process(partialSite({ groups: [] }), claimedRow(), { dryRun: true });
+    assert.equal(out1.kind, 'partial');
+    assert.equal((store.engine().getUrl('fake', SHOW) as CrawlUrlRow).releases, 0);
+    // Fatia final (dry) done vazia: nunca colheu nem em passe seco.
+    store.engine().requeueUrl('fake', SHOW);
+    const row2 = store.engine().takeNext('fake', Date.now() + 3_600_000) as CrawlUrlRow;
+    const out2 = await process(doneSite(), row2, { dryRun: true });
+    assert.equal(out2.kind, 'no-torrent', 'acumulado 0 no dry é o mesmo terminal honesto do vivo');
+    assert.equal((store.engine().getUrl('fake', SHOW) as CrawlUrlRow).status, 'no-torrent');
+  });
+
+  test('B1: re-visita da MESMA fatia seca ⅎ series_stall e contador SEM duplicar', async () => {
+    const process = createPageProcessor(collabs);
+    await process(partialSite(), claimedRow(), { dryRun: true });
+    store.engine().requeueUrl('fake', SHOW);
+    const row2 = store.engine().takeNext('fake', Date.now() + 3_600_000) as CrawlUrlRow;
+    // MESMO progresso (nada avançou): estouro, não nova fatia.
+    const out2 = await process(partialSite(), row2, { dryRun: true });
+    assert.equal(out2.kind, 'error');
+    assert.match(out2.detail || '', /^series_stall:/);
+    const after = store.engine().getUrl('fake', SHOW) as CrawlUrlRow;
+    assert.equal(after.releases, 1, 'stall não soma de novo');
+    assert.equal(parseProgress(after.progress)?.dry, 1, 'progresso seco anterior preservado');
   });
 });
 

@@ -129,10 +129,12 @@ export function memoryCrawlEngine(): CrawlEngine {
         // MESMA SQL: `simulated` OU QUALQUER linha com progresso seco
         // (`"dry":1`) — error/pending/inflight/partial — é resetada do zero
         // (resume de passe que não gravava pularia cards nunca gravados).
+        // `releases: 0` junto: a contagem seca é DESCOBERTA, não gravação —
+        // somar à releitura ao vivo duplicaria o total do painel.
         // Idempotente: o reset limpa o `progress`; linha seca ao vivo fica.
         const dryProgress = row.progress.includes('"dry":1');
         if (row.site !== s || (row.status !== 'simulated' && !dryProgress)) continue;
-        urls.set(k, { ...row, status: 'pending', tries: 0, nextAt: 0, error: '', progress: '' });
+        urls.set(k, { ...row, status: 'pending', tries: 0, nextAt: 0, error: '', releases: 0, progress: '' });
         n += 1;
       }
       return n;

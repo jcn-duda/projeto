@@ -64,19 +64,24 @@ describe('store: partial na fila (devido, ordem, requeues)', () => {
     ], 1);
     store.engine().markResult('fake', '/sim', { status: 'simulated', imdb: 'tt1', releases: 1 }, 100);
     store.engine().markResult('fake', '/drypart', {
-      status: 'partial', progress: withDryFlag(renderProgress({ v: 1, doneCards: ['/c1'], totalCards: 2 })),
+      status: 'partial', releases: 4, progress: withDryFlag(renderProgress({ v: 1, doneCards: ['/c1'], totalCards: 2 })),
     }, 110);
     store.engine().markResult('fake', '/part', {
-      status: 'partial', progress: renderProgress({ v: 1, doneCards: ['/c1'], totalCards: 2 }),
+      status: 'partial', releases: 2, progress: renderProgress({ v: 1, doneCards: ['/c1'], totalCards: 2 }),
     }, 120);
     const n = store.engine().requeueSimulated('fake');
     assert.equal(n, 2, 'simulated + partial seco');
     assert.equal(store.engine().getUrl('fake', '/sim')?.status, 'pending');
+    // A contagem seca era DESCOBERTA (nada gravado): o flip zera, senão o
+    // passe ao vivo soma seco+vivo e o painel duplica o total.
+    assert.equal(store.engine().getUrl('fake', '/sim')?.releases, 0, 'contagem seca da simulated zerada');
     const dry = store.engine().getUrl('fake', '/drypart') as CrawlUrlRow;
     assert.equal(dry.status, 'pending');
+    assert.equal(dry.releases, 0, 'contagem DISCOBERTA do partial seco zerada junto');
     assert.equal(dry.progress, '', 'resume de passe seco faria pular cards nunca gravados');
     const live = store.engine().getUrl('fake', '/part') as CrawlUrlRow;
     assert.equal(live.status, 'partial', 'partial ao vivo NÃO é tocado');
+    assert.equal(live.releases, 2, 'contagem ao vivo preservada');
     assert.ok(live.progress.includes('/c1'));
   });
 

@@ -161,6 +161,26 @@ test('rodada: start/finish/latest guarda fase, cursor e contadores', () => {
   assert.equal(store.engine().latestRun('outro'), null);
 });
 
+test('requeueSimulated (SQL) zera a contagem seca de releases; done ao vivo preserva a dele', { skip: skipSemSqlite }, () => {
+  assert.equal(store.engine().kind, 'sql');
+  store.engine().upsertUrls('vacatorrent', [
+    { url: '/sim', lastmod: 'x', kind: 'tv_show' },
+    { url: '/drypart', lastmod: 'x', kind: 'tv_show' },
+    { url: '/done', lastmod: 'x', kind: 'tv_show' },
+  ], 1000);
+  store.engine().markResult('vacatorrent', '/sim', { status: 'simulated', imdb: 'tt1', releases: 3 }, 2000);
+  store.engine().markResult('vacatorrent', '/drypart', {
+    status: 'partial', releases: 4, progress: '{"v":1,"doneCards":["/c1"],"totalCards":2,"dry":1}',
+  }, 2100);
+  store.engine().markResult('vacatorrent', '/done', { status: 'done', imdb: 'tt2', releases: 9 }, 2200);
+  assert.equal(store.engine().requeueSimulated('vacatorrent'), 2);
+  assert.equal(store.engine().getUrl('vacatorrent', '/sim')?.releases, 0, 'descoberta seca zerada no SQL');
+  assert.equal(store.engine().getUrl('vacatorrent', '/drypart')?.releases, 0, 'idem no partial seco');
+  assert.equal(store.engine().getUrl('vacatorrent', '/drypart')?.status, 'pending');
+  assert.equal(store.engine().getUrl('vacatorrent', '/done')?.releases, 9, 'contagem de gravação real preservada');
+  assert.equal(store.engine().sumReleases('vacatorrent'), 9, 'painel não soma seco+vivo');
+});
+
 test('SQLite persiste entre aberturas: retomada lê a fila gravada', { skip: skipSemSqlite }, () => {
   const dir = freshDir();
   store.resetForTests();
