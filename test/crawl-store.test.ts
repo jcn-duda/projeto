@@ -14,6 +14,17 @@ import * as store from '../src/utils/crawl-store.js';
 import { errorBackoffMs, CRAWL_GIVE_UP_MS } from '../src/utils/crawl-store-rules.js';
 import type { CrawlUrlRow } from '../src/providers/crawl-types.js';
 
+// `node:sqlite` só existe no Node 22+; no 20 (que o CI também roda) o store cai
+// na engine de memória por desenho — tipo da engine, persistência entre
+// aberturas e rollback da transação são contratos do arquivo SQLite.
+let hasNodeSqlite = true;
+try {
+  await import('node:sqlite');
+} catch {
+  hasNodeSqlite = false;
+}
+const skipSemSqlite = !hasNodeSqlite && 'node:sqlite indisponível — precisa de Node 22+';
+
 const tempDirs: string[] = [];
 const freshDir = () => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'crawl-'));
@@ -34,7 +45,7 @@ after(() => {
   }
 });
 
-test('upsert idempotente: nova URL nasce pending; repetida igual não mexe', () => {
+test('upsert idempotente: nova URL nasce pending; repetida igual não mexe', { skip: skipSemSqlite }, () => {
   assert.equal(store.engine().kind, 'sql');
   assert.deepEqual(store.engine().upsertUrls('vacatorrent', [movie('/a'), movie('/b')], 1000), { added: 2, refreshed: 0, unchanged: 0 });
   assert.deepEqual(store.engine().upsertUrls('vacatorrent', [movie('/a'), movie('/b')], 2000), { added: 0, refreshed: 0, unchanged: 2 });
@@ -150,7 +161,7 @@ test('rodada: start/finish/latest guarda fase, cursor e contadores', () => {
   assert.equal(store.engine().latestRun('outro'), null);
 });
 
-test('SQLite persiste entre aberturas: retomada lê a fila gravada', () => {
+test('SQLite persiste entre aberturas: retomada lê a fila gravada', { skip: skipSemSqlite }, () => {
   const dir = freshDir();
   store.resetForTests();
   store.open(path.join(dir, 'crawl.db'));
@@ -166,7 +177,7 @@ test('SQLite persiste entre aberturas: retomada lê a fila gravada', () => {
   store.open(path.join(freshDir(), 'crawl.db'));
 });
 
-test('upsert é atômico: erro ORIGINAL sobe e a leva NÃO fica pela metade', () => {
+test('upsert é atômico: erro ORIGINAL sobe e a leva NÃO fica pela metade', { skip: skipSemSqlite }, () => {
   // Entrada-bomba: o acesso a `url` explode no meio do lote (depois do BEGIN),
   // provando que o rollback roda e que o erro da linha — não um erro de
   // transação mascarado — é o que chega ao chamador.

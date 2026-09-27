@@ -12,6 +12,17 @@ import os from 'node:os';
 
 process.env.CACHE_PERSIST = 'false';
 
+// `node:sqlite` só existe no Node 22+; no 20 (que o CI também roda) o store cai
+// na engine de memória por desenho. O bloco de migração da CHECK é contrato
+// exclusivo do arquivo SQLite — sem o módulo não há o que validar.
+let hasNodeSqlite = true;
+try {
+  await import('node:sqlite');
+} catch {
+  hasNodeSqlite = false;
+}
+const skipSemSqlite = !hasNodeSqlite && 'node:sqlite indisponível — precisa de Node 22+';
+
 const config = (await import('../src/config.js')).default;
 const store = await import('../src/utils/crawl-store.js');
 const crawler = await import('../src/providers/crawler.js');
@@ -243,7 +254,7 @@ describe('status/painel: N simuladas aguardando gravação', () => {
     const cfg = crawlerLiveMod.envDefaults();
     const status = buildCrawlerStatus(store.currentEngine(), cfg, ['fake'], {
       activeSiteId: 'fake', activeLabel: 'Fake', paused: false, autoPause: null,
-      cursor: '', nextDiscoveryAt: 0, pagesThisHour: 0, openRunId: null,
+      cursors: { movie: '', tv_show: '' }, nextDiscoveryAt: 0, pagesThisHour: 0, openRunId: null,
       errorStreak: 0, canaryStreak: 0, cycle: {}, currentSiteNewReleases: 0, siteReady: true,
     });
     const card = status.sites[0];
@@ -265,7 +276,7 @@ describe('status/painel: N simuladas aguardando gravação', () => {
   });
 });
 
-describe('SQLite legado: migração da CHECK de status', () => {
+describe('SQLite legado: migração da CHECK de status', { skip: skipSemSqlite }, () => {
   test('crawl.db com CHECK legada é reconstruído preservando linhas e aceitando simulated', async () => {
     const { DatabaseSync } = await import('node:sqlite');
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crawl-mig-'));
