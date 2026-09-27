@@ -69,6 +69,11 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
         claimed.push(row.url);
         const outcome = await processCrawlPage(site, row, {
           dryRun: true, maxTries: live.maxTries, noPersist: true,
+          series: {
+            enabled: live.seriesEnabled === true,
+            maxCards: live.seriesMaxCards,
+            maxButtons: live.seriesMaxButtons,
+          },
         });
         results.push({
           url: row.url, kind: outcome.kind, releases: outcome.releases,

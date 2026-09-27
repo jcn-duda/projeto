@@ -13,7 +13,9 @@ export interface CrawlMotorState {
   activeLabel: string | null;
   paused: boolean;
   autoPause: { reason: string; at: number; detail: string } | null;
-  cursor: string;
+  /** Cursor incremental POR KIND (F2). `cursor` (filme) segue no status por
+   * compat; o mapa completo é o campo canônico. */
+  cursors: { movie: string; tv_show: string };
   /** Próxima descoberta agendada (epoch ms); 0 = devida. Fase 6. */
   nextDiscoveryAt: number;
   pagesThisHour: number;
@@ -24,6 +26,9 @@ export interface CrawlMotorState {
   /** `newReleases` do ciclo corrente (só vale para o site ativo). */
   currentSiteNewReleases: number;
   siteReady: boolean;
+  /** Custo médio observado (requisições por página) desde o boot; `null`
+   * quando nenhuma página foi medida ainda — o ETA honesto é "—". */
+  avgRequestCost?: number | null;
 }
 
 export interface SiteStatus {
@@ -61,6 +66,37 @@ export function rateFor(live: CrawlerEffectiveConfig): number {
 export const STATUS_LIST_LIMIT = 10;
 export const STATUS_ERROR_GROUPS_LIMIT = 10;
 
+/**
+ * Motivo ESTÁVEL de agrupamento (M2): a truncagem de série grava detalhes no
+ * `error` (cards 2/4, botões 40/40 variam por página) e viraria um grupo por
+ * página no painel. O motivo canônico é o rótulo antes do `:`; o detalhe
+ * segue visível na lista de erros recentes, no log e na métrica
+ * `crawl.page.series-truncated`.
+ */
+export function stableErrorReason(rawError: string): string {
+  const text = String(rawError || '').trim();
+  if (/^series_truncated\b/i.test(text)) return 'series_truncated';
+  return text || 'erro';
+}
+
+/** Agrupa os motivos crus pelo motivo estável, somando as ocorrências e
+ * mantendo a ordem de frequência (desempate: motivo estável primeiro). */
+function mergeErrorGroups(
+  groups: Array<{ reason: string; count: number }>,
+): Array<{ reason: string; count: number }> {
+  const merged = new Map<string, number>();
+  let order: string[] = [];
+  for (const g of groups) {
+    const key = stableErrorReason(g.reason);
+    if (!merged.has(key)) order.push(key);
+    merged.set(key, (merged.get(key) || 0) + g.count);
+  }
+  // Mesma ordenação do store (count desc), com desempate determinístico.
+  return [...order]
+    .sort((a, b) => (merged.get(b) || 0) - (merged.get(a) || 0) || (a < b ? -1 : a > b ? 1 : 0))
+    .map((reason) => ({ reason, count: merged.get(reason) || 0 }));
+}
+
 /** Card de UM site. `null` quando o store ainda não abriu (nada a mostrar). */
 export function buildSiteStatus(
   siteId: string,
@@ -70,11 +106,22 @@ export function buildSiteStatus(
 ): SiteStatus {
   const counters = engine.counters(siteId);
   const latest = engine.latestRun(siteId);
+  // `rateFor` é o teto de REQUISIÇÕES por hora (a Fase 7 cobra o custo real
+  // da página de série no balde horário). ETA (M2): pendência de páginas ×
+  // custo médio observado ÷ req/h — converter 1:1 subestimava séries em ~10×.
+  // Sem custo observado nenhum (motor recém-armado), o ETA é null: mostra
+  // "—" em vez de horas inventadas.
   const rate = rateFor(live);
+  const avgCost = typeof state.avgRequestCost === 'number' && Number.isFinite(state.avgRequestCost) && state.avgRequestCost > 0
+    ? state.avgRequestCost
+    : null;
   // `simulated` é trabalho restante: a página foi lida em dry-run e ainda
   // precisa de uma passada com gravação.
   const remaining = counters.byStatus.pending + counters.byStatus.error
     + counters.byStatus.inflight + counters.byStatus.simulated;
+  const etaHours = remaining > 0
+    ? (avgCost != null ? Math.round(((remaining * avgCost) / rate) * 10) / 10 : null)
+    : 0;
   return {
     id: siteId,
     label: state.activeSiteId === siteId && state.activeLabel ? state.activeLabel : siteId,
@@ -88,7 +135,7 @@ export function buildSiteStatus(
       : (Number(latest?.counters?.newReleases) || 0),
     pendingRemaining: remaining,
     ratePerHour: Math.round(rate),
-    etaHours: remaining > 0 ? Math.round((remaining / rate) * 10) / 10 : 0,
+    etaHours,
     latestRun: latest,
     recentWorks: engine.listByStatus(siteId, 'done', STATUS_LIST_LIMIT).map((r) => ({
       url: r.url, imdb: r.imdb, releases: r.releases, checkedAt: r.checkedAt,
@@ -99,7 +146,9 @@ export function buildSiteStatus(
     errors: engine.listByStatus(siteId, 'error', STATUS_LIST_LIMIT).map((r) => ({
       url: r.url, error: r.error, tries: r.tries, checkedAt: r.checkedAt,
     })),
-    errorGroups: engine.errorGroups(siteId, STATUS_ERROR_GROUPS_LIMIT),
+    // Motivo estável no agrupamento (M2): `series_truncated: …(cards 2/4…)`
+    // varia por página — o painel agrupa pelo rótulo, o detalhe fica na lista.
+    errorGroups: mergeErrorGroups(engine.errorGroups(siteId, STATUS_ERROR_GROUPS_LIMIT)),
   };
 }
 
@@ -126,7 +175,9 @@ export function buildCrawlerStatus(
     siteReady: state.siteReady,
     sitesConfigured: configuredSites,
     engine: engine ? engine.kind : null,
-    cursor: state.cursor || null,
+    // Compat: cursor de filme; o mapa por kind (`cursors`) é o canônico (F2).
+    cursor: state.cursors.movie || null,
+    cursors: { ...state.cursors },
     nextDiscoveryAt: state.nextDiscoveryAt,
     pagesThisHour: state.pagesThisHour,
     maxPerHour: live.maxPerHour,

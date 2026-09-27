@@ -1,7 +1,9 @@
 // Motor da raspagem total (Fase 3/4): orquestra fila, ritmo, teto, freio,
 // retomada, pausa automática e ciclo descoberta/incremental. Adaptadores em
 // `crawl-sites/*`. Invariantes: serial (1 site/URL); `delayMs`+`maxPerHour`+
-// freio de tráfego; cursor incremental só com `complete`; retomada de
+// freio de tráfego; cursor incremental POR KIND (F2: `cursor:movie` /
+// `cursor:tv_show` no `crawl_state`, com migração do cursor legado único) só
+// com a descoberta do kind completa; retomada de
 // `inflight` no start E na 1ª passagem após religar ao vivo (enabled
 // false→true, mesmo com pending na fila); pausa auto (streak/canário) +
 // manual. Fase 4: knobs ao vivo (`crawler-live`). Fase 6: cursor incremental
@@ -11,35 +13,23 @@
 import * as crawlerLive from '../utils/crawler-live.js';
 import * as store from '../utils/crawl-store.js';
 import * as activity from './activity.js';
-import { CrawlPausePolicy, maxLastmod } from './crawl-pauses.js';
+import { CrawlPausePolicy } from './crawl-pauses.js';
 import { processCrawlPage } from './crawl-page.js';
 import { freshCycle } from './crawl-cycle.js';
 import type { CycleCounters } from './crawl-cycle.js';
 import * as recovery from './crawl-recovery.js';
 import { buildCrawlerStatus } from './crawl-status.js';
 import { createCrawlActions } from './crawl-actions.js';
+import * as registry from './crawl-sites/registry.js';
 import { createCrawlScheduler } from './crawl-scheduler.js';
-import { createHourCounter } from './crawl-rate.js';
+import { createCostMeter, createHourCounter } from './crawl-rate.js';
+import { advanceCursors, discoveryCuts, loadCursorsFromStore, type CursorMap } from './crawl-cursor.js';
 import { DEFAULT_RETRY_BASE_MS } from '../utils/crawl-store-rules.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { AutoPauseReason, PauseLimits } from './crawl-pauses.js';
-import type { CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
+import { seriesLimitsOf, type CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 import type { CrawlSite, CrawlUrlRow } from './crawl-types.js';
-
-// --- Registro de adaptadores -------------------------------------------------
-
-let testSiteFactory: ((id: string) => CrawlSite | null) | null = null;
-
-/** Fábrica de teste vence; produção resolve Vaca por import dinâmico. */
-async function resolveSite(id: string): Promise<CrawlSite | null> {
-  if (testSiteFactory) return testSiteFactory(id);
-  if (id === 'vacatorrent') {
-    const { vacaCrawlSite } = await import('./crawl-sites/vaca.js');
-    return vacaCrawlSite();
-  }
-  return null;
-}
 
 // --- Estado do motor ---------------------------------------------------------
 
@@ -49,12 +39,9 @@ let busy = false;
 let paused = false;
 /** Pausa automática (streak/canário): limpa só por `setPaused(false)`. */
 let autoPause: { reason: AutoPauseReason; at: number; detail: string } | null = null;
-let activeSite: CrawlSite | null = null;
-let activeSiteId = '';
-let adapterWarned = false;
-let cursor = '';
-/** Chave do cursor incremental no estado durável do site (`crawl_state`). */
-const CURSOR_KEY = 'cursor';
+// Cursor incremental POR KIND (F2), chaves `cursor:movie`/`cursor:tv_show` —
+// migração do legado e avanço seguro por kind em `crawl-cursor.ts`.
+const cursors: CursorMap = { movie: '', tv_show: '' };
 let openRunId: number | null = null;
 let nextDiscoverAt = 0;
 /** A descoberta da rodada aberta veio parcial (Fase 6: fecha em retry curto). */
@@ -74,6 +61,7 @@ let simulatedRecoveryDone = false;
 let cycle = freshCycle();
 const policy = new CrawlPausePolicy();
 const hourPages = createHourCounter();
+const costMeter = createCostMeter();
 
 function limits(live: CrawlerEffectiveConfig): PauseLimits {
   return { errorPauseStreak: live.errorPauseStreak, layoutCanary: live.layoutCanary };
@@ -85,27 +73,9 @@ function triggerAutoPause(reason: AutoPauseReason, detail: string): void {
   log.warn(`[crawl] pausa automática (${reason}):`, autoPause.detail);
 }
 
-/** Garante o adaptador do site ativo (resolve uma vez e memoiza). */
-async function ensureActiveSite(siteId: string): Promise<CrawlSite | null> {
-  if (activeSite && activeSiteId === siteId) return activeSite;
-  try {
-    const site = await resolveSite(siteId);
-    if (!site) {
-      if (!adapterWarned) { adapterWarned = true; log.warn(`[crawl] site sem adaptador: ${siteId}`); }
-      return null;
-    }
-    activeSite = site;
-    activeSiteId = siteId;
-    adapterWarned = false;
-    return site;
-  } catch (err: unknown) {
-    if (!adapterWarned) {
-      adapterWarned = true;
-      log.error(`[crawl] adaptador ${siteId} indisponível:`, log.errorMessage(err));
-    }
-    return null;
-  }
-}
+/** Garante o adaptador do site ativo — memoização e resolução no registro
+ * (`crawl-sites/registry.ts`); o motor só consome. */
+const ensureActiveSite = registry.ensureActiveSite;
 
 /** Fecha a rodada aberta (se houver) e agenda a próxima descoberta. */
 function closeRun(nextDelayMs: number): void {
@@ -120,33 +90,31 @@ function closeRun(nextDelayMs: number): void {
 async function runDiscovery(site: CrawlSite, live: CrawlerEffectiveConfig): Promise<void> {
   const now = Date.now();
   lastRequestAt = now;
-  const phase = cursor ? 'incremental' : 'initial';
-  openRunId = store.engine().startRun(site.id, phase, cursor, now);
+  // F2: fase e corte POR KIND (ver `crawl-cursor.ts`) — série sem cursor
+  // começa `initial` mesmo com filmes incrementais.
+  const { phase, sinceByKind } = discoveryCuts(cursors);
+  openRunId = store.engine().startRun(site.id, phase, cursors.movie, now);
   cycle = freshCycle();
   discoveryPartial = false;
   try {
-    const discovery = await site.discover(phase === 'incremental' ? cursor : null);
+    const discovery = await site.discover(sinceByKind.movie, {
+      series: seriesLimitsOf(live),
+      sinceByKind,
+    });
     const report = store.engine().upsertUrls(site.id, discovery.urls, now);
     cycle.discoveryAdded = report.added;
     cycle.discoveryRefreshed = report.refreshed;
+    // F2: o cursor de CADA kind anda só com a descoberta DELE completa —
+    // parcial de um sitemap não trava o avanço seguro do outro.
+    advanceCursors(site.id, discovery, cursors);
     if (discovery.complete) {
-      // Cursor só anda com descoberta COMPLETA: parcial pode ter perdido o
-      // lastmod novo, e avançar por cima disso o deixaria invisível para sempre.
-      const max = maxLastmod(discovery.urls);
-      if (max) {
-        cursor = max;
-        // Fase 6: cursor durável — restart retoma incremental sem refazer a
-        // carga inicial inteira.
-        store.engine().setState(site.id, CURSOR_KEY, max);
-      }
       policy.observeSiteSuccess();
       metrics.count('crawl.discovery.ok');
       if (report.added) metrics.count('crawl.discovery.added', report.added);
     } else {
       cycle.discoveryFailures = discovery.failures.length;
-      // Parcial NÃO agenda como completa: quando a fila desta rodada drenar,
-      // a releitura volta no prazo curto de retry (ver `step`), não no ciclo
-      // incremental inteiro — o pedaço perdido do sitemap não espera 1h.
+      // Parcial NÃO agenda como completa: a releitura volta no prazo curto de
+      // retry (ver `step`). Os cursores dos kinds completos JÁ andaram (F2).
       discoveryPartial = true;
       metrics.count('crawl.discovery.partial');
       log.warn('[crawl] descoberta parcial:', discovery.failures.join(' | ').slice(0, 400));
@@ -166,8 +134,11 @@ async function runDiscovery(site: CrawlSite, live: CrawlerEffectiveConfig): Prom
 /** Processa UMA página reclamada e alimenta a política de pausa. */
 async function processClaimed(site: CrawlSite, row: CrawlUrlRow, live: CrawlerEffectiveConfig): Promise<void> {
   lastRequestAt = Date.now();
-  hourPages.note();
-  const outcome = await processCrawlPage(site, row, { dryRun: live.dryRun, maxTries: live.maxTries });
+  const outcome = await processCrawlPage(site, row, { dryRun: live.dryRun, maxTries: live.maxTries, series: seriesLimitsOf(live) });
+  // Fase 7: o teto por hora cobra o custo REAL da página, não 1 por página.
+  const cost = Math.max(1, Math.trunc(Number(outcome.requestCost ?? 1)));
+  hourPages.note(cost);
+  costMeter.note(cost);
   cycle.pages += 1;
   if (outcome.kind === 'done') {
     cycle.done += 1;
@@ -283,13 +254,9 @@ function start(): void {
   // antes do switch (mesmo one-shot do caminho ao vivo). Boot DESABILITADO não
   // roda aqui — a passada fica para a primeira `step` após o false→true.
   if (live.dryRun === false) { recovery.requeueSimulated(siteId); simulatedRecoveryDone = true; }
-  // Fase 6: cursor durável — restart retoma o incremental do estado
-  // persistido, sem reprocessar o acervo como carga inicial.
-  const savedCursor = store.engine().getState(siteId, CURSOR_KEY);
-  if (savedCursor) {
-    cursor = savedCursor;
-    log.info(`[crawl] cursor incremental restaurado do crawl.db (${savedCursor})`);
-  }
+  // Fase 6/2: cursores duráveis POR KIND — restart retoma o incremental do
+  // estado persistido, sem reprocessar o acervo (migração do legado incluso).
+  loadCursorsFromStore(siteId, cursors);
   scheduler.rearm(live);
   log.info(`[crawl] motor armado (site=${siteId}, delay=${live.delayMs}ms, dryRun=${live.dryRun})`);
 }
@@ -313,7 +280,8 @@ function siteIds(): string[] {
 function forgetActiveRun(): void {
   openRunId = null;
   cycle = freshCycle();
-  cursor = '';
+  cursors.movie = '';
+  cursors.tv_show = '';
   nextDiscoverAt = 0;
   discoveryPartial = false;
 }
@@ -336,12 +304,13 @@ const { simulate, reprocessErrors, resetSite } = createCrawlActions({
 function status() {
   const live = crawlerLive.effective();
   const configuredSites = siteIds();
+  const { site: activeSite, id: activeSiteId } = registry.active();
   return buildCrawlerStatus(store.currentEngine(), live, configuredSites, {
     activeSiteId,
     activeLabel: activeSite ? activeSite.label : null,
     paused,
     autoPause,
-    cursor,
+    cursors: { ...cursors },
     nextDiscoveryAt: nextDiscoverAt,
     pagesThisHour: hourPages.current(),
     openRunId,
@@ -350,6 +319,8 @@ function status() {
     cycle: { ...cycle },
     currentSiteNewReleases: cycle.newReleases,
     siteReady: Boolean(activeSite),
+    // ETA honesto (M1): custo médio observado; sem página medida é null.
+    avgRequestCost: costMeter.avg(),
   });
 }
 
@@ -357,10 +328,7 @@ function status() {
 
 /** Injeta adaptadores dublês (o motor não toca o Vaca real). */
 export function _setSitesForTest(factory: ((id: string) => CrawlSite | null) | null): void {
-  testSiteFactory = factory;
-  activeSite = null;
-  activeSiteId = '';
-  adapterWarned = false;
+  registry.setFactoryForTest(factory);
 }
 
 /** Zera o relógio da próxima descoberta (o teste não espera 60 min). */
@@ -375,18 +343,17 @@ export function _resetForTest(): void {
   busy = false;
   paused = false;
   autoPause = null;
-  activeSite = null;
-  activeSiteId = '';
-  adapterWarned = false;
-  cursor = '';
+  registry.setFactoryForTest(null);
+  cursors.movie = '';
+  cursors.tv_show = '';
   openRunId = null;
   nextDiscoverAt = 0;
   discoveryPartial = false;
   lastRequestAt = 0;
   cycle = freshCycle();
   hourPages.clear();
+  costMeter.reset();
   policy.reset();
-  testSiteFactory = null;
   needInflightRecovery = false;
   liveWasEnabled = false;
   liveWasDryRun = null;

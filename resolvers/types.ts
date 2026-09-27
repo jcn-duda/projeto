@@ -140,6 +140,13 @@ export interface TransportOptions {
   timeoutMs: number;
   userAgent: string;
   cookieJar?: boolean | CookieJarSeed;
+  /**
+   * Callback disparado ANTES de CADA fetch real (hop de protetor, redirect ou
+   * primeira requisição). O crawl usa para medir o custo REAL por HOP — um
+   * botão que percorre 4 saltos custa 4, não 1. Opcional: nenhum caller é
+   * obrigado a passá-lo.
+   */
+  onRequest?: () => void;
 }
 
 /**

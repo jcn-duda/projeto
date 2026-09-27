@@ -26,7 +26,9 @@ export const crawl = () => ({
   dbPath: process.env.CRAWL_DB_PATH || DEFAULT_CRAWL_DB_PATH,
   // Pausa entre páginas: o motor faz UMA requisição por vez, sem FlareSolverr.
   delayMs: Math.max(0, num(process.env.CRAWL_DELAY_MS, 1000)),
-  // Teto de páginas por hora (educação com o site; bloqueio de IP custa dias).
+  // Teto de REQUISIÇÕES por hora (educação com o site; bloqueio de IP custa
+  // dias). Fase 7: o custo é REAL por página (cards e saltos de protetor
+  // contam) — a chave mantém o nome legado por compatibilidade.
   maxPerHour: Math.max(1, Math.trunc(num(process.env.CRAWL_MAX_PER_HOUR, 1500))),
   // Só rascar com o app ocioso — a MESMA janela deslizante do colhedor
   // (`activity.recentUserTraffic`); tráfego de usuário preempta a raspagem.
@@ -42,4 +44,12 @@ export const crawl = () => ({
   // Ciclo incremental (min): relê só o sitemap e reprocessa URL nova ou com
   // lastmod novo (o upsert idempotente do store é quem barateia o ciclo).
   incrementalIntervalMin: Math.max(1, Math.trunc(num(process.env.CRAWL_INCREMENTAL_INTERVAL_MIN, 60))),
+  // Fase 7 (séries): descoberta de tv_show-sitemap. DESLIGADA por padrão —
+  // séries multiplicam requisições (página → season-internal → cards →
+  // protetores); ligar é decisão do operador, como a raspagem em si.
+  seriesEnabled: String(process.env.CRAWL_SERIES_ENABLED || 'false') === 'true',
+  // Teto de cards de temporada visitados por página de série.
+  seriesMaxCards: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_CARDS, 10))),
+  // Teto de botões de download seguidos (cadeia do protetor) por página.
+  seriesMaxButtons: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_BUTTONS, 40))),
 });

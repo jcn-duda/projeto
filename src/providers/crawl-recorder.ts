@@ -38,6 +38,14 @@ export interface RecordReport {
   cleared: number;
 }
 
+/** Localização declarada da obra para UMA gravação (Fase 7 séries): raiz
+ * `{null,null}`, pack de temporada `{S,null}`, episódio `{S,E}`. Filme é
+ * sempre a raiz. */
+export interface CrawlObraLocation {
+  season?: number | null;
+  episode?: number | null;
+}
+
 /** Colaboradores do recorder — trocáveis em teste (ver cabeçalho). */
 export interface CrawlRecorderDeps {
   /**
@@ -62,13 +70,15 @@ export interface CrawlRecorderDeps {
   ): number;
   transition(before: unknown[] | null | undefined, after: unknown[] | null | undefined): 'none' | 'br' | 'upgrade';
   invalidate(imdb: string): number;
-  buildContext(obra: CrawlObra): Promise<MatchContext | null>;
+  buildContext(obra: CrawlObra, location: CrawlObraLocation): Promise<MatchContext | null>;
   count(name: string, value?: number): void;
 }
 
 /** Contexto da obra pelo CATÁLOGO; `null` quando nem Cinemeta nem TMDB dão
- * nome — recusar é mais seguro que admitir tudo (ver cabeçalho). */
-async function defaultBuildContext(obra: CrawlObra): Promise<MatchContext | null> {
+ * nome — recusar é mais seguro que admitir tudo (ver cabeçalho). A locação
+ * (S/E, S, raiz) entra no contexto: é ela que o filtro de episódio/título
+ * usa para série. */
+async function defaultBuildContext(obra: CrawlObra, location: CrawlObraLocation): Promise<MatchContext | null> {
   const type = obra.kind === 'tv_show' ? 'series' : 'movie';
   const [meta, titles] = await Promise.all([getMeta(type, obra.imdb), tmdb.getTitles(obra.imdb)]);
   const resolved = resolveSearchNames({ meta, titles, imdbId: obra.imdb });
@@ -77,15 +87,27 @@ async function defaultBuildContext(obra: CrawlObra): Promise<MatchContext | null
     names: resolved.names,
     year: resolved.year ?? obra.year,
     isSeries: obra.kind === 'tv_show',
-    // Vaca é o piloto (filme). Série usa o mesmo esqueleto da colheita; a
-    // temporada/episódio chegam na fase que abrir adaptador de série.
-    season: null,
-    episode: null,
+    // A locação declarada pelo adaptador (pack → S, por-episódio → S/E):
+    // a página NUNCA declara cobertura completa da obra, então season/episode
+    // seguem exatamente o que o grupo cobre.
+    season: location.season ?? null,
+    episode: location.episode ?? null,
   };
 }
 
 export interface CrawlRecorder {
-  record(siteId: string, obra: CrawlObra, releases: RawItem[]): Promise<RecordReport>;
+  /**
+   * Grava UM lote na locação dada (default: raiz da obra — caminho de filme).
+   * Fase 7: séries chamam UMA vez por locação declarada (S/E, S, raiz); cada
+   * chamada grava partial+keepPartial, porque UMA página nunca prova cobertura
+   * completa da obra.
+   */
+  record(
+    siteId: string,
+    obra: CrawlObra,
+    releases: RawItem[],
+    location?: CrawlObraLocation,
+  ): Promise<RecordReport>;
 }
 
 /** Fábrica: o `deps` parcial completa com os módulos REAIS. */
@@ -105,14 +127,20 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
   };
 
   return {
-    async record(siteId: string, obra: CrawlObra, releases: RawItem[]): Promise<RecordReport> {
-      const context = await d.buildContext(obra);
+    async record(
+      siteId: string,
+      obra: CrawlObra,
+      releases: RawItem[],
+      location: CrawlObraLocation = {},
+    ): Promise<RecordReport> {
+      const context = await d.buildContext(obra, location);
       if (!context) throw new Error('catalogo-sem-nomes');
-      const location = {};
-      const ctx = { imdbId: obra.imdb, season: null, episode: null };
-      // 1. Filtro de título estrito com o contexto da obra.
+      const loc = { season: location.season ?? null, episode: location.episode ?? null };
+      const ctx = { imdbId: obra.imdb, season: loc.season, episode: loc.episode };
+      // 1. Filtro de título estrito com o contexto da obra (e da locação).
       const relevant = filterRelevantRaw(releases, context as never);
-      // 2. Banco vivo: capture+filter atômicos (página inteira entra; filtro marca).
+      // 2. Banco vivo: capture+filter atômicos (página inteira entra; filtro
+      //    marca passed_filter na MESMA locação do grupo).
       if (!d.captureAndMark(releases, relevant, siteId, ctx)) {
         d.count('crawl.record.queueDropped');
         throw new Error('magnetbank-queue-dropped');
@@ -123,12 +151,13 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
         d.count('crawl.record.flushFailed');
         throw new Error('magnetbank-flush-falhou');
       }
-      // 4. Índice: preserva `partial` existente; obra nova nasce parcial.
-      const before = d.lookupQuiet(obra.imdb, location);
-      const partial = d.isPartial(obra.imdb, location) || before.length === 0;
-      const added = d.record(obra.imdb, location, relevant, { partial, keepPartial: true });
+      // 4. Índice na locação do grupo: preserva `partial` existente e NUNCA
+      //    rebaixa — a raspagem cobre UMA página, nunca a obra inteira.
+      const before = d.lookupQuiet(obra.imdb, loc);
+      const partial = d.isPartial(obra.imdb, loc) || before.length === 0;
+      const added = d.record(obra.imdb, loc, relevant, { partial, keepPartial: true });
       // 5. Transição BR invalida listas prontas da obra.
-      const after = d.lookupQuiet(obra.imdb, location);
+      const after = d.lookupQuiet(obra.imdb, loc);
       const transition = d.transition(before, after);
       const cleared = transition === 'none' ? 0 : d.invalidate(obra.imdb);
       d.count('crawl.record.added', added);

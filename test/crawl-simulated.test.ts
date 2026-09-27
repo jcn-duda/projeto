@@ -254,7 +254,7 @@ describe('status/painel: N simuladas aguardando gravação', () => {
     const cfg = crawlerLiveMod.envDefaults();
     const status = buildCrawlerStatus(store.currentEngine(), cfg, ['fake'], {
       activeSiteId: 'fake', activeLabel: 'Fake', paused: false, autoPause: null,
-      cursor: '', nextDiscoveryAt: 0, pagesThisHour: 0, openRunId: null,
+      cursors: { movie: '', tv_show: '' }, nextDiscoveryAt: 0, pagesThisHour: 0, openRunId: null,
       errorStreak: 0, canaryStreak: 0, cycle: {}, currentSiteNewReleases: 0, siteReady: true,
     });
     const card = status.sites[0];

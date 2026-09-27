@@ -104,14 +104,15 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
           ` : null}
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
             Engine: ${summary.engine || '—'} · Site ativo: ${summary.site || '—'}${summary.siteReady ? '' : ' (adaptador ainda não resolvido)'}
-            ${summary.cursor ? html` · Cursor: <code>${summary.cursor}</code>` : null}
+            ${summary.cursors.movie || summary.cursor ? html` · Cursor filmes: <code>${summary.cursors.movie || summary.cursor}</code>` : null}
+            ${summary.cursors.tv_show ? html` · Cursor séries: <code>${summary.cursors.tv_show}</code>` : html` · Cursor séries: — (carga inicial)`}
             ${summary.nextDiscoveryAt != null && !summary.runOpen ? html` · Próxima descoberta: ${nextDiscoveryLabel(summary.nextDiscoveryAt)}` : null}
             ${summary.runOpen ? html` · Rodada aberta` : null}
           </p>
         </${Card}>
 
         <${Card} title="Vazão e Freios">
-          <${StatNumber} value=${summary.pagesThisHour} target=${summary.maxPerHour || undefined} label="páginas / h" />
+          <${StatNumber} value=${summary.pagesThisHour} target=${summary.maxPerHour || undefined} label="req / h" />
           <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">
             Pausa entre páginas: ${summary.delayMs}ms · Janela de ociosidade: ${summary.idleWindowMs}ms
           </p>
@@ -217,7 +218,7 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
         <${StatNumber} value=${card.magnetsFound} label="magnets vistos" />
         <${StatNumber} value=${card.newReleases} label="novos no índice" />
         <${StatNumber} value=${card.torrentPercent} label="% torrent (nas processadas)" />
-        <${StatNumber} value=${card.ratePerHour} label="páginas / h" />
+        <${StatNumber} value=${card.ratePerHour} label="req / h" />
         <${StatNumber} value=${etaLabel(card.etaHours)} label="ETA" />
       </div>
 

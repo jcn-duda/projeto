@@ -5,7 +5,12 @@
 // roda com `CRAWL_DRY_RUN=false`.
 //
 // Classificação dos desfechos, na ordem do vocabulário do store:
-//   - exceção do adaptador ou `status:'error'` → `error` com backoff;
+//   - exceção do adaptador ou `status:'error'` → `error` com backoff (a
+//     exceção pode carregar o `requestCost` medido — F1 — e `series_truncated`
+//     ganha métrica própria — F5);
+//   - M1: TODO desfecho pós-adaptador (error/no-torrent/no-work/done/simulated)
+//     carrega o `requestCost` medido pela página — o motor cobra o real no
+//     teto horário, inclusive quando a falha vem depois (TMDB, defensivos);
 //   - `no-torrent` → `no-torrent` (não gasta TMDB: página sem magnet não tem
 //     nada a atribuir; a obra volta a ser identificada se o layout mudar);
 //   - `done` sem IMDb ancorado → `identifyWork`:
@@ -27,8 +32,9 @@ import { isSiteLevelError } from './crawl-pauses.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { IdentifyResult } from './crawl-identify.js';
-import type { CrawlSite, CrawlUrlRow } from './crawl-types.js';
+import type { CrawlSite, CrawlUrlRow, CrawlSeriesLimits, CrawlReleaseGroup } from './crawl-types.js';
 import type { CrawlRecorder } from './crawl-recorder.js';
+import type { RawItem } from '../../types/domain.js';
 
 export interface PageOutcome {
   kind: 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated';
@@ -38,6 +44,12 @@ export interface PageOutcome {
   releases: number;
   /** Releases efetivamente NOVAS no índice (só no caminho com gravação). */
   addedNew?: number;
+  /**
+   * Custo REAL de requisições da página (Fase 7, séries). O motor soma no
+   * teto por hora — uma página que custou 12 requests não pode caber como 1.
+   * Ausente = 1 (a página em si).
+   */
+  requestCost?: number;
   /** Motivo curto para log/painel (nunca credencial). */
   detail?: string;
 }
@@ -50,6 +62,8 @@ export interface PageProcessOptions {
   dryRun?: boolean;
   maxTries?: number;
   noPersist?: boolean;
+  /** Fase 7: limites/flag da descoberta e do processamento de série. */
+  series?: CrawlSeriesLimits;
 }
 
 export interface PageCollaborators {
@@ -59,8 +73,18 @@ export interface PageCollaborators {
 
 const defaultCollaborators: PageCollaborators = {
   identify: identifyWork,
-  record: (siteId, obra, releases) => recordCrawlReleases.record(siteId, obra, releases),
+  record: (siteId, obra, releases, location) => recordCrawlReleases.record(siteId, obra, releases, location),
 };
+
+/**
+ * Custo medido anexado ao erro (F1): o adaptador lança com `requestCost`
+ * (`withRequestCost`) e o motor cobra o que foi gasto antes de falhar — não 1
+ * por página. Ausente/inválido = undefined (o motor aplica o piso 1).
+ */
+function requestCostOf(err: unknown): number | undefined {
+  const c = (err as { requestCost?: unknown } | null)?.requestCost;
+  return typeof c === 'number' && Number.isFinite(c) && c >= 1 ? Math.trunc(c) : undefined;
+}
 
 function markError(row: CrawlUrlRow, message: string, opts: PageProcessOptions = {}): void {
   if (!opts.noPersist) {
@@ -74,6 +98,11 @@ function markError(row: CrawlUrlRow, message: string, opts: PageProcessOptions =
       { maxTries: opts.maxTries ?? config.crawl.maxTries },
     );
   }
+  // F5: página de série cortada pelo teto (series_truncated) é métrica
+  // própria — o recorte não pode se misturar com erro de rede no diagnóstico.
+  // O freio anti-loop é o `maxTries` do motor: a URL dorme até o operador
+  // levantar `CRAWL_SERIES_MAX_*` e usar "Reprocessar erros".
+  if (/^series_truncated/i.test(String(message || ''))) metrics.count('crawl.page.series-truncated');
   metrics.count('crawl.page.error');
 }
 
@@ -89,18 +118,20 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     const dryRun = opts.dryRun ?? config.crawl.dryRun;
     let result: Awaited<ReturnType<CrawlSite['fetchWork']>>;
     try {
-      result = await site.fetchWork(row.url);
+      result = await site.fetchWork(row.url, { kind: row.kind, series: opts.series });
     } catch (err: unknown) {
       const message = log.errorMessage(err);
       markError(row, message, opts);
       log.warn(`[crawl] página falhou (${row.url}):`, message);
-      return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, detail: message };
+      // F1: o throw carrega o custo medido (`withRequestCost`) — cobra o que
+      // foi gasto antes de falhar.
+      return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, requestCost: requestCostOf(err), detail: message };
     }
 
     if (result.status === 'error') {
       const message = String(result.error || 'erro da página');
       markError(row, message, opts);
-      return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, detail: message };
+      return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, detail: message, requestCost: result.requestCost };
     }
 
     if (result.status === 'no-torrent') {
@@ -108,19 +139,29 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
       }
       metrics.count('crawl.page.no-torrent');
-      return { kind: 'no-torrent', siteLevelError: false, releases: 0 };
+      return { kind: 'no-torrent', siteLevelError: false, releases: 0, requestCost: result.requestCost };
     }
 
     // status 'done': a página tem releases. Sem nenhuma, o honesto é
     // `no-torrent` — `done` com 0 releases mentiria "página lida".
-    const releases = Array.isArray(result.releases) ? result.releases : [];
+    // Série (Fase 7): os grupos são a verdade da página; a soma plana só
+    // alimenta contadores. Filme (sem grupos) segue com o lote único na raiz.
+    const groups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length
+      ? result.groups
+      : null;
+    const releases: RawItem[] = groups
+      ? groups.flatMap((g) => (Array.isArray(g.releases) ? g.releases : []))
+      : (Array.isArray(result.releases) ? result.releases : []);
     const isSeries = result.type === 'series' || row.kind === 'tv_show';
     if (!releases.length) {
+      // Defensivo (M1): `done` sem release nenhuma vira `no-torrent`, e o
+      // custo medido acompanha — nenhum desfecho pós-adaptador perde o que a
+      // página gastou.
       if (persist) {
         store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
       }
       metrics.count('crawl.page.no-torrent');
-      return { kind: 'no-torrent', siteLevelError: false, releases: 0 };
+      return { kind: 'no-torrent', siteLevelError: false, releases: 0, requestCost: result.requestCost };
     }
 
     let imdb = result.imdb ?? null;
@@ -134,9 +175,11 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         imdb = identification.imdb;
       } else if (identification.outcome === 'unavailable') {
         // TMDB indisponível: retentável, não veredicto. Erro de página.
+        // M1: o custo medido pelo adaptador acompanha TODOS os desfechos
+        // pós-adaptador — uma série cara que falhou no TMDB custa o que custou.
         const message = `tmdb-indisponivel:${identification.reason}`;
         markError(row, message, opts);
-        return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message };
+        return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
       } else {
         if (persist) {
           store.engine().markResult(
@@ -147,7 +190,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         }
         metrics.count('crawl.page.no-work');
         log.debug(`[crawl] sem obra (${row.url}): ${identification.reason}`);
-        return { kind: 'no-work', siteLevelError: false, releases: 0, detail: identification.reason };
+        return { kind: 'no-work', siteLevelError: false, releases: 0, detail: identification.reason, requestCost: result.requestCost };
       }
     }
 
@@ -162,30 +205,43 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         store.engine().markResult(site.id, row.url, { status: 'simulated', imdb, releases: releases.length }, Date.now());
       }
       metrics.count('crawl.page.simulated');
-      return { kind: 'simulated', siteLevelError: false, releases: releases.length };
+      return { kind: 'simulated', siteLevelError: false, releases: releases.length, requestCost: result.requestCost };
     }
 
+    // Gravação. Filme: um lote na raiz. Série: UM registro por locação
+    // declarada (S/E, S, raiz) — cada grupo na chave que o cobre, sempre
+    // partial+keepPartial (uma página NUNCA prova cobertura completa da obra).
+    // Um grupo falho é erro retentável: as locações já gravadas são merge
+    // idempotente no índice/banco, o retry só refaz o que faltou.
+    const locations: Array<{ season: number | null; episode: number | null; items: RawItem[] }> = groups
+      ? groups.map((g) => ({ season: g.season, episode: g.episode, items: g.releases }))
+      : [{ season: null, episode: null, items: releases }];
+    let added = 0;
     try {
       // `record` só resolve com o lote JÁ persistido no acervo (barreira do
       // recorder). Rejeição (ex.: flush falho) cai no catch como erro
       // retentável: a URL volta a `error` — nunca `done` sobre acervo que não
       // gravou.
-      const report = await collab.record(site.id, {
+      const obra = {
         imdb: String(imdb),
         title: String(result.title || ''),
         year: result.year ?? null,
-        kind: isSeries ? 'tv_show' : 'movie',
-      }, releases);
+        kind: isSeries ? 'tv_show' as const : 'movie' as const,
+      };
+      for (const loc of locations) {
+        const report = await collab.record(site.id, obra, loc.items, { season: loc.season, episode: loc.episode });
+        added += report.added;
+      }
       if (persist) {
         store.engine().markResult(site.id, row.url, { status: 'done', imdb, releases: releases.length }, Date.now());
       }
       metrics.count('crawl.page.done');
-      return { kind: 'done', siteLevelError: false, releases: releases.length, addedNew: report.added };
+      return { kind: 'done', siteLevelError: false, releases: releases.length, addedNew: added, requestCost: result.requestCost };
     } catch (err: unknown) {
       const message = log.errorMessage(err);
       markError(row, message, opts);
       log.warn(`[crawl] gravação falhou (${row.url}):`, message);
-      return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message };
+      return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
     }
   };
 }

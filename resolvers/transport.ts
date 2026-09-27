@@ -87,6 +87,7 @@ async function followProtectedUrl(
     timeoutMs,
     userAgent,
     cookieJar = false,
+    onRequest,
   }: TransportOptions,
 ): Promise<string> {
   if (!value) throw new Error('invalid_url');
@@ -115,6 +116,9 @@ async function followProtectedUrl(
       const cookie = jar.headers(current.hostname);
       if (cookie) headers.Cookie = cookie;
     }
+    // Custo por HOP (F3): cada fetch real conta — o primeiro e cada salto de
+    // redirect/protetor. Chamado ANTES do fetch: falha também custou.
+    onRequest?.();
     const response = await fetch(current, {
       redirect: 'manual',
       headers,
@@ -185,6 +189,8 @@ export interface FetchRedirectsOptions {
    * rejeição), e é também o que preserva a sessão quente no mesmo host.
    */
   headersFor(url: URL): Record<string, string>;
+  /** Custo por HOP (F3): disparado antes de cada fetch real do laço. */
+  onRequest?: () => void;
 }
 
 /**
@@ -200,6 +206,8 @@ async function fetchFollowRedirects(url: string, opts: FetchRedirectsOptions): P
   const deadlineAt = Date.now() + opts.timeoutMs;
   for (let hop = 0; hop <= opts.maxHops; hop += 1) {
     const remaining = deadlineAt - Date.now();
+    // Custo por HOP (F3): cada fetch do laço de redirects conta.
+    opts.onRequest?.();
     const response = await fetch(current, {
       redirect: 'manual',
       headers: opts.headersFor(current),

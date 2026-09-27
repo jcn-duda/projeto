@@ -137,14 +137,52 @@ describe('crawler: status por site (Fase 4)', () => {
     assert.deepEqual(site?.noWork, []);
   });
 
-  test('ETA cresce com páginas pendentes e o ritmo vivo', async () => {
-    freshCrawl({ delayMs: 3600 }); // 1000 páginas/h
-    // 5000 pendentes sem processar: ETA ≈ 5h.
+  test('ETA cresce com páginas pendentes × custo médio observado ÷ req/h', async () => {
+    freshCrawl({ delayMs: 3600 }); // teto de 1000 REQUISIÇÕES/h
+    // 5000 pendentes sem processar: com custo médio observado 1 req/página,
+    // ETA ≈ 5h. Sem custo observado nenhum, o ETA é null (mostra "—" no
+    // painel) em vez de usar req/h como se fosse páginas/h.
     const urls = Array.from({ length: 5000 }, (_, i) => movie(`/p${i}`));
     store.engine().upsertUrls('fake', urls, 1);
-    const site = crawler.status().sites.find((s) => s.id === 'fake');
-    assert.equal(site?.pendingRemaining, 5000);
-    assert.equal(site?.etaHours, 5);
+    const liveCfg = live.effective();
+    const state = (avgRequestCost: number | null): any => ({
+      activeSiteId: 'fake', activeLabel: 'Fake Site', paused: false, autoPause: null,
+      cursors: { movie: '', tv_show: '' }, nextDiscoveryAt: 0, pagesThisHour: 0,
+      openRunId: null, errorStreak: 0, canaryStreak: 0, cycle: {},
+      currentSiteNewReleases: 0, siteReady: true, avgRequestCost,
+    });
+    const noCost = buildSiteStatus('fake', store.engine(), liveCfg, state(null));
+    assert.equal(noCost.etaHours, null, 'sem custo medido o ETA honesto é null');
+    const page1 = buildSiteStatus('fake', store.engine(), liveCfg, state(1));
+    assert.equal(page1.etaHours, 5, '5000 páginas × 1 req ÷ 1000 req/h');
+    const series = buildSiteStatus('fake', store.engine(), liveCfg, state(9));
+    assert.equal(series.etaHours, 45, 'série cara (9 req/página): o ETA reflete o custo real, não 1:1');
+  });
+
+  test('errorGroups no card agrupa series_truncated pelo motivo estável (M2)', () => {
+    freshCrawl({ sites: ['fake'] });
+    store.engine().upsertUrls('fake', [movie('/a'), movie('/b'), movie('/c'), movie('/d')], 1);
+    store.engine().markResult('fake', '/a', { status: 'error', error: 'series_truncated: teto de série atingido (cards 2/4, botões 40/40)' }, 10, { maxTries: 5 });
+    store.engine().markResult('fake', '/b', { status: 'error', error: 'series_truncated: teto de série atingido (cards 1/9, botões 12/40)' }, 11, { maxTries: 5 });
+    store.engine().markResult('fake', '/c', { status: 'error', error: 'HTTP 500' }, 12, { maxTries: 5 });
+    store.engine().markResult('fake', '/d', { status: 'error', error: 'timeout' }, 13, { maxTries: 5 });
+    const card = buildSiteStatus('fake', store.engine(), live.effective(), {
+      activeSiteId: 'fake', activeLabel: 'Fake Site', paused: false, autoPause: null,
+      cursors: { movie: '', tv_show: '' }, nextDiscoveryAt: 0, pagesThisHour: 0,
+      openRunId: null, errorStreak: 0, canaryStreak: 0, cycle: {},
+      currentSiteNewReleases: 0, siteReady: true,
+    } as any);
+    // Motivo ESTÁVEL: o detalhe (cards x/y) varia por página e viraria um
+    // grupo por URL. O texto cru segue na lista de erros recentes.
+    assert.deepEqual(card.errorGroups.map((g) => ({ reason: g.reason, count: g.count })), [
+      { reason: 'series_truncated', count: 2 },
+      { reason: 'HTTP 500', count: 1 },
+      { reason: 'timeout', count: 1 },
+    ]);
+    assert.ok(
+      card.errors.some((e) => /cards 2\/4/.test(e.error)),
+      'o detalhe cru permanece visível na lista de erros',
+    );
   });
 
   test('simulate NÃO consome a fila nem grava estado (dry-run/noPersist)', async () => {
@@ -197,7 +235,7 @@ describe('crawl-actions: simulação nunca deixa inflight órfão', () => {
 describe('crawl-status: custo e limites das consultas', () => {
   function motorState(activeSiteId = 'fake'): any {
     return {
-      activeSiteId, activeLabel: 'Fake Site', paused: false, autoPause: null, cursor: '',
+      activeSiteId, activeLabel: 'Fake Site', paused: false, autoPause: null, cursors: { movie: '', tv_show: '' },
       pagesThisHour: 0, openRunId: null, errorStreak: 0, canaryStreak: 0, cycle: {},
       currentSiteNewReleases: 0, siteReady: true,
     };

@@ -28,7 +28,8 @@
 import type { RawItem } from '../../../types/domain.js';
 import type { ResolverLink } from '../../../resolvers/types.js';
 import type { ReleaseTitleInput, ReleaseTitlePost } from '../../../resolvers/release-format.js';
-import type { CrawlDiscovery, CrawlSite, CrawlWorkResult, DiscoveredUrl } from '../crawl-types.js';
+import type { CrawlDiscovery, CrawlPageKind, CrawlPageOptions, CrawlSite, CrawlWorkResult, CrawlDiscoverOptions, DiscoveredUrl } from '../crawl-types.js';
+import { fetchSeriesWork, withRequestCost, DEFAULT_SERIES_LIMITS } from './vaca-series.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { decodeEntities } from '../../utils/title-normalization.js';
@@ -45,11 +46,12 @@ export interface VacaResolverSurface {
   assertAllowedUrl(value: string | null | undefined): URL;
   /** Host candidato do SITE (allowlist do failover) — páginas só dele. */
   isDetailHost(hostname: string | null | undefined): boolean;
-  /** Fetch direto do perfil, SEM fallback FlareSolverr (desafio = erro). */
-  fetchTextDirect(url: string, accept?: string): Promise<string>;
+  /** Fetch direto do perfil, SEM fallback FlareSolverr (desafio = erro).
+   * `hooks.onRequest` (F3): contagem por HOP do crawl. */
+  fetchTextDirect(url: string, accept?: string, hooks?: { onRequest?: () => void }): Promise<string>;
   extractMovieLinks(html: string | null | undefined, baseUrl?: string): string | null;
   parseDownloadLinks(html: string | null | undefined, baseUrl?: string, options?: Record<string, unknown>): ResolverLink[];
-  fetchFollowingAllowed(value: string, referer?: string | null): Promise<string>;
+  fetchFollowingAllowed(value: string, referer?: string | null, hooks?: { onRequest?: () => void }): Promise<string>;
   extractMagnet(html: string | null | undefined): string | null;
   releaseTitle(post: ReleaseTitlePost, link: ReleaseTitleInput, index?: number | null): string;
   parseSize(text: string | null | undefined): number | null;
@@ -60,8 +62,14 @@ const SITE_ID = 'vacatorrent';
 const TRACKER_LABEL = 'Vaca Torrent';
 /** Sitemaps de filmes do índice Yoast: `movie-sitemap.xml`, `movie-sitemap2.xml`… */
 const MOVIE_SITEMAP_RE = /\/movie-sitemap\d*\.xml$/i;
+/** Sitemaps de séries (Fase 7): `tv_show-sitemap.xml`, `tv_show-sitemap2.xml`… */
+const TV_SITEMAP_RE = /\/tv_show-sitemap\d*\.xml$/i;
 /** Entrada de obra: `/pt/movie/<slug>/` (o acervo `/movie/` sem slug fica fora). */
 const MOVIE_WORK_RE = /\/(?:pt\/)?movie\/[^/]+\/$/i;
+/** Entrada de série: `/pt/tv-shows/<slug>/`. A raiz `/tv-shows/` (sem slug) é
+ * a LISTAGEM, não obra — fica fora, junto com o batch-sitemap (o pack chega
+ * pelo card do season-internal; descobri-lo pela fila duplicaria a leitura). */
+const TV_WORK_RE = /\/(?:pt\/)?tv-shows\/[^/]+\/$/i;
 const SITEMAP_LOC_RE = /<loc>\s*([^<\s]+)\s*<\/loc>/i;
 const SITEMAP_LASTMOD_RE = /<lastmod>\s*([^<\s]+)\s*<\/lastmod>/i;
 /** IMDb: âncora da FICHA TÉCNICA da página ("Avaliação da IMDb: <a …>").
@@ -166,15 +174,16 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
   }
 
   /** Um sitemap do índice: baixa e devolve as obras (slug + lastmod). */
-  async function readMovieSitemap(loc: string, since: string | null): Promise<DiscoveredUrl[]> {
+  async function readWorkSitemap(loc: string, since: string | null, kind: 'movie' | 'tv_show'): Promise<DiscoveredUrl[]> {
     const xml = await surface.fetchTextDirect(loc);
     const out: DiscoveredUrl[] = [];
+    const workRe = kind === 'tv_show' ? TV_WORK_RE : MOVIE_WORK_RE;
     for (const entry of parseSitemapEntries(xml)) {
       // URL de obra é INPUT do site: resolve relativa, exige forma de obra E
       // host do site — sitemap adulterado não planta URL alheia na fila.
       let href: URL;
       try { href = new URL(entry.loc, loc); } catch { continue; }
-      if (!MOVIE_WORK_RE.test(href.pathname)) continue; // acervo `/movie/` e páginas estranhas
+      if (!workRe.test(href.pathname)) continue; // raiz/listagem e páginas estranhas
       if (!surface.isDetailHost(href.hostname)) continue;
       // Incremental: lastmod ≤ since já foi processado (upsert do store é
       // idempotente, então o filtro é economia, não correção). Lastmod
@@ -184,7 +193,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
         const floor = Date.parse(since);
         if (Number.isFinite(t) && Number.isFinite(floor) && t <= floor) continue;
       }
-      out.push({ url: href.href, lastmod: entry.lastmod, kind: 'movie' });
+      out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
     return out;
   }
@@ -193,125 +202,179 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
     id: SITE_ID,
     label: TRACKER_LABEL,
 
-    async discover(since?: string | null): Promise<CrawlDiscovery> {
+    async discover(since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
+      // Fase 7: séries SÓ entram na fila com a descoberta ligada (default
+      // seguro false, CRAWL_SERIES_ENABLED). O batch-sitemap fica fora
+      // explicitamente — o pack chega pelo card do season-internal, com os
+      // tetos da série valendo; pela fila ele ignoraria os limites.
+      const seriesEnabled = opts?.series?.enabled === true;
+      // F2: cursor POR KIND — cada tipo tem o seu lastmod de corte; o `since`
+      // solto segue como fallback para callers legados SEM o mapa. B1: null
+      // EXPLÍCITO no mapa é corte "sem cursor" (carga inicial daquele kind) —
+      // NÃO vira fallback ao `since` (o motor manda `since = cursor:movie`;
+      // herdar aqui fazia a carga inicial de séries usar o cursor de filme e
+      // esconder toda série com lastmod anterior a ele).
+      const sinceByKind = opts?.sinceByKind;
+      const sinceOf = (kind: CrawlPageKind): string | null =>
+        sinceByKind && Object.prototype.hasOwnProperty.call(sinceByKind, kind)
+          ? (sinceByKind[kind] ?? null)
+          : (since ?? null);
       const base = surface.siteSelector.url();
       const indexUrl = new URL('sitemap_index.xml', base).href;
       const indexXml = await surface.fetchTextDirect(indexUrl);
-      const sitemaps: string[] = [];
+      const sitemaps: Array<{ loc: string; kind: 'movie' | 'tv_show' }> = [];
       for (const entry of parseSitemapEntries(indexXml)) {
         let href: URL;
         try { href = new URL(entry.loc, base); } catch { continue; }
-        if (!MOVIE_SITEMAP_RE.test(href.pathname)) continue;
+        const isMovie = MOVIE_SITEMAP_RE.test(href.pathname);
+        const isTv = seriesEnabled && TV_SITEMAP_RE.test(href.pathname);
+        if (!isMovie && !isTv) continue;
         // Loc do índice é input do site: host de fora NEM É CONSULTADO.
         try { assertSiteUrl(href.href); } catch { continue; }
-        sitemaps.push(href.href);
+        sitemaps.push({ loc: href.href, kind: isTv ? 'tv_show' : 'movie' });
       }
       if (!sitemaps.length) throw new Error('vacatorrent: nenhum movie-sitemap no índice');
       // Sequencial (constraint crawl.search_isolation): um pedido por vez, no
       // caminho direto (sem FlareSolverr). Sitemap que falha não derruba a
-      // rodada — vira descoberta PARCIAL (`complete:false`): as URLs colhidas
-      // seguem válidas, mas o motor não pode avançar o cursor incremental
-      // por cima do lastmod que ficou no sitemap perdido. Só uma rodada TODA
-      // falha é erro para o motor retentar.
+      // rodada — vira descoberta PARCIAL. F2: a falha é POR KIND — o sitemap
+      // de série caído não impede o cursor de filme de avançar (e vice-versa):
+      // `completeByKind` diz ao motor qual cursor pode andar com segurança.
       const out: DiscoveredUrl[] = [];
       const failures: string[] = [];
-      for (const loc of sitemaps) {
+      const kindFailed: Record<'movie' | 'tv_show', boolean> = { movie: false, tv_show: false };
+      for (const { loc, kind } of sitemaps) {
         try {
-          out.push(...await readMovieSitemap(loc, since || null));
+          out.push(...await readWorkSitemap(loc, sinceOf(kind), kind));
         } catch (err) {
+          kindFailed[kind] = true;
           failures.push(`${loc}: ${log.errorMessage(err)}`);
           log.warn(`[crawl] vacatorrent: sitemap falhou (${loc}):`, log.errorMessage(err));
         }
       }
       if (sitemaps.length && !out.length && failures.length === sitemaps.length) {
-        throw new Error('vacatorrent: todos os movie-sitemap falharam');
+        throw new Error('vacatorrent: todos os sitemaps falharam');
       }
-      return { urls: out, complete: failures.length === 0, failures };
+      return {
+        urls: out,
+        complete: failures.length === 0,
+        failures,
+        completeByKind: { movie: !kindFailed.movie, tv_show: !kindFailed.tv_show },
+      };
     },
 
-    async fetchWork(url: string): Promise<CrawlWorkResult> {
-      // Defesa em profundidade: a fila nasce da nossa descoberta, mas o store
-      // pode ter sido editado — host de fora do site (e protetor como página)
-      // é rejeitado na porta, antes de qualquer fetch.
-      const workUrl = assertSiteUrl(url);
-      const pageHtml = await surface.fetchTextDirect(workUrl.href);
-      const { title, year } = parseTitleYear(pageHtml);
-      if (!title) {
-        // Página sem título é quebra de layout, não obra sem nome: erro para o
-        // backoff do motor (e canário do painel), nunca release inventada.
-        return { url, status: 'error', error: 'layout: página sem <h1> de título' };
-      }
-      const imdb = parseImdbId(pageHtml);
-      const linksUrl = surface.extractMovieLinks(pageHtml, workUrl.href);
-      if (!linksUrl) {
-        // Página só de streaming (ou recém-criada, sem botões): sem magnet.
-        return { url, status: 'no-torrent', imdb, title, year, type: 'movie' };
-      }
-      // movie-links também é página do site: href adulterado para host de fora
-      // é erro diagnosticável, nunca `no-torrent` (que mentiria sobre o acervo).
-      const linksChecked = assertSiteUrl(linksUrl);
-      const linksHtml = await surface.fetchTextDirect(linksChecked.href);
-      const links = surface.parseDownloadLinks(linksHtml, linksChecked.href);
-      if (!links.length) {
-        // A página movie-links existe mas só tem "Assistir" (players não são
-        // âncora de protetor, o coletor os ignora): sem torrent publicado.
-        return { url, status: 'no-torrent', imdb, title, year, type: 'movie' };
-      }
-
-      // Protetor → magnet, UM botão por vez, na ordem da página. Falha de um
-      // botão não perde os demais — botão individual falho é tolerado quando
-      // outro rende release. TODOS terminais — `protector_link_expired` (HTTP
-      // 400 + "Link inválido ou expirado") ou `protector_non_magnet` (gate-2
-      // com download direto, ex.: Google Drive) — → `no-torrent` na 1ª
-      // tentativa, sem retry: não há torrent a colher. Mistura com
-      // rede/timeout continua retentável. Demais falhas totais (layout/protetor
-      // sem magnet) seguem erro.
-      const obra = { title, year };
-      const releases: RawItem[] = [];
-      const seen = new Set<string>();
-      let followed = 0;
-      let lastError: unknown = null;
-      let terminalFails = 0;
-      let otherFails = 0;
-      const isTerminal = (err: unknown) => /protector_(?:link_expired|non_magnet)/i.test(
-        err instanceof Error ? err.message : String(err),
-      );
-      for (const link of links) {
+    async fetchWork(url: string, pageOpts?: CrawlPageOptions): Promise<CrawlWorkResult> {
+      // Contador de requisições REAIS desta página (F3: POR HOP — cada fetch
+      // do transporte, redirect ou salto de protetor conta um via
+      // `onRequest`; magnet: não faz rede e não custa). O motor cobra no teto
+      // por hora: página de série custa mais que a de filme.
+      const counter = { n: 0 };
+      const countRequest = () => { counter.n += 1; };
+      // Fase 7: fila `tv_show` → adaptador de série (página → season-internal
+      // → cards → protetores, ver `vaca-series.ts`). Só a DESCOBERTA é gated;
+      // uma série já na fila (descoberta com o knob ligado) continua
+      // processável — desligar o knob não abandona trabalho enfileirado.
+      if (pageOpts?.kind === 'tv_show') {
         try {
-          if (!/^magnet:/i.test(link.url)) surface.assertAllowedUrl(link.url);
-          const finalHtml = await surface.fetchFollowingAllowed(link.url, workUrl.href);
-          followed += 1;
-          const magnet = surface.extractMagnet(finalHtml);
-          if (!magnet) continue; // cadeia resolveu mas não há magnet: não inventa
-          const hash = magnetHash(magnet);
-          if (hash && seen.has(hash)) continue; // mesmo hash, botão repetido
-          if (hash) seen.add(hash);
-          releases.push(releaseToRawItem(surface, obra, link, magnet));
+          const result = await fetchSeriesWork({
+            surface, assertSiteUrl, parseTitleYear, parseImdbId,
+            magnetHash,
+            releaseToRawItem: (obra, link, magnet) => releaseToRawItem(surface, obra, link, magnet),
+            countRequest,
+            requestCost: () => counter.n,
+          }, url, pageOpts.series ?? DEFAULT_SERIES_LIMITS);
+          result.requestCost = counter.n;
+          return result;
         } catch (err) {
-          lastError = err;
-          if (isTerminal(err)) terminalFails += 1;
-          else otherFails += 1;
-          log.warn(`[crawl] vacatorrent: botão falhou (${url}):`, log.errorMessage(err));
+          // F1: throw NÃO perde o custo medido — o motor cobra o que foi
+          // gasto antes de falhar, não 1 por página.
+          throw withRequestCost(err, counter.n);
         }
       }
-      if (!releases.length) {
-        // Todos os botões terminais (expirado/download direto) → sem torrent.
-        if (terminalFails === links.length && otherFails === 0 && followed === 0) {
-          return { url, status: 'no-torrent', imdb, title, year, type: 'movie' };
+      try {
+        // Defesa em profundidade: a fila nasce da nossa descoberta, mas o store
+        // pode ter sido editado — host de fora do site (e protetor como página)
+        // é rejeitado na porta, antes de qualquer fetch.
+        const workUrl = assertSiteUrl(url);
+        const pageHtml = await surface.fetchTextDirect(workUrl.href, undefined, { onRequest: countRequest });
+        const { title, year } = parseTitleYear(pageHtml);
+        if (!title) {
+          // Página sem título é quebra de layout, não obra sem nome: erro para o
+          // backoff do motor (e canário do painel), nunca release inventada.
+          return { url, status: 'error', error: 'layout: página sem <h1> de título', requestCost: counter.n };
         }
-        // Nenhuma cadeia foi adiante: o erro real do transporte é a causa e
-        // segue como está. Caso contrário, cadeias resolveram e nenhum magnet
-        // veio — o motivo conta os dois lados (sem magnet × com falha) e cita
-        // o último erro de botão, para o painel separar layout de rede.
-        if (!followed && lastError) throw lastError;
-        const failed = links.length - followed;
-        const detail = lastError ? `; último erro: ${log.errorMessage(lastError)}` : '';
-        throw new Error(
-          `vacatorrent: ${links.length} botão(ões) anunciados, nenhum magnet `
-          + `(${followed} sem magnet, ${failed} com falha)${detail}`,
-        );
+        const imdb = parseImdbId(pageHtml);
+        const linksUrl = surface.extractMovieLinks(pageHtml, workUrl.href);
+        if (!linksUrl) {
+          // Página só de streaming (ou recém-criada, sem botões): sem magnet.
+          return { url, status: 'no-torrent', imdb, title, year, type: 'movie', requestCost: counter.n };
+        }
+        // movie-links também é página do site: href adulterado para host de fora
+        // é erro diagnosticável, nunca `no-torrent` (que mentiria sobre o acervo).
+        const linksChecked = assertSiteUrl(linksUrl);
+        const linksHtml = await surface.fetchTextDirect(linksChecked.href, undefined, { onRequest: countRequest });
+        const links = surface.parseDownloadLinks(linksHtml, linksChecked.href);
+        if (!links.length) {
+          // A página movie-links existe mas só tem "Assistir" (players não são
+          // âncora de protetor, o coletor os ignora): sem torrent publicado.
+          return { url, status: 'no-torrent', imdb, title, year, type: 'movie', requestCost: counter.n };
+        }
+
+        // Protetor → magnet, UM botão por vez, na ordem da página. Falha de um
+        // botão não perde os demais — botão individual falho é tolerado quando
+        // outro rende release. TODOS terminais — `protector_link_expired` (HTTP
+        // 400 + "Link inválido ou expirado") ou `protector_non_magnet` (gate-2
+        // com download direto, ex.: Google Drive) — → `no-torrent` na 1ª
+        // tentativa, sem retry: não há torrent a colher. Mistura com
+        // rede/timeout continua retentável. Demais falhas totais (layout/
+        // protetor sem magnet) seguem erro — F1: com o custo medido anexado.
+        const obra = { title, year };
+        const releases: RawItem[] = [];
+        const seen = new Set<string>();
+        let followed = 0;
+        let lastError: unknown = null;
+        let terminalFails = 0;
+        let otherFails = 0;
+        for (const link of links) {
+          try {
+            if (!/^magnet:/i.test(link.url)) surface.assertAllowedUrl(link.url);
+            const finalHtml = await surface.fetchFollowingAllowed(link.url, workUrl.href, { onRequest: countRequest });
+            followed += 1;
+            const magnet = surface.extractMagnet(finalHtml);
+            if (!magnet) continue; // cadeia resolveu mas não há magnet: não inventa
+            const hash = magnetHash(magnet);
+            if (hash && seen.has(hash)) continue; // mesmo hash, botão repetido
+            if (hash) seen.add(hash);
+            releases.push(releaseToRawItem(surface, obra, link, magnet));
+          } catch (err) {
+            lastError = err;
+            if (/protector_(?:link_expired|non_magnet)/i.test(err instanceof Error ? err.message : String(err))) terminalFails += 1;
+            else otherFails += 1;
+            log.warn(`[crawl] vacatorrent: botão falhou (${url}):`, log.errorMessage(err));
+          }
+        }
+        if (!releases.length) {
+          // Todos os botões terminais (expirado/download direto) → sem torrent.
+          if (terminalFails === links.length && otherFails === 0 && followed === 0) {
+            return { url, status: 'no-torrent', imdb, title, year, type: 'movie', requestCost: counter.n };
+          }
+          // Nenhuma cadeia foi adiante: o erro real do transporte é a causa e
+          // segue como está (com o custo medido anexado). Caso contrário,
+          // cadeias resolveram e nenhum magnet veio — o motivo conta os dois
+          // lados (sem magnet × com falha) e cita o último erro de botão, para
+          // o painel separar layout de rede.
+          if (!followed && lastError) throw lastError;
+          const failed = links.length - followed;
+          const detail = lastError ? `; último erro: ${log.errorMessage(lastError)}` : '';
+          throw new Error(
+            `vacatorrent: ${links.length} botão(ões) anunciados, nenhum magnet `
+            + `(${followed} sem magnet, ${failed} com falha)${detail}`,
+          );
+        }
+        return { url, status: 'done', imdb, title, year, type: 'movie', releases, requestCost: counter.n };
+      } catch (err) {
+        // F1: throw NÃO perde o custo medido (F3, por hop).
+        throw withRequestCost(err, counter.n);
       }
-      return { url, status: 'done', imdb, title, year, type: 'movie', releases };
     },
   };
 }

@@ -5,8 +5,13 @@
 export interface HourCounter {
   /** Páginas anotadas na hora civil corrente. */
   current(): number;
-  /** Anota UMA página na hora civil corrente. */
-  note(): void;
+  /**
+   * Anota N unidades na hora civil corrente. O default é 1 (uma página); a
+   * Fase 7 cobra o custo REAL da página de série (cards + protetores) além
+   * da página em si — uma página que custou 12 requisições não pode caber
+   * no teto como se fosse uma.
+   */
+  note(amount?: number): void;
   /** Zera tudo (reset de teste). */
   clear(): void;
 }
@@ -22,12 +27,43 @@ export function createHourCounter(): HourCounter {
       }
       return buckets.get(hour) || 0;
     },
-    note() {
+    note(amount: number = 1) {
+      const n = Math.max(1, Math.trunc(Number(amount) || 1));
       const hour = hourOf();
-      buckets.set(hour, (buckets.get(hour) || 0) + 1);
+      buckets.set(hour, (buckets.get(hour) || 0) + n);
     },
     clear() {
       buckets.clear();
+    },
+  };
+}
+
+/**
+ * Custo médio observado por página (requisições ÷ páginas desde o boot). É o
+ * que o status usa para converter pendência de páginas em ETA de REQUISIÇÕES
+ * (o teto horário é de requisições, não de páginas). Sem página medida, `avg`
+ * é null — o painel mostra "—" em vez de inventar horas.
+ */
+export interface CostMeter {
+  note(cost: number): void;
+  avg(): number | null;
+  reset(): void;
+}
+
+export function createCostMeter(): CostMeter {
+  let total = 0;
+  let pages = 0;
+  return {
+    note(cost: number) {
+      total += Math.max(1, Math.trunc(Number(cost) || 1));
+      pages += 1;
+    },
+    avg() {
+      return pages > 0 ? Math.round((total / pages) * 100) / 100 : null;
+    },
+    reset() {
+      total = 0;
+      pages = 0;
     },
   };
 }

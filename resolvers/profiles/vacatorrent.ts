@@ -206,17 +206,17 @@ function createResolver(overrides: ProfileOverrides = {}) {
    * desafio, devolve ERRO (gatilho de pausa do motor, nunca fallback). A
    * busca ao vivo segue no fetchText de cima, intacta.
    */
-  async function fetchTextDirect(url: string, accept = 'text/html,application/xhtml+xml'): Promise<string> {
+  async function fetchTextDirect(url: string, accept = 'text/html,application/xhtml+xml', hooks?: { onRequest?: () => void }): Promise<string> {
     // Redirect MANUAL com allowlist por salto (o transporte é o dono do laço):
-    // `follow` entregaria o destino final sem validar — 302 para loopback/
-    // metadado sairia em rede. Headers por hop: a sessão passiva é POR HOST.
+    // `follow` entregaria o destino final sem validar. `hooks.onRequest` (F3):
+    // o crawl mede o custo real por hop. Headers por hop: sessão é POR HOST.
     const response = await fetchFollowRedirects(url, {
       maxHops: MAX_HOPS,
       timeoutMs: TIMEOUT_MS,
       assertAllowedUrl,
+      ...(hooks?.onRequest ? { onRequest: hooks.onRequest } : {}),
       headersFor: (target) => ({ ...buildFlareHeaders(target.href), Accept: accept }),
-    });
-    const body = await response.text();
+    });    const body = await response.text();
     if ((response.ok || response.status === 403 || response.status === 503) && isVacaChallenge(body, response.headers)) {
       throw new Error('vacatorrent: desafio Cloudflare no caminho direto (crawl sem Flare)');
     }

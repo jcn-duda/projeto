@@ -129,7 +129,7 @@ export interface ProfileBootstrap {
     parsePosts: (html: string) => T[],
     maxPosts: number,
   ): (sourceHtml: string, query: string, requestedSeason?: RequestedSeason) => T[];
-  fetchFollowingAllowed(opts: FetchFollowingOptions): (value: string, referer?: string | null) => Promise<string>;
+  fetchFollowingAllowed(opts: FetchFollowingOptions): (value: string, referer?: string | null, hooks?: { onRequest?: () => void }) => Promise<string>;
   unwrapResolverUrl(value: string, seed?: UnwrapResolverSeed): UnwrappedResolverUrl;
   reply: typeof sharedReply;
   serveMain(start: () => Server): void;
@@ -237,8 +237,11 @@ function createProfile(options: ProfileOptions): ProfileBootstrap {
    * factory (R-1) — o perfil só aporta a extração de conteúdo.
    */
   function fetchFollowingAllowed(opts: FetchFollowingOptions) {
-    return (value: string, referer?: string | null): Promise<string> => followProtectedUrl(value, referer, {
+    // `hooks` (F3) é por CHAMADA: só o crawl passa `onRequest` para medir o
+    // custo real por hop; os callers de busca seguem com dois argumentos.
+    return (value: string, referer?: string | null, hooks?: { onRequest?: () => void }): Promise<string> => followProtectedUrl(value, referer, {
       ...opts,
+      ...(hooks?.onRequest ? { onRequest: hooks.onRequest } : {}),
       // R-1: o assert canônico e o UA entram DEPOIS do spread. Nenhum opts de
       // perfil pode substituir a checagem de allowlist — com o spread por
       // último, um `assertAllowedUrl` passado no opts furava o MUT-06.

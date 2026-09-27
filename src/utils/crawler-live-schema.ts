@@ -10,6 +10,13 @@
 // escopo tocar o cliente). Sites continuam vindo do `.env` (`CRAWL_SITES`).
 import config from '../config.js';
 
+import type { CrawlSeriesLimits } from '../providers/crawl-types.js';
+
+/** Limites da Fase 7 (séries) a partir da config efetiva (snapshot do tick). */
+export function seriesLimitsOf(live: CrawlerEffectiveConfig): CrawlSeriesLimits {
+  return { enabled: live.seriesEnabled === true, maxCards: live.seriesMaxCards, maxButtons: live.seriesMaxButtons };
+}
+
 export interface CrawlerLiveConfig {
   // Kill-switch geral (CRAWL_ENABLED): ligar/desligar a raspagem sem restart.
   // Contrato de segurança: o default do `.env` é `false` (desligado), mas o
@@ -22,7 +29,9 @@ export interface CrawlerLiveConfig {
   dryRun: boolean;
   // Pausa entre páginas (ritmo) e cadência do timer.
   delayMs: number;
-  // Teto de páginas por hora (educação com o site).
+  // Teto de REQUISIÇÕES por hora (educação com o site). Desde a Fase 7 o
+  // custo é REAL: página de série com N cards e M saltos de protetor custa
+  // N+M+2, não 1 — o nome da chave (`maxPerHour`) é legado por compatibilidade.
   maxPerHour: number;
   // Janela de ociosidade da janela deslizante de tráfego.
   idleWindowMs: number;
@@ -34,6 +43,12 @@ export interface CrawlerLiveConfig {
   layoutCanary: number;
   // Ciclo incremental em minutos.
   incrementalIntervalMin: number;
+  // Fase 7: descoberta de séries (tv_show-sitemap) ligada.
+  seriesEnabled: boolean;
+  // Teto de cards de temporada por página de série.
+  seriesMaxCards: number;
+  // Teto de botões de download seguidos por página de série.
+  seriesMaxButtons: number;
   // Sites ligados (ids de card do Jackett). Vem do `.env` (`CRAWL_SITES`) e
   // NÃO é editável ao vivo — o schema do painel é boolean|number e o cliente
   // está fora do escopo desta fase; por isso `sites` não entra em `ALL_KEYS`.
@@ -58,7 +73,7 @@ export interface CrawlerSchemaField {
   description: string;
 }
 
-export const BOOLEAN_KEYS = new Set<string>(['enabled', 'dryRun']);
+export const BOOLEAN_KEYS = new Set<string>(['enabled', 'dryRun', 'seriesEnabled']);
 
 export const NUMBER_KEYS = new Set<string>([
   'delayMs',
@@ -68,6 +83,8 @@ export const NUMBER_KEYS = new Set<string>([
   'errorPauseStreak',
   'layoutCanary',
   'incrementalIntervalMin',
+  'seriesMaxCards',
+  'seriesMaxButtons',
 ]);
 
 export const ALL_KEYS = new Set<string>([...BOOLEAN_KEYS, ...NUMBER_KEYS]);
@@ -83,6 +100,9 @@ export function envDefaults(): CrawlerLiveConfig {
     errorPauseStreak: config.crawl.errorPauseStreak,
     layoutCanary: config.crawl.layoutCanary,
     incrementalIntervalMin: config.crawl.incrementalIntervalMin,
+    seriesEnabled: config.crawl.seriesEnabled,
+    seriesMaxCards: config.crawl.seriesMaxCards,
+    seriesMaxButtons: config.crawl.seriesMaxButtons,
     sites: config.crawl.sites,
   };
 }
@@ -119,6 +139,38 @@ export function schema(): CrawlerSchemaField[] {
       description: 'Frequência do ciclo que relê o sitemap e reprocessa só URL nova ou com lastmod novo.',
     },
     {
+      key: 'seriesEnabled',
+      label: 'Descoberta de Séries',
+      type: 'boolean',
+      group: 'engine',
+      envDefault: env.seriesEnabled,
+      description: 'Descobre séries pelo tv_show-sitemap (Fase 7). Desligada, a raspagem cobre só filmes.',
+    },
+    {
+      key: 'seriesMaxCards',
+      label: 'Teto de Temporadas por Série',
+      type: 'number',
+      group: 'traffic',
+      min: 1,
+      max: 50,
+      step: 1,
+      unit: 'cards',
+      envDefault: env.seriesMaxCards,
+      description: 'Cards de temporada/batch visitados no máximo por página de série (cada card é uma requisição).',
+    },
+    {
+      key: 'seriesMaxButtons',
+      label: 'Teto de Botões por Série',
+      type: 'number',
+      group: 'traffic',
+      min: 1,
+      max: 200,
+      step: 5,
+      unit: 'botões',
+      envDefault: env.seriesMaxButtons,
+      description: 'Botões de download seguidos (cadeia do protetor) no máximo por página de série.',
+    },
+    {
       key: 'delayMs',
       label: 'Pausa entre Páginas',
       type: 'number',
@@ -132,15 +184,15 @@ export function schema(): CrawlerSchemaField[] {
     },
     {
       key: 'maxPerHour',
-      label: 'Teto de Páginas por Hora',
+      label: 'Teto de Requisições por Hora',
       type: 'number',
       group: 'traffic',
       min: 1,
       max: 20_000,
       step: 100,
-      unit: 'páginas/hora',
+      unit: 'requisições/h',
       envDefault: env.maxPerHour,
-      description: 'Número máximo de páginas processadas por hora.',
+      description: 'Número máximo de requisições HTTP cobradas por hora (Fase 7: página, card e cada salto de protetor contam pelo custo REAL medido, não 1 por página).',
     },
     {
       key: 'idleWindowMs',
@@ -251,6 +303,12 @@ export function sanitizePatch(patch: Record<string, unknown>): {
           break;
         case 'incrementalIntervalMin':
           clamped = Math.max(1, Math.min(1440, Math.trunc(num)));
+          break;
+        case 'seriesMaxCards':
+          clamped = Math.max(1, Math.min(50, Math.trunc(num)));
+          break;
+        case 'seriesMaxButtons':
+          clamped = Math.max(1, Math.min(200, Math.trunc(num)));
           break;
       }
       clean[k as keyof CrawlerLiveConfig] = clamped as never;

@@ -21,6 +21,10 @@ export interface CrawlSummary {
   sitesConfigured: string[];
   engine: string | null;
   cursor: string | null;
+  /** Cursor POR KIND (F2/B1): filme e série andam separados. O campo canônico
+   * do payload é `cursors`; o `cursor` solto é fallback de backend antigo
+   * (vira o cursor de filme). */
+  cursors: { movie: string | null; tv_show: string | null };
   /** Próxima descoberta agendada (epoch ms); 0 = devida; `null` = campo
    * ausente no payload (backend antigo). Fase 6. */
   nextDiscoveryAt: number | null;
@@ -134,6 +138,19 @@ function phaseOf(value: unknown): 'initial' | 'incremental' | null {
   return value === 'initial' || value === 'incremental' ? value : null;
 }
 
+/** Cursor POR KIND (F2): mapa `movie`/`tv_show` do payload; backend sem o
+ * mapa cai no `cursor` solto (era só de filme). Ausente é null — nunca "". */
+function normalizeCursors(
+  raw: unknown,
+  fallbackMovie: unknown,
+): { movie: string | null; tv_show: string | null } {
+  const map = asObject(raw);
+  return {
+    movie: strOrNull(map?.movie) ?? strOrNull(fallbackMovie),
+    tv_show: strOrNull(map?.tv_show),
+  };
+}
+
 /** Resumo do topo. Aceita `null`/payload vazio (aba aberta antes do poll). */
 export function crawlSummary(crawl: Record<string, any> | null | undefined): CrawlSummary {
   const c = crawl || {};
@@ -150,6 +167,7 @@ export function crawlSummary(crawl: Record<string, any> | null | undefined): Cra
     sitesConfigured: asArray(c.sitesConfigured).map((s) => String(s || '')).filter(Boolean),
     engine: strOrNull(c.engine),
     cursor: strOrNull(c.cursor),
+    cursors: normalizeCursors(c.cursors, c.cursor),
     nextDiscoveryAt: numOrNull(c.nextDiscoveryAt),
     pagesThisHour: num(c.pagesThisHour),
     maxPerHour: num(c.maxPerHour),

@@ -67,6 +67,51 @@ export interface CrawlDiscovery {
   complete: boolean;
   /** Origem de cada falha (`<loc>: <motivo>`), para diagnóstico no painel. */
   failures: string[];
+  /**
+   * Completude POR KIND (F2): o sitemap de filme e o de série falham
+   * independentemente, e o cursor de um tipo não pode ser refém da falha do
+   * outro. Ausente = legado: o motor trata os dois kinds como `complete` geral.
+   * Um kind sem fonte consultada (séries desligadas) sai `true` — sem URLs
+   * dele o cursor simplesmente não anda.
+   */
+  completeByKind?: { movie: boolean; tv_show: boolean };
+}
+
+/** Limites de segurança do adaptador de série (Fase 7): teto de cards de
+ * temporada visitados por página e de botões de download seguidos por página.
+ * Séries explodem em requisições (página → season-internal → N cards → M
+ * protetores), então os dois tetos são config do operador, com o custo REAL
+ * de requisições medido em `CrawlWorkResult.requestCost` e cobrado no teto
+ * horário do motor (ver `crawl-rate.ts`). */
+export interface CrawlSeriesLimits {
+  enabled: boolean;
+  maxCards: number;
+  maxButtons: number;
+}
+
+/** Opções da descoberta (a de série é gated por config). `sinceByKind` (F2:
+ * cursor POR KIND) dá a cada tipo o seu lastmod de corte — filmes podem estar
+ * incrementais enquanto séries começam a carga inicial, sem um apagar o
+ * cursor do outro. O parâmetro `since` solto segue como fallback para quem
+ * não manda o mapa. */
+export interface CrawlDiscoverOptions {
+  series?: CrawlSeriesLimits;
+  sinceByKind?: { movie?: string | null; tv_show?: string | null };
+}
+
+/** Opções do processamento de UMA página (o tipo vem da fila, os limites da
+ * config viva no snapshot do tick). */
+export interface CrawlPageOptions extends CrawlDiscoverOptions {
+  kind?: CrawlPageKind;
+}
+
+/** Grupo de releases por LOCALIZAÇÃO declarada da obra (Fase 7 séries). Uma
+ * página de série produz releases de locações distintas (S/E, S, raiz) e cada
+ * uma é gravada na chave do índice/banco que a cobre — nunca tudo na raiz. */
+export interface CrawlReleaseGroup {
+  season: number | null;
+  episode: number | null;
+  releases: RawItem[];
 }
 
 /** Resultado do processamento de UMA página pelo adaptador. */
@@ -85,6 +130,22 @@ export interface CrawlWorkResult {
   type?: 'movie' | 'series';
   /** Releases válidas extraídas, no MESMO formato de item cru da busca. */
   releases?: RawItem[];
+  /**
+   * Releases agrupadas por locação declarada (séries, Fase 7). Presente quando
+   * a página produz locações distintas (S/E, S, raiz); cada grupo é gravado na
+   * chave que o cobre. Ausente no caminho de filme (todo o lote na raiz).
+   */
+  groups?: CrawlReleaseGroup[];
+  /**
+   * Custo REAL de requisições HTTP da página (contagem medida no adaptador,
+   * por HOP — redirect e salto de protetor contam cada um, ver
+   * `TransportOptions.onRequest`). O motor cobra no teto por hora: 1 página de
+   * série com 5 cards e 12 saltos NÃO é 1 request. Ausente = 1 (a página em
+   * si). Erros TAMBÉM carregam o custo: a exceção pode vir com
+   * `requestCost` anexado (helper `withRequestCost`) e o motor cobra o que foi
+   * gasto antes de falhar.
+   */
+  requestCost?: number;
   /** Motivo do erro (`status: 'error'`); o painel agrupa por ele. */
   error?: string;
 }
@@ -102,11 +163,12 @@ export interface CrawlSite {
    * Descoberta: URLs + lastmod + tipo, com o sinal de parcialidade. Falha
    * TOTAL (índice ilegível, todas as fontes fora) continua sendo exceção —
    * é o motor que retenta; falha PARCIAL vem em `failures` com
-   * `complete: false`.
+   * `complete: false`. Séries só entram quando `opts.series.enabled`
+   * (Fase 7: default seguro é NÃO descobrir tv_show).
    */
-  discover(since?: string | null): Promise<CrawlDiscovery>;
+  discover(since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery>;
   /** Processa UMA página e devolve o resultado para o store gravar. */
-  fetchWork(url: string): Promise<CrawlWorkResult>;
+  fetchWork(url: string, opts?: CrawlPageOptions): Promise<CrawlWorkResult>;
 }
 
 /** Uma URL na fila do site (linha de `crawl_url`). */

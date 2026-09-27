@@ -73,6 +73,7 @@ function sampleCrawl() {
     sitesConfigured: ['vacatorrent', 'nerdfilmes'],
     engine: 'sql',
     cursor: '2026-09-01',
+    cursors: { movie: '2026-09-01', tv_show: '2026-09-05' },
     nextDiscoveryAt: Date.now() + 30 * 60_000,
     pagesThisHour: 12,
     maxPerHour: 500,
@@ -134,12 +135,19 @@ test('crawlSummary é tolerante: payload ausente não inventa estado', () => {
   assert.equal(empty.nextDiscoveryAt, null, 'campo ausente é null, não 0 afirmativo');
   assert.equal(empty.pagesThisHour, 0);
   assert.equal(empty.runOpen, false);
+  assert.deepEqual(empty.cursors, { movie: null, tv_show: null }, 'payload ausente não inventa cursor');
 
   const s = crawlSummary(sampleCrawl());
   assert.equal(s.enabled, true);
   assert.equal(s.site, 'vacatorrent');
   assert.deepEqual(s.sitesConfigured, ['vacatorrent', 'nerdfilmes']);
   assert.equal(s.pagesThisHour, 12);
+  assert.deepEqual(s.cursors, { movie: '2026-09-01', tv_show: '2026-09-05' }, 'ambos os cursores por kind chegam ao painel');
+  assert.deepEqual(
+    crawlSummary({ cursor: '2026-08-01' }).cursors,
+    { movie: '2026-08-01', tv_show: null },
+    'backend sem o mapa cai no cursor solto (era só de filme)',
+  );
   assert.ok(s.nextDiscoveryAt != null && Math.abs(s.nextDiscoveryAt - Date.now() - 30 * 60_000) < 5000);
 
   // autoPause malformado não vira objeto afirmativo.
@@ -302,6 +310,14 @@ test('view renderiza a próxima descoberta quando ela existe (Fase 6)', () => {
   const view = read('view-raspagens.ts');
   assert.match(view, /nextDiscoveryLabel/, 'o rótulo vem do modelo, não é montado na view');
   assert.match(view, /summary\.nextDiscoveryAt != null/, 'ausente no payload não renderiza hora');
+});
+
+test('view exibe AMBOS os cursores (filme e série) — F2/B1', () => {
+  const read = (rel: string) => readFileSync(new URL('../../src/client/painel/' + rel, import.meta.url), 'utf8');
+  const view = read('view-raspagens.ts');
+  assert.match(view, /Cursor filmes/, 'cursor de filme rotulado');
+  assert.match(view, /Cursor séries/, 'cursor de série rotulado — sem ele a carga inicial de série parece "sem cursor"');
+  assert.match(view, /summary\.cursors\.tv_show/, 'a série lê do mapa por kind, não do cursor solto');
 });
 
 test('TAB_IDS inclui raspagens e o hash abre a aba', () => {
