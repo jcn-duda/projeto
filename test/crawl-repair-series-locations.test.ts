@@ -12,10 +12,12 @@ import { createRequire } from 'node:module';
 
 const _require = createRequire(import.meta.url);
 
-// `node:sqlite` só existe no Node 22+; no 20 o teste de WAL quente não roda.
+// `node:sqlite` só existe no Node 22+. Como o `seed()` abre o banco sintético,
+// a suíte INTEIRA depende do módulo — no Node 20 ela é pulada, não falha.
 let _hasSqlite = true;
 try { await import('node:sqlite'); } catch { _hasSqlite = false; }
 const hasNodeSqlite = (): boolean => _hasSqlite;
+const skipSemSqlite = !_hasSqlite && 'node:sqlite indisponível — precisa de Node 22+';
 
 function dir() { return fs.mkdtempSync(path.join(os.tmpdir(), 'repair-')); }
 
@@ -128,7 +130,7 @@ function runApplyFailing(d: string, extra: string[] = []): { status: number; std
   }
 }
 
-describe('crawl-repair-series-locations (smoke)', { concurrency: false }, () => {
+describe('crawl-repair-series-locations (smoke)', { concurrency: false, skip: skipSemSqlite }, () => {
   test('dry-run: relatório correto, NADA gravado', async () => {
     const { DatabaseSync } = _require('node:sqlite');
     const d = dir();

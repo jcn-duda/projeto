@@ -14,6 +14,13 @@ import { createRequire } from 'node:module';
 
 const _require = createRequire(import.meta.url);
 
+// `node:sqlite` só existe no Node 22+. Todo cenário aqui nasce de um banco
+// sintético aberto pelo `seed()`, então sem o módulo a suíte é pulada — falhar
+// no Node 20 (que o CI cobre) seria ruído, não regressão.
+let _hasSqlite = true;
+try { await import('node:sqlite'); } catch { _hasSqlite = false; }
+const skipSemSqlite = !_hasSqlite && 'node:sqlite indisponível — precisa de Node 22+';
+
 const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'repair-v2-'));
 const hashOf = (s: string) => s.padEnd(40, '0');
 const magnetUri = (hash: string, dn: string) =>
@@ -112,7 +119,7 @@ function workRows(d: string, imdb: string): Array<Record<string, unknown>> {
   return out;
 }
 
-describe('crawl-repair v2: fora da raiz, identidade, saneamento e lock', { concurrency: false }, () => {
+describe('crawl-repair v2: fora da raiz, identidade, saneamento e lock', { concurrency: false, skip: skipSemSqlite }, () => {
   test('dry-run: planeja mover S1/S5→S4, saneia E01 e RELATA a suspeita sem ano — nada grava', () => {
     const d = dir();
     seed(d, ROWS, IDX_KEYS);
@@ -215,7 +222,7 @@ describe('crawl-repair v2: fora da raiz, identidade, saneamento e lock', { concu
 // {S,E}; faixa multi-episódio é pack {S,-1}; recrawl tem PARIDADE entre
 // dry-run e apply.
 const BOYS = 'tt1190634';
-describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrency: false }, () => {
+describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrency: false, skip: skipSemSqlite }, () => {
   const BOYS_ROWS: RowSpec[] = [
     // Já correta: título declara S05E01 único, sem dn — DEVE ficar em 5:1.
     { hash: hashOf('b1'), imdb: BOYS, season: 5, episode: 1, dn: '', title: 'The Boys S05E01 1080p DUAL 5.1', firstSeen: 300, lastSeen: 310, passedFilter: 1 },
@@ -295,7 +302,7 @@ describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrenc
 // Bloqueadores do dry-run REAL (2026-09-28, pós-0b4094c): ruído de cena
 // (DS4K/BS8/Chris44/1280x720/2x2) virava multi-temporada → raiz FALSA;
 // E1176 truncava em E117; saneador destruía ranges e "saneava" só espaços.
-describe('crawl-repair v2: ruído de cena, E de 4 dígitos e saneador', { concurrency: false }, () => {
+describe('crawl-repair v2: ruído de cena, E de 4 dígitos e saneador', { concurrency: false, skip: skipSemSqlite }, () => {
   const NOISE_ROWS: RowSpec[] = [
     // Ruído que NÃO é temporada: raiz FALSA proibida — pack fica em S1.
     { hash: hashOf('n1'), imdb: OP, season: 1, episode: 1, dn: 'One Piece (2023) Season 1 S01 (1080p DS4K NF WEB-DL x265 Vyndros)', title: 'One Piece (2023)', firstSeen: 400, lastSeen: 401, passedFilter: 1 },
