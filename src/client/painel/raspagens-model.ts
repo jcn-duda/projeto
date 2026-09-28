@@ -264,10 +264,12 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
   const simulated = num(byStatus.simulated);
   const partial = num(byStatus.partial);
   const processed = done + noTorrent + noWork + error;
-  // progressPercent do backend já é done/total; derivamos só quando ausente.
-  const progressPercent = numOrNull(site.progressPercent) ?? (total > 0 ? Math.round((done / total) * 100) : 0);
+  // Barra = páginas RESOLVIDAS (total − restante), não done/total do backend: com o acervo varrido e 87% sem torrent ela parava em 13%.
+  // `floor` para não mostrar 100% com erro/pendência na fila.
   const torrentPercent = processed > 0 ? Math.round((done / processed) * 100) : 0;
   const etaRaw = numOrNull(site.etaHours);
+  const pendingRemaining = num(site.pendingRemaining, processed === 0 ? total : num(byStatus.pending) + error + num(byStatus.inflight) + partial);
+  const progressPercent = total > 0 ? Math.floor(((total - pendingRemaining) / total) * 100) : 0;
 
   return {
     id,
@@ -287,7 +289,7 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
     torrentPercent,
     magnetsFound: num(site.magnetsFound),
     newReleases: num(site.newReleases),
-    pendingRemaining: num(site.pendingRemaining, processed === 0 ? total : num(byStatus.pending) + error + num(byStatus.inflight) + partial),
+    pendingRemaining,
     ratePerHour: num(site.ratePerHour),
     etaHours: etaRaw != null && etaRaw > 0 ? etaRaw : null,
     latestRun: normalizeRun(site.latestRun),

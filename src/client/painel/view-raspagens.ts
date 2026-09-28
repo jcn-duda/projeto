@@ -218,8 +218,8 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
         <${StatNumber} value=${card.magnetsFound} label="magnets vistos" />
         <${StatNumber} value=${card.newReleases} label="novos no índice" />
         <${StatNumber} value=${card.torrentPercent} label="% torrent (nas processadas)" />
-        <${StatNumber} value=${card.ratePerHour} label="req / h" />
-        <${StatNumber} value=${etaLabel(card.etaHours)} label="ETA" />
+        <${StatNumber} value=${card.ratePerHour} label="teto req / h" />
+        <${StatNumber} value=${card.pendingRemaining === 0 && card.total > 0 ? 'concluído' : etaLabel(card.etaHours)} label="ETA" />
       </div>
 
       <p style="color: var(--muted); margin-top: var(--space-2); font-size: var(--font-floor);">

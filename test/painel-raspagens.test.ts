@@ -179,7 +179,8 @@ test('crawlSiteCards normaliza contadores, deriva % torrent e marca o site ativo
   assert.equal(vaca.noTorrent, 5);
   assert.equal(vaca.noWork, 2);
   assert.equal(vaca.error, 2);
-  assert.equal(vaca.progressPercent, 80);
+  // Barra = resolvidas (100 − 13 restantes), não o done/total (80) do backend.
+  assert.equal(vaca.progressPercent, 87);
   // 80 done ÷ (80 done + 5 no-torrent + 2 no-work + 2 error) = 89,89% → 90.
   assert.equal(vaca.torrentPercent, 90);
   assert.equal(vaca.magnetsFound, 240);
