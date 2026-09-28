@@ -24,8 +24,7 @@
 //      `streams:%:series:<imdb>:%`; o índice/busca regravam do acervo vivo.
 //   3. crawl.db: URL do escopo daquele SITE (só `vacatorrent`) volta a
 //      `pending` — INDEPENDENTE de haver moves (series_truncated precisa
-//      voltar à fila mesmo com plano vazio); o motor reprocessa com o
-//      adaptador corrigido.
+//      voltar à fila mesmo com plano vazio); o motor reprocessa corrigido.
 //
 // Segurança:
 //   - `--dry-run` é o DEFAULT, read-only de verdade (conexão readOnly, sem
@@ -35,9 +34,8 @@
 //   - `--apply` RECUSA addon vivo (porta TCP em `127.0.0.1:<porta>`, default
 //     7000; `--port=0` desliga) e EXIGE `--backup=<dir>` verificável. Cria
 //     LOCK EXCLUSIVO (`--lock=<path>`, default `data/crawl-repair.lock`):
-//     presença alheia recusa; o próprio lock nasce com `wx` e só o lock
-//     CRIADO por este processo é liberado em `finally` (lockOwned) —
-//     crash/erro não deixam lock órfão ativo pela metade.
+//     presença alheia recusa; o lock nasce com `wx` e só o lock CRIADO por
+//     este processo é liberado em `finally` (lockOwned).
 //   - Conexões com `busy_timeout=5000`; cada banco muta em transação única
 //     com rollback.
 //   - Offline por desenho: o ano de estreia vem de `--premiere=tt…:AAAA`
@@ -230,12 +228,10 @@ const affected = new Set<string>(
     .map((a) => (a as Extract<RepairAction, { row: unknown }>).row.imdb),
 );
 
-// Chaves idx reais das obras afetadas: `idx:v13:<imdb>` (raiz exata),
-// `idx:v13:<imdb>:S4` e `idx:v13:<imdb>:S4E5` (o episódio cola na temporada,
-// SEM segundo ":" — por isso o prefixo `:%` cobre ambos).
+// Chaves idx reais: `idx:v13:<imdb>`, `:S4`, `:S4E5` (o episódio cola na
+// temporada, sem segundo ":" — o prefixo `:%` cobre ambos).
 const plannedIdx: string[] = [];
-// Listas prontas por instalação: `streams:v20:series:<imdb>:<S>:<E>:<config>`.
-// O padrão `streams:%:series:<imdb>:%` alcança QUALQUER config/conta.
+// Listas por instalação: `streams:%:series:<imdb>:%` (qualquer config/conta).
 const plannedStreams = new Map<string, number>();
 const plannedFila: Array<Record<string, unknown>> = [];
 if (affected.size > 0 && fs.existsSync(cachePath)) {
@@ -252,8 +248,7 @@ if (affected.size > 0 && fs.existsSync(cachePath)) {
     }
     cache.close();
   } catch (err) {
-    // Relatório honesto: sem leitura de cache o apply vai falhar depois —
-    // mas o dry-run segue até o fim (fail-safe, não silêncio).
+    // Falha no relatório segue até o fim no dry-run (fail-safe, não silêncio).
     console.log(`[repair] cache ilegível para relatório planejado: ${(err as Error).message}`);
   }
 }
@@ -294,8 +289,8 @@ if (apply) {
 let lockCreated = false;
 try {
   if (apply) {
-    // LOCK EXCLUSIVO: nasce aqui (wx falha em corrida). No finally só o lock
-    // CRIADO por este processo é removido (lockOwned).
+    // LOCK EXCLUSIVO (wx falha em corrida); no finally só o lock CRIADO por
+    // este processo é removido (lockOwned).
     fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
     lockCreated = true;
     if (actions.length > 0) {
@@ -337,7 +332,7 @@ try {
     // 2. cache.db: TODAS as chaves idx E streams das obras afetadas.
     if (affected.size > 0 && fs.existsSync(cachePath)) {
       const cache = openDb(cachePath, false);
-      // Recontagem NO ESTADO ATUAL (o relatório planejado pode ser velho):
+      // Recontagem NO ESTADO ATUAL (o relatório planejado pode ser velho).
       const liveIdx: string[] = [];
       const liveStreams: Array<[string, string]> = [];
       for (const imdb of affected) {
@@ -361,16 +356,13 @@ try {
       cache.close();
     }
     // 3. crawl.db: URLs do escopo DAQUELE SITE — INDEPENDENTE de actions
-    //    (series_truncated precisa voltar à fila mesmo sem moves). Só toca
-    //    na linha que NÃO está convergida: segunda passada é no-op real.
+    //    (series_truncated volta à fila mesmo sem moves). Só toca na linha
+    //    NÃO convergida: segunda passada é no-op real.
     {
       const needsReset = plannedFila.filter((u) =>
         String(u.status) !== 'pending' || Number(u.tries) !== 0 || Number(u.next_at) !== 0
         || String(u.error) !== '' || Number(u.releases) !== 0 || String(u.progress) !== '');
-      const reset = crawlDb.prepare(`
-        UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', releases = 0, progress = ''
-        WHERE site = ? AND url = ?
-      `);
+      const reset = crawlDb.prepare("UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', releases = 0, progress = '' WHERE site = ? AND url = ?");
       for (const u of needsReset) {
         console.log(`[repair]   fila: ${u.site} ${u.url} (status=${u.status}, imdb=${u.imdb ?? '—'}) -> pending`);
       }
@@ -396,5 +388,13 @@ if (crawlDb) { try { crawlDb.close(); } catch { /* já fechado */ } }
 const movidos = actions.filter((a) => a.kind === 'move').length;
 const excluidos = actions.filter((a) => a.kind === 'delete-identity').length;
 const saneados = actions.filter((a) => a.kind === 'sanitize-title').length;
-console.log(`[repair] resumo: ${movidos} linha(s) a mover, ${excluidos} por identidade, ${saneados} título(s), ${affected.size} obra(s) afetada(s) — ${apply ? 'APLICADO' : 'DRY-RUN (nada gravado; use --apply)'}`);
+// hash×obra e título DISTINCTOS: a mesma hash com N linhas de obra repetia
+// ação idêntica — contagem por linha esconde quantos magnets de fato mudam.
+const movidosObra = new Set(actions.filter((a) => a.kind === 'move')
+  .map((a) => `${(a as Extract<RepairAction, { row: unknown }>).row.hash}|${(a as Extract<RepairAction, { row: unknown }>).row.imdb}`)).size;
+const saneadosTitulo = new Set(actions.filter((a) => a.kind === 'sanitize-title')
+  .map((a) => (a as Extract<RepairAction, { kind: 'sanitize-title' }>).from)).size;
+const saneadosHash = new Set(actions.filter((a) => a.kind === 'sanitize-title')
+  .map((a) => (a as Extract<RepairAction, { row: unknown }>).row.hash)).size;
+console.log(`[repair] resumo: ${movidos} linha(s) a mover (${movidosObra} hash×obra distintos), ${excluidos} por identidade, ${saneados} título(s) (${saneadosTitulo} distintos, ${saneadosHash} hashes), ${affected.size} obra(s) afetada(s) — ${apply ? 'APLICADO' : 'DRY-RUN (nada gravado; use --apply)'}`);
 if (!apply) process.exitCode = 0;

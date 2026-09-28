@@ -180,7 +180,7 @@ describe('crawl-repair v2: fora da raiz, identidade, saneamento e lock', { concu
     const snap = (file: string) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
     const before = ['magnets.db', 'cache.db', 'crawl.db'].map((f) => snap(path.join(d, f)));
     const second = runApply(d, [`--premiere=${OP}:1999`]);
-    assert.match(second.out, /0 linha\(s\) a mover, 0 por identidade, 0 título\(s\)/);
+    assert.match(second.out, /0 linha\(s\) a mover \(0 hash×obra distintos\), 0 por identidade, 0 título\(s\) \(0 distintos, 0 hashes\)/);
     const after = ['magnets.db', 'cache.db', 'crawl.db'].map((f) => snap(path.join(d, f)));
     assert.deepEqual(after, before, 'segunda passada é no-op');
   });
@@ -255,7 +255,7 @@ describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrenc
     const d2 = dir();
     seed(d2, BOYS_ROWS, [`idx:v13:${BOYS}`]);
     const applied = runApply(d2);
-    const summary = (out: string) => /resumo: (\d+) linha\(s\) a mover, (\d+) por identidade, (\d+) título\(s\), (\d+) obra\(s\)/.exec(out)?.slice(1).join(',');
+    const summary = (out: string) => /resumo: (\d+) linha\(s\) a mover \((\d+) hash×obra distintos\), (\d+) por identidade, (\d+) título\(s\)/.exec(out)?.slice(1).join(',');
     assert.equal(summary(applied.out), summary(dry.out), 'apply grava exatamente o que o dry-run planejou');
     // O relatório PLANEJADO (cache e fila) é idêntico nos dois modos.
     const planned = (out: string) => out.split('\n').filter((l) => l.includes('(planejado)')).sort();
@@ -289,5 +289,96 @@ describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrenc
     const c2 = new DatabaseSync(path.join(d2, 'crawl.db'), { readOnly: true });
     assert.equal(String((c2.prepare('SELECT status FROM crawl_url').get() as Record<string, unknown>).status), 'pending', 'apply reenfileira sem actions');
     c2.close();
+  });
+});
+
+// Bloqueadores do dry-run REAL (2026-09-28, pós-0b4094c): ruído de cena
+// (DS4K/BS8/Chris44/1280x720/2x2) virava multi-temporada → raiz FALSA;
+// E1176 truncava em E117; saneador destruía ranges e "saneava" só espaços.
+describe('crawl-repair v2: ruído de cena, E de 4 dígitos e saneador', { concurrency: false }, () => {
+  const NOISE_ROWS: RowSpec[] = [
+    // Ruído que NÃO é temporada: raiz FALSA proibida — pack fica em S1.
+    { hash: hashOf('n1'), imdb: OP, season: 1, episode: 1, dn: 'One Piece (2023) Season 1 S01 (1080p DS4K NF WEB-DL x265 Vyndros)', title: 'One Piece (2023)', firstSeen: 400, lastSeen: 401, passedFilter: 1 },
+    { hash: hashOf('n2'), imdb: OP, season: 1, episode: 1, dn: '[NanakoRaws] One Piece S01E986 (BS8 TV 1080p HEVC AAC)', title: 'One Piece', firstSeen: 402, lastSeen: 403, passedFilter: 1 },
+    { hash: hashOf('n3'), imdb: OP, season: 1, episode: 1, dn: 'One Piece S01 MULTI WebDl1080p x264 - Chris44', title: 'One Piece', firstSeen: 404, lastSeen: 405, passedFilter: 1 },
+    { hash: hashOf('n4'), imdb: OP, season: 1, episode: 2, dn: 'Sensationalists S01E02 Is It Art (1280x720p HD, 50fps)', title: 'Sensationalists', firstSeen: 406, lastSeen: 407, passedFilter: 0 },
+    { hash: hashOf('n5'), imdb: OP, season: 7, episode: 1, dn: 'Futurama S7E1-26 of 26 [2012, HDRip] 2x2', title: 'Futurama', firstSeen: 408, lastSeen: 409, passedFilter: 1 },
+    // E de 4 dígitos: {1,1176}, não {1,117}.
+    { hash: hashOf('n6'), imdb: OP, season: 1, episode: 117, dn: 'One Piece S01E1176', title: 'One Piece', firstSeen: 410, lastSeen: 411, passedFilter: 1 },
+    // Raiz legítima PRESERVADA: faixa explícita e multi-temporada marcada.
+    { hash: hashOf('n7'), imdb: OP, season: -1, episode: -1, dn: 'The Sopranos (1999) S01-6 S01-S06 (1080p BluRay)', title: 'The Sopranos', firstSeen: 412, lastSeen: 413, passedFilter: 1 },
+    { hash: hashOf('n8'), imdb: OP, season: -1, episode: -1, dn: 'Reacher S01.S02 Complete', title: 'Reacher', firstSeen: 414, lastSeen: 415, passedFilter: 1 },
+    // Saneador: ranges/listas NÃO são tocados; só-espAços não é saneamento.
+    { hash: hashOf('s1'), imdb: OP, season: 4, episode: 1, dn: 'The Boys S04 1080p AMZN WEB-DL', title: '黑袍纠察队.The.Boys S04E01-E08', firstSeen: 420, lastSeen: 421, passedFilter: 1 },
+    // Range COLADO sem espaço ("S04E01-08", dn real dos packs G66/MIRCrew).
+    { hash: hashOf('s5'), imdb: OP, season: 4, episode: 1, dn: 'The.Boys.S04.1080p.AMZN.WEB-DL.DDP5.1', title: 'The.Boys.S04E01-08.1080p.AMZN.WEB-DL.ITA.ENG.DDP5.1.H.264-G66', firstSeen: 428, lastSeen: 429, passedFilter: 1 },
+    { hash: hashOf('s2'), imdb: OP, season: 1, episode: 3, dn: 'The Last of Us S01 1080p WEB H264 Dual', title: 'The.Last.of.Us.S01E03.e04.e05.1080p.WEB.H264 Dual', firstSeen: 422, lastSeen: 423, passedFilter: 1 },
+    { hash: hashOf('s3'), imdb: OP, season: 1, episode: -1, dn: 'One Piece S01 Arc Baratie MULTi 1080p HEVC', title: 'One Piece - S01 - Arc Baratie  - MULTi - 1080p - HEVC', firstSeen: 424, lastSeen: 425, passedFilter: 1 },
+    // Saneamento LEGÍTIMO: exatamente um marcador, E01 fictício do dn pack.
+    { hash: hashOf('s4'), imdb: OP, season: -1, episode: 1, dn: 'Stranger Things 1TemporadaCompleta 1080p', title: 'Stranger Things (2025) E01 [1080p DUAL]', firstSeen: 426, lastSeen: 427, passedFilter: 1 },
+    // Marcador COLADO (SxxEyy): NUNCA saneado — todas as variantes de
+    // stored (5/2/-1) e dn (pack/episódio/ausente) resultam em null.
+    { hash: hashOf('w1'), imdb: OP, season: 2, episode: 5, dn: 'One Piece S02 1080p', title: 'One Piece S02E05 1080p', firstSeen: 430, lastSeen: 431, passedFilter: 1 },
+    { hash: hashOf('w2'), imdb: OP, season: 2, episode: 2, dn: 'One Piece S02 1080p', title: 'One Piece S02E05 1080p', firstSeen: 432, lastSeen: 433, passedFilter: 1 },
+    { hash: hashOf('w3'), imdb: OP, season: 2, episode: -1, dn: 'One Piece S02 1080p', title: 'One Piece S02E05 1080p', firstSeen: 434, lastSeen: 435, passedFilter: 1 },
+    { hash: hashOf('w4'), imdb: OP, season: 2, episode: 5, dn: 'One Piece S02E05 1080p CR WEB-DL', title: 'One Piece S02E05 1080p', firstSeen: 436, lastSeen: 437, passedFilter: 1 },
+    // E solto LEGÍTIMO em 2 hashes com a MESMA saída: métrica conta
+    // títulos distintos pelo `from` e hashes distintos separadamente.
+    { hash: hashOf('w5'), imdb: OP, season: -1, episode: 1, dn: 'Stranger Things 1TemporadaCompleta 720p', title: 'Stranger Things (2025) E01 [720p]', firstSeen: 438, lastSeen: 439, passedFilter: 1 },
+    { hash: hashOf('w6'), imdb: OP, season: -1, episode: 1, dn: 'Stranger Things 3TemporadaCompleta 720p', title: 'Stranger Things (2025) E01 [720p]', firstSeen: 440, lastSeen: 441, passedFilter: 1 },
+  ];
+
+  test('dry-run: ruído não cria raiz; 4 dígitos intacto; raiz legítima fica', () => {
+    const d = dir();
+    seed(d, NOISE_ROWS, [`idx:v13:${OP}`]);
+    const { out } = runScript(d);
+    // Raiz FALSA proibida: pack/episódio com ruído fica na temporada real.
+    assert.match(out, /mover n10000000000… \S+ 1:1 -> 1:-1 /, 'DS4K não é multi-temporada: pack vai a 1:-1');
+    assert.match(out, /mover n20000000000… \S+ 1:1 -> 1:986 /, 'BS8 não é temporada: E986 real');
+    assert.match(out, /mover n30000000000… \S+ 1:1 -> 1:-1 /, 'Chris44 não é temporada: pack');
+    assert.doesNotMatch(out, /mover n40000000000/, '1280x720 não é temporada: S01E02 fica');
+    assert.match(out, /mover n50000000000… \S+ 7:1 -> 7:-1 /, '2x2 não é temporada: pack de S7');
+    assert.match(out, /mover n60000000000… \S+ 1:117 -> 1:1176 /, 'E1176 não trunca em 117');
+    // Raiz legítima: faixa explícita e multi-temporada marcada FICAM.
+    assert.doesNotMatch(out, /mover n70000000000/, 'S01-6 S01-S06 é faixa explícita: raiz fica');
+    assert.doesNotMatch(out, /mover n80000000000/, 'S01.S02 Complete é multi marcada: raiz fica');
+    assert.doesNotMatch(out, /-> -1:-1 /, 'nenhum move para a raiz neste cenário');
+    // Saneador.
+    assert.doesNotMatch(out, /sanear título.*s10000000000/, 'range E01-E08 não é tocado');
+    assert.doesNotMatch(out, /sanear título.*s20000000000/, 'lista e04.e05 não é tocada');
+    assert.doesNotMatch(out, /sanear título.*s30000000000/, 'título sem marcador não é "saneado"');
+    assert.doesNotMatch(out, /sanear título.*s50000000000/, 'range colado S04E01-08 não é tocado');
+    assert.match(out, /sanear título \(E fictício com prova no dn\) s40000000000… "Stranger Things \(2025\) E01 \[1080p DUAL\]" -> "Stranger Things \(2025\) \[1080p DUAL\]"/);
+
+    // Marcador colado (SxxEyy) NUNCA é saneado — só episódio SOLTO, qualquer
+    // stored (5/2/-1) e qualquer dn (pack, episódio, ausente): todos null.
+    assert.doesNotMatch(out, /sanear título.*w10000000000/, 'S02E05 colado não é saneado (stored 5)');
+    assert.doesNotMatch(out, /sanear título.*w20000000000/, 'S02E05 colado não é saneado (stored 2)');
+    assert.doesNotMatch(out, /sanear título.*w30000000000/, 'S02E05 colado não é saneado (stored -1)');
+    assert.doesNotMatch(out, /sanear título.*w40000000000/, 'S02E05 colado não é saneado (dn episódio)');
+    // s4 + w5 + w6: 3 ações; `from` distintos = 2 ([1080p DUAL] vs [720p]);
+    // hashes distintos = 3 — a métrica separa TÍTULO (from) de HASH.
+    assert.match(out, /, 3 título\(s\) \(2 distintos, 3 hashes\), /, 'métrica de saneamento separa título (from) e hash');
+  });
+
+  test('--apply: movimentos do cenário de ruído gravados e saneamento único', () => {
+    const { DatabaseSync } = _require('node:sqlite');
+    const d = dir();
+    seed(d, NOISE_ROWS, [`idx:v13:${OP}`]);
+    const { out } = runApply(d);
+    assert.match(out, /APLICADO/);
+    const db = new DatabaseSync(path.join(d, 'magnets.db'), { readOnly: true });
+    const rows = db.prepare('SELECT * FROM magnet_work WHERE imdb = ? ORDER BY hash, season, episode').all(OP) as Array<Record<string, unknown>>;
+    const lugar = (h: string) => rows.filter((r) => String(r.hash).startsWith(h)).map((r) => `${r.season}:${r.episode}`).join(',');
+    assert.equal(lugar('n1'), '1:-1');
+    assert.equal(lugar('n2'), '1:986');
+    assert.equal(lugar('n6'), '1:1176');
+    assert.equal(lugar('n7'), '-1:-1');
+    assert.equal(lugar('n8'), '-1:-1');
+    const stTitle = (db.prepare('SELECT title FROM magnet WHERE hash = ?').get(hashOf('s4')) as Record<string, unknown>).title;
+    assert.equal(stTitle, 'Stranger Things (2025) [1080p DUAL]');
+    const boysTitle = (db.prepare('SELECT title FROM magnet WHERE hash = ?').get(hashOf('s1')) as Record<string, unknown>).title;
+    assert.equal(boysTitle, '黑袍纠察队.The.Boys S04E01-E08', 'range intacto no banco');
+    db.close();
   });
 });

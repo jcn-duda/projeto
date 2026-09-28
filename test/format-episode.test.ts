@@ -314,3 +314,43 @@ test('intervalo com o segundo número nu ("S03E01-02") cobre os dois episódios'
   assert.deepEqual(parseTitleSeasonEpisode('Show S01E05-264').episodes, [5]);
   assert.deepEqual(parseTitleSeasonEpisode('Show S01E05-03 WEB').episodes, [5]);
 });
+
+test('episódio de 4 dígitos (One Piece E1000+) nos padrões ancorados em temporada', () => {
+  // One Piece publicou E1000+; o teto {1,3} truncava E1176 em E117.
+  assert.deepEqual(parseTitleSeasonEpisode('One Piece S01E1176').episodes, [1176]);
+  assert.deepEqual(parseTitleSeasonEpisode('One Piece S01E986 (BS8 TV 1080p HEVC AAC)').episodes, [986]);
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E1000-E1005').episodes, [1000, 1001, 1002, 1003, 1004, 1005]);
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E1000-1005').episodes, [1000, 1001, 1002, 1003, 1004, 1005]);
+  assert.equal(matchesEpisode('One Piece S01E1176', { season: 1, episode: 1176 }), true);
+  assert.equal(matchesEpisode('One Piece S01E1176', { season: 1, episode: 117 }), false);
+  // Guardas intactas: resolução e ano continuam fora.
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E1176-2160p').episodes, [1176]);
+  // Sem âncora de temporada o E solto segue em 3 dígitos de propósito:
+  // não há o que desmente um ano lido como episódio.
+  const loose = parseTitleSeasonEpisode('Temporada 1 (E2023 special)');
+  assert.equal(loose.episodes.includes(2023), false);
+});
+
+test('fronteira conservadora: colagens NÃO são marcador (ruído de cena)', () => {
+  // Decisão conservadora 2026-09-28: 0 ocorrências dessas colagens em 29.476
+  // releases do acervo — a fronteira existe para o ruído não virar obra.
+  // 'S01S02' (colagem de packs) não casa s-token nenhum.
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01S02').seasons, []);
+  // 'S01x04'/'S1x04' (s colado ao 1x04) não é nem pack nem 1x04.
+  const colada = parseTitleSeasonEpisode('Show S01x04');
+  assert.deepEqual(colada.seasons, []);
+  assert.deepEqual(colada.episodes, []);
+  assert.deepEqual(parseTitleSeasonEpisode('Show S1x04').episodes, []);
+  // '24S01E01' (ano/tempo colado ao marcador) não é SxxEyy.
+  const anoColado = parseTitleSeasonEpisode('Show 24S01E01');
+  assert.deepEqual(anoColado.seasons, []);
+  assert.deepEqual(anoColado.episodes, []);
+  // 'BS8'/'DS4K'/'Chris44'/'1280x720': ruído de cena não é temporada.
+  assert.deepEqual(parseTitleSeasonEpisode('One Piece S01 MULTI x264 - Chris44').seasons, [1]);
+  assert.deepEqual(parseTitleSeasonEpisode('[NanakoRaws] One Piece S01E986 (BS8 TV 1080p)').seasons, [1]);
+  assert.deepEqual(parseTitleSeasonEpisode('Show S01E02 (1280x720p HD)').seasons, [1]);
+  // O formato legítimo '1x04' continua casando.
+  const legit = parseTitleSeasonEpisode('Show 1x04');
+  assert.deepEqual(legit.seasons, [1]);
+  assert.deepEqual(legit.episodes, [4]);
+});
