@@ -16,6 +16,15 @@ import path from 'node:path';
 
 process.env.CACHE_PERSIST = 'false';
 
+// `node:sqlite` só existe no Node 22+. A quase totalidade dos casos roda no
+// store em MEMÓRIA, mas o do veredito gravado em ARQUIVO exige durabilidade
+// entre fechar e reabrir — sem o módulo o `open(path)` cai em memória e o
+// `resetForTests` apaga o que acabou de ser gravado. Pular é honesto; falhar
+// mediria o runtime, não o gate.
+let _hasSqlite = true;
+try { await import('node:sqlite'); } catch { _hasSqlite = false; }
+const skipSemSqlite = !_hasSqlite && 'node:sqlite indisponível — precisa de Node 22+';
+
 const config = (await import('../src/config.js')).default;
 const store = await import('../src/utils/crawl-store.js');
 const crawler = await import('../src/providers/crawler.js');
@@ -333,7 +342,7 @@ describe('crawl: status com o motor desligado', () => {
     }
   });
 
-  test('requireProbe com o store NUNCA aberto não trava o motor em si mesmo', async () => {
+  test('requireProbe com o store NUNCA aberto não trava o motor em si mesmo', { skip: skipSemSqlite }, async () => {
     const dir = closedStore();
     try {
       // Boot desligado (não abre nada) e depois o operador religa pelo REST —
