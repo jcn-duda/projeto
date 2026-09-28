@@ -361,9 +361,12 @@ export function sanitizeStoredConfig(raw: Record<string, unknown>): {
   clean: Partial<CrawlerLiveConfig>;
   errors: string[];
 } {
-  const { clean, errors } = sanitizePatch(raw);
+  // Os escalares vão SEM o mapa: o `sanitizePatch` não conhece `siteOverrides` e
+  // logava "Chave desconhecida" a cada boot com ajuste de site gravado — aviso
+  // falso (o mapa é lido logo abaixo) que ensinava a ignorar o aviso verdadeiro.
+  const { siteOverrides: rawSites, ...scalars } = raw as Record<string, unknown> & { siteOverrides?: unknown };
+  const { clean, errors } = sanitizePatch(scalars);
   const sites: CrawlerSiteOverrides = {};
-  const rawSites = (raw as { siteOverrides?: unknown }).siteOverrides;
   if (rawSites && typeof rawSites === 'object' && !Array.isArray(rawSites)) {
     for (const [siteId, value] of Object.entries(rawSites as Record<string, unknown>)) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) {

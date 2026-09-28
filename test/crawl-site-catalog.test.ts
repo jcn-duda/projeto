@@ -14,6 +14,7 @@ const { siteConfigOf, knownSites, cadenceDelayMs } = await import('../src/utils/
 const registry = await import('../src/providers/crawl-sites/registry.js');
 const { siteCatalog, siteHealth, CRAWL_HEALTH_WINDOW_MS } = await import('../src/providers/crawl-site-catalog.js');
 const indexerStatus = await import('../src/providers/indexer-status.js');
+const schema = await import('../src/utils/crawler-live-schema.js');
 import type { CrawlDiscovery, CrawlSite } from '../src/providers/crawl-types.js';
 
 const savedCrawl = { ...config.crawl };
@@ -88,6 +89,19 @@ describe('crawl catálogo: sites fora do .env', () => {
     Object.assign(config.crawl, { sites: [], delayMs: 700 });
     live.setSiteOverride('nerdfilmes', { enabled: true, delayMs: 3000 });
     assert.equal(cadenceDelayMs(live.effective()), 3000);
+  });
+
+  test('config gravada com ajuste de site não gera aviso falso no boot', () => {
+    const { sanitizeStoredConfig } = schema;
+    const stored = { enabled: true, delayMs: 800, siteOverrides: { nerdfilmes: { enabled: true } } };
+    const { clean, errors } = sanitizeStoredConfig(stored);
+    assert.deepEqual(errors, [], 'siteOverrides não é "chave desconhecida"');
+    assert.deepEqual(clean.siteOverrides, { nerdfilmes: { enabled: true } });
+    assert.equal(clean.delayMs, 800);
+    // O aviso VERDADEIRO continua: chave escalar desconhecida e site corrompido.
+    const bad = sanitizeStoredConfig({ nasa: 1, siteOverrides: { x: 'lixo' } });
+    assert.ok(bad.errors.some((e) => /nasa/.test(e)));
+    assert.ok(bad.errors.some((e) => /"x"/.test(e)));
   });
 
   test('adapterIds lista só quem tem adaptador', () => {
