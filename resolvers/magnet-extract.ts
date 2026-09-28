@@ -19,6 +19,12 @@ import type { DecodeEntities } from './text.js';
 
 // Passos idênticos nas duas variantes.
 const MAGNET_RAW_RE = /magnet:\?[^"'<>\s]+/i;
+// Magnet ENTRE ASPAS num href: o valor vai até a aspa de fechamento, não até o
+// primeiro espaço. O gate do NerdFilmes publica o `dn=` com espaço cru
+// (`href="magnet:?xt=…&amp;dn=Minhas Aventuras com o Superman S02E01-02 …&amp;tr=…"`,
+// medido 2026-09-28) e o regex cru cortava em "dn=Minhas": o magnet perdia o
+// nome e os trackers — na raspagem e na busca ao vivo, que usa o mesmo resolver.
+const HREF_MAGNET_RE = /href\s*=\s*(["'])(magnet:\?[^"'<>]+)\1/i;
 
 // Variante BÁSICA.
 const BASICA_JS_VAR_RE = /(?:DEST_URL|DOWNLOAD_URL|MAGNET_URL|download_url|download_link|magnet_link|target_url|dest|target|link|url|magnet)\s*[:=]\s*["'](magnet:\?[^"']+)["']/i;
@@ -155,11 +161,16 @@ function createMagnetExtractor({ decodeEntities, encodedVariants = false, b64Dat
       }
     }
 
-    // 4. Regex direto de URI magnet no documento
+    // 4. href entre aspas: a URI inteira, com o espaço cru virando %20 (URI
+    // válida; o `dn` decodificado volta a ser o nome real do torrent).
+    const hrefMatch = str.match(HREF_MAGNET_RE);
+    if (hrefMatch) return decodeEntities(hrefMatch[2]).trim().replace(/\s+/g, '%20');
+
+    // 5. Regex direto de URI magnet no documento
     const rawMatch = str.match(MAGNET_RAW_RE);
     if (rawMatch) return decodeEntities(rawMatch[0]);
 
-    // 5. Magnet URL-encoded (ex.: magnet%3A%3Fxt%3Durn)
+    // 6. Magnet URL-encoded (ex.: magnet%3A%3Fxt%3Durn)
     const encodedMatch = str.match(encodedRe);
     if (encodedMatch) {
       try {

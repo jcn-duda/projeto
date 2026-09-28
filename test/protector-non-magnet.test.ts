@@ -70,6 +70,29 @@ describe('followProtectedUrl: destino provado não-magnet (download direto)', ()
     assert.equal(extract(`<body data-link="${bad}">`), null);
   });
 
+  test('magnet em href com espaço cru no dn vem INTEIRO (gate do NerdFilmes)', () => {
+    // Recorte real (2026-09-28): o regex cru parava em "dn=Minhas" e o magnet
+    // perdia nome e trackers — na raspagem e na busca ao vivo.
+    const gate = '<a id="botao" class="botao bloqueado"\n href="magnet:?xt=urn:btih:4NJKOXA3UAFPJ3J6C7NML3CR7LAZAYSD'
+      + '&amp;dn=Minhas Aventuras com o Superman S02E01-02 WEB-DL 1080p x264 DUAL 5.1'
+      + '&amp;tr=udp://tracker.openbittorrent.com:80/announce"\n rel="nofollow noopener">Preparando link</a>';
+    const decode = (v: string | null | undefined) => String(v ?? '').replace(/&amp;/g, '&');
+    for (const encodedVariants of [false, true]) {
+      const magnet = createMagnetExtractor({ decodeEntities: decode, encodedVariants })(gate);
+      assert.equal(
+        magnet,
+        'magnet:?xt=urn:btih:4NJKOXA3UAFPJ3J6C7NML3CR7LAZAYSD'
+          + '&dn=Minhas%20Aventuras%20com%20o%20Superman%20S02E01-02%20WEB-DL%201080p%20x264%20DUAL%205.1'
+          + '&tr=udp://tracker.openbittorrent.com:80/announce',
+      );
+      const dn = new URLSearchParams(String(magnet).slice('magnet:?'.length)).get('dn');
+      assert.equal(dn, 'Minhas Aventuras com o Superman S02E01-02 WEB-DL 1080p x264 DUAL 5.1', 'o dn volta a ser o nome real');
+    }
+    // Magnet sem espaço continua idêntico ao que o regex cru já dava.
+    const plain = '<a href="magnet:?xt=urn:btih:' + 'a'.repeat(40) + '&amp;dn=Filme.2020.1080p">x</a>';
+    assert.equal(createMagnetExtractor({ decodeEntities: decode })(plain), `magnet:?xt=urn:btih:${'a'.repeat(40)}&dn=Filme.2020.1080p`);
+  });
+
   test('b64DataLinkIsHttp: Drive sim; magnet em base64, base64 lixo e ausência não', () => {
     assert.equal(b64DataLinkIsHttp(driveGate), true);
     const b64 = (v: string) => Buffer.from(v).toString('base64');
