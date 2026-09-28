@@ -234,6 +234,7 @@
     "test/format-search-names.test.js",
     "test/format-short-name-identity.test.js",
     "test/format-short-name-prefix.test.js",
+    "test/franchise-base-subtitle.test.js",
     "test/format-sort-limit.test.js",
     "test/format-quality-last-resort.test.js",
     "test/format-stream-name.test.js",

@@ -13,6 +13,7 @@ import {
   yearContradicts,
 } from './matching-tokens.js';
 import { matchesName, nameCoverageTokens, isMultiWorkCollection } from './release-name-matching.js';
+import { franchiseBaseContradicts } from './franchise-base.js';
 
 // Os portões de título: o que decide se uma release É a obra procurada. Três
 // níveis de estricção, cada um calibrado contra casos reais medidos neste repo
@@ -86,6 +87,8 @@ function matchesTitleStructure(
       const candYears = own.filter((t: string) => /^(?:19|20)\d{2}$/.test(t)).map(Number);
       if (catalogYear === 0 || candYears.length !== 1 || candYears[0] !== catalogYear) return false;
     }
+    // Mesma guarda para continuação nomeada por SUBTÍTULO (franchise-base.ts).
+    if (franchiseBaseContradicts(title, own, name, year)) return false;
   }
 
   return !yearContradicts(own, year, isSeries);
