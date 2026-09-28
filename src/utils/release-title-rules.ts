@@ -293,25 +293,30 @@ function namesTheWork(
   const first = firstUnmarkedToken(own);
   if (!first || isNonLatinToken(first)) return true;
   if (first === check.want) return true;
-  return containsNameRun(own, check.run) || possessiveBeforeName(text, check.want);
+  return namedAfterSeparator(untagged, check.run) || possessiveBeforeName(text, check.want);
 }
 
+// Separador EXPLÍCITO entre dois títulos no mesmo nome de release: " - ",
+// " – ", ": ", " | ", " / ", "(". O hífen colado ("Spider-Man") não separa.
+const TITLE_SEPARATOR_RE = /\s+[-–—|/]\s+|:\s+|\s*\(\s*/;
+
 /**
- * O nome INTEIRO aparece como sequência contínua dos tokens que nomeiam a obra
- * (ignorando rótulo/ligação entre eles): "Shingeki no Kyojin - Attack on Titan
- * S04" e "Boku no Hero Academia S06" são a obra com o título original na
- * frente, não outra obra. Exige 2+ tokens que nomeiam: com um só, "Thirst Trap
- * The Fallout" e "Shes The Boss" também conteriam o nome e voltariam a entrar.
- * O homônimo medido não tem a sequência ("The Hardy Boys", "The Detective
- * Boys": o nome "The Boys" tem um token que nomeia).
+ * Depois de um separador explícito, o trecho COMEÇA pelo nome inteiro (2+
+ * tokens que nomeiam, em sequência): "Shingeki no Kyojin - Attack on Titan
+ * S04" é a obra com o título original na frente. O separador é a prova: sem
+ * ele, a sequência contínua também aparece no spin-off — "Fear the Walking
+ * Dead S04E01" entrou em The Walking Dead S04E01 no teste real do Docker
+ * (2026-09-28) quando bastava a sequência. Por isso "Boku no Hero Academia"
+ * (romaji sem separador) continua dependendo do `dn=`. Com 1 token que nomeia
+ * não há saída: "Detective Conan - The Detective Boys" seria o homônimo.
  */
-function containsNameRun(tokens: string[], run: string[]) {
+function namedAfterSeparator(text: string, run: string[]) {
   if (run.length < 2) return false;
-  const seq = tokens.filter((w) => !isNonNamingToken(w));
-  for (let i = 0; i + run.length <= seq.length; i += 1) {
-    if (run.every((w, k) => seq[i + k] === w)) return true;
-  }
-  return false;
+  const segments = String(text || '').split(TITLE_SEPARATOR_RE).slice(1);
+  return segments.some((segment) => {
+    const seq = titleTokens(segment).filter((w) => !isNonNamingToken(w));
+    return run.every((w, k) => seq[k] === w);
+  });
 }
 
 /**

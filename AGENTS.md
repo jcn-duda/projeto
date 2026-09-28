@@ -2368,13 +2368,16 @@ o orçamento com a resposta.
   abstém para nome de 3+ tokens (aí a cobertura discrimina), NÃO roda no caminho
   BR (`matchesBrTitle` tem portão próprio) e fica dentro do `names.some` para que
   um alias que não prefixa jamais condene o release que casa pelo outro nome.
-  Duas saídas estreitas para o prefixo legítimo, além do `dn=` real: o nome
-  com 2+ tokens que nomeiam aparece INTEIRO em sequência ("Shingeki no Kyojin
-  - Attack on Titan", "Boku no Hero Academia") e a posse EXPLÍCITA com
-  apóstrofo antes do nome ("Marvel's Daredevil", "Noah Hawley's Fargo"). Nome
-  de um token que nomeia ("The Boys", "Fallout") não tem sequência que prove —
-  é justamente o caso do homônimo — e "Marvels.Daredevil" de cena, sem
-  apóstrofo, depende do `dn=`. Cobertura e portão dividem a MESMA régua de base (`nameCoverageTokens`) — duas
+  Duas saídas estreitas para o prefixo legítimo, além do `dn=` real: depois de
+  um SEPARADOR explícito (` - `, `: `, `|`, `/`, `(`) o trecho começa pelo nome
+  inteiro de 2+ tokens que nomeiam ("Shingeki no Kyojin - Attack on Titan"), e
+  a posse EXPLÍCITA com apóstrofo antes do nome ("Marvel's Daredevil", "Noah
+  Hawley's Fargo"). A sequência contínua SEM separador não basta: "Fear the
+  Walking Dead S04E01" entrou em The Walking Dead S04E01 no teste real do
+  Docker (2026-09-28) quando ela bastava. Por isso "Boku no Hero Academia" e
+  "Marvels.Daredevil" de cena dependem do `dn=`, e nome de um token que nomeia
+  ("The Boys", "Fallout") não tem saída pelo separador — "Detective Conan - The
+  Detective Boys" seria o homônimo. Cobertura e portão dividem a MESMA régua de base (`nameCoverageTokens`) — duas
   cópias desse cálculo divergiriam em silêncio quando a régua mudasse. **Não troque
   isso por lista de títulos proibidos:** a mesma classe com nome de 1 token
   (busca "Fallout" × "Thirst Trap The Fallout", "The Boss" × "Shes The Boss")

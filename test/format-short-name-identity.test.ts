@@ -219,24 +219,15 @@ test('dn real é evidência alternativa de identidade', () => {
     assert.equal(out.length, 1, `${names} × ${title}`);
   }
   // Contraprova: `dn` de OUTRA obra não vale como prova, e sem `dn` também não —
-  // o post que não nomeia a obra não ganha passe por omissão. (Nome de UM token
-  // que nomeia: "Game of Thrones" inteiro no título já entra pela sequência.)
-  const errado = withDn('HBO The Boys S04E01 1080p WEB-DL', 'Detective.Conan.Movie.22.The.Detective.Boys.1080p');
-  assert.equal(relevantRaw([errado], { names: ['The Boys'], isSeries: true, season: 4, episode: 1 }).length, 0);
-  assert.equal(
-    relevantRaw([{ title: 'HBO The Boys S04E01 1080p WEB-DL' }], { names: ['The Boys'], isSeries: true, season: 4, episode: 1 }).length,
-    0,
-  );
-  // Sequência inteira de 2+ tokens que nomeiam: a rede na frente não contradiz.
-  assert.equal(
-    relevantRaw([{ title: 'HBO Game of Thrones S01E01 1080p WEB-DL' }], {
-      names: ['Game of Thrones'],
-      isSeries: true,
-      season: 1,
-      episode: 1,
-    }).length,
-    1,
-  );
+  // o post que não nomeia a obra não ganha passe por omissão.
+  const errado = withDn('HBO Game of Thrones S01E01 1080p WEB-DL', 'Detective.Conan.Movie.22.The.Detective.Boys.1080p');
+  assert.equal(relevantRaw([errado], { names: ['Game of Thrones'], isSeries: true, season: 1, episode: 1 }).length, 0);
+  for (const [names, title, season] of [
+    [['Game of Thrones'], 'HBO Game of Thrones S01E01 1080p WEB-DL', 1],
+    [['The Boys'], 'HBO The Boys S04E01 1080p WEB-DL', 4],
+  ] as Array<[string[], string, number]>) {
+    assert.equal(relevantRaw([{ title }], { names, isSeries: true, season, episode: 1 }).length, 0, title);
+  }
 });
 
 test('marcador de episódio composto e longo não é prefixo de conteúdo', () => {
