@@ -55,8 +55,10 @@ describe('parseOriginalTitle: o span do NerdFilmes', () => {
     assert.equal(parseOriginalTitle('<b>Título Original</b>: Colors of Love<br /> <strong>IMDb</strong>'), 'Colors of Love');
     assert.equal(parseOriginalTitle('<strong>Título Original</strong>: Antibirth<br />'), 'Antibirth');
     assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Dr. No<br /> <b>3D:</b> SIM'), 'Dr. No');
-    // Dois nomes: o primeiro é o original, o resto é tradução/romanização.
-    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Paradox / Sha po lang: taam long<br />'), 'Paradox');
+    // Dois nomes não dizem QUAL é o original ("Paradox" é o inglês e casou outro
+    // filme): nome nenhum.
+    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Paradox / Sha po lang: taam long<br />'), null);
+    assert.equal(parseOriginalTitle('<b>Título Original:</b> Dans la brume / Just a Breath Away<br />'), null);
     assert.equal(parseOriginalTitle('<b>T&iacute;tulo Original:</b> Nakitai Watashi wa Neko wo Kaburu<br />'),
       'Nakitai Watashi wa Neko wo Kaburu');
   });
@@ -144,6 +146,30 @@ describe('identifyWork com o título original da página', () => {
     } finally {
       stub.restore();
       forget([title, original], [702]);
+    }
+  }));
+
+  test('h1 que o TMDB conhece NÃO dispara a 2ª busca (o original genérico pularia de filme)', withTmdbKey(async () => {
+    // Recorte real: a busca pelo h1 achou "Comando Final 3: Paradoxo" (HK, 2017)
+    // e só não casou estrito; "Paradox" sozinho casaria o "Paradoxo" de 2018.
+    const title = `Comando Final 3 Paradox ${process.pid}`;
+    const original = `Paradox ${process.pid}`;
+    const stub = stubFetch((url) => {
+      if (url.includes('/search/movie')) {
+        return queryOf(url) === original
+          ? searchResp([movieHit(708, 'Paradoxo', original, '2018-03-15')])
+          : searchResp([movieHit(709, 'Comando Final 3: Paradoxo', '殺破狼·貪狼', '2017-08-25')]);
+      }
+      throw new Error(`fetch fora do mapa: ${url}`);
+    });
+    try {
+      const result = await identifyWork({ type: 'movie', title, year: 2018, originalTitle: original });
+      assert.equal(result.outcome, 'unidentified', 'sem obra é melhor que a obra de outro');
+      assert.equal(result.reason, 'nome-sem-casamento');
+      assert.deepEqual(stub.calls.map((c) => queryOf(c.url)), [title], 'só a busca pelo h1');
+    } finally {
+      stub.restore();
+      forget([title, original]);
     }
   }));
 

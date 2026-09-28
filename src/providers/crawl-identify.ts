@@ -151,10 +151,14 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
   const original = rawOriginal && normalizeTitle(rawOriginal) !== normalizeTitle(title) ? rawOriginal : '';
   let hits = search.hits;
   let selection = selectCandidate(hits, title, original);
-  // Segunda busca pelo ORIGINAL só quando o `<h1>` não casou ninguém: o site
-  // titula num pt-BR que o TMDB não tem ("A Armadilha do Coelho" = "Rabbit
-  // Trap"). Ambíguo pelo `<h1>` já tem o desempate acima — rebuscar não muda.
-  if (selection.kind === 'none' && original) {
+  // Segunda busca pelo ORIGINAL só quando o TMDB não conhece o `<h1>` de todo
+  // (zero hits no ano): o site titula num pt-BR que o TMDB não tem ("A
+  // Armadilha do Coelho" = "Rabbit Trap"). Se a busca pelo `<h1>` achou
+  // candidatos e nenhum casou estrito, a obra está ALI e a régua é que não
+  // fechou — rebuscar por um original genérico pula para OUTRO filme: "Comando
+  // Final 3 Paradox" achou o "Comando Final 3: Paradoxo" (HK, 2017), e a busca
+  // por "Paradox" casou o "Paradoxo" americano de 2018 (medido, 2026-09-28).
+  if (selection.kind === 'none' && original && search.hits.length === 0) {
     const second = await searchByTitle(input.type, original, pageYear);
     if (!second.ok) return { outcome: 'unavailable', imdb: null, reason: 'tmdb-indisponivel' };
     hits = [...hits, ...second.hits];

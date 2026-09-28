@@ -75,10 +75,12 @@ export function parseOriginalTitle(html: string): string | null {
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^t[íi]tulo original\s*:?\s*/i, '')
-    // Dois nomes ("Paradox / Sha po lang: taam long", "Dans la brume / Just a
-    // Breath Away"): o primeiro é o original; o resto é tradução ou romanização.
-    .split(' / ')[0]
     .trim();
+  // Dois nomes ("Paradox / Sha po lang: taam long", "Dans la brume / Just a
+  // Breath Away") não dizem QUAL é o original: no primeiro o inglês vem antes, e
+  // "Paradox" casou outro filme ("Paradoxo", 2018) no lugar do "Comando Final 3:
+  // Paradoxo" de Hong Kong (medido, 2026-09-28). Na dúvida, nome nenhum.
+  if (text.includes(' / ')) return null;
   // Teto de sanidade: span que engoliu marcação quebrada não vira nome de obra.
   return text && text.length <= 200 ? text : null;
 }
