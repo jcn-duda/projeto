@@ -1,36 +1,29 @@
 // Montagem do STATUS do crawler para o painel (Fase 4 do plano "Raspagem
-// total"). Extraído de `crawler.ts` pela catraca de 400 linhas: são funções
-// PURAS sobre uma foto do motor — não tocam rede, store nem o timer. O motor
-// captura o próprio estado e entrega aqui; assim o formato do card é testável
-// sem subir o motor.
+// total"; Fase 8 multi-site). Extraído de `crawler.ts` pela catraca de 400
+// linhas: são funções PURAS sobre uma foto do motor — não tocam rede, store nem
+// o timer. O motor captura o próprio estado e entrega aqui; assim o formato do
+// card é testável sem subir o motor.
+//
+// COMPATIBILIDADE (Fase 8): o TOPO do bloco continua sendo a visão do site
+// ATIVO (mesmos nomes, mesmos tipos de antes), e o detalhe por site vive em
+// `sites[]` — um card por site CONFIGURADO, com o estado do runtime daquele
+// site (pausa, ciclo, cursor, custo, teto, gate da sonda). Entrada legada
+// (motor de site único, sem `sites`) continua aceito: as chamadas antigas
+// montam uma vista única e o topo sai igual.
 import type { CrawlEngine } from '../utils/crawl-store.js';
 import { parseProgress } from '../utils/crawl-store-rules.js';
-import type { CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
+import { siteConfigOf, type CrawlerEffectiveConfig, type CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
+import type { ProbeGate } from './crawl-probe-gate.js';
+import {
+  legacyView, NEUTRAL_PROBE,
+  type CrawlMotorState, type CrawlSiteRuntimeView, type CrawlerStatusInput, type SiteAutoPauseInfo, type SiteTableInfo,
+} from './crawl-status-view.js';
 import type { CrawlRunRow } from './crawl-types.js';
 
-/** Estado escalar do motor necessário para montar o status. */
-export interface CrawlMotorState {
-  activeSiteId: string;
-  activeLabel: string | null;
-  paused: boolean;
-  autoPause: { reason: string; at: number; detail: string } | null;
-  /** Cursor incremental POR KIND (F2). `cursor` (filme) segue no status por
-   * compat; o mapa completo é o campo canônico. */
-  cursors: { movie: string; tv_show: string };
-  /** Próxima descoberta agendada (epoch ms); 0 = devida. Fase 6. */
-  nextDiscoveryAt: number;
-  pagesThisHour: number;
-  openRunId: number | null;
-  errorStreak: number;
-  canaryStreak: number;
-  cycle: Record<string, number>;
-  /** `newReleases` do ciclo corrente (só vale para o site ativo). */
-  currentSiteNewReleases: number;
-  siteReady: boolean;
-  /** Custo médio observado (requisições por página) desde o boot; `null`
-   * quando nenhuma página foi medida ainda — o ETA honesto é "—". */
-  avgRequestCost?: number | null;
-}
+export type {
+  CrawlMotorState, CrawlSiteRuntimeView, CrawlerStatusInput, SiteAutoPauseInfo, SiteTableInfo,
+} from './crawl-status-view.js';
+export { legacyView, NEUTRAL_PROBE } from './crawl-status-view.js';
 
 export interface SiteStatus {
   id: string;
@@ -55,12 +48,47 @@ export interface SiteStatus {
   partialWork: Array<{ url: string; done: number; total: number; checkedAt: number }>;
   errors: Array<{ url: string; error: string; tries: number; checkedAt: number }>;
   errorGroups: Array<{ reason: string; count: number }>;
+  // --- Fase 8: estado do runtime daquele site ---
+  /** Habilitado pelo `siteOverrides[id]` (herda o global quando ausente). */
+  enabled: boolean;
+  dryRun: boolean;
+  /** Pausa manual DO SITE (a global fica no topo). */
+  paused: boolean;
+  /** Pausa automática DO SITE (streak de erro / canário de layout). */
+  autoPause: { reason: string; at: number; detail: string } | null;
+  /** Config efetiva (ritmo/teto próprios vêm daqui). */
+  siteConfig: CrawlerSiteConfig;
+  /** Gate da sonda: `ok:false` = o site não entra na rotação. */
+  probe: ProbeGate;
+  lastActiveAt: number;
+  skipReason: string | null;
+  runOpen: boolean;
+  errorStreak: number;
+  canaryStreak: number;
+  cycle: Record<string, number>;
+  cursor: string | null;
+  cursors: { movie: string; tv_show: string };
+  nextDiscoveryAt: number;
+  pagesThisHour: number;
+  maxPerHour: number;
+  delayMs: number;
+  /** Fração de ociosidade medida que o ETA usou (`null` = sem amostra). */
+  idleFraction: number | null;
+  /** De onde saiu o `etaHours` — o painel mostra, não recalcula no escuro. */
+  etaBasis: 'medido' | 'sem-pendencia' | 'sem-custo-medido' | 'sem-ociosidade-medida';
+  /** Tabela de sites: rótulo canônico e se HÁ adaptador nesta rodada. */
+  site: { id: string; label: string; known: boolean; adapter: boolean; note: string | null };
 }
 
 /** Ritmo efetivo: o menor entre o teto por hora e o que o delay permite. */
 export function rateFor(live: CrawlerEffectiveConfig): number {
-  const byDelay = live.delayMs > 0 ? 3_600_000 / live.delayMs : live.maxPerHour;
-  return Math.max(1, Math.min(byDelay, live.maxPerHour));
+  return rateOf(live.delayMs, live.maxPerHour);
+}
+
+/** Mesmo cálculo, sobre os números de UM site. */
+export function rateOf(delayMs: number, maxPerHour: number): number {
+  const byDelay = delayMs > 0 ? 3_600_000 / delayMs : maxPerHour;
+  return Math.max(1, Math.min(byDelay, maxPerHour));
 }
 
 // Tetos das LISTAS do card. O painel mostra resumo, não o site inteiro: sem
@@ -104,46 +132,76 @@ function mergeErrorGroups(
     .map((reason) => ({ reason, count: merged.get(reason) || 0 }));
 }
 
+/**
+ * Custo médio do SITE, em requisições por página — o que o ETA divide.
+ *
+ * É medido POR SITE (`view.avgRequestCost`), porque o custo é propriedade do
+ * site: com o Vaca ativo e o NerdFilmes inativo, usar o custo do ativo dava ao
+ * card do NerdFilmes o número do Vaca e um ETA otimista (1 h no lugar das 9 h
+ * que a página de série custa). O `state` (escalar legado) é o FALLBACK do
+ * caminho pré-Fase 8, em que existia um site só — e, com uma vista na mão, ele
+ * NÃO é consulted: o custo de outro site é medida de outra obra, e usar isso
+ * seria a mesma mentira com outro número. Sem custo medido, `null` (ETA "—").
+ */
+export function avgCostFor(view: CrawlSiteRuntimeView | undefined, state: CrawlMotorState): number | null {
+  const own = view ? view.avgRequestCost : state.avgRequestCost;
+  return typeof own === 'number' && Number.isFinite(own) && own > 0 ? own : null;
+}
+
 /** Card de UM site. `null` quando o store ainda não abriu (nada a mostrar). */
 export function buildSiteStatus(
   siteId: string,
   engine: CrawlEngine,
   live: CrawlerEffectiveConfig,
   state: CrawlMotorState,
+  view?: CrawlSiteRuntimeView,
 ): SiteStatus {
   const counters = engine.counters(siteId);
   const latest = engine.latestRun(siteId);
+  const siteConfig = view?.siteConfig ?? siteConfigOf(live, siteId);
   // `rateFor` é o teto de REQUISIÇÕES por hora (a Fase 7 cobra o custo real
   // da página de série no balde horário). ETA (M2): pendência de páginas ×
   // custo médio observado ÷ req/h — converter 1:1 subestimava séries em ~10×.
   // Sem custo observado nenhum (motor recém-armado), o ETA é null: mostra
-  // "—" em vez de horas inventadas.
-  const rate = rateFor(live);
-  const avgCost = typeof state.avgRequestCost === 'number' && Number.isFinite(state.avgRequestCost) && state.avgRequestCost > 0
-    ? state.avgRequestCost
-    : null;
+  // "—" em vez de horas inventadas. O custo é o DO CARD (Fase 8), nunca o do
+  // site ativo herdado pelo `state`.
+  const rate = rateOf(siteConfig.delayMs, siteConfig.maxPerHour);
+  const avgCost = avgCostFor(view, state);
+  // OCIOSIDADE (Fase 8): o teto por hora só é verdade com o app ocioso, e o
+  // freio de tráfego é justamente a janela que raspa a maior parte da noite.
+  // Dividir a pendência por `rate` sem isso prometeu "12 h" numa VPS que
+  // esperou a janela de 10 min. Sem amostra medida o ETA é `null` ("—"); a
+  // forma legada (sem `view`, anterior à Fase 8) mantém a suposição de 100%.
+  const idle = view ? view.idleFraction : 1;
   // `simulated` é trabalho restante: a página foi lida em dry-run e ainda
   // precisa de uma passada com gravação. `partial` idem: página de série em
   // andamento (Fase 7 v2).
   const remaining = counters.byStatus.pending + counters.byStatus.error
     + counters.byStatus.inflight + counters.byStatus.simulated + counters.byStatus.partial;
+  const etaKnown = avgCost != null && idle != null;
   const etaHours = remaining > 0
-    ? (avgCost != null ? Math.round(((remaining * avgCost) / rate) * 10) / 10 : null)
+    ? (etaKnown ? Math.round(((remaining * avgCost) / (rate * idle)) * 10) / 10 : null)
     : 0;
+  const etaBasis: SiteStatus['etaBasis'] = remaining === 0 ? 'sem-pendencia'
+    : avgCost == null ? 'sem-custo-medido'
+      : idle == null ? 'sem-ociosidade-medida' : 'medido';
+  const cursors = view?.cursors ?? state.cursors;
   return {
     id: siteId,
-    label: state.activeSiteId === siteId && state.activeLabel ? state.activeLabel : siteId,
+    label: view?.label ?? (state.activeSiteId === siteId && state.activeLabel ? state.activeLabel : siteId),
     phase: latest?.phase ?? null,
     total: counters.total,
     byStatus: { ...counters.byStatus },
     progressPercent: counters.total > 0 ? Math.round((counters.byStatus.done / counters.total) * 100) : 0,
     magnetsFound: engine.sumReleases(siteId),
-    newReleases: state.activeSiteId === siteId
+    newReleases: view ? view.currentSiteNewReleases : (state.activeSiteId === siteId
       ? state.currentSiteNewReleases
-      : (Number(latest?.counters?.newReleases) || 0),
+      : (Number(latest?.counters?.newReleases) || 0)),
     pendingRemaining: remaining,
     ratePerHour: Math.round(rate),
     etaHours,
+    etaBasis,
+    idleFraction: idle,
     latestRun: latest,
     recentWorks: engine.listByStatus(siteId, 'done', STATUS_LIST_LIMIT).map((r) => ({
       url: r.url, imdb: r.imdb, releases: r.releases, checkedAt: r.checkedAt,
@@ -167,44 +225,103 @@ export function buildSiteStatus(
     // Motivo estável no agrupamento (M2): `series_truncated: …(cards 2/4…)`
     // varia por página — o painel agrupa pelo rótulo, o detalhe fica na lista.
     errorGroups: mergeErrorGroups(engine.errorGroups(siteId, STATUS_ERROR_GROUPS_LIMIT)),
+    // --- Fase 8: o runtime daquele site ---
+    enabled: view ? view.enabled : siteConfig.enabled,
+    dryRun: view ? view.dryRun : siteConfig.dryRun,
+    paused: view ? view.paused : (state.activeSiteId === siteId ? state.paused : false),
+    autoPause: view ? view.autoPause : (state.activeSiteId === siteId ? state.autoPause : null),
+    siteConfig,
+    probe: view?.probe ?? NEUTRAL_PROBE,
+    lastActiveAt: view?.lastActiveAt ?? 0,
+    skipReason: view?.skipReason ?? null,
+    runOpen: view ? view.openRunId != null : (state.activeSiteId === siteId ? state.openRunId != null : false),
+    errorStreak: view ? view.errorStreak : (state.activeSiteId === siteId ? state.errorStreak : 0),
+    canaryStreak: view ? view.canaryStreak : (state.activeSiteId === siteId ? state.canaryStreak : 0),
+    cycle: view ? { ...view.cycle } : (state.activeSiteId === siteId ? { ...state.cycle } : {}),
+    cursor: cursors.movie || null,
+    cursors: { ...cursors },
+    nextDiscoveryAt: view ? view.nextDiscoveryAt : (state.activeSiteId === siteId ? state.nextDiscoveryAt : 0),
+    pagesThisHour: view ? view.pagesThisHour : (state.activeSiteId === siteId ? state.pagesThisHour : 0),
+    maxPerHour: siteConfig.maxPerHour,
+    delayMs: siteConfig.delayMs,
+    site: view?.site ?? { id: siteId, label: siteId, known: false, adapter: true, note: null },
   };
 }
 
-/** Foto completa do motor: topo (site ativo) + um card por site configurado. */
+
+/** Foto completa do motor: topo (visão do site ativo) + um card por site. */
 export function buildCrawlerStatus(
   engine: CrawlEngine | null,
   live: CrawlerEffectiveConfig,
   configuredSites: string[],
-  state: CrawlMotorState,
+  input: CrawlerStatusInput,
 ) {
-  const siteId = state.activeSiteId || String(configuredSites[0] || '');
+  const siteId = input.active ?? input.activeSiteId ?? String(configuredSites[0] || '');
+  // Fase 8: um card por site CONFIGURADO. A entrada legada (motor de site
+  // único) monta a vista do site ATIVO e vistas neutras para o resto — o card
+  // continua existindo para cada site configurado, como antes da Fase 8.
+  const views: CrawlSiteRuntimeView[] = (input.sites && input.sites.length > 0)
+    ? input.sites
+    : configuredSites.map((id) => (id === siteId
+      ? legacyView(input, live, id)
+      : { ...legacyView({ ...input, activeSiteId: id, activeLabel: null }, live, id), ready: false }));
+  // O estado escalar que o card legado recebe: o da vista ATIVA, para os campos
+  // derivados (`newReleases`) virem do site certo. `avgRequestCost` vem junto
+  // pela mesma foto, mas SÓ como fallback: com a vista na mão, o card lê o
+  // custo do próprio site (`avgCostFor`) — o do ativo aqui daria ao site
+  // inativo o ETA de outro.
+  const activeView = views.find((v) => v.id === siteId) ?? views[0] ?? null;
+  const legacyState: CrawlMotorState = {
+    activeSiteId: activeView?.id ?? '',
+    activeLabel: activeView?.label ?? null,
+    paused: activeView?.paused ?? false,
+    autoPause: activeView?.autoPause ?? null,
+    cursors: activeView?.cursors ?? { movie: '', tv_show: '' },
+    nextDiscoveryAt: activeView?.nextDiscoveryAt ?? 0,
+    pagesThisHour: activeView?.pagesThisHour ?? 0,
+    openRunId: activeView?.openRunId ?? null,
+    errorStreak: activeView?.errorStreak ?? 0,
+    canaryStreak: activeView?.canaryStreak ?? 0,
+    cycle: activeView?.cycle ?? {},
+    currentSiteNewReleases: activeView?.currentSiteNewReleases ?? 0,
+    siteReady: activeView?.ready ?? false,
+    avgRequestCost: activeView?.avgRequestCost ?? null,
+  };
   const sites = engine
-    ? configuredSites.map((id) => buildSiteStatus(id, engine, live, state))
+    ? views.map((view) => buildSiteStatus(view.id, engine, live, legacyState, view))
     : [];
   // O topo REUSA o card do site ativo em vez de repetir `counters`/`latestRun`:
   // o poll vital do painel não paga a mesma query duas vezes por ciclo.
-  const active = sites.find((s) => s.id === siteId) ?? null;
+  const active = sites.find((s) => s.id === siteId) ?? sites[0] ?? null;
   return {
     enabled: live.enabled,
-    dryRun: live.dryRun,
-    paused: state.paused,
-    autoPause: state.autoPause,
+    // O topo é a visão do site ATIVO: ritmo, teto e dry-run Effectivos saem do
+    // card dele, e não do global — a diferença só aparece com `siteOverrides`.
+    dryRun: active?.dryRun ?? live.dryRun,
+    paused: input.globalPaused ?? input.paused ?? false,
+    globalPaused: input.globalPaused ?? input.paused ?? false,
     site: siteId || null,
-    siteReady: state.siteReady,
+    active: siteId || null,
+    siteReady: legacyState.siteReady,
     sitesConfigured: configuredSites,
     engine: engine ? engine.kind : null,
     // Compat: cursor de filme; o mapa por kind (`cursors`) é o canônico (F2).
-    cursor: state.cursors.movie || null,
-    cursors: { ...state.cursors },
-    nextDiscoveryAt: state.nextDiscoveryAt,
-    pagesThisHour: state.pagesThisHour,
-    maxPerHour: live.maxPerHour,
-    delayMs: live.delayMs,
+    cursor: activeView?.cursors.movie || null,
+    cursors: { ...(activeView?.cursors ?? { movie: '', tv_show: '' }) },
+    nextDiscoveryAt: activeView?.nextDiscoveryAt ?? 0,
+    pagesThisHour: activeView?.pagesThisHour ?? 0,
+    // Fase 8: o teto do PROCESSO é a soma dos sites. Site com teto próprio não
+    // multiplica o orçamento de educação com o servidor inteiro.
+    pagesThisHourTotal: input.pagesThisHourTotal ?? activeView?.pagesThisHour ?? 0,
+    maxPerHourTotal: input.maxPerHourTotal ?? live.maxPerHour,
+    maxPerHour: active?.maxPerHour ?? live.maxPerHour,
+    delayMs: active?.delayMs ?? live.delayMs,
     idleWindowMs: live.idleWindowMs,
-    errorStreak: state.errorStreak,
-    canaryStreak: state.canaryStreak,
-    runOpen: state.openRunId != null,
-    cycle: { ...state.cycle },
+    errorStreak: activeView?.errorStreak ?? 0,
+    canaryStreak: activeView?.canaryStreak ?? 0,
+    runOpen: activeView ? activeView.openRunId != null : false,
+    cycle: { ...(activeView?.cycle ?? {}) },
+    autoPause: activeView?.autoPause ?? null,
     counters: active ? { total: active.total, byStatus: active.byStatus } : null,
     latestRun: active ? active.latestRun : null,
     sites,

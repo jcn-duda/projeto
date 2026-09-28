@@ -9,6 +9,12 @@
 // vira 0 só onde "contagem zero" é a leitura honesta (contadores do store);
 // listas ausentes viram `[]` e o rótulo de fase ausente é `—`, nunca um
 // veredito inventado.
+//
+// A Fase 8 (multi-site) acrescenta por site o ajuste próprio (`siteConfig`) e o
+// veredito da sonda (`probe`/`skipReason`), traduzidos pelo módulo IRMÃO
+// `raspagens-site.ts` — dependência de mão única (lá só entram os TIPOS daqui).
+
+import { siteOverride, siteProbe, type SiteOverrideView, type SiteProbeView } from './raspagens-site.js';
 
 /** Foto escalar do motor (topo do bloco `crawl`). */
 export interface CrawlSummary {
@@ -35,6 +41,8 @@ export interface CrawlSummary {
   errorStreak: number;
   canaryStreak: number;
   runOpen: boolean;
+  /** `CRAWL_REQUIRE_PROBE` efetivo (por site, resumido aqui para a linha do motor). */
+  probeBlock: boolean;
 }
 
 export interface CrawlRunView {
@@ -103,6 +111,12 @@ export interface CrawlSiteCard {
   errorGroups: CrawlErrorGroupView[];
   /** Séries em andamento: cards lidos/total (retomada por passes). */
   partialWork: CrawlPartialRef[];
+  /** Config EFETIVA do site (`siteConfig`, já fundido pelo motor com os
+   * overrides) e o veredito da sonda — Fase 8. */
+  override: SiteOverrideView;
+  probe: SiteProbeView;
+  /** Pausa manual DO SITE (`crawl-site-pause`): não é a pausa do motor. */
+  paused: boolean;
 }
 
 /** Uma página de série `partial` com o progresso retomável (Fase 7 v2). */
@@ -170,7 +184,9 @@ export function crawlSummary(crawl: Record<string, any> | null | undefined): Cra
   return {
     enabled: bool(c.enabled),
     dryRun: bool(c.dryRun),
-    paused: bool(c.paused),
+    // `paused` é o campo de compat do topo; `globalPaused` é o nome do motor
+    // multi-site. Precedência do primeiro, com o segundo como reserva.
+    paused: typeof c.paused === 'boolean' ? c.paused : bool(c.globalPaused),
     autoPause: autoPause
       ? { reason: String(autoPause.reason ?? ''), detail: String(autoPause.detail ?? '') }
       : null,
@@ -188,6 +204,9 @@ export function crawlSummary(crawl: Record<string, any> | null | undefined): Cra
     errorStreak: num(c.errorStreak),
     canaryStreak: num(c.canaryStreak),
     runOpen: bool(c.runOpen),
+    // O gate é decidido POR SITE (`sites[].probe.required`); o topo é só o
+    // atalho da linha do motor.
+    probeBlock: bool(c.probeBlock) || bool(c.requireProbe) || asArray(c.sites).some((s) => bool(asObject(s)?.probe?.required)),
   };
 }
 
@@ -219,8 +238,13 @@ export function nextDiscoveryLabel(nextDiscoveryAt: number | null, now = Date.no
   return m > 0 ? `em ${h}h ${m}min` : `em ${h}h`;
 }
 
-/** Rótulo do estado do SITE dentro do motor (o ativo é quem avança agora). */
+/** Rótulo do estado do SITE dentro do motor (o ativo é quem avança agora).
+ * A EXCLUSÃO da rotação vence tudo: um site desligado ou sem GO não é "ativo"
+ * nem "ocioso" — o operador precisa ver o porquê, não um estado genérico. */
 export function siteStateLabel(card: CrawlSiteCard, summary: CrawlSummary): string {
+  if (card.probe.out === 'desligado') return 'fora da rotação · desligado';
+  if (card.probe.out === 'sem-go') return 'fora da rotação · sem GO';
+  if (card.paused) return 'pausado';
   if (card.active) {
     if (summary.autoPause) return 'pausa automática';
     if (summary.paused) return 'pausado';
@@ -249,7 +273,11 @@ function normalizeRun(raw: unknown): CrawlRunView | null {
   };
 }
 
-function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard | null {
+function normalizeSite(
+  raw: unknown,
+  activeSite: string | null,
+  summary: CrawlSummary,
+): CrawlSiteCard | null {
   const site = asObject(raw);
   if (!site) return null;
   const id = String(site.id ?? '').trim();
@@ -270,6 +298,10 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
   const etaRaw = numOrNull(site.etaHours);
   const pendingRemaining = num(site.pendingRemaining, processed === 0 ? total : num(byStatus.pending) + error + num(byStatus.inflight) + partial);
   const progressPercent = total > 0 ? Math.floor(((total - pendingRemaining) / total) * 100) : 0;
+  // Fase 8: `siteConfig` e `probe`/`skipReason` entram pelo módulo irmão, que
+  // sabe herdar o global e falhar fechado no gate. O `override` vem antes do
+  // `probe` porque a rotação depende do `enabled` efetivo.
+  const override = siteOverride(site, summary);
 
   return {
     id,
@@ -328,15 +360,20 @@ function normalizeSite(raw: unknown, activeSite: string | null): CrawlSiteCard |
         checkedAt: num(item.checkedAt),
       };
     }).filter((p) => p.url !== ''),
+    override,
+    probe: siteProbe(site, summary, override),
+    paused: bool(site.paused),
   };
 }
 
-/** Um card por site configurado, na ordem do payload. */
+/** Um card por site configurado, na ordem do payload. O site ativo vem de
+ * `active` (nome do motor multi-site) com `site` como compat. */
 export function crawlSiteCards(crawl: Record<string, any> | null | undefined): CrawlSiteCard[] {
   const c = crawl || {};
-  const activeSite = strOrNull(c.site);
+  const summary = crawlSummary(c);
+  const activeSite = strOrNull(c.active) ?? strOrNull(c.site);
   return asArray(c.sites)
-    .map((site) => normalizeSite(site, activeSite))
+    .map((site) => normalizeSite(site, activeSite, summary))
     .filter((card): card is CrawlSiteCard => card != null);
 }
 

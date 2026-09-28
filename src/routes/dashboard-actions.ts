@@ -10,7 +10,11 @@ import { harvestDebridGet, harvestDebridSet } from './dashboard-actions-harvest-
 import { autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset } from './dashboard-actions-autofetch.js';
 import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
 import { magnetInspect, magnetClearBad, magnetSummary, magnetBankSummary, magnetBankSearch } from './dashboard-actions-magnet.js';
-import { crawlPause, crawlSimulate, crawlReprocessErrors, crawlReset, crawlConfigGet, crawlConfigSet, crawlConfigReset } from './dashboard-actions-crawl.js';
+import { crawlPause, crawlSimulate, crawlReprocessErrors, crawlReset, crawlConfigGet, crawlConfigSet, crawlConfigReset, crawlSitePause, crawlSiteConfigSet, crawlSiteConfigReset } from './dashboard-actions-crawl.js';
+// `max` do corpo: número finito positivo vira inteiro; qualquer outra coisa
+// vira undefined (sem teto). Mora no módulo folha compartilhado para os dois
+// lados do despacho usarem a MESMA normalização, sem cópia que possa divergir.
+import { maxFromBody } from './dashboard-actions-shared.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -32,8 +36,7 @@ const DESTRUCTIVE_ACTIONS = new Set([
   'autofetch-suppressed-drain',
   'harvest-config-reset',
   'harvester-clear-queue',
-  'crawl-reset',
-  'crawl-config-reset',
+  'crawl-reset', 'crawl-config-reset', 'crawl-site-config-reset',
   'dedup-apply',
   'cleanup-apply',
   'manual-delete',
@@ -43,11 +46,6 @@ const DESTRUCTIVE_ACTIONS = new Set([
 // Teto da chave no corpo do teste de conta: credencial tem dezenas de
 // caracteres; 512 cobre folgado e impede payload gigante contra a API.
 const MAX_TEST_KEY_LENGTH = 512;
-
-// `max` do corpo: número finito positivo vira inteiro; qualquer outra coisa
-// vira undefined (sem teto). Mora no módulo folha compartilhado para os dois
-// lados do despacho usarem a MESMA normalização, sem cópia que possa divergir.
-import { maxFromBody } from './dashboard-actions-shared.js';
 
 const ACTIONS: Record<string, ActionHandler> = {
   'clear-cache': ({ services, req, res, action }) => {
@@ -146,8 +144,9 @@ const ACTIONS: Record<string, ActionHandler> = {
   'harvester-debrid-get': harvestDebridGet,
   'harvester-debrid-set': harvestDebridSet,
 
-  // Raspagem total (Fase 4): handlers em dashboard-actions-crawl.js; o
-  // `crawl-reset` é destrutivo (confirm acima) e apaga só o site no `crawl.db`.
+  // Raspagem total (Fase 4): handlers em dashboard-actions-crawl.js; `crawl-reset`
+  // é destrutivo (confirm acima) e apaga só o site. Fase 8: as `crawl-site-*` agem
+  // por site (validado contra CRAWL_SITES); `crawl-site-config-reset` é destrutiva.
   'crawl-pause': crawlPause,
   'crawl-simulate': crawlSimulate,
   'crawl-reprocess-errors': crawlReprocessErrors,
@@ -155,6 +154,7 @@ const ACTIONS: Record<string, ActionHandler> = {
   'crawl-config-get': crawlConfigGet,
   'crawl-config-set': crawlConfigSet,
   'crawl-config-reset': crawlConfigReset,
+  'crawl-site-pause': crawlSitePause, 'crawl-site-config-set': crawlSiteConfigSet, 'crawl-site-config-reset': crawlSiteConfigReset,
 
   'warm-pause': ({ services, res, action }) => {
     services.rdWarmer.setPaused(true);

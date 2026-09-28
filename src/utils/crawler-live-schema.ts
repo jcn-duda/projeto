@@ -8,12 +8,25 @@
 // Molde do colhedor (boolean|number): `sites` NÃO é campo ao vivo de propósito
 // — é lista, e o `LiveConfigCard` do painel dirige-se pelo schema (fora de
 // escopo tocar o cliente). Sites continuam vindo do `.env` (`CRAWL_SITES`).
+//
+// Fase 8: o override POR SITE mora no irmão `crawler-live-site.ts` (é mapa, não
+// escalar — tem subset fechado, clamps próprios e trava de segurança); aqui
+// ficam só os escalares globais, inclusive o `requireProbe` (gate da sonda),
+// que é decisão da FASE e não de um site.
 import config from '../config.js';
 
 import type { CrawlSeriesLimits } from '../providers/crawl-types.js';
+import { sanitizeSitePatch, type CrawlerSiteOverrides } from './crawler-live-site.js';
 
-/** Limites da Fase 7 (séries) a partir da config efetiva (snapshot do tick). */
-export function seriesLimitsOf(live: CrawlerEffectiveConfig): CrawlSeriesLimits {
+export type { CrawlerSiteConfig, CrawlerSiteOverride, CrawlerSiteOverrideKey, CrawlerSiteOverrides } from './crawler-live-site.js';
+export { SITE_OVERRIDE_KEYS, cadenceDelayMs, sanitizeSitePatch, siteConfigOf, withCadence } from './crawler-live-site.js';
+
+/** Limites da Fase 7 (séries) a partir da config efetiva (snapshot do tick).
+ * Aceita a config global E a config por site (Fase 8): os três campos são os
+ * mesmos nos dois, e o motor sempre os repassa do snapshot do tick. */
+export function seriesLimitsOf(live: {
+  seriesEnabled: boolean; seriesMaxCards: number; seriesMaxButtons: number;
+}): CrawlSeriesLimits {
   return { enabled: live.seriesEnabled === true, maxCards: live.seriesMaxCards, maxButtons: live.seriesMaxButtons };
 }
 
@@ -49,10 +62,18 @@ export interface CrawlerLiveConfig {
   seriesMaxCards: number;
   // Teto de botões de download seguidos por página de série.
   seriesMaxButtons: number;
+  // Fase 8: gate da sonda — com `true`, site sem veredito GO não entra na
+  // rotação. Vem do `.env` (`CRAWL_REQUIRE_PROBE`) e NÃO é sobrescritível por
+  // site: é decisão do operador sobre a fase, não do site.
+  requireProbe: boolean;
   // Sites ligados (ids de card do Jackett). Vem do `.env` (`CRAWL_SITES`) e
   // NÃO é editável ao vivo — o schema do painel é boolean|number e o cliente
   // está fora do escopo desta fase; por isso `sites` não entra em `ALL_KEYS`.
   sites: string[];
+  // Fase 8: overrides por site (`siteOverrides[id]`), gravados pelo painel.
+  // É MAPA, não escalar: por isso também não entra em `ALL_KEYS` — o caminho
+  // de escrita é `sanitizeSitePatch` (valida o subconjunto fechado do site).
+  siteOverrides: CrawlerSiteOverrides;
 }
 
 // A pausa manual NÃO entra aqui: é estado operacional do motor
@@ -73,7 +94,7 @@ export interface CrawlerSchemaField {
   description: string;
 }
 
-export const BOOLEAN_KEYS = new Set<string>(['enabled', 'dryRun', 'seriesEnabled']);
+export const BOOLEAN_KEYS = new Set<string>(['enabled', 'dryRun', 'seriesEnabled', 'requireProbe']);
 
 export const NUMBER_KEYS = new Set<string>([
   'delayMs',
@@ -103,7 +124,9 @@ export function envDefaults(): CrawlerLiveConfig {
     seriesEnabled: config.crawl.seriesEnabled,
     seriesMaxCards: config.crawl.seriesMaxCards,
     seriesMaxButtons: config.crawl.seriesMaxButtons,
+    requireProbe: config.crawl.requireProbe,
     sites: config.crawl.sites,
+    siteOverrides: {},
   };
 }
 
@@ -242,6 +265,14 @@ export function schema(): CrawlerSchemaField[] {
       envDefault: env.layoutCanary,
       description: 'Páginas seguidas que tinham torrent e voltaram sem botão que pausam com "layout mudou?".',
     },
+    {
+      key: 'requireProbe',
+      label: 'Exigir Sonda (Fase 8)',
+      type: 'boolean',
+      group: 'resilience',
+      envDefault: env.requireProbe,
+      description: 'Com ligado, um site só entra na rotação depois do veredito GO da amostra de 40 páginas gravado pela sonda.',
+    },
   ];
 }
 
@@ -317,4 +348,33 @@ export function sanitizePatch(patch: Record<string, unknown>): {
   }
 
   return { clean, errors, overriddenKeys };
+}
+
+/**
+ * Sanitiza o blob INTEIRO persistido em `cfg:v1:crawler` (Fase 8): escalares
+ * pelo caminho global e `siteOverrides` pelo caminho de site (`sanitizeSitePatch`,
+ * do módulo irmão). Site inválido é DESCARTADO (com aviso em `errors`) — um
+ * override corrompido não pode derrubar o resto da config nem travar o motor
+ * no boot.
+ */
+export function sanitizeStoredConfig(raw: Record<string, unknown>): {
+  clean: Partial<CrawlerLiveConfig>;
+  errors: string[];
+} {
+  const { clean, errors } = sanitizePatch(raw);
+  const sites: CrawlerSiteOverrides = {};
+  const rawSites = (raw as { siteOverrides?: unknown }).siteOverrides;
+  if (rawSites && typeof rawSites === 'object' && !Array.isArray(rawSites)) {
+    for (const [siteId, value] of Object.entries(rawSites as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        errors.push(`Override de site inválido: "${siteId}"`);
+        continue;
+      }
+      const site = sanitizeSitePatch(siteId, value as Record<string, unknown>);
+      errors.push(...site.errors);
+      if (Object.keys(site.clean).length > 0) sites[siteId.trim()] = site.clean;
+    }
+  }
+  clean.siteOverrides = sites;
+  return { clean, errors };
 }

@@ -1,19 +1,22 @@
-// Ações do painel do crawler (Fase 4 do plano "Raspagem total"): simular,
-// reprocessar erros e zerar site. Extraído de `crawler.ts` pela catraca de 400
-// linhas. As dependências do motor entram por fábrica (closures) para o módulo
-// não importar `crawler.ts` — isso evita ciclo e mantém as ações testáveis com
-// um motor dublê.
+// Ações do painel do crawler (Fase 4 do plano "Raspagem total"; Fase 8
+// multi-site): simular, reprocessar erros e zerar site. Extraído do
+// `crawler.ts` pela catraca de 400 linhas. As dependências do motor entram por
+// fábrica (closures) para o módulo não importar `crawler.ts` — isso evita
+// ciclo e mantém as ações testáveis com um motor dublê.
 //
 // Fronteiras de segurança:
 //  - `simulate` processa em dry-run e com `noPersist`: NÃO grava acervo nem
 //    `crawl.db`; a URL volta à fila (`requeueUrl`).
 //  - `resetSite` só age sobre site da config VIVA (`CRAWL_SITES`) e apaga
-//    apenas o estado daquele site em `crawl.db`.
+//    apenas o estado daquele site em `crawl.db`;
+//  - na Fase 8 todas as três são POR SITE: sem `site` no pedido, vale o site
+//    ativo (o que o painel mostra), nunca "o primeiro da lista" às cegas.
 import * as store from '../utils/crawl-store.js';
 import { processCrawlPage } from './crawl-page.js';
+import { siteConfigOf, type CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
+import { PROBE_STATE_KEY } from './crawl-probe-gate.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
-import type { CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 import type { CrawlSite } from './crawl-types.js';
 
 export interface CrawlActionsDeps {
@@ -21,14 +24,20 @@ export interface CrawlActionsDeps {
   isBusy(): boolean;
   isPaused(): boolean;
   ensureSite(id: string): Promise<CrawlSite | null>;
-  /** Descarta o ciclo aberto do site ativo (o "Zerar site" apaga a rodada). */
-  forgetActiveRun(): void;
+  /** Rótulo do site (o relatório de simulação mostra). */
+  siteLabel(id: string): string;
+  /** Site que serviu a última requisição (alvo padrão das ações). */
+  activeSiteId(): string;
+  /** Descarta a rodada/ciclo abertos do site (o "Zerar site" apaga a rodada). */
+  forgetRun(siteId: string): void;
   count(name: string, value?: number): void;
 }
 
 export interface SimulateResult {
   ok: boolean;
   reason?: string;
+  site: string | null;
+  label?: string;
   pages: number;
   results: Array<{ url: string; kind: string; releases: number; addedNew?: number; detail: string | null }>;
 }
@@ -37,22 +46,37 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
   const siteIds = (): string[] =>
     deps.effective().sites.map((s) => String(s || '')).filter(Boolean);
 
-  async function simulate(max?: number): Promise<SimulateResult> {
+  /**
+   * Site alvo da ação: o pedido, o site ativo, ou o primeiro configurado —
+   * SEMPRE validado contra `CRAWL_SITES`. Uma ação quePROCESSA não pode
+   * apontar para um id arbitrário: ela abriria o store, criaria runtime e
+   * poderia tocar fila de um site que o operador nem configurou.
+   */
+  const targetSite = (requested?: string): { site: string; ok: boolean; reason?: string } => {
+    const site = String(requested || deps.activeSiteId() || siteIds()[0] || '');
+    if (!site) return { site: '', ok: false, reason: 'sem-site' };
+    if (!siteIds().includes(site)) return { site, ok: false, reason: 'site-desconhecido' };
+    return { site, ok: true };
+  };
+
+  async function simulate(max?: number, siteId?: string): Promise<SimulateResult> {
     const live = deps.effective();
-    if (deps.isBusy()) return { ok: false, reason: 'ocupado', pages: 0, results: [] };
-    if (deps.isPaused()) return { ok: false, reason: 'pausado', pages: 0, results: [] };
-    const siteId = String(live.sites[0] || '');
-    if (!siteId) return { ok: false, reason: 'sem-site', pages: 0, results: [] };
+    if (deps.isBusy()) return { ok: false, reason: 'ocupado', site: null, pages: 0, results: [] };
+    if (deps.isPaused()) return { ok: false, reason: 'pausado', site: null, pages: 0, results: [] };
+    const target = targetSite(siteId);
+    const site_ = target.site;
+    if (!target.ok) return { ok: false, reason: target.reason, site: site_ || null, pages: 0, results: [] };
+    const cfg = siteConfigOf(live, site_);
     // Resolver o adaptador pode lançar (import dinâmico, fábrica dublê): a
     // simulação degrada para `sem-adaptador`, nunca deixa a requisição pendurada.
     let site: CrawlSite | null = null;
     try {
-      site = await deps.ensureSite(siteId);
+      site = await deps.ensureSite(site_);
     } catch (err: unknown) {
       log.warn('[crawl] adaptador indisponível na simulação:', log.errorMessage(err));
       site = null;
     }
-    if (!site) return { ok: false, reason: 'sem-adaptador', pages: 0, results: [] };
+    if (!site) return { ok: false, reason: 'sem-adaptador', site: site_, pages: 0, results: [] };
 
     const cap = Math.max(1, Math.min(50, Math.trunc(Number(max) || 20)));
     const results: SimulateResult['results'] = [];
@@ -64,15 +88,17 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
     const claimed: string[] = [];
     try {
       for (let i = 0; i < cap; i += 1) {
-        const row = store.engine().takeNext(siteId, Date.now());
+        const row = store.engine().takeNext(site_, Date.now());
         if (!row) break;
         claimed.push(row.url);
+        // Dry-run e `noPersist` são do SITE: a simulação nunca grava, mesmo que
+        // o site esteja com dry-run desligado (é uma prévia, não a carga).
         const outcome = await processCrawlPage(site, row, {
-          dryRun: true, maxTries: live.maxTries, noPersist: true,
+          dryRun: true, maxTries: cfg.maxTries, noPersist: true,
           series: {
-            enabled: live.seriesEnabled === true,
-            maxCards: live.seriesMaxCards,
-            maxButtons: live.seriesMaxButtons,
+            enabled: cfg.seriesEnabled === true,
+            maxCards: cfg.seriesMaxCards,
+            maxButtons: cfg.seriesMaxButtons,
           },
         });
         results.push({
@@ -88,35 +114,53 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
       // `finally` abaixo e o restante segue `pending`.
       log.warn('[crawl] simulação interrompida:', log.errorMessage(err));
     } finally {
-      for (const url of claimed) store.engine().requeueUrl(siteId, url);
+      for (const url of claimed) store.engine().requeueUrl(site_, url);
     }
     deps.count('crawl.simulate.pages', results.length);
-    return { ok: true, pages: results.length, results };
+    return { ok: true, site: site_, label: deps.siteLabel(site_), pages: results.length, results };
   }
 
-  /** "Reprocessar erros": zera tries/next_at do site (ou do site ativo). */
+  /** "Reprocessar erros": zera tries/next_at do site pedido (ou do ativo). */
   function reprocessErrors(siteId?: string): { site: string | null; requeued: number } {
-    const ids = siteIds();
-    const site = String(siteId || ids[0] || '');
-    if (!site || !ids.includes(site)) return { site: site || null, requeued: 0 };
-    const requeued = store.engine().requeueErrors(site);
+    const target = targetSite(siteId);
+    if (!target.ok) return { site: target.site || null, requeued: 0 };
+    const requeued = store.engine().requeueErrors(target.site);
     if (requeued) deps.count('crawl.reprocess.errors', requeued);
-    return { site, requeued };
+    return { site: target.site, requeued };
   }
 
-  /** "Zerar site" (destrutivo): apaga SÓ o estado daquele site em `crawl.db`. */
-  function resetSite(siteId: string): { ok: boolean; site: string; urls: number; runs: number; error?: string } {
+  /**
+   * "Zerar site" (destrutivo): apaga SÓ o estado daquele site em `crawl.db`
+   * (fila e rodadas). O VEREDITO DA SONDA é preservado: ele é uma medição
+   * cara (40 requisições) sobre o site, não estado de fila — apagá-lo
+   * trancaria o site no gate (`CRAWL_REQUIRE_PROBE=true`) sem que o operador
+   * tivesse pedido uma reamostragem. Para reamostrar de propósito, a sonda
+   * reescreve o veredito.
+   */
+  function resetSite(siteId: string): { ok: boolean; site: string; urls: number; runs: number; probeVerdict?: string | null; error?: string } {
     const site = String(siteId || '');
     if (!site) return { ok: false, site, urls: 0, runs: 0, error: 'site obrigatório' };
     if (!siteIds().includes(site)) {
       return { ok: false, site, urls: 0, runs: 0, error: 'site não está na config viva (CRAWL_SITES)' };
     }
-    deps.forgetActiveRun();
+    deps.forgetRun(site);
+    const verdict = readVerdictRaw(site);
     const report = store.engine().clearSite(site);
+    if (verdict != null) store.engine().setState(site, PROBE_STATE_KEY, verdict);
     deps.count('crawl.reset.urls', report.urls);
-    log.warn(`[crawl] site zerado: ${site} (${report.urls} URL(s), ${report.runs} rodada(s))`);
-    return { ok: true, site, ...report };
+    log.warn(`[crawl] site zerado: ${site} (${report.urls} URL(s), ${report.runs} rodada(s)${verdict != null ? ', veredito da sonda preservado' : ''})`);
+    return { ok: true, site, ...report, probeVerdict: verdict };
   }
 
   return { simulate, reprocessErrors, resetSite };
+}
+
+/** Lê o veredito CRU da sonda (o gate é que valida; aqui só se preserva). */
+function readVerdictRaw(site: string): string | null {
+  try {
+    return store.engine().getState(site, PROBE_STATE_KEY);
+  } catch (err: unknown) {
+    log.warn('[crawl] veredito da sonda ilegível no reset:', log.errorMessage(err));
+    return null;
+  }
 }

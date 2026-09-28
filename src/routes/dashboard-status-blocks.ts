@@ -279,8 +279,8 @@ export async function computeStatusPayload(
   }
 
   // Bloco: crawl (Fase 4). Um card por site + config ao vivo (o painel monta o
-  // LiveConfigCard sem outra chamada). `crawler.status()` usa `currentEngine()`
-  // — nenhum bloco abre o `crawl.db` no poll.
+  // LiveConfigCard sem outra chamada). `crawler.status()` só LÊ o `crawl.db`, mas
+  // ABRE o que não estiver aberto (idempotente, sem gravar veredito nem fila).
   if (isReq('crawl')) {
     out.crawl = {
       ...services.crawler.status(),

@@ -14,14 +14,21 @@ import * as log from './logger.js';
 import {
   envDefaults,
   sanitizePatch,
+  sanitizeSitePatch,
+  sanitizeStoredConfig,
   schema,
+  siteConfigOf,
   type CrawlerEffectiveConfig,
   type CrawlerLiveConfig,
   type CrawlerSchemaField,
+  type CrawlerSiteConfig,
 } from './crawler-live-schema.js';
 
-export { schema } from './crawler-live-schema.js';
-export type { CrawlerLiveConfig, CrawlerEffectiveConfig, CrawlerSchemaField } from './crawler-live-schema.js';
+export { schema, siteConfigOf } from './crawler-live-schema.js';
+export type {
+  CrawlerLiveConfig, CrawlerEffectiveConfig, CrawlerSchemaField, CrawlerSiteConfig,
+  CrawlerSiteOverride, CrawlerSiteOverrides,
+} from './crawler-live-schema.js';
 
 const CONFIG_KEY = `${prefix('cfg')}crawler`;
 const INFINITE_TTL = 315_360_000; // 10 anos em segundos
@@ -54,13 +61,19 @@ function initIfNeeded(): void {
   try {
     const raw = cache.get(CONFIG_KEY);
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      const sanitized = sanitizePatch(raw);
-      inMemoryOverrides = sanitized.clean;
+      const { clean, errors } = sanitizeStoredConfig(raw);
+      inMemoryOverrides = clean;
+      if (errors.length) log.warn(`[crawl-live] overrides inválidos ignorados: ${errors.join(' | ').slice(0, 300)}`);
       log.info(`[crawl-live] overrides carregados do disco: ${Object.keys(inMemoryOverrides).length} chave(s)`);
     }
   } catch (err: unknown) {
     log.warn('[crawl-live] falha ao carregar overrides do cache:', log.errorMessage(err));
   }
+}
+
+/** Mapa de overrides por site já validado (cópia rasa — o caller não muta). */
+function siteOverrides(): Record<string, Record<string, boolean | number>> {
+  return (inMemoryOverrides.siteOverrides || {}) as Record<string, Record<string, boolean | number>>;
 }
 
 /** Snapshot COERENTE: defaults do `.env` + overrides persistidos, numa leitura
@@ -122,6 +135,73 @@ function persist(): void {
   }
 }
 
+export interface SiteConfigSetResult {
+  ok: boolean;
+  site: string;
+  /** Config EFETIVA do site depois da fusão (global + override). */
+  effective: CrawlerSiteConfig;
+  /** Chaves que passaram a ser sobrescritas por este site. */
+  overriddenKeys: string[];
+  errors?: string[];
+}
+
+/**
+ * Fase 8: grava o override de UM site. Porta ÚNICA (o `set` global rejeita
+ * `siteOverrides`): valida o subconjunto fechado, funde por chave — sem tocar
+ * os outros sites nem os escalares globais — e persiste. Patch vazio é no-op
+ * de sucesso: o painel pode mandar `{patch:{}}` sem quebrar.
+ *
+ * O alvo é validado contra os sites CONFIGURADOS (`CRAWL_SITES`): sem isso, a
+ * rota aceitaria gravar override para um id arbitrário e o `cfg:v1:crawler`
+ * persistido viraria um mapa sem dono.
+ */
+export function setSiteOverride(siteId: string, patch: Record<string, unknown>): SiteConfigSetResult {
+  initIfNeeded();
+  const site = String(siteId || '').trim();
+  const { clean, errors } = sanitizeSitePatch(site, patch);
+  if (errors.length === 0) {
+    const configured = effective().sites.map((s) => String(s || ''));
+    if (!configured.includes(site)) errors.push(`site "${site}" não está em CRAWL_SITES`);
+  }
+  if (errors.length > 0) {
+    return { ok: false, site, effective: siteConfigOf(effective(), site), overriddenKeys: [], errors };
+  }
+  const next: Record<string, Record<string, boolean | number>> = { ...siteOverrides() };
+  const merged = { ...(next[site] || {}), ...clean } as Record<string, boolean | number>;
+  if (Object.keys(merged).length > 0) next[site] = merged;
+  else delete next[site];
+  inMemoryOverrides.siteOverrides = next;
+  persist();
+  notifyConfigChange();
+  return {
+    ok: true,
+    site,
+    effective: siteConfigOf(effective(), site),
+    overriddenKeys: Object.keys(merged),
+  };
+}
+
+/** Fase 8: apaga o override de UM site (volta aos padrões do `.env`). */
+export function clearSiteOverride(siteId: string): SiteConfigSetResult {
+  initIfNeeded();
+  const site = String(siteId || '').trim();
+  if (!site) {
+    return { ok: false, site, effective: siteConfigOf(effective(), site), overriddenKeys: [], errors: ['site obrigatório'] };
+  }
+  // Apagar override de site não configurado é no-op de sucesso (não há nada a
+  // apagar), mas gravar exigiria o site existir — a assimetria é intencional.
+  if (!siteOverrides()[site]) {
+    return { ok: true, site, effective: siteConfigOf(effective(), site), overriddenKeys: [] };
+  }
+  const next: Record<string, Record<string, boolean | number>> = { ...siteOverrides() };
+  const had = Object.keys(next[site] || {});
+  delete next[site];
+  inMemoryOverrides.siteOverrides = next;
+  persist();
+  notifyConfigChange();
+  return { ok: true, site, effective: siteConfigOf(effective(), site), overriddenKeys: had };
+}
+
 export interface CrawlerConfigSnapshot {
   effective: CrawlerEffectiveConfig;
   envDefaults: CrawlerLiveConfig;
@@ -150,8 +230,11 @@ export function _resetForTest(): void {
 export default {
   effective,
   set,
+  setSiteOverride,
+  clearSiteOverride,
   reset,
   onConfigChange,
   schema,
+  siteConfigOf,
   snapshot,
 };

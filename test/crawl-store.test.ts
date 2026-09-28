@@ -214,6 +214,75 @@ test('upsert é atômico: erro ORIGINAL sobe e a leva NÃO fica pela metade', { 
   assert.deepEqual(store.engine().upsertUrls('vacatorrent', [movie('/a')], 2000), { added: 1, refreshed: 0, unchanged: 0 });
 });
 
+test('hasDue é EXATO: só o que o takeNext serviria agora', () => {
+  const eng = store.engine();
+  assert.equal(eng.hasDue('vacatorrent', 1000), false, 'site sem nada não é debido');
+  eng.upsertUrls('vacatorrent', [movie('/a'), movie('/b')], 1000);
+  assert.equal(eng.hasDue('vacatorrent', 1000), true, 'pending é devido na hora');
+  // Linha em BACKOFF existe e conta nos contadores, mas não está vencida: é o
+  // caso em que a aproximação por status mandava o motor escolher "item" e o
+  // passo virar no-op. Aqui a resposta é a verdade.
+  eng.markResult('vacatorrent', '/a', { status: 'error', error: 'timeout' }, 2000, { retryBaseMs: 60000 });
+  const backoff = eng.getUrl('vacatorrent', '/a') as CrawlUrlRow;
+  assert.equal(eng.counters('vacatorrent').byStatus.error, 1, 'o contador vê a linha');
+  assert.equal(eng.hasDue('vacatorrent', 3000), true, 'mas /b segue vencido');
+  eng.markResult('vacatorrent', '/b', { status: 'done', imdb: 'tt1' }, 3000);
+  assert.equal(eng.hasDue('vacatorrent', 3000), false, 'ninguém vencido: a linha em backoff NÃO é devida');
+  assert.equal(eng.hasDue('vacatorrent', backoff.nextAt), true, 'vencido o backoff, é devida de novo');
+});
+
+test('hasDue: inflight não conta (já foi tomado) e site é isolado', () => {
+  const eng = store.engine();
+  eng.upsertUrls('vacatorrent', [movie('/a'), movie('/b')], 1000);
+  eng.upsertUrls('nerdfilmes', [movie('/c')], 1000);
+  assert.equal(eng.takeNext('vacatorrent', 2000)?.url, '/a');
+  assert.equal(eng.hasDue('vacatorrent', 2000), true, '/b continua na fila');
+  assert.equal(eng.hasDue('nerdfilmes', 2000), true, 'site alheio não é a fila deste');
+  eng.markResult('vacatorrent', '/b', { status: 'done', imdb: 'tt2' }, 2000);
+  assert.equal(eng.hasDue('vacatorrent', 2000), false, '/a está inflight: reivindicado, não devido');
+  assert.equal(eng.requeueInflight('vacatorrent', 0, 2000), 1, 'a órfã é do requeueInflight, não do hasDue');
+  assert.equal(eng.hasDue('vacatorrent', 2000), true, 'devolvida à fila, é devida');
+  eng.markResult('vacatorrent', '/a', { status: 'simulated' }, 2100);
+  eng.markResult('nerdfilmes', '/c', { status: 'no-work' }, 2100);
+  assert.equal(eng.hasDue('vacatorrent', 2200), false, 'simulated não é elegível');
+  assert.equal(eng.hasDue('nerdfilmes', 2200), false, 'no-work é terminal');
+});
+
+test('hasDue concorda com o takeNext página a página (paridade de elegibilidade)', () => {
+  const eng = store.engine();
+  eng.upsertUrls('vacatorrent', [movie('/a'), movie('/b'), movie('/c'), movie('/d')], 1000);
+  eng.markResult('vacatorrent', '/b', { status: 'error', error: '403' }, 2000, { retryBaseMs: 60000 });
+  eng.markResult('vacatorrent', '/c', { status: 'partial', releases: 2, progress: '{"v":1,"totalCards":9}' }, 2000, { retryBaseMs: 60000 });
+  eng.markResult('vacatorrent', '/d', { status: 'done', imdb: 'tt4' }, 2000);
+  // Drenar enquanto `hasDue` diz que há: a contagem tem que bater com as linhas
+  // vencidas (a, b e c) e parar exatamente quando a fila acaba.
+  let drenadas = 0;
+  while (eng.hasDue('vacatorrent', 10 ** 12)) {
+    assert.ok(eng.takeNext('vacatorrent', 10 ** 12), 'hasDue verdadeiro implica takeNext com linha');
+    drenadas += 1;
+    assert.ok(drenadas <= 4, 'não entra em laço infinito');
+  }
+  assert.equal(drenadas, 3, 'a, b e c: pending + error vencido + partial no retry');
+  assert.equal(eng.hasDue('vacatorrent', 10 ** 12), false, 'só o `done` ficou, e terminal não é elegível');
+});
+
+test('hasDue na engine de memória: mesma resposta do SQL', () => {
+  store.resetForTests();
+  store.open(undefined, { forceMemory: true });
+  const eng = store.engine();
+  assert.equal(eng.kind, 'memory');
+  assert.equal(eng.hasDue('vacatorrent', 1000), false);
+  eng.upsertUrls('vacatorrent', [movie('/a'), movie('/b')], 1000);
+  assert.equal(eng.hasDue('vacatorrent', 1000), true);
+  eng.markResult('vacatorrent', '/a', { status: 'error', error: 'timeout' }, 2000, { retryBaseMs: 60000 });
+  eng.markResult('vacatorrent', '/b', { status: 'done', imdb: 'tt1' }, 2000);
+  assert.equal(eng.hasDue('vacatorrent', 2000), false, 'backoff e terminal não são devidos');
+  const backoff = eng.getUrl('vacatorrent', '/a') as CrawlUrlRow;
+  assert.equal(eng.hasDue('vacatorrent', backoff.nextAt), true);
+  eng.takeNext('vacatorrent', backoff.nextAt);
+  assert.equal(eng.hasDue('vacatorrent', backoff.nextAt), false, 'reivindicado sai da elegibilidade');
+});
+
 test('clearRows limpa TAMBÉM o crawl_state (paridade com a memória)', () => {
   store.engine().setState('vacatorrent', 'cursor', '2026-09-01');
   assert.equal(store.engine().getState('vacatorrent', 'cursor'), '2026-09-01');
@@ -297,4 +366,20 @@ test('migração: banco no formato anterior (sem progress) ganha a coluna preser
   assert.equal(row.status, 'done');
   assert.equal(row.releases, 5);
   assert.equal(row.progress, '', 'coluna nova nasce vazia');
+});
+
+test('arquivo corrompido na abertura fecha o handle e cai na memória (o arquivo fica livre)', { skip: skipSemSqlite }, async () => {
+  const d = freshDir();
+  const dbPath = path.join(d, 'crawl.db');
+  // Arquivo que não é banco: a falha vem DEPOIS do handle aberto (o PRAGMA
+  // lê o cabeçalho), que é exatamente o caminho em que a queda para memória
+  // deixaria um handle vivo. No Windows esse handle trava o `crawl.db` e o
+  // reparo do arquivo fica impossível.
+  fs.writeFileSync(dbPath, 'isto nao e um banco sqlite');
+  store.resetForTests();
+  store.open(dbPath);
+  assert.ok(store.engine(), 'a engine de memória cobre o store mesmo com o arquivo ruim');
+  store.close();
+  fs.rmSync(dbPath, { force: false });
+  assert.ok(!fs.existsSync(dbPath), 'arquivo removível depois da queda');
 });

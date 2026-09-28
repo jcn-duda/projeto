@@ -111,6 +111,14 @@ export interface CrawlDiscovery {
    * dele o cursor simplesmente não anda.
    */
   completeByKind?: { movie: boolean; tv_show: boolean };
+  /**
+   * Custo REAL de requisições da rodada de descoberta (Fase 8). A descoberta
+   * consulta sitemaps/protetores de verdade, e o teto horário do motor é de
+   * REQUISIÇÕES: sem isto, a rodada entraria de graça no orçamento. Ausente =
+   * a estimativa declarada em `CRAWL_DISCOVERY_COST` (o motor aplica o
+   * fallback); o adaptador que sabe contar declara o número real.
+   */
+  requestCost?: number;
 }
 
 /** Limites de segurança do adaptador de série (Fase 7): teto de cards de

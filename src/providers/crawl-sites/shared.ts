@@ -1,0 +1,64 @@
+// Núcleo PURO compartilhado pelos adaptadores de site do crawler
+// (`crawl-sites/*`). Nasceu quando o NerdFilmes passou a ser o SEGUNDO
+// consumidor real de três regras que não podem divergir entre sites:
+//
+//   - `parseTitleYear`: o `<h1>` da obra alimenta a identificação por
+//     título/ano (Fase 2). Duas cópias divergiriam em silêncio — a sonda,
+//     o `crawl-page` e o painel classify a página com a MESMA régua;
+//   - `magnetHash`: o mesmo torrent em dois botões é um item só (dedupe);
+//   - `withRequestCost`: erro que carrega o custo medido (F1) — o motor cobra
+//     o que foi gasto antes de falhar, não 1 por página.
+//
+// O que NÃO mora aqui é o que é REGRA DE SITE: o recorte de URL de obra, o
+// nome do sitemap (`movie-sitemap*` do Vaca contra `post-sitemap*` do
+// NerdFilmes), oIMDb ancorado na ficha técnica e a lista de protetores. Isso
+// fica no adaptador de cada um — duas cópias divergentes de `parseImdbId` já
+// custaram uma obra errada no acervo.
+import { decodeEntities } from '../../utils/title-normalization.js';
+
+/**
+ * Título e ano do `<h1>` da obra ("Expresso do Amanhã (2013)", "Bancários
+ * (2020)"). O WordPress devolve o título com entidade crua ("A Gangster&#8217;s
+ * Life", "Mike &#038; Nick"): decodificar ANTES de tudo — a query do TMDB não
+ * encontra a obra com "&#8217;" no meio e o título herdado pelas releases
+ * carregaria o lixo (medido ao vivo na sonda: 2 de 30 páginas sem IMDb perdiam
+ * a identificação só por isso).
+ *
+ * Comentário, `<script>` e `<style>` saem ANTES do casamento: o `<h1>` do
+ * theme não precisa ser o PRIMEIRO literal da página, e WordPress Full
+ * Coverage / plugins deixam marcação comentada — um `<!-- <h1>…</h1> -->`
+ * no topo do HTML fazia o título virar lixo com o ano certo grudado no fim
+ * (achado no recorte de fixture do NerdFilmes, 2026-09-28). Sem o ano do
+ * bracket, o `<h1>` real entra; com ele, o título fica como o site publica.
+ *
+ * Só o parêntese FINAL vira ano: post com ano no meio ("1ª Temporada (2022)
+ * WEB-DL") fica sem ano, e sem ano a identificação não roda (a trava é de
+ * segurança — sem ano não há com que discriminar homônimo de qualquer época).
+ */
+export function parseTitleYear(html: string): { title: string; year: number | null } {
+  const source = String(html || '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(source)?.[1] ?? '';
+  const text = decodeEntities(h1.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  const yearMatch = /\((\d{4})\)\s*$/.exec(text);
+  const year = yearMatch ? Number(yearMatch[1]) : null;
+  const title = (yearMatch ? text.slice(0, yearMatch.index) : text).replace(/\s+/g, ' ').trim();
+  return { title, year: year && year >= 1900 && year <= 2100 ? year : null };
+}
+
+/** btih do magnet (40 hex ou 32 base32, qualquer caixa). `null` sem hash. */
+export function magnetHash(magnet: string): string | null {
+  return /xt=urn:btih:([a-z0-9]{32,40})/i.exec(magnet)?.[1]?.toLowerCase() ?? null;
+}
+
+/**
+ * Anexa o custo medido ao erro (F1): a exceção sobe com `requestCost` e o
+ * `crawl-page` repassa ao motor — página que falhou no 4º hop custa 4, não 1.
+ * Erro alheio (não-`Error`) é embrulhado; o original vai na mensagem.
+ */
+export function withRequestCost(err: unknown, cost: number): Error {
+  const e = err instanceof Error ? err : new Error(String(err));
+  (e as Error & { requestCost?: number }).requestCost = cost;
+  return e;
+}

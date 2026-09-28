@@ -3,6 +3,9 @@
 // freio de tráfego desligado (idleWindowMs 0) exceto onde o caso exige.
 import { test, describe, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 process.env.CACHE_PERSIST = 'false';
 
@@ -10,7 +13,8 @@ const config = (await import('../src/config.js')).default;
 const store = await import('../src/utils/crawl-store.js');
 const crawler = await import('../src/providers/crawler.js');
 const live = await import('../src/utils/crawler-live.js');
-const { buildCrawlerStatus, buildSiteStatus, STATUS_LIST_LIMIT } = await import('../src/providers/crawl-status.js');
+const { PROBE_STATE_KEY } = await import('../src/providers/crawl-probe-gate.js');
+const { buildCrawlerStatus, buildSiteStatus, legacyView, STATUS_LIST_LIMIT } = await import('../src/providers/crawl-status.js');
 import type { CrawlDiscovery, CrawlSite } from '../src/providers/crawl-types.js';
 import type { RawItem } from '../types/domain.js';
 
@@ -28,6 +32,10 @@ function freshCrawl(overrides: Record<string, unknown> = {}): void {
     errorPauseStreak: 5,
     layoutCanary: 10,
     incrementalIntervalMin: 60,
+    // O status pode ABRIR o store (ver o caso do store fechado abaixo): sem
+    // isto, um `dbPath` vazado de um caso para outro faria o `crawl.db` de
+    // verdade aparecer no repositório durante a suíte.
+    dbPath: savedCrawl.dbPath,
   }, overrides);
 }
 
@@ -157,6 +165,32 @@ describe('crawler: status por site (Fase 4)', () => {
     assert.equal(page1.etaHours, 5, '5000 páginas × 1 req ÷ 1000 req/h');
     const series = buildSiteStatus('fake', store.engine(), liveCfg, state(9));
     assert.equal(series.etaHours, 45, 'série cara (9 req/página): o ETA reflete o custo real, não 1:1');
+  });
+
+  test('o ETA usa o custo do PRÓPRIO site: o inativo não herda o do ativo', () => {
+    // O custo é medido POR SITE (requisições por página): com `a` ativo a 1
+    // req/página e `b` inativo a 9 (página de série), o card de `b` recebia o
+    // custo de `a` pelo estado escalar e prometia 1 h no lugar das 9 h.
+    freshCrawl({ sites: ['a', 'b'], delayMs: 3600, maxPerHour: 1000 });
+    const urls = Array.from({ length: 1000 }, (_, i) => movie(`/p${i}`));
+    store.engine().upsertUrls('a', urls, 1);
+    store.engine().upsertUrls('b', urls, 1);
+    const liveCfg = live.effective();
+    // `legacyView` é a forma canônica da vista de site que o motor entrega.
+    const view = (id: string, label: string, avgRequestCost: number) =>
+      legacyView({ activeLabel: label, siteReady: true, avgRequestCost, idleFraction: 1 }, liveCfg, id);
+    const status = (custoB: number) => buildCrawlerStatus(store.engine(), liveCfg, ['a', 'b'], {
+      active: 'a', sites: [view('a', 'Vaca Torrent', 1), view('b', 'NerdFilmes', custoB)],
+    });
+    const [a, b] = status(9).sites;
+    assert.equal(a?.etaHours, 1, '1000 páginas × 1 req ÷ 1000 req/h');
+    assert.equal(b?.etaHours, 9, 'o site inativo usa o custo DELE: 1000 × 9 ÷ 1000');
+    assert.equal(b?.etaBasis, 'medido');
+    assert.equal(b?.ratePerHour, 1000, 'mesmo teto: a diferença do ETA é só o custo');
+    // Sem custo medido não pega o do vizinho: "—" com o motivo declarado.
+    const semCusto = status(0).sites.find((s) => s.id === 'b');
+    assert.equal(semCusto?.etaHours, null);
+    assert.equal(semCusto?.etaBasis, 'sem-custo-medido');
   });
 
   test('errorGroups no card agrupa series_truncated pelo motivo estável (M2)', () => {
@@ -327,13 +361,37 @@ describe('crawl-status: custo e limites das consultas', () => {
     assert.equal(stableErrorReason(''), 'erro');
   });
 
-  test('status com o store fechado não abre o crawl.db', () => {
-    store.resetForTests(); // fecha a engine
-    assert.equal(store.currentEngine(), null);
-    const status = crawler.status();
-    assert.equal(status.engine, null);
-    assert.deepEqual(status.sites, []);
-    assert.equal(status.counters, null);
-    assert.equal(store.currentEngine(), null, 'status não abriu a persistência');
+  test('status com o store FECHADO abre o crawl.db uma vez, só lê, e repovoa sites[]', () => {
+    // O contrato mudou com a Fase 8: `CRAWL_ENABLED=false` (o default de
+    // instalação) faz `start()` voltar antes de `primeSite`, e aí o store nunca
+    // abria — o painel recebia `sites: []`/`engine: null` e não conseguia
+    // mostrar "sonda não rodada" de um site que nunca rodou. O status agora
+    // LÊ o store, abrindo o que não estiver aberto; o que ele NÃO faz é
+    // GRAVAR (veredito é da sonda, e só com `--write`).
+    store.resetForTests();
+    assert.equal(store.currentEngine(), null, 'premissa: nada aberto');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-crawl-status-'));
+    try {
+      freshCrawl({ sites: ['fake', 'outro'], dbPath: path.join(dir, 'crawl.db') });
+      const primeiro = crawler.status();
+      const engine = store.currentEngine();
+      assert.notEqual(engine, null, 'o status abriu o crawl.db');
+      assert.notEqual(primeiro.engine, null, 'sem engine o painel não tem onde ler o veredito');
+      assert.deepEqual(primeiro.sites.map((s) => s.id), ['fake', 'outro'], 'um card por site configurado');
+      assert.equal(primeiro.counters?.total, 0);
+
+      crawler.status();
+      assert.equal(store.currentEngine(), engine, 'a engine existente é REUTILIZADA (nada de reabrir)');
+      for (const id of ['fake', 'outro']) {
+        assert.equal(engine?.counters(id).total, 0, `${id}: o status não enfileirou nada`);
+        assert.equal(engine?.getState(id, PROBE_STATE_KEY), null, `${id}: o status não gravou veredito`);
+        assert.equal(engine?.latestRun(id), null, `${id}: o status não abriu rodada`);
+      }
+    } finally {
+      // Fecha a engine ANTES de apagar: no Windows o `crawl.db` aberto trava o
+      // `unlink`, e a engine vazada contaminaria o caso seguinte.
+      store.resetForTests();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

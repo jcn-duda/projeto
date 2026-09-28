@@ -11,13 +11,13 @@
 // — nunca derruba o addon.
 //
 // Tabelas:
-//   crawl_url — uma linha por (site, url): lastmod, tipo, status, obra,
-//               tentativas, próxima tentativa e contagem de releases;
+//   crawl_url — uma linha por (site, url_key): lastmod, tipo, status, obra,
+//               tentativas, próxima tentativa e contagem de releases. A chave é
+//               o CAMINHO da URL (`crawl-url-key.ts`) e a `url` é o valor com o
+//               host vigente, para a fila sobreviver à troca de domínio do site;
 //   crawl_run — uma rodada do motor (carga inicial ou incremental), com fase,
 //               cursor e contadores, para o painel mostrar progresso.
-//
-// A Fase 0 entrega só o armazenamento: a abertura é LAZY e nenhum caminho de
-// produção a chama ainda — quem nunca chama `engine()` não paga arquivo.
+// Abertura LAZY: quem nunca chama `engine()` não paga arquivo (o status usa `currentEngine()`).
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -40,8 +40,9 @@ import type {
 import {
   URL_COLUMNS, applyResult, decideUpsert, emptyCounters, parseStatus, parseUrlRow, renderUrl,
 } from './crawl-store-rules.js';
+import { crawlUrlKey } from './crawl-url-key.js';
 import { memoryCrawlEngine } from './crawl-store-memory.js';
-import { ensureCrawlSchema } from './crawl-store-migrate.js';
+import { openCrawlDatabase } from './crawl-store-migrate.js';
 
 export type {
   CrawlErrorGroup, CrawlPageKind, CrawlResultStatus, CrawlRunPhase, CrawlRunRow, CrawlUrlRow,
@@ -58,6 +59,11 @@ export interface CrawlEngine {
   /** Próximo URL devido (pending; ou error com backoff vencido), em ordem
    * determinística; reivindica (→ inflight, `tries` preservado). */
   takeNext(site: string, now: number): CrawlUrlRow | null;
+  /** Existe trabalho VENCIDO? EXATAMENTE a elegibilidade do `takeNext`, sem
+   * reivindicar: `inflight` já foi tomado (órfã é do `requeueInflight`) e
+   * linha em backoff não conta — a aproximação por contadores tratava as duas
+   * como fila, o motor escolhia "item" e o `step` virava no-op. */
+  hasDue(site: string, now: number): boolean;
   getUrl(site: string, url: string): CrawlUrlRow | null;
   /** Grava o resultado do processamento (terminal, ou erro com tries/backoff). */
   markResult(site: string, url: string, result: MarkResultInput, now: number, opts?: MarkOpts): void;
@@ -109,30 +115,29 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
   try {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const { DatabaseSync } = _require('node:sqlite');
-    const db = new DatabaseSync(dbPath);
-    db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
-    // Criação das tabelas + migração defensiva de `crawl_url` com CHECK legada
-    // (que rejeitaria o status `simulated`): ver `crawl-store-migrate.ts`.
-    ensureCrawlSchema(db as unknown as import('./crawl-store-migrate.js').CrawlSchemaDb);
+    // PRAGMAs + criação/migração do schema, com o handle fechado se algo
+    // falhar depois de aberto (ver `openCrawlDatabase`).
+    const db = openCrawlDatabase(dbPath, DatabaseSync) as unknown as import('node:sqlite').DatabaseSync;
     const putUrlStmt = db.prepare(
       `INSERT OR REPLACE INTO crawl_url (${URL_COLUMNS.join(', ')}) VALUES (${URL_COLUMNS.map(() => '?').join(', ')})`,
     );
-    const getUrlStmt = db.prepare('SELECT * FROM crawl_url WHERE site = ? AND url = ?');
-    // Ordem determinística de retomada: vence o mais antigo devido; dentro da
-    // mesma rodada de descoberta, a ordem de inserção e depois a própria URL.
-    // `error` NÃO vencido espera o backoff; vencido, volta a ser servido com o
-    // `tries` preservado — é o retry automático até o `maxTries` do motor.
-    // `partial` (Fase 7 v2) é trabalho em andamento: entra na fila com o
-    // `next_at` curto que o `applyResult` lhe deu.
-    const dueStmt = db.prepare(
-      "SELECT * FROM crawl_url WHERE site = ? AND status IN ('pending', 'error', 'partial') AND next_at <= ?"
-      + ' ORDER BY next_at ASC, added_at ASC, url ASC LIMIT 1',
-    );
+    // A identidade da linha é `(site, url_key)` — o CAMINHO da URL, não a URL
+    // (ver `crawl-url-key.ts`): o site troca de domínio e a fila sobrevive. A
+    // `url` gravada é o valor lido, sempre do host vigente.
+    const getUrlStmt = db.prepare('SELECT * FROM crawl_url WHERE site = ? AND url_key = ?');
+    // Elegibilidade do TRABALHO VENCIDO em UM lugar só: o `takeNext` serve o que
+    // casa aqui e o `hasDue` pergunta a MESMA coisa sem reivindicar: `pending`
+    // sempre, `error` só com o backoff vencido, `partial` no retry curto. O
+    // `inflight` NÃO entra (trabalho já tomado; órfã é do `requeueInflight`).
+    const DUE_WHERE = "site = ? AND status IN ('pending', 'error', 'partial') AND next_at <= ?";
+    // `ORDER BY` = retomada determinística; o `hasDue` não ordena (basta a 1ª).
+    const dueStmt = db.prepare(`SELECT * FROM crawl_url WHERE ${DUE_WHERE} ORDER BY next_at ASC, added_at ASC, url_key ASC LIMIT 1`);
+    const dueExistsStmt = db.prepare(`SELECT 1 FROM crawl_url WHERE ${DUE_WHERE} LIMIT 1`);
     // Claim com guarda de status: a linha reivindicada é SEMPRE uma due
     // (pending, error com backoff vencido ou partial com retry vencido) —
     // nunca terminal.
     const claimStmt = db.prepare(
-      "UPDATE crawl_url SET status = 'inflight', checked_at = ? WHERE site = ? AND url = ? AND status IN ('pending', 'error', 'partial')",
+      "UPDATE crawl_url SET status = 'inflight', checked_at = ? WHERE site = ? AND url_key = ? AND status IN ('pending', 'error', 'partial')",
     );
     const requeueInflightStmt = db.prepare(
       "UPDATE crawl_url SET status = 'pending', next_at = 0 WHERE site = ? AND status = 'inflight' AND checked_at <= ?",
@@ -161,10 +166,10 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     const countersStmt = db.prepare('SELECT status, COUNT(*) AS n FROM crawl_url WHERE site = ? GROUP BY status');
     const totalStmt = db.prepare('SELECT COUNT(*) AS n FROM crawl_url WHERE site = ?');
     const requeueUrlStmt = db.prepare(
-      "UPDATE crawl_url SET status = 'pending', next_at = 0 WHERE site = ? AND url = ?",
+      'UPDATE crawl_url SET status = \'pending\', next_at = 0 WHERE site = ? AND url_key = ?',
     );
     const listByStatusStmt = db.prepare(
-      'SELECT * FROM crawl_url WHERE site = ? AND status = ? ORDER BY checked_at DESC, url ASC LIMIT ?',
+      'SELECT * FROM crawl_url WHERE site = ? AND status = ? ORDER BY checked_at DESC, url_key ASC LIMIT ?',
     );
     const errorGroupsStmt = db.prepare(
       "SELECT error, COUNT(*) AS n FROM crawl_url WHERE site = ? AND status = 'error' GROUP BY error ORDER BY n DESC, error ASC LIMIT ?",
@@ -188,7 +193,7 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     const clearSiteStateStmt = db.prepare('DELETE FROM crawl_state WHERE site = ?');
 
     const selectUrl = (site: string, url: string): CrawlUrlRow | null => {
-      const r = getUrlStmt.get(String(site || ''), String(url || '')) as Record<string, unknown> | null;
+      const r = getUrlStmt.get(String(site || ''), crawlUrlKey(url)) as Record<string, unknown> | null;
       return r ? parseUrlRow(r) : null;
     };
 
@@ -242,10 +247,11 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         const r = dueStmt.get(String(site || ''), now) as Record<string, unknown> | null;
         if (!r) return null;
         const row = parseUrlRow(r);
-        const claim = claimStmt.run(now, row.site, row.url) as { changes?: number | bigint };
+        const claim = claimStmt.run(now, row.site, crawlUrlKey(row.url)) as { changes?: number | bigint };
         if (!claim || Number(claim.changes) === 0) return null;
         return { ...row, status: 'inflight', checkedAt: now };
       },
+      hasDue(site, now) { return dueExistsStmt.get(String(site || ''), now) != null; },
       getUrl(site, url) { return selectUrl(site, url); },
       markResult(site, url, result, now, opts: MarkOpts = {}) {
         const existing = selectUrl(site, url);
@@ -267,7 +273,7 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         return Number(r?.changes) || 0;
       },
       requeueUrl(site, url) {
-        const r = requeueUrlStmt.run(String(site || ''), String(url || '')) as { changes?: number | bigint };
+        const r = requeueUrlStmt.run(String(site || ''), crawlUrlKey(url)) as { changes?: number | bigint };
         return Number(r?.changes) > 0;
       },
       counters(site) {

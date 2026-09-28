@@ -85,6 +85,10 @@ describe('motor Fase 7: descoberta gated e teto horário com o custo REAL', () =
   });
 
   test('requestCost é cobrado no teto por hora (página de série não vale 1 request)', async () => {
+    // `discoveryCost: 0` isola o caso: desde a Fase 8 a descoberta também entra
+    // no teto (e tem caso próprio em `crawler.test.ts`); aqui o que se mede é o
+    // custo REAL da página de série.
+    config.crawl.discoveryCost = 0;
     store.engine().upsertUrls('fake', [{ url: SHOW, lastmod: '2026-01-01', kind: 'tv_show' }], 1);
     crawler._setSitesForTest(() => seriesSiteForMotor());
     crawler._forceDiscoveryForTest();
@@ -130,6 +134,7 @@ describe('motor Fase 7: descoberta gated e teto horário com o custo REAL', () =
     const crawlerLive = await import('../src/utils/crawler-live.js');
     crawlerLive._resetForTest();
     const { CrawlPausePolicy } = await import('../src/providers/crawl-pauses.js');
+    config.crawl.discoveryCost = 0; // isola o custo da página (ver teste acima)
     store.engine().upsertUrls('fake', [{ url: SHOW, lastmod: '2026-01-01', kind: 'tv_show' }], 1);
     const partialSite: CrawlSite = {
       id: 'fake', label: 'Fake',

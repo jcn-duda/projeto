@@ -115,18 +115,35 @@ describe('crawler: motor', () => {
   });
 
   test('teto horário: CRAWL_MAX_PER_HOUR corta e reporta no status', async () => {
-    freshCrawl({ maxPerHour: 2 });
+    // Desde a Fase 8 a rodada de descoberta entra no teto por hora (são
+    // requisições de verdade), então o teto deste caso é 1 (descoberta) + 2
+    // páginas. O custo da descoberta tem caso próprio, logo abaixo.
+    freshCrawl({ maxPerHour: 3, discoveryCost: 1 });
     store.engine().upsertUrls('fake', [movie('/a'), movie('/b'), movie('/c')], 1);
     crawler._setSitesForTest(() => fakeSite());
     crawler._forceDiscoveryForTest();
     await crawler.tick(); // descoberta
     await crawler.tick(); // /a
     await crawler.tick(); // /b
-    assert.equal(crawler.status().pagesThisHour, 2);
-    assert.equal(crawler.status().maxPerHour, 2);
+    assert.equal(crawler.status().pagesThisHour, 3);
+    assert.equal(crawler.status().maxPerHour, 3);
     await crawler.tick(); // teto
     assert.equal(store.engine().counters('fake').byStatus.simulated, 2);
     assert.equal(store.engine().counters('fake').byStatus.pending, 1, '3ª página fica na fila');
+  });
+
+  test('Fase 8: a descoberta entra no teto por hora (custo declarado)', async () => {
+    freshCrawl({ maxPerHour: 4, discoveryCost: 3 });
+    store.engine().upsertUrls('fake', [movie('/a'), movie('/b'), movie('/c')], 1);
+    crawler._setSitesForTest(() => fakeSite());
+    crawler._forceDiscoveryForTest();
+    await crawler.tick(); // descoberta: 3 req
+    assert.equal(crawler.status().pagesThisHour, 3);
+    await crawler.tick(); // /a: 1 req — fecha a hora
+    assert.equal(crawler.status().pagesThisHour, 4);
+    await crawler.tick(); // teto: nada mais passa
+    assert.equal(crawler.status().pagesThisHour, 4, 'o teto global segura a página seguinte');
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 1);
   });
 
   test('retomada: inflight de processo anterior volta a pending no start()', async () => {

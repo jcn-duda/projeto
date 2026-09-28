@@ -9,15 +9,18 @@
 //     exceção pode carregar o `requestCost` medido — F1);
 //   - `no-torrent` → `no-torrent` (não gasta TMDB: página sem magnet não tem
 //     nada a atribuir; a obra volta a ser identificada se o layout mudar);
-//   - `partial` (Fase 7 v2) → grava os grupos ANTES de marcar o progresso e
-//     marca `partial` com o progresso retomável. Estouro (progresso igual ao
-//     anterior) vira `error series_stall` (backoff + escape no "Reprocessar
-//     erros"); dry-run marca partial com `dry:1`, NADA no acervo e a contagem
-//     DISCOBERTA acumula na linha (contador do painel; o flip reenfileira);
+//   - `partial` (Fase 7 v2) → grava os grupos ANTES de marcar o progresso, com
+//     o progresso retomável; estouro vira `error series_stall` (backoff + escape
+//     no "Reprocessar erros"); dry-run marca partial com `dry:1`, NADA no
+//     acervo e a contagem DISCOBERTA acumula na linha (o flip reenfileira);
 //   - `done` sem IMDb ancorado → `identifyWork`:
 //       `identified`  → grava com o IMDb do TMDB;
 //       `unavailable` → `error` (TMDB fora é retentável, NÃO é veredicto);
-//       `unidentified`/`ambiguous` → `no-work` (obra errada é pior que nenhuma);
+//       `unidentified`/`ambiguous` → `no-work` (obra errada é pior que nenhuma).
+//       `no-work` é RESPOSTA da identificação, não falta dela: o desfecho
+//       devolve as releases que o adaptador VIU e o `store` recebe 0 (nada
+//       gravado — o que a fila precisa saber). Zero no desfecho fazia uma
+//       página "sem obra" parecer uma página sem release;
 //   - `done` sem release nenhuma → `no-torrent` (defensivo) — EXCETO quando a
 //     linha tem progresso E contagem acumulada > 0: a leitura secou num passe
 //     de resume e a série já foi colhida → `done` (ou `simulated` em dry);
@@ -31,7 +34,8 @@ import * as store from '../utils/crawl-store.js';
 import { identifyWork } from './crawl-identify.js';
 import { recordCrawlReleases } from './crawl-recorder.js';
 import { isSiteLevelError } from './crawl-pauses.js';
-import { parseProgress, progressAdvanced, renderProgress, withDryFlag } from '../utils/crawl-store-rules.js';
+import { parseProgress } from '../utils/crawl-store-rules.js';
+import { markPageError, processPartialSlice } from './crawl-page-partial.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { IdentifyResult } from './crawl-identify.js';
@@ -43,7 +47,10 @@ export interface PageOutcome {
   kind: 'done' | 'no-torrent' | 'no-work' | 'error' | 'simulated' | 'partial';
   /** O erro prova o SITE fora/bloqueado (entra no streak de pausa). */
   siteLevelError: boolean;
-  /** Releases válidas vistas na página (mesmo em `no-work`/erro de gravação). */
+  /**
+   * Releases OBSERVADAS pelo adaptador (as únicas que a página tinha), não as
+   * gravadas: em `no-work` e erro de gravação o `store` recebe 0.
+   */
   releases: number;
   /** Releases efetivamente NOVAS no índice (só no caminho com gravação). */
   addedNew?: number;
@@ -89,21 +96,6 @@ function requestCostOf(err: unknown): number | undefined {
   return typeof c === 'number' && Number.isFinite(c) && c >= 1 ? Math.trunc(c) : undefined;
 }
 
-function markError(row: CrawlUrlRow, message: string, opts: PageProcessOptions = {}): void {
-  if (!opts.noPersist) {
-    store.engine().markResult(
-      row.site,
-      row.url,
-      { status: 'error', error: String(message || 'erro').slice(0, 300) },
-      Date.now(),
-      // Sem `retryBaseMs` explícito vale a base default do store (1 min), com
-      // backoff exponencial e teto; `maxTries` põe a URL para dormir.
-      { maxTries: opts.maxTries ?? config.crawl.maxTries },
-    );
-  }
-  metrics.count('crawl.page.error');
-}
-
 /** Fábrica: o teste injeta `identify`/`record` dublês; produção usa os reais. */
 export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) {
   const collab: PageCollaborators = { ...defaultCollaborators, ...overrides };
@@ -121,7 +113,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       result = await site.fetchWork(row.url, { kind: row.kind, series: opts.series, resume: parseProgress(row.progress) });
     } catch (err: unknown) {
       const message = log.errorMessage(err);
-      markError(row, message, opts);
+      markPageError(row, message, opts);
       log.warn(`[crawl] página falhou (${row.url}):`, message);
       // F1: o throw carrega o custo medido (`withRequestCost`) — cobra o que
       // foi gasto antes de falhar.
@@ -130,7 +122,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
 
     if (result.status === 'error') {
       const message = String(result.error || 'erro da página');
-      markError(row, message, opts);
+      markPageError(row, message, opts);
       return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, detail: message, requestCost: result.requestCost };
     }
 
@@ -142,117 +134,12 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       return { kind: 'no-torrent', siteLevelError: false, releases: 0, requestCost: result.requestCost };
     }
 
-    // `partial` (Fase 7 v2): página de série lida até um teto. Ordem importa:
-    // estouro → dry → ao vivo; a gravação dos grupos SEMPRE precede a marcação
-    // do progresso (falha de gravação não pode ter sido "paga" com avanço).
+    // `partial` (Fase 7 v2): página de série lida até um teto. A ordem das
+    // regras (estouro → dry → ao vivo) e a gravação ANTES da marcação do
+    // progresso vivem em `crawl-page-partial.ts` — é o caminho que retoma a
+    // série em vez de terminar a página.
     if (result.status === 'partial') {
-      const detail = String(result.error || 'parcial');
-      metrics.count('crawl.page.partial');
-      if (/^series_truncated/i.test(detail)) metrics.count('crawl.page.series-truncated');
-      // 1) ESTOURO: o progresso não avançou em relação à coluna — refazer do
-      //    mesmo ponto para sempre é falha de verdade. Vira `error
-      //    series_stall` (tries++/backoff/give-up; o `applyResult` do erro
-      //    preserva o progresso anterior pelo spread).
-      if (!progressAdvanced(row.progress, result.progress ?? null)) {
-        const message = `series_stall: progresso não avançou (${detail})`;
-        markError(row, message, opts);
-        metrics.count('crawl.page.partial.stall');
-        log.warn(`[crawl] série estagnada (${row.url}):`, detail);
-        return { kind: 'error', siteLevelError: false, releases: 0, detail: message, requestCost: result.requestCost };
-      }
-      const progressJson = renderProgress(result.progress!);
-      if (dryRun) {
-        // 2) DRY: nada no acervo; progresso com o flag `dry:1` — é o que o
-        //    flip true→false reenfileira (requeueSimulated estendido). B1
-        //    pós-v2 (One Piece): a CONTAGEM DISCOBERTA acumula na linha —
-        //    contador, NUNCA prova de gravação; o flip reseta, e sem ela a
-        //    conclusão por resume viraria `no-torrent`.
-        const dryGroups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length ? result.groups : null;
-        const discovered = dryGroups ? dryGroups.flatMap((g) => (Array.isArray(g.releases) ? g.releases : [])).length : 0;
-        if (persist) {
-          store.engine().markResult(site.id, row.url, {
-            status: 'partial', imdb: result.imdb ?? row.imdb,
-            releases: (Number(row.releases) || 0) + discovered,
-            error: detail, progress: withDryFlag(progressJson),
-          }, Date.now());
-        }
-        return { kind: 'partial', siteLevelError: false, releases: discovered, detail, requestCost: result.requestCost };
-      }
-      const groups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length
-        ? result.groups
-        : null;
-      const releases: RawItem[] = groups
-        ? groups.flatMap((g) => (Array.isArray(g.releases) ? g.releases : []))
-        : [];
-      // 3) AO VIVO, com releases: identifica (uma vez — o imdb da linha é
-      //    reusado nas retomadas seguintes), grava os grupos e SÓ ENTÃO marca
-      //    o progresso.
-      if (releases.length > 0) {
-        let imdb = result.imdb ?? row.imdb ?? null;
-        if (!imdb) {
-          const identification = await collab.identify({
-            type: 'series',
-            title: String(result.title || ''),
-            year: result.year ?? null,
-          });
-          if (identification.outcome === 'identified') {
-            imdb = identification.imdb;
-          } else if (identification.outcome === 'unavailable') {
-            // TMDB fora: retentável. markError preserva o progresso (spread).
-            const message = `tmdb-indisponivel:${identification.reason}`;
-            markError(row, message, opts);
-            return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
-          } else {
-            // Obra não identificada: terminal `no-work` (limpa progresso).
-            if (persist) {
-              store.engine().markResult(site.id, row.url, { status: 'no-work', imdb: null, releases: 0 }, Date.now());
-            }
-            metrics.count('crawl.page.no-work');
-            return { kind: 'no-work', siteLevelError: false, releases: 0, detail: identification.reason, requestCost: result.requestCost };
-          }
-        }
-        let added = 0;
-        try {
-          const obra = {
-            imdb: String(imdb),
-            title: String(result.title || ''),
-            year: result.year ?? null,
-            kind: 'tv_show' as const,
-          };
-          for (const g of groups ?? []) {
-            const report = await collab.record(site.id, obra, g.releases, { season: g.season, episode: g.episode });
-            added += report.added;
-          }
-        } catch (err: unknown) {
-          // Gravação falhou: erro retentável SEM avançar progresso — o retry
-          // refaz os cards (merge idempotente no índice/banco).
-          const message = log.errorMessage(err);
-          markError(row, message, opts);
-          log.warn(`[crawl] gravação falhou (${row.url}):`, message);
-          return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
-        }
-        if (persist) {
-          // Acumula (F3): `releases` da linha é o TOTAL visto na série, e cada
-          // marcação corresponde a uma fatia NOVA (o guarda de estagnação
-          // impede remarcar a mesma) — sobrescrever com a fatia atual perdia
-          // as fatias anteriores; fatia VAZIA preserva o acumulado.
-          store.engine().markResult(site.id, row.url, {
-            status: 'partial', imdb, releases: (Number(row.releases) || 0) + releases.length, error: detail, progress: progressJson,
-          }, Date.now());
-        }
-        return { kind: 'partial', siteLevelError: false, releases: releases.length, addedNew: added, requestCost: result.requestCost, detail };
-      }
-      // 4) AO VIVO, sem releases nesta fatia: não identifica, não grava acervo
-      //    — só o progresso (a obra pode não ter IMDb ainda; identificar sem
-      //    release gasta TMDB à toa e `no-work` aqui mataria trabalho real).
-      //    A contagem acumulada das fatias anteriores é PRESERVADA (F3): a
-      //    conclusão por resume herda dela e o painel soma o total real.
-      if (persist) {
-        store.engine().markResult(site.id, row.url, {
-          status: 'partial', imdb: row.imdb ?? null, releases: row.releases, error: detail, progress: progressJson,
-        }, Date.now());
-      }
-      return { kind: 'partial', siteLevelError: false, releases: 0, requestCost: result.requestCost, detail };
+      return processPartialSlice({ site, row, result, opts, collab, persist, dryRun });
     }
 
     // status 'done': a página tem releases. Sem nenhuma, o honesto é
@@ -322,9 +209,10 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         // M1: o custo medido pelo adaptador acompanha TODOS os desfechos
         // pós-adaptador — uma série cara que falhou no TMDB custa o que custou.
         const message = `tmdb-indisponivel:${identification.reason}`;
-        markError(row, message, opts);
+        markPageError(row, message, opts);
         return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
       } else {
+        // `no-work` = resposta negativa da identificação (ver o cabeçalho).
         if (persist) {
           store.engine().markResult(
             site.id, row.url,
@@ -334,7 +222,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         }
         metrics.count('crawl.page.no-work');
         log.debug(`[crawl] sem obra (${row.url}): ${identification.reason}`);
-        return { kind: 'no-work', siteLevelError: false, releases: 0, detail: identification.reason, requestCost: result.requestCost };
+        return { kind: 'no-work', siteLevelError: false, releases: releases.length, detail: identification.reason, requestCost: result.requestCost };
       }
     }
 
@@ -389,7 +277,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       return { kind: 'done', siteLevelError: false, releases: releases.length, addedNew: added, requestCost: result.requestCost };
     } catch (err: unknown) {
       const message = log.errorMessage(err);
-      markError(row, message, opts);
+      markPageError(row, message, opts);
       log.warn(`[crawl] gravação falhou (${row.url}):`, message);
       return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
     }

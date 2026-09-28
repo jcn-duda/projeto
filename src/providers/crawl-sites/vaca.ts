@@ -29,10 +29,15 @@ import type { RawItem } from '../../../types/domain.js';
 import type { ResolverLink } from '../../../resolvers/types.js';
 import type { ReleaseTitleInput, ReleaseTitlePost } from '../../../resolvers/release-format.js';
 import type { CrawlDiscovery, CrawlPageKind, CrawlPageOptions, CrawlSite, CrawlWorkResult, CrawlDiscoverOptions, DiscoveredUrl } from '../crawl-types.js';
-import { fetchSeriesWork, withRequestCost, DEFAULT_SERIES_LIMITS } from './vaca-series.js';
+import { fetchSeriesWork, DEFAULT_SERIES_LIMITS } from './vaca-series.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
-import { decodeEntities } from '../../utils/title-normalization.js';
+import { magnetHash, parseTitleYear, withRequestCost } from './shared.js';
+
+// Reexportado: `parseTitleYear` virou núcleo compartilhado quando o NerdFilmes
+// virou o segundo consumidor (a sonda da Fase 2 e os testes importam por aqui —
+// a régua de classificação tem que ser UMA).
+export { parseTitleYear };
 
 /**
  * Recorte da instância do profile vacatorrent que o adaptador consome. Declarar
@@ -91,23 +96,6 @@ function parseSitemapEntries(xml: string): { loc: string; lastmod: string }[] {
   return out;
 }
 
-/** Título e ano do `<h1>` da obra ("Expresso do Amanhã (2013)"). Exportado
- * para a sonda da Fase 2 (`scripts/crawl-identify-probe`) classificar página
- * com a MESMA régua do adaptador — duplicar o parser divergiria em silêncio. */
-export function parseTitleYear(html: string): { title: string; year: number | null } {
-  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(String(html || ''))?.[1] ?? '';
-  // WordPress devolve o título com entidade crua ("A Gangster&#8217;s Life",
-  // "Mike &#038; Nick"): decodificar ANTES de tudo. A query do TMDB da Fase 2
-  // não encontra a obra com "&#8217;" no meio e o título herdado pelas
-  // releases carregaria o lixo — medido ao vivo na sonda da Fase 2: 2 de 30
-  // páginas sem IMDb perdiam a identificação só por isso.
-  const text = decodeEntities(h1.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-  const yearMatch = /\((\d{4})\)\s*$/.exec(text);
-  const year = yearMatch ? Number(yearMatch[1]) : null;
-  const title = (yearMatch ? text.slice(0, yearMatch.index) : text).replace(/\s+/g, ' ').trim();
-  return { title, year: year && year >= 1900 && year <= 2100 ? year : null };
-}
-
 /**
  * IMDb da OBRA, pelo âncora da ficha técnica. Um tt ancorado é o da página;
  * dois ancorados distintos é página ambígua e SEM âncora nenhum tt entra —
@@ -121,11 +109,6 @@ export function parseImdbId(html: string): string | null {
     [...String(html || '').matchAll(IMDB_ANCHOR_RE)].map((m) => m[1]),
   );
   return anchored.size === 1 ? [...anchored][0] : null;
-}
-
-/** Dedupe por btih do magnet: o mesmo hash duas vezes na página é um só item. */
-function magnetHash(magnet: string): string | null {
-  return /xt=urn:btih:([a-z0-9]{32,40})/i.exec(magnet)?.[1]?.toLowerCase() ?? null;
 }
 
 /** Botão resolvido → item cru no MESMO formato da busca (RawItem). */

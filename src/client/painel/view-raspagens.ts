@@ -1,8 +1,9 @@
 import { html, useState } from './vendor/preact.js';
-import { Card, StatNumber, ProgressBar } from './kit.js';
+import { Card, StatNumber, ProgressBar, Badge } from './kit.js';
 import { useAction, actionError, type ActionOutcome, type ActionRequest } from './action.js';
 import { LiveConfigCard } from './view-config.js';
-import { formatAgeFromTimestamp } from './fmt.js';
+import { SiteConfigCard } from './view-raspagem-site-config.js';
+import { SiteHistory } from './view-raspagem-site-history.js';
 import {
   crawlSummary,
   crawlSiteCards,
@@ -10,12 +11,12 @@ import {
   nextDiscoveryLabel,
   phaseLabel,
   siteStateLabel,
-  workLabel,
   runDurationMs,
   etaLabel,
   type CrawlSummary,
   type CrawlSiteCard,
 } from './raspagens-model.js';
+import { probeBadge, probeText, siteRotationLabel, skipText, type SiteConfigForm } from './raspagens-site.js';
 
 export interface ViewRaspagensProps {
   crawl?: Record<string, any>;
@@ -25,6 +26,12 @@ export interface ViewRaspagensProps {
  * backend). `site` é o id do card do Jackett — igual às demais telas. */
 const REPROCESS_ACTION = 'crawl-reprocess-errors';
 const RESET_ACTION = 'crawl-reset';
+/** Ajuste POR SITE (Fase 8). São ações NOVAS, separadas das globais de config
+ * de propósito: o cartão `LiveConfigCard` de baixo continua mexendo no global
+ * e não precisa saber que existe override por site. */
+const SITE_SET_ACTION = 'crawl-site-config-set';
+const SITE_RESET_ACTION = 'crawl-site-config-reset';
+const SITE_PAUSE_ACTION = 'crawl-site-pause';
 
 export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
   const c = crawl || {};
@@ -118,17 +125,24 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
           </p>
           <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
             Erros seguidos: ${summary.errorStreak} · Canário de layout: ${summary.canaryStreak}
+            · Sonda obrigatória: ${summary.probeBlock ? 'sim — só site com GO entra na rotação' : 'não'}
           </p>
         </${Card}>
 
-        <${Card} title="Sites Configurados">
+        <${Card} title="Sites na Rotação">
           ${summary.sitesConfigured.length === 0 ? html`
             <p style="color: var(--muted); font-size: var(--font-floor);">Nenhum site em CRAWL_SITES.</p>
           ` : html`
             <ul class="painel-list">
-              ${summary.sitesConfigured.map((id) => html`
-                <li key=${id}><code>${id}</code>${id === summary.site ? ' · ativo' : ''}</li>
-              `)}
+              ${summary.sitesConfigured.map((id) => {
+                const card = sites.find((s) => s.id === id);
+                const state = card ? siteRotationLabel(card.override, card.probe, card.active, card.total > 0) : 'sem estado';
+                return html`
+                  <li key=${id}>
+                    <code>${id}</code>${id === summary.site ? ' · ativo' : ''} · ${state}
+                  </li>
+                `;
+              })}
             </ul>
           `}
         </${Card}>
@@ -138,7 +152,7 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
         <div class="painel-grid" style="margin-top: var(--space-4);">
           <${Card} title="Sites">
             <p style="color: var(--muted); font-size: var(--font-floor);">
-              Sem estado de site — o motor ainda não abriu o \`crawl.db\` ou nenhum site está configurado.
+              Sem estado de site — o motor ainda não abriu o <code>crawl.db</code> ou nenhum site está configurado.
             </p>
           </${Card}>
         </div>
@@ -167,7 +181,39 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
               },
               `Site ${card.id} zerado`,
             )}
+            onTogglePause=${() => handle(
+              SITE_PAUSE_ACTION,
+              { site: card.id, paused: !card.paused },
+              undefined,
+              card.paused ? `Site ${card.id} retomado` : `Site ${card.id} pausado`,
+            )}
           />
+          <div style="margin-top: var(--space-3);">
+            <${SiteConfigCard}
+              key=${card.id + ':ajuste'}
+              card=${card}
+              summary=${summary}
+              pending=${pending}
+              onApply=${(patch: Partial<SiteConfigForm>) => handle(
+                SITE_SET_ACTION,
+                { site: card.id, patch },
+                undefined,
+                `Ajuste do site ${card.id} aplicado (${Object.keys(patch).length} campo(s))`,
+              )}
+              onReset=${() => handle(
+                SITE_RESET_ACTION,
+                { site: card.id },
+                {
+                  title: 'Voltar ao ajuste global',
+                  message: `Descartar o ajuste próprio do site "${card.label}"?`,
+                  detail: 'O site volta a herdar o global (ritmo, teto por hora, simulação e liga/desliga). O estado já raspado NÃO é tocado.',
+                  confirmLabel: 'Voltar ao global',
+                  danger: true,
+                },
+                `Ajuste do site ${card.id} descartado`,
+              )}
+            />
+          </div>
         </div>
       `)}
 
@@ -178,7 +224,7 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
           setAction="crawl-config-set"
           resetAction="crawl-config-reset"
           pollBlocks=${['crawl']}
-          description="Ajustes do motor aplicados ao vivo (persistidos no SQLite, sem restart). A lista de sites vem do .env (CRAWL_SITES) e não é editável aqui. Campo divergente do .env aparece marcado como 'ao vivo'."
+          description="Ajustes do motor aplicados ao vivo (persistidos no SQLite, sem restart) — valem para TODOS os sites. A lista de sites vem do .env (CRAWL_SITES) e não é editável aqui; o ajuste próprio de cada site fica no cartão dele, acima. Campo divergente do .env aparece marcado como 'ao vivo'."
         />
       </div>
     </div>
@@ -191,11 +237,13 @@ export interface SiteCardProps {
   pending: boolean;
   onReprocess: () => void;
   onReset: () => void;
+  /** Pausa manual do SITE (`crawl-site-pause`) — distinta da pausa do motor. */
+  onTogglePause: () => void;
 }
 
 /** Card presentacional de UM site — sem hooks e sem fetch; a casca passa as
  * ações já ligadas ao `useAction`. */
-export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteCardProps) {
+export function SiteCard({ card, summary, pending, onReprocess, onReset, onTogglePause }: SiteCardProps) {
   const badge = {
     text: `${siteStateLabel(card, summary)} · ${phaseLabel(card.phase)}`,
     variant: siteStateLabel(card, summary) === 'pausa automática'
@@ -206,6 +254,7 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
   };
   const last = card.latestRun;
   const lastDuration = runDurationMs(last);
+  const probe = probeBadge(card.probe);
 
   return html`
     <${Card} title=${card.label} badge=${badge}>
@@ -213,6 +262,13 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
         <div style="flex: 1;"><${ProgressBar} percent=${card.progressPercent} variant=${card.progressPercent >= 100 ? 'ok' : 'warn'} /></div>
         <span style="font-weight: 600;">${card.progressPercent}%</span>
       </div>
+
+      ${card.probe.verdict != null || card.probe.block ? html`
+        <div class="painel-raspagem-probe" style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap;">
+          <${Badge} text=${probe.text} variant=${probe.variant} />
+          <span style="color: var(--muted); font-size: var(--font-floor);">${probeText(card.probe)}</span>
+        </div>
+      ` : null}
 
       <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-3);">
         <${StatNumber} value=${card.magnetsFound} label="magnets vistos" />
@@ -236,6 +292,11 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
           ${card.partial} página(s) de série em andamento — retomam pelos cards já lidos${card.partialWork.length ? html` (${card.partialWork.map((p) => `${p.done}/${p.total}`).join(', ')})` : ''}.
         </p>
       ` : null}
+      ${card.probe.skip ? html`
+        <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
+          Pulado nesta volta: ${skipText(card.probe.skip)}.
+        </p>
+      ` : null}
       <p style="color: var(--muted); margin-top: var(--space-1); font-size: var(--font-floor);">
         Última rodada:
         ${last
@@ -247,86 +308,19 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset }: SiteC
         <button class="painel-btn" disabled=${pending || card.error === 0} onClick=${onReprocess}>
           Reprocessar Erros (${card.error})
         </button>
+        <button
+          class="painel-btn ${card.paused ? 'painel-btn-accent' : ''}"
+          disabled=${pending}
+          onClick=${onTogglePause}
+        >
+          ${card.paused ? 'Retomar site' : 'Pausar site'}
+        </button>
         <button class="painel-btn painel-btn-danger" disabled=${pending} onClick=${onReset}>
           Zerar Site
         </button>
       </div>
 
-      <div class="painel-grid" style="margin-top: var(--space-4);">
-        <${Card} title="Últimas Obras">
-          ${card.recentWorks.length === 0 ? html`
-            <p style="color: var(--muted); font-size: var(--font-floor);">Nenhuma obra recente registrada.</p>
-          ` : html`
-            <table class="painel-table">
-              <thead><tr><th>Obra</th><th>Visto</th></tr></thead>
-              <tbody>
-                ${card.recentWorks.map((w) => html`
-                  <tr key=${w.url}>
-                    <td title=${w.url}>${workLabel(w)}</td>
-                    <td>${w.checkedAt ? formatAgeFromTimestamp(w.checkedAt) : '—'}</td>
-                  </tr>
-                `)}
-              </tbody>
-            </table>
-          `}
-        </${Card}>
-
-        <${Card} title="Sem Obra Identificada">
-          ${card.noWorkList.length === 0 ? html`
-            <p style="color: var(--muted); font-size: var(--font-floor);">Nenhuma página sem obra.</p>
-          ` : html`
-            <table class="painel-table">
-              <thead><tr><th>Página</th><th>Visto</th></tr></thead>
-              <tbody>
-                ${card.noWorkList.map((w) => html`
-                  <tr key=${w.url}>
-                    <td title=${w.url}>${w.url}</td>
-                    <td>${w.checkedAt ? formatAgeFromTimestamp(w.checkedAt) : '—'}</td>
-                  </tr>
-                `)}
-              </tbody>
-            </table>
-          `}
-        </${Card}>
-      </div>
-
-      <div style="margin-top: var(--space-4);">
-        <${Card} title="Erros Agrupados">
-          ${card.errorGroups.length === 0 ? html`
-            <p style="color: var(--muted); font-size: var(--font-floor);">Nenhum erro no estado do site.</p>
-          ` : html`
-            <table class="painel-table">
-              <thead><tr><th>Motivo</th><th>Ocorrências</th></tr></thead>
-              <tbody>
-                ${card.errorGroups.map((g) => html`
-                  <tr key=${g.reason}>
-                    <td>${g.reason}</td>
-                    <td>${g.count}</td>
-                  </tr>
-                `)}
-              </tbody>
-            </table>
-          `}
-          ${card.errors.length > 0 ? html`
-            <details style="margin-top: var(--space-3);">
-              <summary>${card.errors.length} erro(s) recente(s)</summary>
-              <table class="painel-table">
-                <thead><tr><th>URL</th><th>Erro</th><th>Tentativas</th><th>Visto</th></tr></thead>
-                <tbody>
-                  ${card.errors.map((e) => html`
-                    <tr key=${e.url}>
-                      <td title=${e.url}>${e.url}</td>
-                      <td>${e.error || '—'}</td>
-                      <td>${e.tries}</td>
-                      <td>${e.checkedAt ? formatAgeFromTimestamp(e.checkedAt) : '—'}</td>
-                    </tr>
-                  `)}
-                </tbody>
-              </table>
-            </details>
-          ` : null}
-        </${Card}>
-      </div>
+      <${SiteHistory} card=${card} />
     </${Card}>
   `;
 }

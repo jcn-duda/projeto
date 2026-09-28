@@ -23,6 +23,7 @@ import type {
   SeriesWorkProgress,
   UpsertReport,
 } from '../providers/crawl-types.js';
+import { crawlUrlKey } from './crawl-url-key.js';
 
 /** Teto do backoff exponencial: 6h — erro persistente não pode virar polling
  * eterno, mas também não pode dormir mais que o ciclo incremental. */
@@ -142,7 +143,11 @@ export function decideUpsert(
     };
   }
   if ((existing.lastmod || '') === lastmod) {
-    return { outcome: 'unchanged', row: existing };
+    // O estado não muda, mas o HOST gravado acompanha: a identidade é o
+    // caminho (Fase 8), então a redescoberta da MESMA página no domínio novo
+    // tem de atualizar a `url` que o motor vai ler — sem isso a fila ficaria
+    // presa no host que saiu do ar.
+    return { outcome: 'unchanged', row: { ...existing, url } };
   }
   // lastmod novo: reprocessa do zero, preservando só a identidade da fila.
   // `progress: ''` explícito: o spread herdaria o progresso — conteúdo novo
@@ -231,14 +236,16 @@ export function applyResult(
   };
 }
 
+/** `url_key` (caminho) é a identidade da linha; `url` é o valor lido pelo
+ * motor, sempre com o host vigente. Ver `crawl-url-key.ts`. */
 export const URL_COLUMNS = [
-  'site', 'url', 'lastmod', 'kind', 'status', 'imdb',
+  'site', 'url', 'url_key', 'lastmod', 'kind', 'status', 'imdb',
   'tries', 'next_at', 'checked_at', 'releases', 'error', 'progress', 'added_at',
 ];
 
 export function renderUrl(row: CrawlUrlRow): (string | number | null)[] {
   return [
-    row.site, row.url, row.lastmod, row.kind, row.status, row.imdb,
+    row.site, row.url, crawlUrlKey(row.url), row.lastmod, row.kind, row.status, row.imdb,
     row.tries, row.nextAt, row.checkedAt, row.releases, row.error, row.progress, row.addedAt,
   ];
 }

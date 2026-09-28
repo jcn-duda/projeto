@@ -26,6 +26,7 @@ import type {
 } from '../providers/crawl-types.js';
 import type { CrawlEngine } from './crawl-store.js';
 import { applyResult, decideUpsert, emptyCounters, parseStatus } from './crawl-store-rules.js';
+import { crawlUrlKey } from './crawl-url-key.js';
 
 /** Teto de URLs na engine de memória (entradas de ~200 B: ~20 MB no pior caso). */
 const MEMORY_MAX_URLS = 100_000;
@@ -33,15 +34,21 @@ const MEMORY_MAX_URLS = 100_000;
 const MEMORY_MAX_RUNS = 1000;
 
 export function memoryCrawlEngine(): CrawlEngine {
-  // Chave `site\0url`; a ordem de inserção do Map é a fila de eviction.
+  // Chave `site\0url_key`: a identidade é o CAMINHO (Fase 8), então a mesma
+  // página em outro host é a MESMA entrada. A ordem de inserção do Map é a fila
+  // de eviction.
   const urls = new Map<string, CrawlUrlRow>();
+  /** `chave da linha → url_key`: o desempate do `takeNext`/`listByStatus` é pela
+   * chave (paridade com o `ORDER BY url_key` do SQLite), e recalcular o caminho
+   * de 100 mil URLs a cada tick seria o custo que a fila paga em todo claim. */
+  const urlKeys = new Map<string, string>();
   const runs = new Map<number, CrawlRunRow>();
   /** Estado pequeno por site (cursor incremental) — MESMOS verbos da SQL. */
   const state = new Map<string, string>();
   let evictions = 0;
   let nextRunId = 1;
 
-  const key = (site: string, url: string) => `${String(site || '')}\u0000${String(url || '')}`;
+  const key = (site: string, url: string) => `${String(site || '')}\u0000${crawlUrlKey(url)}`;
   const stateKey = (site: string, k: string) => `${String(site || '')}\u0000${String(k || '')}`;
 
   const evictOldest = (): void => {
@@ -49,6 +56,7 @@ export function memoryCrawlEngine(): CrawlEngine {
       const oldest = urls.keys().next().value as string | undefined;
       if (oldest === undefined) break;
       urls.delete(oldest);
+      urlKeys.delete(oldest);
       evictions += 1;
     }
   };
@@ -67,6 +75,7 @@ export function memoryCrawlEngine(): CrawlEngine {
         // magnets — URL revisitada não é evictada como se fosse fria.
         urls.delete(k);
         urls.set(k, row);
+        urlKeys.set(k, crawlUrlKey(row.url));
         report[outcome] += 1;
       }
       evictOldest();
@@ -75,24 +84,43 @@ export function memoryCrawlEngine(): CrawlEngine {
     takeNext(site, now): CrawlUrlRow | null {
       const s = String(site || '');
       let best: CrawlUrlRow | null = null;
-      for (const row of urls.values()) {
+      let bestKey = '';
+      for (const [k, row] of urls) {
         // MESMA elegibilidade da SQL: pending, partial com retry vencido, ou
         // error cujo backoff venceu.
         if (row.site !== s) continue;
         if (row.status !== 'pending' && row.status !== 'error' && row.status !== 'partial') continue;
         if (row.nextAt > now) continue;
-        // MESMA ordem da SQL: next_at, added_at, url — retomada determinística.
+        const uk = urlKeys.get(k) ?? row.url;
+        // MESMA ordem da SQL: next_at, added_at, url_key — retomada determinística.
         if (!best
           || row.nextAt < best.nextAt
           || (row.nextAt === best.nextAt && row.addedAt < best.addedAt)
-          || (row.nextAt === best.nextAt && row.addedAt === best.addedAt && row.url < best.url)) {
+          || (row.nextAt === best.nextAt && row.addedAt === best.addedAt && uk < bestKey)) {
           best = row;
+          bestKey = uk;
         }
       }
       if (!best) return null;
       const claimed: CrawlUrlRow = { ...best, status: 'inflight', checkedAt: now };
       urls.set(key(s, best.url), claimed);
       return claimed;
+    },
+    /**
+     * MESMA elegibilidade do `takeNext` acima, respondida sem reivindicar. É o
+     * que a engine de memória entrega ao motor como verdade: quem só contava
+     * status tratava `inflight` e linha em backoff como fila, o seletor escolhia
+     * "item" e o passo virava no-op — aqui o `inflight` é trabalho tomado (a
+     * órfã é do `requeueInflight`) e o backoff ainda não venceu.
+     */
+    hasDue(site, now): boolean {
+      const s = String(site || '');
+      for (const row of urls.values()) {
+        if (row.site !== s) continue;
+        if (row.status !== 'pending' && row.status !== 'error' && row.status !== 'partial') continue;
+        if (row.nextAt <= now) return true;
+      }
+      return false;
     },
     getUrl(site, url) { return urls.get(key(site, url)) ?? null; },
     markResult(site, url, result: MarkResultInput, now, opts: MarkOpts = {}): void {
@@ -161,14 +189,15 @@ export function memoryCrawlEngine(): CrawlEngine {
       const s = String(site || '');
       const cap = Math.max(0, Math.trunc(Number(limit) || 0));
       if (cap <= 0) return [];
-      const rows: CrawlUrlRow[] = [];
-      for (const row of urls.values()) {
+      const rows: Array<{ row: CrawlUrlRow; key: string }> = [];
+      for (const [k, row] of urls) {
         if (row.site !== s || row.status !== status) continue;
-        rows.push(row);
+        rows.push({ row, key: urlKeys.get(k) ?? row.url });
       }
-      // MESMA ordem da SQL: `checked_at` desc, url asc.
-      rows.sort((a, b) => (b.checkedAt - a.checkedAt) || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
-      return rows.slice(0, cap);
+      // MESMA ordem da SQL: `checked_at` desc, url_key asc.
+      rows.sort((a, b) => (b.row.checkedAt - a.row.checkedAt)
+        || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+      return rows.slice(0, cap).map((r) => r.row);
     },
     errorGroups(site, limit): CrawlErrorGroup[] {
       const s = String(site || '');
@@ -250,7 +279,7 @@ export function memoryCrawlEngine(): CrawlEngine {
     setState(site, k, value) {
       state.set(stateKey(site, k), String(value ?? ''));
     },
-    clearRows() { urls.clear(); runs.clear(); state.clear(); },
-    closeEngine() { urls.clear(); runs.clear(); state.clear(); },
+    clearRows() { urls.clear(); urlKeys.clear(); runs.clear(); state.clear(); },
+    closeEngine() { urls.clear(); urlKeys.clear(); runs.clear(); state.clear(); },
   };
 }

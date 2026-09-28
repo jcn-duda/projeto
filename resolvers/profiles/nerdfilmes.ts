@@ -1,10 +1,9 @@
 import { USER_AGENT } from '../runtime.js';
 import { createServer as createHttpServer } from '../http-server.js';
 import { createCache } from '../cache.js';
-import { capsXml as sharedCapsXml } from '../torznab.js';
 import type { ServerResponse } from 'node:http';
 import {
-  decodeEntitiesBasic, parseSize, escapeXml, extractMetaRefresh as sharedExtractMetaRefresh,
+  decodeEntitiesBasic, parseSize, extractMetaRefresh as sharedExtractMetaRefresh,
 } from '../text.js';
 import {
   normalizeFilterText, stripTrailingYears, computeWantedTokens, matchesResolverQuery,
@@ -23,9 +22,9 @@ import {
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
 import {
-  createReleaseTitle, createSearchPageHtml, createRssXml, createNormalizeQuery,
-  tryLinksInOrder, magnetButtonCacheKey,
+  createNormalizeQuery, tryLinksInOrder, magnetButtonCacheKey,
 } from '../release-format.js';
+import { createNerdfilmesFeeds } from './nerdfilmes-feeds.js';
 import {
   parsePosts, createNerdDownloadLinks, parsePostDate, isValidDirectMagnet,
   cleanPostTitle, scoreLink, normalizeSource,
@@ -160,10 +159,18 @@ function createResolver(overrides: ProfileOverrides = {}) {
     });
   }
 
-  async function fetchText(value: string, referer?: string): Promise<{ html: string; url: string }> {
+  /**
+   * Fetch do site. `hooks.onRequest` (F3) é o que o CRAWL
+   * (`crawl-sites/nerdfilmes.ts`) usa para contar o custo REAL por hop: o
+   * sitemap são 7 requests e uma página com 14 botões são 15. O perfil do
+   * nerd não tem fallback FlareSolverr — este já É o caminho direto, então o
+   * crawl não precisa de uma segunda rota de rede.
+   */
+  async function fetchText(value: string, referer?: string, hooks?: { onRequest?: () => void }): Promise<{ html: string; url: string }> {
     let current = assertAllowedUrl(value);
     let previousReferer = referer;
     for (let hop = 0; hop <= MAX_HOPS; hop += 1) {
+      hooks?.onRequest?.();
       const response = await fetch(current, {
         redirect: 'manual',
         headers: {
@@ -186,6 +193,9 @@ function createResolver(overrides: ProfileOverrides = {}) {
     throw new Error('too_many_redirects');
   }
 
+  /** `fetchText` com a assinatura que o adaptador do crawl consome. */
+  const fetchTextDirect = (url: string, _accept?: string, hooks?: { onRequest?: () => void }): Promise<string> =>
+    fetchText(url, undefined, hooks).then((r) => r.html);
   // O laço do protetor é UM só (transport); o perfil aporta apenas os parsers.
   // O assertAllowedUrl injetado no laço é o da factory (que delega ao
   // protector.js) — nunca uma checagem reimplementada aqui.
@@ -252,36 +262,12 @@ function createResolver(overrides: ProfileOverrides = {}) {
     return { posts, items: chunks.flat() };
   }
 
-  // Título da release via factory comum: o nerd usa os defaults (tag com
-  // tamanho/`opção N`, audioTag DUBLADO/LEGENDADO, sem strip de fonte).
-  const releaseTitle = createReleaseTitle({ cleanTitle: cleanPostTitle });
-
-  // Página compacta com a data do post entre size e description (rowExtras);
-  // o nerd escreve a página com escapeXml (mesmo algoritmo do escapeHtml hoje).
-  const searchPageHtml = createSearchPageHtml({
+  // Título da release, página compacta do cardigann, feed torznab e o `pubDate`
+  // saíram para `nerdfilmes-feeds.ts` (a catraca de 400 linhas): aqui o perfil
+  // monta a apresentação com `SELF_URL_RESOLVED` e o `cleanPostTitle` dele.
+  const { releaseTitle, searchPageHtml, pubDate, capsXml, rssXml } = createNerdfilmesFeeds({
     selfUrl: SELF_URL_RESOLVED,
-    escape: escapeXml,
-    releaseTitle,
-    rowExtras: (post) => (post.date ? `<div class="date">${escapeXml(post.date)}</div>` : ''),
-  });
-
-  function pubDate(post: { date?: string | null; title?: string | null }): string {
-    const explicit = new Date(post.date || '');
-    if (!Number.isNaN(explicit.getTime())) return explicit.toUTCString();
-    const year = String(post.title || '').match(/\b((?:19|20)\d{2})\b/)?.[1];
-    return new Date(Date.UTC(Number(year || 2000), 0, 1)).toUTCString();
-  }
-
-  function capsXml(): string {
-    return sharedCapsXml('NerdFilmesTorrent / XNerdFilmes');
-  }
-
-  // Feed multilinha sem description nem <enclosure> — defaults da factory comum.
-  const rssXml = createRssXml({
-    selfUrl: SELF_URL_RESOLVED,
-    channelTitle: 'NerdFilmesTorrent / XNerdFilmes',
-    titleOf: ({ post, link }) => releaseTitle(post.title, link),
-    pubDateOf: ({ post }) => pubDate(post),
+    cleanPostTitle,
   });
 
   // Busca WordPress com nota de saúde para o failover de domínio: sucesso zera
@@ -376,7 +362,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     createServer, parsePosts, parseDownloadLinks, parsePostDate, parseSize,
     releaseTitle, pubDate, searchPageHtml, assertAllowedUrl, extractMagnet,
     nextProtectedUrl, isDetailHost, isProtectorHost, isValidDirectMagnet,
-    getPostLinks, fetchFollowingAllowed, siteSelector, createSiteSelector,
+    getPostLinks, fetchFollowingAllowed, fetchTextDirect, siteSelector, createSiteSelector,
     isNetworkError, normalizeFilterText, stripTrailingYears, computeWantedTokens,
     matchesResolverQuery, normalizeSeasonValue, matchesSeasonSeason,
     selectSearchPosts, buttonId, pickButton, unwrapResolverUrl,

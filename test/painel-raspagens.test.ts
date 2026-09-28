@@ -22,45 +22,7 @@ import { TAB_IDS, tabFromHash } from '../src/client/painel/app.js';
 import { CLIENT_ASSETS } from '../src/routes/public.js';
 import { VITAL_BLOCKS } from '../src/client/painel/poll.js';
 import { h } from '../src/client/painel/vendor/preact.js';
-
-/** Expande componentes de função (sem hooks) e devolve os VNodes de elemento. */
-function expand(node: any): any[] {
-  const out: any[] = [];
-  const walk = (n: any) => {
-    if (n == null || n === false || n === true) return;
-    if (Array.isArray(n)) {
-      for (const item of n) walk(item);
-      return;
-    }
-    if (typeof n !== 'object') return;
-    if (typeof n.type === 'function') {
-      walk(n.type(n.props || {}));
-      return;
-    }
-    out.push(n);
-    walk(n.props?.children);
-  };
-  walk(node);
-  return out;
-}
-
-/** Texto visível incluindo title/badge/label dos componentes do kit. */
-function textOf(node: any): string {
-  if (node == null || node === false) return '';
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(textOf).join(' ');
-  if (typeof node === 'object') {
-    if (typeof node.type === 'function') return textOf(node.type(node.props || {}));
-    const props = node.props || {};
-    return [
-      typeof props.title === 'string' ? props.title : '',
-      typeof props.badge?.text === 'string' ? props.badge.text : '',
-      typeof props.label === 'string' ? props.label : '',
-      textOf(props.children),
-    ].join(' ');
-  }
-  return '';
-}
+import { expand, textOf } from './helpers/painel-vnode.js';
 
 function sampleCrawl() {
   return {
@@ -223,16 +185,18 @@ test('phaseLabel, siteStateLabel, workLabel, runDurationMs e etaLabel', () => {
   assert.equal(phaseLabel('incremental'), 'Incremental');
   assert.equal(phaseLabel(null), '—');
 
-  const summary = crawlSummary({ enabled: true, site: 'a' });
-  const card = crawlSiteCards({ site: 'a', sites: [{ id: 'a', label: 'A', total: 1, byStatus: { done: 1 } }] })[0];
+  // O card carrega a config EFETIVA do site (Fase 8): o payload precisa dizer
+  // que o motor está ligado, senão o site herda `enabled:false` e o estado
+  // honesto é "fora da rotação · desligado" (coberto em painel-raspagens-sites).
+  const ativo = { enabled: true, site: 'a', sites: [{ id: 'a', label: 'A', total: 1, byStatus: { done: 1 } }] };
+  const summary = crawlSummary(ativo);
+  const card = crawlSiteCards(ativo)[0];
   assert.equal(siteStateLabel(card, summary), 'ativo');
   assert.equal(siteStateLabel({ ...card, active: false }, summary), 'ocioso');
   assert.equal(siteStateLabel({ ...card, active: false, total: 0 }, summary), 'sem estado');
-  assert.equal(siteStateLabel(card, crawlSummary({ enabled: true, paused: true, site: 'a' })), 'pausado');
-  assert.equal(
-    siteStateLabel(card, crawlSummary({ enabled: true, dryRun: true, site: 'a' })),
-    'simulando',
-  );
+  assert.equal(siteStateLabel({ ...card, paused: true }, summary), 'pausado');
+  assert.equal(siteStateLabel(card, crawlSummary({ ...ativo, paused: true })), 'pausado');
+  assert.equal(siteStateLabel(card, crawlSummary({ ...ativo, dryRun: true })), 'simulando');
 
   assert.equal(workLabel({ url: 'u', imdb: 'tt1', releases: 3, checkedAt: 0 }), 'tt1 · 3 release(s)');
   assert.equal(workLabel({ url: 'u', imdb: null, releases: 0, checkedAt: 0 }), 'u · 0 release(s)');
@@ -263,7 +227,7 @@ test('nextDiscoveryLabel mapeia a próxima descoberta sem inventar hora (Fase 6)
 test('SiteCard renderiza estado, progresso, listas e botões por site', () => {
   const summary = crawlSummary(sampleCrawl());
   const [card] = crawlSiteCards(sampleCrawl());
-  const vnode = SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReset: () => {} });
+  const vnode = SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReset: () => {}, onTogglePause: () => {} });
   const text = textOf(vnode);
 
   assert.match(text, /Vaca Torrent/);
@@ -291,7 +255,7 @@ test('SiteCard renderiza estado, progresso, listas e botões por site', () => {
 test('SiteCard desabilita Reprocessar Erros quando não há erro', () => {
   const summary = crawlSummary({ enabled: true, site: 'a' });
   const [card] = crawlSiteCards({ site: 'a', sites: [{ id: 'a', label: 'A', total: 1, byStatus: { done: 1 } }] });
-  const elements = expand(SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReset: () => {} }));
+  const elements = expand(SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReset: () => {}, onTogglePause: () => {} }));
   const reprocess = elements.find((n) => n.type === 'button' && textOf(n).includes('Reprocessar Erros'));
   assert.ok(reprocess);
   assert.equal(reprocess.props.disabled, true);

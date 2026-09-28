@@ -52,4 +52,15 @@ export const crawl = () => ({
   seriesMaxCards: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_CARDS, 10))),
   // Teto de botões de download seguidos (cadeia do protetor) por página.
   seriesMaxButtons: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_BUTTONS, 40))),
+  // Fase 8 (multi-site): gate da SONDA. Com `true`, um site só entra na rotação
+  // do motor depois do veredito GO da amostra de 40 páginas gravado em
+  // `crawl_state['probe:verdict']` — site novo sem medição não raspa nada. Default
+  // `false` para não desligar o site's piloto já medido em produção: ligar é
+  // decisão do operador, e o gate é por site, não global.
+  requireProbe: String(process.env.CRAWL_REQUIRE_PROBE || 'false') === 'true',
+  // Fase 8: custo ESTIMADO da rodada de descoberta, cobrado no teto por hora
+  // enquanto o adaptador não declara o custo real (`CrawlDiscovery.requestCost`).
+  // 3 = sitemap de filme + de série, na ordem de grandeza do Vaca. É estimativa
+  // declarada (não medição) — ajuste depois de instrumentar os adaptadores.
+  discoveryCost: Math.max(1, Math.trunc(num(process.env.CRAWL_DISCOVERY_COST, 3))),
 });

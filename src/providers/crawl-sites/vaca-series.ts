@@ -99,12 +99,11 @@ export interface VacaSeriesContext {
  * Anexa o custo medido ao erro (F1): a exceção sobe com `requestCost` e o
  * `crawl-page` repassa ao motor — página que falhou no 4º hop custa 4, não 1.
  * Erro alheio (não-Error) é embrulhado; o original vai na mensagem.
+ *
+ * O núcleo é `crawl-sites/shared.ts` (o NerdFilmes consome o mesmo); o
+ * reexport mantém a API pública deste módulo.
  */
-export function withRequestCost(err: unknown, cost: number): Error {
-  const e = err instanceof Error ? err : new Error(String(err));
-  (e as Error & { requestCost?: number }).requestCost = cost;
-  return e;
-}
+export { withRequestCost } from './shared.js';
 
 // Roteamento por slug e agrupamento por locação mudaram para
 // `vaca-series-locate.ts` (catraca de linhas): reexportados para não mudar

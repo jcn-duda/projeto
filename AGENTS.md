@@ -1817,6 +1817,128 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
 
 ---
 
+## Raspagem de sites BR — motor multi-site (Fase 8, itens 8.0–8.4)
+
+O colhedor de indexers responde a `/stream`. O **raspador** é o outro
+sentido: ele próprio visita o site BR, pagina por página, e alimenta o acervo.
+Hoje ele roda **multi-site serial** — uma requisição por vez na rotação, sem
+FlareSolverr, e só com o app ocioso.
+
+**O registro é uma tabela fechada** (`crawl-sites/registry.ts`): os oito cards
+BR do Jackett, cada um com rótulo, ordem de rollout, mecanismo
+(`sitemap|listing`), política de série e `needsFlare`. Só `vacatorrent` e
+`nerdfilmes` têm adaptador NESTA rodada; os outros seis aparecem no status como
+"adaptador pendente", que é diagnóstico, não sumiço. `ensureSite(id)` resolve e
+memoiza **por id** (Map) e devolve `null` explícito com warn — id fora da
+tabela nunca vira adaptador. **Não "varra `Object.values` chamando função
+desconhecida"**: o registro só carrega o export que ele mesmo nomeia.
+
+**O estado é POR SITE** (`crawl-site-runtime.ts`): cursores, rodada aberta,
+`nextDiscoverAt`, política de pausa, hora/custo, `lastRequestAt`,
+`lastActiveAt`, flags de recuperação. O que é GLOBAL continua global por
+desenho: um `busy` (uma operação em voo), o freio de tráfego e o `delayMs`
+mínimo. A **seleção** (`crawl-site-select.ts`) é pura e a ordem das regras é a
+ordem do código: desligado → pausado → auto-pausa → teto (por site **e**
+global agregado) → **gate da sonda** → adaptador em janela de retry → sem
+trabalho. Entre os elegíveis vence o mais antigo por `lastActiveAt`, e a
+prioridade de CLASSE é **item vencido antes de descoberta vencida** — sem isso
+um site com fila infinita empurraria a descoberta dos outros para o próximo
+ciclo. `hasDue(site, now)` é exato (existe `next_at <= now`), nunca a
+aproximação por contador: uma linha em backoff de 6 h contada como devida
+monopolizaria a seleção.
+
+**Ajuste por site** (`crawler-live-site.ts`): `siteOverrides[id]` com
+`enabled`, `dryRun`, `delayMs` e `maxPerHour`, aplicados sobre o global com
+clamp — o site **nunca** fica mais rápido que o `delayMs` global nem passa do
+`maxPerHour` global. Site desligado no override continua desligado com o global
+ligado; ligado no override não ressuscita com o global desligado (o global é o
+kill-switch). Ações: `crawl-site-config-set` (só o delta), `crawl-site-config-reset`
+(destrutiva, `confirm`) e `crawl-site-pause`.
+
+**A identidade da página é `(site, url_key)`** e `url_key` é o **caminho**
+(`crawl-url-key.ts`): sem esquema, sem host, sem query, sem fragmento, barra
+final canônica. Motivo: os sites BR trocam de domínio com frequência e a chave
+com host faria o acervo inteiro ser re-raspado. `url` guarda o último endereço
+visto e é atualizada a cada redescoberta (`decideUpsert` no ramo `unchanged`),
+então a fila atravessa a troca de domínio sem perder `done`/`imdb`/`releases`.
+A migração é um **rebuild transacional único** que serve três causas (CHECK
+legada, coluna `progress` ausente, identidade nova) e funde as linhas que viraram
+a mesma página pela ordem de maturidade. Limitação conhecida: página
+distinguível só por query colapsa na vizinha — nenhum site BR rastreado usa
+essa forma, e o conserto é na chave, não no motor.
+
+**A sonda de 40 é o portão** (`crawl-site-probe.ts` puro + `scripts/crawl-site-probe.ts`).
+Ela usa o **adaptador real** em `noPersist` + `dryRun`, tira a amostra
+**direto do `discover()`** (linha sintética na memória: não consome nem devolve
+trabalho da fila), com `CACHE_PERSIST=false` para nem abrir o `cache.db`, e
+grava **uma única chave**: `crawl_state[<site>]["probe:verdict"]`. Os
+denominadores são explícitos e **não** dividem pela amostra toda: páginas
+válidas ÷ amostra; páginas com release e magnets/página ÷ **páginas com botão
+de torrent**; identificadas ÷ **páginas com release** que receberam resposta
+do TMDB. `no-work` é resposta negativa e ENTRA no denominador; só
+`tmdb-indisponivel` sai em `tmdbDown`, porque mediria a nossa dependência, não
+o site. `PageOutcome.releases` preserva a contagem observada mesmo no
+`no-work`, mas o store persiste `releases: 0` (nada gravado). O `go` exige o
+**limite inferior de Wilson 95%**, não a taxa bruta — com 40 páginas, 22 acertos
+dariam 55% e passariam em qualquer limiar razoável. A CLI recusa gravar o
+veredito com amostra ≠ 40, limiares diferentes dos defaults ou tipo de página
+≠ filme. A autorização é por TIPO, e a trava é `kind !== 'movie'` (não
+`mixed`): a série pura de `--series` mede a população que o TMDB não resolve por
+título, e um GO dela autorizaria o site inteiro com um número de metade do
+acervo.
+
+**O gate tem UM codec** (`crawl-probe-gate.ts` importa `parseProbeVerdict` da
+sonda; não re-deriva chave nem JSON — dois parsers aceitam veredito velho,
+forjado ou de outro site). `verdictFor` falha FECHADO em toda exceção:
+chave ausente, JSON quebrado, engine fechada, `site` diferente, `v`
+diferente, `sample != 40`, `stop != 'amostra-completa'` ou `verdict != 'go'`.
+O codec está em **v2**: v1 tinha denominadores errados e não autoriza mais a
+rotação. `classes` separa `no-work` de `tmdb-down`; `cost` mede média e p95
+de requisições/latência por página (não deriva p95 de agregado).
+O `ProbeGate` que o status expõe leva as MEDIDAS do veredito (`rates`,
+`counts`, `reasons`) porque o painel tem UI para elas: ausente é `null`, e
+`null` só sai quando o veredito é mesmo deste site na versão vigente — a
+medição de outro site explica a não liberação sem virar número neste card.
+`CRAWL_REQUIRE_PROBE` é **por site** e default `false` (o piloto já foi medido
+em produção; ligar exigiria re-medir o Vaca). O painel mostra "sonda não rodada"
+para veredito ausente — nunca "GO" por omissão.
+`CRAWL_PROBE_SITE`/`CRAWL_PROBE_SAMPLE`/`CRAWL_PROBE_OFFSET`/`CRAWL_PROBE_DELAY_MS` são o
+default da CLI, não config do motor. **A escrita do veredito é opt-in por
+`--write`**: sem a flag a rodada é de observação e nada é gravado, porque o
+veredito gravado é a autorização de entrada na rotação. `--help` responde sem
+carregar `config.ts`, sem abrir o `crawl.db` e sem resolver adaptador;
+flag desconhecida é erro, nunca é ignorada em silêncio.
+
+**As séries do NerdFilmes continuam desligadas**, e é uma decisão medida: o
+`discover` classifica `kind` **pelo slug** (`-1a-temporada-`, `temporada` ⇒
+`tv_show`; 13 das 40 páginas do recorte real), mas só emite `tv_show` em modo
+amostra (`createNerdfilmesCrawlSite(surface, { seriesProbe: true })`), que a
+fábrica do registry **nunca** liga. Season page chegando com `kind:'movie'`
+(linha antiga) é recusada antes de qualquer fetch: 14 magnets de episódio
+gravados como filme é obra errada no acervo. Sobe a liga depois que a amostra
+separar pack de episódio.
+
+**O card por site existe MESMO com o crawler desligado.** O `status` abre a
+engine quando ainda não há nenhuma e há site configurado (`statusEngine`): sem
+isso o painel responderia `sites: []` e o site novo nunca apareceria como
+"sonda não rodada", que é o estado inicial de todo site. A abertura é o schema
+vazio (~32 KB, volume existente) e a migração idempotente; sem `CRAWL_SITES`
+o arquivo não nasce. A leitura não grava veredito nem mexe na fila.
+
+**O ETA do status leva a fração ociosa medida**: `rateFor` sozinho assume 100%
+do tempo disponível, e na VPS o Vaca parou com 38 páginas pela janela de 10 min
+do tráfego. Sem fração medida o ETA não é número; é `null`.
+
+**O ETA também usa o custo do PRÓPRIO site** (`avgCostFor`): o custo médio é
+medido por site, e o estado escalar que o `buildCrawlerStatus` monta (visão do
+site ATIVO) é só o fallback do caminho legado de site único. Passar esse
+custo para todos os cards fazia o site inativo prometer o ETA do ativo — com o
+Vaca a 1 req/página, o NerdFilmes (página de série, ~9) aparecia com 1 h no
+lugar das 9 h. Site sem custo medido não pega o do vizinho: ETA `null` com
+`etaBasis` explícito, nunca um número emprestado de outra obra.
+
+---
+
 ## Os seis invariantes que mais quebram
 
 **1. O orçamento de tempo é sagrado.**

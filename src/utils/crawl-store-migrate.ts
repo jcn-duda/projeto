@@ -1,19 +1,31 @@
 // Schema e migração do `crawl.db` (extraído de `crawl-store.ts` pela catraca
 // de 400 linhas). Duas responsabilidades:
 //
-// 1. Criar as tabelas (mesmo DDL de sempre);
-// 2. MIGRAR um `crawl_url` legado cuja definição carrega CHECK sobre `status`:
-//    o status novo `simulated` (dry-run que leu página com releases, mas não
-//    gravou) não passa numa CHECK antiga, e o erro só explodiria na PRIMEIRA
-//    gravação — tarde, dentro do processamento. A migração reconstrói a tabela
-//    (CREATE new → INSERT SELECT → DROP → RENAME) numa ÚNICA transação,
-//    preservando TODAS as linhas e recriando os índices. Idempotente: sem
-//    CHECK, é um no-op de uma leitura de `sqlite_master`.
+// 1. Criar as tabelas (DDL de sempre) e a coluna que a versão anterior não
+//    tinha;
+// 2. RECONSTRUIR `crawl_url` quando a definição legada não serve mais. São três
+//    causas, e as três são resolvidas pelo MESMO rebuild:
+//    a) `CHECK` sobre `status` (schema hipotético de versões com a trava): o
+//       status novo `simulated` (dry-run que leu página com releases, mas não
+//       gravou) não passa, e o erro só explodiria na PRIMEIRA gravação — tarde,
+//       dentro do processamento;
+//    b) ausência da coluna `progress` (Fase 7 v2);
+//    c) identidade por `url` cheia em vez de `(site, url_key)` (Fase 8) — a
+//       chave passa a ser o CAMINHO, para a fila sobreviver à troca de
+//       domínio do site. O SQLite não troca chave primária por `ALTER`, e a
+//       `url_key` é calculada em TypeScript (normalizar caminho não é
+//       expressável em SQL com honestidade), então a fusão das linhas que
+//       passaram a ser a mesma página acontece AQUI, no meio da transação.
 //
-// O schema REAL deste repositório nunca teve CHECK — a migração existe como
-// defesa para bancos criados por versões com a trava, e é ela que o teste de
-// migração legada exercita.
+// O rebuild é uma transação só (CREATE new → INSERT → DROP → RENAME); os
+// índices são recriados pelo `CREATE INDEX IF NOT EXISTS` logo abaixo. Falha
+// qualquer faz ROLLBACK e o erro sobe — o store cai na engine de memória em
+// vez de abrir um banco pela metade. Idempotente: banco já no formato corrente
+// não é tocado (uma leitura de `PRAGMA` + `sqlite_master`).
 import * as log from './logger.js';
+import { crawlUrlKey, mergeCrawlUrlRows } from './crawl-url-key.js';
+import { parseUrlRow, renderUrl } from './crawl-store-rules.js';
+import type { CrawlUrlRow } from '../providers/crawl-types.js';
 
 /** Superfície mínima do `node:sqlite` usada aqui (o store passa o db real). */
 export interface CrawlSchemaDb {
@@ -25,6 +37,7 @@ const CRAWL_URL_DDL = `
   CREATE TABLE crawl_url (
     site TEXT NOT NULL,
     url TEXT NOT NULL,
+    url_key TEXT NOT NULL DEFAULT '',
     lastmod TEXT NOT NULL DEFAULT '',
     kind TEXT NOT NULL DEFAULT 'movie',
     status TEXT NOT NULL DEFAULT 'pending',
@@ -36,60 +49,115 @@ const CRAWL_URL_DDL = `
     error TEXT NOT NULL DEFAULT '',
     progress TEXT NOT NULL DEFAULT '',
     added_at INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (site, url)
+    PRIMARY KEY (site, url_key)
   )`;
 
+/** Mesma ordem do DDL: o INSERT do rebuild e o codec `renderUrl` dependem. */
 const CRAWL_URL_COLUMNS = [
-  'site', 'url', 'lastmod', 'kind', 'status', 'imdb',
+  'site', 'url', 'url_key', 'lastmod', 'kind', 'status', 'imdb',
   'tries', 'next_at', 'checked_at', 'releases', 'error', 'progress', 'added_at',
 ];
+
+function tableExists(db: CrawlSchemaDb): boolean {
+  const row = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'crawl_url'",
+  ).get() as Record<string, unknown> | null;
+  return Boolean(row);
+}
+
+function tableColumns(db: CrawlSchemaDb): string[] {
+  return (db.prepare('PRAGMA table_info(crawl_url)').all() as Array<Record<string, unknown>>)
+    .map((c) => String(c?.name || ''));
+}
 
 /** A definição da tabela existente trava `status` com CHECK? */
 function hasStatusCheck(db: CrawlSchemaDb): boolean {
   const row = db.prepare(
     "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'crawl_url'",
   ).get() as Record<string, unknown> | null;
-  const ddl = String(row?.sql || '');
-  if (!ddl) return false;
-  return /\bCHECK\s*\(/i.test(ddl);
+  return /\bCHECK\s*\(/i.test(String(row?.sql || ''));
 }
 
-/** Rebuild seguro da tabela com CHECK legada: uma transação, linhas e índices
- * preservados. Qualquer falha faz ROLLBACK e sobe — o store cai na engine de
- * memória em vez de abrir um banco pela metade. */
+/** Rebuild seguro: uma transação, linhas fundidas e índices recriados depois. */
 function rebuildCrawlUrl(db: CrawlSchemaDb): void {
-  const total = Number((db.prepare('SELECT COUNT(*) AS n FROM crawl_url').get() as Record<string, unknown>)?.n) || 0;
-  // A tabela legada pode não ter colunas novas (`progress`): o INSERT usa a
-  // INTERSEÇÃO das colunas existentes — a que falta nasce com o DEFAULT do
-  // DDL novo ('' para progress), nunca erro de coluna desconhecida.
-  const existingCols = ((db.prepare('PRAGMA table_info(crawl_url)').all() as Array<Record<string, unknown>>)
-    .map((c) => String(c?.name || '')));
-  const cols = CRAWL_URL_COLUMNS.filter((c) => existingCols.includes(c)).join(', ');
+  // `parseUrlRow` tolera coluna ausente (todo campo fora de forma vira
+  // default), então a legada sem `progress` passa por aqui sem caso especial.
+  const legacy = (db.prepare('SELECT * FROM crawl_url').all() as Record<string, unknown>[]).map(parseUrlRow);
+  // Duas URLs que só diferem no host (ou na barra final) são a MESMA página
+  // desde a Fase 8: colapsam numa linha, e o vencedor é o que tinha trabalho
+  // registrado — ver `mergeCrawlUrlRows`.
+  const byKey = new Map<string, CrawlUrlRow[]>();
+  for (const row of legacy) {
+    const k = `${row.site}\u0000${crawlUrlKey(row.url)}`;
+    const bucket = byKey.get(k);
+    if (bucket) bucket.push(row);
+    else byKey.set(k, [row]);
+  }
+  const merged: CrawlUrlRow[] = [];
+  for (const rows of byKey.values()) {
+    const row = mergeCrawlUrlRows(rows);
+    if (row) merged.push(row);
+  }
+  const collapsed = legacy.length - merged.length;
+  const hadCheck = hasStatusCheck(db);
+  // `prepare` COMPILA o SQL: a tabela nova precisa existir antes, senão o erro
+  // é "no such table" e a migration inteira cai na engine de memória.
+  let ins: ReturnType<CrawlSchemaDb['prepare']> | null = null;
   let started = false;
   try {
     db.exec('BEGIN');
     started = true;
     db.exec(CRAWL_URL_DDL.replace('CREATE TABLE crawl_url', 'CREATE TABLE crawl_url_new'));
-    db.exec(`INSERT INTO crawl_url_new (${cols}) SELECT ${cols} FROM crawl_url`);
+    ins = db.prepare(
+      `INSERT INTO crawl_url_new (${CRAWL_URL_COLUMNS.join(', ')}) VALUES (${CRAWL_URL_COLUMNS.map(() => '?').join(', ')})`,
+    );
+    for (const row of merged) ins.run(...renderUrl(row));
     db.exec('DROP TABLE crawl_url');
     db.exec('ALTER TABLE crawl_url_new RENAME TO crawl_url');
     db.exec('COMMIT');
     started = false;
-    log.warn(`[crawl] tabela crawl_url com CHECK legada migrada para aceitar 'simulated' (${total} linha(s) preservada(s))`);
   } catch (err) {
     if (started) {
       try { db.exec('ROLLBACK'); } catch { /* transação já quebrada: sobe o erro original */ }
     }
     throw err;
   }
+  log.warn(
+    `[crawl] crawl_url migrada para identidade (site, url_key): ${merged.length} linha(s)`
+    + `${collapsed ? `, ${collapsed} colapsada(s) por mesmo caminho` : ''}`
+    + `${hadCheck ? ' (CHECK legada removida)' : ''}`,
+  );
+}
+
+/**
+ * Abre o arquivo do `crawl.db` já PRONTO: PRAGMAs + schema/migração. Qualquer
+ * falha depois do handle aberto fecha o banco antes de propagar — sem isso a
+ * queda para a engine de memória deixaria o handle vivo, e no Windows um handle
+ * vivo TRAVA o arquivo, justamente o `crawl.db` que o operador precisa reparar
+ * ou remover depois de uma abertura ruim.
+ */
+export function openCrawlDatabase(dbPath: string, DatabaseSync: new (path: string) => unknown): unknown {
+  const db = new DatabaseSync(dbPath) as CrawlSchemaDb;
+  try {
+    db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+    ensureCrawlSchema(db);
+  } catch (err: unknown) {
+    try { (db as unknown as { close?: () => void }).close?.(); } catch { /* best-effort */ }
+    throw err;
+  }
+  return db;
 }
 
 export function ensureCrawlSchema(db: CrawlSchemaDb): void {
-  if (hasStatusCheck(db)) rebuildCrawlUrl(db);
+  const exists = tableExists(db);
+  // Banco ausente: o `CREATE TABLE IF NOT EXISTS` abaixo já nasce no formato
+  // novo, sem rebuild. Banco presente sem `url_key` (ou com CHECK): rebuild.
+  if (exists && (!tableColumns(db).includes('url_key') || hasStatusCheck(db))) rebuildCrawlUrl(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS crawl_url (
       site TEXT NOT NULL,
       url TEXT NOT NULL,
+      url_key TEXT NOT NULL DEFAULT '',
       lastmod TEXT NOT NULL DEFAULT '',
       kind TEXT NOT NULL DEFAULT 'movie',
       status TEXT NOT NULL DEFAULT 'pending',
@@ -101,7 +169,7 @@ export function ensureCrawlSchema(db: CrawlSchemaDb): void {
       error TEXT NOT NULL DEFAULT '',
       progress TEXT NOT NULL DEFAULT '',
       added_at INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (site, url)
+      PRIMARY KEY (site, url_key)
     );
     CREATE INDEX IF NOT EXISTS crawl_url_due ON crawl_url (site, status, next_at);
     CREATE TABLE IF NOT EXISTS crawl_run (
@@ -125,15 +193,12 @@ export function ensureCrawlSchema(db: CrawlSchemaDb): void {
   ensureProgressColumn(db);
 }
 
-/** Banco existente sem a coluna `progress` (formato anterior à Fase 7 v2):
- * ALTER idempotente. O rebuild do CHECK legado já copia pelas colunas, então
- * o caso dele é coberto; aqui sobra o banco criado pela versão anterior SEM
- * CHECK. Falha sobe — o sqliteEngine cai na engine de memória (defesa já
- * existente), em vez de abrir um banco pela metade. */
+/** Rede de segurança para um banco com `url_key` mas sem `progress` (não existe
+ * nesta versão, mas o rebuild já normaliza): `ALTER` idempotente. Falha sobe —
+ * o sqliteEngine cai na engine de memória (defesa já existente), em vez de abrir
+ * um banco pela metade. */
 function ensureProgressColumn(db: CrawlSchemaDb): void {
-  const cols = db.prepare('PRAGMA table_info(crawl_url)').all() as Array<Record<string, unknown>>;
-  const has = cols.some((c) => String(c?.name || '') === 'progress');
-  if (has) return;
+  if (tableColumns(db).includes('progress')) return;
   db.exec("ALTER TABLE crawl_url ADD COLUMN progress TEXT NOT NULL DEFAULT ''");
   log.warn('[crawl] coluna progress adicionada a crawl_url (linhas preservadas)');
 }
