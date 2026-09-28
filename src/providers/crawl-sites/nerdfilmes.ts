@@ -41,7 +41,7 @@ import type {
 } from '../crawl-types.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
-import { magnetHash, parseTitleYear, withRequestCost } from './shared.js';
+import { magnetHash, parseOriginalTitle, parseTitleYear, withRequestCost } from './shared.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseImdbId, parseSitemapEntries,
   parseSitemapIndexLocs, SITEMAP_INDEX_PATHS, toWorkUrl,
@@ -375,7 +375,8 @@ export function createNerdfilmesCrawlSite(
           };
           return sample;
         }
-        return { url, status: 'done', imdb, title, year, type, releases, requestCost: counter.n };
+        const originalTitle = parseOriginalTitle(pageHtml); // 2º nome da identificação
+        return { url, status: 'done', imdb, title, year, originalTitle, type, releases, requestCost: counter.n };
       } catch (err) {
         // F1: throw NÃO perde o custo medido (F3, por hop).
         throw withRequestCost(err, counter.n);

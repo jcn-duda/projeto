@@ -174,6 +174,8 @@ export interface CrawlWorkResult {
   imdb?: string | null;
   title?: string;
   year?: number | null;
+  /** Título original que o post declara (2º nome da identificação); só quem publica. */
+  originalTitle?: string | null;
   type?: 'movie' | 'series';
   /** Releases válidas extraídas, no MESMO formato de item cru da busca. */
   releases?: RawItem[];

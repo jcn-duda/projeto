@@ -11,7 +11,9 @@
 //   - nome: igualdade ESTRITA pós-normalização (`normalizeTitle` — a mesma
 //     do filtro de título do addon) contra o título localizado pt-BR OU o
 //     original do candidato. Sem prefixo, sem substring, sem sinônimo e SEM
-//     Jev: decisão determinística, auditável e reproduzível;
+//     Jev: decisão determinística, auditável e reproduzível. O título
+//     ORIGINAL que a página declara (quando declara) é um segundo nome com a
+//     MESMA régua, nunca uma régua mais frouxa;
 //   - ano da PÁGINA: página sem ano declarado não entra em busca nenhuma —
 //     sem ano não há com que discriminar homônimo de qualquer época, e
 //     aceitar "o único que casou hoje" é chute com cara de acerto. O desfecho
@@ -44,6 +46,14 @@ export interface IdentifyInput {
   title: string;
   /** Ano declarado pela página; `null`/ausente = página sem ano. */
   year?: number | null;
+  /**
+   * Título ORIGINAL declarado pela página (NerdFilmes). Segundo nome com a
+   * MESMA régua estrita, segunda busca quando o `<h1>` não casa ninguém, e
+   * desempate de homônimo: entre dois candidatos que casam o nome, só o cujo
+   * `original_title` é o que a página declarou. Não é popularidade — é o site
+   * dizendo QUAL obra é.
+   */
+  originalTitle?: string | null;
 }
 
 export interface IdentifyResult {
@@ -76,7 +86,7 @@ export function strictNameMatches(
 }
 
 export type CandidateSelection =
-  | { kind: 'unique'; hit: TmdbSearchHit }
+  | { kind: 'unique'; hit: TmdbSearchHit; byOriginal?: boolean }
   | { kind: 'ambiguous'; hits: TmdbSearchHit[] }
   | { kind: 'none' };
 
@@ -85,13 +95,31 @@ export type CandidateSelection =
  * nome estrito decide a entrada e a quantidade de obras DISTINTAS decide o
  * desfecho — uma é única, duas ou mais é homônimo ambíguo (null), zero é
  * "não casou".
+ *
+ * `originalTitle` (opcional) é o título original que a PÁGINA declarou: casa
+ * pela mesma régua estrita e, com dois ou mais candidatos, desempata SÓ se
+ * exatamente um deles tem esse `original_title` — "A Besta (2024)" com
+ * original "La bête" é o Bonello, não o "A BESTA" homônimo do mesmo ano.
  */
-export function selectCandidate(hits: TmdbSearchHit[], pageTitle: string): CandidateSelection {
+export function selectCandidate(
+  hits: TmdbSearchHit[],
+  pageTitle: string,
+  originalTitle?: string | null,
+): CandidateSelection {
+  const original = String(originalTitle || '').trim();
+  const names = original ? [pageTitle, original] : [pageTitle];
   const matches = (Array.isArray(hits) ? hits : [])
-    .filter((hit) => strictNameMatches(pageTitle, [hit?.title, hit?.originalTitle]));
-  const distinct = [...new Map(matches.filter((hit) => hit).map((hit) => [hit.tmdbId, hit])).values()];
-  if (distinct.length === 1) return { kind: 'unique', hit: distinct[0] };
-  if (distinct.length > 1) return { kind: 'ambiguous', hits: distinct };
+    .filter((hit) => hit && names.some((name) => strictNameMatches(name, [hit.title, hit.originalTitle])));
+  const distinct = [...new Map(matches.map((hit) => [hit.tmdbId, hit])).values()];
+  if (distinct.length === 1) {
+    const byOriginal = !strictNameMatches(pageTitle, [distinct[0].title, distinct[0].originalTitle]);
+    return { kind: 'unique', hit: distinct[0], byOriginal };
+  }
+  if (distinct.length > 1) {
+    const narrowed = original ? distinct.filter((hit) => strictNameMatches(original, [hit.originalTitle])) : [];
+    if (narrowed.length === 1) return { kind: 'unique', hit: narrowed[0], byOriginal: true };
+    return { kind: 'ambiguous', hits: distinct };
+  }
   return { kind: 'none' };
 }
 
@@ -118,9 +146,21 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
 
   const search = await searchByTitle(input.type, title, pageYear);
   if (!search.ok) return { outcome: 'unavailable', imdb: null, reason: 'tmdb-indisponivel' };
-  if (!search.hits.length) return { outcome: 'unidentified', imdb: null, reason: 'tmdb-sem-resultado' };
-
-  const selection = selectCandidate(search.hits, title);
+  // Original igual ao `<h1>` não acrescenta nada (nem busca, nem desempate).
+  const rawOriginal = String(input?.originalTitle || '').trim();
+  const original = rawOriginal && normalizeTitle(rawOriginal) !== normalizeTitle(title) ? rawOriginal : '';
+  let hits = search.hits;
+  let selection = selectCandidate(hits, title, original);
+  // Segunda busca pelo ORIGINAL só quando o `<h1>` não casou ninguém: o site
+  // titula num pt-BR que o TMDB não tem ("A Armadilha do Coelho" = "Rabbit
+  // Trap"). Ambíguo pelo `<h1>` já tem o desempate acima — rebuscar não muda.
+  if (selection.kind === 'none' && original) {
+    const second = await searchByTitle(input.type, original, pageYear);
+    if (!second.ok) return { outcome: 'unavailable', imdb: null, reason: 'tmdb-indisponivel' };
+    hits = [...hits, ...second.hits];
+    selection = selectCandidate(hits, title, original);
+  }
+  if (!hits.length) return { outcome: 'unidentified', imdb: null, reason: 'tmdb-sem-resultado' };
   if (selection.kind === 'none') {
     return { outcome: 'unidentified', imdb: null, reason: 'nome-sem-casamento' };
   }
@@ -136,5 +176,7 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
   if (!ext.imdb) {
     return { outcome: 'unidentified', imdb: null, reason: 'obra-sem-imdb', tmdbId: hit.tmdbId };
   }
-  return { outcome: 'identified', imdb: ext.imdb, reason: 'casamento-unico', tmdbId: hit.tmdbId };
+  // Motivo distinto para o painel/métrica separarem o que o original recuperou.
+  const reason = selection.byOriginal ? 'casamento-titulo-original' : 'casamento-unico';
+  return { outcome: 'identified', imdb: ext.imdb, reason, tmdbId: hit.tmdbId };
 }

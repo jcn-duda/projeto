@@ -12,7 +12,8 @@ const crawler = await import('../src/providers/crawler.js');
 const live = await import('../src/utils/crawler-live.js');
 const { siteConfigOf, knownSites, cadenceDelayMs } = await import('../src/utils/crawler-live-site.js');
 const registry = await import('../src/providers/crawl-sites/registry.js');
-const { siteCatalog } = await import('../src/providers/crawl-site-catalog.js');
+const { siteCatalog, siteHealth, CRAWL_HEALTH_WINDOW_MS } = await import('../src/providers/crawl-site-catalog.js');
+const indexerStatus = await import('../src/providers/indexer-status.js');
 import type { CrawlDiscovery, CrawlSite } from '../src/providers/crawl-types.js';
 
 const savedCrawl = { ...config.crawl };
@@ -22,6 +23,7 @@ beforeEach(() => {
   live._resetForTest();
   store.resetForTests();
   store.open(undefined, { forceMemory: true });
+  indexerStatus.clear();
   Object.assign(config.crawl, savedCrawl, {
     enabled: true, dryRun: true, sites: ['vacatorrent'], delayMs: 0, maxPerHour: 1000,
     idleWindowMs: 0, maxTries: 2, errorPauseStreak: 5, layoutCanary: 10,
@@ -90,6 +92,43 @@ describe('crawl catálogo: sites fora do .env', () => {
 
   test('adapterIds lista só quem tem adaptador', () => {
     assert.deepEqual(registry.adapterIds(), ['vacatorrent', 'nerdfilmes']);
+  });
+});
+
+describe('crawl catálogo: saúde do site (a cor do toggle)', () => {
+  const now = 10_000_000;
+  const clean = { autoPause: null, errorStreak: 0, lastActiveAt: 0 };
+
+  test('pausa automática da raspagem = caído, mesmo com o Jackett online', () => {
+    indexerStatus.record('nerdfilmes', { ok: true, ms: 100, budgetMs: 4000 });
+    const h = siteHealth('nerdfilmes', { ...clean, autoPause: { reason: 'error-streak' } }, now);
+    assert.equal(h.health, 'offline');
+    assert.match(h.detail, /error-streak/);
+  });
+
+  test('erro seguido sem pausa = instável; página recente sem erro = no ar', () => {
+    assert.equal(siteHealth('nerdfilmes', { ...clean, errorStreak: 2 }, now).health, 'instavel');
+    const recent = siteHealth('nerdfilmes', { ...clean, lastActiveAt: now - 5 * 60_000 }, now);
+    assert.equal(recent.health, 'online');
+    assert.match(recent.detail, /há 5 min/);
+  });
+
+  test('raspagem velha cai para a medição do Jackett; nada medido = desconhecido', () => {
+    const old = { ...clean, lastActiveAt: now - CRAWL_HEALTH_WINDOW_MS - 1 };
+    assert.equal(siteHealth('nerdfilmes', old, now).health, 'unknown', 'nunca "no ar" por omissão');
+    indexerStatus.record('nerdfilmes', { ok: false, results: 0 });
+    assert.equal(siteHealth('nerdfilmes', old).health, 'offline');
+    indexerStatus.record('nerdfilmes', { ok: true, ms: 9000, budgetMs: 4000 });
+    assert.equal(siteHealth('nerdfilmes', undefined).health, 'instavel', 'lento é instável');
+    indexerStatus.record('nerdfilmes', { ok: true, ms: 100, budgetMs: 4000 });
+    assert.equal(siteHealth('nerdfilmes', undefined).health, 'online');
+  });
+
+  test('o catálogo do status leva a saúde de cada site', () => {
+    indexerStatus.record('vacatorrent', { ok: false, results: 0 });
+    const vaca = crawler.status().catalog.find((c) => c.id === 'vacatorrent');
+    assert.equal(vaca?.health, 'offline');
+    assert.equal(crawler.status().catalog.find((c) => c.id === 'bludv-cardigann')?.health, 'unknown');
   });
 });
 

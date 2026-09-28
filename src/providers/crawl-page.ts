@@ -77,7 +77,7 @@ export interface PageProcessOptions {
 }
 
 export interface PageCollaborators {
-  identify(input: { type: 'movie' | 'series'; title: string; year?: number | null }): Promise<IdentifyResult>;
+  identify(input: { type: 'movie' | 'series'; title: string; year?: number | null; originalTitle?: string | null }): Promise<IdentifyResult>;
   record: CrawlRecorder['record'];
 }
 
@@ -201,6 +201,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         type: isSeries ? 'series' : 'movie',
         title: String(result.title || ''),
         year: result.year ?? null,
+        originalTitle: result.originalTitle ?? null,
       });
       if (identification.outcome === 'identified') {
         imdb = identification.imdb;

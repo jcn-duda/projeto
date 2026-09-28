@@ -36,15 +36,41 @@ import { decodeEntities } from '../../utils/title-normalization.js';
  * segurança — sem ano não há com que discriminar homônimo de qualquer época).
  */
 export function parseTitleYear(html: string): { title: string; year: number | null } {
-  const source = String(html || '')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  const source = withoutNoise(html);
   const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(source)?.[1] ?? '';
   const text = decodeEntities(h1.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
   const yearMatch = /\((\d{4})\)\s*$/.exec(text);
   const year = yearMatch ? Number(yearMatch[1]) : null;
   const title = (yearMatch ? text.slice(0, yearMatch.index) : text).replace(/\s+/g, ' ').trim();
   return { title, year: year && year >= 1900 && year <= 2100 ? year : null };
+}
+
+/** Comentário, `<script>` e `<style>` fora (ver `parseTitleYear`). */
+function withoutNoise(html: string): string {
+  return String(html || '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+}
+
+/**
+ * Título ORIGINAL que o post publica sob o `<h1>` (`<span class="movie-original">
+ * Título original: 7 كلاب</span>`, NerdFilmes). É o segundo nome da
+ * identificação: o site titula em inglês ou num pt-BR que o TMDB não tem
+ * ("7 Dogs", "A Armadilha do Coelho"), e o original casa o `original_title`
+ * do TMDB. Medido em 2026-09-28: 6 de 11 páginas "sem obra" traziam o
+ * original certo. Ausente (o Vaca não publica) = `null`, e a identificação
+ * segue só com o `<h1>`, como antes.
+ */
+export function parseOriginalTitle(html: string): string | null {
+  const span = /<span[^>]*class="[^"]*\bmovie-original\b[^"]*"[^>]*>([\s\S]*?)<\/span>/i.exec(withoutNoise(html))?.[1];
+  if (!span) return null;
+  const text = decodeEntities(span.replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^t[íi]tulo original\s*:?\s*/i, '')
+    .trim();
+  // Teto de sanidade: span que engoliu marcação quebrada não vira nome de obra.
+  return text && text.length <= 200 ? text : null;
 }
 
 /** btih do magnet (40 hex ou 32 base32, qualquer caixa). `null` sem hash. */

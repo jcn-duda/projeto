@@ -1863,8 +1863,22 @@ VPS não é tocado pelo deploy, e exigir editá-lo para ligar um site era
 restart manual por servidor. "Voltar ao global" num site fora do `.env` o tira
 do motor. Site sem adaptador é recusado (viraria card `sem-adaptador`
 eterno). O status expõe `crawl.catalog` (tabela inteira, liga/desliga efetivo
-e origem) e o painel desenha um botão Ligar/Desligar por site
-(`raspagens-catalog.ts`).
+e origem) e o painel desenha um toggle por site (`raspagens-catalog.ts`): o RÓTULO é
+ligado/desligado e a COR é a saúde do site (verde no ar, âmbar instável,
+vermelho caído, neutro sem medição). A saúde (`siteHealth`) vem da própria
+raspagem primeiro — pausa automática = caído, erro seguido = instável, página
+servida sem erro em 30 min = no ar — e só depois da última busca do card no
+Jackett. Nada medido nunca vira "no ar".
+
+**Título original como segundo nome da identificação** (`crawl-identify.ts`).
+O NerdFilmes publica `<span class="movie-original">Título original: …</span>`
+sob o `<h1>` (`parseOriginalTitle`, núcleo compartilhado; o Vaca não publica).
+Ele entra com a MESMA régua estrita: casa o `original_title`/título do
+candidato, dispara uma 2ª busca só quando o `<h1>` não casa ninguém, e
+desempata homônimo só quando exatamente um candidato tem o original declarado
+("A Besta" 2024 = "La bête", não o "A BESTA" do mesmo ano). Medido ao vivo
+(2026-09-28): 6 de 10 páginas "sem obra" recuperadas, motivo
+`casamento-titulo-original`; homônimo com o mesmo original continua ambíguo.
 
 **Cursor carrega também quando o site liga DEPOIS do boot**
 (`crawl-cursor-load.ts`). Antes, só o `start()` com o motor ligado lia o

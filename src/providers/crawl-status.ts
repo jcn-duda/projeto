@@ -326,7 +326,7 @@ export function buildCrawlerStatus(
     counters: active ? { total: active.total, byStatus: active.byStatus } : null,
     latestRun: active ? active.latestRun : null,
     sites,
-    // Tabela BR com o liga/desliga de cada site (o painel liga fora do `.env`).
-    catalog: siteCatalog(live),
+    // Tabela BR com liga/desliga e saúde de cada site (o painel liga fora do `.env`).
+    catalog: siteCatalog(live, new Map(sites.map((s) => [s.id, s]))),
   };
 }
