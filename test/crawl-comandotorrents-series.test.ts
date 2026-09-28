@@ -19,7 +19,9 @@ describe('crawl-sites/comandotorrents: modo amostra de temporada', () => {
     const result = await probeSite().fetchWork(SERIES, { kind: 'tv_show' });
     assert.equal(result.status, 'done');
     assert.equal(result.type, 'series');
-    assert.equal(result.title, 'The Boys 4ª Temporada');
+    // O nome é o da SÉRIE (o TMDB não conhece "The Boys 4ª Temporada"): a
+    // temporada é estrutura da release, a mesma régua do TorrentDosFilmes.
+    assert.equal(result.title, 'The Boys');
     assert.equal(result.year, 2024);
     assert.equal(result.groups, undefined);
     assert.equal(result.releases?.length, 1, 'o dublê devolve o mesmo hash nos 12 botões');

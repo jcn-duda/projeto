@@ -120,6 +120,7 @@
     "test/crawl-torrentdosfilmes-work.test.js",
     "test/crawl-comandotorrents.test.js",
     "test/crawl-comandotorrents-series.test.js",
+    "test/crawl-work-name.test.js",
     "test/crawl-site-probe.test.js",
     "test/crawl-site-probe-guard.test.js",
     "test/crawl-site-probe-write.test.js",

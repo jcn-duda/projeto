@@ -18,8 +18,7 @@
 //     ano nulo e a identificação recusaria a página.
 //   - IMDb: um tt único no corpo, com rótulo IMDb. Dois ou nenhum é ambíguo.
 import type { CrawlPageKind } from '../crawl-types.js';
-import { decodeEntities } from '../../utils/title-normalization.js';
-import { cleanPostTitle } from '../../../resolvers/release-format.js';
+import { cleanWorkName, h1Text, splitParenYear } from './work-name.js';
 
 /** Índice Yoast: o caminho que redireciona e o que o robots declara. */
 export const SITEMAP_INDEX_PATHS = ['sitemap.xml', 'sitemap_index.xml'];
@@ -37,9 +36,6 @@ const NOT_WORK_SEGMENTS = new Set(['link.php', 'feed', 'wp-json', 'wp-admin', 'r
 const IMDB_TITLE_RE = /imdb\.com\/title\/(tt\d{5,})([^"'\s<>]*)/gi;
 /** Link do PLUGIN de nota do IMDb (`?ref_=tt_plg_rt`), colado pelo autor do post. */
 const IMDB_PLUGIN_RE = /[?&]ref_=tt_plg/i;
-/** Primeiro ano entre parênteses. Ano solto no título ("Blade Runner 2049")
- *  não conta: parêntese é declaração do site. */
-const YEAR_PAREN_RE = /\((\d{4})\)/g;
 
 /** Pares loc/lastmod de um sitemap (bloco a bloco; o `<loc>` da página é o
  *  primeiro do bloco). */
@@ -134,33 +130,16 @@ export interface WorkTitle {
   year: number | null;
 }
 
-/** Comentário, `<script>` e `<style>` fora, para o `<h1>` comentado não vencer. */
-function withoutNoise(html: string): string {
-  return String(html || '')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
-}
-
 /**
- * Nome da obra e ano a partir do `<h1>`. O ano é o primeiro `(YYYY)` entre
- * 1900 e 2100 — no Comando ele fica no meio, seguido de Dual/WEB-DL. O nome
- * passa por `cleanPostTitle` para a igualdade estrita do TMDB não carregar
- * a vitrine ("Dual Áudio WEB-DL 1080p"). Sem parêntese de ano, `year` é
- * `null` e a identificação não chuta homônimo.
+ * Nome da obra e ano a partir do `<h1>`. O ano é o primeiro `(YYYY)` — no
+ * Comando ele fica no meio, seguido de Dual/WEB-DL. O nome passa pela régua
+ * do NOME (`work-name.ts`, a mesma do TorrentDosFilmes, que é da mesma rede),
+ * não pelo `cleanPostTitle` do resolver: aquele é a régua do título da RELEASE
+ * e deixava "– GDRIVE", " e" órfão e "/ Legendas Fixas em Português" no nome
+ * (medido na raspagem real, 2026-09-28). Sem parêntese de ano, `year` é `null`
+ * e a identificação não chuta homônimo.
  */
 export function workTitleYear(html: string): WorkTitle {
-  const source = withoutNoise(html);
-  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(source)?.[1] ?? '';
-  const raw = decodeEntities(h1.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-  let year: number | null = null;
-  let title = raw;
-  for (const match of raw.matchAll(YEAR_PAREN_RE)) {
-    const value = Number(match[1]);
-    if (value < 1900 || value > 2100) continue;
-    year = value;
-    title = `${raw.slice(0, match.index)} ${raw.slice(match.index + match[0].length)}`;
-    break;
-  }
-  title = cleanPostTitle(title);
-  return { title, year };
+  const { rest, year } = splitParenYear(h1Text(html));
+  return { title: cleanWorkName(rest), year };
 }

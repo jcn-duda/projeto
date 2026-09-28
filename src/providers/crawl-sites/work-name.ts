@@ -1,0 +1,130 @@
+// Régua do NOME DA OBRA no `<h1>` dos WordPress BR da mesma rede —
+// TorrentDosFilmes e ComandoTorrents publicam o título no mesmo molde ("Nome
+// Torrent (2016) BluRay 720p e 1080p Dual Áudio – Download"). Nasceu no
+// `torrentdosfilmes-discovery.ts` e foi extraída quando o ComandoTorrents se
+// mostrou o segundo consumidor: com o `cleanPostTitle` do resolver (a régua do
+// TÍTULO DA RELEASE, que também serve a busca viva) sobravam "– GDRIVE",
+// " e" órfão e "/ Legendas Fixas em Português" no nome, e a página ia para
+// `no-work` (medido na raspagem real, 2026-09-28). Duas cópias da régua
+// divergiriam em silêncio.
+//
+// O que é daqui: tirar do `<h1>` o que é VITRINE (fonte, qualidade, áudio,
+// canais, "Torrent", temporada) e devolver o nome que o TMDB conhece. O ano é
+// de quem chama (parêntese no `<h1>`, ficha da página). Em caso de dúvida a
+// régua erra para o lado de NÃO achar nome: título demais que sobrou vira
+// `nome-sem-casamento` no TMDB e nunca obra errada gravada.
+import { decodeEntities } from '../../utils/title-normalization.js';
+
+/** Ano em parênteses, em qualquer posição do título (o site o põe no meio). */
+export const YEAR_PAREN_RE = /[（(]\s*((?:19|20)\d{2})\s*[)）]/;
+
+/** Ruído de VITRINA que o theme gruda no título, na ordem em que aparece.
+ *  Cada entrada existe porque está no acervo real medido (a lista de tokens do
+ *  slug do TorrentDosFilmes dá a frequência: `torrent` 435, `bluray` 351,
+ *  `download` 338, `720p` 304, `dublado` 271, `1080p` 258, `dual`+`audio` 214,
+ *  `legendado` 119…). NADA aqui é removido do título da RELEASE — o
+ *  `releaseTitle` do profile limpa o que é vitrine; aqui a régua é o NOME. */
+const NOISE_RES: readonly RegExp[] = [
+  // 1. Temporada: é estrutura de release, não nome de obra. Tira o ordinal e a
+  //    palavra ("1ª Temporada Completa Mini Série" → "O Caçador"), para que a
+  //    página de PACK ainda identifique a SÉRIE no TMDB — é o que a sonda de
+  //    série mede. "8 Episódios" (Comando: "Eek The Cat 8 Episódios") idem.
+  /\b\d{0,2}\s*[ªºa]?\s*temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?/gi,
+  /\bmini\s*s[ée]ries?\b/gi,
+  /\b\d{1,3}\s+epis[óo]dios\b/gi,
+  // 2. Fonte e codec. "3D" e "HSBS" SOZINHOS não entram: "Sea Rex 3D: Journey to
+  //    a Prehistoric World" só casa no TMDB com o 3D no nome. O PAR "3D HSBS"
+  //    (formato do arquivo: half side-by-side, over-under) sai inteiro — "007
+  //    Contra o Satânico Dr. No – BluRay 3D HSBS (1962)" ia para `no-work`.
+  //    `rip` em minúscula também não: no `<h1>` ele só aparece dentro de
+  //    "WebRip"/"BRRip", que a regra já pega — e é por isso que `Rip` MAIÚSCULO
+  //    é regra separada (abaixo). "DVD-R Oficial" é o disco, não o nome.
+  /\b(?:blu[\s-]?ray|bd[\s-]?rip|br[\s-]?rip|web[\s-]?dl|web[\s-]?rip|dvd[\s-]?rip|dvd[\s-]?scr|webcam|hdtv|hd[\s-]?ts|cam[\s-]?rip|remux)\b/gi,
+  /\b3d\s*[-–]?\s*(?:half[\s-]?)?(?:h[\s-]?sbs|sbs|h?[\s-]?ou|tab)\b/gi,
+  /\bdvd[\s-]?r\b(?:\s+oficial)?/gi,
+  // 3. Canais de áudio ("5.1", "5.1CH", "6ch", "2.0") e marcas de faixa.
+  /\b\d[\s.,]?\d?\s*(?:ch|canais?)\b/gi,
+  /\b(?:5\.1|7\.1|7\.2|2\.0|ddp|atmos)\b/gi,
+  // 4. Legenda fixa ("O Regresso / Legendas Fixas em Português", Comando): a
+  //    frase inteira, antes da regra de palavra solta, que só tira "legenda".
+  /(?:^|\s)legendas?\s+(?:fixas|embutidas)(?:\s+em\s+portugu[eê]s)?/gi,
+  // 5. Áudio e idioma. `Dual` sozinho e `Nacional` são rótulo do arquivo, não
+  //    nome de obra. `original` NÃO entra (sozinho ele é nome: "Original Sin"),
+  //    e o `áudio original` cai no `áudio` logo abaixo. A borda é ESPAÇO/PONTUAÇÃO
+  //    explícita, e não `\b`: em JavaScript `\b` é definido por `[A-Za-z0-9_]`, e
+  //    acento não é caractere de palavra — `\b[aá]udio` nunca casaria em
+  //    "Dual Áudio" (borda espaço/letra acentuada não é transição), que é
+  //    exatamente a forma que o site publica. "Aúdio" (acento trocado) é grafia
+  //    real do site ("Quebrando Regras Torrent – Bluray 720p Dual Aúdio (2008)").
+  /(?:^|[-\s([/|—–])(?:dublad[oa]s?|legendad[oa]s?|dual|multi\s*[aá][uú]dio|[aá][uú]dio|legenda|embutida|nacional)(?=$|[-)\s\]/|—–.,;:!])/gi,
+  // 6. Vitrine: o que o site oferece, não o que a obra é. Só as formas do
+  //    acervo medido — `mirrors`/`links` saem de propósito ("Mirrors" é filme).
+  /\b(?:torrents?|download|baixar|gr[aá]tis|online|assistir|completo|completa|mega|gdrive)\b/gi,
+  // 7. Qualidade e container soltos ("1080p", "4K", "FULL HD", "HD").
+  /\b(?:full\s*hd|ultra\s*hd|\d{3,4}\s*[pi]|\b4k\b|\b8k\b|\bhd\b|\bsd\b)\b/gi,
+];
+/**
+ * Ruído que o site publica em CAIXA ALTA e que também é palavra de nome: vai
+ * numa lista separada, SEM a flag `i`, porque é exatamente a caixa que
+ * denuncia a vitrine. Medido em 2026-09-28 na sonda de 40 (cada entrada
+ * citando o `<h1>` real que vazava e ia para `no-work`):
+ *
+ *   "Deadpool Torrent – Bluray Rip 720p | 1080p Legendado Download (2016)"
+ *   "Contra o Tempo Torrent – BluRay Rip 720p e 1080p Dual Áudio 5.1 (2011)"
+ *   "Arábia Torrent (2018) Nacional WEB-DL 1080p FULL Download"
+ *
+ * `Rip` e `FULL` saem; "Mirrors" e "Full Metal Jacket" (com a caixa do nome)
+ * continuam de pé, que é o motivo de esta lista não usar `\b`-insensível.
+ */
+const NOISE_CAPS_RES: readonly RegExp[] = [/\bRip\b/g, /\bFULL\b/g];
+/**
+ * Conector órfão no FIM do nome: o site escreve "… 720p e 1080p" e "Dublado e
+ * Legendado", e as regras de qualidade/áudio apagam os dois vizinhos, deixando
+ * o "e" grudado no nome ("Introspectum Motel e", "Contra o Tempo e"). Só o
+ * "e" FINAL sai: um nome português que termine na conjunção "e" não existe, e
+ * "Deuses e Monstros" (o "e" no meio) nunca é tocado.
+ */
+const TRAILING_CONNECTOR_RE = /\s+e$/i;
+/**
+ * Separador órfão que sobra da limpeza. O `+` no grupo de repetição era um
+ * erro: exigia DOIS separadores seguidos, e a forma DOMINANTE do site é o
+ * separador ÚNICO cercado de espaço ("… – Bluray", "5.1 / Dublado", "… –"),
+ * que ficava no nome ("Deadpool – Rip", "Noturno / FULL"). O `:` fica DE
+ * FORA de propósito: ele é separador de NOME ("Sea Rex 3D: Journey to a
+ * Prehistoric World", "Chainsaw Man – O Filme: Arco da Reze"), e a régua não
+ * tem nenhum ganho medido em removê-lo. A classe põe o hífen PRIMEIRO de
+ * propósito: `–-` seria intervalo de caractere invertido e a regex nem compila.
+ */
+const ORPHAN_SEP_RE = /\s*[-–—/|&+]\s*(?:[-–—/|&+]\s*)*/g;
+const EDGE_SEP_RE = /^[–\-—/|:&+\s]+|[–\-—/|:&+\s]+$/g;
+
+/** O que o `<h1>` diz, já decodificado e colapsado (comentário/script fora). */
+export function h1Text(html: string): string {
+  const source = String(html || '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(source)?.[1] ?? '';
+  return decodeEntities(h1.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+/** O `<h1>` sem o parêntese do ano: o ano e o nome sem ele. */
+export function splitParenYear(raw: string): { rest: string; year: number | null } {
+  const match = YEAR_PAREN_RE.exec(raw);
+  if (!match) return { rest: raw, year: null };
+  return {
+    rest: `${raw.slice(0, match.index)} ${raw.slice(match.index + match[0].length)}`,
+    year: Number(match[1]),
+  };
+}
+
+/** Nome da obra: o texto (já sem o ano) com a vitrine fora. */
+export function cleanWorkName(text: string): string {
+  let title = String(text || '');
+  for (const re of NOISE_RES) title = title.replace(re, ' ');
+  for (const re of NOISE_CAPS_RES) title = title.replace(re, ' ');
+  // O colapso de espaço vem ANTES das regras de borda: a limpeza deixa cauda de
+  // espaços ("Contra o Tempo e   "), e `\s+e$` não casaria com "e" seguido de
+  // espaço. Depois das bordas, colapsa de novo (o `trim` do conector abre espaço).
+  title = title.replace(ORPHAN_SEP_RE, ' ').replace(/\s+/g, ' ').trim();
+  return title.replace(TRAILING_CONNECTOR_RE, '').trim().replace(EDGE_SEP_RE, '').replace(/\s+/g, ' ').trim();
+}
