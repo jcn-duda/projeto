@@ -227,7 +227,7 @@ test('nextDiscoveryLabel mapeia a próxima descoberta sem inventar hora (Fase 6)
 test('SiteCard renderiza estado, progresso, listas e botões por site', () => {
   const summary = crawlSummary(sampleCrawl());
   const [card] = crawlSiteCards(sampleCrawl());
-  const vnode = SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReset: () => {}, onTogglePause: () => {} });
+  const vnode = SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReprocessNoWork: () => {}, onReset: () => {}, onTogglePause: () => {} });
   const text = textOf(vnode);
 
   assert.match(text, /Vaca Torrent/);
@@ -255,10 +255,35 @@ test('SiteCard renderiza estado, progresso, listas e botões por site', () => {
 test('SiteCard desabilita Reprocessar Erros quando não há erro', () => {
   const summary = crawlSummary({ enabled: true, site: 'a' });
   const [card] = crawlSiteCards({ site: 'a', sites: [{ id: 'a', label: 'A', total: 1, byStatus: { done: 1 } }] });
-  const elements = expand(SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReset: () => {}, onTogglePause: () => {} }));
+  const elements = expand(SiteCard({ card, summary, pending: false, onReprocess: () => {}, onReprocessNoWork: () => {}, onReset: () => {}, onTogglePause: () => {} }));
   const reprocess = elements.find((n) => n.type === 'button' && textOf(n).includes('Reprocessar Erros'));
   assert.ok(reprocess);
   assert.equal(reprocess.props.disabled, true);
+  const noWork = elements.find((n) => n.type === 'button' && textOf(n).includes('Reprocessar Sem Obra'));
+  assert.ok(noWork, 'há botão de reprocessar sem obra');
+  assert.equal(noWork.props.disabled, true, 'sem página sem obra, nada a devolver');
+});
+
+test('SiteCard: Reprocessar Sem Obra mostra a contagem e chama a ação', () => {
+  const summary = crawlSummary({ enabled: true, site: 'a' });
+  const [card] = crawlSiteCards({ site: 'a', sites: [{ id: 'a', label: 'A', total: 30, byStatus: { done: 2, 'no-work': 28 } }] });
+  let calls = 0;
+  const elements = expand(SiteCard({
+    card, summary, pending: false, onReprocess: () => {}, onReprocessNoWork: () => { calls += 1; },
+    onReset: () => {}, onTogglePause: () => {},
+  }));
+  const noWork = elements.find((n) => n.type === 'button' && textOf(n).includes('Reprocessar Sem Obra'));
+  assert.ok(noWork);
+  assert.match(textOf(noWork), /\(\s*28\s*\)/);
+  assert.equal(noWork.props.disabled, false);
+  noWork.props.onClick();
+  assert.equal(calls, 1);
+});
+
+test('wiring: Reprocessar Sem Obra usa a ação por site', () => {
+  const src = readFileSync(new URL('../../src/client/painel/view-raspagens.ts', import.meta.url), 'utf8');
+  assert.match(src, /REPROCESS_NO_WORK_ACTION = 'crawl-reprocess-no-work'/);
+  assert.match(src, /REPROCESS_NO_WORK_ACTION,\s*\{ site: card\.id \}/);
 });
 
 test('ViewRaspagens é a casca com o bloco crawl nas props', () => {

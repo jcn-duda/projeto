@@ -67,6 +67,16 @@ export const crawlReprocessErrors: CrawlAction = ({ services, req, res, action }
   return res.json({ ok: true, action, ...result });
 };
 
+/** "Reprocessar sem obra": `no-work` do site volta à fila (não é destrutiva:
+ * nada é apagado, a página só é raspada e identificada de novo). */
+export const crawlReprocessNoWork: CrawlAction = ({ services, req, res, action }) => {
+  const site = siteFromBody(req) || undefined;
+  const result = services.crawler.reprocessNoWork(site);
+  services.metrics.count('dashboard.crawl.reprocess.noWork');
+  services.log.info(`[dashboard] sem obra da raspagem reprocessadas: ${result.requeued} URL(s) (${result.site})`);
+  return res.json({ ok: true, action, ...result });
+};
+
 export const crawlReset: CrawlAction = ({ services, req, res, action }) => {
   const site = typeof req.body?.site === 'string' ? req.body.site.trim() : '';
   const result = services.crawler.resetSite(site);

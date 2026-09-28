@@ -109,6 +109,12 @@ test('erro: tries crescem, backoff é exponencial com teto e maxTries põe pra d
   assert.equal(back.status, 'pending');
   assert.equal(back.tries, 0);
   assert.equal(back.nextAt, 0);
+  // "Reprocessar sem obra": o `no-work` é terminal e só volta pelo painel.
+  store.engine().upsertUrls('vacatorrent', [movie('/nw')], 1000);
+  store.engine().markResult('vacatorrent', '/nw', { status: 'no-work', imdb: null, releases: 0 }, 5000);
+  assert.equal(store.engine().requeueErrors('vacatorrent'), 0, 'o padrão continua sendo só `error`');
+  assert.equal(store.engine().requeueErrors('vacatorrent', 'no-work'), 1);
+  assert.equal(store.engine().getUrl('vacatorrent', '/nw')?.status, 'pending');
 });
 
 test('inflight velho volta a pending (crash recovery); recente não', () => {
@@ -316,6 +322,9 @@ test('engine de memória: mesmos verbos, mesmos resultados (paridade)', () => {
   assert.equal(store.engine().requeueErrors('vacatorrent'), 1);
   assert.equal(store.engine().requeueInflight('vacatorrent', 1000, 9999), 0);
   assert.equal(store.engine().takeNext('vacatorrent', 9999)?.url, '/b', 'erro reprocessado volta a servir');
+  store.engine().markResult('vacatorrent', '/b', { status: 'no-work', imdb: null, releases: 0 }, 9999);
+  assert.equal(store.engine().requeueErrors('vacatorrent', 'no-work'), 1, 'mesma regra na memória');
+  assert.equal(store.engine().getUrl('vacatorrent', '/b')?.status, 'pending');
   const id = store.engine().startRun('vacatorrent', 'initial', '', 3000);
   store.engine().finishRun(id, 4000, { pages: 2 });
   assert.equal(store.engine().latestRun('vacatorrent')?.counters.pages, 2);

@@ -52,6 +52,8 @@ export type {
 export { errorBackoffMs, CRAWL_GIVE_UP_MS, parseProgress, renderProgress, progressAdvanced, withDryFlag } from './crawl-store-rules.js';
 
 /** Contrato único das duas engines (SQL e memória). */
+/** Status terminais que o painel devolve à fila. */
+export type RequeueStatus = 'error' | 'no-work';
 export interface CrawlEngine {
   readonly kind: 'sql' | 'memory';
   /** Upsert idempotente das URLs descobertas (ver regras em crawl-store-rules). */
@@ -69,8 +71,8 @@ export interface CrawlEngine {
   markResult(site: string, url: string, result: MarkResultInput, now: number, opts?: MarkOpts): void;
   /** Crash recovery: `inflight` mais velho que `olderThanMs` volta a pending. */
   requeueInflight(site: string, olderThanMs: number, now: number): number;
-  /** "Reprocessar erros": zera tries/next_at e reenfileira (ação do painel). */
-  requeueErrors(site: string): number;
+  /** "Reprocessar erros"/"sem obra": zera tries/next_at e reenfileira (painel). */
+  requeueErrors(site: string, status?: RequeueStatus): number;
   /** Dry-run desligou (true→false): `simulated` E qualquer linha com
    * progresso seco (`"dry":1`, em qualquer status) voltam a `pending` do zero
    * (one-shot/idempotente — o reset limpa o progresso E a contagem seca de
@@ -144,9 +146,9 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     );
     // "Reprocessar erros" é o escape do estagnado: limpa progresso das
     // `error` (recomeça do zero de propósito). `partial` NÃO é tocado — ele
-    // se auto-retoma pelo next_at.
+    // se auto-retoma pelo next_at. `no-work` (sem obra) pelo mesmo caminho.
     const requeueErrorsStmt = db.prepare(
-      "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', progress = '' WHERE site = ? AND status = 'error'",
+      "UPDATE crawl_url SET status = 'pending', tries = 0, next_at = 0, error = '', progress = '' WHERE site = ? AND status = ?",
     );
     // Dry-run desligou (true→false): qualquer linha do site que carregue
     // progresso SECO (`"dry":1`) ou status `simulated` volta a `pending` do
@@ -264,8 +266,8 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
         const r = requeueInflightStmt.run(String(site || ''), now - olderThanMs) as { changes?: number | bigint };
         return Number(r?.changes) || 0;
       },
-      requeueErrors(site) {
-        const r = requeueErrorsStmt.run(String(site || '')) as { changes?: number | bigint };
+      requeueErrors(site, status = 'error') {
+        const r = requeueErrorsStmt.run(String(site || ''), status) as { changes?: number | bigint };
         return Number(r?.changes) || 0;
       },
       requeueSimulated(site) {

@@ -139,11 +139,11 @@ export function memoryCrawlEngine(): CrawlEngine {
       }
       return n;
     },
-    requeueErrors(site): number {
+    requeueErrors(site, status = 'error'): number {
       const s = String(site || '');
       let n = 0;
       for (const [k, row] of urls) {
-        if (row.site !== s || row.status !== 'error') continue;
+        if (row.site !== s || row.status !== status) continue;
         // MESMA SQL: o escape do estagnado limpa progresso (recomeça do zero).
         urls.set(k, { ...row, status: 'pending', tries: 0, nextAt: 0, error: '', progress: '' });
         n += 1;

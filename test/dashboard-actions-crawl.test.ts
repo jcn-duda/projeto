@@ -108,7 +108,7 @@ test('crawl-simulate roda em dry-run e devolve o que seria gravado', async () =>
   assert.equal(res.status, 200);
   assert.equal(res.json.ok, true);
   assert.equal(res.json.pages, 2);
-  assert.equal(res.json.results[0].kind, 'simulated'); // simula��o n�o � done
+  assert.equal(res.json.results[0].kind, 'simulated'); // simula��o n�o � done
   // Não consumiu a fila: as duas URLs continuam pendentes.
   assert.equal(store.engine().counters('fake').byStatus.pending, 2);
 });
@@ -120,6 +120,19 @@ test('crawl-reprocess-errors reenfileira os erros do site', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.json.requeued, 1);
   assert.equal(store.engine().getUrl('fake', '/a')?.status, 'pending');
+});
+
+test('crawl-reprocess-no-work devolve à fila só o sem obra do site, sem confirm', async () => {
+  store.engine().upsertUrls('fake', [movie('/a'), movie('/b'), movie('/c')], 1);
+  store.engine().markResult('fake', '/a', { status: 'no-work', imdb: null, releases: 0 }, 1);
+  store.engine().markResult('fake', '/b', { status: 'done', imdb: 'tt1', releases: 2 }, 1);
+  store.engine().markResult('fake', '/c', { status: 'no-torrent', imdb: null, releases: 0 }, 1);
+  const res = await post({ action: 'crawl-reprocess-no-work', site: 'fake' });
+  assert.equal(res.status, 200, 'não é destrutiva: nada é apagado');
+  assert.equal(res.json.requeued, 1);
+  assert.equal(store.engine().getUrl('fake', '/a')?.status, 'pending');
+  assert.equal(store.engine().getUrl('fake', '/b')?.status, 'done', 'obra identificada fica');
+  assert.equal(store.engine().getUrl('fake', '/c')?.status, 'no-torrent', 'sem torrent não é sem obra');
 });
 
 test('crawl-reset exige confirm e apaga só o site informado', async () => {

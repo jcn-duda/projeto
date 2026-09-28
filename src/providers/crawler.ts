@@ -283,7 +283,7 @@ function siteIds(): string[] {
 
 // As ações (simular/reprocessar/zerar) moram em `crawl-actions.ts`; o motor
 // injeta as closures — o módulo não importa `crawler.ts`, sem ciclo.
-const { simulate, reprocessErrors, resetSite } = createCrawlActions({
+const { simulate, reprocessErrors, reprocessNoWork, resetSite } = createCrawlActions({
   effective: () => crawlerLive.effective(),
   isBusy: () => busy,
   isPaused: () => paused,
@@ -396,5 +396,5 @@ export function _resetForTest(): void {
   hourPages.clear();
 }
 
-export { start, tick, status, setPaused, simulate, reprocessErrors, resetSite };
-export default { start, tick, status, setPaused, simulate, reprocessErrors, resetSite };
+export { start, tick, status, setPaused, simulate, reprocessErrors, reprocessNoWork, resetSite };
+export default { start, tick, status, setPaused, simulate, reprocessErrors, reprocessNoWork, resetSite };

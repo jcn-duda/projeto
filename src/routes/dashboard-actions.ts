@@ -10,7 +10,7 @@ import { harvestDebridGet, harvestDebridSet } from './dashboard-actions-harvest-
 import { autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset } from './dashboard-actions-autofetch.js';
 import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
 import { magnetInspect, magnetClearBad, magnetSummary, magnetBankSummary, magnetBankSearch } from './dashboard-actions-magnet.js';
-import { crawlPause, crawlSimulate, crawlReprocessErrors, crawlReset, crawlConfigGet, crawlConfigSet, crawlConfigReset, crawlSitePause, crawlSiteConfigSet, crawlSiteConfigReset } from './dashboard-actions-crawl.js';
+import { crawlPause, crawlSimulate, crawlReprocessErrors, crawlReprocessNoWork, crawlReset, crawlConfigGet, crawlConfigSet, crawlConfigReset, crawlSitePause, crawlSiteConfigSet, crawlSiteConfigReset } from './dashboard-actions-crawl.js';
 // `max` do corpo: número finito positivo vira inteiro; qualquer outra coisa
 // vira undefined (sem teto). Mora no módulo folha compartilhado para os dois
 // lados do despacho usarem a MESMA normalização, sem cópia que possa divergir.
@@ -149,7 +149,7 @@ const ACTIONS: Record<string, ActionHandler> = {
   // por site (validado contra CRAWL_SITES); `crawl-site-config-reset` é destrutiva.
   'crawl-pause': crawlPause,
   'crawl-simulate': crawlSimulate,
-  'crawl-reprocess-errors': crawlReprocessErrors,
+  'crawl-reprocess-errors': crawlReprocessErrors, 'crawl-reprocess-no-work': crawlReprocessNoWork,
   'crawl-reset': crawlReset,
   'crawl-config-get': crawlConfigGet,
   'crawl-config-set': crawlConfigSet,

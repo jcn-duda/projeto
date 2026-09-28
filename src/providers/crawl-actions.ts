@@ -130,6 +130,22 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
   }
 
   /**
+   * "Reprocessar sem obra": devolve à fila as páginas `no-work` do site. O
+   * `no-work` é TERMINAL (resposta negativa da identificação), então sem esta
+   * ação uma régua de identificação melhor só valia para página nova — as 28
+   * páginas do NerdFilmes marcadas antes do título original (2026-09-28)
+   * ficariam sem obra para sempre. A página é raspada de novo pelo motor
+   * (ritmo, tetos e freio de tráfego valem), não identificada em lote aqui.
+   */
+  function reprocessNoWork(siteId?: string): { site: string | null; requeued: number } {
+    const target = targetSite(siteId);
+    if (!target.ok) return { site: target.site || null, requeued: 0 };
+    const requeued = store.engine().requeueErrors(target.site, 'no-work');
+    if (requeued) deps.count('crawl.reprocess.noWork', requeued);
+    return { site: target.site, requeued };
+  }
+
+  /**
    * "Zerar site" (destrutivo): apaga SÓ o estado daquele site em `crawl.db`
    * (fila e rodadas). O VEREDITO DA SONDA é preservado: ele é uma medição
    * cara (40 requisições) sobre o site, não estado de fila — apagá-lo
@@ -152,7 +168,7 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
     return { ok: true, site, ...report, probeVerdict: verdict };
   }
 
-  return { simulate, reprocessErrors, resetSite };
+  return { simulate, reprocessErrors, reprocessNoWork, resetSite };
 }
 
 /** Lê o veredito CRU da sonda (o gate é que valida; aqui só se preserva). */

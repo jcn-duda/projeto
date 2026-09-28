@@ -26,6 +26,8 @@ export interface ViewRaspagensProps {
 /** Ações do site enviadas ao `/dashboard-action.json` (nome histórico do
  * backend). `site` é o id do card do Jackett — igual às demais telas. */
 const REPROCESS_ACTION = 'crawl-reprocess-errors';
+/** `no-work` volta à fila: a régua de identificação melhorou, a página não. */
+const REPROCESS_NO_WORK_ACTION = 'crawl-reprocess-no-work';
 const RESET_ACTION = 'crawl-reset';
 /** Ajuste POR SITE (Fase 8). São ações NOVAS, separadas das globais de config
  * de propósito: o cartão `LiveConfigCard` de baixo continua mexendo no global
@@ -169,6 +171,12 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
               undefined,
               (data) => `Erros reprocessados em ${card.id}: ${data.requeued ?? 0} URL(s)`,
             )}
+            onReprocessNoWork=${() => handle(
+              REPROCESS_NO_WORK_ACTION,
+              { site: card.id },
+              undefined,
+              (data) => `Sem obra devolvidas à fila em ${card.id}: ${data.requeued ?? 0} URL(s)`,
+            )}
             onReset=${() => handle(
               RESET_ACTION,
               { site: card.id },
@@ -236,6 +244,8 @@ export interface SiteCardProps {
   summary: CrawlSummary;
   pending: boolean;
   onReprocess: () => void;
+  /** Devolve as páginas `no-work` à fila (a identificação melhorada vale para elas). */
+  onReprocessNoWork: () => void;
   onReset: () => void;
   /** Pausa manual do SITE (`crawl-site-pause`) — distinta da pausa do motor. */
   onTogglePause: () => void;
@@ -243,7 +253,7 @@ export interface SiteCardProps {
 
 /** Card presentacional de UM site — sem hooks e sem fetch; a casca passa as
  * ações já ligadas ao `useAction`. */
-export function SiteCard({ card, summary, pending, onReprocess, onReset, onTogglePause }: SiteCardProps) {
+export function SiteCard({ card, summary, pending, onReprocess, onReprocessNoWork, onReset, onTogglePause }: SiteCardProps) {
   const badge = {
     text: `${siteStateLabel(card, summary)} · ${phaseLabel(card.phase)}`,
     variant: siteStateLabel(card, summary) === 'pausa automática'
@@ -307,6 +317,9 @@ export function SiteCard({ card, summary, pending, onReprocess, onReset, onToggl
       <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
         <button class="painel-btn" disabled=${pending || card.error === 0} onClick=${onReprocess}>
           Reprocessar Erros (${card.error})
+        </button>
+        <button class="painel-btn" disabled=${pending || card.noWork === 0} onClick=${onReprocessNoWork}>
+          Reprocessar Sem Obra (${card.noWork})
         </button>
         <button
           class="painel-btn ${card.paused ? 'painel-btn-accent' : ''}"
