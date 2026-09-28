@@ -54,6 +54,17 @@ describe('crawl-sites/comandotorrents: título do h1', () => {
     ), null);
     assert.equal(parseImdbId(postFixture('comandotorrents-post.html')), null);
   });
+
+  test('link do plugin de nota do IMDb (obra alheia) não é a obra da página', () => {
+    // Recorte real de "Curvas da Vida (2012)": o widget colado é "Refém (2005)",
+    // o link aponta `tt1959490` ("Noé") e não há outro tt na página.
+    const plugin = '<span data-style="t1" data-title="tt0340163" data-user="ur48790360">'
+      + '<a href="https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt">'
+      + '<img alt="Refém (2005) on IMDb" src="https://comandotorrents.to/core/views/ComandoFilmes/images/IMDB.jpg"></a></span>';
+    assert.equal(parseImdbId(`<p>Gênero: Drama</p>${plugin}`), null, 'só o plugin: identificação por título');
+    const ficha = '<strong>IMDb</strong>: <a href="https://www.imdb.com/title/tt2083383/">7,0</a>';
+    assert.equal(parseImdbId(`${ficha}${plugin}`), 'tt2083383', 'a ficha vence; o plugin não empata');
+  });
 });
 
 describe('crawl-sites/comandotorrents: discover', () => {

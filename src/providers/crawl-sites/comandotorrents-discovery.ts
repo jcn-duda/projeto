@@ -33,7 +33,10 @@ const SITEMAP_LASTMOD_RE = /<lastmod>\s*(?:<!\[CDATA\[)?\s*([^<\]]+?)\s*(?:\]\]>
 /** Obra: UM segmento com barra final. `/` (homepage) e `feed` não casam. */
 const WORK_PATH_RE = /^\/[^/]+\/$/;
 const NOT_WORK_SEGMENTS = new Set(['link.php', 'feed', 'wp-json', 'wp-admin', 'robots.txt']);
-const IMDB_TITLE_RE = /imdb\.com\/title\/(tt\d{5,})/gi;
+/** tt + o resto da URL (a query denuncia o plugin de nota, ver `parseImdbId`). */
+const IMDB_TITLE_RE = /imdb\.com\/title\/(tt\d{5,})([^"'\s<>]*)/gi;
+/** Link do PLUGIN de nota do IMDb (`?ref_=tt_plg_rt`), colado pelo autor do post. */
+const IMDB_PLUGIN_RE = /[?&]ref_=tt_plg/i;
 /** Primeiro ano entre parênteses. Ano solto no título ("Blade Runner 2049")
  *  não conta: parêntese é declaração do site. */
 const YEAR_PAREN_RE = /\((\d{4})\)/g;
@@ -109,9 +112,20 @@ export function isSeasonSlug(href: URL | string): boolean {
  * IMDb da obra. Um tt na página inteira é o da obra (medido no corpo, antes
  * dos comentários). Dois ou mais é widget de recomendação: `null`, porque
  * obra errada é pior que obra nenhuma.
+ *
+ * O PLUGIN de nota do IMDb (`<span data-title=…><a href="…/tt…/?ref_=tt_plg_rt">`)
+ * não conta: o autor cola o widget de outro post e o tt é de obra ALHEIA.
+ * Medido em 2026-09-28: em 80 filmes, 1 página tinha o plugin e ele era o
+ * único tt — `tt1959490` ("Noé", 2014) em "Busca Implacável 3" e em "Curvas
+ * da Vida", o mesmo link que o TorrentDosFilmes (mesma rede) já provou ser
+ * aleatório. Sem ele, a página cai na identificação por título+ano.
  */
 export function parseImdbId(html: string): string | null {
-  const found = new Set([...String(html || '').matchAll(IMDB_TITLE_RE)].map((m) => m[1]));
+  const found = new Set(
+    [...String(html || '').matchAll(IMDB_TITLE_RE)]
+      .filter((m) => !IMDB_PLUGIN_RE.test(m[2] ?? ''))
+      .map((m) => m[1]),
+  );
   return found.size === 1 ? [...found][0] : null;
 }
 
