@@ -5,7 +5,6 @@ import {
   decodeEntitiesBasic,
   parseSize,
   escapeXml,
-  attribute,
   extractMetaRefresh as sharedExtractMetaRefresh,
 } from '../text.js';
 import {
@@ -23,6 +22,13 @@ import { createProfile } from '../site-profile.js';
 import { buildProfileConfig } from '../env-config.js';
 import type { ProfileOverrides } from '../env-config.js';
 import type { ResolverLink, ResolverPost } from '../types.js';
+// Parsers do site extraídos pela catraca de linhas (o profile mora com a rede e
+// as rotas): lista de posts, limpeza de título e o coletor de botões.
+import { cleanPostTitle, createTdfDownloadLinks, parsePosts } from './torrentdosfilmes-parsers.js';
+// Laço de redirects com allowlist por salto — o mesmo `fetchFollowRedirects` que
+// o vacatorrent usa no fetch direto do crawl (R-1: o assert canônico é o da
+// factory, injetado pelo `site-profile`).
+import { fetchFollowRedirects } from '../transport.js';
 // Passo 5 do item 9: esqueleto de roteador HTTP comum — despacho por pathname
 // + rotas padrão (/health, /search, /resolve, /dl, /api). Handlers próprios do
 // perfil entram no mapa de rotas sem `if` na factory.
@@ -33,13 +39,9 @@ import {
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
-// Passo 4 do item 9: máquina de estados da âncora (release-rules.js) e
-// títulos/feeds/laço de fallback (release-format.js). O classificador de fonte
-// do tdf tem normalização própria (replace de [. ] por '-') e fica AQUI (R-4).
-import {
-  createEpisodeStep, createLinkCollector, lastAudioMarker,
-  NERD_AUDIO_RE, NERD_LEGENDADO_RE, NARROW_PACK_RESET_RE, NARROW_EPISODE_RE,
-} from '../release-rules.js';
+// Passo 4 do item 9: títulos/feeds/laço de fallback (release-format.js). A
+// máquina de estados da âncora e o classificador de fonte do tdf (saída própria,
+// replace de [. ] por '-') foram para `./torrentdosfilmes-parsers.js` — R-4.
 import {
   createReleaseTitle, createSearchPageHtml, createRssXml, tryLinksInOrder,
 } from '../release-format.js';
@@ -134,78 +136,30 @@ function createResolver(overrides: ProfileOverrides = {}) {
     });
   }
 
-  function parsePosts(html: string): ResolverPost[] {
-    const posts: ResolverPost[] = [];
-    const title = /<div\b[^>]*class=["'][^"']*\btitle\b[^"']*["'][^>]*>\s*<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
-    let match: RegExpExecArray | null;
-    while ((match = title.exec(html))) {
-      const url = attribute(match[1], 'href');
-      if (!url) continue;
-      const title = stripTags(attribute(match[1], 'title') || match[2]);
-      if (isGenericListPost(title)) continue;
-      posts.push({ url: new URL(decodeEntities(url), siteSelector.url()).href, title });
-    }
-    return [...new Map(posts.map((post) => [post.url, post])).values()];
+  // Lista de resultados da busca WordPress e o coletor de botões moram em
+  // `./torrentdosfilmes-parsers.js` (extraídos pela catraca de linhas); o
+  // profile injeta a allowlist e o decoder que são DELE.
+  const parsePostsOf = (html: string): ResolverPost[] => parsePosts(html, stripTags, decodeEntities, siteSelector.url());
+  const parseDownloadLinks = createTdfDownloadLinks({ isProtectorHost, stripTags, decodeEntities });
+
+  /**
+   * Fetch DIRETO, sem FlareSolverr — o caminho do CRAWL. O tdf responde 200 em
+   * fetch simples (medido 2026-09-28: sitemap, busca e post, todos sem desafio),
+   * então aqui não há o que resolver: o que existe é redirect com allowlist por
+   * salto, e o `hooks.onRequest` (F3) que dá ao motor o custo REAL por hop
+   * (o post + cada botão). A busca ao vivo segue no `fetch` de cima, intacta.
+   */
+  async function fetchTextDirect(url: string, accept = 'text/html,application/xhtml+xml', hooks?: { onRequest?: () => void }): Promise<string> {
+    const response = await fetchFollowRedirects(url, {
+      maxHops: MAX_HOPS,
+      timeoutMs: TIMEOUT_MS,
+      assertAllowedUrl,
+      ...(hooks?.onRequest ? { onRequest: hooks.onRequest } : {}),
+      headersFor: () => ({ 'User-Agent': USER_AGENT, Accept: accept }),
+    });
+    if (!response.ok) throw new Error(`http_${response.status}`);
+    return response.text();
   }
-
-  function cleanPostTitle(title = ''): string {
-    return String(title)
-      .replace(/\s*Torrent\s*(?:[–-]|&#8211;)?\s*/gi, ' ')
-      .replace(/\b(?:720p|1080p|2160p|4K)(?:\s*\/\s*(?:720p|1080p|2160p|4K|5\.1|dual|dublado|legendado))*/gi, '')
-      .replace(/\b\d{3,4}p\b/gi, '')
-      .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo|Completa)\b/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  // Classificador de fonte do tdf: normalização PRÓPRIA (o token casado sai com
-  // [. ] trocado por '-', então "BLU RAY" vira "BLU-RAY" e "BLURAY" fica inteiro
-  // — diferença viva do perfil, R-4). Qualidade idem (\d{3,4}P / 4K nu).
-  const TDF_QUALITY_RE = /(?:\b(\d{3,4})\s*P\b|\b(4K)\b)/g;
-  const TDF_SOURCE_RE = /(REMUX|BLU[- ]?RAY|WEB[-. ]?DL|WEB[-. ]?RIP|HDTV|CAMRIP|CAM)/g;
-
-  function qualityOf(context: string): number | null {
-    const quality = [...context.matchAll(TDF_QUALITY_RE)].pop();
-    return quality ? (quality[1] ? Number(quality[1]) : 2160) : null;
-  }
-
-  function sourceOf(context: string): string | null {
-    const source = [...context.matchAll(TDF_SOURCE_RE)].pop();
-    return source ? source[1].replace(/[. ]/g, '-') : null;
-  }
-
-  /** Máquina de estados do núcleo (createLinkCollector) com escopo
-   * segment-only: a âncora NUNCA interfere — nem áudio nem episódio dela tocam
-   * o estado ou o botão. Falha de validação NUNCA avança o cursor. */
-  const episodeStep = createEpisodeStep({
-    scope: 'segment-only',
-    packRe: NARROW_PACK_RESET_RE,
-    epRe: NARROW_EPISODE_RE,
-  });
-
-  const parseDownloadLinks = createLinkCollector({
-    anchorRe: /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
-    resolveHref: (match) => {
-      const rawHref = decodeEntities(match[1]);
-      // startsWith case-SENSITIVE é o comportamento histórico do perfil.
-      if (rawHref.startsWith('magnet:?')) return { url: rawHref };
-      let u: URL;
-      try {
-        u = new URL(rawHref);
-      } catch {
-        return { skip: true };
-      }
-      if (!isProtectorHost(u.hostname)) return { skip: true };
-      return { url: rawHref };
-    },
-    anchorTextOf: (match) => stripTags(match[2]),
-    stripTags,
-    initialAudio: 'desconhecido',
-    audioFromSegment: (segment) => lastAudioMarker(segment, NERD_AUDIO_RE, NERD_LEGENDADO_RE),
-    episodeStep,
-    qualityFn: qualityOf,
-    sourceFn: sourceOf,
-  });
 
   // O laço do protetor é UM só (transport); o perfil aporta apenas os parsers.
   // O assertAllowedUrl injetado no laço é o da factory (que delega ao
@@ -276,7 +230,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     return '<?xml version="1.0"?><caps><server title="TorrentDosFilmes V2" version="1.0"/><limits max="100" default="100"/><searching><search available="yes" supportedParams="q"/><tv-search available="yes" supportedParams="q,season,ep"/><movie-search available="yes" supportedParams="q"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>';
   }
 
-  const selectSearchPosts = bootstrap.makeSelectSearchPosts(parsePosts, MAX_POSTS);
+  const selectSearchPosts = bootstrap.makeSelectSearchPosts((html) => parsePostsOf(html), MAX_POSTS);
 
   // O download.before do cardigann encoda a href inteira no param url — e a
   // href já é um /resolve nosso, então o alvo real vem aninhado. Desempacota
@@ -361,7 +315,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     createServer,
     // Exposto para o painel ler o domínio ATIVO (o failover troca em runtime).
     siteSelector,
-    parsePosts,
+    parsePosts: parsePostsOf,
     parseDownloadLinks,
     parseSize,
     releaseTitle,
@@ -386,6 +340,9 @@ function createResolver(overrides: ProfileOverrides = {}) {
     matchesSeasonSeason,
     selectSearchPosts,
     fetchFollowingAllowed,
+    // Fetch DIRETO do crawl (sem Flare): mesma assinatura que o vacatorrent e o
+    // nerdfilmes expõem, para o adaptador de raspagem contar o custo por hop.
+    fetchTextDirect,
     createSiteSelector,
     isNetworkError,
     postCache,

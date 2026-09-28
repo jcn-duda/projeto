@@ -34,6 +34,11 @@ export interface SiteEntry {
 const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
   vacatorrent: () => import('./vaca.js') as unknown as Promise<SiteModule>,
   nerdfilmes: () => import('./nerdfilmes.js') as unknown as Promise<SiteModule>,
+  // O id do card (`torrentdosfilmesv2`) e o nome do profile
+  // (`torrentdosfilmes`) divergem; a ponte é o próprio adaptador, que pergunta
+  // a instância pelo NOME do profile. Ver `torrentdosfilmes.ts`.
+  torrentdosfilmesv2: () => import('./torrentdosfilmes.js') as unknown as Promise<SiteModule>,
+  comandotorrents: () => import('./comandotorrents.js') as unknown as Promise<SiteModule>,
 };
 
 /**
@@ -45,8 +50,8 @@ const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
 export const SITE_TABLE: SiteEntry[] = [
   { id: 'vacatorrent', label: 'Vaca Torrent', module: BUILTIN_MODULES.vacatorrent, exportName: 'vacaCrawlSite' },
   { id: 'nerdfilmes', label: 'NerdFilmes', module: BUILTIN_MODULES.nerdfilmes, exportName: 'nerdfilmesCrawlSite' },
-  { id: 'torrentdosfilmesv2', label: 'TorrentDosFilmes', module: null, exportName: null, note: 'adaptador pendente' },
-  { id: 'comandotorrents', label: 'ComandoTorrents', module: null, exportName: null, note: 'adaptador pendente' },
+  { id: 'torrentdosfilmesv2', label: 'TorrentDosFilmes', module: BUILTIN_MODULES.torrentdosfilmesv2, exportName: 'torrentdosfilmesCrawlSite' },
+  { id: 'comandotorrents', label: 'ComandoTorrents', module: BUILTIN_MODULES.comandotorrents, exportName: 'comandotorrentsCrawlSite' },
   { id: 'redetorrent-cardigann', label: 'RedeTorrent', module: null, exportName: null, note: 'adaptador pendente' },
   { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', module: null, exportName: null, note: 'adaptador pendente' },
   { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', module: null, exportName: null, note: 'adaptador pendente' },

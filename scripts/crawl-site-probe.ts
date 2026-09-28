@@ -90,10 +90,11 @@ if (flagGate.unknown.length) {
 const [
 
   { default: config },
-  { createResolver: createVacaResolver },
-  { createResolver: createNerdfilmesResolver },
+  { vacaSurface, nerdSurface, tdfSurface, comandoSurface },
   { createVacaCrawlSite },
   { createNerdfilmesCrawlSite },
+  { createTorrentdosfilmesCrawlSite },
+  { createComandotorrentsCrawlSite },
   { processCrawlPage },
   { instance },
   store,
@@ -104,10 +105,11 @@ const [
   { pageSlug, parseProbeArgv, probeWriteDrifts, scrub },
 ] = await Promise.all([
   import('../src/config.js'),
-  import('../resolvers/profiles/vacatorrent.js'),
-  import('../resolvers/profiles/nerdfilmes.js'),
+  import('./crawl-probe-surfaces.js'),
   import('../src/providers/crawl-sites/vaca.js'),
   import('../src/providers/crawl-sites/nerdfilmes.js'),
+  import('../src/providers/crawl-sites/torrentdosfilmes.js'),
+  import('../src/providers/crawl-sites/comandotorrents.js'),
   import('../src/providers/crawl-page.js'),
   import('../src/br-resolvers.js'),
   import('../src/utils/crawl-store.js'),
@@ -115,36 +117,11 @@ const [
   import('../src/providers/crawl-site-probe-report.js'),
 ]);
 
-import type { VacaResolverSurface } from '../src/providers/crawl-sites/vaca.js';
-import type { NerdfilmesResolverSurface } from '../src/providers/crawl-sites/nerdfilmes.js';
 import type { PageReading, ProbeStop, ProbeVerdict } from '../src/providers/crawl-site-probe.js';
 import type { ProbeOptions } from '../src/providers/crawl-site-probe-report.js';
 import type { CrawlSite, CrawlUrlRow, DiscoveredUrl } from '../src/providers/crawl-types.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-/** Instância do profile SEM createServer/listen/warm: a sonda é passageira e
- *  não pode disputar as portas 8700-8707 com o container de pé. */
-function vacaSurface(): VacaResolverSurface {
-  const port = config.resolvers.ports.vacatorrent + config.resolvers.portOffset;
-  return createVacaResolver({
-    port,
-    selfUrl: `http://${config.resolvers.host}:${port}`,
-    siteUrl: config.resolvers.vacatorrentUrl || undefined,
-    extraProtectors: config.resolvers.extraProtectors,
-  });
-}
-
-/** Mesma construção para o NerdFilmes, na porta do próprio profile. */
-function nerdSurface(): NerdfilmesResolverSurface {
-  const port = config.resolvers.ports.nerdfilmes + config.resolvers.portOffset;
-  return createNerdfilmesResolver({
-    port,
-    selfUrl: `http://${config.resolvers.host}:${port}`,
-    siteUrl: config.resolvers.nerdfilmesUrl || undefined,
-    extraProtectors: config.resolvers.extraProtectors,
-  });
-}
 
 /**
  * Adaptador do site da rodada. Primeiro a instância EMBUTIDA (é o caminho de
@@ -166,6 +143,12 @@ async function resolveSite(siteId: string, series: boolean): Promise<CrawlSite |
   if (siteId === 'vacatorrent') return createVacaCrawlSite(vacaSurface());
   if (siteId === 'nerdfilmes') {
     return createNerdfilmesCrawlSite(nerdSurface(), { seriesProbe: series });
+  }
+  if (siteId === 'torrentdosfilmesv2') {
+    return createTorrentdosfilmesCrawlSite(tdfSurface(), { seriesProbe: series });
+  }
+  if (siteId === 'comandotorrents') {
+    return createComandotorrentsCrawlSite(comandoSurface(), { seriesProbe: series });
   }
   return null;
 }
@@ -332,7 +315,8 @@ async function main(): Promise<void> {
   const site = await resolveSite(opts.site, opts.series);
   if (!site) {
     console.error(`sem adaptador para "${opts.site}" neste processo: a sonda conhece `
-      + 'vacatorrent e nerdfilmes (superfície direta) e qualquer site com instância embutida carregada.');
+      + 'vacatorrent, nerdfilmes, torrentdosfilmesv2 e comandotorrents (superfície direta) '
+      + 'e qualquer site com instância embutida carregada.');
     process.exit(1);
   }
 

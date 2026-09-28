@@ -31,6 +31,7 @@ import {
 // Passo 3 do item 9: extractMagnet e o bloco genérico do nextProtectedUrl
 // vivem no núcleo (resolvers/magnet-extract.js), parametrizados por perfil.
 import { createMagnetExtractor, discoverNextUrl } from '../magnet-extract.js';
+import { fetchFollowRedirects } from '../transport.js';
 // Passo 4 do item 9: classificadores, máquina de estados da âncora
 // (release-rules.js) e títulos/feeds/laço de fallback (release-format.js).
 import {
@@ -211,6 +212,27 @@ function createResolver(overrides: ProfileOverrides = {}) {
     maxHops: MAX_HOPS, timeoutMs: TIMEOUT_MS,
   });
 
+  /**
+   * Fetch DIRETO do crawl, sem FlareSolverr. A busca ao vivo continua no
+   * `fetch` de `searchPosts`; aqui só entram sitemap e página de obra, com
+   * redirect validado por hop e `onRequest` para o teto por hora.
+   */
+  async function fetchTextDirect(
+    url: string,
+    accept = 'text/html,application/xhtml+xml',
+    hooks?: { onRequest?: () => void },
+  ): Promise<string> {
+    const response = await fetchFollowRedirects(url, {
+      maxHops: MAX_HOPS,
+      timeoutMs: TIMEOUT_MS,
+      assertAllowedUrl,
+      ...(hooks?.onRequest ? { onRequest: hooks.onRequest } : {}),
+      headersFor: () => ({ 'User-Agent': USER_AGENT, Accept: accept }),
+    });
+    if (!response.ok) throw new Error(`http_${response.status}`);
+    return response.text();
+  }
+
   async function getPostLinks(postUrl: string) {
     const post = assertAllowedUrl(postUrl);
     if (!isDetailHost(post.hostname)) throw new Error('not_detail_page');
@@ -337,6 +359,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     resolveBest,
     resolveButton,
     fetchFollowingAllowed,
+    fetchTextDirect,
     decodeEntities,
     extractEpisode,
     cleanPostTitle,
