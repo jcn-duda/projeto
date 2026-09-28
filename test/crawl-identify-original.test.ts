@@ -149,27 +149,28 @@ describe('identifyWork com o título original da página', () => {
     }
   }));
 
-  test('h1 que o TMDB conhece NÃO dispara a 2ª busca (o original genérico pularia de filme)', withTmdbKey(async () => {
-    // Recorte real: a busca pelo h1 achou "Comando Final 3: Paradoxo" (HK, 2017)
-    // e só não casou estrito; "Paradox" sozinho casaria o "Paradoxo" de 2018.
-    const title = `Comando Final 3 Paradox ${process.pid}`;
-    const original = `Paradox ${process.pid}`;
+  test('a 2ª busca roda mesmo com hit aproximado do h1 (a busca do TMDB quase sempre devolve algo)', withTmdbKey(async () => {
+    // Recorte real (NerdFilmes, 2026-09-28): "A Revolta" devolve "Judite, ou A
+    // Primeira Revolta", sem relação; a obra é "The Uprising", pelo original.
+    const title = `A Revolta ${process.pid}`;
+    const original = `The Uprising ${process.pid}`;
     const stub = stubFetch((url) => {
       if (url.includes('/search/movie')) {
         return queryOf(url) === original
-          ? searchResp([movieHit(708, 'Paradoxo', original, '2018-03-15')])
-          : searchResp([movieHit(709, 'Comando Final 3: Paradoxo', '殺破狼·貪狼', '2017-08-25')]);
+          ? searchResp([movieHit(710, original, original, '2026-09-10')])
+          : searchResp([movieHit(711, 'Judite, ou A Primeira Revolta', 'Judite, ou A Primeira Revolta', '2025-06-01')]);
       }
+      if (url.includes('/movie/710/external_ids')) return ok({ imdb_id: 'tt7000010' });
       throw new Error(`fetch fora do mapa: ${url}`);
     });
     try {
-      const result = await identifyWork({ type: 'movie', title, year: 2018, originalTitle: original });
-      assert.equal(result.outcome, 'unidentified', 'sem obra é melhor que a obra de outro');
-      assert.equal(result.reason, 'nome-sem-casamento');
-      assert.deepEqual(stub.calls.map((c) => queryOf(c.url)), [title], 'só a busca pelo h1');
+      const result = await identifyWork({ type: 'movie', title, year: 2026, originalTitle: original });
+      assert.equal(result.outcome, 'identified');
+      assert.equal(result.imdb, 'tt7000010');
+      assert.equal(result.reason, 'casamento-titulo-original');
     } finally {
       stub.restore();
-      forget([title, original]);
+      forget([title, original], [710]);
     }
   }));
 

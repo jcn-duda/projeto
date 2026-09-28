@@ -151,14 +151,15 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
   const original = rawOriginal && normalizeTitle(rawOriginal) !== normalizeTitle(title) ? rawOriginal : '';
   let hits = search.hits;
   let selection = selectCandidate(hits, title, original);
-  // Segunda busca pelo ORIGINAL só quando o TMDB não conhece o `<h1>` de todo
-  // (zero hits no ano): o site titula num pt-BR que o TMDB não tem ("A
-  // Armadilha do Coelho" = "Rabbit Trap"). Se a busca pelo `<h1>` achou
-  // candidatos e nenhum casou estrito, a obra está ALI e a régua é que não
-  // fechou — rebuscar por um original genérico pula para OUTRO filme: "Comando
-  // Final 3 Paradox" achou o "Comando Final 3: Paradoxo" (HK, 2017), e a busca
-  // por "Paradox" casou o "Paradoxo" americano de 2018 (medido, 2026-09-28).
-  if (selection.kind === 'none' && original && search.hits.length === 0) {
+  // Segunda busca pelo ORIGINAL quando o `<h1>` não casou ninguém: o site
+  // titula num pt-BR que o TMDB não tem ("A Armadilha do Coelho" = "Rabbit
+  // Trap"). NÃO exigir zero hits na 1ª busca: a busca do TMDB é aproximada e
+  // quase sempre devolve ALGO — "A Revolta" (2026) trazia "Judite, ou A
+  // Primeira Revolta", e a trava "só com zero hits" perdeu o "The Uprising"
+  // certo (1 de 167 páginas reidentificadas, 2026-09-28). O que trocou a obra
+  // no "Comando Final 3 Paradox" foi a FICHA com dois nomes, e ela já não vira
+  // original (`parseOriginalTitle`). Ambíguo pelo `<h1>` tem o desempate acima.
+  if (selection.kind === 'none' && original) {
     const second = await searchByTitle(input.type, original, pageYear);
     if (!second.ok) return { outcome: 'unavailable', imdb: null, reason: 'tmdb-indisponivel' };
     hits = [...hits, ...second.hits];
