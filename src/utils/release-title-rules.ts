@@ -5,17 +5,22 @@ import {
   episodeWorkTokens,
   extractSequenceMarkers,
   firstSignificantToken,
+  firstUnmarkedToken,
+  firstWorkToken,
+  isNonLatinToken,
+  isNonNamingToken,
   titlePrecision,
   yearContradicts,
 } from './matching-tokens.js';
-import { matchesName, isMultiWorkCollection } from './release-name-matching.js';
+import { matchesName, nameCoverageTokens, isMultiWorkCollection } from './release-name-matching.js';
 
 // Os portões de título: o que decide se uma release É a obra procurada. Três
 // níveis de estricção, cada um calibrado contra casos reais medidos neste repo
 // (ver os docstrings): o nome coberto (`matchesName`, em
-// release-name-matching.ts), a estrutura global (`matchesTitleStructure`) e o
-// post BR completo (`matchesBrTitle`), mais as duas guardas de identidade de
-// série (`matchesEpisodeWorkIdentity`, `matchesGlobalSeriesNoMarker`).
+// release-name-matching.ts), a identidade posicional do nome curto
+// (`matchesShortNameIdentity`) e a estrutura global (`matchesTitleStructure`),
+// mais as duas guardas de identidade de série (`matchesEpisodeWorkIdentity`,
+// `matchesGlobalSeriesNoMarker`).
 
 // Calibrado nos casos reais deste repo com o corte de cauda na medição da obra
 // (titlePrecision com cutTail=true): releases legítimas sobem para ~1.00 e o
@@ -222,11 +227,165 @@ function matchesGlobalSeriesNoMarker(title: string, tokens: string[], universe: 
   return titlePrecision(tokens, universe, { cutTail }) >= SERIES_TITLE_PRECISION_MIN;
 }
 
+/**
+ * Resultado da decisão de identidade de nome curto, com os três estados
+ * separados DE PROPÓSITO — um `null` único diria "não há prova" tanto para o
+ * nome que o portão não se aplica quanto para o nome sem token comparável, e
+ * a diferença importa: o primeiro é "a cobertura discrimina e eu me calo", o
+ * segundo é "a cobertura é a ÚNICA prova e eu não afirmo identidade".
+ *
+ * - `skip`: a base efetiva da cobertura tem 3+ tokens (o corte de 0,6 já exige
+ *   nome quase inteiro) ou é VAZIA (aí `matchesName` nega por fail-closed, e o
+ *   portão nem é consultado).
+ * - `no-token`: base de 1–2 tokens SEM token latino comparável — nome de uma ou
+ *   duas letras ("It", "Up", "Oz") ou alias em outro script (光环). Não há
+ *   prova posicional possível; a cobertura exata do token segue sendo a
+ *   decisão, e nada aqui a substitui.
+ * - `prefix`: há token comparável, e a release precisa nomear a obra por ele.
+ */
+type ShortNameIdentity =
+  | { kind: 'skip' }
+  | { kind: 'no-token' }
+  | { kind: 'prefix'; want: string; run: string[] };
+
+// Base efetiva da cobertura com 1–2 tokens: acima dela o corte de 0,6 já
+// exige nome quase inteiro e o portão se cala. Ver `shortNameIdentity`.
+const SHORT_NAME_BASE_MAX = 2;
+
+/** Decide, por NOME, o que o portão de identidade vai exigir. A decisão é do
+ *  nome e não muda entre itens: quem filtra em lote calcula uma vez. */
+function shortNameIdentity(name: string): ShortNameIdentity {
+  const base = nameCoverageTokens(name);
+  if (base.length === 0 || base.length > SHORT_NAME_BASE_MAX) return { kind: 'skip' };
+  const tokens = titleTokens(name);
+  const want = firstWorkToken(tokens);
+  if (!want) return { kind: 'no-token' };
+  // Sequência dos tokens que NOMEIAM a obra, na ordem do nome ("attack on
+  // titan" → [attack, titan]). Só com 2+ ela prova algo: ver `containsNameRun`.
+  const run = tokens.filter((w) => !isNonNamingToken(w) && !isNonLatinToken(w));
+  return { kind: 'prefix', want, run };
+}
+
+/**
+ * O texto NOMEIA a obra, considerando o primeiro token que não é rótulo?
+ *
+ * Três respostas, e só uma nega: dá quando o token existe e é o esperado;
+ * dá quando não há token nenhum (título só com rótulo/estrutura) ou quando o
+ * token está em OUTRO SCRIPT — "光環 Halo S01E01" e "進撃の巨人 Attack on
+ * Titan" são a obra com o título localizado na frente, e a escrita em outro
+ * script não é prova de outra obra. Só quando o token é LATINO e não é rótulo,
+ * ruído, marca nem uploader permitido é que há contradição, e a release é de
+ * outra obra.
+ *
+ * A etiqueta de uploader/grupo do começo ("[ReQ]True Detective s01e01…",
+ * "www.UIndex.org - The Boys S05E01…") é cortada antes de medir, pelo mesmo
+ * `LEADING_RELEASE_TAG_RE` que a guarda de identidade por episódio já usa: sem
+ * isso o token da etiqueta viraria o "primeiro token da obra" e o portão
+ * cortaria release legítima.
+ */
+function namesTheWork(
+  text: string,
+  tokens: string[] | null,
+  check: { want: string; run: string[] },
+) {
+  const untagged = String(text || '').replace(LEADING_RELEASE_TAG_RE, '');
+  const own = untagged && untagged !== text ? titleTokens(untagged) : tokens || titleTokens(text);
+  const first = firstUnmarkedToken(own);
+  if (!first || isNonLatinToken(first)) return true;
+  if (first === check.want) return true;
+  return containsNameRun(own, check.run) || possessiveBeforeName(text, check.want);
+}
+
+/**
+ * O nome INTEIRO aparece como sequência contínua dos tokens que nomeiam a obra
+ * (ignorando rótulo/ligação entre eles): "Shingeki no Kyojin - Attack on Titan
+ * S04" e "Boku no Hero Academia S06" são a obra com o título original na
+ * frente, não outra obra. Exige 2+ tokens que nomeiam: com um só, "Thirst Trap
+ * The Fallout" e "Shes The Boss" também conteriam o nome e voltariam a entrar.
+ * O homônimo medido não tem a sequência ("The Hardy Boys", "The Detective
+ * Boys": o nome "The Boys" tem um token que nomeia).
+ */
+function containsNameRun(tokens: string[], run: string[]) {
+  if (run.length < 2) return false;
+  const seq = tokens.filter((w) => !isNonNamingToken(w));
+  for (let i = 0; i + run.length <= seq.length; i += 1) {
+    if (run.every((w, k) => seq[i + k] === w)) return true;
+  }
+  return false;
+}
+
+/**
+ * Posse EXPLÍCITA antes do nome ("Marvel's Daredevil", "Noah Hawley's
+ * Fargo"): a marca/autor que precede o título da própria obra. Só com o
+ * apóstrofo no texto cru — o "Marvels.Daredevil" de cena perdeu a prova e
+ * "Walter Boys"/"Hardy Boys" não são posse; o `dn=` real continua sendo a
+ * outra saída.
+ */
+function possessiveBeforeName(text: string, want: string) {
+  const escaped = want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\p{L}['’]s[\\s._-]+${escaped}(?![\\p{L}\\p{N}])`, 'iu').test(String(text || ''));
+}
+
+/**
+ * Identidade do nome de base curta: além da COBERTURA (os tokens do nome
+ * presentes no título), a release precisa NOMEAR a obra — começar pelo token
+ * do nome, não por uma palavra latina que antecede o nome procurado.
+ *
+ * Por que só aqui. A cobertura mede a BASE EFETIVA do nome (o mesmo conjunto
+ * que `matchesName` deduplica, com artigo e palavra de 1–2 letras fora quando
+ * sobram dois tokens longos). Quando essa base tem um ou dois tokens, o corte
+ * de 0,6 não discrimina nada: um token pede 1/1 e dois pedem 2/2 — o que
+ * falta é distinguir "a obra começa aqui" de "o nome está no meio do título de
+ * outra". Medido em "The Boys" (tt1520211, 2026-09-28): "The Hardy Boys S01
+ * 1080p" e "Detective Conan Movie 22 The Detective Boys" (outras obras) e
+ * "Trailer Park Boys" (que escapava do mesmo furo sempre que o índice
+ * publicasse o artigo no nome) entravam na lista. As guardas de precisão não
+ * fecharam nenhum desses casos: `matchesEpisodeWorkIdentity` só mede quando a
+ * release traz o par SxxEyy num token só, e `matchesGlobalSeriesNoMarker` só
+ * roda no pedido de Episódio E com o título sem marcador nenhum — pack de
+ * temporada e busca de série inteira ficavam sem portão nenhum depois do
+ * `matchesName`.
+ *
+ * Posição não é a única prova, e é por isso que a negação é estreita: (1) o
+ * token que antecede o nome só nega quando é LATINO e não é rótulo, ruído,
+ * marca ou uploader — outro script é título localizado; (2) o `dn=` do magnet
+ * é evidência alternativa CORRETA, como em `magnetYearContradicts` e
+ * `magnetSeasonContradicts`: release cujo POST não nomeia a obra mas cujo
+ * torrent real nomeia entra do mesmo jeito. Nenhum dos dois nega sozinho.
+ *
+ * Três invariantes: se abstém para base de 3+ tokens (aí a cobertura
+ * discrimina), NÃO roda no caminho BR (`matchesBrTitle` tem portão próprio) e
+ * fica dentro do `names.some` — um alias que não prefixa jamais pode condenar
+ * o release que casa pelo outro nome.
+ *
+ * Cobertura e portão dividem a MESMA base (`nameCoverageTokens`), extraída de
+ * `matchesName`: duas cópias desse cálculo divergiriam em silêncio quando a
+ * régua mudasse. **Não troque isso por lista de títulos proibidos:** a mesma
+ * classe de homônimo com base de um token (busca "Fallout" × "Thirst Trap The
+ * Fallout") fecha pelo mesmo portão, e a obra legítima que só carrega o nome em
+ * outro script fecha pela cobertura, não por lista.
+ */
+function matchesShortNameIdentity(
+  title: string,
+  check: ShortNameIdentity,
+  tokens: string[] | null = null,
+  dn = '',
+) {
+  if (check.kind !== 'prefix') return true;
+  if (namesTheWork(title, tokens, check)) return true;
+  // `dn` é o nome do torrent de verdade: evidência alternativa, na mesma
+  // linhagem do ano e da temporada contraditórios.
+  return !!dn && namesTheWork(dn, null, check);
+}
+
 export {
   TITLE_PRECISION_MIN,
   SERIES_TITLE_PRECISION_MIN,
   matchesTitleStructure,
+  matchesShortNameIdentity,
+  shortNameIdentity,
   matchesBrTitle,
   matchesEpisodeWorkIdentity,
   matchesGlobalSeriesNoMarker,
+  type ShortNameIdentity,
 };

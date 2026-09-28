@@ -10,10 +10,11 @@
  *   por episódio (`episodeWorkTokens`) e a regra única de ano
  *   (`yearContradicts`);
  * - `release-name-matching.ts` — cobertura de busca e franquia: `matchesName`,
- *   `isMultiWorkCollection`, `franchiseRoot(s)`, `containsTokenRun`;
+ *   `nameCoverageTokens`, `isMultiWorkCollection`, `franchiseRoot(s)`,
+ *   `containsTokenRun`;
  * - `release-title-rules.ts` — os portões compostos: `matchesTitleStructure`,
- *   `matchesBrTitle`, `matchesEpisodeWorkIdentity`,
- *   `matchesGlobalSeriesNoMarker`;
+ *   `matchesShortNameIdentity`/`shortNameIdentity`, `matchesBrTitle`,
+ *   `matchesEpisodeWorkIdentity`, `matchesGlobalSeriesNoMarker`;
  * - `release-filters.ts` — filtros em lote sobre RawItem: `filterRelevantRaw`,
  *   `filterInventoryRelevant`, `magnetYearContradicts`.
  *
@@ -26,6 +27,7 @@ import { TECH_NOISE, LEADING_ARTICLES } from './matching-vocabulary.js';
 import { yearContradicts } from './matching-tokens.js';
 import {
   matchesName,
+  nameCoverageTokens,
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,
@@ -34,6 +36,8 @@ import {
 } from './release-name-matching.js';
 import {
   matchesTitleStructure,
+  matchesShortNameIdentity,
+  shortNameIdentity,
   matchesBrTitle,
   matchesEpisodeWorkIdentity,
   matchesGlobalSeriesNoMarker,
@@ -49,7 +53,10 @@ export {
   TECH_NOISE,
   LEADING_ARTICLES,
   matchesName,
+  nameCoverageTokens,
   matchesBrTitle,
+  matchesShortNameIdentity,
+  shortNameIdentity,
   matchesTitleStructure,
   matchesEpisodeWorkIdentity,
   matchesGlobalSeriesNoMarker,

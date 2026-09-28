@@ -270,6 +270,74 @@ function firstSignificantToken(arr: string[]): string | undefined {
   ) || arr[0];
 }
 
+// Letra latina (com marca): o que separa "palavra" de título localizado.
+const LATIN_LETTER_RE = /[\p{Script=Latin}\p{M}]/u;
+
+// Token de ESTRUTURA: só dígito, x, ponto ou hífen. "1280x720", "2160", "5.1"
+// — o filtro de episódio do BR remove resolução antes do parse justamente
+// porque esses tokens viram temporada falsa, e para a identidade eles não
+// nomeiam obra nenhuma.
+const STRUCTURE_TOKEN_RE = /^[\dx.\-]+$/;
+
+// Marcador de episódio nas formas que o EPISODE_TOKEN (calibrado com
+// `e\d{1,3}`) NÃO cobre, e que aparecem no acervo real: o COMPOSTO
+// ("s01e01e02" — intervalo publicado, lido por `parseTitleSeasonEpisode`) e o
+// LONGO ("e1176", One Piece passou de E999). É padrão do SCAN de identidade,
+// não do EPISODE_TOKEN global: mexer naquele mudaria a precisão e o parse de
+// episódio, que têm outra calibragem.
+const EPISODE_MARK_RE = /^(?:s\d{1,2}(?:e\d{1,4})+|\d{1,2}x\d{1,4})$/;
+
+/**
+ * O token é rótulo ou estrutura — artigo, ruído de release, marca de
+ * empacotamento, marcador de episódio, número — e NÃO nomeia a obra.
+ *
+ * É a régua única do "primeiro token que nomeia" (identidade de nome curto) e
+ * a que separa a posição de uma prova. Palavra de até 2 letras entra como
+ * rótulo porque em nome e em release elas são artigo ou ligação pt-BR/en
+ * ("Game **of** Thrones", "The Office **US**"); o resto é medido pelos
+ * conjuntos que o matching já usa, mais as duas formas de marcador acima.
+ */
+function isNonNamingToken(token: string): boolean {
+  return (
+    !token ||
+    token.length <= 2 ||
+    LEADING_ARTICLES.has(token) ||
+    RELEASE_NOISE.has(token) ||
+    PACK_WORDS.has(token) ||
+    STRONG_PACK_WORDS.has(token) ||
+    EPISODE_TOKEN.test(token) ||
+    EPISODE_MARK_RE.test(token) ||
+    STRUCTURE_TOKEN_RE.test(token)
+  );
+}
+
+/** O token NÃO tem letra latina: é título localizado (光環, 進撃の巨人) ou
+ *  marca em outro script. Não prova identidade — nem contra, nem a favor. */
+function isNonLatinToken(token: string): boolean {
+  return !!token && !LATIN_LETTER_RE.test(token);
+}
+
+/** Primeiro token que nomeia a obra, em qualquer script. */
+function firstUnmarkedToken(tokens: string[]): string | undefined {
+  return tokens.find((w) => !!w && !isNonNamingToken(w));
+}
+
+/**
+ * Primeiro token LATINO que nomeia a obra — a versão do
+ * `firstSignificantToken` que também pula ruído de release (`AMZN`, `WEB-DL`,
+ * `1080p`, `Dual`, `PT-BR`), número, marcador composto/longo e escrita em
+ * outro script, e devolve `undefined` em vez de cair no `arr[0]`.
+ *
+ * A diferença do fallback importa: aqui "nada nomeia a obra" é ausência de
+ * evidência, e quem chama prefere não julgar um título que só tem rótulo —
+ * quem corta é a cobertura do nome, com a régua que já existia.
+ * `firstSignificantToken` continua com o `arr[0]` porque a regra de prefixo de
+ * FILME precisa de um ponto de comparação dos dois lados.
+ */
+function firstWorkToken(tokens: string[]): string | undefined {
+  return tokens.find((w) => !!w && !isNonNamingToken(w) && !isNonLatinToken(w));
+}
+
 export {
   extractSequenceMarkers,
   titlePrecision,
@@ -279,4 +347,8 @@ export {
   liveActionYearContradicts,
   adaptationIdentityContradicts,
   firstSignificantToken,
+  isNonNamingToken,
+  isNonLatinToken,
+  firstUnmarkedToken,
+  firstWorkToken,
 };

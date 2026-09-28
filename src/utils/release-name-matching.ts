@@ -7,6 +7,27 @@ import { LEADING_ARTICLES, YEAR_RANGE, PACK_WORDS, STRONG_PACK_WORDS, titleToken
 // estritos, e que `search-names.ts` usa para query e marcação de pack.
 
 /**
+ * Base de comparação da COBERTURA: o conjunto de tokens do nome procurado que
+ * `matchesName` mede. Extraído porque a identidade de nome curto (ver
+ * `matchesShortNameIdentity`) precisa decidir "este nome cabe em um ou dois
+ * tokens?" com a MESMA régua da cobertura — duas cópias desse cálculo
+ * divergiriam em silêncio quando a régua mudasse.
+ *
+ * Palavra de 1-2 letras costuma ser ruído pt-BR ("o", "de", "a") e artigo
+ * inglês também ("the" tem 3 letras e escapa do filtro de comprimento), mas
+ * quando sobra menos de dois tokens eles SÃO o título ("The Bear", "From",
+ * "The Boys"): aí vale mais o nome do que o ruído que ele evita. Artigo não é
+ * ruído, é identidade — por isso a base volta a ser o conjunto inteiro e a
+ * lista sai deduplicada.
+ */
+function nameCoverageTokens(name: string) {
+  const all = titleTokens(name);
+  const long = all.filter((w) => w.length > 2 && !LEADING_ARTICLES.has(w));
+  const base = long.length >= 2 ? long : all;
+  return [...new Set(base)];
+}
+
+/**
  * Descarta resultados que claramente não são o título procurado — indexers
  * costumam devolver "parecidos" para queries curtas.
  *
@@ -32,14 +53,7 @@ import { LEADING_ARTICLES, YEAR_RANGE, PACK_WORDS, STRONG_PACK_WORDS, titleToken
  *
  */
 function matchesName(title: string, name: string, tokens: string[] | null = null) {
-  const all = titleTokens(name);
-  // Palavra de 1-2 letras costuma ser ruído ("o", "de", "a") — e artigo
-  // inglês também ("the" tem 3 letras e escapa do filtro de comprimento).
-  // Mas quando sobra menos de dois tokens, ela É o título ("The Bear",
-  // "From"): aí vale mais que o ruído que evita.
-  const long = all.filter((w) => w.length > 2 && !LEADING_ARTICLES.has(w));
-  const base = long.length >= 2 ? long : all;
-  const wanted = [...new Set(base)];
+  const wanted = nameCoverageTokens(name);
   // `wanted` vazio só resta de nome sem token aproveitável (vazio ou só
   // ruído). Retornar true seria passe livre: quem chama em lote via
   // names.some() aprovaria QUALQUER título contra esse nome. Lista vazia é
@@ -135,6 +149,7 @@ function containsTokenRun(title: string, normalizedRoot: string) {
 
 export {
   matchesName,
+  nameCoverageTokens,
   isMultiWorkCollection,
   franchiseRoot,
   franchiseRoots,

@@ -19,6 +19,9 @@ export {
 
 export {
   matchesName,
+  nameCoverageTokens,
+  matchesShortNameIdentity,
+  shortNameIdentity,
   matchesBrTitle,
   matchesEpisodeWorkIdentity,
   matchesGlobalSeriesNoMarker,

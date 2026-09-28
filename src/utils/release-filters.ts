@@ -13,7 +13,10 @@ import {
   matchesBrTitle,
   matchesEpisodeWorkIdentity,
   matchesGlobalSeriesNoMarker,
+  matchesShortNameIdentity,
   matchesTitleStructure,
+  shortNameIdentity,
+  type ShortNameIdentity,
 } from './release-title-rules.js';
 import { admitsMultiWorkPack } from './multiwork-pack.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
@@ -67,13 +70,38 @@ function filterRelevantRaw(
     return tokens;
   };
   const universe = names.flatMap((n) => titleTokens(n)).filter(Boolean);
+  // A decisão de identidade de nome curto é do NOME, não do item: calculada
+  // uma vez por nome e repassada ao portão (que senão renormalizaria o mesmo
+  // nome para cada item). Os três estados ficam explícitos no tipo.
+  const shortNameChecks = new Map<string, ShortNameIdentity>();
+  const shortNameCheck = (name: string) => {
+    let check = shortNameChecks.get(name);
+    if (!check) {
+      check = shortNameIdentity(name);
+      shortNameChecks.set(name, check);
+    }
+    return check;
+  };
   return items.filter((item) => {
     const title = item?.title || item?.Title || '';
     const tokens = tokensOf(title);
+    // `dn` é o nome do torrent real: evidência alternativa de identidade, na
+    // mesma linhagem do ano e da temporada contraditórios. Vazio quando não há.
+    const dn = magnetDisplayName(item);
     const titleMatches = names.some((name) =>
       item?.isBr
         ? matchesBrTitle(title, name, year, { isSeries, allNames: names, tokens, universeTokens: universe })
         : matchesName(title, name, tokens) &&
+          // Base efetiva de um ou dois tokens: a COBERTURA não discrimina
+          // (0,6 de dois tokens já é "os dois presentes") e não distingue "a
+          // obra começa aqui" de "o nome está no meio do título de outra" —
+          // "The Hardy Boys S01" e "Detective Conan … The Detective Boys"
+          // entravam como a série (medido em tt1520211, 2026-09-28). A
+          // identidade exige que a release nomeie a obra; outro script na
+          // frente é título localizado, e o `dn` real é prova alternativa.
+          // Fica dentro do `some` para que um alias que não prefixa jamais
+          // condene o release que casa pelo outro nome.
+          matchesShortNameIdentity(title, shortNameCheck(name), tokens, dn) &&
           // Série global continua PULANDO prefixo e sequência — o marcador de
           // episódio delimita a obra, e o prefixo de filme mudaria formatos
           // legítimos como "S01E02.From". Mas ficar sem guarda NENHUMA depois

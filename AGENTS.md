@@ -2349,6 +2349,38 @@ o orçamento com a resposta.
   já aplicava: só condena quando TODOS os anos do título são anteriores à
   estreia −2). Quanto mais curto o nome, mais exposta a razão: série-mãe
   "The Walking Dead" fazia 2/3 = 0.667 — pior que o spin-off.
+- **Nome de 1–2 tokens não tem cobertura que discrimine: a identidade vira
+  POSIÇÃO** (`matchesShortNameIdentity`, em `release-title-rules.ts`, ligado no
+  `filterRelevantRaw` só no ramo `!isBr`). Com a base da cobertura em um ou dois
+  tokens, o corte de 0,6 já é "todos os tokens presentes" — e o ARTIGO contava
+  como acerto, então qualquer release que trouxesse `the` + `boys` passava de
+  "The Boys": "The Hardy Boys S01 1080p" e "Detective Conan Movie 22 The
+  Detective Boys" (medido em tt1520211, 2026-09-28; "Trailer Park Boys" escapava
+  do mesmo furo sempre que o índice publicasse o artigo no nome). As guardas de
+  precisão NÃO cobriam nenhum desses casos: `matchesEpisodeWorkIdentity` só mede
+  quando a release traz o par SxxEyy num token só, e `matchesGlobalSeriesNoMarker`
+  só roda no pedido de Episódio E com o título sem marcador nenhum — **pack de
+  temporada e busca de série inteira ficavam sem portão nenhum** depois do
+  `matchesName`. A regra exige que o primeiro token que NOMEIA a obra
+  (`firstWorkToken`, que pula ruído de release, artigo, marcador de episódio e a
+  etiqueta de uploader do começo) seja o do nome procurado — a mesma régua que a
+  `matchesTitleStructure` já aplica no caminho de FILME. Três invariantes: ela se
+  abstém para nome de 3+ tokens (aí a cobertura discrimina), NÃO roda no caminho
+  BR (`matchesBrTitle` tem portão próprio) e fica dentro do `names.some` para que
+  um alias que não prefixa jamais condene o release que casa pelo outro nome.
+  Duas saídas estreitas para o prefixo legítimo, além do `dn=` real: o nome
+  com 2+ tokens que nomeiam aparece INTEIRO em sequência ("Shingeki no Kyojin
+  - Attack on Titan", "Boku no Hero Academia") e a posse EXPLÍCITA com
+  apóstrofo antes do nome ("Marvel's Daredevil", "Noah Hawley's Fargo"). Nome
+  de um token que nomeia ("The Boys", "Fallout") não tem sequência que prove —
+  é justamente o caso do homônimo — e "Marvels.Daredevil" de cena, sem
+  apóstrofo, depende do `dn=`. Cobertura e portão dividem a MESMA régua de base (`nameCoverageTokens`) — duas
+  cópias desse cálculo divergiriam em silêncio quando a régua mudasse. **Não troque
+  isso por lista de títulos proibidos:** a mesma classe com nome de 1 token
+  (busca "Fallout" × "Thirst Trap The Fallout", "The Boss" × "Shes The Boss")
+  fecha pelo mesmo portão, e o homônimo LEGÍTIMO do padrão — "Hawaii Five O" na
+  busca "Hawaii" — só morre na guarda de PRECISÃO de sempre, não neste.
+  Cobertura: `test/format-short-name-identity.test.ts`.
 - **"Sumiu o ⚡ de todos os streams" quase nunca é bug de código.** No fluxo
   normal, stream fora do cache sai **sem prefixo nenhum** (P2P); ver
   `[AD download]` em 100% dos itens significa que a checagem de cache não
@@ -2466,6 +2498,18 @@ o orçamento com a resposta.
   obrigatório. Escopo por namespace (`{"scope":{"namespace":"streams"}}`) NÃO
   basta quando a regra afeta o índice — o `idx:v13` reentrega o item por outro
   caminho. Use o escopo global.
+- **Correção de RELEVÂNCIA não é correção de CLASSIFICADOR — o bump de namespace
+  é para o outro caso.** A relevância é REFEITA a cada busca: o `buildStreams`
+  refiltra o que sai do `idx:v13` e o que a reserva do banco devolve
+  (`stream-builder-pipeline` chama `filterRelevantRaw` em tudo que não é
+  inventário), então a linha velha morre no filtro sem nenhum bump. O que sobra é
+  a CONTABILIDADE do índice (`idxPoolCovered` pode achar que a obra já tem
+  cobertura BR e pular a busca viva) e a lista já montada no `streams:v20`, que
+  vive até o `CACHE_TTL` — invalide as OBRAS afetadas (é o que o reparo do
+  crawl faz por obra, com `idx:v13:<imdb>*` e `streams:%:series:<imdb>:%`). Bumpe
+  `idx`/`streams` só quando o que mudou é um RÓTULO persistido na linha
+  (`dubbed`, `quality`): aí o conserto não aparece em obra já indexada, porque o
+  classificador roda uma vez na gravação.
 - **Ação destrutiva do painel exige `{"confirm": true}`.** `clear-cache` e
   `sweep-dead` devolvem 400 `confirmation_required` sem ele. São globais: não
   há escopo por instalação hoje.
