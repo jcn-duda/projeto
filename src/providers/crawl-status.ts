@@ -14,6 +14,7 @@ import type { CrawlEngine } from '../utils/crawl-store.js';
 import { parseProgress } from '../utils/crawl-store-rules.js';
 import { siteConfigOf, type CrawlerEffectiveConfig, type CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
 import type { ProbeGate } from './crawl-probe-gate.js';
+import { siteCatalog } from './crawl-site-catalog.js';
 import {
   legacyView, NEUTRAL_PROBE,
   type CrawlMotorState, type CrawlSiteRuntimeView, type CrawlerStatusInput, type SiteAutoPauseInfo, type SiteTableInfo,
@@ -325,5 +326,7 @@ export function buildCrawlerStatus(
     counters: active ? { total: active.total, byStatus: active.byStatus } : null,
     latestRun: active ? active.latestRun : null,
     sites,
+    // Tabela BR com o liga/desliga de cada site (o painel liga fora do `.env`).
+    catalog: siteCatalog(live),
   };
 }

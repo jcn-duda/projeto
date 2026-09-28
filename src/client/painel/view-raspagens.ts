@@ -16,7 +16,8 @@ import {
   type CrawlSummary,
   type CrawlSiteCard,
 } from './raspagens-model.js';
-import { probeBadge, probeText, siteRotationLabel, skipText, type SiteConfigForm } from './raspagens-site.js';
+import { probeBadge, probeText, skipText, type SiteConfigForm } from './raspagens-site.js';
+import { crawlCatalog, SitesCatalogCard, type CatalogEntry } from './raspagens-catalog.js';
 
 export interface ViewRaspagensProps {
   crawl?: Record<string, any>;
@@ -37,6 +38,7 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
   const c = crawl || {};
   const summary = crawlSummary(c);
   const sites = crawlSiteCards(c);
+  const catalog = crawlCatalog(c);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
   const { pending, run } = useAction();
 
@@ -129,23 +131,21 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
           </p>
         </${Card}>
 
-        <${Card} title="Sites na Rotação">
-          ${summary.sitesConfigured.length === 0 ? html`
-            <p style="color: var(--muted); font-size: var(--font-floor);">Nenhum site em CRAWL_SITES.</p>
-          ` : html`
-            <ul class="painel-list">
-              ${summary.sitesConfigured.map((id) => {
-                const card = sites.find((s) => s.id === id);
-                const state = card ? siteRotationLabel(card.override, card.probe, card.active, card.total > 0) : 'sem estado';
-                return html`
-                  <li key=${id}>
-                    <code>${id}</code>${id === summary.site ? ' · ativo' : ''} · ${state}
-                  </li>
-                `;
-              })}
-            </ul>
-          `}
-        </${Card}>
+      </div>
+
+      <div style="margin-top: var(--space-4);">
+        <${SitesCatalogCard}
+          catalog=${catalog}
+          cards=${sites}
+          summary=${summary}
+          pending=${pending}
+          onToggle=${(entry: CatalogEntry) => handle(
+            SITE_SET_ACTION,
+            { site: entry.id, patch: { enabled: !entry.enabled } },
+            undefined,
+            entry.enabled ? `Site ${entry.id} desligado` : `Site ${entry.id} ligado`,
+          )}
+        />
       </div>
 
       ${sites.length === 0 ? html`
@@ -224,7 +224,7 @@ export function ViewRaspagens({ crawl }: ViewRaspagensProps) {
           setAction="crawl-config-set"
           resetAction="crawl-config-reset"
           pollBlocks=${['crawl']}
-          description="Ajustes do motor aplicados ao vivo (persistidos no SQLite, sem restart) — valem para TODOS os sites. A lista de sites vem do .env (CRAWL_SITES) e não é editável aqui; o ajuste próprio de cada site fica no cartão dele, acima. Campo divergente do .env aparece marcado como 'ao vivo'."
+          description="Ajustes do motor aplicados ao vivo (persistidos no SQLite, sem restart) — valem para TODOS os sites. Ligar/desligar cada site fica no cartão 'Sites da Raspagem' (o .env CRAWL_SITES é só o padrão); o ajuste próprio de cada site fica no cartão dele, acima. Campo divergente do .env aparece marcado como 'ao vivo'."
         />
       </div>
     </div>

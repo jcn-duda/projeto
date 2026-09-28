@@ -66,6 +66,15 @@ export function tableIds(): string[] {
   return SITE_TABLE.map((entry) => entry.id);
 }
 
+/**
+ * Ids que TÊM adaptador nesta rodada — os que o painel pode ligar sem estarem
+ * em `CRAWL_SITES`. Site sem adaptador aparece no catálogo, mas não liga: o
+ * motor só o marcaria `sem-adaptador` a cada volta.
+ */
+export function adapterIds(): string[] {
+  return SITE_TABLE.filter((entry) => entry.module && entry.exportName).map((entry) => entry.id);
+}
+
 /** Entrada da tabela de um id; `null` quando o id nem existe na tabela. */
 export function tableEntry(siteId: string): SiteEntry | null {
   return TABLE.get(String(siteId || '')) ?? null;

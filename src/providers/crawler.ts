@@ -26,9 +26,9 @@ import { buildCrawlerStatus, type CrawlSiteRuntimeView, type CrawlerStatusInput 
 import { createCrawlActions } from './crawl-actions.js';
 import * as registry from './crawl-sites/registry.js';
 import { createCrawlScheduler } from './crawl-scheduler.js';
-import { loadCursorsFromStore } from './crawl-cursor.js';
+import { cursorsView, primeCursors } from './crawl-cursor-load.js';
 import {
-  cadenceDelayMs, siteConfigOf, withCadence, type CrawlerEffectiveConfig, type CrawlerSiteConfig,
+  cadenceDelayMs, knownSites, siteConfigOf, withCadence, type CrawlerEffectiveConfig, type CrawlerSiteConfig,
 } from '../utils/crawler-live-schema.js';
 import { readVerdict, probeGate, probeGateOpen } from './crawl-probe-gate.js';
 import {
@@ -64,10 +64,8 @@ const stepper = createCrawlStepper({
   discoveryCost: () => config.crawl.discoveryCost,
 });
 
-/** Ids de site configurados (`CRAWL_SITES`), sem vazio. */
-function configuredSites(live: CrawlerEffectiveConfig): string[] {
-  return live.sites.map((s) => String(s || '')).filter(Boolean);
-}
+/** Sites do motor: `CRAWL_SITES` + os ligados/desligados no painel. */
+const configuredSites = knownSites;
 
 function runtimeFor(id: string): SiteRuntime {
   return ensureRuntime(runtimes, id);
@@ -182,6 +180,8 @@ function onLiveConfigChange(): void {
     const rt = runtimeFor(id);
     if (siteActive(live, cfg) && !rt.wasEnabled) {
       rt.needInflightRecovery = true;
+      // Ligado DEPOIS do boot: sem isto o 1º ciclo sairia `initial` (sitemap inteiro).
+      primeCursors(rt);
       // Boot desabilitado adiou a passada de `simulated`: roda na 1ª step.
       if (!rt.simulatedRecoveryDone && cfg.dryRun === false) rt.needSimulatedRecovery = true;
     }
@@ -205,7 +205,7 @@ function primeSite(rt: SiteRuntime, cfg: CrawlerSiteConfig): void {
   if (cfg.dryRun === false) { recovery.requeueSimulated(rt.id); rt.simulatedRecoveryDone = true; }
   // Fase 6/2: cursores duráveis POR KIND — restart retoma o incremental do
   // estado persistido, sem reprocessar o acervo.
-  loadCursorsFromStore(rt.id, rt.cursors);
+  primeCursors(rt);
 }
 
 /** Arma o motor. Sticky; só ativa com a config viva habilitada. */
@@ -326,7 +326,7 @@ function siteView(id: string, live: CrawlerEffectiveConfig, engine: CrawlEngine)
     ready: rt.ready,
     paused: rt.paused,
     autoPause: rt.autoPause,
-    cursors: { ...rt.cursors },
+    cursors: cursorsView(rt, engine),
     nextDiscoveryAt: rt.nextDiscoverAt,
     pagesThisHour: rt.hourPages.current(),
     openRunId: rt.openRunId,

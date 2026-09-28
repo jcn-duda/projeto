@@ -1855,6 +1855,24 @@ ligado; ligado no override não ressuscita com o global desligado (o global é o
 kill-switch). Ações: `crawl-site-config-set` (só o delta), `crawl-site-config-reset`
 (destrutiva, `confirm`) e `crawl-site-pause`.
 
+**`CRAWL_SITES` é só o padrão; o painel liga qualquer site com adaptador.** Os
+sites do motor são `knownSites()` = `CRAWL_SITES` ∪ ids com override gravado.
+Site do `.env` nasce ligado; site do catálogo (tabela com adaptador, fora do
+`.env`) nasce DESLIGADO e entra com `enabled:true` no override — o `.env` da
+VPS não é tocado pelo deploy, e exigir editá-lo para ligar um site era
+restart manual por servidor. "Voltar ao global" num site fora do `.env` o tira
+do motor. Site sem adaptador é recusado (viraria card `sem-adaptador`
+eterno). O status expõe `crawl.catalog` (tabela inteira, liga/desliga efetivo
+e origem) e o painel desenha um botão Ligar/Desligar por site
+(`raspagens-catalog.ts`).
+
+**Cursor carrega também quando o site liga DEPOIS do boot**
+(`crawl-cursor-load.ts`). Antes, só o `start()` com o motor ligado lia o
+`crawl_state`: container subindo desligado + enable no painel saía `initial`
+e relia o sitemap inteiro. A carga é única por processo (`cursorsLoaded`) —
+recarregar por cima de um "Zerar site" traria de volta o cursor descartado —
+e o card de site nunca ativo lê o cursor quiet, sem migrar o legado.
+
 **A identidade da página é `(site, url_key)`** e `url_key` é o **caminho**
 (`crawl-url-key.ts`): sem esquema, sem host, sem query, sem fragmento, barra
 final canônica. Motivo: os sites BR trocam de domínio com frequência e a chave

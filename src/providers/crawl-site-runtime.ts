@@ -54,6 +54,8 @@ export interface SiteRuntime {
   autoPause: SiteAutoPause | null;
   /** Cursor incremental POR KIND (F2 das séries), por site. */
   cursors: CursorMap;
+  /** `cursors` já veio do `crawl_state` neste processo (carga única). */
+  cursorsLoaded: boolean;
   /** Rodada de descoberta+páginas aberta; `null` = nenhuma. */
   openRunId: number | null;
   /** Próxima descoberta agendada (epoch ms); 0 = devida. */
@@ -111,6 +113,7 @@ export function createSiteRuntime(id: string): SiteRuntime {
     paused: false,
     autoPause: null,
     cursors: { movie: '', tv_show: '' },
+    cursorsLoaded: false,
     openRunId: null,
     nextDiscoverAt: 0,
     discoveryPartial: false,

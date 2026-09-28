@@ -96,6 +96,32 @@ describe('motor: boot disabled + dry-run off — recuperação de simulated na 1
     assert.notEqual(status, 'simulated', 'passada é one-shot: não volta a simulated');
   });
 
+  test('cursor gravado: o card mostra com o motor desligado e o enable roda INCREMENTAL', async () => {
+    // Antes, só o `start()` com o motor LIGADO lia o `crawl_state`: boot
+    // desligado + enable no painel saía `initial` e relia o sitemap inteiro,
+    // e o card dizia "carga inicial" com cursor gravado no banco.
+    store.engine().setState('fake', 'cursor:movie', '2026-05-01T00:00:00+00:00');
+    store.engine().setState('fake', 'cursor:tv_show', '2026-05-02T00:00:00+00:00');
+    const sinces: Array<string | null | undefined> = [];
+    crawler._setSitesForTest(() => fakeSite({
+      discover: async (since): Promise<CrawlDiscovery> => {
+        sinces.push(since);
+        return { urls: [movie('/c', '2026-06-01')], complete: true, failures: [] };
+      },
+    }));
+    freshCrawl({ enabled: false });
+    crawler.start();
+    const card = crawler.status().sites.find((s) => s.id === 'fake');
+    assert.equal(card?.cursors.movie, '2026-05-01T00:00:00+00:00', 'card lê o cursor com o motor desligado');
+    assert.equal(card?.cursors.tv_show, '2026-05-02T00:00:00+00:00');
+
+    assert.ok(crawlerLive.set({ enabled: true }).ok);
+    crawler._forceDiscoveryForTest();
+    for (let i = 0; i < 4 && sinces.length === 0; i += 1) await crawler.tick();
+    assert.deepEqual(sinces, ['2026-05-01T00:00:00+00:00'], 'descoberta parte do cursor gravado');
+    assert.equal(store.engine().latestRun('fake')?.phase, 'incremental');
+  });
+
   test('boot desabilitado com dry-run LIGADO: enable não reenfileira (ainda é simulação)', async () => {
     store.engine().upsertUrls('fake', [movie('/b')], 1);
     store.engine().markResult('fake', '/b', { status: 'simulated', imdb: 'tt2', releases: 1 }, 100);

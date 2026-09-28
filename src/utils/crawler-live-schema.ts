@@ -19,7 +19,7 @@ import type { CrawlSeriesLimits } from '../providers/crawl-types.js';
 import { sanitizeSitePatch, type CrawlerSiteOverrides } from './crawler-live-site.js';
 
 export type { CrawlerSiteConfig, CrawlerSiteOverride, CrawlerSiteOverrideKey, CrawlerSiteOverrides } from './crawler-live-site.js';
-export { SITE_OVERRIDE_KEYS, cadenceDelayMs, sanitizeSitePatch, siteConfigOf, withCadence } from './crawler-live-site.js';
+export { SITE_OVERRIDE_KEYS, cadenceDelayMs, knownSites, sanitizeSitePatch, siteConfigOf, withCadence } from './crawler-live-site.js';
 
 /** Limites da Fase 7 (séries) a partir da config efetiva (snapshot do tick).
  * Aceita a config global E a config por site (Fase 8): os três campos são os

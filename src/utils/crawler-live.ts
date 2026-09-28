@@ -11,8 +11,11 @@
 import * as cache from './cache.js';
 import { prefix } from './cache-keys.js';
 import * as log from './logger.js';
+// Só a lista de ids com adaptador (a tabela não importa nada deste módulo).
+import { adapterIds } from '../providers/crawl-sites/registry.js';
 import {
   envDefaults,
+  knownSites,
   sanitizePatch,
   sanitizeSitePatch,
   sanitizeStoredConfig,
@@ -151,17 +154,19 @@ export interface SiteConfigSetResult {
  * os outros sites nem os escalares globais — e persiste. Patch vazio é no-op
  * de sucesso: o painel pode mandar `{patch:{}}` sem quebrar.
  *
- * O alvo é validado contra os sites CONFIGURADOS (`CRAWL_SITES`): sem isso, a
- * rota aceitaria gravar override para um id arbitrário e o `cfg:v1:crawler`
- * persistido viraria um mapa sem dono.
+ * O alvo é validado contra `CRAWL_SITES` MAIS os sites com adaptador no
+ * registro (o catálogo que o painel liga/desliga): sem isso, a rota aceitaria
+ * gravar override para um id arbitrário e o `cfg:v1:crawler` persistido viraria
+ * um mapa sem dono. Id com override já gravado continua editável (desligar o
+ * que o painel ligou).
  */
 export function setSiteOverride(siteId: string, patch: Record<string, unknown>): SiteConfigSetResult {
   initIfNeeded();
   const site = String(siteId || '').trim();
   const { clean, errors } = sanitizeSitePatch(site, patch);
   if (errors.length === 0) {
-    const configured = effective().sites.map((s) => String(s || ''));
-    if (!configured.includes(site)) errors.push(`site "${site}" não está em CRAWL_SITES`);
+    const allowed = new Set([...knownSites(effective()), ...adapterIds()]);
+    if (!allowed.has(site)) errors.push(`site "${site}" não está em CRAWL_SITES nem tem adaptador`);
   }
   if (errors.length > 0) {
     return { ok: false, site, effective: siteConfigOf(effective(), site), overriddenKeys: [], errors };

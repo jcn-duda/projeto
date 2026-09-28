@@ -56,9 +56,10 @@ export function siteConfigOf(live: CrawlerEffectiveConfig, siteId: string): Craw
   const delay = has('delayMs') ? Number(over.delayMs) : live.delayMs;
   const cap = has('maxPerHour') ? Number(over.maxPerHour) : live.maxPerHour;
   return {
-    // `enabled` ausente = o site está ligado (ele está em `CRAWL_SITES`); o
+    // `enabled` ausente = o default do `.env`: ligado se está em `CRAWL_SITES`,
+    // desligado se só existe no catálogo (o painel liga por override). O
     // kill-switch do MOTOR é o `enabled` global, verificado no tick.
-    enabled: has('enabled') ? over.enabled === true : true,
+    enabled: has('enabled') ? over.enabled === true : live.sites.includes(siteId),
     dryRun: has('dryRun') ? over.dryRun === true : live.dryRun,
     // Trava de segurança: o site só pode ser MAIS lento e ter MENOS teto.
     delayMs: Math.max(live.delayMs, Math.trunc(delay) || 0),
@@ -77,15 +78,26 @@ export function siteConfigOf(live: CrawlerEffectiveConfig, siteId: string): Craw
 }
 
 /**
+ * Sites que o MOTOR conhece: `CRAWL_SITES` (ligados por padrão) mais os que o
+ * painel ligou/desligou por override. Sem o segundo grupo, ligar um site do
+ * catálogo pelo painel exigiria editar o `.env` e reiniciar — e o `.env` da
+ * VPS não é tocado pelo deploy. Ordem: primeiro os do `.env`, depois os do
+ * painel na ordem em que foram gravados.
+ */
+export function knownSites(live: CrawlerEffectiveConfig): string[] {
+  const fromEnv = live.sites.map((s) => String(s || '').trim()).filter(Boolean);
+  const fromPanel = Object.keys(live.siteOverrides || {}).filter((id) => id && !fromEnv.includes(id));
+  return [...new Set([...fromEnv, ...fromPanel])];
+}
+
+/**
  * Cadência do TIMER: o menor `delayMs` entre os sites que podem trabalhar.
  * Com ritmo por site, armar o timer pelo delay global atrasaria o site mais
  * rápido (500 ms pedidos por um site de 5 s nunca seria servido); o piso de
  * 500 ms e o teto de 60 s são os mesmos do `crawl-scheduler.ts`.
  */
 export function cadenceDelayMs(live: CrawlerEffectiveConfig): number {
-  const delays = live.sites
-    .map((id) => String(id || ''))
-    .filter(Boolean)
+  const delays = knownSites(live)
     .map((id) => siteConfigOf(live, id))
     .filter((cfg) => cfg.enabled)
     .map((cfg) => cfg.delayMs);

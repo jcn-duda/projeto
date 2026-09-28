@@ -385,9 +385,11 @@ test('wiring: ajuste por site manda `site`, sonda é leitura e os módulos são 
 
   assert.match(view, /probeBadge\(card\.probe\)/, 'o veredito da sonda entra no card do site');
   assert.match(view, /probeText\(card\.probe\)/);
-  assert.match(view, /siteRotationLabel\(/, 'a rotação é lida do modelo, não montada na view');
+  assert.match(read('raspagens-catalog.ts'), /siteRotationLabel\(/, 'a rotação é lida do modelo, não montada na view');
+  assert.match(view, /site:\s*entry\.id,\s*patch:\s*\{\s*enabled:\s*!entry\.enabled/, 'liga/desliga é o override `enabled` do site');
 
   assert.ok(CLIENT_ASSETS.includes('client/painel/raspagens-site.js'), 'modelo do ajuste por site precisa de rota');
   assert.ok(CLIENT_ASSETS.includes('client/painel/view-raspagem-site-config.js'), 'cartão de ajuste precisa de rota');
   assert.ok(CLIENT_ASSETS.includes('client/painel/view-raspagem-site-history.js'), 'histórico do site precisa de rota');
+  assert.ok(CLIENT_ASSETS.includes('client/painel/raspagens-catalog.js'), 'catálogo de sites precisa de rota');
 });
