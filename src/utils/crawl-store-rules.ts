@@ -62,18 +62,20 @@ export function parseProgress(raw: unknown): SeriesWorkProgress | null {
   const card = p.card && typeof p.card === 'object'
     ? { url: String((p.card as { url?: unknown }).url || ''), skip: Number((p.card as { skip?: unknown }).skip) || 0 }
     : undefined;
+  const seen = Array.isArray(p.seen) ? p.seen.map((k) => String(k || '')).filter(Boolean) : [];
   return {
     v: 1,
     doneCards,
     ...(card && card.url ? { card } : {}),
     totalCards: Number(p.totalCards) || 0,
+    ...(seen.length ? { seen } : {}),
     ...(p.dry === 1 ? { dry: 1 as const } : {}),
   };
 }
 
 /**
  * Serialização canônica: ordem de chaves FIXA (v, doneCards, card,
- * totalCards, dry) e arrays na ordem dada — a comparação de avanço é textual
+ * totalCards, seen, dry) e arrays na ordem dada — a comparação de avanço é textual
  * e só é honesta com forma estável.
  */
 export function renderProgress(p: SeriesWorkProgress): string {
@@ -83,6 +85,7 @@ export function renderProgress(p: SeriesWorkProgress): string {
     doneCards: (Array.isArray(p.doneCards) ? p.doneCards : []).map((u) => String(u || '')).filter(Boolean),
     ...(card ? { card } : {}),
     totalCards: Math.max(0, Math.trunc(Number(p.totalCards) || 0)),
+    ...(Array.isArray(p.seen) && p.seen.length ? { seen: p.seen.map((k) => String(k || '')).filter(Boolean) } : {}),
     ...(p.dry === 1 ? { dry: 1 } : {}),
   });
 }
@@ -102,8 +105,9 @@ export function progressAdvanced(prevRaw: unknown, next?: SeriesWorkProgress | s
   if (!parsedNext) return false;
   const prev = parseProgress(prevRaw);
   if (!prev) return true;
-  const { dry: _prevDry, ...prevCore } = prev;
-  const { dry: _nextDry, ...nextCore } = parsedNext;
+  // `seen` também fica de fora: é memória de dedupe, não leitura de card.
+  const { dry: _prevDry, seen: _prevSeen, ...prevCore } = prev;
+  const { dry: _nextDry, seen: _nextSeen, ...nextCore } = parsedNext;
   return renderProgress(prevCore as SeriesWorkProgress) !== renderProgress(nextCore as SeriesWorkProgress);
 }
 

@@ -59,6 +59,12 @@ export interface SeriesWorkProgress {
   card?: { url: string; skip: number };
   /** Todos os cards da página da série (painel mostra x/y). */
   totalCards: number;
+  /** Botões já resolvidos nas passadas anteriores: `h:<hash>` e a assinatura
+   * `s:<qualidade>|<áudio>|<tamanho>` do botão de pack. O TWD repete o MESMO
+   * bloco de 10 packs em cada uma das 11 páginas de temporada (medido
+   * 2026-09-28: 1.087 requisições para 10 magnets únicos). NÃO conta como
+   * avanço (`progressAdvanced` compara só cards). */
+  seen?: string[];
   /** Marcado pelo `crawl-page` quando o passe é dry-run (o flip
    * `true→false` reenfileira só progresso SECO). */
   dry?: 1;

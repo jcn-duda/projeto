@@ -51,6 +51,24 @@ import type { SeriesReleaseEntry } from './vaca-series-locate.js';
 import { magnetDisplayName } from '../../utils/title-normalization.js';
 import * as log from '../../utils/logger.js';
 
+/** Teto da memória de dedupe no progresso (fica na coluna `progress`). */
+const SEEN_MAX = 500;
+
+/**
+ * Assinatura de botão de PACK (sem episódio) com tamanho REAL: qualidade +
+ * áudio + tamanho. É a única identidade antes do protetor — a URL
+ * `systemtech` é cifrada por página (0/10 iguais entre cards do TWD). Botão
+ * de episódio NÃO tem assinatura: S01E01 e S02E01 com o mesmo tamanho
+ * arredondado seriam releases diferentes, e o custo de errar é perder uma.
+ * Sem tamanho (ou o sentinela "1 KB" do resolver) também não.
+ */
+export function packSignature(link: Pick<ResolverLink, 'quality' | 'audio' | 'size' | 'episode'>): string | null {
+  if (link.episode != null) return null;
+  const size = String(link.size || '').trim().toLowerCase().replace(',', '.').replace(/\s+/g, '');
+  if (!/\d/.test(size) || /^1(\.0+)?kb$/.test(size)) return null;
+  return `s:${link.quality ?? '-'}|${link.audio ?? '-'}|${size}`;
+}
+
 /** Defaults quando a config viva não traz limites (chamada de teste/legado). */
 export const DEFAULT_SERIES_LIMITS: CrawlSeriesLimits = { enabled: false, maxCards: 10, maxButtons: 40 };
 
@@ -151,7 +169,14 @@ export async function fetchSeriesWork(
   // feita na leitura abaixo e decidida no fim da função.
   const obra = { title, year };
   const entries: SeriesReleaseEntry[] = [];
-  const seen = new Set<string>();
+  // Dedupe ENTRE passadas: hashes (`h:`) e assinaturas de pack (`s:`) das
+  // passadas anteriores vêm do progresso — sem isso cada retomada reemitia e
+  // re-resolvia o bloco de packs que o site repete em todo card.
+  const seenKeys = new Set<string>(Array.isArray(resume?.seen) ? resume!.seen : []);
+  const seen = {
+    has: (hash: string) => seenKeys.has(`h:${hash}`),
+    add: (hash: string) => seenKeys.add(`h:${hash}`),
+  };
   let followed = 0;
   let buttons = 0;
   let expiredFails = 0;
@@ -216,6 +241,11 @@ export async function fetchSeriesWork(
     for (let index = 0; index < links.length; index += 1) {
       const link = links[index];
       if (index < skip) continue; // botões já seguidos numa tentativa anterior
+      // Pack já resolvido (mesma qualidade/áudio/tamanho real): a URL do
+      // protetor muda por página, então só a assinatura evita seguir a cadeia
+      // de novo. Não consome o teto de botões — não há requisição.
+      const sig = packSignature(link);
+      if (sig && seenKeys.has(sig)) continue;
       if (buttons >= limits.maxButtons) {
         buttonCapHit = true;
         cardCutByCap = true;
@@ -233,6 +263,7 @@ export async function fetchSeriesWork(
         const magnet = ctx.surface.extractMagnet(finalHtml);
         if (!magnet) continue; // cadeia resolveu mas não há magnet: não inventa
         const hash = ctx.magnetHash(magnet);
+        if (sig) seenKeys.add(sig);
         if (hash && seen.has(hash)) continue; // mesmo hash, botão repetido
         if (hash) seen.add(hash);
         // Locação POR EVIDÊNCIA (Parte A): o dn do magnet é conteúdo e vence
@@ -277,6 +308,7 @@ export async function fetchSeriesWork(
     doneCards: [...doneCards],
     ...(interruptedCard ? { card: interruptedCard } : {}),
     totalCards: allCards.length,
+    ...(seenKeys.size ? { seen: [...seenKeys].slice(-SEEN_MAX) } : {}),
   };
 
   // Matriz de retorno (Fase 7 v2). Ordem importa:
