@@ -172,7 +172,12 @@ function applyOps(ops: Op[]): number {
           // A obra do PEDIDO nunca se perde; pack de temporada/série completa
           // acrescenta a obra declarada (mesma régua do release-index). dn=
           // mais específico que o título evita inventar pack de temporada.
-          for (const target of releaseWorkTargets(String(item.title || item.Title || ''), request, magnetDisplayName(item) || undefined)) {
+          for (const target of releaseWorkTargets(
+            String(item.title || item.Title || ''),
+            request,
+            magnetDisplayName(item) || undefined,
+            { year: op.ctx.year ?? null },
+          )) {
             markCaptureWork(
               parsed.magnet.hash, imdb,
               target.season == null ? -1 : Math.trunc(target.season),

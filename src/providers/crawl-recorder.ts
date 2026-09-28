@@ -136,7 +136,7 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
       const context = await d.buildContext(obra, location);
       if (!context) throw new Error('catalogo-sem-nomes');
       const loc = { season: location.season ?? null, episode: location.episode ?? null };
-      const ctx = { imdbId: obra.imdb, season: loc.season, episode: loc.episode };
+      const ctx = { imdbId: obra.imdb, season: loc.season, episode: loc.episode, year: context.year ?? obra.year };
       // 1. Filtro de título estrito com o contexto da obra (e da locação).
       const relevant = filterRelevantRaw(releases, context as never);
       // 2. Banco vivo: capture+filter atômicos (página inteira entra; filtro

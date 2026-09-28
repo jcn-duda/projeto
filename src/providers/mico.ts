@@ -40,6 +40,8 @@ interface SearchArgs {
   imdbId: string;
   season?: number | null;
   episode?: number | null;
+  /** Ano de estreia da obra (liga o veto de identidade na captura do banco). */
+  year?: number | string | null;
 }
 
 interface SearchOptions {
@@ -204,6 +206,7 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
       imdbId: args.imdbId,
       season: args.season ?? null,
       episode: args.episode ?? null,
+      year: args.year ?? null,
       resetPassedFilter,
     });
     metrics.count('mico.items', out.length);

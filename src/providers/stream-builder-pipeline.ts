@@ -150,7 +150,9 @@ export function prepareCandidateStreams(
         for (const item of antesTitulo) {
           if (vivos.has(item)) continue;
           const reason = rejectReasons.get(item);
-          const mapped: TraceReason = reason === 'named-sequel' ? 'named-sequel' : 'title-filter';
+          const mapped: TraceReason = reason === 'named-sequel'
+            ? 'named-sequel'
+            : reason === 'identity' ? 'identity' : 'title-filter';
           dropTrace(trace, item, mapped);
         }
       }

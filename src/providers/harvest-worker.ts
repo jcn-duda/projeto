@@ -229,6 +229,7 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
         imdbId: entry.imdbId,
         season: entry.season ?? null,
         episode: entry.episode ?? null,
+        year: matchContext.year,
         resetPassedFilter: false,
         fallbackQuery: ptQuery && ptQuery !== query ? ptQuery : undefined,
         originalQuery: originalQuery || undefined,
@@ -266,7 +267,10 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // card e, como a colheita do Jackett, preserva o `passed_filter` do banco.
   if (!directed && !preempted && config.mico.harvest) {
     collected.push(...(await mico.search(
-      { type: entry.type, imdbId: entry.imdbId, season: entry.season, episode: entry.episode },
+      // year: o Mico consulta por IMDb fora do Jackett, mas o registro rota
+      // por título/dn — sem o ano de estreia a release "Live Action" de outra
+      // adaptação entraria sob a série (mesmo veto das demais fontes).
+      { type: entry.type, imdbId: entry.imdbId, season: entry.season, episode: entry.episode, year: matchContext.year },
       { recordStatus: false, resetPassedFilter: false },
     )));
   }

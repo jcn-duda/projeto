@@ -75,6 +75,7 @@ export function schedulePtSweepTail({ raw, finish, responsePhase, enqueueTail, t
             imdbId,
             season: matchContext.season,
             episode: matchContext.episode,
+            year: matchContext.year,
             resetPassedFilter: true,
             // Fora do caminho da resposta: o desperdício medido é trabalho de
             // fundo da caça pt-BR, não custo do orçamento crítico.

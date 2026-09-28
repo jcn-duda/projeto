@@ -63,6 +63,8 @@ export interface JackettSearchOptions {
   imdbId?: string | null;
   season?: number | null;
   episode?: number | null;
+  /** Ano de estreia da obra (liga o veto de identidade na captura do banco). */
+  year?: number | string | null;
   /**
    * `true` só na coleta VIVA: a captura reseta o `passed_filter` da obra para
    * 0 e o `markFilterResult` do stream-builder escreve o resultado. Coleta de

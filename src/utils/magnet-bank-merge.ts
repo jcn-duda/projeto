@@ -20,6 +20,13 @@ import type { MagnetRow, SourceRow, WorkRow } from './magnet-bank-rows.js';
 export type WorkCtx = {
   imdbId?: string | null; season?: number | null; episode?: number | null;
   /**
+   * Ano de estreia da obra (catálogo): liga o veto de identidade por adaptação
+   * no roteamento de works (`releaseWorkTargets`) — release "Live Action" de
+   * outra adaptação NÃO é gravada na obra. Ausente = veto desligado (fail-open
+   * conservador: falso negativo de gravação é pior que contaminação duvidosa).
+   */
+  year?: number | string | null;
+  /**
    * Só a coleta VIVA (a que será seguida por `markFilterResult`) reseta a obra
    * para 0 nesta captura. Captura de FUNDO (colhedor/varredura de cauda) não
    * executa o filtro do stream-builder: preserva o `passed_filter` existente e

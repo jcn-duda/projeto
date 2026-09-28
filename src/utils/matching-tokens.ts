@@ -213,6 +213,50 @@ function namedSequelContradicts(
   return hasStrange;
 }
 
+/**
+ * Contaminação de identidade por ADAPTAÇÃO (Live Action × original): o post
+ * declara "Live Action" e um ano LONGE da estreia da obra pedida — é outra
+ * obra (One Piece live action 2023/2026 sob o anime de 1999, medido sob
+ * tt0388629 em 2026-09-27), não um pack da série. Genérica de propósito:
+ * depende do marcador E do ano de estreia DAQUELE imdb (nunca de ano
+ * literal), e exige as DUAS provas — anime packs legítimos ("S01-S15",
+ * faixas "1999-2023") não dizem "live action" e faixa que cobre a estreia
+ * passa. Tolerância de estreia ±2 (ano do pack pode ser o da temporada) e
+ * deriva mínima de 8 anos: o pack da própria live action (estreia 2023,
+ * temporada 2026) NÃO é condenado na obra certa.
+ */
+const LIVE_ACTION_RE = /\blive[\s.-]?action\b/i;
+const ADAPTATION_YEAR_DRIFT = 8;
+
+function liveActionYearContradicts(text: string, premiereYear: number | string | null | undefined): boolean {
+  if (!LIVE_ACTION_RE.test(String(text || ''))) return false;
+  const premiere = Number(String(premiereYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (!premiere) return false; // sem estreia conhecida: sem condenação
+  const cleaned = String(text).replace(/\d{3,4}x\d{3,4}/gi, ' ');
+  const years = [...new Set([...cleaned.matchAll(/(?<!\d)(?:19|20)\d{2}(?!\d)/g)].map((m) => Number(m[0])))];
+  if (years.length === 0) return false; // sem ano declarado: sem prova
+  if (years.some((y) => Math.abs(y - premiere) <= 2)) return false;
+  const minYear = Math.min(...years);
+  const maxYear = Math.max(...years);
+  if (premiere >= minYear && premiere <= maxYear) return false; // faixa cobre a estreia
+  return maxYear >= premiere + ADAPTATION_YEAR_DRIFT;
+}
+
+/**
+ * Veto de identidade no caminho de BUSCA/registro: só SÉRIE (filme tem as
+ * regras de sequela/ano próprias) e só com as duas provas acima. O chamador
+ * passa o ano de estreia da obra (catálogo/obra da página) — nunca um ano
+ * literal de imdb.
+ */
+function adaptationIdentityContradicts(
+  request: { season?: number | null },
+  text: string,
+  year?: number | string | null,
+): boolean {
+  if (request?.season == null) return false;
+  return liveActionYearContradicts(text, year);
+}
+
 // Primeiro token relevante do título: pula ruído curto, artigo, empacotamento
 // e marcador de episódio. Cai no primeiro token quando nada sobrevive — a
 // regra de prefixo precisa de UM ponto de comparação dos dois lados.
@@ -232,5 +276,7 @@ export {
   episodeWorkTokens,
   yearContradicts,
   namedSequelContradicts,
+  liveActionYearContradicts,
+  adaptationIdentityContradicts,
   firstSignificantToken,
 };

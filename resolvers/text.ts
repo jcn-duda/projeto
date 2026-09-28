@@ -16,6 +16,22 @@ function decodeEntities(value: string | null | undefined = ''): string {
     .replace(/&([a-z]+);/gi, (whole: string, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? whole);
 }
 
+/**
+ * Repara entidades DESTRUÍDAS: o site/slug solta a entidade sem o "&"
+ * ("4ordf" = "4&ordf;" = "4ª", medido no dn real do TWD em 2026-09-27) ou
+ * mantém só o "#" numérico ("4#170;"). A exigência de dígito antes e de não-
+ * letra/dígito depois evita falsos positivos ("Accordf" não tem dígito antes;
+ * "m4ordfx" tem letra depois). Só ordinais pt (ª/º), que são os que o pipeline
+ * usa como evidência de temporada — não é um decodificador genérico.
+ */
+function repairMangledEntities(value: string | null | undefined = ''): string {
+  return String(value)
+    .replace(/(?<![a-z])(\d{1,2})\s*ordf(?![a-z0-9])/gi, '$1ª')
+    .replace(/(?<![a-z])(\d{1,2})\s*ordm(?![a-z0-9])/gi, '$1º')
+    .replace(/(?<![a-z])(\d{1,2})\s*#(?:170|xaa|x00aa)(?![a-z0-9])/gi, '$1ª')
+    .replace(/(?<![a-z])(\d{1,2})\s*#(?:186|xba|x00ba)(?![a-z0-9])/gi, '$1º');
+}
+
 // NerdFilmes e TorrentDosFilmes mantêm esta semântica histórica de propósito:
 // usar a variante rica mudaria o texto que chega ao matching desses perfis.
 function decodeEntitiesBasic(value: string | null | undefined = ''): string {
@@ -91,6 +107,7 @@ function attribute(
 export {
   decodeEntities,
   decodeEntitiesBasic,
+  repairMangledEntities,
   stripTags,
   parseSize,
   escapeXml,

@@ -47,7 +47,12 @@ function targetsFor(items: readonly RawItem[], ctx: WorkCtx): Map<string, Array<
     // entre indexers); a união das obras preserva as duas rotas em vez de a
     // última sobrescrever a primeira.
     const merged = out.get(hash) || [];
-    for (const tuple of releaseWorkTargets(String(item.title || item.Title || ''), request, magnetDisplayName(item) || undefined).map(toTuple)) {
+    for (const tuple of releaseWorkTargets(
+      String(item.title || item.Title || ''),
+      request,
+      magnetDisplayName(item) || undefined,
+      { year: ctx.year ?? null },
+    ).map(toTuple)) {
       if (!merged.some((t) => t.season === tuple.season && t.episode === tuple.episode)) merged.push(tuple);
     }
     if (merged.length > 1) out.set(hash, merged);

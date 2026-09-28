@@ -1,11 +1,12 @@
 // Coleta Vaca extraída para manter o perfil abaixo de 400 linhas. Só agregados
 // completos entram no cache: uma temporada falha não pode congelar as demais.
 import type { createCache } from '../cache.js';
-import type { ResolverLink } from '../types.js';
+import type { ResolverLink, ParsedResolverLink } from '../types.js';
 import {
   extractMovieLinks, seriesSeasonInternalUrl, parseSeasonInternal,
   filterSeasonCards, extractBatchTitle,
 } from './vacatorrent-parsers.js';
+import { seasonFromCardSlug, declaredSeriesLocation } from '../../src/providers/crawl-sites/vaca-series-locate.js';
 import type { VacaWork, createParseDownloadLinks } from './vacatorrent-parsers.js';
 
 export interface VacaSearchItem {
@@ -59,16 +60,34 @@ export function createVacaContent({ cachedPost, postCacheMs, fetchText, parseDow
         if (!internalUrl) throw NO_LINKS_SIGNAL;
         const internalHtml = await fetchText(internalUrl);
         const cards = filterSeasonCards(parseSeasonInternal(internalHtml, internalUrl), requestedSeason);
-        const out: ResolverLink[] = [];
+        const out: ParsedResolverLink[] = [];
         let incomplete = false;
         for (const card of cards) {
           try {
             const cardHtml = await fetchText(card.url);
+            // Alinhado ao crawl (`vaca-series.ts`): o slug dá a temporada do
+            // card; o batch publica o título real NORMALIZADO (sem "BATCH – ",
+            // que a regra de prefixo do filtro não perdoa).
+            const season = card.season ?? seasonFromCardSlug(card.url);
+            const batchTitle = card.isBatch ? (extractBatchTitle(cardHtml) || null) : null;
             const links = parseDownloadLinks(cardHtml, card.url, {
-              season: card.season,
-              ...(card.isBatch ? { realTitle: extractBatchTitle(cardHtml) || null } : {}),
+              season,
+              ...(card.isBatch ? { realTitle: batchTitle } : {}),
             });
-            out.push(...links);
+            // Locação POR EVIDÊNCIA por botão (mesma régua do crawl): o
+            // rótulo/título do card vence o slug, o pack de temporada sai
+            // {S, null} SEM o episódio do bloco e o título nasce coerente.
+            for (const link of links) {
+              const loc = declaredSeriesLocation({
+                cardSeason: season,
+                cardTitle: card.title,
+                isBatch: card.isBatch,
+                realTitle: batchTitle,
+                dn: null,
+                linkEpisode: link.episode ?? null,
+              });
+              out.push({ ...link, season: loc.season, episode: loc.episode });
+            }
           } catch (err) {
             incomplete = true;
             console.warn(`[vac] card ${card.url}: ${err.message}`);

@@ -297,7 +297,7 @@ export async function fetchSeriesWork(
       title,
       year,
       type: 'series',
-      ...(entries.length ? { groups: groupSeriesReleases(entries) } : {}),
+      ...(entries.length ? { groups: groupSeriesReleases(entries, { year: obra.year }) } : {}),
       progress,
     };
   }
@@ -329,7 +329,7 @@ export async function fetchSeriesWork(
       title,
       year,
       type: 'series',
-      groups: groupSeriesReleases(entries),
+      groups: groupSeriesReleases(entries, { year: obra.year }),
       progress,
     };
   }

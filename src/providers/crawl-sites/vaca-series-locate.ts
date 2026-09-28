@@ -15,8 +15,8 @@
 // | # | Evidência                                        | Resultado
 // |---|--------------------------------------------------|---------------------------------------------
 // | 1 | `dn` declara (complete/multi/1 temporada/ep.)    | multi/complete → {null,null}; 1S+1E → {S,E}; 1S sem E → {S,null} (episódio limpo — mata o E01)
-// | 2 | `dn` silencioso, `cardSeason != null`            | {cardSeason, isBatch ? null : linkEpisode} — regressão exata do caminho `temporada-N`
-// | 3 | dn silencioso, título (batch/card) declara       | temporada única → {S, isBatch ? null : linkEpisode}; complete/multi → {null,null}
+// | 2 | dn silencioso, título (batch/card) declara       | temporada única → {S, isBatch ? null : linkEpisode}; complete/multi → {null,null}
+// | 3 | `dn`/título silenciosos, `cardSeason != null`    | {cardSeason, isBatch ? null : linkEpisode} — regressão exata do caminho `temporada-N`
 // | 4 | dn/título silenciosos, card termina em 1-2 díg.  | {S, isBatch ? null : linkEpisode} ("East Blue1"→1; "Show 2020" rejeitado: 4 dígitos)
 // | 5 | nada declara                                     | {null,null} — raiz conservadora (= comportamento de hoje)
 //
@@ -26,6 +26,8 @@ import type { RawItem } from '../../../types/domain.js';
 import { parseTitleSeasonEpisode } from '../../utils/episode-matching.js';
 import { releaseWorkTargets } from '../../utils/release-work.js';
 import { decodeEntities, magnetDisplayName } from '../../utils/title-normalization.js';
+import { liveActionYearContradicts } from '../../utils/matching-tokens.js';
+import { repairMangledEntities } from '../../../resolvers/text.js';
 import type { CrawlReleaseGroup } from '../crawl-types.js';
 
 /**
@@ -42,9 +44,17 @@ import type { CrawlReleaseGroup } from '../crawl-types.js';
  * e `decodeEntities` roda duas vezes porque "&amp;#170;" só vira "ª" na
  * segunda. `decodeEntities` é a MESMA função do resto do pipeline (armadilha
  * do dn percent-decoded: o `%26` já virou "&" antes daqui).
+ *
+ * EXPORTADA de propósito: o reparo (`scripts/crawl-repair-plan.ts`) usa a
+ * MESMA decodificação ao avaliar título×dn — régua única, sem cópia (uma
+ * segunda implementação divergiria em silêncio). Dependência numa via só
+ * (src → resolvers; `resolvers/text.ts` não importa nada de `src/`).
  */
-function decodeEvidence(text: string): string {
-  const repaired = String(text || '')
+export function decodeEvidence(text: string): string {
+  // Entidades DESTRUÍDAS primeiro ("4ordf" = "4ª" sem o "&", dn real do TWD):
+  // sem isso o parse não lê temporada nenhuma e o card impõe a dele.
+  const mangled = repairMangledEntities(String(text || ''));
+  const repaired = mangled
     .replace(/&(#[0-9]+|#x[0-9a-f]+|[a-z]{2,8})(?![a-z0-9;])/gi, '&$1;');
   return decodeEntities(decodeEntities(repaired));
 }
@@ -150,10 +160,11 @@ export function declaredSeriesLocation(e: LinkEvidence): SeriesLocation {
   }
   // Episódio da página: só vale em card POR-EPISÓDIO (batch não tem episódio).
   const pageEpisode = e.isBatch ? null : (e.linkEpisode ?? null);
-  // Regra 2 — slug do card continua sendo a evidência primária da página.
-  if (e.cardSeason != null) return { season: e.cardSeason, episode: pageEpisode };
-  // Regra 3 — título do batch (mais específico) ou do card declara. Título
-  // que declara complete/multi manda para a raiz; temporada única nomeia S.
+  // Regra 2 — o RÓTULO do próprio card/batch declara (título que diz outra
+  // temporada NÃO pode herdar a do slug: página "temporada-1" do TWD lista
+  // cards S1..S9 e a âncora "4ª Temporada" é a evidência certa, medido
+  // 2026-09-27). Título que declara complete/multi manda para a raiz;
+  // temporada única nomeia S.
   for (const candidate of [e.realTitle, e.cardTitle]) {
     const text = decodeEvidence(String(candidate || ''));
     if (!text.trim()) continue;
@@ -161,6 +172,9 @@ export function declaredSeriesLocation(e: LinkEvidence): SeriesLocation {
     if (parseDeclaresRoot(p)) return { season: null, episode: null };
     if (p.seasons.length === 1) return { season: p.seasons[0], episode: pageEpisode };
   }
+  // Regra 3 — slug do card: evidência da PÁGINA, só quando o rótulo é
+  // silencioso (regressão exata do caminho `temporada-N`).
+  if (e.cardSeason != null) return { season: e.cardSeason, episode: pageEpisode };
   // Regra 4 — última defesa sem dn: dígito final do card ("East Blue1").
   const trailing = trailingSeasonOf(decodeEvidence(e.cardTitle));
   if (trailing != null) return { season: trailing, episode: pageEpisode };
@@ -174,8 +188,16 @@ export function declaredSeriesLocation(e: LinkEvidence): SeriesLocation {
  * release por-episódio cobre S/E e a temporada; um pack cobre a temporada;
  * card sem temporada vai para a raiz. O mesmo hash pode aparecer em dois
  * grupos de propósito: o índice faz merge por hash e o banco dedupe por hash.
+ *
+ * `opts.year` (opcional, ano de estreia da obra da página) liga o veto de
+ * identidade por adaptação: post "Live Action" com ano longe da estreia é
+ * OUTRA obra (One Piece 2023/2026 sob o anime tt0388629, medido 2026-09-27)
+ * e NÃO é agrupado — excluir, nunca remanejar para outro IMDb.
  */
-export function groupSeriesReleases(entries: readonly SeriesReleaseEntry[]): CrawlReleaseGroup[] {
+export function groupSeriesReleases(
+  entries: readonly SeriesReleaseEntry[],
+  opts: { year?: number | string | null } = {},
+): CrawlReleaseGroup[] {
   const groups = new Map<string, CrawlReleaseGroup>();
   for (const { release, request } of entries) {
     // Agrupar com a evidência DECODIFICADA: título/dn com entidade crua não
@@ -183,6 +205,12 @@ export function groupSeriesReleases(entries: readonly SeriesReleaseEntry[]): Cra
     // (ou da raiz) em vez da chave que o pack cobre (TWD: S1/S5 em vez de S4).
     const title = decodeEvidence(String(release.title || ''));
     const dn = decodeEvidence(magnetDisplayName(release)) || undefined;
+    // Contaminação de identidade (Live Action de outra adaptação): a release
+    // sai SEM grupo — excluir, não remanejar (o imdbId certo é prova positiva,
+    // que a raspagem não tem). Aqui a obra é série por definição (página tv).
+    if (liveActionYearContradicts(`${title} ${dn || ''}`, opts.year)) {
+      continue;
+    }
     for (const target of releaseWorkTargets(title, request, dn)) {
       const key = `${target.season ?? -1}:${target.episode ?? -1}`;
       let group = groups.get(key);

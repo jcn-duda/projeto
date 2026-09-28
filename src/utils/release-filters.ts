@@ -1,7 +1,7 @@
 import type { RawItem } from '../../types/domain.js';
 import { matchesEpisode, seasonCoverageExcludes, parseTitleSeasonEpisode } from './episode-matching.js';
 import { titleTokens } from './matching-vocabulary.js';
-import { namedSequelContradicts, yearContradicts } from './matching-tokens.js';
+import { namedSequelContradicts, yearContradicts, adaptationIdentityContradicts } from './matching-tokens.js';
 import { magnetDisplayName } from './title-normalization.js';
 import {
   containsTokenRun,
@@ -35,6 +35,7 @@ export type RelevanceRejectReason =
   | 'title'
   | 'magnet-year'
   | 'named-sequel'
+  | 'identity'
   | 'episode'
   | 'series-work'
   | 'movie-is-series'
@@ -95,6 +96,18 @@ function filterRelevantRaw(
         return false;
       }
       return true;
+    }
+    // Série: contaminação de identidade por adaptação — post "Live Action"
+    // com ano longe da estreia é outra obra (One Piece 2023/2026 sob o anime
+    // tt0388629, medido 2026-09-27). Sai da lista E não é gravada: o recorder
+    // do crawl e o `releaseWorkTargets` (via ano no ctx) usam a MESMA regra.
+    if (isSeries && adaptationIdentityContradicts(
+      { season },
+      `${title} ${magnetDisplayName(item)}`,
+      year,
+    )) {
+      onRejected?.(item, 'identity');
+      return false;
     }
     // Filme: rejeita release de SÉRIE antes do ano e do episódio. O título do
     // post BR muitas vezes não carrega marcador de temporada ("Resident Evil –

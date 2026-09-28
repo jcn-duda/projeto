@@ -25,8 +25,15 @@
 // magnet carrega `…S04E03…` — o índice roteia para E03, e o banco não inventa
 // cobertura de pack de temporada a partir do título genérico.
 import { parseTitleSeasonEpisode } from './episode-matching.js';
+import { adaptationIdentityContradicts } from './matching-tokens.js';
 
 export type WorkTarget = { season: number | null; episode: number | null };
+
+/** Opções do roteamento: ano de estreia da obra liga o veto de identidade. */
+export interface WorkTargetOptions {
+  /** Ano de estreia do catálogo/obra da página (nunca ano literal de imdb). */
+  year?: number | string | null;
+}
 
 type EpisodeParse = ReturnType<typeof parseTitleSeasonEpisode>;
 
@@ -89,10 +96,23 @@ export function releaseFitsRequest(request: WorkTarget, title: string, dn?: stri
  * acrescenta a obra declarada quando ela difere do pedido. Filme (pedido sem
  * temporada) devolve só o pedido. `dn` opcional: mesma regra de especifidade
  * do índice.
+ *
+ * `opts.year` liga o veto de identidade por adaptação: release "Live Action"
+ * com ano longe da estreia é OUTRA obra — devolve [] e o chamador NÃO grava
+ * a release na obra nenhuma (excluir, nunca remanejar sem prova positiva do
+ * imdbId certo).
  */
-export function releaseWorkTargets(title: string, request: WorkTarget, dn?: string): WorkTarget[] {
+export function releaseWorkTargets(
+  title: string,
+  request: WorkTarget,
+  dn?: string,
+  opts: WorkTargetOptions = {},
+): WorkTarget[] {
   const asked: WorkTarget = { season: request?.season ?? null, episode: request?.episode ?? null };
   if (request?.season == null) return [asked];
+  // Contaminação de identidade (Live Action de outra adaptação sob a série):
+  // [] — nenhum work é gravado para a release nesta obra.
+  if (adaptationIdentityContradicts(request, `${title} ${dn || ''}`, opts.year)) return [];
   const parsed = chooseEpisodeParse(title, dn);
   const out: WorkTarget[] = [parsedFitsRequest(parsed, request) ? asked : routeWorkLocation(request, title, dn)];
   let declared: WorkTarget | null = null;

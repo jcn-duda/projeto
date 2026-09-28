@@ -58,6 +58,10 @@ async function warmTitle({ imdbId, type }: WarmupTitle, deadlineAt: number) {
         // filtro, então não reseta `passed_filter`.
         imdbId,
         ...episode,
+        // Ano de estreia da obra: liga o veto de identidade por adaptação
+        // ("Live Action" de outra adaptação não entra na obra), a MESMA
+        // prova que a busca ao vivo e o colhedor carregam.
+        year: searchMeta.year ?? null,
       });
       if (config.warmup.indexerDelayMs > 0) await pause(config.warmup.indexerDelayMs);
     }

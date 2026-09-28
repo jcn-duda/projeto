@@ -80,6 +80,7 @@ async function search(query: string, type: string, indexersOverride: string[] | 
         imdbId: options.imdbId,
         season: options.season,
         episode: options.episode,
+        year: options.year,
         resetPassedFilter: options.resetPassedFilter,
       });
       return items;
@@ -156,6 +157,7 @@ async function search(query: string, type: string, indexersOverride: string[] | 
         imdbId: options.imdbId,
         season: options.season,
         episode: options.episode,
+        year: options.year,
         resetPassedFilter: options.resetPassedFilter,
       });
       if (recordStatus && !r.value.fromCache) {

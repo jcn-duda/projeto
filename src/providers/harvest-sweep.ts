@@ -116,6 +116,7 @@ export async function runPtSweep(input: SweepInput): Promise<{ attempted: number
       imdbId: entry.imdbId,
       season: entry.season ?? null,
       episode: entry.episode ?? null,
+      year: (matchContext as { year?: number | string | null } | null)?.year ?? null,
       resetPassedFilter: false,
       // Descoberta do índice: zero-sobrevivente aqui é sonda negativa, não
       // desperdício do caminho de resposta (ver jackett.search).

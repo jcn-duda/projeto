@@ -34,6 +34,8 @@ export type TraceReason =
   // Pack que repete, byte a byte, o arquivo de um avulso da lista (duplicate-pack.ts).
   | 'duplicate-file'
   | 'named-sequel'
+  // Contaminação de identidade por adaptação (Live Action de outra obra).
+  | 'identity'
   | 'multiwork-retained'
   | 'episode-mismatch'
   | 'no-hash'

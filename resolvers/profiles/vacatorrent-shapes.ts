@@ -2,7 +2,7 @@
 // vacatorrent-parsers.ts (que ficou no teto de 400) sem mudar API nem
 // comportamento: o parsers reexporta tudo daqui e o profile segue importando
 // do mesmo caminho.
-import { attribute, decodeEntities, stripTags as stripTagsShared } from '../text.js';
+import { attribute, decodeEntities, repairMangledEntities, stripTags as stripTagsShared } from '../text.js';
 import { normalizeSeasonValue } from '../matching.js';
 
 const stripTags = (value = '') => stripTagsShared(value, decodeEntities);
@@ -88,11 +88,25 @@ function filterSeasonCards(
   return cards.filter((card) => card.season == null || card.season === wanted);
 }
 
+/**
+ * Título do batch pronto para o pipeline: sem o rótulo "BATCH – " (a regra de
+ * prefixo do `matchesBrTitle` exigiria que "batch" fosse o primeiro token do
+ * NOME procurado — o pack inteiro morria no filtro sem relaxar nada) e com as
+ * entidades DESTRUÍDAS reparadas ("4ordf" = "4ª"; ver `repairMangledEntities`).
+ * É o `realTitle` que vira o título da release e a evidência de locação.
+ */
+function normalizeBatchTitle(raw: string | null | undefined): string {
+  return repairMangledEntities(String(raw || ''))
+    .replace(/^\s*(?:batch|pack)\b[\s:–—|·-]*\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractBatchTitle(html: string | null | undefined): string | null {
   const m = /class=["'][^"']*\bbl-hero-title\b[^"']*["'][^>]*>([\s\S]*?)<\//i.exec(String(html || ''));
-  if (m) return stripTags(m[1]);
+  if (m) return normalizeBatchTitle(stripTags(m[1]));
   const h = /<h[12]\b[^>]*>([\s\S]*?)<\/h[12]>/i.exec(String(html || ''));
-  return h ? stripTags(h[1]) : null;
+  return h ? normalizeBatchTitle(stripTags(h[1])) : null;
 }
 
 // Página por-episódio (layout .ss-ep): os blocos são numerados só com número

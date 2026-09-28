@@ -148,7 +148,7 @@ describe('crawl-recorder: gravação real reusa o fluxo existente', () => {
     const report = await recorder.record('vacatorrent', { imdb: 'tt1', title: 'T', year: 2013, kind: 'movie' }, releases);
     assert.deepEqual(
       (calls.batch as unknown[]).slice(0, 1).concat((calls.batch as unknown[]).slice(2)),
-      [2, 'vacatorrent', { imdbId: 'tt1', season: null, episode: null }],
+      [2, 'vacatorrent', { imdbId: 'tt1', season: null, episode: null, year: 2013 }],
     );
     assert.ok(((calls.batch as number[])[1]) >= 1, 'o filtro deixou passar a obra certa');
     assert.equal(flushed, 1, 'a barreira de persistência é chamada antes do índice');

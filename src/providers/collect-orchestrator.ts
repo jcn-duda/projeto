@@ -132,7 +132,7 @@ export async function collectRaw(
       else live.noteStart(effective);
       addTask(() => jackett.search(query, type, null, {
         originalQuery: originalQuery || undefined, matchContext, imdbId,
-        season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true,
+        season: matchContext.season, episode: matchContext.episode, year: matchContext.year, resetPassedFilter: true,
         onQueryResult: (info: any) => live.noteResult(info),
       }));
     } else {
@@ -174,6 +174,7 @@ export async function collectRaw(
             imdbId,
             season: matchContext.season,
             episode: matchContext.episode,
+            year: matchContext.year,
             resetPassedFilter: true,
             // A mesma busca principal atualiza o status deste indexer. Falha da
             // variante pt-BR não pode sobrescrever aquele resultado como offline.
@@ -217,7 +218,7 @@ export async function collectRaw(
     else live.noteStart(effective);
     addTask(() => jackett.search(query, type, null, {
       originalQuery: originalQuery || undefined, matchContext, imdbId,
-      season: matchContext.season, episode: matchContext.episode, resetPassedFilter: true,
+      season: matchContext.season, episode: matchContext.episode, year: matchContext.year, resetPassedFilter: true,
       onQueryResult: (info: any) => live.noteResult(info),
     }));
   }
@@ -235,6 +236,7 @@ export async function collectRaw(
       imdbId,
       season: matchContext.season,
       episode: matchContext.episode,
+      year: matchContext.year,
     }, {
       resetPassedFilter: true,
       matchContext,
