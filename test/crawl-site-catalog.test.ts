@@ -168,6 +168,24 @@ describe('crawl catálogo: status e motor', () => {
     assert.ok(store.engine().counters('nerdfilmes').total > 0, 'o motor raspou o site ligado pelo painel');
   });
 
+  test('ações por site aceitam o site ligado pelo painel (fora do CRAWL_SITES)', () => {
+    // O bug: o NerdFilmes ligado no painel devolvia "0 URL(s)" com HTTP 200 em
+    // Reprocessar/Zerar, porque a validação olhava só o `.env`.
+    live.setSiteOverride('nerdfilmes', { enabled: true });
+    store.engine().upsertUrls('nerdfilmes', [{ url: 'https://x.test/a', lastmod: '', kind: 'movie' }], 1);
+    store.engine().markResult('nerdfilmes', 'https://x.test/a', { status: 'no-work', imdb: null, releases: 0 }, 1);
+    const noWork = crawler.reprocessNoWork('nerdfilmes');
+    assert.deepEqual({ ok: noWork.ok, requeued: noWork.requeued }, { ok: true, requeued: 1 });
+    assert.equal(crawler.reprocessErrors('nerdfilmes').ok, true);
+    assert.equal(crawler.resetSite('nerdfilmes').ok, true);
+  });
+
+  test('site fora do motor é recusado com motivo, nunca "0" mudo', () => {
+    const r = crawler.reprocessNoWork('comandotorrents');
+    assert.equal(r.ok, false, 'tem adaptador, mas não foi ligado');
+    assert.equal(r.reason, 'site-desconhecido');
+  });
+
   test('pausa por site aceita o site ligado pelo painel', () => {
     live.setSiteOverride('nerdfilmes', { enabled: true });
     assert.equal(crawler.setPaused(true, 'nerdfilmes').ok, true);

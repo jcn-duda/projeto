@@ -13,7 +13,7 @@
 //    ativo (o que o painel mostra), nunca "o primeiro da lista" às cegas.
 import * as store from '../utils/crawl-store.js';
 import { processCrawlPage } from './crawl-page.js';
-import { siteConfigOf, type CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
+import { knownSites, siteConfigOf, type CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 import { PROBE_STATE_KEY } from './crawl-probe-gate.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -42,13 +42,23 @@ export interface SimulateResult {
   results: Array<{ url: string; kind: string; releases: number; addedNew?: number; detail: string | null }>;
 }
 
+/** Reprocessar: `ok:false` + `reason` quando o site foi recusado (nunca "0" mudo). */
+export interface ReprocessResult {
+  ok: boolean;
+  site: string | null;
+  requeued: number;
+  reason?: string;
+}
+
 export function createCrawlActions(deps: CrawlActionsDeps) {
-  const siteIds = (): string[] =>
-    deps.effective().sites.map((s) => String(s || '')).filter(Boolean);
+  // Os sites do MOTOR (`CRAWL_SITES` + os ligados no painel), a mesma lista do
+  // `crawler.ts`. Validar só contra o `.env` recusava em silêncio toda ação de
+  // site ligado pelo painel (o NerdFilmes da VPS): `requeued: 0` com HTTP 200.
+  const siteIds = (): string[] => knownSites(deps.effective());
 
   /**
    * Site alvo da ação: o pedido, o site ativo, ou o primeiro configurado —
-   * SEMPRE validado contra `CRAWL_SITES`. Uma ação quePROCESSA não pode
+   * SEMPRE validado contra os sites do motor. Uma ação quePROCESSA não pode
    * apontar para um id arbitrário: ela abriria o store, criaria runtime e
    * poderia tocar fila de um site que o operador nem configurou.
    */
@@ -121,12 +131,12 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
   }
 
   /** "Reprocessar erros": zera tries/next_at do site pedido (ou do ativo). */
-  function reprocessErrors(siteId?: string): { site: string | null; requeued: number } {
+  function reprocessErrors(siteId?: string): ReprocessResult {
     const target = targetSite(siteId);
-    if (!target.ok) return { site: target.site || null, requeued: 0 };
+    if (!target.ok) return { ok: false, site: target.site || null, requeued: 0, reason: target.reason };
     const requeued = store.engine().requeueErrors(target.site);
     if (requeued) deps.count('crawl.reprocess.errors', requeued);
-    return { site: target.site, requeued };
+    return { ok: true, site: target.site, requeued };
   }
 
   /**
@@ -137,12 +147,12 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
    * ficariam sem obra para sempre. A página é raspada de novo pelo motor
    * (ritmo, tetos e freio de tráfego valem), não identificada em lote aqui.
    */
-  function reprocessNoWork(siteId?: string): { site: string | null; requeued: number } {
+  function reprocessNoWork(siteId?: string): ReprocessResult {
     const target = targetSite(siteId);
-    if (!target.ok) return { site: target.site || null, requeued: 0 };
+    if (!target.ok) return { ok: false, site: target.site || null, requeued: 0, reason: target.reason };
     const requeued = store.engine().requeueErrors(target.site, 'no-work');
     if (requeued) deps.count('crawl.reprocess.noWork', requeued);
-    return { site: target.site, requeued };
+    return { ok: true, site: target.site, requeued };
   }
 
   /**
@@ -157,7 +167,7 @@ export function createCrawlActions(deps: CrawlActionsDeps) {
     const site = String(siteId || '');
     if (!site) return { ok: false, site, urls: 0, runs: 0, error: 'site obrigatório' };
     if (!siteIds().includes(site)) {
-      return { ok: false, site, urls: 0, runs: 0, error: 'site não está na config viva (CRAWL_SITES)' };
+      return { ok: false, site, urls: 0, runs: 0, error: 'site não está no motor (CRAWL_SITES nem ligado no painel)' };
     }
     deps.forgetRun(site);
     const verdict = readVerdictRaw(site);

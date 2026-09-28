@@ -62,19 +62,33 @@ export const crawlReprocessErrors: CrawlAction = ({ services, req, res, action }
   // Mesmo tratamento das outras ações por site: id sem espaços nas bordas.
   const site = typeof req.body?.site === 'string' ? req.body.site.trim() : undefined;
   const result = services.crawler.reprocessErrors(site);
+  if (!result.ok) return rejectReprocess(services, res, action, result);
   services.metrics.count('dashboard.crawl.reprocess');
   services.log.info(`[dashboard] erros da raspagem reprocessados: ${result.requeued} URL(s) (${result.site})`);
-  return res.json({ ok: true, action, ...result });
+  return res.json({ action, ...result });
 };
+
+/** Site recusado pelo motor: 400 com o motivo, nunca "0 URL(s)" em HTTP 200 —
+ * era assim que a ação de um site ligado pelo painel falhava sem aviso. */
+function rejectReprocess(
+  services: AppServices, res: express.Response, action: string,
+  result: { site: string | null; reason?: string },
+): express.Response {
+  services.metrics.count('dashboard.crawl.reprocess.rejected');
+  return res.status(400).json({
+    ok: false, action, site: result.site, error: 'validation_error', errors: [result.reason ?? 'site inválido'],
+  });
+}
 
 /** "Reprocessar sem obra": `no-work` do site volta à fila (não é destrutiva:
  * nada é apagado, a página só é raspada e identificada de novo). */
 export const crawlReprocessNoWork: CrawlAction = ({ services, req, res, action }) => {
   const site = siteFromBody(req) || undefined;
   const result = services.crawler.reprocessNoWork(site);
+  if (!result.ok) return rejectReprocess(services, res, action, result);
   services.metrics.count('dashboard.crawl.reprocess.noWork');
   services.log.info(`[dashboard] sem obra da raspagem reprocessadas: ${result.requeued} URL(s) (${result.site})`);
-  return res.json({ ok: true, action, ...result });
+  return res.json({ action, ...result });
 };
 
 export const crawlReset: CrawlAction = ({ services, req, res, action }) => {

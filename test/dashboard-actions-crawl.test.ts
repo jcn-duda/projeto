@@ -135,6 +135,15 @@ test('crawl-reprocess-no-work devolve à fila só o sem obra do site, sem confir
   assert.equal(store.engine().getUrl('fake', '/c')?.status, 'no-torrent', 'sem torrent não é sem obra');
 });
 
+test('reprocessar site fora do motor é 400 com motivo (não "0 URL(s)" em 200)', async () => {
+  for (const action of ['crawl-reprocess-no-work', 'crawl-reprocess-errors']) {
+    const res = await post({ action, site: 'outro' });
+    assert.equal(res.status, 400, action);
+    assert.equal(res.json.ok, false);
+    assert.deepEqual(res.json.errors, ['site-desconhecido']);
+  }
+});
+
 test('crawl-reset exige confirm e apaga só o site informado', async () => {
   store.engine().upsertUrls('fake', [movie('/a')], 1);
   store.engine().upsertUrls('outro', [movie('/x')], 1);
