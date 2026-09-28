@@ -23,7 +23,7 @@ import type {
 } from '../crawl-types.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
-import { magnetHash, withRequestCost } from './shared.js';
+import { magnetHash, parseOriginalTitle, withRequestCost } from './shared.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseImdbId, parseSitemapEntries,
   parseSitemapIndexLocs, SITEMAP_INDEX_PATHS, toWorkUrl, workTitleYear,
@@ -275,7 +275,9 @@ export function createComandotorrentsCrawlSite(
           };
           return sample;
         }
-        return { url, status: 'done', imdb, title, year, type, releases, requestCost: counter.n };
+        // A ficha declara o título original: 2º nome da identificação (quando o `<h1>` não casa).
+        const originalTitle = parseOriginalTitle(pageHtml);
+        return { url, status: 'done', imdb, title, year, originalTitle, type, releases, requestCost: counter.n };
       } catch (err) {
         throw withRequestCost(err, counter.n);
       }

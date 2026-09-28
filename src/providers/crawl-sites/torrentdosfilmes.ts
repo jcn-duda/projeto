@@ -56,7 +56,7 @@ import type {
 } from '../crawl-types.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
-import { withRequestCost } from './shared.js';
+import { parseOriginalTitle, withRequestCost } from './shared.js';
 import { TDF_SITE_ID, TDF_TRACKER_LABEL, passButtons } from './torrentdosfilmes-buttons.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseSitemapEntries, parseSitemapIndexLocs,
@@ -345,7 +345,9 @@ export function createTorrentdosfilmesCrawlSite(
           };
           return sample;
         }
-        return { url, status: 'done', imdb, title, year, type, releases: pass.releases, requestCost: counter.n };
+        // A ficha declara o título original: 2º nome da identificação (o IMDb daqui é armadilha).
+        const originalTitle = parseOriginalTitle(pageHtml);
+        return { url, status: 'done', imdb, title, year, originalTitle, type, releases: pass.releases, requestCost: counter.n };
       } catch (err) {
         // F1: throw NÃO perde o custo medido (F3, por hop).
         throw withRequestCost(err, counter.n);

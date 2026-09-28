@@ -59,19 +59,31 @@ function withoutNoise(html: string): string {
  * ("7 Dogs", "A Armadilha do Coelho"), e o original casa o `original_title`
  * do TMDB. Medido em 2026-09-28: 6 de 11 páginas "sem obra" traziam o
  * original certo. Ausente (o Vaca não publica) = `null`, e a identificação
- * segue só com o `<h1>`, como antes.
+ * segue só com o `<h1>`, como antes. É dado AUXILIAR: a ficha pode estar errada
+ * (post que junta dois filmes) e por isso nunca decide sozinho — só casa pela
+ * mesma régua estrita + ano da página.
  */
 export function parseOriginalTitle(html: string): string | null {
-  const span = /<span[^>]*class="[^"]*\bmovie-original\b[^"]*"[^>]*>([\s\S]*?)<\/span>/i.exec(withoutNoise(html))?.[1];
-  if (!span) return null;
-  const text = decodeEntities(span.replace(/<[^>]+>/g, ' '))
+  const source = withoutNoise(html);
+  const span = /<span[^>]*class="[^"]*\bmovie-original\b[^"]*"[^>]*>([\s\S]*?)<\/span>/i.exec(source)?.[1];
+  // Sem o span, a FICHA dos WordPress BR (ComandoTorrents, TorrentDosFilmes):
+  // `<b>Título Original:</b> Dr. No<br />` — com ou sem acento, com o `:`
+  // dentro ou fora do negrito. O valor acaba na primeira tag.
+  const raw = span ?? FICHA_ORIGINAL_RE.exec(source)?.[1];
+  if (!raw) return null;
+  const text = decodeEntities(raw.replace(/<[^>]+>/g, ' '))
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^t[íi]tulo original\s*:?\s*/i, '')
+    // Dois nomes ("Paradox / Sha po lang: taam long", "Dans la brume / Just a
+    // Breath Away"): o primeiro é o original; o resto é tradução ou romanização.
+    .split(' / ')[0]
     .trim();
   // Teto de sanidade: span que engoliu marcação quebrada não vira nome de obra.
   return text && text.length <= 200 ? text : null;
 }
+
+const FICHA_ORIGINAL_RE = /T(?:[íi]|&iacute;|&#237;)tulo\s+Original\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*:?\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*([^<]{1,200})/i;
 
 /** btih do magnet (40 hex ou 32 base32, qualquer caixa). `null` sem hash. */
 export function magnetHash(magnet: string): string | null {

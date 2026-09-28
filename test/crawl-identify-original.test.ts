@@ -49,6 +49,23 @@ describe('parseOriginalTitle: o span do NerdFilmes', () => {
     );
   });
 
+  test('ficha do WordPress BR (Comando/TorrentDosFilmes): com e sem acento, `:` dentro ou fora do negrito', () => {
+    // Recortes reais (2026-09-28).
+    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Sick of Myself<br /> <strong>IMDb</strong>'), 'Sick of Myself');
+    assert.equal(parseOriginalTitle('<b>Título Original</b>: Colors of Love<br /> <strong>IMDb</strong>'), 'Colors of Love');
+    assert.equal(parseOriginalTitle('<strong>Título Original</strong>: Antibirth<br />'), 'Antibirth');
+    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Dr. No<br /> <b>3D:</b> SIM'), 'Dr. No');
+    // Dois nomes: o primeiro é o original, o resto é tradução/romanização.
+    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Paradox / Sha po lang: taam long<br />'), 'Paradox');
+    assert.equal(parseOriginalTitle('<b>T&iacute;tulo Original:</b> Nakitai Watashi wa Neko wo Kaburu<br />'),
+      'Nakitai Watashi wa Neko wo Kaburu');
+  });
+
+  test('o span do NerdFilmes vence a ficha quando os dois existem', () => {
+    const html = '<span class="movie-original">Título original: 7 كلاب</span><b>Título Original:</b> Outro<br>';
+    assert.equal(parseOriginalTitle(html), '7 كلاب');
+  });
+
   test('ausente, vazio ou comentado é null (o Vaca não publica)', () => {
     assert.equal(parseOriginalTitle('<h1>Garota Exemplar (2014)</h1>'), null);
     assert.equal(parseOriginalTitle('<span class="movie-original">Título original: </span>'), null);
