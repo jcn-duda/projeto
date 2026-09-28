@@ -39,7 +39,7 @@
 //     TMDB. Por isso a régua do nome é PRÓPRIA deste site, e é medida: ver
 //     `workTitleYear` e os cinco `<h1>` reais que ele fixa.
 import type { CrawlPageKind } from '../crawl-types.js';
-import { cleanWorkName, h1Text, splitParenYear } from './work-name.js';
+import { readWorkTitle } from './work-name.js';
 
 /**
  * Índice de sitemaps. O canônico primeiro (é o que o `robots.txt` declara e o
@@ -175,7 +175,6 @@ export interface WorkTitle {
  * (sem ano não há com que discriminar homônimo de qualquer época).
  */
 export function workTitleYear(html: string): WorkTitle {
-  const raw = h1Text(html);
-  const { rest, year } = splitParenYear(raw);
-  return { title: cleanWorkName(rest), year, raw };
+  // Sem parêntese no `<h1>`, o ano que a ficha declara (nunca o ano solto).
+  return readWorkTitle(html);
 }

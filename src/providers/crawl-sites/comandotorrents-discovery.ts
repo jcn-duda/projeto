@@ -18,7 +18,7 @@
 //     ano nulo e a identificação recusaria a página.
 //   - IMDb: um tt único no corpo, com rótulo IMDb. Dois ou nenhum é ambíguo.
 import type { CrawlPageKind } from '../crawl-types.js';
-import { cleanWorkName, h1Text, splitParenYear } from './work-name.js';
+import { readWorkTitle } from './work-name.js';
 
 /** Índice Yoast: o caminho que redireciona e o que o robots declara. */
 export const SITEMAP_INDEX_PATHS = ['sitemap.xml', 'sitemap_index.xml'];
@@ -140,6 +140,7 @@ export interface WorkTitle {
  * e a identificação não chuta homônimo.
  */
 export function workTitleYear(html: string): WorkTitle {
-  const { rest, year } = splitParenYear(h1Text(html));
-  return { title: cleanWorkName(rest), year };
+  // Sem parêntese no `<h1>`, o ano que a ficha declara (nunca o ano solto).
+  const { title, year } = readWorkTitle(html);
+  return { title, year };
 }

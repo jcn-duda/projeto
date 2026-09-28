@@ -4,7 +4,7 @@
 // de guarda são nomes que a régua NÃO pode comer.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanWorkName, h1Text, splitParenYear } from '../src/providers/crawl-sites/work-name.js';
+import { cleanWorkName, fichaYear, h1Text, readWorkTitle, splitParenYear } from '../src/providers/crawl-sites/work-name.js';
 import { workTitleYear as ctWorkTitleYear } from '../src/providers/crawl-sites/comandotorrents-discovery.js';
 import { workTitleYear as tdfWorkTitleYear } from '../src/providers/crawl-sites/torrentdosfilmes-discovery.js';
 
@@ -50,6 +50,32 @@ describe('work-name: o que a régua NÃO pode comer', () => {
 
   test('ano solto não é ano; número do nome fica', () => {
     assert.deepEqual(nameOf('Blade Runner 2049 Torrent'), { title: 'Blade Runner 2049', year: null });
+  });
+});
+
+describe('work-name: ano declarado na ficha', () => {
+  test('h1 sem parêntese usa o "Lançamento" da ficha (recortes reais)', () => {
+    const cores = h1('As Cores do Amor Torrent &#8211; WEB-DL 1080p Dual Áudio')
+      + '<b>Título Original</b>: Colors of Love<br /> <strong>Lançamento</strong>: <a href="https://x/2021">2021</a><br />';
+    assert.deepEqual(readWorkTitle(cores).year, 2021);
+    assert.equal(readWorkTitle(cores).title, 'As Cores do Amor');
+    assert.equal(fichaYear('<b>Ano de Lançamento:</b> 2017 (Brasil)<br />'), 2017);
+    assert.equal(fichaYear('<b>Lan&ccedil;amento:</b> 1962<br />'), 1962);
+  });
+
+  test('o ano declarado que sobra no fim do nome sai; número diferente fica', () => {
+    const paradox = h1('Comando Final 3 &#8211; Paradox 2018 Torrent &#8211; Dublado / Dual Áudio BluRay 720p | 1080p &#8211; Download')
+      + '<b>Lançamento:</b> 2018<br />';
+    assert.deepEqual({ title: readWorkTitle(paradox).title, year: readWorkTitle(paradox).year },
+      { title: 'Comando Final 3 Paradox', year: 2018 });
+    assert.equal(readWorkTitle(h1('Blade Runner 2049 (2017) Dublado')).title, 'Blade Runner 2049');
+    assert.equal(readWorkTitle(h1('1984 (1984) Dublado')).title, '1984', 'o nome que É o ano não some');
+  });
+
+  test('parêntese no h1 vence a ficha; sem os dois, ano nulo', () => {
+    assert.equal(readWorkTitle(h1('Juno (2007) Dublado') + '<b>Lançamento:</b> 2008').year, 2007);
+    assert.equal(readWorkTitle(h1('Sem Ano Torrent')).year, null);
+    assert.equal(fichaYear('<p>O lançamento do filme foi adiado.</p>'), null, 'palavra na sinopse não é ficha');
   });
 });
 

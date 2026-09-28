@@ -117,6 +117,46 @@ export function splitParenYear(raw: string): { rest: string; year: number | null
   };
 }
 
+/**
+ * Ano DECLARADO na ficha da página ("<b>Lançamento:</b> <a>2021</a>", "<b>Ano
+ * de Lançamento:</b> 2017 (Brasil)"). Fallback de quem chama quando o `<h1>` não
+ * traz o ano entre parênteses — "As Cores do Amor Torrent – WEB-DL 1080p Dual
+ * Áudio" e "Comando Final 3 – Paradox 2018 Torrent" iam para `pagina-sem-ano`
+ * com o ano escrito na ficha (medido, 2026-09-28). É campo rotulado pelo site,
+ * a mesma confiança do parêntese; o ano SOLTO no título continua não valendo
+ * ("Blade Runner 2049"). O rótulo precisa vir logo antes do número (só tags,
+ * espaço e `:` no meio): "lançamento" na sinopse não é ficha.
+ */
+export function fichaYear(html: string): number | null {
+  const match = FICHA_YEAR_RE.exec(String(html || ''));
+  return match ? Number(match[1]) : null;
+}
+
+const FICHA_TAG = String.raw`(?:<\/?(?:b|strong|span|a)\b[^>]*>\s*)*`;
+const FICHA_YEAR_RE = new RegExp(
+  String.raw`(?:Ano\s+de\s+)?Lan(?:[çc]|&ccedil;)amento\s*${FICHA_TAG}:?\s*${FICHA_TAG}((?:19|20)\d{2})\b`,
+  'i',
+);
+
+/**
+ * Leitura completa do `<h1>`: nome, ano (parêntese; sem ele, a ficha) e o texto
+ * cru. Quando o nome TERMINA no ano declarado ("Comando Final 3 – Paradox 2018
+ * Torrent" com a ficha em 2018), o número sai — ele é o ano da página, não parte
+ * do nome. Só quando sobra nome antes dele: "1984 (1984)" continua "1984", e um
+ * número diferente do ano ("Blade Runner 2049" de 2017) nunca é tocado.
+ */
+export function readWorkTitle(html: string): { title: string; year: number | null; raw: string } {
+  const raw = h1Text(html);
+  const split = splitParenYear(raw);
+  const year = split.year ?? fichaYear(html);
+  let title = cleanWorkName(split.rest);
+  if (year != null) {
+    const trimmed = title.replace(new RegExp(String.raw`\s+${year}$`), '').trim();
+    if (trimmed) title = trimmed;
+  }
+  return { title, year, raw };
+}
+
 /** Nome da obra: o texto (já sem o ano) com a vitrine fora. */
 export function cleanWorkName(text: string): string {
   let title = String(text || '');
