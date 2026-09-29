@@ -63,4 +63,11 @@ export const crawl = () => ({
   // 3 = sitemap de filme + de série, na ordem de grandeza do Vaca. É estimativa
   // declarada (não medição) — ajuste depois de instrumentar os adaptadores.
   discoveryCost: Math.max(1, Math.trunc(num(process.env.CRAWL_DISCOVERY_COST, 3))),
+  // Fase 8: teto de PÁGINAS por rodada de descoberta POR LISTAGEM (o caminho
+  // sem sitemap — hoje só o HDRTorrent). A primeira rodada é `complete: false`
+  // e continua na seguinte: o acervo do HDRTorrent tem 2123 páginas (medido por
+  // bisseção em 2026-09-29), e uma varredura que não as lê todas não pode
+  // afirmar que cobriu. Dimensionado contra o teto por hora acima: 20 páginas
+  // × 20 cards = 400 URLs por rodada, e o acervo inteiro leva ~5 rodadas.
+  listingMaxPagesPerRound: Math.max(1, Math.trunc(num(process.env.CRAWL_LISTING_MAX_PAGES_PER_ROUND, 20))),
 });

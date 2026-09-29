@@ -114,11 +114,13 @@ describe('crawl catálogo: sites fora do .env', () => {
     // (profile `redetorrent`, mesma divergência de id) e `bludv-cardigann` o
     // quinto (profile `bludv`, a mesma divergência). Todos nascem desligados
     // fora de CRAWL_SITES — o `.env` da VPS não é tocado pelo deploy.
-    // `apachetorrent-cardigann` e `hdrtorrent-cardigann` ficam de fora: ainda
-    // sem adaptador.
+    // `apachetorrent-cardigann` fica de fora: ainda sem adaptador.
+    // `hdrtorrent-cardigann` ENTROU na Fase 8 — e é o primeiro site sem
+    // sitemap: a descoberta é a LISTAGEM paginada `/pagina/N/`, pelo núcleo
+    // `crawl-sites/listing-discover.ts`.
     assert.deepEqual(registry.adapterIds(), [
       'vacatorrent', 'nerdfilmes', 'torrentdosfilmesv2', 'comandotorrents', 'redetorrent-cardigann',
-      'bludv-cardigann',
+      'hdrtorrent-cardigann', 'bludv-cardigann',
     ]);
   });
 });

@@ -49,16 +49,22 @@ export interface HDRWork {
 // `.media-card-title`, `.media-card-year`, `.badge-tipo`, `.badge-qualidade`
 // e `.media-card-cover > img`. A página tem 20 cards por página e paginação
 // em `/pagina/N/`.
+//
+// O `[^>]*?` entre `<a` e `href`/`class` NÃO é detalhe: a tag de abertura tem
+// quebra de linha entre atributos, mas NÃO atravessa outra tag. Com
+// `[\s\S]*?` (o que estava aqui) um `<a>` ANTERIOR da lista — o logo, que
+// aponta para `/` — casava com o `class="media-card-link"` do primeiro card, e
+// o primeiro post de cada página sumia da listagem. Medido em 2026-09-29 em
+// 4 páginas reais: 20/20/20/15 cards viravam 19/19/19/14, e o `[0]` saía com
+// o href do logo e o título do card seguinte ("Futurama - 14ª Temporada" com
+// `/`, "Matéria Escura - 2ª Temporada" com `/`). Com o acervo inteiro em 2123
+// páginas, isso apagava 2123 posts do catálogo.
 function parseListingHtml(html: string | null | undefined, baseUrl: string): HDRWork[] {
   if (!html) return [];
   const out: HDRWork[] = [];
   const seen = new Set<string>();
-  // O HTML tem quebras de linha entre atributos (href vem na linha 1,
-  // class="media-card-link" na linha 2). Uso matchAll para capturar o bloco
-  // completo do <a> com seu conteúdo interno, extraindo href do tag e
-  // título/ano/etc do conteúdo.
   // Regex: <a ...href="..."...class="...media-card-link"...> ...conteúdo... </a>
-  const blockRe = /<a\b[\s\S]*?\bhref=["']([^"']+)["'][\s\S]*?\bclass=["'][^"']*media-card-link[^"']*["'][\s\S]*?>([\s\S]*?)<\/a>/gi;
+  const blockRe = /<a\b[^>]*?\bhref=["']([^"']+)["'][^>]*?\bclass=["'][^"']*media-card-link[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
   for (const match of String(html).matchAll(blockRe)) {
     const href = match[1];
     const inner = match[2];
@@ -161,16 +167,22 @@ function extractEpisodeFromName(name: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-// A ficha técnica do post publica "Tamanho 4.62 GB" (ou "Tamanho: 4.62 GB").
-// Regex cobre ambas as formas.
+// A ficha técnica do post publica "Tamanho 4.62 GB" (ou "Tamanho: 4.62 GB"),
+// mas o site escreve a ficha como `<dt>Tamanho</dt><dd>4 GB / 6 GB / 6.3 GB
+// </dd>` — e `[\s\S]{0,40}` é o que atravessa essa tag. Com `\s*` a regex
+// exigia o número COLADO no rótulo e nunca casava: medido em 2026-09-29 nos 3
+// posts reais capturados, `parseContentMagnets` devolveu `size: null` em
+// todos os links e a release entrava no acervo sem tamanho. Continua casando a
+// forma `<b>Tamanho: 4.62 GB</b>` que a regra original pretendia.
 function extractSizeFromTechSheet(html: string): string | null {
-  const match = html.match(/Tamanho\s*:?\s*([\d.,]+\s*(?:TB|GB|MB|KB))/i);
+  const match = html.match(/Tamanho[\s\S]{0,40}?([\d.,]+\s*(?:TB|GB|MB|KB))/i);
   if (!match) return null;
   return match[1].replace(',', '.');
 }
 
+// Mesma forma de ficha, mesmo motivo: `<dt>Lançamento</dt><dd>…2021…</dd>`.
 function extractYearFromTechSheet(html: string): number | null {
-  const match = html.match(/Lan[çc]amento\s*:?\s*(\d{4})/i);
+  const match = html.match(/Lan[çc]amento[\s\S]{0,80}?((?:19|20)\d{2})\b/i);
   return match ? Number(match[1]) : null;
 }
 

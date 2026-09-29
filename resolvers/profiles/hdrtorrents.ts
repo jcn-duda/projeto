@@ -23,7 +23,7 @@ import { buildProfileConfig } from '../env-config.js';
 import type { ProfileOverrides } from '../env-config.js';
 import {
   FALLBACK_SITE_SUFFIXES, normalizeQuery, requestedSeasonFromQuery,
-  classifyAudio, parseListingHtml, parseContentMagnets,
+  classifyAudio, parseListingHtml, parseContentMagnets, releaseTitle,
   createHDRSearchPageHtml, hdrRssXml,
   stripTags, decodeEntities, escapeXml,
 } from './hdrtorrents-parsers.js';
@@ -365,6 +365,11 @@ function createResolver(overrides: ProfileOverrides = {}) {
     createServer, siteSelector, SELF_URL: SELF_URL_RESOLVED,
     createSiteSelector: bootstrap.createSiteSelector,
     parseListingHtml, parseContentMagnets,
+    // A fábrica de `releaseTitle` é EXPosta de propósito: o adaptador da
+    // raspagem monta o `RawItem` com o mesmo rótulo que a busca viva monta na
+    // página sintética. Duas cópias das regras de qualidade/áudio divergiriam
+    // em silêncio — o acervo gravaria um título e a busca mostraria outro.
+    releaseTitle,
     matchesResolverQuery, matchesSeasonSeason, normalizeQuery,
     requestedSeasonFromQuery, classifyAudio,
     stripTags, decodeEntities, escapeXml,
