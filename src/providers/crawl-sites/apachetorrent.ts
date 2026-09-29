@@ -334,6 +334,13 @@ function buildWork(
     if (!infoHash) continue;
     releases.push({
       infoHash,
+      // O magnet INTEIRO, não só o hash — mesma regra do HDRTorrent: o `dn=`
+      // é a única evidência de episódio do post (o rótulo sai "Futurama
+      // [1080p WEB-DL DUAL]"), e sem ele o `seasonPageGroups` mandava TODO
+      // botão para o grupo da temporada. Medido em 2026-09-29: Futurama S14
+      // com 9 episódios num grupo `S14`, Ted Lasso S4 com 8 — cada episódio
+      // listado como pack em todo episódio. É também a URI rica do banco.
+      magnet: link.url,
       title: surface.releaseTitle(title.title, link, index),
       // Fonte BR não publica seeder: 1 é o valor neutro (0 seria descartado
       // pelo filtro de seeders antes de o card ser visto).

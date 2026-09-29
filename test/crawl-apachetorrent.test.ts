@@ -221,10 +221,14 @@ describe('ApacheTorrent: o post', () => {
       // do nome — sem tira-lo, "Lanterns S01" não casaria com o
       // `original_title` do catálogo ("Lanterns").
       assert.equal(work.originalTitle, 'Lanterns');
-      const groups = work.groups ?? [];
-      assert.equal(groups.length, 1);
-      assert.equal(groups[0].season, 1);
-      assert.equal(groups[0].releases.length, 7, 'os 7 botões são da MESMA temporada');
+      // Cada botão é UM episódio pelo `dn=` do magnet (`Lanternas S01E03 …`);
+      // o rótulo não traz episódio, e sem o magnet na release os 7 caíam
+      // juntos no grupo da temporada, como pack de todo episódio.
+      const locations = (work.groups ?? []).map((g) => `S${g.season}E${g.episode ?? '*'}:${g.releases.length}`);
+      assert.deepEqual(locations, ['S1E1:1', 'S1E2:1', 'S1E3:1', 'S1E4:1', 'S1E5:1', 'S1E6:1', 'S1E7:1']);
+      for (const release of (work.groups ?? []).flatMap((g) => g.releases)) {
+        assert.match(String(release.magnet), /^magnet:\?xt=urn:btih:/i, 'o magnet inteiro viaja (dn + trackers)');
+      }
     });
   });
 
