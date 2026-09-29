@@ -207,3 +207,20 @@ test('normalizeTitle dobra o ı turco (U+0131): release "Adim Farah" casa com o 
   // Diacrítico latino comum continua dobrando (comportamento existente).
   assert.equal(normalizeTitle('Extermínio'), 'exterminio');
 });
+
+test('resolveSearchNames: ano da Cinemeta a mais de 2 anos do TMDB cede ao TMDB', () => {
+  // Medido em tt0058461: a Cinemeta publica 1967 (estreia nos EUA), TMDB e
+  // posts dizem 1964 — com 1967 o ±2 do filtro de filme cortava tudo.
+  const fistful = resolveSearchNames({
+    meta: { name: 'A Fistful of Dollars', year: 1967 },
+    titles: { pt: 'Por um Punhado de Dólares', year: '1964' },
+  });
+  assert.equal(fistful.year, '1964');
+  assert.equal(buildSearchQuery(fistful), 'A Fistful of Dollars 1964');
+  // Até 2 anos o ±2 cobre: a Cinemeta continua mandando.
+  const perto = resolveSearchNames({ meta: { name: 'X', year: 2011 }, titles: { year: '2010' } });
+  assert.equal(perto.year, 2011);
+  // Série em andamento ("2024–") com a mesma estreia: intacto.
+  const serie = resolveSearchNames({ meta: { name: 'Y', year: '2024–' }, titles: { year: '2024' } });
+  assert.equal(serie.year, '2024–');
+});

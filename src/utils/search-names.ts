@@ -273,6 +273,18 @@ function toStremioStream(item: RawItem): Stream | null {
  * da query, mas os três seguem em `names`. O título ORIGINAL tem degrau próprio
  * na cascata (`resolveOriginalStepName`) e o pt-BR tem a query `ptQuery`.
  */
+// A Cinemeta às vezes publica o ano da estreia AMERICANA: "A Fistful of
+// Dollars" sai 1967, o TMDB e todo post (BR e gringo) dizem 1964. Com o ±2 do
+// filtro de filme, 1967 cortava as três releases reais e a lista ficava com
+// 2 streams. Divergência de até 2 anos o ±2 já cobre, e aí nada muda; acima
+// disso o `release_date` do TMDB (estreia mundial) é o ano que os sites usam.
+function catalogYearOf(metaYear: number | string | null | undefined, tmdbYear: number | string | null | undefined) {
+  const m = Number(String(metaYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  const t = Number(String(tmdbYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (m && t && Math.abs(m - t) > 2) return tmdbYear ?? null;
+  return metaYear || tmdbYear || null;
+}
+
 function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): {
   name: string;
   year: number | string | null;
@@ -281,7 +293,7 @@ function resolveSearchNames({ meta, titles, imdbId }: SearchNamesOptions = {}): 
   const fallback = titles?.en || titles?.original || titles?.pt;
   return {
     name: meta?.name || fallback || imdbId || '',
-    year: meta?.year || titles?.year || null,
+    year: catalogYearOf(meta?.year, titles?.year),
     // `dedupeNames` remove null/undefined/'' e colapsa repetições normalizadas
     // (o original do Cinemeta e o canônico inglês coincidem em obra anglófona),
     // mantendo só strings não vazias para `matchContext.names: string[]`.
