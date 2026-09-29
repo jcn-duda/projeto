@@ -81,11 +81,19 @@ export function parseOriginalTitle(html: string): string | null {
   // "Paradox" casou outro filme ("Paradoxo", 2018) no lugar do "Comando Final 3:
   // Paradoxo" de Hong Kong (medido, 2026-09-28). Na dúvida, nome nenhum.
   if (text.includes(' / ')) return null;
+  // O site repete a ficha no `alt` de uma imagem, SEM as quebras: o valor vinha
+  // colado no rótulo seguinte ("The SimpsonsLançamento: 1989Gênero: …", "Small Axe
+  // IMDb: 7,8/10 Ano de…", medido 2026-09-28). Corta no primeiro rótulo de ficha.
+  const name = text.replace(FICHA_NEXT_LABEL_RE, '').trim();
   // Teto de sanidade: span que engoliu marcação quebrada não vira nome de obra.
-  return text && text.length <= 200 ? text : null;
+  return name && name.length <= 200 ? name : null;
 }
 
-const FICHA_ORIGINAL_RE = /T(?:[íi]|&iacute;|&#237;)tulo\s+Original\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*:?\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*([^<]{1,200})/i;
+// Rótulo de ficha seguido de `:` (com o "S06" de "Lançamento S06:"). Sem borda de palavra
+// na frente de propósito: no `alt` o rótulo vem COLADO no nome ("SimpsonsLançamento").
+const FICHA_NEXT_LABEL_RE = /\s*(?:IMDb|(?:Ano\s+de\s+)?Lan(?:[çc]|&ccedil;)amento|G[êe]nero|Formato|Qualidade|Idioma|[ÁA]udio|Legenda|Tamanho|Dura[çc][ãa]o)\s*(?:S\d+\s*)?:.*$/i;
+// O valor para na tag OU na aspa: dentro de um atributo (`alt="…"`) a aspa é o fim.
+const FICHA_ORIGINAL_RE = /T(?:[íi]|&iacute;|&#237;)tulo\s+Original\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*:?\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*([^<"]{1,200})/i;
 
 /** btih do magnet (40 hex ou 32 base32, qualquer caixa). `null` sem hash. */
 export function magnetHash(magnet: string): string | null {

@@ -28,6 +28,8 @@ describe('work-name: sobras de vitrine medidas', () => {
     ['007 Contra o Satânico Dr. No &#8211; BluRay 3D HSBS (1962) Dual &#8211; Download Torrent', '007 Contra o Satânico Dr. No', 1962],
     ['À Procura da Liberdade Torrent (2016) DVD-R Oficial Dual Áudio', 'À Procura da Liberdade', 2016],
     ['À Procura da Liberdade Torrent (2016) DVD R Oficial Dual Áudio', 'À Procura da Liberdade', 2016],
+    // Ordinal com o sinal de GRAU: o "9°" ficava no nome e o TMDB não achava.
+    ['The Big Bang Theory 9° Temporada Torrent (2015) HDTV Legendado', 'The Big Bang Theory', 2015],
   ];
   for (const [raw, title, year] of cases) {
     test(`"${raw}" → "${title}"`, () => {

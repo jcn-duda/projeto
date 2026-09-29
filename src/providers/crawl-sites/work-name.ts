@@ -29,7 +29,9 @@ const NOISE_RES: readonly RegExp[] = [
   //    palavra ("1ª Temporada Completa Mini Série" → "O Caçador"), para que a
   //    página de PACK ainda identifique a SÉRIE no TMDB — é o que a sonda de
   //    série mede. "8 Episódios" (Comando: "Eek The Cat 8 Episódios") idem.
-  /\b\d{0,2}\s*[ªºa]?\s*temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?/gi,
+  // O ordinal também vem com o sinal de GRAU ("The Big Bang Theory 9° Temporada",
+  // TorrentDosFilmes): sem ele o "9°" ficava no nome e o TMDB não achava a série.
+  /\b\d{0,2}\s*[ªºa°]?\s*temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?/gi,
   /\bmini\s*s[ée]ries?\b/gi,
   /\b\d{1,3}\s+epis[óo]dios\b/gi,
   // 2. Fonte e codec. "3D" e "HSBS" SOZINHOS não entram: "Sea Rex 3D: Journey to

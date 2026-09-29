@@ -63,6 +63,16 @@ describe('parseOriginalTitle: o span do NerdFilmes', () => {
       'Nakitai Watashi wa Neko wo Kaburu');
   });
 
+  test('ficha repetida no alt da imagem: corta no rótulo colado e na aspa', () => {
+    // Recortes reais (Comando/TorrentDosFilmes, 2026-09-28): o `alt` repete a
+    // ficha sem quebras e o valor vinha colado no rótulo seguinte.
+    assert.equal(parseOriginalTitle('<img alt="Título Original: The SimpsonsLançamento: 1989Gênero: Animação" />'), 'The Simpsons');
+    assert.equal(parseOriginalTitle('<img alt="Título Original: Small Axe IMDb: 7,8/10 Ano de Lançamento: 2021" />'), 'Small Axe');
+    assert.equal(parseOriginalTitle('<img alt="Titulo Original: Peaky Blinders IMDb: 8,8/10 Gênero: Crime Lançamento S06: 2022" />'), 'Peaky Blinders');
+    // Nome que CONTÉM palavra de rótulo sem `:` fica inteiro.
+    assert.equal(parseOriginalTitle('<b>Título Original:</b> The Audio Diaries<br />'), 'The Audio Diaries');
+  });
+
   test('o span do NerdFilmes vence a ficha quando os dois existem', () => {
     const html = '<span class="movie-original">Título original: 7 كلاب</span><b>Título Original:</b> Outro<br>';
     assert.equal(parseOriginalTitle(html), '7 كلاب');
