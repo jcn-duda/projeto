@@ -43,6 +43,10 @@ const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
   // (`redetorrent`) divergem; a ponte é o próprio adaptador, que pergunta a
   // instância pelo NOME do profile. Ver `redetorrent.ts`.
   'redetorrent-cardigann': () => import('./redetorrent.js') as unknown as Promise<SiteModule>,
+  // Mesma divergência de nome: card `apachetorrent-cardigann`, profile
+  // `apachetorrent`. A ponte é o próprio adaptador, que pergunta a instância
+  // pelo NOME do profile. Ver `apachetorrent.ts`.
+  'apachetorrent-cardigann': () => import('./apachetorrent.js') as unknown as Promise<SiteModule>,
   // Mesma divergência de nome: card `bludv-cardigann`, profile `bludv`.
   'bludv-cardigann': () => import('./bludv.js') as unknown as Promise<SiteModule>,
   // Mesma divergência de nome: card `hdrtorrent-cardigann`, profile
@@ -63,7 +67,7 @@ export const SITE_TABLE: SiteEntry[] = [
   { id: 'torrentdosfilmesv2', label: 'TorrentDosFilmes', module: BUILTIN_MODULES.torrentdosfilmesv2, exportName: 'torrentdosfilmesCrawlSite' },
   { id: 'comandotorrents', label: 'ComandoTorrents', module: BUILTIN_MODULES.comandotorrents, exportName: 'comandotorrentsCrawlSite' },
   { id: 'redetorrent-cardigann', label: 'RedeTorrent', module: BUILTIN_MODULES['redetorrent-cardigann'], exportName: 'redetorrentCrawlSite' },
-  { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', module: null, exportName: null, note: 'adaptador pendente' },
+  { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', module: BUILTIN_MODULES['apachetorrent-cardigann'], exportName: 'apachetorrentCrawlSite' },
   { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', module: BUILTIN_MODULES['hdrtorrent-cardigann'], exportName: 'hdrtorrentsCrawlSite' },
   { id: 'bludv-cardigann', label: 'BLUDV', module: BUILTIN_MODULES['bludv-cardigann'], exportName: 'bludvCrawlSite' },
 ];

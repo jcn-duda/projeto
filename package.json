@@ -115,6 +115,7 @@
     "test/crawl-site-overrides.test.js",
     "test/crawl-site-catalog.test.js",
     "test/crawl-hdrtorrents.test.js",
+    "test/crawl-apachetorrent.test.js",
     "test/crawl-identify-original.test.js",
     "test/crawl-nerdfilmes.test.js",
     "test/crawl-nerdfilmes-series.test.js",

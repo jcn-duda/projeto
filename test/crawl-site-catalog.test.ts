@@ -77,12 +77,18 @@ describe('crawl catálogo: sites fora do .env', () => {
     assert.equal(siteConfigOf(live.effective(), 'vacatorrent').enabled, false);
   });
 
-  test('site sem adaptador ou fora da tabela continua recusado', () => {
-    // `bludv-cardigann` saiu desta lista no COMMIT 1 da Fase 8 (ganhou adaptador);
-    // quem continua pendente agora é o Apache e o HDR, e a trava é a mesma: ligar
-    // criaria um card "sem-adaptador" eterno, que não rasga nada.
-    const pending = live.setSiteOverride('apachetorrent-cardigann', { enabled: true });
-    assert.equal(pending.ok, false, 'sem adaptador: ligar só criaria um card "sem-adaptador"');
+  test('site fora da tabela continua recusado; o último card pendente já tem adaptador', () => {
+    // O `apachetorrent-cardigann` era o ÚLTIMO card BR sem adaptador e saiu
+    // desta lista: ligar um site pendente criaria um card "sem-adaptador"
+    // eterno, que não rasga nada — e é exatamente por isso que ele agora
+    // aceita o override e nasce DESLIGADO fora do `CRAWL_SITES` (o `.env` da
+    // VPS não é tocado pelo deploy). Depois deste commit os OITO cards da
+    // tabela têm adaptador, então a trava que sobra para exercitar é a de
+    // "fora da tabela".
+    const apache = live.setSiteOverride('apachetorrent-cardigann', { enabled: true });
+    assert.equal(apache.ok, true, 'com adaptador, o painel liga o site');
+    assert.equal(live.effective().siteOverrides['apachetorrent-cardigann']?.enabled, true);
+    assert.ok(knownSites(live.effective()).includes('apachetorrent-cardigann'));
     const ghost = live.setSiteOverride('site-fantasma', { enabled: true });
     assert.equal(ghost.ok, false, 'fora da tabela não é site');
     assert.equal(live.effective().siteOverrides['site-fantasma'], undefined);
@@ -114,14 +120,16 @@ describe('crawl catálogo: sites fora do .env', () => {
     // (profile `redetorrent`, mesma divergência de id) e `bludv-cardigann` o
     // quinto (profile `bludv`, a mesma divergência). Todos nascem desligados
     // fora de CRAWL_SITES — o `.env` da VPS não é tocado pelo deploy.
-    // `apachetorrent-cardigann` fica de fora: ainda sem adaptador.
-    // `hdrtorrent-cardigann` ENTROU na Fase 8 — e é o primeiro site sem
-    // sitemap: a descoberta é a LISTAGEM paginada `/pagina/N/`, pelo núcleo
-    // `crawl-sites/listing-discover.ts`.
+    // `hdrtorrent-cardigann` e `apachetorrent-cardigann` são os dois últimos:
+    // os primeiros sem sitemap, com a descoberta pela LISTAGEM paginada
+    // `/pagina/N/` pelo núcleo `crawl-sites/listing-discover.ts` (e no Apache,
+    // a ponte pelo NOME do profile `apachetorrent`). Com este último, a lista
+    // tem os OITO cards BR — a Fase 8 não tem mais pendência.
     assert.deepEqual(registry.adapterIds(), [
       'vacatorrent', 'nerdfilmes', 'torrentdosfilmesv2', 'comandotorrents', 'redetorrent-cardigann',
-      'hdrtorrent-cardigann', 'bludv-cardigann',
+      'apachetorrent-cardigann', 'hdrtorrent-cardigann', 'bludv-cardigann',
     ]);
+    assert.deepEqual(registry.adapterIds(), registry.tableIds(), 'nada ficou sem adaptador');
   });
 });
 
