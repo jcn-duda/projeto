@@ -40,6 +40,17 @@ describe('work-name: sobras de vitrine medidas', () => {
 });
 
 describe('work-name: o que a régua NÃO pode comer', () => {
+  test('"Temporada" sem ordinal é nome de filme; só sai como "Temporada Completa"', () => {
+    // "Temporada de Caça" (2006) virava "de Caça" e ficava sem obra.
+    assert.equal(nameOf('Temporada de Caça (2006) Dublado').title, 'Temporada de Caça');
+    assert.equal(nameOf('Temporada de Caça 2 (2008) Dublado').title, 'Temporada de Caça 2');
+    assert.equal(nameOf('Temporada de Patos (2004) Legendado').title, 'Temporada de Patos');
+    // Com ordinal, ou como "Completa"/"Todas as", continua saindo inteiro.
+    assert.equal(nameOf('Pit Stop Temporada Completa (2021)').title, 'Pit Stop');
+    assert.equal(nameOf('The Office Todas as Temporadas Completas').title, 'The Office');
+    assert.equal(nameOf('O Caçador 1ª Temporada Completa Mini Série (2014) Dublado').title, 'O Caçador');
+  });
+
   test('3D sozinho é nome; só o par "3D HSBS/SBS/HOU" é formato de arquivo', () => {
     assert.equal(nameOf('Sea Rex 3D: Journey to a Prehistoric World (2010) Dublado 1080p').title,
       'Sea Rex 3D: Journey to a Prehistoric World');

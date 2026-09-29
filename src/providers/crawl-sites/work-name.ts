@@ -50,11 +50,15 @@ const NOISE_RES: readonly RegExp[] = [
   //    O PRIMEIRO ordinal da lista só vale sozinho se tem marca: sem ela o
   //    número é parte do nome ("Stranger Things: Histórias de 85 1ª e 2ª
   //    Temporada" — o "85" é da obra e a lista começa no "1ª"; "Agente 007 1ª
-  //    Temporada"). A lista é opcional para o caso sem nenhum ordinal
-  //    ("Temporada Completa"), que a forma anterior também pegava.
+  //    Temporada").
+  //    A palavra SOZINHA, sem ordinal, só sai como "Temporada Completa"/"Todas
+  //    as Temporadas": "Temporada" é nome de FILME ("Temporada de Caça", 2006;
+  //    "Temporada de Patos") e virava "de Caça", sem obra no TMDB.
   new RegExp(
-    String.raw`\b(?:(?:${ORDINAL_MARKED}${ORDINAL_SEP}(?:${ORDINAL}${ORDINAL_SEP})*)|${ORDINAL})?`
-    + String.raw`temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?`,
+    String.raw`\b(?:(?:(?:${ORDINAL_MARKED}${ORDINAL_SEP}(?:${ORDINAL}${ORDINAL_SEP})*)|\d{1,2}\s*[ªºa°]?\s*)`
+    + String.raw`temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?`
+    + String.raw`|todas\s+as\s+temporadas(?:\s+(?:complet[ao]s?|inteiras?))?`
+    + String.raw`|temporadas?\s+(?:complet[ao]s?|inteiras?))`,
     'gi',
   ),
   /\bmini\s*s[ée]ries?\b/gi,
