@@ -1821,18 +1821,27 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
 
 O colhedor de indexers responde a `/stream`. O **raspador** é o outro
 sentido: ele próprio visita o site BR, pagina por página, e alimenta o acervo.
-Hoje ele roda **multi-site serial** — uma requisição por vez na rotação, sem
-FlareSolverr, e só com o app ocioso.
+Hoje ele roda **multi-site serial** — uma requisição por vez na rotação, e só
+com o app ocioso. O transporte, porém, deixou de ser uniforme: os sites sem
+desafio vão por fetch direto, e o RedeTorrent (medido 100% atrás de
+Cloudflare) passa pelo FlareSolverr — que atende uma requisição por vez e é o
+MESMO que a busca usa, o que só fecha porque os dois correm em janelas ociosas.
 
 **O registro é uma tabela fechada** (`crawl-sites/registry.ts`): os oito cards
-BR do Jackett, cada um com rótulo, ordem de rollout, mecanismo
-(`sitemap|listing`), política de série e `needsFlare`. `vacatorrent`, `nerdfilmes`,
+BR do Jackett, cada um com `id` (é o do CARD do Jackett — é ele que amarra o
+item raspado à reserva por indexer), rótulo e o par `module`/`exportName` — a
+fábrica lazy e o export nomeado, ou `null` + `note` quando não há adaptador. A
+ordem da tabela é a dos CARDS, não a de rollout (que é do operador:
+Nerd→TDF→Comando→Rede→Apache→HDR→BLUDV). `vacatorrent`, `nerdfilmes`,
 `torrentdosfilmesv2`, `comandotorrents` e `redetorrent-cardigann` têm adaptador;
 os outros três aparecem no status como
-"adaptador pendente", que é diagnóstico, não sumiço. `ensureSite(id)` resolve e
-memoiza **por id** (Map) e devolve `null` explícito com warn — id fora da
-tabela nunca vira adaptador. **Não "varra `Object.values` chamando função
-desconhecida"**: o registro só carrega o export que ele mesmo nomeia.
+"adaptador pendente", que é diagnóstico, não sumiço. Dois cards não herdam o
+nome do profile (`torrentdosfilmesv2`↔`torrentdosfilmes`,
+`redetorrent-cardigann`↔`redetorrent`): a ponte é o próprio adaptador, que
+pergunta a instância pelo NOME (ver o bloco de cada um). `ensureSite(id)`
+resolve e memoiza **por id** (Map) e devolve `null` explícito com warn — id
+fora da tabela nunca vira adaptador. **Não "varra `Object.values` chamando
+função desconhecida"**: o registro só carrega o export que ele mesmo nomeia.
 
 **O estado é POR SITE** (`crawl-site-runtime.ts`): cursores, rodada aberta,
 `nextDiscoverAt`, política de pausa, hora/custo, `lastRequestAt`,
@@ -1916,7 +1925,8 @@ raspagem seria declarada indisponível em produção.
    página sem ano não chega a consultar o TMDB (`pagina-sem-ano`), ou seja, o
    site inteiro cairia em `no-work`. Por isso a régua do NOME é própria dos
    WordPress desta rede — hoje em `work-name.ts` (`readWorkTitle`), compartilhada
-   com o ComandoTorrents, que publica o `<h1>` no mesmo molde: ano do PRIMEIRO
+   com o ComandoTorrents, que publica o `<h1>` no mesmo molde, e com o
+   RedeTorrent (ver o bloco dele abaixo): ano do PRIMEIRO
    parêntese de 4 dígitos (sem ele, o "Lançamento:" da ficha; o ano SOLTO no
    título nunca — "Blade Runner 2049" prova que é indistinguível de dígito do
    nome) e nome com o ruído de vitrine fora (fonte, codec, canais de áudio,
@@ -1993,6 +2003,108 @@ régua do adaptor também — e os 4 defeitos acima eram TODOS do meu lado, invi
 para leitura de código. Foi a tabela por página (`reason` de cada uma, com o `<h1>`
 cru ao lado) que os isolou; a taxa agregada só dizia "62,5%".
 
+**O RedeTorrent entrou com adaptador de verdade** (`crawl-sites/redetorrent.ts`,
+o card `redetorrent-cardigann` pelo profile `redetorrent` — a ponte pelo NOME é
+a mesma do TorrentDosFilmes: `instance('redetorrent')`, porque o id do card não
+existe lá). Ele não está no default de `CRAWL_SITES` (que nasce só com
+`vacatorrent`), então é site de CATÁLOGO: entra pelo painel com `enabled:true` e
+nasce desligado, pelo caminho já documentado acima. Três diferenças medidas em
+2026-09-28/29, e a primeira é do SITE, não escolha nossa: **tudo passa pelo
+Cloudflare** — fetch direto de `robots.txt`, `/sitemap.xml` e
+`/movies-sitemap.xml` devolve 403 "Just a moment..." nos três, então descoberta
+e leitura usam o `fetchText` do profile (direto → FlareSolverr, sessão de
+20 min reaproveitada por host), enquanto os outros quatro (Vaca, NerdFilmes,
+TorrentDosFilmes e ComandoTorrents) usam o `fetchTextDirect`. **A página de obra
+custa 1 request** (medido, não assumido — é o `requestCost` que informa o teto
+por hora ao motor): o magnet é direto na tabela `tbl-mv-list`, sem salto de
+protetor a pagar, e o `parsePostLinks` aceita as DUAS formas que o site publica
+(`magnet:` direto e o token `systemads` que o JS do tema escreve no DOM já
+renderizado — que é exatamente o HTML que a raspagem recebe). E o `<h1>` TERMINA
+no ano ("Coringa: Delírio a Dois (2024)"), a forma do ComandoTorrents: a régua
+compartilhada de `work-name.ts` serve inteira e a regra PRÓPRIA do
+TorrentDosFilmes (ano no meio) não é copiada — duas cópias divergiriam em
+silêncio. A descoberta mora em `redetorrent-discover.ts` e as regras puras em
+`redetorrent-discovery.ts` (a fábrica do `CrawlSite` é um arquivo só e as duas
+metades já não cabiam no teto de linhas, o mesmo motivo do `vaca-series.ts`).
+
+**A descoberta do RedeTorrent lê o sitemap nos DOIS formatos do site, e "vazio"
+é FALHA.** O índice é o AIOSEO `/sitemap.xml` (é o que o `robots.txt` declara;
+o Yoast `sitemap_index.xml` é a reserva) com 96 entradas, das quais só 8 são de
+obra: `movies-sitemap*.xml` (7) e `tvshows-sitemap.xml` (1). Os 18
+`post-sitemap*.xml` do índice são posts `baixar-<slug>-torrent` na RAIZ do site
+— a medição não achou NENHUM deles sob `/filmes/` ou `/series/`, então filtrar
+por NOME de arquivo sem conferir o CAMINHO traz URLs que a régua de obra reprova
+uma a uma (`isWorkPath`), e o corte incremental tem que ser pelo TIPO DA LINHA,
+não pelo nome do arquivo (o `tvshows-sitemap` traz uma linha em `/filmes/`).
+
+Os dois formatos legítimos alternam conforme o estado da sessão do Chromium do
+FlareSolverr (medido em 2026-09-29, chamadas em sequência no mesmo endpoint): a
+**1ª requisição de cada sessão** vai pelo browser (~11 s) e volta como **HTML
+renderizado** pelo XSL do AIOSEO — a tabela, com data em locale inglês ("16 de
+September de 2026") e zero `<loc>`; o `cf_clearance` que ela deixa faz as
+seguintes irem pela via **direta** (~0,25 s) e voltarem como **XML cru**
+(`<loc>`/`<lastmod>` em CDATA, `lastmod` ISO). A sessão expira em 20 min
+(`FLARE_SESSION_TTL_MS`), então a janela do viewer reabre a cada processo novo:
+os dois formatos são permanentes neste site. Medido: `/movies-sitemap.xml` com
+390.513 B pelo viewer e 308.220 B em XML, 1.000 linhas nos dois. As regras que
+daí saem:
+
+- o formato se decide pelo **conteúdo** da resposta (`sitemapShape`:
+  `xml` | `viewer` | `unknown`), **nunca pelo status 200**, que é 200 nos dois —
+  e comentário é removido antes de decidir, porque um cabeçalho que nomeia
+  `<loc>` classificaria a tabela como XML. O caminho XML lê `<url>`/`<sitemap>`
+  com CDATA opcional e nunca aceita o `<image:loc>` do AIOSEO como loc da
+  página; resposta **mistura** funde por URL e fica com o `lastmod` MAIOR;
+- **"nada reconhecido" é FALHA, nunca "vazio e completo"**: formato
+  desconhecido, sitemap sem NENHUMA entrada, arquivo sem URL do tipo que ele
+  alimenta e índice sem fonte de obra viram `failures` + `completeByKind` do
+  kind afetado em `false`, e sem fonte nenhuma a descoberta é exceção. O
+  `urls: []` com `complete: true` é a combinação que faz o cursor do crawler
+  avançar por cima de 6.737 páginas de filme e 705 de série nunca lidas, e ela
+  é silenciosa por definição — foi exatamente o que saía quando o parser só
+  sabia ler a tabela: metade das rodadas perdia sitemaps inteiros ao acaso. O
+  mesmo vale para o ARQUIVO de série: com séries desligadas ele é pulado inteiro
+  (uma requisição a menos por rodada), e índice que só tem sitemap de série com
+  as séries desligadas é FALHA, não resposta vazia;
+- a contagem de falha é feita **ANTES** do corte incremental, senão uma rodada
+  em que tudo já foi processado acusaria falha em todos os arquivos; o corte é
+  **por kind** (`sinceByKind`), porque o tipo vem do caminho e os cursores de
+  filme e de série andam separados. Cada sitemap que falha marca o KIND que
+  ficou sem fonte — o cursor de filme não vira refém do arquivo de série;
+- o `lastmod` renderizado sai ~3 h atrás do ISO do site (fuso do Chromium:
+  `16:32` contra `19:32:39Z`), e o corte é `lastmod <= since` — o desvio é para
+  o lado SEGURO: re-admite linhas, não pula acervo (um lastmod MAIOR as pularia).
+
+Medição depois do conserto, nas três combinações de formato (índice viewer +
+7 movies em XML; os 8 em viewer; os 8 em XML): as três entregaram a MESMA lista
+— **6.737 URLs, `complete=true`, custo 8**, idênticas byte a byte (sha256
+`ff837bb2a2cc2c88`, registrado no commit `0a02f40`). Com as séries ligadas, as
+três combinações seguiram entregando as duas espécies de cursor andando (filme
+e série sem se misturar). A taxa de URL 0 só pode voltar se o site passar a
+devolver um TERCEIRO formato, ou um interstitial 200 que não é challenge do
+Cloudflare — aí ela vira `failures`, nunca `urls: []` com `complete: true`.
+
+**A régua do nome (`work-name.ts`) é COMPARTILHADA: mexer nela mexe nos quatro
+sites que já mediram com ela** — NerdFilmes (`cleanWorkName`), TorrentDosFilmes
+e ComandoTorrents (`readWorkTitle`) e agora o RedeTorrent. Duas correções
+medidas em 2026-09-29, ambas vistas no RedeTorrent mas com efeito nos quatro:
+
+- a regra de TEMPORADA apagava **um** ordinal e deixava o resto no nome
+  ("Carmen Sandiego 1ª 2ª 3ª 4ª Temporada" virava "Carmen Sandiego 1ª 2ª 3ª",
+  que o TMDB não resolve). Ela apaga a **lista inteira** agora: união ("1ª e
+  2ª", "1ª, 2ª e 3ª"), lista solta ("1ª 2ª 3ª 4ª 5ª 6ª") e **faixa** — "1ª à
+  11ª Temporada" e "1ª à 33ª Temporada", a forma DOMINANTE das páginas que
+  publicam a série inteira, medida ao vivo. O PRIMEIRO ordinal só vale sozinho
+  se tem marca (`1ª`): sem ela o número é parte do nome ("Stranger Things:
+  Histórias de 85 1ª e 2ª Temporada" — o "85" é da obra, e a lista começa no
+  "1ª"). Sem essa régua o `<h1>` com ano e lista de ordinais não resolvia no
+  TMDB e a página ia para `no-work`;
+- o `&` saiu do `ORPHAN_SEP_RE`: ele é parte de nome de obra, não conector de
+  vitrine — "Superman & Lois" virava "Superman Lois". Ele **continua** no
+  `EDGE_SEP_RE`, que é o que limpa o `&` órfão da vitrine ("Dublado &
+  Legendado 1080p"), e o `normalizeTitle` da identificação já reduz `&` e
+  espaço ao mesmo token, então a busca no TMDB é a mesma com ou sem ele.
+
 **Cursor carrega também quando o site liga DEPOIS do boot**
 (`crawl-cursor-load.ts`). Antes, só o `start()` com o motor ligado lia o
 `crawl_state`: container subindo desligado + enable no painel saía `initial`
@@ -2054,9 +2166,10 @@ veredito gravado é a autorização de entrada na rotação. `--help` responde s
 carregar `config.ts`, sem abrir o `crawl.db` e sem resolver adaptador;
 flag desconhecida é erro, nunca é ignorada em silêncio.
 
-**Séries no NerdFilmes, TorrentDosFilmes e ComandoTorrents entram pela opção de
-SÉRIES do painel** (`opts.series.enabled`, a mesma do Vaca; `seriesProbe` segue
-como passagem da sonda). O `kind` vem do slug; desligada, o `discover` não emite
+**Séries nos quatro WordPress BR com adaptador entram pela opção de SÉRIES do
+painel** (NerdFilmes, TorrentDosFilmes, ComandoTorrents e RedeTorrent;
+`opts.series.enabled`, a mesma do Vaca; `seriesProbe` segue como passagem da
+sonda). O `kind` vem do slug; desligada, o `discover` não emite
 `tv_show` e o `fetchWork(kind:'tv_show')` é erro com zero rede; season page com
 `kind:'movie'` continua recusada. A premissa antiga ("não se separa pack de
 episódio") caiu na medição de 2026-09-28: o `dn=` declara episódio ou pack em 92
@@ -2064,11 +2177,46 @@ de 97 botões no TorrentDosFilmes e 49 de 50 no ComandoTorrents, sem contradizer
 a temporada do post, e no NerdFilmes o episódio está no rótulo do botão (o `dn=`
 dele vinha CORTADO no primeiro espaço — o gate publica o magnet num `href` com
 espaço cru, consertado no `magnet-extract.ts`, o que valia também para filme e
-busca ao vivo). `season-page.ts` decide a locação de cada botão com a régua do
-Vaca (`declaredSeriesLocation` + `groupSeriesReleases`): `dn` > rótulo >
+busca ao vivo). Nessas três páginas o post declara UMA temporada, e
+`seasonPageGroups` (`season-page.ts`) decide a locação de cada botão com a régua
+do Vaca (`declaredSeriesLocation` + `groupSeriesReleases`): `dn` > rótulo >
 temporada do post. O "E01" solto do Comando (título da release sem a temporada)
 é lido COM a temporada do post — sem isso o episódio caía no grupo da temporada
 inteira e aparecia como pack de todo episódio.
+
+**O RedeTorrent é o CASO OPOSTO: a página AGREGA temporadas** — e é por isso
+que `season-page.ts` tem DUAS formas convivendo. `/series/<slug>/` do
+RedeTorrent traz o pack de S01 e os episódios de S02 na MESMA página
+("Superman & Lois 1ª e 2ª Temporada"), então **a temporada vem de cada LINHA,
+nunca do `<h1>`**, que publica listas de ordinais. `seasonPageGroups` continua
+sendo a página que declara UMA temporada no post (os três sites acima);
+`seriesRowGroups` é a da página que agrega, e nenhuma das duas inventa regra
+nova — a locação sai da MESMA `declaredSeriesLocation`. Precedência na linha:
+`dn` do magnet > coluna `S0N` (`link.season`); linha sem evidência nenhuma é
+**DESCARTADA**, não vai para a raiz, e `cardTitle` entra **VAZIO de propósito**,
+porque o título da página declara várias temporadas e mandaria tudo para a raiz.
+O agrupamento é por `byDeclaredLocation` (opção nova do `groupSeriesReleases`):
+sem ela o `releaseWorkTargets` leria a lista de ordinais do `<h1>` que o profile
+copia para o título da release e devolveria a linha na raiz ALÉM da temporada —
+as outras três páginas seguem pelo caminho de antes.
+
+Medição de 12 páginas `/series/` reais (2026-09-29): 79 linhas, `dn` declarando
+a locação em 77, coluna `S0N` em 1, sem evidência em 1, **zero contradição**
+entre as duas — a coluna `S0N` fica como reserva para o `dn` mudo. Travas do
+adaptador: página de série pedida como filme é recusada antes de qualquer fetch,
+e página cujas linhas não declaram locação nenhuma é `no-torrent` (nada
+atribuível), nunca gravação na raiz. O portão é `seriesProbe ||
+opts.series.enabled`, o mesmo dos outros três: antes, a página `/series/` deste
+site só era lida em modo amostra e nunca entrava no motor, mesmo com séries
+ligadas no painel.
+
+Verificação ao vivo (container reconstruído, sem rodar o motor): zero página sem
+obra na raiz nas 12, zero nome errado e zero episódio errado — Superman & Lois
+saiu em 9 grupos (S1 pack + S2E1..E8, nada na raiz), The Walking Dead em 24
+(S1..S10 packs + S11E1..E14) e Os Simpsons em 45 (S1..S32 + S33E1..E15). Uma
+recusa por homônimo: "Fallout" casou com o Fallout (2024) e com o Fallout
+(2006) e a identificação marcou ambíguo, sem gravar — os grupos S1/S2 estão
+certos; o que falta é título original, que a página não publica.
 
 **Identificação do post de temporada: o ano é o da TEMPORADA.** "Better Call Saul
 4ª Temporada (2018)" é de uma série de 2015, e o ±1 recusava toda temporada
@@ -2078,6 +2226,15 @@ e homônimo na janela continua ambíguo (Arrow, The Fix). Medido em 36 temporada
 reais: 33 identificadas, zero nome errado (conferido no TMDB). A ficha repetida
 no `alt` de imagem (valor colado no rótulo seguinte) e o ordinal com grau (`9°`)
 eram as duas perdas de nome restantes.
+
+**No RedeTorrent a identificação DEPENDE do `season` que as LINHAS declaram.**
+O `season` do resultado NÃO vem do `<h1>` (que lista ordinais): é a **maior
+temporada declarada nas linhas**. Com N≥2 a janela `seriesStartedBy` abre, e ela
+cobre o ano da estreia (Community, 2009 — "1ª 2ª 3ª 4ª 5ª 6ª Temporada") e o de
+temporada posterior (Grown-ish, 3ª temporada, ano distinto da estreia); sem a
+janela, o ±1 recusaria a obra certa e a página iria para `no-work`. Com N=1 ou
+nenhuma linha declarando, o ±1 de sempre — é o mesmo campo que o
+`crawl-identify.ts` já lia, agora alimentado pela evidência de cada linha.
 
 **O card por site existe MESMO com o crawler desligado.** O `status` abre a
 engine quando ainda não há nenhuma e há site configurado (`statusEngine`): sem
@@ -2400,6 +2557,10 @@ fire-and-forget) continua.
 | `src/providers/prowlarr.ts` | Alternativa ao Jackett |
 | `src/providers/torrentio.ts` | Pool global público da API Torrentio (Fase 1): fail-open, breaker local, `fileIdx` preservado |
 | `src/providers/bludv.ts` | Scraper direto do BLUDV (fora do Jackett; default desligado) |
+| `src/providers/crawl-sites/registry.ts` | Tabela FECHADA dos oito sites BR do motor de raspagem (`id` do card, rótulo, módulo lazy + export, `note`); `ensureSite(id)` memoiza por id e devolve `null` explícito |
+| `src/providers/crawl-sites/redetorrent.ts` / `redetorrent-discover.ts` / `redetorrent-discovery.ts` | Adaptador do RedeTorrent: leitura da página (`fetchWork`, 1 request, temporada POR LINHA), descoberta (índice AIOSEO → `movies-sitemap*`/`tvshows-sitemap`, DOIS formatos de resposta, "vazio" é falha) e as regras puras de sitemap/caminho/`<h1>` |
+| `src/providers/crawl-sites/season-page.ts` | As DUAS formas de página de série, ambas pela régua do Vaca: `seasonPageGroups` (post declara UMA temporada — NerdFilmes/TorrentDosFilmes/ComandoTorrents) e `seriesRowGroups` (post AGREGA temporadas — RedeTorrent, `dn` > coluna `S0N`, `cardTitle` vazio) |
+| `src/providers/crawl-sites/work-name.ts` | Régua COMPARTILHADA do `<h1>` dos quatro sites (ano + vitrine fora; lista/faixa de ordinais; `&` fora do `ORPHAN_SEP_RE`): mexer aqui mexe em NerdFilmes, TorrentDosFilmes, ComandoTorrents e RedeTorrent |
 | `src/providers/account.ts` | Inventário pronto da conta como fonte (`fromAccount`) |
 | `src/providers/autofetch.ts` | Marker, lock e vaga por busca do autofetch |
 | `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
