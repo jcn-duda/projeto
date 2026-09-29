@@ -121,6 +121,7 @@ describe('HDRTorrent: o post', () => {
       const releases = work.releases ?? [];
       assert.equal(releases.length, 1);
       assert.match(releases[0].infoHash ?? '', /^[a-f0-9]{40}$/);
+      assert.match(String(releases[0].magnet), /[?&]dn=/, 'o filme também leva o magnet com `dn=`');
       assert.equal(releases[0].seeders, 1, 'fonte BR não publica seeder');
       assert.equal(releases[0].isBr, true);
       assert.equal(releases[0].size, Math.round(1.01 * 1024 ** 3));
@@ -151,8 +152,19 @@ describe('HDRTorrent: o post', () => {
       assert.equal(work.status, 'done');
       assert.equal(work.season, 1);
       const groups = work.groups ?? [];
-      assert.equal(groups.length, 1, 'os 9 botões são da MESMA temporada');
-      assert.equal(groups[0].releases.length, 9);
+      // O `dn=` de cada magnet declara o episódio (`Presidente Curtis S01E03 …`)
+      // e o rótulo do profile não ("Presidente Curtis [1080p WEB-DL DUAL]"):
+      // sem o magnet na release, os 9 botões caíam TODOS no grupo da temporada
+      // e cada episódio avulso virava pack de todo episódio.
+      const locations = groups.map((g) => `S${g.season}E${g.episode ?? '*'}:${g.releases.length}`);
+      assert.deepEqual(locations, [
+        // `S01E01-02` é arquivo de DOIS episódios: temporada, a régua do Vaca.
+        'S1E*:1',
+        'S1E3:1', 'S1E4:1', 'S1E5:1', 'S1E6:1', 'S1E7:1', 'S1E8:1', 'S1E9:1', 'S1E10:1',
+      ]);
+      for (const release of groups.flatMap((g) => g.releases)) {
+        assert.match(String(release.magnet), /^magnet:\?xt=urn:btih:/i, 'o magnet inteiro viaja (dn + trackers)');
+      }
     });
   });
 

@@ -329,6 +329,14 @@ function buildWork(
     if (!infoHash) continue;
     releases.push({
       infoHash,
+      // O magnet INTEIRO, não só o hash: o `dn=` dele é a única evidência de
+      // episódio deste site (o rótulo do profile sai "Futurama [1080p WEB-DL
+      // DUAL]", sem temporada nem episódio). Sem ele o `seasonPageGroups` via
+      // só a temporada do `<h1>` e gravava cada episódio avulso como pack da
+      // temporada — medido em 2026-09-29: Futurama S14 com os 9 episódios no
+      // grupo `S14`, listados como pack em TODO episódio. É também a URI rica
+      // (dn + trackers) que o banco de magnets guarda.
+      magnet: link.url,
       title: surface.releaseTitle(title.title, link, index),
       // Fonte BR não publica seeder: 1 é o valor neutro (0 seria descartado
       // pelo filtro de seeders antes de o card ser visto).
