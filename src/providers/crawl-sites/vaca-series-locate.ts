@@ -193,10 +193,20 @@ export function declaredSeriesLocation(e: LinkEvidence): SeriesLocation {
  * identidade por adaptação: post "Live Action" com ano longe da estreia é
  * OUTRA obra (One Piece 2023/2026 sob o anime tt0388629, medido 2026-09-27)
  * e NÃO é agrupado — excluir, nunca remanejar para outro IMDb.
+ *
+ * `opts.byDeclaredLocation` agrupa pela locação JÁ DECLARADA de cada entrada
+ * (o `request`, que quem chama calculou por `declaredSeriesLocation`) em vez de
+ * `releaseWorkTargets` (título×dn). Página que AGREGA temporadas precisa
+ * disso: o título da release carrega a lista de ordinais do `<h1>` ("Superman &
+ * Lois 1ª e 2ª Temporada S01 …"), e o `releaseWorkTargets` lê essa lista como
+ * "série multi-temporada" e empurra a linha para a RAIZ ALÉM da temporada
+ * declarada (medido com o build de 2026-09-29: o pack S01 saía em `S1` e na
+ * raiz). A raiz é exatamente a locação que não pode ser affirmada aqui, então
+ * quem tem evidência por LINHA agrupa por ela.
  */
 export function groupSeriesReleases(
   entries: readonly SeriesReleaseEntry[],
-  opts: { year?: number | string | null } = {},
+  opts: { year?: number | string | null; byDeclaredLocation?: boolean } = {},
 ): CrawlReleaseGroup[] {
   const groups = new Map<string, CrawlReleaseGroup>();
   for (const { release, request } of entries) {
@@ -211,7 +221,9 @@ export function groupSeriesReleases(
     if (liveActionYearContradicts(`${title} ${dn || ''}`, opts.year)) {
       continue;
     }
-    for (const target of releaseWorkTargets(title, request, dn)) {
+    for (const target of (opts.byDeclaredLocation
+      ? [request]
+      : releaseWorkTargets(title, request, dn))) {
       const key = `${target.season ?? -1}:${target.episode ?? -1}`;
       let group = groups.get(key);
       if (!group) {

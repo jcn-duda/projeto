@@ -16,6 +16,13 @@
 // parser não entende, arquivo sem entrada, arquivo sem URL do tipo que ele
 // alimenta e índice sem fonte de obra viram FALHA (parcial com `failures`, ou
 // exceção quando não sobrou fonte nenhuma), nunca rodapé "vazio e completo".
+//
+// O arquivo de SÉRIE (`tvshows-sitemap*.xml`) é separado dos de filme, então ele
+// só entra no plano da rodada quando as séries estão ligadas — com a opção do
+// painel (`opts.series.enabled`, o mesmo portão dos outros três sites) ou no
+// modo amostra da sonda (`seriesProbe`). Sem fonte de filme e com o índice só de
+// série, a rodada é FALHA: devolver `urls: []` com `complete: true` declararia
+// o acervo de filme lido quando ele não foi tocado.
 import type {
   CrawlDiscoverOptions, CrawlDiscovery, CrawlPageKind, DiscoveredUrl,
 } from '../crawl-types.js';
@@ -36,8 +43,8 @@ const SHAPE_MOTIVE = 'formato de sitemap não reconhecido (nem XML nem tabela do
 
 /**
  * Fábrica da descoberta. `seriesProbe` é o MODO AMOSTRA (o mesmo booleano que
- * a fábrica do adaptador aplica a `fetchWork`): sem ele nenhum `tv_show` é
- * emitido e o arquivo de série nem é requisitado.
+ * a fábrica do adaptador aplica a `fetchWork`): sem ele E sem a opção de séries
+ * do painel, nenhum `tv_show` é emitido e o arquivo de série nem é requisitado.
  */
 export function createRedetorrentDiscoverer(
   surface: RedetorrentResolverSurface,
@@ -123,15 +130,12 @@ export function createRedetorrentDiscoverer(
   }
 
   return async function discover(since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
-    if (opts?.series?.enabled === true) {
-      log.warn('[crawl] redetorrent-cardigann: séries ligadas na config, mas o post de série cobre MAIS DE UMA '
-        + 'temporada (medido: "Fallout 1ª 2ª Temporada (2025)", "Temporadas: 2") — segue FORA do motor até a '
-        + 'amostra separar pack de temporada');
-    }
-    // Só o MODO AMOSTRA emite `tv_show`. Sem ele a lista é de filmes e o cursor
-    // de série não anda (sem URL do kind, `advanceCursors` não acha `max`) — é
-    // o mesmo `true` que os outros sites declaram.
-    const emitSeries = seriesProbe;
+    // Séries ligadas (opção do painel) ou modo amostra emitem `tv_show`. Sem
+    // isso a lista é de filmes e o cursor de série não anda (sem URL do kind não
+    // há `max`) — é o mesmo portão dos outros três sites do motor. O post deste
+    // site AGREGA temporadas, e a locação de cada LINHA é lida no `fetchWork`
+    // (`seriesRowGroups`).
+    const emitSeries = seriesProbe || opts?.series?.enabled === true;
     const sinceByKind = opts?.sinceByKind;
     const sinceOf = (kind: CrawlPageKind): string | null => (
       sinceByKind && Object.prototype.hasOwnProperty.call(sinceByKind, kind)

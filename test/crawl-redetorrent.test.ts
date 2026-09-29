@@ -204,11 +204,18 @@ describe('crawl-sites/redetorrent: discover', () => {
     async () => assert.rejects(() => site().discover(), /todos os sitemaps de obra falharam/),
   ));
 
-  test('séries ligadas na config continuam fora (só o aviso)', () => withStub(
+  test('séries ligadas na config leem o tvshows-sitemap e emitem a série', () => withStub(
     pageRoutes(), async (stub) => {
       const disc = await site().discover(null, { series: { enabled: true, maxCards: 4, maxButtons: 4 } });
-      assert.ok(disc.urls.every((u) => u.kind === 'movie'));
-      assert.ok(!stub.calls.some((c) => c.url.includes('tvshows')));
+      // O portão é o dos outros três sites: com a opção do painel ligada, o
+      // arquivo de série entra no plano (índice + 7 movies + 1 tvshows = 9).
+      assert.equal(disc.requestCost, 9);
+      assert.ok(stub.calls.some((c) => c.url.includes('tvshows-sitemap.xml')));
+      const shows = disc.urls.filter((u) => u.kind === 'tv_show');
+      assert.deepEqual(shows.map((u) => u.url), [
+        SERIES, `${SITE}/series/casa-do-dragao/`, `${SITE}/series/breaking-bad/`,
+      ]);
+      assert.deepEqual(disc.completeByKind, { movie: true, tv_show: true });
     },
   ));
 });
@@ -298,11 +305,21 @@ describe('crawl-sites/redetorrent: fetchWork de filme', () => {
     },
   ));
 
-  test('portão de série: kind tv_show sem amostra é erro e ZERO rede', () => withStub(pageRoutes(), async (stub) => {
+  test('portão de série: kind tv_show com séries DESLIGADAS é erro e ZERO rede', () => withStub(pageRoutes(), async (stub) => {
     const result = await site().fetchWork(SERIES, { kind: 'tv_show' });
     assert.equal(result.status, 'error');
-    assert.match(result.error ?? '', /seriesProbe/);
+    assert.match(result.error ?? '', /séries desligadas no painel/);
     assert.equal(stub.calls.length, 0);
+  }));
+
+  test('o mesmo `kind` com séries ligadas já sai pelo caminho do motor', () => withStub(pageRoutes(), async (stub) => {
+    const result = await site().fetchWork(SERIES, {
+      kind: 'tv_show', series: { enabled: true, maxCards: 4, maxButtons: 40 },
+    });
+    assert.equal(result.status, 'done');
+    assert.equal(result.type, 'series');
+    assert.ok(Array.isArray(result.groups) && result.groups.length, 'o motor precisa da locação das linhas');
+    assert.equal(stub.calls.length, 1);
   }));
 
   test('página de série pedida como filme é recusada antes da rede', () => withStub(pageRoutes(), async (stub) => {

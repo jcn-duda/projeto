@@ -18,20 +18,45 @@ import { decodeEntities } from '../../utils/title-normalization.js';
 /** Ano em parênteses, em qualquer posição do título (o site o põe no meio). */
 export const YEAR_PAREN_RE = /[（(]\s*((?:19|20)\d{2})\s*[)）]/;
 
-/** Ruído de VITRINA que o theme gruda no título, na ordem em que aparece.
+// Um ordinal ("1ª", "2º", "7°", "3a") e a versão sem marca ("2"). O `°` é o
+// sinal de GRAU que o site usa quando não tem "ª" ("The Big Bang Theory 9°
+// Temporada"); `a`/`o` cobrem a grafia por letra.
+const ORDINAL_MARKED = String.raw`\d{1,2}\s*[ªºa°]`;
+const ORDINAL = String.raw`\d{1,2}\s*[ªºa°]?`;
+/**
+ * Entre dois ordinais da MESMA lista: espaço, vírgula, hífen, e o conector —
+ * que é a palavra de UNION ("1ª e 2ª") ou a de FAIXA ("1ª à 11ª", forma
+ * DOMINANTE nas páginas que publicam a série inteira; medida ao vivo em
+ * 2026-09-29 em "The Walking Dead 1ª à 11ª Temporada" e "Os Simpsons 1ª à 33ª
+ * Temporada", que sem isso ficavam com o "1ª à" no nome e o TMDB não achava
+ * nada). O conector só é gasto se o que vem DEPOIS dele for outro ordinal: a
+ * lista é uma sequência, nunca um nome.
+ */
+const ORDINAL_SEP = String.raw`\s*(?:[,&]\s*)?(?:[-–—]\s*)?(?:(?:até|ate|à|a|e)\s+)?`;
+
+/** Ruído de VITRINE que o theme gruda no título, na ordem em que aparece.
  *  Cada entrada existe porque está no acervo real medido (a lista de tokens do
  *  slug do TorrentDosFilmes dá a frequência: `torrent` 435, `bluray` 351,
  *  `download` 338, `720p` 304, `dublado` 271, `1080p` 258, `dual`+`audio` 214,
  *  `legendado` 119…). NADA aqui é removido do título da RELEASE — o
  *  `releaseTitle` do profile limpa o que é vitrine; aqui a régua é o NOME. */
 const NOISE_RES: readonly RegExp[] = [
-  // 1. Temporada: é estrutura de release, não nome de obra. Tira o ordinal e a
-  //    palavra ("1ª Temporada Completa Mini Série" → "O Caçador"), para que a
-  //    página de PACK ainda identifique a SÉRIE no TMDB — é o que a sonda de
-  //    série mede. "8 Episódios" (Comando: "Eek The Cat 8 Episódios") idem.
-  // O ordinal também vem com o sinal de GRAU ("The Big Bang Theory 9° Temporada",
-  // TorrentDosFilmes): sem ele o "9°" ficava no nome e o TMDB não achava a série.
-  /\b\d{0,2}\s*[ªºa°]?\s*temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?/gi,
+  // 1. Temporada: é estrutura de release, não nome de obra. Apaga a LISTA
+  //    INTEIRA de ordinais, não um deles: o post que publica a série inteira
+  //    escreve "1ª e 2ª Temporada" ("Superman & Lois"), "1ª 2ª 3ª 4ª 5ª 6ª
+  //    Temporada" ("Community"), "1ª, 2ª e 3ª Temporada" ("The Sinner") e
+  //    "1ª à 33ª Temporada" ("Os Simpsons") — a forma anterior apagava UM
+  //    ordinal e deixava a lista (ou a faixa) no nome, que o TMDB não resolve.
+  //    O PRIMEIRO ordinal da lista só vale sozinho se tem marca: sem ela o
+  //    número é parte do nome ("Stranger Things: Histórias de 85 1ª e 2ª
+  //    Temporada" — o "85" é da obra e a lista começa no "1ª"; "Agente 007 1ª
+  //    Temporada"). A lista é opcional para o caso sem nenhum ordinal
+  //    ("Temporada Completa"), que a forma anterior também pegava.
+  new RegExp(
+    String.raw`\b(?:(?:${ORDINAL_MARKED}${ORDINAL_SEP}(?:${ORDINAL}${ORDINAL_SEP})*)|${ORDINAL})?`
+    + String.raw`temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?`,
+    'gi',
+  ),
   /\bmini\s*s[ée]ries?\b/gi,
   /\b\d{1,3}\s+epis[óo]dios\b/gi,
   // 2. Fonte e codec. "3D" e "HSBS" SOZINHOS não entram: "Sea Rex 3D: Journey to
@@ -94,10 +119,23 @@ const TRAILING_CONNECTOR_RE = /\s+e$/i;
  * que ficava no nome ("Deadpool – Rip", "Noturno / FULL"). O `:` fica DE
  * FORA de propósito: ele é separador de NOME ("Sea Rex 3D: Journey to a
  * Prehistoric World", "Chainsaw Man – O Filme: Arco da Reze"), e a régua não
- * tem nenhum ganho medido em removê-lo. A classe põe o hífen PRIMEIRO de
- * propósito: `–-` seria intervalo de caractere invertido e a regex nem compila.
+ * tem nenhum ganho medido em removê-lo.
+ *
+ * O `&` também fica DE FORA, pelo mesmo motivo do `:`: ele é parte de nome de
+ * obra, não conector de vitrine — e a régua perdia o nome real
+ * ("Superman & Lois" → "Superman Lois", medido em 2026-09-29). Um `&` que for
+ * mesmo resíduo continua saindo pelo `EDGE_SEP_RE` das bordas ("Dublado &
+ * Legendado 1080p" → "Dublado Legendado"), e o `normalizeTitle` da
+ * identificação já reduz "&" e espaço ao mesmo token, então a busca no TMDB é
+ * a mesma com ou sem ele.
+ *
+ * A classe põe o hífen PRIMEIRO de propósito: `–-` seria intervalo de caractere
+ * invertido e a regex nem compila.
  */
-const ORPHAN_SEP_RE = /\s*[-–—/|&+]\s*(?:[-–—/|&+]\s*)*/g;
+const ORPHAN_SEP_RE = /\s*[-–—/|+]\s*(?:[-–—/|+]\s*)*/g;
+// Borda do nome: separador que sobrou grudo no começo/fim. O `&` CONTINUA aqui
+// mesmo tendo saído do `ORPHAN_SEP_RE` — é o que limpa o "&" órfão que a
+// vitrine deixou ("Dublado & Legendado 1080p" → "Dublado Legendado").
 const EDGE_SEP_RE = /^[–\-—/|:&+\s]+|[–\-—/|:&+\s]+$/g;
 
 /** O que o `<h1>` diz, já decodificado e colapsado (comentário/script fora). */

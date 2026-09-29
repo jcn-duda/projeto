@@ -47,19 +47,30 @@
 //     do TorrentDosFilmes (ano no meio) NÃO é copiada.
 //
 // ── PORTÃO DE SÉRIE ────────────────────────────────────────────────────────
-// O acervo tem 705 páginas em `/series/`, e o post de série deste site agrega
+// O acervo tem 705 páginas em `/series/`, e o post de série deste site AGREGA
 // MAIS DE UMA TEMPORADA no mesmo post (medido: "Fallout 1ª 2ª Temporada
-// (2025)", ficha "Temporadas: 2"). Note que o botão NÃO é o problema: o
+// (2025)", ficha "Temporadas: 2"). O botão nunca foi o problema: o
 // `parsePostLinks` do profile lê a coluna de qualidade e devolve `season` por
-// linha (o post real do Fallout rende S01 e S02). O que a amostra ainda não
-// provou é a SEMÂNTICA de cada linha (qual delas é pack, qual é episódio, e o
-// que uma página de `/series/` cobre da série inteira) — afirmar `groups` com
-// essa base seria obra errada no acervo. Logo:
-//   1. `discover()` só EMITE `tv_show` em modo amostra (`seriesProbe`);
-//   2. `fetchWork(kind:'tv_show')` sem amostra é erro e ZERO rede;
-//   3. página de série pedida como filme é recusada antes de qualquer fetch;
-//   4. a amostra devolve as contagens do denominador e NÃO grava `groups`.
-// `opts.series.enabled` não abre a porta: só registra o aviso.
+// linha, e o `dn=` do magnet declara episódio ou pack na quase totalidade
+// (2026-09-29, 12 páginas reais / 79 linhas: `dn=` declara em 77, a coluna
+// `S0N` em 1, nenhuma evidência em 1, contradição entre as duas em 0). A
+// página entra no motor pelo mesmo portão dos outros três sites — séries do
+// painel (`opts.series.enabled`) ou modo amostra (`seriesProbe`) — e a
+// locação de cada LINHA sai de `seriesRowGroups` (`season-page.ts`), com a
+// mesma régua do Vaca.
+//
+// O `<h1>` NÃO é a temporada de ninguém aqui: ele traz listas de ordinais
+// ("Stranger Things: Histórias de 85 1ª e 2ª Temporada", "Community (2009) 1ª
+// 2ª 3ª 4ª 5ª 6ª Temporada") e às vezes o `°` ("De Férias com o Ex Brasil
+// (2021) 7° Temporada"). Por isso `CrawlWorkResult.season` é a MAIOR temporada
+// DECLARADA NAS LINHAS: com N≥2 a identificação abre a janela
+// `seriesStartedBy` e o ano da página (que é o da temporada publicada, não
+// necessariamente o da estreia) para de recusar a obra certa.
+//
+// Travas: linha sem nenhuma evidência (dn silencioso e sem `S0N`) é
+// DESCARTADA, nunca mandada para a raiz; página de série pedida como filme é
+// recusada antes de qualquer fetch; página cujas linhas não declaram
+// locação nenhuma é `no-torrent` (nada atribuível), nunca gravação na raiz.
 //
 // Travas herdadas do crawler: host do site em TODA URL derivada de conteúdo do
 // site (loc do índice, loc do sitemap, URL de obra); descoberta PARCIAL não
@@ -74,6 +85,7 @@ import * as log from '../../utils/logger.js';
 import { magnetHash, parseOriginalTitle, withRequestCost } from './shared.js';
 import { createRedetorrentDiscoverer } from './redetorrent-discover.js';
 import { isWorkPath, kindFromPath, parseImdbId, workTitleYear } from './redetorrent-discovery.js';
+import { seriesRowGroups, type SeriesRow } from './season-page.js';
 
 /**
  * Recorte da instância do profile que o adaptador consome. Declarar a
@@ -96,11 +108,13 @@ export interface RedetorrentResolverSurface {
 }
 
 /**
- * `seriesProbe` é o MODO AMOSTRA: a única passagem autorizada para
- * `kind:'tv_show'`, e ela existe para a sonda da Fase 8 — nunca para o motor.
- * Mora aqui, e não em `CrawlPageOptions`, porque aquele é o contrato
- * COMPARTILHADO de todos os sites; `fetchWork` também aceita a mesma flag por
- * chamada (ver `probeRequested`) para quem só tem a interface `CrawlSite`.
+ * `seriesProbe` é o MODO AMOSTRA da Fase 8 (a passagem que a sonda de 40
+ * mede). Ele NÃO é mais o portão da série: com a opção de séries do painel
+ * ligada (`opts.series.enabled`, a mesma do Vaca e dos outros três sites) a
+ * página de `/series/` entra no motor normalmente. Mora aqui, e não em
+ * `CrawlPageOptions`, porque aquele é o contrato COMPARTILHADO de todos os
+ * sites; `fetchWork` também aceita a mesma flag por chamada (ver
+ * `probeRequested`) para quem só tem a interface `CrawlSite`.
  */
 export interface RedetorrentCrawlOptions {
   seriesProbe?: boolean;
@@ -169,13 +183,11 @@ export function createRedetorrentCrawlSite(
 
     async fetchWork(url: string, pageOpts?: CrawlPageOptions): Promise<CrawlWorkResult> {
       const season = pageOpts?.kind === 'tv_show';
-      if (season && !seriesProbe && !probeRequested(pageOpts)) {
-        // A descoberta não enfileira série; se uma linha chegar assim (fila
-        // editada à mão, resíduo de outro site), o erro explica por quê em vez
-        // de gravar o post multi-temporada como filme. ZERO rede: a recusa é do
-        // portão, não do site.
-        const message = 'redetorrent-cardigann: página de série fora do motor '
-          + '(o post cobre mais de uma temporada; só o modo amostra seriesProbe lê)';
+      if (season && !seriesProbe && !probeRequested(pageOpts) && pageOpts?.series?.enabled !== true) {
+        // Séries desligadas: linha de temporada na fila (enfileirada com a opção
+        // ligada) vira erro explicado, ZERO rede — a recusa é do portão, não do
+        // site. Mesma trava dos outros três sites.
+        const message = 'redetorrent-cardigann: página de série fora do motor (séries desligadas no painel)';
         log.warn(`[crawl] ${message}: ${url}`);
         return { url, status: 'error', error: message };
       }
@@ -223,6 +235,7 @@ export function createRedetorrentCrawlSite(
           return { url, status: 'no-torrent', imdb, title, year, type, requestCost: counter.n };
         }
         const releases: RawItem[] = [];
+        const rowSeasons: (number | null)[] = [];
         const seen = new Set<string>();
         for (const link of links) {
           const magnet = link.url;
@@ -242,16 +255,41 @@ export function createRedetorrentCrawlSite(
             isBr: true,
             seeders: 1,
           });
+          // A coluna `S0N` da linha viaja junto da release: é a evidência de
+          // reserva quando o `dn=` do magnet é silencioso (1 das 79 linhas
+          // medidas em 2026-09-29).
+          rowSeasons.push(link.season ?? null);
         }
         if (!releases.length) {
           return { url, status: 'no-torrent', imdb, title, year, type, requestCost: counter.n };
         }
         if (season) {
-          // Modo leitura: releases e contagens do denominador, SEM `groups` —
-          // afirmar a locação de cada linha é justamente o que a amostra ainda
-          // não provou (o post de série deste site agrega várias temporadas).
+          // Série: locação por LINHA (`dn=` > coluna `S0N`), nunca pelo `<h1>`
+          // — o post agrega temporadas e o título as lista. `season` é a maior
+          // temporada DECLARADA: N≥2 abre a janela `seriesStartedBy` da
+          // identificação, que é o que faz o ano da página (de temporada) parar
+          // de recusar a obra da estreia. `buttons`/`buttonsFollowed` seguem
+          // sendo o denominador da sonda.
+          const rows: SeriesRow[] = releases.map((release, i) => ({ release, rowSeason: rowSeasons[i] ?? null }));
+          const groups = seriesRowGroups(rows);
+          if (!groups.length) {
+            // Nenhuma linha declarou locação: a página tem release, mas nada
+            // atribuível. A raiz exigiria chute — e `no-torrent` é o estado
+            // honesto do adaptador para "nada publicável aqui".
+            log.warn(`[crawl] redetorrent-cardigann: ${releases.length} linha(s) sem temporada declarada (dn e coluna S0N): ${url}`);
+            return { url, status: 'no-torrent', imdb, title, year, type, requestCost: counter.n };
+          }
           const sample: RedetorrentSeasonSample = {
             url, status: 'done', imdb, title, year, type, releases,
+            season: groups.reduce<number | null>(
+              (max, g) => (g.season != null && (max == null || g.season > max) ? g.season : max),
+              null,
+            ),
+            // A ficha deste site publica o original quando publica (`<b>Título
+            // Original:</b>`); `null` é o estado normal e a identificação segue
+            // só com o `<h1>`.
+            originalTitle: parseOriginalTitle(pageHtml),
+            groups,
             requestCost: counter.n, buttons: links.length, buttonsFollowed: links.length,
           };
           return sample;
@@ -273,8 +311,8 @@ export function createRedetorrentCrawlSite(
 /**
  * Instância de produção: reusa o resolver `redetorrent` JÁ CARREGADO no processo
  * (mesmo seletor de domínio, mesma sessão de FlareSolverr, mesmos caches). É
- * este export que o registry chama, e ele NUNCA liga `seriesProbe`: produção
- * segue com séries desligadas.
+ * este export que o registry chama, e ele NUNCA liga `seriesProbe`: em produção
+ * a série entra pela opção de séries do painel (`opts.series.enabled`).
  */
 export function redetorrentCrawlSite(): CrawlSite {
   const surface = instance(RESOLVER_NAME) as RedetorrentResolverSurface | null;
