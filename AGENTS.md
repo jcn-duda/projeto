@@ -1866,7 +1866,7 @@ OBSERVADO, não uma declaração do site.
 O núcleo comum aos dois é `crawl-sites/listing-discover.ts`: ele não conhece
 o HTML de ninguém (`readPage` é injetado, `expectedPerPage` é medido no
 site), e mora nele só paginação, fim e custo. Três regras, todas medidas no
-HDRTorrent e no ApacheTorrent em 2026-09-29 (b catalogues com 2123 páginas,
+HDRTorrent e no ApacheTorrent em 2026-09-29 (os dois catálogos com 2123 páginas,
 `/pagina/1..2122` reais com 20 cards, `/pagina/2123` a última com 15, e
 `/pagina/2124..99999` devolvendo **sempre** a 2123; não existe `rel="last"`):
 
@@ -1885,7 +1885,12 @@ HDRTorrent e no ApacheTorrent em 2026-09-29 (b catalogues com 2123 páginas,
 
 O teto de páginas por rodada (`CRAWL_LISTING_MAX_PAGES_PER_ROUND`, 20) é o
 que impede uma única rodada de afirmar que cobriu 2123 páginas: a primeira
-fica `complete: false` e continua na seguinte.
+fica `complete: false` e continua na seguinte. Na conta: a varredura INICIAL
+de cada site de listagem leva ~106 rodadas (2123 ÷ 20), e cada uma sai no
+`crawl-step` como "descoberta parcial" — `crawl.discovery.partial` + `warn`
+com a lista de falhas VAZIA e releitura no prazo curto de retry. É o
+comportamento esperado da janela, não falha do site: falha de verdade traz
+`failures` preenchido.
 
 **O estado é POR SITE** (`crawl-site-runtime.ts`): cursores, rodada aberta,
 `nextDiscoverAt`, política de pausa, hora/custo, `lastRequestAt`,
@@ -2064,6 +2069,20 @@ IMDb são das obras), e `parseOriginalTitle` é chamado depois de remover
 `<strong><em>Título Original:</em></strong>` (5 de 12 posts) — normalizar a
 marcação e delegar, nunca copiar a régua.
 
+**O slug do BLUDV não basta para o tipo, e o post desempata** (`99d01ed`).
+Além de `temporada`, o slug reconhece `minisserie` e `serie-completa` como
+série ("Redenção Minissérie Completa", "Mr. Bean Série Completa") — `serie`
+SOLTO não, porque "Assassino em Série", "A Série Divergente" e "Uma Noite
+Fora de Série" são filmes. E há série sem nada disso no caminho: "Boneca Russa
+1ª Temporada" mora em `boneca-russa-torrent-web-dl-720p-1080p-dual-audio-download/`
+e a descoberta a enfileira como filme. Por isso o `fetchWork` lê as
+categorias do PRÓPRIO post (`rel="category tag"`, `postDeclaresSeries`): na
+categoria `/series/` e sem `/filmes/`, a página pedida como filme é recusada
+(`serie_com_kind_movie`, com o custo da página) em vez de ser identificada
+como filme e casar um homônimo no TMDB. Medido em 85 páginas: a categoria
+separou as 5 séries dos 80 filmes sem falso positivo; post com as DUAS
+categorias (anime) não afirma nada.
+
 **O RedeTorrent entrou com adaptador de verdade** (`crawl-sites/redetorrent.ts`,
 o card `redetorrent-cardigann` pelo profile `redetorrent` — a ponte pelo NOME é
 a mesma do TorrentDosFilmes: `instance('redetorrent')`, porque o id do card não
@@ -2145,10 +2164,11 @@ e série sem se misturar). A taxa de URL 0 só pode voltar se o site passar a
 devolver um TERCEIRO formato, ou um interstitial 200 que não é challenge do
 Cloudflare — aí ela vira `failures`, nunca `urls: []` com `complete: true`.
 
-**A régua do nome (`work-name.ts`) é COMPARTILHADA: mexer nela mexe nos quatro
-sites que já mediram com ela** — NerdFilmes (`cleanWorkName`), TorrentDosFilmes
-e ComandoTorrents (`readWorkTitle`) e agora o RedeTorrent. Duas correções
-medidas em 2026-09-29, ambas vistas no RedeTorrent mas com efeito nos quatro:
+**A régua do nome (`work-name.ts`) é COMPARTILHADA: mexer nela mexe em todos
+os sites que a usam** — NerdFilmes (`cleanWorkName`), TorrentDosFilmes e
+ComandoTorrents (`readWorkTitle`), RedeTorrent, BLUDV, HDRTorrent e
+ApacheTorrent. Duas correções medidas em 2026-09-29 no RedeTorrent, com
+efeito em todos:
 
 - a regra de TEMPORADA apagava **um** ordinal e deixava o resto no nome
   ("Carmen Sandiego 1ª 2ª 3ª 4ª Temporada" virava "Carmen Sandiego 1ª 2ª 3ª",
@@ -2165,6 +2185,27 @@ medidas em 2026-09-29, ambas vistas no RedeTorrent mas com efeito nos quatro:
   `EDGE_SEP_RE`, que é o que limpa o `&` órfão da vitrine ("Dublado &
   Legendado 1080p"), e o `normalizeTitle` da identificação já reduz `&` e
   espaço ao mesmo token, então a busca no TMDB é a mesma com ou sem ele.
+
+E quatro medidas no BLUDV (`735a758`, 80 páginas reais), todas só ACEITANDO
+forma nova — nenhuma regra que já casava ficou mais larga:
+
+- **o ano da ficha com `<em>`**: o site escreve `<strong><em>Lançamento:</em>
+  </strong> 2022`, e o `FICHA_TAG` do `fichaYear` não aceitava `em`/`i`.
+  Metade das páginas do BLUDV não tem ano no `<h1>` (39 de 80 só o têm na
+  ficha) e iam para `pagina-sem-ano`; com a ficha lida, as 80 ganham ano e a
+  identificação subiu de ~33 para 72 de 80, com zero nome errado. `option`
+  continua FORA: o menu do site lista `<option>Lançamento</option><option>1918`;
+- **faixa de ordinais com AGUDO** ("Homeland: Segurança Nacional 1ª á 8ª
+  Temporada"): sem o `á` no conector sobrava "1ª á" no nome;
+- **faixa de ANOS entre parênteses** ("(2011-2020)") sai do nome — é o período
+  da série publicada inteira, nunca nome, e o ano da página vem da ficha;
+- **"Todas Temporadas" sem o "as"** ("Elite Histórias Breves Todas
+  Temporadas") sai como "Todas as Temporadas" já saía.
+
+Limite conhecido: "Nacional" é marca de áudio para a régua, então "Homeland:
+Segurança Nacional" vira "Homeland: Segurança" — a página ainda identifica
+pelo título original. Não tire "Nacional" da vitrine: "Arábia Torrent (2018)
+Nacional WEB-DL" é a forma dominante.
 
 **Cursor carrega também quando o site liga DEPOIS do boot**
 (`crawl-cursor-load.ts`). Antes, só o `start()` com o motor ligado lia o
@@ -2255,9 +2296,22 @@ O `completeByKind` da listagem tem `tv_show: false` com séries desligadas, **e 
 (`seriesProbe || opts.series.enabled`), e os três declaram UMA temporada no
 post — `seasonPageGroups`, nunca `seriesRowGroups`. No BLUDV o tipo vem do
 slug (`temporada` no slug é pack de temporada, medido em 3.236 das 17.860
-linhas do sitemap) e nos dois de listagem é **por card** (badge/ficha do site
-primeiro, slug como reserva), porque a página 1 real é mista: 11 filmes e 9
-séries no HDR.
+linhas do sitemap; mais `minisserie`/`serie-completa`) com a categoria do post
+como segunda trava (ver o bloco do BLUDV acima), e nos dois de listagem é
+**por card** (badge/ficha do site primeiro, slug como reserva), porque a
+página 1 real é mista: 11 filmes e 9 séries no HDR.
+
+**No HDR a release leva o magnet INTEIRO, não só o `infoHash`** (`b8d2190`).
+O `dn=` é a única evidência de episódio deste site — o rótulo do profile sai
+"Futurama [1080p WEB-DL DUAL]", sem temporada nem episódio —, e o
+`seasonPageGroups` lê o `dn` pelo `magnetDisplayName(release)`, que precisa
+do campo `magnet`. Só com o hash, TODO botão caía no grupo da temporada:
+medido em 20 páginas de temporada reais, Futurama S14 com os 9 episódios no
+grupo `S14`, listados como pack em todo episódio. Com o magnet cada um vai para
+o seu (`S14E3`…`E10`), o arquivo de dois episódios (`E01-02`) fica na
+temporada e os packs de verdade (Black Mirror S7) seguem pack. Vale para
+todo adaptador novo: release sem `magnet` perde a locação E a URI rica do
+banco de magnets.
 
 No Apache a coerência de tipo é de **duas fases** e a segunda precisa do
 post: `temporada_com_kind_movie` sai antes de qualquer rede (o slug com
