@@ -43,6 +43,8 @@ const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
   // (`redetorrent`) divergem; a ponte é o próprio adaptador, que pergunta a
   // instância pelo NOME do profile. Ver `redetorrent.ts`.
   'redetorrent-cardigann': () => import('./redetorrent.js') as unknown as Promise<SiteModule>,
+  // Mesma divergência de nome: card `bludv-cardigann`, profile `bludv`.
+  'bludv-cardigann': () => import('./bludv.js') as unknown as Promise<SiteModule>,
 };
 
 /**
@@ -59,7 +61,7 @@ export const SITE_TABLE: SiteEntry[] = [
   { id: 'redetorrent-cardigann', label: 'RedeTorrent', module: BUILTIN_MODULES['redetorrent-cardigann'], exportName: 'redetorrentCrawlSite' },
   { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', module: null, exportName: null, note: 'adaptador pendente' },
   { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', module: null, exportName: null, note: 'adaptador pendente' },
-  { id: 'bludv-cardigann', label: 'BLUDV', module: null, exportName: null, note: 'adaptador pendente' },
+  { id: 'bludv-cardigann', label: 'BLUDV', module: BUILTIN_MODULES['bludv-cardigann'], exportName: 'bludvCrawlSite' },
 ];
 
 const TABLE = new Map<string, SiteEntry>(SITE_TABLE.map((entry) => [entry.id, entry]));

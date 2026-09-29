@@ -78,10 +78,13 @@ describe('crawl catálogo: sites fora do .env', () => {
   });
 
   test('site sem adaptador ou fora da tabela continua recusado', () => {
-    const pending = live.setSiteOverride('bludv-cardigann', { enabled: true });
+    // `bludv-cardigann` saiu desta lista no COMMIT 1 da Fase 8 (ganhou adaptador);
+    // quem continua pendente agora é o Apache e o HDR, e a trava é a mesma: ligar
+    // criaria um card "sem-adaptador" eterno, que não rasga nada.
+    const pending = live.setSiteOverride('apachetorrent-cardigann', { enabled: true });
     assert.equal(pending.ok, false, 'sem adaptador: ligar só criaria um card "sem-adaptador"');
     const ghost = live.setSiteOverride('site-fantasma', { enabled: true });
-    assert.equal(ghost.ok, false);
+    assert.equal(ghost.ok, false, 'fora da tabela não é site');
     assert.equal(live.effective().siteOverrides['site-fantasma'], undefined);
   });
 
@@ -108,10 +111,14 @@ describe('crawl catálogo: sites fora do .env', () => {
     // `torrentdosfilmesv2` entrou na Fase 8: o card é o id, e o profile tem
     // outro nome (`torrentdosfilmes`) — a ponte fica no próprio adaptador.
     // `comandotorrents` é o card seguinte; `redetorrent-cardigann` o quarto
-    // (profile `redetorrent`, mesma divergência de id). Todos nascem
-    // desligados fora de CRAWL_SITES — o `.env` da VPS não é tocado pelo deploy.
+    // (profile `redetorrent`, mesma divergência de id) e `bludv-cardigann` o
+    // quinto (profile `bludv`, a mesma divergência). Todos nascem desligados
+    // fora de CRAWL_SITES — o `.env` da VPS não é tocado pelo deploy.
+    // `apachetorrent-cardigann` e `hdrtorrent-cardigann` ficam de fora: ainda
+    // sem adaptador.
     assert.deepEqual(registry.adapterIds(), [
       'vacatorrent', 'nerdfilmes', 'torrentdosfilmesv2', 'comandotorrents', 'redetorrent-cardigann',
+      'bludv-cardigann',
     ]);
   });
 });
@@ -169,8 +176,8 @@ describe('crawl catálogo: status e motor', () => {
       { inEnv: nerd?.inEnv, enabled: nerd?.enabled, over: nerd?.enabledOverridden, configured: nerd?.configured },
       { inEnv: false, enabled: true, over: true, configured: true },
     );
-    assert.equal(bludv?.adapter, false);
-    assert.equal(bludv?.enabled, false);
+    assert.equal(bludv?.adapter, true, 'o BLUDV ganhou adaptador no COMMIT 1 da Fase 8');
+    assert.equal(bludv?.enabled, false, 'mas continua desligado: fora do CRAWL_SITES, só entra pelo painel');
     assert.equal(crawler.status().catalog.length, registry.SITE_TABLE.length, 'o status do painel carrega o catálogo');
   });
 

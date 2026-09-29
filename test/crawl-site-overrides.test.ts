@@ -315,7 +315,11 @@ describe('crawl multi-site: status (topo é o site ativo, card é por site)', () =
     assert.equal(status.sites.length, 3, 'site configurado sem adaptador também aparece');
     const bludv = status.sites.find((s) => s.id === 'bludv-cardigann');
     assert.equal(bludv?.site.known, true, 'id da tabela BR é reconhecido');
-    assert.equal(bludv?.site.adapter, false, 'sem adaptador nesta rodada: o card diz');
+    // `adapter` vem do REGISTRY (`crawl-status.ts` monta o card de lá), não do
+    // mapa `useSites` deste teste: o BLUDV entrou na tabela de adaptadores no
+    // COMMIT 1 da Fase 8, então o card diz `true` mesmo com a instância injetada
+    // sendo a falsa de `a`/`b`.
+    assert.equal(bludv?.site.adapter, true, 'o card do BLUDV tem adaptador (registry)');
     assert.equal(bludv?.site.label, 'BLUDV');
     assert.equal(registry.siteInfo('nao-existe').known, false);
   });
