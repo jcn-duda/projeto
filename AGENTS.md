@@ -1833,15 +1833,59 @@ item raspado à reserva por indexer), rótulo e o par `module`/`exportName` — 
 fábrica lazy e o export nomeado, ou `null` + `note` quando não há adaptador. A
 ordem da tabela é a dos CARDS, não a de rollout (que é do operador:
 Nerd→TDF→Comando→Rede→Apache→HDR→BLUDV). `vacatorrent`, `nerdfilmes`,
-`torrentdosfilmesv2`, `comandotorrents` e `redetorrent-cardigann` têm adaptador;
-os outros três aparecem no status como
-"adaptador pendente", que é diagnóstico, não sumiço. Dois cards não herdam o
+`torrentdosfilmesv2`, `comandotorrents` e `redetorrent-cardigann` começaram
+por sitemap; `bludv-cardigann`, `hdrtorrent-cardigann` e
+`apachetorrent-cardigann` são os três que entraram depois, sendo os dois
+últimos os **primeiros sem sitemap**. Quatro cards não herdam o
 nome do profile (`torrentdosfilmesv2`↔`torrentdosfilmes`,
-`redetorrent-cardigann`↔`redetorrent`): a ponte é o próprio adaptador, que
+`redetorrent-cardigann`↔`redetorrent`, `bludv-cardigann`↔`bludv`,
+`hdrtorrent-cardigann`↔`hdrtorrents`): a ponte é o próprio adaptador, que
 pergunta a instância pelo NOME (ver o bloco de cada um). `ensureSite(id)`
 resolve e memoiza **por id** (Map) e devolve `null` explícito com warn — id
 fora da tabela nunca vira adaptador. **Não "varra `Object.values` chamando
 função desconhecida"**: o registro só carrega o export que ele mesmo nomeia.
+
+**Um card sem adaptador aparece no status como "adaptador pendente"** — que é
+diagnóstico, não sumiço. O `module: null` é o estado CORRETO de um site que
+ainda não foi escrito; ele não é placeholder para "ligar depois". A ordem de
+escrita dos adaptadores foi BLUDV (sitemap Yoast) → HDRTorrent (listagem) →
+ApacheTorrent (listagem), e o `SITE_TABLE` mantém o card com `module: null`
+até existir o módulo. **Hoje os OITO cards têm adaptador** — a trava que
+sobra para o catálogo do painel exercitar é a de "fora da tabela", e
+`registry.adapterIds()` é igual a `tableIds()`; se um dia divergirem de novo,
+um site entrou na rotação sem adaptador.
+
+**São duas FORMAS de descoberta, e a escolha é do site.** Com sitemap (Vaca,
+NerdFilmes, TorrentDosFilmes, ComandoTorrents, RedeTorrent, BLUDV): ler o
+índice devolve o acervo inteiro e o cursor de data decide o que é novo. Sem
+sitemap (HDRTorrent e ApacheTorrent): a descoberta é a **própria listagem
+paginada** (`/pagina/N/`, 20 cards), e uma listagem não tem essa propriedade
+— é uma janela deslizante sobre um acervo ordenado, e o fim dela é um FATO
+OBSERVADO, não uma declaração do site.
+
+O núcleo comum aos dois é `crawl-sites/listing-discover.ts`: ele não conhece
+o HTML de ninguém (`readPage` é injetado, `expectedPerPage` é medido no
+site), e mora nele só paginação, fim e custo. Três regras, todas medidas no
+HDRTorrent e no ApacheTorrent em 2026-09-29 (b catalogues com 2123 páginas,
+`/pagina/1..2122` reais com 20 cards, `/pagina/2123` a última com 15, e
+`/pagina/2124..99999` devolvendo **sempre** a 2123; não existe `rel="last"`):
+
+- **FIM de catálogo pela CONTAGEM** — página inteira tem 20, a calcanhar tem
+  15. A trava secundária é a página cheia e toda repetida na rodada, porque a
+  contagem sozinha não impede a inversão de página: uma página cheia repetida
+  passaria como avanço e o round gastaria o teto inteiro achando que andou.
+- **`lastmod` sai VAZIO, de propósito.** O card traz `datePublished`, mas o
+  valor é o ANO DA OBRA ("Presidente Curtis" 2026), não a data de
+  publicação: usá-lo faria o motor cortar o acervo pela ordem do ano em vez
+  da ordem de publicação, e parar no posto errado. Data inventada é pior que
+  data ausente.
+- **Página sem NENHUM card reconhecido é FALHA**, nunca "vazio e completo" — a
+  mesma regra do RedeTorrent: `urls: []` com `complete: true` faz o cursor
+  avançar por cima de acervo nunca lido, e isso é silencioso por definição.
+
+O teto de páginas por rodada (`CRAWL_LISTING_MAX_PAGES_PER_ROUND`, 20) é o
+que impede uma única rodada de afirmar que cobriu 2123 páginas: a primeira
+fica `complete: false` e continua na seguinte.
 
 **O estado é POR SITE** (`crawl-site-runtime.ts`): cursores, rodada aberta,
 `nextDiscoverAt`, política de pausa, hora/custo, `lastRequestAt`,
@@ -2002,6 +2046,23 @@ catálogo diferente) e 1 `obra-sem-imdb` (entrada sem `imdb_id`).
 régua do adaptor também — e os 4 defeitos acima eram TODOS do meu lado, invisíveis
 para leitura de código. Foi a tabela por página (`reason` de cada uma, com o `<h1>`
 cru ao lado) que os isolou; a taxa agregada só dizia "62,5%".
+
+**O BLUDV tem sitemap Yoast, e o seu filtro é o NOME do arquivo**
+(`crawl-sites/bludv-discovery.ts` + `bludv-discover.ts`; card
+`bludv-cardigann` pelo profile `bludv`, a mesma ponte pelo NOME). Medido em
+2026-09-29: `robots.txt` declara `/sitemap_index.xml` com 54 entradas, das
+quais só **18 são de obra** (`post-sitemap*`, ~1.000 linhas cada, 17.860
+posts) — as outras 33 `post_tag-sitemap*` e a `category-sitemap.xml` (826
+listagens de `/generos/…`, `/series/<obra>/`) saem pelo nome do arquivo. O
+`post-sitemap*` é **MISTO** (3.236 linhas, 18,1%, são pack de temporada), então
+o tipo vem do slug e **não há arquivo de série a pular** — diferente do
+RedeTorrent. Duas regras de `bludv-discovery.ts` que valem como regra geral:
+o `IMDB` é ancorado no rótulo da ficha e não filtrado por `ref_=tt_` (aqui o
+`?ref_=tt_plg_rt` é o plugin de nota da PRÓPRIA ficha — os `tt` conferidos no
+IMDb são das obras), e `parseOriginalTitle` é chamado depois de remover
+`<em>`, porque o helper compartilhado devolve `":"` na forma
+`<strong><em>Título Original:</em></strong>` (5 de 12 posts) — normalizar a
+marcação e delegar, nunca copiar a régua.
 
 **O RedeTorrent entrou com adaptador de verdade** (`crawl-sites/redetorrent.ts`,
 o card `redetorrent-cardigann` pelo profile `redetorrent` — a ponte pelo NOME é
@@ -2183,6 +2244,31 @@ do Vaca (`declaredSeriesLocation` + `groupSeriesReleases`): `dn` > rótulo >
 temporada do post. O "E01" solto do Comando (título da release sem a temporada)
 é lido COM a temporada do post — sem isso o episódio caía no grupo da temporada
 inteira e aparecia como pack de todo episódio.
+
+**O portão de séries é LIGADO por padrão** (`CRAWL_SERIES_ENABLED`, `src/config/crawl.ts`): a raspagem tem que cobrir filme E série, e desligada ela cobre só filme — silêncio que não se distingue de "este site não tem série". A chave desliga explicitamente e o painel desliga ao vivo, mas **só no global**: `SITE_OVERRIDE_KEYS` (`crawler-live-site.ts`) é um subset fechado (`enabled`, `dryRun`, `delayMs`, `maxPerHour`) e `seriesEnabled` não está nele — não prometa override de série por site. O motor repassa o MESMO `seriesLimitsOf(cfg)` ao `discover` e ao `processCrawlPage` (`crawl-step.ts`), e é esse fio que `test/crawl-series-gate.test.ts` prende: um `assert` dentro do dublê de `fetchWork` viraria `error` na fila e o teste passaria com a página vermelha.
+
+**Na descoberta por LISTAGEM, o portão de séries faz parte da IDENTIDADE do cursor** (`crawl-listing-series.ts`) — e é o único lugar onde o descarte é irreversível. A página de listagem é MISTA; com séries desligadas a URL de série é lida (o request foi gasto) e **descartada**, e mesmo assim a página é consumida pelo cursor (`page + 1`, `seen + posts`, `anchor` = último post no fechamento). Sem o marcador, a âncora declararia cobertura de série que ninguém tem e ligar séries depois não recuperaria nada — só o "Zerar site" apagaria, jogando junto o que já foi enfileirado. Daí a regra: gravar o estado do portão junto do cursor, e quando o valor atual diferir do gravado, **apagar o cursor** e recomeçar da página 1. O marcador é gravado ANTES do cursor (um crash entre as duas escritas deixa o cursor antigo com marcador novo — releitura barata — em vez do contrário, que faria a próxima rodada jogar a varredura fora), e cursor sem marcador (instalação anterior) é descartado uma vez só. **Não "conserte" parando a varredura enquanto houver série descartada**: com séries desligadas para sempre ela releria as mesmas páginas para sempre.
+
+O `completeByKind` da listagem tem `tv_show: false` com séries desligadas, **e isso diverge dos sites com sitemap de propósito**: lá o `true` significa "fonte de série não consultada"; aqui a listagem é a MESMA fonte dos dois kinds e as URLs foram lidas e descartadas, então `true` seria a afirmação mentirosa.
+
+**BLUDV, HDRTorrent e ApacheTorrent também têm série**, pelo mesmo portão
+(`seriesProbe || opts.series.enabled`), e os três declaram UMA temporada no
+post — `seasonPageGroups`, nunca `seriesRowGroups`. No BLUDV o tipo vem do
+slug (`temporada` no slug é pack de temporada, medido em 3.236 das 17.860
+linhas do sitemap) e nos dois de listagem é **por card** (badge/ficha do site
+primeiro, slug como reserva), porque a página 1 real é mista: 11 filmes e 9
+séries no HDR.
+
+No Apache a coerência de tipo é de **duas fases** e a segunda precisa do
+post: `temporada_com_kind_movie` sai antes de qualquer rede (o slug com
+temporada prova o pack), mas `filme_com_kind_tv_show` **não pode** sair pelo
+slug — em 120 cards reais, 2 declaram `(Série de …)` **sem** temporada no
+slug e são séries de verdade; recusá-los produziria fila de erro que nunca se
+resolve. A segunda coerência vem do `<p class="item-lead">` do próprio post
+(`… Download Torrent Filme de 2019 …`), e a rede gasta entra no
+`requestCost`. É a diferença real entre este site e o HDR, onde a recusa
+antes da rede é segura.
+
 
 **O RedeTorrent é o CASO OPOSTO: a página AGREGA temporadas** — e é por isso
 que `season-page.ts` tem DUAS formas convivendo. `/series/<slug>/` do
@@ -2559,8 +2645,13 @@ fire-and-forget) continua.
 | `src/providers/bludv.ts` | Scraper direto do BLUDV (fora do Jackett; default desligado) |
 | `src/providers/crawl-sites/registry.ts` | Tabela FECHADA dos oito sites BR do motor de raspagem (`id` do card, rótulo, módulo lazy + export, `note`); `ensureSite(id)` memoiza por id e devolve `null` explícito |
 | `src/providers/crawl-sites/redetorrent.ts` / `redetorrent-discover.ts` / `redetorrent-discovery.ts` | Adaptador do RedeTorrent: leitura da página (`fetchWork`, 1 request, temporada POR LINHA), descoberta (índice AIOSEO → `movies-sitemap*`/`tvshows-sitemap`, DOIS formatos de resposta, "vazio" é falha) e as regras puras de sitemap/caminho/`<h1>` |
-| `src/providers/crawl-sites/season-page.ts` | As DUAS formas de página de série, ambas pela régua do Vaca: `seasonPageGroups` (post declara UMA temporada — NerdFilmes/TorrentDosFilmes/ComandoTorrents) e `seriesRowGroups` (post AGREGA temporadas — RedeTorrent, `dn` > coluna `S0N`, `cardTitle` vazio) |
-| `src/providers/crawl-sites/work-name.ts` | Régua COMPARTILHADA do `<h1>` dos quatro sites (ano + vitrine fora; lista/faixa de ordinais; `&` fora do `ORPHAN_SEP_RE`): mexer aqui mexe em NerdFilmes, TorrentDosFilmes, ComandoTorrents e RedeTorrent |
+| `src/providers/crawl-sites/season-page.ts` | As DUAS formas de página de série, ambas pela régua do Vaca: `seasonPageGroups` (post declara UMA temporada — NerdFilmes/TorrentDosFilmes/ComandoTorrents/BLUDV/HDRTorrent/ApacheTorrent) e `seriesRowGroups` (post AGREGA temporadas — RedeTorrent, `dn` > coluna `S0N`, `cardTitle` vazio) |
+| `src/providers/crawl-sites/listing-discover.ts` | Núcleo da descoberta por LISTAGEM paginada (HDRTorrent e ApacheTorrent): paginação, fim de catálogo por contagem + página repetida, teto de rodada, `failures`; o HTML é do site (`readPage` injetado) |
+| `src/providers/crawl-listing-series.ts` | Identidade do portão de séries no cursor de listagem: grava o estado do portão junto do cursor e o descarta quando o valor atual difere — sem isso, ligar séries depois não recuperava o acervo que a rodada com séries desligadas leu e descartou |
+| `src/providers/crawl-sites/bludv.ts` / `bludv-discover.ts` / `bludv-discovery.ts` | Adaptador do BLUDV: sitemap Yoast filtrado por NOME (`post-sitemap*`, arquivo misto → tipo pelo slug), `completeByKind` por kind, "vazio" é falha; o `requestCost` é contado na chamada porque o `fetchText` deste profile não aceita hook |
+| `src/providers/crawl-sites/hdrtorrents.ts` / `hdrtorrents-discovery.ts` | Adaptador do HDRTorrent (listagem, card `media-card-link`): tipo POR CARD, cursor com a identidade do portão de séries, ficha `<dt>/<dd>`, `completeByKind` com `tv_show` honesto |
+| `src/providers/crawl-sites/apachetorrent.ts` / `apachetorrent-discovery.ts` | Adaptador do ApacheTorrent (listagem, card `capa-item` com href ABSOLUTO e dedupe por URL): coerência de tipo em DUAS fases, a segunda lida do post; tipo por card, cursor com a identidade do portão de séries |
+| `src/providers/crawl-sites/work-name.ts` | Régua COMPARTILHADA do `<h1>` dos sites que terminam no ano (ano + vitrine fora; lista/faixa de ordinais; `&` fora do `ORPHAN_SEP_RE`): mexer aqui mexe em NerdFilmes, TorrentDosFilmes, ComandoTorrents, RedeTorrent, BLUDV, HDRTorrent e ApacheTorrent — a régua do TorrentDosFilmes (ano NO MEIO) é a única própria |
 | `src/providers/account.ts` | Inventário pronto da conta como fonte (`fromAccount`) |
 | `src/providers/autofetch.ts` | Marker, lock e vaga por busca do autofetch |
 | `src/providers/demo.ts` | Big Buck Bunny — valida o pipeline sem indexer nenhum |
