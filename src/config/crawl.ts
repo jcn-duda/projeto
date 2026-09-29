@@ -44,10 +44,13 @@ export const crawl = () => ({
   // Ciclo incremental (min): relê só o sitemap e reprocessa URL nova ou com
   // lastmod novo (o upsert idempotente do store é quem barateia o ciclo).
   incrementalIntervalMin: Math.max(1, Math.trunc(num(process.env.CRAWL_INCREMENTAL_INTERVAL_MIN, 60))),
-  // Fase 7 (séries): descoberta de tv_show-sitemap. DESLIGADA por padrão —
-  // séries multiplicam requisições (página → season-internal → cards →
-  // protetores); ligar é decisão do operador, como a raspagem em si.
-  seriesEnabled: String(process.env.CRAWL_SERIES_ENABLED || 'false') === 'true',
+  // Fase 7 (séries): descoberta de série. LIGADA por padrão: a raspagem tem
+  // que cobrir filme E série, e desligada ela cobre só filme — silêncio que
+  // não se distingue de "site sem série". O custo é o que a chave existe para
+  // controlar: série multiplica requisições (página → cards de temporada →
+  // botões → protetores), e quem não quiser pagar isso põe `CRAWL_SERIES_ENABLED=false`
+  // explicitamente (o painel também desliga ao vivo, por site ou global).
+  seriesEnabled: String(process.env.CRAWL_SERIES_ENABLED || 'true') === 'true',
   // Teto de cards de temporada visitados por página de série.
   seriesMaxCards: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_CARDS, 10))),
   // Teto de botões de download seguidos (cadeia do protetor) por página.

@@ -141,6 +141,7 @@
     "test/crawl-series-rate.test.js",
     "test/crawl-fase7-fixes.test.js",
     "test/crawl-series-veto2.test.js",
+    "test/crawl-series-default.test.js",
     "test/crawl-series-locate.test.js",
     "test/crawl-partial-store.test.js",
     "test/crawl-series-resume.test.js",

@@ -167,7 +167,7 @@ export function schema(): CrawlerSchemaField[] {
       type: 'boolean',
       group: 'engine',
       envDefault: env.seriesEnabled,
-      description: 'Descobre séries pelo tv_show-sitemap (Fase 7). Desligada, a raspagem cobre só filmes.',
+      description: 'Raspagem de séries (Fase 7), ligada por padrão: o motor tem que cobrir filme E série. Desligada, a raspagem cobre só filmes — e o silêncio não se distingue de "o site não tem série".',
     },
     {
       key: 'seriesMaxCards',
