@@ -154,6 +154,8 @@
     "test/crawl-status.test.js",
     "test/crawl-scheduler.test.js",
     "test/dashboard-actions-crawl.test.js",
+    "test/crawl-redetorrent.test.js",
+    "test/crawl-redetorrent-series.test.js",
     "test/client-esm.test.js",
     "test/operator-env-account.test.js",
     "test/br-parsers.test.js",

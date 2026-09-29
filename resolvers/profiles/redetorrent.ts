@@ -122,7 +122,25 @@ function createResolver(overrides: ProfileOverrides = {}) {
     return posts.slice(0, MAX_POSTS);
   }
 
-  async function fetchText(url: string | URL, referer?: string): Promise<string> {
+  /**
+   * Fetch de HTML com a mecânica Cloudflare do site (direto → FlareSolverr).
+   *
+   * `hooks.onRequest` conta requisições REAIS e é disparado UMA vez por
+   * chamada: o `fetch` abaixo é a requisição, e o solve do FlareSolverr é o
+   * MESMO acesso (a sessão de 20 min que ele abre é o que o próximo fetch
+   * direto reaproveita) — contar os dois inflaria o teto por hora do crawler
+   * com trabalho que já foi feito. Quem consome é o adaptador de raspagem
+   * (`crawl-sites/redetorrent.ts`), que precisa do custo medido por página.
+   *
+   * Os chamadores internos (`getPostLinks`, `searchPosts`) seguem com um e dois
+   * argumentos: o terceiro é opcional e o comportamento do `/?s=` não muda.
+   */
+  async function fetchText(
+    url: string | URL,
+    referer?: string,
+    hooks?: { onRequest?: () => void },
+  ): Promise<string> {
+    hooks?.onRequest?.();
     const res = await fetch(url, {
       redirect: 'follow',
       headers: buildFlareHeaders(url, referer),

@@ -107,8 +107,12 @@ describe('crawl catálogo: sites fora do .env', () => {
   test('adapterIds lista só quem tem adaptador', () => {
     // `torrentdosfilmesv2` entrou na Fase 8: o card é o id, e o profile tem
     // outro nome (`torrentdosfilmes`) — a ponte fica no próprio adaptador.
-    // `comandotorrents` é o card seguinte; nasce desligado fora de CRAWL_SITES.
-    assert.deepEqual(registry.adapterIds(), ['vacatorrent', 'nerdfilmes', 'torrentdosfilmesv2', 'comandotorrents']);
+    // `comandotorrents` é o card seguinte; `redetorrent-cardigann` o quarto
+    // (profile `redetorrent`, mesma divergência de id). Todos nascem
+    // desligados fora de CRAWL_SITES — o `.env` da VPS não é tocado pelo deploy.
+    assert.deepEqual(registry.adapterIds(), [
+      'vacatorrent', 'nerdfilmes', 'torrentdosfilmesv2', 'comandotorrents', 'redetorrent-cardigann',
+    ]);
   });
 });
 

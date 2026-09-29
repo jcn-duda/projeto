@@ -6,10 +6,12 @@ import { createResolver as createVacaResolver } from '../resolvers/profiles/vaca
 import { createResolver as createNerdfilmesResolver } from '../resolvers/profiles/nerdfilmes.js';
 import { createResolver as createTorrentdosfilmesResolver } from '../resolvers/profiles/torrentdosfilmes.js';
 import { createResolver as createComandotorrentsResolver } from '../resolvers/profiles/comandotorrents.js';
+import { createResolver as createRedetorrentResolver } from '../resolvers/profiles/redetorrent.js';
 import type { VacaResolverSurface } from '../src/providers/crawl-sites/vaca.js';
 import type { NerdfilmesResolverSurface } from '../src/providers/crawl-sites/nerdfilmes.js';
 import type { TorrentdosfilmesResolverSurface } from '../src/providers/crawl-sites/torrentdosfilmes.js';
 import type { ComandotorrentsResolverSurface } from '../src/providers/crawl-sites/comandotorrents.js';
+import type { RedetorrentResolverSurface } from '../src/providers/crawl-sites/redetorrent.js';
 
 function selfUrl(port: number): string {
   return `http://${config.resolvers.host}:${port}`;
@@ -52,6 +54,20 @@ export function comandoSurface(): ComandotorrentsResolverSurface {
     port,
     selfUrl: selfUrl(port),
     siteUrl: config.resolvers.comandotorrentsUrl || undefined,
+    extraProtectors: config.resolvers.extraProtectors,
+  });
+}
+
+/** Card `redetorrent-cardigann`, profile `redetorrent`. O site está 100% atrás
+ *  de Cloudflare (medido 2026-09-28): o `fetchText` do profile cai no
+ *  FlareSolverr, e a sonda nunca aciona o browser sozinha — o acesso é o mesmo
+ *  do caminho de busca. */
+export function redetorrentSurface(): RedetorrentResolverSurface {
+  const port = config.resolvers.ports.redetorrent + config.resolvers.portOffset;
+  return createRedetorrentResolver({
+    port,
+    selfUrl: selfUrl(port),
+    siteUrl: config.resolvers.redetorrentUrl || undefined,
     extraProtectors: config.resolvers.extraProtectors,
   });
 }

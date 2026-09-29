@@ -90,11 +90,12 @@ if (flagGate.unknown.length) {
 const [
 
   { default: config },
-  { vacaSurface, nerdSurface, tdfSurface, comandoSurface },
+  { vacaSurface, nerdSurface, tdfSurface, comandoSurface, redetorrentSurface },
   { createVacaCrawlSite },
   { createNerdfilmesCrawlSite },
   { createTorrentdosfilmesCrawlSite },
   { createComandotorrentsCrawlSite },
+  { createRedetorrentCrawlSite },
   { processCrawlPage },
   { instance },
   store,
@@ -110,6 +111,7 @@ const [
   import('../src/providers/crawl-sites/nerdfilmes.js'),
   import('../src/providers/crawl-sites/torrentdosfilmes.js'),
   import('../src/providers/crawl-sites/comandotorrents.js'),
+  import('../src/providers/crawl-sites/redetorrent.js'),
   import('../src/providers/crawl-page.js'),
   import('../src/br-resolvers.js'),
   import('../src/utils/crawl-store.js'),
@@ -149,6 +151,12 @@ async function resolveSite(siteId: string, series: boolean): Promise<CrawlSite |
   }
   if (siteId === 'comandotorrents') {
     return createComandotorrentsCrawlSite(comandoSurface(), { seriesProbe: series });
+  }
+  // Card `redetorrent-cardigann`, profile `redetorrent`: `instance()` é
+  // indexado pelo NOME do profile, então a instância embutida acima não casa
+  // com o id do card e a superfície direto é o caminho da sonda.
+  if (siteId === 'redetorrent-cardigann') {
+    return createRedetorrentCrawlSite(redetorrentSurface(), { seriesProbe: series });
   }
   return null;
 }
@@ -315,8 +323,8 @@ async function main(): Promise<void> {
   const site = await resolveSite(opts.site, opts.series);
   if (!site) {
     console.error(`sem adaptador para "${opts.site}" neste processo: a sonda conhece `
-      + 'vacatorrent, nerdfilmes, torrentdosfilmesv2 e comandotorrents (superfície direta) '
-      + 'e qualquer site com instância embutida carregada.');
+      + 'vacatorrent, nerdfilmes, torrentdosfilmesv2, comandotorrents e redetorrent-cardigann '
+      + '(superfície direta) e qualquer site com instância embutida carregada.');
     process.exit(1);
   }
 
