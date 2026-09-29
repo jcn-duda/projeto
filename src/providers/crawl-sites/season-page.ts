@@ -83,7 +83,44 @@ export function seasonPageGroups(
     });
     return { release, request };
   });
-  return groupSeriesReleases(entries, { year: null });
+  // Botão cujo `dn` declara temporada: agrupa pela locação JÁ decidida acima
+  // (`byDeclaredLocation`, `dn` > rótulo > post). Sem isso o
+  // `releaseWorkTargets` recalculava pelo título da release e, no empate de
+  // especificidade título × `dn`, ficava com o TÍTULO — que aqui é o rótulo do
+  // site com a temporada do POST. Medido em 2026-09-29 (NerdFilmes): "Euphoria
+  // 2ª Temporada E00" com `dn=Euphoria.Us.S01E00.Especial` ia para S2E0; o
+  // mesmo valia para qualquer episódio de outra temporada no post (dn S01E03 →
+  // S2E3). Sem `dn` que declare, o caminho é o de antes: o rótulo pode trazer a
+  // PRÓPRIA temporada ("Lanternas 1ª Temporada E03"), e a locação decidida só
+  // guarda o episódio dele.
+  const byDn = entries.filter((e) => dnDeclaresSeason(e.release));
+  const rest = entries.filter((e) => !dnDeclaresSeason(e.release));
+  return mergeGroups([
+    ...groupSeriesReleases(byDn, { year: null, byDeclaredLocation: true }),
+    ...groupSeriesReleases(rest, { year: null }),
+  ]);
+}
+
+function dnDeclaresSeason(release: RawItem): boolean {
+  const dn = magnetDisplayName(release);
+  return Boolean(dn) && parseTitleSeasonEpisode(decodeEvidence(dn)).seasons.length > 0;
+}
+
+/** Junta grupos da mesma locação, na ordem do `groupSeriesReleases` (raiz por último). */
+function mergeGroups(groups: CrawlReleaseGroup[]): CrawlReleaseGroup[] {
+  const byKey = new Map<string, CrawlReleaseGroup>();
+  for (const g of groups) {
+    const key = `${g.season ?? -1}:${g.episode ?? -1}`;
+    const into = byKey.get(key);
+    if (into) into.releases.push(...g.releases);
+    else byKey.set(key, { season: g.season, episode: g.episode, releases: [...g.releases] });
+  }
+  return [...byKey.values()].sort((a, b) => {
+    if (a.season == null && b.season != null) return 1;
+    if (b.season == null && a.season != null) return -1;
+    if (a.season !== b.season) return (a.season ?? 0) - (b.season ?? 0);
+    return (a.episode ?? -1) - (b.episode ?? -1);
+  });
 }
 
 /**

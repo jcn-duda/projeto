@@ -221,6 +221,17 @@ describe('season-page: temporada do post e locação de cada botão', () => {
     assert.deepEqual(loc('The Boys E01 [1080p]', 'The.Boys.S04.COMPLETE.1080p'), [[4, null]]);
   });
 
+  test('o dn vence o rótulo também quando os dois declaram temporada E episódio', () => {
+    // NerdFilmes (2026-09-29): o especial da 1ª temporada publicado no post da
+    // 2ª. O rótulo carrega a temporada do POST e empata em especificidade com o
+    // dn — e o reagrupamento pelo título mandava a release para S2E0.
+    assert.deepEqual(
+      loc('Euphoria 2ª Temporada E00 [720p DUBLADO]', 'comando.la - Euphoria.Us.S01E00.Especial.Parte.01-02-720p', 2),
+      [[1, 0]],
+    );
+    assert.deepEqual(loc('The Boys 4ª Temporada E03 [1080p]', 'The.Boys.S03E03.1080p'), [[3, 3]]);
+  });
+
   test('botão sem episódio em lugar nenhum é o pack da temporada, nunca a raiz', () => {
     assert.deepEqual(loc('The Boys [1080p DUBLADO 12 GB]'), [[4, null]]);
   });
