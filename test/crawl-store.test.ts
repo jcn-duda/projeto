@@ -54,9 +54,8 @@ test('upsert idempotente: nova URL nasce pending; repetida igual não mexe', { s
   assert.equal(store.engine().getUrl('vacatorrent', '/a')?.status, 'done', 'lastmod igual não reprocessa done');
 });
 
-test('lastmod novo reprocessa URL (zera tries/imdb/releases; preserva addedAt)', () => {
+test('lastmod novo reprocessa URL (zera tries/imdb/releases; volta à fila como NOVIDADE)', () => {
   store.engine().upsertUrls('vacatorrent', [movie('/a')], 1000);
-  const addedAt = store.engine().getUrl('vacatorrent', '/a')?.addedAt;
   store.engine().markResult('vacatorrent', '/a', { status: 'done', imdb: 'tt100', releases: 2 }, 2000);
   assert.deepEqual(store.engine().upsertUrls('vacatorrent', [{ url: '/a', lastmod: '2026-09-26', kind: 'movie' }], 3000), { added: 0, refreshed: 1, unchanged: 0 });
   const row = store.engine().getUrl('vacatorrent', '/a') as CrawlUrlRow;
@@ -65,7 +64,7 @@ test('lastmod novo reprocessa URL (zera tries/imdb/releases; preserva addedAt)',
   assert.equal(row.imdb, null, 'conteúdo mudou: obra antiga não sobrevive');
   assert.equal(row.releases, 0);
   assert.equal(row.lastmod, '2026-09-26');
-  assert.equal(row.addedAt, addedAt);
+  assert.equal(row.addedAt, 3000, 'post atualizado entra na frente da fila (added_at DESC)');
 });
 
 test('takeNext: ordem determinística, claim vira inflight e some da fila', () => {

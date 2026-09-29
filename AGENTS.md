@@ -1931,6 +1931,15 @@ ciclo. `hasDue(site, now)` é exato (existe `next_at <= now`), nunca a
 aproximação por contador: uma linha em backoff de 6 h contada como devida
 monopolizaria a seleção.
 
+**Dentro do site, a fila serve NOVIDADE primeiro** (`next_at ASC, added_at
+DESC, url_key`, igual nas duas engines): página descoberta agora e post
+ATUALIZADO (`lastmod` novo re-enfileira com `added_at = now`) furam o estoque
+da carga inicial. Com `added_at ASC`, medido na VPS em 2026-09-29, as séries
+recém-ligadas e todo lançamento do dia esperavam atrás de ~34 mil filmes
+(Comando + TorrentDosFilmes), 3–4 dias no ritmo do teto por hora. O estoque
+não passa fome: a incremental entrega dezenas de páginas por hora e o teto
+processa centenas.
+
 **Ajuste por site** (`crawler-live-site.ts`): `siteOverrides[id]` com
 `enabled`, `dryRun`, `delayMs` e `maxPerHour`, aplicados sobre o global com
 clamp — o site **nunca** fica mais rápido que o `delayMs` global nem passa do

@@ -92,10 +92,11 @@ export function memoryCrawlEngine(): CrawlEngine {
         if (row.status !== 'pending' && row.status !== 'error' && row.status !== 'partial') continue;
         if (row.nextAt > now) continue;
         const uk = urlKeys.get(k) ?? row.url;
-        // MESMA ordem da SQL: next_at, added_at, url_key — retomada determinística.
+        // MESMA ordem da SQL: next_at ASC, added_at DESC (novidade primeiro),
+        // url_key ASC — retomada determinística.
         if (!best
           || row.nextAt < best.nextAt
-          || (row.nextAt === best.nextAt && row.addedAt < best.addedAt)
+          || (row.nextAt === best.nextAt && row.addedAt > best.addedAt)
           || (row.nextAt === best.nextAt && row.addedAt === best.addedAt && uk < bestKey)) {
           best = row;
           bestKey = uk;

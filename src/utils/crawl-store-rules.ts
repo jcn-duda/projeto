@@ -152,6 +152,9 @@ export function decideUpsert(
   // lastmod novo: reprocessa do zero, preservando só a identidade da fila.
   // `progress: ''` explícito: o spread herdaria o progresso — conteúdo novo
   // reexecuta o varrimento do zero (o card antigo pode nem existir mais).
+  // `addedAt: now`: post ATUALIZADO (episódio novo na página da temporada) é
+  // novidade e entra na frente da fila (`added_at DESC`), não na posição em que
+  // foi descoberto meses atrás, atrás de todo o estoque.
   return {
     outcome: 'refreshed',
     row: {
@@ -159,7 +162,7 @@ export function decideUpsert(
       lastmod, kind,
       status: 'pending',
       imdb: null, tries: 0, nextAt: 0, checkedAt: 0,
-      releases: 0, error: '', progress: '',
+      releases: 0, error: '', progress: '', addedAt: now,
     },
   };
 }

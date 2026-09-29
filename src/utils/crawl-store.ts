@@ -133,7 +133,8 @@ function sqliteEngine(dbPath: string): CrawlEngine | null {
     // `inflight` NÃO entra (trabalho já tomado; órfã é do `requeueInflight`).
     const DUE_WHERE = "site = ? AND status IN ('pending', 'error', 'partial') AND next_at <= ?";
     // `ORDER BY` = retomada determinística; o `hasDue` não ordena (basta a 1ª).
-    const dueStmt = db.prepare(`SELECT * FROM crawl_url WHERE ${DUE_WHERE} ORDER BY next_at ASC, added_at ASC, url_key ASC LIMIT 1`);
+    // `added_at DESC`: NOVIDADE primeiro (ASC deixava lançamento atrás de ~34 mil de estoque, VPS 2026-09-29).
+    const dueStmt = db.prepare(`SELECT * FROM crawl_url WHERE ${DUE_WHERE} ORDER BY next_at ASC, added_at DESC, url_key ASC LIMIT 1`);
     const dueExistsStmt = db.prepare(`SELECT 1 FROM crawl_url WHERE ${DUE_WHERE} LIMIT 1`);
     // Claim com guarda de status: a linha reivindicada é SEMPRE uma due
     // (pending, error com backoff vencido ou partial com retry vencido) —

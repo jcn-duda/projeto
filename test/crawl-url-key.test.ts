@@ -261,7 +261,9 @@ describe('migração do crawl.db legado (chave (site,url))', { skip: skipSemSqli
     assert.equal(linha.status, 'pending', 'lastmod novo manda reprocessar');
     assert.equal(linha.releases, 0, 'conteúdo novo não herda a contagem antiga');
     assert.equal(linha.url, 'https://y.com/p');
-    assert.equal(linha.addedAt, 1, 'a segunda abertura não recriou a linha (addedAt original)');
+    // O lastmod novo re-enfileira como NOVIDADE (added_at = o momento da
+    // redescoberta, a fila é `added_at DESC`); a segunda abertura não o mexe.
+    assert.equal(linha.addedAt, 2500, 'a segunda abertura não recriou a linha');
     assert.equal(store.engine().counters('vacatorrent').total, 1, 'nenhuma página duplicada');
     store.resetForTests();
   });

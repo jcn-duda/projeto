@@ -108,6 +108,7 @@
     "test/catalog-audit.test.js",
     "test/catalog-panel.test.js",
     "test/crawl-store.test.js",
+    "test/crawl-queue-order.test.js",
     "test/crawl-url-key.test.js",
     "test/crawl-listing-cursor.test.js",
     "test/crawl-listing-discover.test.js",
