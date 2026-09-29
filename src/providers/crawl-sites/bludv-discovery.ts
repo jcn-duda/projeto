@@ -110,8 +110,21 @@ const NOT_WORK_SEGMENTS = new Set([
  * deixa de ser enfileirado. O erro é "obra faltando" (visível no painel), nunca
  * "obra errada gravada" — e a linha que chegar como `movie` é recusada na porta
  * do `fetchWork`.
+ *
+ * `minisserie` e `serie-completa` entram pelo mesmo motivo (medido em
+ * 2026-09-29): "Redenção Minissérie Completa", "The Pale Horse Minissérie" e
+ * "Mr. Bean Série Completa" não têm "temporada" no slug e caíam como FILME. O
+ * `serie` SOLTO não entra: "Assassino em Série", "A Série Divergente" e "Uma
+ * Noite Fora de Série" são filmes.
  */
-const SEASON_SLUG_RE = /temporada/i;
+const SEASON_SLUG_RE = /temporada|minis+erie|serie-completa/i;
+/**
+ * Categorias do PRÓPRIO post (`rel="category tag"`), não do menu. O BLUDV põe
+ * toda série em `/series/` e todo filme em `/filmes/`, mesmo o filme com "Série"
+ * no nome — medido em 85 páginas (2026-09-29): a categoria separou as 5 séries
+ * de verdade dos 80 filmes, sem falso positivo.
+ */
+const POST_CATEGORY_RE = /href="[^"]*\/(series|filmes)\/(?:[^"/]*\/)?"\s+rel="category tag"/gi;
 /** Marcadores do XML de sitemap: raiz (`<urlset>`/`<sitemapindex>`), bloco ou loc. */
 const XML_SHAPE_RE = /<(?:urlset|sitemapindex|sitemap|url)\b|<loc\b/i;
 /** tt + o resto da URL (a query do plugin de nota). */
@@ -225,6 +238,19 @@ export function isSeasonSlug(href: URL | string): boolean {
   let path = pathnameOf(href);
   try { path = decodeURIComponent(path); } catch { /* slug cru ainda casa o padrão */ }
   return SEASON_SLUG_RE.test(path);
+}
+
+/**
+ * `true` quando o post se declara SÉRIE nas categorias dele (`/series/…`) e não
+ * se declara filme. É a rede do slug: "Boneca Russa 1ª Temporada" mora em
+ * `boneca-russa-torrent-web-dl-720p-1080p-dual-audio-download/`, sem nada de
+ * temporada no caminho, e a descoberta a enfileira como filme. O post com as
+ * duas categorias (anime publicado nas duas) fica como está: o sinal só vale
+ * sem contradição.
+ */
+export function postDeclaresSeries(html: string): boolean {
+  const kinds = new Set([...String(html || '').matchAll(POST_CATEGORY_RE)].map((m) => m[1].toLowerCase()));
+  return kinds.has('series') && !kinds.has('filmes');
 }
 
 /** Caminho de um `URL` ou de uma string (URL absoluta ou caminho solto). */

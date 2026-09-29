@@ -13,7 +13,8 @@ import assert from 'node:assert/strict';
 
 import type { BludvSeasonSample } from '../src/providers/crawl-sites/bludv.js';
 import type { CrawlPageOptions } from '../src/providers/crawl-types.js';
-import { SERIES, fixture, pageRoutes, probeSite, site, withStub } from './helpers/crawl-bludv-fixtures.js';
+import { kindFromSlug, postDeclaresSeries } from '../src/providers/crawl-sites/bludv-discovery.js';
+import { MOVIE, SERIES, fixture, pageRoutes, probeSite, site, withStub } from './helpers/crawl-bludv-fixtures.js';
 
 /** Opção de séries do painel ligada (o que o motor manda em produção). */
 const LIGADO = { kind: 'tv_show', series: { enabled: true, maxCards: 4, maxButtons: 40 } } as const;
@@ -147,6 +148,41 @@ describe('crawl-sites/bludv: série no motor', () => {
       assert.ok(shows.some((u) => u.url === SERIES));
       assert.equal(disc.urls.filter((u) => u.kind === 'movie').length, 891);
       assert.equal(disc.requestCost, 19, 'o arquivo é misto: ler é o mesmo com ou sem séries');
+    },
+  ));
+});
+
+describe('crawl-sites/bludv: série que NÃO diz temporada no slug', () => {
+  // Medido em 2026-09-29 (85 páginas): a categoria do PRÓPRIO post separou as 5
+  // séries de verdade dos 80 filmes, e o "Série" no nome de filme vem com a
+  // categoria de filmes ("Assassino em Série", "A Série Divergente").
+  const cat = (kind: string, slug = '') => `<a href="https://bludvfilmes1.xyz/${kind}/${slug}" rel="category tag">x</a>`;
+
+  test('minissérie e série completa no slug são série; "serie" solto não', () => {
+    assert.equal(kindFromSlug('/redencao-minisserie-completa-torrent-web-dl-1080p-nacional-download-2019/'), 'tv_show');
+    assert.equal(kindFromSlug('/mr-bean-serie-completa-torrent-web-dl-720p-dublado/'), 'tv_show');
+    assert.equal(kindFromSlug('/assassino-em-serie-torrent-web-dl-720p-1080p-dual-audio-download/'), 'movie');
+    assert.equal(kindFromSlug('/a-serie-divergente-insurgente-torrent-blu-ray-rip-720p-dual-audio-2015/'), 'movie');
+  });
+
+  test('a categoria do post decide, e só sem contradição', () => {
+    assert.equal(postDeclaresSeries(cat('series', 'boneca-russa/') + cat('series')), true);
+    assert.equal(postDeclaresSeries(cat('filmes')), false);
+    assert.equal(postDeclaresSeries(cat('series', 'x/') + cat('filmes')), false, 'as duas: não afirma nada');
+    assert.equal(postDeclaresSeries('<a href="https://bludvfilmes1.xyz/series/">Séries</a>'), false, 'menu não é categoria do post');
+  });
+
+  test('post de série pedido como filme é RECUSADO, nunca identificado como filme', () => withStub(
+    pageRoutes({
+      // Recorte real: "Boneca Russa 1ª Temporada" num slug sem "temporada".
+      [MOVIE]: () => seriePage('Boneca Russa 1ª Temporada Torrent – WEB-DL 720p Dual Áudio', 'Russian.Doll.S01.720p')
+        + cat('series', 'boneca-russa/') + cat('series'),
+    }),
+    async () => {
+      const result = await site().fetchWork(MOVIE);
+      assert.equal(result.status, 'error');
+      assert.match(String(result.error), /serie_com_kind_movie/);
+      assert.equal(result.requestCost, 1, 'a página foi lida: o custo é real');
     },
   ));
 });

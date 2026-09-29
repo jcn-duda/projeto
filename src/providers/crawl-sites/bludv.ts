@@ -58,7 +58,7 @@ import { magnetHash, withRequestCost } from './shared.js';
 import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { createBludvDiscoverer } from './bludv-discover.js';
 import {
-  isSeasonSlug, isWorkPath, parseImdbId, parseOriginalTitle, workTitleYear,
+  isSeasonSlug, isWorkPath, parseImdbId, parseOriginalTitle, postDeclaresSeries, workTitleYear,
 } from './bludv-discovery.js';
 
 /** id do card do Jackett (dedupe, `ji`/`jl`, reserva por indexer falho). */
@@ -230,6 +230,15 @@ export function createBludvCrawlSite(surface: BludvResolverSurface, options: Blu
         }
         // 1 REQUISIÇÃO: o HTML do post já carrega o magnet no bloco de download.
         const pageHtml = await countedFetchText(workUrl.href, countRequest);
+        if (!season && postDeclaresSeries(pageHtml)) {
+          // O slug não disse temporada, mas o post se declara série nas próprias
+          // categorias ("Boneca Russa 1ª Temporada" em slug sem "temporada").
+          // Identificar como filme casaria um homônimo no TMDB — obra ERRADA
+          // no acervo; recusar deixa a linha visível no painel.
+          const message = 'serie_com_kind_movie: o post está na categoria de séries e a fila o pediu como filme';
+          log.warn(`[crawl] bludv-cardigann: ${message}: ${url}`);
+          return { url, status: 'error', error: message, requestCost: counter.n };
+        }
         const { title, year, raw } = workTitleYear(pageHtml);
         if (!title) {
           // Página sem nome é quebra de layout, não obra sem nome: erro para o
