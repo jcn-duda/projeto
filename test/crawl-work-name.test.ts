@@ -93,6 +93,9 @@ describe('work-name: a lista de ordinais do post que AGREGA temporadas', () => {
     ['The Walking Dead 1ª à 11ª Temporada (2021)', 'The Walking Dead', 2021],
     ['Os Simpsons 1ª à 33ª Temporada (2021)', 'Os Simpsons', 2021],
     ['Vikings 1ª a 6ª Temporada (2013)', 'Vikings', 2013],
+    // BLUDV (2026-09-29): a faixa com AGUDO e o "Todas Temporadas" sem o "as".
+    ['Dexter 1ª á 8ª Temporada (2006)', 'Dexter', 2006],
+    ['Elite Histórias Breves Todas Temporadas Torrent (2021) WEB-DL 720p/1080p Dublado', 'Elite Histórias Breves', 2021],
     // Número que é do NOME e não da lista: "85" é a referência do episódio,
     // "007" é o nome do agente.
     ['Stranger Things: Histórias de 85 1ª e 2ª Temporada (2026)', 'Stranger Things: Histórias de 85', 2026],
@@ -145,6 +148,31 @@ describe('work-name: ano declarado na ficha', () => {
       { title: 'Comando Final 3 Paradox', year: 2018 });
     assert.equal(readWorkTitle(h1('Blade Runner 2049 (2017) Dublado')).title, 'Blade Runner 2049');
     assert.equal(readWorkTitle(h1('1984 (1984) Dublado')).title, '1984', 'o nome que É o ano não some');
+  });
+
+  test('BLUDV: "<strong><em>Lançamento:</em></strong>" é ficha; o menu `<option>` não é', () => {
+    // Recorte real (Boneca Russa 2ª Temporada): o `<h1>` não tem ano, e sem o
+    // `em` na régua da ficha a página ia para `pagina-sem-ano`.
+    const boneca = h1('Boneca Russa 2ª Temporada Torrent &#8211; WEB-DL 720p/1080p Dual Áudio')
+      + '<span style="color: black;"><strong><em>Lançamento:</em></strong> 2022</span><br>';
+    assert.deepEqual({ title: readWorkTitle(boneca).title, year: readWorkTitle(boneca).year },
+      { title: 'Boneca Russa', year: 2022 });
+    assert.equal(fichaYear('<i>Lançamento:</i> 2019'), 2019);
+    assert.equal(
+      fichaYear('<option class="level-0" value="158">Lançamento</option><option class="level-1" value="23945">&nbsp;&nbsp;&nbsp;1918</option>'),
+      null,
+      'o menu de categorias do site não é ficha',
+    );
+  });
+
+  test('BLUDV: faixa de anos "(2011-2020)" sai do nome, e o ano vem da ficha', () => {
+    const homeland = h1('Homeland: Segurança Nacional 1ª á 8ª Temporada (2011-2020) WEB-DL 1080p Dual Áudio')
+      + '<strong><em>Lançamento:</em></strong> 2011<br>';
+    const { title, year } = readWorkTitle(homeland);
+    assert.equal(year, 2011);
+    assert.doesNotMatch(title, /\d/, `nem ordinal nem ano no nome: "${title}"`);
+    assert.doesNotMatch(title, /\bá\b|\(|\)/, `nem o conector da faixa nem parêntese: "${title}"`);
+    assert.match(title, /^Homeland: Segurança/);
   });
 
   test('parêntese no h1 vence a ficha; sem os dois, ano nulo', () => {

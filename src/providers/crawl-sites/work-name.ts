@@ -29,10 +29,11 @@ const ORDINAL = String.raw`\d{1,2}\s*[ªºa°]?`;
  * DOMINANTE nas páginas que publicam a série inteira; medida ao vivo em
  * 2026-09-29 em "The Walking Dead 1ª à 11ª Temporada" e "Os Simpsons 1ª à 33ª
  * Temporada", que sem isso ficavam com o "1ª à" no nome e o TMDB não achava
- * nada). O conector só é gasto se o que vem DEPOIS dele for outro ordinal: a
+ * nada). O BLUDV escreve a faixa com AGUDO ("Homeland: Segurança Nacional 1ª á
+ * 8ª Temporada"), e sem o `á` sobrava o "1ª á" no nome. O conector só é gasto se o que vem DEPOIS dele for outro ordinal: a
  * lista é uma sequência, nunca um nome.
  */
-const ORDINAL_SEP = String.raw`\s*(?:[,&]\s*)?(?:[-–—]\s*)?(?:(?:até|ate|à|a|e)\s+)?`;
+const ORDINAL_SEP = String.raw`\s*(?:[,&]\s*)?(?:[-–—]\s*)?(?:(?:até|ate|à|á|a|e)\s+)?`;
 
 /** Ruído de VITRINE que o theme gruda no título, na ordem em que aparece.
  *  Cada entrada existe porque está no acervo real medido (a lista de tokens do
@@ -53,15 +54,21 @@ const NOISE_RES: readonly RegExp[] = [
   //    Temporada").
   //    A palavra SOZINHA, sem ordinal, só sai como "Temporada Completa"/"Todas
   //    as Temporadas": "Temporada" é nome de FILME ("Temporada de Caça", 2006;
-  //    "Temporada de Patos") e virava "de Caça", sem obra no TMDB.
+  //    "Temporada de Patos") e virava "de Caça", sem obra no TMDB. O "as" de
+  //    "Todas as Temporadas" é opcional: o BLUDV escreve "Elite Histórias
+  //    Breves Todas Temporadas", e o "Todas Temporadas" ficava no nome.
   new RegExp(
     String.raw`\b(?:(?:(?:${ORDINAL_MARKED}${ORDINAL_SEP}(?:${ORDINAL}${ORDINAL_SEP})*)|\d{1,2}\s*[ªºa°]?\s*)`
     + String.raw`temporadas?(?:\s+(?:complet[ao]s?|inteiras?))?`
-    + String.raw`|todas\s+as\s+temporadas(?:\s+(?:complet[ao]s?|inteiras?))?`
+    + String.raw`|todas\s+(?:as\s+)?temporadas(?:\s+(?:complet[ao]s?|inteiras?))?`
     + String.raw`|temporadas?\s+(?:complet[ao]s?|inteiras?))`,
     'gi',
   ),
   /\bmini\s*s[ée]ries?\b/gi,
+  // Faixa de ANOS entre parênteses ("Homeland … (2011-2020)", BLUDV): é o
+  // período da série publicada inteira, nunca nome. O ano da página sai da
+  // ficha; sem esta regra sobrava "(2011 2020)" no nome.
+  /\(\s*(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)\d{2}\s*\)/g,
   /\b\d{1,3}\s+epis[óo]dios\b/gi,
   // 2. Fonte e codec. "3D" e "HSBS" SOZINHOS não entram: "Sea Rex 3D: Journey to
   //    a Prehistoric World" só casa no TMDB com o 3D no nome. O PAR "3D HSBS"
@@ -176,7 +183,12 @@ export function fichaYear(html: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-const FICHA_TAG = String.raw`(?:<\/?(?:b|strong|span|a)\b[^>]*>\s*)*`;
+// `em`/`i` porque o BLUDV escreve "<strong><em>Lançamento:</em></strong> 2022":
+// sem eles o ano da ficha não era lido e a página ia para `pagina-sem-ano`
+// (medido em 2026-09-29: 39 de 80 páginas do BLUDV só têm o ano ali). `option`
+// NÃO entra: o menu do site lista "<option>Lançamento</option><option>1918",
+// que não é ficha.
+const FICHA_TAG = String.raw`(?:<\/?(?:b|strong|span|a|em|i)\b[^>]*>\s*)*`;
 const FICHA_YEAR_RE = new RegExp(
   String.raw`(?:Ano\s+de\s+)?Lan(?:[çc]|&ccedil;)amento\s*${FICHA_TAG}:?\s*${FICHA_TAG}((?:19|20)\d{2})\b`,
   'i',
