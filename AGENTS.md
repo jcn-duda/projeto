@@ -1826,8 +1826,9 @@ FlareSolverr, e só com o app ocioso.
 
 **O registro é uma tabela fechada** (`crawl-sites/registry.ts`): os oito cards
 BR do Jackett, cada um com rótulo, ordem de rollout, mecanismo
-(`sitemap|listing`), política de série e `needsFlare`. Só `vacatorrent` e
-`nerdfilmes` têm adaptador NESTA rodada; os outros seis aparecem no status como
+(`sitemap|listing`), política de série e `needsFlare`. `vacatorrent`, `nerdfilmes`,
+`torrentdosfilmesv2`, `comandotorrents` e `redetorrent-cardigann` têm adaptador;
+os outros três aparecem no status como
 "adaptador pendente", que é diagnóstico, não sumiço. `ensureSite(id)` resolve e
 memoiza **por id** (Map) e devolve `null` explícito com warn — id fora da
 tabela nunca vira adaptador. **Não "varra `Object.values` chamando função
@@ -1855,6 +1856,17 @@ ligado; ligado no override não ressuscita com o global desligado (o global é o
 kill-switch). Ações: `crawl-site-config-set` (só o delta), `crawl-site-config-reset`
 (destrutiva, `confirm`) e `crawl-site-pause`.
 
+**Ações por site validam contra os sites do MOTOR (`knownSites`), não contra o
+`.env`.** Simular, Reprocessar Erros, Reprocessar Sem Obra e Zerar Site
+(`crawl-actions.ts`) usavam só o `CRAWL_SITES`, e todo site ligado pelo painel
+era recusado em silêncio ("0 URL(s)" com HTTP 200 — medido no NerdFilmes com 28
+páginas sem obra). Site fora do motor agora é `ok:false` + motivo, e a rota
+responde 400. **`crawl-reprocess-no-work`** devolve o `no-work` do site à fila
+(não é destrutiva, sem `confirm`): o `no-work` é TERMINAL, então sem ela uma
+régua de identificação melhor só valia para página nova. A página é raspada de
+novo pelo motor, com ritmo/tetos/freio valendo; no banco é o mesmo
+`requeueErrors(site, status)` do Reprocessar Erros, com `'no-work'`.
+
 **`CRAWL_SITES` é só o padrão; o painel liga qualquer site com adaptador.** Os
 sites do motor são `knownSites()` = `CRAWL_SITES` ∪ ids com override gravado.
 Site do `.env` nasce ligado; site do catálogo (tabela com adaptador, fora do
@@ -1872,13 +1884,114 @@ Jackett. Nada medido nunca vira "no ar".
 
 **Título original como segundo nome da identificação** (`crawl-identify.ts`).
 O NerdFilmes publica `<span class="movie-original">Título original: …</span>`
-sob o `<h1>` (`parseOriginalTitle`, núcleo compartilhado; o Vaca não publica).
-Ele entra com a MESMA régua estrita: casa o `original_title`/título do
-candidato, dispara uma 2ª busca só quando o `<h1>` não casa ninguém, e
-desempata homônimo só quando exatamente um candidato tem o original declarado
-("A Besta" 2024 = "La bête", não o "A BESTA" do mesmo ano). Medido ao vivo
-(2026-09-28): 6 de 10 páginas "sem obra" recuperadas, motivo
-`casamento-titulo-original`; homônimo com o mesmo original continua ambíguo.
+sob o `<h1>`; o ComandoTorrents e o TorrentDosFilmes, na FICHA
+(`<b>Título Original:</b> Nome<br>`) — `parseOriginalTitle`, núcleo
+compartilhado; o Vaca não publica. Ele entra com a MESMA régua estrita: casa o
+`original_title`/título do candidato, dispara uma 2ª busca quando o `<h1>` não
+casa ninguém (a busca do TMDB é aproximada e quase sempre devolve ALGO — exigir
+zero hits perdeu o "The Uprising" certo), e desempata homônimo só quando
+exatamente um candidato tem o original declarado ("A Besta" 2024 = "La bête",
+não o "A BESTA" do mesmo ano). Ficha com DOIS nomes ("Paradox / Sha po lang")
+não vira original: o primeiro era o inglês e casou o "Paradoxo" de 2018 no lugar
+do "Comando Final 3: Paradoxo" de HK. A ficha repetida no `alt` de imagem vem
+sem quebras — o valor para na aspa e no primeiro rótulo de ficha colado. Medido
+ao vivo (2026-09-28): 6 de 10 páginas "sem obra" do NerdFilmes recuperadas,
+motivo `casamento-titulo-original`; homônimo com o mesmo original segue ambíguo.
+No ComandoTorrents, o link do PLUGIN de nota do IMDb (`?ref_=tt_plg_rt`) não é
+âncora: é widget colado de outro post (`tt1959490` "Noé" em "Busca Implacável 3").
+
+**O TorrentDosFilmes V2 tem TRÊS regras que não cabem na régua compartilhada**
+(`crawl-sites/torrentdosfilmes{,-discovery,-buttons}.ts` + o `fetchTextDirect`
+novo no profile). Todas medidas em 2026-09-28, com 11 requisições sequenciais
+em `torrentdosfilmes-v2.xyz` (fetch direto, sem FlareSolverr: o site responde
+200 sem desafio). O card é `torrentdosfilmesv2` e o PROFILE é
+`torrentdosfilmes` — a ponte é o próprio adaptador, que pergunta a instância
+por NOME (`br-resolvers.instance`); usar o id do card ali devolveria `null` e a
+raspagem seria declarada indisponível em produção.
+
+   1. **O `<h1>` tem o ANO NO MEIO** ("Exterminador As Crônicas de Sarah Connor 1ª
+   Temporada Bluray 720p (2008) Dublado", "Lanternas 1ª Temporada Torrent (2026)
+   Dual Áudio 5.1 WEB-DL 1080p"). O `parseTitleYear` compartilhado só aceita
+   parêntese FINAL, então devolveria `year: null` em TODA página deste site — e
+   página sem ano não chega a consultar o TMDB (`pagina-sem-ano`), ou seja, o
+   site inteiro cairia em `no-work`. Por isso a régua do NOME é própria dos
+   WordPress desta rede — hoje em `work-name.ts` (`readWorkTitle`), compartilhada
+   com o ComandoTorrents, que publica o `<h1>` no mesmo molde: ano do PRIMEIRO
+   parêntese de 4 dígitos (sem ele, o "Lançamento:" da ficha; o ano SOLTO no
+   título nunca — "Blade Runner 2049" prova que é indistinguível de dígito do
+   nome) e nome com o ruído de vitrine fora (fonte, codec, canais de áudio,
+   "Torrent", "GDRIVE", "1ª/9° Temporada Completa Mini Série", "DVD-R Oficial",
+   "Legendas Fixas"). Três palavras são **proibidas** SOZINHAS porque são parte
+   de nome real: `3D` ("Sea Rex 3D" só casa no TMDB com ele — só o PAR "3D
+   HSBS/SBS/HOU", formato de arquivo, sai), `original` ("Original Sin") e
+   `mirrors` ("Mirrors"). A borda
+   das regras com acento é espaço/pontuação explícita, **não** `\b`: em JS `\b`
+   é `[A-Za-z0-9_]`, acento não é caractere de palavra, e `\b[aá]udio` nunca
+   casaria em "Dual Áudio" — que é a forma que o site publica. O `:` fica de
+   FORA dos separadores órfãos (é separador de NOME: "Chainsaw Man – O Filme:
+   Arco da Reze") e o colapsamento de espaço vem ANTES da regra do conector final
+   (a limpeza deixa cauda de espaço, e `\s+e$` não casaria).
+2. **O IMDb desta página é ARMADILHA e não se lê.** O site não publica ficha
+   técnica: publica um plugin de RECOMENDAÇÃO (`<span data-title="tt0340163"
+   data-user="…">`) cujo link do IMDb é de obra ALEATÓRIA — medido, na página de
+   "Como Viajar com o Mala do seu Pai (2008)" o único `imdb.com/title/` é
+   `tt1959490` ("Refém (2005)", confirmado pelo `alt` da imagem). A regra de
+   unicidade do NerdFilmes (um tt só = o da obra) cairia nesse widget e gravaria
+   a obra ERRADA no acervo. Então `CrawlWorkResult.imdb` é **sempre `null`** e a
+   identificação é por título+ano, que é o caminho real deste site. O teste fixa
+   o caso com o fixture que tem o widget.
+3. **O magnet é DIRETO no post** (`<a href="magnet:?…&amp;dn=…">`, 1 a 3 por
+   página, sem salto de protetor) e o botão não tem TEXTO (imagem
+   `botao.png`): qualidade/fonte/áudio vêm do contexto do botão e o
+   `releaseTitle` do profile monta `[1080p BLURAY DUBLADO]`. O laço do núcleo
+   devolve a URI sem gastar rede quando a entrada já é `magnet:`, então **a
+   página de filme deste site custa 1 request**, contra "página + 1 por botão"
+   no NerdFilmes — e é o `requestCost` que diz isso ao motor. O título da
+   release é o MESMO do card vivo (inclusive o resíduo "GDRIVE" que o cleaner do
+   profile não conhece): quem limpa é o profile, com o `<h1>` CRU, e a suíte
+   fixa a string inteira para uma segunda limpeza no adaptador não criar uma
+   terceira régua.
+
+Descoberta: índice **Yoast** em `/sitemap_index.xml` (45 entradas: 27
+`post-sitemap*` + 2 `category-sitemap*` + 16 `post_tag-sitemap*`, filtrados pelo
+NOME do arquivo), **sem CDATA** (por isso o parser aceita os dois formatos) e
+`/sitemap.xml` como reserva (é 301 para o canônico). `post-sitemap.xml` tem
+1.001 entradas e a **primeira é a home `/`** — o índice de obra do site inclui a
+página inicial, e é a regra do caminho (`isWorkPath`, um segmento com barra
+final) que a recusa; os blocos trazem `image:loc`, que não é obra. Os 27
+`post-sitemap*` dão **22.631 obras de filme** (descoberta completa, 0 falhas,
+`requestCost` 28) — custo por rodada bem maior que o do NerdFilmes, e ele é
+contado no teto por hora como qualquer outro.
+
+**A sonda 40 mediu NO-GO, e o culpado era a régua de título** (2026-09-28).
+Primeira rodada: 40/40 válidas, 40/40 com release, 1,575 magnet/página e custo
+de 1 request/página (latência média 953 ms) — mas **25/40 = 62,5%** de
+identificação, cujo limite inferior de Wilson 95% (47,0%) ficou ABAIXO do alvo
+de 50%. O porquê não é do site: das 15 falhas, 8 eram vazamento da régua, nos
+quatro defeitos que a suíte agora fixa com o `<h1>` literal de cada uma —
+  - `ORPHAN_SEP_RE` exigia **dois** separadores seguidos (`(…)+`), e a forma
+    DOMINANTE do site é o separador ÚNICO cercado de espaço: "Deadpool – Rip"
+    e "Noturno / FULL" carregavam o "–" e o "/" para o nome;
+  - `Rip` (fonte, "Bluray Rip") e `FULL` (vitrine) sobreviviam: entram numa
+    lista **case-sensitive** própria, porque é a caixa que denuncia a vitrine
+    ("Mirrors" e "Full Metal Jacket" continuam de pé);
+  - o conector final "e" sobrava de "720p e 1080p" e "Dublado e Legendado"
+    (só o "e" FINAL sai — "Deuses e Monstros" não é tocado).
+Depois das correções: **29/40 = 72,5%**, limite inferior 57,2% ≥ 50% → **GO**,
+`classes` 29 identificada / 11 no-work, 0 tmdb-down, 0 erro, 0 fora do site,
+latência média 686 ms e p95 755 ms. As 11 que faltam são **limite do acervo e
+do catálogo, não da régua**: 4 `tmdb-sem-resultado` (três são post de
+SOFTWARE/CRACK — "Open Media Video Downloader Portable", "Windows Loader 2.2.1 –
+Ativador" — e duas obras raras que o TMDB não tem), 3 `pagina-sem-ano` (o site
+NÃO declara ano no `<h1>` dessas, e ano só sai de parênteses por decisão), 1
+`homonimo-ambiguo` ("Contra o Tempo" tem dois filmes de 2011 no catálogo — recusa
+correta: obra errada é pior que obra nenhuma), 2 `nome-sem-casamento` (título do
+catálogo diferente) e 1 `obra-sem-imdb` (entrada sem `imdb_id`).
+
+**A lição que fica para os outros sites**: a sonda 40 não mede só o site, mede a
+régua do adaptor também — e os 4 defeitos acima eram TODOS do meu lado, invisíveis
+para leitura de código. Foi a tabela por página (`reason` de cada uma, com o `<h1>`
+cru ao lado) que os isolou; a taxa agregada só dizia "62,5%".
 
 **Cursor carrega também quando o site liga DEPOIS do boot**
 (`crawl-cursor-load.ts`). Antes, só o `start()` com o motor ligado lia o
@@ -1941,14 +2054,30 @@ veredito gravado é a autorização de entrada na rotação. `--help` responde s
 carregar `config.ts`, sem abrir o `crawl.db` e sem resolver adaptador;
 flag desconhecida é erro, nunca é ignorada em silêncio.
 
-**As séries do NerdFilmes continuam desligadas**, e é uma decisão medida: o
-`discover` classifica `kind` **pelo slug** (`-1a-temporada-`, `temporada` ⇒
-`tv_show`; 13 das 40 páginas do recorte real), mas só emite `tv_show` em modo
-amostra (`createNerdfilmesCrawlSite(surface, { seriesProbe: true })`), que a
-fábrica do registry **nunca** liga. Season page chegando com `kind:'movie'`
-(linha antiga) é recusada antes de qualquer fetch: 14 magnets de episódio
-gravados como filme é obra errada no acervo. Sobe a liga depois que a amostra
-separar pack de episódio.
+**Séries no NerdFilmes, TorrentDosFilmes e ComandoTorrents entram pela opção de
+SÉRIES do painel** (`opts.series.enabled`, a mesma do Vaca; `seriesProbe` segue
+como passagem da sonda). O `kind` vem do slug; desligada, o `discover` não emite
+`tv_show` e o `fetchWork(kind:'tv_show')` é erro com zero rede; season page com
+`kind:'movie'` continua recusada. A premissa antiga ("não se separa pack de
+episódio") caiu na medição de 2026-09-28: o `dn=` declara episódio ou pack em 92
+de 97 botões no TorrentDosFilmes e 49 de 50 no ComandoTorrents, sem contradizer
+a temporada do post, e no NerdFilmes o episódio está no rótulo do botão (o `dn=`
+dele vinha CORTADO no primeiro espaço — o gate publica o magnet num `href` com
+espaço cru, consertado no `magnet-extract.ts`, o que valia também para filme e
+busca ao vivo). `season-page.ts` decide a locação de cada botão com a régua do
+Vaca (`declaredSeriesLocation` + `groupSeriesReleases`): `dn` > rótulo >
+temporada do post. O "E01" solto do Comando (título da release sem a temporada)
+é lido COM a temporada do post — sem isso o episódio caía no grupo da temporada
+inteira e aparecia como pack de todo episódio.
+
+**Identificação do post de temporada: o ano é o da TEMPORADA.** "Better Call Saul
+4ª Temporada (2018)" é de uma série de 2015, e o ±1 recusava toda temporada
+depois da primeira. Com `season ≥ 2`, a busca aceita série que estreou até o ano
+da página (+1), num teto de 40 anos (`seriesStartedBy`); temporada 1 mantém o ±1
+e homônimo na janela continua ambíguo (Arrow, The Fix). Medido em 36 temporadas
+reais: 33 identificadas, zero nome errado (conferido no TMDB). A ficha repetida
+no `alt` de imagem (valor colado no rótulo seguinte) e o ordinal com grau (`9°`)
+eram as duas perdas de nome restantes.
 
 **O card por site existe MESMO com o crawler desligado.** O `status` abre a
 engine quando ainda não há nenhuma e há site configurado (`statusEngine`): sem
