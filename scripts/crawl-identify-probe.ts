@@ -5,6 +5,7 @@
 // CRAWL_ENABLED=false):
 //
 //   npm run build && npm run probe:crawl-identify -- --sample=100
+//   npm run build && npm run probe:crawl-identify -- --sample=40 --series
 //
 // Garantias do desenho (as mesmas da Fase 1, mais o escopo da Fase 2):
 //   - NÃO grava nada: não importa o crawl-store, não abre o data/crawl.db,
@@ -22,6 +23,15 @@
 // entra na amostra e passa pelo identifyWork. Amostra = páginas com
 // identificação tentada (identified/unidentified/ambiguous); "unavailable"
 // (TMDB fora) é contado à parte e aborta a medição em série.
+//
+// `--series` liga a DESCOBERTA de série, com a mesma forma de opção que a outra
+// sonda usa (`{ enabled, maxCards, maxButtons }`, lida de `CRAWL_SERIES_*`):
+// sem ela, `discover` não emite `tv_show` e a varredura é só de filme. A
+// identificação CONTINUA sendo a de filme (esta sonda mede o casamento do
+// Vaca, e o `identifyWork` daqui é `{type:'movie'}`), então as URLs de série que
+// a descoberta trouxer são CONTADAS e puladas, nunca identifyWork por `movie` —
+// um post de temporada identifica por "Outer Banks 1ª Temporada" e a taxa
+// mediria um método que o motor nem usa para série.
 import config from '../src/config.js';
 import { createResolver } from '../resolvers/profiles/vacatorrent.js';
 import {
@@ -43,6 +53,14 @@ const MAX_PAGES = intArg('max-pages', SAMPLE_TARGET * 4);
 const DELAY_MS = intArg('delay-ms', config.crawl.delayMs);
 const PAGE_ERROR_ABORT = 10;   // site fora/desafio em série: a medição não tem valor
 const UNAVAILABLE_ABORT = 5;   // TMDB indisponível em série: idem
+// `--series` liga a descoberta de série. Os tetos vêm da MESMA config que o
+// motor usa (esta sonda mede o motor), com o piso de 1 do schema.
+const SERIES = process.argv.includes('--series');
+const SERIES_LIMITS = {
+  enabled: SERIES,
+  maxCards: Math.max(1, Math.trunc(config.crawl.seriesMaxCards)),
+  maxButtons: Math.max(1, Math.trunc(config.crawl.seriesMaxButtons)),
+};
 
 /** Instância do perfil na MESMA config do carregador embutido — mas SEM
  * createServer/listen (nenhuma porta abre) e SEM warm(): a sonda é um
@@ -89,14 +107,24 @@ async function main(): Promise<void> {
   const site = createVacaCrawlSite(surface);
 
   console.log(`[sonda] descoberta do sitemap (${new URL(surface.siteSelector.url()).hostname})…`);
-  const discovery = await site.discover(null);
+  // A opção de séries viaja EXPLÍCITA: sem ela o `discover` não emite `tv_show`
+  // e a linha seguinte diria "N URLs" contando só filme sem dizer que pediu
+  // série. `series.enabled` é o portão; os tetos vêm da config viva.
+  const discovery = await site.discover(null, { series: SERIES_LIMITS });
+  const deSerie = discovery.urls.filter((entry) => entry.kind === 'tv_show');
+  const deFilme = discovery.urls.length - deSerie.length;
   console.log(
-    `[sonda] ${discovery.urls.length} URLs de filme descobertas `
+    `[sonda] ${discovery.urls.length} URLs descobertas `
+    + `(${deFilme} de filme, ${deSerie.length} de série${SERIES ? '' : ' — séries desligadas'}) `
     + `(complete=${discovery.complete}, falhas=${discovery.failures.length})`,
   );
+  if (deSerie.length) {
+    console.log(`[sonda] ${deSerie.length} URL(s) de série NAO entram na amostra: `
+      + 'esta sonda mede a identificação de filme.');
+  }
 
   const counters: Record<string, number> = {
-    comImdbAncorado: 0, semTitulo: 0, erroPagina: 0,
+    comImdbAncorado: 0, semTitulo: 0, erroPagina: 0, foraDaAmostra: deSerie.length,
     identified: 0, unidentified: 0, ambiguous: 0, unavailable: 0,
   };
   const rows: SampleRow[] = [];
@@ -109,6 +137,9 @@ async function main(): Promise<void> {
     if (pages >= MAX_PAGES) { stop = 'teto de páginas'; break; }
     if (counters.unavailable >= UNAVAILABLE_ABORT) { stop = 'TMDB indisponível em série'; break; }
     if (consecutivePageErrors >= PAGE_ERROR_ABORT) { stop = 'site fora/desafio em série'; break; }
+    // Série descoberta NÃO é amostra de filme: pular aqui é o que mantém a taxa
+    // medindo o método que o motor usa no caminho de filme.
+    if (entry.kind !== 'movie') { counters.foraDaAmostra += 1; continue; }
 
     pages += 1;
     let html: string;
@@ -140,7 +171,8 @@ async function main(): Promise<void> {
   console.log('\n=== Resumo da sonda de identificação (Fase 2, Vaca) ===');
   console.log(`páginas baixadas: ${pages} · paradas por: ${stop || 'fim da descoberta'}`);
   console.log(`fora da amostra: ${counters.comImdbAncorado} com IMDb ancorado · `
-    + `${counters.semTitulo} sem título (layout) · ${counters.erroPagina} com erro de página`);
+    + `${counters.semTitulo} sem título (layout) · ${counters.erroPagina} com erro de página · `
+    + `${counters.foraDaAmostra} de série (${SERIES ? '--series' : 'séries desligadas'})`);
   console.log(`amostra (sem IMDb, identificadas): ${sampled}`);
   console.log(`  acertos (identified):   ${counters.identified}`);
   console.log(`  null (unidentified):    ${counters.unidentified}`);

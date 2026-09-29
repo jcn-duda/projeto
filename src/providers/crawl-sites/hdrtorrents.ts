@@ -37,13 +37,22 @@
 // (`seriesProbe`); sem as duas, `discover()` não emite `tv_show` e
 // `fetchWork(kind:'tv_show')` é erro com ZERO rede.
 //
+// O portão também entra na IDENTIDADE do cursor de listagem
+// (`crawl-listing-series.ts`), e é a parte que fecha o ciclo: a listagem é
+// MISTA, então com séries desligadas a página é lida, a URL de série é
+// descartada (`listing-discover.ts`) e a página é consumida pelo cursor do
+// mesmo jeito. Sem o marcador, a âncora declararia cobertura de série que
+// ninguém tem, e ligar séries depois não recuperaria nada. Inverter o portão
+// descarta o cursor: a próxima rodada recomeça da página 1.
+//
 // Travas herdadas: host safety em toda URL derivada de conteúdo do site; o
 // `fetchText` do profile é o caminho com FlareSolverr do próprio profile (o
 // site responde 200 direto, então ele não aciona); erro carrega o custo
 // medido (F1, `withRequestCost`).
 import config from '../../config.js';
 import { instance } from '../../br-resolvers.js';
-import { loadListingCursor, saveListingCursor, startListingCursor } from '../crawl-cursor.js';
+import { startListingCursor } from '../crawl-cursor.js';
+import { loadListingCursorForSeries, saveListingCursorForSeries } from '../crawl-listing-series.js';
 import type {
   CrawlDiscoverOptions, CrawlDiscovery, CrawlPageKind, CrawlPageOptions,
   CrawlReleaseGroup, CrawlSite, CrawlWorkResult,
@@ -65,10 +74,14 @@ export interface HdrtorrentsCard {
   type: 'Filme' | 'Série' | 'Desenho' | null;
 }
 
-/** Link de magnet do profile, no recorte que o adaptador usa. */
+/** Link de magnet do profile, no recorte que o adaptador usa. `quality` é
+ *  NÚMERO, como no contrato compartilhado do resolver (`ResolverLink`): o
+ *  profile classifica a faixa (`normalizeQuality`) e o `releaseTitle` é quem a
+ *  escreve no rótulo — o adaptador nunca lê o campo, e declará-lo como texto
+ *  aqui só obrigaria quem constrói a superfície a mentir com um cast. */
 export interface HdrtorrentsLink {
   url: string;
-  quality: string | null;
+  quality: number | null;
   size: string | null;
   audio: string | null;
   description?: string | null;
@@ -201,28 +214,44 @@ export function createHdrtorrentsCrawlSite(
 
     async discover(_since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
       const seriesEnabled = seriesProbe || opts?.series?.enabled === true;
-      const primary: CrawlPageKind = seriesEnabled && opts?.sinceByKind?.tv_show != null
-        ? 'tv_show'
-        : 'movie';
+      // Uma listagem só, com UM cursor — o tipo de cada card vem do próprio card
+      // (badge e slug), e `defaultKind` cobre o card sem tipo declarado. Já
+      // houve um ramo que trocava o kind do cursor para `tv_show` quando havia
+      // cursor de série: ele nunca era verdadeiro (esta listagem não publica
+      // data, então o cursor de série nunca era gravado) e, se fosse, partiria
+      // a MESMA listagem em dois cursores — cada um leria o acervo inteiro por
+      // conta própria. `movie` é a identidade da listagem; o portão de séries
+      // entra pelo marcador, em `loadListingCursorForSeries`.
+      const listingKind: CrawlPageKind = 'movie';
       const now = Date.now();
-      const cursor = loadListingCursor(SITE_ID, primary, LISTING_PATH)
-        ?? startListingCursor(SITE_ID, primary, LISTING_PATH, now);
+      const cursor = loadListingCursorForSeries(SITE_ID, listingKind, LISTING_PATH, seriesEnabled)
+        ?? startListingCursor(SITE_ID, listingKind, LISTING_PATH, now);
       const walk = await walkListing({
         readPage: readListing,
         expectedPerPage: CARDS_PER_PAGE,
         budget: { maxPagesPerRound: config.crawl.listingMaxPagesPerRound },
         seriesEnabled,
-        defaultKind: primary,
+        defaultKind: listingKind,
         cursor,
         now,
       });
       // O cursor de listagem é durável: sem esta gravação a próxima rodada
-      // releria a página 1 e a varredura nunca passaria da vigésima.
-      if (walk.pagesConsumed > 0) saveListingCursor(walk.cursor);
+      // releria a página 1 e a varredura nunca passaria da vigésima. O marcador
+      // do portão viaja junto (`crawl-listing-series.ts`) — é ele que faz a
+      // inversão do portão recomeçar a varredura em vez de pular o acervo de
+      // série que a rodada anterior leu e descartou.
+      if (walk.pagesConsumed > 0) saveListingCursorForSeries(walk.cursor, seriesEnabled);
       return {
         urls: walk.urls,
         complete: walk.complete,
         failures: walk.failures,
+        // A listagem é a MESMA fonte dos dois kinds (a página é mista), então a
+        // completude é uma só. Com séries desligadas ela cobre só o que foi
+        // emitido: as URLs de série foram lidas e DESCARTADAS, logo `tv_show`
+        // sai `false` em vez de `true` — é a afirmação honesta, e o valor é
+        // inerte hoje de qualquer modo (sem `lastmod`, o cursor de série não
+        // anda mesmo; `advanceCursors` exige um `max`).
+        completeByKind: { movie: walk.complete, tv_show: seriesEnabled ? walk.complete : false },
         // Custo REAL: as requisições que a rodada fez ao site, incluindo a
         // página que falhou (o request saiu). É o que o teto por hora cobra.
         requestCost: walk.requests,

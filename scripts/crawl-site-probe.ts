@@ -90,12 +90,14 @@ if (flagGate.unknown.length) {
 const [
 
   { default: config },
-  { vacaSurface, nerdSurface, tdfSurface, comandoSurface, redetorrentSurface },
+  { vacaSurface, nerdSurface, tdfSurface, comandoSurface, redetorrentSurface, bludvSurface, hdrSurface },
   { createVacaCrawlSite },
   { createNerdfilmesCrawlSite },
   { createTorrentdosfilmesCrawlSite },
   { createComandotorrentsCrawlSite },
   { createRedetorrentCrawlSite },
+  { createBludvCrawlSite },
+  { createHdrtorrentsCrawlSite },
   { processCrawlPage },
   { instance },
   store,
@@ -112,6 +114,8 @@ const [
   import('../src/providers/crawl-sites/torrentdosfilmes.js'),
   import('../src/providers/crawl-sites/comandotorrents.js'),
   import('../src/providers/crawl-sites/redetorrent.js'),
+  import('../src/providers/crawl-sites/bludv.js'),
+  import('../src/providers/crawl-sites/hdrtorrents.js'),
   import('../src/providers/crawl-page.js'),
   import('../src/br-resolvers.js'),
   import('../src/utils/crawl-store.js'),
@@ -131,7 +135,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
  * processo já a carregou. Fora dela, a superfície é construída direto do
  * profile; é aqui que entra o site NOVO (uma linha por site, sem `listen`).
  *
- * `seriesProbe` é o portão da AMOSTRA de série: o NerdFilmes publica série por
+ * `seriesProbe` é o portão da AMOSTRA de série: os sites BR publicam série por
  * post de temporada, e o `discover` só emite `tv_show` quando a rodada pede
  * série. A produção NUNCA liga isso (a fábrica do registry não passa a opção);
  * aqui é o que permite medir ≥10 páginas de série sem ligar as séries do site.
@@ -157,6 +161,17 @@ async function resolveSite(siteId: string, series: boolean): Promise<CrawlSite |
   // com o id do card e a superfície direto é o caminho da sonda.
   if (siteId === 'redetorrent-cardigann') {
     return createRedetorrentCrawlSite(redetorrentSurface(), { seriesProbe: series });
+  }
+  // Os dois adapts novos (Fase 8) entram pelo MESMO caminho direto e pela MESMA
+  // ponte por NOME: `instance()` é indexado pelo nome do profile, então o id do
+  // card nunca casa com ele. Sem estas linhas a sonda — o PORTÃO de entrada do
+  // site na rotação — não roda para os dois. `ensureSite` fica de fora de
+  // propósito: ele viria pela instância embutida, que não existe neste processo.
+  if (siteId === 'bludv-cardigann') {
+    return createBludvCrawlSite(bludvSurface(), { seriesProbe: series });
+  }
+  if (siteId === 'hdrtorrent-cardigann') {
+    return createHdrtorrentsCrawlSite(hdrSurface(), { seriesProbe: series });
   }
   return null;
 }
@@ -322,9 +337,11 @@ async function main(): Promise<void> {
   }
   const site = await resolveSite(opts.site, opts.series);
   if (!site) {
+    // Só os sites com SUPERFÍFIE DIRETA (segundo caminho do `resolveSite`); o
+    // `apachetorrent-cardigann` fica de fora porque a tabela ainda o marca sem adaptador.
     console.error(`sem adaptador para "${opts.site}" neste processo: a sonda conhece `
-      + 'vacatorrent, nerdfilmes, torrentdosfilmesv2, comandotorrents e redetorrent-cardigann '
-      + '(superfície direta) e qualquer site com instância embutida carregada.');
+      + 'vacatorrent, nerdfilmes, torrentdosfilmesv2, comandotorrents, redetorrent-cardigann, '
+      + 'bludv-cardigann e hdrtorrent-cardigann (superfície direta) e qualquer site com instância embutida carregada.');
     process.exit(1);
   }
 

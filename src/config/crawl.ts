@@ -49,7 +49,10 @@ export const crawl = () => ({
   // não se distingue de "site sem série". O custo é o que a chave existe para
   // controlar: série multiplica requisições (página → cards de temporada →
   // botões → protetores), e quem não quiser pagar isso põe `CRAWL_SERIES_ENABLED=false`
-  // explicitamente (o painel também desliga ao vivo, por site ou global).
+  // explicitamente (o painel também desliga ao vivo, mas SÓ no global: o
+  // override por site é um subset fechado de chaves em `SITE_OVERRIDE_KEYS`
+  // (`crawler-live-site.ts`), e `seriesEnabled` não está nele — pedir série por
+  // site é decisão de produto, não portada aqui).
   seriesEnabled: String(process.env.CRAWL_SERIES_ENABLED || 'true') === 'true',
   // Teto de cards de temporada visitados por página de série.
   seriesMaxCards: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_CARDS, 10))),

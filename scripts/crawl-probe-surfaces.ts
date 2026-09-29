@@ -7,11 +7,15 @@ import { createResolver as createNerdfilmesResolver } from '../resolvers/profile
 import { createResolver as createTorrentdosfilmesResolver } from '../resolvers/profiles/torrentdosfilmes.js';
 import { createResolver as createComandotorrentsResolver } from '../resolvers/profiles/comandotorrents.js';
 import { createResolver as createRedetorrentResolver } from '../resolvers/profiles/redetorrent.js';
+import { createResolver as createBludvResolver } from '../resolvers/profiles/bludv.js';
+import { createResolver as createHdrtorrentsResolver } from '../resolvers/profiles/hdrtorrents.js';
 import type { VacaResolverSurface } from '../src/providers/crawl-sites/vaca.js';
 import type { NerdfilmesResolverSurface } from '../src/providers/crawl-sites/nerdfilmes.js';
 import type { TorrentdosfilmesResolverSurface } from '../src/providers/crawl-sites/torrentdosfilmes.js';
 import type { ComandotorrentsResolverSurface } from '../src/providers/crawl-sites/comandotorrents.js';
 import type { RedetorrentResolverSurface } from '../src/providers/crawl-sites/redetorrent.js';
+import type { BludvResolverSurface } from '../src/providers/crawl-sites/bludv.js';
+import type { HdrtorrentsResolverSurface } from '../src/providers/crawl-sites/hdrtorrents.js';
 
 function selfUrl(port: number): string {
   return `http://${config.resolvers.host}:${port}`;
@@ -69,5 +73,35 @@ export function redetorrentSurface(): RedetorrentResolverSurface {
     selfUrl: selfUrl(port),
     siteUrl: config.resolvers.redetorrentUrl || undefined,
     extraProtectors: config.resolvers.extraProtectors,
+  });
+}
+
+/**
+ * Card `bludv-cardigann`, profile `bludv` — mesma ponte por NOME dos dois
+ * acima (o id do card não existe no profile), e o MESMO caminho direto, sem
+ * `listen`. Sem esta linha a sonda — que é o PORTÃO de entrada do site na
+ * rotação — não roda para o BLUDV e o site fica sem veredito possível.
+ */
+export function bludvSurface(): BludvResolverSurface {
+  const port = config.resolvers.ports.bludv + config.resolvers.portOffset;
+  return createBludvResolver({
+    port,
+    selfUrl: selfUrl(port),
+    siteUrl: config.resolvers.bludvUrl || undefined,
+    extraProtectors: config.resolvers.extraProtectors,
+  });
+}
+
+/**
+ * Card `hdrtorrent-cardigann`, profile `hdrtorrents` — terceira via do mesmo
+ * caminho (superfície direta). Este site não usa FlareSolverr (medido 2026-09-29,
+ * responde 200 direto), então a sonda nem aciona o browser.
+ */
+export function hdrSurface(): HdrtorrentsResolverSurface {
+  const port = config.resolvers.ports.hdrtorrents + config.resolvers.portOffset;
+  return createHdrtorrentsResolver({
+    port,
+    selfUrl: selfUrl(port),
+    siteUrl: config.resolvers.hdrtorrentsUrl || undefined,
   });
 }
