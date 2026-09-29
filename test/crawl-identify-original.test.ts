@@ -71,6 +71,14 @@ describe('parseOriginalTitle: o span do NerdFilmes', () => {
     assert.equal(parseOriginalTitle('<img alt="Titulo Original: Peaky Blinders IMDb: 8,8/10 Gênero: Crime Lançamento S06: 2022" />'), 'Peaky Blinders');
     // Nome que CONTÉM palavra de rótulo sem `:` fica inteiro.
     assert.equal(parseOriginalTitle('<b>Título Original:</b> The Audio Diaries<br />'), 'The Audio Diaries');
+    // Comando (2026-09-29): "Título Brasileiro:" e "Produtores:" também são
+    // rótulo de ficha colado. "Ano" SOZINHO não entra: sem borda de palavra, ele
+    // cortaria um original como "The Piano: …" no "ano:".
+    assert.equal(
+      parseOriginalTitle('<b>Título Original:</b> The Powerpuff GirlsTítulo Brasileiro: As Meninas SuperpoderosasProdutores: Hanna-Barbera<br />'),
+      'The Powerpuff Girls',
+    );
+    assert.equal(parseOriginalTitle('<b>Título Original:</b> The Piano: Lessons<br />'), 'The Piano: Lessons');
   });
 
   test('o span do NerdFilmes vence a ficha quando os dois existem', () => {

@@ -64,7 +64,7 @@ const NOISE_RES: readonly RegExp[] = [
     + String.raw`|temporadas?\s+(?:complet[ao]s?|inteiras?))`,
     'gi',
   ),
-  /\bmini\s*s[ée]ries?\b/gi,
+  /\bmini\s*s{1,2}[ée]ries?\b/gi,
   // Faixa de ANOS entre parênteses ("Homeland … (2011-2020)", BLUDV): é o
   // período da série publicada inteira, nunca nome. O ano da página sai da
   // ficha; sem esta regra sobrava "(2011 2020)" no nome.
@@ -77,12 +77,12 @@ const NOISE_RES: readonly RegExp[] = [
   //    `rip` em minúscula também não: no `<h1>` ele só aparece dentro de
   //    "WebRip"/"BRRip", que a regra já pega — e é por isso que `Rip` MAIÚSCULO
   //    é regra separada (abaixo). "DVD-R Oficial" é o disco, não o nome.
-  /\b(?:blu[\s-]?ray|bd[\s-]?rip|br[\s-]?rip|web[\s-]?dl|web[\s-]?rip|dvd[\s-]?rip|dvd[\s-]?scr|webcam|hdtv|hd[\s-]?ts|cam[\s-]?rip|remux)\b/gi,
+  /\b(?:blu[\s-]?ray|bd[\s-]?rip|br[\s-]?rip|web[\s-]?dl|web[\s-]?rip|dvd[\s-]?rip|dvd[\s-]?scr|webcam|hdtv|tv[\s-]?rip|hd[\s-]?rip|hd[\s-]?ts|cam[\s-]?rip|remux)\b/gi,
   /\b3d\s*[-–]?\s*(?:half[\s-]?)?(?:h[\s-]?sbs|sbs|h?[\s-]?ou|tab)\b/gi,
   /\bdvd[\s-]?r\b(?:\s+oficial)?/gi,
   // 3. Canais de áudio ("5.1", "5.1CH", "6ch", "2.0") e marcas de faixa.
   /\b\d[\s.,]?\d?\s*(?:ch|canais?)\b/gi,
-  /\b(?:5\.1|7\.1|7\.2|2\.0|ddp|atmos)\b/gi,
+  /\b(?:5\.1|7\.1|7\.2|2\.0|ddp|atmos|dts|x26[45]|h\.?26[45]|hevc)\b/gi,
   // 4. Legenda fixa ("O Regresso / Legendas Fixas em Português", Comando): a
   //    frase inteira, antes da regra de palavra solta, que só tira "legenda".
   /(?:^|\s)legendas?\s+(?:fixas|embutidas)(?:\s+em\s+portugu[eê]s)?/gi,

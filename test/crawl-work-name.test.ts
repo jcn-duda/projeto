@@ -93,6 +93,12 @@ describe('work-name: a lista de ordinais do post que AGREGA temporadas', () => {
     ['The Walking Dead 1ª à 11ª Temporada (2021)', 'The Walking Dead', 2021],
     ['Os Simpsons 1ª à 33ª Temporada (2021)', 'Os Simpsons', 2021],
     ['Vikings 1ª a 6ª Temporada (2013)', 'Vikings', 2013],
+    // Comando (2026-09-29, sem obra por sobra no nome): fonte, codec e a
+    // "Minissérie" com dois "s", que a regra de "Mini Série" não pegava.
+    ['Blood TVRip (2006)', 'Blood', 2006],
+    ['Animais Fantásticos e Onde Habitam HDRip (2017)', 'Animais Fantásticos e Onde Habitam', 2017],
+    ['A Very English Scandal Minissérie (2018)', 'A Very English Scandal', 2018],
+    ['Mr. Robot 1080p x265 HEVC DTS (2015)', 'Mr. Robot', 2015],
     // BLUDV (2026-09-29): a faixa com AGUDO e o "Todas Temporadas" sem o "as".
     ['Dexter 1ª á 8ª Temporada (2006)', 'Dexter', 2006],
     ['Elite Histórias Breves Todas Temporadas Torrent (2021) WEB-DL 720p/1080p Dublado', 'Elite Histórias Breves', 2021],

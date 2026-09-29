@@ -91,7 +91,7 @@ export function parseOriginalTitle(html: string): string | null {
 
 // Rótulo de ficha seguido de `:` (com o "S06" de "Lançamento S06:"). Sem borda de palavra
 // na frente de propósito: no `alt` o rótulo vem COLADO no nome ("SimpsonsLançamento").
-const FICHA_NEXT_LABEL_RE = /\s*(?:IMDb|(?:Ano\s+de\s+)?Lan(?:[çc]|&ccedil;)amento|G[êe]nero|Formato|Qualidade|Idioma|[ÁA]udio|Legenda|Tamanho|Dura[çc][ãa]o)\s*(?:S\d+\s*)?:.*$/i;
+const FICHA_NEXT_LABEL_RE = /\s*(?:IMDb|(?:Ano\s+de\s+)?Lan(?:[çc]|&ccedil;)amento|G[êe]nero|Formato|Qualidade|Idioma|[ÁA]udio|Legenda|Tamanho|Dura[çc][ãa]o|T[íi]tulo\s+Brasileiro|Produtor(?:es|a)?|Diretor(?:es)?|Dire[çc][ãa]o|Elenco|Pa[íi]s)\s*(?:S\d+\s*)?:.*$/i;
 // O valor para na tag OU na aspa: dentro de um atributo (`alt="…"`) a aspa é o fim.
 const FICHA_ORIGINAL_RE = /T(?:[íi]|&iacute;|&#237;)tulo\s+Original\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*:?\s*(?:<\/?(?:b|strong|span)\b[^>]*>\s*)*([^<"]{1,200})/i;
 
