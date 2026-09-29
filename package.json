@@ -202,6 +202,7 @@
     "test/dashboard-actions.test.js",
     "test/dashboard-actions-magnet.test.js",
     "test/dashboard-magnet-bank.test.js",
+    "test/magnet-bank-transfer.test.js",
     "test/debrid-operator-account.test.js",
     "test/deadline.test.js",
     "test/debrid-avail.test.js",

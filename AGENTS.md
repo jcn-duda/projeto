@@ -726,6 +726,31 @@ poll repete a mesma foto sem pagar `COUNT/MAX/GROUP BY` por ciclo. Na aba Saúde
 cada indexer mostra `MEM N` (`fallback.indexer.<id>` acumulado desde o boot) — é
 HISTÓRICO de cobertura, não o estado online.
 
+**Cópia de segurança do banco (card na aba Magnets).** `GET /magnet-bank-export`
+devolve o acervo inteiro num `.ndjson.gz` (cabeçalho `{"t":"meta","format":
+"adom-magnet-bank","v":1}` + uma linha por magnet/fonte/obra, `t`=`m`/`s`/`w`) e
+`POST /magnet-bank-import` recebe o mesmo arquivo e **MESCLA** — nunca substitui
+(decisão do operador, 2026-09-29): datas nas pontas, seeders máximos,
+`is_br`/`dubbed`/`lied` só sobem, URI só troca por outra mais rica; importar de
+novo não muda nada e nada local é apagado. O caso de uso é pane de disco na VPS
+e levar o acervo da VPS para o Docker local. Travas
+(`src/routes/magnet-bank-transfer.ts` + `src/utils/magnet-bank-transfer.ts`):
+mesmo token no header, mas **fora do gate de diagnóstico** (que admite uma
+operação por vez — segurá-lo minutos deixaria o poll do painel em 429) e com
+trava própria (uma transferência por processo, a segunda é 409); fora do
+`/dashboard-action.json` (JSON de 4 KB) porque é arquivo em fluxo; cabeçalho
+obrigatório (arquivo de outro formato/versão é 400 sem gravar nada); registro
+validado linha a linha (hash, `imdb`, URI que não é `magnet:` vira vazia) e
+fonte/obra sem o magnet é rejeitada em vez de virar órfã; teto de bytes
+DESCOMPACTADOS `MAGNET_BANK_IMPORT_MAX_BYTES` (2 GiB). O import grava em lotes
+de 200 magnets (uma transação cada) e devolve a vez ao event loop entre lotes:
+medido no Docker do Windows (volume montado, fsync lento), lote de 500 travava
+o processo até 647 ms. Números reais (2026-09-29): 41 mil magnets = 9 MB de
+arquivo, export em 3–13 s; import do mesmo arquivo em 3,4 s em disco do
+container e ~45–55 s no volume montado do Windows, com a busca ao vivo
+respondendo durante (2,5 s contra 1,6 s sem import). Lote já gravado fica se a
+importação falhar no meio — a mescla é idempotente, reimportar termina.
+
 Limitações honestas: o contador `MEM`/`fallback.indexer.<id>` zera no restart; o
 banco cresce para sempre (sem TTL/cota — é acervo, por desenho) e vive no volume
 `/app/data`, então o rebuild do container o preserva; a engine de MEMÓRIA

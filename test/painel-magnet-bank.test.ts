@@ -358,3 +358,18 @@ test('wiring: app entrega o bloco magnetBank à aba Magnets', async () => {
   const { VITAL_BLOCKS } = await import('../src/client/painel/poll.js');
   assert.ok(VITAL_BLOCKS.includes('magnetBank'), 'o poll carrega o bloco do banco vivo');
 });
+
+test('cópia de segurança: nome do arquivo vem do servidor e o resumo diz o que foi mesclado', async () => {
+  const { fileNameFrom, importSummary } = await import('../src/client/painel/bank-transfer.js');
+  assert.equal(fileNameFrom('attachment; filename="adom-magnets-20260929-1530.ndjson.gz"'), 'adom-magnets-20260929-1530.ndjson.gz');
+  assert.equal(fileNameFrom(null), 'adom-magnets.ndjson.gz');
+  const text = importSummary({
+    ok: true, lines: 10, rejected: 2, ms: 1500,
+    magnets: { read: 5, inserted: 3, merged: 2 }, sources: { read: 3, inserted: 1, merged: 2 }, works: { read: 0, inserted: 0, merged: 0 },
+  });
+  assert.match(text, /3 magnet\(s\) novo\(s\), 2 já existia/);
+  assert.match(text, /2 linha\(s\) rejeitada\(s\)/);
+  // O módulo novo e o card entram na allowlist dos assets do painel.
+  assert.ok(CLIENT_ASSETS.includes('client/painel/bank-transfer.js'));
+  assert.ok(CLIENT_ASSETS.includes('client/painel/view-bank-transfer.js'));
+});

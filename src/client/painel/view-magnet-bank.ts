@@ -15,6 +15,7 @@ import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber } from './kit.js';
 import { useAction, actionError } from './action.js';
 import { formatBytes } from './fmt.js';
+import { BankTransferCard } from './view-bank-transfer.js';
 import {
   BANK_SEARCH_RESULT_MAX,
   magnetBankSummary,
@@ -211,15 +212,22 @@ export function ViewMagnetBank({ magnetBank }: ViewMagnetBankProps) {
     });
   };
 
+  // A cópia de segurança fica na CASCA (tem estado próprio); o corpo
+  // `MagnetBankView` segue sem hooks e testável direto.
   return html`
-    <${MagnetBankView}
-      magnetBank=${magnetBank}
-      query=${query}
-      onQuery=${setQuery}
-      onSearch=${handleSearch}
-      pending=${pending}
-      feedback=${feedback}
-      result=${result}
-    />
+    <div>
+      <${MagnetBankView}
+        magnetBank=${magnetBank}
+        query=${query}
+        onQuery=${setQuery}
+        onSearch=${handleSearch}
+        pending=${pending}
+        feedback=${feedback}
+        result=${result}
+      />
+      <div class="painel-grid" style="margin-top: var(--space-4);">
+        <${BankTransferCard} />
+      </div>
+    </div>
   `;
 }

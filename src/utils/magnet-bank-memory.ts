@@ -158,6 +158,13 @@ export function memoryEngine(
       const out = [...magnets.values()].sort((a, b) => b.lastSeen - a.lastSeen);
       return out.slice(0, limit);
     },
+    // Página por hash para o EXPORT: sem `touch` — varrer o acervo inteiro não
+    // é uso, e promover tudo a MRU embaralharia o LRU.
+    listMagnetsAfter(after, limit) {
+      const from = h(after);
+      return [...magnets.keys()].filter((k) => k > from).sort().slice(0, limit)
+        .map((k) => magnets.get(k) as MagnetRow);
+    },
     searchMagnetsByTitle(variants, limit) {
       // `.includes` é LITERAL: `%`/`_`/`\` não têm semântica de curinga aqui —
       // mesma leitura do SQL, que escapa os três com `ESCAPE '\'`. Aplicar o

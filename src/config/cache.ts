@@ -96,6 +96,11 @@ export const magnetBank = () => {
     // ciclo. O memo serve a MESMA foto por esta janela — invalidado a cada
     // escrita efetiva (flush) e no reset. 0 desliga (recalcula a cada leitura).
     statusTtlMs: Math.max(0, num(process.env.MAGNET_BANK_STATUS_TTL_MS, 60000)),
+    // Teto do arquivo de IMPORTAÇÃO do painel, em bytes DESCOMPACTADOS (o que
+    // o servidor processa). O import é em fluxo e mescla em lotes, então o
+    // teto não é memória: é o limite de um upload que ninguém pediu. 2 GiB
+    // cabe um acervo ~20× o da VPS medido em 2026-09-29 (90 MB).
+    importMaxBytes: Math.max(1024, num(process.env.MAGNET_BANK_IMPORT_MAX_BYTES, 2 * 1024 ** 3)),
     /** Fallback quando o indexer falha (Etapa 4). */
     fallbackEnabled: String(process.env.MAGNET_BANK_FALLBACK || 'true') !== 'false',
     // Teto por indexer falho (1..40). O item de fallback é reserva; acima disso a

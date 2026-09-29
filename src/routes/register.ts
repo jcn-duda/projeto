@@ -2,6 +2,7 @@ import express from 'express';
 import { makePublicHandlers } from './public.js';
 import { makeDiagnosticHandlers } from './diagnostics.js';
 import { makeResolveHandler } from './resolve.js';
+import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
@@ -16,6 +17,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   const publicHandlers = makePublicHandlers(services);
   const diagnosticHandlers = makeDiagnosticHandlers(services);
   const resolveHandler = makeResolveHandler(services);
+  const bankTransfer = makeMagnetBankTransferHandlers(services);
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.get('/logo.svg', (_req, res) => res.sendFile(services.publicPath('logo.svg')));
@@ -49,6 +51,10 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/debrid-status.json', diagnosticHandlers.debridStatus);
   app.get('/stream-trace.json', diagnosticHandlers.streamTrace);
+  // Export/import do banco de magnets vivo: ARQUIVO em fluxo, sem body-parser
+  // (o handler lê o `req` direto) — ver routes/magnet-bank-transfer.ts.
+  app.get('/magnet-bank-export', bankTransfer.exportBank);
+  app.post('/magnet-bank-import', bankTransfer.importBank);
   app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({ origin: originOf(req) }, () => next()));
@@ -73,6 +79,8 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // DEPOIS do middleware de decode: o opts() do handler é o da instalação, e
   // é isso que faz a chave derivada bater com a da busca daquele install.
   app.get('/:userConfig/stream-trace.json', diagnosticHandlers.streamTrace);
+  app.get('/:userConfig/magnet-bank-export', bankTransfer.exportBank);
+  app.post('/:userConfig/magnet-bank-import', bankTransfer.importBank);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', makeAddonRouter(addonInterface));
 }

@@ -65,6 +65,8 @@ export interface Engine {
   listWorksMany(hashes: readonly string[]): WorkRow[];
   /** Magnets mais recentes (busca vazia do painel, limitada). */
   listRecentMagnets(limit: number): MagnetRow[];
+  /** Página do acervo em ordem de hash, depois de `after` (export em fluxo). */
+  listMagnetsAfter(after: string, limit: number): MagnetRow[];
   /**
    * Magnets cujo título contém QUALQUER uma das variantes (mais recentes).
    * A fachada manda as variantes de caixa (original/lower/upper) para o LIKE
@@ -164,6 +166,8 @@ function sqliteEngine(dbPath: string): Engine | null {
     );
     const listSourcesIndexerStmt = db.prepare('SELECT * FROM magnet_source WHERE indexer = ? ORDER BY last_seen DESC LIMIT ?');
     const recentMagnetsStmt = db.prepare('SELECT * FROM magnet ORDER BY last_seen DESC LIMIT ?');
+    // Keyset pela PK: cada página é um range scan, nunca OFFSET (que relê tudo).
+    const afterMagnetsStmt = db.prepare('SELECT * FROM magnet WHERE hash > ? ORDER BY hash LIMIT ?');
     // Busca por título com OR de 1..3 variantes (original/lower/upper). O LIKE
     // do SQLite só faz casefold ASCII; variar a caixa da QUERY fecha o acento
     // (`É`/`é`) sem coluna normalizada nova. `IS`/placeholders fixos por aridade.
@@ -235,6 +239,7 @@ function sqliteEngine(dbPath: string): Engine | null {
       listSourcesMany(hashes) { return many('magnet_source', hashes).map(parseSource); },
       listWorksMany(hashes) { return many('magnet_work', hashes).map(parseWork); },
       listRecentMagnets(limit) { return all(recentMagnetsStmt, limit).map(parseMagnet); },
+      listMagnetsAfter(after, limit) { return all(afterMagnetsStmt, String(after || '').toLowerCase(), limit).map(parseMagnet); },
       searchMagnetsByTitle(variants, limit) {
         const list = (variants.length > 0 ? variants : ['']).slice(0, 3);
         const patterns = list.map(likePattern);
