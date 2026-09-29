@@ -2,13 +2,14 @@
 // profile `redetorrent`; a ponte entre os dois nomes é este arquivo, o mesmo
 // padrão do `torrentdosfilmesv2`↔`torrentdosfilmes`).
 //
-// O motor cuida de fila, ritmo e gravação; aqui só existem as duas respostas do
-// contrato `CrawlSite`: `discover()` (índice AIOSEO → `movies-sitemap*.xml` /
-// `tvshows-sitemap.xml` → obras com lastmod e tipo pelo caminho) e `fetchWork()`
-// (post → tabela `tbl-mv-list` → magnet), sempre pelo resolver JÁ CARREGADO
-// (`br-resolvers.instance`). As regras puras estão em
-// `redetorrent-discovery.ts`; a medição que justifica cada escolha está no
-// cabeçalho daquele arquivo e aqui embaixo, sem repetir.
+// O motor cuida de fila, ritmo e gravação; aqui mora a LEITURA DA PÁGINA
+// (`fetchWork`: post → tabela `tbl-mv-list` → magnet) e a delegação da
+// descoberta, sempre pelo resolver JÁ CARREGADO (`br-resolvers.instance`). A
+// descoberta em si (índice AIOSEO → `movies-sitemap*.xml` /
+// `tvshows-sitemap*.xml` → obras com lastmod e tipo pelo caminho) está em
+// `redetorrent-discover.ts`; as regras puras em `redetorrent-discovery.ts`; a
+// medição que justifica cada escolha está nos cabeçalhos daqueles arquivos e
+// aqui embaixo, sem repetir.
 //
 // ── O QUE ESTE SITE É DIFERENTE (2026-09-28, medido via FlareSolverr) ────────
 //
@@ -20,10 +21,16 @@
 //     ÚNICA diferença de transporte, e ela é do SITE — não uma escolha de
 //     economia de CPU.
 //
-//  2. O SITEMAP CHEGA COMO HTML, NÃO COMO XML. O FlareSolverr devolve o
-//     visualizador XML do Chromium: uma tabela renderizada, sem nenhum `<loc>`.
-//     O parser das linhas é o de `redetorrent-discovery.ts`; aqui não há
-//     `<sitemap>`/`<url>` para casar.
+//  2. O SITEMAP CHEGA EM DOIS FORMATOS, E O PARSER LÊ OS DOIS. O AIOSEO é XML
+//     cru com `<loc>` em CDATA, e o FlareSolverr às vezes devolve o VISUALIZADOR
+//     XML do Chromium (tabela HTML, zero `<loc>`) — a mesma rota alterna entre
+//     os dois conforme a sessão do browser, e a PRIMEIRA renderização de uma
+//     sessão fria paga o XSL (medido em 2026-09-29: `/sitemap.xml` respondeu
+//     `HTML/32311` e depois `XML/15337` nas três seguintes). Ler só um deles
+//     devolve 0 URL em metade das rodadas, em silêncio, com `complete: true` —
+//     daí a detecção por conteúdo (`sitemapShape`) e a exigência de FALHA
+//     quando nenhum dos dois casa. A medição está no cabeçalho de
+//     `redetorrent-discovery.ts`.
 //
 //  3. A PÁGINA DE OBRA CUSTA 1 REQUISIÇÃO. O magnet é DIRETO na tabela
 //     `tbl-mv-list` do post (`<a href="magnet:?xt=urn:btih:…">`), sem salto de
@@ -61,16 +68,12 @@
 import type { RawItem } from '../../../types/domain.js';
 import type { ParsedResolverLink } from '../../../resolvers/types.js';
 import type { ReleaseTitleInput, ReleaseTitlePost } from '../../../resolvers/release-format.js';
-import type {
-  CrawlDiscovery, CrawlPageKind, CrawlPageOptions, CrawlSite, CrawlWorkResult, CrawlDiscoverOptions, DiscoveredUrl,
-} from '../crawl-types.js';
+import type { CrawlPageOptions, CrawlSite, CrawlWorkResult } from '../crawl-types.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { magnetHash, parseOriginalTitle, withRequestCost } from './shared.js';
-import {
-  isSeriesSitemap, isWorkPath, kindFromPath, parseImdbId, parseSitemapIndexLocs, parseSitemapRows,
-  SITEMAP_INDEX_PATHS, toWorkUrl, workTitleYear,
-} from './redetorrent-discovery.js';
+import { createRedetorrentDiscoverer } from './redetorrent-discover.js';
+import { isWorkPath, kindFromPath, parseImdbId, workTitleYear } from './redetorrent-discovery.js';
 
 /**
  * Recorte da instância do profile que o adaptador consome. Declarar a
@@ -153,122 +156,16 @@ export function createRedetorrentCrawlSite(
     return surface.assertAllowedUrl(value);
   }
 
-  /**
-   * Índice de sitemaps: o canônico que o `robots.txt` declara (`/sitemap.xml`,
-   * AIOSEO) e o nome Yoast como reserva. Precisa renderizar ao menos um
-   * `movies-sitemap*`/`tvshows-sitemap*` para valer como resposta — o índice do
-   * site tem 96 entradas e só 8 são de obra, então "veio HTML" não basta.
-   */
-  async function readSitemapIndex(onRequest: () => void): Promise<string> {
-    const base = surface.siteSelector.url();
-    const failures: string[] = [];
-    for (const p of SITEMAP_INDEX_PATHS) {
-      const url = new URL(p, base).href;
-      try {
-        const html = await surface.fetchText(url, undefined, { onRequest });
-        if (parseSitemapIndexLocs(html, base, (h) => surface.isDetailHost(h)).length) return html;
-        failures.push(`${url}: nenhum sitemap de obra no índice`);
-      } catch (err) {
-        failures.push(`${url}: ${log.errorMessage(err)}`);
-      }
-    }
-    throw new Error(`redetorrent-cardigann: índice de sitemaps ilegível (${failures.join(' | ')})`);
-  }
-
-  /**
-   * Um `movies-sitemap*`/`tvshows-sitemap*.xml`: as obras (URL + lastmod +
-   * kind pelo caminho). O corte incremental é POR KIND (`sinceOf`) — o tipo de
-   * uma página vem do caminho, e os cursores de filme e de série andam
-   * separados para um não cortar o outro.
-   */
-  async function readWorkSitemap(
-    loc: string,
-    sinceOf: (kind: CrawlPageKind) => string | null,
-    onRequest: () => void,
-  ): Promise<DiscoveredUrl[]> {
-    const html = await surface.fetchText(loc, undefined, { onRequest });
-    const out: DiscoveredUrl[] = [];
-    for (const row of parseSitemapRows(html)) {
-      // Loc de post é INPUT do site: `/filmes/`, `/series/`, `/genero/…`,
-      // `/page/N/` e qualquer host de fora saem aqui, sem virar requisição.
-      const href = toWorkUrl(row.url, loc, (h) => surface.isDetailHost(h));
-      if (!href) continue;
-      const kind = kindFromPath(href);
-      // Incremental: lastmod ≤ since já foi processado (o upsert do store é
-      // idempotente, então o filtro é economia, não correção). Lastmod
-      // ILEGÍVEL entra — não se perde obra por ruído de data, e inventar data
-      // seria pior (cursor do motor anda para o lado errado).
-      const since = sinceOf(kind);
-      if (since) {
-        const t = Date.parse(row.lastmod);
-        const floor = Date.parse(since);
-        if (Number.isFinite(t) && Number.isFinite(floor) && t <= floor) continue;
-      }
-      out.push({ url: href.href, lastmod: row.lastmod, kind });
-    }
-    return out;
-  }
-
   return {
     id: SITE_ID,
     label: TRACKER_LABEL,
 
-    async discover(since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
-      if (opts?.series?.enabled === true) {
-        log.warn('[crawl] redetorrent-cardigann: séries ligadas na config, mas o post de série cobre MAIS DE UMA '
-          + 'temporada (medido: "Fallout 1ª 2ª Temporada (2025)", "Temporadas: 2") — segue FORA do motor até a '
-          + 'amostra separar pack de temporada');
-      }
-      // Só o MODO AMOSTRA emite `tv_show`. Sem ele a lista é de filmes e o
-      // cursor de série não anda (sem URL do kind, `advanceCursors` não acha
-      // `max`) — é o mesmo `true` que os outros sites declaram.
-      const emitSeries = seriesProbe;
-      const sinceByKind = opts?.sinceByKind;
-      const sinceOf = (kind: CrawlPageKind): string | null => (
-        sinceByKind && Object.prototype.hasOwnProperty.call(sinceByKind, kind)
-          ? (sinceByKind[kind] ?? null)
-          : (since ?? null)
-      );
-      // Custo REAL da rodada (F3, por chamada): índice + um fetch por sitemap de
-      // obra. Sem isto a descoberta entraria de graça no teto por hora, que é
-      // de requisições. O solve do FlareSolverr NÃO soma — ele é o mesmo
-      // acesso, dentro da chamada contada.
-      const counter = { n: 0 };
-      const countRequest = () => { counter.n += 1; };
-      const base = surface.siteSelector.url();
-      const indexHtml = await readSitemapIndex(countRequest);
-      const sitemaps = parseSitemapIndexLocs(indexHtml, base, (h) => surface.isDetailHost(h));
-      if (!sitemaps.length) throw new Error('redetorrent-cardigann: nenhum sitemap de obra no índice');
-      // Séries desligadas pulam o ARQUIVO de série inteiro: ele é separado dos
-      // filmes (ao contrário do `post-sitemap` misto dos outros sites), então
-      // buscá-lo seria uma requisição por rodada para URLs que o portão
-      // recusaria na fila.
-      const planned = emitSeries ? sitemaps : sitemaps.filter((loc) => !isSeriesSitemap(loc));
-      // Sequencial (constraint crawl.search_isolation): um pedido por vez.
-      // Sitemap que falha não derruba a rodada — vira descoberta PARCIAL, e o
-      // cursor não avança por cima do que ficou nos arquivos perdidos.
-      const all: DiscoveredUrl[] = [];
-      const failures: string[] = [];
-      for (const loc of planned) {
-        try {
-          all.push(...await readWorkSitemap(loc, sinceOf, countRequest));
-        } catch (err) {
-          failures.push(`${loc}: ${log.errorMessage(err)}`);
-          log.warn(`[crawl] redetorrent-cardigann: sitemap falhou (${loc}):`, log.errorMessage(err));
-        }
-      }
-      if (planned.length && !all.length && failures.length === planned.length) {
-        throw new Error('redetorrent-cardigann: todos os sitemaps de obra falharam');
-      }
-      const complete = failures.length === 0;
-      return {
-        urls: emitSeries ? all : all.filter((u) => u.kind === 'movie'),
-        complete,
-        failures,
-        completeByKind: { movie: complete, tv_show: emitSeries ? complete : true },
-        requestCost: counter.n,
-      };
-    },
+    // A descoberta mora em `redetorrent-discover.ts` (índice → sitemaps de obra
+    // → URLs com lastmod e tipo pelo caminho): é a metade "para cima" do
+    // adaptador, e as duas já não cabiam no mesmo arquivo. Ela é montada uma
+    // vez por instância porque carrega o aviso de série e a política de falha
+    // que segura o cursor do crawler.
+    discover: createRedetorrentDiscoverer(surface, seriesProbe),
 
     async fetchWork(url: string, pageOpts?: CrawlPageOptions): Promise<CrawlWorkResult> {
       const season = pageOpts?.kind === 'tv_show';

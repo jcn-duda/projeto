@@ -155,6 +155,7 @@
     "test/crawl-scheduler.test.js",
     "test/dashboard-actions-crawl.test.js",
     "test/crawl-redetorrent.test.js",
+    "test/crawl-redetorrent-sitemap.test.js",
     "test/crawl-redetorrent-series.test.js",
     "test/client-esm.test.js",
     "test/operator-env-account.test.js",

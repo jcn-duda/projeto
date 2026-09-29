@@ -1,23 +1,27 @@
-// Adaptador de raspagem do RedeTorrent contra o SITEMAP AIOSEO medido (2026-09-28,
-// via FlareSolverr) e os posts já commitados do resolver. A diferença que
-// organiza o arquivo: o FlareSolverr devolve o VISUALIZADOR XML do Chromium, e
-// não XML — não existe `<loc>` no corpo, a URL vive no `href` da coluna
-// esquerda e o `lastmod` vem como `16 de September de 2026` + `17:56`.
+// O ADAPTADOR do RedeTorrent: tipo pelo caminho, nome e IMDb da página, o
+// `discover` (índice → sitemaps → URLs) e o `fetchWork` (post → tabela
+// `tbl-mv-list` → magnet), contra o que foi medido em 2026-09-28/29 no site real
+// via FlareSolverr e os posts já commitados do resolver.
 //
-// Fetch dublê: zero rede, zero crawl.db. A amostra de temporada mora em
-// `crawl-redetorrent-series.test.ts`.
+// O que NÃO mora aqui é a leitura do sitemap em si (os DOIS formatos que o
+// endpoint alterna, o `lastmod` de cada um e a regra de "vazio é falha"): é a
+// suíte `crawl-redetorrent-sitemap.test.ts`, que fecha o bug do `urls: []` com
+// `complete: true`. Aqui o sitemap é dublê e entra só pelo `discover`.
+//
+// Fetch dublê: zero rede, zero crawl.db, zero FlareSolverr. A amostra de
+// temporada está em `crawl-redetorrent-series.test.ts`.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { redetorrentCrawlSite } from '../src/providers/crawl-sites/redetorrent.js';
 import {
   isSeriesSitemap, isWorkPath, isWorkSitemap, kindFromPath, parseImdbId,
-  parseRenderedLastmod, parseSitemapIndexLocs, toWorkUrl, workTitleYear,
+  parseRenderedLastmod, toWorkUrl, workTitleYear,
 } from '../src/providers/crawl-sites/redetorrent-discovery.js';
 import type { CrawlPageOptions } from '../src/providers/crawl-types.js';
 import {
   MOVIE, OFFSITE, SERIES, SITE,
-  fixture, pageRoutes, postFixture, site, withStub,
+  extraSlugs, pageRoutes, postFixture, site, viewerDoc, viewerRow, withStub,
 } from './helpers/crawl-redetorrent-fixtures.js';
 
 const slugsOf = (urls: { url: string }[]): string[] =>
@@ -25,11 +29,9 @@ const slugsOf = (urls: { url: string }[]): string[] =>
 /** Só o host do site é aceito (dublê do `isDetailHost` do profile). */
 const isSiteHost = (h: string | null): boolean => h === 'www.redetorrent.xyz' || h === 'redetorrent.com';
 
-/** Linha da tabela renderizada, no molde exato do visualizador do Chromium. */
-const row = (url: string, date: string, time: string): string =>
-  `<tr><td class="left"><a href="${url}">${url}</a></td><td><div class="date">${date}</div><div class="time">${time}</div></td></tr>`;
-const viewer = (...rows: string[]): string =>
-  `<html><head><title>Sitemap</title></head><body><table class="xml-tree"><tbody>${rows.join('')}</tbody></table></body></html>`;
+/** FORMATO B do sitemap: linha da tabela renderizada e o documento que a cerca. */
+const row = viewerRow;
+const viewer = viewerDoc;
 
 describe('crawl-sites/redetorrent: tipo pelo caminho', () => {
   test('/series/ é série e /filmes/ é filme; o resto não é obra nenhuma', () => {
@@ -79,33 +81,6 @@ describe('crawl-sites/redetorrent: lastmod do visualizador', () => {
   });
 });
 
-describe('crawl-sites/redetorrent: leitura do sitemap renderizado', () => {
-  test('o índice só entrega os 8 sitemaps de obra, dedupe e sem host alheio', () => {
-    const locs = parseSitemapIndexLocs(fixture('sitemap-index.html'), SITE, isSiteHost);
-    assert.deepEqual(locs.map((l) => new URL(l).pathname), [
-      '/movies-sitemap.xml', '/movies-sitemap2.xml', '/movies-sitemap3.xml', '/movies-sitemap4.xml',
-      '/movies-sitemap5.xml', '/movies-sitemap6.xml', '/movies-sitemap7.xml', '/tvshows-sitemap.xml',
-    ]);
-    assert.ok(locs.every((l) => l.startsWith(SITE)), 'nenhum host alheio sobrevive');
-  });
-
-  test('o mesmo loc duas vezes na tabela vira uma linha só', () => {
-    const html = viewer(
-      row(`${SITE}/movies-sitemap.xml`, '16 de September de 2026', '17:56'),
-      row(`${SITE}/movies-sitemap.xml`, '16 de September de 2026', '17:56'),
-    );
-    assert.deepEqual(parseSitemapIndexLocs(html, SITE, isSiteHost), [`${SITE}/movies-sitemap.xml`]);
-  });
-
-  test('a página de sitemap só vira fila no caminho de obra do site', () => {
-    const loc = `${SITE}/movies-sitemap.xml`;
-    assert.equal(toWorkUrl(`${SITE}/filmes/coringa/`, loc, isSiteHost)?.pathname, '/filmes/coringa/');
-    for (const bad of [`${SITE}/filmes/`, `${SITE}/series/`, `${SITE}/genero/acao/`, `${OFFSITE}/filmes/x/`, 'lixo']) {
-      assert.equal(toWorkUrl(bad, loc, isSiteHost), null, bad);
-    }
-  });
-});
-
 describe('crawl-sites/redetorrent: título e IMDb', () => {
   test('o <h1> termina no ano, que é a forma da régua compartilhada', () => {
     const coringa = workTitleYear(postFixture('post-coringa-delirio.html'));
@@ -144,7 +119,7 @@ describe('crawl-sites/redetorrent: discover', () => {
       assert.equal(disc.requestCost, 8);
       assert.deepEqual(slugsOf(disc.urls), [
         'filmes/coringa-delirio-a-dois', 'filmes/coringa', 'filmes/batman-a-mascara-do-fantasma',
-        'filmes/injustice', 'filmes/lego-batman-o-filme',
+        'filmes/injustice', 'filmes/lego-batman-o-filme', ...extraSlugs(),
       ]);
       assert.ok(disc.urls.every((u) => u.kind === 'movie'));
       assert.deepEqual(disc.completeByKind, { movie: true, tv_show: true });
@@ -177,6 +152,7 @@ describe('crawl-sites/redetorrent: discover', () => {
       const disc = await site().discover(null, { sinceByKind: { movie: '2025-01-01T00:00:00Z' } });
       assert.deepEqual(slugsOf(disc.urls), [
         'filmes/coringa-delirio-a-dois', 'filmes/coringa', 'filmes/injustice', 'filmes/lego-batman-o-filme',
+        ...extraSlugs(),
       ]);
       const semData = disc.urls.filter((u) => !u.lastmod).map((u) => new URL(u.url).pathname);
       assert.deepEqual(semData, ['/filmes/injustice/', '/filmes/lego-batman-o-filme/']);
@@ -188,7 +164,7 @@ describe('crawl-sites/redetorrent: discover', () => {
     async (stub) => {
       const disc = await site().discover();
       assert.equal(disc.complete, true);
-      assert.equal(disc.urls.length, 5);
+      assert.equal(disc.urls.length, 11);
       assert.ok(stub.calls.some((c) => c.url.includes('/sitemap.xml')));
       assert.ok(stub.calls.some((c) => c.url.includes('/sitemap_index.xml')));
     },
@@ -209,8 +185,12 @@ describe('crawl-sites/redetorrent: discover', () => {
       assert.equal(disc.complete, false);
       assert.equal(disc.failures.length, 1);
       assert.match(disc.failures[0], /movies-sitemap3\.xml/);
-      assert.equal(disc.urls.length, 5, 'os outros arquivos ainda valem');
-      assert.equal(disc.completeByKind?.tv_show, true, 'sem amostra o cursor de série não anda');
+      assert.equal(disc.urls.length, 10, 'os outros arquivos ainda valem');
+      assert.deepEqual(
+        disc.completeByKind,
+        { movie: false, tv_show: true },
+        'o kind do ARQUIVO que falhou é que sai false; sem amostra o de série não anda',
+      );
     },
   ));
 

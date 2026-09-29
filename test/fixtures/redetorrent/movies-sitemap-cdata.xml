@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FORMATO A — XML CRU do AIOSEO, o que o MESMO endpoint devolve depois que a
+  sessão do Chromium do FlareSolverr já carregou o XSL (medido em 2026-09-29:
+  `/movies-sitemap.xml` → `XML/308220` em 4 chamadas seguidas, e `HTML/390513`
+  na 1ª de uma sessão fria). O oposto de `movies-sitemap.html`, que é o
+  FORMATO B (tabela do visualizador) — e as DUAS fixtures carregam os MESMOS
+  locs, nas MESmas datas, para o contrato ser provado por igualdade: é o
+  mesmo endpoint, então a descoberta tem de devolver a mesma lista.
+
+  O que este arquivo fixa do parser:
+   - `<loc>`/`<lastmod>` COM CDATA (o AIOSEO escreve assim) e SEM CDATA
+     (linhas 6 e 7 abaixo) — o site pode trocar de plugin de SEO sem aviso, e o
+     parser não pode quebrar no dia da troca;
+   - o `lastmod` do site é ISO 8601 de verdade (`2026-09-28T19:32:39+00:00`
+     medido em produção), com fuso — o caminho BOM, porque a data chega como o
+     site a escreveu;
+   - `0000-00-00` e `<lastmod>` vazio continuam sendo data ILEGÍVEL (`''`), e a
+     URL ENTRA: inventar data seria pior que data ausente, porque o cursor do
+     motor anda a partir dela;
+   - o `<image:loc>` do AIOSEO (a capa do post) NUNCA vira loc da página — ele
+     está no bloco da linha 1, e a linha 1 continua sendo a obra;
+   - linha 10: o MESMO slug sem barra final, e a linha 11: host alheio — as
+     duas saem pela régua de caminho/host, igual na tabela.
+
+  As 5 primeiras linhas são as mesmas do arquivo em formato B, com a data
+  equivalente (`6 de February of 2026` + `14:22` ≡ `2026-02-06T14:22:00+00:00`).
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/filmes/coringa-delirio-a-dois/]]></loc>
+    <lastmod><![CDATA[2026-02-06T14:22:00+00:00]]></lastmod>
+    <changefreq><![CDATA[weekly]]></changefreq>
+    <priority><![CDATA[0.7]]></priority>
+    <image:image>
+      <image:loc><![CDATA[https://www.redetorrent.xyz/wp-content/uploads/2026/02/coringa-delirio-a-dois.jpg]]></image:loc>
+      <image:title><![CDATA[Coringa: Delírio a Dois]]></image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/filmes/coringa/]]></loc>
+    <lastmod><![CDATA[2025-03-02T10:05:00+00:00]]></lastmod>
+  </url>
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/filmes/batman-a-mascara-do-fantasma/]]></loc>
+    <lastmod><![CDATA[2024-01-11T08:41:00+00:00]]></lastmod>
+  </url>
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/filmes/injustice/]]></loc>
+    <lastmod><![CDATA[0000-00-00]]></lastmod>
+  </url>
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/filmes/lego-batman-o-filme/]]></loc>
+    <lastmod></lastmod>
+  </url>
+  <url>
+    <loc>https://www.redetorrent.xyz/filmes/</loc>
+    <lastmod>2026-09-16T17:50:00+00:00</lastmod>
+  </url>
+  <url>
+    <loc>https://www.redetorrent.xyz/series/</loc>
+    <lastmod>2026-09-16T17:50:00+00:00</lastmod>
+  </url>
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/genero/acao/]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:49:00+00:00]]></lastmod>
+  </url>
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/page/2/]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:49:00+00:00]]></lastmod>
+  </url>
+  <url>
+    <loc><![CDATA[https://www.redetorrent.xyz/filmes/coringa]]></loc>
+    <lastmod><![CDATA[2025-03-02T10:05:00+00:00]]></lastmod>
+  </url>
+  <url>
+    <loc><![CDATA[https://filmes-exemplo-spam.test/filmes/coringa/]]></loc>
+    <lastmod><![CDATA[2026-09-16T17:56:00+00:00]]></lastmod>
+  </url>
+</urlset>

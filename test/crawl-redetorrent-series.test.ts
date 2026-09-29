@@ -24,10 +24,11 @@ describe('crawl-sites/redetorrent: modo amostra de série', () => {
         'https://www.redetorrent.xyz/series/casa-do-dragao/',
         'https://www.redetorrent.xyz/series/breaking-bad/',
       ]);
-      // 5 do `movies-sitemap` + a linha `/filmes/coringa/` que o
-      // `tvshows-sitemap` traz: quem classifica é o CAMINHO, não o nome do
-      // arquivo (e o upsert do store é idempotente, então a repetição some).
-      assert.equal(disc.urls.filter((u) => u.kind === 'movie').length, 6);
+      // 5 do `movies-sitemap` + os 6 arquivos sintéticos em XML (2..7) + a linha
+      // `/filmes/coringa/` que o `tvshows-sitemap` traz: quem classifica é o
+      // CAMINHO, não o nome do arquivo (e o upsert do store é idempotente,
+      // então a repetição some).
+      assert.equal(disc.urls.filter((u) => u.kind === 'movie').length, 12);
       // índice + 7 movies + 1 tvshows: o arquivo de série SÓ é lido na amostra.
       assert.equal(disc.requestCost, 9);
       assert.deepEqual(disc.completeByKind, { movie: true, tv_show: true });

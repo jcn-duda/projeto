@@ -1,8 +1,9 @@
 // Dublês do adaptador RedeTorrent. Os POSTS são os HTML já commitados do
 // resolver (`test/fixtures/redetorrent/`), lidos atrás do `stubFetch`; o
-// SITEMAP é fixture desta mesma pasta e reproduz o VISUALIZADOR XML do
-// Chromium (o que o FlareSolverr devolve, medido em 2026-09-28 — tabela
-// renderizada, zero `<loc>`).
+// SITEMAP é fixture desta mesma pasta e existe nos DOIS formatos que o site
+// devolve (medido em 2026-09-29 pelo FlareSolverr): XML CRU do AIOSEO (com
+// `<loc>` em CDATA, `*.xml-cdata.xml`) e o VISUALIZADOR XML do Chromium
+// (tabela renderizada, zero `<loc>`, `*.html`).
 //
 // O dublê é mais ESTRITO que o do ComandoTorrents de propósito: aqui o magnet é
 // direto no HTML do post, então NÃO existe salto de protetor a servir. Qualquer
@@ -33,6 +34,34 @@ export const fixture = (name: string): string => fs.readFileSync(path.join(FIX, 
  *  post é o mesmo que o card vivo consome, e duplicá-lo seria uma terceira
  *  versão do mesmo HTML). */
 export const postFixture = fixture;
+
+// ── MOLDES DE SITEMAP (os DOIS formatos que o site devolve) ──────────────────
+// Ficam aqui, e não no arquivo de teste, porque as duas suítes (a do adaptador e
+// a dos formatos) montam linha nos dois formatos e uma cópia divergiria em
+// silêncio — que é exatamente a classe de bug que esta suíte existe para pegar.
+
+/** FORMATO B: uma linha da tabela do visualizador XML do Chromium. A data é o
+ *  que o browser renderiza: `16 de September de 2026` (locale inglês, com o "de"
+ *  português no meio) + `17:56`. */
+export const viewerRow = (url: string, date: string, time: string): string =>
+  `<tr><td class="left"><a href="${url}">${url}</a></td>`
+  + `<td><div class="date">${date}</div><div class="time">${time}</div></td></tr>`;
+
+/** FORMATO B: o documento inteiro (a tabela renderizada). */
+export const viewerDoc = (...rows: string[]): string =>
+  '<html><head><title>Sitemap</title></head><body><table class="xml-tree"><tbody>'
+  + `${rows.join('')}</tbody></table></body></html>`;
+
+/** FORMATO A: um bloco `<url>` do AIOSEO, com CDATA (é assim que o site
+ *  escreve) — `lastmod` em ISO 8601 de verdade, com fuso. */
+export const xmlRow = (url: string, lastmod: string): string =>
+  `<url><loc><![CDATA[${url}]]></loc><lastmod><![CDATA[${lastmod}]]></lastmod></url>`;
+
+/** FORMATO A: o documento inteiro. Sem linha alguma, é `<urlset/>` vazio — o
+ *  formato reconhecido sem entrada, que a descoberta tem de tratar como falha. */
+export const xmlDoc = (...rows: string[]): string =>
+  '<?xml version="1.0" encoding="UTF-8"?>'
+  + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${rows.join('')}</urlset>`;
 
 export type Route = () => string | { status: number; body: string };
 
@@ -66,16 +95,37 @@ export function stubRoutes(routes: Record<string, Route>): FetchStub {
   });
 }
 
-/** As 8 rotas que a descoberta real percorre: índice + 7 de filme + 1 de série. */
+/**
+ * Um `movies-sitemap*.xml` SINTÉTICO em FORMATO A (XML cru, CDATA) com UMA
+ * obra. É o que serve os arquivos 2..7 do acervo: a descoberta precisa LER os
+ * sete (um por requisição no teto por hora) e, desde que "sitemap sem entrada"
+ * passou a ser FALHA, nenhum deles pode responder vazio. São slugs de teste
+ * declarados como tal — o acervo real está em `movies-sitemap.html`.
+ */
+export function extraMovieSitemap(n: number): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n`
+    + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+    + `<url><loc><![CDATA[${SITE}/filmes/exemplo-sitemap${n}/]]></loc>`
+    + `<lastmod><![CDATA[2026-0${n}-1${n}T09:00:00+00:00]]></lastmod></url>`
+    + '</urlset>';
+}
+
+/** Slugs sintéticos dos arquivos 2..7, na ordem em que a descoberta os lê. */
+export const extraSlugs = (): string[] => [2, 3, 4, 5, 6, 7].map((n) => `filmes/exemplo-sitemap${n}`);
+
+/**
+ * As 8 rotas que a descoberta real percorre: índice + 7 de filme + 1 de série.
+ *
+ * `pageRoutes()` serve o índice e o primeiro `movies-sitemap` no FORMATO B
+ * (tabela, o recorte real) e os outros seis no FORMATO A — a descoberta
+ * atravessa os dois caminhos em toda rodada, e `pageRoutesXml()` entrega os
+ * MESMOS arquivos todos em XML cru para o teste de igualdade entre formatos.
+ */
 export function pageRoutes(extra: Record<string, Route> = {}): Record<string, Route> {
   const movies: Record<string, Route> = {};
-  // O acervo real tem 7 arquivos `movies-sitemap*` (1.000 URLs cada, 6.737 no
-  // total). Só o primeiro traz linhas; os outros entram VAZIOS de propósito —
-  // a descoberta precisa LER os sete (um por requisição no teto por hora), e
-  // os testes só precisam saber o que o primeiro devolve.
   for (let i = 1; i <= 7; i += 1) {
     const name = i === 1 ? 'movies-sitemap.xml' : `movies-sitemap${i}.xml`;
-    movies[`/${name}`] = () => fixture(i === 1 ? 'movies-sitemap.html' : 'movies-sitemap-vazio.html');
+    movies[`/${name}`] = () => (i === 1 ? fixture('movies-sitemap.html') : extraMovieSitemap(i));
   }
   return {
     '/sitemap.xml': () => fixture('sitemap-index.html'),
@@ -88,12 +138,25 @@ export function pageRoutes(extra: Record<string, Route> = {}): Record<string, Ro
   };
 }
 
-export async function withStub(
+/** As mesmas 8 rotas, com índice e `movies-sitemap.xml` em FORMATO A (XML cru
+ *  com CDATA) — o gêmeo medido do `movies-sitemap.html`. */
+export function pageRoutesXml(extra: Record<string, Route> = {}): Record<string, Route> {
+  return {
+    ...pageRoutes(extra),
+    '/sitemap.xml': () => fixture('sitemap-index-cdata.xml'),
+    '/sitemap_index.xml': () => fixture('sitemap-index-cdata.xml'),
+    '/movies-sitemap.xml': () => fixture('movies-sitemap-cdata.xml'),
+  };
+}
+
+/** Devolve o que `fn` devolveu (o teste de igualdade entre os dois formatos
+ *  precisa do `CrawlDiscovery`, não só do efeito colateral). */
+export async function withStub<T>(
   routes: Record<string, Route>,
-  fn: (stub: FetchStub) => Promise<void>,
-): Promise<void> {
+  fn: (stub: FetchStub) => Promise<T>,
+): Promise<T> {
   const stub = stubRoutes(routes);
-  try { await fn(stub); } finally { stub.restore(); }
+  try { return await fn(stub); } finally { stub.restore(); }
 }
 
 export const site = () => createRedetorrentCrawlSite(resolverSurface());
