@@ -1,8 +1,9 @@
 // MODO AMOSTRA de temporada do NerdFilmes (Fase 8) contra o fixture REAL de
 // página de temporada (`post-series.html`, /lanternas-1a-temporada-2026/ — 14
 // botões, um por episódio/qualidade). Suíte separada da de `crawl-nerdfilmes`
-// porque mede um PORTÃO: enquanto a amostra não separa pack de temporada de
-// episódio, abrir a season page no motor é 14 magnets gravados como filme.
+// porque mede a página de TEMPORADA: ela entra no motor com a opção de séries
+// ligada ou no modo amostra, e cada botão nasce na locação que o `dn`/rótulo
+// declara (`season-page.ts`) — nunca 14 magnets gravados como filme.
 //
 // O que cada teste fixa:
 //   os 14 botões e o que saiu deles  `buttons`/`buttonsFollowed` são o
@@ -11,8 +12,8 @@
 //                                   seguiu), e o release sai com `E01` no
 //                                   título — a EVIDÊNCIA de que este site
 //                                   publica POR EPISÓDIO;
-//   sem `groups`                    afirmar `season/episode` antes disso seria
-//                                   o chute que o portão existe para evitar;
+//   `groups` por locação            o botão "E01" nasce em S1E1, e o nome sai
+//                                   sem "1ª Temporada" (é o que o TMDB conhece);
 //   teto de botões                  a régua é a página de 14 botões; um outlier
 //                                   não vira 200 requests no teto por hora;
 //   independência de series.enabled  o estado real do motor hoje é `false` e a
@@ -47,8 +48,9 @@ describe('crawl-sites/nerdfilmes: modo amostra de temporada (seriesProbe)', () =
       const result = await probeSite().fetchWork(SERIES, { kind: 'tv_show' });
       assert.equal(result.status, 'done');
       assert.equal(result.type, 'series', 'a página é lida como série, não como filme');
-      assert.equal(result.title, 'Lanternas 1ª Temporada');
+      assert.equal(result.title, 'Lanternas', 'o nome da SÉRIE: o TMDB não conhece "Lanternas 1ª Temporada"');
       assert.equal(result.year, 2026);
+      assert.equal(result.season, 1, 'a temporada do post vai para a identificação');
       assert.equal(result.imdb, null, 'o site não publica IMDb: identificação é por título+ano');
       assert.equal(result.releases?.length, 1, 'mesmo hash nos 14 botões = 1 release');
       assert.equal(result.requestCost, 15, 'página + 14 saltos de gate, medido por hop');
@@ -66,13 +68,12 @@ describe('crawl-sites/nerdfilmes: modo amostra de temporada (seriesProbe)', () =
       assert.deepEqual(pathsOf(stub), ['/lanternas-1a-temporada-2026/', ...Array(14).fill('/link.php')]);
     }));
 
-  test('sem `groups`: a amostra não afirma a locação de cada botão', () => withStub(
+  test('`groups`: o botão E01 nasce em S1E1, nunca na raiz da série', () => withStub(
     pageRoutes({ [SERIES]: () => fixture('post-series.html') }),
     async () => {
-      // Afirmar `season: 1, episode: null` antes de a amostra distinguir pack de
-      // temporada de avulso seria a CHUTE que o portão existe para evitar.
       const result = await probeSite().fetchWork(SERIES, { kind: 'tv_show' });
-      assert.equal(result.groups, undefined, 'locação por botão continua sem prova');
+      const groups = (result.groups ?? []).map((g) => ({ season: g.season, episode: g.episode, n: g.releases.length }));
+      assert.deepEqual(groups, [{ season: 1, episode: 1, n: 1 }]);
     },
   ));
 

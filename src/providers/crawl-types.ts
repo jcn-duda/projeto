@@ -176,6 +176,8 @@ export interface CrawlWorkResult {
   year?: number | null;
   /** Título original que o post declara (2º nome da identificação); só quem publica. */
   originalTitle?: string | null;
+  /** Temporada que a página declara (post de temporada); a identificação usa. */
+  season?: number | null;
   type?: 'movie' | 'series';
   /** Releases válidas extraídas, no MESMO formato de item cru da busca. */
   releases?: RawItem[];

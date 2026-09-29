@@ -5,11 +5,12 @@
 // As regras puras ficam em `comandotorrents-discovery.ts`.
 //
 // PORTÃO DE SÉRIE. O sitemap é misto: slug com "temporada" é página que
-// mistura episódio avulso e pack. Rotular pelo slug não basta:
-//   1. `discover()` só EMITE `tv_show` em modo amostra (`seriesProbe`);
-//   2. `fetchWork(kind:'tv_show')` sem amostra é erro e ZERO rede;
-//   3. página de temporada pedida como filme também é recusada.
-// `opts.series.enabled` não abre a porta: só registra o aviso.
+// mistura episódio avulso e pack. Ela entra no motor com a opção de SÉRIES
+// ligada (`opts.series.enabled`, a mesma do Vaca) ou no modo amostra
+// (`seriesProbe`); sem as duas, `discover()` não a emite e o `fetchWork` é
+// erro com zero rede. O `dn=` declara episódio ou pack em 49 de 50 botões
+// (medido 2026-09-28) e cada botão nasce na locação dele (`season-page.ts`).
+// Página de temporada pedida como filme continua recusada.
 //
 // Travas: host do site em toda URL derivada do sitemap; fetch direto sem
 // FlareSolverr; descoberta parcial não derruba a rodada; erro carrega o
@@ -24,6 +25,8 @@ import type {
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { magnetHash, parseOriginalTitle, withRequestCost } from './shared.js';
+import { pageSeasonOf, seasonPageGroups } from './season-page.js';
+import { h1Text } from './work-name.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseImdbId, parseSitemapEntries,
   parseSitemapIndexLocs, SITEMAP_INDEX_PATHS, toWorkUrl, workTitleYear,
@@ -156,11 +159,7 @@ export function createComandotorrentsCrawlSite(
     label: TRACKER_LABEL,
 
     async discover(since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
-      if (opts?.series?.enabled === true) {
-        log.warn('[crawl] comandotorrents: séries ligadas na config, mas a página de temporada segue FORA do motor '
-          + '(kind por slug feito; só a amostra seriesProbe lê)');
-      }
-      const emitSeries = seriesProbe;
+      const emitSeries = seriesProbe || opts?.series?.enabled === true;
       const sinceByKind = opts?.sinceByKind;
       const sinceOf = (kind: CrawlPageKind): string | null => (
         sinceByKind && Object.prototype.hasOwnProperty.call(sinceByKind, kind)
@@ -198,9 +197,8 @@ export function createComandotorrentsCrawlSite(
 
     async fetchWork(url: string, pageOpts?: CrawlPageOptions): Promise<CrawlWorkResult> {
       const season = pageOpts?.kind === 'tv_show';
-      if (season && !seriesProbe && !probeRequested(pageOpts)) {
-        const message = 'comandotorrents: página de temporada fora do motor '
-          + '(séries desligadas; só o modo amostra seriesProbe lê)';
+      if (season && !seriesProbe && !probeRequested(pageOpts) && pageOpts?.series?.enabled !== true) {
+        const message = 'comandotorrents: página de temporada fora do motor (séries desligadas no painel)';
         log.warn(`[crawl] ${message}: ${url}`);
         return { url, status: 'error', error: message };
       }
@@ -268,15 +266,19 @@ export function createComandotorrentsCrawlSite(
             + `(${followed} sem magnet, ${failed} com falha)${detail}`,
           );
         }
+        // A ficha declara o título original: 2º nome da identificação (quando o `<h1>` não casa).
+        const originalTitle = parseOriginalTitle(pageHtml);
         if (season) {
+          // Série: temporada do post (`<h1>` cru, senão o slug) e grupos por locação.
+          const h1 = h1Text(pageHtml);
+          const pageSeason = pageSeasonOf(h1, workUrl.href);
           const sample: ComandotorrentsSeasonSample = {
-            url, status: 'done', imdb, title, year, type, releases,
+            url, status: 'done', imdb, title, year, originalTitle, season: pageSeason, type, releases,
+            groups: seasonPageGroups(releases, { season: pageSeason, title: h1 }),
             requestCost: counter.n, buttons: announced, buttonsFollowed: followed,
           };
           return sample;
         }
-        // A ficha declara o título original: 2º nome da identificação (quando o `<h1>` não casa).
-        const originalTitle = parseOriginalTitle(pageHtml);
         return { url, status: 'done', imdb, title, year, originalTitle, type, releases, requestCost: counter.n };
       } catch (err) {
         throw withRequestCost(err, counter.n);
@@ -287,7 +289,7 @@ export function createComandotorrentsCrawlSite(
 
 /**
  * Instância de produção. O registry chama este export sem argumentos, e ele
- * NUNCA liga `seriesProbe`.
+ * NUNCA liga `seriesProbe`: a temporada entra pela opção de séries do painel.
  */
 export function comandotorrentsCrawlSite(): CrawlSite {
   const surface = instance(RESOLVER_NAME) as ComandotorrentsResolverSurface | null;

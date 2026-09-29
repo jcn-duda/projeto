@@ -1,6 +1,6 @@
-// Modo amostra de temporada do ComandoTorrents. A página real mistura episódio
-// avulso e pack; sem `seriesProbe` o motor não a lê. A amostra devolve a
-// contagem de botões e não afirma `groups`.
+// Página de temporada do ComandoTorrents. A página real mistura episódio avulso
+// e pack; ela entra com a opção de séries ligada ou no modo amostra, e cada
+// botão nasce na locação que o `dn`/rótulo declara (`season-page.ts`).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -15,7 +15,7 @@ import {
 } from './helpers/crawl-comandotorrents-fixtures.js';
 
 describe('crawl-sites/comandotorrents: modo amostra de temporada', () => {
-  test('lê a temporada, conta os 12 botões e não grava groups', () => withStub(pageRoutes(), async () => {
+  test('lê a temporada, conta os 12 botões e agrupa por locação', () => withStub(pageRoutes(), async () => {
     const result = await probeSite().fetchWork(SERIES, { kind: 'tv_show' });
     assert.equal(result.status, 'done');
     assert.equal(result.type, 'series');
@@ -23,7 +23,10 @@ describe('crawl-sites/comandotorrents: modo amostra de temporada', () => {
     // temporada é estrutura da release, a mesma régua do TorrentDosFilmes.
     assert.equal(result.title, 'The Boys');
     assert.equal(result.year, 2024);
-    assert.equal(result.groups, undefined);
+    assert.equal(result.season, 4, 'a temporada do post vai para a identificação');
+    // O rótulo sai "The Boys E01" (sem a temporada): lido com a temporada do
+    // post é S4E1 — sem isso o episódio caía no grupo da temporada INTEIRA.
+    assert.deepEqual(result.groups?.map((g) => [g.season, g.episode]), [[4, 1]]);
     assert.equal(result.releases?.length, 1, 'o dublê devolve o mesmo hash nos 12 botões');
     const sample = result as ComandotorrentsSeasonSample;
     assert.equal(sample.buttons, 12);
@@ -40,15 +43,19 @@ describe('crawl-sites/comandotorrents: modo amostra de temporada', () => {
     assert.equal(sample.buttonsFollowed, 3);
     assert.equal(result.requestCost, 4);
     assert.equal(stub.calls.length, 4);
-    assert.equal(result.groups, undefined);
   }));
 
-  test('series.enabled não abre a porta; a flag por chamada abre, e string não', () => withStub(pageRoutes(), async (stub) => {
+  test('séries desligadas fecham; ligadas ou a flag por chamada abrem, e string não', () => withStub(pageRoutes(), async (stub) => {
     const closed = await site().fetchWork(SERIES, {
-      kind: 'tv_show', series: { enabled: true, maxCards: 4, maxButtons: 40 },
+      kind: 'tv_show', series: { enabled: false, maxCards: 4, maxButtons: 40 },
     });
     assert.equal(closed.status, 'error');
     assert.equal(stub.calls.length, 0);
+
+    const enabled = await site().fetchWork(SERIES, {
+      kind: 'tv_show', series: { enabled: true, maxCards: 4, maxButtons: 40 },
+    });
+    assert.equal(enabled.status, 'done', 'a opção de séries do painel abre a temporada');
 
     const opts = { kind: 'tv_show', seriesProbe: true } as unknown as CrawlPageOptions;
     const opened = await site().fetchWork(SERIES, opts);

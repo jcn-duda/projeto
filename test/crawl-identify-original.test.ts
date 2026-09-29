@@ -242,3 +242,53 @@ describe('identifyWork com o título original da página', () => {
     }
   }));
 });
+
+// Post de TEMPORADA: o ano da página é o da temporada, não o da estreia.
+describe('identifyWork: série com temporada ≥ 2 (janela de estreia)', () => {
+  const tvHit = (id: number, name: string, original_name: string, first_air_date: string) => ({
+    id, name, original_name, first_air_date, popularity: 10,
+  });
+  const forgetTv = (titles: string[], ids: number[] = []) => {
+    for (const t of titles) cache.forget(`tmdb:search:series:${normalizeTitle(t)}`);
+    for (const id of ids) cache.forget(`tmdb:ext:series:${id}`);
+  };
+
+  test('"Better Call Saul 4ª Temporada (2018)" casa a série de 2015; sem a temporada, não', withTmdbKey(async () => {
+    const title = `Better Call Saul ${process.pid}`;
+    const stub = stubFetch((url) => {
+      if (url.includes('/search/tv')) return searchResp([tvHit(801, title, title, '2015-02-08')]);
+      if (url.includes('/tv/801/external_ids')) return ok({ imdb_id: 'tt3032476' });
+      throw new Error(`fetch fora do mapa: ${url}`);
+    });
+    try {
+      const later = await identifyWork({ type: 'series', title, year: 2018, season: 4 });
+      assert.equal(later.outcome, 'identified');
+      assert.equal(later.imdb, 'tt3032476');
+      const flat = await identifyWork({ type: 'series', title, year: 2018 });
+      assert.equal(flat.outcome, 'unidentified', 'sem temporada, o ±1 de sempre recusa');
+      const first = await identifyWork({ type: 'series', title, year: 2018, season: 1 });
+      assert.equal(first.outcome, 'unidentified', 'temporada 1 mantém o ±1 (o ano é o da estreia)');
+    } finally {
+      stub.restore();
+      forgetTv([title], [801]);
+    }
+  }));
+
+  test('série que estreou DEPOIS do ano da temporada não casa; dois na janela é ambíguo', withTmdbKey(async () => {
+    const title = `Kingdom ${process.pid}`;
+    const stub = stubFetch((url) => {
+      if (url.includes('/search/tv')) {
+        return searchResp([tvHit(811, title, title, '2014-10-08'), tvHit(812, title, title, '2019-01-25'), tvHit(813, title, title, '2007-04-01')]);
+      }
+      throw new Error(`fetch fora do mapa: ${url}`);
+    });
+    try {
+      // Temporada 3 de 2016: a de 2019 fica de fora; a de 2014 e a de 2007 entram → ambíguo.
+      const r = await identifyWork({ type: 'series', title, year: 2016, season: 3 });
+      assert.equal(r.outcome, 'ambiguous', 'homônimo na janela: sem obra, nunca o mais famoso');
+    } finally {
+      stub.restore();
+      forgetTv([title]);
+    }
+  }));
+});

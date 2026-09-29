@@ -33,14 +33,13 @@
 //     o pior desfecho possível, e o que a `CrawlWorkResult.imdb` promete não
 //     fazer ("obra errada é pior que obra nenhuma").
 //
-// PORTÃO DE SÉRIE (mesma decisão medida no NerdFilmes, agora com prova melhor):
-// a página de temporada deste site é PACK de temporada (o `dn=` do magnet é
-// `…S01Complete`, medido) e o botão não traz rastro de episódio. 118 dos 1.000
-// slugs de obra (11,8%) são de temporada. Então: `discover()` rotula `tv_show` e
-// NÃO emite essas URLs; `fetchWork(kind:'tv_show')` só processa em MODO AMOSTRA
-// (`{ seriesProbe:true }`), e página de temporada chegada como `movie` é recusada
-// na porta. Gravar um pack como filme é obra que não existe no catálogo.
-// `opts.series.enabled` NÃO abre nada: a flag produz aviso.
+// PORTÃO DE SÉRIE: 118 dos 1.000 slugs de obra (11,8%) são de temporada. Ela
+// entra no motor com a opção de SÉRIES ligada (`opts.series.enabled`, a mesma do
+// Vaca) ou no modo amostra (`seriesProbe`); sem as duas, `discover()` não a emite
+// e `fetchWork(kind:'tv_show')` é erro com zero rede. O `dn=` do magnet declara
+// episódio ou pack em 92 de 97 botões (medido 2026-09-28) e cada botão nasce na
+// locação dele (`season-page.ts`). Temporada chegada como `movie` é recusada:
+// gravar pack como filme é obra que não existe no catálogo.
 //
 // Travas herdadas do crawler: host safety em TODA URL derivada de conteúdo do
 // site (loc do índice, loc do sitemap, URL de obra); crawl NÃO aciona
@@ -57,6 +56,7 @@ import type {
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { parseOriginalTitle, withRequestCost } from './shared.js';
+import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { TDF_SITE_ID, TDF_TRACKER_LABEL, passButtons } from './torrentdosfilmes-buttons.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseSitemapEntries, parseSitemapIndexLocs,
@@ -208,13 +208,9 @@ export function createTorrentdosfilmesCrawlSite(
     label: TRACKER_LABEL,
 
     async discover(since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
-      if (opts?.series?.enabled === true) {
-        log.warn('[crawl] torrentdosfilmesv2: séries ligadas na config, mas a página de temporada é PACK '
-          + '(dn=…S01Complete, medido) e o botão não traz episódio — segue FORA do motor até a amostra medir');
-      }
-      // Só o MODO AMOSTRA emite `tv_show`. Sem ele a lista é de filmes e o cursor
-      // de série não anda (sem URL do kind `advanceCursors` não acha `max`).
-      const emitSeries = seriesProbe;
+      // Séries ligadas (ou amostra) emitem `tv_show`. Sem isso a lista é de
+      // filmes e o cursor de série não anda (sem URL do kind não há `max`).
+      const emitSeries = seriesProbe || opts?.series?.enabled === true;
       const sinceByKind = opts?.sinceByKind;
       const sinceOf = (kind: CrawlPageKind): string | null => (
         sinceByKind && Object.prototype.hasOwnProperty.call(sinceByKind, kind)
@@ -262,13 +258,10 @@ export function createTorrentdosfilmesCrawlSite(
       const counter = { n: 0 };
       const countRequest = () => { counter.n += 1; };
       const season = pageOpts?.kind === 'tv_show';
-      if (season && !seriesProbe && !probeRequested(pageOpts)) {
-        // A descoberta não enfileira série; se uma linha chegar assim (fila
-        // editada à mão, resíduo de outro site), o erro explica por quê em vez
-        // de gravar um PACK de temporada como filme. ZERO rede: a recusa é do
-        // portão, não do site.
-        const message = 'torrentdosfilmesv2: página de temporada (pack) fora do motor '
-          + '(séries desligadas; só o modo amostra seriesProbe lê)';
+      if (season && !seriesProbe && !probeRequested(pageOpts) && pageOpts?.series?.enabled !== true) {
+        // Séries desligadas: linha de temporada na fila vira erro explicado,
+        // ZERO rede — a recusa é do portão, não do site.
+        const message = 'torrentdosfilmesv2: página de temporada fora do motor (séries desligadas no painel)';
         log.warn(`[crawl] ${message}: ${url}`);
         return { url, status: 'error', error: message };
       }
@@ -335,18 +328,19 @@ export function createTorrentdosfilmesCrawlSite(
             + `(${pass.followed} sem magnet, ${failed} com falha)${detail}`,
           );
         }
+        // A ficha declara o título original: 2º nome da identificação (o IMDb daqui é armadilha).
+        const originalTitle = parseOriginalTitle(pageHtml);
         if (season) {
-          // Modo leitura: releases e contagens do denominador, SEM `groups` —
-          // afirmar a locação de cada botão é o que a amostra ainda não provou
-          // (e o pack deste site não tem episódio por botão, medido).
+          // Série: a temporada do post (do `<h1>` cru, senão do slug) e os
+          // grupos por locação; `buttons`/`buttonsFollowed` são o denominador da sonda.
+          const pageSeason = pageSeasonOf(raw, workUrl.href);
           const sample: TorrentdosfilmesSeasonSample = {
-            url, status: 'done', imdb, title, year, type, releases: pass.releases,
+            url, status: 'done', imdb, title, year, originalTitle, season: pageSeason, type, releases: pass.releases,
+            groups: seasonPageGroups(pass.releases, { season: pageSeason, title: raw }),
             requestCost: counter.n, buttons: announced, buttonsFollowed: pass.followed,
           };
           return sample;
         }
-        // A ficha declara o título original: 2º nome da identificação (o IMDb daqui é armadilha).
-        const originalTitle = parseOriginalTitle(pageHtml);
         return { url, status: 'done', imdb, title, year, originalTitle, type, releases: pass.releases, requestCost: counter.n };
       } catch (err) {
         // F1: throw NÃO perde o custo medido (F3, por hop).
@@ -359,8 +353,8 @@ export function createTorrentdosfilmesCrawlSite(
 /**
  * Instância de produção: reusa o resolver torrentdosfilmes JÁ CARREGADO no
  * processo (mesmo seletor de domínio, mesmos protetores, mesmos caches). É este
- * export que o registry chama, e ele NUNCA liga `seriesProbe`: produção segue
- * com séries desligadas.
+ * export que o registry chama, e ele NUNCA liga `seriesProbe`: em produção a
+ * página de temporada entra pela opção de séries do painel.
  */
 export function torrentdosfilmesCrawlSite(): CrawlSite {
   const surface = instance(RESOLVER_NAME) as TorrentdosfilmesResolverSurface | null;

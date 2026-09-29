@@ -54,6 +54,12 @@ export interface IdentifyInput {
    * dizendo QUAL obra é.
    */
   originalTitle?: string | null;
+  /**
+   * Temporada que a PÁGINA declara (post de temporada). Com N≥2 o ano da página
+   * é o da temporada, não o da estreia, e a busca aceita série que estreou
+   * ANTES (`seriesStartedBy`); com N=1 ou sem temporada, o ±1 de sempre.
+   */
+  season?: number | null;
 }
 
 export interface IdentifyResult {
@@ -144,7 +150,9 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
     return { outcome: 'unidentified', imdb: null, reason: 'pagina-sem-ano' };
   }
 
-  const search = await searchByTitle(input.type, title, pageYear);
+  // Post de temporada N≥2: o ano é da temporada (janela `seriesStartedBy`).
+  const searchOpts = { laterSeason: input.type === 'series' && Number(input.season) >= 2 };
+  const search = await searchByTitle(input.type, title, pageYear, searchOpts);
   if (!search.ok) return { outcome: 'unavailable', imdb: null, reason: 'tmdb-indisponivel' };
   // Original igual ao `<h1>` não acrescenta nada (nem busca, nem desempate).
   const rawOriginal = String(input?.originalTitle || '').trim();
@@ -160,7 +168,7 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
   // no "Comando Final 3 Paradox" foi a FICHA com dois nomes, e ela já não vira
   // original (`parseOriginalTitle`). Ambíguo pelo `<h1>` tem o desempate acima.
   if (selection.kind === 'none' && original) {
-    const second = await searchByTitle(input.type, original, pageYear);
+    const second = await searchByTitle(input.type, original, pageYear, searchOpts);
     if (!second.ok) return { outcome: 'unavailable', imdb: null, reason: 'tmdb-indisponivel' };
     hits = [...hits, ...second.hits];
     selection = selectCandidate(hits, title, original);

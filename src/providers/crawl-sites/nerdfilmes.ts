@@ -7,21 +7,14 @@
 // foram para `nerdfilmes-discovery.ts` (a catraca de 400 linhas); aqui mora o
 // que faz REDE.
 //
-// PORTÃO DE SÉRIE (a decisão que organiza o arquivo inteiro). O `post-sitemap`
-// é misto: das 40 páginas do recorte real, 13 são página de TEMPORADA. Rotular
-// pelo slug é o começo, não o fim — o resto é o que impede a season page de
-// virar filme no acervo:
-//   1. `discover()` rotula `kind:'tv_show'` e, sem modo amostra, NÃO EMITE essas
-//      URLs: fila sem trabalho que o adaptador recusa é o que mantém o painel
-//      honesto, e sem URL do kind o cursor de série não anda.
-//   2. `fetchWork(kind:'tv_show')` só processa em MODO AMOSTRA
-//      (`{ seriesProbe:true }`); sem ele, erro explícito e ZERO rede — a recusa
-//      é do portão, não do site.
-//   3. Página de temporada com `kind:'movie'` (linha de antes da classificação)
-//      também é recusada: 14 magnets de episódio gravados como filme é obra errada.
-// `opts.series.enabled` NÃO abre nada: série segue desligada até a amostra
-// distinguir pack de temporada de episódio e existir leitura não-amostra com
-// grupos por locação. A flag produce aviso, não fila de erro.
+// PORTÃO DE SÉRIE. O `post-sitemap` é misto (13 de 40 páginas do recorte real
+// são de TEMPORADA) e o `kind` sai do slug. A página de temporada entra no motor
+// com a opção de SÉRIES ligada (`opts.series.enabled`, a mesma do Vaca) ou no
+// modo amostra (`seriesProbe`); sem nenhuma das duas, `discover()` não a emite e
+// `fetchWork(kind:'tv_show')` é erro com zero rede. Cada botão nasce na locação
+// que o `dn`/rótulo declara (`season-page.ts`), nunca tudo na raiz, e a página
+// de temporada chegada como `movie` continua recusada: episódio gravado como
+// filme é obra errada.
 //
 // Travas herdadas do crawler: host safety em TODA URL derivada de conteúdo do
 // site (loc do índice, loc do sitemap, URL de obra) — o gate/protetor é por conta
@@ -42,6 +35,8 @@ import type {
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { magnetHash, parseOriginalTitle, parseTitleYear, withRequestCost } from './shared.js';
+import { pageSeasonOf, seasonPageGroups } from './season-page.js';
+import { cleanWorkName } from './work-name.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseImdbId, parseSitemapEntries,
   parseSitemapIndexLocs, SITEMAP_INDEX_PATHS, toWorkUrl,
@@ -219,13 +214,9 @@ export function createNerdfilmesCrawlSite(
     label: TRACKER_LABEL,
 
     async discover(since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
-      if (opts?.series?.enabled === true) {
-        log.warn('[crawl] nerdfilmes: séries ligadas na config, mas a página de temporada segue FORA do motor '
-          + '(kind por slug feito; falta a leitura não-amostra com grupos por locação — só a amostra mede)');
-      }
-      // Só o MODO AMOSTRA emite `tv_show`. Sem ele a lista é de filmes e o cursor
-      // de série não anda (sem URL do kind `advanceCursors` não acha `max`).
-      const emitSeries = seriesProbe;
+      // Séries ligadas (ou amostra) emitem `tv_show`. Sem isso a lista é de
+      // filmes e o cursor de série não anda (sem URL do kind não há `max`).
+      const emitSeries = seriesProbe || opts?.series?.enabled === true;
       const sinceByKind = opts?.sinceByKind;
       const sinceOf = (kind: CrawlPageKind): string | null => (
         sinceByKind && Object.prototype.hasOwnProperty.call(sinceByKind, kind)
@@ -274,12 +265,10 @@ export function createNerdfilmesCrawlSite(
       const counter = { n: 0 };
       const countRequest = () => { counter.n += 1; };
       const season = pageOpts?.kind === 'tv_show';
-      if (season && !seriesProbe && !probeRequested(pageOpts)) {
-        // A descoberta não enfileira série; se uma linha chegar assim (fila
-        // editada à mão, resíduo de outro site), o erro explica por quê em vez
-        // de tratar um post de temporada como filme. ZERO rede: a recusa é do
-        // portão, não do site.
-        const message = 'nerdfilmes: página de temporada fora do motor (séries desligadas; só o modo amostra seriesProbe lê)';
+      if (season && !seriesProbe && !probeRequested(pageOpts) && pageOpts?.series?.enabled !== true) {
+        // Séries desligadas: linha de temporada na fila (enfileirada com a opção
+        // ligada) vira erro explicado, ZERO rede — a recusa é do portão.
+        const message = 'nerdfilmes: página de temporada fora do motor (séries desligadas no painel)';
         log.warn(`[crawl] ${message}: ${url}`);
         return { url, status: 'error', error: message };
       }
@@ -367,10 +356,14 @@ export function createNerdfilmesCrawlSite(
           );
         }
         if (season) {
-          // Modo leitura: releases e contagens do denominador, SEM `groups` —
-          // afirmar a locação de cada botão é o que a amostra ainda não provou.
+          // Série: nome sem "Nª Temporada" (o TMDB conhece "Lanternas"), a
+          // temporada do post (janela de ano da identificação) e os grupos por
+          // locação. `buttons`/`buttonsFollowed` são o denominador da sonda.
+          const pageSeason = pageSeasonOf(title, workUrl.href);
           const sample: NerdfilmesSeasonSample = {
-            url, status: 'done', imdb, title, year, type, releases,
+            url, status: 'done', imdb, title: cleanWorkName(title), year, season: pageSeason, type, releases,
+            originalTitle: parseOriginalTitle(pageHtml),
+            groups: seasonPageGroups(releases, { season: pageSeason, title }),
             requestCost: counter.n, buttons: announced, buttonsFollowed: followed,
           };
           return sample;
@@ -388,8 +381,8 @@ export function createNerdfilmesCrawlSite(
 /**
  * Instância de produção: reusa o resolver nerdfilmes JÁ CARREGADO no processo
  * (mesmo seletor de domínio, mesmos protetores, mesmos caches). É este export
- * que o registry chama, e ele NUNCA liga `seriesProbe`: produção segue com
- * séries desligadas.
+ * que o registry chama, e ele NUNCA liga `seriesProbe`: em produção a página de
+ * temporada entra pela opção de séries do painel.
  */
 export function nerdfilmesCrawlSite(): CrawlSite {
   const surface = instance(SITE_ID) as NerdfilmesResolverSurface | null;

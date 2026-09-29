@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { cleanWorkName, fichaYear, h1Text, readWorkTitle, splitParenYear } from '../src/providers/crawl-sites/work-name.js';
 import { workTitleYear as ctWorkTitleYear } from '../src/providers/crawl-sites/comandotorrents-discovery.js';
 import { workTitleYear as tdfWorkTitleYear } from '../src/providers/crawl-sites/torrentdosfilmes-discovery.js';
+import { pageSeasonOf, seasonPageGroups } from '../src/providers/crawl-sites/season-page.js';
 
 const h1 = (text: string) => `<h1 class="entry-title">${text}</h1>`;
 const nameOf = (text: string) => {
@@ -84,5 +85,41 @@ describe('work-name: os dois sites usam a MESMA régua', () => {
     const html = h1('Curvas da Vida &#8211; GDRIVE (2012) BluRay 1080p Dual Áudio');
     assert.equal(ctWorkTitleYear(html).title, tdfWorkTitleYear(html).title);
     assert.equal(ctWorkTitleYear(html).year, tdfWorkTitleYear(html).year);
+  });
+});
+
+// Página de TEMPORADA dos WordPress BR (`season-page.ts`): em que chave cada
+// botão nasce. Recortes reais da medição de 2026-09-28.
+describe('season-page: temporada do post e locação de cada botão', () => {
+  const mk = (title: string, dn?: string) => ({
+    title,
+    magnet: `magnet:?xt=urn:btih:${'a'.repeat(40)}${dn ? `&dn=${encodeURIComponent(dn)}` : ''}`,
+    indexer: 'x', tracker: 'X', isBr: true, seeders: 1,
+  });
+  const loc = (title: string, dn?: string, season: number | null = 4) =>
+    seasonPageGroups([mk(title, dn)], { season, title: 'The Boys 4ª Temporada' }).map((g) => [g.season, g.episode]);
+
+  test('temporada do post: h1 primeiro, slug de reserva, nada quando não declara uma só', () => {
+    assert.equal(pageSeasonOf('Better Call Saul 4ª Temporada', 'https://x/better-call-saul-4a-temporada-2025/'), 4);
+    // TorrentDosFilmes: o h1 às vezes é só "Kingdom"; o slug declara.
+    assert.equal(pageSeasonOf('Kingdom', 'https://x/kingdom-1a-temporada-720phdtv-2014-legendado-torrent/'), 1);
+    assert.equal(pageSeasonOf('Filme Qualquer', 'https://x/filme-qualquer-2020/'), null);
+  });
+
+  test('rótulo "E01" sem temporada é lido com a temporada do post (não vira pack)', () => {
+    // ComandoTorrents: o título da release sai "The Boys E01" — sem isso o
+    // episódio ia para S4 inteira e aparecia como pack de todo episódio.
+    assert.deepEqual(loc('The Boys E01 [1080p WEB-DL DUBLADO]'), [[4, 1]]);
+    assert.deepEqual(loc('Lanternas 1ª Temporada E03 [1080p DUBLADO]', undefined, 1), [[1, 3]]);
+  });
+
+  test('o dn (conteúdo) vence o rótulo nos dois sentidos', () => {
+    assert.deepEqual(loc('The Boys E01 [1080p]', 'The.Boys.S04E05.1080p'), [[4, 5]]);
+    // "Minhas Aventuras com o Superman 2ª Temporada E01" com dn de temporada COMPLETA.
+    assert.deepEqual(loc('The Boys E01 [1080p]', 'The.Boys.S04.COMPLETE.1080p'), [[4, null]]);
+  });
+
+  test('botão sem episódio em lugar nenhum é o pack da temporada, nunca a raiz', () => {
+    assert.deepEqual(loc('The Boys [1080p DUBLADO 12 GB]'), [[4, null]]);
   });
 });

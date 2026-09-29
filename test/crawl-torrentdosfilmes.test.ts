@@ -279,13 +279,15 @@ describe('crawl-sites/torrentdosfilmes: discover (sitemaps reais, sem rede)', ()
     assert.equal(porKind.urls.filter((u) => u.kind === 'movie').length, 35);
   }));
 
-  test('séries ligadas por config continuam fora (o portão é do adaptador)', () => withStub(pageRoutes(), async () => {
-    // `opts.series.enabled` NÃO abre a página de temporada: a decisão de série
-    // continua desligada, então a lista não pode trazer trabalho que o
-    // `fetchWork` recusaria (fila de erro não é "série ligada").
-    const disc = await site().discover(null, { series: { enabled: true, maxCards: 10, maxButtons: 40 } });
-    assert.equal(disc.urls.length, 37);
-    assert.ok(disc.urls.every((u) => u.kind === 'movie'), 'nenhum post vira série por configs');
-    assert.equal(disc.completeByKind?.tv_show, true, 'tv_show sem fonte = cursor parado');
+  test('séries ligadas no painel emitem a temporada; desligadas, só filme', () => withStub(pageRoutes(), async () => {
+    // A mesma opção de séries do Vaca: ligada, a página de temporada entra na
+    // fila com o kind do slug; desligada, a lista é só de filmes.
+    const on = await site().discover(null, { series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+    assert.equal(on.urls.length, 39);
+    assert.equal(on.urls.filter((u) => u.kind === 'tv_show').length, 2);
+    const off = await site().discover(null, { series: { enabled: false, maxCards: 10, maxButtons: 40 } });
+    assert.equal(off.urls.length, 37);
+    assert.ok(off.urls.every((u) => u.kind === 'movie'), 'séries desligadas: só filme');
+    assert.equal(off.completeByKind?.tv_show, true, 'tv_show sem fonte = cursor parado');
   }));
 });

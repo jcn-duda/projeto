@@ -147,11 +147,19 @@ describe('crawl-sites/torrentdosfilmes: fetchWork de filme (post real, sem rede)
     },
   ));
 
-  test('kind tv_show SEM modo amostra é erro explícito, com zero rede', () => withStub(seriesRoutes(), async (stub) => {
-    const result = await site().fetchWork(SERIES, { kind: 'tv_show', series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+  test('kind tv_show com séries DESLIGADAS é erro explícito, com zero rede', () => withStub(seriesRoutes(), async (stub) => {
+    const result = await site().fetchWork(SERIES, { kind: 'tv_show', series: { enabled: false, maxCards: 10, maxButtons: 40 } });
     assert.equal(result.status, 'error');
     assert.match(String(result.error), /fora do motor/);
     assert.equal(stub.calls.length, 0, 'o portão responde antes do fetch');
+  }));
+
+  test('kind tv_show com séries LIGADAS: o pack nasce na temporada, nunca na raiz', () => withStub(seriesRoutes(), async () => {
+    const result = await site().fetchWork(SERIES, { kind: 'tv_show', series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+    assert.equal(result.status, 'done');
+    assert.equal(result.season, 1);
+    // `dn=O_Caçador.S01Complete`: o pack cobre a temporada 1 inteira.
+    assert.deepEqual(result.groups?.map((g) => [g.season, g.episode]), [[1, null]]);
   }));
 
   test('modo amostra: o pack é lido e reporta os denominadores da sonda', () => withStub(seriesRoutes(), async (stub) => {
@@ -172,9 +180,8 @@ describe('crawl-sites/torrentdosfilmes: fetchWork de filme (post real, sem rede)
     // é o `magnetHash` que minúscula para o dedupe, não a URI entregue.
     assert.equal(releases[0].magnet?.match(/xt=urn:btih:([A-Za-z0-9]{32,40})/)?.[1], SERIES_BTIH);
     assert.match(String(releases[0].magnet), /dn=O_Ca%C3%A7ador\.S01Comp/, 'o magnet REAL é o pack da temporada');
-    // E sem `groups`: afirmar a locação de cada botão é o que a amostra ainda
-    // não provou (o botão deste site não traz episódio nenhum).
-    assert.equal(result.groups, undefined);
+    // O `dn` do pack declara a temporada: grupo S1 inteiro (nunca a raiz).
+    assert.deepEqual(result.groups?.map((g) => [g.season, g.episode]), [[1, null]]);
   }));
 
   test('teto de botões da amostra corta o pack, sem estourar o orçamento', () => withStub(seriesRoutes(), async () => {

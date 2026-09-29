@@ -117,6 +117,28 @@ export function yearWithinTolerance(hitYear: number | null, pageYear: number | n
   return Math.abs(hitYear - page) <= YEAR_TOLERANCE;
 }
 
+/**
+ * Janela de ano do post de TEMPORADA N≥2: o ano da página é o da temporada, não
+ * o da estreia ("Better Call Saul 4ª Temporada (2018)" é de uma série de 2015).
+ * O ±1 recusava toda temporada depois da primeira. Aqui vale a série que
+ * ESTREOU até o ano da página (+1 de tolerância de lançamento BR), num teto de
+ * 40 anos. Homônimo continua protegido: dois candidatos na janela é ambíguo.
+ */
+export function seriesStartedBy(hitYear: number | null, pageYear: number | null | undefined): boolean {
+  const page = Number(pageYear);
+  if (!Number.isFinite(page) || page <= 0) return true;
+  if (hitYear == null) return false;
+  return hitYear <= page + YEAR_TOLERANCE && hitYear >= page - 40;
+}
+
+/** Opções da busca. `laterSeason`: a página é de temporada N≥2 (janela acima). */
+export interface SearchByTitleOptions {
+  laterSeason?: boolean;
+}
+
+// O resultado em voo é o CRU: cada chamador filtra pelo PRÓPRIO ano/janela.
+// Filtrar dentro da promessa compartilhada entregava a quem chegasse no meio o
+// filtro de quem chegou primeiro.
 const searchInFlight = new Map<string, Promise<TmdbSearchResult>>();
 
 function searchPath(type: SearchWorkType): string {
@@ -153,19 +175,24 @@ async function searchByTitle(
   type: SearchWorkType,
   title: string,
   year?: number | null,
+  options: SearchByTitleOptions = {},
 ): Promise<TmdbSearchResult> {
   if (!config.tmdb.apiKey || !String(title || '').trim()) {
     return { ok: false, hits: [] };
   }
+  const keep = options.laterSeason && type === 'series' ? seriesStartedBy : yearWithinTolerance;
+  const filtered = (result: TmdbSearchResult): TmdbSearchResult => ({
+    ...result,
+    hits: result.hits.filter((hit) => keep(hit.year, year)),
+  });
   const key = searchCacheKey(type, title);
   const cached = cache.get(key);
   if (cached) {
     metrics.count(cached.ok ? 'meta.tmdbsearch.hit.served' : 'meta.tmdbsearch.fail.served');
-    const base: TmdbSearchResult = { ok: Boolean(cached.ok), hits: Array.isArray(cached.hits) ? cached.hits : [] };
-    return { ...base, hits: base.hits.filter((hit) => yearWithinTolerance(hit.year, year)) };
+    return filtered({ ok: Boolean(cached.ok), hits: Array.isArray(cached.hits) ? cached.hits : [] });
   }
   const pending = searchInFlight.get(key);
-  if (pending) return pending;
+  if (pending) return filtered(await pending);
 
   const promise = (async (): Promise<TmdbSearchResult> => {
     const result = await fetchSearch(type, title);
@@ -182,16 +209,13 @@ async function searchByTitle(
     } else {
       cache.set(key, result, retryTtl());
     }
-    return {
-      ...result,
-      hits: result.hits.filter((hit) => yearWithinTolerance(hit.year, year)),
-    };
+    return result;
   })().finally(() => {
     searchInFlight.delete(key);
   });
 
   searchInFlight.set(key, promise);
-  return promise;
+  return filtered(await promise);
 }
 
 // O id numérico do TMDB colide entre movie e tv (são espaços distintos), então

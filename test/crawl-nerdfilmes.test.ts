@@ -208,14 +208,15 @@ describe('crawl-sites/nerdfilmes: discover (sitemaps reais, sem rede)', () => {
     assert.deepEqual(porKind.urls.filter((u) => u.kind === 'movie').map((u) => u.url), [`${SITE}/a-revolta-2026/`]);
   }));
 
-  test('séries ligadas por config continuam fora (o portão é do adaptador)', () => withStub(pageRoutes(), async () => {
-    // `opts.series.enabled` NÃO abre a season page: a decisão de série no motor
-    // continua desligada, então a lista não pode trazer trabalho que o
-    // `fetchWork` recusaria (fila de erro não é "série ligada").
-    const disc = await site().discover(null, { series: { enabled: true, maxCards: 10, maxButtons: 40 } });
-    assert.equal(disc.urls.length, 27);
-    assert.ok(disc.urls.every((u) => u.kind === 'movie'), 'nenhum post vira série por configs');
-    assert.equal(disc.completeByKind?.tv_show, true, 'tv_show sem fonte = cursor parado');
+  test('séries ligadas no painel emitem as páginas de temporada', () => withStub(pageRoutes(), async () => {
+    // A mesma opção de séries do Vaca: ligada, a season page entra na fila com
+    // o kind do slug (13 das 40 do recorte real); desligada, só filmes.
+    const on = await site().discover(null, { series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+    assert.equal(on.urls.length, 40);
+    assert.equal(on.urls.filter((u) => u.kind === 'tv_show').length, 13);
+    const off = await site().discover(null, { series: { enabled: false, maxCards: 10, maxButtons: 40 } });
+    assert.ok(off.urls.every((u) => u.kind === 'movie'), 'séries desligadas: só filme');
+    assert.equal(off.completeByKind?.tv_show, true, 'tv_show sem fonte = cursor parado');
   }));
 });
 
@@ -294,11 +295,19 @@ describe('crawl-sites/nerdfilmes: fetchWork de filme (post e gate reais, sem red
     },
   ));
 
-  test('kind tv_show SEM modo amostra é erro explícito, com zero rede', () => withStub(pageRoutes(), async (stub) => {
-    const result = await site().fetchWork(SERIES, { kind: 'tv_show', series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+  test('kind tv_show com séries DESLIGADAS é erro explícito, com zero rede', () => withStub(pageRoutes(), async (stub) => {
+    const result = await site().fetchWork(SERIES, { kind: 'tv_show', series: { enabled: false, maxCards: 10, maxButtons: 40 } });
     assert.equal(result.status, 'error');
     assert.match(String(result.error), /fora do motor/);
     assert.equal(stub.calls.length, 0, 'o portão responde antes do fetch');
+  }));
+
+  test('kind tv_show com séries LIGADAS é lido com grupos por locação', () => withStub(pageRoutes({ [SERIES]: () => fixture('post-series.html') }), async () => {
+    const result = await site().fetchWork(SERIES, { kind: 'tv_show', series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+    assert.equal(result.status, 'done');
+    assert.equal(result.type, 'series');
+    assert.equal(result.season, 1);
+    assert.deepEqual(result.groups?.map((g) => [g.season, g.episode]), [[1, 1]]);
   }));
 
   test('página sem h1 é quebra de layout, não obra sem nome', () => withStub(

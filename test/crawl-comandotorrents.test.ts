@@ -90,9 +90,11 @@ describe('crawl-sites/comandotorrents: discover', () => {
     assert.equal(disc.urls.filter((u) => u.kind === 'movie').length, 3);
   }));
 
-  test('séries ligadas na config continuam fora', () => withStub(pageRoutes(), async () => {
-    const disc = await site().discover(null, { series: { enabled: true, maxCards: 4, maxButtons: 4 } });
-    assert.ok(disc.urls.every((u) => u.kind === 'movie'));
+  test('séries ligadas emitem a temporada; desligadas, só filme', () => withStub(pageRoutes(), async () => {
+    const on = await site().discover(null, { series: { enabled: true, maxCards: 4, maxButtons: 4 } });
+    assert.equal(on.urls.filter((u) => u.kind === 'tv_show').length, 1, 'a temporada do sitemap entra na fila');
+    const off = await site().discover(null, { series: { enabled: false, maxCards: 4, maxButtons: 4 } });
+    assert.ok(off.urls.every((u) => u.kind === 'movie'));
   }));
 
   test('lastmod incremental corta por kind', () => withStub(pageRoutes(), async () => {
@@ -200,10 +202,10 @@ describe('crawl-sites/comandotorrents: fetchWork de filme', () => {
     assert.equal(stub.calls.length, 0);
   }));
 
-  test('kind tv_show sem amostra é erro e zero rede', () => withStub(pageRoutes(), async (stub) => {
+  test('kind tv_show com séries desligadas é erro e zero rede', () => withStub(pageRoutes(), async (stub) => {
     const result = await site().fetchWork(SERIES, { kind: 'tv_show' });
     assert.equal(result.status, 'error');
-    assert.match(result.error ?? '', /seriesProbe/);
+    assert.match(result.error ?? '', /séries desligadas/);
     assert.equal(stub.calls.length, 0);
   }));
 
