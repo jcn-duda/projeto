@@ -115,6 +115,36 @@ describe('selectCandidate: desempate pelo original declarado', () => {
     assert.equal(selectCandidate(same, 'A Besta', 'Beauty and the Beast').kind, 'ambiguous',
       'o original não desempata quando não distingue');
   });
+
+  test('evidência DIVIDIDA (h1 casa uns, original casa outro) é ambígua, nunca o do original', () => {
+    // Recorte real do TMDB (2026-09-29), "Bárbaros 2ª Temporada (2022)" no
+    // ComandoTorrents: a ficha declara "Barbarians", o nome INGLÊS de Barbaren.
+    // O desempate antigo escolhia o documentário de 2004, que nem casa o h1.
+    const tv = (tmdbId: number, title: string, originalTitle: string, year: number) =>
+      ({ tmdbId, title, originalTitle, year, popularity: 10 });
+    const barbaros = [
+      tv(93785, 'Bárbaros', 'Barbaren', 2020),
+      tv(132752, 'Bárbaros', "Barbaroslar: Akdeniz'in Kılıcı", 2021),
+      tv(14427, 'Barbarians', 'Barbarians', 2004),
+    ];
+    assert.equal(selectCandidate(barbaros, 'Bárbaros', 'Barbarians', 2022).kind, 'ambiguous',
+      'o candidato só do original é de 2004: fora do ano da página');
+    assert.equal(selectCandidate(barbaros, 'Bárbaros', 'Barbarians').kind, 'ambiguous', 'sem ano, não arrisca');
+    // "Peça por Peça (2024)", TorrentDosFilmes: o `<h1>` casa o brasileiro de
+    // 2023 e o original declarado casa o documentário do Pharrell, do MESMO ano
+    // da página — ali a ficha tem razão, e a regra antiga já acertava.
+    const peca = [
+      tv(1239733, 'Peça Por Peça', 'Peça Por Peça', 2023),
+      tv(1236419, 'Peça Por Peça: Uma História de Pharrell Williams', 'Piece by Piece', 2024),
+    ];
+    const pecaSel = selectCandidate(peca, 'Peça por Peça', 'Piece by Piece', 2024);
+    assert.equal(pecaSel.kind === 'unique' && pecaSel.hit.tmdbId, 1236419);
+    // Um só casando o h1 E o original continua vencendo, mesmo com outro que
+    // casa só pelo original.
+    const both = [tv(1, 'Bárbaros', 'Barbarians', 2020), tv(2, 'Barbarians', 'Barbarians', 2004)];
+    const sel = selectCandidate(both, 'Bárbaros', 'Barbarians');
+    assert.equal(sel.kind === 'unique' && sel.hit.tmdbId, 1);
+  });
 });
 
 describe('identifyWork com o título original da página', () => {

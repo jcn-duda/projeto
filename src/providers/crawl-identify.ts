@@ -105,12 +105,16 @@ export type CandidateSelection =
  * `originalTitle` (opcional) é o título original que a PÁGINA declarou: casa
  * pela mesma régua estrita e, com dois ou mais candidatos, desempata SÓ se
  * exatamente um deles tem esse `original_title` — "A Besta (2024)" com
- * original "La bête" é o Bonello, não o "A BESTA" homônimo do mesmo ano.
+ * original "La bête" é o Bonello, não o "A BESTA" homônimo do mesmo ano. Se
+ * a evidência se DIVIDE (uns casam só o `<h1>`, outro só o original), o
+ * candidato só do original vale apenas no ano da página (±1): o original da
+ * ficha às vezes é o nome inglês, e a janela de temporada ≥ 2 é larga.
  */
 export function selectCandidate(
   hits: TmdbSearchHit[],
   pageTitle: string,
   originalTitle?: string | null,
+  pageYear?: number | null,
 ): CandidateSelection {
   const original = String(originalTitle || '').trim();
   const names = original ? [pageTitle, original] : [pageTitle];
@@ -122,7 +126,28 @@ export function selectCandidate(
     return { kind: 'unique', hit: distinct[0], byOriginal };
   }
   if (distinct.length > 1) {
-    const narrowed = original ? distinct.filter((hit) => strictNameMatches(original, [hit.originalTitle])) : [];
+    const byH1 = (hit: TmdbSearchHit) => strictNameMatches(pageTitle, [hit.title, hit.originalTitle]);
+    const byOrig = (hit: TmdbSearchHit) => Boolean(original) && strictNameMatches(original, [hit.originalTitle]);
+    // O candidato que casa as DUAS evidências (o `<h1>` e o original) vence.
+    const both = distinct.filter((hit) => byH1(hit) && byOrig(hit));
+    if (both.length === 1) return { kind: 'unique', hit: both[0], byOriginal: true };
+    // Evidência DIVIDIDA — uns casam só pelo `<h1>`, outro só pelo original.
+    // O original vale aqui só com o ANO da página: "Peça por Peça (2024)" com
+    // original "Piece by Piece" é o documentário do Pharrell (2024), não o
+    // "Peça Por Peça" brasileiro de 2023 que casa o `<h1>`. Sem a trava do
+    // ano, "Bárbaros 2ª Temporada (2022)" — `<h1>` casando Barbaren (2020) e a
+    // turca Barbaroslar, ficha com "Barbarians", o nome INGLÊS — virava o
+    // documentário "Barbarians" de 2004 (a janela de temporada ≥ 2 aceita
+    // estreias antigas), cujo nome nem casa o `<h1>`. Medido em 2026-09-29:
+    // obra errada é pior que obra nenhuma, então fora do ano é ambíguo.
+    if (distinct.some(byH1) && distinct.some((hit) => !byH1(hit))) {
+      const origOnly = distinct.filter((hit) => !byH1(hit) && byOrig(hit));
+      const year = Number(pageYear);
+      const near = origOnly.length === 1 && Number.isFinite(year) && year > 0
+        && Math.abs(Number(origOnly[0].year) - year) <= 1;
+      return near ? { kind: 'unique', hit: origOnly[0], byOriginal: true } : { kind: 'ambiguous', hits: distinct };
+    }
+    const narrowed = distinct.filter(byOrig);
     if (narrowed.length === 1) return { kind: 'unique', hit: narrowed[0], byOriginal: true };
     return { kind: 'ambiguous', hits: distinct };
   }
@@ -158,7 +183,7 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
   const rawOriginal = String(input?.originalTitle || '').trim();
   const original = rawOriginal && normalizeTitle(rawOriginal) !== normalizeTitle(title) ? rawOriginal : '';
   let hits = search.hits;
-  let selection = selectCandidate(hits, title, original);
+  let selection = selectCandidate(hits, title, original, pageYear);
   // Segunda busca pelo ORIGINAL quando o `<h1>` não casou ninguém: o site
   // titula num pt-BR que o TMDB não tem ("A Armadilha do Coelho" = "Rabbit
   // Trap"). NÃO exigir zero hits na 1ª busca: a busca do TMDB é aproximada e
@@ -171,7 +196,7 @@ export async function identifyWork(input: IdentifyInput): Promise<IdentifyResult
     const second = await searchByTitle(input.type, original, pageYear, searchOpts);
     if (!second.ok) return { outcome: 'unavailable', imdb: null, reason: 'tmdb-indisponivel' };
     hits = [...hits, ...second.hits];
-    selection = selectCandidate(hits, title, original);
+    selection = selectCandidate(hits, title, original, pageYear);
   }
   if (!hits.length) return { outcome: 'unidentified', imdb: null, reason: 'tmdb-sem-resultado' };
   if (selection.kind === 'none') {
