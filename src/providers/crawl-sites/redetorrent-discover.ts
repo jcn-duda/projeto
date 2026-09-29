@@ -183,13 +183,13 @@ export function createRedetorrentDiscoverer(
       throw new Error('redetorrent-cardigann: todos os sitemaps de obra falharam');
     }
     const complete = failures.length === 0;
+    // Lista VAZIA aqui não é falha: cada arquivo já provou ter entrada do seu
+    // tipo ANTES do corte incremental (`rowsOfKind` no `readWorkSitemap`), então
+    // zero depois do corte é "nada novo desde o cursor". Havia um `throw` aqui, e
+    // ele transformava toda rodada incremental sem novidade em falha: o motor
+    // refazia a descoberta no prazo curto de retry, para sempre — medido na VPS
+    // em 2026-09-29, uma rodada a cada ~70 s, 8 sitemaps pelo FlareSolverr cada.
     const urls = emitSeries ? all : all.filter((u) => u.kind === 'movie');
-    if (!urls.length) {
-      // O contador de entradas lidas entra na mensagem: sem ele, "nenhuma URL"
-      // não distingue site vazio de arquivo inteiro reprovado pelo filtro de
-      // caminho — e são falhas que o painel precisa separar.
-      throw new Error(`redetorrent-cardigann: a descoberta não gerou URL de obra (${all.length} URL(s) lida(s))`);
-    }
     return {
       urls,
       complete,

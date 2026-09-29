@@ -159,6 +159,27 @@ describe('crawl-sites/redetorrent: discover', () => {
     },
   ));
 
+  test('rodada incremental SEM novidade é completa, não falha (o laço de retry da VPS)', () => withStub(
+    // Só linhas DATADAS: com o cursor no futuro, a lista depois do corte fica
+    // realmente vazia — é o caso que o `throw` antigo transformava em falha.
+    pageRoutes({
+      '/sitemap.xml': () => viewer(row(`${SITE}/movies-sitemap.xml`, '16 de September de 2026', '17:56')),
+      '/movies-sitemap.xml': () => viewer(
+        row(`${SITE}/filmes/coringa/`, '16 de September de 2026', '17:56'),
+        row(`${SITE}/filmes/injustice/`, '15 de September de 2026', '10:00'),
+      ),
+    }),
+    async () => {
+      // Cursor no futuro: nenhuma linha datada é nova. Havia um `throw` para
+      // lista vazia depois do corte, e na VPS ele virava uma descoberta refeita
+      // a cada ~70 s, para sempre (2026-09-29). Só as linhas SEM data sobram.
+      const disc = await site().discover(null, { sinceByKind: { movie: '2099-01-01T00:00:00Z', tv_show: '2099-01-01T00:00:00Z' } });
+      assert.equal(disc.complete, true);
+      assert.deepEqual(disc.failures, []);
+      assert.deepEqual(disc.urls, [], 'nada é novo desde o cursor');
+    },
+  ));
+
   test('índice sem sitemap de obra cai no nome Yoast', () => withStub(
     pageRoutes({ '/sitemap.xml': () => viewer(row(`${SITE}/post-sitemap.xml`, '16 de September de 2026', '17:56')) }),
     async (stub) => {

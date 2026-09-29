@@ -165,6 +165,18 @@ describe('crawl-sites/bludv: REGRESSÃO — "vazio" é FALHA, nunca descoberta c
       assert.equal(disc.requestCost, 19);
     },
   ));
+
+  test('rodada incremental SEM novidade é completa, não falha', () => withStub(
+    pageRoutes(), async () => {
+      // Cursor no futuro: nada datado é novo. O `throw` para lista vazia depois
+      // do corte refazia a descoberta no prazo de retry para sempre (o laço
+      // medido no RedeTorrent da VPS, 2026-09-29, que este site herdou).
+      const disc = await site().discover('2099-01-01T00:00:00Z', { series: { enabled: true, maxCards: 4, maxButtons: 40 } });
+      assert.equal(disc.complete, true);
+      assert.deepEqual(disc.failures, []);
+      assert.ok(disc.urls.every((u) => !u.lastmod), 'nada datado passa do cursor');
+    },
+  ));
 });
 
 describe('crawl-sites/bludv: o arquivo sintético dos arquivos 2..18', () => {

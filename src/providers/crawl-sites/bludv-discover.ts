@@ -177,13 +177,12 @@ export function createBludvDiscoverer(surface: BludvResolverSurface, seriesProbe
       throw new Error('bludv-cardigann: todos os post-sitemaps falharam');
     }
     const complete = failures.length === 0;
+    // Lista VAZIA aqui não é falha: cada arquivo já provou ter post de obra ANTES
+    // do corte incremental (`rowsOfWork`), então zero depois do corte é "nada novo
+    // desde o cursor". O `throw` que havia aqui transformava toda rodada
+    // incremental sem novidade em falha e o motor a refazia no prazo curto de
+    // retry, para sempre — o laço medido no RedeTorrent da VPS (2026-09-29).
     const urls = emitSeries ? all : all.filter((u) => u.kind === 'movie');
-    if (!urls.length) {
-      // O contador de entradas lidas entra na mensagem: sem ele, "nenhuma URL" não
-      // distingue site vazio de arquivo inteiro reprovado pelo filtro de caminho —
-      // e são falhas que o painel precisa separar.
-      throw new Error(`bludv-cardigann: a descoberta não gerou URL de obra (${all.length} URL(s) lida(s))`);
-    }
     return {
       urls,
       complete,
