@@ -233,7 +233,10 @@ export function prepareCandidateStreams(
   const seriesUniverse = names.flatMap((n) => normalizeTitle(n).split(' ').filter(Boolean));
   if (season != null && episode != null && !isDemo) {
     const before = raw.length;
-    const { kept, dropped } = filterSeriesEpisodeRaw(raw, season, episode, seriesUniverse, meta?.episodeAired?.[`${season}:${episode}`]);
+    const { kept, dropped } = filterSeriesEpisodeRaw(raw, season, episode, seriesUniverse, {
+      airDate: meta?.episodeAired?.[`${season}:${episode}`],
+      names,
+    });
     raw = kept;
     if (before !== raw.length) {
       log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);

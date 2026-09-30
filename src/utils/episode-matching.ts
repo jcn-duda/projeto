@@ -2,6 +2,7 @@ import type { ParsedSeasonEpisode, StreamCandidate } from '../../types/domain.js
 import { normalizeTitle } from './title-normalization.js';
 
 const MAX_SEASON_SPAN = 30;
+const WRITTEN_ORDINALS = ['primeira', 'segunda', 'terceira', 'quarta', 'quinta', 'sexta', 'setima', 'oitava', 'nona', 'decima'];
 
 interface SeasonEpisodeOptions {
   season?: number | null;
@@ -105,6 +106,14 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
   for (const m of t.matchAll(/(?<![a-z0-9])(\d{1,2})x(\d{1,3})/g)) {
     seasons.add(Number(m[1]));
     episodes.add(Number(m[2]));
+  }
+
+  // Ordinal POR EXTENSO: "Game of Thrones Primeira Temporada Dual Audio" (conta
+  // AllDebrid, 2026-09-30) saía sem temporada e entrava no S07E07 como pack.
+  // Só 1..10 simples; "décima primeira" sai como 11.
+  for (const m of t.matchAll(/(?<![a-z0-9])(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava|nona|decima)(?:\s+(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava|nona))?\s+temporada(?![a-z])/g)) {
+    const n = WRITTEN_ORDINALS.indexOf(m[1]) + 1 + (m[2] && m[1] === 'decima' ? WRITTEN_ORDINALS.indexOf(m[2]) + 1 : 0);
+    if (n >= 1) seasons.add(n);
   }
 
   // Faixa: "1ª até 8ª Temporada", "1 a 5 temporadas". Antes só o último número

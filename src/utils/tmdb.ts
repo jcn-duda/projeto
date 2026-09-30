@@ -5,6 +5,7 @@ import * as log from './logger.js';
 import { collectionRoot } from './multiwork-pack.js';
 import { fetchBrAliases, filterBrAliases } from './tmdb-br-aliases.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
+import { fetchJsonWithin } from './deadline.js';
 
 const API = 'https://api.themoviedb.org/3';
 
@@ -42,12 +43,8 @@ async function fetchEnglishTitle(imdbId: string, deadlineAt: number): Promise<En
     url.searchParams.set('api_key', config.tmdb.apiKey);
     url.searchParams.set('external_source', 'imdb_id');
     url.searchParams.set('language', 'en-US');
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(Math.max(1, remaining)),
-    });
+    const { res, data } = await fetchJsonWithin(url, { headers: { Accept: 'application/json' } }, remaining);
     if (!res.ok) return { title: null, ok: false };
-    const data = await res.json();
     const movie = (data?.movie_results || [])[0];
     const item = movie || (data?.tv_results || [])[0];
     // `title` (filme) / `name` (série) é a grafia en-US — o canônico que os
@@ -136,10 +133,10 @@ async function getTitles(imdbId: string) {
     url.searchParams.set('language', 'pt-BR');
 
     try {
-      const res = await fetch(url, {
+      // Prazo DURO (ver `fetchJsonWithin`): esta promessa mora no `inFlight`.
+      const { res, data } = await fetchJsonWithin(url, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(config.tmdb.timeout),
-      });
+      }, config.tmdb.timeout);
       if (!res.ok) {
         // Carrega o status no erro para o catch distinguir 404 (autoritativo)
         // de 429/5xx (transitório) — o Coringa da busca BR depende disso.
@@ -148,7 +145,6 @@ async function getTitles(imdbId: string) {
         throw err;
       }
 
-      const data = await res.json();
       const movie = (data.movie_results || [])[0];
       const item = movie || (data.tv_results || [])[0];
       if (!item) {
@@ -228,12 +224,9 @@ async function fetchJson(url: URL, deadlineAt: number): Promise<JsonResult> {
   const remaining = deadlineAt - Date.now();
   if (!(remaining > 0)) return { ok: false, status: 0, data: null };
   try {
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(Math.max(1, remaining)),
-    });
+    const { res, data } = await fetchJsonWithin(url, { headers: { Accept: 'application/json' } }, remaining);
     if (!res.ok) return { ok: false, status: res.status, data: null };
-    return { ok: true, status: res.status, data: await res.json() };
+    return { ok: true, status: res.status, data };
   } catch (err) {
     log.warn('[tmdb]', err.message);
     return { ok: false, status: 0, data: null };

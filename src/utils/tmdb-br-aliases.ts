@@ -1,6 +1,7 @@
 import config from '../config.js';
 import * as log from './logger.js';
 import { LEADING_ARTICLES, titleTokens } from './matching-vocabulary.js';
+import { fetchJsonWithin } from './deadline.js';
 
 const API = 'https://api.themoviedb.org/3';
 
@@ -68,12 +69,8 @@ async function fetchBrAliases(
   try {
     const url = new URL(`${API}/${isSeries ? 'tv' : 'movie'}/${tmdbId}/alternative_titles`);
     url.searchParams.set('api_key', config.tmdb.apiKey);
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(Math.max(1, remaining)),
-    });
+    const { res, data } = await fetchJsonWithin(url, { headers: { Accept: 'application/json' } }, remaining);
     if (!res.ok) return { titles: [], ok: false };
-    const data = await res.json();
     // O endpoint de filme devolve a lista em `titles`; o de série em `results`.
     const entries = data?.[isSeries ? 'results' : 'titles'];
     if (!Array.isArray(entries)) return { titles: [], ok: true };

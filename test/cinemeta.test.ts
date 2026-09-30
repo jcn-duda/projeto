@@ -13,82 +13,47 @@ import * as cache from '../src/utils/cache.js';
 import { getMeta } from '../src/utils/cinemeta.js';
 import { stubFetch } from './helpers/stub.js';
 
-test('getMeta usa config.cinemeta.timeout no AbortSignal e mantém o retorno normal', async () => {
-  const originalTimeoutFn = AbortSignal.timeout;
+test('getMeta: prazo vem de config.cinemeta.timeout e é DURO (fetch pendurado termina)', async () => {
+  // O prazo da Cinemeta é o de config.cinemeta.timeout, e é duro: a promessa
+  // mora no inFlight do getMeta, e um fetch pendurado (medido no Docker,
+  // 2026-09-30) travava a obra até o restart. Prova pelo comportamento: com o
+  // dublê que nunca responde, o getMeta termina perto do prazo da config.
   const originalTimeoutMs = config.cinemeta.timeout;
-  const imdbId = `tt-test-${process.pid}-${Date.now()}`;
-  const key = `meta:movie:${imdbId}`;
-  const stub = stubFetch(() => ({
-    ok: true,
-    json: async () => ({ meta: { name: 'Coringa', year: '2019', type: 'movie' } }),
-  }));
-
-  let capturedTimeout;
-
-  try {
-    // Valor bem diferente do default pra provar que o timeout vem da config,
-    // e não de um literal escondido no código.
-    config.cinemeta.timeout = 1234;
-
-    AbortSignal.timeout = (ms) => {
-      capturedTimeout = ms;
-      // O signal fake só precisa existir: o dublê de fetch ignora
-      // `options.signal`. O cast via unknown existe porque `{ aborted: false }`
-      // não é comparável a AbortSignal em nenhuma direção (TS2352).
-      return { aborted: false } as unknown as AbortSignal;
-    };
-
-    assert.equal(cache.get(key), null, 'IMDb id único não pode nascer cacheado');
-    const meta = await getMeta('movie', imdbId);
-
-    // Retorno normal preservado: o meta parseado volta como sempre.
-    assert.deepEqual(meta, { name: 'Coringa', year: '2019', type: 'movie' });
-    assert.equal(stub.calls.length, 1, 'não pode ter vindo do cache');
-    assert.equal(stub.calls[0].url, `https://v3-cinemeta.strem.io/meta/movie/${imdbId}.json`);
-    assert.equal(stub.calls[0].options.headers['User-Agent'], 'stremio-adom/1.0');
-    // A mudança em teste: o AbortSignal.timeout recebe o valor da config.
-    assert.equal(capturedTimeout, config.cinemeta.timeout);
-    assert.equal(capturedTimeout, 1234);
-  } finally {
-    stub.restore();
-    AbortSignal.timeout = originalTimeoutFn;
-    config.cinemeta.timeout = originalTimeoutMs;
-    // Limpa só a chave única deste arquivo — o cache real fica intocado.
-    cache.forget(key);
+  for (const type of ['movie', 'series']) {
+    const imdbId = `tt-test-${type}-${process.pid}-${Date.now()}`;
+    const key = `meta:${type}:${imdbId}`;
+    const stub = stubFetch(() => new Promise(() => {}));
+    try {
+      config.cinemeta.timeout = 60;
+      const t0 = Date.now();
+      const meta = await getMeta(type, imdbId);
+      const took = Date.now() - t0;
+      assert.equal(meta, null);
+      assert.ok(took >= 50 && took < 1000, `terminou no prazo da config (${took}ms)`);
+      assert.equal(stub.calls[0].url, `https://v3-cinemeta.strem.io/meta/${type}/${imdbId}.json`);
+      assert.equal(stub.calls[0].options.headers['User-Agent'], 'stremio-adom/1.0');
+    } finally {
+      stub.restore();
+      config.cinemeta.timeout = originalTimeoutMs;
+      cache.forget(key);
+    }
   }
 });
 
-test('getMeta usa config.cinemeta.timeout também na variante série', async () => {
-  const originalTimeoutFn = AbortSignal.timeout;
-  const originalTimeoutMs = config.cinemeta.timeout;
-  const imdbId = `tt-test-${process.pid}-${Date.now()}`;
-  const key = `meta:series:${imdbId}`;
-  const stub = stubFetch(() => ({
-    ok: true,
-    json: async () => ({ meta: { name: 'Fallout', releaseInfo: '2024–' } }),
-  }));
-
-  let capturedTimeout;
-
-  try {
-    config.cinemeta.timeout = 321;
-
-    AbortSignal.timeout = (ms) => {
-      capturedTimeout = ms;
-      return { aborted: false } as unknown as AbortSignal;
-    };
-
-    const meta = await getMeta('series', imdbId);
-
-    assert.deepEqual(meta, { name: 'Fallout', year: '2024', type: 'series', episodes: {} });
-    assert.equal(stub.calls.length, 1);
-    assert.equal(stub.calls[0].url, `https://v3-cinemeta.strem.io/meta/series/${imdbId}.json`);
-    assert.equal(capturedTimeout, 321);
-  } finally {
-    stub.restore();
-    AbortSignal.timeout = originalTimeoutFn;
-    config.cinemeta.timeout = originalTimeoutMs;
-    cache.forget(key);
+test('getMeta mantém o retorno normal (filme e série)', async () => {
+  for (const [type, body, want] of [
+    ['movie', { meta: { name: 'Coringa', year: '2019', type: 'movie' } }, { name: 'Coringa', year: '2019', type: 'movie' }],
+    ['series', { meta: { name: 'Fallout', releaseInfo: '2024–' } }, { name: 'Fallout', year: '2024', type: 'series', episodes: {} }],
+  ] as const) {
+    const imdbId = `tt-ok-${type}-${process.pid}-${Date.now()}`;
+    const stub = stubFetch(() => ({ ok: true, json: async () => body }));
+    try {
+      assert.deepEqual(await getMeta(type, imdbId), want);
+      assert.equal(stub.calls.length, 1);
+    } finally {
+      stub.restore();
+      cache.forget(`meta:${type}:${imdbId}`);
+    }
   }
 });
 

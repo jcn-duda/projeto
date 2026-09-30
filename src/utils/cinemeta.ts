@@ -2,6 +2,7 @@ import config from '../config.js';
 import * as cache from './cache.js';
 import * as metrics from './metrics.js';
 import * as log from './logger.js';
+import { fetchJsonWithin } from './deadline.js';
 
 // Requisições concorrentes para o mesmo id compartilham a mesma promise —
 // o Stremio dispara buscas duplicadas (episódios da mesma série) e sem isso
@@ -113,10 +114,9 @@ async function getMeta(type: string, imdbId: string) {
     const url = `https://v3-cinemeta.strem.io/meta/${kind}/${imdbId}.json`;
 
     try {
-      const res = await fetch(url, {
+      const { res, data } = await fetchJsonWithin(url, {
         headers: { 'User-Agent': 'stremio-adom/1.0' },
-        signal: AbortSignal.timeout(config.cinemeta.timeout),
-      });
+      }, config.cinemeta.timeout);
       if (!res.ok) {
         // Carrega o status no erro: 404 é autoritativo (id desconhecido), 429/
         // 5xx é transitório — o catch decide o TTL do miss negativo.
@@ -124,7 +124,6 @@ async function getMeta(type: string, imdbId: string) {
         err.status = res.status;
         throw err;
       }
-      const data = await res.json();
       const meta = data?.meta
         ? {
             name: data.meta.name || data.meta.title,

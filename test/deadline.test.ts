@@ -86,3 +86,27 @@ test('orçamento esgotado nunca fica negativo', () => {
   assert.equal(deadline.remainingCheckBudget(10000, 9500, 500), 0);
   assert.equal(deadline.remainingCheckBudget(10000, 9800, 500), 0);
 });
+
+test('fetchJsonWithin: fetch que nunca responde (nem ao abort) rejeita no prazo', async () => {
+  // O caso medido no Docker (2026-09-30): Cinemeta pendurada com
+  // AbortSignal.timeout no fetch, a promessa no inFlight travou a obra.
+  const original = globalThis.fetch;
+  globalThis.fetch = (() => new Promise(() => {})) as typeof fetch;
+  try {
+    const t0 = Date.now();
+    await assert.rejects(deadline.fetchJsonWithin('http://x.invalid/', {}, 50), { name: 'TimeoutError' });
+    assert.ok(Date.now() - t0 < 1000);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('fetchJsonWithin: corpo que trava depois dos headers também rejeita', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => ({ ok: true, status: 200, json: () => new Promise(() => {}) })) as unknown as typeof fetch;
+  try {
+    await assert.rejects(deadline.fetchJsonWithin('http://x.invalid/', {}, 50), { name: 'TimeoutError' });
+  } finally {
+    globalThis.fetch = original;
+  }
+});

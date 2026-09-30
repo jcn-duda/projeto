@@ -11,6 +11,27 @@ import { bankRowsForMediaSource } from '../utils/release-index-media.js';
 import { parseTitleSeasonEpisode } from '../utils/episode-matching.js';
 import config from '../config.js';
 
+const ARTICLES = new Set(['a', 'o', 'as', 'os', 'the']);
+
+/**
+ * Item sem marcador de série (título e `dn`) que ABRE com artigo ausente de
+ * todos os nomes da obra nomeia outra obra: From é "Origem" no Brasil, e "A
+ * Origem 4k 2160p Dual Audio" pronto na conta (é Inception) saía com ⚡ no
+ * S01E02 (2026-09-30) — conta e BR pulam a guarda de precisão, e o artigo é
+ * descartado na comparação de nome. "O Urso" (The Bear) passa: o nome pt tem o
+ * artigo. Com marcador de série, o marcador decide e isto se cala.
+ */
+function foreignArticle(r: RawItem, title: string, names: string[]): boolean {
+  if (!names.length) return false;
+  for (const t of [title, magnetDisplayName(r) || '']) {
+    const p = parseTitleSeasonEpisode(t);
+    if (p.seasons.length || p.episodes.length || p.complete || p.seasonPack) return false;
+  }
+  const first = normalizeTitle(title).split(' ').filter(Boolean)[0] || '';
+  if (!ARTICLES.has(first)) return false;
+  return !names.some((n) => normalizeTitle(n).split(' ').filter(Boolean)[0] === first);
+}
+
 function namesEpisode(r: RawItem, title: string, episode: number): boolean {
   return [title, magnetDisplayName(r) || ''].some((t) => parseTitleSeasonEpisode(t).episodes.includes(episode));
 }
@@ -25,8 +46,7 @@ export function filterSeriesEpisodeRaw(
   season: number,
   episode: number,
   seriesUniverse: string[],
-  airDate?: string | null,
-  now = Date.now(),
+  { airDate = null, now = Date.now(), names = [] }: { airDate?: string | null; now?: number; names?: string[] } = {},
 ): { kept: RawItem[]; dropped: RawItem[] } {
   let raw = items;
   // Episódio que ainda não foi ao ar: pack da temporada ou série completa
@@ -69,7 +89,8 @@ export function filterSeriesEpisodeRaw(
       continue;
     }
     if (r.fromAccount || r.isBr) {
-      kept.push(r);
+      if (foreignArticle(r, title, names)) dropped.push(r);
+      else kept.push(r);
       continue;
     }
     if (matchesGlobalSeriesNoMarker(title, normalizeTitle(title).split(' ').filter(Boolean), seriesUniverse)) {

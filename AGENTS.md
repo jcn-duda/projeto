@@ -3246,6 +3246,20 @@ o orçamento com a resposta.
   `resolveSearchNames` usa o ano do TMDB quando os dois divergem por MAIS de 2
   anos (até 2 o ±2 cobre e a Cinemeta manda). Medido em 130 filmes do acervo:
   nenhum divergia, então a regra é rara por construção.
+- **Metadado com prazo DURO (`fetchJsonWithin`, `deadline.ts`).** O
+  `AbortSignal.timeout` no `fetch` não bastou: no Docker local (2026-09-30), 8
+  consultas à Cinemeta ficaram pendentes para sempre, e como a promessa mora no
+  `inFlight` do `getMeta`, a obra (e o episódio seguinte do prefetch) respondia
+  "Procurando fontes" até o restart — 15 de 69 obras numa varredura. Cinemeta
+  e TMDB (`/find`, en-US, aliases, coleção) usam o timer próprio que aborta E
+  rejeita. Não volte ao `fetch` cru em nada que viva num `inFlight`.
+- **Item de conta/BR sem marcador de série que abre com artigo ausente dos
+  nomes é outra obra** (`foreignArticle`, `stream-builder-episode-filter.ts`):
+  From é "Origem" e "A Origem 4k" (Inception) pronto na conta saía no S01E02 —
+  conta e BR pulam a guarda de precisão e a comparação de nome descarta o
+  artigo. "O Urso" (The Bear) passa porque o nome pt tem o artigo. No acervo:
+  51 de 1.711 releases BR de série se expõem, e as que caem são todas de outra
+  obra. O parser também lê o ordinal por extenso ("Primeira Temporada").
 - **Fontes BR não publicam tamanho por botão.** Os resolvedores mandam o
   sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
   inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como

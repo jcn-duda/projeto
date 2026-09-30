@@ -180,10 +180,11 @@ test('getTitles: prazo esgotado não abre a 2ª consulta e usa TTL curto', withT
     return foreignMoviePtBr();
   });
   try {
+    // O /find mais lento que o prazo é FALHA (prazo duro, fetchJsonWithin):
+    // antes o dublê que ignorava o sinal "respondia" depois do prazo.
     const titles = await getTitles(imdbId);
     assert.equal(enCalled, false, 'prazo esgotado não pode abrir a 2ª consulta');
-    assert.equal(titles.en, null);
-    assert.equal(titles.pt, 'PT Localizado');
+    assert.equal(titles, null);
     const remaining = cache.peekRemaining(key);
     assert.ok(
       remaining !== null && remaining <= config.tmdb.transientMissTtl,
