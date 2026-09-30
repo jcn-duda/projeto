@@ -169,6 +169,13 @@ export interface ListingCursor {
   anchor: string;
   /** Páginas já lidas no round em curso (zera quando o round fecha). */
   roundPage: number;
+  /** Modo INCREMENTAL (a carga inicial já chegou ao fim): a passada começa na
+   * página 1 e fecha ao reencontrar a `anchor`. Ausente = carga inicial, e aí
+   * a âncora não vale — ver `crawl-listing-read.ts`. */
+  sweep?: boolean;
+  /** Post mais NOVO visto na página 1 no início da passada: vira a âncora da
+   * passada seguinte quando esta fecha. */
+  head?: string;
   /** Rounds fechados (diagnóstico do painel; não decide retomada). */
   rounds: number;
   /** Última gravação (diagnóstico; não decide retomada). */
@@ -197,6 +204,8 @@ export function encodeListingCursor(cursor: ListingCursor): string {
     r: Math.max(0, Math.trunc(Number(cursor.roundPage) || 0)),
     d: Math.max(0, Math.trunc(Number(cursor.rounds) || 0)),
     t: Math.max(0, Math.trunc(Number(cursor.updatedAt) || 0)),
+    ...(cursor.sweep ? { w: 1 } : {}),
+    ...(cursor.head ? { h: cursor.head } : {}),
   });
   return `${LISTING_CURSOR_TAG}.${Buffer.from(json, 'utf8').toString('base64url')}`;
 }
@@ -245,58 +254,12 @@ export function decodeListingCursor(token: string): ListingCursor | null {
   const roundPage = p.r === undefined || p.r === null ? 0 : p.r;
   const rounds = p.d === undefined || p.d === null ? 0 : p.d;
   if (!isNonNegInt(roundPage, 0) || !isNonNegInt(rounds, 0)) return null;
-  return { v: 1, site, kind: p.k, path, page: p.n, seen: p.c, anchor, roundPage, rounds, updatedAt: p.t };
-}
-
-/** Uma página lida da listagem, como o adaptador a viu. */
-export interface ListingPageRead {
-  /**
-   * Posts da página NA ORDEM DO SITE (primeiro = mais novo, padrão WordPress).
-   * A ordem não é enfeite: o marco do round é o ÚLTIMO post lido, e ele só
-   * significa "li até aqui" se for o mais antigo da página.
-   */
-  posts: readonly string[];
-  /** Quantos posts entraram na fila (orçamento gasto). Default: `posts.length`. */
-  enqueued?: number;
-  /** O adaptador viu o FIM da listagem (link de "próxima" ausente/vazio). */
-  endOfListing?: boolean;
-}
-
-export interface ListingReadOptions {
-  /** Teto de páginas por round; 0 = sem teto. Default: `LISTING_ROUND_MAX_PAGES`. */
-  roundMaxPages?: number;
-  /** Teto ABSOLUTO de profundidade (`0` = sem teto); ver `listingCursorExhausted`. */
-  maxPages?: number;
-}
-
-/** Por que o round parou. `walk` = a página foi lida e o round continua. */
-export type ListingReadReason = 'anchor-found' | 'end-of-listing' | 'round-cap' | 'page-cap' | 'walk';
-
-export interface ListingReadResult {
-  /** Cursor para gravar — o MESMO objeto quando nada foi consumido. */
-  cursor: ListingCursor;
-  /** O round cobriu a listagem? Só a âncora achada ou o fim declarado fecham. */
-  complete: boolean;
-  reason: ListingReadReason;
-  /** A âncora do round apareceu nesta página. */
-  anchorFound: boolean;
-  /** A página foi consumida (posição e orçamento contados)? */
-  advanced: boolean;
-}
-
-/** Caminho utilizável de um post da listagem (`''`/`/` não são marco). */
-function postKey(post: unknown): string {
-  const key = crawlUrlKey(String(post ?? ''));
-  return key && key !== '/' ? key : '';
-}
-
-/** O marco do round: o post mais ANTIGO lido (último da página, na ordem do site). */
-function closingAnchor(posts: readonly string[]): string {
-  for (let i = posts.length - 1; i >= 0; i -= 1) {
-    const key = postKey(posts[i]);
-    if (key) return key;
-  }
-  return '';
+  const head = parseAnchor(p.h);
+  if (head === null) return null;
+  return {
+    v: 1, site, kind: p.k, path, page: p.n, seen: p.c, anchor, roundPage, rounds, updatedAt: p.t,
+    ...(p.w === 1 ? { sweep: true } : {}), ...(head ? { head } : {}),
+  };
 }
 
 /** O round já leu o que podia? O chamador PARA de buscar páginas aqui. */
@@ -318,63 +281,10 @@ export function restartListingRound(cursor: ListingCursor, now: number): Listing
   return { ...cursor, roundPage: 0, updatedAt: now };
 }
 
-/**
- * Consome UMA página lida e decide o destino do round. É o ÚNICO verbo que
- * move o cursor de listagem — não existe avanço sem âncora por fora, que é o
- * que mantinha a varredura relendo a mesma página para sempre.
- *
- * Regras, nesta ordem: (1) round já esgotado por token incoerente ⇒ nada é
- * consumido e o round reinicia; (2) `maxPages` estourado ⇒ a listagem foi
- * abandonada no limite de profundidade e nada é consumido; (3) âncora na página
- * OU fim declarado ⇒ o round FECHA com `complete: true` e o marco vira o post
- * mais antigo lido; (4) a página bateu o teto do round ⇒ o round FECHA por
- * `round-cap` com `complete: false` (não achou a âncora, logo não pode afirmar
- * cobertura) e o marco também avança, para o próximo round não reler o mesmo
- * trecho; (5) nada disso ⇒ a página é consumida e o round continua (`walk`).
- * `page` e `seen` nunca recuam (é a retomada) e número negativo não devolve
- * orçamento.
- */
-export function readListingPage(
-  cursor: ListingCursor,
-  page: ListingPageRead,
-  now: number,
-  opts: ListingReadOptions = {},
-): ListingReadResult {
-  const roundMax = Math.max(0, Math.trunc(Number(opts.roundMaxPages ?? LISTING_ROUND_MAX_PAGES) || 0));
-  // 1) round incoerente: reinicia sem consumir (senão a listagem trava).
-  if (listingRoundExhausted(cursor, roundMax)) {
-    return { cursor: restartListingRound(cursor, now), complete: false, reason: 'round-cap', anchorFound: false, advanced: false };
-  }
-  // 2) teto absoluto de profundidade: o ciclo acabou por decisão do operador.
-  if (listingCursorExhausted(cursor, opts.maxPages)) {
-    return { cursor, complete: false, reason: 'page-cap', anchorFound: false, advanced: false };
-  }
-  const posts = Array.isArray(page?.posts) ? page.posts : [];
-  const keys = posts.map(postKey);
-  const anchorFound = cursor.anchor !== '' && keys.includes(cursor.anchor);
-  const endOfListing = page?.endOfListing === true;
-  const roundPage = Math.max(0, Math.trunc(Number(cursor.roundPage) || 0)) + 1;
-  const reachedCap = roundMax > 0 && roundPage >= roundMax;
-  const close = anchorFound || endOfListing || reachedCap;
-  const next: ListingCursor = {
-    ...cursor,
-    page: Math.max(1, Math.trunc(Number(cursor.page) || 1)) + 1,
-    seen: Math.max(0, Math.trunc(Number(cursor.seen) || 0)) + Math.max(0, Math.trunc(Number(page?.enqueued ?? posts.length) || 0)),
-    roundPage: close ? 0 : roundPage,
-    // O marco só anda quando o round fecha: um round aberto não pode prometer
-    // que leu até o fim. Sem post utilizável na página, o marco anterior fica.
-    anchor: close ? (closingAnchor(posts) || cursor.anchor) : cursor.anchor,
-    rounds: close ? Math.max(0, Math.trunc(Number(cursor.rounds) || 0)) + 1 : Math.max(0, Math.trunc(Number(cursor.rounds) || 0)),
-    updatedAt: now,
-  };
-  return {
-    cursor: next,
-    complete: anchorFound || endOfListing,
-    reason: anchorFound ? 'anchor-found' : endOfListing ? 'end-of-listing' : reachedCap ? 'round-cap' : 'walk',
-    anchorFound,
-    advanced: true,
-  };
-}
+// A leitura de UMA página (o único verbo que move o cursor) mora em
+// `crawl-listing-read.ts` — reexportada aqui para os importadores de sempre.
+export { readListingPage } from './crawl-listing-read.js';
+export type { ListingPageRead, ListingReadOptions, ListingReadReason, ListingReadResult } from './crawl-listing-read.js';
 
 /** Lê o cursor durável da listagem. Ausente, ilegível ou de outra listagem
  * (mesmo site, caminho diferente) = `null`: o chamador recomeça da página 1. */

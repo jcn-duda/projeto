@@ -1938,6 +1938,20 @@ com a lista de falhas VAZIA e releitura no prazo curto de retry. É o
 comportamento esperado da janela, não falha do site: falha de verdade traz
 `failures` preenchido.
 
+**A âncora só vale no INCREMENTAL** (`crawl-listing-read.ts`, 2026-09-30). Na
+carga inicial o cursor só avança, e a âncora do round anterior reaparece na
+próxima página por DESLIZAMENTO (post novo no topo empurra a listagem): na VPS o
+Apache fechou "completo" na página 42 e esperou 1 h por rodada — a carga levaria
+~4,5 dias. Agora a carga ignora a âncora (rodada parcial, retry de 60 s) e, ao
+chegar ao FIM, o cursor volta à página 1 em modo `sweep` com a âncora no post
+mais NOVO da passada (`head`, o primeiro da página 1). Cada passada incremental
+lê do topo até reencontrar essa âncora — antes não havia volta à página 1 e post
+novo nunca seria lido depois da carga. Cursor antigo (sem `head`) vira
+incremental SEM âncora, e aí o teto do round é a cobertura (relê só o topo).
+Validado ao vivo no apachetorrents.com: carga a partir da página 61 anda
+(`round-cap`, `complete:false`); fim em 2121+ volta à página 1 com a âncora no
+post mais novo; a passada seguinte fecha na 1ª página (`anchor-found`).
+
 **O estado é POR SITE** (`crawl-site-runtime.ts`): cursores, rodada aberta,
 `nextDiscoverAt`, política de pausa, hora/custo, `lastRequestAt`,
 `lastActiveAt`, flags de recuperação. O que é GLOBAL continua global por

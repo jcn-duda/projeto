@@ -154,20 +154,33 @@ describe('âncora: o round só fecha com o marco ACHADO', () => {
     assert.equal(r.cursor.rounds, 2, 'rounds fechados não muda');
   });
 
-  test('página com a âncora: fecha com complete:true e o marco vira o post mais ANTIGO lido', () => {
-    const c = start({ anchor: '/filmes/marco', roundPage: 1, rounds: 2 });
+  test('INCREMENTAL: página com a âncora fecha, e a próxima passada volta à página 1', () => {
+    const c = start({ sweep: true, anchor: '/filmes/marco', head: '/filmes/topo', page: 2, roundPage: 1, rounds: 2 });
     const r = readListingPage(c, { posts: ['/filmes/a', '/filmes/b', '/filmes/marco', '/filmes/c'] }, 2000);
     assert.equal(r.complete, true);
     assert.equal(r.reason, 'anchor-found');
     assert.equal(r.anchorFound, true);
-    assert.equal(r.cursor.anchor, '/filmes/c', 'o marco novo é o ÚLTIMO post da página (o mais antigo)');
+    assert.equal(r.cursor.anchor, '/filmes/topo', 'a parada da próxima passada é o post mais NOVO desta');
+    assert.equal(r.cursor.page, 1, 'a próxima passada começa no topo');
+    assert.equal(r.cursor.sweep, true);
+    assert.equal(r.cursor.head, undefined, 'o topo da passada seguinte ainda não foi lido');
     assert.equal(r.cursor.roundPage, 0, 'round fechado: o próximo começa do zero');
     assert.equal(r.cursor.rounds, 3);
     assert.equal(r.cursor.seen, 4, 'a página inteira entra no orçamento, marco ou não');
   });
 
+  test('CARGA INICIAL: a âncora que reaparece por deslizamento NÃO fecha a rodada', () => {
+    // VPS (2026-09-30): o Apache achou a "âncora" (último post da rodada
+    // anterior) na página 42, fechou como completa e esperou 1 h.
+    const c = start({ anchor: '/filmes/marco', page: 42, roundPage: 0, rounds: 2 });
+    const r = readListingPage(c, { posts: ['/filmes/marco', '/filmes/x'] }, 2000);
+    assert.equal(r.anchorFound, false);
+    assert.equal(r.complete, false);
+    assert.equal(r.cursor.page, 43, 'segue em frente');
+  });
+
   test('a âncora casa pelo CAMINHO: o site trocou de domínio e o round ainda fecha', () => {
-    const c = start({ anchor: '/filmes/marco', site: 'nerdfilmes' });
+    const c = start({ sweep: true, anchor: '/filmes/marco', site: 'nerdfilmes' });
     const r = readListingPage(c, { posts: ['https://filmesviatorrenthd.net/filmes/marco?utm=x', '/filmes/x'] }, 2000);
     assert.equal(r.anchorFound, true, 'query e host são ignorados — a identidade é o caminho');
     assert.equal(r.complete, true);
@@ -184,7 +197,7 @@ describe('âncora: o round só fecha com o marco ACHADO', () => {
   });
 
   test('página sem post utilizável não inventa marco', () => {
-    const r = readListingPage(start({ anchor: '/filmes/marco' }), { posts: ['/', 'https://host/'], endOfListing: true }, 2000);
+    const r = readListingPage(start({ sweep: true, anchor: '/filmes/marco' }), { posts: ['/', 'https://host/'], endOfListing: true }, 2000);
     assert.equal(r.cursor.anchor, '/filmes/marco', 'marco anterior sobrevive a uma página sem post');
   });
 });
@@ -273,13 +286,16 @@ describe('estado durável: retomada por listagem, escopada por site', () => {
     const c = readListingPage(start(), { posts: ['/filmes/a', '/filmes/b'], endOfListing: true }, 2000).cursor;
     saveListingCursor(c);
     const relido = loadListingCursor('nerdfilmes', 'movie', LISTING);
-    assert.equal(relido?.anchor, '/filmes/b');
+    // Fim da carga inicial: a parada é o post mais NOVO visto (o topo da página 1).
+    assert.equal(relido?.anchor, '/filmes/a');
+    assert.equal(relido?.sweep, true);
+    assert.equal(relido?.page, 1);
     assert.equal(relido?.rounds, 1);
-    // O round seguinte (site voltou a publicar) acha o marco e fecha de novo.
-    const proximo = readListingPage(relido as ListingCursor, { posts: ['/filmes/c', '/filmes/b'] }, 3000);
+    // A passada seguinte (site publicou "c" no topo) acha o marco e fecha de novo.
+    const proximo = readListingPage(relido as ListingCursor, { posts: ['/filmes/c', '/filmes/a'] }, 3000);
     assert.equal(proximo.anchorFound, true);
     assert.equal(proximo.complete, true);
-    assert.equal(proximo.cursor.anchor, '/filmes/b');
+    assert.equal(proximo.cursor.anchor, '/filmes/c', 'o novo topo vira a parada');
   });
 
   test('token gravado pela mão (vazio/corrompido) recomeça em vez de quebrar', () => {
@@ -324,4 +340,23 @@ describe('estado durável: retomada por listagem, escopada por site', () => {
     assert.equal(c.seen, 0);
     assert.equal(c.anchor, '', 'sem marco: o primeiro round fecha pelo fim da listagem');
   });
+});
+
+test('INCREMENTAL sem âncora: o teto do round é a cobertura (relê só o topo)', () => {
+  const c = start({ sweep: true, anchor: '', page: 1 });
+  const r1 = readListingPage(c, { posts: ['/filmes/novo', '/filmes/x'] }, 2000, { roundMaxPages: 2 });
+  assert.equal(r1.complete, false);
+  const r2 = readListingPage(r1.cursor, { posts: ['/filmes/y'] }, 2100, { roundMaxPages: 2 });
+  assert.equal(r2.complete, true, 'sem parada conhecida, as páginas do topo bastam');
+  assert.equal(r2.cursor.anchor, '/filmes/novo');
+  assert.equal(r2.cursor.page, 1);
+});
+
+test('fim da carga de cursor ANTIGO (sem head): o incremental nasce sem âncora velha', () => {
+  const c = start({ anchor: '/filmes/meio-do-catalogo', page: 2123 });
+  const r = readListingPage(c, { posts: ['/filmes/ultimo'], endOfListing: true }, 2000);
+  assert.equal(r.complete, true);
+  assert.equal(r.cursor.sweep, true);
+  assert.equal(r.cursor.page, 1);
+  assert.equal(r.cursor.anchor, '', 'a âncora do meio do catálogo faria reler quase tudo');
 });
