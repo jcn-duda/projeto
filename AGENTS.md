@@ -1931,6 +1931,18 @@ ciclo. `hasDue(site, now)` é exato (existe `next_at <= now`), nunca a
 aproximação por contador: uma linha em backoff de 6 h contada como devida
 monopolizaria a seleção.
 
+**A precedência de item tem LIMITE DE FOME.** Pura, ela deixava sem vez para
+sempre o site cuja única pendência é a descoberta, enquanto qualquer outro
+tivesse fila: na VPS (2026-09-30) Apache, HDR, Vaca e NerdFilmes estavam com
+`lastActiveAt` 0, atrás das ~34 mil páginas do Comando e do TorrentDosFilmes.
+Descoberta vencida de site que nunca rodou, ou sem vez há mais que o próprio
+`incrementalIntervalMin`, passa na frente dos itens; dentro do intervalo a
+precedência segue (`crawl-site-select.ts`, `test/crawl-select-starvation.test.ts`).
+Medido no Docker local com o Vaca a 1.866 pendentes: em 90 s o Apache descobriu
+389 páginas e o HDR 20, e os três passaram a revezar. O "sem torrent" alto do
+acervo antigo de HDR/Apache é real: esses posts só publicam MEGA, TeraBox,
+GoFile, 1fichier e afins, nenhum magnet.
+
 **Dentro do site, a fila serve NOVIDADE primeiro** (`next_at ASC, added_at
 DESC, url_key`, igual nas duas engines): página descoberta agora e post
 ATUALIZADO (`lastmod` novo re-enfileira com `added_at = now`) furam o estoque

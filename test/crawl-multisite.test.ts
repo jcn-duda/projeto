@@ -140,13 +140,14 @@ describe('crawl multi-site: política de rodízio (puro)', () => {
     const a = createSiteRuntime('a');
     const b = createSiteRuntime('b');
     a.openRunId = 1; // rodada aberta com fila => classe item
-    a.lastActiveAt = 900; // serviu agora: a JUSTIÇA colocaria o b na frente
-    b.lastActiveAt = 1;
+    const now = Date.now();
+    a.lastActiveAt = now; // serviu agora: a JUSTIÇA colocaria o b na frente
+    b.lastActiveAt = now - 1000; // mas o b está DENTRO do intervalo incremental
     const deps = {
       counters: (id: string) => (id === 'a' ? queue(5, 5) : queue(0, 0)),
       probeOpen: () => true, globalCapHit: () => false,
     };
-    const { chosen } = selectNext(['a', 'b'], runtimes(a, b), () => cfg, deps, Date.now());
+    const { chosen } = selectNext(['a', 'b'], runtimes(a, b), () => cfg, deps, now);
     assert.equal(chosen?.id, 'a', 'item vencida tem precedência sobre descoberta');
   });
 

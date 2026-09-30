@@ -118,6 +118,12 @@ export function byFairness(candidates: SiteCandidate[]): SiteCandidate[] {
     .map((entry) => entry.candidate);
 }
 
+/** Espera máxima de uma descoberta atrás de itens: o intervalo incremental do site. */
+function starveMs(config: CrawlerSiteConfig): number {
+  const min = Number(config.incrementalIntervalMin);
+  return (Number.isFinite(min) && min > 0 ? min : 60) * 60_000;
+}
+
 /**
  * Site que deve servir a próxima requisição, ou `null` se nenhum deve.
  * Prioriza a classe `item` e só então a `discovery` — cada classe por justiça.
@@ -130,6 +136,16 @@ export function selectNext(
   now: number,
 ): { chosen: SiteCandidate | null; all: SiteCandidate[] } {
   const all = assessSites(ids, runtimeOf, configOf, deps, now);
+  // Limite de FOME da descoberta: com a precedência pura de item, site que só
+  // tinha descoberta nunca pegava a vez enquanto outro tivesse fila — na VPS
+  // (2026-09-30) Apache, HDR, Vaca e NerdFilmes estavam com lastActiveAt 0,
+  // atrás das ~34 mil páginas do Comando e do TorrentDosFilmes. Quem está sem
+  // vez há mais que o próprio intervalo incremental (ou nunca rodou) fura a
+  // fila; dentro do intervalo, a precedência de item continua valendo.
+  const starved = byFairness(all).find((candidate) => candidate.due === 'discovery'
+    && (candidate.runtime.lastActiveAt === 0
+      || now - candidate.runtime.lastActiveAt >= starveMs(candidate.config)));
+  if (starved) return { chosen: starved, all };
   for (const wanted of ['item', 'discovery'] as const) {
     const hit = byFairness(all).find((candidate) => candidate.due === wanted);
     if (hit) return { chosen: hit, all };
