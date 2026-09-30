@@ -3228,7 +3228,24 @@ o orçamento com a resposta.
   porque o falso copia nome de release real. Motivo `fake-release` no funil;
   métricas `search.fake.executable`/`search.fake.twin`. Descartado como regra:
   "WEB-DL antes do digital do TMDB" (The Odyssey tinha WEB-DL legítimo com
-  14.983 seeders e digital só em novembro no TMDB).
+  14.983 seeders e digital só em novembro no TMDB). O executável **da conta**
+  (`fromAccount`) também sai: o nome é o do arquivo real, prova e não
+  palpite (Lanterns S01E08, dois `…CAKES.exe` prontos com ⚡). A isenção da
+  conta vale só para o corte do irmão, que é heurística.
+- **Episódio que ainda não foi ao ar não lista pack.** Pack da temporada ou
+  série completa publicado antes do episódio não pode contê-lo, e na conta ele
+  sai com ⚡ para morrer no `EpisodePickError`. Com o `episodeAired` do
+  Cinemeta a mais de `SEARCH_UNAIRED_MARGIN_MS` (24h, `0` desliga) no futuro,
+  `filterSeriesEpisodeRaw` só deixa a release que NOMEIA o episódio
+  (vazamento existe). Sem data, nada muda. No mesmo caso (Lanterns S01E08,
+  2026-09-30), "S01 EP 07"/"S01 EP (01-07)" das releases indianas saía só com a
+  temporada e virava pack em todo episódio — o parser lê o `EP` ancorado no
+  `Sxx`.
+- **Ano da Cinemeta pode ser o da estreia americana.** "A Fistful of Dollars"
+  sai 1967; TMDB e posts dizem 1964, e o ±2 do filtro de filme cortava tudo.
+  `resolveSearchNames` usa o ano do TMDB quando os dois divergem por MAIS de 2
+  anos (até 2 o ±2 cobre e a Cinemeta manda). Medido em 130 filmes do acervo:
+  nenhum divergia, então a regra é rara por construção.
 - **Fontes BR não publicam tamanho por botão.** Os resolvedores mandam o
   sentinela "1 KB" (o Jackett exige o campo, e "0 B" invalida a release
   inteira no filtro de tamanho do cardigann); o addon trata ≤ 1 KB como
