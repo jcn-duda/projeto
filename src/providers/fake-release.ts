@@ -67,6 +67,14 @@ export function dropFakeReleases(
       if (!item.fromAccount) bases.add(fakeReleaseBase(titleOf(item)));
     }
   }
+  // O MESMO hash de um executável provado é o mesmo torrent, venha de onde
+  // vier: o `dn=` do tracker ("Lanterns 2026 S01E08 1080p HD H264- CAKES") não
+  // mostra o `.exe`, só o nome do arquivo na conta mostra. Sem isto a cópia do
+  // LimeTorrents sobrevivia ao corte da conta e saía com ⚡ (2026-09-30).
+  const exeHashes = new Set([...executables].map((item) => hashOf(item)).filter(Boolean));
+  if (exeHashes.size) {
+    for (const item of raw) if (item && exeHashes.has(hashOf(item))) executables.add(item);
+  }
   for (const title of imdbId ? executableTitlesForObra(imdbId) : []) {
     if (isExecutableRelease(title)) bases.add(fakeReleaseBase(title));
   }

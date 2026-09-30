@@ -101,3 +101,16 @@ test('corte: executável pronto na CONTA também sai, sem semear irmão', () => 
   const out = dropFakeReleases(raw as any, {});
   assert.deepEqual(out.map((i) => i.infoHash), [mesmoNome]);
 });
+
+test('corte: o mesmo hash de um executável da conta sai também do tracker', () => {
+  // Lanterns S01E08 (2026-09-30): a conta mostrava "…CAKES.exe" e o
+  // LimeTorrents o MESMO hash com dn sem extensão — este saía com ⚡.
+  const h = hex('a');
+  const raw = [
+    { title: 'Lanterns 2026 S01E08 1080p HD H264- CAKES.exe', infoHash: h, fromAccount: true },
+    { title: 'Lanterns 2026 S01E08 1080p HD H264- CAKES', infoHash: h.toUpperCase(), indexer: 'limetorrents' },
+    { title: 'Lanterns 2026 S01E07 1080p WEB H264-MeGusta', infoHash: hex('b'), indexer: 'therarbg' },
+  ];
+  const out = dropFakeReleases(raw as any, {});
+  assert.deepEqual(out.map((i) => i.infoHash), [hex('b')]);
+});
