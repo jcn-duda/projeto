@@ -258,6 +258,7 @@
     "test/format-unknown-quality.test.js",
     "test/format-episode.test.js",
     "test/crawl-select-starvation.test.js",
+    "test/crawl-dispatch.test.js",
     "test/episode-unaired.test.js",
     "test/format-filter-movie.test.js",
     "test/format-filter-series.test.js",

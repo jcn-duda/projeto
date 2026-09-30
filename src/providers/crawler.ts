@@ -1,21 +1,16 @@
 // Motor da raspagem total (Fase 3/4; Fase 8 MULTI-SITE). Orquestra fila,
 // ritmo, teto, freio, retomada, pausa automática e ciclo descoberta/incremental
-// — agora para VÁRIOS sites, em rodízio SERIAL. Adaptadores em
+// para VÁRIOS sites, em PARALELO limitado (`crawl-dispatch.ts`). Adaptadores em
 // `crawl-sites/*`.
 //
-// O que é GLOBAL (aqui, e só aqui): o `busy` (no máximo UMA requisição em voo
-// no processo), o `lastRequestAt` (piso de ritmo entre sites), o freio de
-// tráfego e o TETO HORÁRIO AGREGADO — sete sites com teto próprio dariam 7× o
-// orçamento de educação com o processo, e o teto global é justamente esse
-// orçamento. O que é POR SITE mora em `SiteRuntime` (`crawl-site-runtime.ts`):
-// pausa, cursores, rodada aberta, ciclo, custo, teto horário próprio e o
-// `lastActiveAt` que dá a justiça da rotação.
-//
-// Invariantes (Fases 3–7, preservadas): serial; `delayMs`+`maxPerHour`+freio;
-// cursor incremental POR KIND (`cursor:movie`/`cursor:tv_show`) só com a
-// descoberta do kind completa; retomada de `inflight` no start E na 1ª passagem
-// após religar; pausa auto (streak/canário) + manual; knobs ao vivo
-// (`crawler-live`) e, na Fase 8, por site (`siteOverrides`); gate da sonda.
+// GLOBAL (aqui, e só aqui): o conjunto `inflight` (um passo por site, até
+// `CRAWL_MAX_PARALLEL`, faixa única do FlareSolverr), o freio de tráfego e o
+// TETO HORÁRIO AGREGADO — o orçamento de educação do processo inteiro. POR SITE
+// (`SiteRuntime`): pausa, cursores, rodada, ciclo, custo, teto próprio e o
+// `lastActiveAt`, que dá a justiça da escolha E o ritmo (`delayMs`) do site.
+// Invariantes preservadas: cursor incremental POR KIND só com a descoberta do
+// kind completa; retomada de `inflight`; pausa auto/manual; knobs ao vivo e por
+// site (`siteOverrides`); gate da sonda.
 import * as crawlerLive from '../utils/crawler-live.js';
 import * as store from '../utils/crawl-store.js';
 import type { CrawlEngine, SiteCounters } from '../utils/crawl-store.js';
@@ -40,17 +35,16 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { AutoPauseReason } from './crawl-pauses.js';
 import type { CrawlSite } from './crawl-types.js';
-import { applySkipReasons, selectNext, skipReasonFor, type SelectDeps } from './crawl-site-select.js';
+import { applySkipReasons, skipReasonFor, type SelectDeps, type SiteCandidate } from './crawl-site-select.js';
+import { pickBatch } from './crawl-dispatch.js';
 
 // --- Estado do motor ---------------------------------------------------------
 
 let started = false;
-let busy = false;
+/** Sites com passo EM VOO (o paralelo; substitui o antigo `busy` único). */
+const inflight = new Set<string>();
 /** Pausa MANUAL GLOBAL: não persiste — restart volta ao `.env`. */
 let paused = false;
-/** Piso de ritmo GLOBAL entre duas requisições (quando o `delayMs` é 0, dois
- * sites na mesma hora ainda não se atropelam). */
-let lastRequestAt = 0;
 /** Site que serviu a última requisição (o topo do status é a visão dele). */
 let activeSiteId = '';
 /** Runtime por site (criado sob demanda; sobrevive à troca de config). */
@@ -59,7 +53,8 @@ const runtimes: SiteRuntimeMap = new Map();
 const hourPages = createHourCounter();
 
 const stepper = createCrawlStepper({
-  markRequest: (at) => { lastRequestAt = at; },
+  // O ritmo é POR SITE (`lastActiveAt`, gravado no mesmo instante pelo passo).
+  markRequest: () => {},
   onCost: (cost) => { hourPages.note(cost); },
   discoveryCost: () => config.crawl.discoveryCost,
 });
@@ -95,9 +90,8 @@ function selectDeps(live: CrawlerEffectiveConfig): SelectDeps {
   };
 }
 
-// Timer rearmável (Fase 4): cadência viva; painel muda sem restart. Na Fase 8 a
-// cadência é o MENOR `delayMs` entre os sites habilitados (`withCadence`) — o
-// timer não pode mais ser armado pelo delay global, que atrasaria o site rápido.
+// Timer rearmável: cadência viva = MENOR `delayMs` dos sites (`withCadence`);
+// o delay global atrasaria o site rápido.
 const scheduler = createCrawlScheduler({
   isStarted: () => started,
   tick: () => tick(),
@@ -121,46 +115,60 @@ async function resolveSite(id: string): Promise<CrawlSite | null> {
   return site;
 }
 
-/** Um ciclo do motor. Exportado para o teste dirigir o passo sem timer real. */
+/** Um passo de UM site, fora da trava global: o conjunto `inflight` é a trava. */
+async function runSite(chosen: SiteCandidate): Promise<void> {
+  try {
+    const site = await resolveSite(chosen.id);
+    if (!site) return;
+    activeSiteId = chosen.id;
+    await stepper.step(chosen.runtime, site, chosen.config);
+  } catch (err) {
+    log.warn(`[crawl] ${chosen.id}: passo falhou:`, log.errorMessage(err));
+  } finally {
+    inflight.delete(chosen.id);
+  }
+}
+
+/**
+ * Um ciclo do motor: inicia até `CRAWL_MAX_PARALLEL` sites (`crawl-dispatch.ts`)
+ * e espera SÓ os que ele iniciou — o timer é `setInterval` e não espera, então o
+ * ciclo seguinte já pode ocupar a vaga de quem terminou. Exportado para o teste.
+ */
 async function tick(): Promise<void> {
   const live = crawlerLive.effective();
   // Rearma antes de retorno precoce (cadência não fica presa a freio/pausa).
   scheduler.rearm(withCadence(live));
-  if (!live.enabled || paused || busy) return;
+  if (!live.enabled || paused) return;
   const ids = configuredSites(live);
   if (ids.length === 0) return;
   // O gate lê `crawl_state` e o store pode não estar aberto (boot desligado não
   // abre): sem abrir aqui, `probeOpen` veria `null` e barraria todo site com
   // `requireProbe` sem nada abrir a engine — o fail-closed trancando a si.
   if (ids.some((id) => siteConfigOf(live, id).requireProbe) && !store.currentEngine()) store.engine();
-  const now = Date.now();  const { chosen, all } = selectNext(ids, runtimeFor, (id) => siteConfigOf(live, id), selectDeps(live), now);
-  // Site DEVE trabalho e não foi servido: o motivo é "aguarda a vez", não
-  // "sem trabalho" — a diferença que o painel precisa mostrar.
-  applySkipReasons(all.map((candidate) => (chosen && candidate.id !== chosen.id && candidate.due
-    ? { ...candidate, skipReason: 'aguarda-rodizio' as const }
+  const { chosen, all, paced } = pickBatch({
+    ids, inflight, maxParallel: config.crawl.maxParallel, flareSites: new Set(config.crawl.flareSites),
+    runtimeOf: runtimeFor, configOf: (id) => siteConfigOf(live, id), deps: selectDeps(live), now: Date.now(),
+  });
+  // Site que DEVE trabalho e não foi servido: "aguarda a vez" (ou o próprio
+  // ritmo), não "sem trabalho" — a diferença que o painel precisa mostrar.
+  const picked = new Set(chosen.map((c) => c.id));
+  applySkipReasons(all.map((candidate) => (!picked.has(candidate.id) && candidate.due
+    ? { ...candidate, skipReason: paced.has(candidate.id) ? 'ritmo' as const : 'aguarda-rodizio' as const }
     : candidate)));
-  if (!chosen) return;
-  // Ritmo do SITE contra o piso GLOBAL: os dois são o mesmo relógio, e cada
-  // site traz o seu intervalo de educação com o site.
-  if (now - lastRequestAt < chosen.config.delayMs) { chosen.runtime.skipReason = 'ritmo'; return; }
-  const rt = chosen.runtime;
-  rt.attempts += 1;
-  if (activity.recentUserTraffic(chosen.config.idleWindowMs)) {
-    rt.trafficBlocks += 1;
-    rt.skipReason = 'trafego';
-    return;
+  const runs: Promise<void>[] = [];
+  for (const candidate of chosen) {
+    const rt = candidate.runtime;
+    rt.attempts += 1;
+    if (activity.recentUserTraffic(candidate.config.idleWindowMs)) {
+      rt.trafficBlocks += 1;
+      rt.skipReason = 'trafego';
+      continue;
+    }
+    // Entra no conjunto ANTES de qualquer `await`: dois ciclos se cruzam aqui.
+    inflight.add(candidate.id);
+    runs.push(runSite(candidate));
   }
-  // `busy` ANTES de qualquer `await`: resolver o adaptador já é assíncrono
-  // (import dinâmico) e dois ticks podem se cruzar aí dentro.
-  busy = true;
-  try {
-    const site = await resolveSite(chosen.id);
-    if (!site) return;
-    activeSiteId = chosen.id;
-    await stepper.step(rt, site, chosen.config);
-  } finally {
-    busy = false;
-  }
+  await Promise.all(runs);
 }
 
 /**
@@ -285,7 +293,7 @@ function siteIds(): string[] {
 // injeta as closures — o módulo não importa `crawler.ts`, sem ciclo.
 const { simulate, reprocessErrors, reprocessNoWork, resetSite } = createCrawlActions({
   effective: () => crawlerLive.effective(),
-  isBusy: () => busy,
+  isBusy: () => inflight.size > 0,
   isPaused: () => paused,
   ensureSite: (id) => resolveSite(id),
   siteLabel: (id) => runtimeFor(id).label,
@@ -297,18 +305,11 @@ const { simulate, reprocessErrors, reprocessNoWork, resetSite } = createCrawlAct
 // --- Status ------------------------------------------------------------------
 
 /**
- * Engine do STATUS. O painel precisa do `crawl.db` mesmo com o motor DESLIGADO:
- * `start()` com `enabled=false` volta antes de `primeSite`, e aí o store nunca
- * abria — o status respondia `sites: []`/`engine: null` e o painel não conseguia
- * mostrar "sonda não rodada" de um site que nunca rodou (o estado inicial de
- * todo site novo; o default de instalação é `CRAWL_ENABLED=false`). Reutiliza a
- * engine do motor e abre só quando não há nenhuma: a abertura é o MESMO caminho
- * idempotente (schema + migração de `url_key`) e o status só LÊ — `crawl_state`
- * é escrito pela sonda, e só com `--write`.
- *
- * `CRAWL_SITES` vazio NÃO abre: sem site configurado não há card nenhum a
- * responder, e criar o arquivo seria um efeito colateral do painel numa
- * instalação que nunca pediu raspagem.
+ * Engine do STATUS: o painel precisa do `crawl.db` mesmo com o motor DESLIGADO
+ * (`start()` com `enabled=false` não abre o store, e o card de site novo não
+ * mostraria "sonda não rodada"). Reutiliza a do motor e abre só se não houver
+ * nenhuma — abertura idempotente, e o status só LÊ. Sem site configurado não
+ * abre: criar o arquivo seria efeito colateral do painel.
  */
 function statusEngine(configured: number): CrawlEngine | null {
   const open = store.currentEngine();
@@ -386,9 +387,8 @@ export function _forceDiscoveryForTest(siteId?: string): void {
 export function _resetForTest(): void {
   scheduler.disarm();
   started = false;
-  busy = false;
+  inflight.clear();
   paused = false;
-  lastRequestAt = 0;
   activeSiteId = '';
   runtimes.clear();
   registry.setFactoryForTest(null);

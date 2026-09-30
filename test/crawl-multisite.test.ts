@@ -68,6 +68,7 @@ function freshCrawl(overrides: Record<string, unknown> = {}): void {
     incrementalIntervalMin: 60,
     requireProbe: false,
     discoveryCost: 3,
+    maxParallel: 1, // esta suíte trava o rodízio SERIAL; o paralelo é crawl-dispatch.test
     siteOverrides: {},
     // O status pode ABRIR o store (ver o bloco "motor desligado" abaixo), e um
     // `dbPath` vazado de um caso para outro faria o banco de verdade aparecer

@@ -1846,8 +1846,20 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
 
 O colhedor de indexers responde a `/stream`. O **raspador** é o outro
 sentido: ele próprio visita o site BR, pagina por página, e alimenta o acervo.
-Hoje ele roda **multi-site serial** — uma requisição por vez na rotação, e só
-com o app ocioso. O transporte, porém, deixou de ser uniforme: os sites sem
+Hoje ele roda **multi-site em PARALELO limitado** (`crawl-dispatch.ts`, desde
+2026-09-30) — até `CRAWL_MAX_PARALLEL` sites (default 3; 1 = o serial antigo),
+UM passo por site por vez, e só com o app ocioso. Cada site segue o PRÓPRIO
+ritmo (`delayMs` contra o `lastActiveAt` dele): nenhum site recebe mais
+requisições por minuto que no serial, só deixa de esperar o vizinho. Os sites
+de `CRAWL_FLARE_SITES` (RedeTorrent, BLUDV) formam uma faixa ÚNICA — o
+FlareSolverr atende um pedido por vez e é o mesmo da busca. Motivo medido na
+VPS: com o motor serial rodando, 9,5% de CPU e 379 MB de 3 GB — o tempo era
+espera de rede. No Docker local, 3 sites em paralelo deram ~390 páginas em
+8 min (~2.900/h) com taxa de erro igual à do serial (1–2,5%, timeout do site
+ou HTTP 500 dele). O `tick` espera só os passos que iniciou; o timer é
+`setInterval` e não espera, então a vaga de quem terminou é ocupada no ciclo
+seguinte. Restart retoma do ponto (cursor da listagem, fila e `inflight`
+recolocado na fila — medido: Apache página 41 → seguiu, 583 pendentes intactas). O transporte, porém, deixou de ser uniforme: os sites sem
 desafio vão por fetch direto, e o RedeTorrent (medido 100% atrás de
 Cloudflare) passa pelo FlareSolverr — que atende uma requisição por vez e é o
 MESMO que a busca usa, o que só fecha porque os dois correm em janelas ociosas.

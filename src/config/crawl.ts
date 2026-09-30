@@ -69,6 +69,12 @@ export const crawl = () => ({
   // 3 = sitemap de filme + de série, na ordem de grandeza do Vaca. É estimativa
   // declarada (não medição) — ajuste depois de instrumentar os adaptadores.
   discoveryCost: Math.max(1, Math.trunc(num(process.env.CRAWL_DISCOVERY_COST, 3))),
+  // Sites trabalhando AO MESMO TEMPO (`crawl-dispatch.ts`). Cada site mantém o
+  // próprio ritmo; o paralelo só tira a espera pelo vizinho. 1 volta ao serial.
+  maxParallel: Math.max(1, Math.min(8, Math.trunc(num(process.env.CRAWL_MAX_PARALLEL, 3)))),
+  // Sites que passam pelo FlareSolverr (um pedido por vez, o MESMO da busca):
+  // nunca correm dois juntos.
+  flareSites: list(process.env.CRAWL_FLARE_SITES || 'redetorrent-cardigann,bludv-cardigann'),
   // Fase 8: teto de PÁGINAS por rodada de descoberta POR LISTAGEM (o caminho
   // sem sitemap — hoje só o HDRTorrent). A primeira rodada é `complete: false`
   // e continua na seguinte: o acervo do HDRTorrent tem 2123 páginas (medido por
