@@ -619,6 +619,15 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   trackers) e nunca rebaixa para o magnet padrão; e `passed_filter` NÃO é OR —
   reflete a última observação da obra (a captura nasce 0, o resultado do filtro
   da mesma busca escreve 0/1; captura de FUNDO preserva o existente).
+- **`dubbed`/`quality` saem do TÍTULO na captura** (`inputFromItem`, mesma régua
+  do `release-index`: em site BR o rótulo Dublado/Dual/Nacional, fora dele só PT
+  explícito). O item cru do Jackett não traz os dois campos, e até 2026-09-30
+  eles ficaram vazios em 182 mil magnets. "sem resolução" é ausência: no merge
+  não bloqueia a qualidade real que chega depois. O acervo antigo é preenchido
+  no boot por `magnet-bank-backfill.ts` (lotes, conexão própria, idempotente
+  por `quality = ''`): local, 182.161 em ~2 min no volume do Windows, 50.661
+  dublados em 120 mil BR. É a PROMESSA do post — a lista servida reclassifica
+  pelo título de todo modo, então isto muda o dado guardado, não o stream.
 - **`lied` é GLOBAL.** `magnet-bank-lie.ts` lê a união de `mag:v1:lie:` de
   QUALQUER conta (peek quiet, sem memo) e promove o hash no merge; a evidência
   por conta continua só no `mag`. `bad` por conta NUNCA é lido aqui.

@@ -14,7 +14,7 @@
 import type { RawItem } from '../../types/domain.js';
 import { extractInfoHash, magnetDisplayName } from './title-normalization.js';
 import { sanitizeMagnet, defaultMagnet } from './magnet-uri.js';
-import { sourceFromTitle } from './audio-quality.js';
+import { sourceFromTitle, qualityFromTitle, audioFromTitle, explicitPtAudio, UNKNOWN_QUALITY } from './audio-quality.js';
 import type { MagnetRow, SourceRow, WorkRow } from './magnet-bank-rows.js';
 
 export type WorkCtx = {
@@ -119,7 +119,7 @@ export function mergeInputs(prev: MagnetInput, next: MagnetInput): MagnetInput {
     isBr: prev.isBr || next.isBr,
     dubbed: prev.dubbed || next.dubbed,
     lied: prev.lied || next.lied,
-    quality: prev.quality || next.quality,
+    quality: knownQuality(prev.quality) || next.quality || prev.quality,
     seedersMax: Math.max(prev.seedersMax, next.seedersMax),
     seedersLast: next.seedersLast != null ? next.seedersLast : prev.seedersLast,
   };
@@ -161,7 +161,7 @@ export function mergeMagnet(prev: MagnetRow | null, input: MagnetInput, now: num
     isBr: prev.isBr || (input.isBr ? 1 : 0),
     dubbed: prev.dubbed || (input.dubbed ? 1 : 0),
     lied: prev.lied || (input.lied ? 1 : 0) || (liedAny ? 1 : 0),
-    quality: prev.quality || input.quality,
+    quality: knownQuality(prev.quality) || input.quality || prev.quality,
     seedersMax: Math.max(prev.seedersMax, input.seedersMax),
     // Seeders ausente PRESERVA o último valor; 0 é observação e sobrescreve.
     seedersLast: input.seedersLast != null ? input.seedersLast : prev.seedersLast,
@@ -245,12 +245,30 @@ export function inputFromItem(item: RawItem, groupIndexer: string): { magnet: Ma
       })(),
       size: Number(item.size ?? item.Size) || 0,
       isBr: Boolean(item.isBr),
-      dubbed: Boolean(item.dubbed),
+      // O item cru do Jackett não traz `dubbed`/`quality` (quem classifica é o
+      // `toStremioStream`, depois): as duas colunas ficaram vazias em 182 mil
+      // magnets (medido 2026-09-30). Mesma régua do índice (`release-index`).
+      dubbed: Boolean(item.dubbed) || classifiedDubbed(String(item.title || item.Title || ''), Boolean(item.isBr)),
       lied: Boolean(item.lied),
-      quality: String(item.quality || ''),
+      quality: String(item.quality || knownQuality(qualityFromTitle(String(item.title || item.Title || '')))),
       seedersMax: seeders ?? 0,
       seedersLast: seeders,
     },
     source: { hash, indexer, tracker: String(item.tracker || item.Tracker || ''), seedersLast: seeders },
   };
+}
+
+/**
+ * "Dublado" pelo TÍTULO, a mesma régua do `release-index`: em site BR o rótulo
+ * de áudio Dublado/Dual/Nacional; fora deles só PT explícito (DUAL de cena
+ * gringa não é dublagem). É a PROMESSA do post, não prova de arquivo — quem
+ * monta a lista reclassifica pelo título de todo modo.
+ */
+export function classifiedDubbed(title: string, isBr: boolean): boolean {
+  return isBr ? ['Dublado', 'Dual', 'Nacional'].includes(String(audioFromTitle(title))) : explicitPtAudio(title);
+}
+
+/** "sem resolução" é AUSÊNCIA, não medição: não bloqueia a qualidade real que chega depois. */
+function knownQuality(quality: string): string {
+  return quality && quality !== UNKNOWN_QUALITY ? quality : '';
 }

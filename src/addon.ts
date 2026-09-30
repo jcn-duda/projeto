@@ -13,6 +13,7 @@ import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
 import * as magnetdb from './utils/magnetdb.js';
 import * as magnetBank from './utils/magnet-bank.js';
+import { backfillClassification } from './utils/magnet-bank-backfill.js';
 import * as crawlStore from './utils/crawl-store.js';
 import crawler from './providers/crawler.js';
 
@@ -23,6 +24,13 @@ const services = { magnetdb, magnetBank };
 // importado pelos testes) não abre nada; só quem sobe o servidor paga o disco.
 // O fechamento com flush+checkpoint vai no shutdown abaixo.
 magnetBank.openIfEnabled();
+// Acervo gravado sem `dubbed`/`quality`: preenche em fundo, em lotes (no-op
+// quando já está preenchido). Falha só loga — o banco segue servindo.
+if (config.magnetBank?.enabled) {
+  backfillClassification(config.magnetBank.dbPath)
+    .then((r) => { if (r.updated) log.info(`[magnetbank] ${r.updated} magnet(s) classificado(s) (dublado/qualidade)`); })
+    .catch((err: unknown) => log.warn('[magnetbank] classificação do acervo falhou:', log.errorMessage(err)));
+}
 
 // O Express app + manifest + rotas vivem em ./app (sem listen), para os testes
 // poderem exercitar o roteamento real sem subir servidor.
