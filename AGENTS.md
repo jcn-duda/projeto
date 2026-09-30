@@ -221,7 +221,7 @@ Um `stream` request do Stremio percorre exatamente este caminho:
 addon.ts  processo (listen, warmup)
    └─ app.ts  defineStreamHandler
         └─ providers/index.ts  findStreams
-             ├─ cache SWR (streams:v20)          ← só lista completa + debridKnown + tocável
+             ├─ cache SWR (streams:v21)          ← só lista completa + debridKnown + tocável
              ├─ coalescing inFlight
              └─ doSearch
                   ├─ cinemeta.getMeta  ─┐ paralelo
@@ -361,7 +361,7 @@ debrid ativo) seguem exigidas.
 
 **Comportamento:**
 - Pack nunca vai P2P inteiro
-- Pack nunca entra no índice público (`idx:v13`)
+- Pack nunca entra no índice público (`idx:v14`)
 - Pack nunca entra no autofetch nem no warmer RD
 - HMAC do `/resolve` inclui `p:1` para TODO pack admitido: no Stream, `_multiWork`
   é `isMultiWorkCollection(título) || _multiWorkAdmitted`, então o pack cuja
@@ -1069,7 +1069,7 @@ ausente significa "nunca medido neste processo", não medição falha.
 
 **Funil por item (`/stream-trace.json`, P5).** Responde "por que aquele stream
 sumiu?" sem refazer a busca: o ledger observacional viaja **dentro** da entrada
-`streams:v20`, a rota é só leitura (`getWithStale`), e o recompute offline
+`streams:v21`, a rota é só leitura (`getWithStale`), e o recompute offline
 explica entrada sem trace com peeks quiet (idx/raw/inventário). Live
 (`mode=live`) só TorBox/Premiumize via método cru do adaptador — AllDebrid é
 hard-block (`ad-hard-blocked`: consulta = upload e detona limpeza); RD é
@@ -1604,14 +1604,14 @@ operador).
 
 ## Cache multi-nível (fases 0–2 no código)
 
-A chave `streams:v20` isola config do usuário + digest da conta
+A chave `streams:v21` isola config do usuário + digest da conta
 (`request-key.ts`). A versão de cada namespace vive em `src/utils/cache-keys.ts`
 — bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga no disco o
-que não bate com a versão corrente). `idx` está em **v13** porque o classificador
+que não bate com a versão corrente). `idx` está em **v14** porque o classificador
 de áudio/origem persiste no índice (merge OR-aderente): v9 fechou DUB genérico +
 cirílico; v10 fechou `ENGLISH|ENG` no mesmo predicado; e v11 fechou a FAIXA de
 anos do bloco rutracker transliterado (`[1999-2003, País, …] Dub`), que a v13
-deixava escapar; v12 pôs o grupo russo `seleZen` na mesma guarda; v13, o `LAT.DUB`. `streams` chegou à **v20**:
+deixava escapar; v12 pôs o grupo russo `seleZen` na mesma guarda; v13, o `LAT.DUB`. `streams` chegou à **v21**:
 v11 removeu do `title` entregue ao cliente o blob de qualidades do HDRTorrent;
 v12 cortou série/pack fora do intervalo e TS/PreDVD da lista de filme; v13
 deixou de promover `DUB` genérico de release rutracker transliterada; v14
@@ -1621,7 +1621,7 @@ guarda rutracker do idx (medida no corpus do container, 2026-09-22:
 `The Matrix: Trilogy [1999-2003, …] Dub` vinha como DUB BR); v17 fez o mesmo
 com `seleZen` (`…DUB.NF.WEB-DLRip…seleZen`: DUB russo, 11 releases BR falsas
 no acervo, 2026-09-24); v18 fez o mesmo com `LAT.DUB` e tirou a vaga BR do
-nome de cena EN republicado por site BR; v19 pôs `tgx`/`ethel` nos grupos EN; v20, `yify`. **Limitação:** o `magnets.db` (banco vivo) guarda
+nome de cena EN republicado por site BR; v19 pôs `tgx`/`ethel` nos grupos EN; v20, `yify`; v21 (com idx v14), os `[Azerbaijan|Mongolian|Uzbek|Kazakh|Soviet… Dubbed]` da TPB, que viravam BR. **Limitação:** o `magnets.db` (banco vivo) guarda
 `is_br` OR-aderente e **sem versão** — o rótulo antigo permanece lá. O fallback
 não o usa: recalcula a origem com a regra do Jackett (fonte em
 `JACKETT_PT_BR_INDEXERS` OU `looksPtBr` do título).
@@ -1631,7 +1631,7 @@ compartilhado mais abaixo.
 
 | camada | chave | o que guarda | kill-switch |
 |---|---|---|---|
-| L1+L2 streams | `streams:v20:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
+| L1+L2 streams | `streams:v21:…` | lista já cortada, com HMAC | `CACHE_TTL=0` implícito via TTL curto / graça 0 |
 | bruto por indexer | `raw:v1:jackett:…` | resultado cru, **sem** credencial | `RAW_CACHE_MAX_ITEMS=0` |
 | SWR | `getWithStale` | serve expirada e revalida em fundo | `STREAM_STALE_GRACE_SECONDS=0` |
 
@@ -1734,7 +1734,7 @@ v2, então a passada não se repete, e nada se perde funcionalmente: o Torrentio
 
 ---
 
-## Índice de releases e o addon como servidor (`idx:v13`, PLANO_MAGNETDB... ver
+## Índice de releases e o addon como servidor (`idx:v14`, PLANO_MAGNETDB... ver
 ## PLANO no repo)
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett
@@ -1745,7 +1745,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
-- **`src/utils/release-index.ts`** guarda por obra (`idx:v13:<imdbId>[:S:E]`) o
+- **`src/utils/release-index.ts`** guarda por obra (`idx:v14:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
   instalações DE PROPÓSITO — guarda o que EXISTE, nunca o que está pronto em
@@ -2722,7 +2722,7 @@ fire-and-forget) continua.
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente, freio de atividade e teto horário; `harvest-inflight.ts`/`harvest-outcome.ts` fundem intenção concorrente e reencaminham um único trabalho |
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
-| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v13`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v14`): record/lookup/status — o que faz o addon responder sem Jackett |
 | `src/utils/stream-trace.ts` / `trace-recompute.ts` | Funil por item (P5): ledger observacional na entrada `streams`, recompute offline com peeks quiet |
 | `src/debrid/live-check.ts` | Live read-only TorBox/Premiumize para `/stream-trace.json?mode=live` — AllDebrid/RD hard-block |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |
@@ -2755,7 +2755,7 @@ fire-and-forget) continua.
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`/`muri:`) e `prefix(ns)` |
-| `src/utils/request-key.ts` | `streams:v20` + digest da conta (nunca a chave crua) |
+| `src/utils/request-key.ts` | `streams:v21` + digest da conta (nunca a chave crua) |
 | `src/utils/secret-box.ts` | AES-256-GCM do `dk` no install URL |
 | `src/utils/sign.ts` | HMAC do `/resolve` (hash + ep + dica `w`) |
 | `src/utils/deadline.ts` | `raceWithDeadline`, `remainingCheckBudget` |
@@ -3107,7 +3107,7 @@ o orçamento com a resposta.
   vivo por um glitch.
 - **Mudou regra de matching? O rebuild do container NÃO invalida o cache.**
   `data/cache.db` é volume: sobrevive a `docker compose up -d --build`, e o
-  `streams:v20` (lista pronta) e o `idx:v13` (acervo de releases já aprovadas)
+  `streams:v21` (lista pronta) e o `idx:v14` (acervo de releases já aprovadas)
   continuam servindo o que o filtro **antigo** deixou passar. Custou uma
   validação falsa: a correção estava no container, o teste isolado passava, e
   a resposta HTTP continuava trazendo o item errado. Depois de mexer em
@@ -3122,17 +3122,17 @@ o orçamento com a resposta.
 
   O header é `X-Indexer-Test-Token` (não `Authorization`) e `confirm: true` é
   obrigatório. Escopo por namespace (`{"scope":{"namespace":"streams"}}`) NÃO
-  basta quando a regra afeta o índice — o `idx:v13` reentrega o item por outro
+  basta quando a regra afeta o índice — o `idx:v14` reentrega o item por outro
   caminho. Use o escopo global.
 - **Correção de RELEVÂNCIA não é correção de CLASSIFICADOR — o bump de namespace
   é para o outro caso.** A relevância é REFEITA a cada busca: o `buildStreams`
-  refiltra o que sai do `idx:v13` e o que a reserva do banco devolve
+  refiltra o que sai do `idx:v14` e o que a reserva do banco devolve
   (`stream-builder-pipeline` chama `filterRelevantRaw` em tudo que não é
   inventário), então a linha velha morre no filtro sem nenhum bump. O que sobra é
   a CONTABILIDADE do índice (`idxPoolCovered` pode achar que a obra já tem
-  cobertura BR e pular a busca viva) e a lista já montada no `streams:v20`, que
+  cobertura BR e pular a busca viva) e a lista já montada no `streams:v21`, que
   vive até o `CACHE_TTL` — invalide as OBRAS afetadas (é o que o reparo do
-  crawl faz por obra, com `idx:v13:<imdb>*` e `streams:%:series:<imdb>:%`). Bumpe
+  crawl faz por obra, com `idx:v14:<imdb>*` e `streams:%:series:<imdb>:%`). Bumpe
   `idx`/`streams` só quando o que mudou é um RÓTULO persistido na linha
   (`dubbed`, `quality`): aí o conserto não aparece em obra já indexada, porque o
   classificador roda uma vez na gravação.
@@ -3245,7 +3245,7 @@ o orçamento com a resposta.
   reservada, enchia a cota de 4K com não-4K e dirigia o autofetch; (2) o
   índice de releases PERSISTE `dubbed`/`quality` com os mesmos classificadores
   e vive semanas — **corrigir classificador exige bump da versão do namespace
-  (`idx:v13`), senão o conserto não aparece em obra já indexada**.
+  (`idx:v14`), senão o conserto não aparece em obra já indexada**.
 - **Reserva BR é POR FAIXA, e pack cobre faixa sem dublado próprio.**
   `BR_RESERVED_PER_QUALITY` garante até N fontes BR por balde de qualidade —
   a reserva global antiga deixava o 1080p BR abundante consumir tudo e a faixa

@@ -65,7 +65,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // site BR perde a vaga BR (idx intacto: o corte é na montagem da lista).
   // v20: `yify` na mesma lista — "Coyote Ugly 2000 1080p BluRay x264 YIFY"
   // republicado pelo Rede Torrent saía como BR.
-  streams: 'v20',
+  // v21: `[Azerbaijan|Mongolian|Uzbek… Dubbed]` deixa de provar PT (The Boys
+  // S04 da TPB saía como BR, 2026-09-30).
+  streams: 'v21',
   autofetch: 'v3',
   raw: 'v1',
   dinv: 'v1',
@@ -136,7 +138,9 @@ const NAMESPACE_VERSIONS = Object.freeze({
   // v12: `seleZen` na guarda do rutracker (ver streams v17) — o índice
   // persiste o `isBr`/`dubbed` pintado pelo DUB russo.
   // v13: `LAT.DUB` fora do DUB genérico — mesmo motivo.
-  idx: 'v13',
+  // v14: idiomas da Ásia Central/Mongólia/Soviet na guarda do "Dubbed"
+  // (ver streams v21) — mesmo motivo.
+  idx: 'v14',
   harvest: 'v1',
   notify: 'v1',
   seed: 'v1',

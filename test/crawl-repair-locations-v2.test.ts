@@ -103,12 +103,12 @@ const ROWS: RowSpec[] = [
   { hash: hashOf('t3'), imdb: TWD, season: 1, episode: -1, dn: '', title: 'The Walking Dead 4ordf Temporada', firstSeen: 130, lastSeen: 140, passedFilter: 1 },
 ];
 const IDX_KEYS = [
-  `idx:v13:${TWD}`, `idx:v13:${TWD}:S4`, `idx:v13:${TWD}:S4E5`,
-  `idx:v13:${ST}`, `idx:v13:${OP}:S1`, 'idx:v13:tt9999999',
-  // Listas prontas por instalação (formato real `streams:v20:series:<imdb>:…`):
-  `streams:v20:series:${TWD}:4:5:${JSON.stringify({})}:account:deadbeef`,
-  `streams:v20:series:${ST}:1:1:${JSON.stringify({})}:account:deadbeef`,
-  'streams:v20:series:tt9999999:1:1:x:account:deadbeef',
+  `idx:v14:${TWD}`, `idx:v14:${TWD}:S4`, `idx:v14:${TWD}:S4E5`,
+  `idx:v14:${ST}`, `idx:v14:${OP}:S1`, 'idx:v14:tt9999999',
+  // Listas prontas por instalação (formato real `streams:v21:series:<imdb>:…`):
+  `streams:v21:series:${TWD}:4:5:${JSON.stringify({})}:account:deadbeef`,
+  `streams:v21:series:${ST}:1:1:${JSON.stringify({})}:account:deadbeef`,
+  'streams:v21:series:tt9999999:1:1:x:account:deadbeef',
 ];
 
 function workRows(d: string, imdb: string): Array<Record<string, unknown>> {
@@ -131,8 +131,8 @@ describe('crawl-repair v2: fora da raiz, identidade, saneamento e lock', { concu
     assert.match(out, /sanear título.*Stranger Things \(2025\) E01/);
     assert.match(out, /SUSPEITA sem ano de estreia.*op2/, 'live action sem --premiere só é relatado');
     // Plano de cache/fila REPORTADO no dry-run (paridade com o apply).
-    assert.match(out, /idx do escopo \(planejado\): idx:v13:tt1520211/);
-    assert.match(out, /idx do escopo \(planejado\): idx:v13:tt1520211:S4E5/, 'formato real do idx por episódio');
+    assert.match(out, /idx do escopo \(planejado\): idx:v14:tt1520211/);
+    assert.match(out, /idx do escopo \(planejado\): idx:v14:tt1520211:S4E5/, 'formato real do idx por episódio');
     assert.match(out, /streams do escopo \(planejado\): 1 chave\(s\) series:tt1520211/);
     assert.match(out, /fila \(planejado\): vacatorrent .* -> pending/);
     assert.match(out, /DRY-RUN/);
@@ -165,11 +165,11 @@ describe('crawl-repair v2: fora da raiz, identidade, saneamento e lock', { concu
     db.close();
 
     // idx + streams: TODAS as chaves das obras afetadas saem (inclusive o
-    // formato real `:S4E5` e as listas `streams:v20:series:<imdb>:…`);
+    // formato real `:S4E5` e as listas `streams:v21:series:<imdb>:…`);
     // obra não afetada fica.
     const cache = new DatabaseSync(path.join(d, 'cache.db'), { readOnly: true });
     const keys = (cache.prepare('SELECT key FROM cache').all() as Array<Record<string, unknown>>).map((r) => String(r.key));
-    assert.deepEqual(keys, ['idx:v13:tt9999999', 'streams:v20:series:tt9999999:1:1:x:account:deadbeef']);
+    assert.deepEqual(keys, ['idx:v14:tt9999999', 'streams:v21:series:tt9999999:1:1:x:account:deadbeef']);
     cache.close();
 
     // Fila: séries afetadas voltam a pending.
@@ -232,7 +232,7 @@ describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrenc
 
   test('dry-run: S05E01 sem dn fica (nenhum move); faixa E01-E04 vira pack 5:-1', () => {
     const d = dir();
-    seed(d, BOYS_ROWS, [`idx:v13:${BOYS}`]);
+    seed(d, BOYS_ROWS, [`idx:v14:${BOYS}`]);
     const { out } = runScript(d);
     assert.doesNotMatch(out, /mover b10000000000/, 'episódio único já correto não é movido');
     assert.match(out, /mover b20000000000… tt1190634 5:1 -> 5:-1 \[title=/, 'faixa multi-episódio é pack');
@@ -242,7 +242,7 @@ describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrenc
   test('--apply: 5:1 preservado byte a byte; faixa movida para 5:-1', () => {
     const { DatabaseSync } = _require('node:sqlite');
     const d = dir();
-    seed(d, BOYS_ROWS, [`idx:v13:${BOYS}`]);
+    seed(d, BOYS_ROWS, [`idx:v14:${BOYS}`]);
     const { out } = runApply(d);
     assert.match(out, /APLICADO/);
     const db = new DatabaseSync(path.join(d, 'magnets.db'), { readOnly: true });
@@ -257,10 +257,10 @@ describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrenc
 
   test('PARIDADE de recrawl: apply grava exatamente o plano do dry-run', () => {
     const d1 = dir();
-    seed(d1, BOYS_ROWS, [`idx:v13:${BOYS}`]);
+    seed(d1, BOYS_ROWS, [`idx:v14:${BOYS}`]);
     const dry = runScript(d1);
     const d2 = dir();
-    seed(d2, BOYS_ROWS, [`idx:v13:${BOYS}`]);
+    seed(d2, BOYS_ROWS, [`idx:v14:${BOYS}`]);
     const applied = runApply(d2);
     const summary = (out: string) => /resumo: (\d+) linha\(s\) a mover \((\d+) hash×obra distintos\), (\d+) por identidade, (\d+) título\(s\)/.exec(out)?.slice(1).join(',');
     assert.equal(summary(applied.out), summary(dry.out), 'apply grava exatamente o que o dry-run planejou');
@@ -279,7 +279,7 @@ describe('crawl-repair v2: episódio único sem dn não vira pack', { concurrenc
     const { DatabaseSync } = _require('node:sqlite');
     const mk = () => {
       const d = dir();
-      seed(d, [], ['idx:v13:tt0000001']);
+      seed(d, [], ['idx:v14:tt0000001']);
       const db = new DatabaseSync(path.join(d, 'crawl.db'));
       db.prepare(`INSERT INTO crawl_url (site, url, kind, imdb, status, error) VALUES ('vacatorrent', 'https://x/grande', 'tv_show', NULL, 'error', 'series_truncated:9/18')`).run();
       db.close();
@@ -337,7 +337,7 @@ describe('crawl-repair v2: ruído de cena, E de 4 dígitos e saneador', { concur
 
   test('dry-run: ruído não cria raiz; 4 dígitos intacto; raiz legítima fica', () => {
     const d = dir();
-    seed(d, NOISE_ROWS, [`idx:v13:${OP}`]);
+    seed(d, NOISE_ROWS, [`idx:v14:${OP}`]);
     const { out } = runScript(d);
     // Raiz FALSA proibida: pack/episódio com ruído fica na temporada real.
     assert.match(out, /mover n10000000000… \S+ 1:1 -> 1:-1 /, 'DS4K não é multi-temporada: pack vai a 1:-1');
@@ -371,7 +371,7 @@ describe('crawl-repair v2: ruído de cena, E de 4 dígitos e saneador', { concur
   test('--apply: movimentos do cenário de ruído gravados e saneamento único', () => {
     const { DatabaseSync } = _require('node:sqlite');
     const d = dir();
-    seed(d, NOISE_ROWS, [`idx:v13:${OP}`]);
+    seed(d, NOISE_ROWS, [`idx:v14:${OP}`]);
     const { out } = runApply(d);
     assert.match(out, /APLICADO/);
     const db = new DatabaseSync(path.join(d, 'magnets.db'), { readOnly: true });

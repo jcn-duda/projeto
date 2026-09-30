@@ -67,11 +67,11 @@ function seed(d: string) {
   const cache = new DatabaseSync(path.join(d, 'cache.db'));
   cache.exec('CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT, expires_at INTEGER)');
   const insKey = cache.prepare('INSERT INTO cache (key, value) VALUES (?, ?)');
-  insKey.run('idx:v13:tt4574334', 'x');
-  insKey.run('idx:v13:tt5848272', 'x');
+  insKey.run('idx:v14:tt4574334', 'x');
+  insKey.run('idx:v14:tt5848272', 'x');
   // Filme válido e filme falso: chaves idx que NUNCA podem ser apagadas.
-  insKey.run('idx:v13:tt1000001', 'x');
-  insKey.run('idx:v13:ff0000001', 'x');
+  insKey.run('idx:v14:tt1000001', 'x');
+  insKey.run('idx:v14:ff0000001', 'x');
   cache.close();
 
   const crawl = new DatabaseSync(path.join(d, 'crawl.db'));
@@ -276,14 +276,14 @@ describe('crawl-repair-series-locations (smoke)', { concurrency: false, skip: sk
     db.close();
 
     const cache = new DatabaseSync(path.join(d, 'cache.db'));
-    const gone = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v13:tt4574334'").get() as any).n;
+    const gone = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v14:tt4574334'").get() as any).n;
     assert.equal(gone, 0, 'idx raiz do escopo apagada');
-    const keptEe = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v13:tt5848272'").get() as any).n;
+    const keptEe = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v14:tt5848272'").get() as any).n;
     assert.equal(keptEe, 0, 'idx raiz de obra movida (ee) também sai do escopo: erro foi todo para a raiz');
     // NENHUMA chave idx de filme é apagada.
-    const keptMovie = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v13:tt1000001'").get() as any).n;
+    const keptMovie = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v14:tt1000001'").get() as any).n;
     assert.equal(keptMovie, 1, 'idx de filme válido preservada');
-    const keptFake = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v13:ff0000001'").get() as any).n;
+    const keptFake = (cache.prepare("SELECT COUNT(*) n FROM cache WHERE key='idx:v14:ff0000001'").get() as any).n;
     assert.equal(keptFake, 1, 'idx de filme falso preservada');
     cache.close();
 

@@ -19,7 +19,7 @@
 //      fornecido) é EXCLUÍDA — nunca remanejada para outro IMDb. Título com
 //      `E01` FICTÍCIO (dn prova pack sem episódio único) é SANEADO.
 //   2. cache.db: apaga TODAS as chaves das obras afetadas — idx real
-//      `idx:v13:<imdb>`, `idx:v13:<imdb>:S4`, `idx:v13:<imdb>:S4E5` (chave
+//      `idx:<versão>:<imdb>`, `idx:<versão>:<imdb>:S4`, `idx:<versão>:<imdb>:S4E5` (chave
 //      raiz exata + prefixo `:%`) e as listas prontas por instalação
 //      `streams:%:series:<imdb>:%`; o índice/busca regravam do acervo vivo.
 //   3. crawl.db: URL do escopo daquele SITE (só `vacatorrent`) volta a
@@ -52,6 +52,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { prefix } from '../src/utils/cache-keys.js';
 
 const _require = createRequire(import.meta.url);
 
@@ -228,8 +229,7 @@ const affected = new Set<string>(
     .map((a) => (a as Extract<RepairAction, { row: unknown }>).row.imdb),
 );
 
-// Chaves idx reais: `idx:v13:<imdb>`, `:S4`, `:S4E5` (o episódio cola na
-// temporada, sem segundo ":" — o prefixo `:%` cobre ambos).
+// Chaves idx reais: `<idx>:<imdb>`, `:S4`, `:S4E5` — o prefixo `:%` cobre as duas.
 const plannedIdx: string[] = [];
 // Listas por instalação: `streams:%:series:<imdb>:%` (qualquer config/conta).
 const plannedStreams = new Map<string, number>();
@@ -239,7 +239,7 @@ if (affected.size > 0 && fs.existsSync(cachePath)) {
     const cache = openDb(cachePath, true);
     for (const imdb of affected) {
       for (const row of cache.prepare('SELECT key FROM cache WHERE key = ? OR key LIKE ?')
-        .all(`idx:v13:${imdb}`, `idx:v13:${imdb}:%`) as Array<Record<string, unknown>>) {
+        .all(`${prefix('idx')}${imdb}`, `${prefix('idx')}${imdb}:%`) as Array<Record<string, unknown>>) {
         plannedIdx.push(String(row.key));
       }
       const n = (cache.prepare('SELECT COUNT(*) n FROM cache WHERE key LIKE ?')
@@ -337,7 +337,7 @@ try {
       const liveStreams: Array<[string, string]> = [];
       for (const imdb of affected) {
         for (const row of cache.prepare('SELECT key FROM cache WHERE key = ? OR key LIKE ?')
-          .all(`idx:v13:${imdb}`, `idx:v13:${imdb}:%`) as Array<Record<string, unknown>>) {
+          .all(`${prefix('idx')}${imdb}`, `${prefix('idx')}${imdb}:%`) as Array<Record<string, unknown>>) {
           liveIdx.push(String(row.key));
         }
         for (const row of cache.prepare('SELECT key FROM cache WHERE key LIKE ?')

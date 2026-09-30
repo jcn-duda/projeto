@@ -344,3 +344,20 @@ test('DUB/ENGLISH: grupo de cena EN + dublagem declarada dá unknown, nunca cond
   assert.equal(foreignVerdict('Some.Anime.English.Dub.1080p.BluRay.x264-YTS'), 'unknown', 'dublagem declarada bloqueia o grupo');
   assert.equal(foreignVerdict('Some.Movie.2024.1080p.x264-RARBG'), 'condena', 'grupo SEM dublagem declarada segue condenando');
 });
+
+test('"[<idioma> Dubbed]" da Ásia Central/Mongólia/Soviet não é BR', () => {
+  // The Boys S04 da TPB (2026-09-30): 31 releases dessas no magnets.db com
+  // is_br=1. Só nega a vaga — nenhuma entra na lista destrutiva.
+  for (const t of [
+    'The Boys S04 (2024) [Azerbaijan Dubbed]',
+    'The Boys S04 (2024) [Mongolian Dubbed]',
+    'The Boys S04 (2024) [Uzbek Dubbed]',
+    'Film (1990) [Uzbekistan Dubbed]',
+    'Film (1985) [Soviet Dubbed]',
+    'Film 2020 [Kazakh Dubbed]',
+  ]) {
+    assert.equal(looksPtBr(t), false, t);
+    assert.equal(hasExplicitForeignAudio(t), false, `${t} não condena`);
+  }
+  assert.equal(looksPtBr('Filme 2024 [Portuguese Dubbed]'), true);
+});
