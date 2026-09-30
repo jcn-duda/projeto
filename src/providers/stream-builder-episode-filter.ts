@@ -9,8 +9,7 @@ import {
 import { magnetDisplayName } from '../utils/title-normalization.js';
 import { bankRowsForMediaSource } from '../utils/release-index-media.js';
 import { parseTitleSeasonEpisode } from '../utils/episode-matching.js';
-
-const UNAIRED_MARGIN_MS = 24 * 3600 * 1000;
+import config from '../config.js';
 
 function namesEpisode(r: RawItem, title: string, episode: number): boolean {
   return [title, magnetDisplayName(r) || ''].some((t) => parseTitleSeasonEpisode(t).episodes.includes(episode));
@@ -34,10 +33,11 @@ export function filterSeriesEpisodeRaw(
   // publicado ANTES dele não pode contê-lo. Medido em Lanterns S01E08
   // (2026-09-30, estreia 05/10): o pack "Lanterns.S01.2160p" pronto na conta
   // entrava com ⚡ e o play morria no EpisodePickError. Só fica a release que
-  // NOMEIA o episódio (vazamento existe). 24h de margem cobrem fuso e a
-  // estreia no streaming antes da TV.
+  // NOMEIA o episódio (vazamento existe). A margem (SEARCH_UNAIRED_MARGIN_MS,
+  // 24h) cobre fuso e a estreia no streaming antes da TV.
   const airAt = Date.parse(String(airDate || ''));
-  const unaired = Number.isFinite(airAt) && airAt - now > UNAIRED_MARGIN_MS;
+  const margin = config.search.unairedMarginMs;
+  const unaired = margin > 0 && Number.isFinite(airAt) && airAt - now > margin;
   const needBank = raw.flatMap((r) => {
     if (magnetDisplayName(r)) return [];
     const hash = String(extractInfoHash(r.infoHash || r.magnet || '') || '').toLowerCase();

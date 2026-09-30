@@ -95,6 +95,11 @@ export const search = () => ({
   // pack sem SxxEyy e a query do episódio nunca o acha. Fica no tail porque
   // duas varreduras de Jackett em série não cabem no deadline da resposta.
   packTail: String(process.env.SEARCH_PACK_TAIL || 'true') === 'true',
+  // Episódio datado pelo Cinemeta a mais que isto no futuro: pack da
+  // temporada publicado antes dele não pode contê-lo e sai da lista (só fica
+  // release que nomeia o episódio). A margem cobre fuso e a estreia no
+  // streaming antes da TV. 0 desliga a trava.
+  unairedMarginMs: num(process.env.SEARCH_UNAIRED_MARGIN_MS, 24 * 3600 * 1000),
   // Suporte a packs multiobra BR, NATIVO por padrão (default true). O addon
   // descobre a coleção pelo `belongs_to_collection` do TMDB, emite a query de
   // franquia no caminho BR e admite o pack de coleção; o pack nunca vai P2P
