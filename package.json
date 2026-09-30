@@ -260,6 +260,7 @@
     "test/crawl-select-starvation.test.js",
     "test/crawl-dispatch.test.js",
     "test/magnet-bank-backfill.test.js",
+    "test/crawl-coverage.test.js",
     "test/episode-unaired.test.js",
     "test/format-filter-movie.test.js",
     "test/format-filter-series.test.js",

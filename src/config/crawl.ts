@@ -75,6 +75,10 @@ export const crawl = () => ({
   // Sites que passam pelo FlareSolverr (um pedido por vez, o MESMO da busca):
   // nunca correm dois juntos.
   flareSites: list(process.env.CRAWL_FLARE_SITES || 'redetorrent-cardigann,bludv-cardigann'),
+  // Colhedor pula o card do site que o raspador já cobre (`crawl-coverage.ts`):
+  // carga inicial concluída, fora de simulação e fila até este tamanho.
+  coverHarvest: String(process.env.CRAWL_COVER_HARVEST || 'true') === 'true',
+  coverMaxPending: Math.max(0, Math.trunc(num(process.env.CRAWL_COVER_MAX_PENDING, 50))),
   // Fase 8: teto de PÁGINAS por rodada de descoberta POR LISTAGEM (o caminho
   // sem sitemap — hoje só o HDRTorrent). A primeira rodada é `complete: false`
   // e continua na seguinte: o acervo do HDRTorrent tem 2123 páginas (medido por

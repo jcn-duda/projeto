@@ -1806,6 +1806,15 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   varredura pt-BR processa a fatia que couber no teto horário em vez de
   tudo-ou-nada (conta `harvest.sweep.partial`); e obra descartada após 3
   retentativas conta `harvest.capped.dropped` em vez de sumir sem rastro.
+- **O colhedor pula o card que o RASPADOR já cobre** (`crawl-coverage.ts`,
+  2026-09-30; kill-switch `CRAWL_COVER_HARVEST`). Os dois alimentam o mesmo
+  acervo e o raspador lê o site inteiro; consultar o mesmo card pelo Jackett
+  obra por obra era trabalho em dobro. Coberto = motor e site ligados, FORA de
+  simulação, carga inicial concluída (cursor de sitemap gravado, ou listagem em
+  `sweep`) e fila até `CRAWL_COVER_MAX_PENDING` (50) — `error` fora da conta, é
+  página que o site quebra. Só a colheita COMPLETA pula; a sonda dirigida e a
+  busca ao vivo seguem consultando o site. Memo de 60 s (2–4 ms por cálculo no
+  `crawl.db` real). Métrica `harvest.skipped.crawlCovered`.
 - **Index-only** (`JACKETT_INDEX_ONLY_INDEXERS`, default:
   `redetorrent-cardigann`, `apachetorrent-cardigann`, `hdrtorrent-cardigann`,
   `1337x`): ficam FORA do caminho da resposta e

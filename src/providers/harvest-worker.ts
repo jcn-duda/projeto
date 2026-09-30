@@ -21,6 +21,7 @@ import { buildWorkQueries } from './harvest-queries.js';
 import { queueRdWarmForRelevant } from './harvest-warmer.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
 import { probeIndexers, probeRunWaitMs } from './br-probe.js';
+import { crawlCoveredIndexers } from './crawl-coverage.js';
 import * as harvestInflight from './harvest-inflight.js';
 import { obraIdentity } from './harvest-reason.js';
 import * as harvesterLive from '../utils/harvester-live.js';
@@ -139,7 +140,12 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   };
   const { query, ptQuery, originalQuery } = buildWorkQueries(entry, searchMeta, titles);
 
-  const indexers = directed ? probeIndexers() : [...new Set(config.jackett.indexers)];
+  // Colheita completa pula o card que o raspador já cobre (`crawl-coverage.ts`):
+  // o site foi lido inteiro direto, e a consulta pelo Jackett repetiria o
+  // trabalho. A sonda dirigida segue com o subset dela.
+  const covered = directed ? new Set<string>() : crawlCoveredIndexers();
+  if (covered.size) metrics.count('harvest.skipped.crawlCovered', covered.size);
+  const indexers = directed ? probeIndexers() : [...new Set(config.jackett.indexers)].filter((id) => !covered.has(id));
   let attempted = 0;
   let capped = false;
   let preempted = false;
