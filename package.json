@@ -257,6 +257,7 @@
     "test/format-audio-quality.test.js",
     "test/format-unknown-quality.test.js",
     "test/format-episode.test.js",
+    "test/episode-unaired.test.js",
     "test/format-filter-movie.test.js",
     "test/format-filter-series.test.js",
     "test/format-magnet.test.js",

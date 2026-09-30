@@ -88,3 +88,16 @@ test('corte: sem executável nenhum o lote passa intacto', () => {
   const raw = [{ title: 'Filme 2024 1080p WEB-DL', infoHash: hex('8'), indexer: 'x' }];
   assert.equal(dropFakeReleases(raw as any, { imdbId: 'tt1' }), raw);
 });
+
+test('corte: executável pronto na CONTA também sai, sem semear irmão', () => {
+  // Lanterns S01E08 (2026-09-30): dois "…CAKES.exe" prontos na AllDebrid
+  // saíam com ⚡ e nenhum tocava. O nome é o do arquivo real — prova.
+  const exeConta = hex('8');
+  const mesmoNome = hex('9');
+  const raw = [
+    { title: 'Lanterns 2026 S01E08 1080p HD H264- CAKES.exe', infoHash: exeConta, fromAccount: true },
+    { title: 'Lanterns 2026 S01E08 1080p HD H264- CAKES', infoHash: mesmoNome, indexer: 'therarbg' },
+  ];
+  const out = dropFakeReleases(raw as any, {});
+  assert.deepEqual(out.map((i) => i.infoHash), [mesmoNome]);
+});

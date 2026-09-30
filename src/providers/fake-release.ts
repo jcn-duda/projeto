@@ -14,8 +14,9 @@
 // só cai quando o hash aparece em UM indexer no acervo: a release real circula
 // por vários trackers; os três irmãos medidos estavam só no LimeTorrents.
 //
-// Item da conta (`fromAccount`) fica fora: o que está na conta é escolha do
-// usuário, e o play já tem o `NoVideoError` para ele.
+// Item da conta (`fromAccount`) fica fora do corte 2: o que está na conta é
+// escolha do usuário, e o play já tem o `NoVideoError` para ele. O corte 1
+// vale para ele também — o nome do arquivo `.exe` é prova, não heurística.
 import type { RawItem } from '../../types/domain.js';
 import { hashOf } from '../utils/magnet-bank.js';
 import { executableTitlesForObra, sourcesForMany } from '../utils/magnet-bank-query.js';
@@ -56,10 +57,14 @@ export function dropFakeReleases(
   const executables = new Set<RawItem>();
   const bases = new Set<string>();
   for (const item of raw) {
-    if (!item || item.fromAccount) continue;
+    if (!item) continue;
     if (isExecutableRelease(titleOf(item), magnetDisplayName(item))) {
       executables.add(item);
-      bases.add(fakeReleaseBase(titleOf(item)));
+      // O executável da conta também sai (o nome é o do ARQUIVO real, não
+      // palpite): Lanterns S01E08 listava dois "…CAKES.exe" prontos com ⚡ e
+      // nenhum tocava. Ele não semeia irmão — a isenção da conta vale para a
+      // heurística do irmão, não para a prova do executável.
+      if (!item.fromAccount) bases.add(fakeReleaseBase(titleOf(item)));
     }
   }
   for (const title of imdbId ? executableTitlesForObra(imdbId) : []) {

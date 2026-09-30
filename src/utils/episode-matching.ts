@@ -62,6 +62,19 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
     for (let i = lo; i <= hi; i += 1) episodes.add(i);
   }
 
+  // "S01 EP 07" / "S01 EP (01-07)" das releases indianas (1TamilMV, kickass).
+  // Sem isto o "EP" não casava o `e\s?\d` do laço acima, a release saía SÓ
+  // com a temporada — pack da temporada inteira — e entrava no S01E08 de
+  // Lanterns (medido 2026-09-30, episódio que nem tinha ido ao ar). Ancorado
+  // na temporada, como o S01E07; lido no cru porque a faixa usa hífen.
+  for (const m of raw.matchAll(/(?<![a-z0-9])s(\d{1,2})[\s._-]*ep\.?[\s._-]*\(?(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?\)?(?![\dp])/gi)) {
+    const lo = Number(m[2]);
+    const hi = m[3] ? Number(m[3]) : lo;
+    if (hi < lo || hi - lo > 30) continue;
+    seasons.add(Number(m[1]));
+    for (let i = lo; i <= hi; i += 1) episodes.add(i);
+  }
+
   // Trackers BR usam "T01 E004" e "T01E004". Lemos a sequência no título
   // cru porque a normalização apaga hífen: E001-E010 é intervalo, enquanto
   // E001 e E002, E001, E002 e E001 E010 são listas.

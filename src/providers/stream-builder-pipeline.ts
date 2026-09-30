@@ -40,7 +40,7 @@ import { applyFileEvidence } from './stream-file-evidence.js';
 export { applyFileEvidence };
 
 export interface PrepareCandidatesOptions {
-  meta?: { name?: string | null; title?: string; year?: number | string | null } | null;
+  meta?: { name?: string | null; title?: string; year?: number | string | null; episodeAired?: Record<string, string> } | null;
   titles?: { original?: string | null; pt?: string | null; en?: string | null; year?: number | string | null } | null;
   imdbId?: string | null;
   season?: number | null;
@@ -233,7 +233,7 @@ export function prepareCandidateStreams(
   const seriesUniverse = names.flatMap((n) => normalizeTitle(n).split(' ').filter(Boolean));
   if (season != null && episode != null && !isDemo) {
     const before = raw.length;
-    const { kept, dropped } = filterSeriesEpisodeRaw(raw, season, episode, seriesUniverse);
+    const { kept, dropped } = filterSeriesEpisodeRaw(raw, season, episode, seriesUniverse, meta?.episodeAired?.[`${season}:${episode}`]);
     raw = kept;
     if (before !== raw.length) {
       log.info(`[search] ${before - raw.length} resultado(s) de outro episódio descartado(s)`);
