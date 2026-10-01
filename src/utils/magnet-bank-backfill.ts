@@ -27,6 +27,12 @@ export async function backfillClassification(dbPath: string, batch = 500): Promi
   }
   try {
     db.exec('PRAGMA busy_timeout = 5000');
+    // Índice PARCIAL das pendentes: sem ele o SELECT varre a tabela inteira a
+    // cada boot, mesmo com quase nada a fazer — no volume do Windows (330 MB)
+    // o processo ficou ~5 min em I/O síncrono e sem responder nem o manifest
+    // para classificar 16 magnets (2026-10-01). Com ele: 0 ms; criá-lo varre
+    // uma vez só (274 ms em disco nativo) e ele só guarda as linhas vazias.
+    db.exec("CREATE INDEX IF NOT EXISTS magnet_quality_pending ON magnet (quality) WHERE quality = ''");
     const select = db.prepare(
       "SELECT rowid AS rid, hash, title, is_br, dubbed FROM magnet WHERE quality = '' AND rowid > ? ORDER BY rowid LIMIT ?",
     );

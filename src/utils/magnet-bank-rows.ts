@@ -178,8 +178,12 @@ function sqliteEngine(dbPath: string): Engine | null {
     const maxSourceSeenStmt = db.prepare('SELECT COALESCE(MAX(last_seen), 0) AS t FROM magnet_source');
     // Agregação por indexer numa ÚNICA consulta (GROUP BY usa o índice
     // magnet_source_indexer): o painel não paga uma query por indexer.
+    // `hashes` é COUNT(*), não COUNT(DISTINCT hash): a PK é (hash, indexer),
+    // então dentro do grupo cada hash aparece uma vez — e o DISTINCT obrigava a
+    // ler a tabela inteira (958 ms contra 67 ms na VPS, 326 mil fontes; o status
+    // é síncrono e travava o addon junto, a cada poll do painel).
     const indexerStatsStmt = db.prepare(
-      'SELECT indexer, COUNT(DISTINCT hash) AS hashes, COUNT(*) AS sources, MAX(last_seen) AS last_seen FROM magnet_source GROUP BY indexer ORDER BY last_seen DESC, indexer ASC',
+      'SELECT indexer, COUNT(*) AS hashes, COUNT(*) AS sources, MAX(last_seen) AS last_seen FROM magnet_source GROUP BY indexer ORDER BY last_seen DESC, indexer ASC',
     );
     const countMagnetStmt = db.prepare('SELECT COUNT(*) AS n FROM magnet');
     const countSourceStmt = db.prepare('SELECT COUNT(*) AS n FROM magnet_source');

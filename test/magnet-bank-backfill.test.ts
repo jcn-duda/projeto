@@ -48,4 +48,11 @@ test('migração: preenche o vazio, não rebaixa dublado, e a segunda passada é
   assert.deepEqual(rows['3'], [1, 'sem resolução']);
   assert.deepEqual(rows['4'], [0, '2160p']);
   assert.deepEqual(await backfillClassification(file), { updated: 0, ok: true });
+  // A busca das pendentes vai pelo índice parcial — sem ele, todo boot varria
+  // a tabela inteira (330 MB local: ~5 min com o processo travado).
+  const plan = new sqlite.DatabaseSync(file);
+  const detail = plan.prepare("EXPLAIN QUERY PLAN SELECT rowid FROM magnet WHERE quality = '' AND rowid > ? ORDER BY rowid LIMIT ?")
+    .all(0, 500).map((r: any) => r.detail).join(' ');
+  plan.close();
+  assert.match(detail, /magnet_quality_pending/);
 });
