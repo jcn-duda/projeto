@@ -168,6 +168,20 @@ describe('HDRTorrent: o post', () => {
     });
   });
 
+  test('série SEM temporada no slug agrega a série: uma temporada por magnet, pelo `dn=`', async () => {
+    // Castle real: era recusada como "página de filme" (filme_com_kind_tv_show),
+    // e 1.624 séries ficaram fora do acervo na VPS (2026-10-01).
+    const AGG = 'https://hdrtorrents.net/castle-torrent-download/';
+    await withSite([postRoute(AGG, 'post-serie-agregada')], async ({ site }) => {
+      const work = await site.fetchWork(AGG, { kind: 'tv_show', series: SERIES_ON });
+      assert.equal(work.status, 'done');
+      assert.equal(work.type, 'series');
+      assert.equal(work.season, 7, 'a maior temporada declarada abre a janela da identificação');
+      const seasons = (work.groups ?? []).map((g) => `S${g.season}E${g.episode ?? '*'}`);
+      assert.deepEqual(seasons, ['S1E*', 'S2E*', 'S3E*', 'S4E*', 'S5E*', 'S6E*', 'S7E*']);
+    });
+  });
+
   test('séries desligadas: `kind:tv_show` é recusado com ZERO rede', async () => {
     // SEM `series` na chamada: é o estado real do painel com séries desligadas.
     await withSite([postRoute(SERIES_POST, 'post-serie')], async ({ site, urls }) => {

@@ -58,7 +58,7 @@ import type {
   CrawlReleaseGroup, CrawlSite, CrawlWorkResult,
 } from '../crawl-types.js';
 import { magnetHash, withRequestCost } from './shared.js';
-import { pageSeasonOf, seasonPageGroups } from './season-page.js';
+import { pageSeasonOf, seasonPageGroups, seriesRowGroups } from './season-page.js';
 import { walkListing } from './listing-discover.js';
 import {
   fichaText, isSeasonSlug, isWorkPath, kindFromCardType, kindFromWorkSlug, parseImdbId,
@@ -291,15 +291,13 @@ export function createHdrtorrentsCrawlSite(
             error: 'temporada_com_kind_movie: a página é de temporada (pack) e a fila a pediu como filme',
           };
         }
-        if (season && !isSeasonSlug(parsed)) {
-          return {
-            url,
-            status: 'error',
-            error: 'filme_com_kind_tv_show: a fila pediu série e a página é de filme',
-          };
-        }
+        // Série SEM temporada no slug (`castle-torrent-download/`) é a página que
+        // AGREGA a série inteira, uma temporada por magnet — a forma do
+        // RedeTorrent. Era recusada como "página de filme": 1.624 séries
+        // (Castle, Modern Family, Riverdale…) fora do acervo na VPS (2026-10-01).
+        const aggregated = season && !isSeasonSlug(parsed);
         const html = await counter.fetchText(parsed.href);
-        return buildWork(html, parsed.href, season, surface, counter.taken());
+        return buildWork(html, parsed.href, season, surface, counter.taken(), aggregated);
       } catch (err) {
         // F1: throw NÃO perde o custo medido.
         throw withRequestCost(err, counter.taken());
@@ -319,6 +317,7 @@ function buildWork(
   season: boolean,
   surface: HdrtorrentsResolverSurface,
   requests: number,
+  aggregated = false,
 ): CrawlWorkResult {
   const normalized = fichaText(html);
   const title = readWorkTitle(normalized);
@@ -351,6 +350,18 @@ function buildWork(
     });
   }
   if (!releases.length) return { url, status: 'no-torrent', imdb, requestCost: requests };
+  if (season && aggregated) {
+    // Locação por LINHA, só pelo `dn=` (`seriesRowGroups`); linha que não
+    // declara temporada é descartada, nunca vai para a raiz. `season` é a
+    // maior declarada: abre a janela `seriesStartedBy` da identificação.
+    const groups = seriesRowGroups(releases.map((release) => ({ release, rowSeason: null })));
+    if (!groups.length) return { url, status: 'no-torrent', imdb, requestCost: requests };
+    const maxSeason = groups.reduce<number | null>((m, g) => (g.season != null && (m == null || g.season > m) ? g.season : m), null);
+    return {
+      url, status: 'done', type: 'series', title: title.title, year: title.year,
+      imdb, season: maxSeason, groups, requestCost: requests,
+    };
+  }
   if (season) {
     const pageSeason = pageSeasonOf(title.title, url);
     const groups: CrawlReleaseGroup[] = seasonPageGroups(releases, {

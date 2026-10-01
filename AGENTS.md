@@ -2446,6 +2446,12 @@ nova — a locação sai da MESMA `declaredSeriesLocation`. Precedência na linh
 `dn` do magnet > coluna `S0N` (`link.season`); linha sem evidência nenhuma é
 **DESCARTADA**, não vai para a raiz, e `cardTitle` entra **VAZIO de propósito**,
 porque o título da página declara várias temporadas e mandaria tudo para a raiz.
+O HDR tem as DUAS formas: post de temporada (slug com `-Na-temporada`) usa
+`seasonPageGroups`, e a série SEM temporada no slug (`castle-torrent-download/`)
+é página que agrega a série inteira, um magnet por temporada — `seriesRowGroups`
+só pelo `dn=` (2026-10-01; antes era recusada como `filme_com_kind_tv_show`, e
+1.624 séries ficaram fora do acervo na VPS). Linha sem temporada no `dn=` é
+descartada; nenhuma declarando = `no-torrent`.
 O agrupamento é por `byDeclaredLocation` (opção nova do `groupSeriesReleases`):
 sem ela o `releaseWorkTargets` leria a lista de ordinais do `<h1>` que o profile
 copia para o título da release e devolveria a linha na raiz ALÉM da temporada —
