@@ -628,6 +628,10 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   por `quality = ''`): local, 182.161 em ~2 min no volume do Windows, 50.661
   dublados em 120 mil BR. É a PROMESSA do post — a lista servida reclassifica
   pelo título de todo modo, então isto muda o dado guardado, não o stream.
+  A busca das pendentes usa o índice PARCIAL `magnet_quality_pending`
+  (`WHERE quality = ''`): sem ele todo boot varria a tabela inteira de forma
+  síncrona — local (330 MB, volume do Windows) o addon ficou ~5 min sem
+  responder nem o manifest para classificar 16 magnets (2026-10-01).
 - **`lied` é GLOBAL.** `magnet-bank-lie.ts` lê a união de `mag:v1:lie:` de
   QUALQUER conta (peek quiet, sem memo) e promove o hash no merge; a evidência
   por conta continua só no `mag`. `bad` por conta NUNCA é lido aqui.
@@ -731,7 +735,11 @@ de atenção) versus **SQLite permanente — sem teto e sem despejo**; o
 `memoryMax`/`memoryEvictions` do bloco é o mesmo dado. O status é MEMOIZADO por
 `MAGNET_BANK_STATUS_TTL_MS` (60s) e invalidado a cada escrita efetiva (e a
 qualquer eviction), então o
-poll repete a mesma foto sem pagar `COUNT/MAX/GROUP BY` por ciclo. Na aba Saúde,
+poll repete a mesma foto sem pagar `COUNT/MAX/GROUP BY` por ciclo. Como a
+captura escreve o tempo todo, na prática quase todo poll recalcula — e o cálculo
+é SÍNCRONO, trava o addon junto. Por isso a quebra por indexer conta `COUNT(*)`,
+não `COUNT(DISTINCT hash)` (a PK `(hash, indexer)` torna os dois iguais): 958 ms
+→ 67 ms na VPS, 37 s → 7 s no volume do Windows. Na aba Saúde,
 cada indexer mostra `MEM N` (`fallback.indexer.<id>` acumulado desde o boot) — é
 HISTÓRICO de cobertura, não o estado online.
 
@@ -1963,6 +1971,10 @@ incremental SEM âncora, e aí o teto do round é a cobertura (relê só o topo)
 Validado ao vivo no apachetorrents.com: carga a partir da página 61 anda
 (`round-cap`, `complete:false`); fim em 2121+ volta à página 1 com a âncora no
 post mais novo; a passada seguinte fecha na 1ª página (`anchor-found`).
+A FASE da rodada (`crawl_run.phase`, o "Carga inicial" do painel) vem do
+`initialLoadDone` (`crawl-coverage.ts`) para os sites de listagem — o
+`discoveryCuts` só conhece o `cursor:movie` de sitemap, e o Apache seguia
+"Carga inicial 99%" com o cursor já em `sweep`.
 
 **O estado é POR SITE** (`crawl-site-runtime.ts`): cursores, rodada aberta,
 `nextDiscoverAt`, política de pausa, hora/custo, `lastRequestAt`,
