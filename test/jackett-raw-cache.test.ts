@@ -183,7 +183,9 @@ test('raw cache: vazio é cacheado e a segunda busca não abre fetch', async () 
     const run = () => jackett.search('Titulo Inexistente 1901', 'movie', ['thepiratebay']);
     assert.deepEqual(await run(), []);
     assert.deepEqual(await run(), []);
-    assert.equal(fetchImpl.searchCalls().length, 1, 'o vazio da primeira busca é servido do cache');
+    // 2 = primária + degrau sem ano (a primária com ano voltou vazia); a segunda
+    // busca serve as duas do cache e não abre fetch nenhum.
+    assert.equal(fetchImpl.searchCalls().length, 2, 'o vazio da primeira busca é servido do cache');
   });
 });
 

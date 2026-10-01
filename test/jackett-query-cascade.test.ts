@@ -138,6 +138,33 @@ test('título pt-BR com ano zerado cai no degrau sem ano e acha o dublado', asyn
   });
 });
 
+test('global: ano da Cinemeta divergente cai no degrau sem ano (tt1117533)', async () => {
+  // "Shaolin vs. Evil Dead: Ultimate Power" é 2007 na Cinemeta e 2006 em todo
+  // torrent: com o ano, os globais devolviam 0 e não havia segunda tentativa.
+  const ctx = { names: ['Shaolin vs. Evil Dead: Ultimate Power'], year: 2007, isSeries: false, season: null, episode: null };
+  const primary = 'Shaolin vs. Evil Dead Ultimate Power 2007';
+  const bare = 'Shaolin vs. Evil Dead Ultimate Power';
+  const fetchImpl = makeFetch();
+  fetchImpl.handler = (call) => {
+    if (call.url.includes('/results')) {
+      const query = new URL(call.url).searchParams.get('Query');
+      if (query === bare) {
+        return fakeResponse({ Results: [
+          { Title: 'Shaolin Vs Evil Dead The Ultimate Power VHSrip', Seeders: 2, MagnetUri: MAGNET },
+        ] });
+      }
+      return fakeResponse({ Results: [] });
+    }
+    return fakeResponse(null, { status: 404 });
+  };
+
+  await withJackett(fetchImpl, async () => {
+    const items = await jackett.search(primary, 'movie', ['thepiratebay'], { matchContext: ctx });
+    assert.deepEqual(fetchImpl.searchCalls(), [primary, bare]);
+    assert.equal(items.length, 1);
+  });
+});
+
 test('prazo esgotado impede a variante numérica (sem chamada extra)', async () => {
   const fetchImpl = makeFetch();
   const savedTimeout = config.jackett.brIndexerTimeout;

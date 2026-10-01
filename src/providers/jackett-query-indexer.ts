@@ -210,10 +210,12 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   // fica na query primária porque ajuda a relevância quando o indexer casa; o
   // degrau nu só abre quando ela não trouxe nada. Nos `bareTitleIndexers` o
   // strip já aconteceu e o dedup de `shapedSeen` descarta o degrau repetido.
-  if (isBr) {
-    const bare = query.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
-    if (bare !== query) cascade.push({ q: bare, label: 'título sem ano' });
-  }
+  // Vale também nos GLOBAIS: o ano da Cinemeta pode não ser o da release
+  // (tt1117533, "Shaolin vs. Evil Dead: Ultimate Power" 2007 — todo torrent diz
+  // 2006): com o ano, os 16 indexers devolveram 0; sem ele, 5. Filme com acervo
+  // relevante na primária nunca abre o degrau.
+  const bare = query.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
+  if (bare !== query) cascade.push({ q: bare, label: 'título sem ano' });
   // Raiz da franquia: "Se Beber, Não Case! Parte II" não acha o post da
   // Trilogia no WordPress BR, mas a raiz "Se Beber, Não Case!" acha. Degrau
   // SEQUENCIAL no MESMO deadline — depois do título sem ano (o ano impediria
