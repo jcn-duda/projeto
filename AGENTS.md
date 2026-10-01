@@ -3302,6 +3302,11 @@ o orçamento com a resposta.
   `resolveSearchNames` usa o ano do TMDB quando os dois divergem por MAIS de 2
   anos (até 2 o ±2 cobre e a Cinemeta manda). Medido em 130 filmes do acervo:
   nenhum divergia, então a regra é rara por construção.
+  Dentro do ±2 o filtro aceita, mas a QUERY ainda leva o ano: em tt1117533
+  (2007 na Cinemeta, 2006 em todo torrent) os 16 globais devolviam 0. O degrau
+  "título sem ano" da cascata (`jackett-query-indexer.ts`) vale para TODO
+  indexer desde 2026-09-30, não só os BR — abre só com a primária sem nada
+  relevante, no mesmo prazo.
 - **Metadado com prazo DURO (`fetchJsonWithin`, `deadline.ts`).** O
   `AbortSignal.timeout` no `fetch` não bastou: no Docker local (2026-09-30), 8
   consultas à Cinemeta ficaram pendentes para sempre, e como a promessa mora no
