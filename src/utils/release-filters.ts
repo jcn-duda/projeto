@@ -234,7 +234,11 @@ function filterRelevantRaw(
  * Resolução (1920x1080) não é ano.
  */
 function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: number) {
-  const source = magnetDisplayName(item);
+  return textYearsContradict(magnetDisplayName(item), catalogYear);
+}
+
+/** Núcleo do `magnetYearContradicts` sobre um texto qualquer (título, `dn=`). */
+function textYearsContradict(source: string, catalogYear: number) {
   if (!source || !catalogYear) return false;
   const cleaned = source.replace(/\d{3,4}x\d{3,4}/gi, ' ');
   const years = [
@@ -323,9 +327,14 @@ function filterInventoryRelevant(
     if (onRejected) for (const item of leftovers) onRejected(item, reasons.get(item) || 'title');
     return direct;
   }
+  // O pack precisa COBRIR o ano do filme: "Resident Evil Saga Completa
+  // (2002-2017)" pronto na conta saía como fonte do Resident Evil de 2026 e o
+  // play tocava outra obra. Sem ano no título o pack fica (a franquia decide).
+  const catalogYear = Number(String(matchContext.year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   const extra = leftovers.filter((item) => {
     const title = item?.title || item?.Title || '';
-    return isMultiWorkCollection(title) && roots.some((root) => containsTokenRun(title, root));
+    return isMultiWorkCollection(title) && roots.some((root) => containsTokenRun(title, root))
+      && !textYearsContradict(title, catalogYear);
   });
   if (onRejected) {
     const rescued = new Set(extra);

@@ -1602,7 +1602,10 @@ O registry também expõe `inventory()`: o que já está **pronto** na conta
 relevância de inventário (`filterInventoryRelevant`) aceita também **pack de
 franquia** da mesma obra — coisa na conta é escolha do usuário, sinal que
 resultado de tracker não tem; por isso essa exceção NÃO vale no caminho dos
-indexers. `buildStreams` não re-aplica o filtro estrito em item com
+indexers. O pack só entra se a faixa de anos do título COBRIR o filme
+(mesma régua do `magnetYearContradicts`; sem ano, a franquia decide): "Resident
+Evil Saga Completa (2002-2017)" saía no Resident Evil de 2026 e o play morria
+em `WorkPickError` (2026-10-01). `buildStreams` não re-aplica o filtro estrito em item com
 `fromAccount`. Item de inventário é preexistente por definição: o `knownBefore`
 já o protege do `dropReady`. Teto curto próprio (`DEBRID_INVENTORY_TIMEOUT_MS`,
 1500): a primeira leitura custa ~700ms e a resposta não espera; estourou,

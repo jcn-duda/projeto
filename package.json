@@ -237,6 +237,7 @@
     "test/debrid-drop-snapshot.test.js",
     "test/debrid-drop-authority.test.js",
     "test/debrid-inventory.test.js",
+    "test/debrid-inventory-pack-year.test.js",
     "test/debrid-inventory-raio.test.js",
     "test/debrid-novideo.test.js",
     "test/debrid-pick-work.test.js",
