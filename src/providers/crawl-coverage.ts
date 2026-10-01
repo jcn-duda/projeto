@@ -20,7 +20,8 @@ import { CURSOR_STATE_KEY, decodeListingCursor, listingCursorKey } from './crawl
 /** Caminho da listagem dos sites sem sitemap (HDRTorrent e ApacheTorrent). */
 const LISTING_PATH = '/pagina/';
 
-function initialLoadDone(engine: store.CrawlEngine, site: string): boolean {
+/** Carga inicial concluída: cursor de sitemap gravado ou listagem em `sweep`. */
+export function initialLoadDone(engine: store.CrawlEngine, site: string): boolean {
   const listing = engine.getState(site, listingCursorKey('movie', LISTING_PATH));
   if (listing) return decodeListingCursor(listing)?.sweep === true;
   return Boolean(engine.getState(site, CURSOR_STATE_KEY.movie));

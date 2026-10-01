@@ -15,6 +15,7 @@ import * as log from '../utils/logger.js';
 import { seriesLimitsOf, type CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
 import { DEFAULT_RETRY_BASE_MS } from '../utils/crawl-store-rules.js';
 import { advanceCursors, discoveryCuts } from './crawl-cursor.js';
+import { initialLoadDone } from './crawl-coverage.js';
 import { processCrawlPage } from './crawl-page.js';
 import { freshCycle } from './crawl-cycle.js';
 import * as recovery from './crawl-recovery.js';
@@ -76,7 +77,10 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
     deps.markRequest(now);
     // F2: fase e corte POR KIND (ver `crawl-cursor.ts`) — série sem cursor
     // começa `initial` mesmo com filmes incrementais.
-    const { phase, sinceByKind } = discoveryCuts(rt.cursors);
+    const { phase: cutPhase, sinceByKind } = discoveryCuts(rt.cursors);
+    // Site de LISTAGEM nunca grava `cursor:movie`: a fase vinha `initial` para
+    // sempre e o painel mostrava "Carga inicial" com a listagem já em `sweep`.
+    const phase = cutPhase === 'initial' && initialLoadDone(store.engine(), rt.id) ? 'incremental' : cutPhase;
     rt.openRunId = store.engine().startRun(rt.id, phase, rt.cursors.movie, now);
     rt.cycle = freshCycle();
     rt.discoveryPartial = false;

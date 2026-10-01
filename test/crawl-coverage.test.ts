@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const config = (await import('../src/config.js')).default;
 const store = await import('../src/utils/crawl-store.js');
 const live = await import('../src/utils/crawler-live.js');
-const { crawlCoveredIndexers, _resetCoverageMemoForTest } = await import('../src/providers/crawl-coverage.js');
+const { crawlCoveredIndexers, initialLoadDone, _resetCoverageMemoForTest } = await import('../src/providers/crawl-coverage.js');
 const { encodeListingCursor, listingCursorKey, startListingCursor, CURSOR_STATE_KEY } = await import('../src/providers/crawl-cursor.js');
 
 const saved = { ...config.crawl };
@@ -69,4 +69,14 @@ test('simulação, motor desligado ou kill-switch: nada coberto', () => {
     _resetCoverageMemoForTest();
     assert.equal(crawlCoveredIndexers().size, 0, JSON.stringify(patch));
   }
+});
+
+test('fase da rodada: listagem em sweep conta como carga concluída (painel saía "Carga inicial" para sempre)', () => {
+  const site = 'hdrtorrent-cardigann';
+  const key = listingCursorKey('movie', '/pagina/');
+  const cursor = startListingCursor(site, 'movie', '/pagina/', 1);
+  store.engine().setState(site, key, encodeListingCursor({ ...cursor, page: 2100 }));
+  assert.equal(initialLoadDone(store.engine(), site), false);
+  store.engine().setState(site, key, encodeListingCursor({ ...cursor, page: 1, sweep: true, anchor: '/2die4' }));
+  assert.equal(initialLoadDone(store.engine(), site), true);
 });
