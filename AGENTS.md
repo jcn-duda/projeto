@@ -1937,7 +1937,13 @@ HDRTorrent e no ApacheTorrent em 2026-09-29 (os dois catálogos com 2123 página
 `/pagina/2124..99999` devolvendo **sempre** a 2123; não existe `rel="last"`):
 
 - **FIM de catálogo pela CONTAGEM** — página inteira tem 20, a calcanhar tem
-  15. A trava secundária é a página cheia e toda repetida na rodada, porque a
+  15. A contagem é dos cards BRUTOS da página (`cardCount`), nunca dos aceitos:
+  um card pulado (tipo fora do acervo, host) fazia a página parecer calcanhar.
+  Em 2026-10-01 o Apache "terminou" a carga na página 211 de 2123 porque
+  "(Clássica de 1960)", no NOME de uma obra, foi lido como tipo do card; só um
+  tipo de fato fora do acervo (Música, Jogo, software…) pula o card agora. O
+  marcador do cursor carrega a versão da regra (`1:r2`): cursor da regra
+  anterior que já virou incremental é descartado uma vez e a carga recomeça. A trava secundária é a página cheia e toda repetida na rodada, porque a
   contagem sozinha não impede a inversão de página: uma página cheia repetida
   passaria como avanço e o round gastaria o teto inteiro achando que andou.
 - **`lastmod` sai VAZIO, de propósito.** O card traz `datePublished`, mas o

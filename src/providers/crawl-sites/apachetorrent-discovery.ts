@@ -98,6 +98,12 @@ const SEASON_SLUG_RE = /-\d{1,2}a?-temporada/i;
  * têm regra própria.
  */
 const WORK_TYPE_RE = /^\s*(?:Filme|S[ée]rie|Desenho|Document[áa]rio|Anime)\s*$/i;
+/**
+ * O que o card declara e o acervo NÃO tem. Só isto pula o card: o mesmo molde
+ * "(X de AAAA)" aparece no NOME da obra — "Além da Imaginação - 2ª Temporada
+ * (Clássica de 1960)" era pulado como se "Clássica" fosse tipo (2026-10-01).
+ */
+const NON_WORK_TYPE_RE = /^\s*(?:M[úu]sicas?|Jogos?|Games?|Programas?|Softwares?|Apps?|Aplicativos?|Livros?|Cursos?)\s*$/i;
 /** O marcador por extenso do CARD, com o ANO do acervo entre parênteses:
  *  "(Filme de 2019)". */
 const CARD_TYPE_RE = /\(\s*([^()]{2,20}?)\s+de\s+(?:19|20)\d{2}\s*\)/i;
@@ -163,7 +169,14 @@ function cardText(chunk: string): string {
 
 /** Tipo que o CARD declara entre parênteses, ou `null` quando não declara. */
 function declaredType(text: string): string | null {
-  return CARD_TYPE_RE.exec(text)?.[1]?.trim() ?? null;
+  // O ÚLTIMO marcador: o do tipo fecha o card; um anterior é parte do nome.
+  const all = [...text.matchAll(new RegExp(CARD_TYPE_RE.source, 'gi'))];
+  return all.length ? all[all.length - 1][1].trim() : null;
+}
+
+/** Cards brutos da página (blocos `capa-item`), antes de qualquer filtro. */
+export function countListingCards(html: string): number {
+  return markupOf(html).split(/<div class=["']capa-item["']>/i).length - 1;
 }
 
 /**
@@ -183,7 +196,7 @@ export function parseListingCards(html: string, baseUrl: string): ApacheListingC
   for (const chunk of chunks) {
     const text = cardText(chunk);
     const declared = declaredType(text);
-    if (declared != null && !WORK_TYPE_RE.test(declared)) continue;
+    if (declared != null && NON_WORK_TYPE_RE.test(declared)) continue;
     const hrefs = [...chunk.matchAll(/<a\b[^>]*?\bhref=["']([^"']+)["']/gi)].map((m) => m[1]);
     for (const href of hrefs) {
       let resolved: string;

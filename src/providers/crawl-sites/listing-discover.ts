@@ -93,6 +93,13 @@ export interface ListingPageRead {
    * significa alguma coisa se ela for a mais antiga da página.
    */
   posts: ListingPost[];
+  /**
+   * Cards BRUTOS da página, antes de qualquer filtro do adaptador (tipo fora do
+   * acervo, host). É ESTE número que decide o fim do catálogo: contar só os
+   * aceitos fazia um card pulado virar "página calcanhar" — o Apache parou na
+   * página 211 de 2123 por um "(Clássica de 1960)" lido como tipo (2026-10-01).
+   */
+  cardCount?: number;
 }
 
 /** Teto de uma rodada: até onde ela anda antes de devolver o controle. */
@@ -200,14 +207,15 @@ export async function walkListing(input: ListingWalkInput): Promise<ListingWalkR
       fresh.push({ url, kind: post.kind ?? defaultKind });
     }
 
-    if (!pageKeys.length) {
+    const rawCards = Number.isFinite(read?.cardCount) ? Math.max(0, Math.trunc(Number(read.cardCount))) : pageKeys.length;
+    if (!pageKeys.length && rawCards === 0) {
       // Nenhum card reconhecido. Um `urls: []` com `complete: true` aqui faria
       // o cursor avançar por cima de acervo nunca lido.
       failures.push(`listing-pagina-${page}:nenhum-card`);
       break;
     }
 
-    const counted = pageKeys.length < full;
+    const counted = Math.max(rawCards, pageKeys.length) < full;
     // Página inteira já vista com o tamanho cheio: o site devolveu a MESMA
     // página (inversão). Não prova fim de acervo, mas também não pode ser
     // relida para sempre — e o `counted` sozinho deixaria passar.

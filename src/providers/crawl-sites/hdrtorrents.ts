@@ -191,7 +191,8 @@ export function createHdrtorrentsCrawlSite(
     const base = surface.siteSelector.url();
     const html = await surface.fetchText(page <= 1 ? `${base}/` : `${base}/pagina/${page}/`);
     const posts: Array<{ url: string; kind: CrawlPageKind }> = [];
-    for (const card of surface.parseListingHtml(html, base)) {
+    const cards = surface.parseListingHtml(html, base);
+    for (const card of cards) {
       // Host de fora do site é recusado aqui — mesma política dos outros
       // adaptadores; o `parseListingHtml` já resolve a URL absoluta.
       try {
@@ -205,7 +206,8 @@ export function createHdrtorrentsCrawlSite(
       // CARD: a página 1 real é MISTA (20 cards, filmes e séries juntos).
       posts.push({ url: card.url, kind: kindFromCardType(card.type) ?? kindFromWorkSlug(card.url) });
     }
-    return { posts };
+    // O fim do catálogo se mede nos cards BRUTOS (ver `listing-discover.ts`).
+    return { posts, cardCount: cards.length };
   }
 
   return {

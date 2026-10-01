@@ -66,9 +66,17 @@ export function listingSeriesKey(kind: CrawlPageKind, listing: string): string {
   return `${listingCursorKey(kind, listing)}${LISTING_SERIES_SUFFIX}`;
 }
 
-/** O valor gravado é `1`/`0` — e nada mais, para que estado virgem seja ≠ gravado. */
+/**
+ * O valor gravado é `1`/`0` + a VERSÃO da regra de fim de catálogo. A `r2`
+ * (2026-10-01) passou a medir o fim pelos cards brutos: com a `r1`, um card
+ * pulado fez o Apache "terminar" a carga na página 211 de 2123 e virar
+ * incremental. Cursor da `r1` que já declarou a carga concluída (`sweep`) é
+ * descartado UMA vez e a carga recomeça — as páginas já lidas não reentram
+ * na fila; cursor da `r1` ainda na carga segue de onde está (o HDR na 543).
+ */
+const RULE_VERSION = 'r2';
 function markerOf(seriesEnabled: boolean): string {
-  return seriesEnabled === true ? '1' : '0';
+  return `${seriesEnabled === true ? '1' : '0'}:${RULE_VERSION}`;
 }
 
 /**
@@ -90,8 +98,18 @@ export function loadListingCursorForSeries(
 ): ListingCursor | null {
   const cursor = loadListingCursor(site, kind, listing);
   if (!cursor) return null;
-  const saved = store.engine().getState(site, listingSeriesKey(kind, listing));
-  if (String(saved ?? '') === markerOf(seriesEnabled)) return cursor;
+  const saved = String(store.engine().getState(site, listingSeriesKey(kind, listing)) ?? '');
+  if (saved === markerOf(seriesEnabled)) return cursor;
+  // Marcador da regra anterior (só o bit de séries) com o MESMO portão: a carga
+  // em andamento continua; a que já virou incremental pode ter parado num fim
+  // falso e é refeita.
+  if (saved === (seriesEnabled ? '1' : '0') && cursor.sweep !== true) return cursor;
+  if (saved === (seriesEnabled ? '1' : '0')) {
+    clearListingCursor(site, kind, listing);
+    log.info(`[crawl] ${site}: carga da listagem concluída com a regra de fim antiga — `
+      + 'cursor descartado; a carga recomeça da página 1 (páginas já lidas não reentram na fila)');
+    return null;
+  }
   clearListingCursor(site, kind, listing);
   log.info(`[crawl] ${site}: portão de séries ${seriesEnabled ? 'ligado' : 'desligado'} `
     + `≠ o do cursor (${cursor.path}) — cursor da listagem descartado; a varredura `

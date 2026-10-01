@@ -89,6 +89,7 @@ import { walkListing } from './listing-discover.js';
 import {
   fichaOriginalTitle, fichaSizeBytes, isSeasonSlug, isWorkPath, pageKindOf, parseImdbId,
   parseListingCards,
+  countListingCards,
 } from './apachetorrent-discovery.js';
 import { readWorkTitle } from './work-name.js';
 import type { RawItem } from '../../../types/domain.js';
@@ -198,7 +199,7 @@ export function createApachetorrentCrawlSite(
       }
       posts.push({ url: card.url, kind: card.kind });
     }
-    return { posts };
+    return { posts, cardCount: countListingCards(html) };
   }
 
   return {
