@@ -55,6 +55,8 @@ export interface RawItem {
   /** Item de reserva do banco (Etapa 4): indexer falho; nunca realimenta idx/banco/Chupim. */
   fromFallback?: boolean;
   fallbackIndexer?: string;
+  /** Reserva que o Chupim PODE baixar: já aprovada no filtro vivo ou de fonte index-only/raspada. */
+  fallbackFetchable?: boolean;
   /** Foto salva (idx) na resposta instantânea: só EXIBE 📦/~N; não tem as exclusões do fallback. */
   fromSnapshot?: boolean;
   [key: string]: unknown;
@@ -193,6 +195,8 @@ export interface StreamBase {
   _seedFloorWaived?: boolean;
   /** Reserva do banco (Etapa 4): marca a lista como parcial/fallback; removida no protocolo. */
   _fromFallback?: boolean;
+  /** Reserva elegível ao Chupim (ver `RawItem.fallbackFetchable`); removida no protocolo. */
+  _fallbackFetchable?: boolean;
   /** Foto salva exibida com 📦: o `relabel` do dedupe precisa preservar o selo; removida no protocolo. */
   _fromSnapshot?: boolean;
   /** Campo INTERNO: dn= do magnet para o notCam do stream-ranking; removido antes do protocolo. */

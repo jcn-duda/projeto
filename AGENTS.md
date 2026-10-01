@@ -697,8 +697,18 @@ refiltra. As travas:
   (título/episódio/multiobra, `mag` bad/lie, debrid, cotas, `MIN_SEEDERS`) — a
   reserva só acrescenta o selo e a origem.
 - **Zero auto-perpetuação:** `fromFallback` é excluído da captura do banco, do
-  `releaseIndex.record`, das pools/candidatos do autofetch, do warmer e da
-  auditoria de áudio. A reserva não realimenta o acervo que a originou.
+  `releaseIndex.record`, do warmer e da auditoria de áudio. A reserva não
+  realimenta o acervo que a originou. **Exceção do Chupim** (2026-10-01): a
+  reserva ELEGÍVEL (`fallbackFetchable` → `_fallbackFetchable`: linha com
+  `passed_filter=1` ou fonte index-only — o mesmo critério do instantâneo)
+  entra nos candidatos/pools do autofetch (`fallbackBlocked`, em
+  `autofetch-pools.ts`). Motivo medido: o índice guarda 2.000 obras contra
+  ~27 mil raspadas, então o dublado dos sites index-only só chegava à lista
+  como reserva e nunca era baixado — com "só cache" ficava invisível para
+  sempre (Show Bar 1080p DUAL, tt0200550), com o aviso prometendo "reabra em
+  alguns minutos". O aviso agora só promete quando há download em curso
+  ("⏳ Baixando BR dublado no debrid"); sem download, diz só que está fora do
+  cache.
 - **Seeders reais:** o número medido (`seeders_last`) atravessa inteiro e é o
   que ranking e `MIN_SEEDERS` usam — o `~` é só exibição.
 - **Selo:** `📦` e `👤 ~N` no `name`/`title` (`stream-display.ts` e

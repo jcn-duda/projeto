@@ -125,8 +125,8 @@ export async function applyDebrid(input: Array<Stream | null>, {
 
   // A escolha dos candidatos vem antes da checagem (cada hold protege o hash da
   // limpeza); o disparo, depois — só aí sabemos se falta dublado em cache.
-  // Pack multiobra admitido e fallback do banco (Etapa 4) nunca viram candidato.
-  const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted && !s._fromFallback), {
+  // Pack multiobra admitido e reserva NÃO elegível (`fallbackBlocked`) nunca viram candidato.
+  const candidates = autoFetchCandidates(streams.filter((s) => !s._multiWorkAdmitted && !(s._fromFallback && !s._fallbackFetchable)), {
     season, episode,
     imdbId: imdbId || undefined,
     searchKey: searchKey || undefined, trace,

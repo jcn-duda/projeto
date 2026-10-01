@@ -247,6 +247,7 @@ function toStremioStream(item: RawItem): Stream | null {
       // propósito, para o `finish` marcar a lista como parcial/fallback, e é
       // REMOVIDA antes do protocolo (applyNoticeOrigin).
       ...(fromFallback ? { _fromFallback: true } : {}),
+      ...(fromFallback && item.fallbackFetchable ? { _fallbackFetchable: true } : {}),
       ...(stored && !fromFallback ? { _fromSnapshot: true } : {}),
       // Campo INTERNO: dn= do magnet para o notCam do stream-ranking. O título
       // do post BR pode esconder TELESYNC/TS; o dn= revela. Removido na limpeza

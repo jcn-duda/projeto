@@ -56,7 +56,7 @@ test('cachedOnly+bu=false: BR oculto anexa aviso de reabertura; Dual/gringo perm
     const notice = streams.find((s) => s.externalUrl);
     const playable = streams.filter((s) => s.url || s.infoHash);
     assert.ok(notice, 'aviso anexado quando BR sumiu e sobrou gringo');
-    assert.match(notice!.name as string, /fora do cache.*reabra/i);
+    assert.match(notice!.name as string, /fora do cache do debrid|Baixando BR/i);
     assert.doesNotMatch(notice!.name as string, /Mostrar BR ainda fora do cache/);
     assert.equal(playable.length, 1, 'só o global cacheado permanece tocável');
     assert.doesNotMatch(String(playable[0].name || ''), /DUAL/, 'Dual global sem PT sem chip DUAL');
@@ -110,7 +110,7 @@ test('cachedOnly+bu=true: BR uncached volta como P2P e sem aviso de reabertura p
     assert.ok(br, 'BR uncached preservado como P2P com bu=true');
     assert.equal(br!.url, undefined);
     assert.equal(
-      streams.some((s) => /fora do cache.*reabra|Mostrar BR ainda fora do cache/i.test(String(s.name || ''))),
+      streams.some((s) => /fora do cache do debrid|Baixando BR|Mostrar BR ainda fora do cache/i.test(String(s.name || ''))),
       false,
       'sem aviso de BR oculto quando o BR já está visível',
     );
@@ -215,7 +215,7 @@ test('BR dropado por bad + Dual cacheado: sem notice de reabertura (pendingBrHid
     );
     assert.equal(firstObserver.pendingBrHidden, 0, 'trust prune não conta como cachedOnly');
     assert.equal(
-      streams.some((s) => /fora do cache.*reabra/i.test(String(s.name || ''))),
+      streams.some((s) => /fora do cache do debrid|Baixando BR/i.test(String(s.name || ''))),
       false,
       'não promete reabertura quando o BR morreu por histórico ruim',
     );
@@ -279,7 +279,7 @@ test('BR legendado cacheado não cala o aviso quando TODA dublada sumiu no cache
     const playable = streams.filter((s) => s.url || s.infoHash);
     assert.equal(playable.length, 1, 'o BR legendado cacheado continua tocável');
     assert.ok(
-      streams.some((s) => /fora do cache.*reabra/i.test(String(s.name || ''))),
+      streams.some((s) => /fora do cache do debrid|Baixando BR/i.test(String(s.name || ''))),
       'aviso anexado: a dublada existe e sumiu no cachedOnly',
     );
   } finally {

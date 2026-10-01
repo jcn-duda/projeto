@@ -8,6 +8,7 @@ import {
   brDubbedPool,
   anyDubbedPool,
   topSeededPool,
+  fallbackBlocked,
 } from './autofetch-pools.js';
 import type { PoolsOptions, AutofetchTargetQuality } from './autofetch-pools.js';
 import { streamQuality } from './stream-quotas.js';
@@ -194,7 +195,7 @@ function brListableDubPool(streams: Stream[] = []) {
     (s) =>
       s &&
       s.infoHash &&
-      !s._fromFallback &&
+      !fallbackBlocked(s) &&
       s._br &&
       !s._lied &&
       (s._dubbed || s._dubClaim) &&

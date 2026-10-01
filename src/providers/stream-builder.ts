@@ -267,10 +267,12 @@ export async function buildStreams(rawInput: RawItem[], {
   );
   const noticeText = () => {
     if (probePending) return '⏳ Busca de dublado BR na fila — aguarde a colheita';
-    if (autofetchCount > 0) return '⏳ Baixando no debrid — reabra em alguns minutos';
-    if (dubHiddenByCachedOnly) {
-      return 'Fontes BR dubladas existem, mas ainda fora do cache — reabra em alguns minutos';
+    if (autofetchCount > 0) {
+      return dubHidden > 0 ? '⏳ Baixando BR dublado no debrid — reabra em alguns minutos' : '⏳ Baixando no debrid — reabra em alguns minutos';
     }
+    // Sem download em curso não há "reabra em minutos" a prometer (Show Bar,
+    // 2026-10-01: o aviso prometia e nada baixava).
+    if (dubHiddenByCachedOnly) return 'Fontes BR dubladas existem, mas ainda fora do cache do debrid';
     if (candidatesBeforeDebrid > 0 && trustDropped >= candidatesBeforeDebrid) {
       return `Nenhuma fonte pronta — ${trustDropped} resultado(s) descartado(s) por histórico ruim nesta conta do debrid`;
     }
@@ -343,7 +345,9 @@ export function applyNoticeOrigin(streams: Stream[] = []) {
   // aqui: no `StreamBase` ele colidiria com o `size` numérico dos candidatos
   // do autofetch, que estendem `Partial<StreamBase>`.
   const cleaned = streams.map((stream) => {
-    const { _fromFallback, _fromSnapshot, ...rest } = stream as Stream & { _fromFallback?: boolean; _fromSnapshot?: boolean };
+    const { _fromFallback, _fromSnapshot, _fallbackFetchable, ...rest } = stream as Stream & {
+      _fromFallback?: boolean; _fromSnapshot?: boolean; _fallbackFetchable?: boolean;
+    };
     const size = streamSizeLabel(rest.title);
     return (size ? { ...rest, size } : rest) as Stream;
   });

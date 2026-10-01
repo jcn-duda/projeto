@@ -109,6 +109,20 @@ export function pickSource(sources: readonly SourceRow[], failedIndexers: Readon
   return eligible.reduce((best, current) => (current.lastSeen > best.lastSeen ? current : best));
 }
 
+/**
+ * Reserva que o Chupim pode baixar (2026-10-01). O acervo dos sites que só o
+ * raspador/colhedor leem (index-only) nunca passa pela busca viva, e o índice
+ * guarda só 2.000 obras contra ~27 mil raspadas: sem isto o dublado raspado só
+ * chegava à lista como reserva e NUNCA era baixado — com "só cache" ficava
+ * invisível para sempre (Show Bar 1080p DUAL, tt0200550). Critério: a linha já
+ * passou no filtro de título de uma busca viva, ou a fonte é index-only.
+ */
+function fetchable(candidate: Candidate): boolean {
+  if (candidate.work?.passedFilter === 1) return true;
+  const id = String(candidate.source?.indexer || '').trim().toLowerCase();
+  return config.jackett.indexOnlyIndexers.some((x) => String(x).trim().toLowerCase() === id);
+}
+
 export function toRawItem(candidate: Candidate): RawItem {
   const { magnet, source } = candidate;
   const uri = String(magnet.uri || '');
@@ -127,6 +141,7 @@ export function toRawItem(candidate: Candidate): RawItem {
     quality: magnet.quality || '',
     fromFallback: true,
     fallbackIndexer: source.indexer,
+    ...(fetchable(candidate) ? { fallbackFetchable: true } : {}),
   };
 }
 

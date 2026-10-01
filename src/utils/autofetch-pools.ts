@@ -53,12 +53,20 @@ function isAutofetchTargetQuality(q: string): q is AutofetchTargetQuality {
  *   provado vence no desempate.
  *
  */
+/**
+ * Reserva do banco que o Chupim NÃO pode usar: a que não provou nada (indexer
+ * falho com linha nunca aprovada). A elegível (`_fallbackFetchable`) entra.
+ */
+function fallbackBlocked(s: Stream | null | undefined): boolean {
+  return Boolean(s?._fromFallback) && !s?._fallbackFetchable;
+}
+
 function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
   // Fallback do banco (Etapa 4) fica FORA dos pools do Chupim: não pode ser
   // candidato de download NEM contar como cobertura cached que suprime o
   // download (hasCachedBrDubbed/target qualities).
   const br = streams.filter(
-    (s) => s && s.infoHash && !s._fromFallback && s._br && sourceFromTitle(s.title || s.name || '') !== 'CAM',
+    (s) => s && s.infoHash && !fallbackBlocked(s) && s._br && sourceFromTitle(s.title || s.name || '') !== 'CAM',
   );
   if (br.length === 0) return [];
   // Prova de arquivo OU promessa do post BR. Exigir só `_dubbed` travava o
@@ -105,7 +113,7 @@ function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
  */
 function anyDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
   const candidates = streams.filter(
-    (s) => s && s.infoHash && !s._fromFallback && s._dubbed && sourceFromTitle(s.title || s.name || '') !== 'CAM',
+    (s) => s && s.infoHash && !fallbackBlocked(s) && s._dubbed && sourceFromTitle(s.title || s.name || '') !== 'CAM',
   );
   // Mesmo bônus de pack do pool BR, pré-computado para o sort.
   const packOf = season == null
@@ -133,7 +141,7 @@ function topSeededPool(
 ) {
   const seedersOf = (s: any) => Number(s?._seeders ?? (String(s?.name || '').match(/👤\s*(\d+)/)?.[1] || 0));
   const candidates = streams.filter((s) =>
-    s && s.infoHash && !s._fromFallback && sourceFromTitle(s.title || s.name || '') !== 'CAM' &&
+    s && s.infoHash && !fallbackBlocked(s) && sourceFromTitle(s.title || s.name || '') !== 'CAM' &&
     seedersOf(s) >= minSeeders && !hasExplicitForeignAudio(s.title || s.name || ''),
   );
   const packOf = season == null ? null : new Map(candidates.map((s) => [s, isSeasonPackRelease(s, season)]));
@@ -170,6 +178,7 @@ export {
   brDubbedPool,
   anyDubbedPool,
   topSeededPool,
+  fallbackBlocked,
 };
 
 export type { PoolsOptions, AutofetchTargetQuality };
