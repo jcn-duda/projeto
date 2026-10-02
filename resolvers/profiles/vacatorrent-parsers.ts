@@ -43,8 +43,11 @@ import {
 } from './vacatorrent-shapes.js';
 export type { VacaSeasonCard } from './vacatorrent-shapes.js';
 
-// Hosts históricos e de salto do protetor VacaTorrent.
-const FALLBACK_SITE_SUFFIXES = ['vaqueirofilmes.com', 'vacatorrentmov.com'];
+// Hosts históricos e de salto do protetor VacaTorrent. `vaqueirofilmes1.com`
+// é o endereço desde 2026-10-01: os dois anteriores passaram a servir só uma
+// página "Novo Endereço" (200, sem sitemap nem busca), e o resolver devolvia
+// 502 e a raspagem "nenhum movie-sitemap no índice".
+const FALLBACK_SITE_SUFFIXES = ['vaqueirofilmes1.com', 'vaqueirofilmes.com', 'vacatorrentmov.com'];
 const ASSERT_ONLY_SUFFIXES = ['t.co', 'vacadb.org'];
 
 // Import-safe: a lista do site é estática. EXTRA_ALLOWED_PROTECTORS entra pelo
@@ -226,7 +229,7 @@ function unwrapSearchJson(text: string): string {
 }
 
 // Parse da busca AJAX (search_posts).
-function parseSearchJson(text: string | null | undefined, baseUrl = 'https://vaqueirofilmes.com'): VacaWork[] {
+function parseSearchJson(text: string | null | undefined, baseUrl = 'https://vaqueirofilmes1.com'): VacaWork[] {
   // `any` explícito: payload de terceiro (JSON de API) — a tipagem só existe
   // nos campos que este parser lê, abaixo.
   let parsed: any;

@@ -37,11 +37,11 @@ export const resolvers = () => ({
   // redirect vira blocked_host e a fonte morre em silêncio.
   nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.filmesviatorrenthd.net').replace(/\/$/, ''),
   torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
-  // Vaca Torrent trocou de domínio: vacatorrentmov.com redireciona para
-  // vaqueirofilmes.com (mesmo tema WP, marca "VACA TT"), e o domínio antigo
-  // ainda responde "Acesso Bloqueado" a crawler. Os dois ficam na allowlist
-  // do profile para o redirect não virar blocked_host.
-  vacatorrentUrl: (process.env.VACATORRENT_URL || 'https://vaqueirofilmes.com').replace(/\/$/, ''),
+  // Vaca Torrent trocou de domínio de novo (2026-10-01): vaqueirofilmes1.com.
+  // vaqueirofilmes.com e vacatorrentmov.com agora servem só a página "Novo
+  // Endereço" (200, sem sitemap nem busca). Os três ficam na allowlist do
+  // profile, para redirect/failover não virar blocked_host.
+  vacatorrentUrl: (process.env.VACATORRENT_URL || 'https://vaqueirofilmes1.com').replace(/\/$/, ''),
   // Rede Torrent: atrás de desafio Cloudflare (o resolver resolve via
   // FlareSolverr), com magnets diretos no HTML do post.
   redetorrentUrl: (process.env.REDETORRENT_URL || 'https://www.redetorrent.xyz').replace(/\/$/, ''),

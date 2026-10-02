@@ -82,7 +82,7 @@ function isVacaChallenge(body: string, headers?: Headers): boolean {
 const DEFAULTS = {
   port: 8704,
   selfUrl: 'http://vacatorrent-resolver:8704',
-  siteUrl: 'https://vaqueirofilmes.com',
+  siteUrl: 'https://vaqueirofilmes1.com',
   urlsCsv: undefined,
   timeoutMs: 15_000,
   maxHops: 10,

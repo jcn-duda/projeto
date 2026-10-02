@@ -3288,16 +3288,21 @@ o orçamento com a resposta.
   de `systemads.net` para `systemads1.com` e TODO magnet passou a ser barrado
   porque só o host antigo estava na lista permitida. Magnet que some de um
   resolver só: cheque a allowlist do protetor antes de culpar o parser.
-- **Vaca Torrent (vaqueirofilmes.com) tem protetor de múltiplos saltos.** A
+- **Vaca Torrent (vaqueirofilmes1.com) tem protetor de múltiplos saltos.** A
   cadeia é `systemtech.space` → `t.co` → relay → landing `vacadb.org`
   (`URL_ETAPA2`) → gate-2 com o magnet em base64 no atributo `data-link` do
   body. Os contadores de 50s/clique/nova-aba são teatro client-side — o
   resolvedor replica tudo via HTTP, com seedCookies `enc_liberado` e
   `enc_etapa1_visto`, e decodifica o `data-link` (~7 saltos, ~1-2s em sessão
   quente). `vacadb.org` e `t.co` são hosts **assert-only** (endpoint do
-  protetor, nunca descoberta). O domínio histórico `vacatorrentmov.com` faz
-  301 → `vaqueirofilmes.com`; os dois ficam na allowlist do perfil para o
-  redirect não virar `blocked_host`.
+  protetor, nunca descoberta). Os domínios históricos `vacatorrentmov.com` e
+  `vaqueirofilmes.com` ficam na allowlist do perfil para o redirect não virar
+  `blocked_host`. Em 2026-10-01 o site mudou para `vaqueirofilmes1.com` e os
+  dois antigos passaram a servir só uma página "Novo Endereço" — 200, sem
+  sitemap e sem busca. O sintoma foi 502 no resolver (8704) e "nenhum
+  movie-sitemap no índice" na raspagem, sem erro de rede nenhum: página que
+  responde 200 com o aviso não aciona o failover. Troca de domínio = os três
+  lugares de sempre (allowlist, `src/config/resolvers.ts`, `.env.example`).
 - **O laço de saltos do protetor é UM só, em `resolvers/transport.ts`.** Os
   perfis que seguem protetor chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
   importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante
