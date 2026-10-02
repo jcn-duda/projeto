@@ -22,6 +22,7 @@ const config = (await import('../src/config.js')).default;
 const micoCrawl = await import('../src/providers/crawl-sites/mico.js');
 const micoSeries = await import('../src/providers/crawl-sites/mico-series.js');
 const { stubFetch } = await import('./helpers/stub.js');
+const { strideAt } = await import('../src/providers/crawl-sites/mico-shared.js');
 
 const FIX = path.join(process.cwd(), 'test', 'fixtures', 'crawl', 'mico');
 const read = (name: string): any => JSON.parse(fs.readFileSync(path.join(FIX, name), 'utf8'));
@@ -63,9 +64,10 @@ function seriesStub(routes: {
 }) {
   return stubFetch((url) => {
     const mc = /\/catalog\/movie\/MicoFilmes\/skip=(\d+)\.json/.exec(url);
-    if (mc) return resp(routes.movieCatalog?.[Number(mc[1])]);
+    // `skip` sem rota = catálogo esgotado (a API real responde 200 com `metas: []`).
+    if (mc) return resp(routes.movieCatalog?.[Number(mc[1])] ?? { metas: [] });
     const sc = /\/catalog\/series\/MicoSeries\/skip=(\d+)\.json/.exec(url);
-    if (sc) return resp(routes.seriesCatalog?.[Number(sc[1])]);
+    if (sc) return resp(routes.seriesCatalog?.[Number(sc[1])] ?? { metas: [] });
     const ep = /\/stream\/series\/(tt\d+):(\d+):(\d+)\.json/.exec(url);
     if (ep) return resp(routes.episode?.(ep[1], Number(ep[2]), Number(ep[3])));
     const cm = /v3-cinemeta\.strem\.io\/meta\/series\/(tt\d+)\.json/.exec(url);
@@ -231,11 +233,10 @@ describe('fetchWork (série): groups por locação + progresso retomável', () =
 });
 
 describe('discover (séries): tv_show só com opts.series.enabled', () => {
-  const movieRoutes = { 0: read('catalog-skip-0.json'), 5: read('catalog-empty.json') };
+  const movieRoutes = { 0: read('catalog-skip-0.json') };
   const seriesRoutes = {
     0: read('catalog-series-skip-0.json'),
-    3: read('catalog-series-skip-3.json'),
-    5: read('catalog-series-empty.json'),
+    25: read('catalog-series-skip-3.json'),
   };
 
   test('sem opts.series.enabled → NÃO emite tv_show nem consulta o catálogo de série', async () => {
@@ -252,7 +253,7 @@ describe('discover (séries): tv_show só com opts.series.enabled', () => {
     }
   });
 
-  test('com opts.series.enabled → tv_show com dedupe, skip dinâmico e bucketLastmod de 30 dias', async () => {
+  test('com opts.series.enabled → tv_show com dedupe, passo fixo e bucketLastmod de 30 dias', async () => {
     const site = micoCrawl.createMicoCrawlSite();
     const stub = seriesStub({ movieCatalog: movieRoutes, seriesCatalog: seriesRoutes });
     const now = Date.now();
@@ -271,11 +272,11 @@ describe('discover (séries): tv_show só com opts.series.enabled', () => {
         assert.equal(u.lastmod, micoCrawl.bucketLastmod(tt, now, REREAD), `balde de ${REREAD} dias`);
       }
       assert.deepEqual(found.completeByKind, { movie: true, tv_show: true });
-      // skip DINÂMICO pelo nº real de metas de série: 0 → 3 → 5 (vazio).
-      const skips = stub.calls.filter((c) => c.url.includes('/catalog/series/')).map((c) => Number(/skip=(\d+)/.exec(c.url)![1]));
-      assert.deepEqual(skips, [0, 3, 5]);
-      // requestCost soma as páginas de filme (2) e de série (3).
-      assert.equal(found.requestCost, 5);
+      // Passo fixo (25 abaixo de 1000): 0, 25 e depois as vazias do fim.
+      const skips = [...new Set(stub.calls.filter((c) => c.url.includes('/catalog/series/')).map((c) => Number(/skip=(\d+)/.exec(c.url)![1])))];
+      assert.deepEqual(skips, [0, 25, 50, 75, 100, 125]);
+      // requestCost soma filme (1 página + 4 vazias x 3) e série (2 páginas + 4 vazias x 3).
+      assert.equal(found.requestCost, (1 + 4 * 3) + (2 + 4 * 3));
     } finally {
       stub.restore();
     }
@@ -286,8 +287,8 @@ describe('discover (séries): tv_show só com opts.series.enabled', () => {
     const stub = seriesStub({
       movieCatalog: { 0: read('catalog-skip-0.json'), 5: read('catalog-empty.json') },
       // página 0 de série → 429 com Retry-After de 1 s; o catch chama
-      // `honorRetryAfter` e o throttle adia a página seguinte (skip += 40).
-      seriesCatalog: { 0: { status: 429, retryAfter: '1' }, 40: { metas: [] } },
+      // `honorRetryAfter` e o throttle adia a página seguinte (passo fixo).
+      seriesCatalog: { 0: { status: 429, retryAfter: '1' } },
     });
     try {
       const t0 = Date.now();
@@ -305,7 +306,7 @@ describe('discover (séries): tv_show só com opts.series.enabled', () => {
     const site = micoCrawl.createMicoCrawlSite();
     const stub = seriesStub({
       movieCatalog: { 0: read('catalog-skip-0.json'), 5: read('catalog-empty.json') },
-      seriesCatalog: { 0: { status: 429 }, 40: { metas: [] } },
+      seriesCatalog: { 0: { status: 429 } },
     });
     try {
       const t0 = Date.now();
@@ -321,10 +322,10 @@ describe('discover (séries): tv_show só com opts.series.enabled', () => {
 
   test('loop atinge o TETO sem página vazia → complete:false (descoberta truncada)', async () => {
     const site = micoCrawl.createMicoCrawlSite();
-    // 300 páginas de 1 obra cada (skip avança 0,1,2,...): NUNCA vem página vazia,
-    // então o loop sai pelo teto SERIES_MAX_PAGES → descoberta TRUNCADA.
+    // Páginas de 1 obra pelos skips do passo fixo: NUNCA vem página vazia,
+    // então o loop sai pelo teto config.mico.crawlMaxPages → descoberta TRUNCADA.
     const seriesCatalog: Record<number, any> = {};
-    for (let i = 0; i < 300; i += 1) seriesCatalog[i] = { metas: [{ id: `tt${1_000_000 + i}` }] };
+    for (let i = 0, skip = 0; i < config.mico.crawlMaxPages; i += 1, skip += strideAt(skip)) seriesCatalog[skip] = { metas: [{ id: `tt${1_000_000 + i}` }] };
     const stub = seriesStub({
       movieCatalog: { 0: read('catalog-skip-0.json'), 5: read('catalog-empty.json') },
       seriesCatalog,
@@ -333,7 +334,7 @@ describe('discover (séries): tv_show só com opts.series.enabled', () => {
       const found = await site.discover(null, { series: { enabled: true, maxCards: 0, maxButtons: 0 } });
       assert.equal(found.completeByKind?.tv_show, false, 'truncada pelo teto → série incompleta');
       assert.equal(found.complete, false, 'a truncagem de série torna a descoberta incompleta');
-      assert.equal(found.urls.filter((u) => u.kind === 'tv_show').length, 300, 'leu o teto de páginas');
+      assert.equal(found.urls.filter((u) => u.kind === 'tv_show').length, config.mico.crawlMaxPages, 'leu o teto de páginas');
     } finally {
       stub.restore();
     }

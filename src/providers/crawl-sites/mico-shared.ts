@@ -10,6 +10,7 @@
 // busca ao vivo (`../mico.ts`): o erro do crawler não pode abrir o circuito da
 // resposta — o throttle é isolado, module-level, daqui.
 import config from '../../config.js';
+import * as log from '../../utils/logger.js';
 import { retryAfterMs } from '../mico.js';
 import type { DiscoveredUrl } from '../crawl-types.js';
 
@@ -19,13 +20,15 @@ export const MOVIE_CATALOG_ID = 'MicoFilmes';
 export const SERIES_CATALOG_ID = 'MicoSeries';
 
 const IMDB_RE = /^tt\d{1,10}$/;
-/** Teto de segurança de páginas de FILME por rodada (o catálogo tem ~70). */
-export const MOVIE_MAX_PAGES = 200;
-/** Teto de segurança de páginas de SÉRIE por rodada (a Fase 0 achou 45 e o
- * teto de 2002 foi ATINGIDO — pode haver mais; folga para 300). */
-export const SERIES_MAX_PAGES = 300;
-/** Passo nominal do `skip` quando UMA página falha (best-effort, tamanho médio). */
-export const NOMINAL_PAGE = 40;
+/** Passo do `skip`: o da API é um índice BRUTO e `metas.length` NÃO o mede (a
+ * página volta deduplicada: 12 a 98 metas no começo, 50 depois). Avançar por
+ * `metas.length` parava em ~380 obras de ~20 mil. Abaixo de `STRIDE_SWITCH` as
+ * janelas se sobrepõem e o passo curto não deixa buraco (passo 10 achou 953
+ * filmes onde o 50 achou 933); acima, a página é fixa em 50. */
+export const STRIDE_SWITCH = 1000;
+export function strideAt(skip: number): number {
+  return skip < STRIDE_SWITCH ? 25 : 50;
+}
 const DAY_MS = 86_400_000;
 
 /** Hash determinístico de string (FNV-1a 32 bits) — sem dependência externa. */
@@ -196,4 +199,70 @@ export interface KindDiscovery {
   requestCost: number;
   /** Primeira página caiu OU nenhuma obra descoberta (catálogo vazio/ilegível). */
   totalFailure: boolean;
+}
+
+/** Resultado da varredura paginada de UM catálogo (filme ou série). */
+export interface CatalogWalk {
+  /** IMDb ids únicos, na ordem em que apareceram. */
+  ids: string[];
+  failures: string[];
+  /** Páginas lidas (inclui reconsultas) — o custo real em requisições. */
+  pages: number;
+  firstPageFailed: boolean;
+  /** Saiu por `crawlEndAfterEmpties` vazias seguidas (e não pelo teto de páginas). */
+  sawEnd: boolean;
+}
+
+/**
+ * Varre o catálogo com passo fixo (`strideAt`), reconsultando página vazia e
+ * tolerando falha de UMA página (best-effort: registra e segue). O fim é um
+ * fato observado — vazias seguidas, já reconsultadas —, nunca a primeira vazia.
+ */
+export async function walkCatalog(
+  type: 'movie' | 'series',
+  catalogId: string,
+): Promise<CatalogWalk> {
+  const maxPages = config.mico.crawlMaxPages;
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const failures: string[] = [];
+  let skip = 0;
+  let pages = 0;
+  let firstPageFailed = false;
+  let emptyRun = 0;
+  let sawEnd = false;
+
+  while (pages < maxPages) {
+    let catalog: CatalogPage | null = null;
+    let failed = false;
+    for (let attempt = 0; attempt <= config.mico.crawlEmptyRetries && pages < maxPages; attempt += 1) {
+      pages += 1;
+      try {
+        catalog = await fetchCatalogPage(type, catalogId, skip);
+      } catch (err) {
+        failures.push(`${type} skip=${skip}: ${log.errorMessage(err)}`);
+        if (pages === 1) firstPageFailed = true;
+        // 429 com Retry-After adia a próxima chamada (o throttle a honra).
+        honorRetryAfter(err);
+        failed = true;
+        break;
+      }
+      if (catalog.count > 0) break;
+    }
+    if (!failed && catalog) {
+      if (catalog.count === 0) {
+        emptyRun += 1;
+        if (emptyRun >= config.mico.crawlEndAfterEmpties) { sawEnd = true; break; }
+      } else {
+        emptyRun = 0;
+        for (const tt of catalog.ids) {
+          if (seen.has(tt)) continue;
+          seen.add(tt);
+          ids.push(tt);
+        }
+      }
+    }
+    skip += strideAt(skip);
+  }
+  return { ids, failures, pages, firstPageFailed, sawEnd };
 }

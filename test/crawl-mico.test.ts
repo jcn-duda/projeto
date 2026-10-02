@@ -21,6 +21,7 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const micoCrawl = await import('../src/providers/crawl-sites/mico.js');
 const { stubFetch } = await import('./helpers/stub.js');
+const { strideAt } = await import('../src/providers/crawl-sites/mico-shared.js');
 import type { CrawlUrlRow } from '../src/providers/crawl-types.js';
 
 const FIX = path.join(process.cwd(), 'test', 'fixtures', 'crawl', 'mico');
@@ -55,8 +56,8 @@ function micoStub(routes: {
     if (cat) {
       const r = routes.catalog?.[Number(cat[1])];
       if (r && typeof r.status === 'number') return { ok: false, status: r.status, json: async () => ({}) };
-      if (r) return { ok: true, status: 200, json: async () => r };
-      return { ok: false, status: 404, json: async () => ({}) };
+      // `skip` sem rota = catálogo esgotado: a API real responde 200 com `metas: []`.
+      return { ok: true, status: 200, json: async () => r ?? { metas: [] } };
     }
     const st = /\/stream\/movie\/(tt\d+)\.json/.exec(url);
     if (st) {
@@ -135,10 +136,10 @@ describe('bucketLastmod (pura): o lastmod é um balde de releitura', () => {
 });
 
 describe('discover: PAGINAÇÃO SIMPLES (gênero está quebrado)', () => {
-  test('skip DINÂMICO pelo nº real de metas + dedupe por IMDb', async () => {
+  test('skip de PASSO FIXO (não pelo nº de metas) + dedupe por IMDb', async () => {
     const site = micoCrawl.createMicoCrawlSite();
     const stub = micoStub({
-      catalog: { 0: read('catalog-skip-0.json'), 5: read('catalog-skip-5.json'), 8: read('catalog-empty.json') },
+      catalog: { 0: read('catalog-skip-0.json'), 25: read('catalog-skip-5.json') },
     });
     try {
       const found = await site.discover(null);
@@ -146,10 +147,12 @@ describe('discover: PAGINAÇÃO SIMPLES (gênero está quebrado)', () => {
       assert.equal(found.urls.length, 7, 'dedupe por IMDb remove a repetição entre páginas');
       assert.equal(found.complete, true);
       assert.deepEqual(found.completeByKind, { movie: true, tv_show: true }, 'Fase 1 não emite série');
-      assert.equal(found.requestCost, 3, 'três páginas de catálogo lidas');
-      // O skip avançou pelo tamanho REAL (5, depois 3), não por passo fixo 40.
-      const skips = stub.calls.map((c) => Number(/skip=(\d+)/.exec(c.url)?.[1]));
-      assert.deepEqual(skips, [0, 5, 8], 'skip += metas.length até a página vazia');
+      // 2 páginas com dado + 4 vazias seguidas, cada uma reconsultada 3x (a vazia é intermitente).
+      assert.equal(found.requestCost, 2 + 4 * 3);
+      // O skip anda de passo fixo (25 abaixo de 1000), NÃO por metas.length: a API
+      // devolve a página deduplicada e o nº de metas não mede o índice bruto.
+      const skips = [...new Set(stub.calls.map((c) => Number(/skip=(\d+)/.exec(c.url)?.[1])))];
+      assert.deepEqual(skips, [0, 25, 50, 75, 100, 125]);
       assert.ok(found.urls.every((u) => u.kind === 'movie'), 'todas movie');
       assert.ok(found.urls.every((u) => /^\d{4}-\d{2}-\d{2}$/.test(u.lastmod)), 'lastmod é o balde ISO');
       assert.equal(found.urls[0].url, synthetic('movie', 'tt33100314'), 'URL sintética estável');
@@ -160,9 +163,9 @@ describe('discover: PAGINAÇÃO SIMPLES (gênero está quebrado)', () => {
 
   test('falha de UMA página → complete:false (movie:false) mas SEGUE varrendo', async () => {
     const site = micoCrawl.createMicoCrawlSite();
-    // skip=0 ok (5 metas); skip=5 → 500; salta passo nominal 40 → skip=45 vazio.
+    // skip=0 ok (5 metas); skip=25 → 500; segue o passo fixo e o fim vem das vazias.
     const stub = micoStub({
-      catalog: { 0: read('catalog-skip-0.json'), 5: { status: 500 }, 45: read('catalog-empty.json') },
+      catalog: { 0: read('catalog-skip-0.json'), 25: { status: 500 } },
     });
     try {
       const found = await site.discover(null);
@@ -171,6 +174,28 @@ describe('discover: PAGINAÇÃO SIMPLES (gênero está quebrado)', () => {
       assert.equal(found.completeByKind?.tv_show, true, 'série não depende do catálogo de filme');
       assert.equal(found.failures.length, 1);
       assert.equal(found.urls.length, 5, 'best-effort: as 5 obras da página boa entraram');
+    } finally {
+      stub.restore();
+    }
+  });
+
+  test('página vazia INTERMITENTE não encerra a descoberta (reconsulta antes de aceitar o fim)', async () => {
+    const site = micoCrawl.createMicoCrawlSite();
+    // Medido na API real: o mesmo skip ora volta 0 metas, ora 50. A 1ª resposta de
+    // skip=25 vem vazia; a reconsulta traz as obras — antes, o 1º vazio era "fim".
+    let hits25 = 0;
+    const stub = stubFetch((url) => {
+      const m = /\/catalog\/movie\/MicoFilmes\/skip=(\d+)\.json/.exec(url);
+      const skip = m ? Number(m[1]) : -1;
+      let body: any = { metas: [] };
+      if (skip === 0) body = read('catalog-skip-0.json');
+      if (skip === 25) { hits25 += 1; if (hits25 > 1) body = read('catalog-skip-5.json'); }
+      return { ok: true, status: 200, json: async () => body };
+    });
+    try {
+      const found = await site.discover(null);
+      assert.equal(found.urls.length, 7, 'as obras da página que veio vazia na 1ª tentativa entraram');
+      assert.equal(found.complete, true);
     } finally {
       stub.restore();
     }
@@ -204,17 +229,17 @@ describe('discover: PAGINAÇÃO SIMPLES (gênero está quebrado)', () => {
 
   test('loop atinge o TETO sem página vazia → complete:false (descoberta truncada)', async () => {
     const site = micoCrawl.createMicoCrawlSite();
-    // 200 páginas de 1 obra cada (skip avança 0,1,2,...): NUNCA vem página vazia,
-    // então o loop sai pelo teto MOVIE_MAX_PAGES → descoberta TRUNCADA (review
-    // FIX 5): não pode virar cursor/cobertura indevida.
+    // Páginas de 1 obra pelos skips do passo fixo: NUNCA vem página vazia, então o
+    // loop sai pelo teto config.mico.crawlMaxPages → descoberta TRUNCADA (review FIX 5): não
+    // pode virar cursor/cobertura indevida.
     const catalog: Record<number, any> = {};
-    for (let i = 0; i < 200; i += 1) catalog[i] = { metas: [{ id: `tt${3_000_000 + i}` }] };
+    for (let i = 0, skip = 0; i < config.mico.crawlMaxPages; i += 1, skip += strideAt(skip)) catalog[skip] = { metas: [{ id: `tt${3_000_000 + i}` }] };
     const stub = micoStub({ catalog });
     try {
       const found = await site.discover(null);
       assert.equal(found.completeByKind?.movie, false, 'truncada pelo teto → filme incompleto');
       assert.equal(found.complete, false, 'a truncagem torna a descoberta incompleta');
-      assert.equal(found.urls.length, 200, 'leu o teto de páginas');
+      assert.equal(found.urls.length, config.mico.crawlMaxPages, 'leu o teto de páginas');
     } finally {
       stub.restore();
     }

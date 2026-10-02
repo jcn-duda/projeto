@@ -52,6 +52,13 @@ export const mico = () => ({
   // episódios JÁ EXIBIDOS (data no Cinemeta ≤ agora). O progresso retomável
   // (`SeriesWorkProgress`) fatia a obra em passes de `maxButtons` episódios.
   crawlSeriesMaxSeasons: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_SERIES_MAX_SEASONS, 2))),
+  // Varredura do catálogo (`skip=N`): teto de páginas por rodada e por tipo (o
+  // catálogo tem ~20 mil obras por tipo ≈ 450 páginas; sair pelo teto marca a
+  // descoberta TRUNCADA), reconsultas de página vazia (a API devolve vazio
+  // intermitente) e quantas vazias seguidas, já reconsultadas, valem como fim.
+  crawlMaxPages: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_MAX_PAGES, 700))),
+  crawlEmptyRetries: Math.max(0, Math.trunc(num(process.env.MICO_CRAWL_EMPTY_RETRIES, 2))),
+  crawlEndAfterEmpties: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_END_AFTER_EMPTIES, 4))),
 });
 
 export const tmdb = () => ({

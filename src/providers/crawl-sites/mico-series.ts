@@ -28,7 +28,6 @@
 //   Um pack que o Mico serve para vários episódios cai em cada locação (o índice
 //   faz merge por hash); o `releaseWorkTargets` do recorder resolve a cobertura.
 import config from '../../config.js';
-import * as log from '../../utils/logger.js';
 import { getMeta } from '../../utils/cinemeta.js';
 import { fetchMicoStreams, micoEpisodeStreamUrl } from '../mico.js';
 import type { RawItem } from '../../../types/domain.js';
@@ -37,8 +36,8 @@ import type {
 } from '../crawl-types.js';
 import { withRequestCost } from './shared.js';
 import {
-  SERIES_CATALOG_ID, SERIES_MAX_PAGES, NOMINAL_PAGE,
-  bucketLastmod, fetchCatalogPage, honorRetryAfter, syntheticUrl, throttle,
+  SERIES_CATALOG_ID,
+  bucketLastmod, honorRetryAfter, syntheticUrl, throttle, walkCatalog,
 } from './mico-shared.js';
 import type { KindDiscovery } from './mico-shared.js';
 
@@ -54,48 +53,17 @@ const DEFAULT_MAX_BUTTONS = 40;
  * descoberta de filme — ver `mico.ts`).
  */
 export async function discoverSeries(now: number): Promise<KindDiscovery> {
-  const urls: KindDiscovery['urls'] = [];
-  const failures: string[] = [];
-  const seen = new Set<string>();
-  let skip = 0;
-  let pages = 0;
-  let firstPageFailed = false;
-  let sawEmpty = false;
-
-  for (let page = 0; page < SERIES_MAX_PAGES; page += 1) {
-    pages += 1;
-    let catalog;
-    try {
-      catalog = await fetchCatalogPage('series', SERIES_CATALOG_ID, skip);
-    } catch (err) {
-      failures.push(`series skip=${skip}: ${log.errorMessage(err)}`);
-      if (page === 0) firstPageFailed = true;
-      // 429 com Retry-After: adia a próxima página (o throttle a honra), em vez
-      // de martelar a API só com o minGap.
-      honorRetryAfter(err);
-      skip += NOMINAL_PAGE;
-      continue;
-    }
-    if (catalog.count === 0) { sawEmpty = true; break; }
-    for (const tt of catalog.ids) {
-      if (seen.has(tt)) continue;
-      seen.add(tt);
-      urls.push({
-        url: syntheticUrl('series', tt),
-        lastmod: bucketLastmod(tt, now, SERIES_REREAD_DAYS),
-        kind: 'tv_show',
-      });
-    }
-    skip += catalog.count;
-  }
-
-  // Saída pelo TETO sem página vazia = descoberta TRUNCADA (a Fase 0 achou 45
-  // páginas com o teto de skip ATINGIDO — pode haver mais): NÃO é `complete`,
+  const walk = await walkCatalog('series', SERIES_CATALOG_ID);
+  const urls: KindDiscovery['urls'] = walk.ids.map((tt) => ({
+    url: syntheticUrl('series', tt),
+    lastmod: bucketLastmod(tt, now, SERIES_REREAD_DAYS),
+    kind: 'tv_show' as const,
+  }));
+  // Saída pelo TETO sem o fim observado = descoberta TRUNCADA: NÃO é `complete`,
   // senão viraria cursor/cobertura de série indevida.
-  const truncated = !sawEmpty;
-  const totalFailure = firstPageFailed || urls.length === 0;
-  const complete = failures.length === 0 && urls.length > 0 && !truncated;
-  return { urls, failures, complete, requestCost: pages, totalFailure };
+  const totalFailure = walk.firstPageFailed || urls.length === 0;
+  const complete = walk.failures.length === 0 && urls.length > 0 && walk.sawEnd;
+  return { urls, failures: walk.failures, complete, requestCost: walk.pages, totalFailure };
 }
 
 /** Meta de série da Cinemeta (o shape que `getMeta('series', tt)` devolve). */

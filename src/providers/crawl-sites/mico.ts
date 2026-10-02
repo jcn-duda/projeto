@@ -46,7 +46,6 @@
 // pode abrir o circuito da resposta. Falha de rede vira `throw withRequestCost`
 // (o motor faz backoff), nunca exceção crua sem custo e nunca derruba o motor.
 import config from '../../config.js';
-import * as log from '../../utils/logger.js';
 import { fetchMicoStreams, micoMovieStreamUrl } from '../mico.js';
 import type { RawItem } from '../../../types/domain.js';
 import type {
@@ -54,10 +53,10 @@ import type {
 } from '../crawl-types.js';
 import { withRequestCost } from './shared.js';
 import {
-  MOVIE_CATALOG_ID, MOVIE_MAX_PAGES, NOMINAL_PAGE,
-  bucketLastmod, fetchCatalogPage, honorRetryAfter, parseMicoUrl, syntheticUrl, throttle,
+  MOVIE_CATALOG_ID,
+  bucketLastmod, honorRetryAfter, parseMicoUrl, syntheticUrl, throttle, walkCatalog,
 } from './mico-shared.js';
-import type { CatalogPage, KindDiscovery } from './mico-shared.js';
+import type { KindDiscovery } from './mico-shared.js';
 import { discoverSeries, fetchSeriesWork } from './mico-series.js';
 
 // Reexportadas para os testes (que importam de `crawl-sites/mico.js`).
@@ -81,49 +80,21 @@ function pageKindOf(urlKind: 'movie' | 'series'): CrawlPageKind {
  * (`totalFailure`) é decidida pelo `discover`.
  */
 async function discoverMovies(now: number, period: number): Promise<KindDiscovery> {
-  const urls: DiscoveredUrl[] = [];
-  const failures: string[] = [];
-  const seen = new Set<string>();
-  let skip = 0;
-  let pages = 0;
-  let firstPageFailed = false;
-  let sawEmpty = false;
-
-  for (let page = 0; page < MOVIE_MAX_PAGES; page += 1) {
-    pages += 1;
-    let catalog: CatalogPage;
-    try {
-      catalog = await fetchCatalogPage('movie', MOVIE_CATALOG_ID, skip);
-    } catch (err) {
-      failures.push(`movie skip=${skip}: ${log.errorMessage(err)}`);
-      if (page === 0) firstPageFailed = true;
-      // 429 com Retry-After: adia a próxima página (o throttle a honra), em vez
-      // de martelar a API só com o minGap.
-      honorRetryAfter(err);
-      skip += NOMINAL_PAGE;
-      continue;
-    }
-    if (catalog.count === 0) { sawEmpty = true; break; } // página vazia = fim do catálogo
-    for (const tt of catalog.ids) {
-      if (seen.has(tt)) continue;
-      seen.add(tt);
-      urls.push({ url: syntheticUrl('movie', tt), lastmod: bucketLastmod(tt, now, period), kind: 'movie' });
-    }
-    skip += catalog.count;
-  }
-
-  // Saída pelo TETO sem página vazia = descoberta TRUNCADA (pode haver mais
-  // obras além de MOVIE_MAX_PAGES): NÃO é `complete`, senão viraria cursor/
+  const walk = await walkCatalog('movie', MOVIE_CATALOG_ID);
+  const urls: DiscoveredUrl[] = walk.ids.map((tt) => (
+    { url: syntheticUrl('movie', tt), lastmod: bucketLastmod(tt, now, period), kind: 'movie' as const }
+  ));
+  // Saída pelo TETO sem o fim observado = descoberta TRUNCADA (pode haver mais
+  // obras além de config.mico.crawlMaxPages): NÃO é `complete`, senão viraria cursor/
   // cobertura indevida (alinha com o listing-discover dos outros sites).
-  const truncated = !sawEmpty;
-  const totalFailure = firstPageFailed || urls.length === 0;
-  const complete = failures.length === 0 && urls.length > 0 && !truncated;
-  return { urls, failures, complete, requestCost: pages, totalFailure };
+  const totalFailure = walk.firstPageFailed || urls.length === 0;
+  const complete = walk.failures.length === 0 && urls.length > 0 && walk.sawEnd;
+  return { urls, failures: walk.failures, complete, requestCost: walk.pages, totalFailure };
 }
 
 /**
  * Fábrica do adaptador. O `discover` IGNORA o `since` (lê o catálogo inteiro —
- * são ~70 páginas pequenas de filme); o corte incremental fica por conta do
+ * ~20 mil obras por tipo em ~450 páginas); o corte incremental fica por conta do
  * `lastmod` sintético (balde de releitura) no upsert do store. Séries só entram
  * com `opts.series.enabled` (default seguro: NÃO descobrir `tv_show`).
  */
