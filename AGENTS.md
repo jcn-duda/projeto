@@ -2768,6 +2768,18 @@ pack, "série"/"minissérie", no título e no `dn=`) e com UM único ano > estre
 sai. Sem ano, ano da estreia ou faixa de anos ficam. Medido no magnets.db
 (2026-09-26): 9 de 6.165 releases de série cortadas, todas lixo.
 
+Em FILME, o mesmo vazamento vem do SUBTÍTULO a mais: na busca do nome nu
+("Resident Evil", 2026), "Resident Evil Vendetta (… BD 1080p …)" — o anime de
+2017, sem ano no título — passava com ⚡ (2026-10-02).
+`franchiseExtensionContradicts` (`franchise-base.ts`, espelho da guarda de
+obra-base) corta quando o título começa pelo nome inteiro, NÃO tem ano nenhum
+e a palavra seguinte não é ruído, edição (Unrated, Director's Cut, Netflix…),
+pack ou palavra de outro nome da obra. Com ano no título, decidem as regras de
+ano e de `named-sequel`. Só o caminho global: release BR passa pelo
+`matchesBrTitle`. Medido em 198 releases globais do índice da VPS: 4 cortadas,
+as 4 do Vendetta. Fica de fora o pack sem ano ("Resident Evil coleção 4
+filmes dublado"): sem ano no título não há prova de quais filmes ele contém.
+
 A exceção de franquia do inventário da conta (`filterInventoryRelevant`) **não**
 se aplica aos indexers. Globais usam `matchesName` + estrutura + identidade de
 obra delimitada pelo marcador de episódio (`matchesEpisodeWorkIdentity`) —

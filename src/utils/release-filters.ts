@@ -19,6 +19,7 @@ import {
   type ShortNameIdentity,
 } from './release-title-rules.js';
 import { admitsMultiWorkPack } from './multiwork-pack.js';
+import { franchiseExtensionContradicts } from './franchise-base.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 interface MatchOptions {
@@ -111,7 +112,8 @@ function filterRelevantRaw(
           // "Dead City" com o 0.600 do token repetido. A metade do ANO da
           // matchesTitleStructure fecha exatamente essa lacuna, sem tocar nos
           // formatos que o prefixo protegeria errado.
-          (isSeries ? !yearContradicts(tokens, year, true) : matchesTitleStructure(title, name, year, { tokens })) &&
+          (isSeries ? !yearContradicts(tokens, year, true)
+            : matchesTitleStructure(title, name, year, { tokens }) && !franchiseExtensionContradicts(title, tokens, name, names, year)) &&
           matchesEpisodeWorkIdentity(title, names, tokens, universe),
     );
     if (!titleMatches) {
