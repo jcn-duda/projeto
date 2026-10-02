@@ -30,6 +30,8 @@ import type { ResolverLink } from '../../../resolvers/types.js';
 import type { ReleaseTitleInput, ReleaseTitlePost } from '../../../resolvers/release-format.js';
 import type { CrawlDiscovery, CrawlPageKind, CrawlPageOptions, CrawlSite, CrawlWorkResult, CrawlDiscoverOptions, DiscoveredUrl } from '../crawl-types.js';
 import { fetchSeriesWork, DEFAULT_SERIES_LIMITS } from './vaca-series.js';
+import { crawlFetch } from './vaca-fetch.js';
+import { parseViewerEntries } from './vaca-sitemap-viewer.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { magnetHash, parseTitleYear, withRequestCost } from './shared.js';
@@ -43,8 +45,8 @@ export { parseTitleYear };
  * Recorte da instância do profile vacatorrent que o adaptador consome. Declarar
  * a superfície aqui (em vez de `any`) faz o compilador cobrar os métodos que o
  * adaptador usa contra a API REAL do profile — quebra em compilação se o
- * profile renomear algo. O `fetchText` com fallback Flare fica FORA do recorte
- * de propósito: o crawl não tem como acioná-lo sem trocar o contrato.
+ * profile renomear algo. O `fetchText` (Flare em TODA chamada) fica FORA do
+ * recorte de propósito; o crawl usa `fetchTextCrawl` (direto → Flare só com desafio).
  */
 export interface VacaResolverSurface {
   siteSelector: { url(): string };
@@ -54,6 +56,9 @@ export interface VacaResolverSurface {
   /** Fetch direto do perfil, SEM fallback FlareSolverr (desafio = erro).
    * `hooks.onRequest` (F3): contagem por HOP do crawl. */
   fetchTextDirect(url: string, accept?: string, hooks?: { onRequest?: () => void }): Promise<string>;
+  /** Direto com escalonamento ao FlareSolverr SÓ quando há desafio (domínio atrás
+   * do Cloudflare). Opcional: dublê/profile antigo cai no `fetchTextDirect`. */
+  fetchTextCrawl?(url: string, accept?: string, hooks?: { onRequest?: () => void }): Promise<string>;
   extractMovieLinks(html: string | null | undefined, baseUrl?: string): string | null;
   parseDownloadLinks(html: string | null | undefined, baseUrl?: string, options?: Record<string, unknown>): ResolverLink[];
   fetchFollowingAllowed(value: string, referer?: string | null, hooks?: { onRequest?: () => void }): Promise<string>;
@@ -93,7 +98,8 @@ function parseSitemapEntries(xml: string): { loc: string; lastmod: string }[] {
     const lastmod = SITEMAP_LASTMOD_RE.exec(block)?.[1]?.trim() || '';
     out.push({ loc, lastmod });
   }
-  return out;
+  // Sem nenhum `<loc>`: o FlareSolverr devolveu a tabela do viewer do Yoast.
+  return out.length ? out : parseViewerEntries(xml);
 }
 
 /**
@@ -158,7 +164,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
 
   /** Um sitemap do índice: baixa e devolve as obras (slug + lastmod). */
   async function readWorkSitemap(loc: string, since: string | null, kind: 'movie' | 'tv_show'): Promise<DiscoveredUrl[]> {
-    const xml = await surface.fetchTextDirect(loc);
+    const xml = await crawlFetch(surface, loc);
     const out: DiscoveredUrl[] = [];
     const workRe = kind === 'tv_show' ? TV_WORK_RE : MOVIE_WORK_RE;
     for (const entry of parseSitemapEntries(xml)) {
@@ -204,7 +210,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
           : (since ?? null);
       const base = surface.siteSelector.url();
       const indexUrl = new URL('sitemap_index.xml', base).href;
-      const indexXml = await surface.fetchTextDirect(indexUrl);
+      const indexXml = await crawlFetch(surface, indexUrl);
       const sitemaps: Array<{ loc: string; kind: 'movie' | 'tv_show' }> = [];
       for (const entry of parseSitemapEntries(indexXml)) {
         let href: URL;
@@ -278,7 +284,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
         // pode ter sido editado — host de fora do site (e protetor como página)
         // é rejeitado na porta, antes de qualquer fetch.
         const workUrl = assertSiteUrl(url);
-        const pageHtml = await surface.fetchTextDirect(workUrl.href, undefined, { onRequest: countRequest });
+        const pageHtml = await crawlFetch(surface, workUrl.href, undefined, { onRequest: countRequest });
         const { title, year } = parseTitleYear(pageHtml);
         if (!title) {
           // Página sem título é quebra de layout, não obra sem nome: erro para o
@@ -294,7 +300,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
         // movie-links também é página do site: href adulterado para host de fora
         // é erro diagnosticável, nunca `no-torrent` (que mentiria sobre o acervo).
         const linksChecked = assertSiteUrl(linksUrl);
-        const linksHtml = await surface.fetchTextDirect(linksChecked.href, undefined, { onRequest: countRequest });
+        const linksHtml = await crawlFetch(surface, linksChecked.href, undefined, { onRequest: countRequest });
         const links = surface.parseDownloadLinks(linksHtml, linksChecked.href);
         if (!links.length) {
           // A página movie-links existe mas só tem "Assistir" (players não são

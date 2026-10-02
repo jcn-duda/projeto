@@ -74,7 +74,7 @@ export const crawl = () => ({
   maxParallel: Math.max(1, Math.min(8, Math.trunc(num(process.env.CRAWL_MAX_PARALLEL, 3)))),
   // Sites que passam pelo FlareSolverr (um pedido por vez, o MESMO da busca):
   // nunca correm dois juntos.
-  flareSites: list(process.env.CRAWL_FLARE_SITES || 'redetorrent-cardigann,bludv-cardigann'),
+  flareSites: list(process.env.CRAWL_FLARE_SITES || 'redetorrent-cardigann,bludv-cardigann,vacatorrent'),
   // Colhedor pula o card do site que o raspador já cobre (`crawl-coverage.ts`):
   // carga inicial concluída, fora de simulação e fila até este tamanho.
   coverHarvest: String(process.env.CRAWL_COVER_HARVEST || 'true') === 'true',

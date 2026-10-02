@@ -204,6 +204,13 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   (o `dn=` é a evidência de episódio).
 - **A sonda de 40 é o portão** de entrada de um site novo (Wilson ≥ 50%); ela
   mede também a régua do adaptador. Veredito é opt-in por `--write`.
+- **Vaca (`vacatorrent`)**: o fetch do crawl é `fetchTextCrawl` do profile — direto
+  primeiro (reusa a sessão quente) e **FlareSolverr só com desafio do Cloudflare**
+  (domínio `vaqueirofilmes1.com` desafia o fetch direto frio; antes isso pausava o
+  site por `error-streak`). Fica na faixa única `CRAWL_FLARE_SITES` e a resolução
+  conta 1 requisição no custo da página; desafio persistente é erro, sem laço. Pelo
+  Flare o sitemap do Yoast volta como **tabela HTML (viewer)**, não XML: o
+  `parseSitemapEntries` cai em `parseViewerEntries` (`vaca-sitemap-viewer.ts`).
 - Config por site no painel (`siteOverrides`); sites do painel nascem desligados.
 
 ---

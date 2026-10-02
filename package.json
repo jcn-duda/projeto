@@ -160,6 +160,7 @@
     "test/crawl-cursor-kinds.test.js",
     "test/crawl-vaca-hardening.test.js",
     "test/crawl-vaca-direct-fetch.test.js",
+    "test/crawl-vaca-flare-escalation.test.js",
     "test/crawler-live.test.js",
     "test/crawl-status.test.js",
     "test/crawl-scheduler.test.js",

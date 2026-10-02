@@ -62,6 +62,7 @@ import {
 } from './vacatorrent-parsers.js';
 import type { VacaWork } from './vacatorrent-parsers.js';
 import { createVacaContent } from './vacatorrent-content.js';
+import { DIRECT_CHALLENGE_MSG, createFetchTextCrawl } from './vacatorrent-crawl-fetch.js';
 import type { VacaSearchItem } from './vacatorrent-content.js';
 
 class IncompleteSearch extends Error {
@@ -218,17 +219,16 @@ function createResolver(overrides: ProfileOverrides = {}) {
       headersFor: (target) => ({ ...buildFlareHeaders(target.href), Accept: accept }),
     });    const body = await response.text();
     if ((response.ok || response.status === 403 || response.status === 503) && isVacaChallenge(body, response.headers)) {
-      throw new Error('vacatorrent: desafio Cloudflare no caminho direto (crawl sem Flare)');
+      throw new Error(DIRECT_CHALLENGE_MSG);
     }
     if (!response.ok) throw new Error(`http_${response.status}`);
     if (/<body\b[^>]*\bid\s*=\s*["']error-page["']|<(?:div|p)\b[^>]*\bclass\s*=\s*["'][^"']*\bwp-die-message\b/i.test(body)) {
       throw new Error('vacatorrent: página de erro do WordPress');
     }
-    // Mesma semântica do fetchText (menos o fallback): o JSON da busca AJAX,
-    // se um dia o crawl pedi-lo, sai desempacotado igual.
     return accept.includes('application/json') ? unwrapSearchJson(body) : body;
   }
 
+  const fetchTextCrawl = createFetchTextCrawl({ fetchTextDirect, fetchTextViaFlare, flareSessions, isChallenge: isVacaChallenge, unwrapSearchJson });
   const { fetchMovieLinks, fetchSeriesLinks, postToItems } = createVacaContent({
     cachedPost, postCacheMs: POST_CACHE_MS, fetchText, parseDownloadLinks,
   });
@@ -388,7 +388,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     computeWantedTokens,
     normalizeFilterText,
     isGenericListPost,
-    getFlareSession, buildFlareHeaders, fetchText, fetchTextDirect, fetchTextViaFlare,
+    getFlareSession, buildFlareHeaders, fetchText, fetchTextDirect, fetchTextCrawl, fetchTextViaFlare,
     postCache,
     searchCache,
     magnetCache,

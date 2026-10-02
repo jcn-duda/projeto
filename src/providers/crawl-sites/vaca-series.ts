@@ -50,6 +50,7 @@ import { declaredSeriesLocation, groupSeriesReleases, seasonFromCardSlug } from 
 import type { SeriesReleaseEntry } from './vaca-series-locate.js';
 import { magnetDisplayName } from '../../utils/title-normalization.js';
 import * as log from '../../utils/logger.js';
+import { crawlFetch } from './vaca-fetch.js';
 
 /** Teto da memória de dedupe no progresso (fica na coluna `progress`). */
 const SEEN_MAX = 500;
@@ -149,7 +150,7 @@ export async function fetchSeriesWork(
   const workUrl = ctx.assertSiteUrl(url);
   // F3: custo por HOP — a contagem é feita pelo transporte (`onRequest`),
   // não à mão antes do fetch (redirect/protetor contam cada um).
-  const pageHtml = await ctx.surface.fetchTextDirect(workUrl.href, undefined, { onRequest: ctx.countRequest });
+  const pageHtml = await crawlFetch(ctx.surface, workUrl.href, undefined, { onRequest: ctx.countRequest });
   const { title, year } = ctx.parseTitleYear(pageHtml);
   if (!title) {
     return { url, status: 'error', error: 'layout: página sem <h1> de título' };
@@ -163,7 +164,7 @@ export async function fetchSeriesWork(
   // season-internal também é página do site: href adulterado é erro
   // diagnosticável, nunca no-torrent (que mentiria sobre o acervo).
   const internalChecked = ctx.assertSiteUrl(internalUrl);
-  const internalHtml = await ctx.surface.fetchTextDirect(internalChecked.href, undefined, { onRequest: ctx.countRequest });
+  const internalHtml = await crawlFetch(ctx.surface, internalChecked.href, undefined, { onRequest: ctx.countRequest });
   // F5: a contagem REAL da truncagem (slice de cards e teto de botões) é
   // feita na leitura abaixo e decidida no fim da função.
   const obra = { title, year };
@@ -210,7 +211,7 @@ export async function fetchSeriesWork(
     let cardHtml: string;
     try {
       // F3: o custo é por HOP, contado pelo transporte (`onRequest`).
-      cardHtml = await ctx.surface.fetchTextDirect(cardUrl.href, undefined, { onRequest: ctx.countRequest });
+      cardHtml = await crawlFetch(ctx.surface, cardUrl.href, undefined, { onRequest: ctx.countRequest });
     } catch (err: unknown) {
       if (isBlockedHost(err)) throw err;
       cardsFailed += 1;

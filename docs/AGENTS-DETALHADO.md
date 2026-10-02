@@ -3388,6 +3388,24 @@ o orçamento com a resposta.
   movie-sitemap no índice" na raspagem, sem erro de rede nenhum: página que
   responde 200 com o aviso não aciona o failover. Troca de domínio = os três
   lugares de sempre (allowlist, `src/config/resolvers.ts`, `.env.example`).
+- **O crawl do Vaca escalona ao FlareSolverr SÓ com desafio (2026-10-02).** O
+  `fetchTextDirect` do profile nunca aciona o Flare (desenho da Fase 1: raspagem em
+  massa não pode detonar o Chromium único). Com a troca para `vaqueirofilmes1.com`
+  o fetch direto frio passou a ser desafiado (403, `cf-mitigated: challenge`) e o
+  motor pausou o site sozinho (`error-streak`, 5 falhas: "desafio Cloudflare no
+  caminho direto"), enquanto a busca ao vivo seguia ok (ela usa `fetchText`, com
+  Flare). Agora o adaptador usa `crawlFetch` (`vaca-fetch.ts`) → `fetchTextCrawl` do
+  profile: direto primeiro e, só com o desafio, UMA resolução pelo FlareSolverr (que
+  memoriza o `cf_clearance` por host, então os fetches seguintes voltam a ir diretos
+  por ~20 min). `vacatorrent` entrou no default de `CRAWL_FLARE_SITES` (faixa única,
+  nunca dois Flare-sites juntos) e a resolução conta 1 requisição em `onRequest`.
+  O sitemap lido pelo Flare chega como a TABELA do viewer do Yoast (sem `<loc>`);
+  `parseSitemapEntries` cai em `parseViewerEntries` (`vaca-sitemap-viewer.ts`, lastmod
+  sem segundos = `:00`, lado seguro). Medido local: 10.135 URLs, completa, 0 falhas.
+  Flare devolvendo o desafio de novo é erro "desafio Cloudflare não resolvido"
+  (limpa a sessão, sem laço). Testes: `test/crawl-vaca-flare-escalation.test.ts`;
+  `crawl-vaca-direct-fetch`/`-hardening` agora esperam UMA resolução, não zero.
+
 - **O laço de saltos do protetor é UM só, em `resolvers/transport.ts`.** Os
   perfis que seguem protetor chamam `followProtectedUrl`; nenhum tem laço próprio. Isso
   importa porque é ele que chama `assertAllowedUrl` a cada salto — o mutante

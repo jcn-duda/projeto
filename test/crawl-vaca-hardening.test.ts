@@ -57,6 +57,7 @@ function stubRoutes(routes: Record<string, StubRoute>): FetchStub {
           status,
           headers: { get: () => null },
           text: async () => body,
+          json: async () => { try { return JSON.parse(body); } catch { return {}; } },
         };
       }
     }
@@ -64,6 +65,7 @@ function stubRoutes(routes: Record<string, StubRoute>): FetchStub {
   });
 }
 
+const flareChallenge = () => JSON.stringify({ status: 'ok', solution: { status: 200, url: SITE, response: CHALLENGE_403.body, cookies: [], userAgent: 'UA' } });
 const CHALLENGE_403 = {
   body: '<html><head><title>Just a moment...</title></head><body>'
     + '<script>window._cf_chl_opt = {"cvId":"3","cZone":"vaqueirofilmes.com"}</script>'
@@ -225,29 +227,29 @@ describe('crawl-sites/vaca: IMDb ancorado na ficha técnica', () => {
   });
 });
 
-describe('crawl-sites/vaca: crawl não aciona FlareSolverr', () => {
-  test('página atrás de desafio Cloudflare é ERRO do caminho direto, sem chamar o solver', async () => {
-    const stub = stubRoutes({ [PAGE_TORRENT]: CHALLENGE_403 });
+describe('crawl-sites/vaca: desafio Cloudflare escalona ao Flare UMA vez', () => {
+  test('página atrás de desafio Cloudflare: escalona ao Flare e, ainda desafiada, é ERRO', async () => {
+    const stub = stubRoutes({ [PAGE_TORRENT]: CHALLENGE_403, ':8191/v1': flareChallenge });
     try {
       await assert.rejects(
         () => createVacaCrawlSite(resolverSurface()).fetchWork(PAGE_TORRENT),
         /desafio Cloudflare/,
       );
       const fetched = stub.calls.map((c) => c.url);
-      assert.ok(!fetched.some((u) => u.includes(':8191')), 'o solver nunca é acionado pelo crawl');
-      assert.equal(fetched.length, 1, 'só a página pedida, nenhuma segunda rodada');
+      assert.equal(fetched.filter((u) => u.includes(':8191')).length, 1, 'uma resolução pelo solver, sem laço');
     } finally {
       stub.restore();
     }
   });
 
-  test('sitemap com desafio vira falha da rodada (parcial), também sem FlareSolverr', async () => {
+  test('sitemap com desafio vira falha da rodada (parcial) depois de UMA tentativa no Flare', async () => {
     const extra = `
   <sitemap><loc>${SITE}/movie-sitemap13.xml</loc><lastmod>2026-09-25T00:00:00+00:00</lastmod></sitemap>`;
     const stub = stubRoutes({
       'sitemap_index.xml': () => miniIndex(extra),
       'movie-sitemap12.xml': () => MINI_SITEMAP,
       'movie-sitemap13.xml': CHALLENGE_403,
+      ':8191/v1': flareChallenge,
     });
     try {
       const disc = await createVacaCrawlSite(resolverSurface()).discover();
@@ -255,7 +257,7 @@ describe('crawl-sites/vaca: crawl não aciona FlareSolverr', () => {
       assert.equal(disc.failures.length, 1);
       assert.match(disc.failures[0], /movie-sitemap13\.xml: .*desafio Cloudflare/);
       assert.equal(disc.urls.length, 1, 'a fonte que respondeu segue válida');
-      assert.ok(stub.calls.every((c) => !c.url.includes(':8191')), 'o solver nunca é acionado pelo crawl');
+      assert.equal(stub.calls.filter((c) => c.url.includes(':8191')).length, 1, 'uma resolução pelo solver');
     } finally {
       stub.restore();
     }

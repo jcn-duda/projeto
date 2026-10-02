@@ -55,6 +55,7 @@ function stubRoutes(routes: Record<string, StubRoute>): FetchStub {
           status,
           headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
           text: async () => body,
+          json: async () => { try { return JSON.parse(body); } catch { return {}; } },
         };
       }
     }
@@ -163,20 +164,22 @@ describe('crawl-sites/vaca: fetchTextDirect segue redirect manual com allowlist 
     }
   });
 
-  test('desafio Cloudflare no FIM da cadeia segue erro do caminho direto, sem FlareSolverr', async () => {
+  test('desafio Cloudflare no FIM da cadeia: escalona ao Flare UMA vez e, ainda desafiado, é erro', async () => {
     const challenge = '<html><head><title>Just a moment...</title></head><body>'
       + '<script>window._cf_chl_opt = {"cvId":"3"}</script>'
       + 'Verifique se você é humano — challenges.cloudflare.com</body></html>';
     const stub = stubRoutes({
       [PAGE_TORRENT]: { body: '', status: 301, headers: { location: '/pt/movie/expresso-do-amanha-hd/' } },
       'expresso-do-amanha-hd': () => challenge,
+      // O Flare devolve o desafio de novo: escalonou UMA vez e desistiu (erro, sem laço).
+      ':8191/v1': () => JSON.stringify({ status: 'ok', solution: { status: 200, url: SITE, response: challenge, cookies: [], userAgent: 'UA' } }),
     });
     try {
       await assert.rejects(
         () => createVacaCrawlSite(resolverSurface()).fetchWork(PAGE_TORRENT),
         /desafio Cloudflare/,
       );
-      assert.ok(stub.calls.every((c) => !c.url.includes(':8191')), 'o solver nunca é acionado pelo crawl');
+      assert.equal(stub.calls.filter((c) => c.url.includes(':8191')).length, 1, 'uma resolução pelo solver, sem laço');
     } finally {
       stub.restore();
     }
