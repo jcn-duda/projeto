@@ -8,6 +8,9 @@
 // diagnóstico: ele admite uma operação por vez, e segurá-lo durante minutos de
 // export deixaria o poll do próprio painel em 429. A trava daqui é outra —
 // uma transferência por processo.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import zlib from 'node:zlib';
 import readline from 'node:readline';
 import { PassThrough, Readable, Transform } from 'node:stream';
@@ -70,6 +73,7 @@ export function makeMagnetBankTransferHandlers(services: AppServices) {
     if (busy) return res.status(409).json({ ok: false, error: 'outra exportação/importação em andamento' });
     busy = true;
     const started = Date.now();
+    let spool = '';
     try {
       // A fila grava por cima do mesmo acervo: drenar ANTES deixa o merge do
       // import ler o estado mais novo em vez de competir com um lote pendente.
@@ -77,10 +81,18 @@ export function makeMagnetBankTransferHandlers(services: AppServices) {
       // `Content-Type: application/gzip` é o export do painel; NDJSON cru
       // (`application/x-ndjson`) também entra, para quem montou o arquivo à mão.
       const gz = /gzip/i.test(String(req.get('Content-Type') || ''));
+      // O upload vai INTEIRO para um temporário antes da mescla. Mesclando em
+      // fluxo, o corpo só terminava de chegar quando a gravação terminava, e o
+      // `requestTimeout` do Node (5 min) abortava o import grande — 408 com o
+      // banco da VPS (~200 mil magnets) no volume do Windows (2026-10-01). O
+      // limite vale só para RECEBER; a mescla roda depois, lendo do disco local.
+      spool = path.join(os.tmpdir(), `adom-magnets-import-${process.pid}-${started}.upload`);
+      await pipeline(req, byteCap(services.config.magnetBank.importMaxBytes), fs.createWriteStream(spool));
+      const source = fs.createReadStream(spool);
       const body = new PassThrough();
       let streamErr: unknown = null;
       const cap = byteCap(services.config.magnetBank.importMaxBytes);
-      const piping = (gz ? pipeline(req, zlib.createGunzip(), cap, body) : pipeline(req, cap, body))
+      const piping = (gz ? pipeline(source, zlib.createGunzip(), cap, body) : pipeline(source, cap, body))
         .catch((err: unknown) => { streamErr = err; body.end(); });
       const lines = readline.createInterface({ input: body, crlfDelay: Infinity });
       const report = await importLines(engine, lines);
@@ -101,6 +113,7 @@ export function makeMagnetBankTransferHandlers(services: AppServices) {
       return res.status(400).json({ ok: false, error: message, ms: Date.now() - started });
     } finally {
       busy = false;
+      if (spool) fs.rm(spool, { force: true }, () => {});
     }
   });
 
