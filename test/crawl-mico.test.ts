@@ -9,8 +9,8 @@
 //   - `fetchWork`: done/no-torrent/429-com-custo e recusas SEM rede;
 //   - throttle PRÓPRIO (não reutiliza o breaker da busca ao vivo);
 //   - integração com `processCrawlPage` + recorder dublê (NÃO chama identify,
-//     grava com a fonte `mico`);
-//   - colhedor: `mico` coberto pula FILME e SÉRIE (Fase 2 emite `tv_show`).
+//     grava com a fonte `mico`).
+// O colhedor (skip do Mico POR KIND) é testado em `crawl-mico-harvest.test.ts`.
 import { test, describe, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -21,12 +21,6 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const micoCrawl = await import('../src/providers/crawl-sites/mico.js');
 const { stubFetch } = await import('./helpers/stub.js');
-const store = await import('../src/utils/crawl-store.js');
-const live = await import('../src/utils/crawler-live.js');
-const { _resetCoverageMemoForTest } = await import('../src/providers/crawl-coverage.js');
-const { CURSOR_STATE_KEY } = await import('../src/providers/crawl-cursor.js');
-const harvestWorker = await import('../src/providers/harvest-worker.js');
-const cache = await import('../src/utils/cache.js');
 import type { CrawlUrlRow } from '../src/providers/crawl-types.js';
 
 const FIX = path.join(process.cwd(), 'test', 'fixtures', 'crawl', 'mico');
@@ -207,6 +201,24 @@ describe('discover: PAGINAÇÃO SIMPLES (gênero está quebrado)', () => {
       stub.restore();
     }
   });
+
+  test('loop atinge o TETO sem página vazia → complete:false (descoberta truncada)', async () => {
+    const site = micoCrawl.createMicoCrawlSite();
+    // 200 páginas de 1 obra cada (skip avança 0,1,2,...): NUNCA vem página vazia,
+    // então o loop sai pelo teto MOVIE_MAX_PAGES → descoberta TRUNCADA (review
+    // FIX 5): não pode virar cursor/cobertura indevida.
+    const catalog: Record<number, any> = {};
+    for (let i = 0; i < 200; i += 1) catalog[i] = { metas: [{ id: `tt${3_000_000 + i}` }] };
+    const stub = micoStub({ catalog });
+    try {
+      const found = await site.discover(null);
+      assert.equal(found.completeByKind?.movie, false, 'truncada pelo teto → filme incompleto');
+      assert.equal(found.complete, false, 'a truncagem torna a descoberta incompleta');
+      assert.equal(found.urls.length, 200, 'leu o teto de páginas');
+    } finally {
+      stub.restore();
+    }
+  });
 });
 
 describe('fetchWork', () => {
@@ -333,61 +345,6 @@ describe('integração: processCrawlPage + recorder dublê', () => {
       assert.equal(recorded[0].siteId, 'mico', 'grava com a fonte mico');
       assert.equal(recorded[0].imdb, 'tt7286456');
       assert.ok(recorded[0].releases >= 1);
-    } finally {
-      stub.restore();
-    }
-  });
-});
-
-describe('colhedor: mico coberto pelo raspador', () => {
-  const savedCrawl = { ...config.crawl };
-  const savedJackett = config.jackett.indexers;
-  const savedTmdb = config.tmdb.apiKey;
-  const savedBludv = config.bludv.enabled;
-
-  beforeEach(() => {
-    live._resetForTest();
-    store.resetForTests();
-    store.open(undefined, { forceMemory: true });
-    _resetCoverageMemoForTest();
-    Object.assign(config.crawl, {
-      enabled: true, dryRun: false, sites: ['mico'], siteOverrides: {},
-      coverHarvest: true, coverMaxPending: 50, dbPath: savedCrawl.dbPath,
-    });
-    config.mico.harvest = true;
-    config.jackett.indexers = [];
-    config.tmdb.apiKey = '';
-    config.bludv.enabled = false;
-    // Carga inicial concluída + fila vazia → mico COBERTO pelo raspador.
-    store.engine().setState('mico', CURSOR_STATE_KEY.movie, '2026-10-01T00:00:00Z');
-    _resetCoverageMemoForTest();
-  });
-
-  after(() => {
-    live._resetForTest();
-    store.resetForTests();
-    Object.assign(config.crawl, savedCrawl);
-    config.jackett.indexers = savedJackett;
-    config.tmdb.apiKey = savedTmdb;
-    config.bludv.enabled = savedBludv;
-  });
-
-  test('mico coberto → pula FILME e SÉRIE (Fase 2 emite tv_show)', async () => {
-    cache.set('meta:movie:tt9600001', { name: 'Coringa', year: '2019', type: 'movie' }, 3600);
-    cache.set('meta:series:tt9600002', { name: 'Gotham', year: '2014', type: 'series' }, 3600);
-    const stub = stubFetch((url) => {
-      if (url.includes('/stream/')) return { ok: true, status: 200, json: async () => ({ streams: [] }) };
-      return { ok: false, status: 404, json: async () => ({}) };
-    });
-    try {
-      const movieCalls = () => stub.calls.filter((c) => c.url.includes('/stream/movie/')).length;
-      const seriesCalls = () => stub.calls.filter((c) => c.url.includes('/stream/series/')).length;
-
-      await harvestWorker.harvestOne({ imdbId: 'tt9600001', type: 'movie', reason: `mico-movie-${Date.now()}` } as any);
-      assert.equal(movieCalls(), 0, 'filme coberto pelo raspador NÃO consulta o Mico');
-
-      await harvestWorker.harvestOne({ imdbId: 'tt9600002', type: 'series', season: 1, episode: 1, reason: `mico-series-${Date.now()}` } as any);
-      assert.equal(seriesCalls(), 0, 'série coberta pelo raspador também NÃO consulta o Mico');
     } finally {
       stub.restore();
     }

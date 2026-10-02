@@ -21,7 +21,7 @@ import { buildWorkQueries } from './harvest-queries.js';
 import { queueRdWarmForRelevant } from './harvest-warmer.js';
 import { applyPtTitleDual } from './pt-title-dual.js';
 import { probeIndexers, probeRunWaitMs } from './br-probe.js';
-import { crawlCoveredIndexers } from './crawl-coverage.js';
+import { crawlCoveredIndexers, crawlCoversKind } from './crawl-coverage.js';
 import * as harvestInflight from './harvest-inflight.js';
 import { obraIdentity } from './harvest-reason.js';
 import * as harvesterLive from '../utils/harvester-live.js';
@@ -271,12 +271,18 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // relevância — o matching dele traz outras obras. Pula na preempção por
   // tráfego; não conta no teto horário, que é moeda do Jackett; não pinta o
   // card e, como a colheita do Jackett, preserva o `passed_filter` do banco.
-  // Quando o RASPADOR do Mico já cobre o card (`crawl-coverage.ts`), FILME e
-  // SÉRIE pulam aqui: o catálogo foi lido inteiro direto na API (Fase 2 emite
-  // `tv_show` também), e a consulta obra a obra repetiria o trabalho. A busca
-  // AO VIVO não muda — só a colheita de fundo.
+  // Quando o RASPADOR do Mico já cobre o card, o skip é POR KIND
+  // (`crawlCoversKind`): FILME gateado no cursor de filme, SÉRIE gateada no
+  // cursor de SÉRIE (`cursor:tv_show`). Assim, com a descoberta de série
+  // DESLIGADA (`CRAWL_SERIES_ENABLED=false`) ou em falha total (nenhum
+  // `cursor:tv_show` gravado), o colhedor NÃO pula série — volta a colhê-la,
+  // como antes da Fase 2. O filtro de indexers Jackett acima segue com
+  // `crawlCoveredIndexers` (baseado em filme), intocado. A busca AO VIVO não
+  // muda — só a colheita de fundo.
   if (!directed && !preempted && config.mico.harvest) {
-    if ((entry.type === 'movie' || entry.type === 'series') && covered.has(mico.MICO_ID)) {
+    const coversMico = (entry.type === 'movie' || entry.type === 'series')
+      && crawlCoversKind(mico.MICO_ID, entry.type === 'series' ? 'tv_show' : 'movie');
+    if (coversMico) {
       metrics.count('harvest.skipped.crawlCovered.mico');
     } else {
       collected.push(...(await mico.search(

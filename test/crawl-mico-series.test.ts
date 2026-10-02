@@ -7,7 +7,9 @@
 //     MONOTÔNICO (`partial` → resume → `done`, doneCards só cresce), série sem
 //     episódio-alvo e série sem meta (erro retentável, nunca no-torrent);
 //   - `discover`: emite `tv_show` SÓ com `opts.series.enabled`, com dedupe por
-//     IMDb, skip DINÂMICO e `bucketLastmod` de 30 dias (mais longo que filme).
+//     IMDb, skip DINÂMICO e `bucketLastmod` de 30 dias (mais longo que filme);
+//     honra `Retry-After` num 429 (review FIX 2) e NÃO dá por completa uma
+//     descoberta que saiu truncada pelo teto de páginas (review FIX 5).
 // O colhedor (pula filme E série quando coberto) é testado em crawl-mico.test.ts.
 import { test, describe, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -274,6 +276,64 @@ describe('discover (séries): tv_show só com opts.series.enabled', () => {
       assert.deepEqual(skips, [0, 3, 5]);
       // requestCost soma as páginas de filme (2) e de série (3).
       assert.equal(found.requestCost, 5);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  test('429 com Retry-After na descoberta → honra a espera antes da próxima página', async () => {
+    const site = micoCrawl.createMicoCrawlSite();
+    const stub = seriesStub({
+      movieCatalog: { 0: read('catalog-skip-0.json'), 5: read('catalog-empty.json') },
+      // página 0 de série → 429 com Retry-After de 1 s; o catch chama
+      // `honorRetryAfter` e o throttle adia a página seguinte (skip += 40).
+      seriesCatalog: { 0: { status: 429, retryAfter: '1' }, 40: { metas: [] } },
+    });
+    try {
+      const t0 = Date.now();
+      await site.discover(null, { series: { enabled: true, maxCards: 0, maxButtons: 0 } });
+      const elapsed = Date.now() - t0;
+      // Margem folgada de relógio real: Retry-After é 1000 ms, cobra >= 700.
+      assert.ok(elapsed >= 700, `honrou o Retry-After (~1000 ms): ${elapsed} ms`);
+    } finally {
+      stub.restore();
+      micoCrawl._resetThrottleForTest();
+    }
+  });
+
+  test('429 SEM Retry-After → segue só com o minGap (não adia além)', async () => {
+    const site = micoCrawl.createMicoCrawlSite();
+    const stub = seriesStub({
+      movieCatalog: { 0: read('catalog-skip-0.json'), 5: read('catalog-empty.json') },
+      seriesCatalog: { 0: { status: 429 }, 40: { metas: [] } },
+    });
+    try {
+      const t0 = Date.now();
+      await site.discover(null, { series: { enabled: true, maxCards: 0, maxButtons: 0 } });
+      const elapsed = Date.now() - t0;
+      // Sem header não há `notBefore`: com minGap 0 a descoberta é imediata.
+      assert.ok(elapsed < 500, `sem Retry-After não adia além do minGap: ${elapsed} ms`);
+    } finally {
+      stub.restore();
+      micoCrawl._resetThrottleForTest();
+    }
+  });
+
+  test('loop atinge o TETO sem página vazia → complete:false (descoberta truncada)', async () => {
+    const site = micoCrawl.createMicoCrawlSite();
+    // 300 páginas de 1 obra cada (skip avança 0,1,2,...): NUNCA vem página vazia,
+    // então o loop sai pelo teto SERIES_MAX_PAGES → descoberta TRUNCADA.
+    const seriesCatalog: Record<number, any> = {};
+    for (let i = 0; i < 300; i += 1) seriesCatalog[i] = { metas: [{ id: `tt${1_000_000 + i}` }] };
+    const stub = seriesStub({
+      movieCatalog: { 0: read('catalog-skip-0.json'), 5: read('catalog-empty.json') },
+      seriesCatalog,
+    });
+    try {
+      const found = await site.discover(null, { series: { enabled: true, maxCards: 0, maxButtons: 0 } });
+      assert.equal(found.completeByKind?.tv_show, false, 'truncada pelo teto → série incompleta');
+      assert.equal(found.complete, false, 'a truncagem de série torna a descoberta incompleta');
+      assert.equal(found.urls.filter((u) => u.kind === 'tv_show').length, 300, 'leu o teto de páginas');
     } finally {
       stub.restore();
     }

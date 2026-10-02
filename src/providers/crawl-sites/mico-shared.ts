@@ -10,6 +10,7 @@
 // busca ao vivo (`../mico.ts`): o erro do crawler não pode abrir o circuito da
 // resposta — o throttle é isolado, module-level, daqui.
 import config from '../../config.js';
+import { retryAfterMs } from '../mico.js';
 import type { DiscoveredUrl } from '../crawl-types.js';
 
 /** id do catálogo de FILMES do Mico (paginação simples; gênero está quebrado). */
@@ -162,6 +163,12 @@ export async function fetchCatalogPage(
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`) as Error & { status?: number; retryAfter?: number };
     err.status = res.status;
+    // Anexa o `Retry-After` (ms) quando presente: os loops de descoberta chamam
+    // `honorRetryAfter(err)` e adiam a próxima página num 429, em vez de
+    // martelar a API só com o `minGap`. Reusa o parser da busca ao vivo
+    // (`../mico.ts`, folha — sem ciclo de import).
+    const ra = retryAfterMs(res.headers?.get?.('Retry-After'));
+    if (ra != null) err.retryAfter = ra;
     throw err;
   }
   const data: any = await res.json();

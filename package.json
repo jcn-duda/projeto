@@ -127,6 +127,7 @@
     "test/crawl-comandotorrents-series.test.js",
     "test/crawl-mico.test.js",
     "test/crawl-mico-series.test.js",
+    "test/crawl-mico-harvest.test.js",
     "test/crawl-work-name.test.js",
     "test/crawl-site-probe.test.js",
     "test/crawl-site-probe-guard.test.js",

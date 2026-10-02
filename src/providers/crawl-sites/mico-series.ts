@@ -60,6 +60,7 @@ export async function discoverSeries(now: number): Promise<KindDiscovery> {
   let skip = 0;
   let pages = 0;
   let firstPageFailed = false;
+  let sawEmpty = false;
 
   for (let page = 0; page < SERIES_MAX_PAGES; page += 1) {
     pages += 1;
@@ -69,10 +70,13 @@ export async function discoverSeries(now: number): Promise<KindDiscovery> {
     } catch (err) {
       failures.push(`series skip=${skip}: ${log.errorMessage(err)}`);
       if (page === 0) firstPageFailed = true;
+      // 429 com Retry-After: adia a próxima página (o throttle a honra), em vez
+      // de martelar a API só com o minGap.
+      honorRetryAfter(err);
       skip += NOMINAL_PAGE;
       continue;
     }
-    if (catalog.count === 0) break;
+    if (catalog.count === 0) { sawEmpty = true; break; }
     for (const tt of catalog.ids) {
       if (seen.has(tt)) continue;
       seen.add(tt);
@@ -85,8 +89,12 @@ export async function discoverSeries(now: number): Promise<KindDiscovery> {
     skip += catalog.count;
   }
 
+  // Saída pelo TETO sem página vazia = descoberta TRUNCADA (a Fase 0 achou 45
+  // páginas com o teto de skip ATINGIDO — pode haver mais): NÃO é `complete`,
+  // senão viraria cursor/cobertura de série indevida.
+  const truncated = !sawEmpty;
   const totalFailure = firstPageFailed || urls.length === 0;
-  const complete = failures.length === 0 && urls.length > 0;
+  const complete = failures.length === 0 && urls.length > 0 && !truncated;
   return { urls, failures, complete, requestCost: pages, totalFailure };
 }
 

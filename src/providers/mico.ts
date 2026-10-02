@@ -182,8 +182,11 @@ export interface MicoHttpError extends Error {
 /**
  * `Retry-After` → ms. Aceita delta-segundos (`120`) e data HTTP
  * (`Wed, 21 Oct 2026 07:28:00 GMT`); `null` quando ausente/ilegível.
+ * Exportada para o raspador (`crawl-sites/mico-shared.ts`) honrar o mesmo
+ * header na leitura de catálogo — SEM ciclo: este módulo é folha w.r.t.
+ * `crawl-sites` (não importa nada dali).
  */
-function retryAfterMs(header: string | null | undefined): number | null {
+export function retryAfterMs(header: string | null | undefined): number | null {
   const raw = String(header ?? '').trim();
   if (!raw) return null;
   const secs = Number(raw);
@@ -280,8 +283,14 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
     // Só um HTTP 200 prova host vivo e RESETA o circuito. Um 4xx (exceto 429)
     // vem com `ok:false` e `out:[]`: é NEUTRO — não reseta nem incrementa,
     // exatamente como o `search` histórico (que retornava `[]` antes do reset).
+    // A métrica `mico.items` também só conta no sucesso: no 4xx o original
+    // retornava antes de qualquer efeito colateral, e contar `0` ali seria um
+    // evento que nunca existiu (paridade exata de efeitos colaterais).
     // 429/5xx/rede LANÇAM e caem no `catch` abaixo (`noteFailure`).
-    if (ok) breakerFailures = 0;
+    if (ok) {
+      breakerFailures = 0;
+      metrics.count('mico.items', out.length);
+    }
     captureItems(out, MICO_ID, {
       imdbId: args.imdbId,
       season: args.season ?? null,
@@ -289,7 +298,6 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
       year: args.year ?? null,
       resetPassedFilter,
     });
-    metrics.count('mico.items', out.length);
     note(true, out);
     return out;
   } catch (err: any) {
