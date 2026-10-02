@@ -65,3 +65,22 @@ test('reserva elegível vira candidato do Chupim no applyDebrid', async () => {
     autofetch.releaseSearch(searchKey);
   }
 });
+
+// Rótulo `is_br` antigo do banco (só sobe, sem versão): o DUB russo do
+// rutracker saía como BR no instantâneo. Idioma estrangeiro sem NENHUM sinal
+// PT desmente; título brasileiro com acento/rótulo PT continua BR.
+const legacy = (title: string) => ({ ...candidate('kickasstorrents-to', 1), magnet: { ...candidate('x', 1).magnet, title, isBr: true } });
+
+test('is_br antigo cede ao idioma estrangeiro, nunca ao título brasileiro', () => {
+  for (const t of [
+    'Coyote Ugly [2000, USA, drama, melodrama, comedy, music, HDRip] Dub',
+    'Gen V s01e01 (2023) [Uzbekistan Dubbed] 1080p WEB DLRip TeeWee',
+    'Inside.Out.2.2024.1080p.WEB-DL.ENG.LATINO.DDP5.1.Atmos.H264-BEN.THE.MEN',
+  ]) assert.equal(toRawItem(legacy(t)).isBr, false, t);
+  for (const t of [
+    'A Casa dos Espíritos (2026) S01E04 [1080p DUAL]',
+    'Vírus (2009) [1080p WEB-DL DUAL 3.9 GB]',
+    'The Spanish Princess 1ª Temporada (2019) WEB-DL | – E05 [WEB-DL LEGENDADO]',
+    'Lat Mat: 48H (2021) / WEB-DL [1080p WEB-DL LEGENDADO 2.15 GB]',
+  ]) assert.equal(toRawItem(legacy(t)).isBr, true, t);
+});

@@ -1654,7 +1654,13 @@ no acervo, 2026-09-24); v18 fez o mesmo com `LAT.DUB` e tirou a vaga BR do
 nome de cena EN republicado por site BR; v19 pôs `tgx`/`ethel` nos grupos EN; v20, `yify`; v21 (com idx v14), os `[Azerbaijan|Mongolian|Uzbek|Kazakh|Soviet… Dubbed]` da TPB, que viravam BR. **Limitação:** o `magnets.db` (banco vivo) guarda
 `is_br` OR-aderente e **sem versão** — o rótulo antigo permanece lá. O fallback
 não o usa: recalcula a origem com a regra do Jackett (fonte em
-`JACKETT_PT_BR_INDEXERS` OU `looksPtBr` do título).
+`JACKETT_PT_BR_INDEXERS` OU `looksPtBr` do título). Quando a fonte não decide
+(`brSource` indefinido — o instantâneo do banco), vale o rótulo gravado, mas
+ele CEDE a idioma estrangeiro no título (`namesForeignDubLanguage`) sem nenhum
+sinal PT (acento, Temporada, LEGENDADO/DUBLADO/NACIONAL): o "Coyote Ugly
+[2000, USA, …] Dub" russo saía BR (2026-10-01). Medido no banco local: 199 de
+120.767 rótulos BR cedem, todos estrangeiros. A guarda ampla compara SEM
+acento: `\bESP\b`/`\bRUS\b` casavam dentro de "ESPÍRITOS"/"VÍRUS".
 Duas instalações do mesmo título **não** compartilham a lista — ela
 carrega URLs de play assinadas. O trabalho caro (Jackett + scrapers) é
 compartilhado mais abaixo.

@@ -22,7 +22,7 @@
  * condenação (mínima: destrói) é travada por test/audio-cleanup-classifiers.test.ts.
  */
 import config from '../config.js';
-import { normalizeTitle } from './title-normalization.js';
+import { normalizeTitle, stripDiacritics } from './title-normalization.js';
 import { hasPtSigns } from './br-origin.js';
 
 /**
@@ -165,7 +165,10 @@ const FOREIGN_LANG_FOR_BUCKET_RE = new RegExp(
 
 function foreignLangNamedForBucket(text: string): boolean {
   const raw = String(text || '');
-  const t = raw.toUpperCase();
+  // Sem acento ANTES do `\b`: em JS a letra acentuada não é caractere de
+  // palavra, e `\bESP\b`/`\bRUS\b` casavam dentro de "ESPÍRITOS"/"VÍRUS"
+  // (A Casa dos Espíritos, Vírus [1080p DUAL] perdiam o BR, 2026-10-01).
+  const t = stripDiacritics(raw).toUpperCase();
   return FOREIGN_LANG_FOR_BUCKET_RE.test(t)
     || CYRILLIC_RE.test(raw)
     || RUTRACKER_TRANSLIT_RE.test(raw)

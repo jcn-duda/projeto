@@ -35,7 +35,8 @@ import { indexerFallbackMetricKey } from '../utils/metric-id.js';
 import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { releaseFitsRequest } from '../utils/release-work.js';
 import { magnetDisplayName } from '../utils/title-normalization.js';
-import { looksPtBr } from '../utils/audio-quality.js';
+import { hasPtSigns, looksPtBr } from '../utils/audio-quality.js';
+import { namesForeignDubLanguage } from '../utils/audio-cleanup.js';
 
 export interface FallbackRequest {
   /** 'movie' | 'series' — filme só consulta a obra raiz. */
@@ -94,8 +95,20 @@ export type Candidate = { magnet: MagnetRow; source: SourceRow; work: WorkRow; b
  * banco é OR-aderente e sem versão — ficaria preso ao classificador antigo
  * (seleZen, DUB russo, gravado BR antes de 2026-09-24).
  */
+/** Rótulo de áudio de site BR: "[1080p LEGENDADO]" é prova de origem, não de idioma estrangeiro. */
+const PT_LABEL_RE = /\b(?:LEGENDAD[OA]|DUBLAD[OA]|NACIONAL)\b/i;
+
 function fallbackIsBr(candidate: Candidate): boolean {
-  if (candidate.brSource === undefined) return Boolean(candidate.magnet.isBr);
+  // Sem a fonte decidida, vale o `is_br` gravado — que só SOBE e pode ser de
+  // antes da guarda: "Coyote Ugly [2000, USA, …, HDRip] Dub" (DUB russo do
+  // rutracker) saía como BR no instantâneo (2026-10-01). Idioma estrangeiro no
+  // título sem NENHUM sinal PT (acento, Temporada, legendado…) desmente o rótulo
+  // velho — "Espíritos" e "The Spanish Princess 1ª Temporada" ficam BR.
+  if (candidate.brSource === undefined) {
+    const title = candidate.magnet.title || '';
+    return Boolean(candidate.magnet.isBr)
+      && !(namesForeignDubLanguage(title) && !hasPtSigns(title) && !looksPtBr(title) && !PT_LABEL_RE.test(title));
+  }
   return candidate.brSource || looksPtBr(candidate.magnet.title || '');
 }
 
