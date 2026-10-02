@@ -23,11 +23,16 @@ const up = path.join(__dirname, '..');
 const buildRoot = fs.existsSync(path.join(up, 'package.json')) ? up : null;
 const root = buildRoot || path.join(up, '..'); // raiz do package.json
 const testsRoot = buildRoot || up; // raiz onde test/ tem os .test.js
-const script = _require(path.join(root, 'package.json')).scripts.test;
-// As entradas do `npm test` apontam para dist/ (o build compila .ts → .js);
-// normaliza para o caminho relativo à raiz sem o prefixo do build.
+// A lista explícita mora na chave `testFiles` do package.json (o script
+// `npm test` não a carrega mais: no Windows o cmd.exe recusa a linha acima
+// de ~8191 caracteres; o runner dist/scripts/run-tests.js a lê daqui).
+const testFiles: unknown = _require(path.join(root, 'package.json')).testFiles;
+if (!Array.isArray(testFiles) || testFiles.length === 0) {
+  console.error('package.json sem "testFiles" (lista explícita de testes)');
+  process.exit(1);
+}
 const listed = new Set<string>(
-  (script.match(/(?:dist\/)?test\/[\w./-]+\.test\.js/g) || []).map((p: string) => p.replace(/^dist\//, '')),
+  (testFiles as string[]).map((p: string) => p.replace(/^dist\//, '')),
 );
 
 function findTests(dir: string): string[] {
@@ -46,13 +51,23 @@ const missing = found.filter((file: string) => !listed.has(file));
 // Checa a existência da fonte, que é o que esta lista se propõe a cobrar.
 const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file.replace(/\.js$/, '.ts'))));
 
+// Os 6 scripts de bancada (`test:stress`, `test:adversarial`,
+// `test:adversarial-m1`, `test:protector-m1`, `test:challenger-m2` e
+// `test:ranking-challenger`) executam estes 10 arquivos. A lista é um manifesto
+// de propósito: se um script perder um arquivo, o harness sumir do disco ou
+// deixar de compilar, a checagem precisa acusar — derivar dos scripts não veria
+// a remoção.
 const HARNESS_FILES = [
   'test/m1-stress-challenge.ts',
+  'test/m1-stress-challenge-protectors.ts',
   'test/stress-m1-challenger.ts',
   'test/empirical-e2e-challenger.ts',
   'test/adversarial-m1-parser-harness.ts',
+  'test/adversarial-m1-parser-part2.ts',
   'test/m1-protector-adversarial-stress.ts',
+  'test/m1-protector-adversarial-part2.ts',
   'test/challenger-m2-parser-deep-stress.ts',
+  'scripts/empirical-ranking-challenger.ts',
 ];
 
 const allScripts = Object.values(_require(path.join(root, 'package.json')).scripts as Record<string, string>).join(' ');

@@ -1,0 +1,26 @@
+{
+  "metas": [
+    {
+      "_id": "68f100000000000000000003",
+      "id": "tt0903747",
+      "type": "series",
+      "name": "Breaking Bad",
+      "genres": ["Crime", "Drama", "Thriller"],
+      "releaseInfo": "2008",
+      "imdbRating": 9.5,
+      "catalogs": ["MicoSeries"],
+      "__v": 0
+    },
+    {
+      "_id": "68f100000000000000000004",
+      "id": "tt2861424",
+      "type": "series",
+      "name": "Rick and Morty",
+      "genres": ["Animation", "Adventure", "Comedy"],
+      "releaseInfo": "2013",
+      "imdbRating": 9.1,
+      "catalogs": ["MicoSeries"],
+      "__v": 0
+    }
+  ]
+}

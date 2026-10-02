@@ -2,6 +2,7 @@ import express from 'express';
 import { makePublicHandlers } from './public.js';
 import { makeDiagnosticHandlers } from './diagnostics.js';
 import { makeResolveHandler } from './resolve.js';
+import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
@@ -16,6 +17,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   const publicHandlers = makePublicHandlers(services);
   const diagnosticHandlers = makeDiagnosticHandlers(services);
   const resolveHandler = makeResolveHandler(services);
+  const bankTransfer = makeMagnetBankTransferHandlers(services);
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.get('/logo.svg', (_req, res) => res.sendFile(services.publicPath('logo.svg')));
@@ -26,11 +28,19 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   for (const asset of publicHandlers.pageAssets) {
     app.get(`/${asset}`, publicHandlers.sendPageAsset(asset));
   }
+  // Cliente ESM de /configure: caminhos aninhados servidos pela MESMA
+  // allowlist fechada. O entry versionado é immutable; os filhos saem
+  // no-cache com ETag/304 (ver sendClientAsset em public.ts).
+  for (const asset of publicHandlers.clientAssets) {
+    app.get(`/${asset}`, publicHandlers.sendClientAsset(asset));
+  }
   app.get('/', (_req, res) => res.redirect(302, '/configure'));
   app.get('/configure', publicHandlers.sendConfigure);
-  app.get('/dashboard', publicHandlers.sendDashboard);
-  app.get('/autofetch', (_req, res) => res.redirect(302, '/dashboard#autofetch'));
-  app.get('/harvester', (_req, res) => res.redirect(302, '/dashboard#colhedor'));
+  app.get('/painel', publicHandlers.sendPainel);
+  // Atalhos legados: `/dashboard` deixou de existir; os dois atalhos de aba
+  // continuam respondendo e ancoram o painel atual.
+  app.get('/autofetch', (_req, res) => res.redirect(302, '/painel#chupim'));
+  app.get('/harvester', (_req, res) => res.redirect(302, '/painel#colhedor'));
   app.get('/defaults.json', publicHandlers.defaults);
   app.post('/seal-config', express.text({ type: () => true, limit: '16kb' }), publicHandlers.seal);
 
@@ -40,6 +50,11 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/test-indexer.json', diagnosticHandlers.testIndexer);
   app.get('/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/debrid-status.json', diagnosticHandlers.debridStatus);
+  app.get('/stream-trace.json', diagnosticHandlers.streamTrace);
+  // Export/import do banco de magnets vivo: ARQUIVO em fluxo, sem body-parser
+  // (o handler lê o `req` direto) — ver routes/magnet-bank-transfer.ts.
+  app.get('/magnet-bank-export', bankTransfer.exportBank);
+  app.post('/magnet-bank-import', bankTransfer.importBank);
   app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({ origin: originOf(req) }, () => next()));
@@ -53,14 +68,19 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
 
   app.get('/:userConfig/configure', publicHandlers.sendConfigure);
   app.get('/:userConfig/debrid-status.json', diagnosticHandlers.debridStatus);
-  app.get('/:userConfig/dashboard', publicHandlers.sendDashboard);
-  app.get('/:userConfig/autofetch', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#autofetch`));
-  app.get('/:userConfig/harvester', (req, res) => res.redirect(302, `/${req.params.userConfig}/dashboard#colhedor`));
+  app.get('/:userConfig/painel', publicHandlers.sendPainel);
+  app.get('/:userConfig/autofetch', (req, res) => res.redirect(302, `/${req.params.userConfig}/painel#chupim`));
+  app.get('/:userConfig/harvester', (req, res) => res.redirect(302, `/${req.params.userConfig}/painel#colhedor`));
   app.get('/:userConfig/dashboard-status.json', diagnosticHandlers.dashboardStatus);
   app.post('/:userConfig/dashboard-action.json', express.json({ limit: '4kb' }), diagnosticHandlers.dashboardAction);
   app.get('/:userConfig/test-indexer.json', diagnosticHandlers.testIndexer);
   app.get('/:userConfig/test-resolver.json', diagnosticHandlers.testResolver);
   app.get('/:userConfig/metrics.json', diagnosticHandlers.metrics);
+  // DEPOIS do middleware de decode: o opts() do handler é o da instalação, e
+  // é isso que faz a chave derivada bater com a da busca daquele install.
+  app.get('/:userConfig/stream-trace.json', diagnosticHandlers.streamTrace);
+  app.get('/:userConfig/magnet-bank-export', bankTransfer.exportBank);
+  app.post('/:userConfig/magnet-bank-import', bankTransfer.importBank);
   app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', makeAddonRouter(addonInterface));
 }

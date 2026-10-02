@@ -1,9 +1,19 @@
 import type { ParsedSeasonEpisode, StreamCandidate } from '../../types/domain.js';
 import { normalizeTitle } from './title-normalization.js';
 
+const MAX_SEASON_SPAN = 30;
+const WRITTEN_ORDINALS = ['primeira', 'segunda', 'terceira', 'quarta', 'quinta', 'sexta', 'setima', 'oitava', 'nona', 'decima'];
+
 interface SeasonEpisodeOptions {
   season?: number | null;
   episode?: number | null;
+}
+
+/** Expande faixa de temporadas quando hi > lo e a amplitude cabe no teto. */
+function addSeasonSpan(seasons: Set<number>, lo: number, hi: number) {
+  if (hi > lo && hi - lo <= MAX_SEASON_SPAN) {
+    for (let i = lo; i <= hi; i += 1) seasons.add(i);
+  }
 }
 
 /**
@@ -22,9 +32,13 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
   const episodes = new Set<number>();
 
   // "s01e04", "s01 e04", "s01e01 e10" (intervalo), "s01e01e02"
-  for (const m of t.matchAll(/s(\d{1,2})((?:\s?e\s?\d{1,3})+)/g)) {
+  // Episódio com 4 DÍGITOS é suportado aqui (One Piece tem E1000+): o padrão é
+  // ancorado em temporada ("s01e…"), então "E2023"-like de ano não casa. Os
+  // padrões SEM âncora de temporada (Episódio solto / E solto) ficam em
+  // {1,3} de propósito — lá não há o que desmente um ano lido como episódio.
+  for (const m of t.matchAll(/(?<![a-z0-9])s(\d{1,2})((?:\s?e\s?\d{1,4})+)/g)) {
     seasons.add(Number(m[1]));
-    const eps = [...m[2].matchAll(/e\s?(\d{1,3})/g)].map((x) => Number(x[1]));
+    const eps = [...m[2].matchAll(/e\s?(\d{1,4})/g)].map((x) => Number(x[1]));
     if (eps.length >= 2) {
       // Intervalo ("E01-E10" chega como "e01 e10"): tudo entre o menor e o maior.
       const lo = Math.min(...eps);
@@ -33,6 +47,33 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
     } else {
       eps.forEach((e) => episodes.add(e));
     }
+  }
+
+  // Intervalo com o segundo número NU: "S03E01-02" (dn dos packs de dois
+  // episódios do comandotorrents/torrentdosfilmes). A normalização apaga o
+  // hífen, então o laço acima via só o E01 e o pack morria na busca do E02.
+  // Lido no cru; o segundo número não pode ser seguido de dígito nem de "p"
+  // ("S01E05-720p" é resolução, não faixa) e precisa ser maior que o primeiro.
+  // 4 dígitos: mesma âncora de temporada do padrão acima (One Piece E1000+).
+  for (const m of raw.matchAll(/s(\d{1,2})\s?e(\d{1,4})\s*[-–]\s*(\d{1,4})(?![\dp])/gi)) {
+    const lo = Number(m[2]);
+    const hi = Number(m[3]);
+    if (hi <= lo || hi - lo > 30) continue;
+    seasons.add(Number(m[1]));
+    for (let i = lo; i <= hi; i += 1) episodes.add(i);
+  }
+
+  // "S01 EP 07" / "S01 EP (01-07)" das releases indianas (1TamilMV, kickass).
+  // Sem isto o "EP" não casava o `e\s?\d` do laço acima, a release saía SÓ
+  // com a temporada — pack da temporada inteira — e entrava no S01E08 de
+  // Lanterns (medido 2026-09-30, episódio que nem tinha ido ao ar). Ancorado
+  // na temporada, como o S01E07; lido no cru porque a faixa usa hífen.
+  for (const m of raw.matchAll(/(?<![a-z0-9])s(\d{1,2})[\s._-]*ep\.?[\s._-]*\(?(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?\)?(?![\dp])/gi)) {
+    const lo = Number(m[2]);
+    const hi = m[3] ? Number(m[3]) : lo;
+    if (hi < lo || hi - lo > 30) continue;
+    seasons.add(Number(m[1]));
+    for (let i = lo; i <= hi; i += 1) episodes.add(i);
   }
 
   // Trackers BR usam "T01 E004" e "T01E004". Lemos a sequência no título
@@ -59,10 +100,20 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
     }
   }
 
-  // "1x04"
-  for (const m of t.matchAll(/(\d{1,2})x(\d{1,3})/g)) {
+  // "1x04". Fronteira real: "1280x720" (resolução) não é S80xE720 — o
+  // lookbehind barra dígito/letra colados antes do token (ruído medido no
+  // dry-run do reparo: '1280x720' criava multi-temporada → raiz FALSA).
+  for (const m of t.matchAll(/(?<![a-z0-9])(\d{1,2})x(\d{1,3})/g)) {
     seasons.add(Number(m[1]));
     episodes.add(Number(m[2]));
+  }
+
+  // Ordinal POR EXTENSO: "Game of Thrones Primeira Temporada Dual Audio" (conta
+  // AllDebrid, 2026-09-30) saía sem temporada e entrava no S07E07 como pack.
+  // Só 1..10 simples; "décima primeira" sai como 11.
+  for (const m of t.matchAll(/(?<![a-z0-9])(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava|nona|decima)(?:\s+(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava|nona))?\s+temporada(?![a-z])/g)) {
+    const n = WRITTEN_ORDINALS.indexOf(m[1]) + 1 + (m[2] && m[1] === 'decima' ? WRITTEN_ORDINALS.indexOf(m[2]) + 1 : 0);
+    if (n >= 1) seasons.add(n);
   }
 
   // Faixa: "1ª até 8ª Temporada", "1 a 5 temporadas". Antes só o último número
@@ -73,7 +124,7 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
     const lo = Math.min(Number(m[1]), Number(m[2]));
     const hi = Math.max(Number(m[1]), Number(m[2]));
     // Faixa absurda é erro de leitura, não pack de 50 temporadas.
-    if (hi - lo <= 30) for (let i = lo; i <= hi; i += 1) seasons.add(i);
+    if (hi - lo <= MAX_SEASON_SPAN) for (let i = lo; i <= hi; i += 1) seasons.add(i);
   }
 
   // LISTA de ordinais antes de "Temporadas" no PLURAL: "1ª 2ª 3ª 4ª 5ª 6ª e 7ª
@@ -89,12 +140,36 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
     for (const num of m[1].match(/\d{1,2}/g) || []) {
       const season = Number(num);
       // Mesmo teto da faixa: número fora disso é ruído lido como temporada.
-      if (season >= 1 && season <= 30) seasons.add(season);
+      if (season >= 1 && season <= MAX_SEASON_SPAN) seasons.add(season);
     }
   }
 
-  // Pack: "s01", "s01 s03" (multi-temporada), "season 1", "1 temporada", "temporada 1"
-  for (const m of t.matchAll(/s(\d{1,2})(?![\de])/g)) seasons.add(Number(m[1]));
+  // Faixa de cena no título CRU ("S01-S04", "S01-03", "S1-3E1"): a
+  // normalização troca hífen por espaço e o pack viraria só as pontas [1,4].
+  // Anime "S2 - 13" não casa (falta o segundo s); anos (2022-2025) não têm
+  // prefixo s. Sem min/max: S04-S01 não inventa cobertura. Pontas soltas
+  // ("S01 S04") continuam só nas pontas — episodesCovered trata isso como
+  // faixa, mas o parser aqui não.
+  for (const m of raw.matchAll(/(?<![a-z0-9])s(\d{1,2})\s*[-–—]\s*s(\d{1,2})(?![\de])/gi)) {
+    addSeasonSpan(seasons, Number(m[1]), Number(m[2]));
+  }
+  for (const m of raw.matchAll(/(?<![a-z0-9])s(\d{2})-(\d{2})(?![a-z0-9])/gi)) {
+    const lo = Number(m[1]);
+    const hi = Number(m[2]);
+    // Teto 10 só nesta forma: "Anime S02-13" seria episódio, não faixa.
+    if (hi > lo && hi - lo <= 10) {
+      for (let i = lo; i <= hi; i += 1) seasons.add(i);
+    }
+  }
+  for (const m of raw.matchAll(/(?<![a-z0-9])s(\d{1,2})-(\d{1,2})e\d/gi)) {
+    addSeasonSpan(seasons, Number(m[1]), Number(m[2]));
+  }
+
+  // Pack: "s01", "s01 s03" (multi-temporada), "season 1", "1 temporada", "temporada 1".
+  // Fronteira real dos DOIS lados: "BS8"/"DS4K"/"Chris44" (canais/codificações
+  // medidos no dry-run do reparo) NÃO são temporada — s precedido de letra ou
+  // número seguido de letra é ruído de cena, não marcador.
+  for (const m of t.matchAll(/(?<![a-z0-9])s(\d{1,2})(?![a-z0-9])/g)) seasons.add(Number(m[1]));
   // `(?!\d)` impede que o ANO logo depois vire temporada: "Temporada (2011)"
   // casava como temporada 20, pegando os dois primeiros dígitos.
   for (const m of t.matchAll(/(?:season|temporada)\s?(\d{1,2})(?!\d)/g)) seasons.add(Number(m[1]));

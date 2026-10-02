@@ -10,17 +10,7 @@ import * as cache from '../../src/utils/cache.js';
 /**
  * Resposta HTTP falsa do harness, compatível com o contrato mínimo do fetch.
  */
-interface HarnessResponse {
-  ok: boolean;
-  status: number;
-  statusText: string;
-  headers: {
-    get(name: string): string | null;
-    has(name: string): boolean;
-  };
-  json(): Promise<unknown>;
-  text(): Promise<string>;
-}
+interface HarnessResponse { ok: boolean; status: number; statusText: string; headers: { get(name: string): string | null; has(name: string): boolean }; json(): Promise<unknown>; text(): Promise<string>; }
 
 /** Item aceito por makeTorznabXml; o XML padrão preenche o que faltar. */
 interface TorznabItem {
@@ -39,21 +29,10 @@ interface TorznabItem {
 
 /** Rota do dublê de fetch: matcher + resposta (valor cru ou função). */
 type MockRouteHandler = (url: string, init?: RequestInit, call?: HarnessCallRecord) => unknown;
-interface MockRoute {
-  match: string | RegExp | ((url: string, init?: RequestInit) => boolean);
-  handler: unknown;
-}
+interface MockRoute { match: string | RegExp | ((url: string, init?: RequestInit) => boolean); handler: unknown; }
 
 /** Chamada capturada pelo dublê, exposta em mockFetch.calls. */
-interface HarnessCallRecord {
-  url: string;
-  init?: RequestInit;
-  started: number;
-  method: string;
-  headers: RequestInit['headers'];
-  body: RequestInit['body'];
-  finished?: number;
-}
+interface HarnessCallRecord { url: string; init?: RequestInit; started: number; method: string; headers: RequestInit["headers"]; body: RequestInit["body"]; finished?: number; }
 
 /** Dublê de fetch com histórico de chamadas. */
 interface MockFetch {

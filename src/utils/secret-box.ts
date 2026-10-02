@@ -17,8 +17,9 @@ import * as log from './logger.js';
  * RESOLVE_SECRET.
  *
  * O que NÃO muda: quem tem o install URL continua conseguindo usar o debrid
- * através desta instância. O selo protege a credencial, não o acesso — para
- * isso existe o basic_auth do Caddyfile.
+ * através desta instância. O selo protege a credencial, não o acesso: a
+ * página /configure é pública; instalações sem `dk` não herdam a chave do
+ * .env se `DEBRID_ALLOW_ENV_KEY=false`.
  */
 const PREFIX = 'enc.v1.';
 const IV_BYTES = 12;

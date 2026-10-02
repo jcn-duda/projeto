@@ -1,0 +1,85 @@
+---
+id: hdrtorrent-cardigann
+name: HDR Torrents
+description: "HDR Torrents — filmes e séries dublados/dual áudio em alta definição (magnet direto no post)"
+language: pt-BR
+type: public
+encoding: UTF-8
+requestDelay: 1
+links:
+  - https://hdrtorrents.net/
+
+caps:
+  categorymappings:
+    # A listagem do site mistura filmes e séries na mesma página; exponha para
+    # ambas as categorias para que movie-search e tv-search não sejam filtrados.
+    - {id: media, cat: Movies, desc: Movies and TV}
+    - {id: media, cat: TV, desc: Movies and TV}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+  allowrawsearch: true
+
+settings: []
+
+# A busca roda no hdrtorrents-resolver (mesma rede Docker, porta 8707), que
+# raspa as páginas de listagem do site (a busca nativa está quebrada) e devolve
+# uma página HTML sintética: cada linha é um magnet do post, com o MAGNET
+# DIRETO no href. Não há protetor de link, então NÃO existe seção
+# download.before: o campo download já é o magnet da linha.
+search:
+  keywordsfilters:
+    - name: re_replace
+      args: ["[:]+", " "]
+    - name: re_replace
+      args: ["\\s+", " "]
+    - name: trim
+  paths:
+    - path: "http://127.0.0.1:8707/search?q={{ .Query.Keywords }}"
+
+  rows:
+    selector: "div.posts > div.release"
+
+  fields:
+    title:
+      selector: "div.title > a"
+      filters:
+        - name: re_replace
+          args: ["(?i)\\s*Torrent\\s*(?:[–-]|&#8211;)\\s*", " "]
+        - name: re_replace
+          args: ["(?i)\\s+Torrent\\b", ""]
+    details:
+      selector: "div.post > a"
+      attribute: href
+      optional: true
+    download:
+      # Magnet direto da release (sem redirecionamento).
+      selector: "div.title > a"
+      attribute: href
+    category:
+      text: media
+    size:
+      selector: "div.size"
+      optional: true
+      filters:
+        - name: regexp
+          args: "([\\d.,]+\\s*(?:GB|MB|TB|KB))"
+        - name: re_replace
+          args: [",", "."]
+    description:
+      selector: "div.description"
+      optional: true
+    seeders:
+      # O site não publica seeds. Um valor neutro permite que clientes com
+      # MIN_SEEDERS=1 não descartem a release antes de consultar o swarm.
+      text: 1
+    date:
+      # O site não publica data por release; "now" evita data vazia/1970.
+      text: now
+    leechers:
+      text: 0
+    downloadvolumefactor:
+      text: 0
+    uploadvolumefactor:
+      text: 1

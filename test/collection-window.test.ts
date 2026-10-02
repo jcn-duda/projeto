@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 
 import { collectWithinWindow } from '../src/providers/collection-window.js';
+import config from '../src/config.js';
+import { computeCollectionBudget, computePriorityGrace } from '../src/providers/collection-budget.js';
 
 function deferred() {
   let resolve: (value?: any) => void = () => {};
@@ -171,7 +173,7 @@ test('stopWhen resolve a resposta na hora e as tarefas restantes continuam', asy
     { promise: slow.promise, priority: true },
   ], {
     budgetMs: 10_000,
-    delay: (ms) => new Promise((done) => setTimeout(done, ms)),
+    delay: (ms) => new Promise((done) => { setTimeout(done, ms).unref(); }),
     stopWhen: (batch, _items, meta) => meta?.source === 'account' && batch.length >= 2,
   });
   const result = await running;
@@ -188,7 +190,7 @@ test('stopWhen que nunca dispara não muda nada', async () => {
     { promise: Promise.resolve([{ title: 'A' }]), source: 'jackett' },
   ], {
     budgetMs: 5,
-    delay: (ms) => new Promise((done) => setTimeout(done, ms)),
+    delay: (ms) => new Promise((done) => { setTimeout(done, ms).unref(); }),
     stopWhen: (batch, _items, meta) => meta?.source === 'account',
   });
   const result = await running;
@@ -199,97 +201,105 @@ test('stopWhen que nunca dispara não muda nada', async () => {
 // -----------------------------------------------------------------------------
 // T5 (Tarefa 3.3): Testes da Fórmula da Graça Brasileira e Orçamento Dinâmico
 // -----------------------------------------------------------------------------
-function calculatePriorityGrace(cfg: { brPartialGrace: number; debridReserve: number; debridCheckFloor: number }) {
-  return Math.min(
-    cfg.brPartialGrace,
-    Math.max(0, cfg.debridReserve - cfg.debridCheckFloor),
-  );
-}
+type BudgetCfg = { replyDeadline: number; debridReserve: number; debridCheckFloor: number; brPartialGrace: number };
 
-function calculateCollectionBudget(deadlineAt: number | null, cfg: { replyDeadline: number; debridReserve: number }, now = Date.now()) {
-  if (deadlineAt == null) {
-    return Math.max(1000, cfg.replyDeadline - cfg.debridReserve);
-  }
-  const remaining = Math.max(0, deadlineAt - now);
-  return Math.max(500, remaining - cfg.debridReserve);
+/** Salva/restaura os números de config que a fórmula lê e devolve um `set`
+ *  parcial. Os testes exercitam computePriorityGrace/computeCollectionBudget DA
+ *  PRODUÇÃO — se a fórmula mudar, eles mudam junto; é o que mata o falso-verde
+ *  de manter uma cópia local da fórmula aqui dentro. */
+function budgetSandbox(base: BudgetCfg) {
+  const saved = {
+    replyDeadline: config.replyDeadline,
+    debridReserve: config.debridReserve,
+    debridCheckFloor: config.debridCheckFloor,
+    brPartialGrace: config.brPartialGrace,
+  };
+  const set = (c: Partial<BudgetCfg>) => {
+    if (c.replyDeadline !== undefined) config.replyDeadline = c.replyDeadline;
+    if (c.debridReserve !== undefined) config.debridReserve = c.debridReserve;
+    if (c.debridCheckFloor !== undefined) config.debridCheckFloor = c.debridCheckFloor;
+    if (c.brPartialGrace !== undefined) config.brPartialGrace = c.brPartialGrace;
+  };
+  set(base);
+  return { set, restore: () => Object.assign(config, saved) };
 }
 
 test('T5: fórmula matemática da graça BR — min(brPartialGrace, max(0, reserve - floor))', () => {
-  // 1. Caso padrão: reserva 1500, floor 500, graça 2000 -> 1000ms de graça
-  const standard = calculatePriorityGrace({ brPartialGrace: 2000, debridReserve: 1500, debridCheckFloor: 500 });
-  assert.equal(standard, 1000, 'reserva 1500 - floor 500 deixa 1000ms para a graça');
-
-  // 2. Reserva menor ou igual ao piso do debrid -> graça 0 (nunca invade o piso)
-  const reserveShort = calculatePriorityGrace({ brPartialGrace: 2000, debridReserve: 400, debridCheckFloor: 500 });
-  assert.equal(reserveShort, 0, 'reserva < floor não gera graça negativa nem invade o piso');
-
-  const reserveEqualFloor = calculatePriorityGrace({ brPartialGrace: 2000, debridReserve: 500, debridCheckFloor: 500 });
-  assert.equal(reserveEqualFloor, 0, 'reserva == floor resulta em graça 0');
-
-  // 3. Piso zero -> graça consome até o teto da reserva
-  const floorZero = calculatePriorityGrace({ brPartialGrace: 2000, debridReserve: 1500, debridCheckFloor: 0 });
-  assert.equal(floorZero, 1500, 'floor zero permite usar toda a reserva');
-
-  // 4. Reserva ampla -> limitada pelo teto de brPartialGrace
-  const reserveLarge = calculatePriorityGrace({ brPartialGrace: 1000, debridReserve: 4000, debridCheckFloor: 500 });
-  assert.equal(reserveLarge, 1000, 'clamped em brPartialGrace quando a reserva exceder');
-
-  // 5. brPartialGrace desativada (0)
-  const graceDisabled = calculatePriorityGrace({ brPartialGrace: 0, debridReserve: 2000, debridCheckFloor: 500 });
-  assert.equal(graceDisabled, 0, 'graça 0 desativa a janela');
+  const { set, restore } = budgetSandbox({ replyDeadline: 8000, debridReserve: 1500, debridCheckFloor: 500, brPartialGrace: 2000 });
+  try {
+    // 1. Caso padrão: reserva 1500, floor 500, graça 2000 -> 1000ms de graça
+    assert.equal(computePriorityGrace(), 1000, 'reserva 1500 - floor 500 deixa 1000ms para a graça');
+    // 2. Reserva menor ou igual ao piso do debrid -> graça 0 (nunca invade o piso)
+    set({ debridReserve: 400 });
+    assert.equal(computePriorityGrace(), 0, 'reserva < floor não gera graça negativa nem invade o piso');
+    set({ debridReserve: 500 });
+    assert.equal(computePriorityGrace(), 0, 'reserva == floor resulta em graça 0');
+    // 3. Piso zero -> graça consome até o teto da reserva
+    set({ debridReserve: 1500, debridCheckFloor: 0 });
+    assert.equal(computePriorityGrace(), 1500, 'floor zero permite usar toda a reserva');
+    // 4. Reserva ampla -> limitada pelo teto de brPartialGrace
+    set({ debridReserve: 4000, debridCheckFloor: 500, brPartialGrace: 1000 });
+    assert.equal(computePriorityGrace(), 1000, 'clamped em brPartialGrace quando a reserva exceder');
+    // 5. brPartialGrace desativada (0)
+    set({ debridReserve: 2000, debridCheckFloor: 500, brPartialGrace: 0 });
+    assert.equal(computePriorityGrace(), 0, 'graça 0 desativa a janela');
+  } finally {
+    restore();
+  }
 });
 
 test('T5: orçamento dinâmico com metadados lentos respeita o piso e o deadline', () => {
-  const cfg = { replyDeadline: 8000, debridReserve: 1500, debridCheckFloor: 500, brPartialGrace: 1000 };
-  const startTime = 100_000;
-  const deadlineAt = startTime + cfg.replyDeadline; // 108_000
-
-  // 1. Busca rápida de metadados (500ms decorridos)
-  const budgetFast = calculateCollectionBudget(deadlineAt, cfg, startTime + 500);
-  assert.equal(budgetFast, 6000, '8000 - 500 - 1500 = 6000ms');
-
-  // 2. Metadados lentos (Cinemeta 2500ms + TMDB 5000ms = 5000ms decorridos)
-  const budgetSlowMeta = calculateCollectionBudget(deadlineAt, cfg, startTime + 5000);
-  assert.equal(budgetSlowMeta, 1500, '8000 - 5000 - 1500 = 1500ms para coleta');
-
-  // 3. Metadados extremamente lentos (7500ms decorridos, quase no deadline)
-  const budgetExtremeMeta = calculateCollectionBudget(deadlineAt, cfg, startTime + 7500);
-  assert.equal(budgetExtremeMeta, 500, 'piso mínimo de coleta é 500ms');
-
-  // 4. Sem deadline (fallback offline/teste)
-  const budgetNoDeadline = calculateCollectionBudget(null, cfg);
-  assert.equal(budgetNoDeadline, 6500, '8000 - 1500 = 6500ms');
+  const { restore } = budgetSandbox({ replyDeadline: 8000, debridReserve: 1500, debridCheckFloor: 500, brPartialGrace: 1000 });
+  try {
+    const startTime = 100_000;
+    const deadlineAt = startTime + 8000; // 108_000
+    // 1. Busca rápida de metadados (500ms decorridos)
+    assert.equal(computeCollectionBudget(deadlineAt, startTime + 500), 6000, '8000 - 500 - 1500 = 6000ms');
+    // 2. Metadados lentos (5000ms decorridos)
+    assert.equal(computeCollectionBudget(deadlineAt, startTime + 5000), 1500, '8000 - 5000 - 1500 = 1500ms para coleta');
+    // 3. Metadados extremamente lentos (7500ms decorridos, quase no deadline)
+    assert.equal(computeCollectionBudget(deadlineAt, startTime + 7500), 500, 'piso mínimo de coleta é 500ms');
+    // 4. Sem deadline (fallback offline/teste)
+    assert.equal(computeCollectionBudget(null), 6500, '8000 - 1500 = 6500ms');
+  } finally {
+    restore();
+  }
 });
 
-test('T5: collectWithinWindow executa com budget dinâmico e priorityGrace calculados', async () => {
-  const cfg = { replyDeadline: 8000, debridReserve: 1500, debridCheckFloor: 500, brPartialGrace: 1000 };
-  const deadlineAt = Date.now() + cfg.replyDeadline;
-  const dynamicBudget = calculateCollectionBudget(deadlineAt, cfg, Date.now() + 4000); // 2500ms
-  const dynamicGrace = calculatePriorityGrace(cfg); // 1000ms
+test('T5: collectWithinWindow executa com budget dinâmico e priorityGrace calculados pela fórmula real', async () => {
+  const { restore } = budgetSandbox({ replyDeadline: 8000, debridReserve: 1500, debridCheckFloor: 500, brPartialGrace: 1000 });
+  try {
+    const agora = Date.now();
+    const deadlineAt = agora + 8000;
+    const dynamicBudget = computeCollectionBudget(deadlineAt, agora + 4000); // 2500ms
+    const dynamicGrace = computePriorityGrace(); // 1000ms
 
-  assert.equal(dynamicBudget, 2500);
-  assert.equal(dynamicGrace, 1000);
+    assert.equal(dynamicBudget, 2500);
+    assert.equal(dynamicGrace, 1000);
 
-  const budget = deferred();
-  const grace = deferred();
-  const fastBr = deferred();
+    const budget = deferred();
+    const grace = deferred();
+    const fastBr = deferred();
 
-  const running = collectWithinWindow([
-    { promise: Promise.resolve([{ title: 'Global 1' }]), priority: false },
-    { promise: fastBr.promise, priority: true },
-  ], {
-    budgetMs: dynamicBudget,
-    priorityGraceMs: dynamicGrace,
-    delay: (ms) => (ms === dynamicBudget ? budget.promise : grace.promise),
-  });
+    const running = collectWithinWindow([
+      { promise: Promise.resolve([{ title: 'Global 1' }]), priority: false },
+      { promise: fastBr.promise, priority: true },
+    ], {
+      budgetMs: dynamicBudget,
+      priorityGraceMs: dynamicGrace,
+      delay: (ms) => (ms === dynamicBudget ? budget.promise : grace.promise),
+    });
 
-  await Promise.resolve();
-  budget.resolve();
-  await Promise.resolve();
-  fastBr.resolve([{ title: 'BR Dublado', isBr: true }]);
+    await Promise.resolve();
+    budget.resolve();
+    await Promise.resolve();
+    fastBr.resolve([{ title: 'BR Dublado', isBr: true }]);
 
-  const result = await running;
-  assert.equal(result.prioritySeen, true);
-  assert.deepEqual(result.items.map((i) => i.title), ['Global 1', 'BR Dublado']);
+    const result = await running;
+    assert.equal(result.prioritySeen, true);
+    assert.deepEqual(result.items.map((i) => i.title), ['Global 1', 'BR Dublado']);
+  } finally {
+    restore();
+  }
 });
 

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<!--
+  VISUALIZADOR XML DO CHROMIUM — `movies-sitemap2.xml` … `movies-sitemap7.xml`
+  do RedeTorrent com o CORPO VAZIO. O acervo real tem 1.000 URLs por arquivo
+  (6.737 no total, medido em 2026-09-28), então este arquivo é o caso que a
+  descoberta tem de tratar como FALHA, não como "vazio": um `movies-sitemap*.xml`
+  sem nenhuma entrada é resposta que o parser não leu, e devolver
+  `urls: []` com `complete: true` faria o cursor do crawler avançar por cima de
+  6.000 páginas nunca vistas — a falha silenciosa mais cara desta camada.
+  É a fixture do teste de regressão do formato/entradas, junto com
+  `formato-desconhecido.html` (nem XML nem tabela).
+
+  O formato A tem o gêmeo equivalente em `movies-sitemap-cdata.xml`, que é
+  XML CRU com linhas; nenhum dos dois é o padrão de `pageRoutes()` desde que a
+  descoberta passou a exigir entrada por sitemap.
+-->
+<html>
+<head><title>Filmes Sitemap</title></head>
+<body>
+<table class="xml-tree">
+  <thead><tr><th>URL</th><th>Last modified</th></tr></thead>
+  <tbody></tbody>
+</table>
+</body>
+</html>

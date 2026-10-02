@@ -15,9 +15,12 @@ function createApp() {
       'Torrents self-hosted com prioridade para conteúdo brasileiro dublado. ' +
       'Busca em paralelo via Jackett (BLUDV, Comando, NerdFilmes, TorrentDosFilmes, ' +
       'RedeTorrent + indexers globais) e entrega play instantâneo por debrid.',
+    // Sem PUBLIC_URL o caminho fica relativo e o router do manifest monta o
+    // host com o origin da requisição — o logo genérico do Stremio virava a
+    // peça de quebra-cabeça em toda instalação local.
     logo: services.config.debrid.publicUrl
       ? `${services.config.debrid.publicUrl}/logo.png`
-      : 'https://www.stremio.com/website/stremio-logo-small.png',
+      : '/logo.png',
     resources: ['stream'],
     types: ['movie', 'series'],
     idPrefixes: ['tt'],

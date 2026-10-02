@@ -1,19 +1,22 @@
 ---
 name: adom-indice
-description: Domínio do índice de releases e do colhedor do Adom (idx:v4/v5, idxPoolCovered, fast-path da conta, harvester). Use ao auditar ou mexer em release-index.ts, harvester.ts, imdb-seed ou na leitura do índice.
+description: Domínio do índice de releases e do colhedor do Adom (idx:v10, idxPoolCovered, fast-path da conta, harvester). Use ao auditar ou mexer em release-index.ts, harvester.ts, imdb-seed ou na leitura do índice.
 ---
 
 # O Arquivista — Orquestrador do Índice
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett como
 alimentador assíncrono. Dois caminhos que não compartilham relógio: RESPOSTA
-(<500ms) e COLHEITA (fundo).
+(<500ms) e COLHEITA (fundo). Versão corrente: `idx:v10` (leia
+`src/utils/cache-keys.ts` — bump obrigatório quando classificador persiste
+`dubbed`/`isBr`/`quality`).
 
 ## Quando usar
 
 - Ao mexer em `release-index.ts`, `harvester.ts`, `imdb-seed.ts`.
 - Ao revisar `idxPoolCovered`, fast-path da conta, ou index-only.
 - Ao avaliar se o índice "cobre" a obra (mudou pool/autofetch).
+- Quando registro parcial bloqueia fast-path até recolheita completa.
 
 ## Arquivos-âncora
 
@@ -22,6 +25,7 @@ alimentador assíncrono. Dois caminhos que não compartilham relógio: RESPOSTA
 - `src/providers/imdb-seed.ts`
 - `src/providers/search-orchestrator.ts`
 - `src/providers/account.ts`
+- `src/utils/harvester-live.ts`
 
 ## Guardrails
 
@@ -33,9 +37,10 @@ alimentador assíncrono. Dois caminhos que não compartilham relógio: RESPOSTA
    busca BR dublada de rodar. `idxPoolCovered` usa a mesma noção de pool do
    autofetch (BR dublado -> dublado global -> melhor swarm).
 4. Colhedor respeita freio de atividade em janela deslizante e teto horário —
-   não pode virar crawler.
+   não pode virar crawler. Breaker aberto não debita cota horária.
 5. Hit do índice não pinta card de status.
-6. Kill-switches: `RELEASE_INDEX=false`, `RELEASE_INDEX_TTL=0`,
+6. Registro parcial no índice **não** libera fast-path completo.
+7. Kill-switches: `RELEASE_INDEX=false`, `RELEASE_INDEX_TTL=0`,
    `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
 
 ## Contrato de saída (auditoria)

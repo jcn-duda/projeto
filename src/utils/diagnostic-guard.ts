@@ -25,8 +25,12 @@ function createDiagnosticGate({
     const key = String(client || 'unknown');
     const recent = (clients.get(key) || []).filter((stamp: number) => time - stamp < windowMs);
     if (recent.length === 0) clients.delete(key);
-    if (recent.length >= limit) return { ok: false, status: 429, error: rateMessage };
-    if (active >= maxConcurrent) return { ok: false, status: 429, error: busyMessage };
+    // `reason` é o contrato ESTÁVEL da recusa: o texto é parametrizável
+    // (`rateMessage`/`busyMessage` mudam por chamador), então casar a mensagem
+    // no cliente divergiria em silêncio. O painel decide o que mostrar pelo
+    // reason e só cai no texto quando ele não vier.
+    if (recent.length >= limit) return { ok: false, status: 429, reason: 'rate', error: rateMessage };
+    if (active >= maxConcurrent) return { ok: false, status: 429, reason: 'busy', error: busyMessage };
 
     recent.push(time);
     clients.set(key, recent);

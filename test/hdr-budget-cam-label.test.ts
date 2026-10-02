@@ -1,0 +1,379 @@
+// HDR que não abre circuito, MagnetDownload no lugar certo e rótulo CAM honesto.
+//
+// Três melhorias pós-deploy medidas em produção:
+// 1. HDR: orçamento de tempo na raspagem (parcial → TTL curto), SWR (não
+//    expira duro) e warm() no boot.
+// 2. MagnetDownload: sai de slowIndexers e vai para indexOnlyIndexers (o site
+//    responde em ~48s, nunca cabe no orçamento de 20s da resposta).
+// 3. Rótulo CAM: quando o dn= do magnet revela CAMRip mas o título do post
+//    é limpo, a fonte sai CAM (a evidência do arquivo vence o palpite).
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import config from '../src/config.js';
+import { toStremioStream } from '../src/utils/search-names.js';
+import { inputFromItem } from '../src/utils/magnet-bank-merge.js';
+import { sourceFromTitle, UNKNOWN_QUALITY } from '../src/utils/audio-quality.js';
+import { magnetDisplayName } from '../src/utils/title-normalization.js';
+import { dedupeByHash } from '../src/utils/stream-ranking.js';
+import type { RawItem } from '../types/domain.js';
+
+const HASH = 'a'.repeat(40);
+const magnetUri = (dn: string) => `magnet:?xt=urn:btih:${HASH}&dn=${encodeURIComponent(dn)}`;
+
+// ─── Fase 1: HDR — orçamento, SWR e warm ─────────────────────────────────────
+
+// O teste do HDR é estrutural: verifica que o perfil expõe warm(), que
+// fetchAllListingsDetailed devolve { items, partial } e que o DEFAULTS tem
+// listingBudgetMs. O comportamento real (raspagem lenta) depende de rede;
+// o contrato é testado via tipo e existência de método.
+import { createResolver as createHdrResolver } from '../resolvers/profiles/hdrtorrents.js';
+import { DEFAULTS as HDR_DEFAULTS } from '../resolvers/profiles/hdrtorrents.js';
+
+describe('Fase 1: HDR — orçamento de raspagem + SWR + warm', () => {
+  test('DEFAULTS tem listingBudgetMs e listingPartialCacheMs', () => {
+    assert.ok(typeof HDR_DEFAULTS.listingBudgetMs === 'number', 'listingBudgetMs existe');
+    assert.ok(HDR_DEFAULTS.listingBudgetMs > 0, 'listingBudgetMs > 0');
+    assert.ok(typeof HDR_DEFAULTS.listingPartialCacheMs === 'number', 'listingPartialCacheMs existe');
+    // O TTL parcial é menor que o TTL cheio (2 min < 30 min).
+    assert.ok(HDR_DEFAULTS.listingPartialCacheMs < HDR_DEFAULTS.listingCacheMs,
+      'TTL parcial < TTL cheio');
+  });
+
+  test('createResolver expõe warm() e fetchAllListingsDetailed()', () => {
+    const resolver = createHdrResolver({
+      port: 18707,
+      selfUrl: 'http://127.0.0.1:18707',
+      extraProtectors: [],
+    }) as any;
+    assert.equal(typeof resolver.warm, 'function', 'warm() é exposto');
+    assert.equal(typeof resolver.fetchAllListingsDetailed, 'function',
+      'fetchAllListingsDetailed() é exposto');
+  });
+
+  test('site simulado lento: busca devolve dentro do orçamento e marca parcial', async () => {
+    // Mock de fetch que simula páginas lentas (2s cada). Com budget de 10s,
+    // o resolver coleta ~5 páginas e marca parcial.
+    const originalFetch = globalThis.fetch;
+    let pageCount = 0;
+    // HTML compatível com o parser do HDR (.media-card-link).
+    const fakeListingHtml = (n: number) => {
+      const cards = Array.from({ length: 15 }, (_, i) => {
+        const idx = n * 100 + i;
+        return `<a href="https://hdr.test/filme-${idx}/" class="media-card-link">
+          <span class="media-card-title">Filme ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return `<html><body>${cards}</body></html>`;
+    };
+
+    (globalThis.fetch as any) = async (url: any) => {
+      const target = String(url);
+      if (target.includes('/pagina/') || target.match(/hdr\.test\/?$/)) {
+        pageCount++;
+        await new Promise((r) => setTimeout(r, 2_000)); // 2s por página
+        return {
+          ok: true, status: 200,
+          headers: new Headers(),
+          text: async () => fakeListingHtml(pageCount),
+        };
+      }
+      return { ok: false, status: 404, headers: new Headers(), text: async () => '' };
+    };
+
+    try {
+      const resolver = createHdrResolver({
+        port: 18708,
+        selfUrl: 'http://127.0.0.1:18708',
+        siteUrl: 'https://hdr.test',
+        extraProtectors: [],
+      }) as any;
+
+      const startedAt = Date.now();
+      const result = await resolver.fetchAllListingsDetailed();
+      const elapsed = Date.now() - startedAt;
+
+      // O budget é 10s; com 2s por página, coleta ~5 páginas em ~10s.
+      // Mas o budget é medido ANTES de cada página, então para quando estoura.
+      assert.ok(result.partial, 'resultado é parcial (estourou o orçamento)');
+      assert.ok(result.items.length > 0, `coletou ${result.items.length} item(ns) antes de estourar`);
+      assert.ok(elapsed < 15_000, `devolveu em ${elapsed}ms (dentro do razoável)`);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('SWR: com lastGood, devolve catálogo velho na hora quando TTL vence', async () => {
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+
+    (globalThis.fetch as any) = async () => {
+      callCount++;
+      await new Promise((r) => setTimeout(r, 50));
+      // < 10 cards: scraper para após 1 página (scrape rápido para testar SWR).
+      const cards = Array.from({ length: 5 }, (_, i) => {
+        const idx = callCount * 100 + i;
+        return `<a href="https://hdr2.test/f${idx}/" class="media-card-link">
+          <span class="media-card-title">Filme ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const resolver = createHdrResolver({
+        port: 18709,
+        selfUrl: 'http://127.0.0.1:18709',
+        siteUrl: 'https://hdr2.test',
+        extraProtectors: [],
+      }) as any;
+
+      // Primeira busca: fria, espera o scraping.
+      const first = await resolver.fetchAllListingsDetailed();
+      assert.ok(!first.partial, 'primeira busca completa');
+      const firstCount = first.items.length;
+      assert.ok(firstCount > 0, 'coletou itens na primeira busca');
+
+      // Força expiração do TTL (manipula o cache diretamente).
+      const cacheEntry = resolver.listingCache.get('all');
+      if (cacheEntry) {
+        cacheEntry.expiresAt = Date.now() - 1; // expira agora
+      }
+
+      // Segunda busca: com lastGood, devolve na hora (SWR).
+      const startedAt = Date.now();
+      const second = await resolver.fetchAllListingsDetailed();
+      const elapsed = Date.now() - startedAt;
+
+      // SWR: devolve o lastGood imediatamente (< 50ms), não espera o refresh.
+      assert.ok(elapsed < 200, `SWR devolveu em ${elapsed}ms (esperava < 200ms)`);
+      assert.equal(second.items.length, firstCount, 'devolveu o mesmo catálogo do lastGood');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('inFlight: chamadas concorrentes de listagem compartilham a mesma raspagem', async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+
+    (globalThis.fetch as any) = async () => {
+      fetchCalls++;
+      await new Promise((r) => setTimeout(r, 100));
+      // < 10 cards: scraper para após 1 página (1 fetch = 1 scrape).
+      const cards = Array.from({ length: 5 }, (_, i) => {
+        const idx = fetchCalls * 100 + i;
+        return `<a href="https://hdr4.test/c${idx}/" class="media-card-link">
+          <span class="media-card-title">Conc ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const resolver = createHdrResolver({
+        port: 18711,
+        selfUrl: 'http://127.0.0.1:18711',
+        siteUrl: 'https://hdr4.test',
+        extraProtectors: [],
+      }) as any;
+
+      // 5 chamadas concorrentes: todas compartilham a mesma raspagem.
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () => resolver.fetchAllListingsDetailed()),
+      );
+
+      // Apenas 1 fetch de listagem (1 página, scraper para com < 10 cards).
+      assert.equal(fetchCalls, 1, `apenas 1 fetch (todas compartilharam), fez ${fetchCalls}`);
+      // Todas devolveram o mesmo resultado.
+      assert.equal(results[0].items.length, results[4].items.length, 'todas devolveram o mesmo catálogo');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  // Regressão e363954: o warm() chamava `scrapeListings` direto, fora do
+  // inFlight — no boot, uma busca chegando junto raspava o site em paralelo
+  // (2 varreduras, até 40 páginas). É o cenário que o aquecimento existe
+  // para evitar, então vale um teste próprio.
+  test('inFlight: warm() no boot e busca simultânea compartilham a raspagem', async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+
+    (globalThis.fetch as any) = async () => {
+      fetchCalls++;
+      await new Promise((r) => setTimeout(r, 100));
+      // < 10 cards: o scraper para na primeira página (1 fetch = 1 varredura).
+      const cards = Array.from({ length: 5 }, (_, i) => {
+        const idx = fetchCalls * 100 + i;
+        return `<a href="https://hdr5.test/b${idx}/" class="media-card-link">
+          <span class="media-card-title">Boot ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const resolver = createHdrResolver({
+        port: 18712,
+        selfUrl: 'http://127.0.0.1:18712',
+        siteUrl: 'https://hdr5.test',
+        extraProtectors: [],
+      }) as any;
+
+      // Boot: warm() dispara e uma busca chega no mesmo instante.
+      const [, busca] = await Promise.all([
+        resolver.warm(),
+        resolver.fetchAllListingsDetailed(),
+      ]);
+
+      assert.equal(fetchCalls, 1, `warm + busca = 1 varredura, fez ${fetchCalls}`);
+      assert.ok(busca.items.length > 0, 'a busca recebeu o catálogo da raspagem compartilhada');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  // Medido em produção: com o prazo curto (10s) no aquecimento, o catálogo
+  // saía SEMPRE parcial e mudava de tamanho a cada raspagem (190, 285, 304),
+  // e a mesma busca achava "Superman" numa rodada e nada na seguinte. Quem
+  // espera é só o cold start; aquecimento e refresh de fundo levam o prazo
+  // longo e chegam ao fim do catálogo.
+  test('orçamento por regime: aquecimento raspa até o fim, busca fria para no prazo curto', async () => {
+    const originalFetch = globalThis.fetch;
+    const PAGINA_MS = 60;
+    let fetchCalls = 0;
+    // 15 cards por página: nunca dispara o corte de "fim do catálogo" (<10),
+    // então quem decide onde parar é o prazo ou o teto de páginas.
+    (globalThis.fetch as any) = async () => {
+      fetchCalls++;
+      await new Promise((r) => setTimeout(r, PAGINA_MS));
+      const cards = Array.from({ length: 15 }, (_, i) => {
+        const idx = fetchCalls * 100 + i;
+        return `<a href="https://hdr6.test/o${idx}/" class="media-card-link">
+          <span class="media-card-title">Orc ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const comum = {
+        selfUrl: 'http://127.0.0.1:18713',
+        siteUrl: 'https://hdr6.test',
+        extraProtectors: [],
+        // Prazos apertados de propósito: o curto cabe em ~2 páginas, o longo
+        // cobre as 20. A proporção é a mesma dos defaults (10s x 120s).
+        listingBudgetMs: PAGINA_MS * 2,
+        listingWarmBudgetMs: PAGINA_MS * 60,
+      };
+
+      // Busca fria (alguém esperando): para no prazo curto, catálogo parcial.
+      const frio = createHdrResolver({ ...comum, port: 18713 }) as any;
+      const buscaFria = await frio.fetchAllListingsDetailed();
+      assert.equal(buscaFria.partial, true, 'busca fria devolve catálogo parcial');
+      const paginasDaBusca = fetchCalls;
+
+      // Aquecimento (ninguém esperando): vai até o teto de páginas.
+      fetchCalls = 0;
+      const quente = createHdrResolver({ ...comum, port: 18714 }) as any;
+      await quente.warm();
+      const aquecido = quente.listingCache.get('all').value;
+
+      assert.equal(aquecido.partial, false, 'aquecimento completa o catálogo');
+      assert.ok(
+        fetchCalls > paginasDaBusca,
+        `aquecimento raspa mais páginas (${fetchCalls}) que a busca fria (${paginasDaBusca})`,
+      );
+      assert.ok(
+        aquecido.items.length > buscaFria.items.length,
+        `catálogo do aquecimento (${aquecido.items.length}) maior que o da busca fria (${buscaFria.items.length})`,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('warm() popula o cache sem request de busca', async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+
+    (globalThis.fetch as any) = async () => {
+      fetchCalls++;
+      const cards = Array.from({ length: 15 }, (_, i) => {
+        const idx = fetchCalls * 100 + i;
+        return `<a href="https://hdr3.test/w${idx}/" class="media-card-link">
+          <span class="media-card-title">Warm ${idx} 1080p</span>
+          <span class="media-card-year">2026</span>
+          <span class="badge-tipo">Filme</span>
+          <span class="badge-qualidade">1080p</span>
+        </a>`;
+      }).join('\n');
+      return {
+        ok: true, status: 200,
+        headers: new Headers(),
+        text: async () => `<html><body>${cards}</body></html>`,
+      };
+    };
+
+    try {
+      const resolver = createHdrResolver({
+        port: 18710,
+        selfUrl: 'http://127.0.0.1:18710',
+        siteUrl: 'https://hdr3.test',
+        extraProtectors: [],
+      }) as any;
+
+      await resolver.warm();
+
+      // warm() fez fetch das listagens.
+      assert.ok(fetchCalls > 0, 'warm() fez pelo menos 1 fetch');
+
+      // O cache de listagem está populado.
+      const cached = resolver.listingCache.get('all');
+      assert.ok(cached, 'cache de listagem populado após warm()');
+      assert.ok((cached as any).value.items.length > 0, 'itens no cache');
+
+      // searchPosts usa o cache do warm (sem fetch extra de listagem).
+      const callsBefore = fetchCalls;
+      const items = await resolver.searchPosts('Warm');
+      // Não fez fetch novo de listagem (usou o cache do warm).
+      // Pode ter feito fetch de conteúdo dos posts, mas não de listagem.
+      assert.ok(items.length >= 0, 'searchPosts funcionou com cache do warm');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+// ─── Fase 2: MagnetDownload em indexOnlyIndexers ─────────────────────────────

@@ -1,0 +1,104 @@
+/* Adom Power-Movie - /painel, aba Limpeza: resumo operacional, grupos por
+ * risco e prévia responsiva. Extraído de painel.css pela catraca de 400 linhas
+ * (painel.css ficou com a base interativa). Depende só dos tokens de
+ * dashboard-tokens.css e painel-tokens.css: sem hex, sem nesting e sem
+ * color-mix. Carregado DEPOIS de painel.css. */
+
+.painel-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-card-radius);
+  margin-bottom: var(--space-4);
+}
+
+.painel-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 118px;
+}
+
+.painel-summary-label {
+  font-size: var(--font-floor);
+  color: var(--muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.painel-summary-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Catálogo é a coluna informativa; ações ficam mais estreitas. */
+.painel-limpeza-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  align-items: start;
+}
+
+.painel-action-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+}
+
+.painel-action-group-danger {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+.painel-action-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-floor);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.painel-action-note {
+  margin: 0;
+  font-size: var(--font-floor);
+  color: var(--muted);
+}
+
+.painel-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.painel-empty-sm { padding: var(--space-4); }
+
+/* Release longa não pode estourar a tabela/card: bloco interno truncado. */
+.painel-cell-release {
+  display: block; max-width: min(320px, 42vw); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* No grupo vermelho o botão destrutivo herdava o mesmo fundo do painel e sumia. */
+.painel-action-group-danger .painel-btn-danger:not(:hover) { background: var(--surface); }
+
+@media (max-width: 980px) {
+  .painel-limpeza-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,207 @@
+// O PASSO de um site: descoberta quando devida, senão UMA página. Extraído do
+// `crawler.ts` pela catraca de linhas na Fase 8 (multi-site): o que era estado
+// global passou a ser POR SITE, e o passo passou a receber o `SiteRuntime` e a
+// `CrawlerSiteConfig` do site escolhido.
+//
+// Nada aqui decide QUAL site roda (isso é `crawl-site-select.ts`), nem o ritmo
+// global e o freio de tráfego (`crawler.ts`). O passo só:
+//  1. roda as recuperações one-shot do site (inflight órfã, `simulated`);
+//  2. abre/fecha a rodada de descoberta conforme o cursor de cada kind;
+//  3. processa UMA página, alimentando a política de pausa do site e o custo
+//     real (a Fase 7+: a página de série custa cards + saltos, não 1).
+import * as store from '../utils/crawl-store.js';
+import * as metrics from '../utils/metrics.js';
+import * as log from '../utils/logger.js';
+import { seriesLimitsOf, type CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
+import { DEFAULT_RETRY_BASE_MS } from '../utils/crawl-store-rules.js';
+import { advanceCursors, discoveryCuts } from './crawl-cursor.js';
+import { initialLoadDone } from './crawl-coverage.js';
+import { processCrawlPage } from './crawl-page.js';
+import { freshCycle } from './crawl-cycle.js';
+import * as recovery from './crawl-recovery.js';
+import { autoPauseSite, type SiteRuntime } from './crawl-site-runtime.js';
+import type { AutoPauseReason, PauseLimits } from './crawl-pauses.js';
+import type { CrawlSite, CrawlUrlRow } from './crawl-types.js';
+
+export interface CrawlStepDeps {
+  /** Marca o instante da requisição no ritmo GLOBAL (o motor é quem guarda). */
+  markRequest(at: number): void;
+  /** Cobra o custo no teto horário AGREGADO do processo (soma dos sites). */
+  onCost(cost: number): void;
+  /**
+   * Custo ESTIMADO de uma rodada de descoberta enquanto o adaptador não mede
+   * (`CRAWL_DISCOVERY_COST`): sitemap de filme + de série, na ordem de grandeza
+   * do Vaca. É estimativa declarada, não medição — por isso é knob, e por isso
+   * o adaptador pode overriding por rodada com `CrawlDiscovery.requestCost`.
+   * Função, e não valor: o knob é lido NO MOMENTO do passo (o `.env` pode
+   * mudar e o teste precisa poder isolar o custo).
+   */
+  discoveryCost(): number;
+}
+
+function limits(cfg: CrawlerSiteConfig): PauseLimits {
+  return { errorPauseStreak: cfg.errorPauseStreak, layoutCanary: cfg.layoutCanary };
+}
+
+export function createCrawlStepper(deps: CrawlStepDeps) {
+  function triggerAutoPause(rt: SiteRuntime, reason: AutoPauseReason, detail: string): void {
+    autoPauseSite(rt, reason, detail);
+    metrics.count(reason === 'layout' ? 'crawl.paused.layout' : 'crawl.paused.error-streak');
+    log.warn(`[crawl] ${rt.id}: pausa automática (${reason}):`, rt.autoPause?.detail || '');
+  }
+
+  /** Fecha a rodada aberta (se houver) e agenda a próxima descoberta. */
+  function closeRun(rt: SiteRuntime, nextDelayMs: number): void {
+    if (rt.openRunId == null) return;
+    store.engine().finishRun(rt.openRunId, Date.now(), { ...rt.cycle });
+    rt.openRunId = null;
+    rt.nextDiscoverAt = Date.now() + Math.max(0, nextDelayMs);
+    rt.cycle = freshCycle();
+  }
+
+  /** Cobra o custo de uma página/rodada nos DOIS tetos: o do site e o
+   *  agregado do processo. Custo zero (descoberta isenta por configuração) não
+   *  é cobrado — o `HourCounter` tem piso 1, e "cobrar 1 do que custou 0"
+   *  seria inventar requisição. */
+  function charge(rt: SiteRuntime, cost: number): void {
+    if (!(cost > 0)) return;
+    rt.hourPages.note(cost);
+    rt.cost.note(cost);
+    deps.onCost(cost);
+  }
+
+  /** Rodada de descoberta: upsert no store e, se completa, avanço do cursor. */
+  async function runDiscovery(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig): Promise<void> {
+    const now = Date.now();
+    rt.lastActiveAt = now;
+    deps.markRequest(now);
+    // F2: fase e corte POR KIND (ver `crawl-cursor.ts`) — série sem cursor
+    // começa `initial` mesmo com filmes incrementais.
+    const { phase: cutPhase, sinceByKind } = discoveryCuts(rt.cursors);
+    // Site de LISTAGEM nunca grava `cursor:movie`: a fase vinha `initial` para
+    // sempre e o painel mostrava "Carga inicial" com a listagem já em `sweep`.
+    const phase = cutPhase === 'initial' && initialLoadDone(store.engine(), rt.id) ? 'incremental' : cutPhase;
+    rt.openRunId = store.engine().startRun(rt.id, phase, rt.cursors.movie, now);
+    rt.cycle = freshCycle();
+    rt.discoveryPartial = false;
+    try {
+      const discovery = await site.discover(sinceByKind.movie, {
+        series: seriesLimitsOf(cfg),
+        sinceByKind,
+      });
+      // A descoberta faz requisições de verdade (sitemap de filme, de série, e
+      // saltos do protetor): sem cobrança ela não entraria no teto por hora, que
+      // é de REQUISIÇÕES. O adaptador que sabe contar declara o custo real da
+      // rodada; senão vale a estimativa declarada em `CRAWL_DISCOVERY_COST`
+      // (default 3). `0` é escolha legítima de operador (e o que os testes
+      // usam para isolar o custo da PÁGINA, que tem caso próprio).
+      const raw = deps.discoveryCost();
+      const estimate = Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 0;
+      const declared = Number(discovery.requestCost ?? estimate);
+      const discoveryCost = Math.max(0, Math.trunc(Number.isFinite(declared) ? declared : estimate));
+      charge(rt, discoveryCost);
+      const report = store.engine().upsertUrls(rt.id, discovery.urls, now);
+      rt.cycle.discoveryAdded = report.added;
+      rt.cycle.discoveryRefreshed = report.refreshed;
+      // F2: o cursor de CADA kind anda só com a descoberta DELE completa —
+      // parcial de um sitemap não trava o avanço seguro do outro.
+      advanceCursors(rt.id, discovery, rt.cursors);
+      if (discovery.complete) {
+        rt.policy.observeSiteSuccess();
+        metrics.count('crawl.discovery.ok');
+        if (report.added) metrics.count('crawl.discovery.added', report.added);
+      } else {
+        rt.cycle.discoveryFailures = discovery.failures.length;
+        // Parcial NÃO agenda como completa: a releitura volta no prazo curto de
+        // retry (ver `step`). Os cursores dos kinds completos JÁ andaram (F2).
+        rt.discoveryPartial = true;
+        metrics.count('crawl.discovery.partial');
+        log.warn(`[crawl] ${rt.id}: descoberta parcial:`, discovery.failures.join(' | ').slice(0, 400));
+      }
+    } catch (err: unknown) {
+      const message = log.errorMessage(err);
+      rt.cycle.discoveryFailures += 1;
+      metrics.count('crawl.discovery.error');
+      log.warn(`[crawl] ${rt.id}: descoberta falhou:`, message);
+      const reason = rt.policy.observeSiteFailure(message, limits(cfg));
+      if (reason) triggerAutoPause(rt, reason, message);
+      // Falha total: re-tenta em breve (base do backoff), não no ciclo incremental.
+      closeRun(rt, DEFAULT_RETRY_BASE_MS);
+    }
+  }
+
+  /** Processa UMA página reclamada e alimenta a política de pausa do site. */
+  async function processClaimed(rt: SiteRuntime, site: CrawlSite, row: CrawlUrlRow, cfg: CrawlerSiteConfig): Promise<void> {
+    const now = Date.now();
+    rt.lastActiveAt = now;
+    deps.markRequest(now);
+    const outcome = await processCrawlPage(site, row, {
+      dryRun: cfg.dryRun, maxTries: cfg.maxTries, series: seriesLimitsOf(cfg),
+    });
+    // Fase 7: o teto por hora cobra o custo REAL da página, não 1 por página.
+    const cost = Math.max(1, Math.trunc(Number(outcome.requestCost ?? 1)));
+    charge(rt, cost);
+    rt.cycle.pages += 1;
+    if (outcome.kind === 'done') {
+      rt.cycle.done += 1;
+      rt.cycle.releases += outcome.releases;
+      rt.cycle.newReleases += outcome.addedNew ?? 0;
+    } else if (outcome.kind === 'simulated') { rt.cycle.simulated += 1; rt.cycle.releases += outcome.releases; }
+    // `partial` (Fase 7 v2) é trabalho em andamento, não erro: releases contam
+    // no ciclo e NÃO caem no balde de erros.
+    else if (outcome.kind === 'partial') {
+      rt.cycle.partial += 1;
+      rt.cycle.releases += outcome.releases;
+      rt.cycle.newReleases += outcome.addedNew ?? 0;
+    } else if (outcome.kind === 'no-torrent') rt.cycle.noTorrent += 1;
+    else if (outcome.kind === 'no-work') rt.cycle.noWork += 1;
+    else rt.cycle.errors += 1;
+    const reason = rt.policy.observePage(row.url, {
+      kind: outcome.kind, siteLevelError: outcome.siteLevelError, releases: outcome.releases,
+    }, limits(cfg));
+    if (reason) triggerAutoPause(rt, reason, outcome.detail || row.url);
+  }
+
+  /** Um passo do SITE escolhido. */
+  async function step(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig): Promise<void> {
+    // Recuperações ANTES do takeNext (one-shot; simulated reabre rodada com
+    // nextDiscoverAt = 0, senão o pending novo esperaria o ciclo incremental):
+    if (rt.needInflightRecovery) { rt.needInflightRecovery = false; recovery.requeueInflight(rt.id); }
+    if (rt.needSimulatedRecovery) {
+      rt.needSimulatedRecovery = false;
+      rt.simulatedRecoveryDone = true;
+      if (recovery.requeueSimulated(rt.id)) { rt.nextDiscoverAt = 0; rt.discoveryPartial = false; }
+    }
+    if (rt.openRunId == null) {
+      const counters = store.engine().counters(rt.id);
+      if (counters.total === 0 || Date.now() >= rt.nextDiscoverAt) {
+        await runDiscovery(rt, site, cfg);
+        return;
+      }
+      // Ocioso: tick serial ⇒ inflight aqui é órfão; devolve e tenta o vencido.
+      if (counters.byStatus.inflight > 0) {
+        const recovered = store.engine().requeueInflight(rt.id, 0, Date.now());
+        if (recovered > 0) log.warn(`[crawl] ${rt.id}: ${recovered} URL(s) inflight órfã(s) devolvida(s)`);
+      }
+      // `partial` incluído: página de série em andamento com `next_at` futuro
+      // (retry da base) tem que ser servida fora de uma rodada aberta, senão
+      // One Piece/TWD esperariam o ciclo incremental inteiro entre passes.
+      if (counters.byStatus.error > 0 || counters.byStatus.inflight > 0 || counters.byStatus.partial > 0) {
+        const row = store.engine().takeNext(rt.id, Date.now());
+        if (row) await processClaimed(rt, site, row, cfg);
+      }
+      return;
+    }
+
+    const row = store.engine().takeNext(rt.id, Date.now());
+    if (!row) {
+      // Fila esgotada: fecha a rodada (initial OU incremental); parcial agenda
+      // retry curto, nunca como se a descoberta tivesse coberto tudo.
+      closeRun(rt, rt.discoveryPartial ? DEFAULT_RETRY_BASE_MS : cfg.incrementalIntervalMin * 60_000);
+      return;
+    }
+    await processClaimed(rt, site, row, cfg);
+  }
+
+  return { step, closeRun, runDiscovery, processClaimed, triggerAutoPause };
+}

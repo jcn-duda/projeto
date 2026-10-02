@@ -1,4 +1,4 @@
-import { magnetFor, json, pickFile, wait } from './common.js';
+import { magnetForPlay, json, pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
@@ -50,7 +50,7 @@ async function checkCached() {
 async function resolveLink(apiKey: string, infoHash: string, { season, episode, work, dubbed }: PlayHint = {}) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
-    body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),
+    body: new URLSearchParams({ url: magnetForPlay(infoHash), async: 'true' }),
   });
   if (!added?.id) return null;
 
@@ -79,7 +79,7 @@ async function resolveLink(apiKey: string, infoHash: string, { season, episode, 
 async function enqueue(apiKey: string, infoHash: string) {
   const added = await call(apiKey, '/seedbox/add', {
     method: 'POST',
-    body: new URLSearchParams({ url: magnetFor(infoHash), async: 'true' }),
+    body: new URLSearchParams({ url: magnetForPlay(infoHash), async: 'true' }),
   });
   return Boolean(added?.id);
 }

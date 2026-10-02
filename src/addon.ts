@@ -11,6 +11,26 @@ import warmup from './warmup.js';
 import harvester from './providers/harvester.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
+import * as magnetdb from './utils/magnetdb.js';
+import * as magnetBank from './utils/magnet-bank.js';
+import { backfillClassification } from './utils/magnet-bank-backfill.js';
+import * as crawlStore from './utils/crawl-store.js';
+import crawler from './providers/crawler.js';
+
+const services = { magnetdb, magnetBank };
+
+// Banco de magnets vivo: abre o SQLite próprio no BOOT DO PROCESSO — só quando
+// LIGADO (`MAGNET_BANK=false` não cria arquivo/WAL). O `createApp` (./app,
+// importado pelos testes) não abre nada; só quem sobe o servidor paga o disco.
+// O fechamento com flush+checkpoint vai no shutdown abaixo.
+magnetBank.openIfEnabled();
+// Acervo gravado sem `dubbed`/`quality`: preenche em fundo, em lotes (no-op
+// quando já está preenchido). Falha só loga — o banco segue servindo.
+if (config.magnetBank?.enabled) {
+  backfillClassification(config.magnetBank.dbPath)
+    .then((r) => { if (r.updated) log.info(`[magnetbank] ${r.updated} magnet(s) classificado(s) (dublado/qualidade)`); })
+    .catch((err: unknown) => log.warn('[magnetbank] classificação do acervo falhou:', log.errorMessage(err)));
+}
 
 // O Express app + manifest + rotas vivem em ./app (sem listen), para os testes
 // poderem exercitar o roteamento real sem subir servidor.
@@ -24,7 +44,9 @@ brResolvers.load();
 if (secretBox.enabled()) secretBox.seal('warmup');
 // Catálogo é usado na primeira abertura de /configure; aquecer só com credencial
 // evita uma chamada inútil para instalações em modo demo/P2P.
-if (config.jackett.apiKey) jackettCatalog.load().catch(() => {});
+// Também é quem preenche a lista automática de indexers (sem JACKETT_INDEXERS),
+// com nova tentativa a cada 30s até o Jackett responder.
+const catalogReady = jackettCatalog.startAutoRefresh();
 // Antes do primeiro /magnet/upload, para a conta do operador não classificar
 // os uploads da primeira busca como magnets que já eram do usuário.
 debrid.warmupEnv();
@@ -66,10 +88,22 @@ const server = app.listen(config.port, config.host, () => {
     log.info('Para torrents de verdade: configure .env (PROVIDER=jackett|prowlarr|both)');
     log.info('');
   }
-  warmup.start().catch((err) => log.warn('[warmup] falha no boot:', err?.message || err));
-  harvester.start();
+  // Lista automática: warmup e colhedor leem `config.jackett.indexers`, que só
+  // existe depois do primeiro catálogo vivo (espera limitada a 60s).
+  const afterIndexers = config.jackett.indexersAuto ? catalogReady : Promise.resolve();
+  afterIndexers.then(() => {
+    warmup.start().catch((err) => log.warn('[warmup] falha no boot:', err?.message || err));
+    harvester.start();
+  });
   rdWarmer.start();
   brCoverage.start();
+  // Raspagem total (piloto Vaca): armada SEMPRE, mesmo com `CRAWL_ENABLED=false`
+  // — o motor decide pelo overlay vivo (`crawler-live`) e o painel liga/desliga
+  // sem restart. Desligado, o tick não roda e o `crawl.db` nem é aberto. O
+  // habilitado pelo painel persiste em `cfg:v1:crawler` (decisão explícita do
+  // operador) e volta a valer neste `start`; `crawl-config-reset` restaura o
+  // default desligado do `.env`.
+  crawler.start();
 });
 
 let shuttingDown = false;
@@ -82,6 +116,9 @@ function shutdown(signal: string) {
   force.unref();
   server.close(() => {
     brResolvers.close();
+    services.magnetdb.savePersistentCounts?.();
+    services.magnetBank.close();
+    crawlStore.close();
     cache.close();
     log.info('[shutdown] addon encerrado');
     process.exit(0);

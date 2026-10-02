@@ -1,0 +1,24 @@
+{
+  "streams": [
+    {
+      "name": "🦁 Mico\n1080P",
+      "title": "Stranger.Things.S03E01.1080p.WEB-DL.DDP5.1.H264-NTb[rarbg]\n🎥 HEVC\n👥 12\nvia mico",
+      "infoHash": "a11ecb1f53a1bb02cc1055fcaf2be9f85acfae01",
+      "sources": [
+        "http://tracker.trackerfix.com:80/announce",
+        "udp://9.rarbg.me:2780",
+        "udp://9.rarbg.to:2720"
+      ],
+      "behaviorHints": { "bingeGroup": "mico-a11ecb1f" }
+    },
+    {
+      "name": "🦁 Mico\n720P",
+      "title": "Stranger.Things.S03E01.720p.WEB-DL.DDP5.1.H264-NTb[rarbg]\n🎥 x264\n👥 4\nvia mico",
+      "infoHash": "b22f82272f89f8d569e72c43960dad51b9c0eae4",
+      "sources": [
+        "udp://9.rarbg.to:2750"
+      ],
+      "behaviorHints": { "bingeGroup": "mico-b22f8227" }
+    }
+  ]
+}

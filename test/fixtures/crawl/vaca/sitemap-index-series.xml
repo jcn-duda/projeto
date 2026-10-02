@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Índice Yoast MÍNIMO para a Fase 7 (séries): o movie-sitemap de sempre, o
+  tv_show-sitemap (Fase 7) e o batch-sitemap — que fica FORA da descoberta
+  explicitamente: o pack chega pelo card do season-internal, nunca pela fila. -->
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://vaqueirofilmes.com/movie-sitemap.xml</loc>
+    <lastmod>2026-09-26T20:00:00+00:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://vaqueirofilmes.com/tv_show-sitemap.xml</loc>
+    <lastmod>2026-09-26T21:00:00+00:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://vaqueirofilmes.com/batch-sitemap.xml</loc>
+    <lastmod>2026-09-26T21:30:00+00:00</lastmod>
+  </sitemap>
+</sitemapindex>
