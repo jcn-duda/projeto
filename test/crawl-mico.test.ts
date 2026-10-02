@@ -10,7 +10,7 @@
 //   - throttle PRÓPRIO (não reutiliza o breaker da busca ao vivo);
 //   - integração com `processCrawlPage` + recorder dublê (NÃO chama identify,
 //     grava com a fonte `mico`);
-//   - colhedor: `mico` coberto pula o FILME e mantém a SÉRIE.
+//   - colhedor: `mico` coberto pula FILME e SÉRIE (Fase 2 emite `tv_show`).
 import { test, describe, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -372,7 +372,7 @@ describe('colhedor: mico coberto pelo raspador', () => {
     config.bludv.enabled = savedBludv;
   });
 
-  test('FILME com mico coberto → pula a consulta; SÉRIE mantém', async () => {
+  test('mico coberto → pula FILME e SÉRIE (Fase 2 emite tv_show)', async () => {
     cache.set('meta:movie:tt9600001', { name: 'Coringa', year: '2019', type: 'movie' }, 3600);
     cache.set('meta:series:tt9600002', { name: 'Gotham', year: '2014', type: 'series' }, 3600);
     const stub = stubFetch((url) => {
@@ -387,7 +387,7 @@ describe('colhedor: mico coberto pelo raspador', () => {
       assert.equal(movieCalls(), 0, 'filme coberto pelo raspador NÃO consulta o Mico');
 
       await harvestWorker.harvestOne({ imdbId: 'tt9600002', type: 'series', season: 1, episode: 1, reason: `mico-series-${Date.now()}` } as any);
-      assert.equal(seriesCalls(), 1, 'série continua colhendo (o raspador não emite série na Fase 1)');
+      assert.equal(seriesCalls(), 0, 'série coberta pelo raspador também NÃO consulta o Mico');
     } finally {
       stub.restore();
     }

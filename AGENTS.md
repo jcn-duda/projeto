@@ -1881,12 +1881,12 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   `MICO_DEFAULT` (default false, entra no `ji` de instalação nova). Desde a
   **Fase 1 do raspador** (2026-10-02) o Mico é também o NONO site da raspagem
   (`crawl-sites/mico.ts`, ver o bloco do motor multi-site): quando o raspador
-  já o cobre (`crawl-coverage.ts`), o colhedor **pula a consulta de FILME**
-  (métrica `harvest.skipped.crawlCovered.mico`) — o catálogo foi lido inteiro
-  direto na API — mas **mantém a de SÉRIE** (o raspador não emite série na
-  Fase 1). A busca AO VIVO não muda. O núcleo de fetch é compartilhado
-  (`fetchMicoStreams`), mas o raspador tem throttle PRÓPRIO e NUNCA reutiliza o
-  breaker da busca ao vivo.
+  já o cobre (`crawl-coverage.ts`), o colhedor **pula a consulta de FILME e de
+  SÉRIE** (métrica `harvest.skipped.crawlCovered.mico`) — o catálogo foi lido
+  inteiro direto na API (a **Fase 2** emite `tv_show` também). A busca AO VIVO
+  não muda. O núcleo de fetch é compartilhado (`fetchMicoStreams`, que devolve
+  `{items, ok}` — o `ok` é sinal do breaker AO VIVO e o raspador o ignora), mas
+  o raspador tem throttle PRÓPRIO e NUNCA reutiliza o breaker da busca ao vivo.
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
 - Critério de aceitação do plano: busca responde com o Jackett FORA do ar —
@@ -1976,8 +1976,33 @@ IMDb, e por isso o adaptador difere dos outros oito em três pontos:
   vazia (teto de segurança de 200 páginas). Falha de UMA página é best-effort
   (registra em `failures`, `completeByKind.movie=false` e segue com passo
   nominal 40); falha TOTAL (primeira página cai ou nenhuma obra) **lança** com
-  `withRequestCost`. Séries ficam para a **Fase 2**: o adaptador NÃO emite
-  `tv_show` (`completeByKind.tv_show=true` sem URLs).
+  `withRequestCost`. Séries (Fase 2) entram no `discover` SÓ com
+  `opts.series.enabled`: pagina o `MicoSeries` do mesmo jeito (skip dinâmico,
+  dedupe, teto de 300 páginas) e emite `tv_show` com `lastmod` de **30 dias**
+  (`SERIES_REREAD_DAYS`, mais longo que os 14 de filme — o acervo de série muda
+  mais devagar e cada obra custa várias chamadas de episódio). Falha TOTAL de
+  série NÃO derruba a de filme (marca `completeByKind.tv_show=false` e segue com
+  os filmes). Sem `opts.series.enabled`, não emite `tv_show`
+  (`completeByKind.tv_show=true`, fonte não consultada).
+- **Séries: episódios pela Cinemeta, progresso retomável** (Fase 2,
+  `crawl-sites/mico-series.ts`; extraído pela catraca de 400 linhas — `mico.ts`
+  orquestra e `mico-shared.ts` guarda as primitivas puras/throttle/página de
+  catálogo, sem ciclo). O stream de série é POR EPISÓDIO
+  (`/stream/series/<tt>:<S>:<E>.json`), então `fetchWork` lista os
+  episódios-alvo pela meta da Cinemeta (`getMeta('series', tt)`): só as
+  `MICO_CRAWL_SERIES_MAX_SEASONS` temporadas mais recentes (default 2), da mais
+  nova para trás, e só os episódios **JÁ EXIBIDOS** (`episodeAired["S:E"]`
+  presente e data ≤ agora — sem data é "não confirmado" e fica FORA). Cada
+  episódio é uma chamada com o throttle PRÓPRIO (nunca o breaker ao vivo), até
+  `opts.series.maxButtons` por passe; cada um vira um grupo
+  `{season, episode, releases}` na locação certa (pack que serve vários
+  episódios cai em cada locação — o `releaseWorkTargets` do recorder resolve). O
+  que sobra vira `partial` com `SeriesWorkProgress` (`doneCards = "S:E"`
+  MONOTÔNICO + `totalCards`, retoma do `resume`); estagnar viraria
+  `series_stall`. Sem episódio-alvo → `no-torrent` (custo 0); **sem meta da
+  Cinemeta → erro RETENTÁVEL** (custo 0), nunca `no-torrent` — que dormiria a
+  obra por 30 dias numa falha transitória. 429/5xx/rede num episódio → `throw
+  withRequestCost` com o custo já gasto.
 - **Throttle PRÓPRIO** (`MICO_CRAWL_MIN_GAP_MS`, default 1000): o raspador
   NUNCA reutiliza o breaker da busca ao vivo — o erro do crawler não pode
   abrir o circuito da resposta. 429 honra o `Retry-After`; falha de rede vira

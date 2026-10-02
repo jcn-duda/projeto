@@ -46,6 +46,12 @@ export const mico = () => ({
   // Período do balde de releitura (`bucketLastmod`): a obra é relida a cada N
   // dias, e ~1/N do catálogo "vira" por dia (espalhado pelo hash do IMDb).
   crawlRereadDays: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_REREAD_DAYS, 14))),
+  // Séries (Fase 2): teto de TEMPORADAS mais recentes lidas por obra. Série
+  // explode em requisições (1 chamada de stream POR EPISÓDIO), então o raspador
+  // só percorre as N temporadas mais altas, da mais recente para trás, e só os
+  // episódios JÁ EXIBIDOS (data no Cinemeta ≤ agora). O progresso retomável
+  // (`SeriesWorkProgress`) fatia a obra em passes de `maxButtons` episódios.
+  crawlSeriesMaxSeasons: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_SERIES_MAX_SEASONS, 2))),
 });
 
 export const tmdb = () => ({

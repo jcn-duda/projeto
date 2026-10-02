@@ -271,12 +271,12 @@ export async function harvestOne(entry: HarvestEntry): Promise<{ ok: boolean; ca
   // relevância — o matching dele traz outras obras. Pula na preempção por
   // tráfego; não conta no teto horário, que é moeda do Jackett; não pinta o
   // card e, como a colheita do Jackett, preserva o `passed_filter` do banco.
-  // Quando o RASPADOR do Mico já cobre o card (`crawl-coverage.ts`), o filme
-  // pula aqui: o catálogo foi lido inteiro direto na API, e a consulta obra a
-  // obra repetiria o trabalho. SÓ filme — o raspador do Mico não emite série
-  // (Fase 1), então a série continua colhendo como antes.
+  // Quando o RASPADOR do Mico já cobre o card (`crawl-coverage.ts`), FILME e
+  // SÉRIE pulam aqui: o catálogo foi lido inteiro direto na API (Fase 2 emite
+  // `tv_show` também), e a consulta obra a obra repetiria o trabalho. A busca
+  // AO VIVO não muda — só a colheita de fundo.
   if (!directed && !preempted && config.mico.harvest) {
-    if (entry.type === 'movie' && covered.has(mico.MICO_ID)) {
+    if ((entry.type === 'movie' || entry.type === 'series') && covered.has(mico.MICO_ID)) {
       metrics.count('harvest.skipped.crawlCovered.mico');
     } else {
       collected.push(...(await mico.search(

@@ -1,7 +1,7 @@
 # Raspador do Mico Leão Dublado — plano
 
-Data: 2026-10-02. Estado: **Fase 0 concluída (portão PASSA); Fase 1 IMPLEMENTADA**
-(filmes; séries ficam para a Fase 2).
+Data: 2026-10-02. Estado: **Fase 0 concluída (portão PASSA); Fase 1 IMPLEMENTADA
+(filmes); Fase 2 IMPLEMENTADA (séries)**.
 
 ## Por que (e por que com cuidado)
 
@@ -67,8 +67,10 @@ card virtual `mico` — é o id que amarra o item raspado à reserva e ao `ji`.
    espalhado pelo hash do IMDb, com máximo monotônico para o cursor). Falha de
    UMA página é best-effort (`complete:false`, segue com passo nominal 40);
    falha TOTAL lança com `withRequestCost`. Catálogo vazio ou ilegível é FALHA,
-   nunca "vazio e completo" (regra de todos os sites). Séries ficam para a
-   Fase 2 (o adaptador não emite `tv_show`).
+   nunca "vazio e completo" (regra de todos os sites). **Fase 2 (IMPLEMENTADA):**
+   com `opts.series.enabled` o `discover` pagina também o `MicoSeries` (skip
+   dinâmico, dedupe, teto de 300 páginas) e emite `tv_show` com `lastmod` de 30
+   dias; falha total de série não derruba a descoberta de filme.
 3. **Leitura (`fetchWork`).**
    - Filme: uma chamada a `/stream/movie/<tt>.json`. Devolve `imdb` PRONTO — o
      `crawl-page` pula a identificação pelo TMDB, a parte mais cara e frágil dos
@@ -77,9 +79,13 @@ card virtual `mico` — é o id que amarra o item raspado à reserva e ao `ji`.
      sempre (banco vivo + filtro de título + índice).
    - Sem stream (83% da amostra) é `no-torrent`, com releitura espaçada (o
      acervo do Mico muda — sugestão: 14 dias via o `requeue` que já existe).
-   - Série (fase 2): lista de episódios pela Cinemeta (`meta/series/<tt>`), só
-     os já exibidos, da temporada mais recente para trás, com teto de chamadas
-     por obra e progresso retomável (`progress`, como as séries do Vaca).
+   - Série (**Fase 2 IMPLEMENTADA**, `mico-series.ts`): lista de episódios pela
+     Cinemeta (`getMeta('series', tt)`), só os já exibidos
+     (`episodeAired["S:E"]` ≤ agora), das `MICO_CRAWL_SERIES_MAX_SEASONS`
+     temporadas mais recentes para trás; uma chamada por episódio até
+     `maxButtons` por passe, groups `{season, episode, releases}` na locação
+     certa e progresso retomável (`SeriesWorkProgress`, `doneCards="S:E"`
+     monotônico), como as séries do Vaca.
 4. **Ritmo.** API na Vercel de terceiro: `delayMs` ≥ 1 s e `maxPerHour`
    próprio (sugestão: 600), sem FlareSolverr (fetch direto).
 5. **Cobertura.** Com a carga concluída, `crawl-coverage.ts` passa a marcar
@@ -92,7 +98,7 @@ card virtual `mico` — é o id que amarra o item raspado à reserva e ao `ji`.
 |---|---|---|
 | 0 | Medir: ordem do catálogo (recência?), taxa de stream e de hashes novos numa amostra de 300 filmes, latência e limites da API | **PASSOU** — 29 novos BR dublados (19,8% de hashes novos), p50 60 ms/p95 540 ms, 0× 429/5xx |
 | 1 | Filmes: registro, descoberta por paginação simples, `fetchWork` com IMDb pronto, `bucketLastmod`, testes com fixtures reais, painel | **IMPLEMENTADA** (2026-10-02). Portão de operação: rodar 48 h na VPS e contar `crawl.record.added` do `mico` e o que virou BR dublado tocável |
-| 2 | Séries: episódios pela Cinemeta, teto por obra, progresso retomável | Só se a fase 1 trouxer valor BR real (dublado que não existia no banco) |
+| 2 | Séries: episódios pela Cinemeta, teto por obra, progresso retomável | **IMPLEMENTADA** (2026-10-02). Portão de operação: como a Fase 1, rodar na VPS e contar `crawl.record.added` do `mico` em `tv_show` |
 
 Kill-switch: o próprio liga/desliga do site no painel; nada novo no `.env`
 além do ritmo, se o default não servir.
@@ -120,3 +126,21 @@ além do ritmo, se o default não servir.
   `src/config/providers.ts` e `.env.example` (`MICO_CRAWL_MIN_GAP_MS`,
   `MICO_CRAWL_REREAD_DAYS`), `harvest-worker.ts` (pula filme coberto),
   `test/crawl-site-catalog.test.ts`, `AGENTS.md` (bloco do raspador e do Mico)
+
+### Fase 2 (séries) — IMPLEMENTADA
+
+- novo: `src/providers/crawl-sites/mico-series.ts` (descoberta + leitura de
+  séries) e `src/providers/crawl-sites/mico-shared.ts` (primitivas puras,
+  throttle próprio e página de catálogo, compartilhadas por filme e série sem
+  ciclo). `mico.ts` foi reescrito como orquestrador (227 linhas) — a extração
+  coube no teto de 400 (`lint:lines` verde). `test/crawl-mico-series.test.ts`
+  (registrado em `testFiles` no `package.json`); fixtures
+  `catalog-series-skip-0.json`, `catalog-series-skip-3.json`,
+  `catalog-series-empty.json`, `stream-episode.json` e `meta-series.json`
+  (payload da Cinemeta com `videos`/datas de exibição).
+- muda: `src/config/providers.ts` e `.env.example`
+  (`MICO_CRAWL_SERIES_MAX_SEASONS`, default 2), `harvest-worker.ts` (pula filme
+  E série quando o raspador cobre o `mico`), `AGENTS.md` (blocos do colhedor,
+  da descoberta e o novo bloco de séries). A busca AO VIVO e o pipeline de
+  stream não mudaram; o `fetchMicoStreams` devolve `{items, ok}` desde a Fase 1
+  (o `ok` preserva o 4xx neutro no breaker ao vivo).

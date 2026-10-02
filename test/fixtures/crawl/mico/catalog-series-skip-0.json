@@ -1,0 +1,37 @@
+{
+  "metas": [
+    {
+      "_id": "68f100000000000000000001",
+      "id": "tt4574334",
+      "type": "series",
+      "name": "Stranger Things",
+      "genres": ["Drama", "Fantasy", "Horror"],
+      "releaseInfo": "2016",
+      "imdbRating": 8.7,
+      "catalogs": ["MicoSeries"],
+      "__v": 0
+    },
+    {
+      "_id": "68f100000000000000000002",
+      "id": "tt0944947",
+      "type": "series",
+      "name": "Game of Thrones",
+      "genres": ["Action", "Adventure", "Drama"],
+      "releaseInfo": "2011",
+      "imdbRating": 9.2,
+      "catalogs": ["MicoSeries"],
+      "__v": 0
+    },
+    {
+      "_id": "68f100000000000000000003",
+      "id": "tt0903747",
+      "type": "series",
+      "name": "Breaking Bad",
+      "genres": ["Crime", "Drama", "Thriller"],
+      "releaseInfo": "2008",
+      "imdbRating": 9.5,
+      "catalogs": ["MicoSeries"],
+      "__v": 0
+    }
+  ]
+}
