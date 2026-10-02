@@ -3417,6 +3417,16 @@ o orçamento com a resposta.
   Crash de aba aqui não é memória (o 1337x resolve desafio no mesmo
   FlareSolverr): teste os espelhos do definition antes de culpar a infra e
   tire da lista o que não tem espelho vivo.
+  Em 2026-10-01 a imagem subiu para Jackett v0.24.2748 e FlareSolverr v3.5.2
+  (ambos por digest no `Dockerfile`; a imagem do Jackett segue no Alpine 3.24,
+  o mesmo musl do `node:22-alpine`). Validação: `/test-indexer.json` nos 23
+  indexers antes e depois — os 17 que respondiam seguem respondendo, os 6
+  mortos seguem mortos (wolfmax4k, torrent9, therarbg, torrentgalaxyclone,
+  tokyotosho e a busca quebrada do próprio Apache). Duas armadilhas da
+  medição: logo depois do boot o catálogo do addon pode ler o Jackett antes
+  dele subir (`catálogo indisponível` → "indexador desconhecido" nos
+  globais), e a 1ª busca do rutracker pós-restart refaz o login (~31 s, depois
+  0,6–0,9 s). Meça de novo antes de concluir que a versão quebrou algo.
 - **O LimeTorrents classifica filme dublado como "Other" (8000).** Com
   `Category[]=2000` na URL o Jackett escondia o release ANTES de chegar ao
   addon — "Interestelar (2014) BluRay 1080p Dublado" (114 seeders) e o

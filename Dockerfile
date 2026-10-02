@@ -7,18 +7,19 @@
 
 FROM caddy:2-alpine AS caddy
 
-# Pin deliberado: v0.24.2531-ls19 (build 2026-09-04). O auto-update fica
+# Pin deliberado: v0.24.2748-ls45 (build 2026-10-01; antes v0.24.2531-ls19). O auto-update fica
 # desligado em runtime (--NoUpdates no entrypoint), então subir de versão é
 # trocar este digest e rebuildar — nunca deixar o `latest` mudar o deploy
 # sozinho. Depois do rebuild confira no log que as definitions BR ainda
 # carregam: "Loaded N Cardigann indexers" e os ids na lista
 # (bludv-cardigann, comandotorrents, nerdfilmes, torrentdosfilmesv2, vacatorrent,
 # redetorrent-cardigann, apachetorrent-cardigann).
-FROM lscr.io/linuxserver/jackett@sha256:ef4b5b9f09d0c014f48c8e6999abb782b53b4cea8b170ca049c96046950c8524 AS jackett
+FROM lscr.io/linuxserver/jackett@sha256:099e895abbeb4564f8c5cb5f2def66462d73dffa39728a1a106af79ff1b04e65 AS jackett
 
 # Atualize o digest deliberadamente; nunca deixe uma mudança em `latest` alterar
-# o deploy sem revisão, como já fazemos com o Jackett acima.
-FROM ghcr.io/flaresolverr/flaresolverr@sha256:139dfee1c6f89249c8d665d1333a42e8ec74ec0a86bc6bb1c8461e10d3a66a47 AS flaresolverr
+# o deploy sem revisão, como já fazemos com o Jackett acima. Pin: v3.5.2
+# (2026-09-12; antes v3.5.0).
+FROM ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767 AS flaresolverr
 
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.
 FROM node:22-alpine AS builder
