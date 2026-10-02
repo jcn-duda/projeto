@@ -39,6 +39,13 @@ export const mico = () => ({
   timeout: Math.max(1, num(process.env.MICO_TIMEOUT_MS, 15000)),
   breakerFailures: Math.max(1, Math.trunc(num(process.env.MICO_BREAKER_FAILURES, 3))),
   breakerCooldown: Math.max(0, num(process.env.MICO_BREAKER_COOLDOWN_MS, 10 * 60_000)),
+  // Raspador (crawl-sites/mico.ts, Fase 1). Intervalo MÍNIMO entre chamadas do
+  // crawler ao Mico — throttle PRÓPRIO, independente do breaker da busca viva
+  // (o erro do raspador não pode abrir o circuito da resposta).
+  crawlMinGapMs: Math.max(0, num(process.env.MICO_CRAWL_MIN_GAP_MS, 1000)),
+  // Período do balde de releitura (`bucketLastmod`): a obra é relida a cada N
+  // dias, e ~1/N do catálogo "vira" por dia (espalhado pelo hash do IMDb).
+  crawlRereadDays: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_REREAD_DAYS, 14))),
 });
 
 export const tmdb = () => ({

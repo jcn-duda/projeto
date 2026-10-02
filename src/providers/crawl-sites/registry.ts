@@ -3,11 +3,12 @@
 // memoiza o adaptador de cada site. Sem estado de ritmo/fila aqui: isso é do
 // motor.
 //
-// A TABELA é explícita e fechada: os oito cards BR do Jackett, cada um com
-// rótulo, módulo e NOME DO EXPORT da fábrica. Nenhuma varredura por
-// `Object.values` chamando função desconhecida — o registro só carrega o que o
-// próprio site exporta, e site sem entrada aparece como indisponível no status
-// em vez de sumir (o operador precisa ver "sem adaptador" como diagnóstico).
+// A TABELA é explícita e fechada: os oito cards BR do Jackett mais o addon
+// Mico Leão Dublado (nove no total), cada um com rótulo, módulo e NOME DO
+// EXPORT da fábrica. Nenhuma varredura por `Object.values` chamando função
+// desconhecida — o registro só carrega o que o próprio site exporta, e site sem
+// entrada aparece como indisponível no status em vez de sumir (o operador
+// precisa ver "sem adaptador" como diagnóstico).
 //
 // A memoização é um MAPA por id (o motor alterna entre sites na mesma rotação;
 // resolver o módulo a cada passo custaria um import por página). O "site
@@ -53,13 +54,20 @@ const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
   // `hdrtorrents`. A ponte é o próprio adaptador, que pergunta a instância pelo
   // NOME do profile. Ver `hdrtorrents.ts`.
   'hdrtorrent-cardigann': () => import('./hdrtorrents.js') as unknown as Promise<SiteModule>,
+  // NONO site: o Mico NÃO é card do Jackett — é um addon Stremio público (id
+  // virtual `mico`, consultado por IMDb). O adaptador é `crawl-sites/mico.ts`
+  // (o homônimo `../mico.ts` é a busca ao vivo). A entrada só existe com
+  // `config.mico.enabled`: desligado, a fábrica lança e `ensureSite` devolve null.
+  mico: () => import('./mico.js') as unknown as Promise<SiteModule>,
 };
 
 /**
  * TABELA DOS SITES BR. O `id` é o do CARD do Jackett — é ele que amarra o item
  * raspado à reserva por indexer, ao `ji`/`jl` e ao "vazio suspeito" (decisão 3
- * do plano). A ordem do rollout é do operador (Nerd→TDF→Comando→Rede→Apache→
- * HDR→BLUDV); esta lista é a de CARDS, não a de rollout.
+ * do plano). EXCEÇÃO: `mico` é o id do card VIRTUAL do addon Mico Leão Dublado
+ * (fora do Jackett), mas cumpre o mesmo papel de identidade. A ordem do rollout
+ * é do operador (Nerd→TDF→Comando→Rede→Apache→HDR→BLUDV→Mico); esta lista é a
+ * de CARDS, não a de rollout.
  */
 export const SITE_TABLE: SiteEntry[] = [
   { id: 'vacatorrent', label: 'Vaca Torrent', module: BUILTIN_MODULES.vacatorrent, exportName: 'vacaCrawlSite' },
@@ -70,6 +78,7 @@ export const SITE_TABLE: SiteEntry[] = [
   { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', module: BUILTIN_MODULES['apachetorrent-cardigann'], exportName: 'apachetorrentCrawlSite' },
   { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', module: BUILTIN_MODULES['hdrtorrent-cardigann'], exportName: 'hdrtorrentsCrawlSite' },
   { id: 'bludv-cardigann', label: 'BLUDV', module: BUILTIN_MODULES['bludv-cardigann'], exportName: 'bludvCrawlSite' },
+  { id: 'mico', label: 'Mico Leão Dublado', module: BUILTIN_MODULES.mico, exportName: 'micoCrawlSite' },
 ];
 
 const TABLE = new Map<string, SiteEntry>(SITE_TABLE.map((entry) => [entry.id, entry]));

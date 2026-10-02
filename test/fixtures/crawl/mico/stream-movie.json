@@ -1,0 +1,33 @@
+{
+  "streams": [
+    {
+      "name": "🦁 Mico\n2160P",
+      "title": "Harley.Quinn.S01E13.The.Final.Joke.2160p.DCU.WEBRip.DDP5.1.x265-NTb[r…\n🎥 HEVC\n👥 0\nvia mico",
+      "infoHash": "f541ecb1f53a1bb02cc1055fcaf2be9f85acfae8",
+      "sources": [
+        "http://tracker.trackerfix.com:80/announce",
+        "udp://9.rarbg.me:2780",
+        "udp://9.rarbg.to:2720"
+      ],
+      "behaviorHints": { "bingeGroup": "mico-f541ecb1" }
+    },
+    {
+      "name": "🦁 Mico\n1080P",
+      "title": "DUBLADO DUAL ÁUDIO 1080P 👥 0\n👥 0\nvia mico",
+      "infoHash": "74f82272f89f8d569e72c43960dad51b9c0eae43",
+      "sources": [],
+      "behaviorHints": { "bingeGroup": "mico-74f82272" }
+    },
+    {
+      "name": "🦁 Mico\n720P",
+      "title": "Harley.Quinn.S01E13.The.Final.Joke.720p.DCU.WEBRip.DDP5.1.x264-NTb[ra…\n🎥 x264\n👥 0\nvia mico",
+      "infoHash": "ca844c65f6913ce840399bfd612e8556a5433b64",
+      "sources": [
+        "http://tracker.trackerfix.com:80/announce",
+        "udp://9.rarbg.me:2780",
+        "udp://9.rarbg.to:2750"
+      ],
+      "behaviorHints": { "bingeGroup": "mico-ca844c65" }
+    }
+  ]
+}

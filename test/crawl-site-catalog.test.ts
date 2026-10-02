@@ -82,7 +82,7 @@ describe('crawl catálogo: sites fora do .env', () => {
     // desta lista: ligar um site pendente criaria um card "sem-adaptador"
     // eterno, que não rasga nada — e é exatamente por isso que ele agora
     // aceita o override e nasce DESLIGADO fora do `CRAWL_SITES` (o `.env` da
-    // VPS não é tocado pelo deploy). Depois deste commit os OITO cards da
+    // VPS não é tocado pelo deploy). Depois deste commit os NOVE cards da
     // tabela têm adaptador, então a trava que sobra para exercitar é a de
     // "fora da tabela".
     const apache = live.setSiteOverride('apachetorrent-cardigann', { enabled: true });
@@ -120,14 +120,16 @@ describe('crawl catálogo: sites fora do .env', () => {
     // (profile `redetorrent`, mesma divergência de id) e `bludv-cardigann` o
     // quinto (profile `bludv`, a mesma divergência). Todos nascem desligados
     // fora de CRAWL_SITES — o `.env` da VPS não é tocado pelo deploy.
-    // `hdrtorrent-cardigann` e `apachetorrent-cardigann` são os dois últimos:
-    // os primeiros sem sitemap, com a descoberta pela LISTAGEM paginada
-    // `/pagina/N/` pelo núcleo `crawl-sites/listing-discover.ts` (e no Apache,
-    // a ponte pelo NOME do profile `apachetorrent`). Com este último, a lista
-    // tem os OITO cards BR — a Fase 8 não tem mais pendência.
+    // `hdrtorrent-cardigann` e `apachetorrent-cardigann` são os dois últimos
+    // do Jackett: os primeiros sem sitemap, com a descoberta pela LISTAGEM
+    // paginada `/pagina/N/` pelo núcleo `crawl-sites/listing-discover.ts` (e no
+    // Apache, a ponte pelo NOME do profile `apachetorrent`). `mico` é o NONO e
+    // o único que NÃO é card do Jackett — é o addon Stremio Mico Leão Dublado,
+    // com descoberta por paginação simples e URL sintética (Fase 1 do raspador).
+    // Com ele, a lista fecha os NOVE cards (oito BR do Jackett + o Mico).
     assert.deepEqual(registry.adapterIds(), [
       'vacatorrent', 'nerdfilmes', 'torrentdosfilmesv2', 'comandotorrents', 'redetorrent-cardigann',
-      'apachetorrent-cardigann', 'hdrtorrent-cardigann', 'bludv-cardigann',
+      'apachetorrent-cardigann', 'hdrtorrent-cardigann', 'bludv-cardigann', 'mico',
     ]);
     assert.deepEqual(registry.adapterIds(), registry.tableIds(), 'nada ficou sem adaptador');
   });

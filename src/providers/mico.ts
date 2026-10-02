@@ -139,12 +139,110 @@ function _resetBreaker() {
   breakerOpenedAt = 0;
 }
 
+/** Valida IMDb id no formato `tt\d{1,10}`. */
+function validImdb(tt: string): boolean {
+  return IMDB_ID.test(String(tt || ''));
+}
+
+/**
+ * URL do endpoint de FILME do Mico (`/stream/movie/<tt>.json`); `null` com
+ * IMDb inválido. Exportado para o raspador (`crawl-sites/mico.ts`) montar a
+ * mesma URL que a busca ao vivo usa.
+ */
+export function micoMovieStreamUrl(tt: string): string | null {
+  if (!validImdb(tt)) return null;
+  return `${config.mico.url}/stream/movie/${tt}.json`;
+}
+
+/**
+ * URL do endpoint de EPISÓDIO (`/stream/series/<tt>:<S>:<E>.json`); `null` com
+ * IMDb/temporada/episódio inválidos. Fase 2 do raspador — exportado já na
+ * Fase 1 para o contrato ficar completo.
+ */
+export function micoEpisodeStreamUrl(tt: string, s: number, e: number): string | null {
+  if (!validImdb(tt) || !Number.isInteger(s) || !Number.isInteger(e)) return null;
+  return `${config.mico.url}/stream/series/${tt}:${s}:${e}.json`;
+}
+
 function endpointUrl({ type, imdbId, season, episode }: SearchArgs): string | null {
-  if (!IMDB_ID.test(String(imdbId || ''))) return null;
-  const base = config.mico.url;
-  if (type === 'movie') return `${base}/stream/movie/${imdbId}.json`;
-  if (type !== 'series' || !Number.isInteger(season) || !Number.isInteger(episode)) return null;
-  return `${base}/stream/series/${imdbId}:${season}:${episode}.json`;
+  if (type === 'movie') return micoMovieStreamUrl(imdbId);
+  if (type !== 'series') return null;
+  return micoEpisodeStreamUrl(imdbId, season as number, episode as number);
+}
+
+/** Erro HTTP do Mico que sobe para o chamador (busca ao vivo OU raspador). */
+export interface MicoHttpError extends Error {
+  /** Status HTTP (429/5xx) que provocou o erro. */
+  status?: number;
+  /** `Retry-After` convertido para MILISSEGUNDOS (do header em segundos ou
+   * data HTTP); ausente quando o servidor não o mandou. */
+  retryAfter?: number;
+}
+
+/**
+ * `Retry-After` → ms. Aceita delta-segundos (`120`) e data HTTP
+ * (`Wed, 21 Oct 2026 07:28:00 GMT`); `null` quando ausente/ilegível.
+ */
+function retryAfterMs(header: string | null | undefined): number | null {
+  const raw = String(header ?? '').trim();
+  if (!raw) return null;
+  const secs = Number(raw);
+  if (Number.isFinite(secs)) return Math.max(0, Math.round(secs * 1000));
+  const date = Date.parse(raw);
+  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  return null;
+}
+
+/**
+ * Fetch PURO dos streams de uma URL do Mico: valida HTTP, mapeia (`mapStream`)
+ * e deduplica por `infoHash`. SEM `captureItems`, SEM pintar card
+ * (`indexerStatus.record`), SEM `onQueryResult`, SEM breaker — é o núcleo
+ * compartilhado pela busca ao vivo (`search`, que embrulha a política de
+ * card/breaker/banco) e pelo raspador (`crawl-sites/mico.ts`, que embrulha o
+ * próprio throttle). O raspador NUNCA reutiliza o breaker daqui.
+ *
+ * Devolve `{ items, ok }`. `ok` é `true` SÓ para HTTP `200` — é o sinal que o
+ * `search` usa para decidir se RESETA o breaker ao vivo. Um `4xx` (exceto 429)
+ * devolve `items: []` com `ok: false`: é da obra/requisição, não prova host
+ * caído, então é NEUTRO para o circuito (não reseta, não incrementa) — exatamente
+ * como o `search` histórico, que retornava `[]` ANTES do `breakerFailures = 0`.
+ *
+ * Semântica HTTP (a MESMA do `search` histórico):
+ *  - `200` → `{ items, ok: true }` (parseia; `items` pode ser `[]`);
+ *  - `4xx` exceto `429` → `{ items: [], ok: false }` (não prova host caído);
+ *  - `429` ou `5xx` → LANÇA `MicoHttpError` com `status` e `retryAfter` (ms);
+ *  - erro de rede/timeout → LANÇA o erro original.
+ */
+export async function fetchMicoStreams(url: string, timeoutMs: number): Promise<{ items: RawItem[]; ok: boolean }> {
+  const res = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) {
+    // 4xx (salvo 429) é da obra, não prova host caído: devolve vazio com
+    // `ok:false` (o `search` NÃO reseta o breaker; o raspador trata como
+    // `no-torrent`). É NEUTRO para o circuito, como no `search` histórico.
+    if (res.status < 500 && res.status !== 429) {
+      log.warn(`[mico] HTTP ${res.status} para ${url}`);
+      return { items: [], ok: false };
+    }
+    const err: MicoHttpError = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    const retryAfter = retryAfterMs(res.headers?.get?.('Retry-After'));
+    if (retryAfter != null) err.retryAfter = retryAfter;
+    throw err;
+  }
+  const data: any = await res.json();
+  const raw = Array.isArray(data?.streams) ? data.streams : [];
+  const seen = new Set<string>();
+  const items: RawItem[] = [];
+  for (const item of raw) {
+    const parsed = mapStream(item);
+    if (!parsed?.infoHash || seen.has(parsed.infoHash)) continue;
+    seen.add(parsed.infoHash);
+    items.push(parsed);
+  }
+  return { items, ok: true };
 }
 
 /**
@@ -178,30 +276,12 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
     onQueryResult?.({ indexer: MICO_ID, responded: true, ...(relevant !== undefined ? { relevant } : {}) });
   };
   try {
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(config.mico.timeout),
-    });
-    if (!res.ok) {
-      // 4xx (salvo 429) é da obra, não prova host caído.
-      if (res.status < 500 && res.status !== 429) {
-        log.warn(`[mico] HTTP ${res.status} para ${args.imdbId}`);
-        note(true);
-        return [];
-      }
-      throw new Error(`HTTP ${res.status}`);
-    }
-    const data: any = await res.json();
-    const raw = Array.isArray(data?.streams) ? data.streams : [];
-    const seen = new Set<string>();
-    const out: RawItem[] = [];
-    for (const item of raw) {
-      const parsed = mapStream(item);
-      if (!parsed?.infoHash || seen.has(parsed.infoHash)) continue;
-      seen.add(parsed.infoHash);
-      out.push(parsed);
-    }
-    breakerFailures = 0;
+    const { items: out, ok } = await fetchMicoStreams(url, config.mico.timeout);
+    // Só um HTTP 200 prova host vivo e RESETA o circuito. Um 4xx (exceto 429)
+    // vem com `ok:false` e `out:[]`: é NEUTRO — não reseta nem incrementa,
+    // exatamente como o `search` histórico (que retornava `[]` antes do reset).
+    // 429/5xx/rede LANÇAM e caem no `catch` abaixo (`noteFailure`).
+    if (ok) breakerFailures = 0;
     captureItems(out, MICO_ID, {
       imdbId: args.imdbId,
       season: args.season ?? null,

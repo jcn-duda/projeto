@@ -108,6 +108,75 @@ test('fail-open em HTTP 500 e erro de rede; breaker abre após N falhas', async 
   });
 });
 
+// O refactor da Fase 1 extraiu o fetch para `fetchMicoStreams`, que devolve
+// `{ items, ok }`. Estes dois testes travam a semântica EXATA do breaker ao
+// vivo (a que o `search` histórico tinha): um 4xx (exceto 429) é NEUTRO — não
+// reseta nem incrementa o contador —, um 200 reseta, e 429/5xx/rede incrementa.
+test('breaker: 4xx é NEUTRO (não reseta o contador), 500 incrementa', async () => {
+  await withMico(async () => {
+    const N = config.mico.breakerFailures;
+    const queue: Array<() => any> = [];
+    const stub = stubFetch(() => (queue.shift()?.() ?? ok([])));
+    const http = (status: number) => () => ({ ok: false, status, json: async () => ({}) });
+    try {
+      // N-1 falhas 500 → contador em N-1 (circuito ainda fechado).
+      for (let i = 0; i < N - 1; i += 1) {
+        queue.push(http(500));
+        assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
+      }
+      // Um 4xx (404) é NEUTRO: NÃO zera o contador (se zerou, o bug voltou).
+      queue.push(http(404));
+      assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
+      // Uma ÚNICA 500 agora leva N-1 → N: o circuito ABRE. Só abre se o 404
+      // anterior não resetou o contador.
+      queue.push(http(500));
+      assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
+      const callsOpen = stub.calls.length;
+      // Circuito aberto: a próxima busca NÃO consulta (short-circuit).
+      queue.push(http(500));
+      assert.deepEqual(await mico.search({ type: 'movie', imdbId: 'tt0000001' }), []);
+      assert.equal(stub.calls.length, callsOpen, '4xx não resetou: a N-ésima 500 abriu o circuito');
+    } finally {
+      stub.restore();
+    }
+  });
+});
+
+test('breaker: um 200 (mesmo sem streams) RESETA o contador de falhas', async () => {
+  await withMico(async () => {
+    const N = config.mico.breakerFailures;
+    const queue: Array<() => any> = [];
+    const stub = stubFetch(() => (queue.shift()?.() ?? ok([])));
+    const http = (status: number) => () => ({ ok: false, status, json: async () => ({}) });
+    try {
+      // N-1 falhas → contador em N-1.
+      for (let i = 0; i < N - 1; i += 1) {
+        queue.push(http(500));
+        await mico.search({ type: 'movie', imdbId: 'tt0000002' });
+      }
+      // Um 200 com `streams: []` é caminho de SUCESSO → zera o contador.
+      queue.push(() => ok([]));
+      await mico.search({ type: 'movie', imdbId: 'tt0000002' });
+      // Pós-reset são precisas N falhas de novo: N-1 NÃO abrem o circuito.
+      for (let i = 0; i < N - 1; i += 1) {
+        queue.push(http(500));
+        await mico.search({ type: 'movie', imdbId: 'tt0000002' });
+      }
+      const calls = stub.calls.length;
+      queue.push(http(500));
+      await mico.search({ type: 'movie', imdbId: 'tt0000002' });
+      assert.equal(stub.calls.length, calls + 1, 'ainda fechado: o 200 resetou, a N-ésima falha abriu');
+      // E a abertura se confirma: a consulta seguinte NÃO faz fetch.
+      const callsOpen = stub.calls.length;
+      queue.push(http(500));
+      await mico.search({ type: 'movie', imdbId: 'tt0000002' });
+      assert.equal(stub.calls.length, callsOpen, 'circuito aberto após o reset não consulta');
+    } finally {
+      stub.restore();
+    }
+  });
+});
+
 test('MICO_ENABLED=false: nenhum fetch e o card some do catálogo', async () => {
   const saved = config.mico.enabled;
   config.mico.enabled = false;

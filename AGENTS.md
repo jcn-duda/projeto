@@ -1878,7 +1878,15 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   não nome de torrent — e entra no estado vivo da coleta (`noteStart`/
   `onQueryResult`), então a reserva 📦 cobre o Mico quando ele cai. `/test-indexer.json
   ?id=mico` usa `mico.test()`. Knobs: `MICO_ENABLED` (default true, some o card),
-  `MICO_DEFAULT` (default false, entra no `ji` de instalação nova).
+  `MICO_DEFAULT` (default false, entra no `ji` de instalação nova). Desde a
+  **Fase 1 do raspador** (2026-10-02) o Mico é também o NONO site da raspagem
+  (`crawl-sites/mico.ts`, ver o bloco do motor multi-site): quando o raspador
+  já o cobre (`crawl-coverage.ts`), o colhedor **pula a consulta de FILME**
+  (métrica `harvest.skipped.crawlCovered.mico`) — o catálogo foi lido inteiro
+  direto na API — mas **mantém a de SÉRIE** (o raspador não emite série na
+  Fase 1). A busca AO VIVO não muda. O núcleo de fetch é compartilhado
+  (`fetchMicoStreams`), mas o raspador tem throttle PRÓPRIO e NUNCA reutiliza o
+  breaker da busca ao vivo.
 - Kill-switches: `RELEASE_INDEX=false` / `RELEASE_INDEX_TTL=0` (índice),
   `ACCOUNT_FAST_PATH=false`, `HARVEST_ENABLED=false`.
 - Critério de aceitação do plano: busca responde com o Jackett FORA do ar —
@@ -1910,11 +1918,12 @@ Cloudflare) passa pelo FlareSolverr — que atende uma requisição por vez e é
 MESMO que a busca usa, o que só fecha porque os dois correm em janelas ociosas.
 
 **O registro é uma tabela fechada** (`crawl-sites/registry.ts`): os oito cards
-BR do Jackett, cada um com `id` (é o do CARD do Jackett — é ele que amarra o
-item raspado à reserva por indexer), rótulo e o par `module`/`exportName` — a
+BR do Jackett mais o addon **Mico Leão Dublado** (nove no total), cada um com
+`id` (é o do CARD do Jackett — é ele que amarra o item raspado à reserva por
+indexer; no Mico é o id do card VIRTUAL), rótulo e o par `module`/`exportName` — a
 fábrica lazy e o export nomeado, ou `null` + `note` quando não há adaptador. A
 ordem da tabela é a dos CARDS, não a de rollout (que é do operador:
-Nerd→TDF→Comando→Rede→Apache→HDR→BLUDV). `vacatorrent`, `nerdfilmes`,
+Nerd→TDF→Comando→Rede→Apache→HDR→BLUDV→Mico). `vacatorrent`, `nerdfilmes`,
 `torrentdosfilmesv2`, `comandotorrents` e `redetorrent-cardigann` começaram
 por sitemap; `bludv-cardigann`, `hdrtorrent-cardigann` e
 `apachetorrent-cardigann` são os três que entraram depois, sendo os dois
@@ -1932,10 +1941,50 @@ diagnóstico, não sumiço. O `module: null` é o estado CORRETO de um site que
 ainda não foi escrito; ele não é placeholder para "ligar depois". A ordem de
 escrita dos adaptadores foi BLUDV (sitemap Yoast) → HDRTorrent (listagem) →
 ApacheTorrent (listagem), e o `SITE_TABLE` mantém o card com `module: null`
-até existir o módulo. **Hoje os OITO cards têm adaptador** — a trava que
+até existir o módulo. **Hoje os NOVE cards têm adaptador** (oito BR do Jackett
+mais o Mico) — a trava que
 sobra para o catálogo do painel exercitar é a de "fora da tabela", e
 `registry.adapterIds()` é igual a `tableIds()`; se um dia divergirem de novo,
 um site entrou na rotação sem adaptador.
+
+**O Mico é o NONO site e o único que NÃO é card do Jackett**
+(`crawl-sites/mico.ts`, Fase 1 do raspador, 2026-10-02; o homônimo
+`../mico.ts` é a busca ao vivo). É um addon Stremio público consultado por
+IMDb, e por isso o adaptador difere dos outros oito em três pontos:
+
+- **URL sintética + IMDb pronto.** A identidade na fila é
+  `<host do Mico>/crawl/movie/<tt>/` (o `url_key` é só o caminho e sobrevive à
+  troca de host). O `fetchWork` devolve o `imdb` PRONTO, então o `crawl-page`
+  **pula a identificação por TMDB/Cinemeta** (`identifyWork`) — a parte mais
+  cara e frágil dos outros sites. O `title`/`year` que o adaptador devolve são
+  SÓ diagnóstico: o recorder monta o contexto pelo IMDb (`crawl-recorder.ts`).
+- **`lastmod` sintético como BALDE DE RELEITURA** (`bucketLastmod`, função
+  pura). O catálogo não publica data, então cada obra é relida a cada
+  `MICO_CRAWL_REREAD_DAYS` dias (default 14) e ~1/14 do catálogo "vira" por
+  dia, espalhado pelo hash FNV-1a do IMDb (sem pico único de
+  reenfileiramento). Propriedades garantidas e testadas: estável dentro do
+  período, muda no período seguinte, espalha as obras e tem **máximo
+  monotônico** (o cursor `advanceCursors` exige que o `max` não ande para
+  trás).
+- **Descoberta por PAGINAÇÃO SIMPLES — ARMADILHA: o filtro de gênero da API
+  está QUEBRADO.** O `/manifest.json` declara 17 gêneros, mas
+  `GET /catalog/movie/MicoFilmes/genre=<G>/skip=N.json` devolve `metas: []`
+  para TODOS. A descoberta usa `GET /catalog/movie/MicoFilmes/skip=N.json`,
+  que cobre o catálogo inteiro (3.265 filmes únicos em ~70 páginas). O tamanho
+  de página é VARIÁVEL (14 a 97 metas), então o `skip` avança pelo número REAL
+  de metas (`skip += metas.length`) e a varredura termina na primeira página
+  vazia (teto de segurança de 200 páginas). Falha de UMA página é best-effort
+  (registra em `failures`, `completeByKind.movie=false` e segue com passo
+  nominal 40); falha TOTAL (primeira página cai ou nenhuma obra) **lança** com
+  `withRequestCost`. Séries ficam para a **Fase 2**: o adaptador NÃO emite
+  `tv_show` (`completeByKind.tv_show=true` sem URLs).
+- **Throttle PRÓPRIO** (`MICO_CRAWL_MIN_GAP_MS`, default 1000): o raspador
+  NUNCA reutiliza o breaker da busca ao vivo — o erro do crawler não pode
+  abrir o circuito da resposta. 429 honra o `Retry-After`; falha de rede vira
+  `throw withRequestCost` (o motor faz o backoff), nunca exceção crua sem
+  custo. A entrada só existe com `config.mico.enabled` (desligado, a fábrica
+  lança e `ensureSite('mico')` devolve `null`), e o site **nasce DESLIGADO**
+  (fora do `CRAWL_SITES`; liga pelo painel).
 
 **São duas FORMAS de descoberta, e a escolha é do site.** Com sitemap (Vaca,
 NerdFilmes, TorrentDosFilmes, ComandoTorrents, RedeTorrent, BLUDV): ler o
