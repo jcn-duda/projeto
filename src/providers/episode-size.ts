@@ -1,5 +1,5 @@
 import type { Stream } from '../../types/domain.js';
-import { bytesToSize, isSeasonPackRelease, parseTitleSeasonEpisode } from '../utils/format.js';
+import { bytesToSize, isSeasonPackRelease, parseTitleSeasonEpisode, UNKNOWN_QUALITY } from '../utils/format.js';
 import { pickFile } from '../debrid/file-selector.js';
 import { peekFileSizes, hasFileSizes, peekTorrentTotal } from '../debrid/file-sizes.js';
 import { stageTrace } from '../utils/stream-trace.js';
@@ -165,7 +165,8 @@ function annotateMovieSizes<T extends Stream | null>(streams: T[], work: WorkHin
 }
 
 /**
- * Hashes que o memo ainda não conhece — pack da temporada e item sem 💾: é a
+ * Hashes que o memo ainda não conhece — pack da temporada, item sem 💾 e item
+ * sem resolução: é a
  * lista que a checagem de cache recebe para ler arquivos na mesma passada.
  * Episódio avulso COM 💾 fica de fora: o total dele já é o do episódio.
  */
@@ -175,8 +176,11 @@ function packHashesMissingFiles(streams: Array<Stream | null>, season: number | 
     if (!stream) continue;
     // Em filme, o "pack" é a coleção de várias obras marcada no título.
     const pack = season == null ? isMultiWorkPack(stream) : isPack(stream, season);
-    // Sem 💾 também pede a lista: é a única fonte do tamanho desse item.
-    if (!pack && !lacksSize(stream)) continue;
+    // Sem 💾 também pede a lista: é a única fonte do tamanho desse item. Sem
+    // resolução no título também: o nome do arquivo é a fonte dela
+    // (`probed-quality.ts`) — "S01.Dub E01-E08" de 10 GB saía sem resolução.
+    const noQuality = stream._quality === UNKNOWN_QUALITY;
+    if (!pack && !lacksSize(stream) && !noQuality) continue;
     const hash = String(stream.infoHash).toLowerCase();
     if (!hasFileSizes(hash)) out.add(hash);
   }

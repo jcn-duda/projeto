@@ -3428,6 +3428,14 @@ o orçamento com a resposta.
   22 de 2.377 vídeos em packs tinham avulso idêntico, todos o mesmo arquivo
   (Star Trek Beyond na coleção, The Last of Us 1ª Temporada × E01). Motivo
   `duplicate-file`; métrica `search.duplicatePack.dropped`.
+- **Item sem resolução também pede a lista de arquivos.**
+  `packHashesMissingFiles` inclui `_quality === 'sem resolução'` além de pack e
+  item sem 💾: o nome do arquivo é a fonte da resolução (`probed-quality.ts`).
+  A Premiumize, que só sabia sim/não no `/cache/check`, agora lê os arquivos
+  dos pedidos PRONTOS por `/transfer/directdl` em fundo
+  (`premiumize-files.ts`, 2 por checagem, desliga com `DEBRID_QUALITY_PROBE`);
+  a busca seguinte já mostra a resolução. Medido em Widow's Bay (2026-10-04):
+  "S01.Dub E01-E08", 10 GB, ⚡ e sem resolução.
 - **⚡ não prova que há filme.** A AllDebrid guarda em cache o que qualquer um
   sobe: release FALSA de filme ainda no cinema ganha ⚡ e só o play descobre
   que não há vídeo (`bad`, por hash — o gêmeo seguinte escapa). A rede medida

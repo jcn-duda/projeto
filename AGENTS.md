@@ -134,6 +134,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   cache" (lista passa sem ⚡, `cachedOnly` ignorado, passe tardio refaz).
   `unusable` (`auth`/`quota`) → lista volta como P2P, sem autofetch nem refresh.
   `partial:false` não prova que o debrid foi perguntado (`debridKnown`).
+- Lista de arquivos (`fsz`) dá tamanho e resolução a pack/item sem 💾/sem
+  resolução: TorBox e AllDebrid leem na checagem; Premiumize em fundo
+  (`premiumize-files.ts`, vale na busca seguinte).
 - **"Sumiu o ⚡ de todos" quase nunca é bug de código**: veja
   `/debrid-status.json` (teto de magnets, chave recusada, prazo).
 - **AllDebrid**: checar cache = `/magnet/upload` real, não abortável → a checagem

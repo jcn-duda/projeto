@@ -9,6 +9,7 @@ import {
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import { recordTorrentTotal } from './file-sizes.js';
+import { scheduleFileLists } from './premiumize-files.js';
 import { markerIdIndex } from '../providers/autofetch-marker.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
@@ -56,7 +57,8 @@ async function call(apiKey: string, path: string, { method = 'GET', params = {},
  * @param {object} [options]
  * @param {number} [options.timeoutMs]
  */
-async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: { timeoutMs?: number } = {}) {
+async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs, fileHashes }: { timeoutMs?: number; fileHashes?: string[] } = {}) {
+  const wantFiles = new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()));
   // A API aceita lote; mantemos blocos pra não montar URLs gigantes.
   return batched(infoHashes, config.debrid.batchSize, async (batch, ctx) => {
     const data = await call(apiKey, '/cache/check', {
@@ -69,7 +71,9 @@ async function checkCached(apiKey: string, infoHashes: string[], { timeoutMs }: 
     // não-cacheado é 0 ou ausente.
     const sizes = Array.isArray(data.filesize) ? data.filesize : [];
     batch.forEach((hash, idx) => { if (flags[idx]) recordTorrentTotal(hash, sizes[idx]); });
-    return batch.filter((_, idx) => flags[idx]);
+    const cached = batch.filter((_, idx) => flags[idx]);
+    scheduleFileLists(call, apiKey, cached, wantFiles);
+    return cached;
   }, { timeoutMs });
 }
 
