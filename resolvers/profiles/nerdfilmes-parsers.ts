@@ -158,6 +158,7 @@ const episodeStep = createEpisodeStep({
   scope: 'anchor-local',
   packRe: NARROW_PACK_RESET_RE,
   epRe: NARROW_EPISODE_RE,
+  epRangeGroup: 2,
 });
 
 function createNerdDownloadLinks(options: { isProtectorHost?: (hostname: string) => boolean } = {}) {

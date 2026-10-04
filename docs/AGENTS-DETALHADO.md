@@ -614,7 +614,10 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   `indexer,last_seen`.
 - **Merge.** `first_seen` é fixo; `seeders_max` é máximo e `seeders_last` é a
   última observação (item sem seeders PRESERVA a anterior; `0` é medição);
-  `title`/`size` ficam os primeiros não vazios; `is_br`/`dubbed`/`lied` só sobem
+  `title`/`size` ficam os primeiros não vazios — exceto o título sem episódio,
+  que troca pelo que o NOMEIA (`episodeUpgrade`; o botão "EPISÓDIOS 03" da
+  NerdFilmes visto antes do parser ler o plural ficava "1ª Temporada" para
+  sempre e o acervo o servia em todo episódio); `is_br`/`dubbed`/`lied` só sobem
   (OR, como no índice); a `uri` só troca por outra MAIS RICA (`dn=` ou mais
   trackers) e nunca rebaixa para o magnet padrão; e `passed_filter` NÃO é OR —
   reflete a última observação da obra (a captura nasce 0, o resultado do filtro
@@ -3448,6 +3451,12 @@ o orçamento com a resposta.
   2026-09-30), "S01 EP 07"/"S01 EP (01-07)" das releases indianas saía só com a
   temporada e virava pack em todo episódio — o parser lê o `EP` ancorado no
   `Sxx`.
+- **Botão de episódio da NerdFilmes/TDF é plural e às vezes intervalo.**
+  "EPISÓDIOS 03" e "EPISÓDIOS 01/02" (Widow's Bay, 2026-10-04): o
+  `NARROW_EPISODE_RE` só aceitava o singular, os 9 botões saíam com o título
+  da temporada e cada torrent de um episódio virava pack em TODO episódio. O
+  plural entrou na regex e o grupo 2 (`epRangeGroup`) dá `episodeLast`; o
+  título sai `E01-E02` (o addon lê esse intervalo; `E01E02` não).
 - **Release que já existia antes da estreia não contém o episódio.** A trava
   acima depende do relógio de AGORA (some a menos de 24h da estreia e depois
   dela) e o corte do `.exe` depende da conta mostrar o nome do arquivo. Em

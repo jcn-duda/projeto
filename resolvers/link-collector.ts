@@ -116,6 +116,7 @@ function createLinkCollector(cfg: LinkCollectorConfig) {
         episode: step.episode,
         source: sourceFn(context),
       };
+      if (step.episodeLast != null) item.episodeLast = step.episodeLast;
       if (extrasOf) Object.assign(item, extrasOf(options));
       links.push(item);
     }

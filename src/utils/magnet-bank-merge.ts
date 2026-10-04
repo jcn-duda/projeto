@@ -5,7 +5,8 @@
 // As regras vêm da especificação da feature:
 // - `first_seen` é fixo; `seeders_max` é máximo e `seeders_last` é a última
 //   observação (item sem seeders PRESERVA a anterior; 0 explícito é medição);
-// - `title`/`size` ficam os primeiros não vazios; `is_br`/`dubbed`/`lied` só
+// - `title`/`size` ficam os primeiros não vazios (o título troca só para
+//   ganhar o episódio que faltava — `episodeUpgrade`); `is_br`/`dubbed`/`lied` só
 //   sobem (OR), como no índice;
 // - `uri` só troca por outra MAIS RICA (`dn=` ou mais trackers) — nunca
 //   rebaixa para o `magnetFor`/`defaultMagnet`;
@@ -14,6 +15,7 @@
 import type { RawItem } from '../../types/domain.js';
 import { extractInfoHash, magnetDisplayName } from './title-normalization.js';
 import { sanitizeMagnet, defaultMagnet } from './magnet-uri.js';
+import { parseTitleSeasonEpisode } from './episode-matching.js';
 import { sourceFromTitle, qualityFromTitle, audioFromTitle, explicitPtAudio, UNKNOWN_QUALITY } from './audio-quality.js';
 import type { MagnetRow, SourceRow, WorkRow } from './magnet-bank-rows.js';
 
@@ -134,6 +136,17 @@ export function mergeSourceInput(prev: SourceInput, next: SourceInput): SourceIn
   };
 }
 
+/**
+ * O título só troca quando o novo NOMEIA o episódio que o antigo calava: é o
+ * mesmo hash, rotulado com mais precisão. Sem isto o botão da NerdFilmes visto
+ * antes do parser ler "EPISÓDIOS 03" ficava "1ª Temporada" para sempre e o
+ * acervo o servia como pack em todo episódio (Widow's Bay, 2026-10-04).
+ */
+function episodeUpgrade(prev: string, next: string): boolean {
+  if (!prev || !next || prev === next) return false;
+  return parseTitleSeasonEpisode(prev).episodes.length === 0 && parseTitleSeasonEpisode(next).episodes.length > 0;
+}
+
 /** Upsert do registro de conteúdo: first_seen fixo, seeders_max máximo, flags OR. */
 export function mergeMagnet(prev: MagnetRow | null, input: MagnetInput, now: number, liedAny = false): MagnetRow {
   if (!prev) {
@@ -155,7 +168,7 @@ export function mergeMagnet(prev: MagnetRow | null, input: MagnetInput, now: num
   return {
     ...prev,
     uri: isRicherUri(input.uri, prev.uri) ? input.uri : prev.uri,
-    title: prev.title || input.title,
+    title: episodeUpgrade(prev.title, input.title) ? input.title : (prev.title || input.title),
     size: prev.size || input.size,
     // `is_br`, `dubbed` e `lied` nunca voltam a falso (mesma regra do idx).
     isBr: prev.isBr || (input.isBr ? 1 : 0),

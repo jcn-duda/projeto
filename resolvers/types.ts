@@ -30,6 +30,8 @@ export interface ResolverLink {
   audio: ResolverAudio | null;
   source: string | null;
   episode: number | null;
+  /** Fim do intervalo do botão ("EPISÓDIOS 01/02"); ausente no botão de um episódio. */
+  episodeLast?: number | null;
 }
 
 /**

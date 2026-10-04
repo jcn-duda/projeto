@@ -98,6 +98,7 @@ function createTdfDownloadLinks(options: {
     scope: 'segment-only',
     packRe: NARROW_PACK_RESET_RE,
     epRe: NARROW_EPISODE_RE,
+    epRangeGroup: 2,
   });
   return createLinkCollector({
     anchorRe: /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,

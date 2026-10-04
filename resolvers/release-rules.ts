@@ -69,11 +69,15 @@ export interface EpisodeStepConfig {
   extract?: ((text: string) => number | null) | null;
   packMatchAll?: RegExp | null;
   tieBreak?: boolean;
+  /** Grupo do `epRe` com o fim do intervalo ("01/02"); só a âncora o lê. */
+  epRangeGroup?: number | null;
 }
 
 export interface EpisodeStepResult {
   state: number | null;
   episode: number | null;
+  /** Último episódio quando a âncora declara um intervalo ("01/02"). */
+  episodeLast?: number | null;
 }
 
 export type EpisodeStep = (segment: string, anchorText: string, state: number | null) => EpisodeStepResult;
@@ -154,7 +158,11 @@ const DEFAULT_EPISODE_RANGE_RE = /(?:EPIS[ÓO]DIOS?|EP|CAP[ÍI]TULOS?|CAP|E)[.\s
 const EPISODE_PATTERN_RE = /(?:EPIS[ÓO]DIO|EP|CAP[ÍI]TULO|CAP)[.\s-]*(\d{1,3})\b|\bS\d{1,2}E(\d{1,3})\b|\bE(\d{1,3})\b|\b\d{1,2}X(\d{1,3})\b/gi;
 // Par estreito do nerd/tdf: pack manda sempre, sem faixa nem desempate.
 const NARROW_PACK_RESET_RE = /TEMPORADA\s+COMPLETA|TODAS\s+AS\s+TEMPORADAS|S[EÉ]RIE\s+COMPLETA/i;
-const NARROW_EPISODE_RE = /(?:EPIS[ÓO]DIO|EP)\s*(\d{1,3})\b/gi;
+// Plural e intervalo: a NerdFilmes rotula "EPISÓDIOS 03" e "EPISÓDIOS 01/02";
+// sem o S o botão saía sem episódio e virava pack em TODO episódio (Widow's
+// Bay, 2026-10-04: 9 botões, um por episódio, listados no S01E01). O grupo 2
+// é o fim do intervalo (`epRangeGroup`).
+const NARROW_EPISODE_RE = /(?:EPIS[ÓO]DIOS?|EP)\s*(\d{1,3})(?:\s*(?:\/|-|–|&|E|AO|A)\s*(\d{1,3}))?\b/gi;
 
 function createEpisodeRules(overrides: { packPattern?: RegExp; rangePattern?: RegExp } = {}): EpisodeRules {
   const packPattern = overrides.packPattern || DEFAULT_PACK_RESET_RE;
@@ -191,6 +199,7 @@ function createEpisodeRules(overrides: { packPattern?: RegExp; rangePattern?: Re
 function createEpisodeStep(cfg: EpisodeStepConfig): EpisodeStep {
   const {
     scope, packRe, rangeRe = null, epRe, extract = null, packMatchAll = null, tieBreak = false,
+    epRangeGroup = null,
   } = cfg;
 
   const isPack = (text: string) => packRe.test(text) || (rangeRe ? rangeRe.test(text) : false);
@@ -235,7 +244,10 @@ function createEpisodeStep(cfg: EpisodeStepConfig): EpisodeStep {
     // anchor-local: âncora com pack zera; âncora com episódio vence; senão
     // vale o estado do segmento. Nada do botão contamina os seguintes.
     const selfEp = extractOf(anchorText);
-    return { state: next, episode: isPack(anchorText) ? null : (selfEp ?? next) };
+    if (isPack(anchorText)) return { state: next, episode: null };
+    if (selfEp == null) return { state: next, episode: next };
+    const last = epRangeGroup ? Number(lastMatch(anchorText, epRe)?.[epRangeGroup]) : NaN;
+    return last > selfEp ? { state: next, episode: selfEp, episodeLast: last } : { state: next, episode: selfEp };
   };
 }
 

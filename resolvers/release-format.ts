@@ -63,6 +63,12 @@ const DEFAULT_RELEASE_TITLE_OF = (input: ReleaseTitlePost): string =>
 const DEFAULT_AUDIO_TAG_OF = (link: ReleaseTitleInput): string | null =>
   link?.audio === 'dublado' ? 'DUBLADO' : link?.audio === 'legendado' ? 'LEGENDADO' : null;
 
+// "E01-E02": o addon lê o intervalo; "E01E02" ele não reconhece.
+const episodeTag = (first: number, last?: number | null): string => {
+  const tag = (n: number) => `E${String(n).padStart(2, '0')}`;
+  return last != null && last > first ? `${tag(first)}-${tag(last)}` : tag(first);
+};
+
 /** Configuração da factory de título de release. */
 export interface ReleaseTitleConfig {
   cleanTitle: (title: string) => string;
@@ -92,7 +98,7 @@ function createReleaseTitle(cfg: ReleaseTitleConfig) {
     let clean = cleanTitle(titleOf(post, link));
     const epPart = episodeOf
       ? episodeOf(post, link)
-      : link?.episode != null ? `E${String(link.episode).padStart(2, '0')}` : '';
+      : link?.episode != null ? episodeTag(link.episode, link.episodeLast) : '';
     const audioTag = audioTagOf(link);
     const tags = [
       link?.quality ? `${link.quality}p` : null,
