@@ -34,6 +34,31 @@ test('episódio que ainda não foi ao ar: sai o pack, fica quem nomeia o episód
   assert.equal(filterSeriesEpisodeRaw(items, 1, 8, ['lanterns'], { now }).kept.length, 2);
 });
 
+test('release publicada bem antes da estreia sai, mesmo com o episódio já no ar', () => {
+  const air = '2026-10-05T05:00:00.000Z';
+  const now = Date.parse('2026-10-20T12:00:00Z');
+  const hash = (c: string) => c.repeat(40);
+  const items = [
+    // Falsas medidas: 4 a 6 dias antes da estreia, nomeando o episódio.
+    { title: 'Lanterns 2026 S01E08 Dirt and Stars 1080p WEB H264 RAWR', infoHash: hash('a'), publishedAt: Date.parse('2026-10-01T18:58:11Z') },
+    { title: 'Lanterns 2026 S01E08 1080p HD H264 CAKES', infoHash: hash('b'), publishedAt: Date.parse('2026-09-29T18:58:11Z') },
+    // Pack velho: não contém o episódio.
+    { title: 'Lanterns S01 [1080p]', infoHash: hash('c'), publishedAt: Date.parse('2026-09-28T00:00:00Z') },
+    // Real: horas depois da estreia.
+    { title: 'Lanterns S01E08 1080p WEB H264-CAKES', infoHash: hash('d'), publishedAt: Date.parse('2026-10-05T03:10:00Z') },
+    // Data de lixo do indexer não condena.
+    { title: 'Lanterns S01E08 720p WEB H264-SuccessfulCrab', infoHash: hash('e'), publishedAt: 0 },
+    // Conta: PublishDate não vale (só o first_seen do acervo, ausente aqui).
+    { title: 'Lanterns S01E08 2160p WEB H265-NTb', infoHash: hash('g'), fromAccount: true, publishedAt: Date.parse('2026-09-01T00:00:00Z') },
+    // BR: o post é datado pela página da temporada.
+    { title: 'Lanternas 1ª Temporada E08 [1080p DUBLADO]', infoHash: hash('f'), isBr: true, publishedAt: Date.parse('2026-08-20T00:00:00Z') },
+  ] as RawItem[];
+  const out = filterSeriesEpisodeRaw(items, 1, 8, ['lanterns', 'lanternas'], { airDate: air, now });
+  assert.deepEqual(out.kept.map((r) => r.infoHash), [hash('d'), hash('e'), hash('g'), hash('f')]);
+  // Sem data do Cinemeta: nada muda.
+  assert.equal(filterSeriesEpisodeRaw(items, 1, 8, ['lanterns', 'lanternas'], { now }).kept.length, 7);
+});
+
 test('ordinal por extenso: "Primeira Temporada" é a temporada 1', () => {
   // Conta AllDebrid (2026-09-30): entrava no S07E07 de Game of Thrones.
   const t = 'Game of Thrones Primeira Temporada Dual Audio Pt_Br (Dublado)';

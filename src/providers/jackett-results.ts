@@ -80,6 +80,7 @@ export function mapResults(
       infoHash: r.InfoHash,
       seeders: r.Seeders,
       size: r.Size,
+      publishedAt: Date.parse(String(r.PublishDate || '')) || undefined,
       tracker: r.Tracker || r.TrackerId,
       // O ID estável vem do plano da consulta. Labels do Jackett variam e não
       // podem ser usados para casar a prioridade salva na URL.

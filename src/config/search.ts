@@ -100,6 +100,10 @@ export const search = () => ({
   // release que nomeia o episódio). A margem cobre fuso e a estreia no
   // streaming antes da TV. 0 desliga a trava.
   unairedMarginMs: num(process.env.SEARCH_UNAIRED_MARGIN_MS, 24 * 3600 * 1000),
+  // Release global que já existia (PublishDate do Jackett ou first_seen do
+  // acervo) mais que isto ANTES da estreia do episódio não o contém: pack é
+  // antigo, e a que nomeia o episódio é falsa. 0 desliga.
+  preAirReleaseMarginMs: num(process.env.SEARCH_PREAIR_RELEASE_MARGIN_MS, 48 * 3600 * 1000),
   // Suporte a packs multiobra BR, NATIVO por padrão (default true). O addon
   // descobre a coleção pelo `belongs_to_collection` do TMDB, emite a query de
   // franquia no caminho BR e admite o pack de coleção; o pack nunca vai P2P

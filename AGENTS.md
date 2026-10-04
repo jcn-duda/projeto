@@ -109,6 +109,9 @@ Pontos que mordem:
   dois caminhos: inline (`recordStatus:false`, respeita o breaker) e tardia
   (`ignoreBreaker:true`) — não uniformize. A task da varredura é marca
   estrutural (`sweep:true`), não comparação de texto.
+- **Episódio × data**: release global (não BR; na conta só o first_seen do acervo) publicada ou vista
+  mais de `SEARCH_PREAIR_RELEASE_MARGIN_MS` (48h) antes da estreia sai da lista
+  daquele episódio (pack velho não o contém; quem o nomeia é falsa).
 - **Título canônico en-US** vem de uma 2ª `/find` no mesmo deadline; só
   `title`/`name`, nunca `original_*`. Aliases BR do TMDB têm travas
   (`tmdb-br-aliases.ts`). Cache longo só se as consultas deram `ok:true`.

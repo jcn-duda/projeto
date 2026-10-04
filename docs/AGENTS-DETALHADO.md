@@ -3448,6 +3448,18 @@ o orçamento com a resposta.
   2026-09-30), "S01 EP 07"/"S01 EP (01-07)" das releases indianas saía só com a
   temporada e virava pack em todo episódio — o parser lê o `EP` ancorado no
   `Sxx`.
+- **Release que já existia antes da estreia não contém o episódio.** A trava
+  acima depende do relógio de AGORA (some a menos de 24h da estreia e depois
+  dela) e o corte do `.exe` depende da conta mostrar o nome do arquivo. Em
+  Lanterns S01E08 (2026-10-04), sem a conta AllDebrid, passavam RAWR/CAKES do
+  LimeTorrents e MeGusta/CAKES do acervo, todos publicados 2–6 dias antes, e o
+  pack velho da conta voltava com ⚡. `preAirReleases` corta todo hash global
+  (não BR; na conta só vale o `first_seen`) cuja data mais antiga — `publishedAt` (PublishDate do
+  Jackett) ou `first_seen` do acervo — é anterior a estreia −
+  `SEARCH_PREAIR_RELEASE_MARGIN_MS` (48h, `0` desliga). Vale para sempre, não
+  só antes da estreia. BR fica de fora: o post é datado pela página da
+  temporada. Data < 2000 é lixo do indexer e não condena. Custo aceito: um
+  vazamento real com mais de 48h de antecedência some.
 - **Ano da Cinemeta pode ser o da estreia americana.** "A Fistful of Dollars"
   sai 1967; TMDB e posts dizem 1964, e o ±2 do filtro de filme cortava tudo.
   `resolveSearchNames` usa o ano do TMDB quando os dois divergem por MAIS de 2

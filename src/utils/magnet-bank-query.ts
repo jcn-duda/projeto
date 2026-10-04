@@ -60,6 +60,17 @@ export function sourcesForMany(hashes: readonly string[]): Map<string, SourceRow
   return out;
 }
 
+/** `first_seen` (ms) de VÁRIOS hashes numa leitura; fail-open (vazio). */
+export function firstSeenMany(hashes: readonly string[]): Map<string, number> {
+  const e = readEngine();
+  if (!e || hashes.length === 0) return new Map();
+  try {
+    return new Map(e.listMagnetsMany(hashes).filter((m) => m.firstSeen > 0).map((m) => [m.hash, m.firstSeen]));
+  } catch {
+    return new Map();
+  }
+}
+
 /**
  * Títulos executáveis já vistos para a obra (`.exe`/`.scr`/…), para o corte do
  * irmão de release falsa. Leitura pura e fail-open: banco fechado ou erro

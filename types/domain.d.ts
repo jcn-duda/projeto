@@ -54,6 +54,8 @@ export interface RawItem {
   episode?: number | null;
   /** Item de reserva do banco (Etapa 4): indexer falho; nunca realimenta idx/banco/Chupim. */
   fromFallback?: boolean;
+  /** `PublishDate` do Jackett (ms). Data do indexer, não prova: só serve de teto. */
+  publishedAt?: number;
   fallbackIndexer?: string;
   /** Reserva que o Chupim PODE baixar: já aprovada no filtro vivo ou de fonte index-only/raspada. */
   fallbackFetchable?: boolean;

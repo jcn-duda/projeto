@@ -8,6 +8,7 @@ import {
 } from '../utils/format.js';
 import { magnetDisplayName } from '../utils/title-normalization.js';
 import { bankRowsForMediaSource } from '../utils/release-index-media.js';
+import { firstSeenMany } from '../utils/magnet-bank-query.js';
 import { parseTitleSeasonEpisode } from '../utils/episode-matching.js';
 import config from '../config.js';
 
@@ -34,6 +35,41 @@ function foreignArticle(r: RawItem, title: string, names: string[]): boolean {
 
 function namesEpisode(r: RawItem, title: string, episode: number): boolean {
   return [title, magnetDisplayName(r) || ''].some((t) => parseTitleSeasonEpisode(t).episodes.includes(episode));
+}
+
+const hashOfRaw = (r: RawItem): string =>
+  String(extractInfoHash(r.infoHash || r.magnet || '') || '').toLowerCase();
+
+// Antes disto a data do indexer é lixo (epoch, ano zero), não evidência.
+const SANE_DATE_MS = Date.parse('2000-01-01T00:00:00Z');
+
+/**
+ * Hashes que já existiam bem antes da estreia do episódio: torrent é imutável,
+ * então o pack não o contém e a release que o nomeia é falsa. Medido em
+ * Lanterns S01E08 (2026-10-04, estreia 05/10): sem a conta AllDebrid (que
+ * mostra o `.exe`), RAWR/CAKES do LimeTorrents e MeGusta/CAKES do acervo
+ * passavam — publicados de 2 a 6 dias antes — e o pack velho da conta voltava
+ * com ⚡ dentro das 24h da trava pelo relógio. A data é a mais antiga entre o
+ * `PublishDate` do Jackett e o `first_seen` do acervo (este nunca é anterior
+ * ao real). BR fica de fora: o post do site é datado pela página da temporada,
+ * não pelo episódio. Na conta só vale o `first_seen`: o item dela não traz
+ * data de publicação, mas o hash é o mesmo torrent que o acervo já viu.
+ */
+function preAirReleases(raw: RawItem[], airAt: number): Set<string> {
+  const margin = config.search.preAirReleaseMarginMs;
+  const out = new Set<string>();
+  if (!(margin > 0) || !Number.isFinite(airAt)) return out;
+  const limit = airAt - margin;
+  const candidates = raw.filter((r) => r && !r.isBr && hashOfRaw(r));
+  if (!candidates.length) return out;
+  const seen = firstSeenMany(candidates.map(hashOfRaw));
+  for (const r of candidates) {
+    const hash = hashOfRaw(r);
+    const published = r.fromAccount ? NaN : Number(r.publishedAt);
+    const dates = [published, seen.get(hash) ?? NaN].filter((d) => Number.isFinite(d) && d > SANE_DATE_MS);
+    if (dates.length && Math.min(...dates) < limit) out.add(hash);
+  }
+  return out;
 }
 
 /**
@@ -63,6 +99,7 @@ export function filterSeriesEpisodeRaw(
     const hash = String(extractInfoHash(r.infoHash || r.magnet || '') || '').toLowerCase();
     return hash ? [{ item: r, hash }] : [];
   });
+  const preAir = preAirReleases(raw, airAt);
   const bankByHash = bankRowsForMediaSource(needBank);
   if (bankByHash.size) {
     raw = raw.map((r) => {
@@ -76,6 +113,10 @@ export function filterSeriesEpisodeRaw(
   const dropped: RawItem[] = [];
   for (const r of raw) {
     const title = r.title || r.Title || '';
+    if (preAir.has(hashOfRaw(r))) {
+      dropped.push(r);
+      continue;
+    }
     if (!matchesEpisode(title, { season, episode })) {
       dropped.push(r);
       continue;
