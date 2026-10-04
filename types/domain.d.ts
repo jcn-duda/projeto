@@ -314,6 +314,12 @@ export interface DebridAdapter {
    * preserva o gate legado por `status.magnets >= autoFetchPauseAt`.
    */
   occupancy?(status: AccountStatus): { used: number; max: number } | null;
+  /**
+   * Link direto de UM arquivo de torrent pronto, para medir a resolução no
+   * cabeçalho (`video-quality.ts`). Ausente = serviço sem esse caminho; a
+   * AllDebrid mede pelo `/link/unlock` próprio.
+   */
+  fileLink?(apiKey: string, hash: string, path: string): Promise<{ url: string; size: number } | null>;
   /** Itens prontos na conta; ausente = no-op (serviço sem inventário legível). */
   inventory?(apiKey: string): Promise<InventoryItem[]>;
   /**

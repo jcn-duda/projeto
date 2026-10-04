@@ -136,7 +136,8 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   `partial:false` não prova que o debrid foi perguntado (`debridKnown`).
 - Lista de arquivos (`fsz`) dá tamanho e resolução a pack/item sem 💾/sem
   resolução: TorBox e AllDebrid leem na checagem; Premiumize em fundo
-  (`premiumize-files.ts`, vale na busca seguinte).
+  (`premiumize-files.ts`, vale na busca seguinte). Nome sem resolução →
+  medição do cabeçalho: AllDebrid por `/link/unlock`, outros por `adapter.fileLink`.
 - **"Sumiu o ⚡ de todos" quase nunca é bug de código**: veja
   `/debrid-status.json` (teto de magnets, chave recusada, prazo).
 - **AllDebrid**: checar cache = `/magnet/upload` real, não abortável → a checagem

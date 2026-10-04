@@ -9,7 +9,7 @@ import {
 } from './common.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import { recordTorrentTotal } from './file-sizes.js';
-import { scheduleFileLists } from './premiumize-files.js';
+import { scheduleFileLists, freshFileLink } from './premiumize-files.js';
 import { markerIdIndex } from '../providers/autofetch-marker.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
@@ -377,4 +377,5 @@ export const short = 'PM';
 // via upload). Sem isso o orquestrador trata todos como "não sei".
 export const cacheCheck = true;
 export const keyUrl = 'https://www.premiumize.me/account';
-export { enqueue, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent, sweepDead, resetStallMemory };
+const fileLink = (apiKey: string, hash: string, path: string) => freshFileLink(call, apiKey, hash, path);
+export { enqueue, accountStatus, checkCached, resolveLink, torrentStatus, removeTorrent, sweepDead, resetStallMemory, fileLink };

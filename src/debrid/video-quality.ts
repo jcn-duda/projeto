@@ -29,6 +29,8 @@ interface VideoProbeJob {
   link: string;
   apiKey: string;
   size: number;
+  /** Serviço que entrega o link direto (`adapter.fileLink`); ausente = AllDebrid. */
+  resolveUrl?: () => Promise<{ url: string; size: number } | null>;
 }
 
 const queue: VideoProbeJob[] = [];
@@ -85,11 +87,21 @@ async function fetchRange(url: string, range: string, maxBytes: number): Promise
   return out;
 }
 
-async function probeOne({ hash, path, link, apiKey, size }: VideoProbeJob) {
+async function directUrl({ link, apiKey, size, resolveUrl }: VideoProbeJob): Promise<{ url: string; total: number }> {
+  if (resolveUrl) {
+    const direct = await resolveUrl();
+    if (!direct?.url) throw new Error('serviço sem link do arquivo');
+    return { url: direct.url, total: direct.size || size || 0 };
+  }
   const unlocked = await call(apiKey, '/link/unlock', { link });
   const url = typeof unlocked?.link === 'string' ? unlocked.link : '';
   if (!url) throw new Error('/link/unlock sem link');
-  const total = Number(unlocked?.filesize) || size || 0;
+  return { url, total: Number(unlocked?.filesize) || size || 0 };
+}
+
+async function probeOne(job: VideoProbeJob) {
+  const { hash, path } = job;
+  const { url, total } = await directUrl(job);
   const head = await fetchRange(url, `bytes=0-${HEAD_BYTES - 1}`, HEAD_BYTES);
   let resolution = head ? parseVideoResolution(head) : null;
   if (!resolution && head && isMp4(head) && total > HEAD_BYTES) {
@@ -134,13 +146,13 @@ async function drain() {
 }
 
 /**
- * Enfileira a medição de um arquivo (só AllDebrid, que é quem entrega o link do
- * arquivo na lista). Devolve true quando enfileirou; arquivo já medido, já na
- * fila, sem link ou com a fila cheia não entra.
+ * Enfileira a medição de um arquivo (AllDebrid pelo link da lista; Premiumize
+ * pelo `resolveUrl` do `fileLink`). Devolve true quando enfileirou; arquivo já
+ * medido, já na fila, sem link ou com a fila cheia não entra.
  */
 function scheduleVideoProbe(job: VideoProbeJob): boolean {
   if (!config.debrid.qualityProbe) return false;
-  if (!job.hash || !job.path || !job.link || !job.apiKey) return false;
+  if (!job.hash || !job.path || !(job.link || job.resolveUrl) || !job.apiKey) return false;
   const key = videoQualityKey(job.hash, job.path);
   if (queued.has(key) || cache.peek(key)) return false;
   if (queue.length >= MAX_PENDING) {

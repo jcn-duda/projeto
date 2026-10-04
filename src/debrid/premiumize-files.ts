@@ -53,4 +53,20 @@ function scheduleFileLists(call: Call, apiKey: string, cached: readonly string[]
   return started;
 }
 
-export { scheduleFileLists };
+/**
+ * Link direto e fresco de UM arquivo de pack pronto, para a medição do
+ * cabeçalho (`video-quality.ts`). O link guardado no `fsz` expira em horas e
+ * o memo dura 30 dias, então a medição pede um novo. Os nomes do pack de
+ * Widow's Bay ("…S01.Dub.EP-1.mp4") não dizem a resolução: só o vídeo diz.
+ */
+async function freshFileLink(call: Call, apiKey: string, hash: string, path: string): Promise<{ url: string; size: number } | null> {
+  const data = await call(apiKey, '/transfer/directdl', {
+    method: 'POST',
+    body: new URLSearchParams({ src: magnetForPlay(hash) }),
+    timeout: config.debrid.cacheCheckTimeout,
+  });
+  const file = (Array.isArray(data?.content) ? data.content : []).find((f: any) => f?.path === path);
+  return file?.link ? { url: String(file.link), size: Number(file.size) || 0 } : null;
+}
+
+export { scheduleFileLists, freshFileLink };

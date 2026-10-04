@@ -28,7 +28,8 @@ function applyProbedQuality(
   items: RawItem[],
   { season, episode, workHint }: { season?: number | null; episode?: number | null; workHint?: WorkHintInput } = {},
 ): RawItem[] {
-  const adapterId = debrid.current()?.id || '';
+  const adapter = debrid.current();
+  const adapterId = adapter?.id || '';
   let apiKey = '';
   try {
     apiKey = opts().debridApiKey || '';
@@ -64,13 +65,18 @@ function applyProbedQuality(
       metrics.count('search.quality.probed');
       return { ...item, provenQuality: measured };
     }
-    if (measured === undefined && adapterId === 'alldebrid' && apiKey && scheduled < MAX_PROBES_PER_BUILD) {
+    // Premiumize entrega o link direto do arquivo (`fileLink`); a AllDebrid
+    // destrava o link da lista pelo `/link/unlock` dentro da medição.
+    const fileLink = adapterId === 'alldebrid' ? null : adapter?.fileLink;
+    if (measured === undefined && (adapterId === 'alldebrid' || fileLink) && apiKey && scheduled < MAX_PROBES_PER_BUILD) {
+      const path = file.path;
       const queuedNow = scheduleVideoProbe({
         hash,
-        path: file.path,
+        path,
         link: String(file.link || ''),
         apiKey,
         size: Number(file.size) || 0,
+        ...(fileLink ? { resolveUrl: () => fileLink(apiKey, hash, path) } : {}),
       });
       if (queuedNow) scheduled += 1;
     }

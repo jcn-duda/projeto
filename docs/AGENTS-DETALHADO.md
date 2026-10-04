@@ -3435,7 +3435,11 @@ o orçamento com a resposta.
   dos pedidos PRONTOS por `/transfer/directdl` em fundo
   (`premiumize-files.ts`, 2 por checagem, desliga com `DEBRID_QUALITY_PROBE`);
   a busca seguinte já mostra a resolução. Medido em Widow's Bay (2026-10-04):
-  "S01.Dub E01-E08", 10 GB, ⚡ e sem resolução.
+  "S01.Dub E01-E08", 10 GB, ⚡ e sem resolução. Os arquivos também não diziam
+  ("…S01.Dub.EP-1.mp4"), então a medição do cabeçalho (`video-quality.ts`),
+  antes só AllDebrid, vale para quem implementa `adapter.fileLink`: a
+  Premiumize pede um link fresco por `directdl` (o do `fsz` expira em horas).
+  Conferido em produção: a leitura não cria transferência na conta.
 - **⚡ não prova que há filme.** A AllDebrid guarda em cache o que qualquer um
   sobe: release FALSA de filme ainda no cinema ganha ⚡ e só o play descobre
   que não há vídeo (`bad`, por hash — o gêmeo seguinte escapa). A rede medida
