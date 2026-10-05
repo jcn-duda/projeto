@@ -57,7 +57,10 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.post('/magnet-bank-import', bankTransfer.importBank);
   app.get('/resolve/:infoHash', resolveHandler);
 
-  app.use((req, _res, next) => services.runtime.run({ origin: originOf(req) }, () => next()));
+  app.use((req, _res, next) => services.runtime.run({
+    origin: originOf(req),
+    replyDeadlineMs: services.runtime.clientReplyDeadline(req.get('user-agent')),
+  }, () => next()));
   app.use(makeAddonRouter(addonInterface));
 
   app.use('/:userConfig', (req, res, next) => {

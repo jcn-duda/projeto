@@ -226,7 +226,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 
 ## Os seis invariantes que mais quebram
 
-1. **Orçamento de tempo é sagrado.** Cliente Stremio aborta em 10s. Coleta =
+1. **Orçamento de tempo é sagrado.** Cliente Stremio aborta em 10s; o app
+   Power Movie (User-Agent `Dart/`) espera 17s e recebe `APP_REPLY_DEADLINE_MS`
+   (15000) — o prazo é por requisição (`runtime.replyDeadline()`). Coleta =
    deadline restante − `DEBRID_RESERVE_MS`; indexers globais cabem no orçamento,
    BR **não** (têm total próprio, saltos com deadline absoluto). Etapa de rede
    nova num provider global precisa caber nele. Deadline estourado devolve parcial

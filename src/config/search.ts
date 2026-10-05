@@ -72,6 +72,12 @@ export const budgets = () => ({
   // 9200 usa a folga que sobrava e ainda deixa 800ms para rede e parse —
   // passar de ~9500 troca "lista parcial" por "erro de timeout", que é pior.
   replyDeadline: num(process.env.REPLY_DEADLINE_MS, 9200),
+  // O app Power Movie passou a esperar 17s (2026-10-04): com o prazo do
+  // Stremio a 1ª busca saía parcial e o usuário precisava abrir de novo. Só
+  // o cliente cujo User-Agent casa `APP_CLIENT_UA` (o app é Dart) ganha este
+  // prazo; 2s de folga até os 17s para rede e parse. 0 desliga.
+  appReplyDeadline: num(process.env.APP_REPLY_DEADLINE_MS, 15000),
+  appClientUa: String(process.env.APP_CLIENT_UA || '^Dart/'),
   // Fatia do deadline reservada pra checagem no debrid depois da coleta. O
   // 2800 antigo era dimensionado pela AllDebrid (270-290ms medidos) — mas quem
   // manda no prazo é o serviço mais lento da casa: Premiumize medido em

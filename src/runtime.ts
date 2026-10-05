@@ -16,6 +16,8 @@ interface RuntimeContext {
   opts?: RuntimeOptions;
   encoded?: string | null;
   origin?: string | null;
+  /** Prazo da resposta deste cliente (app com timeout maior); ausente = `config.replyDeadline`. */
+  replyDeadlineMs?: number | null;
 }
 type RuntimeOptions = ReturnType<typeof defaults>;
 const store = new AsyncLocalStorage<RuntimeContext>();
@@ -275,6 +277,22 @@ function origin() {
   return store.getStore()?.origin || null;
 }
 
+/** Prazo da resposta para a requisição corrente (ver `appReplyDeadline`). */
+function replyDeadline(): number {
+  return store.getStore()?.replyDeadlineMs || config.replyDeadline;
+}
+
+/** O User-Agent é do app com timeout próprio? Devolve o prazo dele, ou null. */
+function clientReplyDeadline(userAgent: string | undefined): number | null {
+  const ms = config.appReplyDeadline;
+  if (!(ms > 0) || !userAgent) return null;
+  try {
+    return new RegExp(config.appClientUa).test(userAgent) ? ms : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Roda `fn` com um patch de contexto MESCLADO sobre o store atual, em vez de
  * substituí-lo. É o que deixa o middleware de origin (acima do router) conviver
@@ -296,6 +314,8 @@ export {
   opts,
   prefix,
   origin,
+  replyDeadline,
+  clientReplyDeadline,
   capture,
   run,
 };

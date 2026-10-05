@@ -3463,6 +3463,15 @@ o orçamento com a resposta.
   2026-09-30), "S01 EP 07"/"S01 EP (01-07)" das releases indianas saía só com a
   temporada e virava pack em todo episódio — o parser lê o `EP` ancorado no
   `Sxx`.
+- **Prazo por cliente.** O app Power Movie passou a esperar 17s (2026-10-04);
+  o middleware de origin põe `replyDeadlineMs` no contexto quando o
+  User-Agent casa `APP_CLIENT_UA` (`^Dart/`) e o `findStreams` usa
+  `runtime.replyDeadline()` (15000 para o app, `REPLY_DEADLINE_MS` para o
+  resto; `APP_REPLY_DEADLINE_MS=0` desliga). Medido local em 14 buscas frias:
+  13 responderam em 1,7–4,2s (índice/instantâneo), só 1 bateu nos 9,2s — o
+  que falta na 1ª resposta chega no TAIL (BR lento, Chupim), não por prazo.
+  Ganho real pequeno; preenchimento progressivo no app (repetir a busca
+  enquanto `cacheMaxAge` for 0) cobre o resto.
 - **Dois anos de catálogo e nome de um token.** Monster (2018), tt2850272,
   2026-10-04: Cinemeta 2018 (Sundance), TMDB 2021 (Netflix). O
   `catalogYearOf` escolhia 2021 (regra do "A Fistful of Dollars") e cortava o

@@ -235,6 +235,7 @@
     "test/title-acronyms.test.js",
     "test/index-rescue.test.js",
     "test/short-name-tail.test.js",
+    "test/app-deadline.test.js",
     "test/debrid-status-memo.test.js",
     "test/debrid-status-routes.test.js",
     "test/debrid-torrent-status.test.js",
