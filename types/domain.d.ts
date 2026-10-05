@@ -416,6 +416,8 @@ export interface MatchContext {
   names: string[];
   /** Ano de catálogo como veio do metadata (pode trazer sufixo, ex. "2024–"). */
   year: number | string | null;
+  /** O outro ano quando Cinemeta e TMDB divergem por mais de 2 (`catalogAltYearOf`). */
+  altYear?: number | null;
   isSeries: boolean;
   season: number | null;
   episode: number | null;

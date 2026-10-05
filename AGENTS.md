@@ -304,6 +304,10 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   vários vídeos e nenhum casa o episódio, e mede o **nome do arquivo** antes do
   caminho. `isSiteAd` exige separador `_`/`-`/espaço (nunca ponto) após o TLD.
 - "Temporada Completa" no singular é pack de **uma** temporada.
+- Cinemeta e TMDB com anos a mais de 2 de distância: o filtro aceita os DOIS
+  (`altYear`, `catalog-year.ts`) — Monster: global "2018", BR "2021". Filme de
+  nome de um token com palavra que nomeia entre o nome e o ano é outra obra
+  (`short-name-tail.ts`: "Monster Hunter 2021").
 - Sigla com ponto ("G.O.R.A.", "S.W.A.T.") vira uma palavra (`collapseAcronyms`)
   no `normalizeTitle` e na consulta dos **globais** (`shapeSearchQuery`); os BR
   ficam com os pontos (BLUDV: "S.W.A.T." 127, "SWAT" 0).

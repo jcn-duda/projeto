@@ -200,7 +200,7 @@ export async function doSearch({
 
   const matchContext = {
     names: searchMeta.names,
-    year: searchMeta.year,
+    year: searchMeta.year, altYear: searchMeta.altYear,
     isSeries: season != null,
     season,
     episode,

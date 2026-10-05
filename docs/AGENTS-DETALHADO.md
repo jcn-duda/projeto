@@ -3463,6 +3463,21 @@ o orçamento com a resposta.
   2026-09-30), "S01 EP 07"/"S01 EP (01-07)" das releases indianas saía só com a
   temporada e virava pack em todo episódio — o parser lê o `EP` ancorado no
   `Sxx`.
+- **Dois anos de catálogo e nome de um token.** Monster (2018), tt2850272,
+  2026-10-04: Cinemeta 2018 (Sundance), TMDB 2021 (Netflix). O
+  `catalogYearOf` escolhia 2021 (regra do "A Fistful of Dollars") e cortava o
+  global "Monster (2018) YTS"; com 2021, "Monster Hunter 2021", "Monster
+  Hospital 2021" e "Monster Pets … (2021)" passavam. Medido no Jackett: global
+  publica 2018, BR publica "Monstro (2021)". Agora `catalogAltYearOf` guarda o
+  ano descartado (só com divergência > 2) em `matchContext.altYear`, e o
+  `filterRelevantRaw` aceita o item que passa por QUALQUER um dos dois anos.
+  E `shortNameTailContradicts` (filme, não BR, nome com UM token que nomeia)
+  corta palavra que nomeia entre o nome e o primeiro ano do título — rótulo,
+  número, outro script e token de outro nome da obra não contam; sem ano no
+  título não julga; nome de dois tokens ("Resident Evil") fica com o
+  `namedSequelContradicts`. Varredura local de dez filmes de nome curto
+  (Joker, Alien, Heat, Tenet, Barbie, Oppenheimer, Coco, Gladiator, Dune,
+  Monster): nenhuma release legítima cortada por título.
 - **Resposta do índice que não toca nada vira coleta ao vivo.** A Grande
   Aposta (2026-10-04, Premiumize + cachedOnly): o instantâneo do acervo trouxe
   8 dublados BR, 0/8 em cache, todos ocultos — a 1ª resposta foi só o aviso e

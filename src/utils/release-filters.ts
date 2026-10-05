@@ -20,6 +20,7 @@ import {
 } from './release-title-rules.js';
 import { admitsMultiWorkPack } from './multiwork-pack.js';
 import { franchiseExtensionContradicts } from './franchise-base.js';
+import { shortNameTailContradicts } from './short-name-tail.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 interface MatchOptions {
@@ -33,6 +34,29 @@ interface MatchOptions {
   universeTokens?: string[] | null;
   /** Opt-in multiobra: quando presente, packs da franquia podem ser admitidos. */
   multiWork?: MultiWorkCollection | null;
+  /** Segundo ano de catálogo quando Cinemeta e TMDB divergem (ver `catalogAltYearOf`). */
+  altYear?: number | string | null;
+}
+
+const yearOf = (y: unknown) => Number(String(y ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+
+/**
+ * Com dois anos de catálogo, vale o que passar por QUALQUER um. Monster (2018),
+ * 2026-10-04: Cinemeta 2018 (Sundance), TMDB 2021 (Netflix); o global publica
+ * "Monster (2018)" e o BR "Monstro (2021)" — um ano só cortava um dos lados.
+ */
+function filterRelevantRaw(
+  items: RawItem[] = [],
+  options: MatchOptions = {},
+  onRejected?: (item: RawItem, reason: RelevanceRejectReason) => void,
+) {
+  const alt = yearOf(options.altYear);
+  if (!alt || alt === yearOf(options.year)) return filterRelevantRawForYear(items, options, onRejected);
+  const main = new Set(filterRelevantRawForYear(items, options));
+  const reasons = new Map<RawItem, RelevanceRejectReason>();
+  const other = new Set(filterRelevantRawForYear(items, { ...options, year: options.altYear }, (item, why) => reasons.set(item, why)));
+  if (onRejected) for (const item of items) if (!main.has(item) && !other.has(item)) onRejected(item, reasons.get(item) || 'title');
+  return items.filter((item) => main.has(item) || other.has(item));
 }
 
 export type RelevanceRejectReason =
@@ -51,7 +75,7 @@ export type RelevanceRejectReason =
  * descartar alguns milissegundos depois.
  *
  */
-function filterRelevantRaw(
+function filterRelevantRawForYear(
   items: RawItem[] = [],
   { names = [], year = null, isSeries = false, season = null, episode = null, multiWork = null }: MatchOptions = {},
   onRejected?: (item: RawItem, reason: RelevanceRejectReason) => void,
@@ -71,6 +95,7 @@ function filterRelevantRaw(
     return tokens;
   };
   const universe = names.flatMap((n) => titleTokens(n)).filter(Boolean);
+  const universeSet = new Set(universe);
   // A decisão de identidade de nome curto é do NOME, não do item: calculada
   // uma vez por nome e repassada ao portão (que senão renormalizaria o mesmo
   // nome para cada item). Os três estados ficam explícitos no tipo.
@@ -113,7 +138,8 @@ function filterRelevantRaw(
           // matchesTitleStructure fecha exatamente essa lacuna, sem tocar nos
           // formatos que o prefixo protegeria errado.
           (isSeries ? !yearContradicts(tokens, year, true)
-            : matchesTitleStructure(title, name, year, { tokens }) && !franchiseExtensionContradicts(title, tokens, name, names, year)) &&
+            : matchesTitleStructure(title, name, year, { tokens }) && !franchiseExtensionContradicts(title, tokens, name, names, year)
+              && !shortNameTailContradicts(tokens, shortNameCheck(name), universeSet)) &&
           matchesEpisodeWorkIdentity(title, names, tokens, universe),
     );
     if (!titleMatches) {
