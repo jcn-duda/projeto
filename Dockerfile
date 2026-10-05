@@ -72,6 +72,8 @@ COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 # As definitions vêm da imagem (não monte /config em cima delas): o volume
 # /config carrega só o estado (ServerConfig.json, Indexers/).
 COPY --from=jackett /app/Jackett /app/Jackett
+# Sobrescreve só a definição: os headers evitam o 403 sem migrar o card no volume.
+COPY jackett-bludv/therarbg.yml /app/Jackett/Definitions/therarbg.yml
 COPY jackett-bludv/bludv-cardigann.yml /app/Jackett/Definitions/bludv-cardigann.yml
 COPY jackett-bludv/comandotorrents.yml /app/Jackett/Definitions/comandotorrents.yml
 COPY jackett-bludv/nerdfilmes.yml /app/Jackett/Definitions/nerdfilmes.yml

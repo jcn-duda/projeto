@@ -220,8 +220,8 @@ describe('Dockerfile: definitions Cardigann copiadas para a imagem', () => {
 
   test('todo yml de jackett-bludv/ tem COPY para /app/Jackett/Definitions/', () => {
     assert.ok(
-      ymls.length >= 8,
-      `esperado ao menos 8 ymls em jackett-bludv, encontrados ${ymls.length}`,
+      ymls.length >= 9,
+      `esperado ao menos 9 ymls em jackett-bludv, encontrados ${ymls.length}`,
     );
     for (const file of ymls) {
       assert.ok(
@@ -229,6 +229,76 @@ describe('Dockerfile: definitions Cardigann copiadas para a imagem', () => {
         `COPY ausente para jackett-bludv/${file} — a definição não existiria na imagem`,
       );
     }
+  });
+});
+
+describe('TheRARBG: headers contra 403 sem migrar o card existente', () => {
+  const definition = fs.readFileSync(path.join(root, 'jackett-bludv', 'therarbg.yml'), 'utf8');
+  const dockerfile = fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+  const expectedHeaders = {
+    'User-Agent': ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'],
+    Accept: ['application/json, text/plain, */*'],
+    'Accept-Language': ['pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'],
+    'Sec-Fetch-Dest': ['empty'],
+    'Sec-Fetch-Mode': ['cors'],
+    'Sec-Fetch-Site': ['same-origin'],
+  };
+
+  // O contrato usa listas inline JSON, também válidas em YAML. Escalares
+  // descartam a definição inteira no YamlDotNet, que exige List<string>.
+  function readHeaders(source: string): Record<string, string[]> {
+    const block = source.match(/^  headers:\r?\n((?:    [^\r\n]+\r?\n)+)/m)?.[1];
+    assert.ok(block, 'o conjunto de headers precisa existir em search');
+    const headers: Record<string, string[]> = {};
+    for (const line of block.trim().split(/\r?\n/)) {
+      const entry = line.trim().match(/^([A-Za-z0-9-]+):\s*(.+)$/);
+      assert.ok(entry, 'cada header precisa ter nome e lista de valores');
+      const value: unknown = JSON.parse(entry[2]);
+      assert.ok(Array.isArray(value), `${entry[1]} precisa ser uma lista Cardigann`);
+      assert.ok(value.every((item: unknown) => typeof item === 'string'));
+      headers[entry[1]] = value;
+    }
+    return headers;
+  }
+
+  test('preserva identidade pública e domínios do card original', () => {
+    assert.match(definition, /^id: therarbg$/m);
+    assert.match(definition, /^name: TheRARBG$/m);
+    assert.match(definition, /^language: en-US$/m);
+    assert.match(definition, /^type: public$/m);
+    assert.match(definition, /links:\s*\n  - https:\/\/therarbg\.to\//);
+    assert.match(definition, /https:\/\/therarbg\.com\//);
+    assert.doesNotMatch(script, /^\s*park_stock_indexer therarbg\s*$/m);
+  });
+
+  test('mantém pesquisa de filme e série e campos JSON que geram magnets', () => {
+    assert.match(definition, /tv-search: \[q, season, ep\]/);
+    assert.match(definition, /movie-search: \[q, imdbid\]/);
+    assert.match(definition, /response:\s*\n\s+type: json/);
+    assert.match(definition, /rows:\s*\n\s+selector: results/);
+    for (const [field, selector] of [['infohash', 'h'], ['title', 'n'], ['size', 's'], ['seeders', 'se']]) {
+      assert.match(definition, new RegExp(`    ${field}:\\s*\\n      selector: ${selector}\\s*\\n`));
+    }
+    assert.match(definition, /name: sort[\s\S]*default: -a/);
+    assert.doesNotMatch(definition, /127\.0\.0\.1|localhost|^\s*info_flaresolverr:/m);
+  });
+
+  test('envia o conjunto comprovado em listas aceitas pelo Cardigann', () => {
+    assert.deepEqual(readHeaders(definition), expectedHeaders);
+  });
+
+  test('o contrato rejeita valores escalares que derrubam a definição', () => {
+    for (const [header, values] of Object.entries(expectedHeaders)) {
+      const mutated = definition.replace(`${header}: ${JSON.stringify(values)}`, `${header}: ${JSON.stringify(values[0])}`);
+      assert.notEqual(mutated, definition, `a mutação de ${header} precisa ser aplicada`);
+      assert.throws(() => readHeaders(mutated), /precisa ser uma lista Cardigann/);
+    }
+  });
+
+  test('sobrescreve a definição stock na imagem depois de copiar o Jackett', () => {
+    const stock = dockerfile.indexOf('COPY --from=jackett /app/Jackett /app/Jackett');
+    const patched = dockerfile.indexOf('COPY jackett-bludv/therarbg.yml /app/Jackett/Definitions/therarbg.yml');
+    assert.ok(stock >= 0 && patched > stock);
   });
 });
 
