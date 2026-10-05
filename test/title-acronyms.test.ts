@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 import { normalizeTitle, collapseAcronyms } from '../src/utils/title-normalization.js';
 import { buildSearchQuery } from '../src/utils/search-names.js';
+import { shapeSearchQuery } from '../src/providers/jackett-query.js';
 
 test('sigla com ponto vira uma palavra nos dois lados', () => {
   assert.equal(normalizeTitle('G.O.R.A.'), 'gora');
@@ -22,8 +23,11 @@ test('ponto que não é sigla fica como estava', () => {
   assert.equal(collapseAcronyms('Jornada nas Estrelas 2ª Temporada'), 'Jornada nas Estrelas 2ª Temporada');
 });
 
-test('a consulta vai sem os pontos da sigla e sem espaço duplo', () => {
-  assert.equal(buildSearchQuery({ name: 'G.O.R.A.', year: 2004 }), 'GORA 2004');
-  assert.equal(buildSearchQuery({ name: 'S.W.A.T.', year: 2017 }, { season: 1, episode: 2 }), 'SWAT S01E02');
-  assert.equal(buildSearchQuery({ name: 'A.I. Artificial Intelligence', year: 2001 }), 'AI Artificial Intelligence 2001');
+test('global recebe a sigla sem pontos; BR, com pontos (o WordPress casa o literal)', () => {
+  const gora = buildSearchQuery({ name: 'G.O.R.A.', year: 2004 });
+  assert.equal(gora, 'G.O.R.A. 2004');
+  assert.equal(shapeSearchQuery('yts', gora, false), 'GORA 2004');
+  assert.equal(shapeSearchQuery('thepiratebay', 'A.I. Artificial Intelligence 2001', false), 'AI Artificial Intelligence 2001');
+  // BLUDV, 2026-10-04: "S.W.A.T." → 127 itens, "SWAT" → 0.
+  assert.equal(shapeSearchQuery('bludv-cardigann', 'S.W.A.T. S01E02', true), 'S.W.A.T.');
 });

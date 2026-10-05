@@ -2,6 +2,7 @@ import config from '../config.js';
 import type { RawItem } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
 import { stripDiacritics } from '../utils/format.js';
+import { collapseAcronyms } from '../utils/title-normalization.js';
 import { prefix } from '../utils/cache-keys.js';
 
 /**
@@ -24,6 +25,11 @@ export function shapeSearchQuery(indexer: string, query: string, isBr?: boolean)
   if (isBr) {
     shaped = shaped.replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi, ' ');
     shaped = stripDiacritics(shaped);
+  } else {
+    // Sigla com ponto, SÓ nos globais: "G.O.R.A. 2004" voltava vazio nos
+    // trackers e "GORA 2004" acha 8; já o WordPress dos BR casa o literal
+    // ("S.W.A.T." → 127 na BLUDV, "SWAT" → 0) e fica com os pontos.
+    shaped = collapseAcronyms(shaped);
   }
   if (config.jackett.bareTitleIndexers.includes(indexer)) {
     shaped = shaped.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
