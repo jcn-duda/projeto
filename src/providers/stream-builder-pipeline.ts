@@ -39,6 +39,16 @@ import { applyFileEvidence } from './stream-file-evidence.js';
 
 export { applyFileEvidence };
 
+/**
+ * Debrid que diz o que está pronto + "só em cache": o piso de seeders sai antes
+ * da checagem e o ⚡ decide (o que não está pronto some pelo cachedOnly). Boat
+ * Trip (2026-10-05): "O Cruzeiro das Loucas" com 0 seeds nunca era perguntado à
+ * Premiumize. Baixar (Chupim) segue com o próprio piso.
+ */
+export function seedFloorFor(minSeeders: number, { cacheCheck, apiKey, cachedOnly }: { cacheCheck?: boolean; apiKey?: string | null; cachedOnly?: boolean }) {
+  return config.search.cachedOnlyIgnoresSeeds && cacheCheck && apiKey && cachedOnly ? 0 : minSeeders;
+}
+
 export interface PrepareCandidatesOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null; episodeAired?: Record<string, string> } | null;
   titles?: { original?: string | null; pt?: string | null; en?: string | null; year?: number | string | null } | null;
@@ -354,7 +364,7 @@ export function prepareCandidateStreams(
       : stream,
   );
   const streams: Stream[] = sortAndLimit(markedStreams, {
-    minSeeders,
+    minSeeders: seedFloorFor(minSeeders, { cacheCheck: aliveAdapter?.cacheCheck, apiKey: aliveApiKey, cachedOnly: opts().debridCachedOnly }),
     maxResults: maxResults * config.candidatePoolFactor,
     qualityFilter: qualities,
     season,

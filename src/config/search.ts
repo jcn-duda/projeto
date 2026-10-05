@@ -114,6 +114,9 @@ export const search = () => ({
   // com cachedOnly): se ainda sobra pelo menos isto do prazo, a coleta ao vivo
   // roda na hora em vez de ir para o tail. 0 desliga.
   indexRescueMinMs: num(process.env.SEARCH_INDEX_RESCUE_MIN_MS, 2500),
+  // Com debrid que checa cache e "só em cache" ligado, o mínimo de seeders não
+  // corta antes da checagem: release pronta toca sem swarm. false desliga.
+  cachedOnlyIgnoresSeeds: String(process.env.SEARCH_CACHED_ONLY_IGNORES_SEEDS || 'true') === 'true',
   // Suporte a packs multiobra BR, NATIVO por padrão (default true). O addon
   // descobre a coleção pelo `belongs_to_collection` do TMDB, emite a query de
   // franquia no caminho BR e admite o pack de coleção; o pack nunca vai P2P

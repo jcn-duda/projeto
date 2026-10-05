@@ -83,11 +83,19 @@ const conta = (motivo: string, itens: { reason: string }[]) =>
 
 test('cachedOnly cortando tudo produz itens cached-only e raw > afterSort > final', async () => {
   // Um item abaixo do piso de seeders (min-seeders), dois tocáveis fora do
-  // cache (cached-only). A lista entregue é o aviso: final=1.
-  const { streams, trace, payload } = await build(
-    [episodio(A, { seeders: 0 }), episodio(B), episodio(C)],
-    { cached: [] },
-  );
+  // cache (cached-only). A lista entregue é o aviso: final=1. O piso só corta
+  // antes da checagem com SEARCH_CACHED_ONLY_IGNORES_SEEDS=false (ver o teste
+  // seguinte para o default).
+  const search = config.search as { cachedOnlyIgnoresSeeds: boolean };
+  const before = search.cachedOnlyIgnoresSeeds;
+  search.cachedOnlyIgnoresSeeds = false;
+  let built: Awaited<ReturnType<typeof build>>;
+  try {
+    built = await build([episodio(A, { seeders: 0 }), episodio(B), episodio(C)], { cached: [] });
+  } finally {
+    search.cachedOnlyIgnoresSeeds = before;
+  }
+  const { streams, trace, payload } = built;
 
   assert.equal(trace.stages.raw, 3);
   assert.equal(trace.stages.afterSort, 2);
@@ -106,6 +114,17 @@ test('cachedOnly cortando tudo produz itens cached-only e raw > afterSort > fina
   // Payload higieno: nada de hash de magnet, mesmo com infoHash no pipeline.
   assert.ok(payload);
   assert.doesNotMatch(JSON.stringify(payload), /[a-f0-9]{40}/);
+});
+
+test('default: com cachedOnly o item de 0 seeders chega à checagem e o ⚡ decide', async () => {
+  // Boat Trip (2026-10-05): o 0 seeds nunca era perguntado ao debrid.
+  const fora = await build([episodio(A, { seeders: 0 }), episodio(B)], { cached: [] });
+  assert.equal(fora.trace.stages.afterSort, 2, 'nada cai no piso antes da checagem');
+  assert.equal(conta('cached-only', fora.trace.items), 2);
+  assert.ok(fora.trace.items.every((item) => item.reason !== 'min-seeders'));
+  const pronto = await build([episodio(A, { seeders: 0 })], { cached: [A] });
+  assert.equal(pronto.streams.length, 1);
+  assert.ok(pronto.streams[0].infoHash || pronto.streams[0].url, 'pronto e com 0 seeders, toca');
 });
 
 test('com fonte em cache não há corte nenhum no ledger', async () => {

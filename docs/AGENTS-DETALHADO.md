@@ -3463,6 +3463,14 @@ o orçamento com a resposta.
   2026-09-30), "S01 EP 07"/"S01 EP (01-07)" das releases indianas saía só com a
   temporada e virava pack em todo episódio — o parser lê o `EP` ancorado no
   `Sxx`.
+- **Piso de seeders não corta antes do ⚡ com cachedOnly.** Boat Trip
+  (2026-10-05): "O Cruzeiro das Loucas" (0 seeds) caía em `min-seeders` e
+  nunca era perguntado à Premiumize. `seedFloorFor` (stream-builder-pipeline)
+  manda `minSeeders: 0` ao `sortAndLimit` quando o adaptador tem `cacheCheck`,
+  há chave e `debridCachedOnly`; o não pronto some pelo cachedOnly e o pronto
+  toca sem swarm. Sem cachedOnly (lista P2P) o piso continua. Chupim segue com
+  o próprio piso (`DEBRID_AUTO_FETCH_MIN_SEEDERS`). Kill-switch
+  `SEARCH_CACHED_ONLY_IGNORES_SEEDS=false`.
 - **Prazo por cliente.** O app Power Movie passou a esperar 17s (2026-10-04);
   o middleware de origin põe `replyDeadlineMs` no contexto quando o
   User-Agent casa `APP_CLIENT_UA` (`^Dart/`) e o `findStreams` usa

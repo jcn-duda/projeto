@@ -240,7 +240,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
    nomeado cai em `lixo`. Lista **ampla** (`namesForeignDubLanguage`) só nega BR;
    lista **mínima** (`hasExplicitForeignAudio`) é a única dos caminhos
    destrutivos — não uniformize. Campos `_*` são internos e não podem vazar.
-3. **Fontes BR não publicam seeders** (`seeders:1` é placeholder): corte em pool
+3. **Com debrid que checa cache + cachedOnly, o piso de seeders não corta antes
+   da checagem** (`seedFloorFor`, `SEARCH_CACHED_ONLY_IGNORES_SEEDS`): o ⚡ decide.
+   **Fontes BR não publicam seeders** (`seeders:1` é placeholder): corte em pool
    ampliado e só depois `limitReservingBr` (vagas por faixa de qualidade, teto por
    indexer). Inverter a ordem faz o BR sumir. Gatilho de último recurso usa
    conjunto **vazio**, não fraco.
