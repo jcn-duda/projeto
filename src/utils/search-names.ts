@@ -1,5 +1,5 @@
 import type { RawItem, Stream, StreamCandidate } from '../../types/domain.js';
-import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle, dedupeNames, magnetDisplayName } from './title-normalization.js';
+import { extractInfoHash, decodeEntities, bytesToSize, normalizeTitle, collapseAcronyms, dedupeNames, magnetDisplayName } from './title-normalization.js';
 import { LEADING_ARTICLES, isMultiWorkCollection } from './release-matching.js';
 import {
   UNKNOWN_QUALITY,
@@ -332,7 +332,8 @@ function buildSearchQuery(
   meta: { name?: string | null; title?: string | null; year?: number | string | null } | null | undefined,
   { season, episode }: SeasonEpisodeOptions = {},
 ) {
-  const name = meta?.name || meta?.title || '';
+  // "G.O.R.A. 2004" voltava vazio nos trackers; "GORA 2004" acha.
+  const name = collapseAcronyms(meta?.name || meta?.title || '');
   const year = meta?.year ? String(meta.year).slice(0, 4) : '';
   if (season != null && episode != null) {
     const s = String(season).padStart(2, '0');

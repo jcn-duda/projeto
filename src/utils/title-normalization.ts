@@ -94,6 +94,21 @@ function foldLatinLetters(s: string) {
   return s.replace(LATIN_FOLD_RE, (letter) => LATIN_FOLD[letter] ?? letter);
 }
 
+// Sigla com ponto ("G.O.R.A.", "S.W.A.T.", "M.A.S.H") vira UMA palavra. Medido
+// em G.O.R.A. (2004), 2026-10-04: a consulta "G.O.R.A. 2004" não achava nada e
+// "GORA 2004" achava 8 releases (YTS, TPB, kickass); e o filtro lia o título
+// como "g o r a", que nunca casa com a release "GORA 2004 1080p". Exige duas
+// ou mais letras-ponto seguidas: "H.264", "Once.Upon.a.Time" e "V.for" não são
+// sigla. O espaço no fim separa a sigla da palavra colada ("U.S.Marshals").
+const DOTTED_ACRONYM_RE = /(?<![\p{L}\p{N}])(?:\p{L}\.){2,}(?:\p{L}(?![\p{L}\p{N}]))?/gu;
+
+function collapseAcronyms(s = '') {
+  return String(s).replace(DOTTED_ACRONYM_RE, (m: string, at: number, all: string) => {
+    const glued = /[\p{L}\p{N}]/u.test(all.charAt(at + m.length));
+    return `${m.replace(/\./g, '')}${glued ? ' ' : ''}`;
+  });
+}
+
 function normalizeTitle(s = '') {
   // \p{M} é obrigatório, não opcional: o .normalize('NFD') da linha anterior
   // separa dakuten/vogais-marca (japonês, hindi, tailandês) como combining
@@ -107,7 +122,7 @@ function normalizeTitle(s = '') {
   // (ª º — "2ª Temporada" tem que virar "2"), superscritos numéricos
   // (¹²³⁰⁴⁵⁶⁷⁸⁹), micro (µ) e fracções (¼½¾). Sem isso o ordinal viraria
   // token e o parse de temporada perderia o número.
-  return foldLatinLetters(String(s).toLowerCase())
+  return foldLatinLetters(collapseAcronyms(s).toLowerCase())
     .normalize('NFD')
     .replace(/[\u0300-\u036f\u00aa\u00ba\u00b2\u00b3\u00b9\u00b5\u00bc\u00bd\u00be\u2070\u2074-\u2079]/g, '')
     .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
@@ -174,4 +189,4 @@ function magnetDisplayName(item: { magnet?: string; MagnetUri?: string; Guid?: s
   return source;
 }
 
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics, dedupeNames, magnetDisplayName };
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, collapseAcronyms, stripDiacritics, dedupeNames, magnetDisplayName };
