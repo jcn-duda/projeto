@@ -21,7 +21,7 @@ import { debridRefreshSatisfied, hasPlayableStream } from './search-cache.js';
 import { cloneStreamTrace, createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { collectRaw } from './collect-orchestrator.js';
-import { attemptIndexFastPath, noteWouldHitIndex } from './search-index-path.js';
+import { attemptIndexFastPath, noteWouldHitIndex, rescueEmptyIndexAnswer } from './search-index-path.js';
 import { fuseIndexEnrichment } from './index-evidence.js';
 import type { RawBatch } from './search-index-path.js';
 import { schedulePtSweepTail } from './search-sweep-tail.js';
@@ -262,11 +262,13 @@ export async function doSearch({
 
   const responsePhase = finish.phase();
   if (raw.sweepInline) metrics.count('search.pt-sweep.inline');
-  const result = await finish({ ...raw, deadlineAt }, responsePhase);
+  let result = await finish({ ...raw, deadlineAt }, responsePhase);
+  const rescued = await rescueEmptyIndexAnswer({ servedFromIndex, result, raw, deadlineAt, rebuild: (r) => finish({ ...r, deadlineAt }, responsePhase),
+    collect: () => collectRaw(query, type, imdbId, ptQuery, matchContext, null, sweepQuery, deadlineAt, 'all', undefined, collectionTrace, originalQuery, multiWorkQuery) });
+  if (rescued) ({ raw, result } = rescued);
 
-  // Jackett como SEGUNDO: a resposta já saiu do índice; a coleta completa roda
-  // no tail, alimenta o índice com o que é novo e promove a lista pelo mesmo
-  // latest-writer de sempre. É o mecanismo do passe tardio, reaproveitado.
+  // Jackett como SEGUNDO: a resposta saiu do índice; a coleta completa roda no
+  // tail, alimenta o índice e promove a lista (mecanismo do passe tardio).
   if (servedFromIndex) {
     enqueueTail(async () => {
       const enrichStarted = Date.now();
@@ -356,10 +358,8 @@ export async function doSearch({
     });
   }
 
-  // Quanto a coleta ainda levou DEPOIS de responder — só existe quando a
-  // resposta saiu parcial, então a contagem de `search.late` também é a de
-  // buscas fora do orçamento. A via INSTANTÂNEA tem `completion` já resolvido:
-  // medir aí era amostra artificial de ~0ms afundando o p50.
+  // Quanto a coleta levou DEPOIS de responder (só em resposta parcial). A via
+  // INSTANTÂNEA tem `completion` resolvido: ~0ms artificial afundava o p50.
   if (!instant && raw.partial && raw.completion) {
     const tailStarted = Date.now();
     raw.completion

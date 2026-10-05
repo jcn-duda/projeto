@@ -3463,6 +3463,16 @@ o orçamento com a resposta.
   2026-09-30), "S01 EP 07"/"S01 EP (01-07)" das releases indianas saía só com a
   temporada e virava pack em todo episódio — o parser lê o `EP` ancorado no
   `Sxx`.
+- **Resposta do índice que não toca nada vira coleta ao vivo.** A Grande
+  Aposta (2026-10-04, Premiumize + cachedOnly): o instantâneo do acervo trouxe
+  8 dublados BR, 0/8 em cache, todos ocultos — a 1ª resposta foi só o aviso e
+  os globais prontos (⚡) só vieram na 2ª busca, pelo tail.
+  `rescueEmptyIndexAnswer` (search-index-path) roda `collectRaw('all')` com o
+  prazo da resposta quando o resultado do índice não tem stream com
+  url/infoHash e sobra `SEARCH_INDEX_RESCUE_MIN_MS` (2500, `0` desliga);
+  mescla os itens do índice e reconstrói. O tail de enriquecimento segue igual
+  e reaproveita o cache cru. Local: Monster (2018) com `dc:1` respondeu com 3
+  globais ⚡ + aviso de dublado baixando, em vez de só o aviso.
 - **Sigla com ponto é uma palavra.** G.O.R.A. (2004), 2026-10-04: a consulta
   "G.O.R.A. 2004" não achava nada nos trackers ("GORA 2004" acha 8: YTS, TPB,
   kickass) e o `normalizeTitle` lia "g o r a", que nunca casa com "GORA 2004

@@ -233,6 +233,7 @@
     "test/br-parsers-nerdfilmes-episodes.test.js",
     "test/premiumize-files.test.js",
     "test/title-acronyms.test.js",
+    "test/index-rescue.test.js",
     "test/debrid-status-memo.test.js",
     "test/debrid-status-routes.test.js",
     "test/debrid-torrent-status.test.js",

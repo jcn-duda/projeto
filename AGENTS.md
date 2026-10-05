@@ -178,7 +178,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   alimentador assíncrono); cobertura é por pool (BR dublado → dublado global →
   swarm), nunca contagem pura. **Colhedor** (fila `harvest:v1:q`) e indexers
   *index-only* (redetorrent, apache, hdr, 1337x) ficam fora do caminho da
-  resposta. O colhedor pula cards que o raspador já cobre.
+  resposta. O colhedor pula cards que o raspador já cobre. Resposta do índice
+  sem NENHUM stream tocável (tudo fora do cache com cachedOnly) coleta ao vivo
+  na hora se sobra `SEARCH_INDEX_RESCUE_MIN_MS` (`rescueEmptyIndexAnswer`).
 - **Mico Leão Dublado** é card virtual de indexer (consultado por IMDb, fora do
   Jackett) e também o 9º site do raspador.
 

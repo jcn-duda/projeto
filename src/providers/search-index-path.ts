@@ -20,6 +20,7 @@ import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { shouldBrGap, hasBrDubbed, hasBrEvidence } from '../utils/br-gap.js';
 import { bankHasBrRow } from '../utils/magnet-bank-query.js';
 import { requestBrProbe } from './br-probe.js';
+import { hasPlayableStream } from './search-cache.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 
@@ -57,6 +58,36 @@ export interface RawBatch {
    * prioritário; o tail roda a coleta completa (`'all'`) para promover.
    */
   instant?: boolean;
+}
+
+/**
+ * Resposta do índice/acervo que não toca nada: a coleta ao vivo roda AGORA,
+ * dentro do prazo, em vez de só no tail. Medido em A Grande Aposta (2026-10-04,
+ * Premiumize com cachedOnly): o instantâneo trouxe 8 dublados BR do acervo,
+ * 0/8 em cache, todos ocultos — a 1ª resposta foi só o aviso, e os globais
+ * prontos (⚡) só apareceram na 2ª busca. Os itens do índice seguem no lote
+ * (o build deduplica por hash); o tail de enriquecimento continua igual e
+ * reaproveita o cache cru que esta coleta deixa quente.
+ */
+export async function rescueEmptyIndexAnswer<R extends { streams?: any[] }>({ servedFromIndex, result, raw, deadlineAt, collect, rebuild }: {
+  servedFromIndex: boolean;
+  result: R;
+  raw: RawBatch;
+  deadlineAt: number;
+  collect: () => Promise<RawBatch>;
+  rebuild: (raw: RawBatch) => Promise<R>;
+}): Promise<{ raw: RawBatch; result: R } | null> {
+  const minMs = config.search.indexRescueMinMs;
+  if (!servedFromIndex || !(minMs > 0) || hasPlayableStream(result?.streams || [])) return null;
+  if (deadlineAt - Date.now() < minMs) {
+    metrics.count('search.idx.rescue.noTime');
+    return null;
+  }
+  metrics.count('search.idx.rescue');
+  log.info(`[search] resposta do índice sem stream tocável; coleta ao vivo agora (${deadlineAt - Date.now()}ms de prazo)`);
+  const live = await collect();
+  const merged: RawBatch = { ...live, items: [...raw.items, ...live.items], instant: raw.instant };
+  return { raw: merged, result: await rebuild(merged) };
 }
 
 /**

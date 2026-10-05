@@ -104,6 +104,10 @@ export const search = () => ({
   // acervo) mais que isto ANTES da estreia do episódio não o contém: pack é
   // antigo, e a que nomeia o episódio é falsa. 0 desliga.
   preAirReleaseMarginMs: num(process.env.SEARCH_PREAIR_RELEASE_MARGIN_MS, 48 * 3600 * 1000),
+  // Resposta do índice/acervo sem NENHUM stream tocável (tudo fora do cache
+  // com cachedOnly): se ainda sobra pelo menos isto do prazo, a coleta ao vivo
+  // roda na hora em vez de ir para o tail. 0 desliga.
+  indexRescueMinMs: num(process.env.SEARCH_INDEX_RESCUE_MIN_MS, 2500),
   // Suporte a packs multiobra BR, NATIVO por padrão (default true). O addon
   // descobre a coleção pelo `belongs_to_collection` do TMDB, emite a query de
   // franquia no caminho BR e admite o pack de coleção; o pack nunca vai P2P
