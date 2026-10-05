@@ -237,6 +237,7 @@
     "test/short-name-tail.test.js",
     "test/app-deadline.test.js",
     "test/seed-floor.test.js",
+    "test/non-feature-release.test.js",
     "test/debrid-status-memo.test.js",
     "test/debrid-status-routes.test.js",
     "test/debrid-torrent-status.test.js",

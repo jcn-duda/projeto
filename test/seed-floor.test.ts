@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
-import { seedFloorFor } from '../src/providers/stream-builder-pipeline.js';
+import { seedFloorFor } from '../src/providers/seed-floor.js';
 
 test('piso some só com debrid que checa cache, chave e cachedOnly', () => {
   assert.equal(seedFloorFor(1, { cacheCheck: true, apiKey: 'k', cachedOnly: true }), 0);

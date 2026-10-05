@@ -418,6 +418,8 @@ export interface MatchContext {
   year: number | string | null;
   /** O outro ano quando Cinemeta e TMDB divergem por mais de 2 (`catalogAltYearOf`). */
   altYear?: number | null;
+  /** 1º lançamento doméstico do filme no TMDB, em ms (`tmdb-home-release.ts`). */
+  homeReleaseAt?: number | null;
   isSeries: boolean;
   season: number | null;
   episode: number | null;

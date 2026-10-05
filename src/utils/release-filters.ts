@@ -21,6 +21,7 @@ import {
 import { admitsMultiWorkPack } from './multiwork-pack.js';
 import { franchiseExtensionContradicts } from './franchise-base.js';
 import { shortNameTailContradicts } from './short-name-tail.js';
+import { preHomeReleaseContradicts, isNonFeature } from './non-feature-release.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 interface MatchOptions {
@@ -36,6 +37,8 @@ interface MatchOptions {
   multiWork?: MultiWorkCollection | null;
   /** Segundo ano de catálogo quando Cinemeta e TMDB divergem (ver `catalogAltYearOf`). */
   altYear?: number | string | null;
+  /** 1º lançamento doméstico no TMDB (ms), só filme recente (`tmdb-home-release.ts`). */
+  homeReleaseAt?: number | null;
 }
 
 const yearOf = (y: unknown) => Number(String(y ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
@@ -67,7 +70,9 @@ export type RelevanceRejectReason =
   | 'episode'
   | 'series-work'
   | 'movie-is-series'
-  | 'series-is-movie';
+  | 'series-is-movie'
+  | 'pre-home-release'
+  | 'non-feature';
 
 /**
  * Classificação crua compartilhada pelo corte final e pelo gatilho de pack.
@@ -77,7 +82,7 @@ export type RelevanceRejectReason =
  */
 function filterRelevantRawForYear(
   items: RawItem[] = [],
-  { names = [], year = null, isSeries = false, season = null, episode = null, multiWork = null }: MatchOptions = {},
+  { names = [], year = null, isSeries = false, season = null, episode = null, multiWork = null, homeReleaseAt = null }: MatchOptions = {},
   onRejected?: (item: RawItem, reason: RelevanceRejectReason) => void,
 ) {
   if (!names.length) return items;
@@ -220,6 +225,15 @@ function filterRelevantRawForYear(
         onRejected?.(item, 'magnet-year');
         return false;
       }
+      // Fonte doméstica antes do lançamento doméstico (non-feature-release.ts).
+      if (preHomeReleaseContradicts([title, magnetDisplayName(item)], homeReleaseAt)) {
+        onRejected?.(item, 'pre-home-release');
+        return false;
+      }
+    }
+    if (isNonFeature([title, magnetDisplayName(item)], names)) {
+      onRejected?.(item, 'non-feature');
+      return false;
     }
     // Série: o espelho do veto acima — release de FILME homônimo. "Sobrenatural"
     // é o pt-BR de Supernatural (2005) E de Insidious (2010); o post do filme

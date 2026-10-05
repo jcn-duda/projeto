@@ -116,6 +116,12 @@ export const search = () => ({
   indexRescueMinMs: num(process.env.SEARCH_INDEX_RESCUE_MIN_MS, 2500),
   // Com debrid que checa cache e "só em cache" ligado, o mínimo de seeders não
   // corta antes da checagem: release pronta toca sem swarm. false desliga.
+  // Filme antes do 1º lançamento doméstico no TMDB (digital/físico/TV): release
+  // WEB/BluRay/HDTV/DVD não é ele (The Odyssey: as WEB-DL eram outro filme).
+  // A margem cobre vazamento de véspera; TTL curto porque a data muda.
+  preHomeReleaseCut: String(process.env.SEARCH_PRE_HOME_RELEASE_CUT || 'true') === 'true',
+  preHomeReleaseMarginMs: num(process.env.SEARCH_PRE_HOME_RELEASE_MARGIN_MS, 48 * 3600 * 1000),
+  preHomeReleaseTtl: num(process.env.SEARCH_PRE_HOME_RELEASE_TTL, 86400),
   cachedOnlyIgnoresSeeds: String(process.env.SEARCH_CACHED_ONLY_IGNORES_SEEDS || 'true') === 'true',
   // Suporte a packs multiobra BR, NATIVO por padrão (default true). O addon
   // descobre a coleção pelo `belongs_to_collection` do TMDB, emite a query de

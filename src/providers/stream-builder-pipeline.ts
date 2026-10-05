@@ -36,18 +36,11 @@ import { globalLieHashes } from '../utils/magnet-bank-lie.js';
 export const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 import { applyFileEvidence } from './stream-file-evidence.js';
+import { peekHomeReleaseAt } from '../utils/tmdb-home-release.js';
+import { seedFloorFor } from './seed-floor.js';
 
 export { applyFileEvidence };
 
-/**
- * Debrid que diz o que está pronto + "só em cache": o piso de seeders sai antes
- * da checagem e o ⚡ decide (o que não está pronto some pelo cachedOnly). Boat
- * Trip (2026-10-05): "O Cruzeiro das Loucas" com 0 seeds nunca era perguntado à
- * Premiumize. Baixar (Chupim) segue com o próprio piso.
- */
-export function seedFloorFor(minSeeders: number, { cacheCheck, apiKey, cachedOnly }: { cacheCheck?: boolean; apiKey?: string | null; cachedOnly?: boolean }) {
-  return config.search.cachedOnlyIgnoresSeeds && cacheCheck && apiKey && cachedOnly ? 0 : minSeeders;
-}
 
 export interface PrepareCandidatesOptions {
   meta?: { name?: string | null; title?: string; year?: number | string | null; episodeAired?: Record<string, string> } | null;
@@ -122,7 +115,7 @@ export function prepareCandidateStreams(
   // O gate é a existência de ALGUM nome, não do Cinemeta: quando ele volta 404
   // mas o TMDB responde, os nomes estão ali e o filtro precisa rodar. Preso a
   // `meta?.name` ele se desligava inteiro e a lista saía sem corte nenhum.
-  const { names, year: catalogYear } = resolveSearchNames({ meta, titles });
+  const { names, year: catalogYear, altYear } = resolveSearchNames({ meta, titles });
   if (names.length && !isDemo) {
     const before = raw.length;
     // Itens do inventário da conta já passaram pelo filtro DELES no provider
@@ -131,7 +124,10 @@ export function prepareCandidateStreams(
     // deixou passar ("FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS" para Star
     // Trek). Os nomes são os mesmos do matchContext que filtrou lá.
     const fromAccount = raw.filter((r) => r.fromAccount);
-    const titleCtx = { names, year: catalogYear, isSeries: season != null, multiWork };
+    // altYear (Monster) e data doméstica (The Odyssey) valem aqui também: a
+    // reserva 📦 do acervo só passa por este filtro.
+    const homeReleaseAt = season == null ? peekHomeReleaseAt(imdbId) : null;
+    const titleCtx = { names, year: catalogYear, altYear, homeReleaseAt, isSeries: season != null, multiWork };
     const antesTitulo = raw;
     // Motivos específicos (named-sequel) no ledger; o resto continua title-filter.
     const rejectReasons = new Map<RawItem, RelevanceRejectReason>();

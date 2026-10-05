@@ -1,6 +1,7 @@
 import config from '../config.js';
 import debrid from '../debrid/index.js';
 import * as tmdb from '../utils/tmdb.js';
+import { getHomeReleaseAt } from '../utils/tmdb-home-release.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 /**
@@ -42,10 +43,22 @@ function startMultiWorkDiscovery({
   return tmdb.getCollection(imdbId, Math.min(deadlineAt, Date.now() + config.tmdb.collectionTimeout));
 }
 
+/**
+ * 1º lançamento doméstico do filme no TMDB (`tmdb-home-release.ts`), em
+ * paralelo com a coleção e sob o mesmo teto curto. Série e demo não pedem;
+ * falha devolve null e nada é cortado.
+ */
+function startHomeReleaseLookup({ imdbId, season, isDemo, deadlineAt }: {
+  imdbId: string; season: number | null; isDemo: boolean; deadlineAt: number;
+}): Promise<number | null> {
+  if (season != null || isDemo || !config.search.preHomeReleaseCut) return Promise.resolve(null);
+  return getHomeReleaseAt(imdbId, Math.min(deadlineAt, Date.now() + config.tmdb.collectionTimeout)).catch(() => null);
+}
+
 function resolveMultiWork(collection: MultiWorkCollection | null, year: number | string | null): MultiWorkPlan {
   const catalogYear = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
   if (!collection || !catalogYear) return { collection: null, query: null };
   return { collection, query: collection.root };
 }
 
-export { startMultiWorkDiscovery, resolveMultiWork };
+export { startMultiWorkDiscovery, resolveMultiWork, startHomeReleaseLookup };

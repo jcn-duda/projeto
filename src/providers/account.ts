@@ -60,6 +60,8 @@ const ACCOUNT_TRACE_REASON: Record<RelevanceRejectReason, TraceReason> = {
   'series-work': 'account-series-work',
   'movie-is-series': 'account-movie-is-series',
   'series-is-movie': 'account-series-is-movie',
+  'pre-home-release': 'pre-home-release',
+  'non-feature': 'non-feature',
 };
 
 async function search(matchContext: any, trace?: StreamTraceState | null) {

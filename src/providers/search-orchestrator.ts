@@ -26,7 +26,7 @@ import { fuseIndexEnrichment } from './index-evidence.js';
 import type { RawBatch } from './search-index-path.js';
 import { schedulePtSweepTail } from './search-sweep-tail.js';
 import { createTailQueue } from './tail-enqueue.js';
-import { startMultiWorkDiscovery, resolveMultiWork } from './search-multiwork.js';
+import { startMultiWorkDiscovery, resolveMultiWork, startHomeReleaseLookup } from './search-multiwork.js';
 import type { MultiWorkCollection, MatchContext, RawItem } from '../../types/domain.js';
 import { collectFallbackForBuild } from './magnet-bank-fallback.js';
 import { promoteInstantTail } from './magnet-bank-instant.js';
@@ -65,9 +65,10 @@ export async function doSearch({
 }) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
-  // Opt-in multiobra: a coleção (TMDB) é lida em paralelo com os metadados.
+  // Coleção (multiobra) e 1º lançamento doméstico (TMDB) em paralelo com os
+  // metadados; Cinemeta e TMDB também: o título pt-BR não pode atrasar a busca.
   const collectionPromise = startMultiWorkDiscovery({ imdbId, season, isDemo, deadlineAt });
-  // Cinemeta e TMDB em paralelo: o título pt-BR não pode atrasar a busca.
+  const homeReleasePromise = startHomeReleaseLookup({ imdbId, season, isDemo, deadlineAt });
   const metadataDone = metrics.timed('search.metadata');
   let metadataComplete = false;
   let meta: any;
@@ -92,12 +93,11 @@ export async function doSearch({
       progress.metadataConsumedProviderBudget = endedAt >= deadlineAt - config.debridReserve;
     }
   }
-  // M3: a espera da coleção acontece FORA do timer de metadados (não contamina
-  // `search.first.metadata`) e usa o deadline absoluto já em curso — a coleta
-  // segue com o que sobrou, sem timeout adicional.
+  // M3: a espera da coleção (e da data doméstica) fica FORA do timer de
+  // metadados e usa o deadline absoluto já em curso.
   collection = await collectionPromise;
-  // Cinemeta é a fonte preferida, mas ele volta 404 em título obscuro/regional
-  // ou lançamento novo demais — ver `resolveSearchNames`.
+  const homeReleaseAt = await homeReleasePromise;
+  // Cinemeta preferido; 404 em título obscuro/novo cai no TMDB (`resolveSearchNames`).
   const searchMeta = resolveSearchNames({ meta, titles, imdbId });
   const query = buildSearchQuery(searchMeta, { season, episode });
   const { collection: multiWork, query: multiWorkQuery } = resolveMultiWork(collection, searchMeta.year);
@@ -200,7 +200,7 @@ export async function doSearch({
 
   const matchContext = {
     names: searchMeta.names,
-    year: searchMeta.year, altYear: searchMeta.altYear,
+    year: searchMeta.year, altYear: searchMeta.altYear, homeReleaseAt,
     isSeries: season != null,
     season,
     episode,

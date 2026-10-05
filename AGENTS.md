@@ -312,6 +312,10 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   (`altYear`, `catalog-year.ts`) — Monster: global "2018", BR "2021". Filme de
   nome de um token com palavra que nomeia entre o nome e o ano é outra obra
   (`short-name-tail.ts`: "Monster Hunter 2021").
+- Filme antes do 1º lançamento doméstico no TMDB (`tmdb-home-release.ts`):
+  release WEB/BluRay/HDTV/DVD não é ele (The Odyssey do Nolan × o "The Odyssey
+  (2026)" da Tubi); CAM/TS passa. Trailer/teaser/trilha saem sempre
+  (`non-feature-release.ts`). O build lê a data por `peekHomeReleaseAt`.
 - Sigla com ponto ("G.O.R.A.", "S.W.A.T.") vira uma palavra (`collapseAcronyms`)
   no `normalizeTitle` e na consulta dos **globais** (`shapeSearchQuery`); os BR
   ficam com os pontos (BLUDV: "S.W.A.T." 127, "SWAT" 0).

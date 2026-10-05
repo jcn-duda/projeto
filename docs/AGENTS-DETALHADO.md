@@ -3513,6 +3513,22 @@ o orçamento com a resposta.
   no `normalizeTitle` (os dois lados do filtro) e no `shapeSearchQuery` SÓ dos
   indexers globais: o WordPress dos BR casa o literal (BLUDV: "S.W.A.T." → 127,
   "SWAT" → 0). "H.264", "Once.Upon.a.Time" e "V.for" não são sigla.
+- **Antes do lançamento doméstico, WEB/BluRay não é o filme; trailer nunca é.**
+  The Odyssey (Nolan, tt33764258), 2026-10-05: em cartaz desde 15/07, digital
+  só em 15/11 (TMDB `release_dates`, tipos 4/5/6). Todas as WEB-DL/WEBRip da
+  lista eram o OUTRO "The Odyssey (2026)" (tt41605854, Tubi, 86 min — o
+  TheRARBG marcava a release com esse IMDb), e dois trailers 4K saíam com ⚡.
+  `tmdb-home-release.ts` lê a menor data doméstica (find → release_dates, em
+  paralelo com a coleção, teto `TMDB_COLLECTION_TIMEOUT_MS`, cache 1 dia em
+  `tmdbh:`); `non-feature-release.ts` corta fonte doméstica antes dela menos
+  `SEARCH_PRE_HOME_RELEASE_MARGIN_MS` (48h) — marcador de cinema vence
+  ("TS-V2-WEB.DL" é TS) — e trailer/teaser/soundtrack/OST sempre (featurette
+  não). Motivos `pre-home-release`/`non-feature`. O `buildStreams` remonta o
+  contexto do filtro: lê a data por `peekHomeReleaseAt` (cache que a busca já
+  aqueceu) e agora também o `altYear` — antes a reserva 📦 do acervo passava
+  por fora das duas regras. Kill-switch `SEARCH_PRE_HOME_RELEASE_CUT=false`.
+  Docker local: The Odyssey de 6 WEB/trailers para 1 item sem fonte declarada;
+  Barbie (lançado) intacto.
 - **NerdFilmes mudou de novo de domínio e a busca da Apache quebrou no site.**
   2026-10-05, painel com os dois vermelhos ("busca no Jackett falhou"):
   `filmesviatorrenthd.net` → 301 → `www.xfilmeshd.org`; o guard recusava o
