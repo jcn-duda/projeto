@@ -303,7 +303,8 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   caminho. `isSiteAd` exige separador `_`/`-`/espaço (nunca ponto) após o TLD.
 - "Temporada Completa" no singular é pack de **uma** temporada.
 - Sigla com ponto ("G.O.R.A.", "S.W.A.T.") vira uma palavra (`collapseAcronyms`)
-  na consulta e no `normalizeTitle`; com os pontos, os trackers devolviam vazio.
+  no `normalizeTitle` e na consulta dos **globais** (`shapeSearchQuery`); os BR
+  ficam com os pontos (BLUDV: "S.W.A.T." 127, "SWAT" 0).
 - `matchesName` é o único portão de título do global de série; `wanted`
   deduplicado e artigo fora do conjunto significativo — não volte atrás.
 - FlareSolverr atende uma requisição por vez: indexer morto atrasa todos; não

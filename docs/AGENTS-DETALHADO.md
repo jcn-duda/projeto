@@ -3468,8 +3468,9 @@ o orçamento com a resposta.
   kickass) e o `normalizeTitle` lia "g o r a", que nunca casa com "GORA 2004
   1080p". `collapseAcronyms` (title-normalization) junta duas ou mais
   letras-ponto seguidas ("S.W.A.T." → "SWAT", "U.S.Marshals" → "US Marshals")
-  no `buildSearchQuery` e no `normalizeTitle`; "H.264", "Once.Upon.a.Time" e
-  "V.for" não são sigla e ficam como estavam.
+  no `normalizeTitle` (os dois lados do filtro) e no `shapeSearchQuery` SÓ dos
+  indexers globais: o WordPress dos BR casa o literal (BLUDV: "S.W.A.T." → 127,
+  "SWAT" → 0). "H.264", "Once.Upon.a.Time" e "V.for" não são sigla.
 - **Botão de episódio da NerdFilmes/TDF é plural e às vezes intervalo.**
   "EPISÓDIOS 03" e "EPISÓDIOS 01/02" (Widow's Bay, 2026-10-04): o
   `NARROW_EPISODE_RE` só aceitava o singular, os 9 botões saíam com o título
