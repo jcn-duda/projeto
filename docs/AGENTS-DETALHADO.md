@@ -3513,6 +3513,19 @@ o orçamento com a resposta.
   no `normalizeTitle` (os dois lados do filtro) e no `shapeSearchQuery` SÓ dos
   indexers globais: o WordPress dos BR casa o literal (BLUDV: "S.W.A.T." → 127,
   "SWAT" → 0). "H.264", "Once.Upon.a.Time" e "V.for" não são sigla.
+- **NerdFilmes mudou de novo de domínio e a busca da Apache quebrou no site.**
+  2026-10-05, painel com os dois vermelhos ("busca no Jackett falhou"):
+  `filmesviatorrenthd.net` → 301 → `www.xfilmeshd.org`; o guard recusava o
+  host novo e o resolver devolvia 502. `xfilmeshd.org` entrou na allowlist e
+  virou default (profile + `src/config/resolvers.ts` + `.env.example`; a VPS
+  não sobrescreve `NERDFILMES_URL`). O site novo titula "… (2026) Dublado e
+  Legendado Download": o `cleanPostTitle` tira a expressão inteira (antes
+  sobrava "(2026) e E03"). A Apache (`apachetorrents.com`) passou a servir o
+  HTML pelo cache do Cloudflare: a home cacheada não manda `PHPSESSID` e o token
+  do formulário não casa sessão nenhuma — a busca volta 302 para a home até em
+  navegador comum (testado com cookie do browser e token fresco). Defeito do
+  site, sem contorno no resolver; o raspador (listagem) segue alimentando o
+  acervo da Apache.
 - **Botão de episódio da NerdFilmes/TDF é plural e às vezes intervalo.**
   "EPISÓDIOS 03" e "EPISÓDIOS 01/02" (Widow's Bay, 2026-10-04): o
   `NARROW_EPISODE_RE` só aceitava o singular, os 9 botões saíam com o título

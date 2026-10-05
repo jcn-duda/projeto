@@ -74,6 +74,9 @@ function cleanPostTitle(title: string | null | undefined = ''): string {
     .replace(/\s*Torrent\s*(?:[–-]|&#8211;)?\s*/gi, ' ')
     .replace(/\b(?:720p|1080p|2160p|4K)(?:\s*\/\s*(?:720p|1080p|2160p|4K|5\.1|dual|dublado|legendado))*/gi, '')
     .replace(/\b\d{3,4}p\b/gi, '')
+    // xfilmeshd (2026-10-05) titula "… (2026) Dublado e Legendado Download":
+    // tirar as palavras uma a uma deixava o "e" solto ("(2026) e E03").
+    .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio)\s+(?:e|\/|&)\s+(?:Dublado|Legendado|Dual\s*Áudio)\b/gi, '')
     .replace(/\b(?:Dublado|Legendado|Dual\s*Áudio|Download|Online|Grátis|Completo|Completa)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();

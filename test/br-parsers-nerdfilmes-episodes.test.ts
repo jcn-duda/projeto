@@ -35,6 +35,12 @@ test('nerdfilmes: o título leva o episódio e o addon o lê', () => {
   assert.equal(matchesEpisode(tTres, { season: 1, episode: 1 }), false);
 });
 
+test('nerdfilmes (xfilmeshd): "Dublado e Legendado" sai inteiro, sem "e" solto', () => {
+  const post = { title: 'O Segredo de Widow’s Bay 1ª Temporada (2026) Dublado e Legendado Download' };
+  const [, tres] = nerd.parseDownloadLinks(HTML, BASE);
+  assert.equal(nerd.releaseTitle(post, tres), 'O Segredo de Widow’s Bay 1ª Temporada (2026) E03 [1080p DUBLADO]');
+});
+
 test('acervo: título sem episódio troca pelo que o nomeia, nunca o contrário', () => {
   const row = (title: string) => ({
     hash: 'a'.repeat(40), uri: '', title, size: 0, isBr: 1, dubbed: 1, quality: '1080p',

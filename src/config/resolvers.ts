@@ -35,7 +35,7 @@ export const resolvers = () => ({
   // nerdviatorrents.net migrou para filmesviatorrents.net (301 permanente); o
   // domínio novo precisa estar também na allowlist do resolver, senão o
   // redirect vira blocked_host e a fonte morre em silêncio.
-  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.filmesviatorrenthd.net').replace(/\/$/, ''),
+  nerdfilmesUrl: (process.env.NERDFILMES_URL || 'https://www.xfilmeshd.org').replace(/\/$/, ''),
   torrentdosfilmesUrl: (process.env.TORRENTDOSFILMES_URL || 'https://torrentdosfilmes-v2.xyz').replace(/\/$/, ''),
   // Vaca Torrent trocou de domínio de novo (2026-10-01): vaqueirofilmes1.com.
   // vaqueirofilmes.com e vacatorrentmov.com agora servem só a página "Novo

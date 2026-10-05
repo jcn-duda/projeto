@@ -34,7 +34,7 @@ import type { ResolverPost } from '../types.js';
 const DEFAULTS = {
   port: 8702,
   selfUrl: 'http://nerdfilmes-resolver:8702',
-  siteUrl: 'https://www.filmesviatorrenthd.net',
+  siteUrl: 'https://www.xfilmeshd.org',
   urlsCsv: undefined,
   timeoutMs: 15_000,
   maxHops: 6,
@@ -57,7 +57,7 @@ const CONCURRENCY = 4;
 const FALLBACK_SITE_SUFFIXES = [
   'xnerdfilmes.net', 'nerdfilmestorrent.com', 'nerdfilmestorrent.org',
   'nerdfilmestorrent.net', 'nerdviatorrents.net', 'filmesviatorrents.net',
-  'filmesviatorrenthd.org', 'filmesviatorrenthd.net',
+  'filmesviatorrenthd.org', 'filmesviatorrenthd.net', 'xfilmeshd.org',
 ];
 
 // nerdviatorrents.net migrou para filmesviatorrents.net (301 permanente). Sem
@@ -76,6 +76,9 @@ const FALLBACK_SITE_SUFFIXES = [
 // E de novo em 2026-09-25: filmesviatorrenthd.org → 301 → filmesviatorrenthd.net
 // (mesmo nome, TLD trocado). Mesmo sintoma, mesmo conserto: .net na lista e
 // como default; o .org fica porque é quem redireciona.
+//
+// E outra vez em 2026-10-05: filmesviatorrenthd.net → 301 → www.xfilmeshd.org
+// (nome novo). Painel de produção com NerdFilmes vermelho, Jackett BadGateway.
 //
 // O failover de domínio não cobre este caso: ele dispara por ERRO DE REDE, e
 // aqui a recusa é nossa, antes do fetch. Por isso o domínio novo precisa entrar
