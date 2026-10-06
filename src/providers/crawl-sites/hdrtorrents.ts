@@ -62,7 +62,7 @@ import { pageSeasonOf, seasonPageGroups, seriesRowGroups } from './season-page.j
 import { walkListing } from './listing-discover.js';
 import {
   countListingCards as countRawListingCards, fichaText, isSeasonSlug, isWorkPath,
-  kindConflictOf, kindFromCardType, kindFromWorkSlug, parseImdbId,
+  declaresSeries, kindConflictOf, kindFromCardType, kindFromWorkSlug, parseImdbId,
 } from './hdrtorrents-discovery.js';
 import { readWorkTitle } from './work-name.js';
 import type { RawItem } from '../../../types/domain.js';
@@ -288,19 +288,19 @@ export function createHdrtorrentsCrawlSite(
         // classificou por slug é a fila (reprocessar/zera o site) — recusar
         // deixa a linha visível em vez de gravar errado.
         if (!season && isSeasonSlug(parsed)) {
-          return {
-            url,
-            status: 'error',
-            error: 'temporada_com_kind_movie: a página é de temporada (pack) e a fila a pediu como filme',
-          };
+          const error = 'temporada_com_kind_movie: a página é de temporada (pack) e a fila a pediu como filme';
+          return { url, status: 'error', error };
         }
         // Série SEM temporada no slug (`castle-torrent-download/`) é a página que
         // AGREGA a série inteira, uma temporada por magnet — a forma do
         // RedeTorrent. Era recusada como "página de filme": 1.624 séries
         // (Castle, Modern Family, Riverdale…) fora do acervo na VPS (2026-10-01).
-        const aggregated = season && !isSeasonSlug(parsed);
+        // A ficha `TVSeries` numa linha pedida como filme (card sem badge) é lida
+        // como série agregada: recusá-la deixou 235 séries em erro na VPS
+        // (Dragon Ball Z, Pucca, 2026-10-06) e o reprocesso repetia o erro.
         const html = await counter.fetchText(parsed.href);
-        return buildWork(html, parsed.href, season, surface, counter.taken(), aggregated);
+        const asSeries = season || (seriesEnabled && declaresSeries(html));
+        return buildWork(html, parsed.href, asSeries, surface, counter.taken(), asSeries && !isSeasonSlug(parsed));
       } catch (err) {
         // F1: throw NÃO perde o custo medido.
         throw withRequestCost(err, counter.taken());

@@ -90,6 +90,11 @@ export function pageKindOf(html: string | null | undefined): 'movie' | 'tv_show'
   return null;
 }
 
+/** A página se declara série no `<main>` (comentário fora). */
+export function declaresSeries(html: string): boolean {
+  return pageKindOf(stripHtmlComments(html)) === 'tv_show';
+}
+
 /**
  * Erro de coerência quando a ficha contradiz o kind da fila; `null` se bate ou
  * se a página não declara. Nos DOIS sentidos: o slug só pega temporada

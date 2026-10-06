@@ -266,6 +266,26 @@ describe('HDRTorrent: o post', () => {
     });
   });
 
+  test('série agregada pedida como filme (card sem badge) é lida como série', async () => {
+    // 235 séries assim ficaram em erro na VPS (Dragon Ball Z, Pucca, 2026-10-06).
+    const AGG = 'https://hdrtorrents.net/castle-torrent-download/';
+    await withSite([postRoute(AGG, 'post-serie-agregada')], async ({ site }) => {
+      const work = await site.fetchWork(AGG, { kind: 'movie', series: SERIES_ON });
+      assert.equal(work.status, 'done');
+      assert.equal(work.type, 'series');
+      assert.equal((work.groups ?? []).length, 7, 'uma temporada por magnet, como no pedido tv_show');
+    });
+  });
+
+  test('série agregada pedida como filme com séries desligadas segue recusada', async () => {
+    const AGG = 'https://hdrtorrents.net/castle-torrent-download/';
+    await withSite([postRoute(AGG, 'post-serie-agregada')], async ({ site }) => {
+      const work = await site.fetchWork(AGG, { kind: 'movie' });
+      assert.equal(work.status, 'error');
+      assert.match(String(work.error), /serie_com_kind_movie/);
+    });
+  });
+
   test('tv_show pedido é recusado quando o schema e a ficha próprios declaram filme', async () => {
     const filmUrl = 'https://hdrtorrents.net/castle-filme-de-2009-torrent-download/';
     const body = hdrFixture('post-serie-agregada')
