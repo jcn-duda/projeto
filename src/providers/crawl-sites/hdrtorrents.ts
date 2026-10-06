@@ -61,7 +61,8 @@ import { magnetHash, withRequestCost } from './shared.js';
 import { pageSeasonOf, seasonPageGroups, seriesRowGroups } from './season-page.js';
 import { walkListing } from './listing-discover.js';
 import {
-  fichaText, isSeasonSlug, isWorkPath, kindFromCardType, kindFromWorkSlug, parseImdbId,
+  countListingCards as countRawListingCards, fichaText, isSeasonSlug, isWorkPath,
+  kindFromCardType, kindFromWorkSlug, parseImdbId,
 } from './hdrtorrents-discovery.js';
 import { readWorkTitle } from './work-name.js';
 import type { RawItem } from '../../../types/domain.js';
@@ -192,7 +193,9 @@ export function createHdrtorrentsCrawlSite(
     const html = await surface.fetchText(page <= 1 ? `${base}/` : `${base}/pagina/${page}/`);
     const posts: Array<{ url: string; kind: CrawlPageKind }> = [];
     const cards = surface.parseListingHtml(html, base);
+    let recognizedCount = 0;
     for (const card of cards) {
+      recognizedCount += 1;
       // Host de fora do site é recusado aqui — mesma política dos outros
       // adaptadores; o `parseListingHtml` já resolve a URL absoluta.
       try {
@@ -207,7 +210,7 @@ export function createHdrtorrentsCrawlSite(
       posts.push({ url: card.url, kind: kindFromCardType(card.type) ?? kindFromWorkSlug(card.url) });
     }
     // O fim do catálogo se mede nos cards BRUTOS (ver `listing-discover.ts`).
-    return { posts, cardCount: cards.length };
+    return { posts, cardCount: countRawListingCards(html), recognizedCount };
   }
 
   return {

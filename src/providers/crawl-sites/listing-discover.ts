@@ -100,6 +100,8 @@ export interface ListingPageRead {
    * página 211 de 2123 por um "(Clássica de 1960)" lido como tipo (2026-10-01).
    */
   cardCount?: number;
+  /** Cards cujo formato foi reconhecido pelo parser, antes de filtros de host/tipo. */
+  recognizedCount?: number;
 }
 
 /** Teto de uma rodada: até onde ela anda antes de devolver o controle. */
@@ -208,10 +210,17 @@ export async function walkListing(input: ListingWalkInput): Promise<ListingWalkR
     }
 
     const rawCards = Number.isFinite(read?.cardCount) ? Math.max(0, Math.trunc(Number(read.cardCount))) : pageKeys.length;
-    if (!pageKeys.length && rawCards === 0) {
+    const recognizedCards = Number.isFinite(read?.recognizedCount)
+      ? Math.max(0, Math.trunc(Number(read.recognizedCount)))
+      : pageKeys.length;
+    if (recognizedCards === 0 || pageKeys.length === 0) {
       // Nenhum card reconhecido. Um `urls: []` com `complete: true` aqui faria
-      // o cursor avançar por cima de acervo nunca lido.
-      failures.push(`listing-pagina-${page}:nenhum-card`);
+      // o cursor avançar por cima de acervo nunca lido. Cards reconhecidos, mas
+      // todos fora do host permitido, também não são descoberta utilizável.
+      const reason = pageKeys.length === 0 && recognizedCards > 0
+        ? 'nenhuma-obra-no-host'
+        : rawCards > 0 ? 'cards-nao-reconhecidos' : 'nenhum-card';
+      failures.push(`listing-pagina-${page}:${reason}`);
       break;
     }
 

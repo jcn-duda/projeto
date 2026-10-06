@@ -16,6 +16,7 @@ import * as store from '../src/utils/crawl-store.js';
 import { startListingCursor, loadListingCursor } from '../src/providers/crawl-cursor.js';
 import { walkListing, type ListingPageRead } from '../src/providers/crawl-sites/listing-discover.js';
 import { hdrFixture } from './helpers/crawl-hdrtorrents-fixtures.js';
+import { APACHE_BASE, apacheFixture, apacheListingUrls, withSite as withApacheSite } from './helpers/crawl-apachetorrent-fixtures.js';
 
 const FULL = 20;
 const SITE = 'hdrtorrent-cardigann';
@@ -146,6 +147,33 @@ describe('listing-discover: falha é falha, nunca "vazio e completo"', () => {
     assert.match(result.failures[0], /listing-pagina-1:nenhum-card/);
   });
 
+  test('cards brutos sem nenhum card reconhecido falham sem consumir cursor', async () => {
+    const result = await run(reader([{ posts: [], cardCount: 20, recognizedCount: 0 }]));
+    assert.deepEqual(result.urls, []);
+    assert.equal(result.complete, false);
+    assert.equal(result.pagesConsumed, 0);
+    assert.equal(result.cursor.page, 1);
+    assert.match(result.failures.join(), /cards-nao-reconhecidos/);
+  });
+
+  test('cards válidos todos filtrados pelo gate de série continuam consumindo a página', async () => {
+    const result = await run(reader([{ posts: page(15, 1, 'tv_show').posts, cardCount: 15, recognizedCount: 15 }]));
+    assert.equal(result.urls.length, 0);
+    assert.equal(result.failures.length, 0);
+    assert.equal(result.pagesConsumed, 1);
+    assert.equal(result.complete, true, 'o card válido foi consumido e a página curta fecha a carga');
+  });
+
+  test('cards reconhecidos todos fora do host permitido falham sem consumir cursor', async () => {
+    const result = await run(reader([{ posts: [], cardCount: 15, recognizedCount: 15 }]));
+    assert.equal(result.urls.length, 0);
+    assert.match(result.failures.join(), /nenhuma-obra-no-host/);
+    assert.equal(result.pagesConsumed, 0);
+    assert.equal(result.cursor.page, 1);
+    assert.equal(result.complete, false);
+    assert.equal(result.endOfListing, false);
+  });
+
   test('rede caída vira `failures`, e a rodada fecha com o que já entregou', async () => {
     const calls: number[] = [];
     const readPage = async (p: number): Promise<ListingPageRead> => {
@@ -262,5 +290,37 @@ describe('listing-discover: o cursor de listagem é durável e retoma', () => {
     const result = await run(reader([page(20, 1), page(20, 21)]));
     assert.equal(result.cursor.page, 3);
     assert.equal(result.cursor.roundPage, 2, 'duas páginas consumidas no round');
+  });
+});
+
+describe('listing-discover: adapters respeitam host e contagem bruta', () => {
+  test('Apache: cards todos fora do host falham e a rodada seguinte relê a página', async () => {
+    const foreign = apacheFixture('pagina-1-cheia').replaceAll(APACHE_BASE, 'https://outside.invalid');
+    await withApacheSite([[`${APACHE_BASE}/`, { body: foreign }]], async ({ site, urls }) => {
+      const first = await site.discover(null, { series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+      const second = await site.discover(null, { series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+      assert.equal(first.complete, false);
+      assert.equal(first.urls.length, 0);
+      assert.match(first.failures.join(), /nenhuma-obra-no-host/);
+      assert.equal(first.requestCost, 1);
+      assert.equal(second.requestCost, 1);
+      assert.deepEqual(urls, [`${APACHE_BASE}/`, `${APACHE_BASE}/`]);
+    });
+  });
+
+  test('Apache: uma obra válida entre hosts externos mantém 20 cards brutos', async () => {
+    const expected = apacheListingUrls('pagina-1-cheia')[0];
+    const path = new URL(expected).pathname;
+    const html = apacheFixture('pagina-1-cheia')
+      .replaceAll(APACHE_BASE, 'https://outside.invalid')
+      .replaceAll(`https://outside.invalid${path}`, `${APACHE_BASE}${path}`);
+    await withApacheSite([[`${APACHE_BASE}/`, { body: html }]], async ({ site, urls }) => {
+      const found = await site.discover(null, { series: { enabled: true, maxCards: 10, maxButtons: 40 } });
+      assert.equal(found.urls.length, 1);
+      assert.equal(found.urls[0].url, expected);
+      assert.equal(found.complete, false);
+      assert.equal(found.requestCost, 2);
+      assert.match(urls.at(-1) ?? '', /\/pagina\/2\//);
+    });
   });
 });

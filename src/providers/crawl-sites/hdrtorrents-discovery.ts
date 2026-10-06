@@ -69,6 +69,13 @@ export function isWorkPath(href: URL | string): boolean {
   return WORK_SLUG_RE.test(path);
 }
 
+/** Conta cards brutos pelo marcador de bloco medido nas fixtures do site. */
+export function countListingCards(html: string | null | undefined): number {
+  return [...String(html || '').replace(/<!--[\s\S]*?-->/g, ' ').matchAll(
+    /<a\b[^>]*\bclass=["'][^"']*\bmedia-card-link\b[^"']*["'][^>]*>/gi,
+  )].length;
+}
+
 /**
  * Ficha do post vira TEXTO antes das regras compartilhadas. O site escreve a
  * ficha como `<dt>Rótulo</dt><dd>valor</dd>` (medido nos 3 posts reais), e as

@@ -9,7 +9,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { hdrFixture, hdrListingUrls, listingRoute, withSite, type HdrRoute } from './helpers/crawl-hdrtorrents-fixtures.js';
-import { parseImdbId } from '../src/providers/crawl-sites/hdrtorrents-discovery.js';
+import { countListingCards, parseImdbId } from '../src/providers/crawl-sites/hdrtorrents-discovery.js';
 
 const SERIES_POST = 'https://hdrtorrents.net/os-irregulares-de-baker-street-1-temporada-completa-legendada-torrent-download/';
 const SERIES_EP_POST = 'https://hdrtorrents.net/presidente-curtis-1a-temporada-torrent-download/';
@@ -19,6 +19,41 @@ const MOVIE_POST = 'https://hdrtorrents.net/codigo-de-conduta-torrent-download/'
 const SERIES_ON = { enabled: true, maxCards: 10, maxButtons: 40 };
 
 describe('HDRTorrent: descoberta pela listagem', () => {
+  test('o contador bruto segue os marcadores reais nas fixtures cheia e de fim', () => {
+    assert.equal(countListingCards(hdrFixture('pagina-1-cheia')), 20);
+    assert.equal(countListingCards(hdrFixture('pagina-fim-calcanhar')), 15);
+  });
+
+  test('HTML com 20 marcadores e 0 cards reconhecidos falha sem consumir página', async () => {
+    const html = hdrFixture('pagina-1-cheia').replaceAll('media-card-title', 'titulo-desconhecido');
+    await withSite([['https://hdrtorrents.net/', { body: html }]], async ({ site, urls }) => {
+      const first = await site.discover(null, { series: SERIES_ON });
+      const second = await site.discover(null, { series: SERIES_ON });
+      assert.equal(first.complete, false);
+      assert.match(first.failures.join(), /cards-nao-reconhecidos/);
+      assert.equal(first.requestCost, 1);
+      assert.equal(second.requestCost, 1);
+      assert.deepEqual(urls, ['https://hdrtorrents.net/', 'https://hdrtorrents.net/']);
+    });
+  });
+
+  test('20 cards brutos com 1 reconhecido não viram fim prematuro', async () => {
+    let kept = false;
+    const html = hdrFixture('pagina-1-cheia').replace(/media-card-title/g, (match) => {
+      if (kept) return 'titulo-desconhecido';
+      kept = true;
+      return match;
+    });
+    const [url] = listingRoute('pagina-1-cheia');
+    await withSite([[url, { body: html }]], async ({ site, urls }) => {
+      const found = await site.discover(null, { series: SERIES_ON });
+      assert.equal(found.urls.length, 1);
+      assert.equal(found.complete, false);
+      assert.equal(found.requestCost, 2);
+      assert.match(urls.at(-1) ?? '', /\/pagina\/2\//);
+    });
+  });
+
   test('a página 1 real é MISTA: 11 filmes + 9 séries, e o PRIMEIRO é o post mais novo', async () => {
     // Guarda de regressão do bug do `<a>` do logo roubando o primeiro card:
     // com o `[\s\S]*?` do parser, o `[0]` saía com o href da home e o título

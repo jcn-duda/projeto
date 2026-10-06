@@ -188,7 +188,10 @@ export function createApachetorrentCrawlSite(
     const base = surface.siteSelector.url();
     const html = await surface.fetchText(page <= 1 ? `${base}/` : `${base}${LISTING_PATH}${page}/`);
     const posts: Array<{ url: string; kind: CrawlPageKind }> = [];
-    for (const card of parseListingCards(html, base)) {
+    const cards = parseListingCards(html, base);
+    let recognizedCount = 0;
+    for (const card of cards) {
+      recognizedCount += 1;
       // Host de fora do site é recusado aqui — mesma política dos outros
       // adaptadores; a regra pura já resolveu a URL, mas ela não conhece a
       // allowlist do profile, e quem conhece é a instância viva.
@@ -199,7 +202,7 @@ export function createApachetorrentCrawlSite(
       }
       posts.push({ url: card.url, kind: card.kind });
     }
-    return { posts, cardCount: countListingCards(html) };
+    return { posts, cardCount: countListingCards(html), recognizedCount };
   }
 
   return {
