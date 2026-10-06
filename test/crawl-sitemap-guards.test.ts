@@ -54,7 +54,11 @@ describe('guardas de descoberta em sitemaps WordPress mistos', () => {
       });
       await withStub({ '/sitemap.xml': () => index, '/sitemap_index.xml': () => index,
         '/post-sitemap.xml': () => unknownHtml, '/post-sitemap2.xml': () => unknownHtml }, async () => {
-        await assert.rejects(() => factory().discover(), /todos os post-sitemaps falharam/);
+        await assert.rejects(() => factory().discover(), (err: Error & { requestCost?: number }) => {
+          assert.match(err.message, /todos os post-sitemaps falharam/);
+          assert.equal(err.requestCost, 3, 'índice e os dois filhos já consumiram três requests');
+          return true;
+        });
       });
     });
   }
@@ -126,7 +130,11 @@ test('Vaca: falha apenas do sitemap de filme preserva completude e URLs de séri
     return { ok: true, status: 200, headers: { get: () => null }, text: async () => body };
   });
   try {
-    await assert.rejects(() => createVacaCrawlSite(vacaSurface()).discover(), /todos os sitemaps falharam/);
+    await assert.rejects(() => createVacaCrawlSite(vacaSurface()).discover(), (err: Error & { requestCost?: number }) => {
+      assert.match(err.message, /todos os sitemaps falharam/);
+      assert.equal(err.requestCost, undefined, 'Vaca mantém o fallback de descoberta sem medição própria');
+      return true;
+    });
   } finally { unknownStub.restore(); }
 });
 

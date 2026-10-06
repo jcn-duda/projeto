@@ -228,9 +228,9 @@ export function createTorrentdosfilmesCrawlSite(
       const counter = { n: 0 };
       const countRequest = () => { counter.n += 1; };
       const base = surface.siteSelector.url();
-      const indexXml = await readSitemapIndex(countRequest);
+      const indexXml = await readSitemapIndex(countRequest).catch((err) => { throw withRequestCost(err, counter.n); });
       const sitemaps = parseSitemapIndexLocs(indexXml, base, (h) => surface.isDetailHost(h));
-      if (!sitemaps.length) throw new Error('torrentdosfilmesv2: nenhum post-sitemap no índice');
+      if (!sitemaps.length) throw withRequestCost(new Error('torrentdosfilmesv2: nenhum post-sitemap no índice'), counter.n);
       // Sequencial (constraint crawl.search_isolation): um pedido por vez, no
       // caminho direto. Sitemap que falha não derruba a rodada — vira descoberta
       // PARCIAL, e o cursor não avança por cima do que ficou nos arquivos perdidos.
@@ -245,7 +245,7 @@ export function createTorrentdosfilmesCrawlSite(
         }
       }
       if (!all.length && failures.length === sitemaps.length) {
-        throw new Error('torrentdosfilmesv2: todos os post-sitemaps falharam');
+        throw withRequestCost(new Error('torrentdosfilmesv2: todos os post-sitemaps falharam'), counter.n);
       }
       const complete = failures.length === 0;
       return {

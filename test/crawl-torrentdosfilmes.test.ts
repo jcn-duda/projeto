@@ -254,7 +254,11 @@ describe('crawl-sites/torrentdosfilmes: discover (sitemaps reais, sem rede)', ()
 
   test('índice ilegível nos DOIS caminhos é erro do site (o motor retenta)', () => withStub(
     { '/sitemap': () => { throw new Error('500 injetado'); } },
-    async () => assert.rejects(() => site().discover(), /torrentdosfilmesv2: índice de sitemaps ilegível/),
+    async (stub) => assert.rejects(() => site().discover(), (err: Error & { requestCost?: number }) => {
+      assert.match(err.message, /torrentdosfilmesv2: índice de sitemaps ilegível/);
+      assert.equal(err.requestCost, pathsOf(stub).length);
+      return true;
+    }),
   ));
 
   test('lastmod incremental é cortado POR KIND, com o `since` solto de fallback', () => withStub(pageRoutes(), async () => {

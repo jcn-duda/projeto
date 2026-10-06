@@ -160,6 +160,7 @@ export async function fetchSeriesWork(
     const streamUrl = micoEpisodeStreamUrl(tt, ep.season, ep.episode);
     if (!streamUrl) continue; // defesa: IMDb/temporada/episódio inválidos
     await throttle();
+    requestCost += 1; // conta tentativa iniciada, inclusive o request que falhar
     let items: RawItem[];
     try {
       ({ items } = await fetchMicoStreams(streamUrl, config.mico.timeout));
@@ -167,9 +168,8 @@ export async function fetchSeriesWork(
       // 429/5xx/rede num episódio: honra o Retry-After e sobe com o custo já
       // gasto (o motor faz o backoff). NUNCA exceção crua sem custo.
       honorRetryAfter(err);
-      throw withRequestCost(err, Math.max(1, requestCost));
+      throw withRequestCost(err, requestCost);
     }
-    requestCost += 1;
     doneCards.add(cardKey(ep.season, ep.episode));
     // 4xx vem com `items: []` (não prova host caído) — episódio sem stream é
     // só isso: concluído, sem grupo. O próximo balde de 30 dias relê.

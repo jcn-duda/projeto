@@ -136,6 +136,7 @@
     "test/painel-raspagens-catalog.test.js",
     "test/crawl-simulated.test.js",
     "test/crawl-boot-enable.test.js",
+    "test/crawl-step-cost.test.js",
     "test/crawler.test.js",
     "test/crawler-incremental.test.js",
     "test/crawl-recorder.test.js",

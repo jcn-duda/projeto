@@ -91,9 +91,14 @@ const defaultCollaborators: PageCollaborators = {
  * (`withRequestCost`) e o motor cobra o que foi gasto antes de falhar — não 1
  * por página. Ausente/inválido = undefined (o motor aplica o piso 1).
  */
-function requestCostOf(err: unknown): number | undefined {
-  const c = (err as { requestCost?: unknown } | null)?.requestCost;
-  return typeof c === 'number' && Number.isFinite(c) && c >= 1 ? Math.trunc(c) : undefined;
+export function requestCostOf(err: unknown): number | undefined {
+  if (!err || (typeof err !== 'object' && typeof err !== 'function')) return undefined;
+  try {
+    const cost = (err as { requestCost?: unknown }).requestCost;
+    return typeof cost === 'number' && Number.isInteger(cost) && cost >= 1 ? cost : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Fábrica: o teste injeta `identify`/`record` dublês; produção usa os reais. */

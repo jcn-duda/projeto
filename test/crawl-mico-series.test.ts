@@ -230,6 +230,30 @@ describe('fetchWork (série): groups por locação + progresso retomável', () =
       stub.restore();
     }
   });
+
+  test('episódio que falha após outro sucesso conta a tentativa Mico iniciada', async () => {
+    const site = micoCrawl.createMicoCrawlSite();
+    let attempts = 0;
+    const stub = seriesStub({
+      meta: () => read('meta-series.json'),
+      episode: () => {
+        attempts += 1;
+        return attempts === 1 ? read('stream-episode.json') : { status: 500 };
+      },
+    });
+    try {
+      await assert.rejects(
+        () => site.fetchWork(synthetic('series', 'tt11737520'), seriesOpts(10)),
+        (err: Error & { requestCost?: number }) => {
+          assert.equal(err.requestCost, 2, 'o stream do segundo episódio foi iniciado antes da falha');
+          return true;
+        },
+      );
+      assert.equal(attempts, 2);
+    } finally {
+      stub.restore();
+    }
+  });
 });
 
 describe('discover (séries): tv_show só com opts.series.enabled', () => {

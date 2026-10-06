@@ -123,8 +123,12 @@ describe('crawl-sites/comandotorrents: discover', () => {
   test('índice ilegível nos dois caminhos é erro do site', () => withStub(pageRoutes({
     '/sitemap.xml': () => { throw new Error('http_500'); },
     '/sitemap_index.xml': () => { throw new Error('http_500'); },
-  }), async () => {
-    await assert.rejects(() => site().discover(), /índice de sitemaps ilegível/);
+  }), async (stub) => {
+    await assert.rejects(() => site().discover(), (err: Error & { requestCost?: number }) => {
+      assert.match(err.message, /índice de sitemaps ilegível/);
+      assert.equal(err.requestCost, pathsOf(stub).length);
+      return true;
+    });
   }));
 
   test('um post-sitemap que falha deixa a descoberta parcial', () => withStub(pageRoutes({

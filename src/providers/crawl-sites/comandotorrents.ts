@@ -174,9 +174,9 @@ export function createComandotorrentsCrawlSite(
       const counter = { n: 0 };
       const countRequest = () => { counter.n += 1; };
       const base = surface.siteSelector.url();
-      const indexXml = await readSitemapIndex(countRequest);
+      const indexXml = await readSitemapIndex(countRequest).catch((err) => { throw withRequestCost(err, counter.n); });
       const sitemaps = parseSitemapIndexLocs(indexXml, base, (h) => surface.isDetailHost(h));
-      if (!sitemaps.length) throw new Error('comandotorrents: nenhum post-sitemap no índice');
+      if (!sitemaps.length) throw withRequestCost(new Error('comandotorrents: nenhum post-sitemap no índice'), counter.n);
       const all: DiscoveredUrl[] = [];
       const failures: string[] = [];
       for (const loc of sitemaps) {
@@ -188,7 +188,7 @@ export function createComandotorrentsCrawlSite(
         }
       }
       if (!all.length && failures.length === sitemaps.length) {
-        throw new Error('comandotorrents: todos os post-sitemaps falharam');
+        throw withRequestCost(new Error('comandotorrents: todos os post-sitemaps falharam'), counter.n);
       }
       const complete = failures.length === 0;
       return {

@@ -16,7 +16,7 @@ import { seriesLimitsOf, type CrawlerSiteConfig } from '../utils/crawler-live-sc
 import { DEFAULT_RETRY_BASE_MS } from '../utils/crawl-store-rules.js';
 import { advanceCursors, discoveryCuts } from './crawl-cursor.js';
 import { initialLoadDone } from './crawl-coverage.js';
-import { processCrawlPage } from './crawl-page.js';
+import { processCrawlPage, requestCostOf } from './crawl-page.js';
 import { freshCycle } from './crawl-cycle.js';
 import * as recovery from './crawl-recovery.js';
 import { autoPauseSite, type SiteRuntime } from './crawl-site-runtime.js';
@@ -84,6 +84,7 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
     rt.openRunId = store.engine().startRun(rt.id, phase, rt.cursors.movie, now);
     rt.cycle = freshCycle();
     rt.discoveryPartial = false;
+    let costed = false;
     try {
       const discovery = await site.discover(sinceByKind.movie, {
         series: seriesLimitsOf(cfg),
@@ -99,6 +100,7 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
       const estimate = Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 0;
       const declared = Number(discovery.requestCost ?? estimate);
       const discoveryCost = Math.max(0, Math.trunc(Number.isFinite(declared) ? declared : estimate));
+      costed = true;
       charge(rt, discoveryCost);
       const report = store.engine().upsertUrls(rt.id, discovery.urls, now);
       rt.cycle.discoveryAdded = report.added;
@@ -119,6 +121,12 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
         log.warn(`[crawl] ${rt.id}: descoberta parcial:`, discovery.failures.join(' | ').slice(0, 400));
       }
     } catch (err: unknown) {
+      if (!costed) {
+        costed = true;
+        const raw = requestCostOf(err) ?? deps.discoveryCost();
+        const fallback = Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 0;
+        charge(rt, fallback);
+      }
       const message = log.errorMessage(err);
       rt.cycle.discoveryFailures += 1;
       metrics.count('crawl.discovery.error');
