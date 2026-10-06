@@ -35,7 +35,7 @@ import { parseViewerEntries } from './vaca-sitemap-viewer.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { magnetHash, parseTitleYear, withRequestCost } from './shared.js';
-import { assertSitemapScope } from './sitemap-guard.js';
+import { assertSitemapScope, isVacaSitemapShape, sitemapFailureMessage } from './sitemap-guard.js';
 
 // Reexportado: `parseTitleYear` virou núcleo compartilhado quando o NerdFilmes
 // virou o segundo consumidor (a sonda da Fase 2 e os testes importam por aqui —
@@ -188,7 +188,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
       }
       out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
-    assertSitemapScope(entries.length, accepted);
+    assertSitemapScope(entries.length, accepted, isVacaSitemapShape(xml));
     return out;
   }
 
@@ -241,7 +241,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
           out.push(...await readWorkSitemap(loc, sinceOf(kind), kind));
         } catch (err) {
           kindFailed[kind] = true;
-          failures.push(`${loc}: ${log.errorMessage(err)}`);
+          failures.push(sitemapFailureMessage(loc, log.errorMessage(err)));
           log.warn(`[crawl] vacatorrent: sitemap falhou (${loc}):`, log.errorMessage(err));
         }
       }

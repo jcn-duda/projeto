@@ -56,7 +56,7 @@ import type {
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { parseOriginalTitle, withRequestCost } from './shared.js';
-import { assertSitemapScope } from './sitemap-guard.js';
+import { assertSitemapScope, isXmlSitemapShape, sitemapFailureMessage } from './sitemap-guard.js';
 import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { TDF_SITE_ID, TDF_TRACKER_LABEL, passButtons } from './torrentdosfilmes-buttons.js';
 import {
@@ -204,7 +204,7 @@ export function createTorrentdosfilmesCrawlSite(
       }
       out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
-    assertSitemapScope(entries.length, accepted);
+    assertSitemapScope(entries.length, accepted, isXmlSitemapShape(xml));
     return out;
   }
 
@@ -240,7 +240,7 @@ export function createTorrentdosfilmesCrawlSite(
         try {
           all.push(...await readWorkSitemap(loc, sinceOf, countRequest));
         } catch (err) {
-          failures.push(`${loc}: ${log.errorMessage(err)}`);
+          failures.push(sitemapFailureMessage(loc, log.errorMessage(err)));
           log.warn(`[crawl] torrentdosfilmesv2: sitemap falhou (${loc}):`, log.errorMessage(err));
         }
       }

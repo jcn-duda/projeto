@@ -6,6 +6,9 @@ import { createTorrentdosfilmesCrawlSite } from '../src/providers/crawl-sites/to
 import { createVacaCrawlSite } from '../src/providers/crawl-sites/vaca.js';
 import { createResolver } from '../resolvers/profiles/vacatorrent.js';
 import {
+  assertSitemapScope, isVacaSitemapShape, isXmlSitemapShape,
+} from '../src/providers/crawl-sites/sitemap-guard.js';
+import {
   SITE as NERD, site as nerd, withStub as withNerdStub,
 } from './helpers/crawl-nerdfilmes-fixtures.js';
 import {
@@ -30,6 +33,22 @@ const urlset = (...rows: Array<[string, string]>) => `<urlset>${rows.map(([loc, 
 const movieRow = (base: string, slug: string, date = '2026-09-30T00:00:00Z') =>
   [`${base}/${slug}/`, date] as [string, string];
 const unknownHtml = '<html><body>Just a moment... <table><tr><td>challenge</td></tr></table></body></html>';
+
+test('formato desconhecido, XML vazio e linhas fora do escopo têm diagnósticos distintos', () => {
+  const emptyViewer = '<table id="sitemap"><thead><tr><th>URL</th><th>Images</th><th>Last Modified</th></tr></thead>'
+    + '<tbody></tbody></table>';
+  assert.equal(isXmlSitemapShape('<URLSET><url><loc><![CDATA[https://site.test/]]></loc></url></URLSET>'), true);
+  assert.equal(isXmlSitemapShape('<html><!-- <urlset><url/></urlset> --></html>'), false);
+  assert.equal(isXmlSitemapShape('<image:loc>https://site.test/image.jpg</image:loc>'), false);
+  assert.equal(isVacaSitemapShape(emptyViewer), true, 'viewer vazio é formato reconhecido');
+  assert.equal(isVacaSitemapShape('<html><table><tr><td>challenge</td></tr></table></html>'), false);
+  assert.throws(() => assertSitemapScope(0, 0, false), { message: 'sitemap_formato_desconhecido' });
+  assert.throws(() => assertSitemapScope(0, 0, isXmlSitemapShape('<urlset></urlset>')),
+    { message: 'sitemap_sem_entradas_reconhecidas' });
+  assert.throws(() => assertSitemapScope(0, 0, isVacaSitemapShape(emptyViewer)),
+    { message: 'sitemap_sem_entradas_reconhecidas' });
+  assert.throws(() => assertSitemapScope(1, 0), { message: 'sitemap_sem_obras_do_escopo' });
+});
 
 describe('guardas de descoberta em sitemaps WordPress mistos', () => {
   for (const [label, base, factory, withStub] of [
@@ -62,6 +81,41 @@ describe('guardas de descoberta em sitemaps WordPress mistos', () => {
       });
     });
   }
+
+  test('HTML200 de formato desconhecido falha com motivo fixo e preserva descoberta parcial', async () => {
+    for (const [label, base, factory, withStub, routes] of [
+      ['NerdFilmes', NERD, nerd, withNerdStub, {}],
+      ['Comando', COMANDO, comando, withComandoStub, comandoRoutes()],
+      ['TorrentDosFilmes', TDF, () => createTorrentdosfilmesCrawlSite(tdfSurface()), withTdfStub, tdfRoutes()],
+    ] as const) {
+      const index = xmlIndex(base, 'post-sitemap.xml', 'post-sitemap2.xml');
+      const knownRows = urlset(movieRow(base, 'parcial-valido'));
+      await withStub({ ...routes, '/sitemap.xml': () => index, '/sitemap_index.xml': () => index,
+        '/post-sitemap.xml': () => knownRows, '/post-sitemap2.xml': () => unknownHtml }, async () => {
+        const result = await factory().discover();
+        assert.deepEqual(result.urls.map(({ url }) => url), [`${base}/parcial-valido/`], label);
+        assert.equal(result.complete, false, `${label}: não avançar cursor sobre sitemap desconhecido`);
+        assert.deepEqual(result.failures, ['sitemap_formato_desconhecido'], label);
+      });
+    }
+
+    const index = `<sitemapindex><sitemap><loc>${VACA}/movie-sitemap.xml</loc></sitemap>`
+      + `<sitemap><loc>${VACA}/movie-sitemap2.xml</loc></sitemap></sitemapindex>`;
+    const stub = stubFetch((url) => {
+      const body = url.includes('/sitemap_index.xml') ? index
+        : url.includes('/movie-sitemap2.xml') ? unknownHtml
+          : url.includes('/movie-sitemap.xml')
+            ? urlset([`${VACA}/pt/movie/parcial-valido/`, '2026-09-30T00:00:00Z']) : null;
+      if (body === null) throw new Error(`fetch fora do mapa (sem rede): ${url}`);
+      return { ok: true, status: 200, headers: { get: () => null }, text: async () => body };
+    });
+    try {
+      const result = await createVacaCrawlSite(vacaSurface()).discover();
+      assert.deepEqual(result.urls.map(({ url }) => url), [`${VACA}/pt/movie/parcial-valido/`], 'Vaca preserva URL parcial');
+      assert.equal(result.complete, false, 'Vaca não avança cursor sobre sitemap desconhecido');
+      assert.deepEqual(result.failures, ['sitemap_formato_desconhecido']);
+    } finally { stub.restore(); }
+  });
 
   test('Nerd: CDATA válido, corte sem novidade completo e série isolada fora do gate não falha', async () => {
     const index = xmlIndex(NERD, 'post-sitemap.xml');

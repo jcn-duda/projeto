@@ -37,7 +37,7 @@ import * as log from '../../utils/logger.js';
 import { magnetHash, parseOriginalTitle, parseTitleYear, withRequestCost } from './shared.js';
 import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { cleanWorkName } from './work-name.js';
-import { assertSitemapScope } from './sitemap-guard.js';
+import { assertSitemapScope, isXmlSitemapShape, sitemapFailureMessage } from './sitemap-guard.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseImdbId, parseSitemapEntries,
   parseSitemapIndexLocs, SITEMAP_INDEX_PATHS, toWorkUrl,
@@ -210,7 +210,7 @@ export function createNerdfilmesCrawlSite(
       }
       out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
-    assertSitemapScope(entries.length, accepted);
+    assertSitemapScope(entries.length, accepted, isXmlSitemapShape(xml));
     return out;
   }
 
@@ -246,7 +246,7 @@ export function createNerdfilmesCrawlSite(
         try {
           all.push(...await readWorkSitemap(loc, sinceOf, countRequest));
         } catch (err) {
-          failures.push(`${loc}: ${log.errorMessage(err)}`);
+          failures.push(sitemapFailureMessage(loc, log.errorMessage(err)));
           log.warn(`[crawl] nerdfilmes: sitemap falhou (${loc}):`, log.errorMessage(err));
         }
       }
