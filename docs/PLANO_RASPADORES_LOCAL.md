@@ -39,7 +39,7 @@ domínios, HTML, protetores e catálogos externos continuam funcionando hoje.
   e passou em duas repetições. Causa não diagnosticada; interferência entre
   arquivos por estado de módulo foi descartada devido ao isolamento de processos.
 
-### Classificação dos achados no checkout atual
+### Classificação dos achados na auditoria de `14cece9`
 
 | Achado | Evidência | Impacto e prioridade |
 |---|---|---|
@@ -357,3 +357,53 @@ e commitar por parte, mas não ativar fontes nem executar o gate externo.
 - Recuperação de cobertura é seletiva, revisável e idempotente, não destrutiva.
 - Saúde offline e saúde externa ficam explicitamente separadas no relatório.
 - Nenhuma fonte é ativada só porque a suíte ficou verde.
+
+## 14. Execução autorizada por partes
+
+Registro incremental; a seção 12 descreve o baseline anterior às correções,
+não o resultado do código final. Commits locais, sem push ou ativação de fontes.
+
+| Parte | Estado | Commit | Validação local |
+|---|---|---|---|
+| Plano e baseline | concluído | `7caad28` | baseline e seis harnesses antes das edições |
+| 1 — identidade IMDb HDR/Apache | concluída | `af5c7a8` | regressões antes/depois, 125 focados, compatibilidade de caminhos/query/host móvel; review aprovado |
+| 2 — sitemap parcial e cursor | concluída | `83155f6` | RED nos quatro adaptadores, 83 focados; cursores reais em memória e review aprovado |
+| 3a — listagem e escopo/contagem bruta | concluída | `7a70d64` | 71 focados e 3.996 testes completos; bloqueador de host resolvido e review aprovado |
+| 3b — comentários, tipo e rótulo da fonte | concluída | `09b5140` | regressões locais; 4.000/4.000 testes, boot focused 14/14; review aprovado |
+| 4 — custo e contratos do motor | concluída | `9c761c3` | regressões RED→GREEN, 4.008/4.008 testes, typecheck/build, lista 409/10 e lint 894 |
+| 5a — motivo de sitemap desconhecido | concluída | `5f4a68e` | 92 focados; 4.010/4.010 testes; typecheck/build, lista 409/10, lint 894 e review aprovado |
+| 5b — flake de teto horário | sem patch | — | execução histórica não reproduzida; não atribuir causa |
+| 5c — casos adicionais do viewer | planejado | — | auditoria não encontrou bug; cobertura atual parcial documentada |
+| 6 — prévia seletiva offline | concluída antecipadamente | `3a0482b` | teste de manifesto/CLI/bancos temporários e auditoria independente aprovada; sem apply |
+
+Após as partes 1/2 e a prévia, os gates foram repetidos pelo coordenador sem
+builders concorrentes: **3.988/3.988 testes**, typecheck, build, lista de
+408 arquivos/10 harnesses e lint de 893 arquivos passaram. Uma rodada anterior
+foi invalidada por limpeza concorrente de `dist/` (`ERR_MODULE_NOT_FOUND`); ela
+não foi usada como evidência de aprovação.
+
+A prévia aceita apenas evidências explícitas de um manifesto `evidence/v1` e
+propõe reenfileiramento; não há executor de reparação. Não deduz contaminação só
+por um IMDb/site. Os testes verificam imutabilidade de DB/WAL; para `-shm`, a
+garantia testada é de tamanho, não de conteúdo byte a byte. Uma futura aplicação
+exige backup/lock/revisão própria e continua fora da execução atual.
+
+Etapa H permanece fora do escopo: nenhum site real foi sondado ou liberado com
+`--write`, nenhuma fonte foi ativada, nenhuma VPS foi acessada e nenhum acervo
+real foi reparado. As mudanças locais anteriores em packages/TEAM/team foram
+preservadas; só o registro de teste pertinente entrou no commit de cada parte.
+
+Após a Parte 5, o coordenador repetiu serialmente: **4.010/4.010 testes**,
+typecheck, build, 409 arquivos/10 harnesses e lint de 894 arquivos/zero acima
+do teto. Os seis harnesses adicionais também passaram em série: stress 154;
+adversarial 10/10 mutações, 20/20 sequenciais e 6/6 workers; adversarial M1
+69; protector 42; challenger M2 11; ranking 13.
+
+A falha histórica em `harvester.test.ts` ocorreu em uma execução e não voltou a
+aparecer nas cinco repetições locais subsequentes. A análise causal delegada
+atingiu limite de execução; a hipótese relacionada a virada de hora refere-se a
+outro teste e não foi provada como causa. Portanto, não foi alterado o colhedor
+nem o relógio do teste. Para o viewer do Vaca, a análise não encontrou defeito
+confirmado; `&amp;`, fusos adicionais, datas inválidas e empate com cursor foram
+registrados como lacunas de fixtures, não como bugs. Nenhum desses casos teve
+mudança de comportamento ou teste novo nesta etapa.
