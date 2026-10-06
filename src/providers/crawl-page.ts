@@ -32,6 +32,7 @@
 import config from '../config.js';
 import * as store from '../utils/crawl-store.js';
 import { identifyWork } from './crawl-identify.js';
+import { tvSeasonCount, type SeasonCountResult } from '../utils/tmdb-search.js';
 import { recordCrawlReleases } from './crawl-recorder.js';
 import { isSiteLevelError } from './crawl-pauses.js';
 import { parseProgress } from '../utils/crawl-store-rules.js';
@@ -79,10 +80,13 @@ export interface PageProcessOptions {
 export interface PageCollaborators {
   identify(input: { type: 'movie' | 'series'; title: string; year?: number | null; originalTitle?: string | null; season?: number | null }): Promise<IdentifyResult>;
   record: CrawlRecorder['record'];
+  /** Temporadas da série no TMDB: decide o destino do pack sem temporada (`unlocated`). */
+  seasonCount(imdb: string): Promise<SeasonCountResult>;
 }
 
 const defaultCollaborators: PageCollaborators = {
   identify: identifyWork,
+  seasonCount: tvSeasonCount,
   record: (siteId, obra, releases, location) => recordCrawlReleases.record(siteId, obra, releases, location),
 };
 
@@ -157,14 +161,15 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     // dry-run com acúmulo, `simulated` (o flip reenfileira para gravar).
     // Série (Fase 7): os grupos são a verdade da página; a soma plana só
     // alimenta contadores. Filme (sem grupos) segue com o lote único na raiz.
-    const groups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length
+    let groups: CrawlReleaseGroup[] | null = Array.isArray(result.groups) && result.groups.length
       ? result.groups
       : null;
-    const releases: RawItem[] = groups
+    let releases: RawItem[] = groups
       ? groups.flatMap((g) => (Array.isArray(g.releases) ? g.releases : []))
       : (Array.isArray(result.releases) ? result.releases : []);
     const isSeries = result.type === 'series' || row.kind === 'tv_show';
-    if (!releases.length) {
+    const unlocated = isSeries && Array.isArray(result.unlocated) ? result.unlocated : [];
+    if (!releases.length && !unlocated.length) {
       const resumedConclusion = Boolean(row.progress && row.progress !== '')
         && (Number(row.releases) || 0) > 0;
       if (resumedConclusion) {
@@ -231,6 +236,26 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         log.debug(`[crawl] sem obra (${row.url}): ${identification.reason}`);
         return { kind: 'no-work', siteLevelError: false, releases: releases.length, detail: identification.reason, requestCost: result.requestCost };
       }
+    }
+
+    // Pack "Completo" sem temporada no `dn=`: só vira a temporada 1 de série com
+    // UMA temporada no TMDB (Pucca, Hellsing). Com mais, não há como saber o que
+    // ele cobre — fica fora, como antes. TMDB fora do ar é erro retentável.
+    if (unlocated.length) {
+      const count = await collab.seasonCount(String(imdb));
+      if (!count.ok) {
+        markPageError(row, 'tmdb-indisponivel:temporadas', opts);
+        return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'tmdb-indisponivel:temporadas', requestCost: result.requestCost };
+      }
+      if (count.seasons === 1) {
+        groups = [...(groups ?? []), { season: 1, episode: null, releases: unlocated }];
+        releases = [...releases, ...unlocated];
+      }
+    }
+    if (!releases.length) {
+      if (persist) store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb, releases: 0 }, Date.now());
+      metrics.count('crawl.page.no-torrent');
+      return { kind: 'no-torrent', siteLevelError: false, releases: 0, requestCost: result.requestCost };
     }
 
     if (dryRun) {

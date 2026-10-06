@@ -188,6 +188,12 @@ export interface CrawlWorkResult {
    */
   groups?: CrawlReleaseGroup[];
   /**
+   * Série agregada: releases que NÃO declaram temporada (pack "Completo").
+   * Nunca vão para a raiz; o motor só as grava como temporada 1 quando a obra
+   * identificada tem UMA temporada no TMDB. Fora disso, são descartadas.
+   */
+  unlocated?: RawItem[];
+  /**
    * Progresso retomável de página de série parcial (Fase 7 v2). Presente em
    * `partial` (e anexado a `done` de conclusão por resume); o codec vive no
    * `crawl-store-rules.ts` (`renderProgress`/`parseProgress`).

@@ -58,7 +58,7 @@ import type {
   CrawlReleaseGroup, CrawlSite, CrawlWorkResult,
 } from '../crawl-types.js';
 import { magnetHash, stripHtmlComments, withRequestCost } from './shared.js';
-import { pageSeasonOf, seasonPageGroups, seriesRowGroups } from './season-page.js';
+import { pageSeasonOf, seasonPageGroups, seriesRowGroups, unlocatedReleases } from './season-page.js';
 import { walkListing } from './listing-discover.js';
 import {
   countListingCards as countRawListingCards, fichaText, isSeasonSlug, isWorkPath,
@@ -358,15 +358,15 @@ function buildWork(
   }
   if (!releases.length) return { url, status: 'no-torrent', imdb, requestCost: requests };
   if (season && aggregated) {
-    // Locação por LINHA, só pelo `dn=` (`seriesRowGroups`); linha que não
-    // declara temporada é descartada, nunca vai para a raiz. `season` é a
-    // maior declarada: abre a janela `seriesStartedBy` da identificação.
+    // Locação por LINHA, só pelo `dn=`; linha sem temporada nunca vai à raiz (vai em `unlocated`,
+    // ver o tipo). `season` = maior declarada: abre a janela `seriesStartedBy`.
     const groups = seriesRowGroups(releases.map((release) => ({ release, rowSeason: null })));
-    if (!groups.length) return { url, status: 'no-torrent', imdb, requestCost: requests };
+    const unlocated = unlocatedReleases(releases, groups);
+    if (!groups.length && !unlocated.length) return { url, status: 'no-torrent', imdb, requestCost: requests };
     const maxSeason = groups.reduce<number | null>((m, g) => (g.season != null && (m == null || g.season > m) ? g.season : m), null);
     return {
       url, status: 'done', type: 'series', title: title.title, year: title.year,
-      imdb, season: maxSeason, groups, requestCost: requests,
+      imdb, season: maxSeason, groups, unlocated, requestCost: requests,
     };
   }
   if (season) {

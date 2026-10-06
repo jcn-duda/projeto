@@ -161,6 +161,12 @@ export function seriesRowGroups(rows: readonly SeriesRow[]): CrawlReleaseGroup[]
   return groupSeriesReleases(entries, { year: null, byDeclaredLocation: true });
 }
 
+/** Releases que nenhum grupo do `seriesRowGroups` locou (sem temporada no `dn=`). */
+export function unlocatedReleases(releases: readonly RawItem[], groups: readonly CrawlReleaseGroup[]): RawItem[] {
+  const located = new Set(groups.flatMap((g) => g.releases));
+  return releases.filter((release) => !located.has(release));
+}
+
 /**
  * Episódio do RÓTULO do botão. O ComandoTorrents tira a temporada do título da
  * release ("The Boys E01 [1080p WEB-DL DUBLADO]") e um "E01" solto não é

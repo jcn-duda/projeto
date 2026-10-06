@@ -264,4 +264,51 @@ async function externalImdbId(tmdbId: number, type: SearchWorkType): Promise<Ext
   return promise;
 }
 
-export { searchByTitle, externalImdbId };
+export interface SeasonCountResult {
+  ok: boolean;
+  /** Temporadas regulares da série no TMDB (sem especiais); `null` se não é série. */
+  seasons: number | null;
+}
+
+const countInFlight = new Map<string, Promise<SeasonCountResult>>();
+
+async function fetchSeasonCount(imdb: string): Promise<SeasonCountResult> {
+  const find = new URL(`${API}/find/${imdb}`);
+  find.searchParams.set('api_key', config.tmdb.apiKey);
+  find.searchParams.set('external_source', 'imdb_id');
+  const found = await fetchJson(find);
+  if (!found.ok) return { ok: false, seasons: null };
+  const tvId = Number(found.data?.tv_results?.[0]?.id);
+  if (!Number.isFinite(tvId) || tvId <= 0) return { ok: true, seasons: null };
+  const tv = new URL(`${API}/tv/${tvId}`);
+  tv.searchParams.set('api_key', config.tmdb.apiKey);
+  const detail = await fetchJson(tv);
+  if (!detail.ok) return { ok: false, seasons: null };
+  const n = Number(detail.data?.number_of_seasons);
+  return { ok: true, seasons: Number.isInteger(n) && n > 0 ? n : null };
+}
+
+/**
+ * Quantas temporadas a série tem no TMDB, pelo IMDb. Background-only, como o
+ * resto do módulo (duas chamadas em sequência). Serve para decidir se um pack
+ * "Completo" sem temporada no nome pode ser gravado como a temporada 1.
+ */
+async function tvSeasonCount(imdb: string): Promise<SeasonCountResult> {
+  if (!config.tmdb.apiKey || !/^tt\d{5,}$/.test(imdb)) return { ok: false, seasons: null };
+  const key = `tmdb:sc:${imdb}`;
+  const cached = cache.get(key);
+  if (cached) return { ok: Boolean(cached.ok), seasons: typeof cached.seasons === 'number' ? cached.seasons : null };
+  const pending = countInFlight.get(key);
+  if (pending) return pending;
+  const promise = (async (): Promise<SeasonCountResult> => {
+    const result = await fetchSeasonCount(imdb);
+    cache.set(key, result, result.ok ? config.tmdb.cacheTtl : retryTtl());
+    return result;
+  })().finally(() => {
+    countInFlight.delete(key);
+  });
+  countInFlight.set(key, promise);
+  return promise;
+}
+
+export { searchByTitle, externalImdbId, tvSeasonCount };
