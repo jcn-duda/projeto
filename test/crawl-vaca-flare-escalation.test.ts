@@ -121,4 +121,22 @@ describe('sitemap do Yoast no formato viewer (HTML renderizado pelo Flare)', () 
     ]);
     assert.deepEqual(parseViewerEntries('<html>nada</html>'), []);
   });
+
+  test('decodifica ampersand uma vez e normaliza offsets de timezone', async () => {
+    const { parseViewerEntries } = await import('../src/providers/crawl-sites/vaca-sitemap-viewer.js');
+    const rows = [
+      ['filme?a=1&amp;b=2&amp;amp;c=3', '2026-03-15 16:05 -03:00'],
+      ['mais?zone=compact', '2026-03-15 16:05 +0330'],
+      ['zulu', '2026-03-15 16:05 Z'],
+      ['sem-zona', '2026-03-15 16:05'],
+    ].map(([href, date]) => `<tr><td><a href="${SITE}/${href}">item</a></td><td>0</td><td>${date}</td></tr>`).join('');
+    const entries = parseViewerEntries(`<table><tbody>${rows}</tbody></table>`);
+    assert.deepEqual(entries.map(({ loc }) => loc), [
+      `${SITE}/filme?a=1&b=2&amp;c=3`, `${SITE}/mais?zone=compact`, `${SITE}/zulu`, `${SITE}/sem-zona`,
+    ]);
+    assert.deepEqual(entries.map(({ lastmod }) => Date.parse(lastmod)), [
+      Date.parse('2026-03-15T19:05:00Z'), Date.parse('2026-03-15T12:35:00Z'),
+      Date.parse('2026-03-15T16:05:00Z'), Date.parse('2026-03-15T16:05:00Z'),
+    ]);
+  });
 });
