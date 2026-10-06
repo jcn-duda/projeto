@@ -49,12 +49,12 @@ import config from '../../config.js';
 import { fetchMicoStreams, micoMovieStreamUrl } from '../mico.js';
 import type { RawItem } from '../../../types/domain.js';
 import type {
-  CrawlDiscoverOptions, CrawlDiscovery, CrawlPageKind, CrawlPageOptions, CrawlSite, CrawlWorkResult, DiscoveredUrl,
+  CrawlDiscoverOptions, CrawlDiscovery, CrawlPageKind, CrawlPageOptions, CrawlSite, CrawlWorkResult,
 } from '../crawl-types.js';
 import { withRequestCost } from './shared.js';
 import {
   MOVIE_CATALOG_ID,
-  bucketLastmod, honorRetryAfter, parseMicoUrl, syntheticUrl, throttle, walkCatalog,
+  discoverKind, honorRetryAfter, parseMicoUrl, throttle,
 } from './mico-shared.js';
 import type { KindDiscovery } from './mico-shared.js';
 import { discoverSeries, fetchSeriesWork } from './mico-series.js';
@@ -80,22 +80,15 @@ function pageKindOf(urlKind: 'movie' | 'series'): CrawlPageKind {
  * (`totalFailure`) é decidida pelo `discover`.
  */
 async function discoverMovies(now: number, period: number): Promise<KindDiscovery> {
-  const walk = await walkCatalog('movie', MOVIE_CATALOG_ID);
-  const urls: DiscoveredUrl[] = walk.ids.map((tt) => (
-    { url: syntheticUrl('movie', tt), lastmod: bucketLastmod(tt, now, period), kind: 'movie' as const }
-  ));
-  // Saída pelo TETO sem o fim observado = descoberta TRUNCADA (pode haver mais
-  // obras além de config.mico.crawlMaxPages): NÃO é `complete`, senão viraria cursor/
-  // cobertura indevida (alinha com o listing-discover dos outros sites).
-  const totalFailure = walk.firstPageFailed || urls.length === 0;
-  const complete = walk.failures.length === 0 && urls.length > 0 && walk.sawEnd;
-  return { urls, failures: walk.failures, complete, requestCost: walk.pages, totalFailure };
+  return discoverKind('movie', MOVIE_CATALOG_ID, now, period);
 }
 
 /**
- * Fábrica do adaptador. O `discover` IGNORA o `since` (lê o catálogo inteiro —
- * ~20 mil obras por tipo em ~450 páginas); o corte incremental fica por conta do
- * `lastmod` sintético (balde de releitura) no upsert do store. Séries só entram
+ * Fábrica do adaptador. O `discover` IGNORA o `since`: o catálogo inteiro (~20
+ * mil obras por tipo em ~450 páginas) é lido no máximo a cada
+ * `MICO_CRAWL_FULL_SWEEP_HOURS`, e entre elas a rodada só lê o topo até achar
+ * obras já na fila (`discoverKind`). A releitura fica por conta do `lastmod`
+ * sintético (balde de releitura) no upsert do store. Séries só entram
  * com `opts.series.enabled` (default seguro: NÃO descobrir `tv_show`).
  */
 export function createMicoCrawlSite(): CrawlSite {
@@ -129,7 +122,11 @@ export function createMicoCrawlSite(): CrawlSite {
         failures,
         // Sem `opts.series.enabled`, `tv_show` sai `true` sem URLs (fonte não
         // consultada — o cursor de série não anda), como na Fase 1.
-        completeByKind: { movie: movieComplete, tv_show: seriesComplete },
+        // Rodada incremental não move o cursor: ela só leu o topo do catálogo.
+        completeByKind: {
+          movie: movie.fullSweep && movieComplete,
+          tv_show: series ? series.fullSweep && seriesComplete : true,
+        },
         requestCost: movie.requestCost + (series?.requestCost ?? 0),
       };
     },

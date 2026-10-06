@@ -1986,6 +1986,23 @@ IMDb, e por isso o adaptador difere dos outros oito em três pontos:
   **lança** com `withRequestCost`. Séries entram no `discover` SÓ com
   `opts.series.enabled` e emitem `tv_show` com `lastmod` de **30 dias**
   (`SERIES_REREAD_DAYS`); falha TOTAL de série NÃO derruba a de filme.
+- **Descoberta incremental** (2026-10-06, `discoverKind` em `mico-shared.ts`).
+  Medido na VPS: cada página do catálogo leva 2 a 2,7 s, mais o intervalo
+  mínimo de 1 s, então a varredura completa dos dois tipos levava ~50 min e
+  rodava a cada rodada incremental de 60 min. O Mico passava o tempo
+  redescobrindo e a fila de séries ficou com 8.803 vencidas sem andar. Agora a
+  completa roda por tipo no máximo a cada `MICO_CRAWL_FULL_SWEEP_HOURS` (24); a
+  hora fica em `crawl_state` (`full-sweep:movie`/`full-sweep:series`) e só é
+  gravada pela completa que VIU o fim (truncada ou com falha, a próxima tenta de
+  novo). Entre elas a rodada lê do topo (o catálogo vem do mais novo para o mais
+  antigo) e para após `MICO_CRAWL_KNOWN_PAGES_TO_STOP` (2) páginas seguidas só com
+  obras já na fila. A incremental sai `complete:true` (sem falha, para não cair no
+  retry curto da descoberta parcial) com `completeByKind` falso, então não move o
+  cursor (que andaria para trás com o `max` de um pedaço do catálogo). Uma por
+  dia basta para a releitura: o balde vira por DIA e o `lastmod` novo vale por
+  14/30 dias. Fila zerada com a hora recente se corrige sozinha: nada é
+  conhecido, a incremental lê até o fim. Medido contra a API real com a fila da
+  VPS: 2 páginas por tipo, ~3 s no total.
 - **Séries: episódios pela Cinemeta, progresso retomável** (Fase 2,
   `crawl-sites/mico-series.ts`; extraído pela catraca de 400 linhas — `mico.ts`
   orquestra e `mico-shared.ts` guarda as primitivas puras/throttle/página de

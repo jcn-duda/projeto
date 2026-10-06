@@ -20,6 +20,7 @@ process.env.CACHE_PERSIST = 'false';
 
 const config = (await import('../src/config.js')).default;
 const micoCrawl = await import('../src/providers/crawl-sites/mico.js');
+const crawlStore = await import('../src/utils/crawl-store.js');
 const micoSeries = await import('../src/providers/crawl-sites/mico-series.js');
 const { stubFetch } = await import('./helpers/stub.js');
 const { strideAt } = await import('../src/providers/crawl-sites/mico-shared.js');
@@ -33,6 +34,10 @@ const REREAD = micoSeries.SERIES_REREAD_DAYS; // 30 (séries)
 const savedMico = { ...config.mico };
 
 beforeEach(() => {
+  // A data da última varredura completa mora no `crawl_state`: sem store novo,
+  // o teste seguinte herdaria a rodada incremental do anterior.
+  crawlStore.resetForTests();
+  crawlStore.open(undefined, { forceMemory: true });
   config.mico.enabled = true;
   config.mico.crawlMinGapMs = 0;
   config.mico.crawlRereadDays = 14;

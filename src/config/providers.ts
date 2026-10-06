@@ -59,6 +59,12 @@ export const mico = () => ({
   crawlMaxPages: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_MAX_PAGES, 700))),
   crawlEmptyRetries: Math.max(0, Math.trunc(num(process.env.MICO_CRAWL_EMPTY_RETRIES, 2))),
   crawlEndAfterEmpties: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_END_AFTER_EMPTIES, 4))),
+  // Varredura COMPLETA por tipo no máximo a cada N horas; entre elas, a rodada
+  // é incremental (do topo, mais novos primeiro) e para depois de N páginas
+  // seguidas só com obras já na fila. A completa (~50 min na VPS) é o que
+  // reenfileira o balde de releitura, que vira por DIA — uma por dia basta.
+  crawlFullSweepHours: Math.max(1, num(process.env.MICO_CRAWL_FULL_SWEEP_HOURS, 24)),
+  crawlKnownPagesToStop: Math.max(1, Math.trunc(num(process.env.MICO_CRAWL_KNOWN_PAGES_TO_STOP, 2))),
 });
 
 export const tmdb = () => ({

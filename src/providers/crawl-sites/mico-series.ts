@@ -37,7 +37,7 @@ import type {
 import { withRequestCost } from './shared.js';
 import {
   SERIES_CATALOG_ID,
-  bucketLastmod, honorRetryAfter, syntheticUrl, throttle, walkCatalog,
+  discoverKind, honorRetryAfter, syntheticUrl, throttle,
 } from './mico-shared.js';
 import type { KindDiscovery } from './mico-shared.js';
 
@@ -53,17 +53,7 @@ const DEFAULT_MAX_BUTTONS = 40;
  * descoberta de filme — ver `mico.ts`).
  */
 export async function discoverSeries(now: number): Promise<KindDiscovery> {
-  const walk = await walkCatalog('series', SERIES_CATALOG_ID);
-  const urls: KindDiscovery['urls'] = walk.ids.map((tt) => ({
-    url: syntheticUrl('series', tt),
-    lastmod: bucketLastmod(tt, now, SERIES_REREAD_DAYS),
-    kind: 'tv_show' as const,
-  }));
-  // Saída pelo TETO sem o fim observado = descoberta TRUNCADA: NÃO é `complete`,
-  // senão viraria cursor/cobertura de série indevida.
-  const totalFailure = walk.firstPageFailed || urls.length === 0;
-  const complete = walk.failures.length === 0 && urls.length > 0 && walk.sawEnd;
-  return { urls, failures: walk.failures, complete, requestCost: walk.pages, totalFailure };
+  return discoverKind('series', SERIES_CATALOG_ID, now, SERIES_REREAD_DAYS);
 }
 
 /** Meta de série da Cinemeta (o shape que `getMeta('series', tt)` devolve). */

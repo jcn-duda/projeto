@@ -11,6 +11,7 @@
 // resposta — o throttle é isolado, module-level, daqui.
 import config from '../../config.js';
 import * as log from '../../utils/logger.js';
+import * as store from '../../utils/crawl-store.js';
 import { retryAfterMs } from '../mico.js';
 import type { DiscoveredUrl } from '../crawl-types.js';
 
@@ -199,6 +200,8 @@ export interface KindDiscovery {
   requestCost: number;
   /** Primeira página caiu OU nenhuma obra descoberta (catálogo vazio/ilegível). */
   totalFailure: boolean;
+  /** Varredura do catálogo inteiro (`false` = rodada incremental). Só a completa move o cursor. */
+  fullSweep: boolean;
 }
 
 /** Resultado da varredura paginada de UM catálogo (filme ou série). */
@@ -211,6 +214,13 @@ export interface CatalogWalk {
   firstPageFailed: boolean;
   /** Saiu por `crawlEndAfterEmpties` vazias seguidas (e não pelo teto de páginas). */
   sawEnd: boolean;
+  /** Rodada incremental parou em páginas seguidas só com obras conhecidas. */
+  stoppedAtKnown: boolean;
+}
+
+/** Rodada incremental: `isKnown` diz se a obra já está na fila. */
+export interface WalkOptions {
+  isKnown?: (tt: string) => boolean;
 }
 
 /**
@@ -221,6 +231,7 @@ export interface CatalogWalk {
 export async function walkCatalog(
   type: 'movie' | 'series',
   catalogId: string,
+  opts: WalkOptions = {},
 ): Promise<CatalogWalk> {
   const maxPages = config.mico.crawlMaxPages;
   const ids: string[] = [];
@@ -231,6 +242,8 @@ export async function walkCatalog(
   let firstPageFailed = false;
   let emptyRun = 0;
   let sawEnd = false;
+  let knownRun = 0;
+  let stoppedAtKnown = false;
 
   while (pages < maxPages) {
     let catalog: CatalogPage | null = null;
@@ -260,9 +273,53 @@ export async function walkCatalog(
           seen.add(tt);
           ids.push(tt);
         }
+        // Incremental: o catálogo vem do mais novo para o mais antigo, então
+        // páginas seguidas sem obra nova marcam onde a rodada anterior chegou.
+        const allKnown = Boolean(opts.isKnown) && catalog.ids.length > 0
+          && catalog.ids.every((tt) => opts.isKnown!(tt));
+        knownRun = allKnown ? knownRun + 1 : 0;
+        if (knownRun >= config.mico.crawlKnownPagesToStop) { stoppedAtKnown = true; break; }
       }
     }
     skip += strideAt(skip);
   }
-  return { ids, failures, pages, firstPageFailed, sawEnd };
+  return { ids, failures, pages, firstPageFailed, sawEnd, stoppedAtKnown };
+}
+
+/** id do site na fila (o mesmo do adaptador em `mico.ts`). */
+const SITE_ID = 'mico';
+const HOUR_MS = 3_600_000;
+
+/**
+ * Descoberta de UM tipo. A varredura completa custa ~50 min na VPS (2 a 2,7 s
+ * por página + o intervalo mínimo, medido em 2026-10-06) e rodava a cada
+ * rodada incremental de 60 min: o Mico passava o tempo redescobrindo e a fila
+ * de séries não andava (8.803 vencidas). Agora a completa roda no máximo a cada
+ * `crawlFullSweepHours`; entre elas a rodada lê do topo e para em páginas só
+ * com obras já na fila. Só a completa que viu o fim grava a hora; truncada ou
+ * com falha, a próxima rodada tenta a completa de novo.
+ */
+export async function discoverKind(
+  kind: 'movie' | 'series',
+  catalogId: string,
+  now: number,
+  periodDays: number,
+): Promise<KindDiscovery> {
+  const stateKey = `full-sweep:${kind}`;
+  const lastFull = Number(store.engine().getState(SITE_ID, stateKey) || 0);
+  const fullSweep = !(now - lastFull < config.mico.crawlFullSweepHours * HOUR_MS);
+  const isKnown = fullSweep
+    ? undefined
+    : (tt: string) => store.engine().getUrl(SITE_ID, syntheticUrl(kind, tt)) != null;
+  const walk = await walkCatalog(kind, catalogId, { isKnown });
+  const queueKind = kind === 'series' ? 'tv_show' as const : 'movie' as const;
+  const urls: DiscoveredUrl[] = walk.ids.map((tt) => (
+    { url: syntheticUrl(kind, tt), lastmod: bucketLastmod(tt, now, periodDays), kind: queueKind }
+  ));
+  // Saída pelo TETO sem o fim observado = descoberta TRUNCADA: NÃO é `complete`,
+  // senão viraria cursor/cobertura indevida (alinha com o listing-discover).
+  const totalFailure = walk.firstPageFailed || urls.length === 0;
+  const complete = walk.failures.length === 0 && urls.length > 0 && (walk.sawEnd || walk.stoppedAtKnown);
+  if (fullSweep && complete && walk.sawEnd) store.engine().setState(SITE_ID, stateKey, String(now));
+  return { urls, failures: walk.failures, complete, requestCost: walk.pages, totalFailure, fullSweep };
 }

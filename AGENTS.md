@@ -199,7 +199,11 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   `metas.length` NÃO mede o índice bruto), página vazia **intermitente** reconsultada
   e fim só após vazias seguidas (`MICO_CRAWL_MAX_PAGES`/`_EMPTY_RETRIES`/
   `_END_AFTER_EMPTIES`); catálogo real ≈ 20 mil obras por tipo; `lastmod` sintético
-  por balde de releitura.
+  por balde de releitura. Varredura completa (~50 min na VPS) só a cada
+  `MICO_CRAWL_FULL_SWEEP_HOURS` (24, data em `crawl_state` `full-sweep:<tipo>`);
+  entre elas a rodada é incremental (`discoverKind`): para após
+  `MICO_CRAWL_KNOWN_PAGES_TO_STOP` páginas só com obras na fila, sai `complete`
+  (sem retry curto) mas não move o cursor.
 - **"Nada reconhecido" é FALHA, nunca "vazio e completo"** — `urls:[]` com
   `complete:true` avança o cursor por cima de acervo nunca lido.
 - Identidade da página = `(site, url_key)` (caminho, sem host). Estado é por

@@ -20,6 +20,7 @@ process.env.CACHE_PERSIST = 'false';
 
 const config = (await import('../src/config.js')).default;
 const micoCrawl = await import('../src/providers/crawl-sites/mico.js');
+const crawlStore = await import('../src/utils/crawl-store.js');
 const { stubFetch } = await import('./helpers/stub.js');
 const { strideAt } = await import('../src/providers/crawl-sites/mico-shared.js');
 import type { CrawlUrlRow } from '../src/providers/crawl-types.js';
@@ -33,6 +34,10 @@ const DAY = 86_400_000;
 const savedMico = { ...config.mico };
 
 beforeEach(() => {
+  // A data da última varredura completa mora no `crawl_state`: sem store novo,
+  // o teste seguinte herdaria a rodada incremental do anterior.
+  crawlStore.resetForTests();
+  crawlStore.open(undefined, { forceMemory: true });
   // O throttle padrão (1 s) deixaria os testes lentos; zera aqui e o teste de
   // throttle o restaura localmente. O estado module-level é isolado a cada caso.
   config.mico.enabled = true;
