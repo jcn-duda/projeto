@@ -25,6 +25,7 @@ import type {
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { magnetHash, parseOriginalTitle, withRequestCost } from './shared.js';
+import { assertSitemapScope } from './sitemap-guard.js';
 import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { h1Text } from './work-name.js';
 import {
@@ -139,9 +140,12 @@ export function createComandotorrentsCrawlSite(
   ): Promise<DiscoveredUrl[]> {
     const xml = await surface.fetchTextDirect(loc, undefined, { onRequest });
     const out: DiscoveredUrl[] = [];
-    for (const entry of parseSitemapEntries(xml)) {
+    const entries = parseSitemapEntries(xml);
+    let accepted = 0;
+    for (const entry of entries) {
       const href = toWorkUrl(entry.loc, loc, (h) => surface.isDetailHost(h));
       if (!href) continue;
+      accepted += 1;
       const kind = kindFromSlug(href);
       const since = sinceOf(kind);
       if (since) {
@@ -151,6 +155,7 @@ export function createComandotorrentsCrawlSite(
       }
       out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
+    assertSitemapScope(entries.length, accepted);
     return out;
   }
 
@@ -190,7 +195,9 @@ export function createComandotorrentsCrawlSite(
         urls: emitSeries ? all : all.filter((u) => u.kind === 'movie'),
         complete,
         failures,
-        completeByKind: { movie: complete, tv_show: emitSeries ? complete : true },
+        // O `post-sitemap` mistura filmes e séries: arquivo ilegível não prova
+        // completude de nenhum tipo, mesmo com séries fora do gate nesta rodada.
+        completeByKind: { movie: complete, tv_show: complete },
         requestCost: counter.n,
       };
     },

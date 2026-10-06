@@ -35,6 +35,7 @@ import { parseViewerEntries } from './vaca-sitemap-viewer.js';
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { magnetHash, parseTitleYear, withRequestCost } from './shared.js';
+import { assertSitemapScope } from './sitemap-guard.js';
 
 // Reexportado: `parseTitleYear` virou núcleo compartilhado quando o NerdFilmes
 // virou o segundo consumidor (a sonda da Fase 2 e os testes importam por aqui —
@@ -167,13 +168,16 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
     const xml = await crawlFetch(surface, loc);
     const out: DiscoveredUrl[] = [];
     const workRe = kind === 'tv_show' ? TV_WORK_RE : MOVIE_WORK_RE;
-    for (const entry of parseSitemapEntries(xml)) {
+    const entries = parseSitemapEntries(xml);
+    let accepted = 0;
+    for (const entry of entries) {
       // URL de obra é INPUT do site: resolve relativa, exige forma de obra E
       // host do site — sitemap adulterado não planta URL alheia na fila.
       let href: URL;
       try { href = new URL(entry.loc, loc); } catch { continue; }
       if (!workRe.test(href.pathname)) continue; // raiz/listagem e páginas estranhas
       if (!surface.isDetailHost(href.hostname)) continue;
+      accepted += 1;
       // Incremental: lastmod ≤ since já foi processado (upsert do store é
       // idempotente, então o filtro é economia, não correção). Lastmod
       // ilegível entra — não se perde obra por ruído de data.
@@ -184,6 +188,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
       }
       out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
+    assertSitemapScope(entries.length, accepted);
     return out;
   }
 

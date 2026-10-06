@@ -37,6 +37,7 @@ import * as log from '../../utils/logger.js';
 import { magnetHash, parseOriginalTitle, parseTitleYear, withRequestCost } from './shared.js';
 import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { cleanWorkName } from './work-name.js';
+import { assertSitemapScope } from './sitemap-guard.js';
 import {
   isSeasonSlug, isWorkPath, kindFromSlug, parseImdbId, parseSitemapEntries,
   parseSitemapIndexLocs, SITEMAP_INDEX_PATHS, toWorkUrl,
@@ -191,9 +192,12 @@ export function createNerdfilmesCrawlSite(
   ): Promise<DiscoveredUrl[]> {
     const xml = await surface.fetchTextDirect(loc, undefined, { onRequest });
     const out: DiscoveredUrl[] = [];
-    for (const entry of parseSitemapEntries(xml)) {
+    const entries = parseSitemapEntries(xml);
+    let accepted = 0;
+    for (const entry of entries) {
       const href = toWorkUrl(entry.loc, loc, (h) => surface.isDetailHost(h));
       if (!href) continue; // listagem, imagem do post, página estranha
+      accepted += 1;
       const kind = kindFromSlug(href);
       // Incremental: lastmod ≤ since já foi processado (upsert do store é
       // idempotente, então o filtro é economia, não correção). Lastmod
@@ -206,6 +210,7 @@ export function createNerdfilmesCrawlSite(
       }
       out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
+    assertSitemapScope(entries.length, accepted);
     return out;
   }
 
@@ -253,7 +258,9 @@ export function createNerdfilmesCrawlSite(
         urls: emitSeries ? all : all.filter((u) => u.kind === 'movie'),
         complete,
         failures,
-        completeByKind: { movie: complete, tv_show: emitSeries ? complete : true },
+        // O `post-sitemap` mistura filmes e séries: arquivo ilegível não prova
+        // completude de nenhum tipo, mesmo com séries fora do gate nesta rodada.
+        completeByKind: { movie: complete, tv_show: complete },
         requestCost: counter.n,
       };
     },

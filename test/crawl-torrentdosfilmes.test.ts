@@ -196,7 +196,7 @@ describe('crawl-sites/torrentdosfilmes: discover (sitemaps reais, sem rede)', ()
     assert.equal(disc.failures.length, 2);
     assert.ok(disc.failures.every((f) => /post-sitemap\d*\.xml/.test(f)), 'falha cita o loc de origem');
     assert.equal(disc.completeByKind?.movie, false, 'cursor de filme NÃO pode avançar');
-    assert.equal(disc.completeByKind?.tv_show, true, 'tv_show sem fonte = completo (cursor parado)');
+    assert.equal(disc.completeByKind?.tv_show, false, 'arquivo misto ilegível não prova completude do cursor tv_show');
   }));
 
   test('modo amostra: as 39 obras entram com o tipo do slug (2 séries, 37 filmes)', () => withStub(pageRoutes(), async () => {
@@ -288,6 +288,6 @@ describe('crawl-sites/torrentdosfilmes: discover (sitemaps reais, sem rede)', ()
     const off = await site().discover(null, { series: { enabled: false, maxCards: 10, maxButtons: 40 } });
     assert.equal(off.urls.length, 37);
     assert.ok(off.urls.every((u) => u.kind === 'movie'), 'séries desligadas: só filme');
-    assert.equal(off.completeByKind?.tv_show, true, 'tv_show sem fonte = cursor parado');
+    assert.equal(off.completeByKind?.tv_show, false, 'fonte mista incompleta bloqueia cursor mesmo com gate de séries fechado');
   }));
 });

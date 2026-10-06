@@ -134,7 +134,7 @@ describe('crawl-sites/comandotorrents: discover', () => {
     assert.equal(disc.complete, false);
     assert.equal(disc.failures.length, 1);
     assert.ok(slugsOf(disc.urls).includes('furiosa-uma-saga-mad-max'));
-    assert.equal(disc.completeByKind?.tv_show, true, 'sem amostra o cursor de série não anda');
+    assert.equal(disc.completeByKind?.tv_show, false, 'arquivo misto ilegível não prova completude do cursor tv_show');
   }));
 });
 

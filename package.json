@@ -142,6 +142,7 @@
     "test/crawl-recorder-integration.test.js",
     "test/crawl-identify.test.js",
     "test/crawl-vaca.test.js",
+    "test/crawl-sitemap-guards.test.js",
     "test/crawl-vaca-series.test.js",
     "test/crawl-series-repeated-packs.test.js",
     "test/crawl-series-rate.test.js",

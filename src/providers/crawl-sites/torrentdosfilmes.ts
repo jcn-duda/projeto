@@ -56,6 +56,7 @@ import type {
 import { instance } from '../../br-resolvers.js';
 import * as log from '../../utils/logger.js';
 import { parseOriginalTitle, withRequestCost } from './shared.js';
+import { assertSitemapScope } from './sitemap-guard.js';
 import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { TDF_SITE_ID, TDF_TRACKER_LABEL, passButtons } from './torrentdosfilmes-buttons.js';
 import {
@@ -183,11 +184,14 @@ export function createTorrentdosfilmesCrawlSite(
   ): Promise<DiscoveredUrl[]> {
     const xml = await surface.fetchTextDirect(loc, undefined, { onRequest });
     const out: DiscoveredUrl[] = [];
-    for (const entry of parseSitemapEntries(xml)) {
+    const entries = parseSitemapEntries(xml);
+    let accepted = 0;
+    for (const entry of entries) {
       // Loc de post é INPUT do site: a home `/` (que o índice do site inclui) e
       // qualquer host de fora saem aqui, sem virar requisição nem fila.
       const href = toWorkUrl(entry.loc, loc, (h) => surface.isDetailHost(h));
       if (!href) continue;
+      accepted += 1;
       const kind = kindFromSlug(href);
       // Incremental: lastmod ≤ since já foi processado (upsert do store é
       // idempotente, então o filtro é economia, não correção). Lastmod ilegível
@@ -200,6 +204,7 @@ export function createTorrentdosfilmesCrawlSite(
       }
       out.push({ url: href.href, lastmod: entry.lastmod, kind });
     }
+    assertSitemapScope(entries.length, accepted);
     return out;
   }
 
@@ -247,7 +252,9 @@ export function createTorrentdosfilmesCrawlSite(
         urls: emitSeries ? all : all.filter((u) => u.kind === 'movie'),
         complete,
         failures,
-        completeByKind: { movie: complete, tv_show: emitSeries ? complete : true },
+        // O `post-sitemap` mistura filmes e séries: arquivo ilegível não prova
+        // completude de nenhum tipo, mesmo com séries fora do gate nesta rodada.
+        completeByKind: { movie: complete, tv_show: complete },
         requestCost: counter.n,
       };
     },

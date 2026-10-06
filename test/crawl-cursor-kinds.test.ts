@@ -105,6 +105,25 @@ describe('F2 no motor: cursor POR KIND (migração, toggle, parcial, restart, re
     assert.ok((crawler.status().nextDiscoveryAt as number) <= Date.now() + 90_000, 'o kind faltante volta no retry curto');
   });
 
+  test('parcial de sitemap misto bloqueia os dois cursores no store real em memória', async () => {
+    const seen: Array<Record<string, string | null>> = [];
+    const site = motorSite(seen);
+    site.discover = async () => ({
+      urls: [
+        { url: '/filme-validado', lastmod: '2026-05-01', kind: 'movie' },
+        { url: '/serie-validada', lastmod: '2026-06-01', kind: 'tv_show' },
+      ],
+      complete: false,
+      failures: ['post-sitemap2.xml: sitemap_sem_entradas_reconhecidas'],
+      completeByKind: { movie: false, tv_show: false },
+    });
+    crawler._setSitesForTest(() => site);
+    await crawler.tick();
+    await drainAll();
+    assert.equal(store.engine().getState('fake', 'cursor:movie'), null, 'lastmod parcial de filme não avança');
+    assert.equal(store.engine().getState('fake', 'cursor:tv_show'), null, 'kind misto incerto também bloqueia série');
+  });
+
   test('restart: ambos os cursores vêm do crawl.db; reset apaga os dois', async () => {
     const sinceSeen: Array<Record<string, string | null>> = [];
     crawler._setSitesForTest(() => motorSite(sinceSeen));

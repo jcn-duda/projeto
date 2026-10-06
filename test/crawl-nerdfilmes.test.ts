@@ -114,10 +114,9 @@ describe('crawl-sites/nerdfilmes: discover (sitemaps reais, sem rede)', () => {
     assert.equal(disc.failures.length, 5, 'uma falha por sitemap ausente');
     assert.ok(disc.failures.every((f) => /post-sitemap\d*\.xml/.test(f)), 'falha cita o loc de origem');
     assert.equal(disc.completeByKind?.movie, false, 'cursor de filme NÃO pode avançar');
-    // Sem URL de série na lista, o cursor daquele tipo não anda de todo jeito
-    // (`advanceCursors` só move com `max` do kind) — e o contrato pede `true`
-    // para kind sem fonte consultada.
-    assert.equal(disc.completeByKind?.tv_show, true, 'tv_show sem fonte = completo (cursor parado)');
+    // O arquivo é misto: a falha não prova completude de nenhum tipo, mesmo
+    // sem URL de série já reconhecida nesta rodada.
+    assert.equal(disc.completeByKind?.tv_show, false, 'arquivo misto ilegível não prova completude do cursor tv_show');
   }));
 
   test('modo amostra: as 40 entram com o tipo do slug (13 séries, 27 filmes)', () => withStub(pageRoutes(), async () => {
@@ -216,7 +215,7 @@ describe('crawl-sites/nerdfilmes: discover (sitemaps reais, sem rede)', () => {
     assert.equal(on.urls.filter((u) => u.kind === 'tv_show').length, 13);
     const off = await site().discover(null, { series: { enabled: false, maxCards: 10, maxButtons: 40 } });
     assert.ok(off.urls.every((u) => u.kind === 'movie'), 'séries desligadas: só filme');
-    assert.equal(off.completeByKind?.tv_show, true, 'tv_show sem fonte = cursor parado');
+    assert.equal(off.completeByKind?.tv_show, false, 'fonte mista incompleta bloqueia cursor mesmo com gate de séries fechado');
   }));
 });
 
