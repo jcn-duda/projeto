@@ -110,3 +110,33 @@ export function withRequestCost(err: unknown, cost: number): Error {
   (e as Error & { requestCost?: number }).requestCost = cost;
   return e;
 }
+
+/**
+ * Comentário HTML fora com a semântica do navegador: `<!--` sem fecho engole o
+ * resto do documento. É a régua do CONTEÚDO da obra (tipo, IMDb, magnets) —
+ * marcação comentada não é a página que o visitante vê. A contagem de cards da
+ * listagem NÃO usa esta: lá um `<!--` órfão encolheria a contagem e forjaria
+ * "fim de acervo" (ver `hdrtorrents-discovery.ts`).
+ */
+export function stripHtmlComments(html: string | null | undefined): string {
+  return String(html || '').replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
+}
+
+const IMDB_WIDGET_PATH_RE = /\/(?:ref_|list|listicle)(?:[/?]|$)/i;
+
+/**
+ * O sufixo depois de `title/tt…` é de widget de recomendação? Forma no path
+ * (`/ref_/`, `/list/`) ou na query (`?ref_=tt_plg_…`, que o plugin do IMDb usa).
+ * A âncora do `tt` continua por site (ver o cabeçalho); só o widget é comum.
+ */
+export function isImdbWidgetReference(suffix: string): boolean {
+  if (IMDB_WIDGET_PATH_RE.test(suffix)) return true;
+  try {
+    const url = new URL(`https://www.imdb.com/title/tt0000000${suffix.replace(/&amp;/gi, '&')}`);
+    return [...url.searchParams].some(([key, value]) => (
+      key.toLowerCase() === 'ref_' && /^tt_plg(?:_|$)/i.test(value)
+    ));
+  } catch {
+    return false;
+  }
+}

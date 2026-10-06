@@ -83,7 +83,7 @@ import type {
   CrawlDiscoverOptions, CrawlDiscovery, CrawlPageKind, CrawlPageOptions,
   CrawlReleaseGroup, CrawlSite, CrawlWorkResult,
 } from '../crawl-types.js';
-import { magnetHash, withRequestCost } from './shared.js';
+import { magnetHash, stripHtmlComments, withRequestCost } from './shared.js';
 import { pageSeasonOf, seasonPageGroups } from './season-page.js';
 import { walkListing } from './listing-discover.js';
 import {
@@ -306,7 +306,7 @@ function buildWork(
   surface: ApacheResolverSurface,
   requests: number,
 ): CrawlWorkResult {
-  html = html.replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
+  html = stripHtmlComments(html);
   // Coerência de tipo, FASE 2: agora que o post foi lido, o tipo declarado
   // nele decide. "Filme de YYYY" numa página pedida como série é conteúdo
   // errado — devolver 404/erro aqui é o que a fila de `movie` não alcança.

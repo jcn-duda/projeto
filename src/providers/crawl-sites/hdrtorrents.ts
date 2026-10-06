@@ -57,10 +57,13 @@ import type {
   CrawlDiscoverOptions, CrawlDiscovery, CrawlPageKind, CrawlPageOptions,
   CrawlReleaseGroup, CrawlSite, CrawlWorkResult,
 } from '../crawl-types.js';
-import { magnetHash, withRequestCost } from './shared.js';
+import { magnetHash, stripHtmlComments, withRequestCost } from './shared.js';
 import { pageSeasonOf, seasonPageGroups, seriesRowGroups } from './season-page.js';
 import { walkListing } from './listing-discover.js';
-import { countListingCards as countRawListingCards, fichaText, isSeasonSlug, isWorkPath, kindFromCardType, kindFromWorkSlug, pageKindOf, parseImdbId } from './hdrtorrents-discovery.js';
+import {
+  countListingCards as countRawListingCards, fichaText, isSeasonSlug, isWorkPath,
+  kindConflictOf, kindFromCardType, kindFromWorkSlug, parseImdbId,
+} from './hdrtorrents-discovery.js';
 import { readWorkTitle } from './work-name.js';
 import type { RawItem } from '../../../types/domain.js';
 
@@ -319,10 +322,9 @@ function buildWork(
   requests: number,
   aggregated = false,
 ): CrawlWorkResult {
-  html = html.replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
-  if (season && pageKindOf(html) === 'movie') {
-    return { url, status: 'error', error: 'filme_com_kind_tv_show: a ficha declara Movie', requestCost: requests };
-  }
+  html = stripHtmlComments(html);
+  const kindConflict = kindConflictOf(html, season);
+  if (kindConflict) return { url, status: 'error', error: kindConflict, requestCost: requests };
   const normalized = fichaText(html);
   const title = readWorkTitle(normalized);
   const imdb = parseImdbId(normalized);

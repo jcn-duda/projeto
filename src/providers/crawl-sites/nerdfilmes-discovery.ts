@@ -25,6 +25,7 @@
 // enfileirada como filme e gravada (14 magnets de episódio virariam uma "obra" de
 // filme que não existe). Ver `nerdfilmes.ts`.
 import type { CrawlPageKind } from '../crawl-types.js';
+import { stripHtmlComments } from './shared.js';
 
 /** Índice de sitemaps: o canônico do AIOSEO e o nome Yoast (302 medido). */
 export const SITEMAP_INDEX_PATHS = ['sitemap.xml', 'sitemap_index.xml'];
@@ -144,7 +145,7 @@ export function isSeasonSlug(href: URL | string): boolean {
  * site, e obra errada é pior que obra nenhuma.
  */
 export function parseImdbId(html: string): string | null {
-  const source = String(html || '').replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
+  const source = stripHtmlComments(html);
   const found = new Set([...source.matchAll(IMDB_TITLE_RE)].map((m) => m[1]));
   return found.size === 1 ? [...found][0] : null;
 }

@@ -68,6 +68,7 @@
 // não lista vazia.
 import { decodeEntities } from '../../utils/title-normalization.js';
 import type { CrawlPageKind } from '../crawl-types.js';
+import { isImdbWidgetReference } from './shared.js';
 
 /** Card de obra reconhecido na listagem, já deduplicado e com tipo decidido. */
 export interface ApacheListingCard {
@@ -241,21 +242,6 @@ export function pageKindOf(html: string): CrawlPageKind | null {
 
 /** `imdb.com/title/tt…` e `imdb.com/pt/title/tt…` (medido: o site usa as duas). */
 const IMDB_TITLE_RE = /(?:https?:)?\/\/(?:www\.|m\.)?imdb\.com\/(?:[a-z]{2}\/)?title\/(tt\d{5,})([^"'\s<>]*)/gi;
-/** Widget de recomendação (mesma forma do redetorrent e do HDRTorrent). */
-const IMDB_WIDGET_PATH_RE = /\/(?:ref_|list|listicle)(?:[/?]|$)/i;
-
-/** O IMDb inclui a referência do plugin na query, não necessariamente no path. */
-function isWidgetReference(suffix: string): boolean {
-  if (IMDB_WIDGET_PATH_RE.test(suffix)) return true;
-  try {
-    const url = new URL(`https://www.imdb.com/title/tt0000000${suffix.replace(/&amp;/gi, '&')}`);
-    return [...url.searchParams].some(([key, value]) => (
-      key.toLowerCase() === 'ref_' && /^tt_plg(?:_|$)/i.test(value)
-    ));
-  } catch {
-    return false;
-  }
-}
 
 /**
  * IMDb da obra: um `tt` único na página é o da obra; dois ou nenhum é
@@ -273,7 +259,7 @@ function isWidgetReference(suffix: string): boolean {
 export function parseImdbId(html: string): string | null {
   const found = new Set(
     [...markupOf(html).matchAll(IMDB_TITLE_RE)]
-      .filter((m) => !isWidgetReference(m[2] ?? ''))
+      .filter((m) => !isImdbWidgetReference(m[2] ?? ''))
       .map((m) => m[1]),
   );
   return found.size === 1 ? [...found][0] : null;

@@ -18,6 +18,8 @@
 // `/filmes/`, `/series/`, `/desenhos/`, `/lancamentos/` (medido, todas as de 1
 // segmento) — não terminam assim. É o que separa "post" de "página de
 // navegação" sem lista de exclusão que envelheceria a cada rota nova.
+import { isImdbWidgetReference, stripHtmlComments } from './shared.js';
+
 const WORK_SLUG_RE = /^\/[a-z0-9][a-z0-9-]*-torrent-download\/$/i;
 
 /** Temporada no slug: `-14a-temporada`, `-3-temporada`, `-1-temporada-`. */
@@ -69,7 +71,11 @@ export function isWorkPath(href: URL | string): boolean {
   return WORK_SLUG_RE.test(path);
 }
 
-/** Conta cards brutos pelo marcador de bloco medido nas fixtures do site. */
+/**
+ * Conta cards brutos pelo marcador de bloco medido nas fixtures do site.
+ * Só comentário FECHADO sai aqui (não `stripHtmlComments`): um `<!--` órfão
+ * engoliria os cards seguintes, e contagem curta vira "fim de acervo".
+ */
 export function countListingCards(html: string | null | undefined): number {
   return [...String(html || '').replace(/<!--[\s\S]*?-->/g, ' ').matchAll(
     /<a\b[^>]*\bclass=["'][^"']*\bmedia-card-link\b[^"']*["'][^>]*>/gi,
@@ -78,10 +84,22 @@ export function countListingCards(html: string | null | undefined): number {
 
 /** Tipo semântico do próprio documento da obra; ignora schemas do sidebar. */
 export function pageKindOf(html: string | null | undefined): 'movie' | 'tv_show' | null {
-  const main = String(html || '').replace(/<!--[\s\S]*?(?:-->|$)/g, ' ')
-    .match(/<main\b[^>]*\bitemtype=["']https?:\/\/schema\.org\/(Movie|TVSeries)["'][^>]*>/i);
+  const main = stripHtmlComments(html).match(/<main\b[^>]*\bitemtype=["']https?:\/\/schema\.org\/(Movie|TVSeries)["'][^>]*>/i);
   if (/\/Movie/i.test(main?.[0] || '')) return 'movie';
   if (/\/TVSeries/i.test(main?.[0] || '')) return 'tv_show';
+  return null;
+}
+
+/**
+ * Erro de coerência quando a ficha contradiz o kind da fila; `null` se bate ou
+ * se a página não declara. Nos DOIS sentidos: o slug só pega temporada
+ * explícita, e a série que agrega temporadas (`castle-torrent-download/`) sem
+ * badge no card chega pedida como filme — gravá-la assim é obra inexistente.
+ */
+export function kindConflictOf(html: string, season: boolean): string | null {
+  const declared = pageKindOf(html);
+  if (season && declared === 'movie') return 'filme_com_kind_tv_show: a ficha declara Movie';
+  if (!season && declared === 'tv_show') return 'serie_com_kind_movie: a ficha declara TVSeries';
   return null;
 }
 
@@ -107,21 +125,6 @@ export function fichaText(html: string): string {
 
 /** `imdb.com/title/tt…` e `imdb.com/pt/title/tt…` (medido: o site usa as duas). */
 const IMDB_TITLE_RE = /(?:https?:)?\/\/(?:www\.|m\.)?imdb\.com\/(?:[a-z]{2}\/)?title\/(tt\d{5,})([^"'\s<>]*)/gi;
-/** Widget de recomendação (mesma forma do redetorrent, mesma disciplina). */
-const IMDB_WIDGET_PATH_RE = /\/(?:ref_|list|listicle)(?:[/?]|$)/i;
-
-/** O IMDb inclui a referência do plugin na query, não necessariamente no path. */
-function isWidgetReference(suffix: string): boolean {
-  if (IMDB_WIDGET_PATH_RE.test(suffix)) return true;
-  try {
-    const url = new URL(`https://www.imdb.com/title/tt0000000${suffix.replace(/&amp;/gi, '&')}`);
-    return [...url.searchParams].some(([key, value]) => (
-      key.toLowerCase() === 'ref_' && /^tt_plg(?:_|$)/i.test(value)
-    ));
-  } catch {
-    return false;
-  }
-}
 
 /**
  * IMDb da obra: um `tt` único na página é o da obra; dois ou nenhum é
@@ -135,8 +138,8 @@ function isWidgetReference(suffix: string): boolean {
  */
 export function parseImdbId(html: string): string | null {
   const found = new Set(
-    [...String(html || '').replace(/<!--[\s\S]*?-->/g, ' ').matchAll(IMDB_TITLE_RE)]
-      .filter((m) => !isWidgetReference(m[2] ?? ''))
+    [...stripHtmlComments(html).matchAll(IMDB_TITLE_RE)]
+      .filter((m) => !isImdbWidgetReference(m[2] ?? ''))
       .map((m) => m[1]),
   );
   return found.size === 1 ? [...found][0] : null;
