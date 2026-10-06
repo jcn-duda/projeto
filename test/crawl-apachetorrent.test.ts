@@ -13,6 +13,7 @@ import {
   APACHE_BASE, apacheFixture, apacheItemListKinds, apacheListingUrls, listingRoute, withSite,
   type ApacheRoute,
 } from './helpers/crawl-apachetorrent-fixtures.js';
+import { parseImdbId } from '../src/providers/crawl-sites/apachetorrent-discovery.js';
 
 const MOVIE_POST = `${APACHE_BASE}/as-rainhas-da-torcida-baixar-torrent/`;
 const SERIES_POST = `${APACHE_BASE}/lanternas-1a-temporada-baixar-torrent/`;
@@ -168,6 +169,39 @@ describe('ApacheTorrent: descoberta pela listagem', () => {
 });
 
 describe('ApacheTorrent: o post', () => {
+  test('IMDb: widget não é identidade; âncora canônica sobrevive e comentários são ignorados', () => {
+    const widget = '<a href="https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt">7.0</a>';
+    assert.equal(parseImdbId(widget), null, 'plugin isolado não deve identificar a obra');
+    assert.equal(parseImdbId(`${widget}<a href="https://www.imdb.com/title/tt0340163/">IMDb</a>`), 'tt0340163');
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt0340163/">IMDb</a>'
+      + '<a href="https://www.imdb.com/title/tt1234567/">IMDb</a>'), null, 'âncoras canônicas ambíguas seguem null');
+    assert.equal(parseImdbId('<!-- <a href="https://www.imdb.com/title/tt1959490/">widget</a> -->'), null);
+    assert.equal(parseImdbId('<a href="https://notimdb.com/title/tt1234567/">falso domínio</a>'), null);
+    for (const query of ['?REF_=tt_plg_rt', '?ref%5F=tt_plg_rt', '?ref_=TT_PLG_RT']) {
+      assert.equal(parseImdbId(`<a href="https://www.imdb.com/title/tt1959490/${query}">plugin</a>`), null, query);
+    }
+    for (const path of ['list?x=1', 'listicle?x=1', 'ref_?x=1']) {
+      assert.equal(parseImdbId(`<a href="https://www.imdb.com/title/tt1959490/${path}">widget</a>`), null, path);
+    }
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt0340163/listend">IMDb</a>'), 'tt0340163');
+    assert.equal(parseImdbId('<a href="https://m.imdb.com/title/tt0340163/">IMDb</a>'), 'tt0340163');
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt1959490/?x=1&amp;ref_=tt_plg_rt">widget</a>'), null);
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt1234567/?ref_=tt_review">obra</a>'), 'tt1234567');
+  });
+
+  test('fetchWork não devolve IMDb de widget; mantém metadados para identificação por título/ano', async () => {
+    const html = apacheFixture('post-filme')
+      .replaceAll('https://www.imdb.com/title/tt5125894/', 'https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt');
+    await withSite([[MOVIE_POST, { body: html }]], async ({ site }) => {
+      const work = await site.fetchWork(MOVIE_POST, { kind: 'movie' });
+      assert.equal(work.status, 'done');
+      assert.equal(work.imdb, null);
+      assert.equal(work.title, 'As Rainhas da Torcida');
+      assert.equal(work.year, 2019);
+      assert.equal(work.releases?.length, 3);
+    });
+  });
+
   test('filme: releases com magnet, tamanho da ficha, IMDb e o original sem rótulo', async () => {
     await withSite([postRoute(MOVIE_POST, 'post-filme')], async ({ site }) => {
       const work = await site.fetchWork(MOVIE_POST, { kind: 'movie' });

@@ -9,6 +9,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { hdrFixture, hdrListingUrls, listingRoute, withSite, type HdrRoute } from './helpers/crawl-hdrtorrents-fixtures.js';
+import { parseImdbId } from '../src/providers/crawl-sites/hdrtorrents-discovery.js';
 
 const SERIES_POST = 'https://hdrtorrents.net/os-irregulares-de-baker-street-1-temporada-completa-legendada-torrent-download/';
 const SERIES_EP_POST = 'https://hdrtorrents.net/presidente-curtis-1a-temporada-torrent-download/';
@@ -108,6 +109,39 @@ describe('HDRTorrent: descoberta pela listagem', () => {
 
 describe('HDRTorrent: o post', () => {
   const postRoute = (url: string, fixture: string): [string, HdrRoute] => [url, { body: hdrFixture(fixture) }];
+
+  test('IMDb: widget não é identidade; âncora canônica sobrevive e comentários são ignorados', () => {
+    const widget = '<a href="https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt">7.0</a>';
+    assert.equal(parseImdbId(widget), null, 'plugin isolado não deve identificar a obra');
+    assert.equal(parseImdbId(`${widget}<a href="https://www.imdb.com/title/tt0340163/">IMDb</a>`), 'tt0340163');
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt0340163/">IMDb</a>'
+      + '<a href="https://www.imdb.com/title/tt1234567/">IMDb</a>'), null, 'âncoras canônicas ambíguas seguem null');
+    assert.equal(parseImdbId('<!-- <a href="https://www.imdb.com/title/tt1959490/">widget</a> -->'), null);
+    assert.equal(parseImdbId('<a href="https://notimdb.com/title/tt1234567/">falso domínio</a>'), null);
+    for (const query of ['?REF_=tt_plg_rt', '?ref%5F=tt_plg_rt', '?ref_=TT_PLG_RT']) {
+      assert.equal(parseImdbId(`<a href="https://www.imdb.com/title/tt1959490/${query}">plugin</a>`), null, query);
+    }
+    for (const path of ['list?x=1', 'listicle?x=1', 'ref_?x=1']) {
+      assert.equal(parseImdbId(`<a href="https://www.imdb.com/title/tt1959490/${path}">widget</a>`), null, path);
+    }
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt0340163/listend">IMDb</a>'), 'tt0340163');
+    assert.equal(parseImdbId('<a href="https://m.imdb.com/title/tt0340163/">IMDb</a>'), 'tt0340163');
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt1959490/?x=1&amp;ref_=tt_plg_rt">widget</a>'), null);
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt1234567/?ref_=tt_review">obra</a>'), 'tt1234567');
+  });
+
+  test('fetchWork não devolve IMDb de widget; mantém metadados para identificação por título/ano', async () => {
+    const html = hdrFixture('post-filme')
+      .replaceAll('https://www.imdb.com/title/tt1197624/', 'https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt');
+    await withSite([[MOVIE_POST, { body: html }]], async ({ site }) => {
+      const work = await site.fetchWork(MOVIE_POST, { kind: 'movie' });
+      assert.equal(work.status, 'done');
+      assert.equal(work.imdb, null);
+      assert.equal(work.title, 'Código de Conduta');
+      assert.equal(work.year, 2009);
+      assert.equal(work.releases?.length, 1);
+    });
+  });
 
   test('filme: releases com magnet, tamanho da ficha e o título do profile', async () => {
     await withSite([postRoute(MOVIE_POST, 'post-filme')], async ({ site }) => {

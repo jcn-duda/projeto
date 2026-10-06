@@ -90,9 +90,22 @@ export function fichaText(html: string): string {
 }
 
 /** `imdb.com/title/tt…` e `imdb.com/pt/title/tt…` (medido: o site usa as duas). */
-const IMDB_TITLE_RE = /imdb\.com\/(?:[a-z]{2}\/)?title\/(tt\d{5,})([^"'\s<>]*)/gi;
+const IMDB_TITLE_RE = /(?:https?:)?\/\/(?:www\.|m\.)?imdb\.com\/(?:[a-z]{2}\/)?title\/(tt\d{5,})([^"'\s<>]*)/gi;
 /** Widget de recomendação (mesma forma do redetorrent, mesma disciplina). */
-const IMDB_WIDGET_RE = /\/(?:ref_|list|listicle)[/?]/i;
+const IMDB_WIDGET_PATH_RE = /\/(?:ref_|list|listicle)(?:[/?]|$)/i;
+
+/** O IMDb inclui a referência do plugin na query, não necessariamente no path. */
+function isWidgetReference(suffix: string): boolean {
+  if (IMDB_WIDGET_PATH_RE.test(suffix)) return true;
+  try {
+    const url = new URL(`https://www.imdb.com/title/tt0000000${suffix.replace(/&amp;/gi, '&')}`);
+    return [...url.searchParams].some(([key, value]) => (
+      key.toLowerCase() === 'ref_' && /^tt_plg(?:_|$)/i.test(value)
+    ));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * IMDb da obra: um `tt` único na página é o da obra; dois ou nenhum é
@@ -106,8 +119,8 @@ const IMDB_WIDGET_RE = /\/(?:ref_|list|listicle)[/?]/i;
  */
 export function parseImdbId(html: string): string | null {
   const found = new Set(
-    [...String(html || '').matchAll(IMDB_TITLE_RE)]
-      .filter((m) => !IMDB_WIDGET_RE.test(m[2] ?? ''))
+    [...String(html || '').replace(/<!--[\s\S]*?-->/g, ' ').matchAll(IMDB_TITLE_RE)]
+      .filter((m) => !isWidgetReference(m[2] ?? ''))
       .map((m) => m[1]),
   );
   return found.size === 1 ? [...found][0] : null;
