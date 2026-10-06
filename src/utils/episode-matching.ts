@@ -2,6 +2,8 @@ import type { ParsedSeasonEpisode, StreamCandidate } from '../../types/domain.js
 import { normalizeTitle } from './title-normalization.js';
 
 const MAX_SEASON_SPAN = 30;
+/** Pack de novela medido: até 43 capítulos; 200 barra faixa lida de ruído. */
+const MAX_CHAPTER_SPAN = 200;
 const WRITTEN_ORDINALS = ['primeira', 'segunda', 'terceira', 'quarta', 'quinta', 'sexta', 'setima', 'oitava', 'nona', 'decima'];
 
 interface SeasonEpisodeOptions {
@@ -98,6 +100,19 @@ function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
     } else {
       eps.forEach((episode) => episodes.add(episode));
     }
+  }
+
+  // FAIXA de capítulos de novela, sem temporada: "[Capítulo 086 ao 123]",
+  // "[EP 050-056]". Novela tem temporada única e o site não a escreve; sem
+  // isto o título não dava pista e o pack passava em TODO episódio — Jesus
+  // (tt8747430) oferecia os 7 packs no E1 e no E196, que nenhum cobre
+  // (medido 2026-10-06). Só faixa explícita depois da palavra-chave: um número
+  // solto ("It Capítulo 2") continua sem virar episódio.
+  for (const m of raw.matchAll(/(?<![a-z0-9])(?:cap[ií]tulos?|epis[oó]dios?|eps?)\.?\s*(\d{1,3})\s*(?:[-–]|\b(?:ao|a|at[eé])(?![a-z]))\s*(\d{1,3})(?![\dp])/gi)) {
+    const lo = Number(m[1]);
+    const hi = Number(m[2]);
+    if (hi <= lo || hi - lo > MAX_CHAPTER_SPAN) continue;
+    for (let i = lo; i <= hi; i += 1) episodes.add(i);
   }
 
   // "1x04". Fronteira real: "1280x720" (resolução) não é S80xE720 — o

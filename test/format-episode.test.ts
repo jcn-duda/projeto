@@ -354,3 +354,32 @@ test('fronteira conservadora: colagens NÃO são marcador (ruído de cena)', () 
   assert.deepEqual(legit.seasons, [1]);
   assert.deepEqual(legit.episodes, [4]);
 });
+
+test('faixa de capítulos de novela no dn= limita o pack aos episódios que ele contém', () => {
+  // dn= reais dos packs de Jesus (tt8747430), medidos em 2026-10-06.
+  const cap = 'COMOEUBAIXO.COM..HDTV.720P.MP4.-NACIONAL-..Novela Jesus [Capítulo 086 ao 123] - www.lapumiafilmes.com';
+  const ep = 'Jesus - Novela 2018 [EP 050-056] WWW LAPUMiAFiLMES COM';
+  const capEps = parseTitleSeasonEpisode(cap).episodes;
+  assert.equal(capEps.length, 38);
+  assert.equal(Math.min(...capEps), 86);
+  assert.equal(Math.max(...capEps), 123);
+  assert.deepStrictEqual(parseTitleSeasonEpisode(cap).seasons, []);
+  assert.equal(matchesEpisode(cap, { season: 1, episode: 100 }), true);
+  assert.equal(matchesEpisode(cap, { season: 1, episode: 1 }), false);
+  assert.equal(matchesEpisode(cap, { season: 1, episode: 196 }), false);
+  assert.equal(matchesEpisode(ep, { season: 1, episode: 50 }), true);
+  assert.equal(matchesEpisode(ep, { season: 1, episode: 57 }), false);
+  // Variantes de separador e de palavra-chave.
+  assert.equal(matchesEpisode('Novela [Capitulos 1 a 42]', { season: 1, episode: 42 }), true);
+  assert.equal(matchesEpisode('Novela [Episódios 10 até 20]', { season: 1, episode: 21 }), false);
+});
+
+test('faixa de capítulos: número solto e resolução não viram episódio', () => {
+  assert.deepStrictEqual(parseTitleSeasonEpisode('It Capítulo 2 (2019) 1080p Dublado').episodes, []);
+  assert.deepStrictEqual(parseTitleSeasonEpisode('Novela EP 1-720p').episodes, []);
+  // Faixa invertida ou absurda é ruído, não pack.
+  assert.deepStrictEqual(parseTitleSeasonEpisode('Novela Capítulo 50 ao 10').episodes, []);
+  assert.deepStrictEqual(parseTitleSeasonEpisode('Novela Capítulo 1 ao 900').episodes, []);
+  // Título sem pista segue passando em qualquer episódio (release BR genérica).
+  assert.equal(matchesEpisode('Jesus Novela [720p HDTV DUBLADO]', { season: 1, episode: 150 }), true);
+});
