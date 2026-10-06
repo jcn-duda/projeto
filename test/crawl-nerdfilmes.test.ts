@@ -220,6 +220,17 @@ describe('crawl-sites/nerdfilmes: discover (sitemaps reais, sem rede)', () => {
 });
 
 describe('crawl-sites/nerdfilmes: fetchWork de filme (post e gate reais, sem rede)', () => {
+  test('widget IMDb somente em comentário não vira identidade da obra', () => withStub(
+    pageRoutes({ [MOVIE]: () => `${fixture('post-movie.html')}<!-- <a href="https://www.imdb.com/title/tt7654321/">widget</a> -->` }),
+    async () => {
+      const result = await site().fetchWork(MOVIE);
+      assert.equal(result.status, 'done');
+      assert.equal(result.imdb, null);
+      assert.equal(result.title, 'Bancários');
+      assert.equal(result.year, 2020);
+    },
+  ));
+
   test('post de filme: 1 release com o magnet do gate real, custo 2 requests', () => withStub(pageRoutes(), async (stub) => {
     const result = await site().fetchWork(MOVIE);
     assert.equal(result.status, 'done');
@@ -343,6 +354,7 @@ describe('crawl-sites/nerdfilmes: fetchWork de filme (post e gate reais, sem red
 describe('crawl-sites/nerdfilmes: parseImdbId e instância de produção', () => {
   test('um tt só é o da obra; dois ou nenhum é null', () => {
     assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt1234567/">IMDb</a>'), 'tt1234567');
+    assert.equal(parseImdbId('<a href="https://www.imdb.com/title/tt1234567/">IMDb</a><!-- <a href="https://www.imdb.com/title/tt7654321/">widget</a> -->'), 'tt1234567');
     assert.equal(
       parseImdbId('<a href="https://www.imdb.com/title/tt1234567/">a</a><a href="https://www.imdb.com/title/tt7654321/">b</a>'),
       null,

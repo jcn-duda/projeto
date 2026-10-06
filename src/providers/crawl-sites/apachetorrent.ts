@@ -306,6 +306,7 @@ function buildWork(
   surface: ApacheResolverSurface,
   requests: number,
 ): CrawlWorkResult {
+  html = html.replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
   // Coerência de tipo, FASE 2: agora que o post foi lido, o tipo declarado
   // nele decide. "Filme de YYYY" numa página pedida como série é conteúdo
   // errado — devolver 404/erro aqui é o que a fila de `movie` não alcança.
@@ -346,6 +347,7 @@ function buildWork(
       // listado como pack em todo episódio. É também a URI rica do banco.
       magnet: link.url,
       title: surface.releaseTitle(title.title, link, index),
+      tracker: TRACKER_LABEL,
       // Fonte BR não publica seeder: 1 é o valor neutro (0 seria descartado
       // pelo filtro de seeders antes de o card ser visto).
       seeders: 1,

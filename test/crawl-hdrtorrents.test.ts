@@ -179,7 +179,10 @@ describe('HDRTorrent: o post', () => {
   });
 
   test('filme: releases com magnet, tamanho da ficha e o título do profile', async () => {
-    await withSite([postRoute(MOVIE_POST, 'post-filme')], async ({ site }) => {
+    const html = hdrFixture('post-filme')
+      + '\n<!-- <div class="download-row"><div class="download-name">oculto</div>'
+      + '<a href="magnet:?xt=urn:btih:1111111111111111111111111111111111111111&amp;dn=Not+the+work">hidden</a></div>';
+    await withSite([[MOVIE_POST, { body: html }]], async ({ site }) => {
       const work = await site.fetchWork(MOVIE_POST, { kind: 'movie' });
       assert.equal(work.status, 'done');
       assert.equal(work.type, 'movie');
@@ -190,12 +193,24 @@ describe('HDRTorrent: o post', () => {
       const releases = work.releases ?? [];
       assert.equal(releases.length, 1);
       assert.match(releases[0].infoHash ?? '', /^[a-f0-9]{40}$/);
+      assert.notEqual(releases[0].infoHash, '1'.repeat(40));
       assert.match(String(releases[0].magnet), /[?&]dn=/, 'o filme também leva o magnet com `dn=`');
       assert.equal(releases[0].seeders, 1, 'fonte BR não publica seeder');
       assert.equal(releases[0].isBr, true);
+      assert.equal(releases[0].tracker, 'HDRTorrent');
       assert.equal(releases[0].size, Math.round(1.01 * 1024 ** 3));
       assert.match(releases[0].title ?? '', /Código de Conduta/);
       assert.match(releases[0].title ?? '', /\[.*DUBLADO.*\]/, 'o profile decide o áudio do rótulo');
+    });
+  });
+
+  test('HTML comment sem magnet ativo não produz torrent nem busca URL oculta', async () => {
+    const body = hdrFixture('post-filme').replace(/(<a\b[^>]*href="magnet:[^"]+"[^>]*>[\s\S]*?<\/a>)/gi, '<!-- $1 -->');
+    await withSite([[MOVIE_POST, { body }]], async ({ site, urls }) => {
+      const work = await site.fetchWork(MOVIE_POST, { kind: 'movie' });
+      assert.equal(work.status, 'no-torrent');
+      assert.equal(work.requestCost, 1);
+      assert.deepEqual(urls, [MOVIE_POST]);
     });
   });
 
@@ -248,6 +263,23 @@ describe('HDRTorrent: o post', () => {
       assert.equal(work.season, 7, 'a maior temporada declarada abre a janela da identificação');
       const seasons = (work.groups ?? []).map((g) => `S${g.season}E${g.episode ?? '*'}`);
       assert.deepEqual(seasons, ['S1E*', 'S2E*', 'S3E*', 'S4E*', 'S5E*', 'S6E*', 'S7E*']);
+    });
+  });
+
+  test('tv_show pedido é recusado quando o schema e a ficha próprios declaram filme', async () => {
+    const filmUrl = 'https://hdrtorrents.net/castle-filme-de-2009-torrent-download/';
+    const body = hdrFixture('post-serie-agregada')
+      .replaceAll('https://hdrtorrents.net/castle-torrent-download/', filmUrl)
+      .replace('"@type":"TVSeries"', '"@type":"Movie"')
+      .replace('itemtype="https://schema.org/TVSeries"', 'itemtype="https://schema.org/Movie"')
+      .replace(/(<h1\b[^>]*class="item-h1"[^>]*>[\s\S]*?)\bCastle\b/, '$1Castle Filme de 2009')
+      .replace('<dl class="item-specs">', '<dl class="item-specs"><div><dt>Tipo</dt><dd>Filme de 2009</dd></div>');
+    await withSite([[filmUrl, { body }]], async ({ site, urls }) => {
+      const work = await site.fetchWork(filmUrl, { kind: 'tv_show', series: SERIES_ON });
+      assert.equal(work.status, 'error');
+      assert.match(String(work.error), /filme_com_kind_tv_show/);
+      assert.equal(work.requestCost, 1);
+      assert.deepEqual(urls, [filmUrl]);
     });
   });
 

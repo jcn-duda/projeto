@@ -144,6 +144,7 @@ export function isSeasonSlug(href: URL | string): boolean {
  * site, e obra errada é pior que obra nenhuma.
  */
 export function parseImdbId(html: string): string | null {
-  const found = new Set([...String(html || '').matchAll(IMDB_TITLE_RE)].map((m) => m[1]));
+  const source = String(html || '').replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
+  const found = new Set([...source.matchAll(IMDB_TITLE_RE)].map((m) => m[1]));
   return found.size === 1 ? [...found][0] : null;
 }

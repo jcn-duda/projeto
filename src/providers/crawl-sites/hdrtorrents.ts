@@ -60,10 +60,7 @@ import type {
 import { magnetHash, withRequestCost } from './shared.js';
 import { pageSeasonOf, seasonPageGroups, seriesRowGroups } from './season-page.js';
 import { walkListing } from './listing-discover.js';
-import {
-  countListingCards as countRawListingCards, fichaText, isSeasonSlug, isWorkPath,
-  kindFromCardType, kindFromWorkSlug, parseImdbId,
-} from './hdrtorrents-discovery.js';
+import { countListingCards as countRawListingCards, fichaText, isSeasonSlug, isWorkPath, kindFromCardType, kindFromWorkSlug, pageKindOf, parseImdbId } from './hdrtorrents-discovery.js';
 import { readWorkTitle } from './work-name.js';
 import type { RawItem } from '../../../types/domain.js';
 
@@ -322,6 +319,10 @@ function buildWork(
   requests: number,
   aggregated = false,
 ): CrawlWorkResult {
+  html = html.replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
+  if (season && pageKindOf(html) === 'movie') {
+    return { url, status: 'error', error: 'filme_com_kind_tv_show: a ficha declara Movie', requestCost: requests };
+  }
   const normalized = fichaText(html);
   const title = readWorkTitle(normalized);
   const imdb = parseImdbId(normalized);
@@ -342,6 +343,7 @@ function buildWork(
       // (dn + trackers) que o banco de magnets guarda.
       magnet: link.url,
       title: surface.releaseTitle(title.title, link, index),
+      tracker: TRACKER_LABEL,
       // Fonte BR não publica seeder: 1 é o valor neutro (0 seria descartado
       // pelo filtro de seeders antes de o card ser visto).
       seeders: 1,

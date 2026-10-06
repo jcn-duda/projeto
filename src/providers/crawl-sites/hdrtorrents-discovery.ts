@@ -76,6 +76,15 @@ export function countListingCards(html: string | null | undefined): number {
   )].length;
 }
 
+/** Tipo semântico do próprio documento da obra; ignora schemas do sidebar. */
+export function pageKindOf(html: string | null | undefined): 'movie' | 'tv_show' | null {
+  const main = String(html || '').replace(/<!--[\s\S]*?(?:-->|$)/g, ' ')
+    .match(/<main\b[^>]*\bitemtype=["']https?:\/\/schema\.org\/(Movie|TVSeries)["'][^>]*>/i);
+  if (/\/Movie/i.test(main?.[0] || '')) return 'movie';
+  if (/\/TVSeries/i.test(main?.[0] || '')) return 'tv_show';
+  return null;
+}
+
 /**
  * Ficha do post vira TEXTO antes das regras compartilhadas. O site escreve a
  * ficha como `<dt>Rótulo</dt><dd>valor</dd>` (medido nos 3 posts reais), e as

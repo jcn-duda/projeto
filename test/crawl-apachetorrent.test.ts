@@ -191,7 +191,9 @@ describe('ApacheTorrent: o post', () => {
 
   test('fetchWork não devolve IMDb de widget; mantém metadados para identificação por título/ano', async () => {
     const html = apacheFixture('post-filme')
-      .replaceAll('https://www.imdb.com/title/tt5125894/', 'https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt');
+      .replaceAll('https://www.imdb.com/title/tt5125894/', 'https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt')
+      + '\n<!-- <div class="download-block"><p class="download-desc">DUBLADO 1080P</p>'
+      + '<a href="magnet:?xt=urn:btih:1111111111111111111111111111111111111111&amp;dn=Not+the+work">hidden</a></div>';
     await withSite([[MOVIE_POST, { body: html }]], async ({ site }) => {
       const work = await site.fetchWork(MOVIE_POST, { kind: 'movie' });
       assert.equal(work.status, 'done');
@@ -199,6 +201,17 @@ describe('ApacheTorrent: o post', () => {
       assert.equal(work.title, 'As Rainhas da Torcida');
       assert.equal(work.year, 2019);
       assert.equal(work.releases?.length, 3);
+      assert.equal(work.releases?.some((release) => release.infoHash === '1'.repeat(40)), false);
+    });
+  });
+
+  test('HTML comment sem links ativos não cria release nem navega pelo magnet oculto', async () => {
+    const body = apacheFixture('post-filme').replace(/(<a\b[^>]*href="magnet:[^"]+"[^>]*>[\s\S]*?<\/a>)/gi, '<!-- $1 -->');
+    await withSite([[MOVIE_POST, { body }]], async ({ site, urls }) => {
+      const work = await site.fetchWork(MOVIE_POST, { kind: 'movie' });
+      assert.equal(work.status, 'no-torrent');
+      assert.equal(work.requestCost, 1);
+      assert.deepEqual(urls, [MOVIE_POST]);
     });
   });
 
@@ -224,6 +237,7 @@ describe('ApacheTorrent: o post', () => {
       assert.equal(releases.filter((r) => /^[a-z0-9]{32}$/.test(r.infoHash ?? '')).length, 1);
       assert.equal(releases[0].seeders, 1, 'fonte BR não publica seeder');
       assert.equal(releases[0].isBr, true);
+      assert.equal(releases[0].tracker, 'ApacheTorrent');
       // Um tamanho por POST na ficha (`<strong>Tamanho</strong>: 1.78 GB`),
       // repetido nas 3 linhas: o botão do site não traz, a ficha traz.
       assert.equal(releases[0].size, Math.round(1.78 * 1024 ** 3));
