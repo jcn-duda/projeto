@@ -210,7 +210,10 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - Séries: portão `CRAWL_SERIES_ENABLED` (default ligado, só global); página que
   declara uma temporada → `seasonPageGroups`; página que agrega (RedeTorrent, HDR
   sem temporada no slug) → `seriesRowGroups`. Release leva o magnet inteiro
-  (o `dn=` é a evidência de episódio).
+  (o `dn=` é a evidência de episódio). Linha sem temporada nunca vai à raiz:
+  sai em `unlocated` e só vira S1 se a obra tem UMA temporada no TMDB
+  (`tvSeasonCount`, decidido no `crawl-page`). HDR: ficha `TVSeries` pedida
+  como filme é lida como série agregada.
 - **A sonda de 40 é o portão** de entrada de um site novo (Wilson ≥ 50%); ela
   mede também a régua do adaptador. Veredito é opt-in por `--write`.
 - **Vaca (`vacatorrent`)**: o fetch do crawl é `fetchTextCrawl` do profile — direto

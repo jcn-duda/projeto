@@ -2542,8 +2542,17 @@ O HDR tem as DUAS formas: post de temporada (slug com `-Na-temporada`) usa
 `seasonPageGroups`, e a série SEM temporada no slug (`castle-torrent-download/`)
 é página que agrega a série inteira, um magnet por temporada — `seriesRowGroups`
 só pelo `dn=` (2026-10-01; antes era recusada como `filme_com_kind_tv_show`, e
-1.624 séries ficaram fora do acervo na VPS). Linha sem temporada no `dn=` é
-descartada; nenhuma declarando = `no-torrent`.
+1.624 séries ficaram fora do acervo na VPS). Linha sem temporada no `dn=`
+nunca vai à raiz: o adaptador a entrega em `unlocated` e o `crawl-page`, depois
+de identificar a obra, consulta `tvSeasonCount` (TMDB `/find` + `/tv`). Com UMA
+temporada o pack vira pack da S1; com mais, fica fora; TMDB fora do ar é erro
+retentável; sem grupo nem pack aceito = `no-torrent` (2026-10-06, `200aec1`:
+nas 20 séries em erro medidas na VPS, 7 viraram S1 — Hellsing, Shaman King,
+Fullmetal Alchemist 2003 — e 4 ficaram fora por ter 2 a 4 temporadas). O
+Stremio numera pelo IMDb: série com 1 temporada no TMDB e mais no IMDb só
+aparece na S1. A ficha `TVSeries` numa linha pedida como filme (card sem
+badge) segue por este mesmo caminho em vez de virar erro (`4bb7ce9`); com
+séries desligadas, a recusa `serie_com_kind_movie` fica.
 O agrupamento é por `byDeclaredLocation` (opção nova do `groupSeriesReleases`):
 sem ela o `releaseWorkTargets` leria a lista de ordinais do `<h1>` que o profile
 copia para o título da release e devolveria a linha na raiz ALÉM da temporada —
