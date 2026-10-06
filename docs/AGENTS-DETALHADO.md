@@ -3775,6 +3775,21 @@ o orçamento com a resposta.
   advisories `GHSA-x5fp-wj9c-mxmx` e `GHSA-4mjr-xmp4-gh2g` sem migrar
   Express de major. Preserve o lockfile e valide suíte + audit de produção
   ao atualizar ou remover o override.
+- **`overrides.proxy-addr` é o único dos três que NÃO fecha um buraco deste
+  addon** — e é honesto dizer por quê. O `GHSA-jqcg-44mw-7w3h` (crítico,
+  `<=2.0.7`) é spoofing de IP via subrede confiada em IPv4 mapeado em IPv6
+  (`::ffff:a.b.c.d`): quem confia num proxy aceitaria o `X-Forwarded-For`
+  forjado. Aqui nada exercita esse caminho — `trust proxy` nunca é setado
+  (então `req.ip` não consulta a lista de confiança) e o rate limit do
+  `diagnostic-guard` chaveia na string literal `'global'`, não no IP. O
+  override existe porque o `npm audit --omit=dev` é gate BLOQUEANTE do CI e o
+  conserto é grátis: o Express 4.22.2 pede `~2.0.7`, faixa que já admite o
+  `2.0.8` corrigido, então o override só torna explícito em toda a árvore o
+  que a resolução faria sozinha (mesma major, sem migrar Express). Se algum
+  dia o addon passar a ler IP de cliente (rate limit por IP, allowlist,
+  log de origem), aí o advisory deixa de ser teórico — e a trava já estará
+  no lugar. Preserve o lockfile e valide suíte + `npm audit --omit=dev` ao
+  atualizar ou remover.
 
 ## Git
 

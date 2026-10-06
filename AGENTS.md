@@ -327,7 +327,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - Fontes BR mandam tamanho sentinela "1 KB" — não "conserte".
 - `assert.deepEqual` estreita o tipo (`never[]`); use `assert.equal(len, 0)`.
 - Antes de mudar matching/lista de indexer/classificação BR, **meça no Jackett
-  de verdade**. Overrides `path-to-regexp` e `qs` no `package.json` fecham
+  de verdade**. Overrides `path-to-regexp`, `proxy-addr` e `qs` no `package.json` fecham
   advisories reais — não faça `npm audit fix --force`.
 - Sem ⚡ ou sem dublado na 1ª resposta costuma ser config/prazo
   (`DEBRID_SHOW_UNCACHED_BR`, bloco `searchFirst` do painel), não matching.
