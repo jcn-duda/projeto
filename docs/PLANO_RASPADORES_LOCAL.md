@@ -373,7 +373,7 @@ não o resultado do código final. Commits locais, sem push ou ativação de fon
 | 4 — custo e contratos do motor | concluída | `9c761c3` | regressões RED→GREEN, 4.008/4.008 testes, typecheck/build, lista 409/10 e lint 894 |
 | 5a — motivo de sitemap desconhecido | concluída | `5f4a68e` | 92 focados; 4.010/4.010 testes; typecheck/build, lista 409/10, lint 894 e review aprovado |
 | 5b — flake de teto horário | sem patch | — | execução histórica não reproduzida; não atribuir causa |
-| 5c — casos adicionais do viewer | planejado | — | auditoria não encontrou bug; cobertura atual parcial documentada |
+| 5c — casos adicionais do viewer | concluída | `d03dd2f` | entity decode única e offsets de timezone; suíte final 4.011/4.011 |
 | 6 — prévia seletiva offline | concluída antecipadamente | `3a0482b` | teste de manifesto/CLI/bancos temporários e auditoria independente aprovada; sem apply |
 
 Após as partes 1/2 e a prévia, os gates foram repetidos pelo coordenador sem
@@ -393,9 +393,11 @@ Etapa H permanece fora do escopo: nenhum site real foi sondado ou liberado com
 real foi reparado. As mudanças locais anteriores em packages/TEAM/team foram
 preservadas; só o registro de teste pertinente entrou no commit de cada parte.
 
-Após a Parte 5, o coordenador repetiu serialmente: **4.010/4.010 testes**,
+Após a Parte 5a, o coordenador repetiu serialmente: **4.010/4.010 testes**,
 typecheck, build, 409 arquivos/10 harnesses e lint de 894 arquivos/zero acima
-do teto. Os seis harnesses adicionais também passaram em série: stress 154;
+do teto. Depois da cobertura adicional do viewer (5c), os mesmos gates passaram
+com **4.011/4.011 testes**. Os seis harnesses adicionais passaram em série antes
+da alteração de teste-only: stress 154;
 adversarial 10/10 mutações, 20/20 sequenciais e 6/6 workers; adversarial M1
 69; protector 42; challenger M2 11; ranking 13.
 
