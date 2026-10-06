@@ -155,6 +155,7 @@
     "test/crawl-series-flip.test.js",
     "test/crawl-repair-series-locations.test.js",
     "test/crawl-repair-locations-v2.test.js",
+    "test/crawl-recovery-preview.test.js",
     "test/release-work-ep4.test.js",
     "test/vaca-season-card-evidence.test.js",
     "test/crawl-cursor-kinds.test.js",
