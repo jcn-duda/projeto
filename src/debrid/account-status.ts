@@ -5,6 +5,7 @@ import * as log from '../utils/logger.js';
 import { accountScope } from '../utils/request-key.js';
 import { BY_ID, current } from './registry.js';
 import { UNUSABLE, failureReason } from './cache-check.js';
+import { settleWithin } from './account-settle.js';
 
 // Acima disto o verificador avisa: encher a conta derruba a checagem de cache
 // inteira (ela é um upload), e o sintoma na tela — o ⚡ sumindo de TODOS os
@@ -152,7 +153,7 @@ async function memoizedAccountStatus(adapter: DebridAdapter | null, apiKey: stri
   // promessa morta na fila, mesmo se esta corrida rejeitar (accountStatusFor
   // não lança, mas o custo da garantia é uma linha).
   const task = (async () => {
-    const value = { ...(await accountStatusFor(adapter, apiKey)), cached: false, fetchedAt };
+    const value = { ...(await settleWithin(accountStatusFor(adapter, apiKey), adapter, TIMEOUT_FIX)), cached: false, fetchedAt };
     memo.set(key, { value, fetchedAt });
     return value;
   })().finally(() => inFlight.delete(key));

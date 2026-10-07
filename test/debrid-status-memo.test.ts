@@ -267,3 +267,45 @@ test('dashboardAccounts reutiliza o memo para a conta do operador', async () => 
     config.debrid.dashboardAccountTtlMs = saved.ttl;
   }
 });
+
+test('memo: consulta pendurada para sempre não prende o inFlight — teto libera e a próxima reconsulta', async () => {
+  // Produção (2026-10-07): um fetch da AllDebrid ficou pendente sem socket e
+  // todo poll do painel se pendurou na mesma promessa até reiniciar.
+  const saved = {
+    ttl: config.debrid.dashboardAccountTtlMs,
+    timeout: config.debrid.timeout,
+    dash: config.debrid.dashboardAccountTimeoutMs,
+  };
+  config.debrid.dashboardAccountTtlMs = 20;
+  config.debrid.timeout = 10;
+  config.debrid.dashboardAccountTimeoutMs = 10;
+  resetAccountStatusMemo();
+  const realFetch = globalThis.fetch;
+  let hang = true;
+  let calls = 0;
+  globalThis.fetch = (async (url: any, init: any) => {
+    if (String(url).includes('127.0.0.1')) return realFetch(url, init);
+    calls += 1;
+    if (hang) return new Promise(() => {});
+    return { ok: true, status: 200, json: async () => okPayload() };
+  }) as unknown as typeof globalThis.fetch;
+  // O teto usa timer com unref (não segura o processo); aqui o loop precisa viver.
+  const keepAlive = setInterval(() => {}, 5);
+  try {
+    const travada = await withKey(() => debrid.accountStatus());
+    assert.equal(travada.ok, false);
+    assert.equal(travada.reason, 'timeout');
+    hang = false;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const depois = await withKey(() => debrid.accountStatus());
+    assert.equal(depois.ok, true, 'slot em voo foi liberado e a conta volta');
+    assert.equal(calls, 2);
+  } finally {
+    clearInterval(keepAlive);
+    globalThis.fetch = realFetch;
+    config.debrid.dashboardAccountTtlMs = saved.ttl;
+    config.debrid.timeout = saved.timeout;
+    config.debrid.dashboardAccountTimeoutMs = saved.dash;
+    resetAccountStatusMemo();
+  }
+});
