@@ -4,6 +4,7 @@ import { pickFile } from '../debrid/file-selector.js';
 import { peekFileSizes, hasFileSizes, peekTorrentTotal } from '../debrid/file-sizes.js';
 import { stageTrace } from '../utils/stream-trace.js';
 import { dropDuplicatePackFiles } from './duplicate-pack.js';
+import { dropPackTextTotals, namesMultipleEpisodes } from './pack-text-totals.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 
 // Tamanho do EPISÓDIO numa release que é pack da temporada. O tracker publica
@@ -15,6 +16,10 @@ import type { StreamTraceState } from '../utils/stream-trace.js';
 //      (`file-sizes.ts`) e o mesmo `pickFile` do play escolhendo o episódio;
 //   2. média — total do pack ÷ episódios da temporada no Cinemeta, marcada
 //      como "(média)" para não passar por medida.
+//
+// Sem nenhuma das duas, o total do torrent NÃO fica na linha: o
+// `dropPackTextTotals` (pack-text-totals.ts) o tira do texto, que é o último
+// canal de que o app Power Movie lê tamanho.
 //
 // O marcador `💾` continua seguido só de número e unidade, e o total do pack
 // vai num marcador separado. `_size` não muda — o filtro de tamanho máximo
@@ -175,7 +180,12 @@ function packHashesMissingFiles(streams: Array<Stream | null>, season: number | 
   for (const stream of streams) {
     if (!stream) continue;
     // Em filme, o "pack" é a coleção de várias obras marcada no título.
-    const pack = season == null ? isMultiWorkPack(stream) : isPack(stream, season);
+    // Faixa multi-episódio nomeada ("S01.Dub E01-E08", capítulos de novela)
+    // também pede a lista: o tamanho dela é o total da faixa, e o episódio só
+    // se mede com os arquivos.
+    const pack = season == null
+      ? isMultiWorkPack(stream)
+      : isPack(stream, season) || namesMultipleEpisodes(String(stream.title || ''));
     // Sem 💾 também pede a lista: é a única fonte do tamanho desse item. Sem
     // resolução no título também: o nome do arquivo é a fonte dela
     // (`probed-quality.ts`) — "S01.Dub E01-E08" de 10 GB saía sem resolução.
@@ -244,7 +254,14 @@ function annotatePackSizes<T extends Stream | null>(
   const skip = (reason: string) => stageTrace(trace, `episodeSize.skip.${reason}`, 1);
   return streams.map((stream) => {
     if (!stream || typeof stream.title !== 'string' || stream.title.includes(PACK_MARK)) return stream;
-    if (!isPack(stream, season)) return stream;
+    // Pack de temporada (isSeasonPackRelease) ou faixa multi-episódio nomeada
+    // ("Capítulo 086 ao 123" de novela, "S01E01-E10"): o título da faixa nomeia
+    // episódios e por isso NÃO é pack para o isSeasonPackRelease, mas o torrent
+    // também cobre vários — o total não é o tamanho do episódio pedido.
+    const seasonPack = isPack(stream, season);
+    const parsed = parseTitleSeasonEpisode(stream.title);
+    const rangePack = !seasonPack && parsed.episodes.length > 1 && parsed.episodes.includes(episode);
+    if (!seasonPack && !rangePack) return stream;
     // O Torrentio já responde por episódio: o 💾 dele é o tamanho do ARQUIVO
     // escolhido, não do torrent. Quando o nome do arquivo não traz SxxEyy
     // ("01 Adim Farah.avi"), o título parece pack e a média dividiria um
@@ -258,8 +275,12 @@ function annotatePackSizes<T extends Stream | null>(
     // título anuncia é a mesma medida, arredondada em duas casas.
     const packBytes = Number((stream as { _size?: number })._size) || parseSizeLabel(match[1]);
     const exact = exactEpisodeBytes(String(stream.infoHash), season, episode);
-    const count = exact ? 0 : episodesCovered(stream.title, season, meta);
+    // Faixa parcial não tem divisor honesto para média (a contagem do Cinemeta
+    // é da temporada inteira, não da faixa): só medida exata vale. Sem ela o
+    // `dropPackTextTotals` do fim tira o total da linha em vez de exibi-lo.
+    const count = exact || rangePack ? 0 : episodesCovered(stream.title, season, meta);
     if (!exact && !packBytes) { skip('no-pack-size'); return stream; }
+    if (!exact && rangePack) { skip('range-unmeasured'); return stream; }
     if (!exact && count <= 1) { skip('no-episode-count'); return stream; }
     const bytes = exact || Math.round(packBytes / count);
     // Pack de um arquivo só (ou medida maior que o total) não tem o que mostrar.
@@ -333,7 +354,8 @@ function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: An
   }) as T[];
   // Série sem episódio não tem arquivo único para medir.
   if (season != null && episode == null) return out;
-  const sized = fillMissingSizes(out, options);
+  const guarded = dropPackTextTotals(out, options);
+  const sized = fillMissingSizes(guarded, options);
   // Com a checagem conhecida, o pack que repete o arquivo de um avulso sai.
   return options.cached
     ? dropDuplicatePackFiles(sized, { season, episode, work: options.work, trace: options.trace, cached: options.cached })

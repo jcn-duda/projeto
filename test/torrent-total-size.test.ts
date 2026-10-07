@@ -115,6 +115,18 @@ test('post sem marcador e sem lista de arquivos fica sem 💾 em vez de exibir a
   assert.doesNotMatch(titleOf(out), /💾/);
 });
 
+test('faixa de capítulos com total do serviço não exibe a faixa como episódio', () => {
+  clearFileSizes();
+  recordTorrentTotal(PACK, Math.round(3.30 * GB));
+  const [out] = annotateEpisodeSizes(
+    [stream(PACK, 'Novela Capítulo 001 ao 010 720p\n👤 2 ⚙️ Apache Torrent')],
+    { season: 1, episode: 1, meta: { episodes: { 1: 154 } } },
+  );
+  assert.doesNotMatch(titleOf(out), /💾|3\.30 GB/, 'faixa parcial sem medida: o total sai da linha');
+  assert.equal((out as Stream & { _packBytes?: number })._packBytes, Math.round(3.30 * GB));
+  clearFileSizes();
+});
+
 test('💾 em KB com lista de arquivos vira o tamanho exato do episódio', () => {
   clearFileSizes();
   recordTorrentTotal(CACHED, 647765771);

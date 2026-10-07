@@ -23,7 +23,9 @@ test('item sem resolução pede a lista de arquivos, mesmo com 💾 e sem ser pa
     _quality: 'sem resolução',
   } as Stream;
   assert.deepEqual(packHashesMissingFiles([stream], 1), [DUB]);
-  assert.equal(packHashesMissingFiles([{ ...stream, _quality: '1080p' } as Stream], 1).length, 0);
+  // A faixa "E01-E08" é multi-episódio: mesmo com resolução e 💾 (que é o total
+  // da faixa), a lista de arquivos é o que permite medir o episódio.
+  assert.deepEqual(packHashesMissingFiles([{ ...stream, _quality: '1080p' } as Stream], 1), [DUB]);
 });
 
 test('premiumize: lê os arquivos só dos pedidos que estão prontos, com teto', async () => {

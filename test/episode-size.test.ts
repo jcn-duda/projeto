@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as cache from '../src/utils/cache.js';
-import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes } from '../src/providers/episode-size.js';
+import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel } from '../src/providers/episode-size.js';
 import { recordFileSizes, peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
@@ -141,8 +141,12 @@ test('pack de várias temporadas divide pelos episódios de todas elas', () => {
   const [out] = annotateEpisodeSizes([multi], { season: 1, episode: 1, meta: { episodes } });
   assert.match(titleOf(out), /💾 750\.5\d MB 📦 pack 70\.36 GB \(média\)/);
 
+  // Sem a contagem de TODAS as temporadas cobertas não há média — e sem
+  // medida o total do tracker também não fica na linha (Jesus S01E01, 2026-10-07).
   const [semContagem] = annotateEpisodeSizes([multi], { season: 1, episode: 1, meta: { episodes: { 1: 24 } } });
-  assert.equal(titleOf(semContagem), multi.title, 'sem a contagem de todas as temporadas cobertas, não estima');
+  assert.doesNotMatch(titleOf(semContagem), /💾|70\.36 GB/, 'sem média, o total do tracker não fica na linha');
+  assert.equal((semContagem as Stream & { _packBytes?: number })._packBytes, Math.round(70.36 * GB), 'o total segue interno');
+  assert.equal(streamSizeLabel(titleOf(semContagem)), null, 'sem 💾 o campo size não é publicado');
 });
 
 test('stream-trace conta exato, média e o motivo de cada pack sem anotação', () => {
@@ -153,18 +157,23 @@ test('stream-trace conta exato, média e o motivo de cada pack sem anotação', 
   annotateEpisodeSizes([packStream(), semContagem, avulsoStream()], { season: 3, episode: 3, meta: { episodes: {} }, trace });
   assert.equal(trace.stages['episodeSize.exact'], 1);
   assert.equal(trace.stages['episodeSize.skip.no-episode-count'], 1, 'pack sem memo e sem contagem diz o motivo');
-  assert.equal(Object.keys(trace.stages).length, 2, 'episódio avulso não entra no funil');
+  assert.equal(trace.stages['episodeSize.packTextDropped'], 1, 'o total não reduzido sai do texto');
+  assert.equal(Object.keys(trace.stages).length, 3, 'episódio avulso não entra no funil');
   clearFileSizes();
 });
 
-test('episódio avulso, pack sem dado nenhum e filme ficam como estão', () => {
+test('episódio avulso e filme ficam como estão; pack sem dado nenhum perde o total', () => {
   clearFileSizes();
   const [avulso, pack] = annotateEpisodeSizes([avulsoStream(), packStream()], { season: 3, episode: 3, meta: null });
   assert.equal(titleOf(avulso), titleOf(avulsoStream()));
-  assert.equal(titleOf(pack), PACK_TITLE);
+  assert.doesNotMatch(titleOf(pack), /💾|41\.67 GB/, 'sem medida e sem média, o total da temporada sai');
   const [filme] = annotateEpisodeSizes([packStream()], { season: null, episode: null, meta: { episodes: { 3: 8 } } });
-  assert.equal(titleOf(filme), PACK_TITLE);
+  assert.equal(titleOf(filme), PACK_TITLE, 'filme não passa pelo guard do pack');
+  clearFileSizes();
 });
+
+// Jesus (tt8747430) pelo Apache, 2026-10-07: os casos da faixa de novela e do
+// total no texto do post vivem em test/pack-text-totals.test.ts.
 
 test('a checagem recebe só os packs cujos arquivos ainda não são conhecidos', () => {
   clearFileSizes();
@@ -172,6 +181,10 @@ test('a checagem recebe só os packs cujos arquivos ainda não são conhecidos',
   recordFileSizes(PACK, [{ path: 'Goliath.S03E03.mkv', size: 5 * GB }]);
   assert.equal(packHashesMissingFiles([packStream(), avulsoStream()], 3).length, 0);
   assert.equal(packHashesMissingFiles([packStream()], null).length, 0);
+  // Faixa multi-episódio nomeada (novela) também pede a lista: o total dela
+  // não é o episódio, e a medida só existe com os arquivos.
+  const faixa = { name: 'x', title: 'Jesus Capítulo 001 ao 154 720p\n👤 3 ⚙️ Apache Torrent', infoHash: 'e7'.repeat(20) } as Stream;
+  assert.deepEqual(packHashesMissingFiles([faixa], 1), ['e7'.repeat(20)]);
   clearFileSizes();
 });
 
