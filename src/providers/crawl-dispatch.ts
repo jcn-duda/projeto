@@ -55,10 +55,17 @@ export function pickBatch(input: DispatchInput): DispatchResult {
   const paced = new Set(free.filter((id) => pacedOut(runtimeOf(id), configOf(id), now)));
   const chosen: SiteCandidate[] = [];
   const taken = new Set<string>();
+  // Ritmo próprio (Mico) roda POR FORA das vagas: não divide Jackett nem
+  // FlareSolverr, e disputar vaga o deixava parado atrás de descoberta longa
+  // de site HTML (VPS, 2026-10-07: 9 sites, 3 vagas, Mico em "aguarda-rodizio").
+  for (const id of free.filter(isOwnPace)) {
+    const { chosen: own } = selectNext([id], runtimeOf, configOf, deps, now);
+    if (own) { chosen.push(own); taken.add(id); }
+  }
   let flareTaken = [...inflight].some((id) => flareSites.has(id));
-  let slots = Math.max(0, Math.trunc(input.maxParallel) - inflight.size);
+  let slots = Math.max(0, Math.trunc(input.maxParallel) - [...inflight].filter((id) => !isOwnPace(id)).length);
   while (slots > 0) {
-    const pool = free.filter((id) => !taken.has(id) && !paced.has(id) && !(flareTaken && flareSites.has(id)));
+    const pool = free.filter((id) => !taken.has(id) && !isOwnPace(id) && !paced.has(id) && !(flareTaken && flareSites.has(id)));
     if (pool.length === 0) break;
     const { chosen: next } = selectNext(pool, runtimeOf, configOf, deps, now);
     if (!next) break;

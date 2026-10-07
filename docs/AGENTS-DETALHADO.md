@@ -2018,7 +2018,10 @@ IMDb, e por isso o adaptador difere dos outros oito em três pontos:
   senão o Mico rápido pararia os outros sites. Teste de carga da API: 60
   chamadas a 4/s, todas 200, p50 63 ms. Com `MICO_CRAWL_MIN_GAP_MS=250` no
   local o ritmo foi a ~92 obras/min (uma a cada ~504 ms), contra ~52 antes; o
-  limite agora é o tique do motor (menor `delayMs`, 500 ms).
+  limite agora é o tique do motor (menor `delayMs`, 500 ms). Depois do deploy, na VPS
+  (9 sites na rotação, 3 vagas), o Mico ficou em `aguarda-rodizio` atrás de
+  passos longos dos sites HTML; por isso o `pickBatch` escolhe o site de ritmo
+  próprio antes e por fora das vagas, e ele em voo não conta no `maxParallel`.
 - **Séries: episódios pela Cinemeta, progresso retomável** (Fase 2,
   `crawl-sites/mico-series.ts`; extraído pela catraca de 400 linhas — `mico.ts`
   orquestra e `mico-shared.ts` guarda as primitivas puras/throttle/página de

@@ -67,3 +67,22 @@ test('o ritmo do motor (delayMs) não segura o Mico entre um tique e outro', asy
   assert.deepEqual(out.chosen.map((c) => c.id), ['mico']);
   assert.ok(out.paced.has('vacatorrent'));
 });
+
+test('o Mico não ocupa vaga: roda mesmo com as vagas cheias, e não tira vaga de ninguém', async () => {
+  const { pickBatch } = await import('../src/providers/crawl-dispatch.js');
+  const ids = ['a', 'b', 'c', 'd', 'mico'];
+  const rts = new Map(ids.map((id) => [id, createSiteRuntime(id)]));
+  for (const rt of rts.values()) rt.openRunId = 1;
+  const deps = {
+    counters: () => ({ total: 5, byStatus: { ...EMPTY, pending: 5 } }),
+    probeOpen: () => true,
+    globalCapHit: () => false,
+  };
+  const base = { ids, flareSites: new Set<string>(), runtimeOf: (id: string) => rts.get(id)!, configOf: () => cfg, deps, now: Date.now(), maxParallel: 3 };
+  // Vagas cheias com sites HTML: o Mico sai mesmo assim.
+  assert.deepEqual(pickBatch({ ...base, inflight: new Set(['a', 'b', 'c']) }).chosen.map((c) => c.id), ['mico']);
+  // Mico em voo não consome vaga: os 3 HTML ainda cabem.
+  assert.deepEqual(pickBatch({ ...base, inflight: new Set(['mico']) }).chosen.map((c) => c.id), ['a', 'b', 'c']);
+  // Tudo livre: Mico + 3 vagas.
+  assert.deepEqual(pickBatch({ ...base, inflight: new Set() }).chosen.map((c) => c.id), ['mico', 'a', 'b', 'c']);
+});

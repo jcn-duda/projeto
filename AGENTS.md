@@ -207,8 +207,8 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - **Mico tem ritmo próprio** (`ownPace` na `SITE_TABLE`): o limitador é o
   `MICO_CRAWL_MIN_GAP_MS` do adaptador. Fica fora do teto horário (do site e
   agregado), da janela de ociosidade e da espera do `delayMs`, e o custo dele não
-  entra no teto agregado dos outros sites. Só site sem Jackett/FlareSolverr pode
-  ter `ownPace`.
+  entra no teto agregado dos outros sites, e roda POR FORA das vagas do
+  `CRAWL_MAX_PARALLEL`. Só site sem Jackett/FlareSolverr pode ter `ownPace`.
 - **"Nada reconhecido" é FALHA, nunca "vazio e completo"** — `urls:[]` com
   `complete:true` avança o cursor por cima de acervo nunca lido.
 - Identidade da página = `(site, url_key)` (caminho, sem host). Estado é por
