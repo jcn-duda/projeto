@@ -28,6 +28,12 @@ export interface SiteEntry {
   exportName: string | null;
   /** Observação para o status (por que não há adaptador, por exemplo). */
   note?: string;
+  /**
+   * Ritmo PRÓPRIO: o adaptador tem limitador interno e não usa Jackett nem
+   * FlareSolverr (os recursos da busca ao vivo que o teto horário e a janela de
+   * ociosidade protegem). Fica fora dos dois e do teto agregado do processo.
+   */
+  ownPace?: boolean;
 }
 
 /** Módulos resolvidos por import dinâmico (lazy: o módulo só entra em quem
@@ -78,7 +84,8 @@ export const SITE_TABLE: SiteEntry[] = [
   { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', module: BUILTIN_MODULES['apachetorrent-cardigann'], exportName: 'apachetorrentCrawlSite' },
   { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', module: BUILTIN_MODULES['hdrtorrent-cardigann'], exportName: 'hdrtorrentsCrawlSite' },
   { id: 'bludv-cardigann', label: 'BLUDV', module: BUILTIN_MODULES['bludv-cardigann'], exportName: 'bludvCrawlSite' },
-  { id: 'mico', label: 'Mico Leão Dublado', module: BUILTIN_MODULES.mico, exportName: 'micoCrawlSite' },
+  // Ritmo próprio: `MICO_CRAWL_MIN_GAP_MS` (API JSON, sem Jackett/FlareSolverr).
+  { id: 'mico', label: 'Mico Leão Dublado', module: BUILTIN_MODULES.mico, exportName: 'micoCrawlSite', ownPace: true },
 ];
 
 const TABLE = new Map<string, SiteEntry>(SITE_TABLE.map((entry) => [entry.id, entry]));
@@ -88,6 +95,11 @@ const memo = new Map<string, CrawlSite>();
 const warned = new Set<string>();
 let activeSite: CrawlSite | null = null;
 let activeSiteId = '';
+
+/** O site tem ritmo próprio (ver `SiteEntry.ownPace`)? */
+export function isOwnPace(id: string): boolean {
+  return SITE_TABLE.some((entry) => entry.id === id && entry.ownPace === true);
+}
 
 /** Ids canônicos dos sites BR (a tabela, na ordem da tabela). */
 export function tableIds(): string[] {

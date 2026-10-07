@@ -55,7 +55,7 @@ const hourPages = createHourCounter();
 const stepper = createCrawlStepper({
   // O ritmo é POR SITE (`lastActiveAt`, gravado no mesmo instante pelo passo).
   markRequest: () => {},
-  onCost: (cost) => { hourPages.note(cost); },
+  onCost: (cost, siteId) => { if (!registry.isOwnPace(siteId)) hourPages.note(cost); },
   discoveryCost: () => config.crawl.discoveryCost,
 });
 
@@ -159,7 +159,7 @@ async function tick(): Promise<void> {
   for (const candidate of chosen) {
     const rt = candidate.runtime;
     rt.attempts += 1;
-    if (activity.recentUserTraffic(candidate.config.idleWindowMs)) {
+    if (!registry.isOwnPace(candidate.id) && activity.recentUserTraffic(candidate.config.idleWindowMs)) {
       rt.trafficBlocks += 1;
       rt.skipReason = 'trafego';
       continue;

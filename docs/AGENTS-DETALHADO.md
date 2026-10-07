@@ -2005,6 +2005,20 @@ IMDb, e por isso o adaptador difere dos outros oito em três pontos:
   14/30 dias. Fila zerada com a hora recente se corrige sozinha: nada é
   conhecido, a incremental lê até o fim. Medido contra a API real com a fila da
   VPS: 2 páginas por tipo, ~3 s no total.
+- **Ritmo próprio** (2026-10-07, `ownPace` em `crawl-sites/registry.ts`). Medido
+  no local: o Mico andava a 1 obra/s, batia o teto de 3.000/h em ~50 min e
+  parava o resto da hora; além disso parava sempre que o app era usado (janela
+  de ociosidade) e pulava um tique a cada página (espera do `delayMs` com o
+  tique também de 500 ms). Esses três freios existem para proteger Jackett e
+  FlareSolverr, que a busca ao vivo divide com o raspador; o Mico não usa
+  nenhum dos dois e tem o próprio limitador (`MICO_CRAWL_MIN_GAP_MS`, isolado
+  do breaker da busca). Por isso `isOwnPace` o tira de `teto-horario`
+  (`assessSites`), da checagem de tráfego (`crawler.ts`) e do `pacedOut`
+  (`crawl-dispatch.ts`), e o `onCost` não soma o custo dele no teto agregado,
+  senão o Mico rápido pararia os outros sites. Teste de carga da API: 60
+  chamadas a 4/s, todas 200, p50 63 ms. Com `MICO_CRAWL_MIN_GAP_MS=250` no
+  local o ritmo foi a ~92 obras/min (uma a cada ~504 ms), contra ~52 antes; o
+  limite agora é o tique do motor (menor `delayMs`, 500 ms).
 - **Séries: episódios pela Cinemeta, progresso retomável** (Fase 2,
   `crawl-sites/mico-series.ts`; extraído pela catraca de 400 linhas — `mico.ts`
   orquestra e `mico-shared.ts` guarda as primitivas puras/throttle/página de

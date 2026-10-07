@@ -23,6 +23,7 @@
 // ordem de configuração como desempate determinístico. O ritmo (`delayMs` por
 // site) NÃO entra aqui: ele depende do `lastRequestAt` GLOBAL, que só o motor
 // conhece.
+import { isOwnPace } from './crawl-sites/registry.js';
 import type { SiteCounters } from '../utils/crawl-store.js';
 import type { CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
 import { ADAPTER_RETRY_MS, type CrawlSkipReason, type SiteRuntime } from './crawl-site-runtime.js';
@@ -97,7 +98,8 @@ export function assessSites(
     if (!config.enabled) skipReason = 'desabilitado';
     else if (rt.paused) skipReason = 'pausado';
     else if (rt.autoPause) skipReason = 'auto-pausa';
-    else if (globalHit || rt.hourPages.current() >= config.maxPerHour) skipReason = 'teto-horario';
+    // Ritmo próprio (Mico): o limitador do adaptador é o teto; o horário não vale.
+    else if (!isOwnPace(id) && (globalHit || rt.hourPages.current() >= config.maxPerHour)) skipReason = 'teto-horario';
     else if (!deps.probeOpen(id)) skipReason = 'probe';
     // Adaptador que acabou de falhar espera a janela antes de nova tentativa.
     else if (rt.adapterFailedAt > 0 && now - rt.adapterFailedAt < ADAPTER_RETRY_MS) skipReason = 'sem-adaptador';

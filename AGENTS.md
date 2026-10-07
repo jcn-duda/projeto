@@ -204,6 +204,11 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   entre elas a rodada é incremental (`discoverKind`): para após
   `MICO_CRAWL_KNOWN_PAGES_TO_STOP` páginas só com obras na fila, sai `complete`
   (sem retry curto) mas não move o cursor.
+- **Mico tem ritmo próprio** (`ownPace` na `SITE_TABLE`): o limitador é o
+  `MICO_CRAWL_MIN_GAP_MS` do adaptador. Fica fora do teto horário (do site e
+  agregado), da janela de ociosidade e da espera do `delayMs`, e o custo dele não
+  entra no teto agregado dos outros sites. Só site sem Jackett/FlareSolverr pode
+  ter `ownPace`.
 - **"Nada reconhecido" é FALHA, nunca "vazio e completo"** — `urls:[]` com
   `complete:true` avança o cursor por cima de acervo nunca lido.
 - Identidade da página = `(site, url_key)` (caminho, sem host). Estado é por

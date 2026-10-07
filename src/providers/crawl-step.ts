@@ -27,7 +27,8 @@ export interface CrawlStepDeps {
   /** Marca o instante da requisição no ritmo GLOBAL (o motor é quem guarda). */
   markRequest(at: number): void;
   /** Cobra o custo no teto horário AGREGADO do processo (soma dos sites). */
-  onCost(cost: number): void;
+  /** `siteId`: site de ritmo próprio não entra no teto agregado. */
+  onCost(cost: number, siteId: string): void;
   /**
    * Custo ESTIMADO de uma rodada de descoberta enquanto o adaptador não mede
    * (`CRAWL_DISCOVERY_COST`): sitemap de filme + de série, na ordem de grandeza
@@ -67,7 +68,7 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
     if (!(cost > 0)) return;
     rt.hourPages.note(cost);
     rt.cost.note(cost);
-    deps.onCost(cost);
+    deps.onCost(cost, rt.id);
   }
 
   /** Rodada de descoberta: upsert no store e, se completa, avanço do cursor. */

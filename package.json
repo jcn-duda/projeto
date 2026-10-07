@@ -149,6 +149,7 @@
     "test/crawl-shared-html.test.js",
     "test/crawl-unlocated-pack.test.js",
     "test/crawl-mico-incremental.test.js",
+    "test/crawl-own-pace.test.js",
     "test/crawl-vaca-series.test.js",
     "test/crawl-series-repeated-packs.test.js",
     "test/crawl-series-rate.test.js",

@@ -18,6 +18,7 @@
 import type { CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
 import { assessSites, selectNext, type SelectDeps, type SiteCandidate } from './crawl-site-select.js';
 import type { SiteRuntime } from './crawl-site-runtime.js';
+import { isOwnPace } from './crawl-sites/registry.js';
 
 export interface DispatchInput {
   ids: string[];
@@ -41,6 +42,9 @@ export interface DispatchResult {
 
 /** O site já pode fazer a próxima requisição, pelo PRÓPRIO intervalo? */
 function pacedOut(rt: SiteRuntime, cfg: CrawlerSiteConfig, now: number): boolean {
+  // Ritmo próprio (Mico): o limitador do adaptador já espaça as chamadas; o
+  // `delayMs` aqui só faria o site pular um tique a cada página.
+  if (isOwnPace(rt.id)) return false;
   return rt.lastActiveAt > 0 && now - rt.lastActiveAt < cfg.delayMs;
 }
 
