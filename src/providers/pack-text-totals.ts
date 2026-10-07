@@ -20,6 +20,8 @@
 // episódio, e o `size` publicado vence o fallback de texto.
 import type { Stream } from '../../types/domain.js';
 import { isSeasonPackRelease, parseTitleSeasonEpisode } from '../utils/format.js';
+import { VIDEO_EXT, SAMPLE } from '../debrid/file-selector.js';
+import { peekFileSizes } from '../debrid/file-sizes.js';
 import { stageTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 
@@ -53,6 +55,16 @@ function namesMultipleEpisodes(title: string): boolean {
   return parseTitleSeasonEpisode(title).episodes.length > 1;
 }
 
+// Pack provado pela LISTA DE ARQUIVOS, não pelo título: o post BR silencioso
+// ("Jesus Novela [720p HDTV DUBLADO]") não declara temporada nem episódio, e o
+// 💾 do tracker é o total dos capítulos. 2+ vídeos no hash = pack de fato
+// (mesmo critério do dedupe de pack, duplicate-pack.ts).
+function looksPackByFiles(infoHash: string): boolean {
+  const files = peekFileSizes(String(infoHash || ''));
+  if (!files) return false;
+  return files.filter((file) => VIDEO_EXT.test(String(file.path || '')) && !SAMPLE.test(String(file.path || ''))).length >= 2;
+}
+
 /**
  * Multi-episódio sem medida do episódio: o total do torrent sai do TEXTO, não
  * só do 💾. Roda ANTES do `fillMissingSizes`: quem perde o 💾 aqui e ganhar
@@ -73,8 +85,16 @@ function dropPackTextTotals<T extends Stream | null>(
     // não é total de torrent, não sai.
     if ((stream as { _indexer?: string })._indexer === 'torrentio') return stream;
     const parsedEpisodes = parseTitleSeasonEpisode(stream.title).episodes;
+    // Release que DECLARA o episódio pedido: o total dela é dele, fica.
+    if (parsedEpisodes.length === 1 && parsedEpisodes[0] === episode) return stream;
+    // Todo o resto é multi-episódio ou título SILÊNCIOSO: pack de temporada,
+    // faixa nomeada, pack provado pela lista de arquivos, ou post que não
+    // declara episódio nenhum — no silencioso o total não está provado ser o
+    // do episódio, e o app o exibiria como se fosse.
     const multi = isPack(stream, season)
-      || (parsedEpisodes.length > 1 && parsedEpisodes.includes(episode));
+      || (parsedEpisodes.length > 1 && parsedEpisodes.includes(episode))
+      || looksPackByFiles(String(stream.infoHash))
+      || parsedEpisodes.length === 0;
     if (!multi) return stream;
     const total = Number((stream as { _bytes?: number })._bytes) || tokenBytes(stream.title);
     const title = stream.title.replace(TEXT_SIZE_TOKEN, '');
@@ -90,4 +110,4 @@ function dropPackTextTotals<T extends Stream | null>(
   }) as T[];
 }
 
-export { dropPackTextTotals, namesMultipleEpisodes };
+export { dropPackTextTotals, namesMultipleEpisodes, looksPackByFiles };

@@ -106,6 +106,51 @@ function declaredFromFileName(path: string) {
 const UPLOADER_OR_PROMO = /(?:^|[^a-z])(?:uploader|promo|trailer)(?:[^a-z]|$)/i;
 const VIGNETTE_MAX_SIZE = 15 * 1024 * 1024;
 
+// "5.1" de áudio não é episódio nu; a limpeza vale para caminho E basename.
+const cleanAudioTokens = (path: string) => String(path || '').replace(/(?<![\dst])[125678]\.[012](?!\d)/gi, ' ');
+
+// Episódios que o PRÓPRIO ARQUIVO declara no basename: marcador explícito
+// ("Capitulo 030", "EP 30", "E30"), parser de título ("S01E30", "T01E030",
+// faixas) ou número NU na frente do nome ("030 - Capitulo.mp4", "01 Adim
+// Farah.avi") — 1-3 dígitos para não ler ano. Nome sem declaração nenhuma
+// devolve [] — é o caso "video.mkv" que só a pasta identifica. O número
+// inicial só vale quando inequívoco (ver bareLeadingOrdinal abaixo).
+const EPISODE_DECLARED = /(?:epis[oó]dio|cap[ií]tulo|ep|cap)[\s._-]*(\d{1,4})\b|(?:^|[^a-z0-9])e[\s._-]*(\d{1,3})\b/gi;
+
+// Número de abertura é ordinal de episódio SÓ quando é inequívoco: nome que é
+// só o número + extensão ("01.mkv") ou zero-padding ("01"/"001"/"030"). Um
+// número solto à frente é NOME DE OBRA — "24", "3 Body Problem", "9-1-1",
+// "11.22.63" — nunca E24/E3/E9/E11. Ambíguo devolve null (decide a pasta).
+function bareLeadingOrdinal(name: string): number | null {
+  const only = name.match(/^(\d{1,3})\.[a-z0-9]{2,4}$/i);
+  if (only) return Number(only[1]) || null;
+  const m = name.match(/^(\d{1,3})(?=$|[\s._-])/);
+  if (!m) return null;
+  const token = m[1];
+  if (token.length >= 2 && token[0] === '0') {
+    const n = Number(token);
+    return n >= 1 ? n : null;
+  }
+  return null;
+}
+
+function declaredEpisodesIn(name: string): number[] {
+  const clean = cleanAudioTokens(name);
+  const out = new Set<number>();
+  for (const match of clean.matchAll(EPISODE_DECLARED)) {
+    const n = Number(match[1] ?? match[2]);
+    if (Number.isFinite(n)) out.add(n);
+  }
+  for (const episode of parseTitleSeasonEpisode(clean).episodes) out.add(episode);
+  // Só com NENHUM marcador explícito o número nu decide: o "3" de
+  // "3.Body.Problem.S01E02" não pode mascarar o E2 explícito do parser.
+  if (out.size === 0) {
+    const bare = bareLeadingOrdinal(clean);
+    if (bare != null) out.add(bare);
+  }
+  return [...out];
+}
+
 function unanimousWrongSeason(videos: DebridFile[], wantedSeason: number): { season: number; sample: string } | null {
   const semExtra = videos.filter((file) => !EXTRA.test(file.path || ''));
   const pool = semExtra.length > 0 ? semExtra : videos;
@@ -190,7 +235,7 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
     const strongPatterns = [new RegExp(`\\bs${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'), new RegExp(`\\bt${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'), new RegExp(`\\b${seasonForms}x${episodeForms}\\b`, 'i'), new RegExp(`\\b${s}${e}\\b`)];
     const weakPatterns = [new RegExp(`\\b(?:epis[oó]dio|cap[ií]tulo|ep|cap)[\\s._-]*0{0,2}${episode}\\b`, 'i'), new RegExp(`\\be[\\s._-]*0{0,2}${episode}\\b`, 'i')];
     const bareEpisode = new RegExp(`(?:^|[\\s._-])0{0,2}${episode}(?:[\\s._-]|$|\\.[a-z0-9]+$)`, 'i');
-    const epPath = (path: string) => path.replace(/(?<![\dst])[125678]\.[012](?!\d)/gi, ' ');
+    const epPath = cleanAudioTokens;
     const matchesEpisodeIn = (path: string) => {
       const clean = epPath(path);
       return strongPatterns.some((pattern) => pattern.test(path))
@@ -202,8 +247,21 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
     // do arquivo desempata com a informação que realmente distingue; só quando
     // nenhum nome traz o marcador (pasta "S01E01" com "video.mkv" dentro) o
     // caminho inteiro volta a valer.
-    const byName = videos.filter((file) => matchesEpisodeIn(baseName(file.path || '')));
-    const strong = byName.length > 0 ? byName : videos.filter((file) => matchesEpisodeIn(file.path || ''));
+    // Contradição do basename (medido no pack real de Jesus, 2026-10-07): a
+    // PASTA de faixa "Cap 001 ao 042" casa o marcador fraco do E1 em TODAS as
+    // linhas e o maior do pack (Cap 030) vencia o Cap 001. Quem o próprio nome
+    // declara OUTRO episódio não é elegível por marcador de pasta; nome
+    // genérico sem declaração nenhuma ("video.mkv" sob "S01E01/") continua
+    // resolvido pela pasta. Vale também pelo NOME: o "3" de
+    // "3.Body.Problem.S01E02" não pode mascarar o E2 explícito.
+    const contradictsEpisode = (file: DebridFile) => {
+      const declared = declaredEpisodesIn(baseName(file.path || ''));
+      return declared.length > 0 && !declared.includes(episode);
+    };
+    const byName = videos.filter((file) => matchesEpisodeIn(baseName(file.path || '')) && !contradictsEpisode(file));
+    const strong = byName.length > 0
+      ? byName
+      : videos.filter((file) => matchesEpisodeIn(file.path || '') && !contradictsEpisode(file));
     // Empate real (vários arquivos do MESMO episódio: a propaganda de 23 MB, um
     // .mp4 de 65 MB e o episódio de 4,6 GB no pack medido) era decidido pela
     // ORDEM do torrent, que não diz nada sobre o conteúdo — e a propaganda vinha
@@ -216,7 +274,7 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
     }
     const ambiguousSeason = videos.some((file) => { const path = file.path || ''; return pathHasAnySeason.test(path) && !pathHasSeason(path); });
     if (!ambiguousSeason) {
-      const weak = videos.find((file) => weakPatterns.some((pattern) => pattern.test(epPath(file.path || ''))));
+      const weak = videos.find((file) => !contradictsEpisode(file) && weakPatterns.some((pattern) => pattern.test(epPath(file.path || ''))));
       if (weak) return weak;
     }
     if (videos.length > 1) {

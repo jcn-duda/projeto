@@ -235,3 +235,80 @@ test('pickFile: token que por acaso é TLD não transforma arquivo legítimo em 
   const legitimo = [f('Filme.se.algo.S01E01.mkv', 1_500_000_000)];
   assert.equal(pickFile(legitimo, { season: 1, episode: 1 })!.path, 'Filme.se.algo.S01E01.mkv');
 });
+
+// Jesus (tt8747430), pack real medido em 2026-10-07: a PASTA de faixa
+// "Cap 001 ao 042" casa o marcador fraco do E1 e nenhum basename traz o
+// marcador — `strong` fica vazio e o fallback `weak` pegava o PRIMEIRO da
+// ordem do torrent (Cap 030, 743.294.949 B) no lugar do Cap 001
+// (825.763.824 B). O número nu na frente do nome é quem declara o episódio.
+const CAP001_BYTES = 825_763_824;
+const CAP030_BYTES = 743_294_949;
+const CAP_DIR = 'Jesus Novela [720p HDTV DUBLADO]/Cap 001 ao 042';
+const pastaFaixa = (tamanhos: Map<number, number>, pasta = '') => {
+  const arquivos = Array.from({ length: 42 }, (_, i) => {
+    const cap = String(i + 1).padStart(3, '0');
+    return f(`${pasta}${CAP_DIR}/${cap} - Capitulo.mp4`, tamanhos.get(i + 1) ?? 600_000_000 + i);
+  });
+  // Ordem do torrent não é ordem de capítulo: o 030 vem primeiro no pack real.
+  return [arquivos[29], ...arquivos.slice(0, 29), ...arquivos.slice(30)];
+};
+
+test('pickFile: pasta de FAIXA de capítulos não entrega o primeiro da ordem do torrent', () => {
+  const tamanhos = new Map([[1, CAP001_BYTES], [30, CAP030_BYTES]]);
+  const escolhido = pickFile(pastaFaixa(tamanhos), { season: 1, episode: 1 })!;
+  assert.equal(escolhido.path, `${CAP_DIR}/001 - Capitulo.mp4`);
+  assert.equal(escolhido.size, CAP001_BYTES, 'o Cap 001 medido, não o primeiro da ordem');
+});
+
+test('pickFile: faixa sob pasta de temporada não vence o episódio pelo tamanho', () => {
+  // Com temporada na pasta o caminho inteiro casa o E1 em TODAS as linhas
+  // (strong) e o desempate por tamanho entregaria o maior da faixa.
+  const tamanhos = new Map([[1, CAP001_BYTES], [30, 900_000_000]]);
+  const escolhido = pickFile(pastaFaixa(tamanhos, 'Jesus S01/'), { season: 1, episode: 1 })!;
+  assert.equal(escolhido.size, CAP001_BYTES, 'o episódio pedido, não o maior da faixa');
+});
+
+test('pickFile: episódio da faixa certo continua tocando (Cap 030 no pedido E30)', () => {
+  const arquivos = Array.from({ length: 42 }, (_, i) => {
+    const cap = String(i + 1).padStart(3, '0');
+    return f(`${CAP_DIR}/Cap.${cap}.mp4`, i === 29 ? CAP030_BYTES : 600_000_000 + i);
+  });
+  const escolhido = pickFile(arquivos, { season: 1, episode: 30 })!;
+  assert.equal(escolhido.size, CAP030_BYTES, 'basename com Cap.NNN casa pelo nome e não é vetado');
+});
+
+// REGRESSÃO (review 2026-10-07): o prefixo numérico lia "9-1-1 - Pilot.mkv"
+// como E9 e a contradição do basename EXCLUÍA o Pilot do pedido E1 (antes a
+// pasta "S01E01" resolvia). Número inicial só é episódio quando o token é
+// ISOLADO — "9-1-1"/"11.22.63" são nomes de obra compostos, não E9/E11.
+test('pickFile: prefixo numérico composto "9-1-1" não veta o Pilot do E1', () => {
+  const files = [f('S01E01/9-1-1 - Pilot.mkv', 1_000_000_000), f('S01E01/9-1-1 - Trailer.mkv', 5_000_000)];
+  const escolhido = pickFile(files, { season: 1, episode: 1 })!;
+  assert.equal(escolhido.path, 'S01E01/9-1-1 - Pilot.mkv');
+});
+
+test('pickFile: número composto "11.22.63" não é lido como episódio', () => {
+  const files = [f('S01E01/11.22.63 - Pilot.mkv', 900_000_000), f('S01E01/11.22.63 - Trailer.mkv', 4_000_000)];
+  const escolhido = pickFile(files, { season: 1, episode: 1 })!;
+  assert.equal(escolhido.path, 'S01E01/11.22.63 - Pilot.mkv');
+});
+
+test('pickFile: título que começa com número (nome de obra) não vira episódio', () => {
+  // Guard conservador: só zero-padding/nome-só-número é ordinal inequívoco.
+  for (const titulo of ['9-1-1', '9_1_1', '11.22.63', '11_22_63', '24', '3 Body Problem']) {
+    const files = [f(`S01E01/${titulo} - Pilot.mkv`, 1_000_000_000), f(`S01E01/${titulo} - Trailer.mkv`, 5_000_000)];
+    const escolhido = pickFile(files, { season: 1, episode: 1 })!;
+    assert.equal(escolhido.path, `S01E01/${titulo} - Pilot.mkv`, `${titulo}: deve tocar o Pilot do E1`);
+  }
+});
+
+test('pickFile: prefixo 3 do título não mascara E2 explícito sob pasta S01E03', () => {
+  const files = [f('S01E03/3.Body.Problem.S01E02.mkv', 1_500_000_000), f('S01E03/3.Body.Problem.S01E02.Trailer.mkv', 5_000_000)];
+  assert.throws(() => pickFile(files, { season: 1, episode: 3 }), isEpisodePickError);
+});
+
+test('pickFile: número zero-padded continua ordinal de episódio', () => {
+  const files = [f('S01E01/001 - Pilot.mkv', 800_000_000), f('S01E01/002 - Outro.mkv', 900_000_000)];
+  const escolhido = pickFile(files, { season: 1, episode: 1 })!;
+  assert.equal(escolhido.path, 'S01E01/001 - Pilot.mkv', 'a declaração 001 vence o maior 002');
+});
