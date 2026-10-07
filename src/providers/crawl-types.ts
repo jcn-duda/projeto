@@ -141,6 +141,14 @@ export interface CrawlSeriesLimits {
 export interface CrawlDiscoverOptions {
   series?: CrawlSeriesLimits;
   sinceByKind?: { movie?: string | null; tv_show?: string | null };
+  /**
+   * Modo OBSERVAÇÃO (sonda): descobre SEM persistir estado de descoberta.
+   * Adaptador que grava cursor próprio (Mico: `full-sweep:<kind>`) mantém a
+   * escolha normal full/incremental e as marcações, mas NÃO escreve; sem a
+   * opção, o motor persiste como sempre. A observação depende do adaptador
+   * respeitar a opção; ela não intercepta escritas no store automaticamente.
+   */
+  noPersist?: boolean;
 }
 
 /** Opções do processamento de UMA página (o tipo vem da fila, os limites da

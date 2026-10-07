@@ -35,7 +35,7 @@ export function catalogEntry(): { id: string; label: string; language: string; i
   return { id: MICO_ID, label: 'Mico Leão Dublado', language: 'pt-BR', isBr: true, virtual: true };
 }
 
-interface SearchArgs {
+export interface SearchArgs {
   type: string;
   imdbId: string;
   season?: number | null;
@@ -137,6 +137,15 @@ function noteFailure() {
 function _resetBreaker() {
   breakerFailures = 0;
   breakerOpenedAt = 0;
+}
+
+/**
+ * Reparo do diagnóstico (`mico-diag.ts`): zera SÓ o contador de falhas — o
+ * `/test-indexer` do Jackett repara do mesmo jeito. `breakerOpen()` exige
+ * falhas acumuladas, então isso basta para reabrir o circuito.
+ */
+function repairBreaker() {
+  breakerFailures = 0;
 }
 
 /** Valida IMDb id no formato `tt\d{1,10}`. */
@@ -268,14 +277,28 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
     onQueryResult?.({ indexer: MICO_ID, responded: false, reason: 'breaker' });
     return [];
   }
+  // Contador de consulta REAL (alvo válido, circuito fechado): é o denominador
+  // de `mico.error` e de `mico.ms` — sem ele erro e latência não têm base de
+  // comparação. Denominador de TODAS as tentativas (busca do usuário, colhedor
+  // E diagnóstico), não só de requests de usuário.
+  metrics.count('mico.query');
   const started = Date.now();
   const note = (ok: boolean, items: RawItem[] = []) => {
-    if (recordStatus) indexerStatus.record(MICO_ID, { ok, ms: Date.now() - started, budgetMs: config.mico.timeout, results: items.length });
+    const ms = Date.now() - started;
+    // Latência de TODA tentativa (sucesso e falha): a falha também cobrou tempo.
+    metrics.observe('mico.ms', ms);
+    if (recordStatus) indexerStatus.record(MICO_ID, { ok, ms, budgetMs: config.mico.timeout, results: items.length });
     if (!ok) {
       onQueryResult?.({ indexer: MICO_ID, responded: false, reason: 'error' });
       return;
     }
+    // Relevância só existe com a obra na mão (matchContext): sem ela, bruto
+    // não vira "útil" — nem na resposta, nem na métrica.
     const relevant = matchContext?.names?.length ? filterRelevantRaw(items, matchContext).length : undefined;
+    if (relevant !== undefined) {
+      metrics.count('mico.relevant', relevant);
+      metrics.count('mico.discarded', items.length - relevant);
+    }
     onQueryResult?.({ indexer: MICO_ID, responded: true, ...(relevant !== undefined ? { relevant } : {}) });
   };
   try {
@@ -309,31 +332,4 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
   }
 }
 
-/**
- * Diagnóstico do card (`/test-indexer.json?id=mico` e o "testar todos" do
- * painel): mesmo shape do `jackett.test`. Coringa (tt7286456) tem acervo
- * dublado conhecido no Mico; ignora o breaker, que é atalho da busca viva.
- */
-async function test(imdbId = 'tt7286456') {
-  // Como no /test-indexer do Jackett, o diagnóstico é quem repara: zera o
-  // circuito e mede de novo. Falha real volta a contar pela própria search.
-  breakerFailures = 0;
-  const started = Date.now();
-  const items = await search({ type: 'movie', imdbId });
-  const ms = Date.now() - started;
-  return {
-    indexer: MICO_ID,
-    ok: items.length > 0,
-    results: items.length,
-    withMagnet: items.length,
-    ms,
-    sample: items[0]?.title ? String(items[0].title).slice(0, 120) : null,
-    query: imdbId,
-    type: 'movie',
-    br: true,
-    budgetMs: config.mico.timeout,
-    overBudget: ms > config.mico.timeout,
-  };
-}
-
-export { search, test, _resetBreaker };
+export { search, repairBreaker, _resetBreaker };

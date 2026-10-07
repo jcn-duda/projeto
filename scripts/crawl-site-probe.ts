@@ -47,8 +47,9 @@
 // O TMDB é consultado de propósito: é assim que a identificação é medida, e sem
 // ela o `magnetsPerPage` é o único dado. Banco de magnets e índice nunca são
 // abertos (o dry-run impede o recorder, e o `magnet-bank` só abre na captura).
-// O ÚNICO arquivo em disco que a sonda toca é o `crawl.db`, e só para gravar a
-// chave `probe:verdict` no fim (com `--write`).
+// O `crawl.db` é o único arquivo em disco: com `--write` recebe a chave
+// `probe:verdict` e nada mais; a descoberta roda com `noPersist` — o Mico, que
+// grava cursor de varredura, mantém a escolha full/incremental mas SÓ LÊ o estado.
 //
 // ── `--help` E FLAG DESCONHECIDA ANTES DE TUDO ──────────────────────────────
 // O portão de argumentos roda ANTES do `Promise.all` de imports abaixo, e é
@@ -98,6 +99,7 @@ const [
   { createRedetorrentCrawlSite },
   { createBludvCrawlSite },
   { createHdrtorrentsCrawlSite },
+  { createMicoCrawlSite },
   { processCrawlPage },
   { instance },
   store,
@@ -116,6 +118,7 @@ const [
   import('../src/providers/crawl-sites/redetorrent.js'),
   import('../src/providers/crawl-sites/bludv.js'),
   import('../src/providers/crawl-sites/hdrtorrents.js'),
+  import('../src/providers/crawl-sites/mico.js'),
   import('../src/providers/crawl-page.js'),
   import('../src/br-resolvers.js'),
   import('../src/utils/crawl-store.js'),
@@ -147,32 +150,26 @@ async function resolveSite(siteId: string, series: boolean): Promise<CrawlSite |
     if (embedded) return embedded;
   }
   if (siteId === 'vacatorrent') return createVacaCrawlSite(vacaSurface());
-  if (siteId === 'nerdfilmes') {
-    return createNerdfilmesCrawlSite(nerdSurface(), { seriesProbe: series });
-  }
-  if (siteId === 'torrentdosfilmesv2') {
-    return createTorrentdosfilmesCrawlSite(tdfSurface(), { seriesProbe: series });
-  }
-  if (siteId === 'comandotorrents') {
-    return createComandotorrentsCrawlSite(comandoSurface(), { seriesProbe: series });
-  }
+  if (siteId === 'nerdfilmes') return createNerdfilmesCrawlSite(nerdSurface(), { seriesProbe: series });
+  if (siteId === 'torrentdosfilmesv2') return createTorrentdosfilmesCrawlSite(tdfSurface(), { seriesProbe: series });
+  if (siteId === 'comandotorrents') return createComandotorrentsCrawlSite(comandoSurface(), { seriesProbe: series });
   // Card `redetorrent-cardigann`, profile `redetorrent`: `instance()` é
   // indexado pelo NOME do profile, então a instância embutida acima não casa
   // com o id do card e a superfície direto é o caminho da sonda.
   if (siteId === 'redetorrent-cardigann') {
     return createRedetorrentCrawlSite(redetorrentSurface(), { seriesProbe: series });
   }
-  // Os dois adapts novos (Fase 8) entram pelo MESMO caminho direto e pela MESMA
-  // ponte por NOME: `instance()` é indexado pelo nome do profile, então o id do
-  // card nunca casa com ele. Sem estas linhas a sonda — o PORTÃO de entrada do
-  // site na rotação — não roda para os dois. `ensureSite` fica de fora de
-  // propósito: ele viria pela instância embutida, que não existe neste processo.
+  // Os demais entram pelo MESMO caminho direto: Fase 8 pela ponte por NOME
+  // (`instance()` é indexado pelo nome do profile, o id do card nunca casa) e o
+  // Mico por ser API do addon, não HTML — fábrica SEM surface/argumento e sem o
+  // portão de MICO_ENABLED (a sonda mede antes de ligar, como nos outros).
   if (siteId === 'bludv-cardigann') {
     return createBludvCrawlSite(bludvSurface(), { seriesProbe: series });
   }
   if (siteId === 'hdrtorrent-cardigann') {
     return createHdrtorrentsCrawlSite(hdrSurface(), { seriesProbe: series });
   }
+  if (siteId === 'mico') return createMicoCrawlSite();
   return null;
 }
 
@@ -204,7 +201,9 @@ async function runSample(site: CrawlSite, opts: ProbeOptions): Promise<RunResult
     maxCards: opts.seriesMaxCards,
     maxButtons: opts.seriesMaxButtons,
   };
-  const discovery = await site.discover(null, { series });
+  // `noPersist`: a descoberta da sonda é observação — o Mico mantém a escolha
+  // full/incremental mas não grava cursor; os outros adaptadores ignoram.
+  const discovery = await site.discover(null, { series, noPersist: true });
   if (!discovery.urls.length) throw new Error('descoberta vazia: o site não devolveu nenhuma URL');
   console.log(`[sonda] ${site.label} (${site.id}): ${discovery.urls.length} URL(s) `
     + `· completa=${discovery.complete} · falhas=${discovery.failures.length}`);
@@ -341,7 +340,7 @@ async function main(): Promise<void> {
     // `apachetorrent-cardigann` fica de fora porque a tabela ainda o marca sem adaptador.
     console.error(`sem adaptador para "${opts.site}" neste processo: a sonda conhece `
       + 'vacatorrent, nerdfilmes, torrentdosfilmesv2, comandotorrents, redetorrent-cardigann, '
-      + 'bludv-cardigann e hdrtorrent-cardigann (superfície direta) e qualquer site com instância embutida carregada.');
+      + 'bludv-cardigann, hdrtorrent-cardigann e mico (superfície direta) e qualquer site com instância embutida carregada.');
     process.exit(1);
   }
 

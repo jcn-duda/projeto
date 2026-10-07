@@ -79,8 +79,8 @@ function pageKindOf(urlKind: 'movie' | 'series'): CrawlPageKind {
  * página registra em `failures` e segue com passo nominal; falha TOTAL
  * (`totalFailure`) é decidida pelo `discover`.
  */
-async function discoverMovies(now: number, period: number): Promise<KindDiscovery> {
-  return discoverKind('movie', MOVIE_CATALOG_ID, now, period);
+async function discoverMovies(now: number, period: number, noPersist?: boolean): Promise<KindDiscovery> {
+  return discoverKind('movie', MOVIE_CATALOG_ID, now, period, { noPersist });
 }
 
 /**
@@ -90,6 +90,8 @@ async function discoverMovies(now: number, period: number): Promise<KindDiscover
  * obras já na fila (`discoverKind`). A releitura fica por conta do `lastmod`
  * sintético (balde de releitura) no upsert do store. Séries só entram
  * com `opts.series.enabled` (default seguro: NÃO descobrir `tv_show`).
+ * Com `opts.noPersist` (sonda), a escolha full/incremental é mantida mas o
+ * cursor NÃO é gravado (contrato explícito de observação do `CrawlDiscoverOptions`).
  */
 export function createMicoCrawlSite(): CrawlSite {
   return {
@@ -98,7 +100,7 @@ export function createMicoCrawlSite(): CrawlSite {
 
     async discover(_since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
       const now = Date.now();
-      const movie = await discoverMovies(now, config.mico.crawlRereadDays);
+      const movie = await discoverMovies(now, config.mico.crawlRereadDays, opts?.noPersist);
       // Falha TOTAL de filme LANÇA (como na Fase 1): sem obra não há descoberta
       // útil e o motor retenta. Catálogo vazio/ilegível é exceção, nunca
       // "vazio e completo" (regra de todos os sites).
@@ -111,7 +113,7 @@ export function createMicoCrawlSite(): CrawlSite {
       // Séries (Fase 2) só com `opts.series.enabled`. A falha TOTAL de série
       // NÃO derruba a de filme: marca `tv_show` incompleto (o cursor de série
       // simplesmente não anda) e segue com os filmes descobertos.
-      const series = opts?.series?.enabled ? await discoverSeries(now) : null;
+      const series = opts?.series?.enabled ? await discoverSeries(now, opts?.noPersist) : null;
       const urls = series ? [...movie.urls, ...series.urls] : movie.urls;
       const failures = series ? [...movie.failures, ...series.failures] : movie.failures;
       const movieComplete = movie.complete;

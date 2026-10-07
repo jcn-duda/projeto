@@ -1880,7 +1880,9 @@ COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro �
   trackers de `sources` — sem `dn=`, porque o título do Mico é texto do post,
   não nome de torrent — e entra no estado vivo da coleta (`noteStart`/
   `onQueryResult`), então a reserva 📦 cobre o Mico quando ele cai. `/test-indexer.json
-  ?id=mico` usa `mico.test()`. Knobs: `MICO_ENABLED` (default true, some o card),
+  ?id=mico` usa `mico-diag.test(q, type)`: `q=tt…` para filme e
+  `q=tt…:S:E&type=series` para episódio; sem `q`, mantém o filme padrão.
+  Knobs: `MICO_ENABLED` (default true, some o card),
   `MICO_DEFAULT` (default false, entra no `ji` de instalação nova). Desde a
   **Fase 1 do raspador** (2026-10-02) o Mico é também o NONO site da raspagem
   (`crawl-sites/mico.ts`, ver o bloco do motor multi-site): quando o raspador
@@ -2487,6 +2489,14 @@ default da CLI, não config do motor. **A escrita do veredito é opt-in por
 veredito gravado é a autorização de entrada na rotação. `--help` responde sem
 carregar `config.ts`, sem abrir o `crawl.db` e sem resolver adaptador;
 flag desconhecida é erro, nunca é ignorada em silêncio.
+
+O Mico também é aceito por `--site=mico`, sem superfície HTML. A descoberta
+da sonda passa `noPersist: true`: preserva a escolha completa/incremental,
+mas não grava o marcador `full-sweep:*`. `--write` continua autorizando
+somente o veredito; a descoberta normal do motor mantém sua persistência.
+A leitura ainda abre o `crawl.db` e pode inicializar seu esquema/WAL; para
+medição isolada, use um banco descartável. A amostra incremental lê o topo
+conhecido, e o IMDb pronto não comprova relevância nem reprodução das releases.
 
 **Séries nos quatro WordPress BR com adaptador entram pela opção de SÉRIES do
 painel** (NerdFilmes, TorrentDosFilmes, ComandoTorrents e RedeTorrent;

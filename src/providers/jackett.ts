@@ -10,6 +10,7 @@ import { queryIndexer, type JackettSearchOptions } from './jackett-query-indexer
 import { captureItems } from '../utils/magnet-bank.js';
 import { ALL_QUERY_INDEXER } from './live-indexer-state.js';
 import * as mico from './mico.js';
+import { test as micoTest } from './mico-diag.js';
 
 // Prazo do teste manual de indexador. Nada a ver com o da busca: aqui vale
 // esperar pra distinguir "indexer morto" de "indexer lento".
@@ -233,7 +234,9 @@ async function search(query: string, type: string, indexersOverride: string[] | 
  * Devolve dado, não veredito: quem exibe decide como pintar.
  */
 async function test(indexer: string, query: string, type = 'movie') {
-  if (indexer === mico.MICO_ID) return mico.test();
+  // O Mico é consultado por IMDb: aqui `query` é `tt…` (filme) ou `tt…:S:E`
+  // (episódio); vazio dispara o coringa de filme do card ("testar todos").
+  if (indexer === mico.MICO_ID) return micoTest(query, type);
   const started = Date.now();
   if (!config.jackett.apiKey) {
     return { indexer, ok: false, error: 'JACKETT_API_KEY não configurada', ms: 0 };

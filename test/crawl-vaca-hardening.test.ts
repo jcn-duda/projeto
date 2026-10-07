@@ -377,24 +377,23 @@ describe('crawl-sites/vaca: protetor Link inválido ou expirado → no-torrent',
   });
 
   test('mistura expirado + rede continua erro retentável', async () => {
+    // Isolamento: página/links pela camada de fetch (crawlFetch não despacha pelo surface); protetor pela costura surface.
+    const stub = stubRoutes({
+      [PAGE_TORRENT]: () => fixture('movie-page-torrent.html'),
+      [`${SITE}/movie-links/61616/`]: () => fixture('movie-links-torrent.html'),
+    });
     let n = 0;
     const surface: VacaResolverSurface = {
       ...resolverSurface(),
-      fetchTextDirect: async () => fixture('movie-page-torrent.html'),
       extractMovieLinks: () => `${SITE}/movie-links/61616/`,
       parseDownloadLinks: () => [
         { url: 'https://systemtech.space/enc/go.php?id=a', quality: 1080, size: '1 GB', audio: 'dual', source: null, episode: null },
         { url: 'https://systemtech.space/enc/go.php?id=b', quality: 720, size: '700 MB', audio: 'dual', source: null, episode: null },
       ],
-      fetchFollowingAllowed: async () => {
-        n += 1;
-        if (n === 1) throw new Error('protector_link_expired');
-        throw new Error('timeout');
-      },
+      fetchFollowingAllowed: async () => { if (++n === 1) throw new Error('protector_link_expired'); throw new Error('timeout'); },
     };
-    await assert.rejects(
-      () => createVacaCrawlSite(surface).fetchWork(PAGE_TORRENT),
-      /timeout|protector_link_expired/,
-    );
+    try {
+      await assert.rejects(() => createVacaCrawlSite(surface).fetchWork(PAGE_TORRENT), /timeout|protector_link_expired/);
+    } finally { stub.restore(); }
   });
 });

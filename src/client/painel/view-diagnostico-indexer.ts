@@ -29,8 +29,12 @@ function indexerStateText(row: IndexerTestRow): string {
   return row.state === 'error' ? 'FALHA' : row.state === 'empty' ? 'SEM MAGNET' : 'OK';
 }
 
+// Alvo consultado primeiro, amostra depois: a query é o que foi perguntado
+// (IMDb/S:E no Mico, termo efetivo no Jackett) e não pode ficar escondida
+// atrás do título do primeiro resultado — contagem crua não é veredito.
 function indexerDetail(row: IndexerTestRow): string {
-  return row.error || row.sample || row.query || '';
+  if (row.error) return row.error;
+  return [row.query, row.sample].filter(Boolean).join(' · ');
 }
 
 export function ViewDiagnosticoIndexer({ request }: ViewDiagnosticoIndexerProps) {

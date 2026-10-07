@@ -52,8 +52,8 @@ const DEFAULT_MAX_BUTTONS = 40;
  * filme); `totalFailure` sobe para o `discover` decidir (série NÃO derruba a
  * descoberta de filme — ver `mico.ts`).
  */
-export async function discoverSeries(now: number): Promise<KindDiscovery> {
-  return discoverKind('series', SERIES_CATALOG_ID, now, SERIES_REREAD_DAYS);
+export async function discoverSeries(now: number, noPersist?: boolean): Promise<KindDiscovery> {
+  return discoverKind('series', SERIES_CATALOG_ID, now, SERIES_REREAD_DAYS, { noPersist });
 }
 
 /** Meta de série da Cinemeta (o shape que `getMeta('series', tt)` devolve). */

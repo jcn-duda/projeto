@@ -13,7 +13,7 @@ import config from '../../config.js';
 import * as log from '../../utils/logger.js';
 import * as store from '../../utils/crawl-store.js';
 import { retryAfterMs } from '../mico.js';
-import type { DiscoveredUrl } from '../crawl-types.js';
+import type { CrawlDiscoverOptions, DiscoveredUrl } from '../crawl-types.js';
 
 /** id do catálogo de FILMES do Mico (paginação simples; gênero está quebrado). */
 export const MOVIE_CATALOG_ID = 'MicoFilmes';
@@ -304,6 +304,7 @@ export async function discoverKind(
   catalogId: string,
   now: number,
   periodDays: number,
+  opts: Pick<CrawlDiscoverOptions, 'noPersist'> = {},
 ): Promise<KindDiscovery> {
   const stateKey = `full-sweep:${kind}`;
   const lastFull = Number(store.engine().getState(SITE_ID, stateKey) || 0);
@@ -320,6 +321,11 @@ export async function discoverKind(
   // senão viraria cursor/cobertura indevida (alinha com o listing-discover).
   const totalFailure = walk.firstPageFailed || urls.length === 0;
   const complete = walk.failures.length === 0 && urls.length > 0 && (walk.sawEnd || walk.stoppedAtKnown);
-  if (fullSweep && complete && walk.sawEnd) store.engine().setState(SITE_ID, stateKey, String(now));
+  // Observação (sonda): `noPersist` mantém a escolha normal full/incremental e
+  // as marcações (complete/completeByKind/custo), mas NÃO grava o cursor — a
+  // sonda nunca altera `crawl_state`; o `--write` dela autoriza só o veredito.
+  if (fullSweep && complete && walk.sawEnd && !opts.noPersist) {
+    store.engine().setState(SITE_ID, stateKey, String(now));
+  }
   return { urls, failures: walk.failures, complete, requestCost: walk.pages, totalFailure, fullSweep };
 }
