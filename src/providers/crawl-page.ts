@@ -37,6 +37,7 @@ import { recordCrawlReleases } from './crawl-recorder.js';
 import { isSiteLevelError } from './crawl-pauses.js';
 import { parseProgress } from '../utils/crawl-store-rules.js';
 import { markPageError, processPartialSlice } from './crawl-page-partial.js';
+import { isCrawlAborted } from './crawl-recorder.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { IdentifyResult } from './crawl-identify.js';
@@ -75,6 +76,13 @@ export interface PageProcessOptions {
   noPersist?: boolean;
   /** Fase 7: limites/flag da descoberta e do processamento de série. */
   series?: CrawlSeriesLimits;
+  /**
+   * Cerca do passo (`crawl-site-runtime.ts`): quando `true`, o passo expirou e
+   * NENHUMA escrita tardia pode tocar fila/índice/banco/progresso — a
+   * recuperação do vigia já marcou a linha (ou vai marcar). Não aborta a rede
+   * compartilhada (Cinemeta/TMDB): só barra os efeitos persistidos.
+   */
+  isAborted?: () => boolean;
 }
 
 export interface PageCollaborators {
@@ -87,7 +95,7 @@ export interface PageCollaborators {
 const defaultCollaborators: PageCollaborators = {
   identify: identifyWork,
   seasonCount: tvSeasonCount,
-  record: (siteId, obra, releases, location) => recordCrawlReleases.record(siteId, obra, releases, location),
+  record: (siteId, obra, releases, location, options) => recordCrawlReleases.record(siteId, obra, releases, location, options),
 };
 
 /**
@@ -115,6 +123,9 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
   ): Promise<PageOutcome> {
     const persist = !opts.noPersist;
     const dryRun = opts.dryRun ?? config.crawl.dryRun;
+    // Cerca do passo: true = o passo expirou; nenhuma escrita persistente sai
+    // daqui (a recuperação do vigia é quem marca a linha presa).
+    const aborted = (): boolean => opts.isAborted?.() === true;
     let result: Awaited<ReturnType<CrawlSite['fetchWork']>>;
     try {
       // Retomada (Fase 7 v2): o progresso da linha (coluna `progress`) vai ao
@@ -128,6 +139,9 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       // foi gasto antes de falhar.
       return { kind: 'error', siteLevelError: isSiteLevelError(message), releases: 0, requestCost: requestCostOf(err), detail: message };
     }
+    // Adaptador respondeu, mas o passo já expirou: NÃO trata o resultado (a
+    // linha foi devolvida/marcada pela recuperação). Sai sem gravar.
+    if (aborted()) return { kind: 'error', siteLevelError: false, releases: 0, detail: 'step-timeout' };
 
     if (result.status === 'error') {
       const message = String(result.error || 'erro da página');
@@ -136,7 +150,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     }
 
     if (result.status === 'no-torrent') {
-      if (persist) {
+      if (persist && !aborted()) {
         store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
       }
       metrics.count('crawl.page.no-torrent');
@@ -173,7 +187,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       const resumedConclusion = Boolean(row.progress && row.progress !== '')
         && (Number(row.releases) || 0) > 0;
       if (resumedConclusion) {
-        if (persist) {
+        if (persist && !aborted()) {
           store.engine().markResult(
             site.id, row.url,
             dryRun
@@ -198,7 +212,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       // Defensivo (M1): `done` sem release nenhuma vira `no-torrent`, e o
       // custo medido acompanha — nenhum desfecho pós-adaptador perde o que a
       // página gastou.
-      if (persist) {
+      if (persist && !aborted()) {
         store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb: result.imdb ?? null, releases: 0 }, Date.now());
       }
       metrics.count('crawl.page.no-torrent');
@@ -214,6 +228,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         originalTitle: result.originalTitle ?? null,
         season: result.season ?? null,
       });
+      if (aborted()) return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'step-timeout', requestCost: result.requestCost };
       if (identification.outcome === 'identified') {
         imdb = identification.imdb;
       } else if (identification.outcome === 'unavailable') {
@@ -225,7 +240,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
       } else {
         // `no-work` = resposta negativa da identificação (ver o cabeçalho).
-        if (persist) {
+        if (persist && !aborted()) {
           store.engine().markResult(
             site.id, row.url,
             { status: 'no-work', imdb: null, releases: 0 },
@@ -243,6 +258,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     // ele cobre — fica fora, como antes. TMDB fora do ar é erro retentável.
     if (unlocated.length) {
       const count = await collab.seasonCount(String(imdb));
+      if (aborted()) return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'step-timeout', requestCost: result.requestCost };
       if (!count.ok) {
         markPageError(row, 'tmdb-indisponivel:temporadas', opts);
         return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'tmdb-indisponivel:temporadas', requestCost: result.requestCost };
@@ -253,7 +269,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       }
     }
     if (!releases.length) {
-      if (persist) store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb, releases: 0 }, Date.now());
+      if (persist && !aborted()) store.engine().markResult(site.id, row.url, { status: 'no-torrent', imdb, releases: 0 }, Date.now());
       metrics.count('crawl.page.no-torrent');
       return { kind: 'no-torrent', siteLevelError: false, releases: 0, requestCost: result.requestCost };
     }
@@ -265,7 +281,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       // fila até o motor reenfileirar (dryRun true→false, one-shot). As
       // no-torrent/no-work ACIMA continuam terminais de verdade: sem releases
       // ou sem obra não há nada a gravar, em nenhum modo.
-      if (persist) {
+      if (persist && !aborted()) {
         // Multi-passa (B2): acumulado das fatias secas + a fatia final —
         // sobrescrever pela última perderia descoberta já marcada (o flip
         // zera a linha; o passe ao vivo re-acumula sem somar seco+vivo).
@@ -299,15 +315,21 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
         kind: isSeries ? 'tv_show' as const : 'movie' as const,
       };
       for (const loc of locations) {
-        const report = await collab.record(site.id, obra, loc.items, { season: loc.season, episode: loc.episode });
+        // A cerca vai até o recorder: ele reconsulta ANTES de cada escrita
+        // persistente (banco vivo/índice/invalidação).
+        const report = await collab.record(site.id, obra, loc.items, { season: loc.season, episode: loc.episode }, { shouldAbort: opts.isAborted });
         added += report.added;
       }
-      if (persist) {
+      if (aborted()) return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'step-timeout', requestCost: result.requestCost };
+      if (persist && !aborted()) {
         store.engine().markResult(site.id, row.url, { status: 'done', imdb, releases: releases.length }, Date.now());
       }
       metrics.count('crawl.page.done');
       return { kind: 'done', siteLevelError: false, releases: releases.length, addedNew: added, requestCost: result.requestCost };
     } catch (err: unknown) {
+      // Passo expirado no meio da gravação: NÃO é erro da página (não grava
+      // `error` aqui) — a recuperação do vigia marca a linha.
+      if (isCrawlAborted(err)) return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'step-timeout', requestCost: result.requestCost };
       const message = log.errorMessage(err);
       markPageError(row, message, opts);
       log.warn(`[crawl] gravação falhou (${row.url}):`, message);

@@ -10,6 +10,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { hdrFixture, hdrListingUrls, listingRoute, withSite, type HdrRoute } from './helpers/crawl-hdrtorrents-fixtures.js';
 import { countListingCards, parseImdbId } from '../src/providers/crawl-sites/hdrtorrents-discovery.js';
+import { loadListingCursor } from '../src/providers/crawl-cursor.js';
 
 const SERIES_POST = 'https://hdrtorrents.net/os-irregulares-de-baker-street-1-temporada-completa-legendada-torrent-download/';
 const SERIES_EP_POST = 'https://hdrtorrents.net/presidente-curtis-1a-temporada-torrent-download/';
@@ -138,6 +139,30 @@ describe('HDRTorrent: descoberta pela listagem', () => {
       assert.match(urls.at(-1) ?? '', /\/pagina\/2\//);
       assert.equal(second.urls.length, 0);
       assert.equal(second.failures.length, 1);
+    });
+  });
+
+  test('descoberta EXPIRADA (cerca do passo) NÃO grava o cursor de listagem', async () => {
+    await withSite([listingRoute('pagina-1-cheia')], async ({ site }) => {
+      const found = await site.discover(null, { series: SERIES_ON, isAborted: () => true });
+      // A página ainda é LIDA (a leitura é limitada pelo teto da rodada), mas a
+      // ESCRITA tardia é barrada: sem o guard o marcador/cursor afirmariam
+      // cobertura de uma varredura que o motor não vai enfileirar.
+      assert.ok(found.urls.length > 0, 'a leitura da página aconteceu');
+      assert.equal(loadListingCursor('hdrtorrent-cardigann', 'movie', '/pagina/'), null,
+        'cursor não pode ser gravado por passo expirado');
+    });
+  });
+
+  test('commit DIFERIDO: o cursor só é gravado quando o MOTOR chama o commit', async () => {
+    await withSite([listingRoute('pagina-1-cheia')], async ({ site }) => {
+      const found = await site.discover(null, { series: SERIES_ON, deferCommit: true });
+      assert.equal(loadListingCursor('hdrtorrent-cardigann', 'movie', '/pagina/'), null,
+        'nada é gravado antes do commit do motor');
+      assert.equal(typeof found.commit, 'function', 'o adaptador devolve o commit');
+      found.commit?.();
+      assert.notEqual(loadListingCursor('hdrtorrent-cardigann', 'movie', '/pagina/'), null,
+        'o commit do motor grava o cursor');
     });
   });
 });

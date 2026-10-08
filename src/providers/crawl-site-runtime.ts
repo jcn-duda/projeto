@@ -64,6 +64,19 @@ export interface SiteRuntime {
   discoveryPartial: boolean;
   /** Última vez que o site serviu uma requisição — base da JUSTIÇA. */
   lastActiveAt: number;
+  /**
+   * URL que a página em processamento reivindicou (null em descoberta/ocioso).
+   * O vigia do passo (`boundedStep`) usa isto para marcar a linha PRESA como
+   * `error step-timeout` sem depender de estado interno do adaptador.
+   */
+  activeUrl: string | null;
+  /**
+   * Geração do passo em voo. `beginStepFence` captura o valor e
+   * `invalidateStep` incrementa: escritas TARDIAS de um passo expirado (que já
+   * não pertence à geração corrente) são descartadas antes de tocar fila,
+   * índice, banco vivo ou progresso.
+   */
+  generation: number;
   /** Política de pausa automática (streak/canário) DO SITE. */
   policy: CrawlPausePolicy;
   /** Teto horário do site (custo real em requisições, hora civil). */
@@ -118,6 +131,8 @@ export function createSiteRuntime(id: string): SiteRuntime {
     nextDiscoverAt: 0,
     discoveryPartial: false,
     lastActiveAt: 0,
+    activeUrl: null,
+    generation: 0,
     policy: new CrawlPausePolicy(),
     hourPages: createHourCounter(),
     cost: createCostMeter(),
@@ -150,6 +165,45 @@ export function idleFractionOf(rt: SiteRuntime): number | null {
 /** Mapa de runtimes por id de site. */
 export type SiteRuntimeMap = Map<string, SiteRuntime>;
 
+/**
+ * Marca ESTÁVEL do desfecho de um passo que excedeu o prazo (vai para o
+ * `error` da linha e para o `errorGroups` do painel). Constante de propósito:
+ * agrupar por string exata fragmentaria o grupo a cada medição.
+ */
+export const STEP_TIMEOUT_REASON = 'step-timeout: passo excedeu o prazo do site';
+
+/**
+ * Cerca de POSSE de UM passo: captura a `generation` e responde se o passo
+ * ainda pertence à geração corrente. Escritas de um passo expirado (após
+ * `invalidateStep`) têm de consultar `aborted()` ANTES de tocar fila/índice/
+ * banco/progresso — é o que impede o passo preso de sobrescrever o estado que
+ * a recuperação já devolveu.
+ */
+export interface StepFence {
+  readonly gen: number;
+  aborted(): boolean;
+  /**
+   * Re-arma o prazo do passo com o orçamento da FASE escolhida. A decisão
+   * descoberta×linha só existe DEPOIS das recuperações (que mexem em
+   * `nextDiscoverAt`), então o orçamento é trocado no ponto exato da escolha,
+   * antes de qualquer await longo — nunca por predição de valores velhos.
+   * Opcional: `beginStepFence` sozinho não conhece o timer (só o vigia monta).
+   */
+  setBudget?(ms: number): void;
+}
+
+/** Abre a cerca do passo corrente (captura a geração agora). */
+export function beginStepFence(rt: SiteRuntime): StepFence {
+  const gen = rt.generation;
+  return { gen, aborted: () => rt.generation !== gen };
+}
+
+/** Invalida a geração corrente: toda cerca aberta vira `aborted()`. */
+export function invalidateStep(rt: SiteRuntime): number {
+  rt.generation += 1;
+  return rt.generation;
+}
+
 /** Runtime do site, criado na primeira vez. */
 export function ensureRuntime(runtimes: SiteRuntimeMap, id: string): SiteRuntime {
   const existing = runtimes.get(id);
@@ -165,6 +219,10 @@ export function ensureRuntime(runtimes: SiteRuntimeMap, id: string): SiteRuntime
  * o `crawl.db` — quem apaga as linhas é `clearSite` da engine.
  */
 export function forgetRun(rt: SiteRuntime): void {
+  // Invalida a cerca: um passo em voo no momento do "Zerar site" não pode
+  // re-semear a fila recém-apagada (upsert tardio) nem marcar resultado órfão.
+  invalidateStep(rt);
+  rt.activeUrl = null;
   rt.openRunId = null;
   rt.cycle = freshCycle();
   rt.cursors.movie = '';

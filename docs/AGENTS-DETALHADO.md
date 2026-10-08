@@ -2048,6 +2048,18 @@ IMDb, e por isso o adaptador difere dos outros oito em três pontos:
   custo. A entrada só existe com `config.mico.enabled` (desligado, a fábrica
   lança e `ensureSite('mico')` devolve `null`), e o site **nasce DESLIGADO**
   (fora do `CRAWL_SITES`; liga pelo painel).
+- **Prazos duros e posse do passo** (2026-10-08): streams e catálogo usam
+  `fetchJsonWithin`, que limita fetch e leitura do corpo independentemente de o
+  transporte respeitar o abort. O motor limita o processamento de uma obra por
+  `CRAWL_STEP_DEADLINE_MS` (default derivado dos botões, timeout e gap do Mico:
+  700000 ms nos defaults). A descoberta tem prazo separado,
+  `CRAWL_DISCOVERY_DEADLINE_MS` (default 7200000 ms), para não cortar os dois
+  catálogos completos legítimos. Ao expirar, a geração perde a posse, a obra
+  recebe `step-timeout` retentável com progresso preservado e resultados
+  tardios não podem gravar fila, índice ou banco. O motor pede `deferCommit`:
+  marcadores `full-sweep:*` do Mico e cursores de listagem HDR/Apache só são
+  confirmados pelo callback `commit` após enfileirar as URLs, com a posse ainda
+  válida. `noPersist` da sonda continua sem gravar esses checkpoints.
 
 **São duas FORMAS de descoberta, e a escolha é do site.** Com sitemap (Vaca,
 NerdFilmes, TorrentDosFilmes, ComandoTorrents, RedeTorrent, BLUDV): ler o

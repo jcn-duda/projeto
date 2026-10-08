@@ -1,5 +1,11 @@
 import { DEFAULT_CRAWL_DB_PATH, list, num } from './helpers.js';
 
+/** `CRAWL_SERIES_MAX_BUTTONS` com o default do teto de botões. Reusado no
+ * default derivado do passo de LINHA para não duplicar o `40` (a fábrica
+ * `crawl()` re-executa e esta função relê o `process.env` a cada chamada). */
+const seriesMaxButtonsEnv = (): number =>
+  Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_BUTTONS, 40)));
+
 // Raspagem total dos sites BR (plano "Raspagem total", piloto: Vaca). Estado
 // da fila em SQLite próprio (`data/crawl.db`, ver `utils/crawl-store.ts`).
 // DESLIGADA por padrão: ligar é decisão do operador, site a site, depois das
@@ -57,7 +63,7 @@ export const crawl = () => ({
   // Teto de cards de temporada visitados por página de série.
   seriesMaxCards: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_CARDS, 10))),
   // Teto de botões de download seguidos (cadeia do protetor) por página.
-  seriesMaxButtons: Math.max(1, Math.trunc(num(process.env.CRAWL_SERIES_MAX_BUTTONS, 40))),
+  seriesMaxButtons: seriesMaxButtonsEnv(),
   // Fase 8 (multi-site): gate da SONDA. Com `true`, um site só entra na rotação
   // do motor depois do veredito GO da amostra de 40 páginas gravado em
   // `crawl_state['probe:verdict']` — site novo sem medição não raspa nada. Default
@@ -72,6 +78,29 @@ export const crawl = () => ({
   // Sites trabalhando AO MESMO TEMPO (`crawl-dispatch.ts`). Cada site mantém o
   // próprio ritmo; o paralelo só tira a espera pelo vizinho. 1 volta ao serial.
   maxParallel: Math.max(1, Math.min(8, Math.trunc(num(process.env.CRAWL_MAX_PARALLEL, 3)))),
+  // Prazo DURO de UM passo do site (backstop do deadline de rede). A rede já
+  // tem teto próprio que cobre fetch+corpo (`fetchJsonWithin`); este limite
+  // existe para um await NÃO-abortável (throttle/coalescing) não segurar a vaga
+  // do site para sempre. Default DERIVADO do site mais caro (série do Mico):
+  // `CRAWL_SERIES_MAX_BUTTONS` episódios × (`MICO_TIMEOUT_MS` + `MICO_CRAWL_MIN_GAP_MS`)
+  // + margem de metadados = 40×16s + 60s ≈ 11,7 min. A faixa útil é 10–15 min:
+  // não mate uma série boa (4 min derrubaria o passe inteiro). Ao vencer, a
+  // geração do passo é invalidada (escritas tardias descartadas) e a linha presa
+  // vira `error step-timeout` com o progresso (`doneCards`) preservado.
+  stepDeadlineMs: Math.max(30_000, Math.trunc(num(
+    process.env.CRAWL_STEP_DEADLINE_MS,
+    seriesMaxButtonsEnv()
+      * (num(process.env.MICO_TIMEOUT_MS, 15_000) + num(process.env.MICO_CRAWL_MIN_GAP_MS, 1_000))
+      + 60_000,
+  ))),
+  // Prazo DURO da fase de DESCOBERTA (separado do passo de linha). A descoberta
+  // completa do Mico lê DOIS catálogos em sequência (filme + série), ~50 min
+  // CADA na VPS (`mico-shared.ts`), podendo passar de 100 min: o orçamento de
+  // LINHA (~11,7 min) NÃO pode cancelar uma varredura completa boa. Default 2 h
+  // (≈100 min + margem) e configurável; NÃO é um "cap de 30 min". Ao vencer, a
+  // cerca invalida o passo: o adaptador para o laço de páginas e não grava o
+  // marker/cursor, e o vigia fecha a rodada e rearma `nextDiscoverAt=0` (retry).
+  discoveryDeadlineMs: Math.max(60_000, Math.trunc(num(process.env.CRAWL_DISCOVERY_DEADLINE_MS, 2 * 3600_000))),
   // Sites que passam pelo FlareSolverr (um pedido por vez, o MESMO da busca):
   // nunca correm dois juntos.
   flareSites: list(process.env.CRAWL_FLARE_SITES || 'redetorrent-cardigann,bludv-cardigann,vacatorrent'),

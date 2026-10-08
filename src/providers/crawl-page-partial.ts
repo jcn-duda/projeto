@@ -20,6 +20,7 @@ import * as store from '../utils/crawl-store.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { progressAdvanced, renderProgress, withDryFlag } from '../utils/crawl-store-rules.js';
+import { isCrawlAborted } from './crawl-recorder.js';
 import type { PageCollaborators, PageOutcome, PageProcessOptions } from './crawl-page.js';
 import type { CrawlReleaseGroup, CrawlSite, CrawlUrlRow, CrawlWorkResult } from './crawl-types.js';
 import type { RawItem } from '../../types/domain.js';
@@ -30,6 +31,9 @@ import type { RawItem } from '../../types/domain.js';
  * porque os dois caminhos precisam dela e este é o módulo mais interno.
  */
 export function markPageError(row: CrawlUrlRow, message: string, opts: PageProcessOptions = {}): void {
+  // Passo expirado: o vigia é dono da linha; erro tardio não grava fila nem
+  // infla a métrica de erro.
+  if (opts.isAborted?.()) return;
   if (!opts.noPersist) {
     store.engine().markResult(
       row.site,
@@ -67,6 +71,7 @@ function releasesOf(groups: CrawlReleaseGroup[] | null): RawItem[] {
 
 export async function processPartialSlice(ctx: PartialSliceContext): Promise<PageOutcome> {
   const { site, row, result, opts, collab, persist, dryRun } = ctx;
+  const aborted = (): boolean => opts.isAborted?.() === true;
   const detail = String(result.error || 'parcial');
   metrics.count('crawl.page.partial');
   if (/^series_truncated/i.test(detail)) metrics.count('crawl.page.series-truncated');
@@ -88,7 +93,7 @@ export async function processPartialSlice(ctx: PartialSliceContext): Promise<Pag
     //    de gravação; o flip reseta, e sem ela a conclusão por resume viraria
     //    `no-torrent`.
     const discovered = releasesOf(groupsOf(result)).length;
-    if (persist) {
+    if (persist && !aborted()) {
       store.engine().markResult(site.id, row.url, {
         status: 'partial', imdb: result.imdb ?? row.imdb,
         releases: (Number(row.releases) || 0) + discovered,
@@ -109,6 +114,7 @@ export async function processPartialSlice(ctx: PartialSliceContext): Promise<Pag
         title: String(result.title || ''),
         year: result.year ?? null,
       });
+      if (aborted()) return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'step-timeout', requestCost: result.requestCost };
       if (identification.outcome === 'identified') {
         imdb = identification.imdb;
       } else if (identification.outcome === 'unavailable') {
@@ -119,7 +125,7 @@ export async function processPartialSlice(ctx: PartialSliceContext): Promise<Pag
       } else {
         // Obra não identificada: terminal `no-work` (limpa progresso).
         // Gravação 0 (nada no acervo); o desfecho devolve o que foi visto.
-        if (persist) {
+        if (persist && !aborted()) {
           store.engine().markResult(site.id, row.url, { status: 'no-work', imdb: null, releases: 0 }, Date.now());
         }
         metrics.count('crawl.page.no-work');
@@ -135,10 +141,11 @@ export async function processPartialSlice(ctx: PartialSliceContext): Promise<Pag
         kind: 'tv_show' as const,
       };
       for (const g of groups ?? []) {
-        const report = await collab.record(site.id, obra, g.releases, { season: g.season, episode: g.episode });
+        const report = await collab.record(site.id, obra, g.releases, { season: g.season, episode: g.episode }, { shouldAbort: opts.isAborted });
         added += report.added;
       }
     } catch (err: unknown) {
+      if (isCrawlAborted(err)) return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'step-timeout', requestCost: result.requestCost };
       // Gravação falhou: erro retentável SEM avançar progresso — o retry refaz
       // os cards (merge idempotente no índice/banco).
       const message = log.errorMessage(err);
@@ -146,7 +153,8 @@ export async function processPartialSlice(ctx: PartialSliceContext): Promise<Pag
       log.warn(`[crawl] gravação falhou (${row.url}):`, message);
       return { kind: 'error', siteLevelError: false, releases: releases.length, detail: message, requestCost: result.requestCost };
     }
-    if (persist) {
+    if (aborted()) return { kind: 'error', siteLevelError: false, releases: releases.length, detail: 'step-timeout', requestCost: result.requestCost };
+    if (persist && !aborted()) {
       // Acumula (F3): `releases` da linha é o TOTAL visto na série, e cada
       // marcação corresponde a uma fatia NOVA (o guarda de estagnação impede
       // remarcar a mesma) — sobrescrever com a fatia atual perdia as fatias
@@ -160,7 +168,7 @@ export async function processPartialSlice(ctx: PartialSliceContext): Promise<Pag
   // 4) AO VIVO, sem releases nesta fatia: só o progresso. A contagem acumulada
   //    das fatias anteriores é PRESERVADA (F3): a conclusão por resume herda
   //    dela e o painel soma o total real.
-  if (persist) {
+  if (persist && !aborted()) {
     store.engine().markResult(site.id, row.url, {
       status: 'partial', imdb: row.imdb ?? null, releases: row.releases, error: detail, progress: progressJson,
     }, Date.now());

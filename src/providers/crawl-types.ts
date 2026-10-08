@@ -119,6 +119,16 @@ export interface CrawlDiscovery {
    * fallback); o adaptador que sabe contar declara o número real.
    */
   requestCost?: number;
+  /**
+   * Commit DIFERIDO das marcações internas da descoberta (marker `full-sweep`,
+   * cursor de listagem). Presente quando `opts.deferCommit` foi ligado: o MOTOR
+   * o chama DEPOIS do `upsertUrls` e com a cerca ABERTA. Ausente = o adaptador
+   * já aplicou (uso direto/probe). Sem isto, o marker do 1º kind ficaria
+   * gravado enquanto o 2º ainda corre — e uma expiração descartaria todas as
+   * URLs (inclusive as do 1º), perdendo o acervo. O motor NUNCA chama o commit
+   * com a cerca fechada (callback interno/confiável, sem credencial de API).
+   */
+  commit?: () => void;
 }
 
 /** Limites de segurança do adaptador de série (Fase 7): teto de cards de
@@ -149,6 +159,26 @@ export interface CrawlDiscoverOptions {
    * respeitar a opção; ela não intercepta escritas no store automaticamente.
    */
   noPersist?: boolean;
+  /**
+   * Cerca de posse do passo de DESCOBERTA (read-only): `true` = o passo
+   * expirou e a cerca fechou. O adaptador que grava estado de descoberta
+   * próprio (Mico: marker `full-sweep:<kind>`; listagem HDR/Apache: cursor)
+   * DEVE consultar ANTES de escrever: uma escrita TARDIA, depois de o vigia já
+   * ter devolvido/marcado a linha, suprimiria o catálogo (marker sem upsert /
+   * cursor sem fila). Também serve de freio cooperativo do laço de páginas.
+   * NÃO aborta a rede compartilhada (Cinemeta/TMDB): só barra a escrita e para
+   * de pedir páginas novas.
+   */
+  isAborted?: () => boolean;
+  /**
+   * Commit DIFERIDO (só no caminho do MOTOR): o adaptador NÃO grava marker/
+   * cursor ao terminar — devolve `CrawlDiscovery.commit` para o motor chamar
+   * DEPOIS do `upsertUrls`, com a fila já persistida. Sem isto, o marker do 1º
+   * kind fica gravado enquanto o 2º ainda corre e uma expiração descartaria
+   * TODAS as URLs (inclusive do 1º kind) — acervo perdido. Default `false`:
+   * uso direto/probe grava na hora, como sempre; `noPersist` nunca grava.
+   */
+  deferCommit?: boolean;
 }
 
 /** Opções do processamento de UMA página (o tipo vem da fila, os limites da

@@ -79,8 +79,24 @@ function pageKindOf(urlKind: 'movie' | 'series'): CrawlPageKind {
  * página registra em `failures` e segue com passo nominal; falha TOTAL
  * (`totalFailure`) é decidida pelo `discover`.
  */
-async function discoverMovies(now: number, period: number, noPersist?: boolean): Promise<KindDiscovery> {
-  return discoverKind('movie', MOVIE_CATALOG_ID, now, period, { noPersist });
+async function discoverMovies(
+  now: number,
+  period: number,
+  opts?: Pick<CrawlDiscoverOptions, 'noPersist' | 'isAborted' | 'deferCommit'>,
+  pending?: Array<() => void>,
+): Promise<KindDiscovery> {
+  return discoverKind('movie', MOVIE_CATALOG_ID, now, period, {
+    noPersist: opts?.noPersist, isAborted: opts?.isAborted, deferCommit: opts?.deferCommit, pending,
+  });
+}
+
+/** Descoberta ABORTADA (passo expirado): nada de URLs e incompleta — o motor
+ * já fechou a cerca e descarta o resultado; devolver vazio não "afirma" acervo. */
+function abortedDiscovery(requestCost: number): CrawlDiscovery {
+  return {
+    urls: [], complete: false, failures: ['step-timeout'], requestCost,
+    completeByKind: { movie: false, tv_show: false },
+  };
 }
 
 /**
@@ -100,7 +116,13 @@ export function createMicoCrawlSite(): CrawlSite {
 
     async discover(_since?: string | null, opts?: CrawlDiscoverOptions): Promise<CrawlDiscovery> {
       const now = Date.now();
-      const movie = await discoverMovies(now, config.mico.crawlRereadDays, opts?.noPersist);
+      // Coletor do commit DIFERIDO: os markers `full-sweep` de cada kind só são
+      // gravados pelo MOTOR, depois do upsert (ver `CrawlDiscovery.commit`).
+      const pending: Array<() => void> = [];
+      const movie = await discoverMovies(now, config.mico.crawlRereadDays, opts, pending);
+      // Passo expirado entre os kinds: NÃO inicia a varredura de série (que
+      // custaria ~50 min) e devolve resultado vazio — o motor descarta.
+      if (opts?.isAborted?.()) return abortedDiscovery(movie.requestCost);
       // Falha TOTAL de filme LANÇA (como na Fase 1): sem obra não há descoberta
       // útil e o motor retenta. Catálogo vazio/ilegível é exceção, nunca
       // "vazio e completo" (regra de todos os sites).
@@ -113,7 +135,8 @@ export function createMicoCrawlSite(): CrawlSite {
       // Séries (Fase 2) só com `opts.series.enabled`. A falha TOTAL de série
       // NÃO derruba a de filme: marca `tv_show` incompleto (o cursor de série
       // simplesmente não anda) e segue com os filmes descobertos.
-      const series = opts?.series?.enabled ? await discoverSeries(now, opts?.noPersist) : null;
+      const series = opts?.series?.enabled ? await discoverSeries(now, opts, pending) : null;
+      if (opts?.isAborted?.()) return abortedDiscovery(movie.requestCost + (series?.requestCost ?? 0));
       const urls = series ? [...movie.urls, ...series.urls] : movie.urls;
       const failures = series ? [...movie.failures, ...series.failures] : movie.failures;
       const movieComplete = movie.complete;
@@ -130,6 +153,10 @@ export function createMicoCrawlSite(): CrawlSite {
           tv_show: series ? series.fullSweep && seriesComplete : true,
         },
         requestCost: movie.requestCost + (series?.requestCost ?? 0),
+        // Commit atômico dos markers: o motor chama depois de persistir a fila
+        // dos DOIS kinds. Sem isto, o marker de filme ficaria gravado enquanto a
+        // série ainda corre e uma expiração perderia as URLs de filme.
+        commit: pending.length ? () => { for (const f of pending) f(); } : undefined,
       };
     },
 

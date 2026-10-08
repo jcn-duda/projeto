@@ -12,6 +12,7 @@
 import config from '../../config.js';
 import * as log from '../../utils/logger.js';
 import * as store from '../../utils/crawl-store.js';
+import { fetchJsonWithin } from '../../utils/deadline.js';
 import { retryAfterMs } from '../mico.js';
 import type { CrawlDiscoverOptions, DiscoveredUrl } from '../crawl-types.js';
 
@@ -160,10 +161,13 @@ export async function fetchCatalogPage(
 ): Promise<CatalogPage> {
   const url = `${config.mico.url}/catalog/${type}/${catalogId}/skip=${skip}.json`;
   await throttle();
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(config.mico.timeout),
-  });
+  // Prazo DURO (fetch + CORPO) do MESMO jeito da busca ao vivo (`fetchJsonWithin`):
+  // o `AbortSignal.timeout` nativo normalmente cobre o corpo, mas se o abort for
+  // ignorado ou não chegar ao socket a leitura fica pendente para sempre — e no
+  // raspador essa promessa presa seguraria a vaga do site. A corrida rejeita a
+  // promessa a partir do NOSSO timer, garantindo terminação; status/`Retry-After`
+  // continuam lidos do `res` devolvido (corpo só é lido quando `res.ok`).
+  const { res, data } = await fetchJsonWithin(url, { headers: { Accept: 'application/json' } }, config.mico.timeout);
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`) as Error & { status?: number; retryAfter?: number };
     err.status = res.status;
@@ -175,7 +179,6 @@ export async function fetchCatalogPage(
     if (ra != null) err.retryAfter = ra;
     throw err;
   }
-  const data: any = await res.json();
   const metas: any[] = Array.isArray(data?.metas) ? data.metas : [];
   const ids: string[] = [];
   for (const m of metas) {
@@ -221,6 +224,9 @@ export interface CatalogWalk {
 /** Rodada incremental: `isKnown` diz se a obra já está na fila. */
 export interface WalkOptions {
   isKnown?: (tt: string) => boolean;
+  /** Cerca do passo: para o laço de páginas quando o passo expira (nenhuma
+   * requisição nova depois disso; a página em voo termina no deadline próprio). */
+  isAborted?: () => boolean;
 }
 
 /**
@@ -246,9 +252,14 @@ export async function walkCatalog(
   let stoppedAtKnown = false;
 
   while (pages < maxPages) {
+    // Passo expirado: para de pedir páginas NOVAS (cooperativo; a rede em voo
+    // termina no deadline próprio). O motor já invalidou a cerca e a escrita
+    // tardia (marker/upsert/cursor) é barrada abaixo.
+    if (opts.isAborted?.()) break;
     let catalog: CatalogPage | null = null;
     let failed = false;
     for (let attempt = 0; attempt <= config.mico.crawlEmptyRetries && pages < maxPages; attempt += 1) {
+      if (opts.isAborted?.()) break;
       pages += 1;
       try {
         catalog = await fetchCatalogPage(type, catalogId, skip);
@@ -304,7 +315,7 @@ export async function discoverKind(
   catalogId: string,
   now: number,
   periodDays: number,
-  opts: Pick<CrawlDiscoverOptions, 'noPersist'> = {},
+  opts: Pick<CrawlDiscoverOptions, 'noPersist' | 'isAborted' | 'deferCommit'> & { pending?: Array<() => void> } = {},
 ): Promise<KindDiscovery> {
   const stateKey = `full-sweep:${kind}`;
   const lastFull = Number(store.engine().getState(SITE_ID, stateKey) || 0);
@@ -312,7 +323,7 @@ export async function discoverKind(
   const isKnown = fullSweep
     ? undefined
     : (tt: string) => store.engine().getUrl(SITE_ID, syntheticUrl(kind, tt)) != null;
-  const walk = await walkCatalog(kind, catalogId, { isKnown });
+  const walk = await walkCatalog(kind, catalogId, { isKnown, isAborted: opts.isAborted });
   const queueKind = kind === 'series' ? 'tv_show' as const : 'movie' as const;
   const urls: DiscoveredUrl[] = walk.ids.map((tt) => (
     { url: syntheticUrl(kind, tt), lastmod: bucketLastmod(tt, now, periodDays), kind: queueKind }
@@ -324,8 +335,14 @@ export async function discoverKind(
   // Observação (sonda): `noPersist` mantém a escolha normal full/incremental e
   // as marcações (complete/completeByKind/custo), mas NÃO grava o cursor — a
   // sonda nunca altera `crawl_state`; o `--write` dela autoriza só o veredito.
+  // Commit: no caminho do MOTOR (`deferCommit`) a gravação é COLETADA e só roda
+  // DEPOIS do `upsertUrls` (com a cerca aberta) — senão o marker do 1º kind
+  // ficaria gravado antes de o 2º terminar e uma expiração descartaria TODAS as
+  // URLs (inclusive do 1º kind), perdendo o acervo. Direto/probe grava na hora.
   if (fullSweep && complete && walk.sawEnd && !opts.noPersist) {
-    store.engine().setState(SITE_ID, stateKey, String(now));
+    const write = (): void => { store.engine().setState(SITE_ID, stateKey, String(now)); };
+    if (opts.deferCommit) opts.pending?.push(write);
+    else if (!opts.isAborted?.()) write();
   }
   return { urls, failures: walk.failures, complete, requestCost: walk.pages, totalFailure, fullSweep };
 }

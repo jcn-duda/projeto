@@ -70,18 +70,22 @@ describe('motor Fase 7: descoberta gated e teto horário com o custo REAL', () =
     crawler._forceDiscoveryForTest();
     await crawler.tick();
     // F2: primeiro ciclo = carga inicial dos DOIS kinds (cursor vazio).
-    assert.deepEqual(seen, {
+    // A cerca de posse do passo viaja em `isAborted` (read-only) — o adaptador
+    // que grava descoberta usa para não escrever marker tardio.
+    assert.deepEqual(seen && { series: (seen as { series?: unknown }).series, sinceByKind: (seen as { sinceByKind?: unknown }).sinceByKind }, {
       series: { enabled: true, maxCards: 7, maxButtons: 9 },
       sinceByKind: { movie: null, tv_show: null },
     });
+    assert.equal(typeof (seen as { isAborted?: unknown }).isAborted, 'function');
     config.crawl.seriesEnabled = false;
     crawler._forceDiscoveryForTest();
     await crawler.tick(); // fecha a rodada anterior (fila vazia)
     await crawler.tick(); // redescobre com o knob off
-    assert.deepEqual(seen, {
+    assert.deepEqual(seen && { series: (seen as { series?: unknown }).series, sinceByKind: (seen as { sinceByKind?: unknown }).sinceByKind }, {
       series: { enabled: false, maxCards: 7, maxButtons: 9 },
       sinceByKind: { movie: null, tv_show: null },
     });
+    assert.equal(typeof (seen as { isAborted?: unknown }).isAborted, 'function');
   });
 
   test('requestCost é cobrado no teto por hora (página de série não vale 1 request)', async () => {

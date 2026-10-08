@@ -1,5 +1,6 @@
 import config from '../config.js';
 import type { MatchContext, RawItem } from '../../types/domain.js';
+import { fetchJsonWithin } from '../utils/deadline.js';
 import { looksPtBr, filterRelevantRaw } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -226,10 +227,14 @@ export function retryAfterMs(header: string | null | undefined): number | null {
  *  - erro de rede/timeout → LANÇA o erro original.
  */
 export async function fetchMicoStreams(url: string, timeoutMs: number): Promise<{ items: RawItem[]; ok: boolean }> {
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  // Prazo DURO de rede (fetch + CORPO) via `fetchJsonWithin`: ele corre a
+  // promessa contra um timer NOSSO que aborta o controller E, independente do
+  // abort, REJEITA a corrida — a promessa sempre termina. O `AbortSignal.timeout`
+  // nativo normalmente cobre o corpo também, mas se o abort for ignorado ou não
+  // chegar ao socket a leitura fica pendente para sempre; no raspador essa
+  // promessa presa segurava a vaga do site (Mico travado ~16h em `inflight`,
+  // 2026-10-08). O MESMO helper já protege a Cinemeta/TMDB.
+  const { res, data } = await fetchJsonWithin(url, { headers: { Accept: 'application/json' } }, timeoutMs);
   if (!res.ok) {
     // 4xx (salvo 429) é da obra, não prova host caído: devolve vazio com
     // `ok:false` (o `search` NÃO reseta o breaker; o raspador trata como
@@ -244,7 +249,6 @@ export async function fetchMicoStreams(url: string, timeoutMs: number): Promise<
     if (retryAfter != null) err.retryAfter = retryAfter;
     throw err;
   }
-  const data: any = await res.json();
   const raw = Array.isArray(data?.streams) ? data.streams : [];
   const seen = new Set<string>();
   const items: RawItem[] = [];

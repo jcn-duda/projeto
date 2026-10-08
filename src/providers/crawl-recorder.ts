@@ -46,6 +46,29 @@ export interface CrawlObraLocation {
   episode?: number | null;
 }
 
+/**
+ * Opções de UMA gravação. `shouldAbort` é a cerca do passo
+ * (`crawl-site-runtime.ts`): consultada ANTES de cada escrita persistente
+ * (banco vivo/índice/invalidação) para que um passo expirado não grave nada
+ * depois que a recuperação já devolveu a linha.
+ */
+export interface RecordOptions {
+  shouldAbort?: () => boolean;
+}
+
+/** Sinaliza que a cerca do passo fechou no meio da gravação (nenhum efeito
+ * persistente é aceito a partir daí). */
+export class CrawlAbortedError extends Error {
+  constructor() {
+    super('crawl-abortado: passo fora do prazo');
+    this.name = 'CrawlAbortedError';
+  }
+}
+
+export function isCrawlAborted(err: unknown): boolean {
+  return err instanceof CrawlAbortedError;
+}
+
 /** Colaboradores do recorder — trocáveis em teste (ver cabeçalho). */
 export interface CrawlRecorderDeps {
   /**
@@ -107,6 +130,7 @@ export interface CrawlRecorder {
     obra: CrawlObra,
     releases: RawItem[],
     location?: CrawlObraLocation,
+    options?: RecordOptions,
   ): Promise<RecordReport>;
 }
 
@@ -132,8 +156,16 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
       obra: CrawlObra,
       releases: RawItem[],
       location: CrawlObraLocation = {},
+      options: RecordOptions = {},
     ): Promise<RecordReport> {
+      // Cerca do passo: cada fronteira persistente reconsulta antes de escrever.
+      const checkAbort = (): void => { if (options.shouldAbort?.()) throw new CrawlAbortedError(); };
+      // Pré-checagem ANTES do primeiro await: um passo já expirado não inicia
+      // sequer a busca de metadados (que é compartilhada e não deve ser
+      // abortada, só evitada quando o passo não pode mais gravar).
+      checkAbort();
       const context = await d.buildContext(obra, location);
+      checkAbort();
       if (!context) throw new Error('catalogo-sem-nomes');
       const loc = { season: location.season ?? null, episode: location.episode ?? null };
       const ctx = { imdbId: obra.imdb, season: loc.season, episode: loc.episode, year: context.year ?? obra.year };
@@ -141,6 +173,7 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
       const relevant = filterRelevantRaw(releases, context as never);
       // 2. Banco vivo: capture+filter atômicos (página inteira entra; filtro
       //    marca passed_filter na MESMA locação do grupo).
+      checkAbort();
       if (!d.captureAndMark(releases, relevant, siteId, ctx)) {
         d.count('crawl.record.queueDropped');
         throw new Error('magnetbank-queue-dropped');
@@ -155,10 +188,12 @@ export function createCrawlRecorder(deps: Partial<CrawlRecorderDeps> = {}): Craw
       //    rebaixa — a raspagem cobre UMA página, nunca a obra inteira.
       const before = d.lookupQuiet(obra.imdb, loc);
       const partial = d.isPartial(obra.imdb, loc) || before.length === 0;
+      checkAbort();
       const added = d.record(obra.imdb, loc, relevant, { partial, keepPartial: true });
       // 5. Transição BR invalida listas prontas da obra.
       const after = d.lookupQuiet(obra.imdb, loc);
       const transition = d.transition(before, after);
+      checkAbort();
       const cleared = transition === 'none' ? 0 : d.invalidate(obra.imdb);
       d.count('crawl.record.added', added);
       if (cleared > 0) d.count('crawl.record.invalidated', cleared);

@@ -133,3 +133,23 @@ export function saveListingCursorForSeries(cursor: ListingCursor, seriesEnabled:
   );
   saveListingCursor(cursor);
 }
+
+/**
+ * Decide o commit do cursor de listagem conforme a fase:
+ *  - `deferCommit` (MOTOR): devolve um closure para o motor chamar DEPOIS do
+ *    `upsertUrls` e com a cerca aberta; NADA é gravado agora — sem isto o
+ *    cursor avançaria por uma rodada cujas URLs o motor pode descartar.
+ *  - uso direto/probe: grava na hora, exceto com a cerca já expirada
+ *    (`isAborted`) ou em `noPersist`, quando não há escrita nenhuma.
+ * `undefined` = nada a commitar.
+ */
+export function listingCursorCommit(
+  cursor: ListingCursor,
+  seriesEnabled: boolean,
+  opts?: { noPersist?: boolean; isAborted?: () => boolean; deferCommit?: boolean },
+): (() => void) | undefined {
+  if (opts?.noPersist || opts?.isAborted?.()) return undefined;
+  if (opts?.deferCommit) return () => saveListingCursorForSeries(cursor, seriesEnabled);
+  saveListingCursorForSeries(cursor, seriesEnabled);
+  return undefined;
+}

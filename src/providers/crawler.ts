@@ -121,7 +121,7 @@ async function runSite(chosen: SiteCandidate): Promise<void> {
     const site = await resolveSite(chosen.id);
     if (!site) return;
     activeSiteId = chosen.id;
-    await stepper.step(chosen.runtime, site, chosen.config);
+    await stepper.boundedStep(chosen.runtime, site, chosen.config);
   } catch (err) {
     log.warn(`[crawl] ${chosen.id}: passo falhou:`, log.errorMessage(err));
   } finally {

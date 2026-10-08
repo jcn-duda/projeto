@@ -32,7 +32,7 @@ import { getMeta } from '../../utils/cinemeta.js';
 import { fetchMicoStreams, micoEpisodeStreamUrl } from '../mico.js';
 import type { RawItem } from '../../../types/domain.js';
 import type {
-  CrawlPageOptions, CrawlReleaseGroup, CrawlWorkResult, SeriesWorkProgress,
+  CrawlDiscoverOptions, CrawlPageOptions, CrawlReleaseGroup, CrawlWorkResult, SeriesWorkProgress,
 } from '../crawl-types.js';
 import { withRequestCost } from './shared.js';
 import {
@@ -52,8 +52,14 @@ const DEFAULT_MAX_BUTTONS = 40;
  * filme); `totalFailure` sobe para o `discover` decidir (série NÃO derruba a
  * descoberta de filme — ver `mico.ts`).
  */
-export async function discoverSeries(now: number, noPersist?: boolean): Promise<KindDiscovery> {
-  return discoverKind('series', SERIES_CATALOG_ID, now, SERIES_REREAD_DAYS, { noPersist });
+export async function discoverSeries(
+  now: number,
+  opts?: Pick<CrawlDiscoverOptions, 'noPersist' | 'isAborted' | 'deferCommit'>,
+  pending?: Array<() => void>,
+): Promise<KindDiscovery> {
+  return discoverKind('series', SERIES_CATALOG_ID, now, SERIES_REREAD_DAYS, {
+    noPersist: opts?.noPersist, isAborted: opts?.isAborted, deferCommit: opts?.deferCommit, pending,
+  });
 }
 
 /** Meta de série da Cinemeta (o shape que `getMeta('series', tt)` devolve). */

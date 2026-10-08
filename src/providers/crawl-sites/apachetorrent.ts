@@ -78,7 +78,7 @@
 import config from '../../config.js';
 import { instance } from '../../br-resolvers.js';
 import { startListingCursor } from '../crawl-cursor.js';
-import { loadListingCursorForSeries, saveListingCursorForSeries } from '../crawl-listing-series.js';
+import { loadListingCursorForSeries, listingCursorCommit } from '../crawl-listing-series.js';
 import type {
   CrawlDiscoverOptions, CrawlDiscovery, CrawlPageKind, CrawlPageOptions,
   CrawlReleaseGroup, CrawlSite, CrawlWorkResult,
@@ -233,11 +233,11 @@ export function createApachetorrentCrawlSite(
       // do portão viaja junto (`crawl-listing-series.ts`) — é ele que faz a
       // inversão do portão recomeçar a varredura em vez de pular o acervo de
       // série que a rodada anterior leu e descartou.
-      if (walk.pagesConsumed > 0) saveListingCursorForSeries(walk.cursor, seriesEnabled);
+      const commit = walk.pagesConsumed > 0 ? listingCursorCommit(walk.cursor, seriesEnabled, opts) : undefined;
       return {
         urls: walk.urls,
         complete: walk.complete,
-        failures: walk.failures,
+        failures: walk.failures, ...(commit ? { commit } : {}),
         // A listagem é a MESMA fonte dos dois kinds (a página é mista), então a
         // completude é uma só. Com séries desligadas ela cobre só o que foi
         // emitido: as URLs de série foram lidas e DESCARTADAS, logo `tv_show`

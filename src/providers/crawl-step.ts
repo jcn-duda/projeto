@@ -12,6 +12,7 @@
 import * as store from '../utils/crawl-store.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
+import config from '../config.js';
 import { seriesLimitsOf, type CrawlerSiteConfig } from '../utils/crawler-live-schema.js';
 import { DEFAULT_RETRY_BASE_MS } from '../utils/crawl-store-rules.js';
 import { advanceCursors, discoveryCuts } from './crawl-cursor.js';
@@ -19,7 +20,10 @@ import { initialLoadDone } from './crawl-coverage.js';
 import { processCrawlPage, requestCostOf } from './crawl-page.js';
 import { freshCycle } from './crawl-cycle.js';
 import * as recovery from './crawl-recovery.js';
-import { autoPauseSite, type SiteRuntime } from './crawl-site-runtime.js';
+import {
+  autoPauseSite, beginStepFence, invalidateStep, STEP_TIMEOUT_REASON,
+  type SiteRuntime, type StepFence,
+} from './crawl-site-runtime.js';
 import type { AutoPauseReason, PauseLimits } from './crawl-pauses.js';
 import type { CrawlSite, CrawlUrlRow } from './crawl-types.js';
 
@@ -72,10 +76,11 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
   }
 
   /** Rodada de descoberta: upsert no store e, se completa, avanço do cursor. */
-  async function runDiscovery(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig): Promise<void> {
+  async function runDiscovery(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig, fence?: StepFence): Promise<void> {
     const now = Date.now();
     rt.lastActiveAt = now;
     deps.markRequest(now);
+    rt.activeUrl = null;
     // F2: fase e corte POR KIND (ver `crawl-cursor.ts`) — série sem cursor
     // começa `initial` mesmo com filmes incrementais.
     const { phase: cutPhase, sinceByKind } = discoveryCuts(rt.cursors);
@@ -90,7 +95,17 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
       const discovery = await site.discover(sinceByKind.movie, {
         series: seriesLimitsOf(cfg),
         sinceByKind,
+        // Cerca de posse para a ESCRITA de descoberta do adaptador (marker
+        // `full-sweep`/cursor de listagem) e freio cooperativo do laço de
+        // páginas: um passo expirado não pode gravar marker tardio.
+        isAborted: fence ? () => fence.aborted() : undefined,
+        // Commit DIFERIDO: o adaptador devolve as marcações em `commit` e o
+        // motor as grava DEPOIS do upsert — nunca antes de a fila persistir.
+        deferCommit: true,
       });
+      // Passo expirado (prazo do site vencido): a cerca está fechada — NÃO
+      // grava upsert/cursor/custo e NÃO fecha a rodada (o vigia já a fechou).
+      if (fence?.aborted()) return;
       // A descoberta faz requisições de verdade (sitemap de filme, de série, e
       // saltos do protetor): sem cobrança ela não entraria no teto por hora, que
       // é de REQUISIÇÕES. O adaptador que sabe contar declara o custo real da
@@ -109,6 +124,12 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
       // F2: o cursor de CADA kind anda só com a descoberta DELE completa —
       // parcial de um sitemap não trava o avanço seguro do outro.
       advanceCursors(rt.id, discovery, rt.cursors);
+      // Commit DIFERIDO do adaptador: só AGORA, com a fila JÁ persistida
+      // (`upsertUrls` acima) e a cerca AINDA aberta, os markers `full-sweep`/
+      // cursor de listagem são gravados. Se a cerca tivesse fechado, o return
+      // acima executaria antes do upsert — o commit nunca rodaria, e o marker
+      // não ficaria adiantado sobre URLs descartadas.
+      if (!fence?.aborted()) discovery.commit?.();
       if (discovery.complete) {
         rt.policy.observeSiteSuccess();
         metrics.count('crawl.discovery.ok');
@@ -122,6 +143,7 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
         log.warn(`[crawl] ${rt.id}: descoberta parcial:`, discovery.failures.join(' | ').slice(0, 400));
       }
     } catch (err: unknown) {
+      if (fence?.aborted()) return;
       if (!costed) {
         costed = true;
         const raw = requestCostOf(err) ?? deps.discoveryCost();
@@ -140,13 +162,21 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
   }
 
   /** Processa UMA página reclamada e alimenta a política de pausa do site. */
-  async function processClaimed(rt: SiteRuntime, site: CrawlSite, row: CrawlUrlRow, cfg: CrawlerSiteConfig): Promise<void> {
+  async function processClaimed(rt: SiteRuntime, site: CrawlSite, row: CrawlUrlRow, cfg: CrawlerSiteConfig, fence?: StepFence): Promise<void> {
     const now = Date.now();
     rt.lastActiveAt = now;
     deps.markRequest(now);
+    // A linha em voo fica registrada: se o passo estourar o prazo, o vigia
+    // marca ESTA URL como `error step-timeout` (com progresso preservado).
+    rt.activeUrl = row.url;
     const outcome = await processCrawlPage(site, row, {
       dryRun: cfg.dryRun, maxTries: cfg.maxTries, series: seriesLimitsOf(cfg),
+      isAborted: fence ? () => fence.aborted() : undefined,
     });
+    // Passo expirado: a recuperação já devolveu/marcou a linha. NÃO cobra,
+    // NÃO conta ciclo, NÃO alimenta a política com o desfecho tardio.
+    if (fence?.aborted()) return;
+    rt.activeUrl = null;
     // Fase 7: o teto por hora cobra o custo REAL da página, não 1 por página.
     const cost = Math.max(1, Math.trunc(Number(outcome.requestCost ?? 1)));
     charge(rt, cost);
@@ -172,7 +202,8 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
   }
 
   /** Um passo do SITE escolhido. */
-  async function step(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig): Promise<void> {
+  async function step(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig, fence?: StepFence): Promise<void> {
+    if (fence?.aborted()) return;
     // Recuperações ANTES do takeNext (one-shot; simulated reabre rodada com
     // nextDiscoverAt = 0, senão o pending novo esperaria o ciclo incremental):
     if (rt.needInflightRecovery) { rt.needInflightRecovery = false; recovery.requeueInflight(rt.id); }
@@ -184,7 +215,11 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
     if (rt.openRunId == null) {
       const counters = store.engine().counters(rt.id);
       if (counters.total === 0 || Date.now() >= rt.nextDiscoverAt) {
-        await runDiscovery(rt, site, cfg);
+        // Fase DESCOBERTA: orçamento PRÓPRIO (dois catálogos em sequência no
+        // Mico ~100 min). Trocado AQUI, depois das recuperações acima e antes
+        // de qualquer await — nunca por predição de `nextDiscoverAt` velho.
+        fence?.setBudget?.(config.crawl.discoveryDeadlineMs);
+        await runDiscovery(rt, site, cfg, fence);
         return;
       }
       // Ocioso: tick serial ⇒ inflight aqui é órfão; devolve e tenta o vencido.
@@ -197,7 +232,7 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
       // One Piece/TWD esperariam o ciclo incremental inteiro entre passes.
       if (counters.byStatus.error > 0 || counters.byStatus.inflight > 0 || counters.byStatus.partial > 0) {
         const row = store.engine().takeNext(rt.id, Date.now());
-        if (row) await processClaimed(rt, site, row, cfg);
+        if (row) await processClaimed(rt, site, row, cfg, fence);
       }
       return;
     }
@@ -209,8 +244,75 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
       closeRun(rt, rt.discoveryPartial ? DEFAULT_RETRY_BASE_MS : cfg.incrementalIntervalMin * 60_000);
       return;
     }
-    await processClaimed(rt, site, row, cfg);
+    await processClaimed(rt, site, row, cfg, fence);
   }
 
-  return { step, closeRun, runDiscovery, processClaimed, triggerAutoPause };
+  /**
+   * Recuperação do passo expirado: a geração já foi invalidada (escritas tardias
+   * descartadas), então devolve o estado para o site seguir.
+   *  - linha presa (página) → `error step-timeout` (backoff RETENTÁVEL e
+   *    progresso preservado pelo `applyResult`) e a rodada segue ABERTA para os
+   *    próximos itens;
+   *  - descoberta presa → fecha a rodada e rearma `nextDiscoverAt = 0` para a
+   *    releitura da descoberta (nenhum upsert/cursor tardio entra).
+   * Devolve quantas `inflight` órfãs voltaram à fila.
+   */
+  function recoverTimedOutStep(rt: SiteRuntime, cfg: CrawlerSiteConfig): number {
+    const engine = store.engine();
+    const stuck = rt.activeUrl;
+    if (stuck) {
+      engine.markResult(rt.id, stuck, { status: 'error', error: STEP_TIMEOUT_REASON }, Date.now(), { maxTries: cfg.maxTries });
+    }
+    rt.activeUrl = null;
+    const requeued = engine.requeueInflight(rt.id, 0, Date.now());
+    if (!stuck && rt.openRunId != null) {
+      engine.finishRun(rt.openRunId, Date.now(), { ...rt.cycle });
+      rt.openRunId = null;
+      rt.cycle = freshCycle();
+      rt.nextDiscoverAt = 0;
+    }
+    return requeued;
+  }
+
+  /**
+   * Passo VIGIADO: corre `step` sob `CRAWL_STEP_DEADLINE_MS`. Se vencer, a
+   * cerca do passo é fechada e a recuperação da linha presa roda; a vaga do
+   * site é liberada pelo `finally` do chamador. A rede já tem deadline próprio
+   * (fetch+corpo); este é o backstop de await não-abortável. O timeout é um
+   * `Promise.race` com escrita tardia BARrada pela cerca (nunca "libera a vaga
+   * e deixa o passo velho escrever").
+   */
+  async function boundedStep(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig): Promise<void> {
+    const fence = beginStepFence(rt);
+    let budgetMs = Math.max(1, Math.trunc(Number(config.crawl.stepDeadlineMs) || 0));
+    let timer: NodeJS.Timeout | undefined;
+    let resolveTimeout!: (value: 'timeout') => void;
+    const timeout = new Promise<'timeout'>((resolve) => { resolveTimeout = resolve; });
+    // Timer REFERENCIADO de propósito: o prazo precisa vencer mesmo se o único
+    // trabalho pendente for a promessa presa (sem socket/timer) — é limpo no
+    // `finally`. Re-armável para trocar pelo orçamento da FASE (descoberta).
+    const arm = (ms: number): void => {
+      budgetMs = Math.max(1, Math.trunc(Number(ms) || 0));
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => resolveTimeout('timeout'), budgetMs);
+    };
+    fence.setBudget = arm;
+    arm(budgetMs);
+    // Rejeição pré-prazo sobe (o motor loga); pós-prazo é silenciada (o passo
+    // foi invalidado e ninguém mais espera por ele).
+    const guarded = step(rt, site, cfg, fence).catch((err: unknown) => { if (!fence.aborted()) throw err; });
+    let result: 'done' | 'timeout';
+    try {
+      result = await Promise.race([guarded.then(() => 'done' as const), timeout]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (result === 'done') return;
+    invalidateStep(rt);
+    const requeued = recoverTimedOutStep(rt, cfg);
+    metrics.count('crawl.step.timeout');
+    log.warn(`[crawl] ${rt.id}: passo excedeu o prazo (${budgetMs}ms) — geração invalidada${requeued > 0 ? `, ${requeued} URL(s) devolvida(s)` : ''}`);
+  }
+
+  return { step, boundedStep, closeRun, runDiscovery, processClaimed, triggerAutoPause };
 }
