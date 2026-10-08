@@ -202,3 +202,31 @@ test('disable/pause: tick não serve e a fila fica intacta', async () => {
   await crawler.tick(); // página
   assert.equal(store.engine().getUrl('fake', '/a')?.status, 'simulated');
 });
+
+test('a cerca chega ao fetchWork: o laço de botões vê o passo expirar', async () => {
+  store.engine().upsertUrls('fake', [movie('/a-stuck')], 1);
+  const probe: { seen?: () => boolean } = {};
+  let releaseStuck!: () => void;
+  const stuck = new Promise<void>((resolve) => { releaseStuck = resolve; });
+  crawler._setSitesForTest(() => siteWithFetch((async (url: string, opts?: { isAborted?: () => boolean }) => {
+    probe.seen = opts?.isAborted;
+    await stuck;
+    return done(url);
+  }) as never));
+
+  await crawler.tick(); // descoberta
+  await crawler.tick(); // trava; o vigia invalida a geração
+  assert.equal(typeof probe.seen, 'function', 'fetchWork precisa receber isAborted');
+  assert.equal(probe.seen?.(), true, 'depois do prazo a cerca responde abortado');
+  releaseStuck();
+  await sleep(20);
+});
+
+test('prazo por site: faixa Flare usa o orçamento próprio, nunca abaixo do global', async () => {
+  const { stepDeadlineFor } = await import('../src/providers/crawl-step.js');
+  Object.assign(config.crawl, { stepDeadlineMs: 1000, flareStepDeadlineMs: 5000, flareSites: ['flarey'] });
+  assert.equal(stepDeadlineFor('fake'), 1000);
+  assert.equal(stepDeadlineFor('flarey'), 5000);
+  config.crawl.flareStepDeadlineMs = 10;
+  assert.equal(stepDeadlineFor('flarey'), 1000, 'Flare abaixo do global sobe ao global');
+});

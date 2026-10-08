@@ -316,7 +316,7 @@ export function createTorrentdosfilmesCrawlSite(
             + `seguindo ${planned.length} (teto de série)`);
         }
         const pass = await passButtons(
-          { surface, workUrl: workUrl.href, postTitle: raw, countRequest },
+          { surface, workUrl: workUrl.href, postTitle: raw, countRequest, isAborted: pageOpts?.isAborted },
           planned,
         );
         if (!pass.releases.length) {

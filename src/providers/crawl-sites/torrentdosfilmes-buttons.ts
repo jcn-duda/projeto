@@ -79,6 +79,8 @@ export interface ButtonPassDeps {
   countRequest: () => void;
   /** Chamado por botão que falhou, para o log do site. */
   onFailure?: (err: unknown) => void;
+  /** Cerca do passo: expirado, o percurso para (o motor descarta o resultado). */
+  isAborted?: () => boolean;
 }
 
 /**
@@ -104,6 +106,7 @@ export async function passButtons(deps: ButtonPassDeps, planned: ResolverLink[])
   const seen = new Set<string>();
   const out: ButtonPass = { releases, followed: 0, terminalFails: 0, otherFails: 0, lastError: null };
   for (const link of planned) {
+    if (deps.isAborted?.()) break;
     try {
       const { magnet, release } = await passButton(deps, link);
       out.followed += 1;

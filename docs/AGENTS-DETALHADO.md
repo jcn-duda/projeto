@@ -2060,6 +2060,13 @@ IMDb, e por isso o adaptador difere dos outros oito em três pontos:
   marcadores `full-sweep:*` do Mico e cursores de listagem HDR/Apache só são
   confirmados pelo callback `commit` após enfileirar as URLs, com a posse ainda
   válida. `noPersist` da sonda continua sem gravar esses checkpoints.
+  Sites da faixa Flare (`CRAWL_FLARE_SITES`) usam `CRAWL_FLARE_STEP_DEADLINE_MS`
+  (default botões × (`FLARE_TIMEOUT_MS` + 10s) + 60s ≈ 44 min, nunca abaixo do
+  global; `stepDeadlineFor`): a conta do Mico mataria uma série boa num site
+  lento, perdendo a fatia e queimando `tries`. A cerca também vai ao
+  `fetchWork` (`isAborted`): os laços de botão/episódio (Mico, Vaca, BLUDV,
+  Comando, Nerd, TDF) param de pedir rede quando o passo expira — o passo
+  velho não disputa o Flare nem o throttle com o novo.
 
 **São duas FORMAS de descoberta, e a escolha é do site.** Com sitemap (Vaca,
 NerdFilmes, TorrentDosFilmes, ComandoTorrents, RedeTorrent, BLUDV): ler o

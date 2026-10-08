@@ -48,6 +48,18 @@ function limits(cfg: CrawlerSiteConfig): PauseLimits {
   return { errorPauseStreak: cfg.errorPauseStreak, layoutCanary: cfg.layoutCanary };
 }
 
+/**
+ * Prazo do passo de LINHA do site. Faixa FlareSolverr tem orçamento próprio
+ * (a cadeia do protetor pelo Flare é bem mais lenta que a API do Mico, de onde
+ * sai o default global); nunca fica abaixo do global.
+ */
+export function stepDeadlineFor(siteId: string): number {
+  const base = Math.max(1, Math.trunc(Number(config.crawl.stepDeadlineMs) || 0));
+  const flareSites: readonly string[] = config.crawl.flareSites ?? [];
+  if (!flareSites.includes(siteId)) return base;
+  return Math.max(base, Math.trunc(Number(config.crawl.flareStepDeadlineMs) || 0));
+}
+
 export function createCrawlStepper(deps: CrawlStepDeps) {
   function triggerAutoPause(rt: SiteRuntime, reason: AutoPauseReason, detail: string): void {
     autoPauseSite(rt, reason, detail);
@@ -275,7 +287,7 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
   }
 
   /**
-   * Passo VIGIADO: corre `step` sob `CRAWL_STEP_DEADLINE_MS`. Se vencer, a
+   * Passo VIGIADO: corre `step` sob o prazo do site (`stepDeadlineFor`). Se vencer, a
    * cerca do passo é fechada e a recuperação da linha presa roda; a vaga do
    * site é liberada pelo `finally` do chamador. A rede já tem deadline próprio
    * (fetch+corpo); este é o backstop de await não-abortável. O timeout é um
@@ -284,7 +296,7 @@ export function createCrawlStepper(deps: CrawlStepDeps) {
    */
   async function boundedStep(rt: SiteRuntime, site: CrawlSite, cfg: CrawlerSiteConfig): Promise<void> {
     const fence = beginStepFence(rt);
-    let budgetMs = Math.max(1, Math.trunc(Number(config.crawl.stepDeadlineMs) || 0));
+    let budgetMs = stepDeadlineFor(rt.id);
     let timer: NodeJS.Timeout | undefined;
     let resolveTimeout!: (value: 'timeout') => void;
     const timeout = new Promise<'timeout'>((resolve) => { resolveTimeout = resolve; });

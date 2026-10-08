@@ -325,11 +325,10 @@ export function createNerdfilmesCrawlSite(
         const obra = { title, year };
         const releases: RawItem[] = [];
         const seen = new Set<string>();
-        let followed = 0;
+        let followed = 0, terminalFails = 0, otherFails = 0;
         let lastError: unknown = null;
-        let terminalFails = 0;
-        let otherFails = 0;
         for (const link of planned) {
+          if (pageOpts?.isAborted?.()) break; // passo expirado: resultado descartado
           try {
             const finalHtml = await surface.fetchFollowingAllowed(link.url, workUrl.href, { onRequest: countRequest });
             followed += 1;

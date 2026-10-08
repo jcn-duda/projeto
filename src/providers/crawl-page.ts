@@ -129,8 +129,12 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     let result: Awaited<ReturnType<CrawlSite['fetchWork']>>;
     try {
       // Retomada (Fase 7 v2): o progresso da linha (coluna `progress`) vai ao
-      // adaptador — cards já feitos não são re-visados.
-      result = await site.fetchWork(row.url, { kind: row.kind, series: opts.series, resume: parseProgress(row.progress) });
+      // adaptador — cards já feitos não são re-visados. A cerca também vai: o
+      // laço de botões para de pedir rede quando o passo expira (o resultado
+      // é descartado logo abaixo, então cortar no meio não perde nada).
+      result = await site.fetchWork(row.url, {
+        kind: row.kind, series: opts.series, resume: parseProgress(row.progress), isAborted: opts.isAborted,
+      });
     } catch (err: unknown) {
       const message = log.errorMessage(err);
       markPageError(row, message, opts);

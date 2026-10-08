@@ -93,6 +93,16 @@ export const crawl = () => ({
       * (num(process.env.MICO_TIMEOUT_MS, 15_000) + num(process.env.MICO_CRAWL_MIN_GAP_MS, 1_000))
       + 60_000,
   ))),
+  // Prazo do passo de LINHA dos sites da faixa FlareSolverr (`flareSites`). A
+  // conta do Mico não serve a eles: cada botão segue a cadeia do protetor pelo
+  // Flare (fila serial, `FLARE_TIMEOUT_MS` + 10s de folga do transporte), e um
+  // site lento estouraria os ~11,7 min, perdendo a fatia e queimando `tries`
+  // até desistir da página. Default = botões × (Flare + 10s) + 60s ≈ 44 min,
+  // nunca abaixo do `stepDeadlineMs`.
+  flareStepDeadlineMs: Math.max(30_000, Math.trunc(num(
+    process.env.CRAWL_FLARE_STEP_DEADLINE_MS,
+    seriesMaxButtonsEnv() * (num(process.env.FLARE_TIMEOUT_MS, 55_000) + 10_000) + 60_000,
+  ))),
   // Prazo DURO da fase de DESCOBERTA (separado do passo de linha). A descoberta
   // completa do Mico lê DOIS catálogos em sequência (filme + série), ~50 min
   // CADA na VPS (`mico-shared.ts`), podendo passar de 100 min: o orçamento de

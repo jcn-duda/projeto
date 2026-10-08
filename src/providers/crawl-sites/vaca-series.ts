@@ -94,6 +94,9 @@ export interface VacaSeriesContext {
   /** Custo acumulado até agora (para anexar a erros, F1: throw não perde o
    * que já foi gasto — o motor cobra o que mediu, não 1 por página). */
   requestCost(): number;
+  /** Cerca do passo: expirado, o laço de cards/botões para (o motor descarta
+   * o resultado — a retomada vem do `progress` já gravado). */
+  isAborted?: () => boolean;
 }
 
 /**
@@ -204,6 +207,7 @@ export async function fetchSeriesWork(
 
   for (const card of cards) {
     if (buttons >= limits.maxButtons) { buttonCapHit = true; break; }
+    if (ctx.isAborted?.()) break;
     // F6: card é URL derivada do HTML do site — host de fora é erro
     // diagnosticável NA PORTA (sobe como `blocked_host:<host>`), nunca card
     // "falho" tolerado que esconda o sintoma.
@@ -241,6 +245,7 @@ export async function fetchSeriesWork(
     for (let index = 0; index < links.length; index += 1) {
       const link = links[index];
       if (index < skip) continue; // botões já seguidos numa tentativa anterior
+      if (ctx.isAborted?.()) break;
       // Pack já resolvido (mesma qualidade/áudio/tamanho real): a URL do
       // protetor muda por página, então só a assinatura evita seguir a cadeia
       // de novo. Não consome o teto de botões — não há requisição.

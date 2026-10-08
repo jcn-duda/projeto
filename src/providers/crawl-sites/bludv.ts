@@ -275,6 +275,8 @@ export function createBludvCrawlSite(surface: BludvResolverSurface, options: Blu
         const releases: RawItem[] = [];
         const seen = new Set<string>();
         for (const link of planned) {
+          // Passo expirado: o motor descarta o resultado; não ocupa o Flare.
+          if (pageOpts?.isAborted?.()) break;
           // O `follow` do núcleo devolve a URI sem gastar rede quando a entrada já
           // é `magnet:` (é o caso medido neste site: 13 botões em 12 posts, todos
           // direto), e conta o salto se um dia o site voltar a protetor. Por isso

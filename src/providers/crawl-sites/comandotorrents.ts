@@ -245,6 +245,8 @@ export function createComandotorrentsCrawlSite(
         let terminalFails = 0;
         let otherFails = 0;
         for (const link of planned) {
+          // Passo expirado: o motor descarta o resultado; não gasta mais rede.
+          if (pageOpts?.isAborted?.()) break;
           try {
             const finalHtml = await surface.fetchFollowingAllowed(link.url, workUrl.href, { onRequest: countRequest });
             followed += 1;

@@ -275,6 +275,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
             releaseToRawItem: (obra, link, magnet) => releaseToRawItem(surface, obra, link, magnet),
             countRequest,
             requestCost: () => counter.n,
+            isAborted: pageOpts.isAborted,
           }, url, pageOpts.series ?? DEFAULT_SERIES_LIMITS, pageOpts.resume ?? null);
           result.requestCost = counter.n;
           return result;

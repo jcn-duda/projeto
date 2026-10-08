@@ -209,6 +209,12 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   agregado), da janela de ociosidade e da espera do `delayMs`, e o custo dele não
   entra no teto agregado dos outros sites, e roda POR FORA das vagas do
   `CRAWL_MAX_PARALLEL`. Só site sem Jackett/FlareSolverr pode ter `ownPace`.
+- **Passo tem prazo duro** (`boundedStep`, `stepDeadlineFor`): linha
+  `CRAWL_STEP_DEADLINE_MS` (~700s, conta do Mico), faixa Flare
+  `CRAWL_FLARE_STEP_DEADLINE_MS` (~44 min), descoberta
+  `CRAWL_DISCOVERY_DEADLINE_MS` (2h). Ao vencer, a geração é invalidada: escrita
+  tardia é barrada pela cerca (`isAborted`, que também para os laços de
+  botão/episódio) e marker/cursor de descoberta só grava via `commit` diferido.
 - **"Nada reconhecido" é FALHA, nunca "vazio e completo"** — `urls:[]` com
   `complete:true` avança o cursor por cima de acervo nunca lido.
 - Identidade da página = `(site, url_key)` (caminho, sem host). Estado é por

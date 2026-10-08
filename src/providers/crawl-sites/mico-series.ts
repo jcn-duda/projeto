@@ -153,6 +153,8 @@ export async function fetchSeriesWork(
 
   for (const ep of remaining) {
     if (requestCost >= maxButtons) break; // teto de episódios deste passe
+    // Passo expirado: o motor descarta este resultado; não gasta mais rede.
+    if (opts?.isAborted?.()) break;
     const streamUrl = micoEpisodeStreamUrl(tt, ep.season, ep.episode);
     if (!streamUrl) continue; // defesa: IMDb/temporada/episódio inválidos
     await throttle();
