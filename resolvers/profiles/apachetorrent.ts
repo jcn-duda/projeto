@@ -8,14 +8,16 @@
 // correção segue o padrão do repo: resolver local embutido (porta 8706) +
 // definição Cardigann ponte `apachetorrent-cardigann`.
 //
-// Fluxo da busca (medido no site): GET / estabelece o cookie PHPSESSID e
-// publica `input[name="token"]`; a busca que funciona é
+// Fluxo da busca: GET / lê o formulário. Enquanto o site publicava
+// `input[name="token"]` + cookie PHPSESSID, a busca era
 // `GET /index.php?busca=<q>&token=<token>&hp_bot_check=` com o MESMO cookie —
-// sem token, sem cookie ou token de outra sessão o site devolve 302 para a
-// home. O token é reutilizável dentro da sessão, então 1 fetch de home por
-// sessão e refresh só quando uma busca redireciona. Os magnets são DIRETOS no
-// HTML do post (sem protetor de link), então NÃO há rota /resolve: o magnet é
-// o próprio href da linha sintética, como no redetorrent.
+// sem token, sem cookie ou token de outra sessão o site devolvia 302 para a
+// home. Medido em 2026-10-08 o formulário ficou só `name="busca"` (sem token,
+// sem cookie): exigir sessão nisso virava `session_failed` e o Jackett via
+// BadGateway. Com token, o contrato antigo permanece; sem token, mas com o
+// campo `busca`, a pesquisa vai direta. Os magnets são DIRETOS no HTML do
+// post (sem protetor de link), então NÃO há rota /resolve: o magnet é o
+// próprio href da linha sintética, como no redetorrent.
 
 import { USER_AGENT } from '../runtime.js';
 import { createCache } from '../cache.js';
@@ -73,6 +75,12 @@ function extractSessionCookie(response: Response): string {
 
 function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400;
+}
+
+// O site novo não tem token: a presença do campo `busca` é o que distingue
+// a home de busca de uma página estacionada ("Novo Endereço" também é 200).
+function hasOpenSearch(html: string): boolean {
+  return /<input\b[^>]*\bname=["']busca["']/i.test(html);
 }
 
 /** Instância completa do perfil Apache Torrent; `overrides` vêm do ponto de entrada. */
@@ -141,27 +149,35 @@ function createResolver(overrides: ProfileOverrides = {}) {
     if (session && !force) return session;
     const { html, cookie } = await fetchHome();
     const token = extractSearchToken(html);
-    if (!token || !cookie) throw new Error('session_failed');
-    session = { cookie, token };
+    if (token) {
+      if (!cookie) throw new Error('session_failed');
+      session = { cookie, token };
+      return session;
+    }
+    if (!hasOpenSearch(html)) throw new Error('session_failed');
+    session = { cookie: '', token: '' };
     return session;
   }
 
   function searchUrl(current: ApacheSession, query: string): string {
+    const busca = `${siteSelector.url()}/index.php?busca=${encodeURIComponent(query)}`;
+    if (!current.token) return busca;
     // hp_bot_check vai VAZIO de propósito: é honeypot (bot preenche) e o site
     // devolve 302 quando ele vem com valor.
-    return `${siteSelector.url()}/index.php?busca=${encodeURIComponent(query)}&token=${encodeURIComponent(current.token)}&hp_bot_check=`;
+    return `${busca}&token=${encodeURIComponent(current.token)}&hp_bot_check=`;
   }
 
   function requestUrl(current: ApacheSession, url: string): Promise<Response> {
     // redirect manual: o 302 para a home É a prova de sessão morta e precisa
     // ser distinguido da canonicalização de domínio.
+    const headers: Record<string, string> = {
+      'User-Agent': USER_AGENT,
+      Accept: 'text/html,application/xhtml+xml',
+    };
+    if (current.cookie) headers.Cookie = current.cookie;
     return fetch(assertAllowedUrl(url), {
       redirect: 'manual',
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml',
-        Cookie: current.cookie,
-      },
+      headers,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   }

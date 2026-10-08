@@ -148,6 +148,24 @@ describe('apachetorrent: busca com sessão (fetch dublê)', () => {
     await assert.rejects(() => app.searchPosts('Coringa'), /session_failed/);
   });
 
+  test('home sem token mas com campo busca pesquisa só por busca', async () => {
+    const app = fresh();
+    const calls: string[] = [];
+    (globalThis.fetch as any) = async (url: any) => {
+      const target = String(url);
+      calls.push(target);
+      if (target.includes('/index.php')) return response(searchHtml);
+      if (new URL(target).pathname === '/') return response('<form><input name="busca" value=""></form>');
+      return response(postHtml);
+    };
+    const items: any[] = await app.searchPosts('Coringa');
+    assert.ok(items.length >= 8);
+    const busca = calls.find((c) => c.includes('/index.php')) || '';
+    assert.match(busca, /[?&]busca=Coringa(?:&|$)/);
+    assert.doesNotMatch(busca, /token=/);
+    assert.doesNotMatch(busca, /hp_bot_check/);
+  });
+
   test('busca sem cards devolve lista vazia', async () => {
     const app = fresh();
     stubFetch((target) => (target.includes('/index.php') ? response('<div class="row"></div>') : null));
