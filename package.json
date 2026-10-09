@@ -345,6 +345,7 @@
     "test/allowed-source-indexer.test.js",
     "test/memory-fallback.test.js",
     "test/fallback-chupim-fetchable.test.js",
+    "test/fallback-chupim-bank-dub.test.js",
     "test/franchise-extension.test.js",
     "test/fake-release.test.js",
     "test/duplicate-pack.test.js",

@@ -171,6 +171,15 @@ export interface StreamBase {
   _dubClaim?: boolean;
   /** Áudio PT só com fileEvidence / provenAudio / provenName positivo. */
   _dubbed?: boolean;
+  /**
+   * Dublado que SÓ o banco sabe: `magnet.dubbed` gravado pelo classificador da
+   * captura, título do post sem marca de áudio. Nasce só na reserva do fallback
+   * (`fromFallback` + `isBr`), com as guardas do claim (lie/prova/dn=/origem),
+   * e nunca quando o próprio título já promete (`_dubClaim` cobre). Consumido
+   * pelos pools do Chupim e pelas vagas P2P do `showUncachedBr`; removido no
+   * protocolo (`applyNoticeOrigin`).
+   */
+  _bankDub?: boolean;
   _br?: boolean;
   _tracker?: string;
   _indexer?: string;

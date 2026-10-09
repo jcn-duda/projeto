@@ -74,8 +74,10 @@ function brDubbedPool(streams: Stream[] = [], { season }: PoolsOptions = {}) {
   // então dublado fora do cache nunca virava candidato (True Detective S03E01,
   // 2026-09-24: 37 buscas sem nenhum enqueue). O `_dubClaim` já exclui `dn=` de
   // cena EN e `lie`; se o arquivo mentir, o play grava `lie` e o hash sai. O
-  // provado continua na frente pelo sort abaixo.
-  const candidates = br.filter((s) => (s._dubbed || s._dubClaim) && !s._lied);
+  // provado continua na frente pelo sort abaixo. `_bankDub` (2026-10-08) é o
+  // dublado que só o banco sabe: pack do acervo sem marca de áudio no título
+  // (Locke & Key S01) não virava candidato e a sonda br-probe girava à toa.
+  const candidates = br.filter((s) => (s._dubbed || s._dubClaim || s._bankDub) && !s._lied);
 
   // Pré-computado uma vez: o sort consultaria o mesmo parse n·log n vezes.
   const packOf = season == null

@@ -345,8 +345,8 @@ export function applyNoticeOrigin(streams: Stream[] = []) {
   // aqui: no `StreamBase` ele colidiria com o `size` numérico dos candidatos
   // do autofetch, que estendem `Partial<StreamBase>`.
   const cleaned = streams.map((stream) => {
-    const { _fromFallback, _fromSnapshot, _fallbackFetchable, ...rest } = stream as Stream & {
-      _fromFallback?: boolean; _fromSnapshot?: boolean; _fallbackFetchable?: boolean;
+    const { _fromFallback, _fromSnapshot, _fallbackFetchable, _bankDub, ...rest } = stream as Stream & {
+      _fromFallback?: boolean; _fromSnapshot?: boolean; _fallbackFetchable?: boolean; _bankDub?: boolean;
     };
     const size = streamSizeLabel(rest.title);
     return (size ? { ...rest, size } : rest) as Stream;

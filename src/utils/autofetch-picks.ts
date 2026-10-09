@@ -186,8 +186,8 @@ function canAutoFetchBr({ autoFetchBr }: AutofetchOptions = {}, adapter?: Debrid
 
 /**
  * BR com áudio prometido ou provado — vagas P2P do `showUncachedBr`.
- * Mesmo critério de áudio do `brDubbedPool` (prova ou claim): claim precisa
- * LISTAR sob d:1+bu, senão a 1ª abertura some atrás do cachedOnly.
+ * Mesmo critério de áudio do `brDubbedPool` (prova, claim ou banco): claim
+ * precisa LISTAR sob d:1+bu, senão a 1ª abertura some atrás do cachedOnly.
  * LEGENDADO/origem sem claim continua fora.
  */
 function brListableDubPool(streams: Stream[] = []) {
@@ -198,7 +198,7 @@ function brListableDubPool(streams: Stream[] = []) {
       !fallbackBlocked(s) &&
       s._br &&
       !s._lied &&
-      (s._dubbed || s._dubClaim) &&
+      (s._dubbed || s._dubClaim || s._bankDub) &&
       sourceFromTitle(s.title || s.name || '') !== 'CAM',
   );
 }

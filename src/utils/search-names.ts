@@ -249,6 +249,15 @@ function toStremioStream(item: RawItem): Stream | null {
       // REMOVIDA antes do protocolo (applyNoticeOrigin).
       ...(fromFallback ? { _fromFallback: true } : {}),
       ...(fromFallback && item.fallbackFetchable ? { _fallbackFetchable: true } : {}),
+      // Dublado que só o banco sabe (`_bankDub`): o classificador da captura
+      // gravou áudio que o título do post não carrega (Locke & Key S01, 2026-10-08:
+      // pool BR do Chupim vazio com pack dubbed=1 à mão). Mesmas guardas do claim
+      // — inclusive a origem da conta (origem ≠ áudio) — e exclusivo: com
+      // promessa do título, o `_dubClaim` já basta.
+      ...(fromFallback && isBr && item.dubbed && !item.brOriginOnly && !titleClaim
+        && !claimContradicted && !item.lied
+        ? { _bankDub: true }
+        : {}),
       ...(stored && !fromFallback ? { _fromSnapshot: true } : {}),
       // Campo INTERNO: dn= do magnet para o notCam do stream-ranking. O título
       // do post BR pode esconder TELESYNC/TS; o dn= revela. Removido na limpeza
