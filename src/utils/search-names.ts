@@ -13,7 +13,7 @@ import {
   stripQualityTagBlob,
 } from './audio-quality.js';
 import { streamQuality } from './stream-quotas.js';
-import { dnContradictsDubClaim, enSceneMirrorTitle } from './audio-cleanup.js';
+import { dnContradictsDubClaim, enSceneMirrorTitle, foreignLangNamedForBucket } from './audio-cleanup.js';
 import { streamDisplayName } from './stream-display.js';
 
 interface SearchNamesOptions {
@@ -170,6 +170,14 @@ function toStremioStream(item: RawItem): Stream | null {
   const claimContradicted = provenAudio !== undefined
     ? !isDubLabel(provenAudio)
     : dnContradictsDubClaim(magnetDn);
+  // O banco guarda CLASSIFICAÇÃO de áudio da captura, não prova medida: texto
+  // do post (título/dn=) dizendo Legendado ou nomeando idioma estrangeiro veta
+  // a marca — PT explícito (DUBLADO/PT-BR…) absorve SÓ a menção estrangeira;
+  // LEGENDADO no dn= vale pelo PARSER (DUAL+LEGENDADO é dual, não veta).
+  const hasExplicitPtText = explicitPtAudio(title) || explicitPtAudio(magnetDn);
+  const bankAudioContradicted = titleAudio === 'Legendado'
+    || audioFromTitle(magnetDn) === 'Legendado'
+    || (!hasExplicitPtText && (foreignLangNamedForBucket(title) || foreignLangNamedForBucket(magnetDn)));
   // Chip DUB/DUAL/NAC só com prova — claim lista sob d:1 sem parecer confiável.
   const audioForChip = positiveProof ? audio : (isDubLabel(audio) ? '' : audio);
   const edition = editionFromTitle(title);
@@ -250,12 +258,13 @@ function toStremioStream(item: RawItem): Stream | null {
       ...(fromFallback ? { _fromFallback: true } : {}),
       ...(fromFallback && item.fallbackFetchable ? { _fallbackFetchable: true } : {}),
       // Dublado que só o banco sabe (`_bankDub`): o classificador da captura
-      // gravou áudio que o título do post não carrega (Locke & Key S01, 2026-10-08:
-      // pool BR do Chupim vazio com pack dubbed=1 à mão). Mesmas guardas do claim
-      // — inclusive a origem da conta (origem ≠ áudio) — e exclusivo: com
-      // promessa do título, o `_dubClaim` já basta.
+      // classificou o post como dublado mesmo sem o título citar áudio (Locke
+      // & Key S01, 2026-10-08: pool BR do Chupim vazio com pack dubbed=1 à mão).
+      // Mesmas guardas do claim — inclusive a origem da conta (origem ≠ áudio)
+      // — mais a contradição de texto acima; exclusivo: com promessa do título,
+      // o `_dubClaim` já basta.
       ...(fromFallback && isBr && item.dubbed && !item.brOriginOnly && !titleClaim
-        && !claimContradicted && !item.lied
+        && !claimContradicted && !bankAudioContradicted && !item.lied
         ? { _bankDub: true }
         : {}),
       ...(stored && !fromFallback ? { _fromSnapshot: true } : {}),

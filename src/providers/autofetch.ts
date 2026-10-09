@@ -133,6 +133,10 @@ interface QueueCandidate {
   size?: number; // bytes do download (política seeds do dreno); ausente = cai no 💾 do title
   seeders?: number;
   br?: boolean; dubbed?: boolean; lied?: boolean;
+  // Classificação de áudio que só o banco tem (`_bankDub`): o dreno precisa
+  // dela para o protectBr do AllDebrid — o registro `dubbed` sozinho perdeu a
+  // marca.
+  bankDub?: boolean;
   pool?: string;
   imdbId?: string;
   isPack?: boolean; rare?: boolean; slotLimit?: number; // evidência rara do pool seeds p/ o dreno

@@ -152,8 +152,7 @@ export function drainNext(searchKey: string, lot: any): boolean {
           isPack: next.isPack === true, pool: String(next.pool || ''), br: Boolean(next.br), dubbed: Boolean(next.dubbed),
           title: String(next.title || next.name || '').split('\n')[0].slice(0, 120),
         })), live.autoFetchTtl);
-        // Aceite confirmado: entrada durável do teto por obra (Fase 2), com o
-        // pool REAL do candidato — seeds nunca consome vaga br.
+        // Aceite confirmado: teto por obra (Fase 2) com o pool REAL — seeds nunca consome vaga br.
         commitObra(lease, {
           hash: h,
           pool: String(next.pool || ''),
@@ -166,7 +165,8 @@ export function drainNext(searchKey: string, lot: any): boolean {
         metrics.count('autofetch.queued');
         metrics.count('autofetch.enqueued');
         recordAutofetchRelease(next.imdbId, next);
-        if (adapter.id === 'alldebrid' && next.pool === 'br' && Boolean(next.br) && Boolean(next.dubbed)) {
+        // Mesmo critério do aceite imediato: promessa stale (`lied`) não retém.
+        if (adapter.id === 'alldebrid' && next.pool === 'br' && Boolean(next.br) && Boolean(next.dubbed || next.bankDub) && !next.lied) {
           held.protectBr(adapter.id, account, h);
         }
         lot.hashes.add(h);

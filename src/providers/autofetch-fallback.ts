@@ -183,6 +183,9 @@ export function toQueueCandidate(
     seeders: stream._seeders,
     br: stream._br,
     dubbed: stream._dubbed,
+    // A marca do banco atravessa a fila: o dreno é quem chama o protectBr no
+    // AllDebrid, e sem ela o pack do acervo drenado nasceria sem retenção.
+    ...(stream._bankDub ? { bankDub: true as const } : {}),
     lied: stream._lied,
     pool,
     imdbId,

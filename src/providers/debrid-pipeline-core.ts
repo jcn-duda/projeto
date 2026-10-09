@@ -251,17 +251,18 @@ export async function applyDebrid(input: Array<Stream | null>, {
   const viaDebrid = (s: Stream, instant: boolean): Stream => {
     if (!s.infoHash) return s;
     // Pack multi-obra: o /resolve NÃO pode cair no maior arquivo (comportamento
-    // pré-existente). `d` prova a promessa feita NA listagem e `i` permite que o
-    // play grave a evidência no índice da obra — o `i` entra SEMPRE que a obra é
-    // conhecida, não só em filme ou dublado (um pack BR sem dica provava o
-    // episódio errado no play e jogava a prova fora por falta de obra). Campos
-    // opcionais ficam dentro do hint já assinado; URLs antigas sem eles
-    // continuam verificando normalmente.
-    const hint = workHint || s._dubbed || s._dubClaim || imdbId
+    // pré-existente). `d` prova a promessa feita NA listagem — banco incluso
+    // (`_bankDub`), senão o pack do acervo nunca seria auditado nem marcado
+    // lie — e `i` permite que o play grave a evidência no índice da obra — o
+    // `i` entra SEMPRE que a obra é conhecida, não só em filme ou dublado (um
+    // pack BR sem dica provava o episódio errado no play e jogava a prova fora
+    // por falta de obra). Campos opcionais ficam dentro do hint já assinado;
+    // URLs antigas sem eles continuam verificando normalmente.
+    const hint = workHint || s._dubbed || s._dubClaim || s._bankDub || imdbId
       ? {
         ...(workHint || {}),
         ...(workHint && s._multiWork ? { p: 1 } : {}),
-        ...((s._dubbed || s._dubClaim) ? { d: 1 } : {}),
+        ...((s._dubbed || s._dubClaim || s._bankDub) ? { d: 1 } : {}),
         ...(imdbId ? { i: imdbId } : {}),
       }
       : null;
