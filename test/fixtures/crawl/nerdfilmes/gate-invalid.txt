@@ -1,0 +1,10 @@
+<!--
+ FONTE REAL: /link.php?id=<blob invalido> — resposta 400 do site
+ CAPTURADO EM: 2026-09-28
+FONTE REAL: https://www.filmesviatorrenthd.net/link.php?id=<blob inválido> — resposta 400 do site
+
+CAPTURADO EM: 2026-09-28
+
+
+
+Payload inválido.

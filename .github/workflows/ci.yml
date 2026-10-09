@@ -51,6 +51,9 @@ jobs:
         run: npm run test:complete
 
       - name: Testes
+        env:
+          # O verde não pode depender da ausência acidental de `.env` no runner.
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
         run: npm test
 
       # Typecheck (tsc --noEmit) não depende da versão de runtime, então roda
@@ -60,12 +63,10 @@ jobs:
         if: matrix.node == '22.x'
         run: npm run typecheck
 
-  # Waiver temporário: a cadeia conhecida sdk → inquirer → external-editor → tmp
-  # não é carregada pelo processo do addon. O audit permanece visível; advisory
-  # fora da cadeia exige revisão. Ver AGENTS.md para prazo e condição de saída.
+  # Portão de produção: dependências de desenvolvimento já são excluídas.
+  # Falha de auditoria reprova o job; não mascarar com continue-on-error.
   audit:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

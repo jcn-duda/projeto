@@ -1,0 +1,161 @@
+{
+  "_meta": {
+    "geradoEm": "2026-09-20",
+    "fonte": "magnets.db acervo local (12.338 magnets com vínculo de obra, 95 obras, Cinemeta + tmdb.getTitles) + casos-chave medidos na tarefa /boost precisão de título",
+    "contrato": "Veredicto = resultado esperado do filtro BR de filme (matchesBrTitle com allNames) contra TITLE_PRECISION_MIN 0.70 e corte de cauda. Cada item tem title, name, year, allNames, expected (true/false) e nota explicativa. O teste reporta TODAS as divergências de uma vez sem abortar na primeira."
+  },
+  "itens": [
+    {
+      "title": "Fight Club (1999) 720p BrRip x264 -YIFY",
+      "name": "Fight Club",
+      "year": 1999,
+      "allNames": ["Fight Club", "Clube da Luta"],
+      "expected": true,
+      "nota": "Assinatura de uploader/encoder (-YIFY) na cauda após ruído técnico: precisão sobe de 0.67 para 1.00 com cutTail=true e passa em 0.70."
+    },
+    {
+      "title": "O Grande Lebowski (1998) 1080p BluRay Dublado - Alan_680",
+      "name": "O Grande Lebowski",
+      "year": 1998,
+      "allNames": ["The Big Lebowski", "O Grande Lebowski"],
+      "expected": true,
+      "nota": "Assinatura 'Alan_680' na cauda após 'Dublado': ruído técnico encerra a obra, precisão atinge 1.00 e passa com folga."
+    },
+    {
+      "title": "Um Tira da Pesada 2 (1987) BDrip 720p Dual Audio dat2014",
+      "name": "Um Tira da Pesada 2",
+      "year": 1987,
+      "allNames": ["Beverly Hills Cop II", "Um Tira da Pesada 2", "Um Tira da Pesada II"],
+      "expected": true,
+      "nota": "Identificador 'dat2014' após ruído técnico e de áudio: cauda ignorada, precisão 1.00."
+    },
+    {
+      "title": "A Rocha (1996) BDRip BluRay 720p dublado - Gilkerb",
+      "name": "A Rocha",
+      "year": 1996,
+      "allNames": ["The Rock", "A Rocha"],
+      "expected": true,
+      "nota": "Uploader 'Gilkerb' na cauda: precisão da cabeça 1.00, passa com folga."
+    },
+    {
+      "title": "Era Uma Vez em Londres [1080p WEB-DL DUAL]",
+      "name": "Era Uma Vez em Hollywood",
+      "year": 2019,
+      "allNames": ["Once Upon a Time in Hollywood", "Once Upon a Time... in Hollywood", "Era Uma Vez em Hollywood", "Era Uma Vez em... Hollywood"],
+      "expected": false,
+      "nota": "Falso positivo clássico do Apache: 'Londres' é conteúdo de outra obra na cabeça (antes do ruído técnico), precisão fica em 0.67 e é cortada pelo piso 0.70."
+    },
+    {
+      "title": "Era Uma Vez Uma Estrela [1080p WEB-DL DUAL]",
+      "name": "Era Uma Vez em Hollywood",
+      "year": 2019,
+      "allNames": ["Once Upon a Time in Hollywood", "Era Uma Vez em Hollywood"],
+      "expected": false,
+      "nota": "Outra obra com prefixo comum ('Era Uma Vez'): 'estrela' não pertence ao universo da obra, precisão 0.67 cortada em 0.70."
+    },
+    {
+      "title": "Era uma Vez no Oeste (1968) [1080p BLU-RAY DUBLADO]",
+      "name": "Era uma Vez no Oeste",
+      "year": 1968,
+      "allNames": ["Once Upon a Time in the West", "Era uma Vez no Oeste"],
+      "expected": true,
+      "nota": "Obra homônima legítima consultada no próprio título: precisão 1.00 preservada."
+    },
+    {
+      "title": "The Little Things (2021) 1080p BluRay Dual",
+      "name": "The Little Things",
+      "year": 2021,
+      "allNames": ["The Little Things", "Os Pequenos Vestígios"],
+      "expected": true,
+      "nota": "Filme legítimo em inglês com título canônico: passa com precisão 1.00."
+    },
+    {
+      "title": "A Million Little Things [1080p WEB-DL DUAL]",
+      "name": "The Little Things",
+      "year": 2021,
+      "allNames": ["The Little Things", "Os Pequenos Vestígios"],
+      "expected": false,
+      "nota": "Série homônima parcial ('A Million Little Things'): tokens estranhos na cabeça ('million') derrubam precisão e são cortados em 0.70."
+    },
+    {
+      "title": "Resident Evil Condenação (2012) 1080p BluRay Dual",
+      "name": "Resident Evil",
+      "year": 2002,
+      "allNames": ["Resident Evil", "Resident Evil: O Hóspede Maldito"],
+      "expected": false,
+      "nota": "Animação/spin-off ('Condenação'): token estranho fora do universo de Resident Evil (2002) é cortado por precisão e ano contraditório."
+    },
+    {
+      "title": "Coringa (2019) 1080p BluRay Dual - Alan_680",
+      "name": "Coringa",
+      "year": 2019,
+      "allNames": ["Joker", "Coringa"],
+      "expected": true,
+      "nota": "Filme BR legítimo com assinatura de uploader na cauda: passa com 1.00."
+    },
+    {
+      "title": "Oppenheimer (2023) [1080p BLURAY DUBLADO 11.64 GB]",
+      "name": "Oppenheimer",
+      "year": 2023,
+      "allNames": ["Oppenheimer"],
+      "expected": true,
+      "nota": "Filme legítimo com metadados de tamanho na cauda: passa com precisão 1.00."
+    },
+    {
+      "title": "Gladiador (2000) 1080p BluRay Dual - YTS",
+      "name": "Gladiador",
+      "year": 2000,
+      "allNames": ["Gladiator", "Gladiador"],
+      "expected": true,
+      "nota": "Grupo - YTS na cauda do release: passa em 1.00."
+    },
+    {
+      "title": "Gladiador II (2024) [1080p DUBLADO]",
+      "name": "Gladiador",
+      "year": 2000,
+      "allNames": ["Gladiator", "Gladiador"],
+      "expected": false,
+      "nota": "Sequência não solicitada (marcador II + ano 2024 contraditório) barrada."
+    },
+    {
+      "title": "Toy Story 4 (2019) 720p Dublado pt-BR",
+      "name": "Toy Story 4",
+      "year": 2019,
+      "allNames": ["Toy Story 4"],
+      "expected": true,
+      "nota": "Sequência legítima consultada com o próprio nome: passa com precisão 1.00."
+    },
+    {
+      "title": "Toy Story (1995) 720p Dublado pt-BR Brazilian Pt",
+      "name": "Toy Story 4",
+      "year": 2019,
+      "allNames": ["Toy Story 4"],
+      "expected": false,
+      "nota": "Obra anterior da franquia (sem o 4): não casa os marcadores e ano contradiz."
+    },
+    {
+      "title": "A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR",
+      "name": "A Viagem de Chihiro",
+      "year": 2001,
+      "allNames": ["Spirited Away", "A Viagem de Chihiro"],
+      "expected": true,
+      "nota": "Release com pt-BR e múltiplos metadados: passa com precisão 1.00."
+    },
+    {
+      "title": "Batman: O Cavaleiro das Trevas (2008) 1080p BluRay Dual",
+      "name": "Batman: O Cavaleiro das Trevas",
+      "year": 2008,
+      "allNames": ["The Dark Knight", "Batman: O Cavaleiro das Trevas"],
+      "expected": true,
+      "nota": "Obra base de 2008: passa com precisão 1.00."
+    },
+    {
+      "title": "Batman: O Cavaleiro Das Trevas RESSURGE 720p Dublado",
+      "name": "Batman: O Cavaleiro das Trevas",
+      "year": 2008,
+      "allNames": ["The Dark Knight", "Batman: O Cavaleiro das Trevas"],
+      "expected": false,
+      "nota": "Sequel por palavra ('RESSURGE'): marcador estranho que contradiz a obra base."
+    }
+  ]
+}

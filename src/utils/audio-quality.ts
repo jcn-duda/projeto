@@ -1,7 +1,6 @@
-import config from '../config.js';
-import { normalizeTitle } from './title-normalization.js';
 import { TECH_NOISE } from './release-matching.js';
 import { hasPtSigns, brOriginMark } from './br-origin.js';
+import { genericDubProvesPt, hasPtAudioMark, strongEnSceneMark, dubbedLieVerdict, foreignLangNamedForBucket } from './audio-cleanup.js';
 
 // Resolução que o título não informa. Balde e cota próprios, separados do SD.
 const UNKNOWN_QUALITY = 'sem resolução';
@@ -71,27 +70,52 @@ function stripQualityTagBlob(title = '') {
  * SD agora exige uma marca explícita de baixa qualidade.
  */
 function qualityFromTitle(title = '') {
-  const t = stripQualityTagBlob(title).toUpperCase();
+  // Resolução colada na tag de fonte ("WEB-DLRip1080p") não tem fronteira de
+  // palavra, e o \b1080P\b falhava. Medido em Adım Farah S01 (2026-09-13): o
+  // pack saía "sem resolução" e era cortado pelo filtro de qualidade.
+  const t = stripQualityTagBlob(title)
+    .toUpperCase()
+    // `_` separa de fato ("Filme_2026_1080p_…"): sem a troca, o \b1080P\b não
+    // vê fronteira antes/depois do underscore e a resolução some.
+    .replace(/_/g, ' ')
+    .replace(/(RIP|DL|WEB|HDTV)(?=(?:2160|1080|720|480)P\b)/g, '$1 ');
   if (/\b(2160P|4K|UHD)\b/.test(t)) return '2160p';
   if (/\b1080P\b/.test(t)) return '1080p';
   if (/\b720P\b/.test(t)) return '720p';
   if (/\b480P\b/.test(t)) return '480p';
   // 576p/540p são resoluções SD de verdade (PAL), não "não sei".
-  if (/\b(576P|540P|360P|240P|SDTV|DVD[- ]?(?:RIP|SCR)|VHS[- ]?RIP|TS|TC|CAM[- ]?RIP|CAM)\b/.test(t)) return 'SD';
+  // DVD5/DVD9/DVDR também: são formatos de DVD, cujo conteúdo é SD por
+  // definição (MPEG-2 480i/576i) — release "DVD5" explícita não pode ficar
+  // sem selo de qualidade. A resolução declarada (1080p/720p/…) continua
+  // ganhando porque vem ANTES nesta ordem.
+  if (/\b(576P|540P|360P|240P|SDTV|DVD5|DVD9|DVD[- ]?R|DVD[- ]?(?:RIP|SCR)|VHS[- ]?RIP|TS|TC|CAM[- ]?RIP|CAM)\b/.test(t)) return 'SD';
   return UNKNOWN_QUALITY;
 }
 
 function sourceFromTitle(title = '') {
-  const t = title.toUpperCase();
+  // Remove extensão de arquivo do final (.ts, .mkv, .avi, .mp4, .mov) antes
+  // de classificar fonte: "Filme.2019.1080p.H264.ts" é arquivo .ts, não
+  // TELESYNC. Sem isso, o \bTS\b do CAM casa com o ".ts" final porque o "."
+  // conta como fronteira de palavra.
+  // `_` também é separador de release ("HDCAM_1080p", "D.TS_1080p"): vira
+  // espaço antes dos testes para o \b enxergar a fronteira.
+  const t = title.toUpperCase().replace(/\.(?:TS|MKV|AVI|MP4|MOV|FLV|WMV|WEBM)$/i, '').replace(/_/g, ' ');
   if (/\b(BLURAY|BLU-RAY|BDREMUX|BD\b)/.test(t)) return 'BluRay';
   if (/\bWEB[-. ]?DL\b/.test(t)) return 'WEB-DL';
   if (/\bWEB[-. ]?RIP\b/.test(t)) return 'WEBRip';
   if (/\bHDTV\b/.test(t)) return 'HDTV';
-  // CAMRip e HDCAM não têm fronteira de palavra em volta de "CAM" e escapavam
-  // do teste anterior (`\bCAM\b`): passavam como fonte desconhecida. Isso pesa
-  // mais desde que o autofetch baixa por swarm — gravação de cinema é
-  // justamente o que costuma ter o maior número de seeders num lançamento.
+  // Gravações de cinema: HDCAM/CAMRip/CAM já eram reconhecidas; TS/TC/TELESYNC/
+  // TELECINE/PreDVD não eram tratados e releases "D.TS.1080p" ou "HQ PreDVD"
+  // passavam como fonte desconhecida. Medido no Resident Evil (2026): Kickass
+  // publicou "HQ PreDVD" e "D.TS.1080p" que o excludeCam=true do usuário não
+  // cortava. A ordem preserva a precedência: WEB-DL/WEBRip/HDTV continuam
+  // ganhando; TS/TC curtos exigem fronteira de token (\b) para não casar dentro
+  // de "DDP5.1" ou "H264". PreDVD/Pre-DVD cobre o estágio anterior ao DVD.
   if (/\b(?:HD[-. ]?)?CAM(?:[-. ]?RIP)?\b/.test(t)) return 'CAM';
+  if (/\b(?:HD[-. ]?)?(?:TS|TC)\b/.test(t)) return 'CAM';
+  if (/\bTELESYNC\b/.test(t)) return 'CAM';
+  if (/\bTELECINE\b/.test(t)) return 'CAM';
+  if (/\bPRE[-. ]?DVD\b/.test(t)) return 'CAM';
   return '';
 }
 
@@ -119,59 +143,10 @@ function editionFromTitle(title = '') {
   return '';
 }
 
-/**
- * Idiomas que desmentem a promessa GENÉRICA de dublagem. `[Ukr Dub]`,
- * `HINDI.HQ.DUB` e `Rus Dubbed` dizem dublado PARA aquele idioma — nenhum
- * deles é pt-BR, e o `\bDUB\b` sozinho não sabe distinguir.
- *
- * HINDI foi o primeiro caso medido; a construção `<idioma> Dub` é a mesma para
- * todos, então a lista generaliza o predicado em vez de caçar um idioma por
- * vez. Medido em produção (2026-08-30, `tt22084616`): as TRÊS primeiras vagas
- * eram `Spider-Man: Brand New Day 2026 … [Ukr Dub]` rotuladas DUB BR, ocupando
- * as três vagas reservadas de BR — quem clicava no topo ouvia ucraniano.
- *
- * Presença em qualquer posição basta, como já valia para HINDI: exigir
- * adjacência ao DUB deixaria passar `Ukr HQ Dub`. O custo é um título que
- * LISTA faixas (`Multi DUB Eng/Rus/Por`) perder a prova genérica — mas marca
- * PT explícita ao lado continua absolvendo pelas OUTRAS alternativas de
- * explicitPtAudio, que correm fora deste predicado.
- *
- * Só formas inequívocas entram: `POLISH` sim, `POL` não — token de três letras
- * casa dentro de nome de grupo e condenaria release BR por acidente.
- */
-const FOREIGN_DUB_LANG_RE = new RegExp(
-  '\\b(HINDI|TAMIL|TELUGU|MALAYALAM|KANNADA|BENGALI|PUNJABI|MARATHI'
-  + '|UKR|UKRAINIAN|RUS|RUSSIAN|POLISH|CZECH|SLOVAK|HUNGARIAN|ROMANIAN|BULGARIAN'
-  + '|GREEK|HEBREW|ARABIC|PERSIAN|TURKISH|THAI|VIETNAMESE'
-  + '|KOREAN|JAPANESE|CHINESE|MANDARIN|CANTONESE'
-  + '|GERMAN|FRENCH|TRUEFRENCH|ITALIAN|ITA|SPANISH|ESPANOL|CASTELLANO|LATINO'
-  + '|DUTCH|SWEDISH|NORWEGIAN|DANISH|FINNISH)\\b',
-);
-
-/**
- * Guarda compartilhada da dublagem GENÉRICA (título e path usam o mesmo
- * intento). Marcador genérico de DUB/DUBBED NÃO prova áudio PT quando o
- * título nomeia um idioma estrangeiro. O PT explícito ao lado
- * (`HINDI… DUB PT-BR`) continua vencendo FORA deste predicado, nas regras
- * próprias de cada chamador.
- */
-function genericDubProvesPt(text: string): boolean {
-  const t = String(text || '').toUpperCase();
-  return !FOREIGN_DUB_LANG_RE.test(t)
-    && (/\bDUBBED\b/.test(t) || /\[\s*DUB\s*\]|\(\s*DUB\s*\)|\bDUB\b/.test(t));
-}
-
-// Lado marcador do mesmo intento, para o path: um marker de
-// AUDIO_AUDIT_PT_MARKERS é genérico quando normaliza para exatamente
-// 'dub'/'dubbed' — só ele sofre a guarda do HINDI. Marcador explícito
-// ('dublado', 'dual', 'pt br'…) não prova menos por causa de HINDI.
-// Limitação honesta: marcador genérico CUSTOMIZADO novo (ex.: 'dubs') é
-// tratado como explícito e escapa da guarda — o fechamento cobre as formas
-// genéricas conhecidas, não qualquer vocabulário futuro.
-const GENERIC_DUB_MARKER_RE = /^dub(?:bed)?$/;
-
 function explicitPtAudio(title = '') {
-  const t = title.toUpperCase();
+  // Mesma troca do audioFromTitle: `_` é separador ("… DUAL_Misso") e o \b
+  // não enxerga fronteira dentro de caractere de palavra.
+  const t = title.toUpperCase().replace(/_/g, ' ');
   const isExplicitSub =
     /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
     /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
@@ -179,49 +154,18 @@ function explicitPtAudio(title = '') {
   const isGenericDub = genericDubProvesPt(t);
 
   return (
-    /\b(DUBLAD[OA]|DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR|DUBLADO[- ]?PT[-.]?BR)\b/.test(t) ||
+    // `DUBLAD[OA]S?` sai do `\b` e passa a exigir só que não haja LETRA colada.
+    // Com `\b` o marcador morria quando o release grudava a resolução no fim:
+    // "Tucker e Dale contra o mal Dublado720p mp4" é real e está no índice de
+    // produção — entrou como isBr=false/dubbed=false, um falso negativo mudo
+    // numa fonte dublada. Dígito colado não desfaz a afirmação do dono; letra
+    // colada desfaz (evita casar dentro de outra palavra). O `S?` alinha com o
+    // PT_VOCAB do br-origin, que já aceitava o plural.
+    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
+    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
     isGenericDub ||
     (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
   );
-}
-
-/** Marcador de áudio PT no path real do arquivo, não no título do post. */
-function hasPtAudioMark(path = '') {
-  const tokens = normalizeTitle(path).split(' ').filter(Boolean);
-  const joined = ` ${tokens.join(' ')} `;
-  // Mesma regra do explicitPtAudio (FOREIGN_DUB_LANG_RE): marcador genérico de
-  // dublagem não prova PT quando o path nomeia idioma estrangeiro. Marcador
-  // explícito segue valendo — o idioma só desmente a promessa GENÉRICA.
-  const hasForeignLang = FOREIGN_DUB_LANG_RE.test(String(path).toUpperCase());
-  return config.audioAudit.ptMarkers.some((marker: string) => {
-    const normalized = normalizeTitle(marker);
-    if (!normalized) return false;
-    if (hasForeignLang && GENERIC_DUB_MARKER_RE.test(normalized)) return false;
-    return joined.includes(` ${normalized} `);
-  });
-}
-
-/** Grupo/canal de cena EN forte. Nome sem marca continua ambíguo e passa. */
-function strongEnSceneMark(path = '') {
-  if (hasPtAudioMark(path)) return null;
-  const tokens = new Set(normalizeTitle(path).split(' ').filter(Boolean));
-  return config.audioAudit.enGroups.find((group: string) => tokens.has(normalizeTitle(group))) || null;
-}
-
-/**
- * Mentira só é provada quando TODOS os vídeos contradizem uma promessa PT com
- * sinal EN forte. Um único marcador PT preserva o item: falso negativo é pior.
- */
-function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
-  const paths = videoPaths.map(String).filter(Boolean);
-  if (!config.audioAudit.enabled || !promisedDubbed || paths.length === 0) {
-    return { lie: false, videoCount: paths.length };
-  }
-  if (paths.some((path) => hasPtAudioMark(path))) return { lie: false, videoCount: paths.length };
-  const matchedGroup = paths.map(strongEnSceneMark).find(Boolean);
-  return matchedGroup
-    ? { lie: true, matchedGroup, videoCount: paths.length }
-    : { lie: false, videoCount: paths.length };
 }
 
 /**
@@ -231,7 +175,9 @@ function dubbedLieVerdict(videoPaths: string[] = [], promisedDubbed = false) {
 function audioFromTitle(title = '') {
   // O blob de tags do fim não descreve áudio, mas pode citar "DUAL" entre as
   // tags — classifica sobre o título sem a cauda.
-  const t = stripQualityTagBlob(title).toUpperCase();
+  // `_` é separador de fato nos posts BR ("… x264 DUAL_Misso"): dentro do \b
+  // ele conta como caractere de palavra e o marcador colado nele não casava.
+  const t = stripQualityTagBlob(title).toUpperCase().replace(/_/g, ' ');
 
   // Convenção de nome de post (hdrtorrent medido): o PREFIXO é sempre
   // "... Dublada e Dual", mesmo quando o botão é LEGENDADA. O marcador do
@@ -313,15 +259,23 @@ type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
 /**
  * Balde de áudio por título:
  *   dub  — dublado/nacional/dual+PT explícito (looksPtBr);
- *   dual — Dual/Multi sem PT ao lado (ambíguo);
+ *   dual — Dual/Multi sem PT ao lado E sem idioma nomeado (ambíguo);
  *   pt   — sem marca de áudio, mas com sinal de português ou ORIGEM BR no
  *          título (brOriginMark, blindagem 8.4 — os 4 falsos positivos
  *          medidos eram site BR condenado por não citar "dublado");
- *   lixo — legendado, áudio estrangeiro explícito, ou sem marca NEM sinal de PT.
+ *   lixo — legendado, áudio estrangeiro explícito, dual com idioma estrangeiro
+ *          nomeado, ou sem marca NEM sinal de PT.
+ *
+ * Dual + idioma nomeado (`[Dual Audio] [Hindi DD 5.1]`) saiu do balde ambíguo:
+ * a faixa extra é Hindi/Tamil/Ukr, não o português — ficar em `dual` escondia o
+ * item da triagem do painel (~452 linhas misturadas) e a absolvição pelo
+ * marcador `dual` deixava `foreignProof` vazio. A guarda é o núcleo da lista
+ * AMPLA sem `MULTI`: MULTI puro continua `dual` (contrato de `audioFromTitle`),
+ * e Dual com PT ao lado sobe para `dub` antes daqui (looksPtBr).
  */
 function audioBucket(title = ''): AudioBucket {
   if (looksPtBr(title)) return 'dub';
-  if (audioFromTitle(title) === 'Dual') return 'dual';
+  if (audioFromTitle(title) === 'Dual') return foreignLangNamedForBucket(title) ? 'lixo' : 'dual';
   if (hasPtSigns(title) || brOriginMark(title)) return 'pt';
   return 'lixo';
 }
@@ -347,8 +301,12 @@ function foreignVerdict(filename = '', videoPaths: string[] = []): ForeignVerdic
   // mesmo sem marca de áudio — condenar aqui apaga acervo da conta.
   const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p) || brOriginMark(p));
   if (temSinalPt) return 'absolve';
+  // Dublagem declarada no título (DUB/DUBBED/DUBLADO…): o dono afirma que o
+  // áudio É dublado — o idioma pode ser qualquer um, mas não é prova de que
+  // NÃO é o PT, então o grupo de cena EN sozinho não basta para condenar.
+  const declaraDublagem = (p: string) => /\b(?:DUB|DUBBED|DUBLAD[OA]|DUBLAGEM)\b/i.test(p);
   const provaEstrangeira = candidates.some(
-    (p) => hasExplicitForeignAudio(p) || Boolean(strongEnSceneMark(p)),
+    (p) => hasExplicitForeignAudio(p) || (Boolean(strongEnSceneMark(p)) && !declaraDublagem(p)),
   );
   return provaEstrangeira ? 'condena' : 'unknown';
 }

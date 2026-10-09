@@ -117,6 +117,6 @@ cat <<EOF
    Logs:                  docker compose logs -f adom
 
    Antes de divulgar o link: /configure e /defaults.json são PÚBLICOS.
-   Para fechar, descomente o basic_auth no Caddyfile:
-     docker exec stremio-adom caddy hash-password --plaintext 'suasenha'
+   Qualquer um gera install URL nesta instância; a chave do .env não é
+   herdada se DEBRID_ALLOW_ENV_KEY=false. O painel JSON segue no token.
 EOF

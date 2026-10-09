@@ -19,7 +19,7 @@ import * as cache from '../../src/utils/cache.js';
 import * as metrics from '../../src/utils/metrics.js';
 import * as magnetdb from '../../src/utils/magnetdb.js';
 import jackett from '../../src/providers/jackett.js';
-import { findStreams } from '../../src/providers/index.js';
+import { findStreams, applyNoticeOrigin } from '../../src/providers/index.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -38,8 +38,9 @@ function createTestApp() {
   builder.defineStreamHandler(async (args) => {
     try {
       const { streams, partial } = await findStreams({ type: args.type, id: args.id });
-      if (!streams.length || partial) return { streams, cacheMaxAge: 0 };
-      return { streams, cacheMaxAge: config.cacheTtl, staleRevalidate: config.cacheTtl * 4, staleError: 86400 };
+      const delivered = applyNoticeOrigin(streams);
+      if (!streams.length || partial) return { streams: delivered, cacheMaxAge: 0 };
+      return { streams: delivered, cacheMaxAge: config.cacheTtl, staleRevalidate: config.cacheTtl * 4, staleError: 86400 };
     } catch {
       return { streams: [], cacheMaxAge: 0 };
     }
