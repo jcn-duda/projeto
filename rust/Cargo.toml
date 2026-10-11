@@ -1,0 +1,6 @@
+# Workspace Rust da migração TS→Rust (fatia F0).
+# Nesta fatia só existe o crate `adom-core`, que CONSOME o golden — não porta
+# `normalizeTitle`. Sem crates vazios preventivos.
+[workspace]
+members = ["crates/adom-core"]
+resolver = "2"

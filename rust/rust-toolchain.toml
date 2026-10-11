@@ -1,0 +1,4 @@
+# Pina a toolchain verificada nesta fatia — a mesma do container `rust:1.83.0`.
+# Evita que "stable" desloque o Cargo.lock entre máquinas/execuções.
+[toolchain]
+channel = "1.83.0"

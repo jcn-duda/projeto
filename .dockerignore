@@ -12,3 +12,5 @@ dist
 test
 *.md
 jackett-screenshot.png
+# Workspace Rust: nunca vai ao contexto de build.
+rust/target

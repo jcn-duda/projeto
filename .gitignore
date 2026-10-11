@@ -27,3 +27,5 @@ prowlarr-config/
 .superpowers/
 # Backups da VPS: tarballs nao pertencem ao historico.
 backups-vps/
+# Workspace Rust (fatia F0): artefatos locais de build.
+rust/target/
