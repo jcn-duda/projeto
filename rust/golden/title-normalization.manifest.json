@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "title-normalization/normalizeTitle"
+  ],
+  "function": {
+    "name": "normalizeTitle",
+    "sourcePath": "src/utils/title-normalization.ts",
+    "sourceSha256": "6b91e5b5e869d18c1122ece1906fb82ac48e61dd54722102efb15aaa23414551",
+    "artifactPath": "dist/src/utils/title-normalization.js",
+    "artifactSha256": "87ecdf85babf0b8362877da7ae0ff1d2bd9fed706043ecdd029be61da5e9b412"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-title-normalization.json",
+    "sha256": "d258a0ea5554a5f717b29cf5b1d0fcfaf169ea0f549eebb181460bc963ccd433",
+    "cases": 23
+  },
+  "output": {
+    "path": "rust/golden/title-normalization.jsonl",
+    "sha256": "b05a8be0745a4e0771d2da5b7fa49dac02562c179b3d0d9c41ba904f8489d822",
+    "lines": 23
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "d30b77c824034937d63eb7f64508da807e2c5dd6"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": "corpus-title-normalization/1",
+  "note": "Corpus sintético F0 (migração TS→Rust). IDs estáveis: nunca renomear/reciclar; caso novo recebe id novo no fim. Oracle: normalizeTitle de src/utils/title-normalization.ts via dist. tn-011 usa escapes JSON explícitos para garantir forma NFD à prova de normalização de ferramenta.",
+  "cases": [
+    { "id": "tn-001", "input": "", "note": "vazio" },
+    { "id": "tn-002", "input": "   \t \n ", "note": "só whitespace" },
+    { "id": "tn-003", "input": "G.O.R.A.", "note": "sigla com ponto colapsa para uma palavra" },
+    { "id": "tn-004", "input": "S.W.A.T. 2003 Dual Áudio 1080p", "note": "sigla + acento + ano/resolução" },
+    { "id": "tn-005", "input": "M.A.S.H", "note": "sigla sem ponto final (letra de cauda)" },
+    { "id": "tn-006", "input": "U.S.Marshals", "note": "sigla colada em palavra: espaço inserido" },
+    { "id": "tn-007", "input": "Once.Upon.a.Time.in.America", "note": "letra única entre pontos não é sigla" },
+    { "id": "tn-008", "input": "H.264 x264", "note": "ponto técnico (codec) não é sigla" },
+    { "id": "tn-009", "input": "Resident.Evil.2026.1080p.TELESYNC", "note": "pontos como separador de release" },
+    { "id": "tn-010", "input": "Poção do Avô", "note": "acentos PT-BR (NFC): ç õ ô" },
+    { "id": "tn-011", "input": "Poc\u0327a\u0303o do Avo\u0302", "note": "mesma string de tn-010 em NFD decomposta: resultado idêntico" },
+    { "id": "tn-012", "input": "Histórias de Um Casamento: 2ª Temporada", "note": "ordinal ª vira só o número; dois-pontos vira espaço" },
+    { "id": "tn-013", "input": "Volume¹²³ Remux", "note": "sobrescritos numéricos descartados" },
+    { "id": "tn-014", "input": "Adım Farah", "note": "ı turco sem ponto (LATIN_FOLD)" },
+    { "id": "tn-015", "input": "Straße ẞ", "note": "ß e ẞ expandem para ss" },
+    { "id": "tn-016", "input": "Cœurs Déchirés", "note": "œ→oe + acentos franceses" },
+    { "id": "tn-017", "input": "Søren Łukasz Đoković", "note": "ø ł đ e diacrítico combinante sérvio" },
+    { "id": "tn-018", "input": "すずめの戸締まり", "note": "CJK: NFD separa dakuten (U+3099) e a classe \\p{M} preserva; vira UM token sem espaço" },
+    { "id": "tn-019", "input": "Ну, погоди!", "note": "cirílico + pontuação" },
+    { "id": "tn-020", "input": "!!! --- ___ ??? ***", "note": "só pontuação: vira vazio (nunca 'vazio e completo' no motor)" },
+    { "id": "tn-021", "input": "Se7en   Dual\tÁudio", "note": "números preservados + tabs/espaços múltiplos colapsam" },
+    { "id": "tn-022", "input": "&amp; Filmes", "note": "entidade NOMEADA não decodifica aqui (decodeEntities é outra função): sobra 'amp'" },
+    { "id": "tn-023", "input": "DUAL ÁUDIO 4K", "note": "caixa alta com acento: lowercase + fold" }
+  ]
+}

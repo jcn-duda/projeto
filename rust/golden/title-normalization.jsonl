@@ -1,0 +1,23 @@
+{"id":"tn-001","input":"","expected":""}
+{"id":"tn-002","input":"   \t \n ","expected":""}
+{"id":"tn-003","input":"G.O.R.A.","expected":"gora"}
+{"id":"tn-004","input":"S.W.A.T. 2003 Dual Áudio 1080p","expected":"swat 2003 dual audio 1080p"}
+{"id":"tn-005","input":"M.A.S.H","expected":"mash"}
+{"id":"tn-006","input":"U.S.Marshals","expected":"us marshals"}
+{"id":"tn-007","input":"Once.Upon.a.Time.in.America","expected":"once upon a time in america"}
+{"id":"tn-008","input":"H.264 x264","expected":"h 264 x264"}
+{"id":"tn-009","input":"Resident.Evil.2026.1080p.TELESYNC","expected":"resident evil 2026 1080p telesync"}
+{"id":"tn-010","input":"Poção do Avô","expected":"pocao do avo"}
+{"id":"tn-011","input":"Poção do Avô","expected":"pocao do avo"}
+{"id":"tn-012","input":"Histórias de Um Casamento: 2ª Temporada","expected":"historias de um casamento 2 temporada"}
+{"id":"tn-013","input":"Volume¹²³ Remux","expected":"volume remux"}
+{"id":"tn-014","input":"Adım Farah","expected":"adim farah"}
+{"id":"tn-015","input":"Straße ẞ","expected":"strasse ss"}
+{"id":"tn-016","input":"Cœurs Déchirés","expected":"coeurs dechires"}
+{"id":"tn-017","input":"Søren Łukasz Đoković","expected":"soren lukasz dokovic"}
+{"id":"tn-018","input":"すずめの戸締まり","expected":"すずめの戸締まり"}
+{"id":"tn-019","input":"Ну, погоди!","expected":"ну погоди"}
+{"id":"tn-020","input":"!!! --- ___ ??? ***","expected":""}
+{"id":"tn-021","input":"Se7en   Dual\tÁudio","expected":"se7en dual audio"}
+{"id":"tn-022","input":"&amp; Filmes","expected":"amp filmes"}
+{"id":"tn-023","input":"DUAL ÁUDIO 4K","expected":"dual audio 4k"}

@@ -9,6 +9,8 @@
     "build": "npm run clean && tsc && tsc -p tsconfig.client.json && tsc -p tsconfig.client.test.json && node dist/scripts/build-assets.js",
     "start": "node dist/src/addon.js",
     "dev": "tsc && tsc -p tsconfig.client.json && tsc -p tsconfig.client.test.json && node --watch dist/src/addon.js",
+    "golden:titles": "node scripts/golden/dump-title-normalization.mjs",
+    "golden:titles:check": "node scripts/golden/dump-title-normalization.mjs --check",
     "smoke": "node dist/scripts/smoke.js",
     "probe:crawl-identify": "node dist/scripts/crawl-identify-probe.js",
     "probe:crawl-site": "node dist/scripts/crawl-site-probe.js",
