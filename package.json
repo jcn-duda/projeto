@@ -58,6 +58,7 @@
     "typescript": "^5.9.3"
   },
   "testFiles": [
+    "test/golden-title-normalization.test.js",
     "test/app-routes.test.js",
     "test/app-routes-resolve.test.js",
     "test/app-routes-admin.test.js",
