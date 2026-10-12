@@ -27,6 +27,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import multiworkPack from './registry-multiwork-pack.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
@@ -316,6 +317,7 @@ const FUNCTIONS = {
       return `s=${p.seasons.join(',')} e=${p.episodes.join(',')} c=${p.complete ? 1 : 0} p=${p.seasonPack ? 1 : 0}`;
     },
   },
+  'multiwork-pack': multiworkPack,
 };
 const DEFAULT_FN = 'title-normalization';
 

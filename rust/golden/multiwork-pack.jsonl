@@ -1,0 +1,264 @@
+{"id":"mp-001","input":"{\"op\":\"root\",\"name\":\"Indiana Jones - A Coleção Completa 1981-2008\"}","expected":"indiana jones a 1981 2008"}
+{"id":"mp-002","input":"{\"op\":\"root\",\"name\":\"Indiana Jones (Coleção)\"}","expected":"indiana jones"}
+{"id":"mp-003","input":"{\"op\":\"root\",\"name\":\"Trilogia Indiana Jones\"}","expected":"indiana jones"}
+{"id":"mp-004","input":"{\"op\":\"root\",\"name\":\"O Senhor dos Anéis\"}","expected":"senhor dos aneis"}
+{"id":"mp-005","input":"{\"op\":\"root\",\"name\":\"Jornada nas Estrelas: O Filme\"}","expected":"jornada nas estrelas"}
+{"id":"mp-006","input":"{\"op\":\"root\",\"name\":\"Jornada nas Estrelas — O Filme\"}","expected":"jornada nas estrelas"}
+{"id":"mp-007","input":"{\"op\":\"root\",\"name\":\"Jornada nas Estrelas – O Filme\"}","expected":"jornada nas estrelas"}
+{"id":"mp-008","input":"{\"op\":\"root\",\"name\":\"Star Wars Episódio VIII\"}","expected":"star wars episodio"}
+{"id":"mp-009","input":"{\"op\":\"root\",\"name\":\"Rocky Parte II\"}","expected":"rocky parte ii"}
+{"id":"mp-010","input":"{\"op\":\"root\",\"name\":\"Rocky VIIII\"}","expected":"rocky viiii"}
+{"id":"mp-011","input":"{\"op\":\"root\",\"name\":\"Matrix 100\"}","expected":"matrix 100"}
+{"id":"mp-012","input":"{\"op\":\"root\",\"name\":\"Matrix 10\"}","expected":"matrix 10"}
+{"id":"mp-013","input":"{\"op\":\"root\",\"name\":\"Saga\"}","expected":""}
+{"id":"mp-014","input":"{\"op\":\"root\",\"name\":\"\"}","expected":""}
+{"id":"mp-015","input":"{\"op\":\"root\",\"name\":\":Subtítulo Longo\"}","expected":"subtitulo longo"}
+{"id":"mp-016","input":"{\"op\":\"root\",\"name\":\"A: Coleção Trilogia\"}","expected":""}
+{"id":"mp-017","input":"{\"op\":\"root\",\"name\":\"Mad Max: Fury\\nRoad\"}","expected":"mad max fury road"}
+{"id":"mp-018","input":"{\"op\":\"root\",\"name\":\"Batman  Coleção  Completa\"}","expected":""}
+{"id":"mp-019","input":"{\"op\":\"root\",\"name\":\"Filme Coleção\\tCompleta\"}","expected":""}
+{"id":"mp-020","input":"{\"op\":\"root\",\"name\":\"Distrito 9\"}","expected":"distrito 9"}
+{"id":"mp-021","input":"{\"op\":\"root\",\"name\":\"Coleção Completa\"}","expected":""}
+{"id":"mp-022","input":"{\"op\":\"root\",\"name\":\"Os Os Miseráveis\"}","expected":""}
+{"id":"mp-023","input":"{\"op\":\"rootTokens\",\"name\":\"Coleção\"}","expected":""}
+{"id":"mp-024","input":"{\"op\":\"rootTokens\",\"name\":\"Dragon Ball Z: Parte 2\"}","expected":"dragon ball z"}
+{"id":"mp-025","input":"{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":\"1981\"}","expected":"1"}
+{"id":"mp-026","input":"{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":2008}","expected":"1"}
+{"id":"mp-027","input":"{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":2009}","expected":"0"}
+{"id":"mp-028","input":"{\"op\":\"covers\",\"text\":\"1981 a 2008\",\"year\":2000}","expected":"1"}
+{"id":"mp-029","input":"{\"op\":\"covers\",\"text\":\"1981 até 2008\",\"year\":2000}","expected":"0"}
+{"id":"mp-030","input":"{\"op\":\"covers\",\"text\":\"1981 até2008\",\"year\":2000}","expected":"1"}
+{"id":"mp-031","input":"{\"op\":\"covers\",\"text\":\"1981 de 2008\",\"year\":1990}","expected":"1"}
+{"id":"mp-032","input":"{\"op\":\"covers\",\"text\":\"1981 to 2008\",\"year\":1990}","expected":"1"}
+{"id":"mp-033","input":"{\"op\":\"covers\",\"text\":\"1981 ATE 2008\",\"year\":1990}","expected":"1"}
+{"id":"mp-034","input":"{\"op\":\"covers\",\"text\":\"1981~2008\",\"year\":2008}","expected":"1"}
+{"id":"mp-035","input":"{\"op\":\"covers\",\"text\":\"1981—2008\",\"year\":1990}","expected":"1"}
+{"id":"mp-036","input":"{\"op\":\"covers\",\"text\":\"1920x1080\",\"year\":1920}","expected":"0"}
+{"id":"mp-037","input":"{\"op\":\"covers\",\"text\":\"1981-2008 1920x1080\",\"year\":1984}","expected":"1"}
+{"id":"mp-038","input":"{\"op\":\"covers\",\"text\":\"Filme 2009\",\"year\":2010}","expected":"1"}
+{"id":"mp-039","input":"{\"op\":\"covers\",\"text\":\"Filme 2007\",\"year\":2010}","expected":"0"}
+{"id":"mp-040","input":"{\"op\":\"covers\",\"text\":\"Filme 2012\",\"year\":2010}","expected":"1"}
+{"id":"mp-041","input":"{\"op\":\"covers\",\"text\":\"2000-2008\",\"year\":2010}","expected":"0"}
+{"id":"mp-042","input":"{\"op\":\"covers\",\"text\":\"12019\",\"year\":2019}","expected":"0"}
+{"id":"mp-043","input":"{\"op\":\"covers\",\"text\":\"20191\",\"year\":2019}","expected":"0"}
+{"id":"mp-044","input":"{\"op\":\"covers\",\"text\":\"1981-2008-2010\",\"year\":2010}","expected":"1"}
+{"id":"mp-045","input":"{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":null}","expected":"0"}
+{"id":"mp-046","input":"{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":\"sem ano\"}","expected":"0"}
+{"id":"mp-047","input":"{\"op\":\"covers\",\"text\":\"\",\"year\":2000}","expected":"0"}
+{"id":"mp-048","input":"{\"op\":\"covers\",\"text\":\"Blade Runner 2049 2017\",\"year\":2017}","expected":"1"}
+{"id":"mp-049","input":"{\"op\":\"covers\",\"text\":\"Blade Runner 2049\",\"year\":2017}","expected":"0"}
+{"id":"mp-050","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"Filme A\"}}","expected":"Filme A"}
+{"id":"mp-051","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xt=urn:btih:x&dn=Foo+Bar\"}}","expected":"T Foo Bar"}
+{"id":"mp-052","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xt=urn:btih:x&dn=A&tr=udp\"}}","expected":"T A"}
+{"id":"mp-053","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"MAGNET:?dn=Maiuscula\"}}","expected":"T Maiuscula"}
+{"id":"mp-054","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"  magnet:?dn=Aparado\"}}","expected":"T Aparado"}
+{"id":"mp-055","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xt=x&DN=Caixa\"}}","expected":"T Caixa"}
+{"id":"mp-056","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xdn=No&dn=Yes\"}}","expected":"T Yes"}
+{"id":"mp-057","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=First&dn=Second\"}}","expected":"T First"}
+{"id":"mp-058","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=&xt=1\"}}","expected":"T"}
+{"id":"mp-059","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=A+B+C\"}}","expected":"T A B C"}
+{"id":"mp-060","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=A%2BB\"}}","expected":"T A+B"}
+{"id":"mp-061","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"X\",\"magnet\":\"magnet:?dn=Ca%C3%A7a\"}}","expected":"X Caça"}
+{"id":"mp-062","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=100%\"}}","expected":"T 100%"}
+{"id":"mp-063","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=%E9\"}}","expected":"T %E9"}
+{"id":"mp-064","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"https://protetor.example/?dn=Nao\"}}","expected":"T"}
+{"id":"mp-065","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"\",\"magnet\":\"magnet:?dn=A\"}}","expected":" A"}
+{"id":"mp-066","input":"{\"op\":\"evidence\",\"item\":null}","expected":""}
+{"id":"mp-067","input":"{\"op\":\"evidence\",\"item\":{\"Title\":\"Caixa Alta\",\"MagnetUri\":\"magnet:?dn=Dn+Alta\"}}","expected":"Caixa Alta Dn Alta"}
+{"id":"mp-068","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"\",\"Title\":\"Cai No Title\",\"magnet\":\"magnet:?dn=Ok\"}}","expected":"Cai No Title Ok"}
+{"id":"mp-069","input":"{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\" magnet:?dn=Nbsp\"}}","expected":"T Nbsp"}
+{"id":"mp-070","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-071","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":2008,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-072","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":2009,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-073","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":null,\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-074","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"x\",\"root\":\"\",\"years\":[]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-075","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"],\"isSeries\":true}","expected":"0"}
+{"id":"mp-076","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[]}","expected":"0"}
+{"id":"mp-077","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":null,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-078","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":\"1984\",\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-079","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones e os Caçadores da Arca Perdida 1981\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-080","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Jones Indiana - Coleção 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-081","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Todos os Filmes 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-082","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Todos os Filmes 1981\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-083","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Filme 1981\",\"magnet\":\"magnet:?xt=urn:btih:abc&dn=Indiana+Jones+Colecao+Completa+1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-084","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones 1981\",\"magnet\":\"magnet:?dn=Indiana%20Jones%20Colecao%201981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-085","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones 1981\",\"magnet\":\"https://x.example/?dn=Indiana+Jones+Colecao+1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-086","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Colecao 1981-2008\",\"magnet\":\"magnet:?dn=Indiana%ZZ+Jones+Colecao+1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-087","input":"{\"op\":\"admits\",\"item\":null,\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-088","input":"{\"op\":\"admits\",\"item\":{\"Title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-089","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Colecao 1981-1989\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1984,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-090","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Colecao 1983\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"1"}
+{"id":"mp-091","input":"{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"x\",\"root\":\"senhor dos aneis\",\"years\":[]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}","expected":"0"}
+{"id":"mp-092","input":"{\"op\":\"root\",\"name\":\"\"}","expected":""}
+{"id":"mp-093","input":"{\"op\":\"root\",\"name\":\"   \\t \\n \"}","expected":""}
+{"id":"mp-094","input":"{\"op\":\"root\",\"name\":\"G.O.R.A.\"}","expected":""}
+{"id":"mp-095","input":"{\"op\":\"root\",\"name\":\"S.W.A.T. 2003 Dual Áudio 1080p\"}","expected":"swat 2003 dual audio 1080p"}
+{"id":"mp-096","input":"{\"op\":\"root\",\"name\":\"M.A.S.H\"}","expected":""}
+{"id":"mp-097","input":"{\"op\":\"root\",\"name\":\"U.S.Marshals\"}","expected":"us marshals"}
+{"id":"mp-098","input":"{\"op\":\"root\",\"name\":\"Once.Upon.a.Time.in.America\"}","expected":"once upon a time in america"}
+{"id":"mp-099","input":"{\"op\":\"root\",\"name\":\"H.264 x264\"}","expected":"h 264 x264"}
+{"id":"mp-100","input":"{\"op\":\"root\",\"name\":\"Resident.Evil.2026.1080p.TELESYNC\"}","expected":"resident evil 2026 1080p telesync"}
+{"id":"mp-101","input":"{\"op\":\"root\",\"name\":\"Poção do Avô\"}","expected":"pocao do avo"}
+{"id":"mp-102","input":"{\"op\":\"root\",\"name\":\"Poção do Avô\"}","expected":"pocao do avo"}
+{"id":"mp-103","input":"{\"op\":\"root\",\"name\":\"Histórias de Um Casamento: 2ª Temporada\"}","expected":"historias de um casamento"}
+{"id":"mp-104","input":"{\"op\":\"root\",\"name\":\"Volume¹²³ Remux\"}","expected":"volume remux"}
+{"id":"mp-105","input":"{\"op\":\"root\",\"name\":\"Adım Farah\"}","expected":"adim farah"}
+{"id":"mp-106","input":"{\"op\":\"root\",\"name\":\"Straße ẞ\"}","expected":"strasse ss"}
+{"id":"mp-107","input":"{\"op\":\"root\",\"name\":\"Cœurs Déchirés\"}","expected":"coeurs dechires"}
+{"id":"mp-108","input":"{\"op\":\"root\",\"name\":\"Søren Łukasz Đoković\"}","expected":"soren lukasz dokovic"}
+{"id":"mp-109","input":"{\"op\":\"root\",\"name\":\"すずめの戸締まり\"}","expected":""}
+{"id":"mp-110","input":"{\"op\":\"root\",\"name\":\"Ну, погоди!\"}","expected":"ну погоди"}
+{"id":"mp-111","input":"{\"op\":\"root\",\"name\":\"!!! --- ___ ??? ***\"}","expected":""}
+{"id":"mp-112","input":"{\"op\":\"root\",\"name\":\"Se7en   Dual\\tÁudio\"}","expected":"se7en dual audio"}
+{"id":"mp-113","input":"{\"op\":\"root\",\"name\":\"&amp; Filmes\"}","expected":"amp filmes"}
+{"id":"mp-114","input":"{\"op\":\"root\",\"name\":\"DUAL ÁUDIO 4K\"}","expected":"dual audio 4k"}
+{"id":"mp-115","input":"{\"op\":\"root\",\"name\":\"A 2024 Dublado 1080p\"}","expected":"2024 dublado 1080p"}
+{"id":"mp-116","input":"{\"op\":\"root\",\"name\":\"A Casa Do Dragao Dublado 1080p\"}","expected":"casa do dragao dublado 1080p"}
+{"id":"mp-117","input":"{\"op\":\"root\",\"name\":\"A Rocha LEGENDADO DUAL\"}","expected":"rocha legendado dual"}
+{"id":"mp-118","input":"{\"op\":\"root\",\"name\":\"A viagem de chihiro dublado pt-pt\"}","expected":"viagem de chihiro dublado pt pt"}
+{"id":"mp-119","input":"{\"op\":\"root\",\"name\":\"A.Rocha.1996.1080p.BluRay.DUAL-SF\"}","expected":"rocha 1996 1080p bluray dual sf"}
+{"id":"mp-120","input":"{\"op\":\"root\",\"name\":\"A.Rocha.1996.1080p.BluRay.DUAL.MULTi\"}","expected":"rocha 1996 1080p bluray dual multi"}
+{"id":"mp-121","input":"{\"op\":\"root\",\"name\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\"}","expected":"rocha 1996 bluray 1080p x264 dual 2 0 starckfilmes"}
+{"id":"mp-122","input":"{\"op\":\"root\",\"name\":\"A.Rocha.1996.DUAL.ESP.ENG\"}","expected":"rocha 1996 dual esp eng"}
+{"id":"mp-123","input":"{\"op\":\"root\",\"name\":\"Acervo Dublado\"}","expected":"acervo dublado"}
+{"id":"mp-124","input":"{\"op\":\"root\",\"name\":\"Ativa.DUAL\"}","expected":"ativa dual"}
+{"id":"mp-125","input":"{\"op\":\"root\",\"name\":\"BR Dublado\"}","expected":"br dublado"}
+{"id":"mp-126","input":"{\"op\":\"root\",\"name\":\"BR dublado recebe score 80\"}","expected":"br dublado recebe score"}
+{"id":"mp-127","input":"{\"op\":\"root\",\"name\":\"Cidade de Deus 2002 1080p BluRay\"}","expected":"cidade de deus 2002 1080p bluray"}
+{"id":"mp-128","input":"{\"op\":\"root\",\"name\":\"Cold 720p\"}","expected":"cold 720p"}
+{"id":"mp-129","input":"{\"op\":\"root\",\"name\":\"Corvo 1994 1080p BluRay DUAL\"}","expected":"corvo 1994 1080p bluray dual"}
+{"id":"mp-130","input":"{\"op\":\"root\",\"name\":\"Cult Film 2010 BluRay 1080p\"}","expected":"cult film 2010 bluray 1080p"}
+{"id":"mp-131","input":"{\"op\":\"root\",\"name\":\"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P\"}","expected":"download torrent legendado 5 1 mkv 720p"}
+{"id":"mp-132","input":"{\"op\":\"root\",\"name\":\"DUB BR 720p\"}","expected":"dub br 720p"}
+{"id":"mp-133","input":"{\"op\":\"root\",\"name\":\"Dedupe Case 1988 DVDrip\"}","expected":"dedupe case 1988 dvdrip"}
+{"id":"mp-134","input":"{\"op\":\"root\",\"name\":\"Devoradores de Estrelas 2026 Dual 5.1\"}","expected":"devoradores de estrelas 2026 dual 5 1"}
+{"id":"mp-135","input":"{\"op\":\"root\",\"name\":\"Dia D Dublado\"}","expected":"dia d dublado"}
+{"id":"mp-136","input":"{\"op\":\"root\",\"name\":\"Dublado global recebe score 40\"}","expected":"dublado global recebe score"}
+{"id":"mp-137","input":"{\"op\":\"root\",\"name\":\"Fallback.Seeds.1080p\"}","expected":"fallback seeds 1080p"}
+{"id":"mp-138","input":"{\"op\":\"root\",\"name\":\"Fallout S01 Complete Pack 1080p\"}","expected":"fallout s01 complete pack 1080p"}
+{"id":"mp-139","input":"{\"op\":\"root\",\"name\":\"Fallout S01E05 1080p Dual\"}","expected":"fallout s01e05 1080p dual"}
+{"id":"mp-140","input":"{\"op\":\"root\",\"name\":\"Fallout.S01E01.1080p.WEBRip.x264\"}","expected":"fallout s01e01 1080p webrip x264"}
+{"id":"mp-141","input":"{\"op\":\"root\",\"name\":\"Fast Movie 1080p\"}","expected":"fast movie 1080p"}
+{"id":"mp-142","input":"{\"op\":\"root\",\"name\":\"Filme 1 1080p\"}","expected":"filme 1 1080p"}
+{"id":"mp-143","input":"{\"op\":\"root\",\"name\":\"Filme 1080p Dublado\"}","expected":"filme 1080p dublado"}
+{"id":"mp-144","input":"{\"op\":\"root\",\"name\":\"Filme 1080p x265\"}","expected":"filme 1080p x265"}
+{"id":"mp-145","input":"{\"op\":\"root\",\"name\":\"Filme 2009 1080p BluRay\"}","expected":"filme 2009 1080p bluray"}
+{"id":"mp-146","input":"{\"op\":\"root\",\"name\":\"Filme 2019 IMAX 2160p\"}","expected":"filme 2019 imax 2160p"}
+{"id":"mp-147","input":"{\"op\":\"root\",\"name\":\"Filme 2024 1080p WEB-DL\"}","expected":"filme 2024 1080p web dl"}
+{"id":"mp-148","input":"{\"op\":\"root\",\"name\":\"Filme 480p SD\"}","expected":"filme 480p sd"}
+{"id":"mp-149","input":"{\"op\":\"root\",\"name\":\"Filme 720p HD\"}","expected":"filme 720p hd"}
+{"id":"mp-150","input":"{\"op\":\"root\",\"name\":\"Filme BR 1080p Dublado\"}","expected":"filme br 1080p dublado"}
+{"id":"mp-151","input":"{\"op\":\"root\",\"name\":\"Filme CAM Dublado 1080p\"}","expected":"filme cam dublado 1080p"}
+{"id":"mp-152","input":"{\"op\":\"root\",\"name\":\"Filme Dublado 1080p\"}","expected":"filme dublado 1080p"}
+{"id":"mp-153","input":"{\"op\":\"root\",\"name\":\"Filme HDTV\"}","expected":"filme hdtv"}
+{"id":"mp-154","input":"{\"op\":\"root\",\"name\":\"Filme Qualquer Dublado\"}","expected":"filme qualquer dublado"}
+{"id":"mp-155","input":"{\"op\":\"root\",\"name\":\"Filme Stall Zero Dublado\"}","expected":"filme stall zero dublado"}
+{"id":"mp-156","input":"{\"op\":\"root\",\"name\":\"Filme Teste 2024 1080p Dublado\"}","expected":"filme teste 2024 1080p dublado"}
+{"id":"mp-157","input":"{\"op\":\"root\",\"name\":\"Filme WEB-DL 1080p\"}","expected":"filme web dl 1080p"}
+{"id":"mp-158","input":"{\"op\":\"root\",\"name\":\"Filme.2019.1080p.BluRay.x264.mkv\"}","expected":"filme 2019 1080p bluray x264 mkv"}
+{"id":"mp-159","input":"{\"op\":\"root\",\"name\":\"Filme.2019.1080p.x264-RARBG\"}","expected":"filme 2019 1080p x264 rarbg"}
+{"id":"mp-160","input":"{\"op\":\"root\",\"name\":\"Filme.2024.1080p.BTHD\"}","expected":"filme 2024 1080p bthd"}
+{"id":"mp-161","input":"{\"op\":\"root\",\"name\":\"Filme.2026.1080p.BluRay.x264\"}","expected":"filme 2026 1080p bluray x264"}
+{"id":"mp-162","input":"{\"op\":\"root\",\"name\":\"Filme.Rico.2024.1080p.mkv\"}","expected":"filme rico 2024 1080p mkv"}
+{"id":"mp-163","input":"{\"op\":\"root\",\"name\":\"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\"}","expected":"gora 2004 1080p hmax web dl ddp2 0 h 264 turg"}
+{"id":"mp-164","input":"{\"op\":\"root\",\"name\":\"Global Dual 1080p\"}","expected":"global dual 1080p"}
+{"id":"mp-165","input":"{\"op\":\"root\",\"name\":\"Goliath.S03.2160p\"}","expected":"goliath s03 2160p"}
+{"id":"mp-166","input":"{\"op\":\"root\",\"name\":\"Grace.BR.Dublado.1080p\"}","expected":"grace br dublado 1080p"}
+{"id":"mp-167","input":"{\"op\":\"root\",\"name\":\"HINDI.HQ.DUB\"}","expected":"hindi hq dub"}
+{"id":"mp-168","input":"{\"op\":\"root\",\"name\":\"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p\"}","expected":"harry potter e a pedra filosofal 2001 dublado 1080p"}
+{"id":"mp-169","input":"{\"op\":\"root\",\"name\":\"Hawaii Five O S01E01 1080p WEB-DL x264\"}","expected":"hawaii five o s01e01 1080p web dl x264"}
+{"id":"mp-170","input":"{\"op\":\"root\",\"name\":\"Healthy Case 2003 DVDRip\"}","expected":"healthy case 2003 dvdrip"}
+{"id":"mp-171","input":"{\"op\":\"root\",\"name\":\"Idx Release 1080p\"}","expected":"idx release 1080p"}
+{"id":"mp-172","input":"{\"op\":\"root\",\"name\":\"Joker 2019 1080p\"}","expected":"joker 2019 1080p"}
+{"id":"mp-173","input":"{\"op\":\"root\",\"name\":\"Joker S01E01 1080p WEB-DL\"}","expected":"joker s01e01 1080p web dl"}
+{"id":"mp-174","input":"{\"op\":\"root\",\"name\":\"Joker.2019.2160p.WEB-DL.DUAL.5.1\"}","expected":"joker 2019 2160p web dl dual 5 1"}
+{"id":"mp-175","input":"{\"op\":\"root\",\"name\":\"Lost Girl S01 720p\"}","expected":"lost girl s01 720p"}
+{"id":"mp-176","input":"{\"op\":\"root\",\"name\":\"Lost Girl S03 1080p\"}","expected":"lost girl s03 1080p"}
+{"id":"mp-177","input":"{\"op\":\"root\",\"name\":\"Lost.Girl.S01.720p.x265-ZMNT\"}","expected":"lost girl s01 720p x265 zmnt"}
+{"id":"mp-178","input":"{\"op\":\"root\",\"name\":\"Meu Release 1080p\"}","expected":"meu release 1080p"}
+{"id":"mp-179","input":"{\"op\":\"root\",\"name\":\"Mortuary 1982 1080p DUBLADO\"}","expected":"mortuary 1982 1080p dublado"}
+{"id":"mp-180","input":"{\"op\":\"root\",\"name\":\"Mortuary 1983 1080p WEBRip\"}","expected":"mortuary 1983 1080p webrip"}
+{"id":"mp-181","input":"{\"op\":\"root\",\"name\":\"Mortuary 1983 720p DVDRip\"}","expected":"mortuary 1983 720p dvdrip"}
+{"id":"mp-182","input":"{\"op\":\"root\",\"name\":\"Movie 1080p\"}","expected":"movie 1080p"}
+{"id":"mp-183","input":"{\"op\":\"root\",\"name\":\"Movie 1080p BluRay\"}","expected":"movie 1080p bluray"}
+{"id":"mp-184","input":"{\"op\":\"root\",\"name\":\"Movie 1080p Dublado\"}","expected":"movie 1080p dublado"}
+{"id":"mp-185","input":"{\"op\":\"root\",\"name\":\"Movie 2024 1080p\"}","expected":"movie 2024 1080p"}
+{"id":"mp-186","input":"{\"op\":\"root\",\"name\":\"Movie 2026 1080p\"}","expected":"movie 2026 1080p"}
+{"id":"mp-187","input":"{\"op\":\"root\",\"name\":\"Movie 2026 BluRay 1080p\"}","expected":"movie 2026 bluray 1080p"}
+{"id":"mp-188","input":"{\"op\":\"root\",\"name\":\"Movie 2026 WEB-DL 1080p\"}","expected":"movie 2026 web dl 1080p"}
+{"id":"mp-189","input":"{\"op\":\"root\",\"name\":\"Movie WEB-DL 720p\"}","expected":"movie web dl 720p"}
+{"id":"mp-190","input":"{\"op\":\"root\",\"name\":\"Movie.2020.TRUEFRENCH.1080p.x264\"}","expected":"movie 2020 truefrench 1080p x264"}
+{"id":"mp-191","input":"{\"op\":\"root\",\"name\":\"Movie.2024.1080p.BR.Seeds1\"}","expected":"movie 2024 1080p br seeds1"}
+{"id":"mp-192","input":"{\"op\":\"root\",\"name\":\"Movie.2024.1080p.DUBLADO\"}","expected":"movie 2024 1080p dublado"}
+{"id":"mp-193","input":"{\"op\":\"root\",\"name\":\"Movie.2024.1080p.Test\"}","expected":"movie 2024 1080p test"}
+{"id":"mp-194","input":"{\"op\":\"root\",\"name\":\"Movie.2024.2160p.UHD\"}","expected":"movie 2024 2160p uhd"}
+{"id":"mp-195","input":"{\"op\":\"root\",\"name\":\"Movie.2024.CAM.1080p.DUBLADO\"}","expected":"movie 2024 cam 1080p dublado"}
+{"id":"mp-196","input":"{\"op\":\"root\",\"name\":\"Movie.2024.Dual.Audio.Telugu.1080p.BluRay\"}","expected":"movie 2024 dual audio telugu 1080p bluray"}
+{"id":"mp-197","input":"{\"op\":\"root\",\"name\":\"Movie.2026.1080p.mkv\"}","expected":"movie 2026 1080p mkv"}
+{"id":"mp-198","input":"{\"op\":\"root\",\"name\":\"Movie.Title.2024.2160p\"}","expected":"movie title 2024 2160p"}
+{"id":"mp-199","input":"{\"op\":\"root\",\"name\":\"My Name Is Farah S01E01 1080p WEB-DL\"}","expected":"my name is farah s01e01 1080p web dl"}
+{"id":"mp-200","input":"{\"op\":\"root\",\"name\":\"Nao.Tem.Temporada.1080p\"}","expected":"nao tem temporada 1080p"}
+{"id":"mp-201","input":"{\"op\":\"root\",\"name\":\"NoDate2.Movie.2019.1080p\"}","expected":"nodate2 movie 2019 1080p"}
+{"id":"mp-202","input":"{\"op\":\"root\",\"name\":\"NoSub.Movie.2019.1080p\"}","expected":"nosub movie 2019 1080p"}
+{"id":"mp-203","input":"{\"op\":\"root\",\"name\":\"Nome 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"nome 1080p 2160p 720p hd web dl"}
+{"id":"mp-204","input":"{\"op\":\"root\",\"name\":\"Nome do Filme 2019 Dual Audio 1080p\"}","expected":"nome do filme 2019 dual audio 1080p"}
+{"id":"mp-205","input":"{\"op\":\"root\",\"name\":\"Nome do Filme Dublado 2024 1080p\"}","expected":"nome do filme dublado 2024 1080p"}
+{"id":"mp-206","input":"{\"op\":\"root\",\"name\":\"O Corvo 1994 1080p BluRay DUAL\"}","expected":"corvo 1994 1080p bluray dual"}
+{"id":"mp-207","input":"{\"op\":\"root\",\"name\":\"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay\"}","expected":"corvo the crow e dual o corvo dual x265 bluray 1080p 1080p bluray"}
+{"id":"mp-208","input":"{\"op\":\"root\",\"name\":\"O.Corvo.1994.Dual.Audio.1080p\"}","expected":"corvo 1994 dual audio 1080p"}
+{"id":"mp-209","input":"{\"op\":\"root\",\"name\":\"Obra.DUAL.mkv\"}","expected":"obra dual mkv"}
+{"id":"mp-210","input":"{\"op\":\"root\",\"name\":\"ObraB.Seeds.1080p\"}","expected":"obrab seeds 1080p"}
+{"id":"mp-211","input":"{\"op\":\"root\",\"name\":\"Old Movie 1990 1080p BluRay x264\"}","expected":"old movie 1990 1080p bluray x264"}
+{"id":"mp-212","input":"{\"op\":\"root\",\"name\":\"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0\"}","expected":"origem s01 2022 web dl 1080p x264 dual 2 0"}
+{"id":"mp-213","input":"{\"op\":\"root\",\"name\":\"OtherDigest.Movie.2019.1080p\"}","expected":"otherdigest movie 2019 1080p"}
+{"id":"mp-214","input":"{\"op\":\"root\",\"name\":\"Outro 720p\"}","expected":"outro 720p"}
+{"id":"mp-215","input":"{\"op\":\"root\",\"name\":\"Parasita 2020 1080p BluRay DUBLADO\"}","expected":"parasita 2020 1080p bluray dublado"}
+{"id":"mp-216","input":"{\"op\":\"root\",\"name\":\"Partial Case 1988 DVDrip\"}","expected":"partial case 1988 dvdrip"}
+{"id":"mp-217","input":"{\"op\":\"root\",\"name\":\"Predador A 1080p DUBLADO\"}","expected":"predador a 1080p dublado"}
+{"id":"mp-218","input":"{\"op\":\"root\",\"name\":\"Probe Movie 2011 1080p LEGENDADO\"}","expected":"probe movie 2011 1080p legendado"}
+{"id":"mp-219","input":"{\"op\":\"root\",\"name\":\"Project Hail Mary 2026 1080p WEB.mkv\"}","expected":"project hail mary 2026 1080p web mkv"}
+{"id":"mp-220","input":"{\"op\":\"root\",\"name\":\"Prometheus Dual\"}","expected":"prometheus dual"}
+{"id":"mp-221","input":"{\"op\":\"root\",\"name\":\"Prot.Movie.2019.1080p\"}","expected":"prot movie 2019 1080p"}
+{"id":"mp-222","input":"{\"op\":\"root\",\"name\":\"Qualquer.Coisa.1080p\"}","expected":"qualquer coisa 1080p"}
+{"id":"mp-223","input":"{\"op\":\"root\",\"name\":\"Rare Case 1988 DVDRip\"}","expected":"rare case 1988 dvdrip"}
+{"id":"mp-224","input":"{\"op\":\"root\",\"name\":\"Reacher 2 Temporada Dual\"}","expected":"reacher 2 temporada dual"}
+{"id":"mp-225","input":"{\"op\":\"root\",\"name\":\"Readd.Movie.2019.1080p\"}","expected":"readd movie 2019 1080p"}
+{"id":"mp-226","input":"{\"op\":\"root\",\"name\":\"Release Qualquer 1080p\"}","expected":"release qualquer 1080p"}
+{"id":"mp-227","input":"{\"op\":\"root\",\"name\":\"S01E01.1080p.DDP5.1.mkv\"}","expected":"s01e01 1080p ddp5 1 mkv"}
+{"id":"mp-228","input":"{\"op\":\"root\",\"name\":\"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE\"}","expected":"s01e02 the bear 1080p webrip x264 evolve"}
+{"id":"mp-229","input":"{\"op\":\"root\",\"name\":\"Saga Crepusculo 2008-2012 Dublado\"}","expected":"crepusculo 2008 2012 dublado"}
+{"id":"mp-230","input":"{\"op\":\"root\",\"name\":\"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST\"}","expected":"scary movie 2000 repack bluray 1080p dts hd ma 5 1 avc hybrid remux framest"}
+{"id":"mp-231","input":"{\"op\":\"root\",\"name\":\"Scary Movie Part Two 1080p BluRay\"}","expected":"scary movie part two 1080p bluray"}
+{"id":"mp-232","input":"{\"op\":\"root\",\"name\":\"Serie 1a ate 8a Temporada Completa DUAL\"}","expected":"serie 1a ate 8a temporada dual"}
+{"id":"mp-233","input":"{\"op\":\"root\",\"name\":\"Serie S01E01 1080p\"}","expected":"serie s01e01 1080p"}
+{"id":"mp-234","input":"{\"op\":\"root\",\"name\":\"Serie S01E02 Dublado\"}","expected":"serie s01e02 dublado"}
+{"id":"mp-235","input":"{\"op\":\"root\",\"name\":\"Serie Sem Hash S02E01 1080p\"}","expected":"serie sem hash s02e01 1080p"}
+{"id":"mp-236","input":"{\"op\":\"root\",\"name\":\"Serie T01 E001 e E002 720p\"}","expected":"serie t01 e001 e e002 720p"}
+{"id":"mp-237","input":"{\"op\":\"root\",\"name\":\"Serie Teste 1080p\"}","expected":"serie teste 1080p"}
+{"id":"mp-238","input":"{\"op\":\"root\",\"name\":\"Serie Teste S01E02 1080p\"}","expected":"serie teste s01e02 1080p"}
+{"id":"mp-239","input":"{\"op\":\"root\",\"name\":\"Serie Teste S02E05 DUBLADO\"}","expected":"serie teste s02e05 dublado"}
+{"id":"mp-240","input":"{\"op\":\"root\",\"name\":\"Serie Todas as Temporadas DUAL\"}","expected":"serie todas as temporadas dual"}
+{"id":"mp-241","input":"{\"op\":\"root\",\"name\":\"Serie.S01E01.DUAL\"}","expected":"serie s01e01 dual"}
+{"id":"mp-242","input":"{\"op\":\"root\",\"name\":\"Serie.S04E03.1080p.WEB-DL.DUBLADO\"}","expected":"serie s04e03 1080p web dl dublado"}
+{"id":"mp-243","input":"{\"op\":\"root\",\"name\":\"Shes The Boss S01E01 1080p\"}","expected":"shes the boss s01e01 1080p"}
+{"id":"mp-244","input":"{\"op\":\"root\",\"name\":\"Show S01 1080p EP\"}","expected":"show s01 1080p ep"}
+{"id":"mp-245","input":"{\"op\":\"root\",\"name\":\"Show S01 Dublado\"}","expected":"show s01 dublado"}
+{"id":"mp-246","input":"{\"op\":\"root\",\"name\":\"Show S01E01 Dual 1080p\"}","expected":"show s01e01 dual 1080p"}
+{"id":"mp-247","input":"{\"op\":\"root\",\"name\":\"Show S01E05 Dual 1080p\"}","expected":"show s01e05 dual 1080p"}
+{"id":"mp-248","input":"{\"op\":\"root\",\"name\":\"Show S01E1176-2160p\"}","expected":"show s01e1176 2160p"}
+{"id":"mp-249","input":"{\"op\":\"root\",\"name\":\"Show.3ordm.Temporada.Completa.1080p\"}","expected":"show 3ordm temporada 1080p"}
+{"id":"mp-250","input":"{\"op\":\"root\",\"name\":\"Show.S01E01.1080p.mkv\"}","expected":"show s01e01 1080p mkv"}
+{"id":"mp-251","input":"{\"op\":\"root\",\"name\":\"Show.S02.1080p\"}","expected":"show s02 1080p"}
+{"id":"mp-252","input":"{\"op\":\"root\",\"name\":\"Show.S02E05.1080p.mkv\"}","expected":"show s02e05 1080p mkv"}
+{"id":"mp-253","input":"{\"op\":\"root\",\"name\":\"Show.S03.1080p.DTS5.1.mkv\"}","expected":"show s03 1080p dts5 1 mkv"}
+{"id":"mp-254","input":"{\"op\":\"root\",\"name\":\"Some.Global.Dub.1080p\"}","expected":"some global dub 1080p"}
+{"id":"mp-255","input":"{\"op\":\"root\",\"name\":\"Some.Swarm.1080p\"}","expected":"some swarm 1080p"}
+{"id":"mp-256","input":"{\"op\":\"root\",\"name\":\"Star Wars Todos os filmes 1977-2019 Dublado\"}","expected":"star wars todos os filmes 1977 2019 dublado"}
+{"id":"mp-257","input":"{\"op\":\"root\",\"name\":\"Strict Full 1988 DVDRip\"}","expected":"strict full 1988 dvdrip"}
+{"id":"mp-258","input":"{\"op\":\"root\",\"name\":\"Swarm.Movie.2019.1080p\"}","expected":"swarm movie 2019 1080p"}
+{"id":"mp-259","input":"{\"op\":\"root\",\"name\":\"Terrace House Boys S01E01 1080p\"}","expected":"terrace house boys s01e01 1080p"}
+{"id":"mp-260","input":"{\"op\":\"root\",\"name\":\"Test Title 2024 1080p EN ONLY\"}","expected":"test title 2024 1080p en only"}
+{"id":"mp-261","input":"{\"op\":\"root\",\"name\":\"Test Title 2024 720p DUBLADO\"}","expected":"test title 2024 720p dublado"}
+{"id":"mp-262","input":"{\"op\":\"root\",\"name\":\"The Bear S01E01 1080p WEB-DL x264\"}","expected":"bear s01e01 1080p web dl x264"}
+{"id":"mp-263","input":"{\"op\":\"root\",\"name\":\"The Boys S04 1080p AMZN WEB-DL\"}","expected":"boys s04 1080p amzn web dl"}
+{"id":"mp-264","input":"{\"op\":\"root\",\"name\":\"The Locals 2003 720p WEB-DL\"}","expected":"locals 2003 720p web dl"}

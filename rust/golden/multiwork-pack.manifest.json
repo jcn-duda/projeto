@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "multiwork-pack/admission"
+  ],
+  "function": {
+    "name": "multiWorkPack",
+    "sourcePath": "src/utils/multiwork-pack.ts",
+    "sourceSha256": "7ea120b41d4e40149f226b6b75d67802575febb5fe11ad764e20ef19590f25e8",
+    "artifactPath": "dist/src/utils/multiwork-pack.js",
+    "artifactSha256": "2a6e8849282e5bf148af0bfc5c971255d3b4e080b80b155dfbf3bf598aa91118"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-multiwork-pack.json",
+    "sha256": "bda4499aa462da59d38ecaf2e56e4984eb51656af02c1f0d4b153030945ea2a2",
+    "cases": 264
+  },
+  "output": {
+    "path": "rust/golden/multiwork-pack.jsonl",
+    "sha256": "419f3a946940bb4765e2a91350f97176adc9c68af6ed26b1ca28859abbc9a256",
+    "lines": 264
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "7324ff5bef0d8000b99be99a23d341f4c92f3050"
+  }
+}
