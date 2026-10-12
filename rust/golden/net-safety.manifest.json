@@ -12,13 +12,13 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-net-safety.json",
-    "sha256": "49b97055767bc7da2e3054fb6b25e8c78ad121fa7577c1542c745b1f8e442bb5",
-    "cases": 24
+    "sha256": "90a4faab333494e781bdfff82d86f063a126f40ab2692ba1c0d40b47a2469b51",
+    "cases": 28
   },
   "output": {
     "path": "rust/golden/net-safety.jsonl",
-    "sha256": "5f0406d57a7924ce16ae851ce064e0927a425052e835cd5499a2947f5d17e6f7",
-    "lines": 24
+    "sha256": "3445359b7c5a06deab5a9ef2d9985ecc71c61fdc48e0876052818f5a4d0f4cfb",
+    "lines": 28
   },
   "node": {
     "major": 22

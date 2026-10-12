@@ -22,3 +22,7 @@
 {"id":"ns-022","input":"{\"raw\":\"http://user:pass@tracker.example/dl\",\"allowPrivate\":false}","expected":"1"}
 {"id":"ns-023","input":"{\"raw\":\"not a url\",\"allowPrivate\":false}","expected":"0"}
 {"id":"ns-024","input":"{\"raw\":\"http://[fd00::1]/file\",\"allowPrivate\":false}","expected":"0"}
+{"id":"ns-025","input":"{\"raw\":\"http://0x100000000/\",\"allowPrivate\":false}","expected":"0"}
+{"id":"ns-026","input":"{\"raw\":\"https://ffff%255#x/\",\"allowPrivate\":false}","expected":"0"}
+{"id":"ns-027","input":"{\"raw\":\"http://éx.example/\",\"allowPrivate\":false}","expected":"1"}
+{"id":"ns-028","input":"{\"raw\":\"http://xn--/\",\"allowPrivate\":false}","expected":"0"}
