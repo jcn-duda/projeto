@@ -1,15 +1,14 @@
 # RUST-CONTRATOS.md — contratos TS→Rust
 
-Status: **EM CURSO**. Snapshot desta revisão: **`b133bd1`** (branch `rust`;
-`git describe` = `v1.1.0-75-gb133bd1`; **68 commits** à frente de `022ae03`, o
-`HEAD` que o §1 citava, e **31** à frente de `d8505b2`, a última revisão deste
-arquivo). O crate `adom-core` declara **43 módulos** em `lib.rs` — a contagem é
-por `mod` no `lib.rs`, não por arquivo `.rs` (são 45 `.rs` no total: 44 no nível
-superior, incluindo `lib.rs`, mais `stream_quotas_extra/selection.rs`) — cobertos
-por **42 datasets golden** (`38+4` `.jsonl`) com **41 manifests**
-(`stream-quotas-extra` não tem manifest). Os `.jsonl` somam **4.850 linhas**; a
-soma de `corpus.cases` dos 41 manifests é **4.823** (a diferença de 27 é o
-`stream-quotas-extra`, sem manifest).
+Status: **EM CURSO**. Snapshot desta revisão: **`33a6cad`** (branch `rust`;
+`git describe` = `v1.1.0-82-g33a6cad`; **75 commits** à frente de `022ae03`, o
+`HEAD` que o §1 citava, e **38** à frente de `d8505b2`, a última revisão deste
+arquivo). O crate `adom-core` declara **44 módulos** em `lib.rs` — a contagem é
+por `mod` no `lib.rs`, não por arquivo `.rs` (são 46 `.rs` no total, incluindo
+`lib.rs` e `stream_quotas_extra/selection.rs`) — cobertos por **46 datasets golden**
+(`.jsonl`) com **45 manifests** (`stream-quotas-extra` não tem manifest). Os
+`.jsonl` somam **5.411 linhas**; a soma de `corpus.cases` dos 45 manifests é
+**5.384** (a diferença de 27 é o `stream-quotas-extra`, sem manifest).
 
 O **HMAC de `/resolve`** agora **tem porte commitado** (`resolve_sign`,
 §1/§3): deixou de ser contrato alvo. A ponte `adom-napi` também está commitada
@@ -34,8 +33,8 @@ Fontes lidas (existem no checkout; links relativos):
 Lado Rust lido nesta revisão:
 
 - [`rust/crates/adom-core/src/lib.rs`](../rust/crates/adom-core/src/lib.rs) —
-  **43 módulos** declarados e a API pública do crate
-- [`rust/golden/`](../rust/golden/) — **42 `.jsonl` + 41 manifests** na árvore
+  **44 módulos** declarados e a API pública do crate
+- [`rust/golden/`](../rust/golden/) — **46 `.jsonl` + 45 manifests** na árvore
   (todos commitados no snapshot; `stream-quotas-extra.jsonl` sem manifest)
 - [`rust/crates/adom-core/tests/`](../rust/crates/adom-core/tests/) — **43
   arquivos**: 42 testes golden (41 `*_golden.rs` + `golden_corpus.rs`, o piloto
@@ -45,7 +44,7 @@ Lado Rust lido nesta revisão:
   política de hash de fonte (`source-fingerprint.mjs`)
 
 "Verificado" = lido no fonte nesta revisão. As contagens têm **método e data**
-(snapshot `b133bd1`, 2026-10-12): módulos por `mod` no `lib.rs`; casos por
+(snapshot `33a6cad`, 2026-10-12): módulos por `mod` no `lib.rs`; casos por
 `corpus.cases`/`output.lines` do manifest e por linhas do `.jsonl`. Os **gates**
 de build (fmt/clippy/test) vêm do baseline executado em revisão de agente e
 **não** foram re-executados nesta tarefa (§3, §4). As linhas do §1 são do
@@ -170,13 +169,13 @@ A reproduzir **sem** acrescentar regex:
   `stream` (`src/routes/addon-router.ts:124`). Não abrir o documentor completo
   de rotas nesta etapa.
 
-## 2. Oráculo golden (VERIFICADO — 42 datasets, 41 manifests)
+## 2. Oráculo golden (VERIFICADO — 46 datasets, 45 manifests)
 
 O que esta seção descrevia como "planejado" **existe e roda**. No snapshot
-`b133bd1` (2026-10-12) o diretório [`rust/golden/`](../rust/golden/) tem **42
-`.jsonl`** e **41 manifests** — todos os datasets têm manifest menos
-`stream-quotas-extra.jsonl`. A soma de casos é **4.850**; as contagens por
-dataset estão no mapa do §3.
+`33a6cad` (2026-10-12) o diretório [`rust/golden/`](../rust/golden/) tem **46
+`.jsonl`** e **45 manifests** — todos os datasets têm manifest menos
+`stream-quotas-extra.jsonl`. A soma de linhas é **5.411** (**5.384** pela soma de
+`corpus.cases` dos manifests); as contagens por dataset estão no mapa do §3.
 
 Contrato comum a todos os oráculos, no padrão de
 [`scripts/golden/dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs):
@@ -201,12 +200,14 @@ JSON é preservada). O rótulo `sourceHashLineEndings: "LF"` documenta a políti
 no manifest.
 
 Manifests gerados **antes** do commit `fef1cf6` (que introduziu a política) não
-têm o campo e carregam o hash **residual de CRLF**; exemplos citados:
-`config-encoding` (rev `b414a51`) e `reply-budget` (rev `5bad2df`). Regerar
-antes de tratar como estável. No snapshot, só **7** manifests declaram
-`sourceHashLineEndings`: `indexer-priority`, `magnet-uri`,
+têm o campo e podem carregar hash **residual de CRLF**; `config-encoding` e
+`reply-budget` foram corrigidos no commit `f305f44`. No snapshot, só **13**
+manifests declaram `sourceHashLineEndings`: `indexer-priority`, `magnet-uri`,
 `matching-vocabulary-regex`, `matching-vocabulary-sets`,
-`matching-vocabulary-title-tokens`, `release-name-matching`, `resolve-sign`.
+`matching-vocabulary-title-tokens`, `release-name-matching`, `resolve-sign`,
+`config-encoding`, `reply-budget`, `audio-presentation`, `stream-display`,
+`stream-relabel`, `stream-trace`. Os demais já eram LF (hash bruto == hash LF),
+logo dispensam o rótulo.
 
 ### 2.2 Ferramentas (três gerações coexistem)
 
@@ -219,17 +220,21 @@ antes de tratar como estável. No snapshot, só **7** manifests declaram
 | [`dump-pt-audio-guards.mjs`](../scripts/golden/dump-pt-audio-guards.mjs) | `pt-audio-guards` | `npm run golden:pt-audio-guards:check` |
 | [`dump-search-name-helpers.mjs`](../scripts/golden/dump-search-name-helpers.mjs) + `search-name-helpers-oracle.mjs` | `search-name-helpers` | `npm run golden:search-name-helpers:check` |
 | [`dump-indexer-priority.mjs`](../scripts/golden/dump-indexer-priority.mjs) | `indexer-priority` | `npm run golden:indexer-priority:check` |
+| [`dump-audio-presentation.mjs`](../scripts/golden/dump-audio-presentation.mjs) + `audio-presentation-oracle.mjs` | `audio-presentation` | `npm run golden:audio-presentation:check` |
+| [`dump-stream-display.mjs`](../scripts/golden/dump-stream-display.mjs) + `stream-display-oracle.mjs` | `stream-display` (**oráculo, sem porte Rust**) | `npm run golden:stream-display:check` |
+| [`dump-stream-relabel.mjs`](../scripts/golden/dump-stream-relabel.mjs) + `stream-relabel-oracle.mjs` | `stream-relabel` (**oráculo, sem porte Rust**) | `npm run golden:stream-relabel:check` |
+| [`dump-stream-trace.mjs`](../scripts/golden/dump-stream-trace.mjs) + `stream-trace-oracle.mjs` | `stream-trace` (**oráculo, sem porte Rust**) | `npm run golden:stream-trace:check` |
 | [`dump-config-encoding.mjs`](../scripts/golden/dump-config-encoding.mjs) | `config-encoding` | linha de comando |
 | [`registry-matches-br-title.mjs`](../scripts/golden/registry-matches-br-title.mjs) | `matches-br-title` (tem `resolve` que importa o `dist`, mas não está ligado a runner nem a `--fn` — §4) | — |
 | **nenhum gerador** | `reply-budget` (**órfão**: manifest existe, gerador não) | — |
 
 Complementos: os `build-corpus-*.mjs` produzem os corpus; `gen-latin-table.mjs`
 produz a tabela interna `latin_table.rs`; `generate-stream-quotas-extra.mjs`
-produz `stream-quotas-extra.jsonl` (que **não** tem manifest). Só
-`golden:titles`, `golden:resolve-sign`, `golden:release-labels`,
-`golden:pt-audio-guards`, `golden:search-name-helpers` e `golden:indexer-priority`
-têm par de scripts no [`package.json`](../package.json); os demais rodam por
-linha de comando.
+produz `stream-quotas-extra.jsonl` (que **não** tem manifest). São pares de
+scripts npm: `golden:titles`, `golden:resolve-sign`, `golden:release-labels`,
+`golden:pt-audio-guards`, `golden:search-name-helpers`, `golden:indexer-priority`,
+`golden:audio-presentation`, `golden:stream-display`, `golden:stream-relabel` e
+`golden:stream-trace`; os demais rodam por linha de comando.
 
 Do lado Node, o teste permanente
 [`test/golden-title-normalization.test.ts`](../test/golden-title-normalization.test.ts)
@@ -241,16 +246,16 @@ verificados pelos testes Rust e pelo `--check` manual.
 
 Runtime de produção é **TS** (`dist/` roda; a única ponte ativa é
 `src/utils/rust-core.ts` → `normalizeTitle` no `addon.ts`, sob `RUST_CORE` off). O
-Rust de hoje é **paridade provada, não adoção**: `rust/crates/adom-core` porta **43
+Rust de hoje é **paridade provada, não adoção**: `rust/crates/adom-core` porta **44
 módulos** (contagem por `mod` no `lib.rs`), quase todos **função pura**
-(texto/objeto → valor), cobertos por **42 goldens** e um teste por golden. **Não
+(texto/objeto → valor), cobertos por **46 goldens** e um teste por golden. **Não
 se deve ler esta lista como "pipeline migrado"**: só as unidades puras abaixo
 saíram do Node; busca, providers, debrid, crawl e o wiring de I/O continuam em
 `src/` (§5).
 
 Mapa de capacidades (módulo Rust · API pública · fonte TS · golden/casos). A
-contagem de casos é do snapshot `b133bd1`: **4.850** linhas de `.jsonl` no total;
-a soma de `corpus.cases` dos 41 manifests é **4.823** (faltam os 27 de
+contagem de casos é do snapshot `33a6cad`: **5.411** linhas de `.jsonl` no total;
+a soma de `corpus.cases` dos 45 manifests é **5.384** (faltam os 27 de
 `stream-quotas-extra`, sem manifest). As colunas abaixo vêm do manifest quando
 existe.
 
@@ -351,6 +356,7 @@ universal.
 | `release_labels` | `source_from_title`, `edition_from_title`, `compact_audio` | `audio-quality.ts` | `release-labels` (124) |
 | `pt_audio_guards` | `explicit_pt_audio`, `has_explicit_foreign_audio` | `audio-quality.ts` | `pt-audio-guards` (140) |
 | `audio_lang` | `generic_dub_proves_pt`, `foreign_lang_named_for_bucket`, `names_foreign_dub_language` | `audio-cleanup.ts` | `audio-lang` (71) |
+| `audio_presentation` | `strip_quality_tag_blob`, `audio_from_title`, `looks_pt_br` | `audio-quality.ts` | `audio-presentation` (170) |
 
 **guardas de release / origem**
 
@@ -373,7 +379,7 @@ concluída; não extrapolar para declarar "Fase 0/1 concluída".
 
 Gates do workspace no baseline (revisão de agente; **não** re-executados nesta
 tarefa): `cargo fmt --check` = 0, `cargo clippy -D warnings` = 0, `cargo test` =
-0 falhas em **48 conjuntos de resultado**. O baseline `9fb915d` tinha clippy
+0 falhas em **49 conjuntos de resultado**. O baseline `9fb915d` tinha clippy
 vermelho; `ad50b10` zerou fmt/clippy (seleção de `struct` pura e fontes portadas
 válidas). Toolchain pinada em [`rust-toolchain.toml`](../rust/rust-toolchain.toml)
 = **1.92.0** — primeira estável com `char::UNICODE_VERSION = (17,0,0)`, o mesmo
@@ -404,15 +410,20 @@ TS-vs-Rust é feita ou afirmada. Sem suposições de deploy em VPS.
   TS aceita `unknown` e devolve `false` para não-string. Hoje **não há consumidor
   TS** do binding (§4); a diferença só apareceria quando `src/` começar a
   consumi-lo.
-- **Oráculos novos (PENDENTES neste snapshot)**: `display` (o `streamDisplayName`
-  reexportado por `search-names.ts`), `relabel` e `trace`
-  (`dropTrace`/`onSelected` de `stream-quotas.ts`) **não** estão em `lib.rs` nem
-  têm golden no snapshot. Ficaram de fora de propósito nas fatias atuais
-  (`search_name_helpers.rs`, `stream_quotas.rs`); agentes paralelos podem estar
-  escrevendo neles. **Não** declarar concluídos, nem afirmar `pub` de Rust antes
-  do commit. No momento desta revisão havia trabalho **não commitado** de
-  `audio-presentation` (Rust) e dos três oráculos de `display`/`relabel`/`trace`
-  — não contados como entregues.
+- **Oráculos commitados, sem porte Rust**: `stream-display` (124; reexporta o
+  `streamDisplayName`), `stream-relabel` (129) e `stream-trace` (138) têm golden
+  e checker (`npm run golden:stream-*:check`), mas **nenhum módulo Rust** em
+  `lib.rs` — o porte é fatia futura. Traps declarados nos manifestos:
+  - `stream-display`/`stream-relabel`: `compactTracker` fatia em unidades UTF-16
+    e pode produzir surrogate isolado (4 + 10 vetores). Rust não tem `String`
+    com surrogate solto: **não** dropar em silêncio nem trocar por U+FFFD —
+    preservar via `expectedJson` (JSON-texto) ou reportar `Fail`.
+  - `stream-trace`: 2 vetores de borda 59/159 com surrogate isolado; item cap
+    300, `account-*` 60, label 60, chupim 160.
+  - O campo `expected` do `relabel`/`trace` é **JSON-texto** (`JSON.stringify`);
+    o do `display` é **texto cru** e é **omitido** nos órfãos — o leitor Rust
+    precisa aceitar `expected` ausente (`Option<String>`) e comparar por
+    `expectedJson`. Uniformizar o contrato é fatia própria.
 
 ## 4. Riscos e ambiguidades
 
@@ -451,8 +462,9 @@ Do estado atual da migração:
   dos próprios testes, o golden continua "batendo". Ligar ao gerador e regenerar
   contra o `dist` antes de contar como portado.
 - **`reply-budget` órfão**: tem manifest e 14 casos, mas **nenhum gerador** em
-  `scripts/golden/` — não é regenerável hoje. O manifest também precede a
-  política de EOL (§2.1), logo o `sourceSha256` é residual de CRLF.
+  `scripts/golden/` — não é regenerável hoje. O `sourceSha256` residual de CRLF
+  foi corrigido em `f305f44` (política LF aplicada por metadata), mas segue sem
+  gerador.
 - **`stream-quotas-extra` sem manifest**: 27 casos gerados por
   `generate-stream-quotas-extra.mjs`, mas sem manifest de integridade — a
   contagem não tem ateste de hash.
@@ -498,11 +510,15 @@ pendência, cada um com fonte lido quando a etapa dele for autorizada):
 
 - `search-names.ts` → `toStremioStream`, `passesQualityFilter` e o
   `streamDisplayName` reexportado (dependem de tipos de stream/módulos não
-  portados) — **PENDENTE** (`display`);
-- `stream-quotas.ts` → `dropTrace` e `onSelected` — **PENDENTE** (`trace`);
-- `audio-quality.ts` → `audioFromTitle` e `compactTracker` (as demais —
-  `sourceFromTitle`, `editionFromTitle`, `compactAudio`, `qualityFromTitle`,
-  `explicitPtAudio`, `hasExplicitForeignAudio` — já têm porte);
+  portados) — **PENDENTE** (`display`; oráculo já commitado);
+- `stream-quotas.ts` → `dropTrace`/`onSelected` e o `stream-trace.ts` completo —
+  **PENDENTE** (`trace`; oráculo já commitado);
+- `stream-relabel.ts` → `relabel` — **PENDENTE** (oráculo já commitado; depende
+  de `display` e de `compactTracker`);
+- `audio-quality.ts` → `compactTracker` (fatia UTF-16, com oráculo de
+  `stream-display`); `audioFromTitle` e `looksPtBr` já têm porte
+  (`audio_presentation`); `sourceFromTitle`, `editionFromTitle`, `compactAudio`,
+  `qualityFromTitle`, `explicitPtAudio`, `hasExplicitForeignAudio` também;
 - `runtime.ts` → `defaults()`, `opts()`, `prefix()`, `capture()`, `run()` e o
   `log.warn` do `open` ficam no TS de propósito (leem `config.*`/AsyncLocalStorage);
 - `matching-vocabulary.ts` → as 13 constantes exportadas (`PACK_WORDS` …
