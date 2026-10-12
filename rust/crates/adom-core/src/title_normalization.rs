@@ -1,9 +1,10 @@
 //! Porte fiel do comportamento string→string de `normalizeTitle`
 //! (`src/utils/title-normalization.ts`) — fatia F1 da migração TS→Rust.
 //!
-//! Escopo desta fatia: SÓ a função pura `normalizeTitle(s: string): string`.
-//! `decodeEntities`, `stripDiacritics`, `dedupeNames`, `magnetDisplayName` e
-//! tudo de matching/providers ficam FORA — não são portados aqui.
+//! Escopo deste arquivo: a função pura `normalizeTitle`. `bytesToSize`,
+//! `decodeEntities`, `collapseAcronyms`, `stripDiacritics`, `dedupeNames` e
+//! `magnetDisplayName` vivem em módulos irmãos. O fold latino e o colapso de
+//! sigla ficam `pub(crate)` porque esses irmãos reusam a mesma medida.
 //!
 //! Contrato: entrada e saída são `&str`/`String` UTF-8 válidos. A equivalência
 //! com o JS é afirmada para a classe coberta pelo golden de 23 casos
