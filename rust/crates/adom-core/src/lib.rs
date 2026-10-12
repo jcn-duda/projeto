@@ -20,6 +20,7 @@ mod franchise;
 mod info_hash;
 mod js_text;
 mod latin_table;
+mod magnet_display_name;
 mod magnet_uri;
 mod matches_br_title;
 mod matching_decisions;
@@ -125,6 +126,7 @@ pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
 pub use strip_diacritics::strip_diacritics;
 pub use dedupe_names::dedupe_names;
+pub use magnet_display_name::magnet_display_name;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///
