@@ -17,7 +17,7 @@
   },
   "output": {
     "path": "rust/golden/episode-matching.jsonl",
-    "sha256": "cab5707dac312b08920fa8976448e840c42fc7d8b09317ddfffa963d450768e3",
+    "sha256": "559389d2d90acd9e8369d5410e29496866ce2bfa90b90f1311132e3c904e1917",
     "lines": 40
   },
   "node": {

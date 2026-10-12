@@ -17,7 +17,7 @@
   },
   "output": {
     "path": "rust/golden/matches-br-title.jsonl",
-    "sha256": "141782f75aa9bf575c5168d26317b6e8182a972035ae1a836cb6f21a7b3317d7",
+    "sha256": "c9c11b1ae83575355e3ccbd657e3e199a41e80a9fb0bc24c0be1d0958ffdbb63",
     "lines": 50
   },
   "node": {
