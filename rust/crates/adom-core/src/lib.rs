@@ -9,9 +9,15 @@
 //! golden próprio em `rust/golden/matching-vocabulary-title-tokens.jsonl`.
 
 mod latin_table;
+mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
 mod title_normalization;
+
+pub use matching_decisions::{
+    adaptation_identity_contradicts, first_significant_token, live_action_year_contradicts,
+    named_sequel_contradicts, title_precision, year_contradicts,
+};
 
 pub use matching_tokens::{
     episode_work_tokens, extract_sequence_markers, first_work_token, is_non_latin_token,

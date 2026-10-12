@@ -148,7 +148,7 @@ pub fn vocabulary_contents(name: &str) -> Option<String> {
 /// Espaço no sentido do JS (`\s` sem flag `u`): ASCII, NBSP, os separadores
 /// Unicode e o BOM U+FEFF. O `\s` do crate `regex` não inclui o BOM, então a
 /// classe é explícita para não divergir.
-const JS_SPACE: &str = r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
+pub(crate) const JS_SPACE: &str = r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
 
 /// `YEAR_RANGE` (`/…/i`). `\b` é ASCII no JS, por isso `(?-u:\b)`, e `\d` é
 /// `[0-9]`, porque `\d` do crate aceita dígitos de outros scripts.

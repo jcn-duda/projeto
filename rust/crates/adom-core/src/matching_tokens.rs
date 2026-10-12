@@ -33,7 +33,7 @@ impl Marker {
 }
 
 /// Ano de 19xx/20xx inteiro, como `/^(?:19|20)\d{2}$/` no JS.
-fn is_year_token(token: &str) -> bool {
+pub(crate) fn is_year_token(token: &str) -> bool {
     token.len() == 4
         && (token.starts_with("19") || token.starts_with("20"))
         && token.bytes().all(|b| b.is_ascii_digit())
