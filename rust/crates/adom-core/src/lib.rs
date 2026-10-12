@@ -6,6 +6,7 @@
 mod audio_lang;
 mod audio_presentation;
 mod br_origin;
+mod br_pool_selection;
 mod bytes_to_size;
 mod cache_keys;
 mod cache_quotas;
@@ -58,6 +59,10 @@ pub use magnet_uri::{default_magnet, sanitize_magnet};
 
 // ── br_origin ─────────────────────────────────────────────────────────
 pub use br_origin::{br_origin_mark, has_pt_signs};
+pub use br_pool_selection::{
+    any_dubbed_pool, br_dubbed_pool, fallback_blocked, is_autofetch_target_quality,
+    pick_br_dubbed_by_target_qualities, top_seeded_pool, PoolOptions, PoolStream,
+};
 
 // ── catalog_year ──────────────────────────────────────────────────────
 pub use catalog_year::{catalog_alt_year_of, catalog_year_of};
