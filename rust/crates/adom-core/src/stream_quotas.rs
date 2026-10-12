@@ -25,7 +25,7 @@ use crate::js_text::js_trim;
 
 /// `Math.max(0, Math.trunc(Number(x) || 0))`: NaN vira 0, negativo vira 0,
 /// fração é truncada. `Infinity` passa (o TS trata como sem limite).
-fn clamp_limit(value: f64) -> f64 {
+pub(crate) fn clamp_limit(value: f64) -> f64 {
     if value.is_nan() {
         0.0
     } else {
