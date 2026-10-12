@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "video-header/videoResolution"
+  ],
+  "function": {
+    "name": "videoHeader",
+    "sourcePath": "src/utils/video-header.ts",
+    "sourceSha256": "bf79527023efaa23f1473bd600fa10906417e5f215ec65475b9332885d9f3d84",
+    "artifactPath": "dist/src/utils/video-header.js",
+    "artifactSha256": "7697570da21cd298dd34796d6fe61a772aeb2d28cb3809ac0fa7b5f4af306770"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-video-header.json",
+    "sha256": "69533ea09199d6b569eb7a7c90ff5d8665f685f67d17a41416634bedb7932af3",
+    "cases": 106
+  },
+  "output": {
+    "path": "rust/golden/video-header.jsonl",
+    "sha256": "576fbcf5bfe036e21f215d1dc5b4c79de8370c27067d850ef51dd74435ba4705",
+    "lines": 106
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "e419d16024db2ed222d32a154f444632dc465694"
+  }
+}
