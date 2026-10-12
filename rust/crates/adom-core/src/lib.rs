@@ -47,6 +47,7 @@ mod stream_quotas;
 pub mod stream_quotas_extra;
 mod strip_diacritics;
 mod title_normalization;
+mod tmdb_br_aliases;
 
 // ── info_hash / magnet ────────────────────────────────────────────────
 pub use info_hash::extract_info_hash;
@@ -157,6 +158,7 @@ pub use search_name_helpers::{
 };
 pub use strip_diacritics::strip_diacritics;
 pub use title_normalization::normalize_title;
+pub use tmdb_br_aliases::{filter_br_aliases, MAX_BR_ALIASES};
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///
