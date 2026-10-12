@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "br-origin/predicates"
+  ],
+  "function": {
+    "name": "brOrigin",
+    "sourcePath": "src/utils/br-origin.ts",
+    "sourceSha256": "6e26b8b839f5a0c7df9bb5e047ce13898ad10741484ae949e7e3fc69f5fc4a01",
+    "artifactPath": "dist/src/utils/br-origin.js",
+    "artifactSha256": "2851840b07a104446cd94e9929cb400400c5d23d84e3df8b7f3b1825066394d2"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-br-origin.json",
+    "sha256": "43418eae10f18eb04eefa6d703a304f4080f0fc4a585ab1fa3fe3b9672c6cb84",
+    "cases": 439
+  },
+  "output": {
+    "path": "rust/golden/br-origin.jsonl",
+    "sha256": "0dfac39e4faddfc97aaa6d16c5d54c350d4a3906eb7eacede65a738b033b9815",
+    "lines": 439
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "7d8225c7be5bb8fc8bca7bb81fe83b6906815e7a"
+  }
+}

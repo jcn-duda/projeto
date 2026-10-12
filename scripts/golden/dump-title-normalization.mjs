@@ -221,6 +221,22 @@ const FUNCTIONS = {
       return out === null || out === undefined ? 'null' : String(out);
     },
   },
+  // br-origin.ts: `pt=` é hasPtSigns(título) e `origin=` é brOriginMark(título).
+  // Predicados do caminho destrutivo da limpeza; o porte precisa ser exato.
+  'br-origin': {
+    id: 'br-origin/predicates',
+    name: 'brOrigin',
+    source: 'src/utils/br-origin.ts',
+    artifact: 'dist/src/utils/br-origin.js',
+    corpus: 'scripts/golden/corpus-br-origin.json',
+    outJsonl: 'rust/golden/br-origin.jsonl',
+    outManifest: 'rust/golden/br-origin.manifest.json',
+    resolve: (mod) => (input) => {
+      const pt = mod.hasPtSigns(input) ? 1 : 0;
+      const origin = mod.brOriginMark(input) ? 1 : 0;
+      return `pt=${pt} origin=${origin}`;
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 
