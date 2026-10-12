@@ -1,0 +1,415 @@
+{"id":"fr-001","input":"{\"op\":\"base\",\"title\":\"Resident Evil (2002) 1080p BrRip\",\"own\":null,\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\"}","expected":"1"}
+{"id":"fr-002","input":"{\"op\":\"base\",\"title\":\"Resident Evil (2004) 1080p\",\"own\":null,\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\"}","expected":"0"}
+{"id":"fr-003","input":"{\"op\":\"base\",\"title\":\"Resident Evil Apocalypse (2002)\",\"own\":null,\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\"}","expected":"0"}
+{"id":"fr-004","input":"{\"op\":\"base\",\"title\":\"Resident Evil 1080p\",\"own\":null,\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\"}","expected":"0"}
+{"id":"fr-005","input":"{\"op\":\"base\",\"title\":\"Resident Evil 2002 2004\",\"own\":null,\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-006","input":"{\"op\":\"base\",\"title\":\"Resident Evil (2002)\",\"own\":null,\"name\":\"Resident Evil: Apocalypse\",\"year\":null}","expected":"0"}
+{"id":"fr-007","input":"{\"op\":\"base\",\"title\":\"Blade Runner 2049 1080p\",\"own\":null,\"name\":\"Blade Runner 2049\",\"year\":\"2017\"}","expected":"0"}
+{"id":"fr-008","input":"{\"op\":\"base\",\"title\":\"Blade Runner (1982) 1080p\",\"own\":null,\"name\":\"Blade Runner 2049\",\"year\":\"2017\"}","expected":"0"}
+{"id":"fr-009","input":"{\"op\":\"base\",\"title\":\"Resident Evil Coleção 2002 2016\",\"own\":null,\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\"}","expected":"0"}
+{"id":"fr-010","input":"{\"op\":\"base\",\"title\":\"x\",\"own\":[\"resident\",\"evil\",\"2002\"],\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\"}","expected":"1"}
+{"id":"fr-011","input":"{\"op\":\"base\",\"title\":\"Resident Evil (2002)\",\"own\":[],\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\"}","expected":"0"}
+{"id":"fr-012","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Vendetta 1080p\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"1"}
+{"id":"fr-013","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Vendetta 2017\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-014","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Remastered 1080p\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-015","input":"{\"op\":\"extension\",\"title\":\"Resident Evil 1080p\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-016","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Biohazard 1080p\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\",\"Biohazard\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-017","input":"{\"op\":\"extension\",\"title\":\"Resident Evil 2 1080p\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-018","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Ab\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-019","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Vendettá\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"1"}
+{"id":"fr-020","input":"{\"op\":\"extension\",\"title\":\"Monster Hunter Vendetta\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-021","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Vendetta\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":null}","expected":"0"}
+{"id":"fr-022","input":"{\"op\":\"extension\",\"title\":\"Resident Evil Vendetta Coleção Todos\",\"own\":null,\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"0"}
+{"id":"fr-023","input":"{\"op\":\"extension\",\"title\":\"x\",\"own\":[\"resident\",\"evil\",\"vendetta\"],\"name\":\"Resident Evil\",\"allNames\":[\"Resident Evil\"],\"year\":\"2026\"}","expected":"1"}
+{"id":"fr-024","input":"{\"op\":\"coverage\",\"name\":\"Resident Evil\"}","expected":"resident evil"}
+{"id":"fr-025","input":"{\"op\":\"coverage\",\"name\":\"The Office of the Dead\"}","expected":"office dead"}
+{"id":"fr-026","input":"{\"op\":\"coverage\",\"name\":\"Up in Air\"}","expected":"up in air"}
+{"id":"fr-027","input":"{\"op\":\"coverage\",\"name\":\"Monster Monster Hunter\"}","expected":"monster hunter"}
+{"id":"fr-028","input":"{\"op\":\"coverage\",\"name\":\"Poção do Avô: Parte 2\"}","expected":"pocao avo parte"}
+{"id":"fr-029","input":"{\"op\":\"coverage\",\"name\":\"\"}","expected":""}
+{"id":"fr-030","input":"{\"op\":\"coverage\",\"name\":\"S.W.A.T. Força Especial\"}","expected":"swat forca especial"}
+{"id":"fr-031","input":"{\"op\":\"multiWork\",\"title\":\"Trilogia Matrix 1080p\"}","expected":"1"}
+{"id":"fr-032","input":"{\"op\":\"multiWork\",\"title\":\"Monster Hunter 2021 1080p\"}","expected":"0"}
+{"id":"fr-033","input":"{\"op\":\"multiWork\",\"title\":\"Todos os Filmes 1080p\"}","expected":"0"}
+{"id":"fr-034","input":"{\"op\":\"multiWork\",\"title\":\"Todos os filmes 1979-2016\"}","expected":"1"}
+{"id":"fr-035","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1979 2016\"}","expected":"1"}
+{"id":"fr-036","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1979-2016\"}","expected":"0"}
+{"id":"fr-037","input":"{\"op\":\"multiWork\",\"title\":\"Filmografia Spielberg\"}","expected":"1"}
+{"id":"fr-038","input":"{\"op\":\"multiWork\",\"title\":\"The Twilight Saga Breaking Dawn\"}","expected":"0"}
+{"id":"fr-039","input":"{\"op\":\"multiWork\",\"title\":\"Coleção Guerra nas Estrelas\"}","expected":"1"}
+{"id":"fr-040","input":"{\"op\":\"multiWork\",\"title\":\"\"}","expected":"0"}
+{"id":"fr-041","input":"{\"op\":\"multiWork\",\"title\":\"   \\t \\n \"}","expected":"0"}
+{"id":"fr-042","input":"{\"op\":\"multiWork\",\"title\":\"G.O.R.A.\"}","expected":"0"}
+{"id":"fr-043","input":"{\"op\":\"multiWork\",\"title\":\"S.W.A.T. 2003 Dual Áudio 1080p\"}","expected":"0"}
+{"id":"fr-044","input":"{\"op\":\"multiWork\",\"title\":\"M.A.S.H\"}","expected":"0"}
+{"id":"fr-045","input":"{\"op\":\"multiWork\",\"title\":\"U.S.Marshals\"}","expected":"0"}
+{"id":"fr-046","input":"{\"op\":\"multiWork\",\"title\":\"Once.Upon.a.Time.in.America\"}","expected":"0"}
+{"id":"fr-047","input":"{\"op\":\"multiWork\",\"title\":\"H.264 x264\"}","expected":"0"}
+{"id":"fr-048","input":"{\"op\":\"multiWork\",\"title\":\"Resident.Evil.2026.1080p.TELESYNC\"}","expected":"0"}
+{"id":"fr-049","input":"{\"op\":\"multiWork\",\"title\":\"Poção do Avô\"}","expected":"0"}
+{"id":"fr-050","input":"{\"op\":\"multiWork\",\"title\":\"Poção do Avô\"}","expected":"0"}
+{"id":"fr-051","input":"{\"op\":\"multiWork\",\"title\":\"Histórias de Um Casamento: 2ª Temporada\"}","expected":"0"}
+{"id":"fr-052","input":"{\"op\":\"multiWork\",\"title\":\"Volume¹²³ Remux\"}","expected":"0"}
+{"id":"fr-053","input":"{\"op\":\"multiWork\",\"title\":\"Adım Farah\"}","expected":"0"}
+{"id":"fr-054","input":"{\"op\":\"multiWork\",\"title\":\"Straße ẞ\"}","expected":"0"}
+{"id":"fr-055","input":"{\"op\":\"multiWork\",\"title\":\"Cœurs Déchirés\"}","expected":"0"}
+{"id":"fr-056","input":"{\"op\":\"multiWork\",\"title\":\"Søren Łukasz Đoković\"}","expected":"0"}
+{"id":"fr-057","input":"{\"op\":\"multiWork\",\"title\":\"すずめの戸締まり\"}","expected":"0"}
+{"id":"fr-058","input":"{\"op\":\"multiWork\",\"title\":\"Ну, погоди!\"}","expected":"0"}
+{"id":"fr-059","input":"{\"op\":\"multiWork\",\"title\":\"!!! --- ___ ??? ***\"}","expected":"0"}
+{"id":"fr-060","input":"{\"op\":\"multiWork\",\"title\":\"Se7en   Dual\\tÁudio\"}","expected":"0"}
+{"id":"fr-061","input":"{\"op\":\"multiWork\",\"title\":\"&amp; Filmes\"}","expected":"0"}
+{"id":"fr-062","input":"{\"op\":\"multiWork\",\"title\":\"DUAL ÁUDIO 4K\"}","expected":"0"}
+{"id":"fr-063","input":"{\"op\":\"multiWork\",\"title\":\"A 2024 Dublado 1080p\"}","expected":"0"}
+{"id":"fr-064","input":"{\"op\":\"multiWork\",\"title\":\"A Casa Do Dragao Dublado 1080p\"}","expected":"0"}
+{"id":"fr-065","input":"{\"op\":\"multiWork\",\"title\":\"A Rocha LEGENDADO DUAL\"}","expected":"0"}
+{"id":"fr-066","input":"{\"op\":\"multiWork\",\"title\":\"A viagem de chihiro dublado pt-pt\"}","expected":"0"}
+{"id":"fr-067","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL-SF\"}","expected":"0"}
+{"id":"fr-068","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL.MULTi\"}","expected":"0"}
+{"id":"fr-069","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\"}","expected":"0"}
+{"id":"fr-070","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.DUAL.ESP.ENG\"}","expected":"0"}
+{"id":"fr-071","input":"{\"op\":\"multiWork\",\"title\":\"Acervo Dublado\"}","expected":"0"}
+{"id":"fr-072","input":"{\"op\":\"multiWork\",\"title\":\"Ativa.DUAL\"}","expected":"0"}
+{"id":"fr-073","input":"{\"op\":\"multiWork\",\"title\":\"BR Dublado\"}","expected":"0"}
+{"id":"fr-074","input":"{\"op\":\"multiWork\",\"title\":\"BR dublado recebe score 80\"}","expected":"0"}
+{"id":"fr-075","input":"{\"op\":\"multiWork\",\"title\":\"Cidade de Deus 2002 1080p BluRay\"}","expected":"0"}
+{"id":"fr-076","input":"{\"op\":\"multiWork\",\"title\":\"Cold 720p\"}","expected":"0"}
+{"id":"fr-077","input":"{\"op\":\"multiWork\",\"title\":\"Corvo 1994 1080p BluRay DUAL\"}","expected":"0"}
+{"id":"fr-078","input":"{\"op\":\"multiWork\",\"title\":\"Cult Film 2010 BluRay 1080p\"}","expected":"0"}
+{"id":"fr-079","input":"{\"op\":\"multiWork\",\"title\":\"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P\"}","expected":"0"}
+{"id":"fr-080","input":"{\"op\":\"multiWork\",\"title\":\"DUB BR 720p\"}","expected":"0"}
+{"id":"fr-081","input":"{\"op\":\"multiWork\",\"title\":\"Dedupe Case 1988 DVDrip\"}","expected":"0"}
+{"id":"fr-082","input":"{\"op\":\"multiWork\",\"title\":\"Devoradores de Estrelas 2026 Dual 5.1\"}","expected":"0"}
+{"id":"fr-083","input":"{\"op\":\"multiWork\",\"title\":\"Dia D Dublado\"}","expected":"0"}
+{"id":"fr-084","input":"{\"op\":\"multiWork\",\"title\":\"Dublado global recebe score 40\"}","expected":"0"}
+{"id":"fr-085","input":"{\"op\":\"multiWork\",\"title\":\"Fallback.Seeds.1080p\"}","expected":"0"}
+{"id":"fr-086","input":"{\"op\":\"multiWork\",\"title\":\"Fallout S01 Complete Pack 1080p\"}","expected":"0"}
+{"id":"fr-087","input":"{\"op\":\"multiWork\",\"title\":\"Fallout S01E05 1080p Dual\"}","expected":"0"}
+{"id":"fr-088","input":"{\"op\":\"multiWork\",\"title\":\"Fallout.S01E01.1080p.WEBRip.x264\"}","expected":"0"}
+{"id":"fr-089","input":"{\"op\":\"multiWork\",\"title\":\"Fast Movie 1080p\"}","expected":"0"}
+{"id":"fr-090","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1 1080p\"}","expected":"0"}
+{"id":"fr-091","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1080p Dublado\"}","expected":"0"}
+{"id":"fr-092","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1080p x265\"}","expected":"0"}
+{"id":"fr-093","input":"{\"op\":\"multiWork\",\"title\":\"Filme 2009 1080p BluRay\"}","expected":"0"}
+{"id":"fr-094","input":"{\"op\":\"multiWork\",\"title\":\"Filme 2019 IMAX 2160p\"}","expected":"0"}
+{"id":"fr-095","input":"{\"op\":\"multiWork\",\"title\":\"Filme 2024 1080p WEB-DL\"}","expected":"0"}
+{"id":"fr-096","input":"{\"op\":\"multiWork\",\"title\":\"Filme 480p SD\"}","expected":"0"}
+{"id":"fr-097","input":"{\"op\":\"multiWork\",\"title\":\"Filme 720p HD\"}","expected":"0"}
+{"id":"fr-098","input":"{\"op\":\"multiWork\",\"title\":\"Filme BR 1080p Dublado\"}","expected":"0"}
+{"id":"fr-099","input":"{\"op\":\"multiWork\",\"title\":\"Filme CAM Dublado 1080p\"}","expected":"0"}
+{"id":"fr-100","input":"{\"op\":\"multiWork\",\"title\":\"Filme Dublado 1080p\"}","expected":"0"}
+{"id":"fr-101","input":"{\"op\":\"multiWork\",\"title\":\"Filme HDTV\"}","expected":"0"}
+{"id":"fr-102","input":"{\"op\":\"multiWork\",\"title\":\"Filme Qualquer Dublado\"}","expected":"0"}
+{"id":"fr-103","input":"{\"op\":\"multiWork\",\"title\":\"Filme Stall Zero Dublado\"}","expected":"0"}
+{"id":"fr-104","input":"{\"op\":\"multiWork\",\"title\":\"Filme Teste 2024 1080p Dublado\"}","expected":"0"}
+{"id":"fr-105","input":"{\"op\":\"multiWork\",\"title\":\"Filme WEB-DL 1080p\"}","expected":"0"}
+{"id":"fr-106","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2019.1080p.BluRay.x264.mkv\"}","expected":"0"}
+{"id":"fr-107","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2019.1080p.x264-RARBG\"}","expected":"0"}
+{"id":"fr-108","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2024.1080p.BTHD\"}","expected":"0"}
+{"id":"fr-109","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2026.1080p.BluRay.x264\"}","expected":"0"}
+{"id":"fr-110","input":"{\"op\":\"multiWork\",\"title\":\"Filme.Rico.2024.1080p.mkv\"}","expected":"0"}
+{"id":"fr-111","input":"{\"op\":\"multiWork\",\"title\":\"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\"}","expected":"0"}
+{"id":"fr-112","input":"{\"op\":\"multiWork\",\"title\":\"Global Dual 1080p\"}","expected":"0"}
+{"id":"fr-113","input":"{\"op\":\"multiWork\",\"title\":\"Goliath.S03.2160p\"}","expected":"0"}
+{"id":"fr-114","input":"{\"op\":\"multiWork\",\"title\":\"Grace.BR.Dublado.1080p\"}","expected":"0"}
+{"id":"fr-115","input":"{\"op\":\"multiWork\",\"title\":\"HINDI.HQ.DUB\"}","expected":"0"}
+{"id":"fr-116","input":"{\"op\":\"multiWork\",\"title\":\"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p\"}","expected":"0"}
+{"id":"fr-117","input":"{\"op\":\"multiWork\",\"title\":\"Hawaii Five O S01E01 1080p WEB-DL x264\"}","expected":"0"}
+{"id":"fr-118","input":"{\"op\":\"multiWork\",\"title\":\"Healthy Case 2003 DVDRip\"}","expected":"0"}
+{"id":"fr-119","input":"{\"op\":\"multiWork\",\"title\":\"Idx Release 1080p\"}","expected":"0"}
+{"id":"fr-120","input":"{\"op\":\"multiWork\",\"title\":\"Joker 2019 1080p\"}","expected":"0"}
+{"id":"fr-121","input":"{\"op\":\"multiWork\",\"title\":\"Joker S01E01 1080p WEB-DL\"}","expected":"0"}
+{"id":"fr-122","input":"{\"op\":\"multiWork\",\"title\":\"Joker.2019.2160p.WEB-DL.DUAL.5.1\"}","expected":"0"}
+{"id":"fr-123","input":"{\"op\":\"multiWork\",\"title\":\"Lost Girl S01 720p\"}","expected":"0"}
+{"id":"fr-124","input":"{\"op\":\"multiWork\",\"title\":\"Lost Girl S03 1080p\"}","expected":"0"}
+{"id":"fr-125","input":"{\"op\":\"multiWork\",\"title\":\"Lost.Girl.S01.720p.x265-ZMNT\"}","expected":"0"}
+{"id":"fr-126","input":"{\"op\":\"multiWork\",\"title\":\"Meu Release 1080p\"}","expected":"0"}
+{"id":"fr-127","input":"{\"op\":\"multiWork\",\"title\":\"Mortuary 1982 1080p DUBLADO\"}","expected":"0"}
+{"id":"fr-128","input":"{\"op\":\"multiWork\",\"title\":\"Mortuary 1983 1080p WEBRip\"}","expected":"0"}
+{"id":"fr-129","input":"{\"op\":\"multiWork\",\"title\":\"Mortuary 1983 720p DVDRip\"}","expected":"0"}
+{"id":"fr-130","input":"{\"op\":\"multiWork\",\"title\":\"Movie 1080p\"}","expected":"0"}
+{"id":"fr-131","input":"{\"op\":\"multiWork\",\"title\":\"Movie 1080p BluRay\"}","expected":"0"}
+{"id":"fr-132","input":"{\"op\":\"multiWork\",\"title\":\"Movie 1080p Dublado\"}","expected":"0"}
+{"id":"fr-133","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2024 1080p\"}","expected":"0"}
+{"id":"fr-134","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2026 1080p\"}","expected":"0"}
+{"id":"fr-135","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2026 BluRay 1080p\"}","expected":"0"}
+{"id":"fr-136","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2026 WEB-DL 1080p\"}","expected":"0"}
+{"id":"fr-137","input":"{\"op\":\"multiWork\",\"title\":\"Movie WEB-DL 720p\"}","expected":"0"}
+{"id":"fr-138","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2020.TRUEFRENCH.1080p.x264\"}","expected":"0"}
+{"id":"fr-139","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.1080p.BR.Seeds1\"}","expected":"0"}
+{"id":"fr-140","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.1080p.DUBLADO\"}","expected":"0"}
+{"id":"fr-141","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.1080p.Test\"}","expected":"0"}
+{"id":"fr-142","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.2160p.UHD\"}","expected":"0"}
+{"id":"fr-143","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.CAM.1080p.DUBLADO\"}","expected":"0"}
+{"id":"fr-144","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.Dual.Audio.Telugu.1080p.BluRay\"}","expected":"0"}
+{"id":"fr-145","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2026.1080p.mkv\"}","expected":"0"}
+{"id":"fr-146","input":"{\"op\":\"multiWork\",\"title\":\"Movie.Title.2024.2160p\"}","expected":"0"}
+{"id":"fr-147","input":"{\"op\":\"multiWork\",\"title\":\"My Name Is Farah S01E01 1080p WEB-DL\"}","expected":"0"}
+{"id":"fr-148","input":"{\"op\":\"multiWork\",\"title\":\"Nao.Tem.Temporada.1080p\"}","expected":"0"}
+{"id":"fr-149","input":"{\"op\":\"multiWork\",\"title\":\"NoDate2.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-150","input":"{\"op\":\"multiWork\",\"title\":\"NoSub.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-151","input":"{\"op\":\"multiWork\",\"title\":\"Nome 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"0"}
+{"id":"fr-152","input":"{\"op\":\"multiWork\",\"title\":\"Nome do Filme 2019 Dual Audio 1080p\"}","expected":"0"}
+{"id":"fr-153","input":"{\"op\":\"multiWork\",\"title\":\"Nome do Filme Dublado 2024 1080p\"}","expected":"0"}
+{"id":"fr-154","input":"{\"op\":\"multiWork\",\"title\":\"O Corvo 1994 1080p BluRay DUAL\"}","expected":"0"}
+{"id":"fr-155","input":"{\"op\":\"multiWork\",\"title\":\"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay\"}","expected":"0"}
+{"id":"fr-156","input":"{\"op\":\"multiWork\",\"title\":\"O.Corvo.1994.Dual.Audio.1080p\"}","expected":"0"}
+{"id":"fr-157","input":"{\"op\":\"multiWork\",\"title\":\"Obra.DUAL.mkv\"}","expected":"0"}
+{"id":"fr-158","input":"{\"op\":\"multiWork\",\"title\":\"ObraB.Seeds.1080p\"}","expected":"0"}
+{"id":"fr-159","input":"{\"op\":\"multiWork\",\"title\":\"Old Movie 1990 1080p BluRay x264\"}","expected":"0"}
+{"id":"fr-160","input":"{\"op\":\"multiWork\",\"title\":\"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0\"}","expected":"0"}
+{"id":"fr-161","input":"{\"op\":\"multiWork\",\"title\":\"OtherDigest.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-162","input":"{\"op\":\"multiWork\",\"title\":\"Outro 720p\"}","expected":"0"}
+{"id":"fr-163","input":"{\"op\":\"multiWork\",\"title\":\"Parasita 2020 1080p BluRay DUBLADO\"}","expected":"0"}
+{"id":"fr-164","input":"{\"op\":\"multiWork\",\"title\":\"Partial Case 1988 DVDrip\"}","expected":"0"}
+{"id":"fr-165","input":"{\"op\":\"multiWork\",\"title\":\"Predador A 1080p DUBLADO\"}","expected":"0"}
+{"id":"fr-166","input":"{\"op\":\"multiWork\",\"title\":\"Probe Movie 2011 1080p LEGENDADO\"}","expected":"0"}
+{"id":"fr-167","input":"{\"op\":\"multiWork\",\"title\":\"Project Hail Mary 2026 1080p WEB.mkv\"}","expected":"0"}
+{"id":"fr-168","input":"{\"op\":\"multiWork\",\"title\":\"Prometheus Dual\"}","expected":"0"}
+{"id":"fr-169","input":"{\"op\":\"multiWork\",\"title\":\"Prot.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-170","input":"{\"op\":\"multiWork\",\"title\":\"Qualquer.Coisa.1080p\"}","expected":"0"}
+{"id":"fr-171","input":"{\"op\":\"multiWork\",\"title\":\"Rare Case 1988 DVDRip\"}","expected":"0"}
+{"id":"fr-172","input":"{\"op\":\"multiWork\",\"title\":\"Reacher 2 Temporada Dual\"}","expected":"0"}
+{"id":"fr-173","input":"{\"op\":\"multiWork\",\"title\":\"Readd.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-174","input":"{\"op\":\"multiWork\",\"title\":\"Release Qualquer 1080p\"}","expected":"0"}
+{"id":"fr-175","input":"{\"op\":\"multiWork\",\"title\":\"S01E01.1080p.DDP5.1.mkv\"}","expected":"0"}
+{"id":"fr-176","input":"{\"op\":\"multiWork\",\"title\":\"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE\"}","expected":"0"}
+{"id":"fr-177","input":"{\"op\":\"multiWork\",\"title\":\"Saga Crepusculo 2008-2012 Dublado\"}","expected":"1"}
+{"id":"fr-178","input":"{\"op\":\"multiWork\",\"title\":\"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST\"}","expected":"0"}
+{"id":"fr-179","input":"{\"op\":\"multiWork\",\"title\":\"Scary Movie Part Two 1080p BluRay\"}","expected":"0"}
+{"id":"fr-180","input":"{\"op\":\"multiWork\",\"title\":\"Serie 1a ate 8a Temporada Completa DUAL\"}","expected":"0"}
+{"id":"fr-181","input":"{\"op\":\"multiWork\",\"title\":\"Serie S01E01 1080p\"}","expected":"0"}
+{"id":"fr-182","input":"{\"op\":\"multiWork\",\"title\":\"Serie S01E02 Dublado\"}","expected":"0"}
+{"id":"fr-183","input":"{\"op\":\"multiWork\",\"title\":\"Serie Sem Hash S02E01 1080p\"}","expected":"0"}
+{"id":"fr-184","input":"{\"op\":\"multiWork\",\"title\":\"Serie T01 E001 e E002 720p\"}","expected":"0"}
+{"id":"fr-185","input":"{\"op\":\"multiWork\",\"title\":\"Serie Teste 1080p\"}","expected":"0"}
+{"id":"fr-186","input":"{\"op\":\"multiWork\",\"title\":\"Serie Teste S01E02 1080p\"}","expected":"0"}
+{"id":"fr-187","input":"{\"op\":\"multiWork\",\"title\":\"Serie Teste S02E05 DUBLADO\"}","expected":"0"}
+{"id":"fr-188","input":"{\"op\":\"multiWork\",\"title\":\"Serie Todas as Temporadas DUAL\"}","expected":"0"}
+{"id":"fr-189","input":"{\"op\":\"multiWork\",\"title\":\"Serie.S01E01.DUAL\"}","expected":"0"}
+{"id":"fr-190","input":"{\"op\":\"multiWork\",\"title\":\"Serie.S04E03.1080p.WEB-DL.DUBLADO\"}","expected":"0"}
+{"id":"fr-191","input":"{\"op\":\"multiWork\",\"title\":\"Shes The Boss S01E01 1080p\"}","expected":"0"}
+{"id":"fr-192","input":"{\"op\":\"multiWork\",\"title\":\"Show S01 1080p EP\"}","expected":"0"}
+{"id":"fr-193","input":"{\"op\":\"multiWork\",\"title\":\"Show S01 Dublado\"}","expected":"0"}
+{"id":"fr-194","input":"{\"op\":\"multiWork\",\"title\":\"Show S01E01 Dual 1080p\"}","expected":"0"}
+{"id":"fr-195","input":"{\"op\":\"multiWork\",\"title\":\"Show S01E05 Dual 1080p\"}","expected":"0"}
+{"id":"fr-196","input":"{\"op\":\"multiWork\",\"title\":\"Show S01E1176-2160p\"}","expected":"0"}
+{"id":"fr-197","input":"{\"op\":\"multiWork\",\"title\":\"Show.3ordm.Temporada.Completa.1080p\"}","expected":"0"}
+{"id":"fr-198","input":"{\"op\":\"multiWork\",\"title\":\"Show.S01E01.1080p.mkv\"}","expected":"0"}
+{"id":"fr-199","input":"{\"op\":\"multiWork\",\"title\":\"Show.S02.1080p\"}","expected":"0"}
+{"id":"fr-200","input":"{\"op\":\"multiWork\",\"title\":\"Show.S02E05.1080p.mkv\"}","expected":"0"}
+{"id":"fr-201","input":"{\"op\":\"multiWork\",\"title\":\"Show.S03.1080p.DTS5.1.mkv\"}","expected":"0"}
+{"id":"fr-202","input":"{\"op\":\"multiWork\",\"title\":\"Some.Global.Dub.1080p\"}","expected":"0"}
+{"id":"fr-203","input":"{\"op\":\"multiWork\",\"title\":\"Some.Swarm.1080p\"}","expected":"0"}
+{"id":"fr-204","input":"{\"op\":\"multiWork\",\"title\":\"Star Wars Todos os filmes 1977-2019 Dublado\"}","expected":"1"}
+{"id":"fr-205","input":"{\"op\":\"multiWork\",\"title\":\"Strict Full 1988 DVDRip\"}","expected":"0"}
+{"id":"fr-206","input":"{\"op\":\"multiWork\",\"title\":\"Swarm.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-207","input":"{\"op\":\"multiWork\",\"title\":\"Terrace House Boys S01E01 1080p\"}","expected":"0"}
+{"id":"fr-208","input":"{\"op\":\"multiWork\",\"title\":\"Test Title 2024 1080p EN ONLY\"}","expected":"0"}
+{"id":"fr-209","input":"{\"op\":\"multiWork\",\"title\":\"Test Title 2024 720p DUBLADO\"}","expected":"0"}
+{"id":"fr-210","input":"{\"op\":\"multiWork\",\"title\":\"The Bear S01E01 1080p WEB-DL x264\"}","expected":"0"}
+{"id":"fr-211","input":"{\"op\":\"multiWork\",\"title\":\"The Boys S04 1080p AMZN WEB-DL\"}","expected":"0"}
+{"id":"fr-212","input":"{\"op\":\"multiWork\",\"title\":\"The Locals 2003 720p WEB-DL\"}","expected":"0"}
+{"id":"fr-213","input":"{\"op\":\"multiWork\",\"title\":\"\"}","expected":"0"}
+{"id":"fr-214","input":"{\"op\":\"multiWork\",\"title\":\"   \"}","expected":"0"}
+{"id":"fr-215","input":"{\"op\":\"multiWork\",\"title\":\"Torrent (2019) Legendado WEB DL 720p\"}","expected":"0"}
+{"id":"fr-216","input":"{\"op\":\"multiWork\",\"title\":\"Apocalypse Now V.Exten (1979) [BluRay 1080p][DUAL]\"}","expected":"0"}
+{"id":"fr-217","input":"{\"op\":\"multiWork\",\"title\":\"Apocalypse Now V. Estendida (1979)\"}","expected":"0"}
+{"id":"fr-218","input":"{\"op\":\"multiWork\",\"title\":\"V de Vingança 2005 1080p\"}","expected":"0"}
+{"id":"fr-219","input":"{\"op\":\"multiWork\",\"title\":\"V 2009 720p\"}","expected":"0"}
+{"id":"fr-220","input":"{\"op\":\"multiWork\",\"title\":\"A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR\"}","expected":"0"}
+{"id":"fr-221","input":"{\"op\":\"multiWork\",\"title\":\"A Rocha (1996) BDRip BluRay 720p dublado - FB\"}","expected":"0"}
+{"id":"fr-222","input":"{\"op\":\"multiWork\",\"title\":\"Zumbilândia BDRip derew 720p\"}","expected":"0"}
+{"id":"fr-223","input":"{\"op\":\"multiWork\",\"title\":\"Zumbilandia (www ThePirateFilms.com)\"}","expected":"0"}
+{"id":"fr-224","input":"{\"op\":\"multiWork\",\"title\":\"Atire Duas Vezes 1990 1080p\"}","expected":"0"}
+{"id":"fr-225","input":"{\"op\":\"multiWork\",\"title\":\"Todos os filmes 1979-2016\"}","expected":"1"}
+{"id":"fr-226","input":"{\"op\":\"multiWork\",\"title\":\"Todos os filmes 1979 2016\"}","expected":"1"}
+{"id":"fr-227","input":"{\"op\":\"multiWork\",\"title\":\"Coleção Guerra nas Estrelas\"}","expected":"1"}
+{"id":"fr-228","input":"{\"op\":\"multiWork\",\"title\":\"Game of Thrones Todas as Temporadas\"}","expected":"0"}
+{"id":"fr-229","input":"{\"op\":\"multiWork\",\"title\":\"Velozes e Furiosos 5 2011 1080p\"}","expected":"0"}
+{"id":"fr-230","input":"{\"op\":\"multiWork\",\"title\":\"The Hulk 2003 1080p\"}","expected":"0"}
+{"id":"fr-231","input":"{\"op\":\"multiWork\",\"title\":\"Para Sempre 2010 720p\"}","expected":"0"}
+{"id":"fr-232","input":"{\"op\":\"multiWork\",\"title\":\"S01E01 A Casa do Dragão S01E01 x264 DUAL\"}","expected":"0"}
+{"id":"fr-233","input":"{\"op\":\"multiWork\",\"title\":\"1A TEMPORADA COMPLETA House of the Dragon S01\"}","expected":"0"}
+{"id":"fr-234","input":"{\"op\":\"multiWork\",\"title\":\"Rocky II 1979 1080p\"}","expected":"0"}
+{"id":"fr-235","input":"{\"op\":\"multiWork\",\"title\":\"Duna Parte Dois 2024 1080p\"}","expected":"0"}
+{"id":"fr-236","input":"{\"op\":\"multiWork\",\"title\":\"Batman Begins 2005 1080p BluRay\"}","expected":"0"}
+{"id":"fr-237","input":"{\"op\":\"multiWork\",\"title\":\"Dublado Legendado\"}","expected":"0"}
+{"id":"fr-238","input":"{\"op\":\"multiWork\",\"title\":\"I Am Legend 2007 1080p\"}","expected":"0"}
+{"id":"fr-239","input":"{\"op\":\"multiWork\",\"title\":\"Monster Hunter 2021 720p\"}","expected":"0"}
+{"id":"fr-240","input":"{\"op\":\"multiWork\",\"title\":\"Trilogia Matrix 1080p\"}","expected":"1"}
+{"id":"fr-241","input":"{\"op\":\"multiWork\",\"title\":\"Histórias de Um Casamento: 2ª Temporada\"}","expected":"0"}
+{"id":"fr-242","input":"{\"op\":\"multiWork\",\"title\":\"Stranger Things 4 1080p WEB-DL DUAL\"}","expected":"0"}
+{"id":"fr-243","input":"{\"op\":\"multiWork\",\"title\":\"\"}","expected":"0"}
+{"id":"fr-244","input":"{\"op\":\"multiWork\",\"title\":\"   \\t \\n \"}","expected":"0"}
+{"id":"fr-245","input":"{\"op\":\"multiWork\",\"title\":\"G.O.R.A.\"}","expected":"0"}
+{"id":"fr-246","input":"{\"op\":\"multiWork\",\"title\":\"S.W.A.T. 2003 Dual Áudio 1080p\"}","expected":"0"}
+{"id":"fr-247","input":"{\"op\":\"multiWork\",\"title\":\"M.A.S.H\"}","expected":"0"}
+{"id":"fr-248","input":"{\"op\":\"multiWork\",\"title\":\"U.S.Marshals\"}","expected":"0"}
+{"id":"fr-249","input":"{\"op\":\"multiWork\",\"title\":\"Once.Upon.a.Time.in.America\"}","expected":"0"}
+{"id":"fr-250","input":"{\"op\":\"multiWork\",\"title\":\"H.264 x264\"}","expected":"0"}
+{"id":"fr-251","input":"{\"op\":\"multiWork\",\"title\":\"Resident.Evil.2026.1080p.TELESYNC\"}","expected":"0"}
+{"id":"fr-252","input":"{\"op\":\"multiWork\",\"title\":\"Poção do Avô\"}","expected":"0"}
+{"id":"fr-253","input":"{\"op\":\"multiWork\",\"title\":\"Poção do Avô\"}","expected":"0"}
+{"id":"fr-254","input":"{\"op\":\"multiWork\",\"title\":\"Histórias de Um Casamento: 2ª Temporada\"}","expected":"0"}
+{"id":"fr-255","input":"{\"op\":\"multiWork\",\"title\":\"Volume¹²³ Remux\"}","expected":"0"}
+{"id":"fr-256","input":"{\"op\":\"multiWork\",\"title\":\"Adım Farah\"}","expected":"0"}
+{"id":"fr-257","input":"{\"op\":\"multiWork\",\"title\":\"Straße ẞ\"}","expected":"0"}
+{"id":"fr-258","input":"{\"op\":\"multiWork\",\"title\":\"Cœurs Déchirés\"}","expected":"0"}
+{"id":"fr-259","input":"{\"op\":\"multiWork\",\"title\":\"Søren Łukasz Đoković\"}","expected":"0"}
+{"id":"fr-260","input":"{\"op\":\"multiWork\",\"title\":\"すずめの戸締まり\"}","expected":"0"}
+{"id":"fr-261","input":"{\"op\":\"multiWork\",\"title\":\"Ну, погоди!\"}","expected":"0"}
+{"id":"fr-262","input":"{\"op\":\"multiWork\",\"title\":\"!!! --- ___ ??? ***\"}","expected":"0"}
+{"id":"fr-263","input":"{\"op\":\"multiWork\",\"title\":\"Se7en   Dual\\tÁudio\"}","expected":"0"}
+{"id":"fr-264","input":"{\"op\":\"multiWork\",\"title\":\"&amp; Filmes\"}","expected":"0"}
+{"id":"fr-265","input":"{\"op\":\"multiWork\",\"title\":\"DUAL ÁUDIO 4K\"}","expected":"0"}
+{"id":"fr-266","input":"{\"op\":\"multiWork\",\"title\":\"A 2024 Dublado 1080p\"}","expected":"0"}
+{"id":"fr-267","input":"{\"op\":\"multiWork\",\"title\":\"A Casa Do Dragao Dublado 1080p\"}","expected":"0"}
+{"id":"fr-268","input":"{\"op\":\"multiWork\",\"title\":\"A Rocha LEGENDADO DUAL\"}","expected":"0"}
+{"id":"fr-269","input":"{\"op\":\"multiWork\",\"title\":\"A viagem de chihiro dublado pt-pt\"}","expected":"0"}
+{"id":"fr-270","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL-SF\"}","expected":"0"}
+{"id":"fr-271","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL.MULTi\"}","expected":"0"}
+{"id":"fr-272","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\"}","expected":"0"}
+{"id":"fr-273","input":"{\"op\":\"multiWork\",\"title\":\"A.Rocha.1996.DUAL.ESP.ENG\"}","expected":"0"}
+{"id":"fr-274","input":"{\"op\":\"multiWork\",\"title\":\"Acervo Dublado\"}","expected":"0"}
+{"id":"fr-275","input":"{\"op\":\"multiWork\",\"title\":\"Ativa.DUAL\"}","expected":"0"}
+{"id":"fr-276","input":"{\"op\":\"multiWork\",\"title\":\"BR Dublado\"}","expected":"0"}
+{"id":"fr-277","input":"{\"op\":\"multiWork\",\"title\":\"BR dublado recebe score 80\"}","expected":"0"}
+{"id":"fr-278","input":"{\"op\":\"multiWork\",\"title\":\"Cidade de Deus 2002 1080p BluRay\"}","expected":"0"}
+{"id":"fr-279","input":"{\"op\":\"multiWork\",\"title\":\"Cold 720p\"}","expected":"0"}
+{"id":"fr-280","input":"{\"op\":\"multiWork\",\"title\":\"Corvo 1994 1080p BluRay DUAL\"}","expected":"0"}
+{"id":"fr-281","input":"{\"op\":\"multiWork\",\"title\":\"Cult Film 2010 BluRay 1080p\"}","expected":"0"}
+{"id":"fr-282","input":"{\"op\":\"multiWork\",\"title\":\"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P\"}","expected":"0"}
+{"id":"fr-283","input":"{\"op\":\"multiWork\",\"title\":\"DUB BR 720p\"}","expected":"0"}
+{"id":"fr-284","input":"{\"op\":\"multiWork\",\"title\":\"Dedupe Case 1988 DVDrip\"}","expected":"0"}
+{"id":"fr-285","input":"{\"op\":\"multiWork\",\"title\":\"Devoradores de Estrelas 2026 Dual 5.1\"}","expected":"0"}
+{"id":"fr-286","input":"{\"op\":\"multiWork\",\"title\":\"Dia D Dublado\"}","expected":"0"}
+{"id":"fr-287","input":"{\"op\":\"multiWork\",\"title\":\"Dublado global recebe score 40\"}","expected":"0"}
+{"id":"fr-288","input":"{\"op\":\"multiWork\",\"title\":\"Fallback.Seeds.1080p\"}","expected":"0"}
+{"id":"fr-289","input":"{\"op\":\"multiWork\",\"title\":\"Fallout S01 Complete Pack 1080p\"}","expected":"0"}
+{"id":"fr-290","input":"{\"op\":\"multiWork\",\"title\":\"Fallout S01E05 1080p Dual\"}","expected":"0"}
+{"id":"fr-291","input":"{\"op\":\"multiWork\",\"title\":\"Fallout.S01E01.1080p.WEBRip.x264\"}","expected":"0"}
+{"id":"fr-292","input":"{\"op\":\"multiWork\",\"title\":\"Fast Movie 1080p\"}","expected":"0"}
+{"id":"fr-293","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1 1080p\"}","expected":"0"}
+{"id":"fr-294","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1080p Dublado\"}","expected":"0"}
+{"id":"fr-295","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1080p x265\"}","expected":"0"}
+{"id":"fr-296","input":"{\"op\":\"multiWork\",\"title\":\"Filme 2009 1080p BluRay\"}","expected":"0"}
+{"id":"fr-297","input":"{\"op\":\"multiWork\",\"title\":\"Filme 2019 IMAX 2160p\"}","expected":"0"}
+{"id":"fr-298","input":"{\"op\":\"multiWork\",\"title\":\"Filme 2024 1080p WEB-DL\"}","expected":"0"}
+{"id":"fr-299","input":"{\"op\":\"multiWork\",\"title\":\"Filme 480p SD\"}","expected":"0"}
+{"id":"fr-300","input":"{\"op\":\"multiWork\",\"title\":\"Filme 720p HD\"}","expected":"0"}
+{"id":"fr-301","input":"{\"op\":\"multiWork\",\"title\":\"Filme BR 1080p Dublado\"}","expected":"0"}
+{"id":"fr-302","input":"{\"op\":\"multiWork\",\"title\":\"Filme CAM Dublado 1080p\"}","expected":"0"}
+{"id":"fr-303","input":"{\"op\":\"multiWork\",\"title\":\"Filme Dublado 1080p\"}","expected":"0"}
+{"id":"fr-304","input":"{\"op\":\"multiWork\",\"title\":\"Filme HDTV\"}","expected":"0"}
+{"id":"fr-305","input":"{\"op\":\"multiWork\",\"title\":\"Filme Qualquer Dublado\"}","expected":"0"}
+{"id":"fr-306","input":"{\"op\":\"multiWork\",\"title\":\"Filme Stall Zero Dublado\"}","expected":"0"}
+{"id":"fr-307","input":"{\"op\":\"multiWork\",\"title\":\"Filme Teste 2024 1080p Dublado\"}","expected":"0"}
+{"id":"fr-308","input":"{\"op\":\"multiWork\",\"title\":\"Filme WEB-DL 1080p\"}","expected":"0"}
+{"id":"fr-309","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2019.1080p.BluRay.x264.mkv\"}","expected":"0"}
+{"id":"fr-310","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2019.1080p.x264-RARBG\"}","expected":"0"}
+{"id":"fr-311","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2024.1080p.BTHD\"}","expected":"0"}
+{"id":"fr-312","input":"{\"op\":\"multiWork\",\"title\":\"Filme.2026.1080p.BluRay.x264\"}","expected":"0"}
+{"id":"fr-313","input":"{\"op\":\"multiWork\",\"title\":\"Filme.Rico.2024.1080p.mkv\"}","expected":"0"}
+{"id":"fr-314","input":"{\"op\":\"multiWork\",\"title\":\"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\"}","expected":"0"}
+{"id":"fr-315","input":"{\"op\":\"multiWork\",\"title\":\"Global Dual 1080p\"}","expected":"0"}
+{"id":"fr-316","input":"{\"op\":\"multiWork\",\"title\":\"Goliath.S03.2160p\"}","expected":"0"}
+{"id":"fr-317","input":"{\"op\":\"multiWork\",\"title\":\"Grace.BR.Dublado.1080p\"}","expected":"0"}
+{"id":"fr-318","input":"{\"op\":\"multiWork\",\"title\":\"HINDI.HQ.DUB\"}","expected":"0"}
+{"id":"fr-319","input":"{\"op\":\"multiWork\",\"title\":\"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p\"}","expected":"0"}
+{"id":"fr-320","input":"{\"op\":\"multiWork\",\"title\":\"Hawaii Five O S01E01 1080p WEB-DL x264\"}","expected":"0"}
+{"id":"fr-321","input":"{\"op\":\"multiWork\",\"title\":\"Healthy Case 2003 DVDRip\"}","expected":"0"}
+{"id":"fr-322","input":"{\"op\":\"multiWork\",\"title\":\"Idx Release 1080p\"}","expected":"0"}
+{"id":"fr-323","input":"{\"op\":\"multiWork\",\"title\":\"Joker 2019 1080p\"}","expected":"0"}
+{"id":"fr-324","input":"{\"op\":\"multiWork\",\"title\":\"Joker S01E01 1080p WEB-DL\"}","expected":"0"}
+{"id":"fr-325","input":"{\"op\":\"multiWork\",\"title\":\"Joker.2019.2160p.WEB-DL.DUAL.5.1\"}","expected":"0"}
+{"id":"fr-326","input":"{\"op\":\"multiWork\",\"title\":\"Lost Girl S01 720p\"}","expected":"0"}
+{"id":"fr-327","input":"{\"op\":\"multiWork\",\"title\":\"Lost Girl S03 1080p\"}","expected":"0"}
+{"id":"fr-328","input":"{\"op\":\"multiWork\",\"title\":\"Lost.Girl.S01.720p.x265-ZMNT\"}","expected":"0"}
+{"id":"fr-329","input":"{\"op\":\"multiWork\",\"title\":\"Meu Release 1080p\"}","expected":"0"}
+{"id":"fr-330","input":"{\"op\":\"multiWork\",\"title\":\"Mortuary 1982 1080p DUBLADO\"}","expected":"0"}
+{"id":"fr-331","input":"{\"op\":\"multiWork\",\"title\":\"Mortuary 1983 1080p WEBRip\"}","expected":"0"}
+{"id":"fr-332","input":"{\"op\":\"multiWork\",\"title\":\"Mortuary 1983 720p DVDRip\"}","expected":"0"}
+{"id":"fr-333","input":"{\"op\":\"multiWork\",\"title\":\"Movie 1080p\"}","expected":"0"}
+{"id":"fr-334","input":"{\"op\":\"multiWork\",\"title\":\"Movie 1080p BluRay\"}","expected":"0"}
+{"id":"fr-335","input":"{\"op\":\"multiWork\",\"title\":\"Movie 1080p Dublado\"}","expected":"0"}
+{"id":"fr-336","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2024 1080p\"}","expected":"0"}
+{"id":"fr-337","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2026 1080p\"}","expected":"0"}
+{"id":"fr-338","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2026 BluRay 1080p\"}","expected":"0"}
+{"id":"fr-339","input":"{\"op\":\"multiWork\",\"title\":\"Movie 2026 WEB-DL 1080p\"}","expected":"0"}
+{"id":"fr-340","input":"{\"op\":\"multiWork\",\"title\":\"Movie WEB-DL 720p\"}","expected":"0"}
+{"id":"fr-341","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2020.TRUEFRENCH.1080p.x264\"}","expected":"0"}
+{"id":"fr-342","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.1080p.BR.Seeds1\"}","expected":"0"}
+{"id":"fr-343","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.1080p.DUBLADO\"}","expected":"0"}
+{"id":"fr-344","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.1080p.Test\"}","expected":"0"}
+{"id":"fr-345","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.2160p.UHD\"}","expected":"0"}
+{"id":"fr-346","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.CAM.1080p.DUBLADO\"}","expected":"0"}
+{"id":"fr-347","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2024.Dual.Audio.Telugu.1080p.BluRay\"}","expected":"0"}
+{"id":"fr-348","input":"{\"op\":\"multiWork\",\"title\":\"Movie.2026.1080p.mkv\"}","expected":"0"}
+{"id":"fr-349","input":"{\"op\":\"multiWork\",\"title\":\"Movie.Title.2024.2160p\"}","expected":"0"}
+{"id":"fr-350","input":"{\"op\":\"multiWork\",\"title\":\"My Name Is Farah S01E01 1080p WEB-DL\"}","expected":"0"}
+{"id":"fr-351","input":"{\"op\":\"multiWork\",\"title\":\"Nao.Tem.Temporada.1080p\"}","expected":"0"}
+{"id":"fr-352","input":"{\"op\":\"multiWork\",\"title\":\"NoDate2.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-353","input":"{\"op\":\"multiWork\",\"title\":\"NoSub.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-354","input":"{\"op\":\"multiWork\",\"title\":\"Nome 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"0"}
+{"id":"fr-355","input":"{\"op\":\"multiWork\",\"title\":\"Nome do Filme 2019 Dual Audio 1080p\"}","expected":"0"}
+{"id":"fr-356","input":"{\"op\":\"multiWork\",\"title\":\"Nome do Filme Dublado 2024 1080p\"}","expected":"0"}
+{"id":"fr-357","input":"{\"op\":\"multiWork\",\"title\":\"O Corvo 1994 1080p BluRay DUAL\"}","expected":"0"}
+{"id":"fr-358","input":"{\"op\":\"multiWork\",\"title\":\"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay\"}","expected":"0"}
+{"id":"fr-359","input":"{\"op\":\"multiWork\",\"title\":\"O.Corvo.1994.Dual.Audio.1080p\"}","expected":"0"}
+{"id":"fr-360","input":"{\"op\":\"multiWork\",\"title\":\"Obra.DUAL.mkv\"}","expected":"0"}
+{"id":"fr-361","input":"{\"op\":\"multiWork\",\"title\":\"ObraB.Seeds.1080p\"}","expected":"0"}
+{"id":"fr-362","input":"{\"op\":\"multiWork\",\"title\":\"Old Movie 1990 1080p BluRay x264\"}","expected":"0"}
+{"id":"fr-363","input":"{\"op\":\"multiWork\",\"title\":\"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0\"}","expected":"0"}
+{"id":"fr-364","input":"{\"op\":\"multiWork\",\"title\":\"OtherDigest.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-365","input":"{\"op\":\"multiWork\",\"title\":\"Outro 720p\"}","expected":"0"}
+{"id":"fr-366","input":"{\"op\":\"multiWork\",\"title\":\"Parasita 2020 1080p BluRay DUBLADO\"}","expected":"0"}
+{"id":"fr-367","input":"{\"op\":\"multiWork\",\"title\":\"Partial Case 1988 DVDrip\"}","expected":"0"}
+{"id":"fr-368","input":"{\"op\":\"multiWork\",\"title\":\"Predador A 1080p DUBLADO\"}","expected":"0"}
+{"id":"fr-369","input":"{\"op\":\"multiWork\",\"title\":\"Probe Movie 2011 1080p LEGENDADO\"}","expected":"0"}
+{"id":"fr-370","input":"{\"op\":\"multiWork\",\"title\":\"Project Hail Mary 2026 1080p WEB.mkv\"}","expected":"0"}
+{"id":"fr-371","input":"{\"op\":\"multiWork\",\"title\":\"Prometheus Dual\"}","expected":"0"}
+{"id":"fr-372","input":"{\"op\":\"multiWork\",\"title\":\"Prot.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-373","input":"{\"op\":\"multiWork\",\"title\":\"Qualquer.Coisa.1080p\"}","expected":"0"}
+{"id":"fr-374","input":"{\"op\":\"multiWork\",\"title\":\"Rare Case 1988 DVDRip\"}","expected":"0"}
+{"id":"fr-375","input":"{\"op\":\"multiWork\",\"title\":\"Reacher 2 Temporada Dual\"}","expected":"0"}
+{"id":"fr-376","input":"{\"op\":\"multiWork\",\"title\":\"Readd.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-377","input":"{\"op\":\"multiWork\",\"title\":\"Release Qualquer 1080p\"}","expected":"0"}
+{"id":"fr-378","input":"{\"op\":\"multiWork\",\"title\":\"S01E01.1080p.DDP5.1.mkv\"}","expected":"0"}
+{"id":"fr-379","input":"{\"op\":\"multiWork\",\"title\":\"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE\"}","expected":"0"}
+{"id":"fr-380","input":"{\"op\":\"multiWork\",\"title\":\"Saga Crepusculo 2008-2012 Dublado\"}","expected":"1"}
+{"id":"fr-381","input":"{\"op\":\"multiWork\",\"title\":\"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST\"}","expected":"0"}
+{"id":"fr-382","input":"{\"op\":\"multiWork\",\"title\":\"Scary Movie Part Two 1080p BluRay\"}","expected":"0"}
+{"id":"fr-383","input":"{\"op\":\"multiWork\",\"title\":\"Serie 1a ate 8a Temporada Completa DUAL\"}","expected":"0"}
+{"id":"fr-384","input":"{\"op\":\"multiWork\",\"title\":\"Serie S01E01 1080p\"}","expected":"0"}
+{"id":"fr-385","input":"{\"op\":\"multiWork\",\"title\":\"Serie S01E02 Dublado\"}","expected":"0"}
+{"id":"fr-386","input":"{\"op\":\"multiWork\",\"title\":\"Serie Sem Hash S02E01 1080p\"}","expected":"0"}
+{"id":"fr-387","input":"{\"op\":\"multiWork\",\"title\":\"Serie T01 E001 e E002 720p\"}","expected":"0"}
+{"id":"fr-388","input":"{\"op\":\"multiWork\",\"title\":\"Serie Teste 1080p\"}","expected":"0"}
+{"id":"fr-389","input":"{\"op\":\"multiWork\",\"title\":\"Serie Teste S01E02 1080p\"}","expected":"0"}
+{"id":"fr-390","input":"{\"op\":\"multiWork\",\"title\":\"Serie Teste S02E05 DUBLADO\"}","expected":"0"}
+{"id":"fr-391","input":"{\"op\":\"multiWork\",\"title\":\"Serie Todas as Temporadas DUAL\"}","expected":"0"}
+{"id":"fr-392","input":"{\"op\":\"multiWork\",\"title\":\"Serie.S01E01.DUAL\"}","expected":"0"}
+{"id":"fr-393","input":"{\"op\":\"multiWork\",\"title\":\"Serie.S04E03.1080p.WEB-DL.DUBLADO\"}","expected":"0"}
+{"id":"fr-394","input":"{\"op\":\"multiWork\",\"title\":\"Shes The Boss S01E01 1080p\"}","expected":"0"}
+{"id":"fr-395","input":"{\"op\":\"multiWork\",\"title\":\"Show S01 1080p EP\"}","expected":"0"}
+{"id":"fr-396","input":"{\"op\":\"multiWork\",\"title\":\"Show S01 Dublado\"}","expected":"0"}
+{"id":"fr-397","input":"{\"op\":\"multiWork\",\"title\":\"Show S01E01 Dual 1080p\"}","expected":"0"}
+{"id":"fr-398","input":"{\"op\":\"multiWork\",\"title\":\"Show S01E05 Dual 1080p\"}","expected":"0"}
+{"id":"fr-399","input":"{\"op\":\"multiWork\",\"title\":\"Show S01E1176-2160p\"}","expected":"0"}
+{"id":"fr-400","input":"{\"op\":\"multiWork\",\"title\":\"Show.3ordm.Temporada.Completa.1080p\"}","expected":"0"}
+{"id":"fr-401","input":"{\"op\":\"multiWork\",\"title\":\"Show.S01E01.1080p.mkv\"}","expected":"0"}
+{"id":"fr-402","input":"{\"op\":\"multiWork\",\"title\":\"Show.S02.1080p\"}","expected":"0"}
+{"id":"fr-403","input":"{\"op\":\"multiWork\",\"title\":\"Show.S02E05.1080p.mkv\"}","expected":"0"}
+{"id":"fr-404","input":"{\"op\":\"multiWork\",\"title\":\"Show.S03.1080p.DTS5.1.mkv\"}","expected":"0"}
+{"id":"fr-405","input":"{\"op\":\"multiWork\",\"title\":\"Some.Global.Dub.1080p\"}","expected":"0"}
+{"id":"fr-406","input":"{\"op\":\"multiWork\",\"title\":\"Some.Swarm.1080p\"}","expected":"0"}
+{"id":"fr-407","input":"{\"op\":\"multiWork\",\"title\":\"Star Wars Todos os filmes 1977-2019 Dublado\"}","expected":"1"}
+{"id":"fr-408","input":"{\"op\":\"multiWork\",\"title\":\"Strict Full 1988 DVDRip\"}","expected":"0"}
+{"id":"fr-409","input":"{\"op\":\"multiWork\",\"title\":\"Swarm.Movie.2019.1080p\"}","expected":"0"}
+{"id":"fr-410","input":"{\"op\":\"multiWork\",\"title\":\"Terrace House Boys S01E01 1080p\"}","expected":"0"}
+{"id":"fr-411","input":"{\"op\":\"multiWork\",\"title\":\"Test Title 2024 1080p EN ONLY\"}","expected":"0"}
+{"id":"fr-412","input":"{\"op\":\"multiWork\",\"title\":\"Test Title 2024 720p DUBLADO\"}","expected":"0"}
+{"id":"fr-413","input":"{\"op\":\"multiWork\",\"title\":\"The Bear S01E01 1080p WEB-DL x264\"}","expected":"0"}
+{"id":"fr-414","input":"{\"op\":\"multiWork\",\"title\":\"The Boys S04 1080p AMZN WEB-DL\"}","expected":"0"}
+{"id":"fr-415","input":"{\"op\":\"multiWork\",\"title\":\"The Locals 2003 720p WEB-DL\"}","expected":"0"}

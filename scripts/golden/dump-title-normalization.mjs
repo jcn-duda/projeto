@@ -264,6 +264,38 @@ const FUNCTIONS = {
       };
     },
   },
+  // franchise-base.ts (guardas) e os helpers de release-name-matching.ts que
+  // elas usam. Entrada JSON com `op`: base, extension, coverage (lista de tokens)
+  // ou multiWork (1/0).
+  'franchise': {
+    id: 'franchise/guards',
+    name: 'franchiseGuards',
+    source: 'src/utils/franchise-base.ts',
+    artifact: 'dist/src/utils/franchise-base.js',
+    corpus: 'scripts/golden/corpus-franchise.json',
+    outJsonl: 'rust/golden/franchise.jsonl',
+    outManifest: 'rust/golden/franchise.manifest.json',
+    resolve: async () => {
+      const fb = await import(pathToFileURL(path.join(REPO, 'dist/src/utils/franchise-base.js')).href);
+      const rnm = await import(pathToFileURL(path.join(REPO, 'dist/src/utils/release-name-matching.js')).href);
+      return (input) => {
+        const c = JSON.parse(input);
+        const bit = (v) => (v ? '1' : '0');
+        switch (c.op) {
+          case 'base':
+            return bit(fb.franchiseBaseContradicts(c.title, c.own ?? null, c.name, c.year));
+          case 'extension':
+            return bit(fb.franchiseExtensionContradicts(c.title, c.own ?? null, c.name, c.allNames, c.year));
+          case 'coverage':
+            return rnm.nameCoverageTokens(c.name).join(' ');
+          case 'multiWork':
+            return bit(rnm.isMultiWorkCollection(c.title));
+          default:
+            throw new Error(`op desconhecida: ${c.op}`);
+        }
+      };
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 
