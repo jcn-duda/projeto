@@ -885,3 +885,6 @@
 {"id":"ep-0885","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":4}","expected":"1"}
 {"id":"ep-0886","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":9}","expected":"1"}
 {"id":"ep-0887","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":12}","expected":"1"}
+{"id":"ep-0888","input":"{\"op\":\"parse\",\"title\":\"ALendadeVoxMachinaS03E10-11-12WEB-DL1080p\"}","expected":"s=3 e=10,11 c=0 p=0"}
+{"id":"ep-0889","input":"{\"op\":\"parse\",\"title\":\"HIDRATORRENTS.ORG.EPISODIOS-04-AO-06-1080P-.MKV.ALendadeVoxMachinaS03E04-05-06WEB-DL1080px\"}","expected":"s=3 e=4,5 c=0 p=0"}
+{"id":"ep-0890","input":"{\"op\":\"parse\",\"title\":\"ShowS01E05-06\"}","expected":"s=1 e=5,6 c=0 p=0"}

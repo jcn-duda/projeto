@@ -12,18 +12,18 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-episode-parse.json",
-    "sha256": "84d8982e479429923ccf6ba7ed4ed651f6280528b3e944e1ccb5962a062f0d88",
-    "cases": 887
+    "sha256": "f000513fe6e55667bb797d97fe4fa9512302cb01d7fbf8ffbb9a20cd8ca8a95b",
+    "cases": 890
   },
   "output": {
     "path": "rust/golden/episode-parse.jsonl",
-    "sha256": "521bf4fcaa446536ef7d63ba221fd6d0114994eedda5cc50f48f7ae2e824688d",
-    "lines": 887
+    "sha256": "e25678fdfc6747d78753abd8639984060959e5d60912281632f298e67bd915c3",
+    "lines": 890
   },
   "node": {
     "major": 22
   },
   "git": {
-    "revision": "7324ff5bef0d8000b99be99a23d341f4c92f3050"
+    "revision": "3a5b19e51395852f64c614cf90f2156c40b8ddc5"
   }
 }

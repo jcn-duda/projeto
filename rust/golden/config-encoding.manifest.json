@@ -69,7 +69,7 @@
   ],
   "corpus": {
     "path": "scripts/golden/corpus-config-encoding.json",
-    "sha256": "d4a0ffe1ad32b37a3ffa654ba57000b9ae9eedcadede919dc5f48f2fb71615c5",
+    "sha256": "7ba01ea0072062e574eb32b91c723fcf8e64ff5841b78e5d182a2df20a31b598",
     "cases": 48
   },
   "output": {

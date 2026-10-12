@@ -12,7 +12,7 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-episode-matching.json",
-    "sha256": "459ada6f2f688a1992d22120c9d7209a346530f189006b15ac37155b4e86e26f",
+    "sha256": "921b7616dff37a3647f5ef4b58efb1bcf08557cdca5d8d3a24743fefe7306789",
     "cases": 40
   },
   "output": {

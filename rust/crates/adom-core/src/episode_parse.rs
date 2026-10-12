@@ -140,10 +140,12 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
         }
     }
 
-    // (2) Intervalo com o segundo número nu no cru: "S03E01-02".
+    // (2) Intervalo com o segundo número nu no cru: "S03E01-02". SEM âncora à
+    // esquerda, como no TS: o "S" colado na palavra ("VoxMachinaS03E10-11") também
+    // conta — medido no banco de magnets, onde a âncora zerava o pack.
     for c in all(
         re!(
-            r"(?<![A-Z0-9])S([0-9]{1,2})[__SP__]?E([0-9]{1,4})[__SP__]*[-–][__SP__]*([0-9]{1,4})(?![0-9P])"
+            r"S([0-9]{1,2})[__SP__]?E([0-9]{1,4})[__SP__]*[-–][__SP__]*([0-9]{1,4})(?![0-9P])"
         ),
         &raw_c,
     ) {
