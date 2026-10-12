@@ -1,0 +1,50 @@
+{"id":"md-001","input":"{\"op\":\"precision\",\"tokens\":[\"deadpool\",\"2\"],\"wanted\":[\"deadpool\",\"2\"]}","expected":"1"}
+{"id":"md-002","input":"{\"op\":\"precision\",\"tokens\":[\"deadpool\",\"2\",\"zumbi\"],\"wanted\":[\"deadpool\",\"2\"]}","expected":"0.5"}
+{"id":"md-003","input":"{\"op\":\"precision\",\"tokens\":[\"deadpool\",\"2\",\"1080p\",\"webrip\"],\"wanted\":[\"deadpool\",\"2\"]}","expected":"1"}
+{"id":"md-004","input":"{\"op\":\"precision\",\"tokens\":[\"colecao\",\"guerra\",\"nas\",\"estrelas\"],\"wanted\":[\"guerra\",\"estrelas\"]}","expected":"0.6666666666666666"}
+{"id":"md-005","input":"{\"op\":\"precision\",\"tokens\":[\"1080p\",\"dublado\",\"legendado\"],\"wanted\":[\"x\"]}","expected":"1"}
+{"id":"md-006","input":"{\"op\":\"precision\",\"tokens\":[\"zumbilandia\",\"2009\",\"derew\"],\"wanted\":[\"zumbilandia\"]}","expected":"1"}
+{"id":"md-007","input":"{\"op\":\"precision\",\"tokens\":[\"zumbilandia\",\"2009\",\"derew\"],\"wanted\":[\"zumbilandia\"],\"cutTail\":false}","expected":"1"}
+{"id":"md-008","input":"{\"op\":\"precision\",\"tokens\":[\"2009\",\"zumbi\"],\"wanted\":[\"zumbi\"]}","expected":"1"}
+{"id":"md-009","input":"{\"op\":\"precision\",\"tokens\":[\"a\",\"filme\"],\"wanted\":[]}","expected":"0"}
+{"id":"md-010","input":"{\"op\":\"precision\",\"tokens\":[\"happy\",\"death\",\"day\",\"2u\"],\"wanted\":[\"happy\",\"death\",\"day\"]}","expected":"0.75"}
+{"id":"md-011","input":"{\"op\":\"year\",\"tokens\":[\"filme\",\"2011\"],\"year\":\"2010\",\"series\":false}","expected":"0"}
+{"id":"md-012","input":"{\"op\":\"year\",\"tokens\":[\"filme\",\"2014\"],\"year\":\"2010\",\"series\":false}","expected":"1"}
+{"id":"md-013","input":"{\"op\":\"year\",\"tokens\":[\"filme\",\"2014\"],\"year\":null,\"series\":false}","expected":"0"}
+{"id":"md-014","input":"{\"op\":\"year\",\"tokens\":[\"filme\",\"1080p\"],\"year\":\"2010\",\"series\":false}","expected":"0"}
+{"id":"md-015","input":"{\"op\":\"year\",\"tokens\":[\"colecao\",\"2002\",\"2016\"],\"year\":2004,\"series\":false}","expected":"0"}
+{"id":"md-016","input":"{\"op\":\"year\",\"tokens\":[\"colecao\",\"2002\",\"2016\"],\"year\":2026,\"series\":false}","expected":"1"}
+{"id":"md-017","input":"{\"op\":\"year\",\"tokens\":[\"colecao\",\"2002\",\"2016\"],\"year\":\"2016\",\"series\":false}","expected":"0"}
+{"id":"md-018","input":"{\"op\":\"year\",\"tokens\":[\"serie\",\"2019\",\"2024\"],\"year\":\"2024\",\"series\":true}","expected":"0"}
+{"id":"md-019","input":"{\"op\":\"year\",\"tokens\":[\"serie\",\"2010\",\"2012\"],\"year\":\"2024\",\"series\":true}","expected":"1"}
+{"id":"md-020","input":"{\"op\":\"year\",\"tokens\":[\"serie\",\"2022\"],\"year\":\"2024\",\"series\":true}","expected":"0"}
+{"id":"md-021","input":"{\"op\":\"year\",\"tokens\":[\"filme\",\"2010\"],\"year\":2010,\"series\":false}","expected":"0"}
+{"id":"md-022","input":"{\"op\":\"sequel\",\"tokens\":[\"resident\",\"evil\",\"apocalypse\",\"2004\"],\"universe\":[\"resident\",\"evil\"],\"catalogYear\":\"2002\"}","expected":"1"}
+{"id":"md-023","input":"{\"op\":\"sequel\",\"tokens\":[\"resident\",\"evil\",\"apocalypse\",\"2002\"],\"universe\":[\"resident\",\"evil\"],\"catalogYear\":\"2002\"}","expected":"0"}
+{"id":"md-024","input":"{\"op\":\"sequel\",\"tokens\":[\"resident\",\"evil\",\"apocalypse\"],\"universe\":[\"resident\",\"evil\"],\"catalogYear\":\"2002\"}","expected":"0"}
+{"id":"md-025","input":"{\"op\":\"sequel\",\"tokens\":[\"resident\",\"evil\",\"2004\"],\"universe\":[\"resident\",\"evil\"],\"catalogYear\":\"2002\"}","expected":"0"}
+{"id":"md-026","input":"{\"op\":\"sequel\",\"tokens\":[\"resident\",\"evil\",\"apocalypse\",\"2004\"],\"universe\":[\"resident\",\"evil\"],\"catalogYear\":null}","expected":"0"}
+{"id":"md-027","input":"{\"op\":\"sequel\",\"tokens\":[\"resident\",\"evil\",\"1080p\",\"2004\"],\"universe\":[\"resident\",\"evil\"],\"catalogYear\":\"2002\"}","expected":"0"}
+{"id":"md-028","input":"{\"op\":\"liveAction\",\"text\":\"One Piece 1999-2023 live action\",\"premiereYear\":\"1999\"}","expected":"0"}
+{"id":"md-029","input":"{\"op\":\"liveAction\",\"text\":\"One Piece Live Action 2023 2026\",\"premiereYear\":\"1999\"}","expected":"1"}
+{"id":"md-030","input":"{\"op\":\"liveAction\",\"text\":\"One Piece Live Action 2000\",\"premiereYear\":\"1999\"}","expected":"0"}
+{"id":"md-031","input":"{\"op\":\"liveAction\",\"text\":\"One Piece 2026\",\"premiereYear\":\"1999\"}","expected":"0"}
+{"id":"md-032","input":"{\"op\":\"liveAction\",\"text\":\"One Piece Live Action 2026\",\"premiereYear\":null}","expected":"0"}
+{"id":"md-033","input":"{\"op\":\"liveAction\",\"text\":\"Live Action 1280x720 2005\",\"premiereYear\":\"1999\"}","expected":"0"}
+{"id":"md-034","input":"{\"op\":\"liveAction\",\"text\":\"Live Action 2026\",\"premiereYear\":\"1999\"}","expected":"1"}
+{"id":"md-035","input":"{\"op\":\"liveAction\",\"text\":\"Live﻿Action 2026\",\"premiereYear\":\"1999\"}","expected":"1"}
+{"id":"md-036","input":"{\"op\":\"liveAction\",\"text\":\"Live Action 120262\",\"premiereYear\":\"1999\"}","expected":"0"}
+{"id":"md-037","input":"{\"op\":\"liveAction\",\"text\":\"live.action 2026\",\"premiereYear\":\"1999\"}","expected":"1"}
+{"id":"md-038","input":"{\"op\":\"liveAction\",\"text\":\"LIVE-ACTION 2026\",\"premiereYear\":\"1999\"}","expected":"1"}
+{"id":"md-039","input":"{\"op\":\"liveAction\",\"text\":\"liveaction2026 2026\",\"premiereYear\":\"1999\"}","expected":"0"}
+{"id":"md-040","input":"{\"op\":\"adaptation\",\"request\":{\"season\":1},\"text\":\"One Piece Live Action 2026\",\"year\":\"1999\"}","expected":"1"}
+{"id":"md-041","input":"{\"op\":\"adaptation\",\"request\":{\"season\":null},\"text\":\"One Piece Live Action 2026\",\"year\":\"1999\"}","expected":"0"}
+{"id":"md-042","input":"{\"op\":\"adaptation\",\"request\":{},\"text\":\"One Piece Live Action 2026\",\"year\":\"1999\"}","expected":"0"}
+{"id":"md-043","input":"{\"op\":\"adaptation\",\"request\":{\"season\":2},\"text\":\"One Piece 2026\",\"year\":\"1999\"}","expected":"0"}
+{"id":"md-044","input":"{\"op\":\"first\",\"tokens\":[\"the\",\"colecao\",\"hulk\"]}","expected":"hulk"}
+{"id":"md-045","input":"{\"op\":\"first\",\"tokens\":[\"of\",\"ab\",\"rocky\"]}","expected":"rocky"}
+{"id":"md-046","input":"{\"op\":\"first\",\"tokens\":[\"the\",\"of\"]}","expected":"the"}
+{"id":"md-047","input":"{\"op\":\"first\",\"tokens\":[]}","expected":"-"}
+{"id":"md-048","input":"{\"op\":\"first\",\"tokens\":[\"s01e02\",\"casa\"]}","expected":"casa"}
+{"id":"md-049","input":"{\"op\":\"first\",\"tokens\":[\"😀😀😀\",\"ab\"]}","expected":"😀😀😀"}
+{"id":"md-050","input":"{\"op\":\"first\",\"tokens\":[\"😀😀\",\"ab\"]}","expected":"😀😀"}

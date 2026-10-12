@@ -156,6 +156,38 @@ const FUNCTIONS = {
       return ranges.join(' ');
     },
   },
+  // Decisões de matching-tokens que pedem mais que texto: cada entrada é um JSON
+  // com `op` (qual função) e os argumentos. A saída é um valor só: número
+  // (precisão), `1`/`0` (booleano) ou o token (`-` para undefined).
+  'matching-tokens-decisions': {
+    id: 'matching-tokens/decisions',
+    name: 'matchingTokensDecisions',
+    source: 'src/utils/matching-tokens.ts',
+    artifact: 'dist/src/utils/matching-tokens.js',
+    corpus: 'scripts/golden/corpus-matching-tokens-decisions.json',
+    outJsonl: 'rust/golden/matching-tokens-decisions.jsonl',
+    outManifest: 'rust/golden/matching-tokens-decisions.manifest.json',
+    resolve: (mod) => (input) => {
+      const c = JSON.parse(input);
+      const bit = (v) => (v ? '1' : '0');
+      switch (c.op) {
+        case 'precision':
+          return String(mod.titlePrecision(c.tokens, c.wanted, { cutTail: c.cutTail !== false }));
+        case 'year':
+          return bit(mod.yearContradicts(c.tokens, c.year, c.series));
+        case 'sequel':
+          return bit(mod.namedSequelContradicts(c.tokens, c.universe, c.catalogYear));
+        case 'liveAction':
+          return bit(mod.liveActionYearContradicts(c.text, c.premiereYear));
+        case 'adaptation':
+          return bit(mod.adaptationIdentityContradicts(c.request, c.text, c.year));
+        case 'first':
+          return mod.firstSignificantToken(c.tokens) ?? '-';
+        default:
+          throw new Error(`op desconhecida: ${c.op}`);
+      }
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 
