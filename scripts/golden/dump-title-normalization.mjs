@@ -189,6 +189,38 @@ const FUNCTIONS = {
       }
     },
   },
+  // short-name-tail.ts: `1`/`0` para shortNameTailContradicts.
+  'short-name-tail': {
+    id: 'short-name-tail/shortNameTailContradicts',
+    name: 'shortNameTailContradicts',
+    source: 'src/utils/short-name-tail.ts',
+    artifact: 'dist/src/utils/short-name-tail.js',
+    corpus: 'scripts/golden/corpus-short-name-tail.json',
+    outJsonl: 'rust/golden/short-name-tail.jsonl',
+    outManifest: 'rust/golden/short-name-tail.manifest.json',
+    resolve: (mod) => (input) => {
+      const c = JSON.parse(input);
+      return mod.shortNameTailContradicts(c.tokens, c.check, new Set(c.universe)) ? '1' : '0';
+    },
+  },
+  // catalog-year.ts: ano em texto (ou `null`) para catalogYearOf (op catalog) e
+  // ano alternativo (ou `null`) para catalogAltYearOf (op alt).
+  'catalog-year': {
+    id: 'catalog-year/catalogYear',
+    name: 'catalogYear',
+    source: 'src/utils/catalog-year.ts',
+    artifact: 'dist/src/utils/catalog-year.js',
+    corpus: 'scripts/golden/corpus-catalog-year.json',
+    outJsonl: 'rust/golden/catalog-year.jsonl',
+    outManifest: 'rust/golden/catalog-year.manifest.json',
+    resolve: (mod) => (input) => {
+      const c = JSON.parse(input);
+      const out = c.op === 'alt'
+        ? mod.catalogAltYearOf(c.meta, c.tmdb)
+        : mod.catalogYearOf(c.meta, c.tmdb);
+      return out === null || out === undefined ? 'null' : String(out);
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 

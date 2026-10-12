@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "catalog-year/catalogYear"
+  ],
+  "function": {
+    "name": "catalogYear",
+    "sourcePath": "src/utils/catalog-year.ts",
+    "sourceSha256": "a957939bc167958d7aa61789234ac9d40a377da64adf421db509a58d1d0fb678",
+    "artifactPath": "dist/src/utils/catalog-year.js",
+    "artifactSha256": "6e9145f9ebbe2e14dfac8893a412f31ec824b06e7d7835c44c6455a5861cf981"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-catalog-year.json",
+    "sha256": "0881e500804475c2da704725bd136c949ba6c6b83505db941c94aab5fc64a5f8",
+    "cases": 14
+  },
+  "output": {
+    "path": "rust/golden/catalog-year.jsonl",
+    "sha256": "4404f1c4a0d80de15a0411ae814b7fe9718440bd70b31a9a7e0c5787c0f1c9df",
+    "lines": 14
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "7898671d12c33c7a848c169afb28dc2ed1fc56ae"
+  }
+}

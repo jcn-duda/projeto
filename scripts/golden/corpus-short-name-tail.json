@@ -1,0 +1,21 @@
+{
+  "version": "corpus-short-name-tail/1",
+  "note": "Caso de short-name-tail.ts (shortNameTailContradicts). Entrada JSON com tokens, check (skip, no-token ou prefix) e universe. Saída 1/0.",
+  "cases": [
+    {"id":"st-001","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"prefix de 1 token, sem ano depois: não corta"},
+    {"id":"st-002","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"prefix de 1 token, palavra estranha antes do ano: corta"},
+    {"id":"st-003","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\",\"hunter\"]}","note":"token estranho pertence ao universo: não corta"},
+    {"id":"st-004","input":"{\"op\":\"shortTail\",\"tokens\":[\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"nome de 1 token ausente da lista: não corta"},
+    {"id":"st-005","input":"{\"op\":\"shortTail\",\"tokens\":[\"resident\",\"evil\",\"apocalypse\",\"2004\"],\"check\":{\"kind\":\"prefix\",\"want\":\"resident\",\"run\":[\"resident\",\"evil\"]},\"universe\":[\"resident\",\"evil\"]}","note":"run com 2 tokens: fora do escopo, não corta"},
+    {"id":"st-006","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"skip\"},\"universe\":[\"monster\"]}","note":"kind skip: não corta"},
+    {"id":"st-007","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"no-token\"},\"universe\":[\"monster\"]}","note":"kind no-token: não corta"},
+    {"id":"st-008","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"pets\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"sem ano no título: não corta"},
+    {"id":"st-009","input":"{\"op\":\"shortTail\",\"tokens\":[\"filme\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"run ausente nos tokens: não corta"},
+    {"id":"st-010","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"1080p\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"ruído entre o nome e a palavra estranha é pulado"},
+    {"id":"st-011","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"42\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"dígitos puros antes do ano não contam como estranhos"},
+    {"id":"st-012","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"of\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"palavra curta (2 letras) antes do ano não conta"},
+    {"id":"st-013","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"光環\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"título em outro script antes do ano não conta"},
+    {"id":"st-014","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"monster\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","note":"nome repetido no título: avança até a primeira ocorrência"},
+    {"id":"st-015","input":"{\"op\":\"shortTail\",\"tokens\":[\"x\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"x\",\"run\":[\"x\"]},\"universe\":[]}","note":"palavra do nome ausente com ano logo depois"}
+  ]
+}
