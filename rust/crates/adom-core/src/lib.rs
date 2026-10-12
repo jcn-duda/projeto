@@ -8,6 +8,7 @@ mod bytes_to_size;
 mod cache_keys;
 mod cache_quotas;
 mod catalog_year;
+mod collapse_acronyms;
 pub mod config_encoding;
 mod decode_entities;
 mod dk_seal;
@@ -119,6 +120,7 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 pub use title_normalization::normalize_title;
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
+pub use collapse_acronyms::collapse_acronyms;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///

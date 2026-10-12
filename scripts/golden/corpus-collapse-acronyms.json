@@ -1,0 +1,25 @@
+{
+  "version": "corpus-collapse-acronyms/1",
+  "note": "Casos de collapseAcronyms (title-normalization.ts). Entrada: {\"text\":\"...\"}. Saída: a string crua do Node, sem baixar a caixa.",
+  "cases": [
+    {"id":"ca-001","input":"{\"text\":\"G.O.R.A.\"}","note":"sigla medida: G.O.R.A. vira uma palavra"},
+    {"id":"ca-002","input":"{\"text\":\"S.W.A.T.\"}","note":"sigla com ponto final"},
+    {"id":"ca-003","input":"{\"text\":\"M.A.S.H\"}","note":"sigla sem ponto na última letra"},
+    {"id":"ca-004","input":"{\"text\":\"H.264\"}","note":"uma letra-ponto seguida de dígito não é sigla"},
+    {"id":"ca-005","input":"{\"text\":\"Once.Upon.a.Time\"}","note":"palavras separadas por ponto não são sigla"},
+    {"id":"ca-006","input":"{\"text\":\"V.for\"}","note":"uma só letra-ponto não é sigla"},
+    {"id":"ca-007","input":"{\"text\":\"U.S.Marshals\"}","note":"espaço entre a sigla e a palavra colada"},
+    {"id":"ca-008","input":"{\"text\":\"\"}","note":"vazio"},
+    {"id":"ca-009","input":"{\"text\":\"A.B\"}","note":"um par letra-ponto não colapsa"},
+    {"id":"ca-010","input":"{\"text\":\"A.B.C.\"}","note":"três pares letra-ponto"},
+    {"id":"ca-011","input":"{\"text\":\"s.w.a.t.\"}","note":"sigla minúscula, sem baixar a caixa de novo"},
+    {"id":"ca-012","input":"{\"text\":\"o filme S.W.A.T. dublado\"}","note":"sigla no meio da frase"},
+    {"id":"ca-013","input":"{\"text\":\"G.O.R.A. 2004\"}","note":"consulta medida: a sigla sai e o ano fica"},
+    {"id":"ca-014","input":"{\"text\":\"A.B.\"}","note":"limiar de dois pares letra-ponto"},
+    {"id":"ca-015","input":"{\"text\":\"S.W.A.T.2\"}","note":"dígito colado ganha espaço"},
+    {"id":"ca-016","input":"{\"text\":\"U.S.\\uD835\\uDC00X\"}","note":"letra astral depois da sigla: charAt vê o surrogate e não insere espaço"},
+    {"id":"ca-017","input":"{\"text\":\"U.S. Marshals\"}","note":"espaço já presente não é duplicado"},
+    {"id":"ca-018","input":"{\"text\":\"(S.W.A.T.)\"}","note":"pontuação em volta da sigla"},
+    {"id":"ca-019","input":"{\"text\":\"G.O.R.A. e S.W.A.T.\"}","note":"duas siglas na mesma frase"}
+  ]
+}
