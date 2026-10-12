@@ -1,0 +1,63 @@
+{"id":"rt-001","input":"{\"op\":\"shortName\",\"name\":\"Fallout\"}","expected":"prefix|fallout|fallout"}
+{"id":"rt-002","input":"{\"op\":\"shortName\",\"name\":\"The Boys\"}","expected":"prefix|boys|boys"}
+{"id":"rt-003","input":"{\"op\":\"shortName\",\"name\":\"Attack on Titan\"}","expected":"prefix|attack|attack titan"}
+{"id":"rt-004","input":"{\"op\":\"shortName\",\"name\":\"Resident Evil Vendetta\"}","expected":"skip"}
+{"id":"rt-005","input":"{\"op\":\"shortName\",\"name\":\"Blade Runner 2049\"}","expected":"skip"}
+{"id":"rt-006","input":"{\"op\":\"shortName\",\"name\":\"It\"}","expected":"no-token"}
+{"id":"rt-007","input":"{\"op\":\"shortName\",\"name\":\"Up\"}","expected":"no-token"}
+{"id":"rt-008","input":"{\"op\":\"shortName\",\"name\":\"\"}","expected":"skip"}
+{"id":"rt-009","input":"{\"op\":\"shortName\",\"name\":\"光環\"}","expected":"no-token"}
+{"id":"rt-010","input":"{\"op\":\"shortName\",\"name\":\"Poção\"}","expected":"prefix|pocao|pocao"}
+{"id":"rt-011","input":"{\"op\":\"shortName\",\"name\":\"Monster Hunter\"}","expected":"prefix|monster|monster hunter"}
+{"id":"rt-012","input":"{\"op\":\"shortName\",\"name\":\"Scary Movie\"}","expected":"prefix|scary|scary movie"}
+{"id":"rt-013","input":"{\"op\":\"identity\",\"title\":\"Fallout S01E01 1080p\",\"name\":\"Fallout\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-014","input":"{\"op\":\"identity\",\"title\":\"Random Post 1080p\",\"name\":\"Halo\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-015","input":"{\"op\":\"identity\",\"title\":\"Post qualquer 1080p\",\"name\":\"Halo\",\"own\":null,\"dn\":\"Halo S01E01 1080p\"}","expected":"1"}
+{"id":"rt-016","input":"{\"op\":\"identity\",\"title\":\"Post qualquer 1080p\",\"name\":\"Halo\",\"own\":null,\"dn\":\"Outro Titulo 1080p\"}","expected":"0"}
+{"id":"rt-017","input":"{\"op\":\"identity\",\"title\":\"[ReQ]True Detective s01e01 hdtv x264\",\"name\":\"True Detective\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-018","input":"{\"op\":\"identity\",\"title\":\"www.UIndex.org - The Boys S05E01\",\"name\":\"The Boys\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-019","input":"{\"op\":\"identity\",\"title\":\"The Hardy Boys S01 1080p\",\"name\":\"The Boys\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-020","input":"{\"op\":\"identity\",\"title\":\"Shingeki no Kyojin - Attack on Titan S04\",\"name\":\"Attack on Titan\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-021","input":"{\"op\":\"identity\",\"title\":\"Fear the Walking Dead S04E01\",\"name\":\"The Walking Dead\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-022","input":"{\"op\":\"identity\",\"title\":\"Detective Conan - The Boys S01\",\"name\":\"The Boys\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-023","input":"{\"op\":\"identity\",\"title\":\"Marvel's Daredevil S01E01\",\"name\":\"Daredevil\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-024","input":"{\"op\":\"identity\",\"title\":\"Noah Hawley’s Fargo S01\",\"name\":\"Fargo\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-025","input":"{\"op\":\"identity\",\"title\":\"Marvels.Daredevil S01E01\",\"name\":\"Daredevil\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-026","input":"{\"op\":\"identity\",\"title\":\"Walter Boys 1080p\",\"name\":\"Boys\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-027","input":"{\"op\":\"identity\",\"title\":\"Hawley's Fargos\",\"name\":\"Fargo\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-028","input":"{\"op\":\"identity\",\"title\":\"Qualquer Coisa 1080p\",\"name\":\"It\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-029","input":"{\"op\":\"identity\",\"title\":\"Outra Obra 1080p\",\"name\":\"Resident Evil Vendetta\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-030","input":"{\"op\":\"identity\",\"title\":\"光環 Halo S01E01\",\"name\":\"Halo\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-031","input":"{\"op\":\"identity\",\"title\":\"Random 1080p\",\"name\":\"Halo\",\"own\":[\"halo\",\"s01e01\"],\"dn\":\"\"}","expected":"1"}
+{"id":"rt-032","input":"{\"op\":\"identity\",\"title\":\"Random 1080p\",\"name\":\"Halo\",\"own\":[],\"dn\":\"\"}","expected":"1"}
+{"id":"rt-033","input":"{\"op\":\"identity\",\"title\":\"[ReQ] Random 1080p\",\"name\":\"Halo\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-034","input":"{\"op\":\"identity\",\"title\":\"Game of Thrones: Attack on Titan\",\"name\":\"Attack on Titan\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-035","input":"{\"op\":\"identity\",\"title\":\"Trailer Park Boys 2026\",\"name\":\"The Boys\",\"own\":null,\"dn\":\"\"}","expected":"0"}
+{"id":"rt-036","input":"{\"op\":\"identity\",\"title\":\"Random 1080p\",\"name\":\"Halo\",\"own\":null,\"dn\":\"[TGx] Halo S01E01\"}","expected":"1"}
+{"id":"rt-037","input":"{\"op\":\"structure\",\"title\":\"Scary Movie 2000 1080p\",\"name\":\"Scary Movie\",\"year\":\"2000\",\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-038","input":"{\"op\":\"structure\",\"title\":\"Scary Movie 2 (2001) 1080p\",\"name\":\"Scary Movie\",\"year\":\"2000\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-039","input":"{\"op\":\"structure\",\"title\":\"A Morte Te Dá Parabéns (2017) 1080p\",\"name\":\"A Morte Te Dá Parabéns 2\",\"year\":\"2017\",\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-040","input":"{\"op\":\"structure\",\"title\":\"A Morte Te Dá Parabéns (2017) 1080p\",\"name\":\"A Morte Te Dá Parabéns 2\",\"year\":\"2019\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-041","input":"{\"op\":\"structure\",\"title\":\"Morte 1080p\",\"name\":\"Morte 2\",\"year\":\"2017\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-042","input":"{\"op\":\"structure\",\"title\":\"Morte (2017) 1080p\",\"name\":\"Morte 2\",\"year\":null,\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-043","input":"{\"op\":\"structure\",\"title\":\"Trilogia Matrix 1080p\",\"name\":\"Matrix 2\",\"year\":\"2003\",\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-044","input":"{\"op\":\"structure\",\"title\":\"Monster Hunter 2021\",\"name\":\"Hunter\",\"year\":\"2021\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-045","input":"{\"op\":\"structure\",\"title\":\"Scary Movie\",\"name\":\"\",\"year\":\"2000\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-046","input":"{\"op\":\"structure\",\"title\":\"Scary Movie\",\"name\":\"!!\",\"year\":\"2000\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-047","input":"{\"op\":\"structure\",\"title\":\"Scary Movie\",\"name\":\"Scary Movie\",\"year\":\"2000\",\"isSeries\":false,\"own\":[]}","expected":"0"}
+{"id":"rt-048","input":"{\"op\":\"structure\",\"title\":\"x\",\"name\":\"Scary Movie\",\"year\":\"2000\",\"isSeries\":false,\"own\":[\"scary\",\"movie\",\"2000\"]}","expected":"1"}
+{"id":"rt-049","input":"{\"op\":\"structure\",\"title\":\"Monster Hunter\",\"name\":\"Monster Hunter\",\"year\":null,\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-050","input":"{\"op\":\"structure\",\"title\":\"Monster Hunter 2021 1080p\",\"name\":\"Monster Hunter\",\"year\":\"2020\",\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-051","input":"{\"op\":\"structure\",\"title\":\"Resident Evil (2002) 1080p BrRip\",\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-052","input":"{\"op\":\"structure\",\"title\":\"Resident Evil Apocalypse (2002)\",\"name\":\"Resident Evil: Apocalypse\",\"year\":\"2004\",\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-053","input":"{\"op\":\"structure\",\"title\":\"Fallout S01E01 1080p\",\"name\":\"Fallout\",\"year\":\"2024\",\"isSeries\":true,\"own\":null}","expected":"1"}
+{"id":"rt-054","input":"{\"op\":\"structure\",\"title\":\"Fallout (2010) S01E01\",\"name\":\"Fallout\",\"year\":\"2024\",\"isSeries\":true,\"own\":null}","expected":"0"}
+{"id":"rt-055","input":"{\"op\":\"structure\",\"title\":\"Scary Movie 2 S01E01\",\"name\":\"Scary Movie\",\"year\":\"2000\",\"isSeries\":true,\"own\":null}","expected":"1"}
+{"id":"rt-056","input":"{\"op\":\"structure\",\"title\":\"Fallout 2 S01E01\",\"name\":\"Fallout\",\"year\":\"2024\",\"isSeries\":true,\"own\":null}","expected":"1"}
+{"id":"rt-057","input":"{\"op\":\"structure\",\"title\":\"Demon Slayer Infinity Castle 2025\",\"name\":\"Demon Slayer\",\"year\":\"2019\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-058","input":"{\"op\":\"structure\",\"title\":\"Outro Filme 2020\",\"name\":\"Scary Movie\",\"year\":\"2020\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-059","input":"{\"op\":\"structure\",\"title\":\"s.w.a.t. 2017\",\"name\":\"S.W.A.T.\",\"year\":\"2017\",\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-060","input":"{\"op\":\"identity\",\"title\":\"Attack on Titan Final Season 1080p\",\"name\":\"Attack on Titan\",\"own\":null,\"dn\":\"\"}","expected":"1"}
+{"id":"rt-061","input":"{\"op\":\"structure\",\"title\":\"Scary Movie 3 (2003) 1080p\",\"name\":\"Scary Movie\",\"year\":\"2000\",\"isSeries\":false,\"own\":null}","expected":"0"}
+{"id":"rt-062","input":"{\"op\":\"structure\",\"title\":\"Monster Hunter (2020) 1080p\",\"name\":\"Monster Hunter\",\"year\":\"2021\",\"isSeries\":false,\"own\":null}","expected":"1"}
+{"id":"rt-063","input":"{\"op\":\"identity\",\"title\":\"POÇÃO do avô 1080p\",\"name\":\"Poção\",\"own\":null,\"dn\":\"\"}","expected":"1"}
