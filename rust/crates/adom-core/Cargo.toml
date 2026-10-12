@@ -3,11 +3,19 @@ name = "adom-core"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "Núcleo Rust do Adom (fatia F0): consumo/integridade do golden, sem porte de matching."
+description = "Núcleo Rust do Adom (fatias F0/F1): integridade do golden + porte de normalizeTitle."
 license = "UNLICENSED"
 
-# Nenhuma dependência de runtime: nenhuma API de matching é inventada aqui.
+# Deps de runtime: só o que o porte de `normalizeTitle` (F1) precisa, com as
+# tabelas Unicode 17.0.0 do oráculo Node. Versões pinadas EXATAS de propósito:
+# são os dados que garantem a paridade, não detalhe de build.
 [dependencies]
+# General_Category exato (\p{L}/\p{N}/\p{M}) — Unicode 17.0.0, sem deps.
+# Substitui o `regex`: as releases publicadas dele (1.13.1 / regex-syntax 0.8.11)
+# param no Unicode 16.0.0 e leem letras novas (U+1E6C0, U+10940) como não-letras.
+unicode-properties = "=0.1.4"
+# Decomposição NFD (o JS usa String.normalize('NFD')) — Unicode 17.0.0.
+unicode-normalization = "=0.1.25"
 
 [dev-dependencies]
 # Só para os testes de integridade do golden (nunca entram no runtime):

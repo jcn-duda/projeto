@@ -192,3 +192,26 @@ fn parser_rejeita_entradas_invalidas() {
     assert!(parse_case(wrong_type).is_err());
     assert!(parse_case(valid).is_ok());
 }
+
+/// F1: paridade comportamental do porte Rust, caso a caso, contra o `expected`
+/// COMMITADO no golden — nunca `input == expected`. Cada falha carrega a
+/// entrada no diagnóstico. Reusa o parser/`parse_all_cases` dos testes de
+/// integridade: sem runner nem corpus paralelos.
+#[test]
+fn normalize_title_bate_com_os_23_goldens() {
+    let cases = parse_all_cases();
+    assert_eq!(cases.len(), 23, "a fatia F1 cobre exatamente os 23 goldens");
+    assert_eq!(
+        cases.len(),
+        manifest().output.lines,
+        "contagem de casos diverge do manifest"
+    );
+    for case in &cases {
+        let obtido = adom_core::normalize_title(&case.input);
+        assert_eq!(
+            obtido, case.expected,
+            "caso {} divergiu do golden\nentrada:  {:?}\nesperado: {:?}\nobtido:   {:?}",
+            case.id, case.input, case.expected, obtido
+        );
+    }
+}

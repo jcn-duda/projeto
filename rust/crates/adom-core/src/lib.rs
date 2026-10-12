@@ -1,9 +1,13 @@
-//! Núcleo Rust do Adom — fatia F0 da migração TS→Rust.
+//! Núcleo Rust do Adom — fatias F0/F1 da migração TS→Rust.
 //!
-//! Esta fatia NÃO porta `normalizeTitle` nem expõe API de matching: existe só
-//! para ancorar o golden em `rust/golden/` e os testes de integridade em
-//! `tests/golden_corpus.rs`. O crate fica SEM dependências (nem de runtime); o
-//! parse do JSONL/manifest é feito no próprio teste, que é o consumidor.
+//! F0 ancorou o golden em `rust/golden/` e os testes de integridade em
+//! `tests/golden_corpus.rs`. F1 porta SÓ o comportamento string→string de
+//! `normalizeTitle` (módulo `title_normalization`), sem matching nem providers.
+//! O parse do JSONL/manifest continua no próprio teste, que é o consumidor.
+
+mod title_normalization;
+
+pub use title_normalization::normalize_title;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///
