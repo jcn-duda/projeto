@@ -23,6 +23,8 @@ export const server = () => ({
     path: process.env.RUST_CORE_PATH || '',
     // Teto de divergências logadas por processo (o contador do /metrics segue).
     maxLoggedDiffs: num(process.env.RUST_CORE_MAX_LOGGED_DIFFS, 20),
+    // Teto de releases por busca no shadow em lote (`rust-shadow.ts`).
+    shadowMaxPerSearch: num(process.env.RUST_CORE_SHADOW_MAX, 300),
   },
 });
 

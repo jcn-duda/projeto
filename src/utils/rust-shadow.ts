@@ -1,0 +1,192 @@
+/**
+ * Shadow em lote do núcleo Rust (`evaluateReleases`, `rust/crates/adom-napi`).
+ *
+ * Por busca, o TS calcula o veredito de cada release bruta e o Rust calcula o
+ * mesmo em UMA chamada napi. Divergências viram métrica (`rust.batch.*`) e log.
+ * Nunca responde nada: a resposta é sempre a do TS.
+ *
+ * Roda com `setImmediate`, fora do caminho da resposta. Em `RUST_CORE=off`, ou
+ * sem o núcleo carregado, é no-op. Em `on` também roda: é a mesma comparação, a
+ * custo de uma chamada extra por busca.
+ */
+import config from '../config.js';
+import type { RawItem } from '../../types/domain.js';
+import * as log from './logger.js';
+import * as metrics from './metrics.js';
+import { getCore, getMode } from './rust-core.js';
+import type { BatchCore } from './rust-core.js';
+import { extractInfoHash, magnetDisplayName, normalizeTitleTs } from './title-normalization.js';
+import { hasPtSigns, brOriginMark } from './br-origin.js';
+import { parseTitleSeasonEpisode } from './episode-matching.js';
+import { matchesBrTitle as matchesBrTitleRule } from './release-title-rules.js';
+import { isSafeDownloadUrl } from './net-safety.js';
+
+/** Entrada de um release bruta; "" = ausente (mesmo contrato do napi). */
+export interface ReleaseProbe {
+  title: string;
+  magnet: string;
+  link: string;
+  name: string;
+  year: string;
+  isSeries: boolean;
+  allNames: string[];
+  cutTail: boolean;
+}
+
+/** Veredito por release. O TS e o Rust têm que produzir exatamente o mesmo. */
+export interface ReleaseVerdict {
+  normalized: string;
+  hasPtSigns: boolean;
+  brOriginMark: boolean;
+  infoHash: string | null;
+  displayName: string;
+  seasons: number[];
+  episodes: number[];
+  complete: boolean;
+  seasonPack: boolean;
+  matchesBrTitle: boolean;
+  safeLink: boolean;
+}
+
+export interface ShadowDiff {
+  field: string;
+  index: number;
+  title: string;
+  ts: unknown;
+  rust: unknown;
+}
+
+export interface ShadowContext {
+  names: string[];
+  year: string | number | null | undefined;
+  isSeries: boolean;
+}
+
+const FIELDS: ReadonlyArray<keyof ReleaseVerdict> = [
+  'normalized', 'hasPtSigns', 'brOriginMark', 'infoHash', 'displayName', 'seasons',
+  'episodes', 'complete', 'seasonPack', 'matchesBrTitle', 'safeLink',
+];
+
+let warnedNoEvaluate = false;
+let loggedBatchDiffs = 0;
+
+/** Converte os itens brutos em probes, até `max`. Só lê campos: não altera nada. */
+export function buildProbes(items: RawItem[], ctx: ShadowContext, max: number): ReleaseProbe[] {
+  const name = ctx.names[0] || '';
+  const year = ctx.year == null ? '' : String(ctx.year);
+  const cutTail = config.search?.titlePrecisionTailCut !== false;
+  const out: ReleaseProbe[] = [];
+  for (const item of items) {
+    if (out.length >= max) break;
+    const guid = item.Guid || '';
+    out.push({
+      title: item.title || item.Title || '',
+      magnet: item.magnet || item.MagnetUri || '',
+      link: guid && /^https?:/i.test(guid) ? guid : '',
+      name,
+      year,
+      isSeries: ctx.isSeries,
+      allNames: ctx.names,
+      cutTail,
+    });
+  }
+  return out;
+}
+
+/** Veredito calculado pelo TS puro (sem o gancho Rust de normalizeTitle). */
+export function tsVerdict(p: ReleaseProbe): ReleaseVerdict {
+  const parsed = parseTitleSeasonEpisode(p.title);
+  return {
+    normalized: normalizeTitleTs(p.title),
+    hasPtSigns: hasPtSigns(p.title),
+    brOriginMark: brOriginMark(p.title),
+    infoHash: extractInfoHash(p.magnet) ?? null,
+    displayName: magnetDisplayName({ magnet: p.magnet }),
+    seasons: [...parsed.seasons],
+    episodes: [...parsed.episodes],
+    complete: parsed.complete,
+    seasonPack: parsed.seasonPack,
+    matchesBrTitle: p.name
+      ? matchesBrTitleRule(p.title, p.name, p.year || null, {
+        isSeries: p.isSeries,
+        allNames: p.allNames.length ? p.allNames : null,
+      })
+      : false,
+    safeLink: p.link ? isSafeDownloadUrl(p.link) : false,
+  };
+}
+
+/** Compara campo a campo (JSON.stringify). Tamanhos diferentes viram `__length__`. */
+export function compareBatch(
+  probes: ReleaseProbe[],
+  ts: ReleaseVerdict[],
+  rust: ReleaseVerdict[],
+): ShadowDiff[] {
+  const diffs: ShadowDiff[] = [];
+  if (ts.length !== rust.length) {
+    diffs.push({ field: '__length__', index: -1, title: '', ts: ts.length, rust: rust.length });
+  }
+  const n = Math.min(ts.length, rust.length);
+  for (let i = 0; i < n; i += 1) {
+    for (const field of FIELDS) {
+      // `?? null`: o napi entrega Option::None como campo AUSENTE (undefined), o
+      // TS como null — mesma ausência, não divergência (infoHash sem magnet).
+      const a = JSON.stringify(ts[i][field] ?? null);
+      const b = JSON.stringify(rust[i]?.[field] ?? null);
+      if (a !== b) diffs.push({ field, index: i, title: probes[i]?.title ?? '', ts: ts[i][field], rust: rust[i]?.[field] });
+    }
+  }
+  return diffs;
+}
+
+function logDiff(d: ShadowDiff) {
+  if (loggedBatchDiffs >= config.rustCore.maxLoggedDiffs) return;
+  loggedBatchDiffs += 1;
+  log.warn(
+    `[rust] lote divergiu: campo=${d.field} indice=${d.index} titulo=${JSON.stringify(d.title)} ts=${JSON.stringify(d.ts)} rust=${JSON.stringify(d.rust)}`,
+  );
+}
+
+function runBatch(core: BatchCore, items: RawItem[], ctx: ShadowContext) {
+  try {
+    const probes = buildProbes(items, ctx, config.rustCore.shadowMaxPerSearch);
+    if (!probes.length) return;
+    const ts = probes.map(tsVerdict);
+    metrics.count('rust.batch.calls');
+    metrics.count('rust.batch.items', probes.length);
+    const rust = core.evaluateReleases(probes);
+    if (!Array.isArray(rust)) throw new Error('evaluateReleases não devolveu lista');
+    const diffs = compareBatch(probes, ts, rust);
+    if (diffs.length) metrics.count('rust.batch.diff', diffs.length);
+    for (const d of diffs) logDiff(d);
+  } catch (err) {
+    metrics.count('rust.batch.error');
+    log.debug('[rust] shadow em lote lançou:', log.errorMessage(err));
+  }
+}
+
+/**
+ * Agenda o shadow em lote da busca. Copia as referências já aqui (o pipeline
+ * pode mexer nos itens depois), mas monta probes e chama o Rust só depois.
+ */
+export function observe(items: RawItem[], ctx: ShadowContext): void {
+  try {
+    if (getMode() === 'off') return;
+    const core = getCore();
+    if (!core) return;
+    if (typeof core.evaluateReleases !== 'function') {
+      if (!warnedNoEvaluate) {
+        warnedNoEvaluate = true;
+        log.info('[rust] núcleo sem evaluateReleases (binário antigo); shadow em lote desligado');
+      }
+      return;
+    }
+    const batch = items.slice();
+    const snapshot: ShadowContext = { names: ctx.names.slice(), year: ctx.year, isSeries: ctx.isSeries };
+    const bound: BatchCore = { evaluateReleases: core.evaluateReleases.bind(core) };
+    setImmediate(() => runBatch(bound, batch, snapshot));
+  } catch (err) {
+    metrics.count('rust.batch.error');
+    log.debug('[rust] shadow em lote não agendou:', log.errorMessage(err));
+  }
+}

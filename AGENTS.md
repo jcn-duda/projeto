@@ -40,8 +40,11 @@ trabalho de código é em `src/`.
   `npm run build` NÃO o gera e limpa `dist/`. `RUST_CORE=off|shadow|on`
   (default off) liga via `src/utils/rust-core.ts`, só no boot do processo
   (gancho `installNormalizeTitle`; testes e oráculos de golden medem o TS puro).
-  Hoje cobre só `normalizeTitle`. Por chamada o napi é ~2× mais lento que o TS
-  (travessia de string): ganho de velocidade só com API em lote. Mudou
+  Cobre `normalizeTitle` e o **shadow em lote** por busca (`src/utils/rust-shadow.ts`:
+  `evaluateReleases` roda com `setImmediate`, até `RUST_CORE_SHADOW_MAX` releases; a
+  divergência vai para `rust.batch.*` no `/metrics.json`; a resposta segue TS).
+  Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
+  velocidade só existe com API em lote. Mudou
   `title-normalization.ts`? regenere o golden (`dump-title-normalization.mjs
   --force`). Código Rust quebrado no working tree quebra a imagem.
 - Os oito `*-resolver` são **profiles importados no processo do addon**

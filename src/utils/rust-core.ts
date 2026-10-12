@@ -17,8 +17,11 @@ import config from '../config.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
 import { installNormalizeTitle } from './title-normalization.js';
+import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
 
-type NapiCore = { normalizeTitle(title: string): string };
+/** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
+export type BatchCore = { evaluateReleases(probes: ReleaseProbe[]): ReleaseVerdict[] };
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore>;
 
 const _require = createRequire(import.meta.url);
 
@@ -26,6 +29,17 @@ const _require = createRequire(import.meta.url);
 const DEFAULT_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../rust/adom_napi.node');
 
 let loggedDiffs = 0;
+// Núcleo carregado no boot: fica disponível para o shadow em lote (`rust-shadow.ts`).
+let loadedCore: NapiCore | null = null;
+
+/** Núcleo carregado no boot; null com RUST_CORE=off ou se não carregou. */
+function getCore(): NapiCore | null {
+  return loadedCore;
+}
+
+function getMode(): 'off' | 'shadow' | 'on' {
+  return config.rustCore.mode;
+}
 
 function load(file: string): NapiCore | null {
   try {
@@ -51,6 +65,7 @@ function install() {
   const file = config.rustCore.path || DEFAULT_PATH;
   const core = load(file);
   if (!core) return;
+  loadedCore = core;
 
   if (mode === 'shadow') {
     installNormalizeTitle((input, ts) => {
@@ -80,4 +95,4 @@ function install() {
   log.info(`[rust] núcleo carregado (${file}); normalizeTitle em modo ${mode}`);
 }
 
-export { install };
+export { install, getCore, getMode };

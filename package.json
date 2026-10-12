@@ -39,6 +39,14 @@
     "golden:stream-relabel:check": "node scripts/golden/dump-stream-relabel.mjs --check",
     "golden:stream-trace": "node scripts/golden/dump-stream-trace.mjs",
     "golden:stream-trace:check": "node scripts/golden/dump-stream-trace.mjs --check",
+    "golden:inventory-filter": "node scripts/golden/dump-inventory-filter.mjs",
+    "golden:inventory-filter:check": "node scripts/golden/dump-inventory-filter.mjs --check",
+    "golden:stream-quotas-candidate": "node scripts/golden/dump-stream-quotas-candidate.mjs",
+    "golden:stream-quotas-candidate:check": "node scripts/golden/dump-stream-quotas-candidate.mjs --check",
+    "golden:release-index-media": "node scripts/golden/dump-release-index-media.mjs",
+    "golden:release-index-media:check": "node scripts/golden/dump-release-index-media.mjs --check",
+    "golden:release-filters": "node scripts/golden/dump-release-filters.mjs",
+    "golden:release-filters:check": "node scripts/golden/dump-release-filters.mjs --check",
     "bench:local": "node scripts/bench/local-baseline.mjs",
     "smoke": "node dist/scripts/smoke.js",
     "probe:crawl-identify": "node dist/scripts/crawl-identify-probe.js",
@@ -507,6 +515,7 @@
     "test/hdr-budget-cam-label.test.js",
     "test/cam-label-indexonly.test.js",
     "test/idx-media-source.test.js",
-    "test/stream-builder-idx-episode.test.js"
+    "test/stream-builder-idx-episode.test.js",
+    "test/rust-shadow.test.js"
   ]
 }
