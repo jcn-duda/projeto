@@ -11,6 +11,7 @@ mod br_pool_selection;
 mod bytes_to_size;
 mod cache_keys;
 mod cache_quotas;
+mod catalog_classify;
 mod catalog_year;
 mod collapse_acronyms;
 pub mod config_encoding;
@@ -154,6 +155,7 @@ pub use audio_lang::{
 };
 pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_blob};
 pub use bytes_to_size::bytes_to_size;
+pub use catalog_classify::{classify_by_title, classify_with_evidence, foreign_proof_label, Proof};
 pub use collapse_acronyms::collapse_acronyms;
 pub use crawl_url_key::crawl_url_key;
 pub use decode_entities::decode_entities;
