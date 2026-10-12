@@ -27,6 +27,7 @@ mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
 mod multiwork_pack;
+mod non_feature_release;
 mod release_name_matching;
 mod release_title_rules;
 mod release_work;
@@ -123,6 +124,7 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 // ── title_normalization ──────────────────────────────────────────────
 pub use title_normalization::normalize_title;
 pub use reply_budget::remaining_check_budget;
+pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;

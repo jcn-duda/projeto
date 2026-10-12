@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "non-feature-release/nonFeature"
+  ],
+  "function": {
+    "name": "nonFeature",
+    "sourcePath": "src/utils/non-feature-release.ts",
+    "sourceSha256": "1f1e98d9a9d61d23719ff68ef9ee7cbe4404e064201bece1200f3d0d12e60fee",
+    "artifactPath": "dist/src/utils/non-feature-release.js",
+    "artifactSha256": "7aacac0435bf77a664cc8f6fc28ec061bf381fb0715297a9dda2dc3f771d2a6b"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-non-feature-release.json",
+    "sha256": "5ef369949b0b980e2bcfdd2da34653d6e43b5e649bb272f516991b8f94107eab",
+    "cases": 40
+  },
+  "output": {
+    "path": "rust/golden/non-feature-release.jsonl",
+    "sha256": "3935c4acd8ddcf9c1fc1ab37b0e466ca2b6f02f13fd052a57fa2b68004665fca",
+    "lines": 40
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "5bad2df84bd169a83b9600bc0007a6c39029288d"
+  }
+}
