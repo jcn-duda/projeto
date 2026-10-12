@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "cache-quotas/policy"
+  ],
+  "function": {
+    "name": "quotaFor",
+    "sourcePath": "src/utils/cache-quotas.ts",
+    "sourceSha256": "1918a820cf615f78790d073169cf12cf4b3d1c5d9eadca51a420d8f66b18c7b8",
+    "artifactPath": "dist/src/utils/cache-quotas.js",
+    "artifactSha256": "fcbbee2fc06925abf0a8e906bdbfe435eece6fbfae9c0e8fbba599f21e53876d"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-cache-quotas.json",
+    "sha256": "a38499800b816e41ac3bf2728af2bcf3ea6bead22cda5efaa5eb330347b5a8f4",
+    "cases": 128
+  },
+  "output": {
+    "path": "rust/golden/cache-quotas.jsonl",
+    "sha256": "0989b43b019434101bc864b173124477fd9c2aae72d7e81e437a89192e44fb50",
+    "lines": 128
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "d8505b2be60288a0d6e31d976b3bb062b3763402"
+  }
+}
