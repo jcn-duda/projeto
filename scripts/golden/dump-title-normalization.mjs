@@ -31,6 +31,7 @@ import multiworkPack from './registry-multiwork-pack.mjs';
 import streamQuotas from './registry-stream-quotas.mjs';
 import releaseWork from './registry-release-work.mjs';
 import releaseTitleRules from './registry-release-title-rules.mjs';
+import releaseNameMatching from './registry-release-name-matching.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
@@ -324,6 +325,7 @@ const FUNCTIONS = {
   'stream-quotas': streamQuotas,
   'release-work': releaseWork,
   'release-title-rules': releaseTitleRules,
+  'release-name-matching': releaseNameMatching,
 };
 const DEFAULT_FN = 'title-normalization';
 
