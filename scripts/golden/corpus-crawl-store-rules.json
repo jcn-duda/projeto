@@ -227,7 +227,7 @@
     {
       "id": "csr-044",
       "input": "{\"op\":\"parseProgress\",\"raw\":\"﻿{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":0}\"}",
-      "note": "BOM quebra o parse"
+      "note": "BOM é whitespace: o trim o remove e o parse dá certo"
     },
     {
       "id": "csr-045",

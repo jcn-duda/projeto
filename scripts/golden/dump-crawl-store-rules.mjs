@@ -13,7 +13,11 @@
  * timestamp; os hashes cobrem corpus e saída. `--check`: ESTRITAMENTE leitura —
  * não escreve nem atualiza expectativas; falha se golden/manifest faltar,
  * vazio ou divergir (hash, comportamento do dist vivo, fonte alterada,
- * contagem, constantes do corpus).
+ * contagem, constantes do corpus, identidade function.name/sourcePath/artifactPath).
+ *
+ * COBERTURA: cada `op` tem piso explícito de casos (helper exclusivo
+ * `crawl-store-rules-validation.mjs`); corpus que perde uma das 11 funções
+ * reprova ANTES de medir/escrever, em `--check` e em `--force`.
  *
  * ISOLAMENTO: o oráculo próprio (`crawl-store-rules-oracle.mjs`) roda em child
  * descartável contra um STAGING só com o grafo compilado (dist + package.json +
@@ -47,6 +51,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SOURCE_HASH_LINE_ENDINGS, shaSourceLf } from './source-fingerprint.mjs';
+import { OPS, opCoverageViolations } from './crawl-store-rules-validation.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
@@ -58,10 +63,8 @@ const CORPUS = 'scripts/golden/corpus-crawl-store-rules.json';
 const OUT_JSONL = 'rust/golden/crawl-store-rules.jsonl';
 const OUT_MANIFEST = 'rust/golden/crawl-store-rules.manifest.json';
 const OWN_ORACLE = 'scripts/golden/crawl-store-rules-oracle.mjs';
-const OPS = [
-  'backoff', 'parseProgress', 'renderProgress', 'progressAdvanced', 'withDryFlag',
-  'decideUpsert', 'applyResult', 'renderUrl', 'parseStatus', 'parseUrlRow', 'emptyCounters',
-];
+// OPS + piso por op (cobertura fail-closed das 11 funções) vivem no helper
+// exclusivo `crawl-store-rules-validation.mjs`.
 // Chaves documentais do `config` do corpus: o valor declarado tem de bater com
 // o literal exportado pelo artefato medição no dist vivo.
 const CONFIG_CONSTANTS = ['errorBackoffCapMs', 'crawlGiveUpMs', 'defaultRetryBaseMs'];
@@ -238,6 +241,9 @@ function loadCorpus(corpusPath) {
     if (seen.has(c.id)) fail(`id duplicado no corpus: ${c.id}`);
     seen.add(c.id);
   }
+  // Fail-closed: além da PERTINÊNCIA, exige PRESENÇA mínima por op (as 11
+  // funções); corpus mutilado reprova aqui, antes de medir/escrever/--check.
+  for (const v of opCoverageViolations(cases)) fail(`cobertura do corpus: ${v}`);
   return { bytes: raw, sha: sha256(raw), config, cases };
 }
 /** O `config` do corpus documenta os literais; o dist vivo precisa concordar. */
@@ -324,6 +330,10 @@ function check(corpus, jsonl, outDir) {
   if (!Array.isArray(manifest.registry) || manifest.registry.join(',') !== REGISTRY) {
     fail(`registry do manifest diverge do esperado: ${JSON.stringify(manifest.registry)}`);
   }
+  // Identidade canônica: nome/path adulterado não passa como golden válido.
+  for (const [f, want] of [['name', NAME], ['sourcePath', toPosix(SOURCE)], ['artifactPath', toPosix(ARTIFACT)]]) {
+    if (manifest.function?.[f] !== want) fail(`function.${f} do manifest diverge: ${JSON.stringify(manifest.function?.[f])}`);
+  }
   if (manifest.sourceHashLineEndings !== SOURCE_HASH_LINE_ENDINGS) {
     fail(`política de fim de linha da fonte diverge: ${JSON.stringify(manifest.sourceHashLineEndings)}`);
   }
@@ -348,7 +358,9 @@ function check(corpus, jsonl, outDir) {
   if (lines.length !== corpus.cases.length || manifest.output?.lines !== corpus.cases.length) {
     fail(`contagem de linhas diverge: golden=${lines.length} corpus=${corpus.cases.length} manifest=${manifest.output?.lines}`);
   }
-  // node.major, artifactSha256 e git.revision são provenance: NÃO comparados.
+  // node.major, artifactSha256 e git.revision são provenance: NÃO comparados
+  // (artifactSha256 é de rebuild alheio; a identidade nome/path JÁ foi travada
+  // acima por function.*).
   console.log(`[golden] OK: ${toPosix(path.relative(REPO, outJsonl))} (${lines.length} casos batem com o dist vivo)`);
 }
 function main() {

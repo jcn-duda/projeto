@@ -13,7 +13,7 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-crawl-store-rules.json",
-    "sha256": "f00a71a98f939d546816e6cc89f0141a66a254f9ed23ff8c9b7334560e6df108",
+    "sha256": "34e3eaf787eaf270f2bc53600ea82eff12e77ee14b67da3e1ed5ab926b024334",
     "cases": 165
   },
   "output": {
@@ -25,6 +25,6 @@
     "major": 22
   },
   "git": {
-    "revision": "ca3d6fa77e408f0e4bcf2145df5d36ee66fe5af6"
+    "revision": "a4ee15906bebe3e6816aa1d5fb612a400eba7c61"
   }
 }
