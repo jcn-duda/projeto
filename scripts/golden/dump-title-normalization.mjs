@@ -28,6 +28,8 @@ import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import multiworkPack from './registry-multiwork-pack.mjs';
+import streamQuotas from './registry-stream-quotas.mjs';
+import releaseWork from './registry-release-work.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
@@ -318,6 +320,8 @@ const FUNCTIONS = {
     },
   },
   'multiwork-pack': multiworkPack,
+  'stream-quotas': streamQuotas,
+  'release-work': releaseWork,
 };
 const DEFAULT_FN = 'title-normalization';
 
