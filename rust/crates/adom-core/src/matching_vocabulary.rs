@@ -9,6 +9,10 @@
 //! `v` que abrevia "Versão" quando colado numa palavra de edição
 //! ("Apocalypse Now V.Exten"). O `v` sozinho é obra ("V de Vingança") e fica.
 
+use std::sync::OnceLock;
+
+use regex::Regex;
+
 use crate::title_normalization::normalize_title;
 
 /// Palavras de edição que, logo após um `v`, fazem o `v` virar abreviação.
@@ -137,4 +141,41 @@ pub fn vocabulary_contents(name: &str) -> Option<String> {
         "YEAR_RANGE" => format!("/{YEAR_RANGE_SOURCE}/i"),
         _ => return None,
     })
+}
+
+/// Espaço no sentido do JS (`\s` sem flag `u`): ASCII, NBSP, os separadores
+/// Unicode e o BOM U+FEFF. O `\s` do crate `regex` não inclui o BOM, então a
+/// classe é explícita para não divergir.
+const JS_SPACE: &str = r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
+
+/// `YEAR_RANGE` (`/…/i`). `\b` é ASCII no JS, por isso `(?-u:\b)`, e `\d` é
+/// `[0-9]`, porque `\d` do crate aceita dígitos de outros scripts.
+fn year_range_pattern() -> String {
+    format!(
+        r"(?i)(?-u:\b)(?:19|20)[0-9]{{2}}(?:{s}*[-–—,]{s}*|{s}+(?:de|a|ate|até){s}+|{s}+)(?:19|20)[0-9]{{2}}(?-u:\b)",
+        s = JS_SPACE
+    )
+}
+
+/// `EPISODE_TOKEN` (sem flag `i`: "S01E01" em maiúscula NÃO casa, como no JS).
+const EPISODE_TOKEN_PATTERN: &str = r"^(?:s[0-9]{1,2}(?:e[0-9]{1,3})?|t[0-9]{1,2}(?:e[0-9]{1,3})?|e[0-9]{1,3}|[0-9]{1,2}x[0-9]{1,3}|[0-9]{1,2}a)$";
+
+fn year_range_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(&year_range_pattern()).expect("YEAR_RANGE compila"))
+}
+
+fn episode_token_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(EPISODE_TOKEN_PATTERN).expect("EPISODE_TOKEN compila"))
+}
+
+/// Equivalente a `YEAR_RANGE.test(input)` no JS.
+pub fn year_range_test(input: &str) -> bool {
+    year_range_re().is_match(input)
+}
+
+/// Equivalente a `EPISODE_TOKEN.test(input)` no JS.
+pub fn episode_token_test(input: &str) -> bool {
+    episode_token_re().is_match(input)
 }

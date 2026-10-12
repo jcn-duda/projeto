@@ -11,7 +11,9 @@
 mod matching_vocabulary;
 mod title_normalization;
 
-pub use matching_vocabulary::{title_tokens, vocabulary_contents};
+pub use matching_vocabulary::{
+    episode_token_test, title_tokens, vocabulary_contents, year_range_test,
+};
 pub use title_normalization::normalize_title;
 
 /// Único formato de manifest aceito pelo consumidor do golden.

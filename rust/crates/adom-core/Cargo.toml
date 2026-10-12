@@ -16,6 +16,10 @@ license = "UNLICENSED"
 unicode-properties = "=0.1.4"
 # Decomposição NFD (o JS usa String.normalize('NFD')) — Unicode 17.0.0.
 unicode-normalization = "=0.1.25"
+# Regex sem lookaround para YEAR_RANGE/EPISODE_TOKEN. Versão exata; as classes
+# de \b, \s e \d são explícitas no código (ver matching_vocabulary.rs), então a
+# paridade não depende das tabelas Unicode do crate.
+regex = "=1.13.1"
 
 [dev-dependencies]
 # Só para os testes de integridade do golden (nunca entram no runtime):
