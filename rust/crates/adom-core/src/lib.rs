@@ -29,6 +29,7 @@ mod matching_tokens;
 mod matching_vocabulary;
 mod multiwork_pack;
 mod non_feature_release;
+mod release_guards;
 mod release_name_matching;
 mod release_title_rules;
 mod release_work;
@@ -129,6 +130,7 @@ pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_c
 pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
+pub use release_guards::{magnet_season_contradicts, magnet_year_contradicts, text_years_contradict};
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
