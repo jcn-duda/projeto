@@ -7,10 +7,6 @@
 //! e `magnet || MagnetUri` fica com quem monta o item); `multiWork` vira só a
 //! raiz (`Option<&str>`), porque só ela entra na checagem.
 //!
-//! `franchise_root` e `contains_token_run` são portes de helpers de
-//! `release-name-matching.ts`. Ficam aqui (`pub(crate)`) porque o módulo
-//! inteiro ainda não foi portado; quando ele entrar, mudam de casa.
-//!
 //! Regex do JS sem lookaround: `(?<!\d)`, `(?!\d)` e `\b` ASCII viram
 //! comparações explícitas sobre `Vec<char>`. `\s` é o conjunto do `trim` do
 //! JS (`js_trim`), `\d` é `[0-9]` e `/i` vale só para ASCII (com a exceção do
@@ -20,6 +16,7 @@ use crate::franchise::is_multi_work_collection;
 use crate::js_text::{js_decode_uri_component, js_trim};
 use crate::matching_decisions::first_year_in;
 use crate::matching_vocabulary::{leading_articles, title_tokens};
+use crate::release_name_matching::{contains_token_run, franchise_root};
 
 /// `COLLECTION_NOISE`: palavras de EMPACOTAMENTO no nome da coleção, não da
 /// franquia. Artigos e preposições ficam (a raiz precisa ser contígua).
@@ -28,10 +25,6 @@ pub const COLLECTION_NOISE: &str = "colecao coletanea trilogia duologia quadrilo
 /// Espaço no sentido JS (o mesmo do `trim`), por reuso do helper do crate.
 fn is_js_space(c: char) -> bool {
     js_trim(c.encode_utf8(&mut [0; 4])).is_empty()
-}
-
-fn is_line_terminator(c: char) -> bool {
-    matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')
 }
 
 /// `\w` do JS: ASCII alfanumérico e `_`.
@@ -44,103 +37,6 @@ fn boundary(s: &[char], p: usize) -> bool {
     let prev = p > 0 && is_word(s[p - 1]);
     let next = p < s.len() && is_word(s[p]);
     prev != next
-}
-
-/// Número de palavras separadas por espaço JS (`split(/\s+/).filter(Boolean)`).
-fn word_count(s: &str) -> usize {
-    s.split(is_js_space).filter(|w| !w.is_empty()).count()
-}
-
-/// Separadores do corte de subtítulo: `:`, en dash e em dash.
-fn is_cut_sep(c: char) -> bool {
-    matches!(c, ':' | '–' | '—')
-}
-
-/// Candidato do `^([^:–—]+?)([:–—].*)?$`, ou `None` quando a regex não casa.
-/// O `.*` do JS não atravessa quebra de linha, e o grupo 1 exige 1+ caractere.
-fn cut_candidate(raw: &str) -> Option<&str> {
-    match raw.find(is_cut_sep) {
-        None => Some(raw),
-        Some(0) => None,
-        Some(p) => {
-            let sep_len = raw[p..].chars().next().map_or(1, char::len_utf8);
-            if raw[p + sep_len..].chars().any(is_line_terminator) {
-                None
-            } else {
-                Some(&raw[..p])
-            }
-        }
-    }
-}
-
-/// `\s+(?:parte\s+)?(?:[ivx]{1,4}|\d{1,2})$` (ASCII, sem caixa) a partir de
-/// um espaço. `t` começa no espaço do candidato.
-fn tail_matches(t: &str) -> bool {
-    let Some(rest) = strip_leading_spaces(t) else {
-        return false;
-    };
-    if is_numeral_tail(rest) {
-        return true;
-    }
-    match rest.get(..5) {
-        Some(word) if word.eq_ignore_ascii_case("parte") => {
-            strip_leading_spaces(&rest[5..]).is_some_and(is_numeral_tail)
-        }
-        _ => false,
-    }
-}
-
-/// Remove espaços iniciais. `None` quando não há nenhum (o `\s+` exige um).
-fn strip_leading_spaces(s: &str) -> Option<&str> {
-    let trimmed = s.trim_start_matches(is_js_space);
-    if trimmed.len() == s.len() {
-        None
-    } else {
-        Some(trimmed)
-    }
-}
-
-/// `[ivx]{1,4}` ou `\d{1,2}` ocupando o texto inteiro (âncora `$`).
-fn is_numeral_tail(x: &str) -> bool {
-    let n = x.chars().count();
-    if (1..=4).contains(&n)
-        && x.chars()
-            .all(|c| matches!(c, 'i' | 'v' | 'x' | 'I' | 'V' | 'X'))
-    {
-        return true;
-    }
-    (1..=2).contains(&n) && x.chars().all(|c| c.is_ascii_digit())
-}
-
-/// `head.replace(SEQUENCE_TAIL, '')`: remove o marcador de sequência do fim
-/// (primeiro casamento, o mais à esquerda).
-fn strip_sequence_tail(s: &str) -> &str {
-    for (i, c) in s.char_indices() {
-        if is_js_space(c) && tail_matches(&s[i..]) {
-            return &s[..i];
-        }
-    }
-    s
-}
-
-/// `franchiseRoot`: raiz da franquia de um título (ver release-name-matching.ts).
-pub(crate) fn franchise_root(title: &str) -> String {
-    let raw = js_trim(title);
-    if raw.is_empty() {
-        return String::new();
-    }
-    let mut head = raw.to_string();
-    if let Some(candidate) = cut_candidate(raw) {
-        let candidate = js_trim(candidate);
-        if word_count(candidate) >= 2 {
-            head = candidate.to_string();
-        }
-    }
-    let root = js_trim(strip_sequence_tail(&head));
-    if !root.is_empty() && word_count(root) >= 2 {
-        return root.to_string();
-    }
-    head
 }
 
 fn is_collection_noise(token: &str) -> bool {
@@ -397,21 +293,6 @@ fn dn_value(raw: &str) -> Option<&str> {
         }
     }
     None
-}
-
-/// `containsTokenRun`: o título tem a raiz como sequência contígua de tokens.
-pub(crate) fn contains_token_run(title: &str, normalized_root: &str) -> bool {
-    let haystack = title_tokens(title);
-    let needle: Vec<&str> = normalized_root
-        .split(' ')
-        .filter(|t| !t.is_empty())
-        .collect();
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return false;
-    }
-    haystack
-        .windows(needle.len())
-        .any(|window| window.iter().zip(&needle).all(|(a, b)| a.as_str() == *b))
 }
 
 /// `admitsMultiWorkPack`: condições sem rede. `multi_work_root` é `None` quando

@@ -20,6 +20,7 @@ mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
 mod multiwork_pack;
+mod release_name_matching;
 mod release_title_rules;
 mod release_work;
 mod short_name_tail;
@@ -40,6 +41,9 @@ pub use franchise::{
 };
 pub use multiwork_pack::{
     admits_multi_work_pack, collection_root, collection_root_tokens, covers_year, pack_year_source,
+};
+pub use release_name_matching::{
+    contains_token_run, ends_with_sequence_marker, franchise_root, franchise_roots, matches_name,
 };
 pub use release_title_rules::{
     matches_short_name_identity, matches_title_structure, short_name_identity, ShortNameIdentity,
