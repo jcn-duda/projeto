@@ -49,12 +49,12 @@ fn truthy(v: Option<&str>) -> Option<&str> {
 fn is_magnet_scheme(trimmed: &str) -> bool {
     let b = trimmed.as_bytes();
     b.len() >= 7
-        && b[0].to_ascii_lowercase() == b'm'
-        && b[1].to_ascii_lowercase() == b'a'
-        && b[2].to_ascii_lowercase() == b'g'
-        && b[3].to_ascii_lowercase() == b'n'
-        && b[4].to_ascii_lowercase() == b'e'
-        && b[5].to_ascii_lowercase() == b't'
+        && b[0].eq_ignore_ascii_case(&b'm')
+        && b[1].eq_ignore_ascii_case(&b'a')
+        && b[2].eq_ignore_ascii_case(&b'g')
+        && b[3].eq_ignore_ascii_case(&b'n')
+        && b[4].eq_ignore_ascii_case(&b'e')
+        && b[5].eq_ignore_ascii_case(&b't')
         && b[6] == b':'
 }
 
@@ -67,8 +67,8 @@ fn extract_dn(raw: &str) -> Option<&str> {
     let mut i = 0;
     while i + 4 < bytes.len() {
         if (bytes[i] == b'?' || bytes[i] == b'&')
-            && bytes[i + 1].to_ascii_lowercase() == b'd'
-            && bytes[i + 2].to_ascii_lowercase() == b'n'
+            && bytes[i + 1].eq_ignore_ascii_case(&b'd')
+            && bytes[i + 2].eq_ignore_ascii_case(&b'n')
             && bytes[i + 3] == b'='
         {
             let start = i + 4;

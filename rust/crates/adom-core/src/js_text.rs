@@ -137,7 +137,14 @@ pub(crate) fn js_number_of_str(raw: &str) -> f64 {
     if body.eq_ignore_ascii_case("infinity") {
         return sign * f64::INFINITY;
     }
-    let radixos = [("0x", 16u32), ("0X", 16), ("0b", 2), ("0B", 2), ("0o", 8), ("0O", 8)];
+    let radixos = [
+        ("0x", 16u32),
+        ("0X", 16),
+        ("0b", 2),
+        ("0B", 2),
+        ("0o", 8),
+        ("0O", 8),
+    ];
     for (prefixo, radix) in radixos {
         if let Some(digitos) = body.strip_prefix(prefixo) {
             return match u64::from_str_radix(digitos, radix) {
@@ -146,7 +153,11 @@ pub(crate) fn js_number_of_str(raw: &str) -> f64 {
             };
         }
     }
-    if body.is_empty() || !body.bytes().all(|c| c.is_ascii_digit() || b"+-.eE".contains(&c)) {
+    if body.is_empty()
+        || !body
+            .bytes()
+            .all(|c| c.is_ascii_digit() || b"+-.eE".contains(&c))
+    {
         return f64::NAN;
     }
     body.parse::<f64>().map(|n| sign * n).unwrap_or(f64::NAN)
@@ -253,7 +264,7 @@ fn js_number_to_string(n: &Number) -> String {
         return "null".to_string(); // `JSON.stringify(Infinity)` devolve `null`
     }
     let abs = f.abs();
-    if abs >= 1e21 || abs < 1e-6 {
+    if !(1e-6..1e21).contains(&abs) {
         // `{:e}` do Rust já é a forma normalizada; o JS só muda o expoente.
         let sci = format!("{f:e}");
         let (mant, exp) = sci.split_once('e').unwrap_or(("0", "0"));

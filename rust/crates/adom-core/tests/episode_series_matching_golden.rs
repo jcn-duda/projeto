@@ -12,9 +12,7 @@ mod common;
 
 use std::collections::HashSet;
 
-use adom_core::{
-    matches_episode_work_identity, matches_global_series_no_marker, MANIFEST_FORMAT,
-};
+use adom_core::{matches_episode_work_identity, matches_global_series_no_marker, MANIFEST_FORMAT};
 use serde_json::Value;
 
 use common::{assert_corpus_matches, manifest, parse_cases, sha256_hex};
@@ -81,10 +79,7 @@ fn render(input: &str) -> String {
             let tokens = strings(&c["tokens"]);
             let universe = strings(&c["universe"]);
             bit(matches_global_series_no_marker(
-                title,
-                &tokens,
-                &universe,
-                cut_tail,
+                title, &tokens, &universe, cut_tail,
             ))
         }
         other => panic!("op desconhecida: {other}"),
@@ -104,10 +99,7 @@ fn manifest_registro_formato_e_contagem_batem() {
     );
     assert_eq!(m.output.lines, common::jsonl_lines(JSONL_BYTES).len());
     assert_eq!(m.output.lines, m.corpus.cases);
-    assert_eq!(
-        m.output.path,
-        "rust/golden/episode-series-matching.jsonl"
-    );
+    assert_eq!(m.output.path, "rust/golden/episode-series-matching.jsonl");
     assert_eq!(
         m.corpus.path,
         "scripts/golden/corpus-episode-series-matching.json"

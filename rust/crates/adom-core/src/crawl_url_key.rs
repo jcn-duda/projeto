@@ -53,7 +53,10 @@ fn is_js_whitespace(c: char) -> bool {
 /// Corta query e fragmento — o que não é identidade de página.
 fn strip_query(url: &str) -> &str {
     let no_hash = url.split_once('#').map(|(head, _)| head).unwrap_or(url);
-    no_hash.split_once('?').map(|(head, _)| head).unwrap_or(no_hash)
+    no_hash
+        .split_once('?')
+        .map(|(head, _)| head)
+        .unwrap_or(no_hash)
 }
 
 fn collapse_slashes(path: &str) -> String {

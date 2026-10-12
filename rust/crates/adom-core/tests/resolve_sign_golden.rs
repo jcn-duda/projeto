@@ -171,8 +171,7 @@ fn casos_tem_ids_unicos_e_campos_presentes() {
 #[test]
 fn corpus_fonte_e_jsonl_concordam_em_ids_e_ordem() {
     let cases = parse_all_cases();
-    let corpus: serde_json::Value =
-        serde_json::from_str(CORPUS_TEXT).expect("corpus JSON válido");
+    let corpus: serde_json::Value = serde_json::from_str(CORPUS_TEXT).expect("corpus JSON válido");
     let raw = corpus["cases"].as_array().expect("cases: array");
     assert_eq!(raw.len(), cases.len(), "contagem diverge");
     for (case, row) in cases.iter().zip(raw) {
@@ -205,13 +204,8 @@ fn verify_resolve_bate_com_todos_os_goldens() {
     assert_eq!(cases.len(), EXPECTED_LINES);
     for case in &cases {
         let sig_str = sig_as_str(&case.sig);
-        let obtido = adom_core::verify_resolve(
-            &case.info_hash,
-            &case.ep,
-            sig_str,
-            &case.hint,
-            &case.key,
-        );
+        let obtido =
+            adom_core::verify_resolve(&case.info_hash, &case.ep, sig_str, &case.hint, &case.key);
         assert_eq!(
             obtido, case.verified,
             "verify_resolve caso {} divergiu do golden\n  infoHash: {:?}\n  ep:       {:?}\n  hint:     {:?}\n  sig:      {:?}\n  key:      {:?}\n  esperado: {}\n  obtido:   {}",
@@ -225,7 +219,9 @@ fn verify_resolve_bate_com_todos_os_goldens() {
 #[test]
 fn negativos_criticos_sao_rejeitados() {
     let cases = parse_all_cases();
-    let negativos = ["rs-016", "rs-017", "rs-018", "rs-019", "rs-020", "rs-021", "rs-023", "rs-024"];
+    let negativos = [
+        "rs-016", "rs-017", "rs-018", "rs-019", "rs-020", "rs-021", "rs-023", "rs-024",
+    ];
     for id in &negativos {
         let case = cases
             .iter()
@@ -236,13 +232,8 @@ fn negativos_criticos_sao_rejeitados() {
             "caso {id} deveria ter verified=false no golden"
         );
         let sig_str = sig_as_str(&case.sig);
-        let obtido = adom_core::verify_resolve(
-            &case.info_hash,
-            &case.ep,
-            sig_str,
-            &case.hint,
-            &case.key,
-        );
+        let obtido =
+            adom_core::verify_resolve(&case.info_hash, &case.ep, sig_str, &case.hint, &case.key);
         assert!(!obtido, "negativo {id} foi aceito indevidamente");
     }
 }

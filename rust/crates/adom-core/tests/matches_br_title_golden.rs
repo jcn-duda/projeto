@@ -18,8 +18,7 @@ use common::{assert_corpus_matches, manifest, parse_cases, sha256_hex};
 
 const JSONL_BYTES: &[u8] = include_bytes!("../../../golden/matches-br-title.jsonl");
 const MANIFEST_TEXT: &str = include_str!("../../../golden/matches-br-title.manifest.json");
-const CORPUS_TEXT: &str =
-    include_str!("../../../../scripts/golden/corpus-matches-br-title.json");
+const CORPUS_TEXT: &str = include_str!("../../../../scripts/golden/corpus-matches-br-title.json");
 
 const REGISTRY_MATCH: &str = "matches-br-title/matchesBrTitle";
 
@@ -77,10 +76,7 @@ fn manifest_registro_formato_e_contagem_batem() {
     assert_eq!(m.output.lines, common::jsonl_lines(JSONL_BYTES).len());
     assert_eq!(m.output.lines, m.corpus.cases);
     assert_eq!(m.output.path, "rust/golden/matches-br-title.jsonl");
-    assert_eq!(
-        m.corpus.path,
-        "scripts/golden/corpus-matches-br-title.json"
-    );
+    assert_eq!(m.corpus.path, "scripts/golden/corpus-matches-br-title.json");
 }
 
 #[test]

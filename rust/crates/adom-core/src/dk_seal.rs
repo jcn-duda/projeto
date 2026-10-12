@@ -51,8 +51,8 @@ pub fn is_sealed(value: &str) -> bool {
 /// resultado por segredo; aqui a derivação é a cada chamada (o chamador decide o
 /// cache — é I/O de CPU, não de rede, e continua sendo função pura).
 pub fn derive_dk_key(resolve_secret: &str) -> [u8; 32] {
-    let params =
-        ScryptParams::new(SCRYPT_LOG_N, SCRYPT_R, SCRYPT_P, 32).expect("parametros do Node sao validos");
+    let params = ScryptParams::new(SCRYPT_LOG_N, SCRYPT_R, SCRYPT_P, 32)
+        .expect("parametros do Node sao validos");
     let mut key = [0u8; 32];
     scrypt::scrypt(resolve_secret.as_bytes(), SECRET_SALT, &params, &mut key)
         .expect("saida de 32 bytes e compativel com os parametros");

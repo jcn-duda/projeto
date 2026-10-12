@@ -50,12 +50,7 @@ fn sign_resolve_produces_hex() {
 
 #[test]
 fn sign_resolve_empty_secret_returns_empty() {
-    let sig = adom_core::sign_resolve(
-        "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        "",
-        "",
-        "",
-    );
+    let sig = adom_core::sign_resolve("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2", "", "", "");
     assert_eq!(sig, "");
 }
 
@@ -67,7 +62,13 @@ fn verify_resolve_roundtrip() {
     let hint = "";
 
     let sig = adom_core::sign_resolve(hash, ep, hint, secret);
-    assert!(adom_core::verify_resolve(hash, ep, Some(&sig), hint, secret));
+    assert!(adom_core::verify_resolve(
+        hash,
+        ep,
+        Some(&sig),
+        hint,
+        secret
+    ));
 }
 
 #[test]
@@ -119,9 +120,7 @@ fn matches_br_title_unrelated_title_rejected() {
 #[test]
 fn matches_br_title_with_all_names() {
     // Título curto com precisão alta: todos os tokens do título estão no universo.
-    let all_names = vec![
-        "Guerra nas Estrelas".to_string(),
-    ];
+    let all_names = vec!["Guerra nas Estrelas".to_string()];
     let ok = adom_core::matches_br_title(
         "guerra nas estrelas",
         "guerra nas estrelas",
@@ -240,9 +239,7 @@ fn sanitize_magnet_none_for_empty() {
 
 #[test]
 fn extract_info_hash_hex40() {
-    let hash = adom_core::extract_info_hash(
-        "A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2",
-    );
+    let hash = adom_core::extract_info_hash("A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2");
     assert_eq!(
         hash,
         Some("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".into())

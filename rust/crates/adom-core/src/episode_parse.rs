@@ -144,9 +144,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
     // esquerda, como no TS: o "S" colado na palavra ("VoxMachinaS03E10-11") também
     // conta — medido no banco de magnets, onde a âncora zerava o pack.
     for c in all(
-        re!(
-            r"S([0-9]{1,2})[__SP__]?E([0-9]{1,4})[__SP__]*[-–][__SP__]*([0-9]{1,4})(?![0-9P])"
-        ),
+        re!(r"S([0-9]{1,2})[__SP__]?E([0-9]{1,4})[__SP__]*[-–][__SP__]*([0-9]{1,4})(?![0-9P])"),
         &raw_c,
     ) {
         let lo = num(c.g(2));

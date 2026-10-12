@@ -40,7 +40,8 @@ fn render(input: &str) -> String {
             serde_json::to_string(quality_from_title(title)).unwrap()
         }
         "limitQuality" => {
-            let streams: Vec<Value> = serde_json::from_value(c["streams"].clone()).expect("streams");
+            let streams: Vec<Value> =
+                serde_json::from_value(c["streams"].clone()).expect("streams");
             let qualities: Vec<&str> = streams
                 .iter()
                 .map(|s| s["quality"].as_str().unwrap_or(""))
@@ -52,17 +53,26 @@ fn render(input: &str) -> String {
                 .map(|(k, v)| (k.clone(), v.as_f64().unwrap_or(0.0)))
                 .collect();
             let kept = limit_by_quality(&qualities, &limits);
-            format!("[{}]", kept.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(","))
+            format!(
+                "[{}]",
+                kept.iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
         }
         "limitQualityIndexer" => {
-            let streams_v: Vec<Value> = serde_json::from_value(c["streams"].clone()).expect("streams");
+            let streams_v: Vec<Value> =
+                serde_json::from_value(c["streams"].clone()).expect("streams");
             let streams: Vec<StreamRef> = streams_v
                 .iter()
-                .map(|s| make_stream(
-                    s["quality"].as_str(),
-                    s["indexer"].as_str(),
-                    s["isBr"].as_bool().unwrap_or(false),
-                ))
+                .map(|s| {
+                    make_stream(
+                        s["quality"].as_str(),
+                        s["indexer"].as_str(),
+                        s["isBr"].as_bool().unwrap_or(false),
+                    )
+                })
                 .collect();
             let refs: Vec<&StreamRef> = streams.iter().collect();
             let ql: QualityLimits = c["qualityLimits"]
@@ -91,14 +101,25 @@ fn render(input: &str) -> String {
                 .collect();
             let max_pi = c["maxPerIndexer"].as_f64().unwrap_or(0.0);
             let kept = limit_by_quality_and_indexer(&refs, &ql, max_pi, &exempt, &il, &rbr);
-            format!("[{}]", kept.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(","))
+            format!(
+                "[{}]",
+                kept.iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
         }
         "selectCandidates" => {
-            let streams_v: Vec<Value> = serde_json::from_value(c["streams"].clone()).expect("streams");
+            let streams_v: Vec<Value> =
+                serde_json::from_value(c["streams"].clone()).expect("streams");
             let streams: Vec<StreamRef> = streams_v
                 .iter()
                 .map(|s| {
-                    let mut sr = make_stream(s["quality"].as_str(), None, s["isBr"].as_bool().unwrap_or(false));
+                    let mut sr = make_stream(
+                        s["quality"].as_str(),
+                        None,
+                        s["isBr"].as_bool().unwrap_or(false),
+                    );
                     sr.is_lied = s["isLied"].as_bool().unwrap_or(false);
                     sr
                 })
@@ -119,7 +140,13 @@ fn render(input: &str) -> String {
                 br_first: c["brFirst"].as_bool().unwrap_or(true),
             };
             let kept = select_quality_candidates(&refs, &opts);
-            format!("[{}]", kept.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(","))
+            format!(
+                "[{}]",
+                kept.iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
         }
         other => panic!("op desconhecida: {other}"),
     }

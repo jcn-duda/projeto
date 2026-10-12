@@ -63,7 +63,9 @@ fn safe_indexer_id(id: &str) -> bool {
     let b = id.as_bytes();
     (1..=64).contains(&b.len())
         && b[0].is_ascii_alphanumeric()
-        && b[1..].iter().all(|&c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
+        && b[1..]
+            .iter()
+            .all(|&c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
 }
 
 /// Tipos do `SCHEMA`: `(nome da opção, chave curta da URL, tipo)`. A ordem do
@@ -112,7 +114,9 @@ const SCHEMA: &[(&str, &str, Spec)] = &[
 pub fn is_config_segment(segment: &str) -> bool {
     !segment.is_empty()
         && segment.len() <= MAX_CONFIG_SEGMENT
-        && segment.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+        && segment
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
 }
 
 /// Objeto cru do segmento (antes do overlay). `None` quando não é config — é
@@ -226,7 +230,9 @@ fn normalize_int_map(value: &Value, min: i64, max: i64) -> Map<String, Value> {
     let mut limites: Map<String, Value> = Map::new();
     for (id, limite) in pares.into_iter().take(INTMAP_MAX_ENTRIES) {
         // Sem `:` ou limite vazio: não é override (`''` passa, `null` não vem).
-        let Some(limite) = limite.filter(|l| !l.is_empty()) else { continue };
+        let Some(limite) = limite.filter(|l| !l.is_empty()) else {
+            continue;
+        };
         let id = js_trim(&id).to_lowercase();
         if !safe_indexer_id(&id) {
             continue;
@@ -245,12 +251,18 @@ fn normalize_int_map(value: &Value, min: i64, max: i64) -> Map<String, Value> {
         // ICU: desempate por tamanho quando uma é prefixo da outra.
         primeiro_diferente.map_or(ab.len().cmp(&bb.len()), |(x, y)| x.cmp(&y))
     });
-    chaves.into_iter().map(|k| (k.clone(), limites[k].clone())).collect()
+    chaves
+        .into_iter()
+        .map(|k| (k.clone(), limites[k].clone()))
+        .collect()
 }
 
 fn split_pair(s: &str) -> (String, Option<String>) {
     let mut partes = s.split(':');
-    (partes.next().unwrap_or_default().to_string(), partes.next().map(str::to_string))
+    (
+        partes.next().unwrap_or_default().to_string(),
+        partes.next().map(str::to_string),
+    )
 }
 
 /// Truthiness JS de `!parsed[dk]`: `false`, `0`, `""` e `null` significam "sem

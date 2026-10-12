@@ -128,7 +128,10 @@ fn parse_all_rows() -> Vec<Row> {
 }
 
 fn rows_of(op: &str) -> Vec<Row> {
-    parse_all_rows().into_iter().filter(|r| r.op == op).collect()
+    parse_all_rows()
+        .into_iter()
+        .filter(|r| r.op == op)
+        .collect()
 }
 
 fn manifest() -> Manifest {
@@ -142,7 +145,12 @@ fn nonce_bytes(row: &Row) -> [u8; IV_BYTES] {
         .as_deref()
         .unwrap_or_else(|| panic!("{}: caso de selo sem nonce", row.id));
     let mut out = [0u8; IV_BYTES];
-    assert_eq!(hex.len(), IV_BYTES * 2, "{}: nonce com tamanho errado", row.id);
+    assert_eq!(
+        hex.len(),
+        IV_BYTES * 2,
+        "{}: nonce com tamanho errado",
+        row.id
+    );
     for (i, byte) in out.iter_mut().enumerate() {
         *byte = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16)
             .unwrap_or_else(|e| panic!("{}: nonce inválido: {e}", row.id));
@@ -169,13 +177,26 @@ fn manifest_tem_formato_e_funcoes_esperados() {
         assert_eq!(f.artifact_sha256.len(), 64);
         match f.source_path.as_str() {
             "src/runtime.ts" => assert_eq!(f.artifact_path, "dist/src/runtime.js"),
-            "src/utils/secret-box.ts" => assert_eq!(f.artifact_path, "dist/src/utils/secret-box.js"),
+            "src/utils/secret-box.ts" => {
+                assert_eq!(f.artifact_path, "dist/src/utils/secret-box.js")
+            }
             outra => panic!("sourcePath inesperado: {outra}"),
         }
     }
     let nomes: Vec<&str> = m.functions.iter().map(|f| f.name.as_str()).collect();
-    for esperado in ["encode", "normalize", "decode", "sealSegment", "seal", "open", "isSealed"] {
-        assert!(nomes.contains(&esperado), "função ausente no manifest: {esperado}");
+    for esperado in [
+        "encode",
+        "normalize",
+        "decode",
+        "sealSegment",
+        "seal",
+        "open",
+        "isSealed",
+    ] {
+        assert!(
+            nomes.contains(&esperado),
+            "função ausente no manifest: {esperado}"
+        );
     }
 }
 
@@ -211,7 +232,11 @@ fn ids_sao_unicos_e_ops_conhecidos() {
     for row in &rows {
         assert!(!row.id.is_empty(), "id vazio");
         assert!(ids.insert(row.id.clone()), "id duplicado: {}", row.id);
-        assert!(OPS.contains(&row.op.as_str()), "op desconhecido: {}", row.op);
+        assert!(
+            OPS.contains(&row.op.as_str()),
+            "op desconhecido: {}",
+            row.op
+        );
     }
 }
 
@@ -259,12 +284,9 @@ fn decode_bate_com_o_overlay_do_runtime() {
                 row.id
             ),
             Some(valor) => assert_eq!(
-                valor,
-                *esperado,
+                valor, *esperado,
                 "decode caso {} divergiu\n  segment: {:?}\n  secret:  {:?}",
-                row.id,
-                segmento,
-                row.secret
+                row.id, segmento, row.secret
             ),
         }
     }
@@ -344,7 +366,11 @@ fn seal_segment_bate_com_o_runtime_e_preserva_o_resto() {
         let segmento = row.segment.as_deref().expect("sealSegment sem segment");
         let obtido = seal_segment(segmento, &row.secret, &nonce_bytes(row));
         if row.expected.is_null() {
-            assert_eq!(obtido, None, "sealSegment caso {}: deveria rejeitar", row.id);
+            assert_eq!(
+                obtido, None,
+                "sealSegment caso {}: deveria rejeitar",
+                row.id
+            );
             continue;
         }
         let esperado = expected_str(row);

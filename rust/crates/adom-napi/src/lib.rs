@@ -135,6 +135,9 @@ pub fn verify_resolve(
 /// - `tokens`: tokens do título já calculados (`None` recalcula).
 /// - `universe_tokens`: tokens do universo de nomes (`None` recalcula).
 /// - `cut_tail`: espelha `config.search.titlePrecisionTailCut`.
+// A binding espelha 1:1 o contrato portado do core (8 parâmetros); agrupá-los
+// mudaria a assinatura exposta ao Node. O lint não vê o porquê.
+#[allow(clippy::too_many_arguments)]
 #[napi(catch_unwind)]
 pub fn matches_br_title(
     title: String,
@@ -256,10 +259,7 @@ pub fn limit_by_indexer(
     exempt: Vec<u32>,
     indexer_limits: HashMap<String, f64>,
 ) -> Vec<u32> {
-    let refs: Vec<Option<&str>> = indexers
-        .iter()
-        .map(|opt| opt.as_deref())
-        .collect();
+    let refs: Vec<Option<&str>> = indexers.iter().map(|opt| opt.as_deref()).collect();
     let exempt_set: HashSet<usize> = exempt.iter().map(|&i| i as usize).collect();
     adom_core::limit_by_indexer(&refs, max_per_indexer, &exempt_set, &indexer_limits)
         .into_iter()

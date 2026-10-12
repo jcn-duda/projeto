@@ -10,8 +10,8 @@ mod cache_keys;
 mod cache_quotas;
 mod catalog_year;
 mod collapse_acronyms;
-mod crawl_url_key;
 pub mod config_encoding;
+mod crawl_url_key;
 mod decode_entities;
 mod dedupe_names;
 mod dk_seal;
@@ -38,9 +38,9 @@ mod release_work;
 mod reply_budget;
 mod resolve_sign;
 mod short_name_tail;
-mod strip_diacritics;
 mod stream_quotas;
 pub mod stream_quotas_extra;
+mod strip_diacritics;
 mod title_normalization;
 
 // ── info_hash / magnet ────────────────────────────────────────────────
@@ -54,10 +54,11 @@ pub use br_origin::{br_origin_mark, has_pt_signs};
 pub use catalog_year::{catalog_alt_year_of, catalog_year_of};
 
 // ── cache ─────────────────────────────────────────────────────────────
-pub use cache_keys::{cache_key, prefix, LEGACY_PREFIXES};
+pub use cache_keys::{
+    cache_key, is_versioned, mag_meta_counts_key, namespace_version, prefix, LEGACY_PREFIXES,
+};
 pub use cache_quotas::{
-    MAX_ENTRIES,
-    headroom, namespace_for, quota_for, universe_total, validate_quotas,
+    headroom, namespace_for, quota_for, universe_len, universe_total, validate_quotas, MAX_ENTRIES,
 };
 
 // ── config encoding / dk seal ─────────────────────────────────────────
@@ -65,9 +66,7 @@ pub use config_encoding::{decode_config, encode_config, parse_segment, seal_segm
 pub use dk_seal::{derive_dk_key, is_sealed, seal_dk, unseal_dk};
 
 // ── episode ───────────────────────────────────────────────────────────
-pub use episode_matching::{
-    is_season_pack_fill_eligible, is_season_pack_release, matches_episode,
-};
+pub use episode_matching::{is_season_pack_fill_eligible, is_season_pack_release, matches_episode};
 pub use episode_parse::{
     parse_title_season_episode, season_coverage_excludes, ParsedSeasonEpisode,
 };
@@ -126,21 +125,23 @@ pub use stream_quotas_extra::{
 pub use resolve_sign::{sign_resolve, verify_resolve};
 
 // ── title_normalization ──────────────────────────────────────────────
-pub use title_normalization::normalize_title;
-pub use reply_budget::remaining_check_budget;
-pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
 pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
-pub use release_guards::{magnet_season_contradicts, magnet_year_contradicts, text_years_contradict};
-pub use crawl_url_key::crawl_url_key;
-pub use net_safety::is_safe_download_url;
 pub use bytes_to_size::bytes_to_size;
-pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
-pub use strip_diacritics::strip_diacritics;
+pub use crawl_url_key::crawl_url_key;
+pub use decode_entities::decode_entities;
 pub use dedupe_names::dedupe_names;
 pub use magnet_display_name::magnet_display_name;
+pub use net_safety::is_safe_download_url;
+pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
+pub use release_guards::{
+    magnet_season_contradicts, magnet_year_contradicts, text_years_contradict,
+};
+pub use reply_budget::remaining_check_budget;
+pub use strip_diacritics::strip_diacritics;
+pub use title_normalization::normalize_title;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///

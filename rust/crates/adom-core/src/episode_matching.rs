@@ -68,8 +68,9 @@ pub fn matches_episode(title: &str, season: Option<i64>, episode: Option<i64>) -
     // Faixa declarada: "1ª até 8ª Temporada Completa", "1a ate 8a temporada completa".
     // O regex captura os dois números da faixa; o `season_pack` do parser garante
     // que a palavra "completa" aparece no título.
-    let range_re =
-        re!(r"(?<![0-9])([0-9]{1,2})[__SP__]*a?[__SP__]*(?:ate|a|to)[__SP__]*([0-9]{1,2})(?![0-9])[__SP__]*a?[__SP__]*temporada[__SP__]+completa");
+    let range_re = re!(
+        r"(?<![0-9])([0-9]{1,2})[__SP__]*a?[__SP__]*(?:ate|a|to)[__SP__]*([0-9]{1,2})(?![0-9])[__SP__]*a?[__SP__]*temporada[__SP__]+completa"
+    );
     if let Some(caps) = range_re
         .captures(&t)
         .expect("regex de faixa completa executa")

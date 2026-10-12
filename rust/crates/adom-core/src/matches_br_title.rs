@@ -49,6 +49,10 @@ const SERIES_TITLE_PRECISION_MIN: f64 = 0.70;
 /// quando o TS recebe `null`; lista vazia (`Some(&[])`) pula a checagem de
 /// precisão (sem nomes para medir). `cut_tail` espelha
 /// `config.search.titlePrecisionTailCut` (default `true`).
+// Assinatura de 8 parâmetros é o contrato portado do TS (`title`, `name`,
+// `year`, `isSeries`, `allNames`, `tokens`, `universeTokens`, `cutTail`):
+// agrupá-los mudaria a chamada e a paridade do golden. O lint não vê o porquê.
+#[allow(clippy::too_many_arguments)]
 pub fn matches_br_title(
     title: &str,
     name: &str,

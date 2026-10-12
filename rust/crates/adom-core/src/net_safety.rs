@@ -110,7 +110,7 @@ fn parse_ipv6_words(host: &str) -> Option<[u16; 8]> {
             return None;
         }
         let mut words = left;
-        words.extend(std::iter::repeat(0u16).take(fill as usize));
+        words.extend(std::iter::repeat_n(0u16, fill as usize));
         words.extend(right);
         words
     } else {

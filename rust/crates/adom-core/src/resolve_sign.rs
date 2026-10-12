@@ -30,8 +30,7 @@ fn build_payload(info_hash: &str, ep: &str, hint: &str) -> String {
         out.push_str(ep);
         out
     } else {
-        let mut out =
-            String::with_capacity(info_hash.len() + ep.len() + 3 + hint.len());
+        let mut out = String::with_capacity(info_hash.len() + ep.len() + 3 + hint.len());
         out.push_str(info_hash);
         out.push_str(ep);
         out.push_str("&w=");
@@ -82,13 +81,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 ///
 /// O caso `sig` não-string é modelado em Rust recebendo `Option<&str>`: o
 /// chamador que recebe `serde_json::Value` faz a coerção antes.
-pub fn verify_resolve(
-    info_hash: &str,
-    ep: &str,
-    sig: Option<&str>,
-    hint: &str,
-    key: &str,
-) -> bool {
+pub fn verify_resolve(info_hash: &str, ep: &str, sig: Option<&str>, hint: &str, key: &str) -> bool {
     let expected = sign_resolve(info_hash, ep, hint, key);
     if expected.is_empty() {
         return false;
