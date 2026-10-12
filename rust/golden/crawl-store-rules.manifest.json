@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "crawl-store-rules/crawlStoreRules"
+  ],
+  "function": {
+    "name": "crawlStoreRules",
+    "sourcePath": "src/utils/crawl-store-rules.ts",
+    "sourceSha256": "8eccb34c76d391348348de9f3f547252e0851dcceb7aa7d477c3cb01e783b529",
+    "artifactPath": "dist/src/utils/crawl-store-rules.js",
+    "artifactSha256": "406d3918d6d1919da234f409876f4bff30a0ab29865004fc36e06de6684b841f"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-crawl-store-rules.json",
+    "sha256": "f00a71a98f939d546816e6cc89f0141a66a254f9ed23ff8c9b7334560e6df108",
+    "cases": 165
+  },
+  "output": {
+    "path": "rust/golden/crawl-store-rules.jsonl",
+    "sha256": "5d70b9617e04418cfa7f523a64e1e9a9ecda4d900f90a6efa6b510430c0f4f33",
+    "lines": 165
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "ca3d6fa77e408f0e4bcf2145df5d36ee66fe5af6"
+  }
+}
