@@ -1,0 +1,129 @@
+{"id":"a-01","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p\""}
+{"id":"a-02","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{}}","expected":"\"1080p · Comando · 👤 5\""}
+{"id":"a-03","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_seeders\":7},\"options\":{}}","expected":"\"1080p · 👤 7\""}
+{"id":"a-04","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 ~5 · Comando\",\"_quality\":\"1080p\",\"_seeders\":3,\"_tracker\":\"Comando\"},\"options\":{}}","expected":"\"1080p · Comando · 👤 3\""}
+{"id":"a-05","input":"{\"stream\":{\"name\":\"Filme\\n👤 12\",\"_seeders\":0},\"options\":{}}","expected":"\"Filme\\n👤 12\""}
+{"id":"a-06","input":"{\"stream\":{\"name\":\"Filme\",\"_seeders\":0},\"options\":{}}","expected":"\"Filme\""}
+{"id":"a-07","input":"{\"stream\":{\"name\":\"Filme\\n👤 0\",\"_seeders\":9},\"options\":{}}","expected":"\"Filme\""}
+{"id":"a-08","input":"{\"stream\":{\"name\":\"Filme 720p\\n👤  9  · x\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p · 👤 9\""}
+{"id":"a-09","input":"{\"stream\":{\"name\":\"Filme 720p\\n👤\\u00a04\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p · 👤 4\""}
+{"id":"a-10","input":"{\"stream\":{\"name\":\"Filme 720p\\n👤\\u20288\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p · 👤 8\""}
+{"id":"a-11","input":"{\"stream\":{\"name\":\"Filme 720p\\n👤\\u30003\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p · 👤 3\""}
+{"id":"a-12","input":"{\"stream\":{\"name\":\"Filme 720p\\n👤 5x\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p · 👤 5\""}
+{"id":"a-13","input":"{\"stream\":{\"name\":\"Filme 720p\\nx👤 6\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p · 👤 6\""}
+{"id":"a-14","input":"{\"stream\":{\"name\":\"Filme 720p\\n👤 \",\"_quality\":\"720p\",\"_seeders\":11},\"options\":{}}","expected":"\"720p · 👤 11\""}
+{"id":"a-15","input":"{\"stream\":{\"name\":\"Filme 720p\",\"_quality\":\"720p\",\"_seeders\":\"8\"},\"options\":{}}","expected":"\"720p · 👤 8\""}
+{"id":"a-16","input":"{\"stream\":{\"name\":\"Filme 720p\",\"_quality\":\"720p\",\"_seeders\":2.7},\"options\":{}}","expected":"\"720p · 👤 2.7\""}
+{"id":"a-17","input":"{\"stream\":{\"name\":\"Filme 720p\",\"_quality\":\"720p\",\"_seeders\":-4},\"options\":{}}","expected":"\"720p\""}
+{"id":"a-18","input":"{\"stream\":{\"name\":\"Filme 720p\",\"_quality\":\"720p\",\"_seeders\":\"abc\"},\"options\":{}}","expected":"\"720p\""}
+{"id":"a-19","input":"{\"stream\":{\"name\":\"Filme 720p\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p\""}
+{"id":"a-20","input":"{\"stream\":{\"name\":\"\",\"_seeders\":3},\"options\":{}}","expected":"\"👤 3\""}
+{"id":"a-21","input":"{\"stream\":{\"name\":\"A\\nB\\n👤 5\",\"_seeders\":1},\"options\":{}}","expected":"\"A\\n👤 1\""}
+{"id":"a-22","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{}}","expected":"\"1080p · Comando · 👤 5\""}
+{"id":"a-23","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_tracker\":\"ComandoTorrents\"},\"options\":{}}","expected":"\"1080p · Comando · 👤 5\""}
+{"id":"a-24","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_tracker\":\"kickasstorrents\"},\"options\":{}}","expected":"\"1080p · kickass · 👤 5\""}
+{"id":"a-25","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_tracker\":\"MeuIndexadorSuperLongo\"},\"options\":{}}","expected":"\"1080p · MeuIndexador · 👤 5\""}
+{"id":"a-26","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_tracker\":\"NerdFilmesTorrent\"},\"options\":{}}","expected":"\"1080p · NerdFilmes · 👤 5\""}
+{"id":"b-01","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameStyle\":\"full\"}}","expected":"\"Filme DUBLADO 1080p\\n1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-02","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameStyle\":\"compact\"}}","expected":"\"1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-03","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameStyle\":\"full\",\"streamNameShowSource\":false}}","expected":"\"Filme DUBLADO 1080p\\n1080p DUB BR · 👤 5\""}
+{"id":"b-04","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameShowSource\":false}}","expected":"\"1080p DUB BR · 👤 5\""}
+{"id":"b-05","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true}}","expected":"\"1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-06","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{}}","expected":"\"1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-07","input":"{\"stream\":{\"name\":\"Filme\",\"_seeders\":4},\"options\":{},\"opts\":{\"streamNameStyle\":\"full\"}}","expected":"\"Filme\\n👤 4\""}
+{"id":"b-08","input":"{\"stream\":{\"name\":\"Filme\",\"_seeders\":4},\"options\":{},\"opts\":{\"streamNameStyle\":\"weird\"}}","expected":"\"Filme\\n👤 4\""}
+{"id":"b-09","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{},\"opts\":{\"streamNameShowSource\":true}}","expected":"\"1080p · Comando · 👤 5\""}
+{"id":"b-10","input":"{\"stream\":{\"name\":\"Filme\\n👤 4\",\"_tracker\":\"Comando\",\"_seeders\":0},\"options\":{},\"opts\":{\"streamNameStyle\":\"compact\"}}","expected":"\"Filme\\nComando · 👤 4\""}
+{"id":"b-11","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_fromFallback\":true,\"_seeders\":5},\"options\":{},\"opts\":{\"streamNameStyle\":\"full\"}}","expected":"\"Filme 1080p\\n📦 · 1080p · 👤 ~5\""}
+{"id":"b-12","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameStyle\":\"full\",\"streamNameShowSource\":true}}","expected":"\"Filme DUBLADO 1080p\\n1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-13","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameStyle\":\"FULL\"}}","expected":"\"1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-14","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameStyle\":\"\"}}","expected":"\"1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-15","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameStyle\":null}}","expected":"\"1080p DUB BR · Comando · 👤 5\""}
+{"id":"b-16","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameShowSource\":null}}","expected":"\"1080p DUB BR · 👤 5\""}
+{"id":"b-17","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameShowSource\":0}}","expected":"\"1080p DUB BR · 👤 5\""}
+{"id":"b-18","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5 · Comando\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true},\"opts\":{\"streamNameShowSource\":\"false\"}}","expected":"\"1080p DUB BR · Comando · 👤 5\""}
+{"id":"c-01","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme DUBLADO BluRay Extended\"}}","expected":"\"1080p Extended BluRay DUB BR\""}
+{"id":"c-02","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false,\"dubbedFrom\":\"Filme DUBLADO BluRay Extended\"}}","expected":"\"1080p\""}
+{"id":"c-03","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme Legendado BluRay\"}}","expected":"\"1080p BluRay DUB BR\""}
+{"id":"c-04","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme Legendado\"}}","expected":"\"1080p LEG BR\""}
+{"id":"c-05","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme Dual Áudio\"}}","expected":"\"1080p DUAL BR\""}
+{"id":"c-06","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme Dual\"}}","expected":"\"1080p DUAL BR\""}
+{"id":"c-07","input":"{\"stream\":{\"name\":\"Filme Dual 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p\""}
+{"id":"c-08","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true}}","expected":"\"1080p BR\""}
+{"id":"c-09","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"1080p\"}}","expected":"\"1080p BR\""}
+{"id":"c-10","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme BD\"}}","expected":"\"1080p BluRay BR\""}
+{"id":"c-11","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme CAM\"}}","expected":"\"1080p CAM BR\""}
+{"id":"c-12","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_magnetDn\":\"Filme WEB-DL\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme HDCAM\"}}","expected":"\"1080p WEB-DL BR\""}
+{"id":"c-13","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme Nacional 1080p\"}}","expected":"\"1080p NAC BR\""}
+{"id":"c-14","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme Extended\"}}","expected":"\"1080p Extended BR\""}
+{"id":"c-15","input":"{\"stream\":{\"name\":\"Filme Extended 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme Director's Cut\"}}","expected":"\"1080p Extended BR\""}
+{"id":"c-16","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"\"}}","expected":"\"1080p BR\""}
+{"id":"c-17","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p\""}
+{"id":"c-18","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme G.O.R.A.\"}}","expected":"\"1080p BR\""}
+{"id":"d-01","input":"{\"stream\":{\"name\":\"Filme WEB-DL 1080p\",\"_quality\":\"1080p\",\"_magnetDn\":\"\"},\"options\":{}}","expected":"\"1080p WEB-DL\""}
+{"id":"d-02","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_magnetDn\":\"Filme BluRay x264\"},\"options\":{}}","expected":"\"1080p BluRay\""}
+{"id":"d-03","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_magnetDn\":\"Filme CAMRip\"},\"options\":{}}","expected":"\"1080p CAM\""}
+{"id":"d-04","input":"{\"stream\":{\"name\":\"Filme HDCAM 1080p\",\"_quality\":\"1080p\",\"_magnetDn\":\"Filme WEB-DL\"},\"options\":{}}","expected":"\"1080p CAM\""}
+{"id":"d-05","input":"{\"stream\":{\"name\":\"Filme CAM\",\"_quality\":\"1080p\",\"_magnetDn\":\"CAM\"},\"options\":{}}","expected":"\"1080p CAM\""}
+{"id":"d-06","input":"{\"stream\":{\"name\":\"Filme WEB-DL\",\"_magnetDn\":\"Filme CAM\"},\"options\":{}}","expected":"\"CAM\""}
+{"id":"d-07","input":"{\"stream\":{\"name\":\"Filme .ts\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p\""}
+{"id":"d-08","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p\""}
+{"id":"d-09","input":"{\"stream\":{\"name\":\"Filme WEBRip\"},\"options\":{}}","expected":"\"WEBRip\""}
+{"id":"d-10","input":"{\"stream\":{\"name\":\"Filme HDTV\"},\"options\":{}}","expected":"\"HDTV\""}
+{"id":"d-11","input":"{\"stream\":{\"name\":\"Filme TS 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p CAM\""}
+{"id":"d-12","input":"{\"stream\":{\"name\":\"Filme PreDVD\"},\"options\":{}}","expected":"\"CAM\""}
+{"id":"d-13","input":"{\"stream\":{\"name\":\"Filme BD\"},\"options\":{}}","expected":"\"BluRay\""}
+{"id":"d-14","input":"{\"stream\":{\"name\":\"Filme WEB-DL\",\"_magnetDn\":\"Film.TS.1080p\"},\"options\":{}}","expected":"\"CAM\""}
+{"id":"e-01","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p DUB\""}
+{"id":"e-02","input":"{\"stream\":{\"name\":\"Filme LEGENDADO 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p LEG\""}
+{"id":"e-03","input":"{\"stream\":{\"name\":\"Filme DUAL 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true}}","expected":"\"1080p DUAL BR\""}
+{"id":"e-04","input":"{\"stream\":{\"name\":\"Filme DUAL AUDIO 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p\""}
+{"id":"e-05","input":"{\"stream\":{\"name\":\"Filme Dual Áudio 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p\""}
+{"id":"e-06","input":"{\"stream\":{\"name\":\"Filme MULTI 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p\""}
+{"id":"e-07","input":"{\"stream\":{\"name\":\"Filme NACIONAL 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p NAC\""}
+{"id":"e-08","input":"{\"stream\":{\"name\":\"Filme NAC 720p LEG\",\"_quality\":\"720p\"},\"options\":{\"isBr\":false}}","expected":"\"720p LEG\""}
+{"id":"e-09","input":"{\"stream\":{\"name\":\"Filme Dublada e Dual 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p DUAL\""}
+{"id":"e-10","input":"{\"stream\":{\"name\":\"Filme Dublada e Dual LEGENDADA 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p LEG\""}
+{"id":"e-11","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p\""}
+{"id":"e-12","input":"{\"stream\":{\"name\":\"Filme DUBLADO720p\",\"_quality\":\"720p\"},\"options\":{\"isBr\":false}}","expected":"\"720p DUB\""}
+{"id":"e-13","input":"{\"stream\":{\"name\":\"Filme DUBLADOADOX\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p\""}
+{"id":"e-14","input":"{\"stream\":{\"name\":\"Filme PT-BR 1080p\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":false}}","expected":"\"1080p DUB\""}
+{"id":"f-01","input":"{\"stream\":{\"name\":\"Filme Extended 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p Extended\""}
+{"id":"f-02","input":"{\"stream\":{\"name\":\"Filme Director's Cut 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p DC\""}
+{"id":"f-03","input":"{\"stream\":{\"name\":\"Filme Theatrical 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p Cinema\""}
+{"id":"f-04","input":"{\"stream\":{\"name\":\"Filme Remastered 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p Remaster\""}
+{"id":"f-05","input":"{\"stream\":{\"name\":\"Filme IMAX 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p IMAX\""}
+{"id":"f-06","input":"{\"stream\":{\"name\":\"Filme Uncut 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p Uncut\""}
+{"id":"f-07","input":"{\"stream\":{\"name\":\"Filme Alt.End 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p\""}
+{"id":"f-08","input":"{\"stream\":{\"name\":\"Filme Versão Estendida 1080p\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p Extended\""}
+{"id":"g-01","input":"{\"stream\":{\"name\":\"Filme\",\"_quality\":\"1080p\"},\"options\":{}}","expected":"\"1080p\""}
+{"id":"g-02","input":"{\"stream\":{\"name\":\"Filme\",\"_quality\":\"2160p\"},\"options\":{}}","expected":"\"4K\""}
+{"id":"g-03","input":"{\"stream\":{\"name\":\"Filme\",\"_quality\":\"sem resolução\"},\"options\":{}}","expected":"\"Filme\""}
+{"id":"g-04","input":"{\"stream\":{\"name\":\"Filme\"},\"options\":{}}","expected":"\"Filme\""}
+{"id":"g-05","input":"{\"stream\":{\"name\":\"Filme\",\"_quality\":\"720p\"},\"options\":{}}","expected":"\"720p\""}
+{"id":"g-06","input":"{\"stream\":{\"name\":\"Filme\",\"_quality\":\"SD\"},\"options\":{}}","expected":"\"SD\""}
+{"id":"g-07","input":"{\"stream\":{\"name\":\"Filme\",\"_quality\":\"\"},\"options\":{}}","expected":"\"Filme\""}
+{"id":"g-08","input":"{\"stream\":{\"name\":\"Filme\",\"_quality\":\"1080p\"},\"options\":{\"isBr\":true}}","expected":"\"1080p BR\""}
+{"id":"h-01","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_fromFallback\":true,\"_seeders\":5},\"options\":{}}","expected":"\"📦 · 1080p · 👤 ~5\""}
+{"id":"h-02","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_fromSnapshot\":true,\"_seeders\":0},\"options\":{}}","expected":"\"📦 · 1080p · 👤 ~\""}
+{"id":"h-03","input":"{\"stream\":{\"name\":\"Filme\",\"_fromFallback\":true,\"_seeders\":0},\"options\":{}}","expected":"\"Filme\\n📦 · 👤 ~\""}
+{"id":"h-04","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_fromFallback\":false,\"_fromSnapshot\":false,\"_seeders\":5},\"options\":{}}","expected":"\"1080p · 👤 5\""}
+{"id":"h-05","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_fromFallback\":true,\"_fromSnapshot\":true,\"_seeders\":2},\"options\":{}}","expected":"\"📦 · 1080p · 👤 ~2\""}
+{"id":"h-06","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_fromFallback\":true,\"_seeders\":\"abc\"},\"options\":{}}","expected":"\"📦 · 1080p · 👤 ~\""}
+{"id":"h-07","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_fromFallback\":1,\"_seeders\":1},\"options\":{}}","expected":"\"📦 · 1080p · 👤 ~1\""}
+{"id":"h-08","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_fromSnapshot\":\"yes\",\"_seeders\":1},\"options\":{}}","expected":"\"📦 · 1080p · 👤 ~1\""}
+{"id":"i-01","input":"{\"stream\":{\"name\":\"A\\ud800B 1080p\\n👤 5\",\"_quality\":\"1080p\"},\"options\":{},\"opts\":{\"streamNameStyle\":\"full\"}}","expected":"\"A\\ud800B 1080p\\n1080p · 👤 5\""}
+{"id":"i-02","input":"{\"stream\":{\"name\":\"A\\udfffB\"},\"options\":{}}","expected":"\"A\\udfffB\""}
+{"id":"i-03","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_tracker\":\"\\ud800Tracker\"},\"options\":{}}","expected":"\"1080p · \\ud800Tracker · 👤 5\""}
+{"id":"i-04","input":"{\"stream\":{\"name\":\"🎬 Filme\"},\"options\":{}}","expected":"\"🎬 Filme\""}
+{"id":"i-05","input":"{\"stream\":{\"name\":\"Filme\\u0301\"},\"options\":{}}","expected":"\"Filmé\""}
+{"id":"i-06","input":"{\"stream\":{\"name\":\"A\\u2028B\"},\"options\":{}}","expected":"\"A B\""}
+{"id":"i-07","input":"{\"stream\":{\"name\":\"A\\rB\"},\"options\":{}}","expected":"\"A\\rB\""}
+{"id":"i-08","input":"{\"stream\":{\"name\":\"\\ud800\",\"_quality\":\"720p\"},\"options\":{},\"opts\":{\"streamNameStyle\":\"full\"}}","expected":"\"\\ud800\\n720p\""}
+{"id":"i-09","input":"{\"stream\":{\"name\":\"Filme\\n👤 5 🎬\",\"_quality\":\"1080p\",\"_tracker\":\"🎬Fonte\"},\"options\":{}}","expected":"\"1080p · 🎬Fonte · 👤 5\""}
+{"id":"i-10","input":"{\"stream\":{\"name\":\"\\u0000 1080p\"},\"options\":{}}","expected":"\"\\u0000 1080p\""}
+{"id":"j-01","input":"{\"stream\":{\"name\":\"Filme 1080p\\n👤 5\",\"_quality\":\"1080p\",\"syntheticLabel\":\"public-ns-1\",\"_tracker\":\"Comando\"},\"options\":{}}","expected":"\"1080p · Comando · 👤 5\""}
+{"id":"j-02","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"labels\":[\"a\",\"b\"],\"_seeders\":2},\"options\":{}}","expected":"\"1080p · 👤 2\""}
+{"id":"j-03","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"note\":\"x\",\"meta\":{\"k\":1},\"_seeders\":2},\"options\":{}}","expected":"\"1080p · 👤 2\""}
+{"id":"j-04","input":"{\"stream\":{\"name\":\"Filme 1080p\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\",\"_fromFallback\":true,\"_fromSnapshot\":true,\"_magnetDn\":\"Filme WEB-DL\",\"_seeders\":5},\"options\":{}}","expected":"\"📦 · 1080p WEB-DL · Comando · 👤 ~5\""}
+{"id":"j-05","input":"{\"stream\":{\"name\":\"Filme DUBLADO 1080p\\n👤 5\",\"_quality\":\"1080p\",\"_tracker\":\"Comando\"},\"options\":{\"isBr\":true,\"dubbedFrom\":\"Filme BluRay\"},\"opts\":{\"streamNameStyle\":\"full\",\"streamNameShowSource\":false}}","expected":"\"Filme DUBLADO 1080p\\n1080p BluRay DUB BR · 👤 5\""}
