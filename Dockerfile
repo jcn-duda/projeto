@@ -21,6 +21,22 @@ FROM lscr.io/linuxserver/jackett@sha256:099e895abbeb4564f8c5cb5f2def66462d73dffa
 # (2026-09-12; antes v3.5.0).
 FROM ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767 AS flaresolverr
 
+# --- Núcleo Rust (ponte napi): compila o adom-napi como .node para o musl do
+# runtime. Mesma toolchain do rust/rust-toolchain.toml (1.92.0 = Unicode 17, a
+# paridade do toLowerCase com o Node depende disso). O rust-toolchain.toml não
+# é copiado de propósito: os componentes clippy/rustfmt dele fariam o rustup
+# baixar coisa que o build não usa. Em musl o Rust linka estático por padrão e
+# recusa cdylib — o `-crt-static` é o que deixa sair a biblioteca dinâmica.
+# Só é CARREGADO com RUST_CORE=shadow|on; sem isso a imagem ignora o arquivo.
+FROM rust:1.92.0-alpine AS rustcore
+RUN apk add --no-cache musl-dev
+WORKDIR /rust
+COPY rust/Cargo.toml rust/Cargo.lock ./
+COPY rust/crates ./crates
+ENV RUSTFLAGS="-C target-feature=-crt-static"
+RUN cargo build --locked --release -p adom-napi \
+ && cp target/release/libadom_napi.so /adom_napi.node
+
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -112,6 +128,8 @@ RUN npm ci --omit=dev
 # resolvedores vive SÓ em dist/resolvers (é o que o br-resolvers resolve a
 # partir de dist/src/); não há cópia crua em /app/resolvers.
 COPY --from=builder /app/dist ./dist
+# Ponte Rust: caminho default do src/utils/rust-core.ts (dist/rust/).
+COPY --from=rustcore /adom_napi.node ./dist/rust/adom_napi.node
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

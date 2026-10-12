@@ -6,9 +6,9 @@
   "function": {
     "name": "normalizeTitle",
     "sourcePath": "src/utils/title-normalization.ts",
-    "sourceSha256": "6b91e5b5e869d18c1122ece1906fb82ac48e61dd54722102efb15aaa23414551",
+    "sourceSha256": "6801c5a7d813aa0164883080e4f7c1cf2b91d5a501ce6f2c60a7e01d53d414b9",
     "artifactPath": "dist/src/utils/title-normalization.js",
-    "artifactSha256": "87ecdf85babf0b8362877da7ae0ff1d2bd9fed706043ecdd029be61da5e9b412"
+    "artifactSha256": "814411ed4bfe4be7f8cffc95c40ec3051cc043fa9bb8649b5b279298687a7c7d"
   },
   "corpus": {
     "path": "scripts/golden/corpus-title-normalization.json",
@@ -24,6 +24,6 @@
     "major": 22
   },
   "git": {
-    "revision": "022ae03d8edcaff65d3b659760672e0d02d50012"
+    "revision": "d8505b2be60288a0d6e31d976b3bb062b3763402"
   }
 }

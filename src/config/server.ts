@@ -14,4 +14,19 @@ export const server = () => ({
   logging: {
     level: process.env.ADDON_LOG_LEVEL || 'info',
   },
+  // Ponte Rust (napi, `rust/crates/adom-napi`): off = só TS; shadow = TS
+  // responde e o Rust roda junto só para logar divergência; on = Rust responde
+  // (TS de reserva se o Rust lançar). Valor desconhecido vira off.
+  rustCore: {
+    mode: rustMode(process.env.RUST_CORE),
+    // Vazio = dist/rust/adom_napi.node, que o Dockerfile compila.
+    path: process.env.RUST_CORE_PATH || '',
+    // Teto de divergências logadas por processo (o contador do /metrics segue).
+    maxLoggedDiffs: num(process.env.RUST_CORE_MAX_LOGGED_DIFFS, 20),
+  },
 });
+
+function rustMode(raw: unknown): 'off' | 'shadow' | 'on' {
+  const v = String(raw || '').trim().toLowerCase();
+  return v === 'shadow' || v === 'on' ? v : 'off';
+}

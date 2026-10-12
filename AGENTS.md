@@ -35,6 +35,15 @@ trabalho de código é em `src/`.
   flaresolverr → addon; qualquer um morrer derruba o container. Healthcheck
   quádruplo (7000, Jackett 9117, Flare 8191, API admin do Caddy 2019 **com
   `Origin` explícito**).
+- **Ponte Rust** (`rust/crates/adom-napi`, napi-rs): o Dockerfile compila o
+  `.node` para musl (estágio `rustcore`, `-crt-static`) em `dist/rust/`; o
+  `npm run build` NÃO o gera e limpa `dist/`. `RUST_CORE=off|shadow|on`
+  (default off) liga via `src/utils/rust-core.ts`, só no boot do processo
+  (gancho `installNormalizeTitle`; testes e oráculos de golden medem o TS puro).
+  Hoje cobre só `normalizeTitle`. Por chamada o napi é ~2× mais lento que o TS
+  (travessia de string): ganho de velocidade só com API em lote. Mudou
+  `title-normalization.ts`? regenere o golden (`dump-title-normalization.mjs
+  --force`). Código Rust quebrado no working tree quebra a imagem.
 - Os oito `*-resolver` são **profiles importados no processo do addon**
   (portas 8700–8707, `src/br-resolvers.ts`), não containers.
 - `ServerConfig.json` do Jackett vive no volume `./docker-data/jackett`;

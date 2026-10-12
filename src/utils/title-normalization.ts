@@ -109,7 +109,22 @@ function collapseAcronyms(s = '') {
   });
 }
 
+// Implementação alternativa instalada no boot do processo (ponte Rust, modo
+// shadow/on — `rust-core.ts`). Fica num gancho, e não num import de config,
+// para este módulo continuar puro: os oráculos de golden importam o dist/ dele
+// e precisam medir SEMPRE o TS.
+type TitleImpl = (input: string, ts: (input: string) => string) => string;
+let titleImpl: TitleImpl | null = null;
+
+function installNormalizeTitle(impl: TitleImpl | null) {
+  titleImpl = impl;
+}
+
 function normalizeTitle(s = '') {
+  return titleImpl ? titleImpl(String(s), normalizeTitleTs) : normalizeTitleTs(s);
+}
+
+function normalizeTitleTs(s = '') {
   // \p{M} é obrigatório, não opcional: o .normalize('NFD') da linha anterior
   // separa dakuten/vogais-marca (japonês, hindi, tailandês) como combining
   // marks fora de ̀-ͯ; sem \p{M} elas viram espaço e "すずめの戸締まり" sairia
@@ -189,4 +204,4 @@ function magnetDisplayName(item: { magnet?: string; MagnetUri?: string; Guid?: s
   return source;
 }
 
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, collapseAcronyms, stripDiacritics, dedupeNames, magnetDisplayName };
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, normalizeTitleTs, installNormalizeTitle, collapseAcronyms, stripDiacritics, dedupeNames, magnetDisplayName };
