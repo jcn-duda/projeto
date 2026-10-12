@@ -17,13 +17,13 @@
   },
   "output": {
     "path": "rust/golden/matching-tokens-text.jsonl",
-    "sha256": "9dcb229fb851d2e6cce4bdf1ce6993b99a363842486491887158272a0cc88f44",
+    "sha256": "dc2a77d7beb5be29913918440a1da6068919b4f7f1fb5a4891c0cf84a2847545",
     "lines": 243
   },
   "node": {
     "major": 22
   },
   "git": {
-    "revision": "caa0f27bc12b7d498444bc5513e0942d6dc1a79c"
+    "revision": "59b4fedfabcc3e13c1b5a9ce51b0bed800e8c43f"
   }
 }

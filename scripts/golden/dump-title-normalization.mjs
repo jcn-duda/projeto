@@ -121,9 +121,10 @@ const FUNCTIONS = {
         const epiRaw = mod.episodeWorkTokens(tokens);
         const epi = epiRaw === null ? '-' : epiRaw.join(' ');
         const first = mod.firstWorkToken(tokens) ?? '-';
+        const unm = mod.firstUnmarkedToken(tokens) ?? '-';
         const nn = tokens.map((t) => (mod.isNonNamingToken(t) ? 1 : 0)).join('');
         const nl = tokens.map((t) => (mod.isNonLatinToken(t) ? 1 : 0)).join('');
-        return `seq=${seq} epi=${epi} first=${first} nn=${nn} nl=${nl}`;
+        return `seq=${seq} epi=${epi} first=${first} unm=${unm} nn=${nn} nl=${nl}`;
       };
     },
   },
