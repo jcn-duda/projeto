@@ -1,12 +1,13 @@
 {
   "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
   "registry": [
     "matching-vocabulary/sets"
   ],
   "function": {
     "name": "vocabularySets",
     "sourcePath": "src/utils/matching-vocabulary.ts",
-    "sourceSha256": "e09288e33baf12fd48622c44040e8c4052228f24cc3361e40c1ccb64c4e3007b",
+    "sourceSha256": "dd2e46fe02c6c1b2816a143f0972bc9e06d95f9b2961cec539541d4c8f010460",
     "artifactPath": "dist/src/utils/matching-vocabulary.js",
     "artifactSha256": "632f2884dfc5caefcd86b5934e169741898ece2a33ecf4e72aee2253c6e30b8b"
   },

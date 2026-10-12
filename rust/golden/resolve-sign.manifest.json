@@ -1,5 +1,6 @@
 {
   "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
   "registry": [
     "resolve-sign/signResolve",
     "resolve-sign/verifyResolve"
@@ -9,7 +10,7 @@
       "id": "resolve-sign/signResolve",
       "name": "signResolve",
       "sourcePath": "src/utils/sign.ts",
-      "sourceSha256": "a89b141c517806b6e12d8e69c9f5bd1d2ea1ed29aadbe1ecfccb71148cba4b51",
+      "sourceSha256": "3b92baafabdbab55e08391a9254dd4b1286c1a82ded12e4bf05b85e9eae110fb",
       "artifactPath": "dist/src/utils/sign.js",
       "artifactSha256": "a1bd779c926e36e37c9f2773631285a25dcc188791445ad1f7a1aed60b71d8ea"
     },
@@ -17,7 +18,7 @@
       "id": "resolve-sign/verifyResolve",
       "name": "verifyResolve",
       "sourcePath": "src/utils/sign.ts",
-      "sourceSha256": "a89b141c517806b6e12d8e69c9f5bd1d2ea1ed29aadbe1ecfccb71148cba4b51",
+      "sourceSha256": "3b92baafabdbab55e08391a9254dd4b1286c1a82ded12e4bf05b85e9eae110fb",
       "artifactPath": "dist/src/utils/sign.js",
       "artifactSha256": "a1bd779c926e36e37c9f2773631285a25dcc188791445ad1f7a1aed60b71d8ea"
     }

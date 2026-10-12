@@ -16,6 +16,11 @@
  * — a prova real é a recomputação: check re-executa o dist vivo e compara
  * byte a byte com o golden commitado. Sem rede, sem .env, função pura.
  *
+ * O SHA da fonte é portátil: cobre o texto com CRLF → LF (ver
+ * source-fingerprint.mjs), senão o mesmo conteúdo falha "fonte mudou" num
+ * checkout LF. Payload (corpus) e saída (JSONL) NÃO passam por essa
+ * normalização; o artefato do dist também não.
+ *
  * Flags de teste (escopo restrito): --corpus <caminho> e --out <dir>
  * redirecionam entradas/saídas para fixtures fora da árvore (usado nos
  * negativos); os paths DENTRO do manifest são sempre os canônicos do repo.
@@ -32,6 +37,7 @@ import streamQuotas from './registry-stream-quotas.mjs';
 import releaseWork from './registry-release-work.mjs';
 import releaseTitleRules from './registry-release-title-rules.mjs';
 import releaseNameMatching from './registry-release-name-matching.mjs';
+import { SOURCE_HASH_LINE_ENDINGS, shaSourceLf } from './source-fingerprint.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
@@ -383,7 +389,8 @@ async function loadOracle(fn) {
   const raw = fn.resolve ? await fn.resolve(mod) : mod[fn.exportName ?? fn.name];
   if (typeof raw !== 'function') fail(`dist não exporta ${fn.name}`);
   const f = fn.toText ? (input) => fn.toText(raw(input)) : raw;
-  return { f, sourceSha: sha256(readFileSync(sourcePath)), artifactSha: sha256(readFileSync(artifactPath)) };
+  // Fonte: hash portátil (CRLF → LF). Artefato: bytes crus (provenance).
+  return { f, sourceSha: shaSourceLf(readFileSync(sourcePath)), artifactSha: sha256(readFileSync(artifactPath)) };
 }
 
 /** Corpus: só strings, ids únicos e não vazio — contrato desta fatia. */
@@ -440,6 +447,9 @@ function gitRevision() {
 function buildManifest(fn, oracle, corpusSha, casesCount, outputSha, linesCount) {
   return {
     format: MANIFEST_FORMAT,
+    // Política do hash da fonte: cobre o texto com CRLF → LF (portátil entre
+    // checkouts); não vale para corpus/artefato.
+    sourceHashLineEndings: SOURCE_HASH_LINE_ENDINGS,
     registry: [fn.id],
     function: {
       name: fn.name,

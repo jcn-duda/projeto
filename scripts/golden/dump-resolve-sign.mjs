@@ -15,6 +15,11 @@
  * nada de node:http/net/tls/dns/child_process e nenhum bare fora de dotenv.
  * Flags de teste: --corpus/--out redirecionam (negativos); --keep-tmp preserva o
  * staging. Os paths DENTRO do manifest são sempre os canônicos do repo.
+ *
+ * O SHA da FONTE (sign.ts) é portátil: cobre o texto com CRLF → LF (ver
+ * source-fingerprint.mjs), senão o mesmo conteúdo falha "fonte mudou" num
+ * checkout LF. Corpus e saída (JSONL) NÃO passam por essa normalização; o
+ * artefato do dist também não.
  */
 
 import { createHash } from 'node:crypto';
@@ -23,6 +28,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SOURCE_HASH_LINE_ENDINGS, shaSourceLf } from './source-fingerprint.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
@@ -259,6 +265,8 @@ function computeJsonl(corpus, stagingDir, dotenvPath) {
   return renderJsonl(corpus, byGroup);
 }
 const fileSha = (rel) => sha256(fs.readFileSync(path.join(REPO, rel)));
+// Fonte em hash portátil (CRLF → LF); só a fonte — artefato segue em fileSha.
+const fileSourceSha = (rel) => shaSourceLf(fs.readFileSync(path.join(REPO, rel)));
 function gitRevision() {
   try {
     return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim() || null;
@@ -267,10 +275,13 @@ function gitRevision() {
   }
 }
 function buildManifest(corpus, jsonl) {
-  const sourceSha256 = fileSha(SOURCE);
+  const sourceSha256 = fileSourceSha(SOURCE);
   const artifactSha256 = fileSha(ARTIFACT);
   return {
     format: MANIFEST_FORMAT,
+    // Política do hash da fonte: cobre o texto com CRLF → LF (portátil entre
+    // checkouts); não vale para corpus/artefato.
+    sourceHashLineEndings: SOURCE_HASH_LINE_ENDINGS,
     registry: FUNCTIONS.map((f) => f.id),
     functions: FUNCTIONS.map((f) => ({
       id: f.id, name: f.name, sourcePath: toPosix(SOURCE), sourceSha256,
@@ -299,7 +310,7 @@ function generate(corpus, jsonl, outDir, force) {
   const outJsonl = path.join(outDir, path.basename(OUT_JSONL));
   const outManifest = path.join(outDir, path.basename(OUT_MANIFEST));
   const existing = readManifestIfExists(outManifest);
-  if (existing && !force && existing.functions?.[0]?.sourceSha256 !== fileSha(SOURCE)) {
+  if (existing && !force && existing.functions?.[0]?.sourceSha256 !== fileSourceSha(SOURCE)) {
     fail('fonte mudou desde a última geração; regenere com --force (ou revise o corpus primeiro)');
   }
   fs.mkdirSync(outDir, { recursive: true });
@@ -329,7 +340,7 @@ function check(corpus, jsonl, outDir) {
   if (manifest.output?.sha256 !== sha256(committed)) fail('golden divergiu do manifest (arquivo alterado fora do gerador)');
   if (!committed.equals(jsonl)) fail('comportamento do dist divergiu do golden (comparação caso a caso falhou)');
   if (manifest.corpus?.sha256 !== corpus.sha) fail('corpus mudou desde a geração (hash diverge do manifest)');
-  if (manifest.functions?.[0]?.sourceSha256 !== fileSha(SOURCE)) fail('fonte mudou desde a geração; regenere o golden');
+  if (manifest.functions?.[0]?.sourceSha256 !== fileSourceSha(SOURCE)) fail('fonte mudou desde a geração; regenere o golden');
   const lines = committed.toString('utf8').trimEnd().split('\n');
   if (lines.length !== corpus.cases.length || manifest.output?.lines !== corpus.cases.length) {
     fail(`contagem de linhas diverge: golden=${lines.length} corpus=${corpus.cases.length} manifest=${manifest.output?.lines}`);

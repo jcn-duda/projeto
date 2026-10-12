@@ -1,12 +1,13 @@
 {
   "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
   "registry": [
     "release-name-matching/helpers"
   ],
   "function": {
     "name": "releaseNameMatching",
     "sourcePath": "src/utils/release-name-matching.ts",
-    "sourceSha256": "8bb670122934cf97f9dd96a9ec960563404293ad1bc4a2e501d53184bd9688b3",
+    "sourceSha256": "4c10c7b104d9428385081ae756d2d08349ac125744d03efa034296829bc25a66",
     "artifactPath": "dist/src/utils/release-name-matching.js",
     "artifactSha256": "5d369e14f096c721769bd5f69b770416a9f0d3b3cbbcc214cc074ec5e6c6ada2"
   },

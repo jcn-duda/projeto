@@ -1,12 +1,13 @@
 {
   "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
   "registry": [
     "magnet-uri/sanitize"
   ],
   "function": {
     "name": "magnetUri",
     "sourcePath": "src/utils/magnet-uri.ts",
-    "sourceSha256": "4f9c8a066496ac258ccacfc2b4036eb483851f82cb4852dc021b6f18b45de117",
+    "sourceSha256": "1658db8541429e414aa02a90a2a7a4b409e80873f6d1c9bf1e1fe729c88c600b",
     "artifactPath": "dist/src/utils/magnet-uri.js",
     "artifactSha256": "b8fb21f44b21a96cf59c7bf6cb2fffe8df04c82d0ddc83005375281ad5ce30bc"
   },
