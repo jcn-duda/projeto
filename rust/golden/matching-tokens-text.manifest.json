@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "matching-tokens/text"
+  ],
+  "function": {
+    "name": "matchingTokensText",
+    "sourcePath": "src/utils/matching-tokens.ts",
+    "sourceSha256": "60c13b874db7143a015a96c9a9c1d468ae95e905c76137ce44199e0976474bef",
+    "artifactPath": "dist/src/utils/matching-tokens.js",
+    "artifactSha256": "b53476231d8b58a2f810082a511f1be6914dfb10a2477d745440d5523c6c0bd5"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-matching-tokens-text.json",
+    "sha256": "bf3fb91eda21096fbb25c2592d0353558dc69e73a5074ef36fd6142aa110f037",
+    "cases": 243
+  },
+  "output": {
+    "path": "rust/golden/matching-tokens-text.jsonl",
+    "sha256": "9dcb229fb851d2e6cce4bdf1ce6993b99a363842486491887158272a0cc88f44",
+    "lines": 243
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "caa0f27bc12b7d498444bc5513e0942d6dc1a79c"
+  }
+}

@@ -99,6 +99,63 @@ const FUNCTIONS = {
       return `yr=${yr} ep=${ep}`;
     },
   },
+  // Funções de tokens que dependem só de texto/tokens. Saída por entrada, em
+  // campos fixos: seq (marcadores de sequência, ordenados), epi (trecho da obra
+  // numa release por episódio; `-` para null, vazio para lista vazia), first
+  // (primeiro token que nomeia a obra; `-` para undefined), nn e nl (por token:
+  // 1 se isNonNamingToken / isNonLatinToken). O oracle chama titleTokens para
+  // gerar a entrada de episodeWorkTokens, como o código de produção.
+  'matching-tokens-text': {
+    id: 'matching-tokens/text',
+    name: 'matchingTokensText',
+    source: 'src/utils/matching-tokens.ts',
+    artifact: 'dist/src/utils/matching-tokens.js',
+    corpus: 'scripts/golden/corpus-matching-tokens-text.json',
+    outJsonl: 'rust/golden/matching-tokens-text.jsonl',
+    outManifest: 'rust/golden/matching-tokens-text.manifest.json',
+    resolve: async (mod) => {
+      const vocab = await import(pathToFileURL(path.join(REPO, 'dist/src/utils/matching-vocabulary.js')).href);
+      return (input) => {
+        const tokens = vocab.titleTokens(input);
+        const seq = [...mod.extractSequenceMarkers(input)].map(String).sort().join(',');
+        const epiRaw = mod.episodeWorkTokens(tokens);
+        const epi = epiRaw === null ? '-' : epiRaw.join(' ');
+        const first = mod.firstWorkToken(tokens) ?? '-';
+        const nn = tokens.map((t) => (mod.isNonNamingToken(t) ? 1 : 0)).join('');
+        const nl = tokens.map((t) => (mod.isNonLatinToken(t) ? 1 : 0)).join('');
+        return `seq=${seq} epi=${epi} first=${first} nn=${nn} nl=${nl}`;
+      };
+    },
+  },
+  // Varredura exaustiva da classe de LATIN_LETTER_RE (`[\p{Script=Latin}\p{M}]`):
+  // um único caso cuja saída lista, em hexadecimal, os intervalos de code points
+  // que casam. Cobre todo o Unicode, então o porte Rust é provado código a código
+  // (e não só por exemplos), o que importa porque as tabelas Unicode diferem
+  // entre Node (17) e o crate regex.
+  'matching-latin-ranges': {
+    id: 'matching-latin-ranges/codepoints',
+    name: 'matchingLatinRanges',
+    source: 'src/utils/matching-tokens.ts',
+    artifact: 'dist/src/utils/matching-tokens.js',
+    corpus: 'scripts/golden/corpus-matching-latin-ranges.json',
+    outJsonl: 'rust/golden/matching-latin-ranges.jsonl',
+    outManifest: 'rust/golden/matching-latin-ranges.manifest.json',
+    resolve: (mod) => () => {
+      const ranges = [];
+      let start = -1;
+      for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+        // Surrogates não formam string UTF-8 válida: não entram na varredura.
+        const inRange = cp >= 0xd800 && cp <= 0xdfff ? false : !mod.isNonLatinToken(String.fromCodePoint(cp));
+        if (inRange && start < 0) start = cp;
+        if (!inRange && start >= 0) {
+          ranges.push(start === cp - 1 ? start.toString(16) : `${start.toString(16)}-${(cp - 1).toString(16)}`);
+          start = -1;
+        }
+      }
+      if (start >= 0) ranges.push(`${start.toString(16)}-10ffff`);
+      return ranges.join(' ');
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 
@@ -153,7 +210,7 @@ async function loadOracle(fn) {
   }
   // `resolve(mod)` monta o oracle quando a entrada não é uma função exportada
   // direta (ex.: conteúdo de uma constante). Mesma regra: sem réplica no gerador.
-  const raw = fn.resolve ? fn.resolve(mod) : mod[fn.exportName ?? fn.name];
+  const raw = fn.resolve ? await fn.resolve(mod) : mod[fn.exportName ?? fn.name];
   if (typeof raw !== 'function') fail(`dist não exporta ${fn.name}`);
   const f = fn.toText ? (input) => fn.toText(raw(input)) : raw;
   return { f, sourceSha: sha256(readFileSync(sourcePath)), artifactSha: sha256(readFileSync(artifactPath)) };

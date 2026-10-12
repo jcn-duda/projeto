@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "matching-latin-ranges/codepoints"
+  ],
+  "function": {
+    "name": "matchingLatinRanges",
+    "sourcePath": "src/utils/matching-tokens.ts",
+    "sourceSha256": "60c13b874db7143a015a96c9a9c1d468ae95e905c76137ce44199e0976474bef",
+    "artifactPath": "dist/src/utils/matching-tokens.js",
+    "artifactSha256": "b53476231d8b58a2f810082a511f1be6914dfb10a2477d745440d5523c6c0bd5"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-matching-latin-ranges.json",
+    "sha256": "6a8cd50c0bd96fe2ba8d37bfb68ddddfdfe3aea716ab72c3b7b52710fa0c781b",
+    "cases": 1
+  },
+  "output": {
+    "path": "rust/golden/matching-latin-ranges.jsonl",
+    "sha256": "22a3d5405b466c2b3ad1e47c290ab290698b12901b75ef11f4d3151e708f0b56",
+    "lines": 1
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "caa0f27bc12b7d498444bc5513e0942d6dc1a79c"
+  }
+}
