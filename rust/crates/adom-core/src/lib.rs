@@ -30,6 +30,7 @@ mod multiwork_pack;
 mod release_name_matching;
 mod release_title_rules;
 mod release_work;
+mod reply_budget;
 mod resolve_sign;
 mod short_name_tail;
 mod strip_diacritics;
@@ -121,6 +122,7 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 
 // ── title_normalization ──────────────────────────────────────────────
 pub use title_normalization::normalize_title;
+pub use reply_budget::remaining_check_budget;
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
