@@ -48,6 +48,7 @@ mod short_name_tail;
 mod stream_display;
 mod stream_quotas;
 pub mod stream_quotas_extra;
+mod stream_relabel;
 mod strip_diacritics;
 mod title_normalization;
 mod tmdb_br_aliases;
@@ -169,6 +170,7 @@ pub use stream_display::{
     compact_tracker, stream_display_name, StreamDisplayConfig, StreamDisplayOptions,
     StreamNameStyle, UserDisplayOptions,
 };
+pub use stream_relabel::{relabel, RelabelOptions, RelabelStream};
 pub use strip_diacritics::strip_diacritics;
 pub use title_normalization::normalize_title;
 pub use tmdb_br_aliases::{filter_br_aliases, MAX_BR_ALIASES};
