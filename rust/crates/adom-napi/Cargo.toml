@@ -1,0 +1,35 @@
+# Crate NAPI-RS: ponte entre o Node (ESM) e o `adom-core`.
+#
+# Este crate produz uma biblioteca dinâmica (.node) que o Node carrega via
+# `require()`/`createRequire()`. Cada função pública é exposta com a macro
+# `#[napi]`, que gera automaticamente os bindings C-ABI e o `.d.ts`.
+#
+# Regra de responsabilidade: este crate SÓ faz wrapping — toda lógica real
+# vive em `adom-core`. Funções que dependem de segredo/config (p.ex.
+# signResolve) recebem o segredo como parâmetro; o lado Node é responsável
+# por fornecê-lo via `config`/`runtime`.
+
+[package]
+name = "adom-napi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Bindings NAPI-RS do adom-core para o addon Node."
+license = "UNLICENSED"
+
+# Biblioteca dinâmica — o napi-rs precisa de cdylib para gerar o .node.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Núcleo com as funções portadas (normalize_title, etc.).
+adom-core = { path = "../adom-core" }
+
+# NAPI-RS: runtime + macro de export.
+# "napi8" = API estável do Node 20+; "napi9" exigiria Node 22.
+napi = { version = "2", default-features = false, features = ["napi8"] }
+napi-derive = "2"
+
+[build-dependencies]
+# Gera os bindings TypeScript e o loader JS durante o build.
+napi-build = "2"

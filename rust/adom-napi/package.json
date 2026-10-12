@@ -1,0 +1,15 @@
+{
+  "name": "@adom/napi",
+  "version": "0.1.0",
+  "description": "Bindings NAPI-RS do adom-core para o addon Stremio Adom.",
+  "private": true,
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "napi build --platform --js index.js --dts index.d.ts",
+    "build:release": "napi build --platform --release --js index.js --dts index.d.ts"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  }
+}
