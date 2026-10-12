@@ -7,7 +7,7 @@ mod br_origin;
 mod cache_keys;
 mod cache_quotas;
 mod catalog_year;
-mod config_encoding;
+pub mod config_encoding;
 mod dk_seal;
 mod episode_matching;
 mod episode_parse;
@@ -28,7 +28,7 @@ mod release_work;
 mod resolve_sign;
 mod short_name_tail;
 mod stream_quotas;
-mod stream_quotas_extra;
+pub mod stream_quotas_extra;
 mod title_normalization;
 
 // ── info_hash / magnet ────────────────────────────────────────────────
@@ -44,7 +44,8 @@ pub use catalog_year::{catalog_alt_year_of, catalog_year_of};
 // ── cache ─────────────────────────────────────────────────────────────
 pub use cache_keys::{cache_key, prefix, LEGACY_PREFIXES};
 pub use cache_quotas::{
-    headroom, max_entries, namespace_for, quota_for, universe_total, validate_quotas,
+    MAX_ENTRIES,
+    headroom, namespace_for, quota_for, universe_total, validate_quotas,
 };
 
 // ── config encoding / dk seal ─────────────────────────────────────────

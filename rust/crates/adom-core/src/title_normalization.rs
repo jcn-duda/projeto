@@ -47,7 +47,7 @@ pub fn normalize_title(input: &str) -> String {
 /// O `DOTTED_ACRONYM_RE` do TS usa lookbehind/lookahead; a classe `regex` não
 /// tem lookaround, então o scanner aplica as MESMAS guardas de fronteira em
 /// código, sobre `\p{L}` exato (ver `is_letter`).
-fn collapse_dotted_acronyms(input: &str) -> String {
+pub(crate) fn collapse_dotted_acronyms(input: &str) -> String {
     let chars: Vec<char> = input.chars().collect();
     let mut out = String::with_capacity(input.len());
     let mut i = 0;
@@ -114,7 +114,7 @@ fn dotted_acronym_end(chars: &[char], start: usize) -> Option<usize> {
 /// e o replace de marcas não alcança). Portado com as MESMAS chaves do TS,
 /// inclusive as maiúsculas — ainda que `normalize_title` já tenha baixado a
 /// caixa antes de chamar. `push_str` cobre as expansões (ß→ss, æ→ae, œ→oe).
-fn fold_latin_letters(input: &str) -> String {
+pub(crate) fn fold_latin_letters(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for c in input.chars() {
         match c {

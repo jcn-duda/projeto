@@ -11,6 +11,8 @@
     "dev": "tsc && tsc -p tsconfig.client.json && tsc -p tsconfig.client.test.json && node --watch dist/src/addon.js",
     "golden:titles": "node scripts/golden/dump-title-normalization.mjs",
     "golden:titles:check": "node scripts/golden/dump-title-normalization.mjs --check",
+    "golden:resolve-sign": "node scripts/golden/dump-resolve-sign.mjs",
+    "golden:resolve-sign:check": "node scripts/golden/dump-resolve-sign.mjs --check",
     "bench:local": "node scripts/bench/local-baseline.mjs",
     "smoke": "node dist/scripts/smoke.js",
     "probe:crawl-identify": "node dist/scripts/crawl-identify-probe.js",
