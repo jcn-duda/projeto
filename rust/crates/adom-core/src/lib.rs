@@ -23,6 +23,7 @@ mod franchise;
 mod indexer_priority;
 mod info_hash;
 mod js_text;
+mod js_text16;
 mod latin_table;
 mod magnet_display_name;
 mod magnet_uri;
@@ -43,6 +44,7 @@ mod reply_budget;
 mod resolve_sign;
 mod search_name_helpers;
 mod short_name_tail;
+mod stream_display;
 mod stream_quotas;
 pub mod stream_quotas_extra;
 mod strip_diacritics;
@@ -162,6 +164,11 @@ pub use title_normalization::normalize_title;
 pub use tmdb_br_aliases::{filter_br_aliases, MAX_BR_ALIASES};
 pub use video_header::{
     is_mp4, parse_mp4_tail, parse_video_resolution, quality_from_resolution, VideoResolution,
+};
+pub use js_text16::JsText;
+pub use stream_display::{
+    compact_tracker, stream_display_name, StreamDisplayConfig, StreamDisplayOptions,
+    StreamNameStyle, UserDisplayOptions,
 };
 
 /// Único formato de manifest aceito pelo consumidor do golden.
