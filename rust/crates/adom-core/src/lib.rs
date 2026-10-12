@@ -19,6 +19,7 @@ mod episode_matching;
 mod episode_parse;
 mod episode_series_matching;
 mod franchise;
+mod indexer_priority;
 mod info_hash;
 mod js_text;
 mod latin_table;
@@ -116,6 +117,9 @@ pub use matching_tokens::{
 pub use matching_vocabulary::{
     episode_token_test, title_tokens, vocabulary_contents, year_range_test,
 };
+
+// ── indexer_priority ──────────────────────────────────────────────────
+pub use indexer_priority::{compare_indexer_priority, priority_map};
 
 // ── stream_quotas ─────────────────────────────────────────────────────
 pub use stream_quotas::limit_by_indexer;
