@@ -19,6 +19,7 @@ mod magnet_uri;
 mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
+mod multiwork_pack;
 mod short_name_tail;
 mod title_normalization;
 
@@ -33,6 +34,9 @@ pub use episode_parse::{
 pub use franchise::{
     franchise_base_contradicts, franchise_extension_contradicts, is_multi_work_collection,
     name_coverage_tokens,
+};
+pub use multiwork_pack::{
+    admits_multi_work_pack, collection_root, collection_root_tokens, covers_year, pack_year_source,
 };
 pub use short_name_tail::short_name_tail_contradicts;
 
