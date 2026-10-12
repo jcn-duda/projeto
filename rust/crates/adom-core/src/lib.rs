@@ -4,6 +4,7 @@
 //! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
 
 mod br_origin;
+mod bytes_to_size;
 mod cache_keys;
 mod cache_quotas;
 mod catalog_year;
@@ -115,6 +116,7 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 
 // ── title_normalization ──────────────────────────────────────────────
 pub use title_normalization::normalize_title;
+pub use bytes_to_size::bytes_to_size;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///
