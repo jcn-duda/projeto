@@ -4,9 +4,14 @@
 //! `tests/golden_corpus.rs`. F1 porta SÓ o comportamento string→string de
 //! `normalizeTitle` (módulo `title_normalization`), sem matching nem providers.
 //! O parse do JSONL/manifest continua no próprio teste, que é o consumidor.
+//!
+//! Vocabulário: porta SÓ `titleTokens` (módulo `matching_vocabulary`), com
+//! golden próprio em `rust/golden/matching-vocabulary-title-tokens.jsonl`.
 
+mod matching_vocabulary;
 mod title_normalization;
 
+pub use matching_vocabulary::title_tokens;
 pub use title_normalization::normalize_title;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
