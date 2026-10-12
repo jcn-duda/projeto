@@ -151,6 +151,7 @@ pub use collapse_acronyms::collapse_acronyms;
 pub use crawl_url_key::crawl_url_key;
 pub use decode_entities::decode_entities;
 pub use dedupe_names::dedupe_names;
+pub use js_text16::JsText;
 pub use magnet_display_name::magnet_display_name;
 pub use net_safety::is_safe_download_url;
 pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
@@ -164,16 +165,15 @@ pub use search_name_helpers::{
     build_search_query, mark_debrid_name, matches_quality_filter, numeral_search_variant,
     parse_stremio_id, resolve_original_step_name, resolve_search_names,
 };
+pub use stream_display::{
+    compact_tracker, stream_display_name, StreamDisplayConfig, StreamDisplayOptions,
+    StreamNameStyle, UserDisplayOptions,
+};
 pub use strip_diacritics::strip_diacritics;
 pub use title_normalization::normalize_title;
 pub use tmdb_br_aliases::{filter_br_aliases, MAX_BR_ALIASES};
 pub use video_header::{
     is_mp4, parse_mp4_tail, parse_video_resolution, quality_from_resolution, VideoResolution,
-};
-pub use js_text16::JsText;
-pub use stream_display::{
-    compact_tracker, stream_display_name, StreamDisplayConfig, StreamDisplayOptions,
-    StreamNameStyle, UserDisplayOptions,
 };
 
 /// Único formato de manifest aceito pelo consumidor do golden.
