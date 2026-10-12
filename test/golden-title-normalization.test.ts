@@ -28,7 +28,7 @@ const CHECKER = path.join(ROOT, 'scripts', 'golden', 'dump-title-normalization.m
 const GOLDEN = 'title-normalization.jsonl';
 const MANIFEST = 'title-normalization.manifest.json';
 const CORPUS = 'corpus-title-normalization.json';
-const CASES = 23;
+const CASES = 173;
 
 // Canônicos: fonte de clone e alvo do teste de leitura estrita (bytes + mtime).
 const CANON = {
@@ -91,7 +91,7 @@ async function expectFail(dir: string, corpus: string, alvo: RegExp): Promise<vo
 }
 
 describe('golden checker: baseline', () => {
-  test('clone íntegro passa com os 23 casos e sem FALHA no stderr', async () => {
+  test('clone íntegro passa com os 173 casos e sem FALHA no stderr', async () => {
     await withFixture(async (dir) => {
       const r = await runCheck(dir, path.join(dir, CORPUS));
       assert.equal(r.code, 0, r.stderr);
