@@ -1,0 +1,140 @@
+{"id":"pag-001","input":"Tucker e Dale contra o mal Dublado720p mp4","expected":"explicit=1 foreign=0"}
+{"id":"pag-002","input":"Filme DUBLADO 2024","expected":"explicit=1 foreign=0"}
+{"id":"pag-003","input":"Filme Dublada 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-004","input":"Filme Dublados 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-005","input":"Dublado720p","expected":"explicit=1 foreign=0"}
+{"id":"pag-006","input":"2024Dublado","expected":"explicit=1 foreign=0"}
+{"id":"pag-007","input":"xDublado","expected":"explicit=0 foreign=0"}
+{"id":"pag-008","input":"ADUBLADO 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-009","input":"Dubladores","expected":"explicit=0 foreign=0"}
+{"id":"pag-010","input":"DubladoX","expected":"explicit=0 foreign=0"}
+{"id":"pag-011","input":"DUBLADOSBR","expected":"explicit=0 foreign=0"}
+{"id":"pag-012","input":"DUBLADO","expected":"explicit=1 foreign=0"}
+{"id":"pag-013","input":"dublado","expected":"explicit=1 foreign=0"}
+{"id":"pag-014","input":"DUBLADA","expected":"explicit=1 foreign=0"}
+{"id":"pag-015","input":"DUBLADAS","expected":"explicit=1 foreign=0"}
+{"id":"pag-016","input":"DUBLADO1","expected":"explicit=1 foreign=0"}
+{"id":"pag-017","input":"DUBLADOЖ","expected":"explicit=1 foreign=0"}
+{"id":"pag-018","input":"Filme_DUBLADO_2024","expected":"explicit=1 foreign=0"}
+{"id":"pag-019","input":"Show_2024_Dublado_1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-020","input":"Serie_DUB_1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-021","input":"Film_Dual_Misso","expected":"explicit=0 foreign=0"}
+{"id":"pag-022","input":"Movie [DUB]","expected":"explicit=1 foreign=0"}
+{"id":"pag-023","input":"Movie (DUB)","expected":"explicit=1 foreign=0"}
+{"id":"pag-024","input":"Movie DUB 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-025","input":"Movie DUBBED","expected":"explicit=1 foreign=0"}
+{"id":"pag-026","input":"Movie English Dubbed","expected":"explicit=0 foreign=0"}
+{"id":"pag-027","input":"Movie ENG DUBBED","expected":"explicit=0 foreign=0"}
+{"id":"pag-028","input":"Spirited Away English Dubbed","expected":"explicit=0 foreign=0"}
+{"id":"pag-029","input":"Hindi Dubbed","expected":"explicit=0 foreign=1"}
+{"id":"pag-030","input":"Rus Dubbed","expected":"explicit=0 foreign=1"}
+{"id":"pag-031","input":"Ukr Dub","expected":"explicit=0 foreign=1"}
+{"id":"pag-032","input":"Movie [Ukr Dub]","expected":"explicit=0 foreign=1"}
+{"id":"pag-033","input":"Во все тяжкие [DUB]","expected":"explicit=0 foreign=0"}
+{"id":"pag-034","input":"Coyote Ugly AVO Dub","expected":"explicit=0 foreign=0"}
+{"id":"pag-035","input":"Фильм DUBBED","expected":"explicit=0 foreign=0"}
+{"id":"pag-036","input":"1080p.WEBRip.LAT.DUB.PINUP","expected":"explicit=0 foreign=0"}
+{"id":"pag-037","input":"Movie LATINO DUBBED","expected":"explicit=0 foreign=0"}
+{"id":"pag-038","input":"Movie POL DUBBED","expected":"explicit=1 foreign=0"}
+{"id":"pag-039","input":"Movie UNDUBBED","expected":"explicit=0 foreign=0"}
+{"id":"pag-040","input":"DUBBED","expected":"explicit=1 foreign=0"}
+{"id":"pag-041","input":"Movie [ DUB ]","expected":"explicit=1 foreign=0"}
+{"id":"pag-042","input":"Movie ( DUB )","expected":"explicit=1 foreign=0"}
+{"id":"pag-043","input":"Movie [DUB] DUBBED","expected":"explicit=1 foreign=0"}
+{"id":"pag-044","input":"Movie DUB PT-BR","expected":"explicit=1 foreign=0"}
+{"id":"pag-045","input":"Movie DUBLADO DUB","expected":"explicit=1 foreign=0"}
+{"id":"pag-046","input":"Во все тяжкие [DUB] PT-BR","expected":"explicit=1 foreign=0"}
+{"id":"pag-047","input":"Ukr Dub PT-BR","expected":"explicit=1 foreign=0"}
+{"id":"pag-048","input":"Filme DUBLAGEM 2024","expected":"explicit=1 foreign=0"}
+{"id":"pag-049","input":"Filme DUB-BR 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-050","input":"Filme DUB.BR 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-051","input":"Filme AUDIO-PT-BR","expected":"explicit=1 foreign=0"}
+{"id":"pag-052","input":"Filme AUDIO PT-BR 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-053","input":"Filme AUDIOPTBR","expected":"explicit=1 foreign=0"}
+{"id":"pag-054","input":"Filme PT-BR 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-055","input":"Filme PTBR","expected":"explicit=1 foreign=0"}
+{"id":"pag-056","input":"Filme PT.BR","expected":"explicit=1 foreign=0"}
+{"id":"pag-057","input":"Filme Português","expected":"explicit=1 foreign=0"}
+{"id":"pag-058","input":"Filme Portugues","expected":"explicit=1 foreign=0"}
+{"id":"pag-059","input":"Filme PORTUGUÊS","expected":"explicit=1 foreign=0"}
+{"id":"pag-060","input":"Filme BRAZILIAN 1080p","expected":"explicit=1 foreign=0"}
+{"id":"pag-061","input":"Filme Legendado PT-BR","expected":"explicit=0 foreign=0"}
+{"id":"pag-062","input":"Filme SUB-PT-BR","expected":"explicit=0 foreign=0"}
+{"id":"pag-063","input":"Filme LEG-PT-BR","expected":"explicit=0 foreign=0"}
+{"id":"pag-064","input":"Filme LEGENDADO PT-BR HINDI","expected":"explicit=0 foreign=1"}
+{"id":"pag-065","input":"Filme [LEG] 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-066","input":"Filme (LEG) 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-067","input":"Filme LEG","expected":"explicit=0 foreign=0"}
+{"id":"pag-068","input":"Filme SOFT SUB 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-069","input":"Filme SOFT-SUB","expected":"explicit=0 foreign=0"}
+{"id":"pag-070","input":"Filme LEGENDAS 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-071","input":"Filme LEGENDADOS","expected":"explicit=0 foreign=0"}
+{"id":"pag-072","input":"Filme SUB 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-073","input":"Filme Português","expected":"explicit=0 foreign=0"}
+{"id":"pag-074","input":"Filme PORTUGUÊS DUB","expected":"explicit=1 foreign=0"}
+{"id":"pag-075","input":"ФильмDUBLADO","expected":"explicit=1 foreign=0"}
+{"id":"pag-076","input":"Фильм DUBLADO PT-BR","expected":"explicit=1 foreign=0"}
+{"id":"pag-077","input":"Фильм DUB","expected":"explicit=0 foreign=0"}
+{"id":"pag-078","input":"Film УКР DUB","expected":"explicit=0 foreign=0"}
+{"id":"pag-079","input":"Film UKR DUB","expected":"explicit=0 foreign=1"}
+{"id":"pag-080","input":"Film UKRAINIAN DUB","expected":"explicit=0 foreign=1"}
+{"id":"pag-081","input":"Film Українська DUB","expected":"explicit=0 foreign=0"}
+{"id":"pag-082","input":"Movie FRENCH 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-083","input":"Movie TRUEFRENCH 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-084","input":"Movie VOSTFR 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-085","input":"Movie VF 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-086","input":"Movie VFF 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-087","input":"Movie ITA 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-088","input":"Movie SUBITA 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-089","input":"Movie ESPANOL 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-090","input":"Movie CASTELLANO 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-091","input":"Movie RUS 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-092","input":"Movie GERMAN 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-093","input":"Movie NL 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-094","input":"Movie HINDI 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-095","input":"Movie UKR 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-096","input":"Movie UKRAINIAN 1080p","expected":"explicit=0 foreign=1"}
+{"id":"pag-097","input":"Movie SPA 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-098","input":"Movie MULTI 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-099","input":"A Casa dos Espíritos","expected":"explicit=0 foreign=0"}
+{"id":"pag-100","input":"Vírus [1080p DUAL]","expected":"explicit=0 foreign=1"}
+{"id":"pag-101","input":"Movie ENGLISH 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-102","input":"Movie POLISH 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-103","input":"Movie JAPANESE 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-104","input":"FRENCHY 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-105","input":"Movie FRENCH.","expected":"explicit=0 foreign=1"}
+{"id":"pag-106","input":"ONLINE 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-107","input":"Film GERMANY 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-108","input":"FILMFRENCH","expected":"explicit=0 foreign=0"}
+{"id":"pag-109","input":"Film NL","expected":"explicit=0 foreign=1"}
+{"id":"pag-110","input":"Film NL-BR","expected":"explicit=0 foreign=1"}
+{"id":"pag-111","input":"VOSTFR","expected":"explicit=0 foreign=1"}
+{"id":"pag-112","input":"VOSTFRWEB-DL","expected":"explicit=0 foreign=0"}
+{"id":"pag-113","input":"ITA-DUB","expected":"explicit=0 foreign=1"}
+{"id":"pag-114","input":"SUBITAX","expected":"explicit=0 foreign=0"}
+{"id":"pag-115","input":"Movie DUAL 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-116","input":"Movie DUAL AUDIO 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-117","input":"DUBLADOX.DUAL","expected":"explicit=0 foreign=0"}
+{"id":"pag-118","input":"DubladoX.DUAL","expected":"explicit=0 foreign=0"}
+{"id":"pag-119","input":"Movie DUBLADOR 1080p","expected":"explicit=0 foreign=0"}
+{"id":"pag-120","input":"Movie DUBLADO DUAL","expected":"explicit=1 foreign=0"}
+{"id":"pag-121","input":"Movie DUAL ÁUDIO HINDI","expected":"explicit=0 foreign=1"}
+{"id":"pag-122","input":"Movie DUBLADO HINDI","expected":"explicit=1 foreign=0"}
+{"id":"pag-123","input":"","expected":"explicit=0 foreign=0"}
+{"id":"pag-124","input":"   ","expected":"explicit=0 foreign=0"}
+{"id":"pag-125","input":"_","expected":"explicit=0 foreign=0"}
+{"id":"pag-126","input":"DUB","expected":"explicit=1 foreign=0"}
+{"id":"pag-127","input":"DUBLADO_DUB","expected":"explicit=1 foreign=0"}
+{"id":"pag-128","input":"LEGENDADO","expected":"explicit=0 foreign=0"}
+{"id":"pag-129","input":"PT-BR","expected":"explicit=1 foreign=0"}
+{"id":"pag-130","input":"PORTUGUÊS","expected":"explicit=1 foreign=0"}
+{"id":"pag-131","input":"DUBLAGEM","expected":"explicit=1 foreign=0"}
+{"id":"pag-132","input":"AUDIO_PT_BR","expected":"explicit=0 foreign=0"}
+{"id":"pag-133","input":"Filme DUBLADO PT-BR HINDI","expected":"explicit=1 foreign=0"}
+{"id":"pag-134","input":"Filme DUBLAGEM RUS","expected":"explicit=1 foreign=0"}
+{"id":"pag-135","input":"Filme PT-BR RUS","expected":"explicit=1 foreign=0"}
+{"id":"pag-136","input":"Filme DUB-BR HINDI","expected":"explicit=1 foreign=0"}
+{"id":"pag-137","input":"Filme DUBLADO RUS DUB","expected":"explicit=1 foreign=0"}
+{"id":"pag-138","input":"Filme LEGENDADO DUBLADO","expected":"explicit=1 foreign=0"}
+{"id":"pag-139","input":"Filme DUBLADO LEGENDADO","expected":"explicit=1 foreign=0"}
+{"id":"pag-140","input":"Movie [LEG] PT-BR HINDI","expected":"explicit=0 foreign=1"}

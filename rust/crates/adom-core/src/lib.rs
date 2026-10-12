@@ -31,6 +31,7 @@ mod matching_vocabulary;
 mod multiwork_pack;
 mod net_safety;
 mod non_feature_release;
+mod pt_audio_guards;
 mod release_guards;
 mod release_labels;
 mod release_name_matching;
@@ -137,6 +138,7 @@ pub use dedupe_names::dedupe_names;
 pub use magnet_display_name::magnet_display_name;
 pub use net_safety::is_safe_download_url;
 pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
+pub use pt_audio_guards::{explicit_pt_audio, has_explicit_foreign_audio};
 pub use release_guards::{
     magnet_season_contradicts, magnet_year_contradicts, text_years_contradict,
 };

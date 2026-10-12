@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "pt-audio-guards/audioQualityGuards"
+  ],
+  "function": {
+    "name": "ptAudioGuards",
+    "sourcePath": "src/utils/audio-quality.ts",
+    "sourceSha256": "85be8ad4483a3e75bef686c2cb7173b0aeff71bc98230864f9acf052f7004496",
+    "artifactPath": "dist/src/utils/audio-quality.js",
+    "artifactSha256": "b4eafd884bb2897066b88fb2ed558e17bfaf64fddb61546f68e73d4b892462f0"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-pt-audio-guards.json",
+    "sha256": "1b26824843185f8b49d522b80db45c14bae235da1c685bdc5d7972040516f5df",
+    "cases": 140
+  },
+  "output": {
+    "path": "rust/golden/pt-audio-guards.jsonl",
+    "sha256": "cdde50c1f277a883a116fade22fa7ba493464f1d75e6f8eaf4fe36257c46e17d",
+    "lines": 140
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "9fb915dfa0c10b8ffe770fd2ce1791d808ced841"
+  }
+}
