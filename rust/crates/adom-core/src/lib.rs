@@ -1,12 +1,11 @@
-//! Núcleo Rust do Adom — fatias F0/F1 da migração TS→Rust.
+//! Núcleo Rust do Adom — migração TS→Rust.
 //!
-//! F0 ancorou o golden em `rust/golden/` e os testes de integridade em
-//! `tests/golden_corpus.rs`. F1 porta SÓ o comportamento string→string de
-//! `normalizeTitle` (módulo `title_normalization`), sem matching nem providers.
-//! O parse do JSONL/manifest continua no próprio teste, que é o consumidor.
+//! 18+ módulos portados com golden em `rust/golden/` (~3.700 casos).
+//! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
 //!
-//! Vocabulário: porta SÓ `titleTokens` (módulo `matching_vocabulary`), com
-//! golden próprio em `rust/golden/matching-vocabulary-title-tokens.jsonl`.
+//! Módulos principais: `normalize_title`, `sign_resolve`/`verify_resolve`,
+//! `parse_title_season_episode`, `admits_multi_work_pack`,
+//! `limit_by_indexer`, `matches_name`, `matches_title_structure`.
 
 mod br_origin;
 mod catalog_year;
@@ -23,6 +22,7 @@ mod multiwork_pack;
 mod release_name_matching;
 mod release_title_rules;
 mod release_work;
+mod resolve_sign;
 mod short_name_tail;
 mod stream_quotas;
 mod title_normalization;
@@ -67,6 +67,7 @@ pub use matching_tokens::{
 pub use matching_vocabulary::{
     episode_token_test, title_tokens, vocabulary_contents, year_range_test,
 };
+pub use resolve_sign::{sign_resolve, verify_resolve};
 pub use title_normalization::normalize_title;
 
 /// Único formato de manifest aceito pelo consumidor do golden.

@@ -23,9 +23,14 @@ regex = "=1.13.1"
 # Regex com lookbehind/lookahead (o `parseTitleSeasonEpisode` usa `(?<!…)` e
 # `(?!…)`, que o `regex` não aceita). Versão exata, como as demais.
 fancy-regex = "=0.19.2"
+# ── resolve_sign (HMAC-SHA256 da rota /resolve) ─────────────────────────
+# HMAC em cima do `sha2` (Sha256); o `sha2` também é dev-depend (golden sha).
+hmac = "0.12"
+sha2 = "0.10"
+# Comparação constant-time (verify_resolve): evita vazamento por timing.
+subtle = "2"
 
 [dev-dependencies]
 # Só para os testes de integridade do golden (nunca entram no runtime):
 serde = { version = "1", features = ["derive"] } # desserializa manifest/casos
 serde_json = "1"                                  # parse do JSONL e do manifest
-sha2 = "0.10"                                     # sha256 de corpus/saída, como no oracle Node
