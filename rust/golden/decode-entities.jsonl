@@ -1,0 +1,25 @@
+{"id":"de-001","input":"{\"text\":\"\"}","expected":""}
+{"id":"de-002","input":"{\"text\":\"Sem entidade aqui\"}","expected":"Sem entidade aqui"}
+{"id":"de-003","input":"{\"text\":\"Episódio II &#8211; Ataque dos Clones\"}","expected":"Episódio II – Ataque dos Clones"}
+{"id":"de-004","input":"{\"text\":\"&#x2014;\"}","expected":"—"}
+{"id":"de-005","input":"{\"text\":\"&amp;\"}","expected":"&"}
+{"id":"de-006","input":"{\"text\":\"&lt;\"}","expected":"<"}
+{"id":"de-007","input":"{\"text\":\"&nbsp;\"}","expected":" "}
+{"id":"de-008","input":"{\"text\":\"&ordf;\"}","expected":"ª"}
+{"id":"de-009","input":"{\"text\":\"&ordm;\"}","expected":"º"}
+{"id":"de-010","input":"{\"text\":\"&Aacute;\"}","expected":"Á"}
+{"id":"de-011","input":"{\"text\":\"&aacute;\"}","expected":"á"}
+{"id":"de-012","input":"{\"text\":\"&Amp;\"}","expected":"&"}
+{"id":"de-013","input":"{\"text\":\"&foo;\"}","expected":"&foo;"}
+{"id":"de-014","input":"{\"text\":\"4&ordf; Temporada\"}","expected":"4ª Temporada"}
+{"id":"de-015","input":"{\"text\":\"Tom &amp; Jerry &lt;3\"}","expected":"Tom & Jerry <3"}
+{"id":"de-016","input":"{\"text\":\"&hellip;\"}","expected":"…"}
+{"id":"de-017","input":"{\"text\":\"Dual &Aacute;udio\"}","expected":"Dual Áudio"}
+{"id":"de-018","input":"{\"text\":\"&gt;&quot;&apos;\"}","expected":">\"'"}
+{"id":"de-019","input":"{\"text\":\"&#x26;lt;\"}","expected":"<"}
+{"id":"de-020","input":"{\"text\":\"&#38;ordf;\"}","expected":"ª"}
+{"id":"de-021","input":"{\"text\":\"&amp;amp;\"}","expected":"&amp;"}
+{"id":"de-022","input":"{\"text\":\"&#X2014;\"}","expected":"—"}
+{"id":"de-023","input":"{\"text\":\"&aAcute;\"}","expected":"á"}
+{"id":"de-024","input":"{\"text\":\"&mdash;&ndash;&deg;&ccedil;&ntilde;&laquo;x&raquo;\"}","expected":"—–°çñ«x»"}
+{"id":"de-025","input":"{\"text\":\"&eacute;&iacute;&oacute;&uacute;&acirc;&ecirc;&ocirc;&atilde;&otilde;&agrave;&uuml;&lsquo;&rsquo;&ldquo;&rdquo;\"}","expected":"éíóúâêôãõàü‘’“”"}

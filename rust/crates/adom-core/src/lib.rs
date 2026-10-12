@@ -9,6 +9,7 @@ mod cache_keys;
 mod cache_quotas;
 mod catalog_year;
 pub mod config_encoding;
+mod decode_entities;
 mod dk_seal;
 mod episode_matching;
 mod episode_parse;
@@ -117,6 +118,7 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 // ── title_normalization ──────────────────────────────────────────────
 pub use title_normalization::normalize_title;
 pub use bytes_to_size::bytes_to_size;
+pub use decode_entities::decode_entities;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///
