@@ -3,6 +3,7 @@
 //! 25+ módulos portados com golden em `rust/golden/` (~4.000+ casos).
 //! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
 
+mod audio_lang;
 mod br_origin;
 mod bytes_to_size;
 mod cache_keys;
@@ -125,6 +126,9 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 pub use title_normalization::normalize_title;
 pub use reply_budget::remaining_check_budget;
 pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
+pub use audio_lang::{
+    foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
+};
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
