@@ -20,7 +20,9 @@ mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
 mod multiwork_pack;
+mod release_work;
 mod short_name_tail;
+mod stream_quotas;
 mod title_normalization;
 
 pub use info_hash::extract_info_hash;
@@ -38,7 +40,12 @@ pub use franchise::{
 pub use multiwork_pack::{
     admits_multi_work_pack, collection_root, collection_root_tokens, covers_year, pack_year_source,
 };
+pub use release_work::{
+    choose_episode_parse, episode_parse_specificity, release_fits_request, release_work_targets,
+    route_work_location, WorkTarget,
+};
 pub use short_name_tail::short_name_tail_contradicts;
+pub use stream_quotas::limit_by_indexer;
 
 pub use matching_decisions::{
     adaptation_identity_contradicts, first_significant_token, live_action_year_contradicts,
