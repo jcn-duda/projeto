@@ -200,7 +200,11 @@ fn parser_rejeita_entradas_invalidas() {
 #[test]
 fn normalize_title_bate_com_todos_os_goldens() {
     let cases = parse_all_cases();
-    assert_eq!(cases.len(), 173, "a fatia F1 cobre exatamente os 173 goldens (corpus ampliado com títulos de test/)");
+    assert_eq!(
+        cases.len(),
+        173,
+        "a fatia F1 cobre exatamente os 173 goldens (corpus ampliado com títulos de test/)"
+    );
     assert_eq!(
         cases.len(),
         manifest().output.lines,
