@@ -1,0 +1,20 @@
+{"id":"sd-001","input":"{\"text\":\"Extermínio\"}","expected":"Exterminio"}
+{"id":"sd-002","input":"{\"text\":\"Exterminio\"}","expected":"Exterminio"}
+{"id":"sd-003","input":"{\"text\":\"Adım Farah\"}","expected":"Adim Farah"}
+{"id":"sd-004","input":"{\"text\":\"Łódź\"}","expected":"Lodz"}
+{"id":"sd-005","input":"{\"text\":\"CAFÉ\"}","expected":"CAFE"}
+{"id":"sd-006","input":"{\"text\":\"café\"}","expected":"cafe"}
+{"id":"sd-007","input":"{\"text\":\"\"}","expected":""}
+{"id":"sd-008","input":"{\"text\":\"2ª Temporada\"}","expected":"2ª Temporada"}
+{"id":"sd-009","input":"{\"text\":\"S.W.A.T.\"}","expected":"S.W.A.T."}
+{"id":"sd-010","input":"{\"text\":\"ß\"}","expected":"ss"}
+{"id":"sd-011","input":"{\"text\":\"ẞ\"}","expected":"SS"}
+{"id":"sd-012","input":"{\"text\":\"Dublado\"}","expected":"Dublado"}
+{"id":"sd-013","input":"{\"text\":\"e\\u0301\"}","expected":"e"}
+{"id":"sd-014","input":"{\"text\":\"Æ\"}","expected":"AE"}
+{"id":"sd-015","input":"{\"text\":\"Poção do Avô\"}","expected":"Pocao do Avo"}
+{"id":"sd-016","input":"{\"text\":\"São Paulo: 1080p\"}","expected":"Sao Paulo: 1080p"}
+{"id":"sd-017","input":"{\"text\":\"1º Lugar\"}","expected":"1º Lugar"}
+{"id":"sd-018","input":"{\"text\":\"Straße\"}","expected":"Strasse"}
+{"id":"sd-019","input":"{\"text\":\"Cœur\"}","expected":"Coeur"}
+{"id":"sd-020","input":"{\"text\":\"Đoković\"}","expected":"Dokovic"}

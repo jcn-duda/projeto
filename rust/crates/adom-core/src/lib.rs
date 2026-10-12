@@ -30,6 +30,7 @@ mod release_title_rules;
 mod release_work;
 mod resolve_sign;
 mod short_name_tail;
+mod strip_diacritics;
 mod stream_quotas;
 pub mod stream_quotas_extra;
 mod title_normalization;
@@ -121,6 +122,7 @@ pub use title_normalization::normalize_title;
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
+pub use strip_diacritics::strip_diacritics;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///
