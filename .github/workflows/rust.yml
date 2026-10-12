@@ -1,6 +1,7 @@
 # Portão de regressão do workspace Rust (fatias F0/F1 da migração TS→Rust).
 # Testa o crate `adom-core` — integridade do golden + paridade do `normalizeTitle`
-# — sem portar função nova e sem tocar no addon Node.
+# — sem portar função nova e sem tocar no addon Node. Audita também as
+# dependências do Cargo.lock contra o RustSec advisory-db (cargo-audit).
 #
 # Workflow separado do ci.yml porque o filtro de caminho é por workflow: sem
 # ele, mudança em rust/ (ou no corpus/gerador que o golden consome) passaria sem
@@ -100,3 +101,27 @@ jobs:
               print(f"ACIMA DO TETO: {p.as_posix()} = {n} linhas (> {LIMIT})")
           sys.exit(1 if over else 0)
           PY
+
+      # ------------------------------------------------------------------
+      # Auditoria de dependências (RustSec advisory-db). Fica por ÚLTIMO de
+      # propósito: os gates acima falham rápido, este COMPILA uma ferramenta
+      # (~250 crates) e bate na rede (advisory-db + crates.io).
+      # ------------------------------------------------------------------
+
+      # cargo-audit 0.22.2 = versão fixa PUBLICADA e verificada (crates.io e
+      # release `cargo-audit/v0.22.2`, não pre-release, não yanked), MSRV 1.88 —
+      # compatível com a toolchain 1.92.0 pinada em rust/rust-toolchain.toml.
+      # `--locked` compila com o Cargo.lock do PRÓPRIO auditor (instalação
+      # reprodutível). O binário cai no `$CARGO_HOME/bin` já no PATH do runner:
+      # é ferramenta de CI, NÃO dependência do workspace — não entra no
+      # Cargo.lock do projeto.
+      - name: Instalar cargo-audit (0.22.2)
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      # Portão BLOQUEANTE: barra push/PR com vulnerabilidade no Cargo.lock. Sem
+      # `--ignore`, o default da ferramenta é o veredito — sai != 0 ao achar
+      # RUSTSEC e imprime também as advertências informativas
+      # (unmaintained/unsound/notice) sem escondê-las. Não passamos
+      # `--deny warnings` para não inventar política de bloqueio além do default.
+      - name: Auditoria Cargo.lock
+        run: cargo audit
