@@ -1,12 +1,13 @@
 {
   "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
   "registry": [
     "reply-budget/remainingCheckBudget"
   ],
   "function": {
     "name": "remainingCheckBudget",
     "sourcePath": "src/utils/deadline.ts",
-    "sourceSha256": "d47056be2d516b19c2ec4fbe66172b2dd0278cd178bc9058b49db3ee3c38eba8",
+    "sourceSha256": "f216cd4c870dfc64a296ea49490f4643368a890bd97004bd5f638287270e08de",
     "artifactPath": "dist/src/utils/deadline.js",
     "artifactSha256": "994e5f87662f5b8a16fbfa302a2924b46a98999d59ba79e17d38cad82d05469d"
   },

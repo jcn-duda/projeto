@@ -14,6 +14,10 @@
  * `defaults` efetivos de cada caso de `decode`, então o porte Rust recebe os
  * MESMOS defaults por parâmetro — nada do `.env` do operador entra no corpus.
  *
+ * FONTE: `sourceSha256`/`functions[].sourceSha256` cobrem o texto com CRLF → LF
+ * (ver `source-fingerprint.mjs`), senão o mesmo conteúdo falha "fonte mudou" num
+ * checkout LF. Corpus, artefato e saída (JSONL) NÃO passam por essa normalização.
+ *
  * NONCE: `secretBox.seal` usa `randomBytes(12)`, que não é reproduzível. Para o
  * `--check` ser determinístico, os casos de SELO gravam um blob feito com a
  * MESMA primitiva do secret-box (aes-256-gcm + scryptSync + layout iv||tag||ct)
@@ -30,6 +34,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { SOURCE_HASH_LINE_ENDINGS, shaSourceLf } from './source-fingerprint.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
@@ -57,6 +62,8 @@ const fail = (msg) => { throw new GoldenError(String(msg)); };
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 const toPosix = (p) => p.split(path.sep).join('/');
 const fileSha = (rel) => sha256(fs.readFileSync(path.join(REPO, rel)));
+// Fonte com hash portátil (CRLF → LF); corpus e artefato seguem byte a byte.
+const fileSourceSha = (rel) => shaSourceLf(fs.readFileSync(path.join(REPO, rel)));
 
 function parseArgs(argv) {
   const args = { check: false, force: false };
@@ -176,10 +183,11 @@ function require_oracle() { return ORACLE; }
 function buildManifest(corpus, jsonl) {
   return {
     format: MANIFEST_FORMAT,
+    sourceHashLineEndings: SOURCE_HASH_LINE_ENDINGS,
     registry: FUNCOES.map((f) => f.id),
     functions: FUNCOES.map((f) => ({
       id: f.id, name: f.name,
-      sourcePath: toPosix(f.source), sourceSha256: fileSha(f.source),
+      sourcePath: toPosix(f.source), sourceSha256: fileSourceSha(f.source),
       // Provenance apenas: rebuild alheio muda o hash sem mudar comportamento.
       artifactPath: toPosix(f.artifact), artifactSha256: fileSha(f.artifact),
     })),
@@ -237,7 +245,7 @@ function generate(corpus, jsonl, force) {
       return null;
     }
   })();
-  const fonte = fileSha('src/runtime.ts');
+  const fonte = fileSourceSha('src/runtime.ts');
   if (existente && !force && existente.functions?.[0]?.sourceSha256 !== fonte) {
     fail('fonte mudou desde a última geração; regenere com --force');
   }

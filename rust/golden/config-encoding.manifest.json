@@ -1,5 +1,6 @@
 {
   "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
   "registry": [
     "config-encoding/encode",
     "config-encoding/normalize",
@@ -46,7 +47,7 @@
       "id": "config-encoding/seal",
       "name": "seal",
       "sourcePath": "src/utils/secret-box.ts",
-      "sourceSha256": "80073dca6512946b905abab47db4bdeca10586fcbc750a90f7d04f45d1a5b714",
+      "sourceSha256": "1ac29677236d9e38966ccd256eea8622b6ad381e748ca80e003f97e984c899fe",
       "artifactPath": "dist/src/utils/secret-box.js",
       "artifactSha256": "4e486b3a9f299d8a2e4650b1c7cd68bd2bc6d5a8fb28e8c545b9c0ea3f4933ee"
     },
@@ -54,7 +55,7 @@
       "id": "config-encoding/open",
       "name": "open",
       "sourcePath": "src/utils/secret-box.ts",
-      "sourceSha256": "80073dca6512946b905abab47db4bdeca10586fcbc750a90f7d04f45d1a5b714",
+      "sourceSha256": "1ac29677236d9e38966ccd256eea8622b6ad381e748ca80e003f97e984c899fe",
       "artifactPath": "dist/src/utils/secret-box.js",
       "artifactSha256": "4e486b3a9f299d8a2e4650b1c7cd68bd2bc6d5a8fb28e8c545b9c0ea3f4933ee"
     },
@@ -62,7 +63,7 @@
       "id": "config-encoding/isSealed",
       "name": "isSealed",
       "sourcePath": "src/utils/secret-box.ts",
-      "sourceSha256": "80073dca6512946b905abab47db4bdeca10586fcbc750a90f7d04f45d1a5b714",
+      "sourceSha256": "1ac29677236d9e38966ccd256eea8622b6ad381e748ca80e003f97e984c899fe",
       "artifactPath": "dist/src/utils/secret-box.js",
       "artifactSha256": "4e486b3a9f299d8a2e4650b1c7cd68bd2bc6d5a8fb28e8c545b9c0ea3f4933ee"
     }
