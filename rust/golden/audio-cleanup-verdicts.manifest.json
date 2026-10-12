@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "audio-cleanup-verdicts/audioCleanupVerdicts"
+  ],
+  "function": {
+    "name": "audioCleanupVerdicts",
+    "sourcePath": "src/utils/audio-cleanup.ts",
+    "sourceSha256": "13e520559b3b42b89dd72b306b59ce5b5fc6380c15e50f57982950d2dba7b859",
+    "artifactPath": "dist/src/utils/audio-cleanup.js",
+    "artifactSha256": "c85b3aaa0146a37d793e46d97fe8545e0cca176a85927b9b74d5cecd2b579e1e"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-audio-cleanup-verdicts.json",
+    "sha256": "e0fff32c0d304e5301a14663eea006c4aad1893dc39c56685d786fdeecd4654d",
+    "cases": 127
+  },
+  "output": {
+    "path": "rust/golden/audio-cleanup-verdicts.jsonl",
+    "sha256": "5c4094c46909b9f5968ebb63cedf500192bae2d6b8b86ab8821a0e877d945902",
+    "lines": 127
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "71dc68a26fe46dbe9f5c6ff0dc49b73b82433523"
+  }
+}

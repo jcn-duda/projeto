@@ -1,0 +1,127 @@
+{"id":"acv-001","input":"{\"op\":\"ptmark\",\"path\":\"Movie.2024.Dublado.1080p.mkv\"}","expected":"1"}
+{"id":"acv-002","input":"{\"op\":\"ptmark\",\"path\":\"Filme.Dublada.1080p.mkv\"}","expected":"1"}
+{"id":"acv-003","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Dublagem.mkv\"}","expected":"1"}
+{"id":"acv-004","input":"{\"op\":\"ptmark\",\"path\":\"Movie.1080p.AMZN.WEB-DL.DUAL.5.1.x264.mkv\"}","expected":"1"}
+{"id":"acv-005","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Dual.Audio.1080p.mkv\"}","expected":"1"}
+{"id":"acv-006","input":"{\"op\":\"ptmark\",\"path\":\"Movie.pt.br.1080p.mkv\"}","expected":"1"}
+{"id":"acv-007","input":"{\"op\":\"ptmark\",\"path\":\"Movie.PTBR.1080p.mkv\"}","expected":"1"}
+{"id":"acv-008","input":"{\"op\":\"ptmark\",\"path\":\"Movie.PORTUGUES.1080p.mkv\"}","expected":"1"}
+{"id":"acv-009","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Portuguese.1080p.mkv\"}","expected":"1"}
+{"id":"acv-010","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Nacional.1080p.mkv\"}","expected":"1"}
+{"id":"acv-011","input":"{\"op\":\"ptmark\",\"path\":\"Movie.FLEG.1080p.mkv\"}","expected":"1"}
+{"id":"acv-012","input":"{\"op\":\"ptmark\",\"path\":\"Movie.2024.DUBBED.mkv\"}","expected":"1"}
+{"id":"acv-013","input":"{\"op\":\"ptmark\",\"path\":\"Movie.1080p.BluRay.x264.mkv\"}","expected":"0"}
+{"id":"acv-014","input":"{\"op\":\"ptmark\",\"path\":\"Movie.1080p.x264-KILLERS.mkv\"}","expected":"0"}
+{"id":"acv-015","input":"{\"op\":\"ptmark\",\"path\":\"Movie.1080p.WEB-DL.x264-RARBG.mkv\"}","expected":"0"}
+{"id":"acv-016","input":"{\"op\":\"ptmark\",\"path\":\"Spider-Man.HINDI.HQ.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-017","input":"{\"op\":\"ptmark\",\"path\":\"Movie.HINDI.Dubbed.1080p.mkv\"}","expected":"0"}
+{"id":"acv-018","input":"{\"op\":\"ptmark\",\"path\":\"Movie.HINDI.Dublado.1080p.mkv\"}","expected":"1"}
+{"id":"acv-019","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Dual.Audio.Hindi.mkv\"}","expected":"0"}
+{"id":"acv-020","input":"{\"op\":\"ptmark\",\"path\":\"Movie.DUAL.Audio.Hindi.DD.5.1.mkv\"}","expected":"0"}
+{"id":"acv-021","input":"{\"op\":\"ptmark\",\"path\":\"Movie.HINDI.DUAL.AUDIO.PT-BR.mkv\"}","expected":"1"}
+{"id":"acv-022","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Во.все.тяжкие.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-023","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Dublado.Kyiv.і.mkv\"}","expected":"1"}
+{"id":"acv-024","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Coyote.Ugly.AVO.Dubbed.mkv\"}","expected":"0"}
+{"id":"acv-025","input":"{\"op\":\"ptmark\",\"path\":\"Movie.MVO.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-026","input":"{\"op\":\"ptmark\",\"path\":\"Movie.DVO.Dubbed.mkv\"}","expected":"0"}
+{"id":"acv-027","input":"{\"op\":\"ptmark\",\"path\":\"Movie.SVO.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-028","input":"{\"op\":\"ptmark\",\"path\":\"Movie.seleZen.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-029","input":"{\"op\":\"ptmark\",\"path\":\"Movie.LAT.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-030","input":"{\"op\":\"ptmark\",\"path\":\"Movie.LATITUDE.DUBBED.mkv\"}","expected":"1"}
+{"id":"acv-031","input":"{\"op\":\"ptmark\",\"path\":\"Movie.LATINO.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-032","input":"{\"op\":\"ptmark\",\"path\":\"Movie.POL.DUBBED.mkv\"}","expected":"1"}
+{"id":"acv-033","input":"{\"op\":\"ptmark\",\"path\":\"Movie.POLISH.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-034","input":"{\"op\":\"ptmark\",\"path\":\"Movie.ENG.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-035","input":"{\"op\":\"ptmark\",\"path\":\"Movie.SPA.DUBBED.mkv\"}","expected":"1"}
+{"id":"acv-036","input":"{\"op\":\"ptmark\",\"path\":\"Movie.SPANISH.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-037","input":"{\"op\":\"ptmark\",\"path\":\"Movie.RUS.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-038","input":"{\"op\":\"ptmark\",\"path\":\"Movie.ESPANOL.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-039","input":"{\"op\":\"ptmark\",\"path\":\"Movie.TRUEFRENCH.DUBBED.mkv\"}","expected":"0"}
+{"id":"acv-040","input":"{\"op\":\"ptmark\",\"path\":\"Movie.VFF.DUBBED.mkv\"}","expected":"1"}
+{"id":"acv-041","input":"{\"op\":\"ptmark\",\"path\":\"Movie.ESP.DUBBED.mkv\"}","expected":"1"}
+{"id":"acv-042","input":"{\"op\":\"ptmark\",\"path\":\"Movie.MULTI.DUBBED.mkv\"}","expected":"1"}
+{"id":"acv-043","input":"{\"op\":\"ptmark\",\"path\":\"Movie.AZERBAIJAN.Dubbed.mkv\"}","expected":"0"}
+{"id":"acv-044","input":"{\"op\":\"ptmark\",\"path\":\"Movie.AZERBAIJAN.Dublado.mkv\"}","expected":"1"}
+{"id":"acv-045","input":"{\"op\":\"ptmark\",\"path\":\"Movie.1080p.Dublados.mkv\"}","expected":"0"}
+{"id":"acv-046","input":"{\"op\":\"ptmark\",\"path\":\"Movie.1080p.Legendado.mkv\"}","expected":"0"}
+{"id":"acv-047","input":"{\"op\":\"ptmark\",\"path\":\"Movie.1080p.WEB-DL.DUAL.5.1.x264-KILLERS.mkv\"}","expected":"1"}
+{"id":"acv-048","input":"{\"op\":\"ptmark\",\"path\":\"Movie.Bludv.Dublado.mkv\"}","expected":"1"}
+{"id":"acv-049","input":"{\"op\":\"ptmark\",\"path\":\"\"}","expected":"0"}
+{"id":"acv-050","input":"{\"op\":\"ptmark\",\"path\":\"   \"}","expected":"0"}
+{"id":"acv-051","input":"{\"op\":\"enscene\",\"path\":\"True.Detective.S02E01.HDTV.x264-KILLERS.mkv\"}","expected":"killers"}
+{"id":"acv-052","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.1080p.WEB-DL.x264-RARBG.mkv\"}","expected":"rarbg"}
+{"id":"acv-053","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.1080p.WEB-DL.DD5.1.H.264-ETTV.mkv\"}","expected":"ettv"}
+{"id":"acv-054","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.1080p.BluRay.x264.YIFY.mkv\"}","expected":"yify"}
+{"id":"acv-055","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.1080p.WEBRip.x264-TGx.mkv\"}","expected":"tgx"}
+{"id":"acv-056","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.2160p.WEB-DL.x265-FGT.mkv\"}","expected":"fgt"}
+{"id":"acv-057","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.1080p.BluRay.x264-GALAXYRG.mkv\"}","expected":"galaxyrg"}
+{"id":"acv-058","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.720p.HDTV.x264-EVO.mkv\"}","expected":"evo"}
+{"id":"acv-059","input":"{\"op\":\"enscene\",\"path\":\"Movie.KILLERS.RARBG.mkv\"}","expected":"rarbg"}
+{"id":"acv-060","input":"{\"op\":\"enscene\",\"path\":\"Movie.Dublado.KILLERS.mkv\"}","expected":""}
+{"id":"acv-061","input":"{\"op\":\"enscene\",\"path\":\"Movie.DUAL.KILLERS.mkv\"}","expected":""}
+{"id":"acv-062","input":"{\"op\":\"enscene\",\"path\":\"Movie.2024.1080p.BluRay.x264.mkv\"}","expected":""}
+{"id":"acv-063","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.x264-KILLERS1080.mkv\"}","expected":""}
+{"id":"acv-064","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.YTS.MX.mkv\"}","expected":"yts"}
+{"id":"acv-065","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.HDTV.x264-AFM72.mkv\"}","expected":"afm72"}
+{"id":"acv-066","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-TOVAR.mkv\"}","expected":"tovar"}
+{"id":"acv-067","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-MEGUSTA.mkv\"}","expected":"megusta"}
+{"id":"acv-068","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-GLXRC.mkv\"}","expected":"glxrc"}
+{"id":"acv-069","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-OXY.mkv\"}","expected":"oxy"}
+{"id":"acv-070","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-BAE.mkv\"}","expected":"bae"}
+{"id":"acv-071","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-DRS.mkv\"}","expected":"drs"}
+{"id":"acv-072","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-ROARB.mkv\"}","expected":"roarb"}
+{"id":"acv-073","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-NTB.mkv\"}","expected":"ntb"}
+{"id":"acv-074","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-HUZZAH.mkv\"}","expected":"huzzah"}
+{"id":"acv-075","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-ETHEL.mkv\"}","expected":"ethel"}
+{"id":"acv-076","input":"{\"op\":\"enscene\",\"path\":\"Movie.Nacional.KILLERS.mkv\"}","expected":""}
+{"id":"acv-077","input":"{\"op\":\"enscene\",\"path\":\"\"}","expected":""}
+{"id":"acv-078","input":"{\"op\":\"enscene\",\"path\":\"Movie.1080p.WEB-DL.x264-UNKNOWN.mkv\"}","expected":""}
+{"id":"acv-079","input":"{\"op\":\"dn\",\"dn\":\"True.Detective.S02E01.HDTV.x264-KILLERS[ettv]\"}","expected":"1"}
+{"id":"acv-080","input":"{\"op\":\"dn\",\"dn\":\"Movie.2024.1080p.BluRay.REMUX.HEVC-KILLERS\"}","expected":"0"}
+{"id":"acv-081","input":"{\"op\":\"dn\",\"dn\":\"Movie.2024.1080p.BluRay.x264-RARBG\"}","expected":"1"}
+{"id":"acv-082","input":"{\"op\":\"dn\",\"dn\":\"Filme.Dublado.1080p-Nacional\"}","expected":"0"}
+{"id":"acv-083","input":"{\"op\":\"dn\",\"dn\":\"\"}","expected":"0"}
+{"id":"acv-084","input":"{\"op\":\"dn\",\"dn\":\"Movie.2024.1080p.WEB-DL.x264\"}","expected":"0"}
+{"id":"acv-085","input":"{\"op\":\"dn\",\"dn\":\"Barbie.2023.1080p.WEBRip.YTS.MX\"}","expected":"1"}
+{"id":"acv-086","input":"{\"op\":\"dn\",\"dn\":\"Movie.REMUX\"}","expected":"0"}
+{"id":"acv-087","input":"{\"op\":\"dn\",\"dn\":\"Movie.REMUXED.KILLERS\"}","expected":"1"}
+{"id":"acv-088","input":"{\"op\":\"dn\",\"dn\":\"Во.Dublado-Х\"}","expected":"0"}
+{"id":"acv-089","input":"{\"op\":\"dn\",\"dn\":\"MOVIE.KILLERS\"}","expected":"1"}
+{"id":"acv-090","input":"{\"op\":\"dn\",\"dn\":\"Movie.1080p.WEB-DL.DUAL-KILLERS\"}","expected":"0"}
+{"id":"acv-091","input":"{\"op\":\"dn\",\"dn\":\"Movie.1080p.WEBRip.x264-TGx\"}","expected":"1"}
+{"id":"acv-092","input":"{\"op\":\"dn\",\"dn\":\"Movie.1080p.WEB-DL.x264-ETTV\"}","expected":"1"}
+{"id":"acv-093","input":"{\"op\":\"mirror\",\"title\":\"Barbie (2023) 1080p WEBRip [YTS.MX]\"}","expected":"1"}
+{"id":"acv-094","input":"{\"op\":\"mirror\",\"title\":\"Movie 2024 1080p WEBRip x264-YIFY\"}","expected":"1"}
+{"id":"acv-095","input":"{\"op\":\"mirror\",\"title\":\"Filme Dublado 2024 1080p YTS\"}","expected":"0"}
+{"id":"acv-096","input":"{\"op\":\"mirror\",\"title\":\"Nacional 2024 1080p-NTb[TGx]\"}","expected":"0"}
+{"id":"acv-097","input":"{\"op\":\"mirror\",\"title\":\"Ação 2024 1080p TGx\"}","expected":"0"}
+{"id":"acv-098","input":"{\"op\":\"mirror\",\"title\":\"Temporada Completa 2024 KILLERS\"}","expected":"0"}
+{"id":"acv-099","input":"{\"op\":\"mirror\",\"title\":\"Movie 2024 KILLERS\"}","expected":"1"}
+{"id":"acv-100","input":"{\"op\":\"mirror\",\"title\":\"\"}","expected":"0"}
+{"id":"acv-101","input":"{\"op\":\"mirror\",\"title\":\"Legendado 2024 YTS\"}","expected":"1"}
+{"id":"acv-102","input":"{\"op\":\"mirror\",\"title\":\"Movie 2024 1080p KILLERS Dublado\"}","expected":"0"}
+{"id":"acv-103","input":"{\"op\":\"mirror\",\"title\":\"Movie 2024 RARBG\"}","expected":"1"}
+{"id":"acv-104","input":"{\"op\":\"mirror\",\"title\":\"Movie de 2024 RARBG\"}","expected":"1"}
+{"id":"acv-105","input":"{\"op\":\"mirror\",\"title\":\"Movie de a 2024 RARBG\"}","expected":"1"}
+{"id":"acv-106","input":"{\"op\":\"mirror\",\"title\":\"Cidade de Deus 2024 YTS\"}","expected":"0"}
+{"id":"acv-107","input":"{\"op\":\"mirror\",\"title\":\"Movie S.W.A.T. 2024 TGx\"}","expected":"1"}
+{"id":"acv-108","input":"{\"op\":\"mirror\",\"title\":\"Movie 2024 1080p NTb\"}","expected":"1"}
+{"id":"acv-109","input":"{\"op\":\"mirror\",\"title\":\"Filme 2024 1080p YTS\"}","expected":"1"}
+{"id":"acv-110","input":"{\"op\":\"mirror\",\"title\":\"Movie 2024 1080p YTS dublado\"}","expected":"0"}
+{"id":"acv-111","input":"{\"op\":\"mirror\",\"title\":\"Movie 2024 YIFY Legendado\"}","expected":"1"}
+{"id":"acv-112","input":"{\"op\":\"lie\",\"paths\":[\"True.Detective.S02E01.HDTV.x264-KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"1|killers|1"}
+{"id":"acv-113","input":"{\"op\":\"lie\",\"paths\":[\"Movie.A.mkv\",\"Movie.B.KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"1|killers|2"}
+{"id":"acv-114","input":"{\"op\":\"lie\",\"paths\":[\"Movie.Dublado.A.mkv\",\"Movie.B.KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"0||2"}
+{"id":"acv-115","input":"{\"op\":\"lie\",\"paths\":[],\"promisedDubbed\":true}","expected":"0||0"}
+{"id":"acv-116","input":"{\"op\":\"lie\",\"paths\":[\"Movie.KILLERS.mkv\"],\"promisedDubbed\":false}","expected":"0||1"}
+{"id":"acv-117","input":"{\"op\":\"lie\",\"paths\":[\"Movie.A.mkv\",\"Movie.B.mkv\"],\"promisedDubbed\":true}","expected":"0||2"}
+{"id":"acv-118","input":"{\"op\":\"lie\",\"paths\":[\"Movie.RARBG.mkv\",\"Movie.KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"1|rarbg|2"}
+{"id":"acv-119","input":"{\"op\":\"lie\",\"paths\":[\"Movie.Nacional.KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"0||1"}
+{"id":"acv-120","input":"{\"op\":\"lie\",\"paths\":[\"Movie.REMUX-KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"1|killers|1"}
+{"id":"acv-121","input":"{\"op\":\"lie\",\"paths\":[\"Movie.DUAL.KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"0||1"}
+{"id":"acv-122","input":"{\"op\":\"lie\",\"paths\":[\"a.mkv\",\"b.mkv\",\"c.KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"1|killers|3"}
+{"id":"acv-123","input":"{\"op\":\"lie\",\"paths\":[\"Movie.English.DUBBED-KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"1|killers|1"}
+{"id":"acv-124","input":"{\"op\":\"lie\",\"paths\":[\"Movie.Во.DUBBED-KILLERS.mkv\"],\"promisedDubbed\":true}","expected":"1|killers|1"}
+{"id":"acv-125","input":"{\"op\":\"lie\",\"paths\":[\"Movie.1080p.WEB-DL.x264-ETTV.mkv\"],\"promisedDubbed\":true}","expected":"1|ettv|1"}
+{"id":"acv-126","input":"{\"op\":\"lie\",\"paths\":[\"Movie.1080p.WEB-DL.x264-TGx.mkv\",\"Movie.1080p.WEB-DL.x264-ETTV.mkv\"],\"promisedDubbed\":true}","expected":"1|tgx|2"}
+{"id":"acv-127","input":"{\"op\":\"lie\",\"paths\":[\"Movie.a.mkv\",\"Movie.b.mkv\",\"Movie.c.mkv\"],\"promisedDubbed\":true}","expected":"0||3"}

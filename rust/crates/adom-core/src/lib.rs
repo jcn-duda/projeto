@@ -3,6 +3,7 @@
 //! 25+ módulos portados com golden em `rust/golden/` (~4.000+ casos).
 //! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
 
+mod audio_cleanup_verdicts;
 mod audio_lang;
 mod audio_presentation;
 mod br_origin;
@@ -144,6 +145,10 @@ pub use stream_quotas_extra::{
 pub use resolve_sign::{sign_resolve, verify_resolve};
 
 // ── title_normalization ──────────────────────────────────────────────
+pub use audio_cleanup_verdicts::{
+    dn_contradicts_dub_claim, dubbed_lie_verdict, en_scene_mirror_title, has_pt_audio_mark,
+    strong_en_scene_mark, DubbedLieVerdict,
+};
 pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };

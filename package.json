@@ -17,6 +17,8 @@
     "golden:release-labels:check": "node scripts/golden/dump-release-labels.mjs --check",
     "golden:pt-audio-guards": "node scripts/golden/dump-pt-audio-guards.mjs",
     "golden:pt-audio-guards:check": "node scripts/golden/dump-pt-audio-guards.mjs --check",
+    "golden:audio-cleanup-verdicts": "node scripts/golden/dump-audio-cleanup-verdicts.mjs",
+    "golden:audio-cleanup-verdicts:check": "node scripts/golden/dump-audio-cleanup-verdicts.mjs --check",
     "golden:search-name-helpers": "node scripts/golden/dump-search-name-helpers.mjs",
     "golden:search-name-helpers:check": "node scripts/golden/dump-search-name-helpers.mjs --check",
     "golden:indexer-priority": "node scripts/golden/dump-indexer-priority.mjs",

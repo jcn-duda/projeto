@@ -128,6 +128,24 @@ fn multi_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(&bounded("MULTI")).expect("MULTI compila"))
 }
 
+/// Núcleo da guarda de idioma estrangeiro sobre texto já em maiúscula: nome
+/// de idioma, cirílico, assinatura rutracker ou o token `LAT`.
+fn foreign_dub_guard_hit_upper(t: &str) -> bool {
+    cyrillic_re().is_match(t)
+        || foreign_dub_lang_re().is_match(t)
+        || rutracker_re().is_match(t)
+        || lat_re().is_match(t)
+}
+
+/// Guarda compartilhada com `hasPtAudioMark` (`audio-cleanup.ts`): `true`
+/// quando o texto NOMEIA idioma estrangeiro, está em cirílico, carrega
+/// assinatura transliterada do rutracker ou o token `LAT`. É a MESMA guarda
+/// que desmente o `DUB` genérico de `generic_dub_proves_pt` — exposta para o
+/// porte do path não duplicar listas de idioma.
+pub(crate) fn foreign_dub_guard_hit(text: &str) -> bool {
+    foreign_dub_guard_hit_upper(&text.to_uppercase())
+}
+
 /// `genericDubProvesPt`: `DUB`/`DUBBED` genérico só prova PT na ausência de
 /// idioma estrangeiro, cirílico, assinatura do rutracker e `LAT`.
 ///
@@ -135,11 +153,7 @@ fn multi_re() -> &'static Regex {
 /// propósito: só desmente esta promessa genérica.
 pub fn generic_dub_proves_pt(text: &str) -> bool {
     let t = text.to_uppercase();
-    !cyrillic_re().is_match(&t)
-        && !foreign_dub_lang_re().is_match(&t)
-        && !rutracker_re().is_match(&t)
-        && !lat_re().is_match(&t)
-        && (dubbed_re().is_match(&t) || dub_re().is_match(&t))
+    !foreign_dub_guard_hit_upper(&t) && (dubbed_re().is_match(&t) || dub_re().is_match(&t))
 }
 
 /// `foreignLangNamedForBucket`: nomeia uma língua que não é o português e
