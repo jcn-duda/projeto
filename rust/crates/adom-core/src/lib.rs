@@ -10,6 +10,7 @@
 
 mod br_origin;
 mod catalog_year;
+mod episode_parse;
 mod franchise;
 mod info_hash;
 mod js_text;
@@ -26,6 +27,9 @@ pub use magnet_uri::{default_magnet, sanitize_magnet};
 
 pub use br_origin::{br_origin_mark, has_pt_signs};
 pub use catalog_year::{catalog_alt_year_of, catalog_year_of};
+pub use episode_parse::{
+    parse_title_season_episode, season_coverage_excludes, ParsedSeasonEpisode,
+};
 pub use franchise::{
     franchise_base_contradicts, franchise_extension_contradicts, is_multi_work_collection,
     name_coverage_tokens,

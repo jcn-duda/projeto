@@ -20,6 +20,9 @@ unicode-normalization = "=0.1.25"
 # de \b, \s e \d são explícitas no código (ver matching_vocabulary.rs), então a
 # paridade não depende das tabelas Unicode do crate.
 regex = "=1.13.1"
+# Regex com lookbehind/lookahead (o `parseTitleSeasonEpisode` usa `(?<!…)` e
+# `(?!…)`, que o `regex` não aceita). Versão exata, como as demais.
+fancy-regex = "=0.19.2"
 
 [dev-dependencies]
 # Só para os testes de integridade do golden (nunca entram no runtime):
