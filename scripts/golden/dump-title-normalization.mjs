@@ -58,6 +58,30 @@ const FUNCTIONS = {
     outManifest: 'rust/golden/matching-vocabulary-title-tokens.manifest.json',
     toText: (tokens) => tokens.join(' '),
   },
+  // Conteúdo das constantes de vocabulário: entrada = nome da constante, saída =
+  // itens únicos e ordenados (Set/Array), `chave=valor` (objeto) ou
+  // `/fonte/flags` (regex), separados por espaço.
+  'matching-vocabulary-sets': {
+    id: 'matching-vocabulary/sets',
+    name: 'vocabularySets',
+    source: 'src/utils/matching-vocabulary.ts',
+    artifact: 'dist/src/utils/matching-vocabulary.js',
+    corpus: 'scripts/golden/corpus-matching-vocabulary-sets.json',
+    outJsonl: 'rust/golden/matching-vocabulary-sets.jsonl',
+    outManifest: 'rust/golden/matching-vocabulary-sets.manifest.json',
+    resolve: (mod) => (name) => {
+      const v = mod[name];
+      if (v === undefined) throw new Error(`constante desconhecida: ${name}`);
+      if (v instanceof Set || Array.isArray(v)) {
+        return [...new Set(v)].sort().join(' ');
+      }
+      if (v instanceof RegExp) return `/${v.source}/${v.flags}`;
+      if (typeof v === 'object') {
+        return Object.entries(v).map(([k, n]) => `${k}=${n}`).sort().join(' ');
+      }
+      throw new Error(`tipo não suportado em ${name}`);
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 
@@ -110,7 +134,9 @@ async function loadOracle(fn) {
   } catch (e) {
     fail(`não consegui importar o oracle do dist: ${e.message}`);
   }
-  const raw = mod[fn.exportName ?? fn.name];
+  // `resolve(mod)` monta o oracle quando a entrada não é uma função exportada
+  // direta (ex.: conteúdo de uma constante). Mesma regra: sem réplica no gerador.
+  const raw = fn.resolve ? fn.resolve(mod) : mod[fn.exportName ?? fn.name];
   if (typeof raw !== 'function') fail(`dist não exporta ${fn.name}`);
   const f = fn.toText ? (input) => fn.toText(raw(input)) : raw;
   return { f, sourceSha: sha256(readFileSync(sourcePath)), artifactSha: sha256(readFileSync(artifactPath)) };

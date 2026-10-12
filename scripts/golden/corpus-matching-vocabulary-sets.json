@@ -1,0 +1,19 @@
+{
+  "version": "corpus-matching-vocabulary-sets/1",
+  "note": "Uma linha por constante exportada de src/utils/matching-vocabulary.ts. Oracle: conteúdo ordenado e sem repetição (Set/Array), pares chave=valor (objeto) ou /fonte/flags (regex). IDs estáveis: caso novo recebe id novo no fim.",
+  "cases": [
+    {"id":"vs-001","input":"PACK_WORDS","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-002","input":"TECH_NOISE","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-003","input":"LINK_WORDS","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-004","input":"LANG_NOISE","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-005","input":"WATERMARK_NOISE","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-006","input":"RELEASE_NOISE","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-007","input":"LEADING_ARTICLES","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-008","input":"STOP_AT","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-009","input":"NUMERAL_CANON","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-010","input":"SEQUENCE_WORDS","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-011","input":"STRONG_PACK_WORDS","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-012","input":"EPISODE_TOKEN","note":"conteúdo da constante exportada por matching-vocabulary.ts"},
+    {"id":"vs-013","input":"YEAR_RANGE","note":"conteúdo da constante exportada por matching-vocabulary.ts"}
+  ]
+}
