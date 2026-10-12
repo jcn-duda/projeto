@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "episode-matching/parse"
+  ],
+  "function": {
+    "name": "episodeParse",
+    "sourcePath": "src/utils/episode-matching.ts",
+    "sourceSha256": "06b799c9eec54353ab369e6e9aefb1e267cb79ea4f8ca31a430f6230e4df67e2",
+    "artifactPath": "dist/src/utils/episode-matching.js",
+    "artifactSha256": "9dfbf5d4e641896b42a9ed48e14e0aac173f05e584c4bea1f0053d34af02c91d"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-episode-parse.json",
+    "sha256": "84d8982e479429923ccf6ba7ed4ed651f6280528b3e944e1ccb5962a062f0d88",
+    "cases": 887
+  },
+  "output": {
+    "path": "rust/golden/episode-parse.jsonl",
+    "sha256": "521bf4fcaa446536ef7d63ba221fd6d0114994eedda5cc50f48f7ae2e824688d",
+    "lines": 887
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "7324ff5bef0d8000b99be99a23d341f4c92f3050"
+  }
+}

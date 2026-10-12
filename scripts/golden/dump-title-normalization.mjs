@@ -296,6 +296,26 @@ const FUNCTIONS = {
       };
     },
   },
+  // episode-matching.ts: parse (estrutura de temporada e episódio) e excludes
+  // (seasonCoverageExcludes). Saída do parse: `s=… e=… c=0|1 p=0|1`, com as
+  // listas na ordem de inserção, que é a ordem do `[...set]` do TS.
+  'episode-parse': {
+    id: 'episode-matching/parse',
+    name: 'episodeParse',
+    source: 'src/utils/episode-matching.ts',
+    artifact: 'dist/src/utils/episode-matching.js',
+    corpus: 'scripts/golden/corpus-episode-parse.json',
+    outJsonl: 'rust/golden/episode-parse.jsonl',
+    outManifest: 'rust/golden/episode-parse.manifest.json',
+    resolve: (mod) => (input) => {
+      const c = JSON.parse(input);
+      if (c.op === 'excludes') {
+        return mod.seasonCoverageExcludes(mod.parseTitleSeasonEpisode(c.title), c.season) ? '1' : '0';
+      }
+      const p = mod.parseTitleSeasonEpisode(c.title);
+      return `s=${p.seasons.join(',')} e=${p.episodes.join(',')} c=${p.complete ? 1 : 0} p=${p.seasonPack ? 1 : 0}`;
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 

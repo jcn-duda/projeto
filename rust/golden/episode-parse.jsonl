@@ -1,0 +1,887 @@
+{"id":"ep-0001","input":"{\"op\":\"parse\",\"title\":\"\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0002","input":"{\"op\":\"parse\",\"title\":\"Game of Thrones S01E04 1080p\"}","expected":"s=1 e=4 c=0 p=0"}
+{"id":"ep-0003","input":"{\"op\":\"parse\",\"title\":\"Show S01E01-E10 1080p\"}","expected":"s=1 e=1,2,3,4,5,6,7,8,9,10 c=0 p=0"}
+{"id":"ep-0004","input":"{\"op\":\"parse\",\"title\":\"Show S01 E01 E02 720p\"}","expected":"s=1 e=1,2 c=0 p=0"}
+{"id":"ep-0005","input":"{\"op\":\"parse\",\"title\":\"Show S01E01E02\"}","expected":"s=1 e=1,2 c=0 p=0"}
+{"id":"ep-0006","input":"{\"op\":\"parse\",\"title\":\"Show S03E01-02 WEB\"}","expected":"s=3 e=1,2 c=0 p=0"}
+{"id":"ep-0007","input":"{\"op\":\"parse\",\"title\":\"Show S01E05-720p\"}","expected":"s=1 e=5 c=0 p=0"}
+{"id":"ep-0008","input":"{\"op\":\"parse\",\"title\":\"Show S02E01 EP 07\"}","expected":"s=2 e=1 c=0 p=0"}
+{"id":"ep-0009","input":"{\"op\":\"parse\",\"title\":\"Show S01 EP (01-07) 1TamilMV\"}","expected":"s=1 e=1,2,3,4,5,6,7 c=0 p=0"}
+{"id":"ep-0010","input":"{\"op\":\"parse\",\"title\":\"Show s01-ep 12-14\"}","expected":"s=1 e=12,13,14 c=0 p=0"}
+{"id":"ep-0011","input":"{\"op\":\"parse\",\"title\":\"Novela T01 E004\"}","expected":"s=1 e=4 c=0 p=0"}
+{"id":"ep-0012","input":"{\"op\":\"parse\",\"title\":\"Novela T01E001-E010\"}","expected":"s=1 e=1,2,3,4,5,6,7,8,9,10 c=0 p=0"}
+{"id":"ep-0013","input":"{\"op\":\"parse\",\"title\":\"Novela T01E001 E002\"}","expected":"s=1 e=1,2 c=0 p=0"}
+{"id":"ep-0014","input":"{\"op\":\"parse\",\"title\":\"Novela T01E001, E002 E010\"}","expected":"s=1 e=1,2,10 c=0 p=0"}
+{"id":"ep-0015","input":"{\"op\":\"parse\",\"title\":\"Novela T01E001 and E005\"}","expected":"s=1 e=1,5 c=0 p=0"}
+{"id":"ep-0016","input":"{\"op\":\"parse\",\"title\":\"Jesus [Capítulo 086 ao 123]\"}","expected":"s= e=86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123 c=0 p=0"}
+{"id":"ep-0017","input":"{\"op\":\"parse\",\"title\":\"Novela [EP 050-056]\"}","expected":"s= e=50,51,52,53,54,55,56 c=0 p=0"}
+{"id":"ep-0018","input":"{\"op\":\"parse\",\"title\":\"It Capítulo 2 2019\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0019","input":"{\"op\":\"parse\",\"title\":\"Anime 1x04 720p\"}","expected":"s=1 e=4 c=0 p=0"}
+{"id":"ep-0020","input":"{\"op\":\"parse\",\"title\":\"Filme 1280x720 2010\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0021","input":"{\"op\":\"parse\",\"title\":\"Game of Thrones Primeira Temporada Dual Audio\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0022","input":"{\"op\":\"parse\",\"title\":\"Show Décima Primeira Temporada\"}","expected":"s=11 e= c=0 p=0"}
+{"id":"ep-0023","input":"{\"op\":\"parse\",\"title\":\"Show Primeira Segunda Temporada\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0024","input":"{\"op\":\"parse\",\"title\":\"Show 1ª até 8ª Temporada\"}","expected":"s=1,2,3,4,5,6,7,8 e= c=0 p=0"}
+{"id":"ep-0025","input":"{\"op\":\"parse\",\"title\":\"Show 1a ate 8a temporadas\"}","expected":"s=1,2,3,4,5,6,7,8 e= c=0 p=0"}
+{"id":"ep-0026","input":"{\"op\":\"parse\",\"title\":\"Show 1 a 5 temporadas\"}","expected":"s=1,2,3,4,5 e= c=0 p=0"}
+{"id":"ep-0027","input":"{\"op\":\"parse\",\"title\":\"Show 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\"}","expected":"s=1,2,3,4,5,6,7 e= c=0 p=0"}
+{"id":"ep-0028","input":"{\"op\":\"parse\",\"title\":\"Show 1ª 2ª Temporada\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0029","input":"{\"op\":\"parse\",\"title\":\"Show S01-S04 1080p\"}","expected":"s=1,2,3,4 e= c=0 p=0"}
+{"id":"ep-0030","input":"{\"op\":\"parse\",\"title\":\"Show S01 - S04\"}","expected":"s=1,2,3,4 e= c=0 p=0"}
+{"id":"ep-0031","input":"{\"op\":\"parse\",\"title\":\"Show S02-13 anime\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0032","input":"{\"op\":\"parse\",\"title\":\"Show S01-02E01\"}","expected":"s=1,2 e= c=0 p=0"}
+{"id":"ep-0033","input":"{\"op\":\"parse\",\"title\":\"Show S1-3E1\"}","expected":"s=1,2,3 e= c=0 p=0"}
+{"id":"ep-0034","input":"{\"op\":\"parse\",\"title\":\"Show S01 S04\"}","expected":"s=1,4 e= c=0 p=0"}
+{"id":"ep-0035","input":"{\"op\":\"parse\",\"title\":\"Show S04-S01\"}","expected":"s=4,1 e= c=0 p=0"}
+{"id":"ep-0036","input":"{\"op\":\"parse\",\"title\":\"Show s01 s03 pack\"}","expected":"s=1,3 e= c=0 p=0"}
+{"id":"ep-0037","input":"{\"op\":\"parse\",\"title\":\"Show season 2\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0038","input":"{\"op\":\"parse\",\"title\":\"Show Temporada 1\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0039","input":"{\"op\":\"parse\",\"title\":\"Show 1 Temporada\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0040","input":"{\"op\":\"parse\",\"title\":\"Show 2a Temporada Completa\"}","expected":"s=2 e= c=0 p=1"}
+{"id":"ep-0041","input":"{\"op\":\"parse\",\"title\":\"Show Todas as Temporadas\"}","expected":"s= e= c=1 p=0"}
+{"id":"ep-0042","input":"{\"op\":\"parse\",\"title\":\"Show Série Completa\"}","expected":"s= e= c=1 p=0"}
+{"id":"ep-0043","input":"{\"op\":\"parse\",\"title\":\"Show Temporadas Completas\"}","expected":"s= e= c=1 p=0"}
+{"id":"ep-0044","input":"{\"op\":\"parse\",\"title\":\"Show Temporada (2011) 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0045","input":"{\"op\":\"parse\",\"title\":\"Show Temporada 2011\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0046","input":"{\"op\":\"parse\",\"title\":\"Show Episódio 4 Temporada 2\"}","expected":"s=2,4 e=4 c=0 p=0"}
+{"id":"ep-0047","input":"{\"op\":\"parse\",\"title\":\"Show 1ª Temporada (2022) WEB-DL E02\"}","expected":"s=1 e=2 c=0 p=0"}
+{"id":"ep-0048","input":"{\"op\":\"parse\",\"title\":\"Lilo e Stitch 2\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0049","input":"{\"op\":\"parse\",\"title\":\"Show S01 e02 e04\"}","expected":"s=1 e=2,3,4 c=0 p=0"}
+{"id":"ep-0050","input":"{\"op\":\"parse\",\"title\":\"Show S01 E01 a E10\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0051","input":"{\"op\":\"parse\",\"title\":\"DDP5 1 Atmos Show\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0052","input":"{\"op\":\"parse\",\"title\":\"BS8 Show S01\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0053","input":"{\"op\":\"parse\",\"title\":\"Show S01 Episódio II\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0054","input":"{\"op\":\"parse\",\"title\":\"Star Wars Episódio II\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0055","input":"{\"op\":\"parse\",\"title\":\"Show Episódio 12 Temporada 3 E12\"}","expected":"s=3,12 e=12 c=0 p=0"}
+{"id":"ep-0056","input":"{\"op\":\"parse\",\"title\":\"Show 2 temporadas S01E01\"}","expected":"s=1,2 e=1 c=0 p=0"}
+{"id":"ep-0057","input":"{\"op\":\"parse\",\"title\":\"One Piece S1000E1001\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0058","input":"{\"op\":\"parse\",\"title\":\"Show S01E0010\"}","expected":"s=1 e=10 c=0 p=0"}
+{"id":"ep-0059","input":"{\"op\":\"parse\",\"title\":\"Show s1e1 e2 e3\"}","expected":"s=1 e=1,2,3 c=0 p=0"}
+{"id":"ep-0060","input":"{\"op\":\"parse\",\"title\":\"Show s01e1234\"}","expected":"s=1 e=1234 c=0 p=0"}
+{"id":"ep-0061","input":"{\"op\":\"parse\",\"title\":\"Show S1 EP 1-35 1080p\"}","expected":"s=1 e=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35 c=0 p=0"}
+{"id":"ep-0062","input":"{\"op\":\"parse\",\"title\":\"Show EP 07\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0063","input":"{\"op\":\"parse\",\"title\":\"Show E07 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0064","input":"{\"op\":\"parse\",\"title\":\"Show E01 a E03\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0065","input":"{\"op\":\"parse\",\"title\":\"Show E01 E03\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0066","input":"{\"op\":\"parse\",\"title\":\"Show 3 Temporadas 1080p\"}","expected":"s=3 e= c=0 p=0"}
+{"id":"ep-0067","input":"{\"op\":\"parse\",\"title\":\"Show 2ª Temporada 1080p\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0068","input":"{\"op\":\"parse\",\"title\":\"Show S01E01 Temporada 4 S02\"}","expected":"s=1,2,4 e=1 c=0 p=0"}
+{"id":"ep-0069","input":"{\"op\":\"parse\",\"title\":\"Show SX1E01\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0070","input":"{\"op\":\"parse\",\"title\":\"Show s01 ep 1 2 3\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0071","input":"{\"op\":\"parse\",\"title\":\"Show t01 e1 e2\"}","expected":"s=1 e=1,2 c=0 p=0"}
+{"id":"ep-0072","input":"{\"op\":\"parse\",\"title\":\"Show 4 x 10\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0073","input":"{\"op\":\"parse\",\"title\":\"Show 5x123\"}","expected":"s=5 e=123 c=0 p=0"}
+{"id":"ep-0074","input":"{\"op\":\"parse\",\"title\":\"\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0075","input":"{\"op\":\"parse\",\"title\":\"   \\t \\n \"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0076","input":"{\"op\":\"parse\",\"title\":\"G.O.R.A.\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0077","input":"{\"op\":\"parse\",\"title\":\"S.W.A.T. 2003 Dual Áudio 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0078","input":"{\"op\":\"parse\",\"title\":\"M.A.S.H\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0079","input":"{\"op\":\"parse\",\"title\":\"U.S.Marshals\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0080","input":"{\"op\":\"parse\",\"title\":\"Once.Upon.a.Time.in.America\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0081","input":"{\"op\":\"parse\",\"title\":\"H.264 x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0082","input":"{\"op\":\"parse\",\"title\":\"Resident.Evil.2026.1080p.TELESYNC\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0083","input":"{\"op\":\"parse\",\"title\":\"Poção do Avô\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0084","input":"{\"op\":\"parse\",\"title\":\"Poção do Avô\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0085","input":"{\"op\":\"parse\",\"title\":\"Histórias de Um Casamento: 2ª Temporada\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0086","input":"{\"op\":\"parse\",\"title\":\"Volume¹²³ Remux\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0087","input":"{\"op\":\"parse\",\"title\":\"Adım Farah\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0088","input":"{\"op\":\"parse\",\"title\":\"Straße ẞ\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0089","input":"{\"op\":\"parse\",\"title\":\"Cœurs Déchirés\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0090","input":"{\"op\":\"parse\",\"title\":\"Søren Łukasz Đoković\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0091","input":"{\"op\":\"parse\",\"title\":\"すずめの戸締まり\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0092","input":"{\"op\":\"parse\",\"title\":\"Ну, погоди!\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0093","input":"{\"op\":\"parse\",\"title\":\"!!! --- ___ ??? ***\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0094","input":"{\"op\":\"parse\",\"title\":\"Se7en   Dual\\tÁudio\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0095","input":"{\"op\":\"parse\",\"title\":\"&amp; Filmes\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0096","input":"{\"op\":\"parse\",\"title\":\"DUAL ÁUDIO 4K\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0097","input":"{\"op\":\"parse\",\"title\":\"A 2024 Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0098","input":"{\"op\":\"parse\",\"title\":\"A Casa Do Dragao Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0099","input":"{\"op\":\"parse\",\"title\":\"A Rocha LEGENDADO DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0100","input":"{\"op\":\"parse\",\"title\":\"A viagem de chihiro dublado pt-pt\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0101","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL-SF\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0102","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL.MULTi\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0103","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0104","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.DUAL.ESP.ENG\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0105","input":"{\"op\":\"parse\",\"title\":\"Acervo Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0106","input":"{\"op\":\"parse\",\"title\":\"Ativa.DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0107","input":"{\"op\":\"parse\",\"title\":\"BR Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0108","input":"{\"op\":\"parse\",\"title\":\"BR dublado recebe score 80\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0109","input":"{\"op\":\"parse\",\"title\":\"Cidade de Deus 2002 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0110","input":"{\"op\":\"parse\",\"title\":\"Cold 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0111","input":"{\"op\":\"parse\",\"title\":\"Corvo 1994 1080p BluRay DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0112","input":"{\"op\":\"parse\",\"title\":\"Cult Film 2010 BluRay 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0113","input":"{\"op\":\"parse\",\"title\":\"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0114","input":"{\"op\":\"parse\",\"title\":\"DUB BR 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0115","input":"{\"op\":\"parse\",\"title\":\"Dedupe Case 1988 DVDrip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0116","input":"{\"op\":\"parse\",\"title\":\"Devoradores de Estrelas 2026 Dual 5.1\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0117","input":"{\"op\":\"parse\",\"title\":\"Dia D Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0118","input":"{\"op\":\"parse\",\"title\":\"Dublado global recebe score 40\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0119","input":"{\"op\":\"parse\",\"title\":\"Fallback.Seeds.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0120","input":"{\"op\":\"parse\",\"title\":\"Fallout S01 Complete Pack 1080p\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0121","input":"{\"op\":\"parse\",\"title\":\"Fallout S01E05 1080p Dual\"}","expected":"s=1 e=5 c=0 p=0"}
+{"id":"ep-0122","input":"{\"op\":\"parse\",\"title\":\"Fallout.S01E01.1080p.WEBRip.x264\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0123","input":"{\"op\":\"parse\",\"title\":\"Fast Movie 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0124","input":"{\"op\":\"parse\",\"title\":\"Filme 1 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0125","input":"{\"op\":\"parse\",\"title\":\"Filme 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0126","input":"{\"op\":\"parse\",\"title\":\"Filme 1080p x265\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0127","input":"{\"op\":\"parse\",\"title\":\"Filme 2009 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0128","input":"{\"op\":\"parse\",\"title\":\"Filme 2019 IMAX 2160p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0129","input":"{\"op\":\"parse\",\"title\":\"Filme 2024 1080p WEB-DL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0130","input":"{\"op\":\"parse\",\"title\":\"Filme 480p SD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0131","input":"{\"op\":\"parse\",\"title\":\"Filme 720p HD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0132","input":"{\"op\":\"parse\",\"title\":\"Filme BR 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0133","input":"{\"op\":\"parse\",\"title\":\"Filme CAM Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0134","input":"{\"op\":\"parse\",\"title\":\"Filme Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0135","input":"{\"op\":\"parse\",\"title\":\"Filme HDTV\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0136","input":"{\"op\":\"parse\",\"title\":\"Filme Qualquer Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0137","input":"{\"op\":\"parse\",\"title\":\"Filme Stall Zero Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0138","input":"{\"op\":\"parse\",\"title\":\"Filme Teste 2024 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0139","input":"{\"op\":\"parse\",\"title\":\"Filme WEB-DL 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0140","input":"{\"op\":\"parse\",\"title\":\"Filme.2019.1080p.BluRay.x264.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0141","input":"{\"op\":\"parse\",\"title\":\"Filme.2019.1080p.x264-RARBG\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0142","input":"{\"op\":\"parse\",\"title\":\"Filme.2024.1080p.BTHD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0143","input":"{\"op\":\"parse\",\"title\":\"Filme.2026.1080p.BluRay.x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0144","input":"{\"op\":\"parse\",\"title\":\"Filme.Rico.2024.1080p.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0145","input":"{\"op\":\"parse\",\"title\":\"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0146","input":"{\"op\":\"parse\",\"title\":\"Global Dual 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0147","input":"{\"op\":\"parse\",\"title\":\"Goliath.S03.2160p\"}","expected":"s=3 e= c=0 p=0"}
+{"id":"ep-0148","input":"{\"op\":\"parse\",\"title\":\"Grace.BR.Dublado.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0149","input":"{\"op\":\"parse\",\"title\":\"HINDI.HQ.DUB\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0150","input":"{\"op\":\"parse\",\"title\":\"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0151","input":"{\"op\":\"parse\",\"title\":\"Hawaii Five O S01E01 1080p WEB-DL x264\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0152","input":"{\"op\":\"parse\",\"title\":\"Healthy Case 2003 DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0153","input":"{\"op\":\"parse\",\"title\":\"Idx Release 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0154","input":"{\"op\":\"parse\",\"title\":\"Joker 2019 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0155","input":"{\"op\":\"parse\",\"title\":\"Joker S01E01 1080p WEB-DL\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0156","input":"{\"op\":\"parse\",\"title\":\"Joker.2019.2160p.WEB-DL.DUAL.5.1\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0157","input":"{\"op\":\"parse\",\"title\":\"Lost Girl S01 720p\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0158","input":"{\"op\":\"parse\",\"title\":\"Lost Girl S03 1080p\"}","expected":"s=3 e= c=0 p=0"}
+{"id":"ep-0159","input":"{\"op\":\"parse\",\"title\":\"Lost.Girl.S01.720p.x265-ZMNT\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0160","input":"{\"op\":\"parse\",\"title\":\"Meu Release 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0161","input":"{\"op\":\"parse\",\"title\":\"Mortuary 1982 1080p DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0162","input":"{\"op\":\"parse\",\"title\":\"Mortuary 1983 1080p WEBRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0163","input":"{\"op\":\"parse\",\"title\":\"Mortuary 1983 720p DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0164","input":"{\"op\":\"parse\",\"title\":\"Movie 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0165","input":"{\"op\":\"parse\",\"title\":\"Movie 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0166","input":"{\"op\":\"parse\",\"title\":\"Movie 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0167","input":"{\"op\":\"parse\",\"title\":\"Movie 2024 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0168","input":"{\"op\":\"parse\",\"title\":\"Movie 2026 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0169","input":"{\"op\":\"parse\",\"title\":\"Movie 2026 BluRay 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0170","input":"{\"op\":\"parse\",\"title\":\"Movie 2026 WEB-DL 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0171","input":"{\"op\":\"parse\",\"title\":\"Movie WEB-DL 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0172","input":"{\"op\":\"parse\",\"title\":\"Movie.2020.TRUEFRENCH.1080p.x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0173","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.1080p.BR.Seeds1\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0174","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.1080p.DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0175","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.1080p.Test\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0176","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.2160p.UHD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0177","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.CAM.1080p.DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0178","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.Dual.Audio.Telugu.1080p.BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0179","input":"{\"op\":\"parse\",\"title\":\"Movie.2026.1080p.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0180","input":"{\"op\":\"parse\",\"title\":\"Movie.Title.2024.2160p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0181","input":"{\"op\":\"parse\",\"title\":\"My Name Is Farah S01E01 1080p WEB-DL\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0182","input":"{\"op\":\"parse\",\"title\":\"Nao.Tem.Temporada.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0183","input":"{\"op\":\"parse\",\"title\":\"NoDate2.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0184","input":"{\"op\":\"parse\",\"title\":\"NoSub.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0185","input":"{\"op\":\"parse\",\"title\":\"Nome 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0186","input":"{\"op\":\"parse\",\"title\":\"Nome do Filme 2019 Dual Audio 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0187","input":"{\"op\":\"parse\",\"title\":\"Nome do Filme Dublado 2024 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0188","input":"{\"op\":\"parse\",\"title\":\"O Corvo 1994 1080p BluRay DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0189","input":"{\"op\":\"parse\",\"title\":\"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0190","input":"{\"op\":\"parse\",\"title\":\"O.Corvo.1994.Dual.Audio.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0191","input":"{\"op\":\"parse\",\"title\":\"Obra.DUAL.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0192","input":"{\"op\":\"parse\",\"title\":\"ObraB.Seeds.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0193","input":"{\"op\":\"parse\",\"title\":\"Old Movie 1990 1080p BluRay x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0194","input":"{\"op\":\"parse\",\"title\":\"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0195","input":"{\"op\":\"parse\",\"title\":\"OtherDigest.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0196","input":"{\"op\":\"parse\",\"title\":\"Outro 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0197","input":"{\"op\":\"parse\",\"title\":\"Parasita 2020 1080p BluRay DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0198","input":"{\"op\":\"parse\",\"title\":\"Partial Case 1988 DVDrip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0199","input":"{\"op\":\"parse\",\"title\":\"Predador A 1080p DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0200","input":"{\"op\":\"parse\",\"title\":\"Probe Movie 2011 1080p LEGENDADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0201","input":"{\"op\":\"parse\",\"title\":\"Project Hail Mary 2026 1080p WEB.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0202","input":"{\"op\":\"parse\",\"title\":\"Prometheus Dual\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0203","input":"{\"op\":\"parse\",\"title\":\"Prot.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0204","input":"{\"op\":\"parse\",\"title\":\"Qualquer.Coisa.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0205","input":"{\"op\":\"parse\",\"title\":\"Rare Case 1988 DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0206","input":"{\"op\":\"parse\",\"title\":\"Reacher 2 Temporada Dual\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0207","input":"{\"op\":\"parse\",\"title\":\"Readd.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0208","input":"{\"op\":\"parse\",\"title\":\"Release Qualquer 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0209","input":"{\"op\":\"parse\",\"title\":\"S01E01.1080p.DDP5.1.mkv\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0210","input":"{\"op\":\"parse\",\"title\":\"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE\"}","expected":"s=1 e=2 c=0 p=0"}
+{"id":"ep-0211","input":"{\"op\":\"parse\",\"title\":\"Saga Crepusculo 2008-2012 Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0212","input":"{\"op\":\"parse\",\"title\":\"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0213","input":"{\"op\":\"parse\",\"title\":\"Scary Movie Part Two 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0214","input":"{\"op\":\"parse\",\"title\":\"Serie 1a ate 8a Temporada Completa DUAL\"}","expected":"s=1,2,3,4,5,6,7,8 e= c=0 p=1"}
+{"id":"ep-0215","input":"{\"op\":\"parse\",\"title\":\"Serie S01E01 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0216","input":"{\"op\":\"parse\",\"title\":\"Serie S01E02 Dublado\"}","expected":"s=1 e=2 c=0 p=0"}
+{"id":"ep-0217","input":"{\"op\":\"parse\",\"title\":\"Serie Sem Hash S02E01 1080p\"}","expected":"s=2 e=1 c=0 p=0"}
+{"id":"ep-0218","input":"{\"op\":\"parse\",\"title\":\"Serie T01 E001 e E002 720p\"}","expected":"s=1 e=1,2 c=0 p=0"}
+{"id":"ep-0219","input":"{\"op\":\"parse\",\"title\":\"Serie Teste 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0220","input":"{\"op\":\"parse\",\"title\":\"Serie Teste S01E02 1080p\"}","expected":"s=1 e=2 c=0 p=0"}
+{"id":"ep-0221","input":"{\"op\":\"parse\",\"title\":\"Serie Teste S02E05 DUBLADO\"}","expected":"s=2 e=5 c=0 p=0"}
+{"id":"ep-0222","input":"{\"op\":\"parse\",\"title\":\"Serie Todas as Temporadas DUAL\"}","expected":"s= e= c=1 p=0"}
+{"id":"ep-0223","input":"{\"op\":\"parse\",\"title\":\"Serie.S01E01.DUAL\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0224","input":"{\"op\":\"parse\",\"title\":\"Serie.S04E03.1080p.WEB-DL.DUBLADO\"}","expected":"s=4 e=3 c=0 p=0"}
+{"id":"ep-0225","input":"{\"op\":\"parse\",\"title\":\"Shes The Boss S01E01 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0226","input":"{\"op\":\"parse\",\"title\":\"Show S01 1080p EP\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0227","input":"{\"op\":\"parse\",\"title\":\"Show S01 Dublado\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0228","input":"{\"op\":\"parse\",\"title\":\"Show S01E01 Dual 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0229","input":"{\"op\":\"parse\",\"title\":\"Show S01E05 Dual 1080p\"}","expected":"s=1 e=5 c=0 p=0"}
+{"id":"ep-0230","input":"{\"op\":\"parse\",\"title\":\"Show S01E1176-2160p\"}","expected":"s=1 e=1176 c=0 p=0"}
+{"id":"ep-0231","input":"{\"op\":\"parse\",\"title\":\"Show.3ordm.Temporada.Completa.1080p\"}","expected":"s= e= c=0 p=1"}
+{"id":"ep-0232","input":"{\"op\":\"parse\",\"title\":\"Show.S01E01.1080p.mkv\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0233","input":"{\"op\":\"parse\",\"title\":\"Show.S02.1080p\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0234","input":"{\"op\":\"parse\",\"title\":\"Show.S02E05.1080p.mkv\"}","expected":"s=2 e=5 c=0 p=0"}
+{"id":"ep-0235","input":"{\"op\":\"parse\",\"title\":\"Show.S03.1080p.DTS5.1.mkv\"}","expected":"s=3 e= c=0 p=0"}
+{"id":"ep-0236","input":"{\"op\":\"parse\",\"title\":\"Some.Global.Dub.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0237","input":"{\"op\":\"parse\",\"title\":\"Some.Swarm.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0238","input":"{\"op\":\"parse\",\"title\":\"Star Wars Todos os filmes 1977-2019 Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0239","input":"{\"op\":\"parse\",\"title\":\"Strict Full 1988 DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0240","input":"{\"op\":\"parse\",\"title\":\"Swarm.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0241","input":"{\"op\":\"parse\",\"title\":\"Terrace House Boys S01E01 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0242","input":"{\"op\":\"parse\",\"title\":\"Test Title 2024 1080p EN ONLY\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0243","input":"{\"op\":\"parse\",\"title\":\"Test Title 2024 720p DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0244","input":"{\"op\":\"parse\",\"title\":\"The Bear S01E01 1080p WEB-DL x264\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0245","input":"{\"op\":\"parse\",\"title\":\"The Boys S04 1080p AMZN WEB-DL\"}","expected":"s=4 e= c=0 p=0"}
+{"id":"ep-0246","input":"{\"op\":\"parse\",\"title\":\"The Locals 2003 720p WEB-DL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0247","input":"{\"op\":\"parse\",\"title\":\"\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0248","input":"{\"op\":\"parse\",\"title\":\"   \"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0249","input":"{\"op\":\"parse\",\"title\":\"Torrent (2019) Legendado WEB DL 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0250","input":"{\"op\":\"parse\",\"title\":\"Apocalypse Now V.Exten (1979) [BluRay 1080p][DUAL]\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0251","input":"{\"op\":\"parse\",\"title\":\"Apocalypse Now V. Estendida (1979)\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0252","input":"{\"op\":\"parse\",\"title\":\"V de Vingança 2005 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0253","input":"{\"op\":\"parse\",\"title\":\"V 2009 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0254","input":"{\"op\":\"parse\",\"title\":\"A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0255","input":"{\"op\":\"parse\",\"title\":\"A Rocha (1996) BDRip BluRay 720p dublado - FB\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0256","input":"{\"op\":\"parse\",\"title\":\"Zumbilândia BDRip derew 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0257","input":"{\"op\":\"parse\",\"title\":\"Zumbilandia (www ThePirateFilms.com)\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0258","input":"{\"op\":\"parse\",\"title\":\"Atire Duas Vezes 1990 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0259","input":"{\"op\":\"parse\",\"title\":\"Todos os filmes 1979-2016\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0260","input":"{\"op\":\"parse\",\"title\":\"Todos os filmes 1979 2016\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0261","input":"{\"op\":\"parse\",\"title\":\"Coleção Guerra nas Estrelas\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0262","input":"{\"op\":\"parse\",\"title\":\"Game of Thrones Todas as Temporadas\"}","expected":"s= e= c=1 p=0"}
+{"id":"ep-0263","input":"{\"op\":\"parse\",\"title\":\"Velozes e Furiosos 5 2011 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0264","input":"{\"op\":\"parse\",\"title\":\"The Hulk 2003 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0265","input":"{\"op\":\"parse\",\"title\":\"Para Sempre 2010 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0266","input":"{\"op\":\"parse\",\"title\":\"S01E01 A Casa do Dragão S01E01 x264 DUAL\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0267","input":"{\"op\":\"parse\",\"title\":\"1A TEMPORADA COMPLETA House of the Dragon S01\"}","expected":"s=1 e= c=0 p=1"}
+{"id":"ep-0268","input":"{\"op\":\"parse\",\"title\":\"Rocky II 1979 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0269","input":"{\"op\":\"parse\",\"title\":\"Duna Parte Dois 2024 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0270","input":"{\"op\":\"parse\",\"title\":\"Batman Begins 2005 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0271","input":"{\"op\":\"parse\",\"title\":\"Dublado Legendado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0272","input":"{\"op\":\"parse\",\"title\":\"I Am Legend 2007 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0273","input":"{\"op\":\"parse\",\"title\":\"Monster Hunter 2021 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0274","input":"{\"op\":\"parse\",\"title\":\"Trilogia Matrix 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0275","input":"{\"op\":\"parse\",\"title\":\"Histórias de Um Casamento: 2ª Temporada\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0276","input":"{\"op\":\"parse\",\"title\":\"Stranger Things 4 1080p WEB-DL DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0277","input":"{\"op\":\"parse\",\"title\":\"\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0278","input":"{\"op\":\"parse\",\"title\":\"   \\t \\n \"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0279","input":"{\"op\":\"parse\",\"title\":\"G.O.R.A.\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0280","input":"{\"op\":\"parse\",\"title\":\"S.W.A.T. 2003 Dual Áudio 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0281","input":"{\"op\":\"parse\",\"title\":\"M.A.S.H\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0282","input":"{\"op\":\"parse\",\"title\":\"U.S.Marshals\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0283","input":"{\"op\":\"parse\",\"title\":\"Once.Upon.a.Time.in.America\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0284","input":"{\"op\":\"parse\",\"title\":\"H.264 x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0285","input":"{\"op\":\"parse\",\"title\":\"Resident.Evil.2026.1080p.TELESYNC\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0286","input":"{\"op\":\"parse\",\"title\":\"Poção do Avô\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0287","input":"{\"op\":\"parse\",\"title\":\"Poção do Avô\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0288","input":"{\"op\":\"parse\",\"title\":\"Histórias de Um Casamento: 2ª Temporada\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0289","input":"{\"op\":\"parse\",\"title\":\"Volume¹²³ Remux\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0290","input":"{\"op\":\"parse\",\"title\":\"Adım Farah\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0291","input":"{\"op\":\"parse\",\"title\":\"Straße ẞ\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0292","input":"{\"op\":\"parse\",\"title\":\"Cœurs Déchirés\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0293","input":"{\"op\":\"parse\",\"title\":\"Søren Łukasz Đoković\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0294","input":"{\"op\":\"parse\",\"title\":\"すずめの戸締まり\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0295","input":"{\"op\":\"parse\",\"title\":\"Ну, погоди!\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0296","input":"{\"op\":\"parse\",\"title\":\"!!! --- ___ ??? ***\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0297","input":"{\"op\":\"parse\",\"title\":\"Se7en   Dual\\tÁudio\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0298","input":"{\"op\":\"parse\",\"title\":\"&amp; Filmes\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0299","input":"{\"op\":\"parse\",\"title\":\"DUAL ÁUDIO 4K\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0300","input":"{\"op\":\"parse\",\"title\":\"A 2024 Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0301","input":"{\"op\":\"parse\",\"title\":\"A Casa Do Dragao Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0302","input":"{\"op\":\"parse\",\"title\":\"A Rocha LEGENDADO DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0303","input":"{\"op\":\"parse\",\"title\":\"A viagem de chihiro dublado pt-pt\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0304","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL-SF\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0305","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.1080p.BluRay.DUAL.MULTi\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0306","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0307","input":"{\"op\":\"parse\",\"title\":\"A.Rocha.1996.DUAL.ESP.ENG\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0308","input":"{\"op\":\"parse\",\"title\":\"Acervo Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0309","input":"{\"op\":\"parse\",\"title\":\"Ativa.DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0310","input":"{\"op\":\"parse\",\"title\":\"BR Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0311","input":"{\"op\":\"parse\",\"title\":\"BR dublado recebe score 80\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0312","input":"{\"op\":\"parse\",\"title\":\"Cidade de Deus 2002 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0313","input":"{\"op\":\"parse\",\"title\":\"Cold 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0314","input":"{\"op\":\"parse\",\"title\":\"Corvo 1994 1080p BluRay DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0315","input":"{\"op\":\"parse\",\"title\":\"Cult Film 2010 BluRay 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0316","input":"{\"op\":\"parse\",\"title\":\"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0317","input":"{\"op\":\"parse\",\"title\":\"DUB BR 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0318","input":"{\"op\":\"parse\",\"title\":\"Dedupe Case 1988 DVDrip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0319","input":"{\"op\":\"parse\",\"title\":\"Devoradores de Estrelas 2026 Dual 5.1\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0320","input":"{\"op\":\"parse\",\"title\":\"Dia D Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0321","input":"{\"op\":\"parse\",\"title\":\"Dublado global recebe score 40\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0322","input":"{\"op\":\"parse\",\"title\":\"Fallback.Seeds.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0323","input":"{\"op\":\"parse\",\"title\":\"Fallout S01 Complete Pack 1080p\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0324","input":"{\"op\":\"parse\",\"title\":\"Fallout S01E05 1080p Dual\"}","expected":"s=1 e=5 c=0 p=0"}
+{"id":"ep-0325","input":"{\"op\":\"parse\",\"title\":\"Fallout.S01E01.1080p.WEBRip.x264\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0326","input":"{\"op\":\"parse\",\"title\":\"Fast Movie 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0327","input":"{\"op\":\"parse\",\"title\":\"Filme 1 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0328","input":"{\"op\":\"parse\",\"title\":\"Filme 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0329","input":"{\"op\":\"parse\",\"title\":\"Filme 1080p x265\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0330","input":"{\"op\":\"parse\",\"title\":\"Filme 2009 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0331","input":"{\"op\":\"parse\",\"title\":\"Filme 2019 IMAX 2160p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0332","input":"{\"op\":\"parse\",\"title\":\"Filme 2024 1080p WEB-DL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0333","input":"{\"op\":\"parse\",\"title\":\"Filme 480p SD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0334","input":"{\"op\":\"parse\",\"title\":\"Filme 720p HD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0335","input":"{\"op\":\"parse\",\"title\":\"Filme BR 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0336","input":"{\"op\":\"parse\",\"title\":\"Filme CAM Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0337","input":"{\"op\":\"parse\",\"title\":\"Filme Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0338","input":"{\"op\":\"parse\",\"title\":\"Filme HDTV\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0339","input":"{\"op\":\"parse\",\"title\":\"Filme Qualquer Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0340","input":"{\"op\":\"parse\",\"title\":\"Filme Stall Zero Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0341","input":"{\"op\":\"parse\",\"title\":\"Filme Teste 2024 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0342","input":"{\"op\":\"parse\",\"title\":\"Filme WEB-DL 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0343","input":"{\"op\":\"parse\",\"title\":\"Filme.2019.1080p.BluRay.x264.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0344","input":"{\"op\":\"parse\",\"title\":\"Filme.2019.1080p.x264-RARBG\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0345","input":"{\"op\":\"parse\",\"title\":\"Filme.2024.1080p.BTHD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0346","input":"{\"op\":\"parse\",\"title\":\"Filme.2026.1080p.BluRay.x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0347","input":"{\"op\":\"parse\",\"title\":\"Filme.Rico.2024.1080p.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0348","input":"{\"op\":\"parse\",\"title\":\"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0349","input":"{\"op\":\"parse\",\"title\":\"Global Dual 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0350","input":"{\"op\":\"parse\",\"title\":\"Goliath.S03.2160p\"}","expected":"s=3 e= c=0 p=0"}
+{"id":"ep-0351","input":"{\"op\":\"parse\",\"title\":\"Grace.BR.Dublado.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0352","input":"{\"op\":\"parse\",\"title\":\"HINDI.HQ.DUB\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0353","input":"{\"op\":\"parse\",\"title\":\"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0354","input":"{\"op\":\"parse\",\"title\":\"Hawaii Five O S01E01 1080p WEB-DL x264\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0355","input":"{\"op\":\"parse\",\"title\":\"Healthy Case 2003 DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0356","input":"{\"op\":\"parse\",\"title\":\"Idx Release 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0357","input":"{\"op\":\"parse\",\"title\":\"Joker 2019 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0358","input":"{\"op\":\"parse\",\"title\":\"Joker S01E01 1080p WEB-DL\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0359","input":"{\"op\":\"parse\",\"title\":\"Joker.2019.2160p.WEB-DL.DUAL.5.1\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0360","input":"{\"op\":\"parse\",\"title\":\"Lost Girl S01 720p\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0361","input":"{\"op\":\"parse\",\"title\":\"Lost Girl S03 1080p\"}","expected":"s=3 e= c=0 p=0"}
+{"id":"ep-0362","input":"{\"op\":\"parse\",\"title\":\"Lost.Girl.S01.720p.x265-ZMNT\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0363","input":"{\"op\":\"parse\",\"title\":\"Meu Release 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0364","input":"{\"op\":\"parse\",\"title\":\"Mortuary 1982 1080p DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0365","input":"{\"op\":\"parse\",\"title\":\"Mortuary 1983 1080p WEBRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0366","input":"{\"op\":\"parse\",\"title\":\"Mortuary 1983 720p DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0367","input":"{\"op\":\"parse\",\"title\":\"Movie 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0368","input":"{\"op\":\"parse\",\"title\":\"Movie 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0369","input":"{\"op\":\"parse\",\"title\":\"Movie 1080p Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0370","input":"{\"op\":\"parse\",\"title\":\"Movie 2024 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0371","input":"{\"op\":\"parse\",\"title\":\"Movie 2026 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0372","input":"{\"op\":\"parse\",\"title\":\"Movie 2026 BluRay 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0373","input":"{\"op\":\"parse\",\"title\":\"Movie 2026 WEB-DL 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0374","input":"{\"op\":\"parse\",\"title\":\"Movie WEB-DL 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0375","input":"{\"op\":\"parse\",\"title\":\"Movie.2020.TRUEFRENCH.1080p.x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0376","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.1080p.BR.Seeds1\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0377","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.1080p.DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0378","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.1080p.Test\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0379","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.2160p.UHD\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0380","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.CAM.1080p.DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0381","input":"{\"op\":\"parse\",\"title\":\"Movie.2024.Dual.Audio.Telugu.1080p.BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0382","input":"{\"op\":\"parse\",\"title\":\"Movie.2026.1080p.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0383","input":"{\"op\":\"parse\",\"title\":\"Movie.Title.2024.2160p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0384","input":"{\"op\":\"parse\",\"title\":\"My Name Is Farah S01E01 1080p WEB-DL\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0385","input":"{\"op\":\"parse\",\"title\":\"Nao.Tem.Temporada.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0386","input":"{\"op\":\"parse\",\"title\":\"NoDate2.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0387","input":"{\"op\":\"parse\",\"title\":\"NoSub.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0388","input":"{\"op\":\"parse\",\"title\":\"Nome 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0389","input":"{\"op\":\"parse\",\"title\":\"Nome do Filme 2019 Dual Audio 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0390","input":"{\"op\":\"parse\",\"title\":\"Nome do Filme Dublado 2024 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0391","input":"{\"op\":\"parse\",\"title\":\"O Corvo 1994 1080p BluRay DUAL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0392","input":"{\"op\":\"parse\",\"title\":\"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0393","input":"{\"op\":\"parse\",\"title\":\"O.Corvo.1994.Dual.Audio.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0394","input":"{\"op\":\"parse\",\"title\":\"Obra.DUAL.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0395","input":"{\"op\":\"parse\",\"title\":\"ObraB.Seeds.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0396","input":"{\"op\":\"parse\",\"title\":\"Old Movie 1990 1080p BluRay x264\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0397","input":"{\"op\":\"parse\",\"title\":\"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0398","input":"{\"op\":\"parse\",\"title\":\"OtherDigest.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0399","input":"{\"op\":\"parse\",\"title\":\"Outro 720p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0400","input":"{\"op\":\"parse\",\"title\":\"Parasita 2020 1080p BluRay DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0401","input":"{\"op\":\"parse\",\"title\":\"Partial Case 1988 DVDrip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0402","input":"{\"op\":\"parse\",\"title\":\"Predador A 1080p DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0403","input":"{\"op\":\"parse\",\"title\":\"Probe Movie 2011 1080p LEGENDADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0404","input":"{\"op\":\"parse\",\"title\":\"Project Hail Mary 2026 1080p WEB.mkv\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0405","input":"{\"op\":\"parse\",\"title\":\"Prometheus Dual\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0406","input":"{\"op\":\"parse\",\"title\":\"Prot.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0407","input":"{\"op\":\"parse\",\"title\":\"Qualquer.Coisa.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0408","input":"{\"op\":\"parse\",\"title\":\"Rare Case 1988 DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0409","input":"{\"op\":\"parse\",\"title\":\"Reacher 2 Temporada Dual\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0410","input":"{\"op\":\"parse\",\"title\":\"Readd.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0411","input":"{\"op\":\"parse\",\"title\":\"Release Qualquer 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0412","input":"{\"op\":\"parse\",\"title\":\"S01E01.1080p.DDP5.1.mkv\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0413","input":"{\"op\":\"parse\",\"title\":\"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE\"}","expected":"s=1 e=2 c=0 p=0"}
+{"id":"ep-0414","input":"{\"op\":\"parse\",\"title\":\"Saga Crepusculo 2008-2012 Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0415","input":"{\"op\":\"parse\",\"title\":\"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0416","input":"{\"op\":\"parse\",\"title\":\"Scary Movie Part Two 1080p BluRay\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0417","input":"{\"op\":\"parse\",\"title\":\"Serie 1a ate 8a Temporada Completa DUAL\"}","expected":"s=1,2,3,4,5,6,7,8 e= c=0 p=1"}
+{"id":"ep-0418","input":"{\"op\":\"parse\",\"title\":\"Serie S01E01 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0419","input":"{\"op\":\"parse\",\"title\":\"Serie S01E02 Dublado\"}","expected":"s=1 e=2 c=0 p=0"}
+{"id":"ep-0420","input":"{\"op\":\"parse\",\"title\":\"Serie Sem Hash S02E01 1080p\"}","expected":"s=2 e=1 c=0 p=0"}
+{"id":"ep-0421","input":"{\"op\":\"parse\",\"title\":\"Serie T01 E001 e E002 720p\"}","expected":"s=1 e=1,2 c=0 p=0"}
+{"id":"ep-0422","input":"{\"op\":\"parse\",\"title\":\"Serie Teste 1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0423","input":"{\"op\":\"parse\",\"title\":\"Serie Teste S01E02 1080p\"}","expected":"s=1 e=2 c=0 p=0"}
+{"id":"ep-0424","input":"{\"op\":\"parse\",\"title\":\"Serie Teste S02E05 DUBLADO\"}","expected":"s=2 e=5 c=0 p=0"}
+{"id":"ep-0425","input":"{\"op\":\"parse\",\"title\":\"Serie Todas as Temporadas DUAL\"}","expected":"s= e= c=1 p=0"}
+{"id":"ep-0426","input":"{\"op\":\"parse\",\"title\":\"Serie.S01E01.DUAL\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0427","input":"{\"op\":\"parse\",\"title\":\"Serie.S04E03.1080p.WEB-DL.DUBLADO\"}","expected":"s=4 e=3 c=0 p=0"}
+{"id":"ep-0428","input":"{\"op\":\"parse\",\"title\":\"Shes The Boss S01E01 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0429","input":"{\"op\":\"parse\",\"title\":\"Show S01 1080p EP\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0430","input":"{\"op\":\"parse\",\"title\":\"Show S01 Dublado\"}","expected":"s=1 e= c=0 p=0"}
+{"id":"ep-0431","input":"{\"op\":\"parse\",\"title\":\"Show S01E01 Dual 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0432","input":"{\"op\":\"parse\",\"title\":\"Show S01E05 Dual 1080p\"}","expected":"s=1 e=5 c=0 p=0"}
+{"id":"ep-0433","input":"{\"op\":\"parse\",\"title\":\"Show S01E1176-2160p\"}","expected":"s=1 e=1176 c=0 p=0"}
+{"id":"ep-0434","input":"{\"op\":\"parse\",\"title\":\"Show.3ordm.Temporada.Completa.1080p\"}","expected":"s= e= c=0 p=1"}
+{"id":"ep-0435","input":"{\"op\":\"parse\",\"title\":\"Show.S01E01.1080p.mkv\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0436","input":"{\"op\":\"parse\",\"title\":\"Show.S02.1080p\"}","expected":"s=2 e= c=0 p=0"}
+{"id":"ep-0437","input":"{\"op\":\"parse\",\"title\":\"Show.S02E05.1080p.mkv\"}","expected":"s=2 e=5 c=0 p=0"}
+{"id":"ep-0438","input":"{\"op\":\"parse\",\"title\":\"Show.S03.1080p.DTS5.1.mkv\"}","expected":"s=3 e= c=0 p=0"}
+{"id":"ep-0439","input":"{\"op\":\"parse\",\"title\":\"Some.Global.Dub.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0440","input":"{\"op\":\"parse\",\"title\":\"Some.Swarm.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0441","input":"{\"op\":\"parse\",\"title\":\"Star Wars Todos os filmes 1977-2019 Dublado\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0442","input":"{\"op\":\"parse\",\"title\":\"Strict Full 1988 DVDRip\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0443","input":"{\"op\":\"parse\",\"title\":\"Swarm.Movie.2019.1080p\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0444","input":"{\"op\":\"parse\",\"title\":\"Terrace House Boys S01E01 1080p\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0445","input":"{\"op\":\"parse\",\"title\":\"Test Title 2024 1080p EN ONLY\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0446","input":"{\"op\":\"parse\",\"title\":\"Test Title 2024 720p DUBLADO\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0447","input":"{\"op\":\"parse\",\"title\":\"The Bear S01E01 1080p WEB-DL x264\"}","expected":"s=1 e=1 c=0 p=0"}
+{"id":"ep-0448","input":"{\"op\":\"parse\",\"title\":\"The Boys S04 1080p AMZN WEB-DL\"}","expected":"s=4 e= c=0 p=0"}
+{"id":"ep-0449","input":"{\"op\":\"parse\",\"title\":\"The Locals 2003 720p WEB-DL\"}","expected":"s= e= c=0 p=0"}
+{"id":"ep-0450","input":"{\"op\":\"excludes\",\"title\":\"\",\"season\":null}","expected":"0"}
+{"id":"ep-0451","input":"{\"op\":\"excludes\",\"title\":\"\",\"season\":1}","expected":"0"}
+{"id":"ep-0452","input":"{\"op\":\"excludes\",\"title\":\"\",\"season\":2}","expected":"0"}
+{"id":"ep-0453","input":"{\"op\":\"excludes\",\"title\":\"\",\"season\":4}","expected":"0"}
+{"id":"ep-0454","input":"{\"op\":\"excludes\",\"title\":\"\",\"season\":9}","expected":"0"}
+{"id":"ep-0455","input":"{\"op\":\"excludes\",\"title\":\"\",\"season\":12}","expected":"0"}
+{"id":"ep-0456","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":null}","expected":"0"}
+{"id":"ep-0457","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":1}","expected":"0"}
+{"id":"ep-0458","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":2}","expected":"1"}
+{"id":"ep-0459","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":4}","expected":"1"}
+{"id":"ep-0460","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":9}","expected":"1"}
+{"id":"ep-0461","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":12}","expected":"1"}
+{"id":"ep-0462","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01-E10 1080p\",\"season\":null}","expected":"0"}
+{"id":"ep-0463","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01-E10 1080p\",\"season\":1}","expected":"0"}
+{"id":"ep-0464","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01-E10 1080p\",\"season\":2}","expected":"1"}
+{"id":"ep-0465","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01-E10 1080p\",\"season\":4}","expected":"1"}
+{"id":"ep-0466","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01-E10 1080p\",\"season\":9}","expected":"1"}
+{"id":"ep-0467","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01-E10 1080p\",\"season\":12}","expected":"1"}
+{"id":"ep-0468","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 E02 720p\",\"season\":null}","expected":"0"}
+{"id":"ep-0469","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 E02 720p\",\"season\":1}","expected":"0"}
+{"id":"ep-0470","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 E02 720p\",\"season\":2}","expected":"1"}
+{"id":"ep-0471","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 E02 720p\",\"season\":4}","expected":"1"}
+{"id":"ep-0472","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 E02 720p\",\"season\":9}","expected":"1"}
+{"id":"ep-0473","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 E02 720p\",\"season\":12}","expected":"1"}
+{"id":"ep-0474","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01E02\",\"season\":null}","expected":"0"}
+{"id":"ep-0475","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01E02\",\"season\":1}","expected":"0"}
+{"id":"ep-0476","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01E02\",\"season\":2}","expected":"1"}
+{"id":"ep-0477","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01E02\",\"season\":4}","expected":"1"}
+{"id":"ep-0478","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01E02\",\"season\":9}","expected":"1"}
+{"id":"ep-0479","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01E02\",\"season\":12}","expected":"1"}
+{"id":"ep-0480","input":"{\"op\":\"excludes\",\"title\":\"Show S03E01-02 WEB\",\"season\":null}","expected":"0"}
+{"id":"ep-0481","input":"{\"op\":\"excludes\",\"title\":\"Show S03E01-02 WEB\",\"season\":1}","expected":"1"}
+{"id":"ep-0482","input":"{\"op\":\"excludes\",\"title\":\"Show S03E01-02 WEB\",\"season\":2}","expected":"1"}
+{"id":"ep-0483","input":"{\"op\":\"excludes\",\"title\":\"Show S03E01-02 WEB\",\"season\":4}","expected":"1"}
+{"id":"ep-0484","input":"{\"op\":\"excludes\",\"title\":\"Show S03E01-02 WEB\",\"season\":9}","expected":"1"}
+{"id":"ep-0485","input":"{\"op\":\"excludes\",\"title\":\"Show S03E01-02 WEB\",\"season\":12}","expected":"1"}
+{"id":"ep-0486","input":"{\"op\":\"excludes\",\"title\":\"Show S01E05-720p\",\"season\":null}","expected":"0"}
+{"id":"ep-0487","input":"{\"op\":\"excludes\",\"title\":\"Show S01E05-720p\",\"season\":1}","expected":"0"}
+{"id":"ep-0488","input":"{\"op\":\"excludes\",\"title\":\"Show S01E05-720p\",\"season\":2}","expected":"1"}
+{"id":"ep-0489","input":"{\"op\":\"excludes\",\"title\":\"Show S01E05-720p\",\"season\":4}","expected":"1"}
+{"id":"ep-0490","input":"{\"op\":\"excludes\",\"title\":\"Show S01E05-720p\",\"season\":9}","expected":"1"}
+{"id":"ep-0491","input":"{\"op\":\"excludes\",\"title\":\"Show S01E05-720p\",\"season\":12}","expected":"1"}
+{"id":"ep-0492","input":"{\"op\":\"excludes\",\"title\":\"Show S02E01 EP 07\",\"season\":null}","expected":"0"}
+{"id":"ep-0493","input":"{\"op\":\"excludes\",\"title\":\"Show S02E01 EP 07\",\"season\":1}","expected":"1"}
+{"id":"ep-0494","input":"{\"op\":\"excludes\",\"title\":\"Show S02E01 EP 07\",\"season\":2}","expected":"0"}
+{"id":"ep-0495","input":"{\"op\":\"excludes\",\"title\":\"Show S02E01 EP 07\",\"season\":4}","expected":"1"}
+{"id":"ep-0496","input":"{\"op\":\"excludes\",\"title\":\"Show S02E01 EP 07\",\"season\":9}","expected":"1"}
+{"id":"ep-0497","input":"{\"op\":\"excludes\",\"title\":\"Show S02E01 EP 07\",\"season\":12}","expected":"1"}
+{"id":"ep-0498","input":"{\"op\":\"excludes\",\"title\":\"Show S01 EP (01-07) 1TamilMV\",\"season\":null}","expected":"0"}
+{"id":"ep-0499","input":"{\"op\":\"excludes\",\"title\":\"Show S01 EP (01-07) 1TamilMV\",\"season\":1}","expected":"0"}
+{"id":"ep-0500","input":"{\"op\":\"excludes\",\"title\":\"Show S01 EP (01-07) 1TamilMV\",\"season\":2}","expected":"1"}
+{"id":"ep-0501","input":"{\"op\":\"excludes\",\"title\":\"Show S01 EP (01-07) 1TamilMV\",\"season\":4}","expected":"1"}
+{"id":"ep-0502","input":"{\"op\":\"excludes\",\"title\":\"Show S01 EP (01-07) 1TamilMV\",\"season\":9}","expected":"1"}
+{"id":"ep-0503","input":"{\"op\":\"excludes\",\"title\":\"Show S01 EP (01-07) 1TamilMV\",\"season\":12}","expected":"1"}
+{"id":"ep-0504","input":"{\"op\":\"excludes\",\"title\":\"Show s01-ep 12-14\",\"season\":null}","expected":"0"}
+{"id":"ep-0505","input":"{\"op\":\"excludes\",\"title\":\"Show s01-ep 12-14\",\"season\":1}","expected":"0"}
+{"id":"ep-0506","input":"{\"op\":\"excludes\",\"title\":\"Show s01-ep 12-14\",\"season\":2}","expected":"1"}
+{"id":"ep-0507","input":"{\"op\":\"excludes\",\"title\":\"Show s01-ep 12-14\",\"season\":4}","expected":"1"}
+{"id":"ep-0508","input":"{\"op\":\"excludes\",\"title\":\"Show s01-ep 12-14\",\"season\":9}","expected":"1"}
+{"id":"ep-0509","input":"{\"op\":\"excludes\",\"title\":\"Show s01-ep 12-14\",\"season\":12}","expected":"1"}
+{"id":"ep-0510","input":"{\"op\":\"excludes\",\"title\":\"Novela T01 E004\",\"season\":null}","expected":"0"}
+{"id":"ep-0511","input":"{\"op\":\"excludes\",\"title\":\"Novela T01 E004\",\"season\":1}","expected":"0"}
+{"id":"ep-0512","input":"{\"op\":\"excludes\",\"title\":\"Novela T01 E004\",\"season\":2}","expected":"1"}
+{"id":"ep-0513","input":"{\"op\":\"excludes\",\"title\":\"Novela T01 E004\",\"season\":4}","expected":"1"}
+{"id":"ep-0514","input":"{\"op\":\"excludes\",\"title\":\"Novela T01 E004\",\"season\":9}","expected":"1"}
+{"id":"ep-0515","input":"{\"op\":\"excludes\",\"title\":\"Novela T01 E004\",\"season\":12}","expected":"1"}
+{"id":"ep-0516","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001-E010\",\"season\":null}","expected":"0"}
+{"id":"ep-0517","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001-E010\",\"season\":1}","expected":"0"}
+{"id":"ep-0518","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001-E010\",\"season\":2}","expected":"1"}
+{"id":"ep-0519","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001-E010\",\"season\":4}","expected":"1"}
+{"id":"ep-0520","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001-E010\",\"season\":9}","expected":"1"}
+{"id":"ep-0521","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001-E010\",\"season\":12}","expected":"1"}
+{"id":"ep-0522","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 E002\",\"season\":null}","expected":"0"}
+{"id":"ep-0523","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 E002\",\"season\":1}","expected":"0"}
+{"id":"ep-0524","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 E002\",\"season\":2}","expected":"1"}
+{"id":"ep-0525","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 E002\",\"season\":4}","expected":"1"}
+{"id":"ep-0526","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 E002\",\"season\":9}","expected":"1"}
+{"id":"ep-0527","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 E002\",\"season\":12}","expected":"1"}
+{"id":"ep-0528","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001, E002 E010\",\"season\":null}","expected":"0"}
+{"id":"ep-0529","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001, E002 E010\",\"season\":1}","expected":"0"}
+{"id":"ep-0530","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001, E002 E010\",\"season\":2}","expected":"1"}
+{"id":"ep-0531","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001, E002 E010\",\"season\":4}","expected":"1"}
+{"id":"ep-0532","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001, E002 E010\",\"season\":9}","expected":"1"}
+{"id":"ep-0533","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001, E002 E010\",\"season\":12}","expected":"1"}
+{"id":"ep-0534","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 and E005\",\"season\":null}","expected":"0"}
+{"id":"ep-0535","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 and E005\",\"season\":1}","expected":"0"}
+{"id":"ep-0536","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 and E005\",\"season\":2}","expected":"1"}
+{"id":"ep-0537","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 and E005\",\"season\":4}","expected":"1"}
+{"id":"ep-0538","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 and E005\",\"season\":9}","expected":"1"}
+{"id":"ep-0539","input":"{\"op\":\"excludes\",\"title\":\"Novela T01E001 and E005\",\"season\":12}","expected":"1"}
+{"id":"ep-0540","input":"{\"op\":\"excludes\",\"title\":\"Jesus [Capítulo 086 ao 123]\",\"season\":null}","expected":"0"}
+{"id":"ep-0541","input":"{\"op\":\"excludes\",\"title\":\"Jesus [Capítulo 086 ao 123]\",\"season\":1}","expected":"0"}
+{"id":"ep-0542","input":"{\"op\":\"excludes\",\"title\":\"Jesus [Capítulo 086 ao 123]\",\"season\":2}","expected":"0"}
+{"id":"ep-0543","input":"{\"op\":\"excludes\",\"title\":\"Jesus [Capítulo 086 ao 123]\",\"season\":4}","expected":"0"}
+{"id":"ep-0544","input":"{\"op\":\"excludes\",\"title\":\"Jesus [Capítulo 086 ao 123]\",\"season\":9}","expected":"0"}
+{"id":"ep-0545","input":"{\"op\":\"excludes\",\"title\":\"Jesus [Capítulo 086 ao 123]\",\"season\":12}","expected":"0"}
+{"id":"ep-0546","input":"{\"op\":\"excludes\",\"title\":\"Novela [EP 050-056]\",\"season\":null}","expected":"0"}
+{"id":"ep-0547","input":"{\"op\":\"excludes\",\"title\":\"Novela [EP 050-056]\",\"season\":1}","expected":"0"}
+{"id":"ep-0548","input":"{\"op\":\"excludes\",\"title\":\"Novela [EP 050-056]\",\"season\":2}","expected":"0"}
+{"id":"ep-0549","input":"{\"op\":\"excludes\",\"title\":\"Novela [EP 050-056]\",\"season\":4}","expected":"0"}
+{"id":"ep-0550","input":"{\"op\":\"excludes\",\"title\":\"Novela [EP 050-056]\",\"season\":9}","expected":"0"}
+{"id":"ep-0551","input":"{\"op\":\"excludes\",\"title\":\"Novela [EP 050-056]\",\"season\":12}","expected":"0"}
+{"id":"ep-0552","input":"{\"op\":\"excludes\",\"title\":\"It Capítulo 2 2019\",\"season\":null}","expected":"0"}
+{"id":"ep-0553","input":"{\"op\":\"excludes\",\"title\":\"It Capítulo 2 2019\",\"season\":1}","expected":"0"}
+{"id":"ep-0554","input":"{\"op\":\"excludes\",\"title\":\"It Capítulo 2 2019\",\"season\":2}","expected":"0"}
+{"id":"ep-0555","input":"{\"op\":\"excludes\",\"title\":\"It Capítulo 2 2019\",\"season\":4}","expected":"0"}
+{"id":"ep-0556","input":"{\"op\":\"excludes\",\"title\":\"It Capítulo 2 2019\",\"season\":9}","expected":"0"}
+{"id":"ep-0557","input":"{\"op\":\"excludes\",\"title\":\"It Capítulo 2 2019\",\"season\":12}","expected":"0"}
+{"id":"ep-0558","input":"{\"op\":\"excludes\",\"title\":\"Anime 1x04 720p\",\"season\":null}","expected":"0"}
+{"id":"ep-0559","input":"{\"op\":\"excludes\",\"title\":\"Anime 1x04 720p\",\"season\":1}","expected":"0"}
+{"id":"ep-0560","input":"{\"op\":\"excludes\",\"title\":\"Anime 1x04 720p\",\"season\":2}","expected":"1"}
+{"id":"ep-0561","input":"{\"op\":\"excludes\",\"title\":\"Anime 1x04 720p\",\"season\":4}","expected":"1"}
+{"id":"ep-0562","input":"{\"op\":\"excludes\",\"title\":\"Anime 1x04 720p\",\"season\":9}","expected":"1"}
+{"id":"ep-0563","input":"{\"op\":\"excludes\",\"title\":\"Anime 1x04 720p\",\"season\":12}","expected":"1"}
+{"id":"ep-0564","input":"{\"op\":\"excludes\",\"title\":\"Filme 1280x720 2010\",\"season\":null}","expected":"0"}
+{"id":"ep-0565","input":"{\"op\":\"excludes\",\"title\":\"Filme 1280x720 2010\",\"season\":1}","expected":"0"}
+{"id":"ep-0566","input":"{\"op\":\"excludes\",\"title\":\"Filme 1280x720 2010\",\"season\":2}","expected":"0"}
+{"id":"ep-0567","input":"{\"op\":\"excludes\",\"title\":\"Filme 1280x720 2010\",\"season\":4}","expected":"0"}
+{"id":"ep-0568","input":"{\"op\":\"excludes\",\"title\":\"Filme 1280x720 2010\",\"season\":9}","expected":"0"}
+{"id":"ep-0569","input":"{\"op\":\"excludes\",\"title\":\"Filme 1280x720 2010\",\"season\":12}","expected":"0"}
+{"id":"ep-0570","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones Primeira Temporada Dual Audio\",\"season\":null}","expected":"0"}
+{"id":"ep-0571","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones Primeira Temporada Dual Audio\",\"season\":1}","expected":"0"}
+{"id":"ep-0572","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones Primeira Temporada Dual Audio\",\"season\":2}","expected":"1"}
+{"id":"ep-0573","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones Primeira Temporada Dual Audio\",\"season\":4}","expected":"1"}
+{"id":"ep-0574","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones Primeira Temporada Dual Audio\",\"season\":9}","expected":"1"}
+{"id":"ep-0575","input":"{\"op\":\"excludes\",\"title\":\"Game of Thrones Primeira Temporada Dual Audio\",\"season\":12}","expected":"1"}
+{"id":"ep-0576","input":"{\"op\":\"excludes\",\"title\":\"Show Décima Primeira Temporada\",\"season\":null}","expected":"0"}
+{"id":"ep-0577","input":"{\"op\":\"excludes\",\"title\":\"Show Décima Primeira Temporada\",\"season\":1}","expected":"1"}
+{"id":"ep-0578","input":"{\"op\":\"excludes\",\"title\":\"Show Décima Primeira Temporada\",\"season\":2}","expected":"1"}
+{"id":"ep-0579","input":"{\"op\":\"excludes\",\"title\":\"Show Décima Primeira Temporada\",\"season\":4}","expected":"1"}
+{"id":"ep-0580","input":"{\"op\":\"excludes\",\"title\":\"Show Décima Primeira Temporada\",\"season\":9}","expected":"1"}
+{"id":"ep-0581","input":"{\"op\":\"excludes\",\"title\":\"Show Décima Primeira Temporada\",\"season\":12}","expected":"1"}
+{"id":"ep-0582","input":"{\"op\":\"excludes\",\"title\":\"Show Primeira Segunda Temporada\",\"season\":null}","expected":"0"}
+{"id":"ep-0583","input":"{\"op\":\"excludes\",\"title\":\"Show Primeira Segunda Temporada\",\"season\":1}","expected":"0"}
+{"id":"ep-0584","input":"{\"op\":\"excludes\",\"title\":\"Show Primeira Segunda Temporada\",\"season\":2}","expected":"1"}
+{"id":"ep-0585","input":"{\"op\":\"excludes\",\"title\":\"Show Primeira Segunda Temporada\",\"season\":4}","expected":"1"}
+{"id":"ep-0586","input":"{\"op\":\"excludes\",\"title\":\"Show Primeira Segunda Temporada\",\"season\":9}","expected":"1"}
+{"id":"ep-0587","input":"{\"op\":\"excludes\",\"title\":\"Show Primeira Segunda Temporada\",\"season\":12}","expected":"1"}
+{"id":"ep-0588","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª até 8ª Temporada\",\"season\":null}","expected":"0"}
+{"id":"ep-0589","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª até 8ª Temporada\",\"season\":1}","expected":"0"}
+{"id":"ep-0590","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª até 8ª Temporada\",\"season\":2}","expected":"0"}
+{"id":"ep-0591","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª até 8ª Temporada\",\"season\":4}","expected":"0"}
+{"id":"ep-0592","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª até 8ª Temporada\",\"season\":9}","expected":"1"}
+{"id":"ep-0593","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª até 8ª Temporada\",\"season\":12}","expected":"1"}
+{"id":"ep-0594","input":"{\"op\":\"excludes\",\"title\":\"Show 1a ate 8a temporadas\",\"season\":null}","expected":"0"}
+{"id":"ep-0595","input":"{\"op\":\"excludes\",\"title\":\"Show 1a ate 8a temporadas\",\"season\":1}","expected":"0"}
+{"id":"ep-0596","input":"{\"op\":\"excludes\",\"title\":\"Show 1a ate 8a temporadas\",\"season\":2}","expected":"0"}
+{"id":"ep-0597","input":"{\"op\":\"excludes\",\"title\":\"Show 1a ate 8a temporadas\",\"season\":4}","expected":"0"}
+{"id":"ep-0598","input":"{\"op\":\"excludes\",\"title\":\"Show 1a ate 8a temporadas\",\"season\":9}","expected":"1"}
+{"id":"ep-0599","input":"{\"op\":\"excludes\",\"title\":\"Show 1a ate 8a temporadas\",\"season\":12}","expected":"1"}
+{"id":"ep-0600","input":"{\"op\":\"excludes\",\"title\":\"Show 1 a 5 temporadas\",\"season\":null}","expected":"0"}
+{"id":"ep-0601","input":"{\"op\":\"excludes\",\"title\":\"Show 1 a 5 temporadas\",\"season\":1}","expected":"0"}
+{"id":"ep-0602","input":"{\"op\":\"excludes\",\"title\":\"Show 1 a 5 temporadas\",\"season\":2}","expected":"0"}
+{"id":"ep-0603","input":"{\"op\":\"excludes\",\"title\":\"Show 1 a 5 temporadas\",\"season\":4}","expected":"0"}
+{"id":"ep-0604","input":"{\"op\":\"excludes\",\"title\":\"Show 1 a 5 temporadas\",\"season\":9}","expected":"1"}
+{"id":"ep-0605","input":"{\"op\":\"excludes\",\"title\":\"Show 1 a 5 temporadas\",\"season\":12}","expected":"1"}
+{"id":"ep-0606","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\",\"season\":null}","expected":"0"}
+{"id":"ep-0607","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\",\"season\":1}","expected":"0"}
+{"id":"ep-0608","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\",\"season\":2}","expected":"0"}
+{"id":"ep-0609","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\",\"season\":4}","expected":"0"}
+{"id":"ep-0610","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\",\"season\":9}","expected":"1"}
+{"id":"ep-0611","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\",\"season\":12}","expected":"1"}
+{"id":"ep-0612","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª Temporada\",\"season\":null}","expected":"0"}
+{"id":"ep-0613","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª Temporada\",\"season\":1}","expected":"1"}
+{"id":"ep-0614","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª Temporada\",\"season\":2}","expected":"0"}
+{"id":"ep-0615","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª Temporada\",\"season\":4}","expected":"1"}
+{"id":"ep-0616","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª Temporada\",\"season\":9}","expected":"1"}
+{"id":"ep-0617","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª 2ª Temporada\",\"season\":12}","expected":"1"}
+{"id":"ep-0618","input":"{\"op\":\"excludes\",\"title\":\"Show S01-S04 1080p\",\"season\":null}","expected":"0"}
+{"id":"ep-0619","input":"{\"op\":\"excludes\",\"title\":\"Show S01-S04 1080p\",\"season\":1}","expected":"0"}
+{"id":"ep-0620","input":"{\"op\":\"excludes\",\"title\":\"Show S01-S04 1080p\",\"season\":2}","expected":"0"}
+{"id":"ep-0621","input":"{\"op\":\"excludes\",\"title\":\"Show S01-S04 1080p\",\"season\":4}","expected":"0"}
+{"id":"ep-0622","input":"{\"op\":\"excludes\",\"title\":\"Show S01-S04 1080p\",\"season\":9}","expected":"1"}
+{"id":"ep-0623","input":"{\"op\":\"excludes\",\"title\":\"Show S01-S04 1080p\",\"season\":12}","expected":"1"}
+{"id":"ep-0624","input":"{\"op\":\"excludes\",\"title\":\"Show S01 - S04\",\"season\":null}","expected":"0"}
+{"id":"ep-0625","input":"{\"op\":\"excludes\",\"title\":\"Show S01 - S04\",\"season\":1}","expected":"0"}
+{"id":"ep-0626","input":"{\"op\":\"excludes\",\"title\":\"Show S01 - S04\",\"season\":2}","expected":"0"}
+{"id":"ep-0627","input":"{\"op\":\"excludes\",\"title\":\"Show S01 - S04\",\"season\":4}","expected":"0"}
+{"id":"ep-0628","input":"{\"op\":\"excludes\",\"title\":\"Show S01 - S04\",\"season\":9}","expected":"1"}
+{"id":"ep-0629","input":"{\"op\":\"excludes\",\"title\":\"Show S01 - S04\",\"season\":12}","expected":"1"}
+{"id":"ep-0630","input":"{\"op\":\"excludes\",\"title\":\"Show S02-13 anime\",\"season\":null}","expected":"0"}
+{"id":"ep-0631","input":"{\"op\":\"excludes\",\"title\":\"Show S02-13 anime\",\"season\":1}","expected":"1"}
+{"id":"ep-0632","input":"{\"op\":\"excludes\",\"title\":\"Show S02-13 anime\",\"season\":2}","expected":"0"}
+{"id":"ep-0633","input":"{\"op\":\"excludes\",\"title\":\"Show S02-13 anime\",\"season\":4}","expected":"1"}
+{"id":"ep-0634","input":"{\"op\":\"excludes\",\"title\":\"Show S02-13 anime\",\"season\":9}","expected":"1"}
+{"id":"ep-0635","input":"{\"op\":\"excludes\",\"title\":\"Show S02-13 anime\",\"season\":12}","expected":"1"}
+{"id":"ep-0636","input":"{\"op\":\"excludes\",\"title\":\"Show S01-02E01\",\"season\":null}","expected":"0"}
+{"id":"ep-0637","input":"{\"op\":\"excludes\",\"title\":\"Show S01-02E01\",\"season\":1}","expected":"0"}
+{"id":"ep-0638","input":"{\"op\":\"excludes\",\"title\":\"Show S01-02E01\",\"season\":2}","expected":"0"}
+{"id":"ep-0639","input":"{\"op\":\"excludes\",\"title\":\"Show S01-02E01\",\"season\":4}","expected":"1"}
+{"id":"ep-0640","input":"{\"op\":\"excludes\",\"title\":\"Show S01-02E01\",\"season\":9}","expected":"1"}
+{"id":"ep-0641","input":"{\"op\":\"excludes\",\"title\":\"Show S01-02E01\",\"season\":12}","expected":"1"}
+{"id":"ep-0642","input":"{\"op\":\"excludes\",\"title\":\"Show S1-3E1\",\"season\":null}","expected":"0"}
+{"id":"ep-0643","input":"{\"op\":\"excludes\",\"title\":\"Show S1-3E1\",\"season\":1}","expected":"0"}
+{"id":"ep-0644","input":"{\"op\":\"excludes\",\"title\":\"Show S1-3E1\",\"season\":2}","expected":"0"}
+{"id":"ep-0645","input":"{\"op\":\"excludes\",\"title\":\"Show S1-3E1\",\"season\":4}","expected":"1"}
+{"id":"ep-0646","input":"{\"op\":\"excludes\",\"title\":\"Show S1-3E1\",\"season\":9}","expected":"1"}
+{"id":"ep-0647","input":"{\"op\":\"excludes\",\"title\":\"Show S1-3E1\",\"season\":12}","expected":"1"}
+{"id":"ep-0648","input":"{\"op\":\"excludes\",\"title\":\"Show S01 S04\",\"season\":null}","expected":"0"}
+{"id":"ep-0649","input":"{\"op\":\"excludes\",\"title\":\"Show S01 S04\",\"season\":1}","expected":"0"}
+{"id":"ep-0650","input":"{\"op\":\"excludes\",\"title\":\"Show S01 S04\",\"season\":2}","expected":"1"}
+{"id":"ep-0651","input":"{\"op\":\"excludes\",\"title\":\"Show S01 S04\",\"season\":4}","expected":"0"}
+{"id":"ep-0652","input":"{\"op\":\"excludes\",\"title\":\"Show S01 S04\",\"season\":9}","expected":"1"}
+{"id":"ep-0653","input":"{\"op\":\"excludes\",\"title\":\"Show S01 S04\",\"season\":12}","expected":"1"}
+{"id":"ep-0654","input":"{\"op\":\"excludes\",\"title\":\"Show S04-S01\",\"season\":null}","expected":"0"}
+{"id":"ep-0655","input":"{\"op\":\"excludes\",\"title\":\"Show S04-S01\",\"season\":1}","expected":"0"}
+{"id":"ep-0656","input":"{\"op\":\"excludes\",\"title\":\"Show S04-S01\",\"season\":2}","expected":"1"}
+{"id":"ep-0657","input":"{\"op\":\"excludes\",\"title\":\"Show S04-S01\",\"season\":4}","expected":"0"}
+{"id":"ep-0658","input":"{\"op\":\"excludes\",\"title\":\"Show S04-S01\",\"season\":9}","expected":"1"}
+{"id":"ep-0659","input":"{\"op\":\"excludes\",\"title\":\"Show S04-S01\",\"season\":12}","expected":"1"}
+{"id":"ep-0660","input":"{\"op\":\"excludes\",\"title\":\"Show s01 s03 pack\",\"season\":null}","expected":"0"}
+{"id":"ep-0661","input":"{\"op\":\"excludes\",\"title\":\"Show s01 s03 pack\",\"season\":1}","expected":"0"}
+{"id":"ep-0662","input":"{\"op\":\"excludes\",\"title\":\"Show s01 s03 pack\",\"season\":2}","expected":"1"}
+{"id":"ep-0663","input":"{\"op\":\"excludes\",\"title\":\"Show s01 s03 pack\",\"season\":4}","expected":"1"}
+{"id":"ep-0664","input":"{\"op\":\"excludes\",\"title\":\"Show s01 s03 pack\",\"season\":9}","expected":"1"}
+{"id":"ep-0665","input":"{\"op\":\"excludes\",\"title\":\"Show s01 s03 pack\",\"season\":12}","expected":"1"}
+{"id":"ep-0666","input":"{\"op\":\"excludes\",\"title\":\"Show season 2\",\"season\":null}","expected":"0"}
+{"id":"ep-0667","input":"{\"op\":\"excludes\",\"title\":\"Show season 2\",\"season\":1}","expected":"1"}
+{"id":"ep-0668","input":"{\"op\":\"excludes\",\"title\":\"Show season 2\",\"season\":2}","expected":"0"}
+{"id":"ep-0669","input":"{\"op\":\"excludes\",\"title\":\"Show season 2\",\"season\":4}","expected":"1"}
+{"id":"ep-0670","input":"{\"op\":\"excludes\",\"title\":\"Show season 2\",\"season\":9}","expected":"1"}
+{"id":"ep-0671","input":"{\"op\":\"excludes\",\"title\":\"Show season 2\",\"season\":12}","expected":"1"}
+{"id":"ep-0672","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 1\",\"season\":null}","expected":"0"}
+{"id":"ep-0673","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 1\",\"season\":1}","expected":"0"}
+{"id":"ep-0674","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 1\",\"season\":2}","expected":"1"}
+{"id":"ep-0675","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 1\",\"season\":4}","expected":"1"}
+{"id":"ep-0676","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 1\",\"season\":9}","expected":"1"}
+{"id":"ep-0677","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 1\",\"season\":12}","expected":"1"}
+{"id":"ep-0678","input":"{\"op\":\"excludes\",\"title\":\"Show 1 Temporada\",\"season\":null}","expected":"0"}
+{"id":"ep-0679","input":"{\"op\":\"excludes\",\"title\":\"Show 1 Temporada\",\"season\":1}","expected":"0"}
+{"id":"ep-0680","input":"{\"op\":\"excludes\",\"title\":\"Show 1 Temporada\",\"season\":2}","expected":"1"}
+{"id":"ep-0681","input":"{\"op\":\"excludes\",\"title\":\"Show 1 Temporada\",\"season\":4}","expected":"1"}
+{"id":"ep-0682","input":"{\"op\":\"excludes\",\"title\":\"Show 1 Temporada\",\"season\":9}","expected":"1"}
+{"id":"ep-0683","input":"{\"op\":\"excludes\",\"title\":\"Show 1 Temporada\",\"season\":12}","expected":"1"}
+{"id":"ep-0684","input":"{\"op\":\"excludes\",\"title\":\"Show 2a Temporada Completa\",\"season\":null}","expected":"0"}
+{"id":"ep-0685","input":"{\"op\":\"excludes\",\"title\":\"Show 2a Temporada Completa\",\"season\":1}","expected":"1"}
+{"id":"ep-0686","input":"{\"op\":\"excludes\",\"title\":\"Show 2a Temporada Completa\",\"season\":2}","expected":"0"}
+{"id":"ep-0687","input":"{\"op\":\"excludes\",\"title\":\"Show 2a Temporada Completa\",\"season\":4}","expected":"1"}
+{"id":"ep-0688","input":"{\"op\":\"excludes\",\"title\":\"Show 2a Temporada Completa\",\"season\":9}","expected":"1"}
+{"id":"ep-0689","input":"{\"op\":\"excludes\",\"title\":\"Show 2a Temporada Completa\",\"season\":12}","expected":"1"}
+{"id":"ep-0690","input":"{\"op\":\"excludes\",\"title\":\"Show Todas as Temporadas\",\"season\":null}","expected":"0"}
+{"id":"ep-0691","input":"{\"op\":\"excludes\",\"title\":\"Show Todas as Temporadas\",\"season\":1}","expected":"0"}
+{"id":"ep-0692","input":"{\"op\":\"excludes\",\"title\":\"Show Todas as Temporadas\",\"season\":2}","expected":"0"}
+{"id":"ep-0693","input":"{\"op\":\"excludes\",\"title\":\"Show Todas as Temporadas\",\"season\":4}","expected":"0"}
+{"id":"ep-0694","input":"{\"op\":\"excludes\",\"title\":\"Show Todas as Temporadas\",\"season\":9}","expected":"0"}
+{"id":"ep-0695","input":"{\"op\":\"excludes\",\"title\":\"Show Todas as Temporadas\",\"season\":12}","expected":"0"}
+{"id":"ep-0696","input":"{\"op\":\"excludes\",\"title\":\"Show Série Completa\",\"season\":null}","expected":"0"}
+{"id":"ep-0697","input":"{\"op\":\"excludes\",\"title\":\"Show Série Completa\",\"season\":1}","expected":"0"}
+{"id":"ep-0698","input":"{\"op\":\"excludes\",\"title\":\"Show Série Completa\",\"season\":2}","expected":"0"}
+{"id":"ep-0699","input":"{\"op\":\"excludes\",\"title\":\"Show Série Completa\",\"season\":4}","expected":"0"}
+{"id":"ep-0700","input":"{\"op\":\"excludes\",\"title\":\"Show Série Completa\",\"season\":9}","expected":"0"}
+{"id":"ep-0701","input":"{\"op\":\"excludes\",\"title\":\"Show Série Completa\",\"season\":12}","expected":"0"}
+{"id":"ep-0702","input":"{\"op\":\"excludes\",\"title\":\"Show Temporadas Completas\",\"season\":null}","expected":"0"}
+{"id":"ep-0703","input":"{\"op\":\"excludes\",\"title\":\"Show Temporadas Completas\",\"season\":1}","expected":"0"}
+{"id":"ep-0704","input":"{\"op\":\"excludes\",\"title\":\"Show Temporadas Completas\",\"season\":2}","expected":"0"}
+{"id":"ep-0705","input":"{\"op\":\"excludes\",\"title\":\"Show Temporadas Completas\",\"season\":4}","expected":"0"}
+{"id":"ep-0706","input":"{\"op\":\"excludes\",\"title\":\"Show Temporadas Completas\",\"season\":9}","expected":"0"}
+{"id":"ep-0707","input":"{\"op\":\"excludes\",\"title\":\"Show Temporadas Completas\",\"season\":12}","expected":"0"}
+{"id":"ep-0708","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada (2011) 720p\",\"season\":null}","expected":"0"}
+{"id":"ep-0709","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada (2011) 720p\",\"season\":1}","expected":"0"}
+{"id":"ep-0710","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada (2011) 720p\",\"season\":2}","expected":"0"}
+{"id":"ep-0711","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada (2011) 720p\",\"season\":4}","expected":"0"}
+{"id":"ep-0712","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada (2011) 720p\",\"season\":9}","expected":"0"}
+{"id":"ep-0713","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada (2011) 720p\",\"season\":12}","expected":"0"}
+{"id":"ep-0714","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 2011\",\"season\":null}","expected":"0"}
+{"id":"ep-0715","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 2011\",\"season\":1}","expected":"0"}
+{"id":"ep-0716","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 2011\",\"season\":2}","expected":"0"}
+{"id":"ep-0717","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 2011\",\"season\":4}","expected":"0"}
+{"id":"ep-0718","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 2011\",\"season\":9}","expected":"0"}
+{"id":"ep-0719","input":"{\"op\":\"excludes\",\"title\":\"Show Temporada 2011\",\"season\":12}","expected":"0"}
+{"id":"ep-0720","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 4 Temporada 2\",\"season\":null}","expected":"0"}
+{"id":"ep-0721","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 4 Temporada 2\",\"season\":1}","expected":"1"}
+{"id":"ep-0722","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 4 Temporada 2\",\"season\":2}","expected":"0"}
+{"id":"ep-0723","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 4 Temporada 2\",\"season\":4}","expected":"0"}
+{"id":"ep-0724","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 4 Temporada 2\",\"season\":9}","expected":"1"}
+{"id":"ep-0725","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 4 Temporada 2\",\"season\":12}","expected":"1"}
+{"id":"ep-0726","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª Temporada (2022) WEB-DL E02\",\"season\":null}","expected":"0"}
+{"id":"ep-0727","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª Temporada (2022) WEB-DL E02\",\"season\":1}","expected":"0"}
+{"id":"ep-0728","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª Temporada (2022) WEB-DL E02\",\"season\":2}","expected":"1"}
+{"id":"ep-0729","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª Temporada (2022) WEB-DL E02\",\"season\":4}","expected":"1"}
+{"id":"ep-0730","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª Temporada (2022) WEB-DL E02\",\"season\":9}","expected":"1"}
+{"id":"ep-0731","input":"{\"op\":\"excludes\",\"title\":\"Show 1ª Temporada (2022) WEB-DL E02\",\"season\":12}","expected":"1"}
+{"id":"ep-0732","input":"{\"op\":\"excludes\",\"title\":\"Lilo e Stitch 2\",\"season\":null}","expected":"0"}
+{"id":"ep-0733","input":"{\"op\":\"excludes\",\"title\":\"Lilo e Stitch 2\",\"season\":1}","expected":"0"}
+{"id":"ep-0734","input":"{\"op\":\"excludes\",\"title\":\"Lilo e Stitch 2\",\"season\":2}","expected":"0"}
+{"id":"ep-0735","input":"{\"op\":\"excludes\",\"title\":\"Lilo e Stitch 2\",\"season\":4}","expected":"0"}
+{"id":"ep-0736","input":"{\"op\":\"excludes\",\"title\":\"Lilo e Stitch 2\",\"season\":9}","expected":"0"}
+{"id":"ep-0737","input":"{\"op\":\"excludes\",\"title\":\"Lilo e Stitch 2\",\"season\":12}","expected":"0"}
+{"id":"ep-0738","input":"{\"op\":\"excludes\",\"title\":\"Show S01 e02 e04\",\"season\":null}","expected":"0"}
+{"id":"ep-0739","input":"{\"op\":\"excludes\",\"title\":\"Show S01 e02 e04\",\"season\":1}","expected":"0"}
+{"id":"ep-0740","input":"{\"op\":\"excludes\",\"title\":\"Show S01 e02 e04\",\"season\":2}","expected":"1"}
+{"id":"ep-0741","input":"{\"op\":\"excludes\",\"title\":\"Show S01 e02 e04\",\"season\":4}","expected":"1"}
+{"id":"ep-0742","input":"{\"op\":\"excludes\",\"title\":\"Show S01 e02 e04\",\"season\":9}","expected":"1"}
+{"id":"ep-0743","input":"{\"op\":\"excludes\",\"title\":\"Show S01 e02 e04\",\"season\":12}","expected":"1"}
+{"id":"ep-0744","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 a E10\",\"season\":null}","expected":"0"}
+{"id":"ep-0745","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 a E10\",\"season\":1}","expected":"0"}
+{"id":"ep-0746","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 a E10\",\"season\":2}","expected":"1"}
+{"id":"ep-0747","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 a E10\",\"season\":4}","expected":"1"}
+{"id":"ep-0748","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 a E10\",\"season\":9}","expected":"1"}
+{"id":"ep-0749","input":"{\"op\":\"excludes\",\"title\":\"Show S01 E01 a E10\",\"season\":12}","expected":"1"}
+{"id":"ep-0750","input":"{\"op\":\"excludes\",\"title\":\"DDP5 1 Atmos Show\",\"season\":null}","expected":"0"}
+{"id":"ep-0751","input":"{\"op\":\"excludes\",\"title\":\"DDP5 1 Atmos Show\",\"season\":1}","expected":"0"}
+{"id":"ep-0752","input":"{\"op\":\"excludes\",\"title\":\"DDP5 1 Atmos Show\",\"season\":2}","expected":"0"}
+{"id":"ep-0753","input":"{\"op\":\"excludes\",\"title\":\"DDP5 1 Atmos Show\",\"season\":4}","expected":"0"}
+{"id":"ep-0754","input":"{\"op\":\"excludes\",\"title\":\"DDP5 1 Atmos Show\",\"season\":9}","expected":"0"}
+{"id":"ep-0755","input":"{\"op\":\"excludes\",\"title\":\"DDP5 1 Atmos Show\",\"season\":12}","expected":"0"}
+{"id":"ep-0756","input":"{\"op\":\"excludes\",\"title\":\"BS8 Show S01\",\"season\":null}","expected":"0"}
+{"id":"ep-0757","input":"{\"op\":\"excludes\",\"title\":\"BS8 Show S01\",\"season\":1}","expected":"0"}
+{"id":"ep-0758","input":"{\"op\":\"excludes\",\"title\":\"BS8 Show S01\",\"season\":2}","expected":"1"}
+{"id":"ep-0759","input":"{\"op\":\"excludes\",\"title\":\"BS8 Show S01\",\"season\":4}","expected":"1"}
+{"id":"ep-0760","input":"{\"op\":\"excludes\",\"title\":\"BS8 Show S01\",\"season\":9}","expected":"1"}
+{"id":"ep-0761","input":"{\"op\":\"excludes\",\"title\":\"BS8 Show S01\",\"season\":12}","expected":"1"}
+{"id":"ep-0762","input":"{\"op\":\"excludes\",\"title\":\"Show S01 Episódio II\",\"season\":null}","expected":"0"}
+{"id":"ep-0763","input":"{\"op\":\"excludes\",\"title\":\"Show S01 Episódio II\",\"season\":1}","expected":"0"}
+{"id":"ep-0764","input":"{\"op\":\"excludes\",\"title\":\"Show S01 Episódio II\",\"season\":2}","expected":"1"}
+{"id":"ep-0765","input":"{\"op\":\"excludes\",\"title\":\"Show S01 Episódio II\",\"season\":4}","expected":"1"}
+{"id":"ep-0766","input":"{\"op\":\"excludes\",\"title\":\"Show S01 Episódio II\",\"season\":9}","expected":"1"}
+{"id":"ep-0767","input":"{\"op\":\"excludes\",\"title\":\"Show S01 Episódio II\",\"season\":12}","expected":"1"}
+{"id":"ep-0768","input":"{\"op\":\"excludes\",\"title\":\"Star Wars Episódio II\",\"season\":null}","expected":"0"}
+{"id":"ep-0769","input":"{\"op\":\"excludes\",\"title\":\"Star Wars Episódio II\",\"season\":1}","expected":"0"}
+{"id":"ep-0770","input":"{\"op\":\"excludes\",\"title\":\"Star Wars Episódio II\",\"season\":2}","expected":"0"}
+{"id":"ep-0771","input":"{\"op\":\"excludes\",\"title\":\"Star Wars Episódio II\",\"season\":4}","expected":"0"}
+{"id":"ep-0772","input":"{\"op\":\"excludes\",\"title\":\"Star Wars Episódio II\",\"season\":9}","expected":"0"}
+{"id":"ep-0773","input":"{\"op\":\"excludes\",\"title\":\"Star Wars Episódio II\",\"season\":12}","expected":"0"}
+{"id":"ep-0774","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 12 Temporada 3 E12\",\"season\":null}","expected":"0"}
+{"id":"ep-0775","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 12 Temporada 3 E12\",\"season\":1}","expected":"1"}
+{"id":"ep-0776","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 12 Temporada 3 E12\",\"season\":2}","expected":"1"}
+{"id":"ep-0777","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 12 Temporada 3 E12\",\"season\":4}","expected":"1"}
+{"id":"ep-0778","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 12 Temporada 3 E12\",\"season\":9}","expected":"1"}
+{"id":"ep-0779","input":"{\"op\":\"excludes\",\"title\":\"Show Episódio 12 Temporada 3 E12\",\"season\":12}","expected":"0"}
+{"id":"ep-0780","input":"{\"op\":\"excludes\",\"title\":\"Show 2 temporadas S01E01\",\"season\":null}","expected":"0"}
+{"id":"ep-0781","input":"{\"op\":\"excludes\",\"title\":\"Show 2 temporadas S01E01\",\"season\":1}","expected":"0"}
+{"id":"ep-0782","input":"{\"op\":\"excludes\",\"title\":\"Show 2 temporadas S01E01\",\"season\":2}","expected":"0"}
+{"id":"ep-0783","input":"{\"op\":\"excludes\",\"title\":\"Show 2 temporadas S01E01\",\"season\":4}","expected":"1"}
+{"id":"ep-0784","input":"{\"op\":\"excludes\",\"title\":\"Show 2 temporadas S01E01\",\"season\":9}","expected":"1"}
+{"id":"ep-0785","input":"{\"op\":\"excludes\",\"title\":\"Show 2 temporadas S01E01\",\"season\":12}","expected":"1"}
+{"id":"ep-0786","input":"{\"op\":\"excludes\",\"title\":\"One Piece S1000E1001\",\"season\":null}","expected":"0"}
+{"id":"ep-0787","input":"{\"op\":\"excludes\",\"title\":\"One Piece S1000E1001\",\"season\":1}","expected":"0"}
+{"id":"ep-0788","input":"{\"op\":\"excludes\",\"title\":\"One Piece S1000E1001\",\"season\":2}","expected":"0"}
+{"id":"ep-0789","input":"{\"op\":\"excludes\",\"title\":\"One Piece S1000E1001\",\"season\":4}","expected":"0"}
+{"id":"ep-0790","input":"{\"op\":\"excludes\",\"title\":\"One Piece S1000E1001\",\"season\":9}","expected":"0"}
+{"id":"ep-0791","input":"{\"op\":\"excludes\",\"title\":\"One Piece S1000E1001\",\"season\":12}","expected":"0"}
+{"id":"ep-0792","input":"{\"op\":\"excludes\",\"title\":\"Show S01E0010\",\"season\":null}","expected":"0"}
+{"id":"ep-0793","input":"{\"op\":\"excludes\",\"title\":\"Show S01E0010\",\"season\":1}","expected":"0"}
+{"id":"ep-0794","input":"{\"op\":\"excludes\",\"title\":\"Show S01E0010\",\"season\":2}","expected":"1"}
+{"id":"ep-0795","input":"{\"op\":\"excludes\",\"title\":\"Show S01E0010\",\"season\":4}","expected":"1"}
+{"id":"ep-0796","input":"{\"op\":\"excludes\",\"title\":\"Show S01E0010\",\"season\":9}","expected":"1"}
+{"id":"ep-0797","input":"{\"op\":\"excludes\",\"title\":\"Show S01E0010\",\"season\":12}","expected":"1"}
+{"id":"ep-0798","input":"{\"op\":\"excludes\",\"title\":\"Show s1e1 e2 e3\",\"season\":null}","expected":"0"}
+{"id":"ep-0799","input":"{\"op\":\"excludes\",\"title\":\"Show s1e1 e2 e3\",\"season\":1}","expected":"0"}
+{"id":"ep-0800","input":"{\"op\":\"excludes\",\"title\":\"Show s1e1 e2 e3\",\"season\":2}","expected":"1"}
+{"id":"ep-0801","input":"{\"op\":\"excludes\",\"title\":\"Show s1e1 e2 e3\",\"season\":4}","expected":"1"}
+{"id":"ep-0802","input":"{\"op\":\"excludes\",\"title\":\"Show s1e1 e2 e3\",\"season\":9}","expected":"1"}
+{"id":"ep-0803","input":"{\"op\":\"excludes\",\"title\":\"Show s1e1 e2 e3\",\"season\":12}","expected":"1"}
+{"id":"ep-0804","input":"{\"op\":\"excludes\",\"title\":\"Show s01e1234\",\"season\":null}","expected":"0"}
+{"id":"ep-0805","input":"{\"op\":\"excludes\",\"title\":\"Show s01e1234\",\"season\":1}","expected":"0"}
+{"id":"ep-0806","input":"{\"op\":\"excludes\",\"title\":\"Show s01e1234\",\"season\":2}","expected":"1"}
+{"id":"ep-0807","input":"{\"op\":\"excludes\",\"title\":\"Show s01e1234\",\"season\":4}","expected":"1"}
+{"id":"ep-0808","input":"{\"op\":\"excludes\",\"title\":\"Show s01e1234\",\"season\":9}","expected":"1"}
+{"id":"ep-0809","input":"{\"op\":\"excludes\",\"title\":\"Show s01e1234\",\"season\":12}","expected":"1"}
+{"id":"ep-0810","input":"{\"op\":\"excludes\",\"title\":\"Show S1 EP 1-35 1080p\",\"season\":null}","expected":"0"}
+{"id":"ep-0811","input":"{\"op\":\"excludes\",\"title\":\"Show S1 EP 1-35 1080p\",\"season\":1}","expected":"0"}
+{"id":"ep-0812","input":"{\"op\":\"excludes\",\"title\":\"Show S1 EP 1-35 1080p\",\"season\":2}","expected":"1"}
+{"id":"ep-0813","input":"{\"op\":\"excludes\",\"title\":\"Show S1 EP 1-35 1080p\",\"season\":4}","expected":"1"}
+{"id":"ep-0814","input":"{\"op\":\"excludes\",\"title\":\"Show S1 EP 1-35 1080p\",\"season\":9}","expected":"1"}
+{"id":"ep-0815","input":"{\"op\":\"excludes\",\"title\":\"Show S1 EP 1-35 1080p\",\"season\":12}","expected":"1"}
+{"id":"ep-0816","input":"{\"op\":\"excludes\",\"title\":\"Show EP 07\",\"season\":null}","expected":"0"}
+{"id":"ep-0817","input":"{\"op\":\"excludes\",\"title\":\"Show EP 07\",\"season\":1}","expected":"0"}
+{"id":"ep-0818","input":"{\"op\":\"excludes\",\"title\":\"Show EP 07\",\"season\":2}","expected":"0"}
+{"id":"ep-0819","input":"{\"op\":\"excludes\",\"title\":\"Show EP 07\",\"season\":4}","expected":"0"}
+{"id":"ep-0820","input":"{\"op\":\"excludes\",\"title\":\"Show EP 07\",\"season\":9}","expected":"0"}
+{"id":"ep-0821","input":"{\"op\":\"excludes\",\"title\":\"Show EP 07\",\"season\":12}","expected":"0"}
+{"id":"ep-0822","input":"{\"op\":\"excludes\",\"title\":\"Show E07 1080p\",\"season\":null}","expected":"0"}
+{"id":"ep-0823","input":"{\"op\":\"excludes\",\"title\":\"Show E07 1080p\",\"season\":1}","expected":"0"}
+{"id":"ep-0824","input":"{\"op\":\"excludes\",\"title\":\"Show E07 1080p\",\"season\":2}","expected":"0"}
+{"id":"ep-0825","input":"{\"op\":\"excludes\",\"title\":\"Show E07 1080p\",\"season\":4}","expected":"0"}
+{"id":"ep-0826","input":"{\"op\":\"excludes\",\"title\":\"Show E07 1080p\",\"season\":9}","expected":"0"}
+{"id":"ep-0827","input":"{\"op\":\"excludes\",\"title\":\"Show E07 1080p\",\"season\":12}","expected":"0"}
+{"id":"ep-0828","input":"{\"op\":\"excludes\",\"title\":\"Show E01 a E03\",\"season\":null}","expected":"0"}
+{"id":"ep-0829","input":"{\"op\":\"excludes\",\"title\":\"Show E01 a E03\",\"season\":1}","expected":"0"}
+{"id":"ep-0830","input":"{\"op\":\"excludes\",\"title\":\"Show E01 a E03\",\"season\":2}","expected":"0"}
+{"id":"ep-0831","input":"{\"op\":\"excludes\",\"title\":\"Show E01 a E03\",\"season\":4}","expected":"0"}
+{"id":"ep-0832","input":"{\"op\":\"excludes\",\"title\":\"Show E01 a E03\",\"season\":9}","expected":"0"}
+{"id":"ep-0833","input":"{\"op\":\"excludes\",\"title\":\"Show E01 a E03\",\"season\":12}","expected":"0"}
+{"id":"ep-0834","input":"{\"op\":\"excludes\",\"title\":\"Show E01 E03\",\"season\":null}","expected":"0"}
+{"id":"ep-0835","input":"{\"op\":\"excludes\",\"title\":\"Show E01 E03\",\"season\":1}","expected":"0"}
+{"id":"ep-0836","input":"{\"op\":\"excludes\",\"title\":\"Show E01 E03\",\"season\":2}","expected":"0"}
+{"id":"ep-0837","input":"{\"op\":\"excludes\",\"title\":\"Show E01 E03\",\"season\":4}","expected":"0"}
+{"id":"ep-0838","input":"{\"op\":\"excludes\",\"title\":\"Show E01 E03\",\"season\":9}","expected":"0"}
+{"id":"ep-0839","input":"{\"op\":\"excludes\",\"title\":\"Show E01 E03\",\"season\":12}","expected":"0"}
+{"id":"ep-0840","input":"{\"op\":\"excludes\",\"title\":\"Show 3 Temporadas 1080p\",\"season\":null}","expected":"0"}
+{"id":"ep-0841","input":"{\"op\":\"excludes\",\"title\":\"Show 3 Temporadas 1080p\",\"season\":1}","expected":"1"}
+{"id":"ep-0842","input":"{\"op\":\"excludes\",\"title\":\"Show 3 Temporadas 1080p\",\"season\":2}","expected":"1"}
+{"id":"ep-0843","input":"{\"op\":\"excludes\",\"title\":\"Show 3 Temporadas 1080p\",\"season\":4}","expected":"1"}
+{"id":"ep-0844","input":"{\"op\":\"excludes\",\"title\":\"Show 3 Temporadas 1080p\",\"season\":9}","expected":"1"}
+{"id":"ep-0845","input":"{\"op\":\"excludes\",\"title\":\"Show 3 Temporadas 1080p\",\"season\":12}","expected":"1"}
+{"id":"ep-0846","input":"{\"op\":\"excludes\",\"title\":\"Show 2ª Temporada 1080p\",\"season\":null}","expected":"0"}
+{"id":"ep-0847","input":"{\"op\":\"excludes\",\"title\":\"Show 2ª Temporada 1080p\",\"season\":1}","expected":"1"}
+{"id":"ep-0848","input":"{\"op\":\"excludes\",\"title\":\"Show 2ª Temporada 1080p\",\"season\":2}","expected":"0"}
+{"id":"ep-0849","input":"{\"op\":\"excludes\",\"title\":\"Show 2ª Temporada 1080p\",\"season\":4}","expected":"1"}
+{"id":"ep-0850","input":"{\"op\":\"excludes\",\"title\":\"Show 2ª Temporada 1080p\",\"season\":9}","expected":"1"}
+{"id":"ep-0851","input":"{\"op\":\"excludes\",\"title\":\"Show 2ª Temporada 1080p\",\"season\":12}","expected":"1"}
+{"id":"ep-0852","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01 Temporada 4 S02\",\"season\":null}","expected":"0"}
+{"id":"ep-0853","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01 Temporada 4 S02\",\"season\":1}","expected":"0"}
+{"id":"ep-0854","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01 Temporada 4 S02\",\"season\":2}","expected":"0"}
+{"id":"ep-0855","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01 Temporada 4 S02\",\"season\":4}","expected":"0"}
+{"id":"ep-0856","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01 Temporada 4 S02\",\"season\":9}","expected":"1"}
+{"id":"ep-0857","input":"{\"op\":\"excludes\",\"title\":\"Show S01E01 Temporada 4 S02\",\"season\":12}","expected":"1"}
+{"id":"ep-0858","input":"{\"op\":\"excludes\",\"title\":\"Show SX1E01\",\"season\":null}","expected":"0"}
+{"id":"ep-0859","input":"{\"op\":\"excludes\",\"title\":\"Show SX1E01\",\"season\":1}","expected":"0"}
+{"id":"ep-0860","input":"{\"op\":\"excludes\",\"title\":\"Show SX1E01\",\"season\":2}","expected":"0"}
+{"id":"ep-0861","input":"{\"op\":\"excludes\",\"title\":\"Show SX1E01\",\"season\":4}","expected":"0"}
+{"id":"ep-0862","input":"{\"op\":\"excludes\",\"title\":\"Show SX1E01\",\"season\":9}","expected":"0"}
+{"id":"ep-0863","input":"{\"op\":\"excludes\",\"title\":\"Show SX1E01\",\"season\":12}","expected":"0"}
+{"id":"ep-0864","input":"{\"op\":\"excludes\",\"title\":\"Show s01 ep 1 2 3\",\"season\":null}","expected":"0"}
+{"id":"ep-0865","input":"{\"op\":\"excludes\",\"title\":\"Show s01 ep 1 2 3\",\"season\":1}","expected":"0"}
+{"id":"ep-0866","input":"{\"op\":\"excludes\",\"title\":\"Show s01 ep 1 2 3\",\"season\":2}","expected":"1"}
+{"id":"ep-0867","input":"{\"op\":\"excludes\",\"title\":\"Show s01 ep 1 2 3\",\"season\":4}","expected":"1"}
+{"id":"ep-0868","input":"{\"op\":\"excludes\",\"title\":\"Show s01 ep 1 2 3\",\"season\":9}","expected":"1"}
+{"id":"ep-0869","input":"{\"op\":\"excludes\",\"title\":\"Show s01 ep 1 2 3\",\"season\":12}","expected":"1"}
+{"id":"ep-0870","input":"{\"op\":\"excludes\",\"title\":\"Show t01 e1 e2\",\"season\":null}","expected":"0"}
+{"id":"ep-0871","input":"{\"op\":\"excludes\",\"title\":\"Show t01 e1 e2\",\"season\":1}","expected":"0"}
+{"id":"ep-0872","input":"{\"op\":\"excludes\",\"title\":\"Show t01 e1 e2\",\"season\":2}","expected":"1"}
+{"id":"ep-0873","input":"{\"op\":\"excludes\",\"title\":\"Show t01 e1 e2\",\"season\":4}","expected":"1"}
+{"id":"ep-0874","input":"{\"op\":\"excludes\",\"title\":\"Show t01 e1 e2\",\"season\":9}","expected":"1"}
+{"id":"ep-0875","input":"{\"op\":\"excludes\",\"title\":\"Show t01 e1 e2\",\"season\":12}","expected":"1"}
+{"id":"ep-0876","input":"{\"op\":\"excludes\",\"title\":\"Show 4 x 10\",\"season\":null}","expected":"0"}
+{"id":"ep-0877","input":"{\"op\":\"excludes\",\"title\":\"Show 4 x 10\",\"season\":1}","expected":"0"}
+{"id":"ep-0878","input":"{\"op\":\"excludes\",\"title\":\"Show 4 x 10\",\"season\":2}","expected":"0"}
+{"id":"ep-0879","input":"{\"op\":\"excludes\",\"title\":\"Show 4 x 10\",\"season\":4}","expected":"0"}
+{"id":"ep-0880","input":"{\"op\":\"excludes\",\"title\":\"Show 4 x 10\",\"season\":9}","expected":"0"}
+{"id":"ep-0881","input":"{\"op\":\"excludes\",\"title\":\"Show 4 x 10\",\"season\":12}","expected":"0"}
+{"id":"ep-0882","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":null}","expected":"0"}
+{"id":"ep-0883","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":1}","expected":"1"}
+{"id":"ep-0884","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":2}","expected":"1"}
+{"id":"ep-0885","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":4}","expected":"1"}
+{"id":"ep-0886","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":9}","expected":"1"}
+{"id":"ep-0887","input":"{\"op\":\"excludes\",\"title\":\"Show 5x123\",\"season\":12}","expected":"1"}
