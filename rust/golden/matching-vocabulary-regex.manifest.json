@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "matching-vocabulary/regex"
+  ],
+  "function": {
+    "name": "vocabularyRegex",
+    "sourcePath": "src/utils/matching-vocabulary.ts",
+    "sourceSha256": "e09288e33baf12fd48622c44040e8c4052228f24cc3361e40c1ccb64c4e3007b",
+    "artifactPath": "dist/src/utils/matching-vocabulary.js",
+    "artifactSha256": "632f2884dfc5caefcd86b5934e169741898ece2a33ecf4e72aee2253c6e30b8b"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-matching-vocabulary-regex.json",
+    "sha256": "f01a76d03627ee828f78c02e7885a3a39c2e90fcf99c8cad26f798a589211b06",
+    "cases": 246
+  },
+  "output": {
+    "path": "rust/golden/matching-vocabulary-regex.jsonl",
+    "sha256": "811cf2a8b5d6c280f9e48a9f1ef05d5c1655f85ca34e99cc693b877bf26acb0c",
+    "lines": 246
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "fd97ab4c3f8d2f992c8b116f2eef55c3b05c3396"
+  }
+}

@@ -82,6 +82,23 @@ const FUNCTIONS = {
       throw new Error(`tipo não suportado em ${name}`);
     },
   },
+  // Comportamento das regex de vocabulário: `yr=` é YEAR_RANGE.test(entrada) e
+  // `ep=` é EPISODE_TOKEN.test(entrada), 1 ou 0. O porte Rust precisa reproduzir
+  // esses dois bits para cada entrada do corpus.
+  'matching-vocabulary-regex': {
+    id: 'matching-vocabulary/regex',
+    name: 'vocabularyRegex',
+    source: 'src/utils/matching-vocabulary.ts',
+    artifact: 'dist/src/utils/matching-vocabulary.js',
+    corpus: 'scripts/golden/corpus-matching-vocabulary-regex.json',
+    outJsonl: 'rust/golden/matching-vocabulary-regex.jsonl',
+    outManifest: 'rust/golden/matching-vocabulary-regex.manifest.json',
+    resolve: (mod) => (input) => {
+      const yr = mod.YEAR_RANGE.test(input) ? 1 : 0;
+      const ep = mod.EPISODE_TOKEN.test(input) ? 1 : 0;
+      return `yr=${yr} ep=${ep}`;
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 
