@@ -1,0 +1,30 @@
+{
+  "version": "corpus-net-safety/1",
+  "note": "Casos de isSafeDownloadUrl: guarda SSRF do Link de indexer. Saída 1 libera, 0 bloqueia. allowPrivate true só libera http(s) já válido.",
+  "cases": [
+    {"id":"ns-001","input":"{\"raw\":\"https://tracker.example/download\",\"allowPrivate\":false}","note":"https público"},
+    {"id":"ns-002","input":"{\"raw\":\"http://tracker.example.org/download\",\"allowPrivate\":false}","note":"http público"},
+    {"id":"ns-003","input":"{\"raw\":\"magnet:?xt=urn:btih:aabbccddeeff00112233445566778899aabbccdd&dn=Name\",\"allowPrivate\":false}","note":"magnet não é download http"},
+    {"id":"ns-004","input":"{\"raw\":\"\",\"allowPrivate\":false}","note":"string vazia"},
+    {"id":"ns-005","input":"{\"raw\":\"http://localhost/test\",\"allowPrivate\":false}","note":"localhost"},
+    {"id":"ns-006","input":"{\"raw\":\"http://127.0.0.1/api\",\"allowPrivate\":false}","note":"loopback 127.0.0.1"},
+    {"id":"ns-007","input":"{\"raw\":\"http://10.1.2.3/a\",\"allowPrivate\":false}","note":"10/8"},
+    {"id":"ns-008","input":"{\"raw\":\"http://192.168.1.10/file\",\"allowPrivate\":false}","note":"192.168/16"},
+    {"id":"ns-009","input":"{\"raw\":\"http://172.16.0.1/download\",\"allowPrivate\":false}","note":"172.16/12"},
+    {"id":"ns-010","input":"{\"raw\":\"http://169.254.169.254/latest/meta-data\",\"allowPrivate\":false}","note":"link-local metadata 169.254.169.254"},
+    {"id":"ns-011","input":"{\"raw\":\"http://0.0.0.0/api\",\"allowPrivate\":false}","note":"0.0.0.0"},
+    {"id":"ns-012","input":"{\"raw\":\"http://224.0.0.1/multicast\",\"allowPrivate\":false}","note":"multicast 224/4"},
+    {"id":"ns-013","input":"{\"raw\":\"http://[::1]/file\",\"allowPrivate\":false}","note":"loopback ::1"},
+    {"id":"ns-014","input":"{\"raw\":\"http://[fc00::1]/file\",\"allowPrivate\":false}","note":"ULA fc00"},
+    {"id":"ns-015","input":"{\"raw\":\"http://[fe80::1]/file\",\"allowPrivate\":false}","note":"link-local fe80"},
+    {"id":"ns-016","input":"{\"raw\":\"http://[::ffff:127.0.0.1]/file\",\"allowPrivate\":false}","note":"IPv4-mapeado de loopback"},
+    {"id":"ns-017","input":"{\"raw\":\"http://192.168.1.1/file\",\"allowPrivate\":true}","note":"allowPrivate true num host privado"},
+    {"id":"ns-018","input":"{\"raw\":\"http://tracker.example.org:8080/download\",\"allowPrivate\":false}","note":"porta explícita em host público"},
+    {"id":"ns-019","input":"{\"raw\":\"http://\",\"allowPrivate\":false}","note":"host vazio"},
+    {"id":"ns-020","input":"{\"raw\":\"http://172.31.255.254/download\",\"allowPrivate\":false}","note":"topo do 172.16/12"},
+    {"id":"ns-021","input":"{\"raw\":\"http://8.8.8.8/dns\",\"allowPrivate\":false}","note":"IPv4 público"},
+    {"id":"ns-022","input":"{\"raw\":\"http://user:pass@tracker.example/dl\",\"allowPrivate\":false}","note":"userinfo não troca o host"},
+    {"id":"ns-023","input":"{\"raw\":\"not a url\",\"allowPrivate\":false}","note":"sem esquema"},
+    {"id":"ns-024","input":"{\"raw\":\"http://[fd00::1]/file\",\"allowPrivate\":false}","note":"ULA fd00"}
+  ]
+}

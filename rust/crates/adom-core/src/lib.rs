@@ -29,6 +29,7 @@ mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
 mod multiwork_pack;
+mod net_safety;
 mod non_feature_release;
 mod release_guards;
 mod release_name_matching;
@@ -133,6 +134,7 @@ pub use audio_lang::{
 };
 pub use release_guards::{magnet_season_contradicts, magnet_year_contradicts, text_years_contradict};
 pub use crawl_url_key::crawl_url_key;
+pub use net_safety::is_safe_download_url;
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
