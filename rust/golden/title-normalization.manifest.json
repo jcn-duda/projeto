@@ -12,18 +12,18 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-title-normalization.json",
-    "sha256": "d258a0ea5554a5f717b29cf5b1d0fcfaf169ea0f549eebb181460bc963ccd433",
-    "cases": 23
+    "sha256": "fe76e7b6052282092eef605d943fec465c76e065f877f47e35a95a387800bb73",
+    "cases": 173
   },
   "output": {
     "path": "rust/golden/title-normalization.jsonl",
-    "sha256": "b05a8be0745a4e0771d2da5b7fa49dac02562c179b3d0d9c41ba904f8489d822",
-    "lines": 23
+    "sha256": "dadec240c6dbc3b617ed7512e04d4f545f4e50b431fab7e773ec28105404e638",
+    "lines": 173
   },
   "node": {
     "major": 22
   },
   "git": {
-    "revision": "d30b77c824034937d63eb7f64508da807e2c5dd6"
+    "revision": "022ae03d8edcaff65d3b659760672e0d02d50012"
   }
 }

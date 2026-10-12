@@ -198,9 +198,9 @@ fn parser_rejeita_entradas_invalidas() {
 /// entrada no diagnóstico. Reusa o parser/`parse_all_cases` dos testes de
 /// integridade: sem runner nem corpus paralelos.
 #[test]
-fn normalize_title_bate_com_os_23_goldens() {
+fn normalize_title_bate_com_todos_os_goldens() {
     let cases = parse_all_cases();
-    assert_eq!(cases.len(), 23, "a fatia F1 cobre exatamente os 23 goldens");
+    assert_eq!(cases.len(), 173, "a fatia F1 cobre exatamente os 173 goldens (corpus ampliado com títulos de test/)");
     assert_eq!(
         cases.len(),
         manifest().output.lines,
