@@ -1,0 +1,87 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "search-name-helpers/resolveSearchNames",
+    "search-name-helpers/resolveOriginalStepName",
+    "search-name-helpers/parseStremioId",
+    "search-name-helpers/buildSearchQuery",
+    "search-name-helpers/numeralSearchVariant",
+    "search-name-helpers/markDebridName",
+    "search-name-helpers/matchesQualityFilter"
+  ],
+  "functions": [
+    {
+      "id": "search-name-helpers/resolveSearchNames",
+      "name": "resolveSearchNames",
+      "sourcePath": "src/utils/search-names.ts",
+      "sourceSha256": "e275802d4244fe4b4e2555f3e0f98ec0c8fda622bf84e58bcc1043d4f6ae752a",
+      "artifactPath": "dist/src/utils/search-names.js",
+      "artifactSha256": "8a5c85dca5cb5bbe0afd0553b400b5bbfa38ee62a2a289b36b959e0fc81b0dc5"
+    },
+    {
+      "id": "search-name-helpers/resolveOriginalStepName",
+      "name": "resolveOriginalStepName",
+      "sourcePath": "src/utils/search-names.ts",
+      "sourceSha256": "e275802d4244fe4b4e2555f3e0f98ec0c8fda622bf84e58bcc1043d4f6ae752a",
+      "artifactPath": "dist/src/utils/search-names.js",
+      "artifactSha256": "8a5c85dca5cb5bbe0afd0553b400b5bbfa38ee62a2a289b36b959e0fc81b0dc5"
+    },
+    {
+      "id": "search-name-helpers/parseStremioId",
+      "name": "parseStremioId",
+      "sourcePath": "src/utils/search-names.ts",
+      "sourceSha256": "e275802d4244fe4b4e2555f3e0f98ec0c8fda622bf84e58bcc1043d4f6ae752a",
+      "artifactPath": "dist/src/utils/search-names.js",
+      "artifactSha256": "8a5c85dca5cb5bbe0afd0553b400b5bbfa38ee62a2a289b36b959e0fc81b0dc5"
+    },
+    {
+      "id": "search-name-helpers/buildSearchQuery",
+      "name": "buildSearchQuery",
+      "sourcePath": "src/utils/search-names.ts",
+      "sourceSha256": "e275802d4244fe4b4e2555f3e0f98ec0c8fda622bf84e58bcc1043d4f6ae752a",
+      "artifactPath": "dist/src/utils/search-names.js",
+      "artifactSha256": "8a5c85dca5cb5bbe0afd0553b400b5bbfa38ee62a2a289b36b959e0fc81b0dc5"
+    },
+    {
+      "id": "search-name-helpers/numeralSearchVariant",
+      "name": "numeralSearchVariant",
+      "sourcePath": "src/utils/search-names.ts",
+      "sourceSha256": "e275802d4244fe4b4e2555f3e0f98ec0c8fda622bf84e58bcc1043d4f6ae752a",
+      "artifactPath": "dist/src/utils/search-names.js",
+      "artifactSha256": "8a5c85dca5cb5bbe0afd0553b400b5bbfa38ee62a2a289b36b959e0fc81b0dc5"
+    },
+    {
+      "id": "search-name-helpers/markDebridName",
+      "name": "markDebridName",
+      "sourcePath": "src/utils/search-names.ts",
+      "sourceSha256": "e275802d4244fe4b4e2555f3e0f98ec0c8fda622bf84e58bcc1043d4f6ae752a",
+      "artifactPath": "dist/src/utils/search-names.js",
+      "artifactSha256": "8a5c85dca5cb5bbe0afd0553b400b5bbfa38ee62a2a289b36b959e0fc81b0dc5"
+    },
+    {
+      "id": "search-name-helpers/matchesQualityFilter",
+      "name": "matchesQualityFilter",
+      "sourcePath": "src/utils/search-names.ts",
+      "sourceSha256": "e275802d4244fe4b4e2555f3e0f98ec0c8fda622bf84e58bcc1043d4f6ae752a",
+      "artifactPath": "dist/src/utils/search-names.js",
+      "artifactSha256": "8a5c85dca5cb5bbe0afd0553b400b5bbfa38ee62a2a289b36b959e0fc81b0dc5"
+    }
+  ],
+  "corpus": {
+    "path": "scripts/golden/corpus-search-name-helpers.json",
+    "sha256": "baebf8815cd6ffc8fd14140a54011f60f0fb4b3bbf5f69db77c85687857ff709",
+    "cases": 141
+  },
+  "output": {
+    "path": "rust/golden/search-name-helpers.jsonl",
+    "sha256": "79feea82fac5154b3d8409a21c6d89cfa1e822fd454deeac9fc965f625d8df8a",
+    "lines": 141
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "9fb915dfa0c10b8ffe770fd2ce1791d808ced841"
+  }
+}

@@ -39,6 +39,7 @@ mod release_title_rules;
 mod release_work;
 mod reply_budget;
 mod resolve_sign;
+mod search_name_helpers;
 mod short_name_tail;
 mod stream_quotas;
 pub mod stream_quotas_extra;
@@ -144,6 +145,10 @@ pub use release_guards::{
 };
 pub use release_labels::{compact_audio, edition_from_title, source_from_title};
 pub use reply_budget::remaining_check_budget;
+pub use search_name_helpers::{
+    build_search_query, mark_debrid_name, matches_quality_filter, numeral_search_variant,
+    parse_stremio_id, resolve_original_step_name, resolve_search_names,
+};
 pub use strip_diacritics::strip_diacritics;
 pub use title_normalization::normalize_title;
 

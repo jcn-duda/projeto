@@ -1,0 +1,569 @@
+{
+  "fn": "search-name-helpers",
+  "cases": [
+    {
+      "id": "rs-01",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\",\"year\":2021}}"
+    },
+    {
+      "id": "rs-02",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"en\":\"Dune\"}}"
+    },
+    {
+      "id": "rs-03",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"original\":\"Dune: Part Two\"}}"
+    },
+    {
+      "id": "rs-04",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"pt\":\"Duna 2\",\"original\":\"Dune Part Two\",\"en\":\"Dune: Part Two\"}}"
+    },
+    {
+      "id": "rs-05",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\"},\"titles\":{\"en\":\"Dune\"}}"
+    },
+    {
+      "id": "rs-06",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Dune: Part Two\"},\"titles\":{\"original\":\"Dune Part Two\"}}"
+    },
+    {
+      "id": "rs-07",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"br\":[\"Operação: Lioness\",\"Lioness\"]}}"
+    },
+    {
+      "id": "rs-08",
+      "input": "{\"op\":\"resolveSearchNames\",\"imdbId\":\"tt1234567\"}"
+    },
+    {
+      "id": "rs-09",
+      "input": "{\"op\":\"resolveSearchNames\"}"
+    },
+    {
+      "id": "rs-10",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"A Fistful of Dollars\",\"year\":1967},\"titles\":{\"year\":\"1964\"}}"
+    },
+    {
+      "id": "rs-11",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Monster\",\"year\":\"2018\"},\"titles\":{\"year\":\"2021\"}}"
+    },
+    {
+      "id": "rs-12",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\",\"year\":2024},\"titles\":{\"year\":\"2024\"}}"
+    },
+    {
+      "id": "rs-13",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\",\"year\":\"2024–\"}}"
+    },
+    {
+      "id": "rs-14",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\",\"year\":\"\"}}"
+    },
+    {
+      "id": "rs-15",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\",\"year\":0}}"
+    },
+    {
+      "id": "rs-16",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\",\"year\":2024}}"
+    },
+    {
+      "id": "rs-17",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"en\":\"Dune\",\"year\":\"2018\"}}"
+    },
+    {
+      "id": "rs-18",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"X\",\"year\":\"2018\"},\"titles\":{\"year\":\"2020\"}}"
+    },
+    {
+      "id": "rs-19",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\" \"}}"
+    },
+    {
+      "id": "rs-20",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"pt\":\"Cidade de Deus\"}}"
+    },
+    {
+      "id": "rs-21",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"br\":[\"A\",null,\"A\"]}}"
+    },
+    {
+      "id": "rs-22",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Amélie\",\"year\":2001}}"
+    },
+    {
+      "id": "rs-23",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\"},\"titles\":{\"en\":\"Duna\",\"pt\":\"Duna\"}}"
+    },
+    {
+      "id": "rs-24",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"X\",\"year\":24}}"
+    },
+    {
+      "id": "rs-25",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"X\",\"year\":\"abc\"}}"
+    },
+    {
+      "id": "rs-26",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"X\",\"year\":2018},\"titles\":{\"year\":\"2020\"}}"
+    },
+    {
+      "id": "rs-27",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"X\"},\"titles\":{\"year\":0}}"
+    },
+    {
+      "id": "rs-28",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Old\",\"year\":\"1999\"},\"titles\":{\"year\":\"2024\"}}"
+    },
+    {
+      "id": "rs-29",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"\"},\"titles\":{\"pt\":\"Nome PT\"}}"
+    },
+    {
+      "id": "rs-30",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Duna\",\"year\":\"2021\"},\"titles\":{\"year\":2021}}"
+    },
+    {
+      "id": "rs-31",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":null,\"titles\":null,\"imdbId\":null}"
+    },
+    {
+      "id": "rs-32",
+      "input": "{\"op\":\"resolveSearchNames\",\"titles\":{\"en\":\"\",\"original\":\"Dune\"}}"
+    },
+    {
+      "id": "rs-33",
+      "input": "{\"op\":\"resolveSearchNames\",\"meta\":{\"name\":\"Todo Mundo em Pânico\",\"year\":\"2000\"},\"titles\":{\"en\":\"Scary Movie\",\"original\":\"Scary Movie\",\"pt\":\"Todo Mundo em Pânico\"}}"
+    },
+    {
+      "id": "ro-01",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"Dune\",\"primaryName\":\"Dune\"}"
+    },
+    {
+      "id": "ro-02",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"Dune\",\"primaryName\":\"Duna\"}"
+    },
+    {
+      "id": "ro-03",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"Adım\",\"primaryName\":\"Adim\"}"
+    },
+    {
+      "id": "ro-04",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"Spider-Man: No Way Home\",\"primaryName\":\"Spider Man No Way Home\"}"
+    },
+    {
+      "id": "ro-05",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"Amélie\",\"primaryName\":\"Amelie\"}"
+    },
+    {
+      "id": "ro-06",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":null,\"primaryName\":\"Duna\"}"
+    },
+    {
+      "id": "ro-07",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"\",\"primaryName\":\"Duna\"}"
+    },
+    {
+      "id": "ro-08",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"Duna\",\"primaryName\":null}"
+    },
+    {
+      "id": "ro-09",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"The Office\",\"primaryName\":\"O Escritório\"}"
+    },
+    {
+      "id": "ro-10",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"G.O.R.A.\",\"primaryName\":\"GORA\"}"
+    },
+    {
+      "id": "ro-11",
+      "input": "{\"op\":\"resolveOriginalStepName\",\"original\":\"Rocky II\",\"primaryName\":\"Rocky 2\"}"
+    },
+    {
+      "id": "pi-01",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt1234567\"}"
+    },
+    {
+      "id": "pi-02",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt1234567:1:2\"}"
+    },
+    {
+      "id": "pi-03",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt1234567:0:0\"}"
+    },
+    {
+      "id": "pi-04",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt1234567:10:100\"}"
+    },
+    {
+      "id": "pi-05",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt1234567:\"}"
+    },
+    {
+      "id": "pi-06",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt1234567:1\"}"
+    },
+    {
+      "id": "pi-07",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt1234567:1:2:3\"}"
+    },
+    {
+      "id": "pi-08",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\":1:2\"}"
+    },
+    {
+      "id": "pi-09",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt:abc\"}"
+    },
+    {
+      "id": "pi-10",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt:1.5\"}"
+    },
+    {
+      "id": "pi-11",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt: 2 \"}"
+    },
+    {
+      "id": "pi-12",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt:0x10\"}"
+    },
+    {
+      "id": "pi-13",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"tt:-3\"}"
+    },
+    {
+      "id": "pi-14",
+      "input": "{\"op\":\"parseStremioId\",\"id\":\"\"}"
+    },
+    {
+      "id": "bq-01",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Duna\",\"year\":2021}}"
+    },
+    {
+      "id": "bq-02",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Duna\",\"year\":\"2021\"}}"
+    },
+    {
+      "id": "bq-03",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Duna\"}}"
+    },
+    {
+      "id": "bq-04",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"title\":\"Só Título\",\"year\":2010}}"
+    },
+    {
+      "id": "bq-05",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":null}"
+    },
+    {
+      "id": "bq-06",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":1,\"episode\":2}"
+    },
+    {
+      "id": "bq-07",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":0,\"episode\":0}"
+    },
+    {
+      "id": "bq-08",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":10,\"episode\":100}"
+    },
+    {
+      "id": "bq-09",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":\"7\",\"episode\":\"3\"}"
+    },
+    {
+      "id": "bq-10",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":null,\"episode\":2}"
+    },
+    {
+      "id": "bq-11",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":1,\"episode\":null}"
+    },
+    {
+      "id": "bq-12",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":-1,\"episode\":2}"
+    },
+    {
+      "id": "bq-13",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":1.5,\"episode\":2}"
+    },
+    {
+      "id": "bq-14",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":\"𝟚024\"}}"
+    },
+    {
+      "id": "bq-15",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":\"2024–2025\"}}"
+    },
+    {
+      "id": "bq-16",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":20245}}"
+    },
+    {
+      "id": "bq-17",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":0}}"
+    },
+    {
+      "id": "bq-18",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":\"\"}}"
+    },
+    {
+      "id": "bq-19",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"  Duna  \",\"year\":2021}}"
+    },
+    {
+      "id": "bq-20",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{},\"season\":1,\"episode\":2}"
+    },
+    {
+      "id": "bq-21",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\"},\"season\":1,\"episode\":0}"
+    },
+    {
+      "id": "bq-22",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":\"2021\"},\"season\":12,\"episode\":3}"
+    },
+    {
+      "id": "bq-23",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":null}}"
+    },
+    {
+      "id": "bq-24",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Nome\",\"year\":1999999}}"
+    },
+    {
+      "id": "bq-25",
+      "input": "{\"op\":\"buildSearchQuery\",\"meta\":{\"name\":\"Série\",\"year\":2020},\"season\":1,\"episode\":100}"
+    },
+    {
+      "id": "nv-01",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky II\"}"
+    },
+    {
+      "id": "nv-02",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Jornada nas Estrelas III\"}"
+    },
+    {
+      "id": "nv-03",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rambo IV\"}"
+    },
+    {
+      "id": "nv-04",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky V\"}"
+    },
+    {
+      "id": "nv-05",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky VI\"}"
+    },
+    {
+      "id": "nv-06",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky VII\"}"
+    },
+    {
+      "id": "nv-07",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky VIII\"}"
+    },
+    {
+      "id": "nv-08",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky IX\"}"
+    },
+    {
+      "id": "nv-09",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"I Am Legend\"}"
+    },
+    {
+      "id": "nv-10",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"X-Men Origins\"}"
+    },
+    {
+      "id": "nv-11",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"V de Vingança\"}"
+    },
+    {
+      "id": "nv-12",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"O V de Vingança\"}"
+    },
+    {
+      "id": "nv-13",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky II: Parte IV\"}"
+    },
+    {
+      "id": "nv-14",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky II e III\"}"
+    },
+    {
+      "id": "nv-15",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky ii\"}"
+    },
+    {
+      "id": "nv-16",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"RockyII\"}"
+    },
+    {
+      "id": "nv-17",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky II2\"}"
+    },
+    {
+      "id": "nv-18",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky 2\"}"
+    },
+    {
+      "id": "nv-19",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Apollo 13\"}"
+    },
+    {
+      "id": "nv-20",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"1917\"}"
+    },
+    {
+      "id": "nv-21",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky II.\"}"
+    },
+    {
+      "id": "nv-22",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky II:\"}"
+    },
+    {
+      "id": "nv-23",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky II-\"}"
+    },
+    {
+      "id": "nv-24",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"The II\"}"
+    },
+    {
+      "id": "nv-25",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky The IV\"}"
+    },
+    {
+      "id": "nv-26",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"日II\"}"
+    },
+    {
+      "id": "nv-27",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"II日\"}"
+    },
+    {
+      "id": "nv-28",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"𞛀II\"}"
+    },
+    {
+      "id": "nv-29",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"II𞛀\"}"
+    },
+    {
+      "id": "nv-30",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"II\"}"
+    },
+    {
+      "id": "nv-31",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"A II\"}"
+    },
+    {
+      "id": "nv-32",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"O Senhor II\"}"
+    },
+    {
+      "id": "nv-33",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Rocky V e VI\"}"
+    },
+    {
+      "id": "nv-34",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"S.W.A.T. II\"}"
+    },
+    {
+      "id": "nv-35",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"🎬 Rocky II\"}"
+    },
+    {
+      "id": "nv-36",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"🎬 II\"}"
+    },
+    {
+      "id": "nv-37",
+      "input": "{\"op\":\"numeralSearchVariant\",\"query\":\"Duna Parte II\"}"
+    },
+    {
+      "id": "md-01",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"Release 1080p\",\"short\":\"AD\",\"cached\":true}"
+    },
+    {
+      "id": "md-02",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"Release 1080p\",\"short\":\"AD\",\"cached\":false}"
+    },
+    {
+      "id": "md-03",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"Release 1080p\",\"short\":\"\"}"
+    },
+    {
+      "id": "md-04",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"Release 1080p\",\"short\":\"  AD  \",\"cached\":true}"
+    },
+    {
+      "id": "md-05",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"\",\"short\":\"PM\",\"cached\":false}"
+    },
+    {
+      "id": "md-06",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"Release\",\"short\":\"   \"}"
+    },
+    {
+      "id": "md-07",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"Duna 2021\",\"short\":\"RD⚡\",\"cached\":true}"
+    },
+    {
+      "id": "md-08",
+      "input": "{\"op\":\"markDebridName\",\"name\":\"Nome\",\"short\":\"TB\",\"cached\":false}"
+    },
+    {
+      "id": "mq-01",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Movie 1080p\"}"
+    },
+    {
+      "id": "mq-02",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Movie 1080p\",\"filters\":[]}"
+    },
+    {
+      "id": "mq-03",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Movie 1080p\",\"filters\":[\"1080P\"]}"
+    },
+    {
+      "id": "mq-04",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Movie 1080p\",\"filters\":[\"2160p\"]}"
+    },
+    {
+      "id": "mq-05",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"movie 4k\",\"filters\":[\"4K\"]}"
+    },
+    {
+      "id": "mq-06",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Filme DUBLADO 720p\",\"filters\":[\"dublado\"]}"
+    },
+    {
+      "id": "mq-07",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Filme 720p\",\"filters\":[\"a\",\"720p\"]}"
+    },
+    {
+      "id": "mq-08",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"\",\"filters\":[\"x\"]}"
+    },
+    {
+      "id": "mq-09",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"1080p\",\"filters\":[\"0\"]}"
+    },
+    {
+      "id": "mq-10",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Amélie 1080p\",\"filters\":[\"1080P\"]}"
+    },
+    {
+      "id": "mq-11",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Movie 2160p\",\"filters\":[\"1080p\",\"2160p\"]}"
+    },
+    {
+      "id": "mq-12",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Movie WEB-DL\",\"filters\":[\"web-dl\"]}"
+    },
+    {
+      "id": "mq-13",
+      "input": "{\"op\":\"matchesQualityFilter\",\"title\":\"Movie\",\"filters\":null}"
+    }
+  ]
+}
