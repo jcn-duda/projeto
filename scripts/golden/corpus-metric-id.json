@@ -1,0 +1,310 @@
+{
+  "note": "Vetores de safeMetricId/indexerFallbackMetricKey (src/utils/metric-id.ts). Oráculo: dist/src/utils/metric-id.js (módulo puro, sem config/rede). value ausente = undefined.",
+  "cases": [
+    {
+      "id": "mi-safe-undefined",
+      "input": "{\"op\":\"safe\"}",
+      "note": "value ausente => undefined => unknown"
+    },
+    {
+      "id": "mi-safe-null",
+      "input": "{\"op\":\"safe\",\"value\":null}",
+      "note": "null => unknown"
+    },
+    {
+      "id": "mi-safe-empty",
+      "input": "{\"op\":\"safe\",\"value\":\"\"}",
+      "note": "string vazia => unknown"
+    },
+    {
+      "id": "mi-safe-zero-number",
+      "input": "{\"op\":\"safe\",\"value\":0}",
+      "note": "0 é falsy => unknown (não \"0\")"
+    },
+    {
+      "id": "mi-safe-false",
+      "input": "{\"op\":\"safe\",\"value\":false}",
+      "note": "false é falsy => unknown"
+    },
+    {
+      "id": "mi-safe-whitespace",
+      "input": "{\"op\":\"safe\",\"value\":\"   \\t\\n \"}",
+      "note": "só espaço/tab/newline => trim => unknown"
+    },
+    {
+      "id": "mi-safe-nbsp",
+      "input": "{\"op\":\"safe\",\"value\":\" \"}",
+      "note": "NBSP: trim remove (WhiteSpace) => unknown"
+    },
+    {
+      "id": "mi-safe-string-zero",
+      "input": "{\"op\":\"safe\",\"value\":\"0\"}",
+      "note": "string \"0\" é truthy => \"0\""
+    },
+    {
+      "id": "mi-safe-upper",
+      "input": "{\"op\":\"safe\",\"value\":\"ABC\"}",
+      "note": "toLowerCase => \"abc\""
+    },
+    {
+      "id": "mi-safe-mixedcase",
+      "input": "{\"op\":\"safe\",\"value\":\"NerdFilmes\"}",
+      "note": "caixa mista => \"nerdfilmes\""
+    },
+    {
+      "id": "mi-safe-trim-edges",
+      "input": "{\"op\":\"safe\",\"value\":\"  Jackett  \"}",
+      "note": "espaços nas bordas => \"jackett\""
+    },
+    {
+      "id": "mi-safe-tab-newline",
+      "input": "{\"op\":\"safe\",\"value\":\"\\tComando\\n\"}",
+      "note": "tab/newline nas bordas => \"comando\""
+    },
+    {
+      "id": "mi-safe-internal-space-trim",
+      "input": "{\"op\":\"safe\",\"value\":\"  a b  \"}",
+      "note": "espaço interno vira _ e bordas somem => \"a_b\""
+    },
+    {
+      "id": "mi-safe-bank-test-id",
+      "input": "{\"op\":\"safe\",\"value\":\"Bank Test/ID\"}",
+      "note": "exemplo do comentário => \"bank_test_id\""
+    },
+    {
+      "id": "mi-safe-slash",
+      "input": "{\"op\":\"safe\",\"value\":\"Jackett/xyz\"}",
+      "note": "prefixo com barra => \"jackett_xyz\""
+    },
+    {
+      "id": "mi-safe-allowed-chars",
+      "input": "{\"op\":\"safe\",\"value\":\"jackett_1337x.tv-v2\"}",
+      "note": "tudo permitido => identidade"
+    },
+    {
+      "id": "mi-safe-dashes",
+      "input": "{\"op\":\"safe\",\"value\":\"Torrent-Dos-Filmes\"}",
+      "note": "hífen preservado => \"torrent-dos-filmes\""
+    },
+    {
+      "id": "mi-safe-dots-underscore",
+      "input": "{\"op\":\"safe\",\"value\":\"top_10.indexer\"}",
+      "note": "ponto/underscore preservados"
+    },
+    {
+      "id": "mi-safe-upper-dot-dash",
+      "input": "{\"op\":\"safe\",\"value\":\"UPPER.CASE-ID\"}",
+      "note": "caixa baixa sobre permitidos => \"upper.case-id\""
+    },
+    {
+      "id": "mi-safe-dots-only",
+      "input": "{\"op\":\"safe\",\"value\":\"...\"}",
+      "note": "só pontos é permitido => \"...\" (não é unknown)"
+    },
+    {
+      "id": "mi-safe-dash-only",
+      "input": "{\"op\":\"safe\",\"value\":\"-\"}",
+      "note": "só hífen => \"-\""
+    },
+    {
+      "id": "mi-safe-clean-passthrough",
+      "input": "{\"op\":\"safe\",\"value\":\"comandotorrents\"}",
+      "note": "já limpo => identidade"
+    },
+    {
+      "id": "mi-safe-leading-digits",
+      "input": "{\"op\":\"safe\",\"value\":\"1337x-indexer\"}",
+      "note": "dígitos/letra/hífen"
+    },
+    {
+      "id": "mi-safe-utf8-accent",
+      "input": "{\"op\":\"safe\",\"value\":\"Ação\"}",
+      "note": "maiúsculas com acentos => \"a__o\""
+    },
+    {
+      "id": "mi-safe-spaces",
+      "input": "{\"op\":\"safe\",\"value\":\"a b c\"}",
+      "note": "espaços internos => \"a_b_c\""
+    },
+    {
+      "id": "mi-safe-at",
+      "input": "{\"op\":\"safe\",\"value\":\"indexer@home\"}",
+      "note": "@ => \"_\""
+    },
+    {
+      "id": "mi-safe-colon-semicolon",
+      "input": "{\"op\":\"safe\",\"value\":\"a:b;c\"}",
+      "note": ": e ; => \"_\""
+    },
+    {
+      "id": "mi-safe-percent",
+      "input": "{\"op\":\"safe\",\"value\":\"50%off\"}",
+      "note": "% => \"_\" => \"50_off\""
+    },
+    {
+      "id": "mi-safe-accent-e",
+      "input": "{\"op\":\"safe\",\"value\":\"café\"}",
+      "note": "é não-ASCII => \"_\" => \"caf_\""
+    },
+    {
+      "id": "mi-safe-accent-ao",
+      "input": "{\"op\":\"safe\",\"value\":\"Ação&Comédia\"}",
+      "note": "acentos e & => \"_\" => \"a__o_com_dia\""
+    },
+    {
+      "id": "mi-safe-punct-only-hash",
+      "input": "{\"op\":\"safe\",\"value\":\"###\"}",
+      "note": "só não-permitidos => \"___\" (não unknown)"
+    },
+    {
+      "id": "mi-safe-punct-only-bang",
+      "input": "{\"op\":\"safe\",\"value\":\"!\"}",
+      "note": "=> \"_\""
+    },
+    {
+      "id": "mi-safe-punct-only-at",
+      "input": "{\"op\":\"safe\",\"value\":\"@@\"}",
+      "note": "=> \"__\""
+    },
+    {
+      "id": "mi-safe-zerowidth",
+      "input": "{\"op\":\"safe\",\"value\":\"a​b\"}",
+      "note": "ZERO WIDTH SPACE não é trim-space => \"_\" => \"a_b\""
+    },
+    {
+      "id": "mi-safe-40-exact",
+      "input": "{\"op\":\"safe\",\"value\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "note": "exatos 40 => intacto"
+    },
+    {
+      "id": "mi-safe-41-trunc",
+      "input": "{\"op\":\"safe\",\"value\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+      "note": "41 => corta em 40"
+    },
+    {
+      "id": "mi-safe-45-upper",
+      "input": "{\"op\":\"safe\",\"value\":\"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ\"}",
+      "note": "45 maiúsculas => lower + corta 40"
+    },
+    {
+      "id": "mi-safe-45-mixed-punct",
+      "input": "{\"op\":\"safe\",\"value\":\"xxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyy\"}",
+      "note": "45 com \"/\" => replace + corta 40"
+    },
+    {
+      "id": "mi-safe-number",
+      "input": "{\"op\":\"safe\",\"value\":1337}",
+      "note": "número truthy => \"1337\""
+    },
+    {
+      "id": "mi-safe-float",
+      "input": "{\"op\":\"safe\",\"value\":42.5}",
+      "note": "ponto decimal é permitido => \"42.5\""
+    },
+    {
+      "id": "mi-safe-true",
+      "input": "{\"op\":\"safe\",\"value\":true}",
+      "note": "true truthy => \"true\""
+    },
+    {
+      "id": "mi-safe-array",
+      "input": "{\"op\":\"safe\",\"value\":[\"a\",\"b\"]}",
+      "note": "String([\"a\",\"b\"]) => \"a,b\" => \"a_b\""
+    },
+    {
+      "id": "mi-safe-array-empty",
+      "input": "{\"op\":\"safe\",\"value\":[]}",
+      "note": "[] é truthy => String([]) = \"\" => unknown"
+    },
+    {
+      "id": "mi-safe-object",
+      "input": "{\"op\":\"safe\",\"value\":{}}",
+      "note": "String({}) => \"[object Object]\" => \"_object_object_\""
+    },
+    {
+      "id": "mi-safe-object-key",
+      "input": "{\"op\":\"safe\",\"value\":{\"a\":1}}",
+      "note": "String({a:1}) => \"_object_object_\""
+    },
+    {
+      "id": "mi-safe-emoji",
+      "input": "{\"op\":\"safe\",\"value\":\"😀\"}",
+      "note": "EMOJI sozinho => \"__\""
+    },
+    {
+      "id": "mi-safe-emoji-inner",
+      "input": "{\"op\":\"safe\",\"value\":\"a😀b\"}",
+      "note": "emoji no meio => \"a__b\""
+    },
+    {
+      "id": "mi-key-undefined",
+      "input": "{\"op\":\"key\"}",
+      "note": "undefined => fallback.indexer.unknown"
+    },
+    {
+      "id": "mi-key-empty",
+      "input": "{\"op\":\"key\",\"value\":\"\"}",
+      "note": "vazio => fallback.indexer.unknown"
+    },
+    {
+      "id": "mi-key-null",
+      "input": "{\"op\":\"key\",\"value\":null}",
+      "note": "null => fallback.indexer.unknown"
+    },
+    {
+      "id": "mi-key-zero",
+      "input": "{\"op\":\"key\",\"value\":0}",
+      "note": "0 falsy => fallback.indexer.unknown"
+    },
+    {
+      "id": "mi-key-whitespace",
+      "input": "{\"op\":\"key\",\"value\":\"   \"}",
+      "note": "só espaço => fallback.indexer.unknown"
+    },
+    {
+      "id": "mi-key-bank-test-id",
+      "input": "{\"op\":\"key\",\"value\":\"Bank Test/ID\"}",
+      "note": "exemplo do comentário => fallback.indexer.bank_test_id"
+    },
+    {
+      "id": "mi-key-slash",
+      "input": "{\"op\":\"key\",\"value\":\"Jackett/xyz\"}",
+      "note": "prefixo com barra => fallback.indexer.jackett_xyz"
+    },
+    {
+      "id": "mi-key-mixedcase",
+      "input": "{\"op\":\"key\",\"value\":\"NerdFilmes\"}",
+      "note": "caixa mista => fallback.indexer.nerdfilmes"
+    },
+    {
+      "id": "mi-key-dots",
+      "input": "{\"op\":\"key\",\"value\":\"S.W.A.T.\"}",
+      "note": "pontos permitidos => fallback.indexer.s.w.a.t."
+    },
+    {
+      "id": "mi-key-allowed",
+      "input": "{\"op\":\"key\",\"value\":\"jackett_1337x.tv-v2\"}",
+      "note": "identidade + prefixo"
+    },
+    {
+      "id": "mi-key-accent",
+      "input": "{\"op\":\"key\",\"value\":\"Ação\"}",
+      "note": "acento => fallback.indexer.a__o"
+    },
+    {
+      "id": "mi-key-45",
+      "input": "{\"op\":\"key\",\"value\":\"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\"}",
+      "note": "corta id em 40 + prefixo"
+    },
+    {
+      "id": "mi-key-array",
+      "input": "{\"op\":\"key\",\"value\":[\"a\",\"b\"]}",
+      "note": "array => fallback.indexer.a_b"
+    },
+    {
+      "id": "mi-key-emoji",
+      "input": "{\"op\":\"key\",\"value\":\"😀\"}",
+      "note": "emoji => fallback.indexer.__"
+    }
+  ]
+}
