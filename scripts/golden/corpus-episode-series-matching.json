@@ -1,0 +1,31 @@
+{
+  "version": "corpus-episode-series-matching/1",
+  "note": "matchesEpisodeWorkIdentity e matchesGlobalSeriesNoMarker: guardas de identidade de obra em release GLOBAL. Entrada JSON com op=episodeWorkIdentity ou globalSeriesNoMarker. Saída 1/0. cutTail=true (default). IDs estáveis.",
+  "cases": [
+    {"id":"esm-001","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon S01E02.The Rogue Prince  HMAX  DDP5.1.x264 NTb 1080p\",\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","note":"release por episódio legítima: trecho antes do SxxEyy casa com o universo"},
+    {"id":"esm-002","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"[ReQ]True Detective s01e01 hdtv x264-KILLERS\",\"allNames\":[\"True Detective\"]}","note":"etiqueta de uploader no começo é tirada antes de medir"},
+    {"id":"esm-003","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Demon Slayer S01E01 1080p WEB-DL\",\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","note":"release de outra obra: precisão abaixo do piso"},
+    {"id":"esm-004","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon 1ª Temporada 1080p\",\"allNames\":[\"House of the Dragon\"]}","note":"sem marcador SxxEyy: episodeWorkTokens devolve None, abstém"},
+    {"id":"esm-005","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon S01E02 1080p\",\"allNames\":null}","note":"allNames null: abstém"},
+    {"id":"esm-006","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon S01E02 1080p\",\"allNames\":[]}","note":"allNames vazio: abstém"},
+    {"id":"esm-007","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"S02E01   A Casa do Dragão S02E01 x264 DUAL 5.1 1080p\",\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","note":"marcador antes do nome: episodeWorkTokens pega o trecho entre os dois"},
+    {"id":"esm-008","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Rick And Morty The Anime S01E02 1080p\",\"allNames\":[\"Rick and Morty\",\"Rick e Morty\"]}","note":"spin-off: precisão abaixo do piso de série"},
+    {"id":"esm-009","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Breaking Bad S01E01 720p\",\"allNames\":[\"Breaking Bad\"]}","note":"release legítima com um só alias"},
+    {"id":"esm-010","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Better Call Saul S01E01 1080p\",\"allNames\":[\"Breaking Bad\"]}","note":"spin-off com nome diferente: precisão zero"},
+    {"id":"esm-011","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer: Infinity Castle 2025 1080p\",\"tokens\":[\"demon\",\"slayer\",\"infinity\",\"castle\",\"2025\",\"1080p\"],\"universe\":[\"demon\",\"slayer\",\"kimetsu\",\"no\",\"yaiba\"]}","note":"filme da franquia sem marcador: precisão abaixo (2/5 tokens)"},
+    {"id":"esm-012","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer 2ª Temporada 1080p\",\"tokens\":[\"demon\",\"slayer\",\"2ª\",\"temporada\",\"1080p\"],\"universe\":[\"demon\",\"slayer\"]}","note":"com temporada: abstém"},
+    {"id":"esm-013","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer S01E01 1080p\",\"tokens\":[\"demon\",\"slayer\",\"s01e01\",\"1080p\"],\"universe\":[\"demon\",\"slayer\"]}","note":"com episódio: abstém"},
+    {"id":"esm-014","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer Kimetsu no Yaiba 1080p\",\"tokens\":[\"demon\",\"slayer\",\"kimetsu\",\"no\",\"yaiba\",\"1080p\"],\"universe\":[\"demon\",\"slayer\",\"kimetsu\",\"no\",\"yaiba\"]}","note":"série legítima sem marcador: precisão alta"},
+    {"id":"esm-015","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Attack on Titan 1080p\",\"tokens\":[\"attack\",\"on\",\"titan\",\"1080p\"],\"universe\":[\"attack\",\"on\",\"titan\",\"shingeki\",\"no\",\"kyojin\"]}","note":"série com alias: precisão alta (3/3 tokens da busca)"},
+    {"id":"esm-016","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Shingeki no Kyojin 1080p\",\"tokens\":[\"shingeki\",\"no\",\"kyojin\",\"1080p\"],\"universe\":[\"attack\",\"on\",\"titan\",\"shingeki\",\"no\",\"kyojin\"]}","note":"título original: precisão alta"},
+    {"id":"esm-017","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"One Piece 1080p\",\"tokens\":[\"one\",\"piece\",\"1080p\"],\"universe\":[\"one\",\"piece\"]}","note":"série curta: precisão perfeita"},
+    {"id":"esm-018","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Naruto Shippuden 1080p\",\"tokens\":[\"naruto\",\"shippuden\",\"1080p\"],\"universe\":[\"naruto\",\"shippuden\"]}","note":"série com subtítulo: precisão perfeita"},
+    {"id":"esm-019","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Boku no Hero Academia 1080p\",\"tokens\":[\"boku\",\"no\",\"hero\",\"academia\",\"1080p\"],\"universe\":[\"my\",\"hero\",\"academia\"]}","note":"título original vs inglês: precisão baixa (0/3)"},
+    {"id":"esm-020","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"My Hero Academia 1080p\",\"tokens\":[\"my\",\"hero\",\"academia\",\"1080p\"],\"universe\":[\"my\",\"hero\",\"academia\"]}","note":"título inglês: precisão perfeita"},
+    {"id":"esm-021","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"The Boys S05E01 1080p WEB-DL\",\"allNames\":[\"The Boys\"],\"cutTail\":false}","note":"cutTail=false: mede a release inteira, não só a cabeça"},
+    {"id":"esm-022","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"The Boys 1080p\",\"tokens\":[\"the\",\"boys\",\"1080p\"],\"universe\":[\"the\",\"boys\"],\"cutTail\":false}","note":"cutTail=false: mede a release inteira"},
+    {"id":"esm-023","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"www.UIndex.org - The Boys S05E01 1080p\",\"allNames\":[\"The Boys\"]}","note":"etiqueta www no começo é tirada"},
+    {"id":"esm-024","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Stranger Things 1080p\",\"tokens\":[\"stranger\",\"things\",\"1080p\"],\"universe\":[\"stranger\",\"things\"]}","note":"série com artigo: precisão perfeita"},
+    {"id":"esm-025","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Game of Thrones S01E01 Winter is Coming 1080p\",\"allNames\":[\"Game of Thrones\",\"A Game of Thrones\"]}","note":"release com nome do episódio: episodeWorkTokens corta antes do S01E01"}
+  ]
+}
