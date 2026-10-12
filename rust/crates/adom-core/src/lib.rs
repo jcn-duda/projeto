@@ -8,11 +8,16 @@
 //! Vocabulário: porta SÓ `titleTokens` (módulo `matching_vocabulary`), com
 //! golden próprio em `rust/golden/matching-vocabulary-title-tokens.jsonl`.
 
+mod catalog_year;
 mod latin_table;
 mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
+mod short_name_tail;
 mod title_normalization;
+
+pub use catalog_year::{catalog_alt_year_of, catalog_year_of};
+pub use short_name_tail::short_name_tail_contradicts;
 
 pub use matching_decisions::{
     adaptation_identity_contradicts, first_significant_token, live_action_year_contradicts,

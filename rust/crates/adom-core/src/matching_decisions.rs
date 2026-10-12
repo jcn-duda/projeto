@@ -20,13 +20,13 @@ use crate::matching_vocabulary::{
 };
 
 /// `\d+` do JS: pelo menos um dígito ASCII, e só dígitos.
-fn is_plain_digits(token: &str) -> bool {
+pub(crate) fn is_plain_digits(token: &str) -> bool {
     !token.is_empty() && token.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// Primeiro `(?:19|20)\d{2}` do texto, sem fronteiras (como `String.match`).
 /// Devolve 0 quando não há ano.
-fn first_year_in(text: &str) -> i64 {
+pub(crate) fn first_year_in(text: &str) -> i64 {
     let b = text.as_bytes();
     for i in 0..b.len().saturating_sub(3) {
         let prefix_ok = (b[i] == b'1' && b[i + 1] == b'9') || (b[i] == b'2' && b[i + 1] == b'0');
