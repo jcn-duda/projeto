@@ -13,18 +13,18 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-metric-id.json",
-    "sha256": "3bae0ba83bdad798ee61008b3318ea9e3e7cfe64a7fa260fdb640c40e805bc05",
-    "cases": 61
+    "sha256": "3f839d1f430636d1a00d49756059e9d7efcbd21edf44e01e5b5f2cde19fe4dcb",
+    "cases": 71
   },
   "output": {
     "path": "rust/golden/metric-id.jsonl",
-    "sha256": "0fbbb17b7742cc97740bb114d9101bf72d95927b0a8c23a1f80093bc73fcc996",
-    "lines": 61
+    "sha256": "1b855c64a97e9a7bd57680cbd906d5bcf071f391c1957f41076913f20936528f",
+    "lines": 71
   },
   "node": {
     "major": 22
   },
   "git": {
-    "revision": "790bfacffa5f14461a10d09cc16e2fa4e324b677"
+    "revision": "a4ee15906bebe3e6816aa1d5fb612a400eba7c61"
   }
 }

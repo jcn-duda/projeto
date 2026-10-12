@@ -98,7 +98,11 @@ pub(crate) fn js_to_string(v: &Value) -> String {
         Value::String(s) => s.clone(),
         Value::Null => "null".to_string(),
         Value::Bool(b) => b.to_string(),
-        Value::Number(n) => n.to_string(),
+        // `String(number)` do JS coincide com `JSON.stringify` na formatação
+        // numérica (`1337.0` → `"1337"`, `1e21` → `"1e+21"`, `-0` → `"0"`).
+        // `Number::to_string` do serde ecoaria o LÉXEMA (`"1337.0"`, `"1e21"`),
+        // divergindo do oráculo; por isso reusa o formatador do stringify.
+        Value::Number(n) => js_number_to_string(n),
         Value::Array(itens) => itens
             .iter()
             .map(|i| match i {

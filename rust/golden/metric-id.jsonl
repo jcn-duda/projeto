@@ -59,3 +59,13 @@
 {"id":"mi-key-45","input":"{\"op\":\"key\",\"value\":\"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\"}","expected":"fallback.indexer.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"}
 {"id":"mi-key-array","input":"{\"op\":\"key\",\"value\":[\"a\",\"b\"]}","expected":"fallback.indexer.a_b"}
 {"id":"mi-key-emoji","input":"{\"op\":\"key\",\"value\":\"😀\"}","expected":"fallback.indexer.__"}
+{"id":"mi-safe-float-integral","input":"{\"op\":\"safe\",\"value\":1337.0}","expected":"1337"}
+{"id":"mi-safe-float-hundred","input":"{\"op\":\"safe\",\"value\":100.0}","expected":"100"}
+{"id":"mi-safe-float-exp-small","input":"{\"op\":\"safe\",\"value\":1.5e3}","expected":"1500"}
+{"id":"mi-safe-float-exp-negative","input":"{\"op\":\"safe\",\"value\":2.5e-7}","expected":"2.5e-7"}
+{"id":"mi-safe-float-exp-positive","input":"{\"op\":\"safe\",\"value\":1e21}","expected":"1e_21"}
+{"id":"mi-safe-float-exp-large","input":"{\"op\":\"safe\",\"value\":1e100}","expected":"1e_100"}
+{"id":"mi-safe-negative-zero","input":"{\"op\":\"safe\",\"value\":-0}","expected":"unknown"}
+{"id":"mi-key-float-integral","input":"{\"op\":\"key\",\"value\":1337.0}","expected":"fallback.indexer.1337"}
+{"id":"mi-key-float-exp-small","input":"{\"op\":\"key\",\"value\":1.5e3}","expected":"fallback.indexer.1500"}
+{"id":"mi-key-negative-zero","input":"{\"op\":\"key\",\"value\":-0}","expected":"fallback.indexer.unknown"}
