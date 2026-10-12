@@ -1,0 +1,14 @@
+{"id":"dn-001","input":"{\"names\":[]}","expected":"[]"}
+{"id":"dn-002","input":"{\"names\":[\"Foo\"]}","expected":"[\"Foo\"]"}
+{"id":"dn-003","input":"{\"names\":[\"Foo\",\"foo\"]}","expected":"[\"Foo\"]"}
+{"id":"dn-004","input":"{\"names\":[\"Foo\",null,\"Bar\"]}","expected":"[\"Foo\",\"Bar\"]"}
+{"id":"dn-005","input":"{\"names\":[\"Foo\",\"\",\"Bar\"]}","expected":"[\"Foo\",\"Bar\"]"}
+{"id":"dn-006","input":"{\"names\":[\"Foo\",\"Bar\",\"Foo\"]}","expected":"[\"Foo\",\"Bar\"]"}
+{"id":"dn-007","input":"{\"names\":[\"Foo\",\"Bar\"]}","expected":"[\"Foo\",\"Bar\"]"}
+{"id":"dn-008","input":"{\"names\":[\"...\",\"...\"]}","expected":"[\"...\",\"...\"]"}
+{"id":"dn-009","input":"{\"names\":[\"Extermínio\",\"Exterminio\"]}","expected":"[\"Extermínio\"]"}
+{"id":"dn-010","input":"{\"names\":[\"Duna\",\"Duna\",\"Arrival\"]}","expected":"[\"Duna\",\"Arrival\"]"}
+{"id":"dn-011","input":"{\"names\":[null,null]}","expected":"[]"}
+{"id":"dn-012","input":"{\"names\":[\"...\",\"Foo\",\"...\"]}","expected":"[\"...\",\"Foo\",\"...\"]"}
+{"id":"dn-013","input":"{\"names\":[\"Foo!\",\"foo\"]}","expected":"[\"Foo!\"]"}
+{"id":"dn-014","input":"{\"names\":[\"!!!\",\"???\"]}","expected":"[\"!!!\",\"???\"]"}

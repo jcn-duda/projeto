@@ -11,6 +11,7 @@ mod catalog_year;
 mod collapse_acronyms;
 pub mod config_encoding;
 mod decode_entities;
+mod dedupe_names;
 mod dk_seal;
 mod episode_matching;
 mod episode_parse;
@@ -123,6 +124,7 @@ pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
 pub use strip_diacritics::strip_diacritics;
+pub use dedupe_names::dedupe_names;
 
 /// Único formato de manifest aceito pelo consumidor do golden.
 ///

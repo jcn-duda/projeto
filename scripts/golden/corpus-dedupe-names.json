@@ -1,0 +1,20 @@
+{
+  "version": "corpus-dedupe-names/1",
+  "note": "Casos de dedupeNames em title-normalization.ts. Entrada: {names:[...]}; null JSON é null/undefined. Saída do oráculo Node: JSON.stringify do array.",
+  "cases": [
+    {"id":"dn-001","input":"{\"names\":[]}","note":"lista vazia"},
+    {"id":"dn-002","input":"{\"names\":[\"Foo\"]}","note":"um nome"},
+    {"id":"dn-003","input":"{\"names\":[\"Foo\",\"foo\"]}","note":"mesma forma normalizada: fica a primeira grafia"},
+    {"id":"dn-004","input":"{\"names\":[\"Foo\",null,\"Bar\"]}","note":"null no meio"},
+    {"id":"dn-005","input":"{\"names\":[\"Foo\",\"\",\"Bar\"]}","note":"string vazia no meio"},
+    {"id":"dn-006","input":"{\"names\":[\"Foo\",\"Bar\",\"Foo\"]}","note":"duplicata não adjacente"},
+    {"id":"dn-007","input":"{\"names\":[\"Foo\",\"Bar\"]}","note":"dois nomes diferentes"},
+    {"id":"dn-008","input":"{\"names\":[\"...\",\"...\"]}","note":"pontuação repetida: normaliza vazio e os dois permanecem"},
+    {"id":"dn-009","input":"{\"names\":[\"Extermínio\",\"Exterminio\"]}","note":"acento e sem acento normalizam igual: fica a primeira grafia"},
+    {"id":"dn-010","input":"{\"names\":[\"Duna\",\"Duna\",\"Arrival\"]}","note":"três nomes com o do meio repetido"},
+    {"id":"dn-011","input":"{\"names\":[null,null]}","note":"só null"},
+    {"id":"dn-012","input":"{\"names\":[\"...\",\"Foo\",\"...\"]}","note":"pontuação em volta de um nome: os três permanecem"},
+    {"id":"dn-013","input":"{\"names\":[\"Foo!\",\"foo\"]}","note":"pontuação colada normaliza igual ao nome"},
+    {"id":"dn-014","input":"{\"names\":[\"!!!\",\"???\"]}","note":"duas pontuações diferentes, ambas vazias na forma normalizada"}
+  ]
+}
