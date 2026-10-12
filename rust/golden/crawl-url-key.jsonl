@@ -1,0 +1,24 @@
+{"id":"cu-001","input":"{\"raw\":\"\"}","expected":""}
+{"id":"cu-002","input":"{\"raw\":\"   \"}","expected":""}
+{"id":"cu-003","input":"{\"raw\":\"/\"}","expected":"/"}
+{"id":"cu-004","input":"{\"raw\":\"/filme/foo/\"}","expected":"/filme/foo"}
+{"id":"cu-005","input":"{\"raw\":\"https://x.com/a/b?utm_source=wp&nocache=1#anexo\"}","expected":"/a/b"}
+{"id":"cu-006","input":"{\"raw\":\"https://host/filme/foo/\"}","expected":"/filme/foo"}
+{"id":"cu-007","input":"{\"raw\":\"https://xnerdfilmes.net/filme/tard-season-1-dublado/\"}","expected":"/filme/tard-season-1-dublado"}
+{"id":"cu-008","input":"{\"raw\":\"https://www.filmesviatorrenthd.net/filme/tard-season-1-dublado/\"}","expected":"/filme/tard-season-1-dublado"}
+{"id":"cu-009","input":"{\"raw\":\"https://x.com/a//b\"}","expected":"/a/b"}
+{"id":"cu-010","input":"{\"raw\":\"::::\"}","expected":"::::"}
+{"id":"cu-011","input":"{\"raw\":\"a/b\"}","expected":"a/b"}
+{"id":"cu-012","input":"{\"raw\":\"https://x.com\"}","expected":"/"}
+{"id":"cu-013","input":"{\"raw\":\"foo://host\"}","expected":"/"}
+{"id":"cu-014","input":"{\"raw\":\"?x=1\"}","expected":"/"}
+{"id":"cu-015","input":"{\"raw\":\"https://x.com/a%2Fb\"}","expected":"/a%2Fb"}
+{"id":"cu-016","input":"{\"raw\":\"https://x.com/a/b/../c\"}","expected":"/a/c"}
+{"id":"cu-017","input":"{\"raw\":\"https://x.com//\"}","expected":"/"}
+{"id":"cu-018","input":"{\"raw\":\"  /a  \"}","expected":"/a"}
+{"id":"cu-019","input":"{\"raw\":\"/a//b/\"}","expected":"/a/b"}
+{"id":"cu-020","input":"{\"raw\":\"https://x.com/a b\"}","expected":"/a%20b"}
+{"id":"cu-021","input":"{\"raw\":\"https://x.com/filme/10\"}","expected":"/filme/10"}
+{"id":"cu-022","input":"{\"raw\":\"http://\"}","expected":"/"}
+{"id":"cu-023","input":"{\"raw\":\"https://user:pass@host:8080/pt/filmes/x/\"}","expected":"/pt/filmes/x"}
+{"id":"cu-024","input":"{\"raw\":\"https://x.com/café/\"}","expected":"/caf%C3%A9"}

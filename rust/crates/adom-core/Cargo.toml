@@ -37,6 +37,10 @@ serde_json = { version = "1", features = ["preserve_order"] }
 aes-gcm = "0.10"
 # scrypt para derivar chave do segredo (paridade com crypto.scrypt do Node).
 scrypt = "0.11"
+# ── crawl_url_key (pathname WHATWG, paridade com `new URL` do Node) ──
+# Versão exata. `Url::path` nesta versão é percent-encoded (`%2F` não vira
+# barra). O caminho da chave não é decodificado.
+url = "=2.5.8"
 
 [dev-dependencies]
 # Só para os testes de integridade do golden (nunca entram no runtime):

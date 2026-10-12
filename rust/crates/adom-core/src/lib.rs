@@ -10,6 +10,7 @@ mod cache_keys;
 mod cache_quotas;
 mod catalog_year;
 mod collapse_acronyms;
+mod crawl_url_key;
 pub mod config_encoding;
 mod decode_entities;
 mod dedupe_names;
@@ -131,6 +132,7 @@ pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
 pub use release_guards::{magnet_season_contradicts, magnet_year_contradicts, text_years_contradict};
+pub use crawl_url_key::crawl_url_key;
 pub use bytes_to_size::bytes_to_size;
 pub use decode_entities::decode_entities;
 pub use collapse_acronyms::collapse_acronyms;
