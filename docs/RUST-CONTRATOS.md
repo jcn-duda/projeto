@@ -1,12 +1,20 @@
 # RUST-CONTRATOS.md — contratos TS→Rust
 
-Status: **EM CURSO**. A fatia **HMAC de `/resolve`** foi verificada contra o
-fonte em `HEAD 022ae03` e **ainda não tem porte registrado** (§1, §3.1). A
-revisão da migração em `HEAD ec850cf` (branch `rust`) conta **18 módulos
-portados, cobertos por 18 goldens** (§3): os contratos de `src/utils/*.ts` que
-eles cobrem foram lidos no fonte e ancorados em oráculo (§2). Há ainda **duas fatias
-em andamento na árvore de trabalho, sem commit** (§3.1). Config, cache,
-rotas e providers seguem **PENDENTES** (§5).
+Status: **EM CURSO**. Snapshot desta revisão: **`b133bd1`** (branch `rust`;
+`git describe` = `v1.1.0-75-gb133bd1`; **68 commits** à frente de `022ae03`, o
+`HEAD` que o §1 citava, e **31** à frente de `d8505b2`, a última revisão deste
+arquivo). O crate `adom-core` declara **43 módulos** em `lib.rs` — a contagem é
+por `mod` no `lib.rs`, não por arquivo `.rs` (são 45 `.rs` no total: 44 no nível
+superior, incluindo `lib.rs`, mais `stream_quotas_extra/selection.rs`) — cobertos
+por **42 datasets golden** (`38+4` `.jsonl`) com **41 manifests**
+(`stream-quotas-extra` não tem manifest). Os `.jsonl` somam **4.850 linhas**; a
+soma de `corpus.cases` dos 41 manifests é **4.823** (a diferença de 27 é o
+`stream-quotas-extra`, sem manifest).
+
+O **HMAC de `/resolve`** agora **tem porte commitado** (`resolve_sign`,
+§1/§3): deixou de ser contrato alvo. A ponte `adom-napi` também está commitada
+(§3.1). Config, cache, rotas e providers seguem **PENDENTES** como contrato
+(§5), embora as fatias **puras** de config e cache já estejam portadas (§3).
 
 Documentação operacional de apoio à migração TS→Rust: descreve contratos **como
 o código TS os cumpre hoje**, para servir de alvo de porte. Onde §3 afirma porte,
@@ -23,27 +31,32 @@ Fontes lidas (existem no checkout; links relativos):
 - [`src/runtime.ts`](../src/runtime.ts) — `opts().debridApiKey`, `prefix()`
 - [`src/config/debrid.ts`](../src/config/debrid.ts) — `resolveSecret`
 
-Fontes do lado Rust lidos nesta revisão — a verificação deixou de cobrir uma
-fatia só e passou a cobrir o crate inteiro:
+Lado Rust lido nesta revisão:
 
 - [`rust/crates/adom-core/src/lib.rs`](../rust/crates/adom-core/src/lib.rs) —
-  módulos portados e API pública do crate
-- [`rust/golden/`](../rust/golden/) — 20 `.jsonl` + 20 manifests na árvore:
-  **18 commitados** (§3) e 2 sem commit (§3.1)
-- [`rust/crates/adom-core/tests/`](../rust/crates/adom-core/tests/) — um teste
-  golden por oráculo (19 `*_golden.rs` + `golden_corpus.rs` para o
-  `title-normalization`, que é o piloto histórico), mais `unicode_parity.rs`
-- [`scripts/golden/`](../scripts/golden/) — geradores, corpus e checkers do
-  oráculo Node
+  **43 módulos** declarados e a API pública do crate
+- [`rust/golden/`](../rust/golden/) — **42 `.jsonl` + 41 manifests** na árvore
+  (todos commitados no snapshot; `stream-quotas-extra.jsonl` sem manifest)
+- [`rust/crates/adom-core/tests/`](../rust/crates/adom-core/tests/) — **43
+  arquivos**: 42 testes golden (41 `*_golden.rs` + `golden_corpus.rs`, o piloto
+  histórico de `title-normalization`) e `unicode_parity.rs`; `tests/common/mod.rs`
+  é suporte
+- [`scripts/golden/`](../scripts/golden/) — geradores, corpus, checkers e a
+  política de hash de fonte (`source-fingerprint.mjs`)
 
-"Verificado" = lido no fonte nesta revisão (e, no §2 e §3, também executado).
-As linhas citadas no §1 são do `HEAD 022ae03` e podem deslocar; o path é o link
-estável. Identificadores (funções, chaves, campos) são preservados. O runtime de
-produção continua **TypeScript**: nenhum arquivo em `src/` importa o crate Rust.
-No Rust há hoje **18 módulos portados, cobertos por 18 goldens** (§3) — não mais
-só `normalizeTitle`; o HMAC de `/resolve` continua **sem porte registrado** (§3.1).
+"Verificado" = lido no fonte nesta revisão. As contagens têm **método e data**
+(snapshot `b133bd1`, 2026-10-12): módulos por `mod` no `lib.rs`; casos por
+`corpus.cases`/`output.lines` do manifest e por linhas do `.jsonl`. Os **gates**
+de build (fmt/clippy/test) vêm do baseline executado em revisão de agente e
+**não** foram re-executados nesta tarefa (§3, §4). As linhas do §1 são do
+`HEAD 022ae03` e podem deslocar; o path é o link estável. Identificadores
+(funções, chaves, campos) são preservados. O runtime de produção continua
+**TypeScript**; a única ponte ativa é [`src/utils/rust-core.ts`](../src/utils/rust-core.ts),
+que instala `normalizeTitle` no [`src/addon.ts`](../src/addon.ts) sob `RUST_CORE`
+(default **off**) — nenhuma das demais funções portadas é consumida no runtime.
+**Isto é paridade de artefato, não adoção.**
 
-## 1. Contrato HMAC de `/resolve` (VERIFICADO)
+## 1. Contrato HMAC de `/resolve` (VERIFICADO; porte `resolve_sign` commitado)
 
 ### 1.1 Payload assinado (exato)
 
@@ -157,18 +170,13 @@ A reproduzir **sem** acrescentar regex:
   `stream` (`src/routes/addon-router.ts:124`). Não abrir o documentor completo
   de rotas nesta etapa.
 
-## 2. Oráculo golden (VERIFICADO — 19 com oráculo `dist`, 1 sem)
+## 2. Oráculo golden (VERIFICADO — 42 datasets, 41 manifests)
 
-O que esta seção descrevia como "planejado" **existe e roda verde**. O par do
-HMAC está fechado: [`scripts/golden/dump-resolve-sign.mjs`](../scripts/golden/dump-resolve-sign.mjs)
-(gerador + `--check`),
-[`scripts/golden/corpus-resolve-sign.json`](../scripts/golden/corpus-resolve-sign.json)
-e
-[`rust/golden/resolve-sign.jsonl`](../rust/golden/resolve-sign.jsonl) (mais o
-manifest) — **24 casos**, `registry:
-["resolve-sign/signResolve", "resolve-sign/verifyResolve"]`, e chaves
-**fictícias** declaradas no manifest (`kind: fictitious-test-key`; o gerador
-recusa assinar com chave que não tenha o prefixo `adom-golden-resolve-sign-FAKE-`).
+O que esta seção descrevia como "planejado" **existe e roda**. No snapshot
+`b133bd1` (2026-10-12) o diretório [`rust/golden/`](../rust/golden/) tem **42
+`.jsonl`** e **41 manifests** — todos os datasets têm manifest menos
+`stream-quotas-extra.jsonl`. A soma de casos é **4.850**; as contagens por
+dataset estão no mapa do §3.
 
 Contrato comum a todos os oráculos, no padrão de
 [`scripts/golden/dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs):
@@ -176,38 +184,52 @@ manifest `adom-golden-manifest/1`; corpus com `id` estável (**nunca renomear ou
 reciclar**; caso novo entra no fim com id novo); `.jsonl` com o comportamento do
 `dist` vivo; `sha256` de fonte, artifact, corpus e saída; `--check` só leitura.
 Nenhum caminho de checagem abre rede, lê `.env` real, toca `data/*.db` ou fala
-com debrid.
+com debrid. Chaves de HMAC dos goldens são **fictícias** (prefixo
+`adom-golden-resolve-sign-FAKE-`, declarado no manifest como
+`kind: fictitious-test-key`); o gerador recusa assinar com chave que não tenha o
+prefixo.
 
-Três gerações de ferramenta coexistem:
+### 2.1 Política de hash da fonte (EOL)
+
+[`scripts/golden/source-fingerprint.mjs`](../scripts/golden/source-fingerprint.mjs)
+normaliza **só o fim de linha da FONTE** (`CRLF → LF`, casando apenas o par
+`\r\n`; um `\r` isolado fica intacto) antes do SHA-256. Motivo: o mesmo `.ts`
+versionado tem CRLF num checkout Windows e LF em outro, e o hash mudaria sem o
+conteúdo mudar. **Nada** de corpus, saída `.jsonl`, payload de HMAC ou `hint`
+passa por essa normalização — esses continuam byte a byte (a ordem das chaves do
+JSON é preservada). O rótulo `sourceHashLineEndings: "LF"` documenta a política
+no manifest.
+
+Manifests gerados **antes** do commit `fef1cf6` (que introduziu a política) não
+têm o campo e carregam o hash **residual de CRLF**; exemplos citados:
+`config-encoding` (rev `b414a51`) e `reply-budget` (rev `5bad2df`). Regerar
+antes de tratar como estável. No snapshot, só **7** manifests declaram
+`sourceHashLineEndings`: `indexer-priority`, `magnet-uri`,
+`matching-vocabulary-regex`, `matching-vocabulary-sets`,
+`matching-vocabulary-title-tokens`, `release-name-matching`, `resolve-sign`.
+
+### 2.2 Ferramentas (três gerações coexistem)
 
 | Ferramenta | Cobre | Como rodar |
 | --- | --- | --- |
-| [`dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs) — **18 chaves de `--fn`** (13 no registro `FUNCTIONS` + 5 entradas vindas dos `registry-*.mjs`) | os 18 goldens portados do §3: `title-normalization`, `matching-vocabulary`, `matching-vocabulary-sets`, `matching-vocabulary-regex`, `matching-tokens-text`, `matching-tokens-decisions`, `matching-latin-ranges`, `short-name-tail`, `catalog-year`, `br-origin`, `magnet-uri`, `franchise`, `episode-parse` + `multiwork-pack`, `stream-quotas`, `release-work`, `release-title-rules`, `release-name-matching` | `npm run golden:titles:check` (padrão `title-normalization`) ou `node scripts/golden/dump-title-normalization.mjs --check --fn <chave>` |
-| 5 pares `gen-*.mjs` + `registry-*.mjs` (`--check`, `--force`) | as mesmas 5 fatias do fim da lista acima, por fora do gerador unificado | `node scripts/golden/gen-<nome>.mjs --check` |
-| [`dump-resolve-sign.mjs`](../scripts/golden/dump-resolve-sign.mjs) + `resolve-sign-oracle.mjs` (filho isolado) | `resolve-sign` | `npm run golden:resolve-sign:check` |
-| **nenhum dumper** | `matches-br-title` (50 casos, só na árvore — §3.1) | não há: os esperados foram traçados dos testes TS, não do `dist` (ver §4) |
+| [`dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs) — **18 chaves de `--fn`** (13 no registro `FUNCTIONS` + 5 entradas vindas dos `registry-*.mjs`) | 18 goldens: `title-normalization`, `matching-vocabulary`, `matching-vocabulary-sets`, `matching-vocabulary-regex`, `matching-tokens-text`, `matching-tokens-decisions`, `matching-latin-ranges`, `short-name-tail`, `catalog-year`, `br-origin`, `magnet-uri`, `franchise`, `episode-parse`, `multiwork-pack`, `stream-quotas`, `release-work`, `release-title-rules`, `release-name-matching` | `npm run golden:titles:check` (padrão `title-normalization`) ou `node scripts/golden/dump-title-normalization.mjs --check --fn <chave>` |
+| 5 pares `gen-*.mjs` + `registry-*.mjs` (`--check`, `--force`) | as 5 fatias do fim da lista acima, por fora do gerador unificado | `node scripts/golden/gen-<nome>.mjs --check` |
+| [`dump-resolve-sign.mjs`](../scripts/golden/dump-resolve-sign.mjs) + `resolve-sign-oracle.mjs` | `resolve-sign` | `npm run golden:resolve-sign:check` |
+| [`dump-release-labels.mjs`](../scripts/golden/dump-release-labels.mjs) + `release-labels-oracle.mjs` | `release-labels` | `npm run golden:release-labels:check` |
+| [`dump-pt-audio-guards.mjs`](../scripts/golden/dump-pt-audio-guards.mjs) | `pt-audio-guards` | `npm run golden:pt-audio-guards:check` |
+| [`dump-search-name-helpers.mjs`](../scripts/golden/dump-search-name-helpers.mjs) + `search-name-helpers-oracle.mjs` | `search-name-helpers` | `npm run golden:search-name-helpers:check` |
+| [`dump-indexer-priority.mjs`](../scripts/golden/dump-indexer-priority.mjs) | `indexer-priority` | `npm run golden:indexer-priority:check` |
+| [`dump-config-encoding.mjs`](../scripts/golden/dump-config-encoding.mjs) | `config-encoding` | linha de comando |
+| [`registry-matches-br-title.mjs`](../scripts/golden/registry-matches-br-title.mjs) | `matches-br-title` (tem `resolve` que importa o `dist`, mas não está ligado a runner nem a `--fn` — §4) | — |
+| **nenhum gerador** | `reply-budget` (**órfão**: manifest existe, gerador não) | — |
 
-Total na árvore: **20 `.jsonl`**, dos quais **19 regeneráveis contra o `dist`
-vivo**; `matches-br-title` é a exceção.
-
-Complementos: 12 `build-corpus-*.mjs` produzem os corpus; `gen-latin-table.mjs`
-produz a tabela interna `latin_table.rs`. Só `golden:titles` e
-`golden:resolve-sign` têm script no [`package.json`](../package.json) — os
-demais rodam por linha de comando.
-
-Executado nesta revisão (não presumido):
-
-```
-node scripts/golden/dump-resolve-sign.mjs --check
-  [golden] OK: rust/golden/resolve-sign.jsonl (24 casos batem com o dist vivo)
-node scripts/golden/dump-title-normalization.mjs --check --fn br-origin
-  [golden] OK: rust/golden/br-origin.jsonl (439 casos batem com o dist vivo)
-node scripts/golden/gen-stream-quotas.mjs --check
-  [golden] OK: 87 casos, saída e manifest batem com o dist
-node scripts/golden/dump-title-normalization.mjs --check --fn matches-br-title
-  [golden] FALHA: --fn desconhecido: matches-br-title
-             (válidos: os 18 nomes da tabela)
-```
+Complementos: os `build-corpus-*.mjs` produzem os corpus; `gen-latin-table.mjs`
+produz a tabela interna `latin_table.rs`; `generate-stream-quotas-extra.mjs`
+produz `stream-quotas-extra.jsonl` (que **não** tem manifest). Só
+`golden:titles`, `golden:resolve-sign`, `golden:release-labels`,
+`golden:pt-audio-guards`, `golden:search-name-helpers` e `golden:indexer-priority`
+têm par de scripts no [`package.json`](../package.json); os demais rodam por
+linha de comando.
 
 Do lado Node, o teste permanente
 [`test/golden-title-normalization.test.ts`](../test/golden-title-normalization.test.ts)
@@ -217,83 +239,180 @@ verificados pelos testes Rust e pelo `--check` manual.
 
 ## 3. Estado da migração (contexto, não contrato)
 
-Runtime de produção é **TS** (`dist/` roda; nenhum `src/` importa o crate). O Rust
-de hoje é **paridade provada, não adoção**: `rust/crates/adom-core` porta **18
-módulos** extraídos de `src/utils/*.ts` (a base commitada; o `lib.rs` da árvore
-declara 20 — os dois extras estão no §3.1), todos **função pura** (texto/objeto →
-valor), cobertos por **18 goldens** e um teste por golden. Os 18 goldens cobrem
-17 dos 18 módulos: `js_text` não tem golden (é helper interno de semântica de
-texto do JS) e `latin_table` é verificada pelo golden `matching-latin-ranges`,
-compartilhado com `matching_tokens`.
+Runtime de produção é **TS** (`dist/` roda; a única ponte ativa é
+`src/utils/rust-core.ts` → `normalizeTitle` no `addon.ts`, sob `RUST_CORE` off). O
+Rust de hoje é **paridade provada, não adoção**: `rust/crates/adom-core` porta **43
+módulos** (contagem por `mod` no `lib.rs`), quase todos **função pura**
+(texto/objeto → valor), cobertos por **42 goldens** e um teste por golden. **Não
+se deve ler esta lista como "pipeline migrado"**: só as unidades puras abaixo
+saíram do Node; busca, providers, debrid, crawl e o wiring de I/O continuam em
+`src/` (§5).
 
-Ordem do porte (commits da branch `rust`, mais antigo → mais recente), com a API
-pública de [`lib.rs`](../rust/crates/adom-core/src/lib.rs):
+Mapa de capacidades (módulo Rust · API pública · fonte TS · golden/casos). A
+contagem de casos é do snapshot `b133bd1`: **4.850** linhas de `.jsonl` no total;
+a soma de `corpus.cases` dos 41 manifests é **4.823** (faltam os 27 de
+`stream-quotas-extra`, sem manifest). As colunas abaixo vêm do manifest quando
+existe.
 
-| # | Módulo Rust | API pública | Fonte TS | Golden (`rust/golden/`) | Casos |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `title_normalization` | `normalize_title` | `title-normalization.ts` | `title-normalization` | 173 |
-| 2 | `matching_vocabulary` | `title_tokens` | `matching-vocabulary.ts` | `matching-vocabulary-title-tokens` | 203 |
-| 3 | `matching_vocabulary` | `vocabulary_contents` | idem (constantes `PACK_WORDS`, `TECH_NOISE`, …) | `matching-vocabulary-sets` | 13 |
-| 4 | `matching_vocabulary` | `year_range_test`, `episode_token_test` | idem (`YEAR_RANGE`, `EPISODE_TOKEN`) | `matching-vocabulary-regex` | 246 |
-| 5 | `matching_tokens` | `extract_sequence_markers`, `episode_work_tokens`, `first_work_token`, `is_non_naming_token`, `Marker` | `matching-tokens.ts` | `matching-tokens-text` | 243 |
-| 6 | `matching_tokens` + `latin_table` | `is_non_latin_token` (linha única com as faixas latinas; a varredura do Unicode é feita no teste) | idem | `matching-latin-ranges` | 1 |
-| 7 | `matching_decisions` | `title_precision`, `year_contradicts`, `named_sequel_contradicts`, `live_action_year_contradicts`, `adaptation_identity_contradicts`, `first_significant_token` | idem | `matching-tokens-decisions` | 50 |
-| 8 | `matching_tokens` | `first_unmarked_token` (campo `unm` do mesmo golden) | idem | `matching-tokens-text` | — |
-| 9 | `short_name_tail` | `short_name_tail_contradicts` | `short-name-tail.ts` | `short-name-tail` | 15 |
-| 10 | `catalog_year` | `catalog_year_of`, `catalog_alt_year_of` | `catalog-year.ts` | `catalog-year` | 14 |
-| 11 | `br_origin` | `has_pt_signs`, `br_origin_mark` | `br-origin.ts` | `br-origin` | 439 |
-| 12 | `magnet_uri` + `info_hash` | `sanitize_magnet`, `default_magnet`, `extract_info_hash` | `magnet-uri.ts` (`extractInfoHash` vem de `title-normalization.ts`) | `magnet-uri` (`op: info/sanitize/default`) | 46 |
-| 13 | `franchise` | `franchise_base_contradicts`, `franchise_extension_contradicts`, `name_coverage_tokens`, `is_multi_work_collection` | `franchise-base.ts` (+ helpers de `release-name-matching.ts`) | `franchise` | 415 |
-| 14 | `episode_parse` | `parse_title_season_episode`, `season_coverage_excludes`, `ParsedSeasonEpisode` | `episode-matching.ts` | `episode-parse` | 887 |
-| 15 | `multiwork_pack` | `admits_multi_work_pack`, `collection_root`, `collection_root_tokens`, `covers_year`, `pack_year_source` | `multiwork-pack.ts` | `multiwork-pack` | 264 |
-| 16 | `stream_quotas` | `limit_by_indexer` | `stream-quotas.ts` | `stream-quotas` | 87 |
-| 17 | `release_work` | `episode_parse_specificity`, `choose_episode_parse`, `route_work_location`, `release_fits_request`, `release_work_targets`, `WorkTarget` | `release-work.ts` | `release-work` | 72 |
-| 18 | `release_title_rules` | `matches_title_structure`, `short_name_identity`, `matches_short_name_identity`, `ShortNameIdentity` | `release-title-rules.ts` | `release-title-rules` | 63 |
-| 19 | `release_name_matching` | `matches_name`, `franchise_root`, `franchise_roots`, `ends_with_sequence_marker`, `contains_token_run` | `release-name-matching.ts` | `release-name-matching` | 434 |
+**normalização / texto base**
 
-As linhas 5 e 8 são o mesmo golden (`matching-tokens-text`), contado uma vez; a
-linha 6 tem golden próprio. **Total: 18 goldens portados,
-3665 casos** (com `resolve-sign`, 24 casos, são 19 goldens / 3689 casos no
-diretório). `release_name_matching` absorveu `franchise_root` e
-`contains_token_run`, que `multiwork_pack` tinha como cópias privadas (`ec850cf`).
-Esses números são **do artefato** — não são meta nem prova de fase concluída; não
-extrapolar para declarar "Fase 0/1 concluída".
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `title_normalization` | `normalize_title` | `title-normalization.ts` | `title-normalization` (173) |
+| `decode_entities` | `decode_entities` | `title-normalization.ts` | `decode-entities` (25) |
+| `collapse_acronyms` | `collapse_acronyms` | `title-normalization.ts` | `collapse-acronyms` (19) |
+| `strip_diacritics` | `strip_diacritics` | `title-normalization.ts` | `strip-diacritics` (20) |
+| `dedupe_names` | `dedupe_names` | `title-normalization.ts` | `dedupe-names` (14) |
+| `magnet_display_name` | `magnet_display_name` | `title-normalization.ts` | `magnet-display-name` (17) |
+| `bytes_to_size` | `bytes_to_size` | `title-normalization.ts` | `bytes-to-size` (20) |
+| `info_hash` | `extract_info_hash` | `title-normalization.ts` | `magnet-uri` (op `info`) |
+| `js_text` | helpers internos de semântica JS (`js_stringify`, `b64url_*`, `js_slice_units`…) | — | sem golden |
+| `latin_table` | tabela interna | — | verificado por `matching-latin-ranges` |
 
-Como reproduzir: `cd rust; cargo test -p adom-core`. Na presente revisão a suíte
-inteira passa — **21 binários de teste (20 de golden + `unicode_parity.rs`), 106
-testes, 0 falhas** — inclusive os dois alvos que ainda não têm commit, listados em
-§3.1. Os 18 goldens do quadro acima são os **commitados**.
+**tokens e decisões**
 
-### 3.1 Portes em andamento na árvore (sem commit)
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `matching_vocabulary` | `title_tokens`, `vocabulary_contents`, `year_range_test`, `episode_token_test` | `matching-vocabulary.ts` | `matching-vocabulary-title-tokens` (203), `-sets` (13), `-regex` (246) |
+| `matching_tokens` | `extract_sequence_markers`, `episode_work_tokens`, `first_work_token`, `first_unmarked_token`, `is_non_naming_token`, `is_non_latin_token`, `Marker` | `matching-tokens.ts` | `matching-tokens-text` (243), `matching-latin-ranges` (1) |
+| `matching_decisions` | `title_precision`, `year_contradicts`, `named_sequel_contradicts`, `live_action_year_contradicts`, `adaptation_identity_contradicts`, `first_significant_token` | `matching-tokens.ts` | `matching-tokens-decisions` (50) |
 
-Dois portes estão na árvore de trabalho **sem `git add`** — verdes hoje, mas não
-registrados, então não entram no quadro do §3 (a ponte NAPI, no fim, também é da
-árvore e não é porte):
+**ano / nome curto**
 
-- **`resolve-sign`** — `src/resolve_sign.rs` + `tests/resolve_sign_golden.rs`, com
-  `mod resolve_sign;` e `pub use resolve_sign::{sign_resolve, verify_resolve}` já
-  escritos em `lib.rs`, e as deps `hmac`/`sha2`/`subtle` já em
-  `crates/adom-core/Cargo.toml` (arquivos modificados). O golden (24 casos) bate
-  com o `dist` (§2). Enquanto não houver commit, o §1 continua sendo **contrato
-  alvo**, não porte.
-- **`matches-br-title`** — `src/matches_br_title.rs` +
-  `tests/matches_br_title_golden.rs`, `pub use matches_br_title::matches_br_title`
-  em `lib.rs`, e `rust/golden/matches-br-title.jsonl` + manifest (50 casos,
-  `registry: matches-br-title/matchesBrTitle`). **Este golden não tem oráculo**:
-  o próprio
-  [`scripts/golden/registry-matches-br-title.mjs`](../scripts/golden/registry-matches-br-title.mjs)
-  declara que foi "gerado manualmente (corpus + JSONL) porque o dist não estava
-  disponível", com os esperados traçados de
-  [`test/br-title.test.ts`](../test/br-title.test.ts) e
-  `test/br-title-edition.test.ts`; o comando de regeneração que o arquivo sugere
-  (`--fn matches-br-title`) **não existe** no gerador (§2).
-- `rust/crates/adom-napi/` — crate **sem `git add`**, mas com `rust/Cargo.toml`
-  **já modificado** para incluí-lo em `members`, e o lock atualizado. Expõe
-  `normalize_title`, `sign_resolve` e `verify_resolve` por NAPI-RS;
-  `cargo check -p adom-napi` passa na árvore. Ele **reimplementa o HMAC** em vez
-  de delegar ao `adom-core`, não tem nenhum teste próprio (só `src/lib.rs` e
-  `build.rs`), e o comentário do workspace em `rust/Cargo.toml` ainda afirma que
-  "só existe o crate `adom-core`" — defasado.
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `catalog_year` | `catalog_year_of`, `catalog_alt_year_of` | `catalog-year.ts` | `catalog-year` (14) |
+| `short_name_tail` | `short_name_tail_contradicts` | `short-name-tail.ts` | `short-name-tail` (15) |
+
+**franquia / pack**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `franchise` | `franchise_base_contradicts`, `franchise_extension_contradicts`, `name_coverage_tokens`, `is_multi_work_collection` | `franchise-base.ts` | `franchise` (415) |
+| `multiwork_pack` | `admits_multi_work_pack`, `collection_root`, `collection_root_tokens`, `covers_year`, `pack_year_source` | `multiwork-pack.ts` | `multiwork-pack` (264) |
+
+**episódio**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `episode_parse` | `parse_title_season_episode`, `season_coverage_excludes`, `ParsedSeasonEpisode` | `episode-matching.ts` | `episode-parse` (890) |
+| `episode_matching` | `matches_episode`, `is_season_pack_release`, `is_season_pack_fill_eligible` | `episode-matching.ts` | `episode-matching` (40) |
+| `episode_series_matching` | `matches_episode_work_identity`, `matches_global_series_no_marker` | `release-title-rules.ts` | `episode-series-matching` (25) |
+
+**cache (nomes de namespace e cotas — NÃO o SQL/`data/*.db`)**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `cache_keys` | `cache_key`, `is_versioned`, `namespace_version`, `prefix`, `LEGACY_PREFIXES`, `mag_meta_counts_key` | `cache-keys.ts` | `cache-keys` (54) |
+| `cache_quotas` | `headroom`, `namespace_for`, `quota_for`, `universe_len`, `universe_total`, `validate_quotas`, `MAX_ENTRIES` | `cache-quotas.ts` | `cache-quotas` (128) |
+
+**nomes / cotas de stream**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `release_name_matching` | `matches_name`, `franchise_root`, `franchise_roots`, `ends_with_sequence_marker`, `contains_token_run` | `release-name-matching.ts` | `release-name-matching` (434) |
+| `release_title_rules` | `matches_title_structure`, `short_name_identity`, `matches_short_name_identity`, `ShortNameIdentity` | `release-title-rules.ts` | `release-title-rules` (63) |
+| `matches_br_title` | `matches_br_title` (recebe `cut_tail` em vez de ler config) | `release-title-rules.ts` | `matches-br-title` (50) |
+| `release_work` | `episode_parse_specificity`, `choose_episode_parse`, `route_work_location`, `release_fits_request`, `release_work_targets`, `WorkTarget` | `release-work.ts` | `release-work` (72) |
+| `stream_quotas` | `limit_by_indexer` | `stream-quotas.ts` | `stream-quotas` (87) |
+| `stream_quotas_extra` | `stream_quality`, `quality_from_title`, `select_quality_candidates`, `limit_by_quality`, `limit_by_quality_and_indexer`, `limit_reserving_br`, `QUALITY_KEYS`, `UNKNOWN_QUALITY` | `stream-quotas.ts` + `stream-quotas-candidate.ts` | `stream-quotas-extra` (27; **sem manifest**) |
+
+**crypto / config / funções puras (NÃO o schema de usuário completo)**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `resolve_sign` | `sign_resolve`, `verify_resolve` | `sign.ts` | `resolve-sign` (24) |
+| `config_encoding` | `decode_config`, `encode_config`, `parse_segment`, `seal_segment` | `runtime.ts` (+ `secret-box.ts`) | `config-encoding` (48) |
+| `dk_seal` | `derive_dk_key`, `is_sealed`, `seal_dk`, `unseal_dk` | `secret-box.ts` | `config-encoding` (op `seal`/`open`/`isSealed`) |
+| `reply_budget` | `remaining_check_budget` | `deadline.ts` | `reply-budget` (14) |
+
+O `parse_segment`/`encode_config` cobre as funções **puras** de `runtime.ts`; o
+`SCHEMA`/`defaults()` completo (campos, defaults, clamps, `KEYS` do configurador)
+fica no TS e **não** é mapeado aqui (§5). O `seal` do Node usa `randomBytes(12)`;
+no Rust o nonce é parâmetro (função pura, golden determinístico) — a camada
+chamadora fornece os 12 bytes.
+
+**URL**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `crawl_url_key` | `crawl_url_key` | `crawl-url-key.ts` | `crawl-url-key` (24) |
+| `net_safety` | `is_safe_download_url` | `net-safety.ts` | `net-safety` (28) |
+
+`crawl_url_key` usa o pathname do parser WHATWG (`new URL` do Node) e **não**
+prova paridade para qualquer UTF-8: o golden tem **24 casos**. `net_safety`
+(`isSafeDownloadUrl`) tem **28 casos** — prova esses 28, não uma cobertura ASCII
+universal.
+
+**rótulos de release / guardas de áudio**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `release_labels` | `source_from_title`, `edition_from_title`, `compact_audio` | `audio-quality.ts` | `release-labels` (124) |
+| `pt_audio_guards` | `explicit_pt_audio`, `has_explicit_foreign_audio` | `audio-quality.ts` | `pt-audio-guards` (140) |
+| `audio_lang` | `generic_dub_proves_pt`, `foreign_lang_named_for_bucket`, `names_foreign_dub_language` | `audio-cleanup.ts` | `audio-lang` (71) |
+
+**guardas de release / origem**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `release_guards` | `text_years_contradict`, `magnet_year_contradicts`, `magnet_season_contradicts` | `release-filters.ts` | `release-guards` (19) |
+| `non_feature_release` | `is_home_source`, `is_non_feature`, `pre_home_release_contradicts` | `non-feature-release.ts` | `non-feature-release` (40) |
+| `br_origin` | `has_pt_signs`, `br_origin_mark` | `br-origin.ts` | `br-origin` (439) |
+| `magnet_uri` | `sanitize_magnet`, `default_magnet` | `magnet-uri.ts` | `magnet-uri` (46) |
+
+**consulta de busca / prioridade de indexer**
+
+| Módulo | API pública | Fonte TS | Golden (casos) |
+| --- | --- | --- | --- |
+| `search_name_helpers` | `resolve_search_names`, `resolve_original_step_name`, `parse_stremio_id`, `build_search_query`, `numeral_search_variant`, `mark_debrid_name`, `matches_quality_filter` | `search-names.ts` | `search-name-helpers` (141) |
+| `indexer_priority` | `priority_map`, `compare_indexer_priority` | `indexer-priority.ts` | `indexer-priority` (70) |
+
+As contagens acima são **do artefato** — não são meta nem prova de fase
+concluída; não extrapolar para declarar "Fase 0/1 concluída".
+
+Gates do workspace no baseline (revisão de agente; **não** re-executados nesta
+tarefa): `cargo fmt --check` = 0, `cargo clippy -D warnings` = 0, `cargo test` =
+0 falhas em **48 conjuntos de resultado**. O baseline `9fb915d` tinha clippy
+vermelho; `ad50b10` zerou fmt/clippy (seleção de `struct` pura e fontes portadas
+válidas). Toolchain pinada em [`rust-toolchain.toml`](../rust/rust-toolchain.toml)
+= **1.92.0** — primeira estável com `char::UNICODE_VERSION = (17,0,0)`, o mesmo
+Unicode 17.0.0 do Node v22.23.2 do oráculo. **Não** extrapolar para uma toolchain
+antiga (ex.: 1.83) nem declarar "sempre zero" num contexto futuro que não mapeia
+Feature/Prod.
+
+Benchmark: [`rust/benchmarks/local-ts-baseline.json`](../rust/benchmarks/local-ts-baseline.json)
+é **observacional, local** (`win32`), **passivo** (sem forçar busca/play nem HTTP
+externo), com `controlledBenchmark:false` e `rustComparison:false`. p50/p95 são
+**NULOS** nesta amostra (a janela do servidor não é reportada pelo endpoint) —
+nulo não é zero. Não há servidor Rust neste checkout, logo nenhuma comparação
+TS-vs-Rust é feita ou afirmada. Sem suposições de deploy em VPS.
+
+## 3.1 Ponte NAPI e oráculos em andamento
+
+- **`adom-napi`** (`rust/crates/adom-napi`, **commitado**): 12 exports —
+  `normalizeTitle`, `signResolve`, `verifyResolve`, `matchesBrTitle`,
+  `parseTitleSeasonEpisode`, `matchesName`, `sanitizeMagnet`, `defaultMagnet`,
+  `extractInfoHash`, `brOriginMark`, `hasPtSigns`, `limitByIndexer`. É **só
+  wrapping**: cada função delega a `adom_core::*` — inclusive
+  `sign_resolve`/`verify_resolve`, que **encaminham** para o núcleo criptográfico
+  (`adom-core::resolve_sign`); **não há HMAC duplicado**. Tem
+  [`tests/napi_parity.rs`](../rust/crates/adom-napi/tests/napi_parity.rs) com
+  **34 testes** (executados em revisão de agente, não re-executados aqui). O
+  workspace declara `members = ["crates/adom-core", "crates/adom-napi"]`.
+- **Diferença latente**: o binding `verifyResolve` tipa `sig: String`, enquanto o
+  TS aceita `unknown` e devolve `false` para não-string. Hoje **não há consumidor
+  TS** do binding (§4); a diferença só apareceria quando `src/` começar a
+  consumi-lo.
+- **Oráculos novos (PENDENTES neste snapshot)**: `display` (o `streamDisplayName`
+  reexportado por `search-names.ts`), `relabel` e `trace`
+  (`dropTrace`/`onSelected` de `stream-quotas.ts`) **não** estão em `lib.rs` nem
+  têm golden no snapshot. Ficaram de fora de propósito nas fatias atuais
+  (`search_name_helpers.rs`, `stream_quotas.rs`); agentes paralelos podem estar
+  escrevendo neles. **Não** declarar concluídos, nem afirmar `pub` de Rust antes
+  do commit. No momento desta revisão havia trabalho **não commitado** de
+  `audio-presentation` (Rust) e dos três oráculos de `display`/`relabel`/`trace`
+  — não contados como entregues.
 
 ## 4. Riscos e ambiguidades
 
@@ -308,84 +427,95 @@ Da fatia HMAC (§1) — continuam válidos:
 - **Chave por requisição**: a assinatura depende da chave efetiva da request
   (URL/ENV), não de estado global.
 
-Novos, do estado atual da migração:
+Do estado atual da migração:
 
 - **Porte ≠ adoção**: nenhuma das funções portadas substitui caminho TS em
   runtime; o que segura regressão é o `--check` do oráculo, manualmente. Nada
   obriga o `dist` a continuar batendo depois que o `src/` mudar — um `--fn`
   esquecido deixa golden e fonte desalinhados sem nenhum teste gritando.
-- **Dois HMAC no mesmo repositório**: `adom-core::resolve_sign` (WIP) e
-  `adom-napi::sign_resolve`/`verify_resolve` implementam o contrato separadamente.
-  São duas definições a manter iguais; o napi já **estreitou `sig` para
-  `String`**, enquanto o TS aceita `unknown` e devolve `false` para não-string —
-  diferença latente que só aparece quando o `src/` começar a consumir o binding.
-- **Verde sem commit ≠ portado**: `resolve_sign_golden` e
-  `matches_br_title_golden` passam na árvore atual, mas nenhum dos dois existe em
-  `HEAD`. A árvore é compartilhada com portes paralelos e muda enquanto se
-  documenta: qualquer afirmação de estado precisa ser refeita (`git status` +
-  `cargo test`) antes de ser citada.
-- **`matches-br-title` sem oráculo**: é o único golden do diretório cujo
-  `expected` não veio do `dist` vivo — veio de testes TS, e não tem `--check`.
-  Ele prova paridade com o comportamento *testado*, não com o comportamento
-  *executado*: se o TS divergir dos próprios testes, o golden continua "batendo".
-  Registrar a chave no gerador unificado (ou criar dumper próprio) e regenerar
-  contra o `dist` antes de contar essa fatia como portada.
-- **§3 não significa "arquivo migrado"**: os arquivos parcialmente portados
-  têm funções deixadas de propósito fora (dependem de `config`, de módulo ainda
-  não portado, ou de I/O). A lista do que falta está no §5.
+- **Binding estreita `sig` para `String`**: o núcleo aceita `Option<&str>` e o TS
+  aceita `unknown`; o wrapper NAPI tipa `String`. Diferença latente, sem
+  consumidor TS hoje.
+- **A árvore é compartilhada com portes paralelos e muda enquanto se documenta**:
+  qualquer afirmação de estado precisa ser refeita (`git status` + `cargo test`)
+  antes de ser citada. Há alterações **não commitadas** em
+  `rust/golden/episode-matching.jsonl`, `rust/golden/matches-br-title.jsonl` e
+  corpus correlatos no momento desta revisão; não tratá-las como snapshot.
+- **`matches-br-title` sem oráculo vivo**: é o único golden cujo `expected` foi
+  traçado de testes TS (`test/br-title.test.ts`,
+  `test/br-title-edition.test.ts`), não do `dist`. O
+  [`registry-matches-br-title.mjs`](../scripts/golden/registry-matches-br-title.mjs)
+  tem um `resolve` que importa o `dist`, mas não está ligado a runner nem ao
+  `--fn` do gerador unificado (`--fn matches-br-title` **não existe**). Ele prova
+  paridade com o comportamento *testado*, não com o *executado*: se o TS divergir
+  dos próprios testes, o golden continua "batendo". Ligar ao gerador e regenerar
+  contra o `dist` antes de contar como portado.
+- **`reply-budget` órfão**: tem manifest e 14 casos, mas **nenhum gerador** em
+  `scripts/golden/` — não é regenerável hoje. O manifest também precede a
+  política de EOL (§2.1), logo o `sourceSha256` é residual de CRLF.
+- **`stream-quotas-extra` sem manifest**: 27 casos gerados por
+  `generate-stream-quotas-extra.mjs`, mas sem manifest de integridade — a
+  contagem não tem ateste de hash.
 - **Cobertura de checker Node desigual**: só `title-normalization` tem teste
-  permanente no `test/`; os outros 19 oráculos com `dist` dependem de `--check`
-  chamado à mão (18 via `--fn`, 1 via `golden:resolve-sign:check`) e
-  `matches-br-title` não tem nenhum (§3.1).
+  permanente no `test/`; os demais dependem de `--check` chamado à mão, e
+  `matches-br-title`/`reply-budget`/`stream-quotas-extra` têm lacuna de
+  gerador/manifest (§3.1/§4).
 - **`matching-latin-ranges` tem 1 caso**: a comparação com o JS é feita pelo
-  teste Rust varrendo o Unicode contra a linha única do golden; não há corpus
-  por codepoint, logo o `--check` desse golden cobre formato/hash, não
-  comportamento ponto a ponto.
-- **`adom-napi` entra no build sem teste**: o crate virou member do workspace na
-  árvore (`members = ["crates/adom-core", "crates/adom-napi"]`, sem commit) e
-  `cargo check` passa, mas **não há nenhum `tests/` nele** — a compilação é o
-  único ateste. Os exemplos de doc (`import { normalizeTitle } from
-  '../rust/adom-napi/index.js'`) descrevem um consumo que ainda não existe em
-  `src/`. O comentário do `rust/Cargo.toml` ficou descrevendo a fatia antiga.
+  teste Rust varrendo o Unicode contra a linha única do golden; não há corpus por
+  codepoint, logo o `--check` cobre formato/hash, não comportamento ponto a ponto.
+- **`adom-napi` testa o core, não o binding**: os 34 testes chamam
+  `adom_core::*` direto (o wrapper é conversão de tipo trivial), então a
+  conversão Node↔Rust (incl. `Vec<Option<String>>`, `HashMap`) não é exercitada
+  em runtime Node.
+- **Comentários de doc em `.rs` defasados (P2, não editar aqui)**: o cabeçalho de
+  `config_encoding.rs` sugere `aes-gcm = "0.11.1"` / `scrypt = "0.12.0"` e diz
+  "não editei `lib.rs` nem `Cargo.toml`", mas
+  [`adom-core/Cargo.toml`](../rust/crates/adom-core/Cargo.toml) pina
+  **`aes-gcm = "0.10"`** e **`scrypt = "0.11"`**, e `lib.rs` já declara os
+  módulos. Vale a versão do Cargo; corrigir o comentário fica fora deste escopo.
+- **Divergência UTF-16 no config**: `String(x).slice(0, N)` corta em unidades
+  UTF-16 e pode deixar surrogate órfão; em Rust não existe `String` com surrogate
+  isolado. **Não** prometer que o `serde_json`/`String` do Rust reproduz surrogate
+  órfão — a diferença só toca chave com emoji no limite.
+- **URL/benchmark sem prova universal**: `crawl-url-key` (24) e `net-safety` (28)
+  provam os casos do corpus; o benchmark de baseline é ad-hoc, observacional e
+  não versiona comparação TS-vs-Rust.
 
 ## 5. Contratos PENDENTES
 
 Núcleo planejado no mega-plano — **nada disso foi portado**, e nada foi lido no
 fonte como contrato:
 
-- config base64url (segmento de URL) e `secret-box` (selo da `dk`);
 - `DDL4` (nome conforme mega-plano; escopo a confirmar);
-- namespace de cache + quotas (`cache-keys.ts`/`cache-quotas.ts`);
-- contrato de env / HTTP / test mocks.
+- `stores`/SQL (`data/*.db`) e DDL — o §3 cobre só **nomes de namespace e cotas**
+  do cache, não a camada de armazenamento;
+- contrato de env / HTTP / test mocks upstream e `ADOM_TARGET` (F0 parcial);
+- `SCHEMA`/`defaults()`/`KEYS` do config de usuário (o §3 cobre só as funções
+  puras de `runtime.ts`).
 
-Restos dos arquivos já iniciados em §3 (portados, **incompletos** — entram como
+Restos dos arquivos já iniciados (portados, **incompletos** — entram como
 pendência, cada um com fonte lido quando a etapa dele for autorizada):
 
-- `src/utils/sign.ts` → `resolve_sign` e o binding NAPI: em andamento na árvore,
-  sem commit (§3.1);
-- `title-normalization.ts`: `decodeEntities`, `collapseAcronyms`,
-  `stripDiacritics`, `dedupeNames`, `magnetDisplayName`, `bytesToSize` (foram só
-  `normalizeTitle` e `extractInfoHash`);
-- `release-title-rules.ts`: `matchesEpisodeWorkIdentity` e
-  `matchesGlobalSeriesNoMarker`, que leem `config.search.titlePrecisionTailCut`;
-  `matchesBrTitle` tem porte em andamento na árvore (sem commit, golden sem
-  oráculo — §3.1), que recebe `cut_tail` como parâmetro em vez de ler config, e
-  embute os pisos `TITLE_PRECISION_MIN` (0.70 com cut, 0.65 sem) e
-  `SERIES_TITLE_PRECISION_MIN` (0.70) em vez de expô-los como constantes;
-- `episode-matching.ts`: `matchesEpisode`, `isSeasonPackRelease`,
-  `isSeasonPackFillEligible`;
-- `stream-quotas.ts`: `streamQuality`, `selectQualityCandidates`, `limitByQuality`,
-  `limitByQualityAndIndexer`, `limitReservingBr`, `QUALITY_KEYS` (foi só
-  `limitByIndexer`);
-- `matching-vocabulary.ts`: as 13 constantes exportadas (`PACK_WORDS` …
+- `search-names.ts` → `toStremioStream`, `passesQualityFilter` e o
+  `streamDisplayName` reexportado (dependem de tipos de stream/módulos não
+  portados) — **PENDENTE** (`display`);
+- `stream-quotas.ts` → `dropTrace` e `onSelected` — **PENDENTE** (`trace`);
+- `audio-quality.ts` → `audioFromTitle` e `compactTracker` (as demais —
+  `sourceFromTitle`, `editionFromTitle`, `compactAudio`, `qualityFromTitle`,
+  `explicitPtAudio`, `hasExplicitForeignAudio` — já têm porte);
+- `runtime.ts` → `defaults()`, `opts()`, `prefix()`, `capture()`, `run()` e o
+  `log.warn` do `open` ficam no TS de propósito (leem `config.*`/AsyncLocalStorage);
+- `matching-vocabulary.ts` → as 13 constantes exportadas (`PACK_WORDS` …
   `STRONG_PACK_WORDS`, `EPISODE_TOKEN`, `YEAR_RANGE`) são verificadas **por
   conteúdo** (`vocabulary_contents`, `year_range_test`, `episode_token_test`); não
   há API pública que as exponha como conjuntos — quem portar consumo precisa
   primeiro decidir essa API.
 
-Já cobertos por inteiro: `matching-tokens.ts` (12 exports, todos portados entre
-`matching_tokens` e `matching_decisions`), `multiwork-pack.ts` (6 exports) e
-`release-name-matching.ts` (7 exports).
+Já cobertos por inteiro: `matching-tokens.ts` (12 exports, entre
+`matching_tokens` e `matching_decisions`), `multiwork-pack.ts` (6 exports),
+`release-name-matching.ts` (7 exports) e `title-normalization.ts` (os helpers
+`decodeEntities`, `collapseAcronyms`, `stripDiacritics`, `dedupeNames`,
+`magnetDisplayName`, `bytesToSize` ganharam porte próprio).
 
 Fora de `src/utils` — intocados: providers, rotas (`resolve.ts`,
 `addon-router.ts`), cache/DB, debrid, crawl e o contrato de env/HTTP/mocks.
