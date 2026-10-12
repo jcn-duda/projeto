@@ -237,6 +237,33 @@ const FUNCTIONS = {
       return `pt=${pt} origin=${origin}`;
     },
   },
+  // magnet-uri.ts: sanitize (uri, hash), default (hash) e info (text, via
+  // extractInfoHash de title-normalization.ts). `null` vira a palavra null.
+  'magnet-uri': {
+    id: 'magnet-uri/sanitize',
+    name: 'magnetUri',
+    source: 'src/utils/magnet-uri.ts',
+    artifact: 'dist/src/utils/magnet-uri.js',
+    corpus: 'scripts/golden/corpus-magnet-uri.json',
+    outJsonl: 'rust/golden/magnet-uri.jsonl',
+    outManifest: 'rust/golden/magnet-uri.manifest.json',
+    resolve: async (mod) => {
+      const tn = await import(pathToFileURL(path.join(REPO, 'dist/src/utils/title-normalization.js')).href);
+      return (input) => {
+        const c = JSON.parse(input);
+        switch (c.op) {
+          case 'info':
+            return tn.extractInfoHash(c.text) ?? 'null';
+          case 'default':
+            return mod.defaultMagnet(c.hash);
+          case 'sanitize':
+            return mod.sanitizeMagnet(c.uri, c.hash) ?? 'null';
+          default:
+            throw new Error(`op desconhecida: ${c.op}`);
+        }
+      };
+    },
+  },
 };
 const DEFAULT_FN = 'title-normalization';
 
