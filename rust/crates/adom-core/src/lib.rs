@@ -26,6 +26,7 @@ mod episode_series_matching;
 mod franchise;
 mod indexer_priority;
 mod info_hash;
+mod inventory_filter;
 mod js_text;
 mod js_text16;
 mod latin_table;
@@ -40,7 +41,9 @@ mod multiwork_pack;
 mod net_safety;
 mod non_feature_release;
 mod pt_audio_guards;
+mod release_filters;
 mod release_guards;
+mod release_index_media;
 mod release_labels;
 mod release_name_matching;
 mod release_title_rules;
@@ -52,6 +55,7 @@ mod search_name_helpers;
 mod short_name_tail;
 mod stream_display;
 mod stream_quotas;
+mod stream_quotas_candidate;
 pub mod stream_quotas_extra;
 mod stream_relabel;
 mod stream_trace;
@@ -138,6 +142,19 @@ pub use matching_vocabulary::{
 // ── indexer_priority ──────────────────────────────────────────────────
 pub use indexer_priority::{compare_indexer_priority, priority_map};
 
+// ── inventory_filter ──────────────────────────────────────────────────
+pub use inventory_filter::filter_inventory_relevant;
+
+// ── release_index_media ───────────────────────────────────────────────
+pub use release_index_media::{
+    bank_rows_for_media_source, merge_media_source, BankRow, MagnetLike,
+};
+
+// ── stream_quotas_candidate ───────────────────────────────────────────
+pub use stream_quotas_candidate::{
+    candidate_stream_quality, select_candidate_streams, CandidateStream,
+};
+
 // ── stream_quotas ─────────────────────────────────────────────────────
 pub use stream_quotas::limit_by_indexer;
 pub use stream_quotas_extra::{
@@ -174,6 +191,10 @@ pub use metric_id::{indexer_fallback_metric_key, safe_metric_id};
 pub use net_safety::is_safe_download_url;
 pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
 pub use pt_audio_guards::{explicit_pt_audio, has_explicit_foreign_audio};
+pub use release_filters::{
+    filter_relevant_raw, filter_relevant_raw_for_year, RelevanceItem, RelevanceOutcome,
+    RelevanceQuery, RelevanceRejectReason, RelevanceSettings,
+};
 pub use release_guards::{
     magnet_season_contradicts, magnet_year_contradicts, text_years_contradict,
 };
