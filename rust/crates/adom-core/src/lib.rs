@@ -49,6 +49,7 @@ mod stream_display;
 mod stream_quotas;
 pub mod stream_quotas_extra;
 mod stream_relabel;
+mod stream_trace;
 mod strip_diacritics;
 mod title_normalization;
 mod tmdb_br_aliases;
@@ -171,6 +172,12 @@ pub use stream_display::{
     StreamNameStyle, UserDisplayOptions,
 };
 pub use stream_relabel::{relabel, RelabelOptions, RelabelStream};
+pub use stream_trace::{
+    clone_stream_trace, create_stream_trace, drop_trace, finalize_trace, sanitize_chupim_note,
+    sanitize_trace_label, serialize_trace, set_trace_chupim, set_trace_stage, stage_trace,
+    TraceValue, STREAM_TRACE_CHUPIM_MAX, STREAM_TRACE_LABEL_MAX, STREAM_TRACE_MAX_ACCOUNT_ITEMS,
+    STREAM_TRACE_MAX_ITEMS,
+};
 pub use strip_diacritics::strip_diacritics;
 pub use title_normalization::normalize_title;
 pub use tmdb_br_aliases::{filter_br_aliases, MAX_BR_ALIASES};
