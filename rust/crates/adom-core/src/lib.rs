@@ -4,6 +4,7 @@
 //! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
 
 mod audio_lang;
+mod audio_presentation;
 mod br_origin;
 mod bytes_to_size;
 mod cache_keys;
@@ -135,6 +136,7 @@ pub use resolve_sign::{sign_resolve, verify_resolve};
 pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
+pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_blob};
 pub use bytes_to_size::bytes_to_size;
 pub use collapse_acronyms::collapse_acronyms;
 pub use crawl_url_key::crawl_url_key;
