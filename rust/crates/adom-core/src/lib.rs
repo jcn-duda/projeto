@@ -32,6 +32,7 @@ mod multiwork_pack;
 mod net_safety;
 mod non_feature_release;
 mod release_guards;
+mod release_labels;
 mod release_name_matching;
 mod release_title_rules;
 mod release_work;
@@ -139,6 +140,7 @@ pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_c
 pub use release_guards::{
     magnet_season_contradicts, magnet_year_contradicts, text_years_contradict,
 };
+pub use release_labels::{compact_audio, edition_from_title, source_from_title};
 pub use reply_budget::remaining_check_budget;
 pub use strip_diacritics::strip_diacritics;
 pub use title_normalization::normalize_title;

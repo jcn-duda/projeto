@@ -1,0 +1,124 @@
+{"id":"rl-001","input":"{\"op\":\"source\",\"text\":\"Filme 2024 1080p BluRay x264\"}","expected":"BluRay"}
+{"id":"rl-002","input":"{\"op\":\"source\",\"text\":\"Filme.Blu-Ray.1080p\"}","expected":"BluRay"}
+{"id":"rl-003","input":"{\"op\":\"source\",\"text\":\"Filme BDREMUX 2160p HDR\"}","expected":"BluRay"}
+{"id":"rl-004","input":"{\"op\":\"source\",\"text\":\"Filme BD 1080p DUAL\"}","expected":"BluRay"}
+{"id":"rl-005","input":"{\"op\":\"source\",\"text\":\"Filme 1080p WEB-DL BluRay\"}","expected":"BluRay"}
+{"id":"rl-006","input":"{\"op\":\"source\",\"text\":\"Filme BluRay WEBRip HDTV\"}","expected":"BluRay"}
+{"id":"rl-007","input":"{\"op\":\"source\",\"text\":\"Filme BluRay CAM\"}","expected":"BluRay"}
+{"id":"rl-008","input":"{\"op\":\"source\",\"text\":\"filme bluray 1080p\"}","expected":"BluRay"}
+{"id":"rl-009","input":"{\"op\":\"source\",\"text\":\"BLURAY\"}","expected":"BluRay"}
+{"id":"rl-010","input":"{\"op\":\"source\",\"text\":\"Filme 1080p WEB-DL\"}","expected":"WEB-DL"}
+{"id":"rl-011","input":"{\"op\":\"source\",\"text\":\"Filme WEB.DL 720p\"}","expected":"WEB-DL"}
+{"id":"rl-012","input":"{\"op\":\"source\",\"text\":\"Filme WEBDL 1080p\"}","expected":"WEB-DL"}
+{"id":"rl-013","input":"{\"op\":\"source\",\"text\":\"Filme WEB DL 1080p\"}","expected":"WEB-DL"}
+{"id":"rl-014","input":"{\"op\":\"source\",\"text\":\"Filme 1080p WEB-DL HDTV\"}","expected":"WEB-DL"}
+{"id":"rl-015","input":"{\"op\":\"source\",\"text\":\"Filme WEB-DL CAM\"}","expected":"WEB-DL"}
+{"id":"rl-016","input":"{\"op\":\"source\",\"text\":\"web-dl 1080p\"}","expected":"WEB-DL"}
+{"id":"rl-017","input":"{\"op\":\"source\",\"text\":\"Filme 1080p WEBRip\"}","expected":"WEBRip"}
+{"id":"rl-018","input":"{\"op\":\"source\",\"text\":\"Filme WEB-RIP\"}","expected":"WEBRip"}
+{"id":"rl-019","input":"{\"op\":\"source\",\"text\":\"Filme WEB.RIP 720p\"}","expected":"WEBRip"}
+{"id":"rl-020","input":"{\"op\":\"source\",\"text\":\"Filme WEBRip HDTV 1080p\"}","expected":"WEBRip"}
+{"id":"rl-021","input":"{\"op\":\"source\",\"text\":\"Filme WEB-DLRip1080p\"}","expected":""}
+{"id":"rl-022","input":"{\"op\":\"source\",\"text\":\"Filme WEB-DL-RIP\"}","expected":"WEB-DL"}
+{"id":"rl-023","input":"{\"op\":\"source\",\"text\":\"Filme HDTV 1080p\"}","expected":"HDTV"}
+{"id":"rl-024","input":"{\"op\":\"source\",\"text\":\"Filme 720p HDTV\"}","expected":"HDTV"}
+{"id":"rl-025","input":"{\"op\":\"source\",\"text\":\"HDTV\"}","expected":"HDTV"}
+{"id":"rl-026","input":"{\"op\":\"source\",\"text\":\"Filme HDTV CAM\"}","expected":"HDTV"}
+{"id":"rl-027","input":"{\"op\":\"source\",\"text\":\"Filme HDTV TS 1080p\"}","expected":"HDTV"}
+{"id":"rl-028","input":"{\"op\":\"source\",\"text\":\"Filme 2024 HDCAM\"}","expected":"CAM"}
+{"id":"rl-029","input":"{\"op\":\"source\",\"text\":\"Filme HDCAM 1080p\"}","expected":"CAM"}
+{"id":"rl-030","input":"{\"op\":\"source\",\"text\":\"Filme CAM\"}","expected":"CAM"}
+{"id":"rl-031","input":"{\"op\":\"source\",\"text\":\"Filme CAMRip\"}","expected":"CAM"}
+{"id":"rl-032","input":"{\"op\":\"source\",\"text\":\"Filme CAM-RIP\"}","expected":"CAM"}
+{"id":"rl-033","input":"{\"op\":\"source\",\"text\":\"Filme HD CAM\"}","expected":"CAM"}
+{"id":"rl-034","input":"{\"op\":\"source\",\"text\":\"Filme HD-CAM\"}","expected":"CAM"}
+{"id":"rl-035","input":"{\"op\":\"source\",\"text\":\"Filme HDCAMRip 720p\"}","expected":"CAM"}
+{"id":"rl-036","input":"{\"op\":\"source\",\"text\":\"Filme CAM RIP\"}","expected":"CAM"}
+{"id":"rl-037","input":"{\"op\":\"source\",\"text\":\"filme cam\"}","expected":"CAM"}
+{"id":"rl-038","input":"{\"op\":\"source\",\"text\":\"Filme (CAM)\"}","expected":"CAM"}
+{"id":"rl-039","input":"{\"op\":\"source\",\"text\":\"Filme [CAM]\"}","expected":"CAM"}
+{"id":"rl-040","input":"{\"op\":\"source\",\"text\":\"Filme CAM.\"}","expected":"CAM"}
+{"id":"rl-041","input":"{\"op\":\"source\",\"text\":\"Filme D.TS.1080p\"}","expected":"CAM"}
+{"id":"rl-042","input":"{\"op\":\"source\",\"text\":\"Filme 2024 TS 1080p\"}","expected":"CAM"}
+{"id":"rl-043","input":"{\"op\":\"source\",\"text\":\"Filme TC\"}","expected":"CAM"}
+{"id":"rl-044","input":"{\"op\":\"source\",\"text\":\"Filme HDTS\"}","expected":"CAM"}
+{"id":"rl-045","input":"{\"op\":\"source\",\"text\":\"Filme HD TS 1080p\"}","expected":"CAM"}
+{"id":"rl-046","input":"{\"op\":\"source\",\"text\":\"Filme TELESYNC\"}","expected":"CAM"}
+{"id":"rl-047","input":"{\"op\":\"source\",\"text\":\"Filme TELESYNC 1080p\"}","expected":"CAM"}
+{"id":"rl-048","input":"{\"op\":\"source\",\"text\":\"Filme TELECINE\"}","expected":"CAM"}
+{"id":"rl-049","input":"{\"op\":\"source\",\"text\":\"Filme HQ PreDVD\"}","expected":"CAM"}
+{"id":"rl-050","input":"{\"op\":\"source\",\"text\":\"Filme PRE-DVD\"}","expected":"CAM"}
+{"id":"rl-051","input":"{\"op\":\"source\",\"text\":\"Filme PREDVD\"}","expected":"CAM"}
+{"id":"rl-052","input":"{\"op\":\"source\",\"text\":\"Filme Pre DVD\"}","expected":"CAM"}
+{"id":"rl-053","input":"{\"op\":\"source\",\"text\":\"Filme.2019.1080p.H264.ts\"}","expected":""}
+{"id":"rl-054","input":"{\"op\":\"source\",\"text\":\"Filme 2020 720p.mkv\"}","expected":""}
+{"id":"rl-055","input":"{\"op\":\"source\",\"text\":\"Filme.1080p.avi\"}","expected":""}
+{"id":"rl-056","input":"{\"op\":\"source\",\"text\":\"Filme.1080p.mp4\"}","expected":""}
+{"id":"rl-057","input":"{\"op\":\"source\",\"text\":\"Filme.1080p.mov\"}","expected":""}
+{"id":"rl-058","input":"{\"op\":\"source\",\"text\":\"Filme.1080p.webm\"}","expected":""}
+{"id":"rl-059","input":"{\"op\":\"source\",\"text\":\"Filme 2019 TS\"}","expected":"CAM"}
+{"id":"rl-060","input":"{\"op\":\"source\",\"text\":\"Filme 2019.TS\"}","expected":""}
+{"id":"rl-061","input":"{\"op\":\"source\",\"text\":\"Filme 2020.mkv BluRay\"}","expected":"BluRay"}
+{"id":"rl-062","input":"{\"op\":\"source\",\"text\":\"Filme_2026_1080p_BluRay\"}","expected":"BluRay"}
+{"id":"rl-063","input":"{\"op\":\"source\",\"text\":\"HDCAM_1080p\"}","expected":"CAM"}
+{"id":"rl-064","input":"{\"op\":\"source\",\"text\":\"D.TS_1080p\"}","expected":"CAM"}
+{"id":"rl-065","input":"{\"op\":\"source\",\"text\":\"Filme_WEB_DL_1080p\"}","expected":"WEB-DL"}
+{"id":"rl-066","input":"{\"op\":\"source\",\"text\":\"Filme_TS_1080p\"}","expected":"CAM"}
+{"id":"rl-067","input":"{\"op\":\"source\",\"text\":\"Filme_TC\"}","expected":"CAM"}
+{"id":"rl-068","input":"{\"op\":\"source\",\"text\":\"Filme_PreDVD\"}","expected":"CAM"}
+{"id":"rl-069","input":"{\"op\":\"source\",\"text\":\"Filme_WEB_RIP\"}","expected":"WEBRip"}
+{"id":"rl-070","input":"{\"op\":\"source\",\"text\":\"Filme H264 1080p\"}","expected":""}
+{"id":"rl-071","input":"{\"op\":\"source\",\"text\":\"Filme H.264 1080p\"}","expected":""}
+{"id":"rl-072","input":"{\"op\":\"source\",\"text\":\"Filme HEVC 10bit\"}","expected":""}
+{"id":"rl-073","input":"{\"op\":\"source\",\"text\":\"1080p\"}","expected":""}
+{"id":"rl-074","input":"{\"op\":\"source\",\"text\":\"\"}","expected":""}
+{"id":"rl-075","input":"{\"op\":\"source\",\"text\":\"   \"}","expected":""}
+{"id":"rl-076","input":"{\"op\":\"source\",\"text\":\"Filme\"}","expected":""}
+{"id":"rl-077","input":"{\"op\":\"source\",\"text\":\"TSFILE\"}","expected":""}
+{"id":"rl-078","input":"{\"op\":\"source\",\"text\":\"Filme TSX\"}","expected":""}
+{"id":"rl-079","input":"{\"op\":\"source\",\"text\":\"TSCAM\"}","expected":""}
+{"id":"rl-080","input":"{\"op\":\"source\",\"text\":\"Filme\\tHDTV 1080p\"}","expected":"HDTV"}
+{"id":"rl-081","input":"{\"op\":\"source\",\"text\":\"Filme WEB\\tDL\"}","expected":""}
+{"id":"rl-082","input":"{\"op\":\"source\",\"text\":\"Filme CAMH264\"}","expected":""}
+{"id":"rl-083","input":"{\"op\":\"source\",\"text\":\"Filme DDP5.1 1080p\"}","expected":""}
+{"id":"rl-084","input":"{\"op\":\"edition\",\"text\":\"Filme 2024 Alternate Ending\"}","expected":"Alt.End"}
+{"id":"rl-085","input":"{\"op\":\"edition\",\"text\":\"ALTERNATE FINAL\"}","expected":"Alt.End"}
+{"id":"rl-086","input":"{\"op\":\"edition\",\"text\":\"Alternate Version\"}","expected":"Alt.Ver"}
+{"id":"rl-087","input":"{\"op\":\"edition\",\"text\":\"VERSÃO ALTERNATIVA\"}","expected":"Alt.Ver"}
+{"id":"rl-088","input":"{\"op\":\"edition\",\"text\":\"Director's Cut\"}","expected":"DC"}
+{"id":"rl-089","input":"{\"op\":\"edition\",\"text\":\"Directors Cut\"}","expected":"DC"}
+{"id":"rl-090","input":"{\"op\":\"edition\",\"text\":\"Director Cut\"}","expected":""}
+{"id":"rl-091","input":"{\"op\":\"edition\",\"text\":\"Extended\"}","expected":"Extended"}
+{"id":"rl-092","input":"{\"op\":\"edition\",\"text\":\"VERSÃO ESTENDIDA\"}","expected":"Extended"}
+{"id":"rl-093","input":"{\"op\":\"edition\",\"text\":\"ESTENDIDA\"}","expected":""}
+{"id":"rl-094","input":"{\"op\":\"edition\",\"text\":\"Theatrical\"}","expected":"Cinema"}
+{"id":"rl-095","input":"{\"op\":\"edition\",\"text\":\"VERSÃO DE CINEMA\"}","expected":"Cinema"}
+{"id":"rl-096","input":"{\"op\":\"edition\",\"text\":\"Remaster\"}","expected":"Remaster"}
+{"id":"rl-097","input":"{\"op\":\"edition\",\"text\":\"Remastered\"}","expected":"Remaster"}
+{"id":"rl-098","input":"{\"op\":\"edition\",\"text\":\"REMASTERIZADO\"}","expected":"Remaster"}
+{"id":"rl-099","input":"{\"op\":\"edition\",\"text\":\"REMASTERIZADA\"}","expected":"Remaster"}
+{"id":"rl-100","input":"{\"op\":\"edition\",\"text\":\"IMAX\"}","expected":"IMAX"}
+{"id":"rl-101","input":"{\"op\":\"edition\",\"text\":\"IMAX Enhanced\"}","expected":"IMAX"}
+{"id":"rl-102","input":"{\"op\":\"edition\",\"text\":\"Uncut\"}","expected":"Uncut"}
+{"id":"rl-103","input":"{\"op\":\"edition\",\"text\":\"Unrated\"}","expected":"Uncut"}
+{"id":"rl-104","input":"{\"op\":\"edition\",\"text\":\"SEM CORTES\"}","expected":"Uncut"}
+{"id":"rl-105","input":"{\"op\":\"edition\",\"text\":\"Alternate Ending + Director's Cut\"}","expected":"Alt.End"}
+{"id":"rl-106","input":"{\"op\":\"edition\",\"text\":\"IMAX Uncut\"}","expected":"IMAX"}
+{"id":"rl-107","input":"{\"op\":\"edition\",\"text\":\"Extended IMAX\"}","expected":"Extended"}
+{"id":"rl-108","input":"{\"op\":\"edition\",\"text\":\"Theatrical Remaster\"}","expected":"Cinema"}
+{"id":"rl-109","input":"{\"op\":\"edition\",\"text\":\"﻿Filme IMAX\"}","expected":"IMAX"}
+{"id":"rl-110","input":"{\"op\":\"edition\",\"text\":\"VERSÃO ALTERNATIVA\"}","expected":""}
+{"id":"rl-111","input":"{\"op\":\"edition\",\"text\":\"ALTERNATE\\tENDING\"}","expected":"Alt.End"}
+{"id":"rl-112","input":"{\"op\":\"edition\",\"text\":\"ALTERNATE ENDING\"}","expected":"Alt.End"}
+{"id":"rl-113","input":"{\"op\":\"edition\",\"text\":\"VERSÃO ESTENDIDA\"}","expected":"Extended"}
+{"id":"rl-114","input":"{\"op\":\"edition\",\"text\":\"DIRECTOR’S CUT\"}","expected":""}
+{"id":"rl-115","input":"{\"op\":\"edition\",\"text\":\"Alternative Final\"}","expected":""}
+{"id":"rl-116","input":"{\"op\":\"edition\",\"text\":\"\"}","expected":""}
+{"id":"rl-117","input":"{\"op\":\"compact\",\"text\":\"Dublado\"}","expected":"DUB"}
+{"id":"rl-118","input":"{\"op\":\"compact\",\"text\":\"Legendado\"}","expected":"LEG"}
+{"id":"rl-119","input":"{\"op\":\"compact\",\"text\":\"Dual\"}","expected":"DUAL"}
+{"id":"rl-120","input":"{\"op\":\"compact\",\"text\":\"Nacional\"}","expected":"NAC"}
+{"id":"rl-121","input":"{\"op\":\"compact\",\"text\":\"\"}","expected":""}
+{"id":"rl-122","input":"{\"op\":\"compact\",\"text\":\"dublado\"}","expected":""}
+{"id":"rl-123","input":"{\"op\":\"compact\",\"text\":\"DUBLADO\"}","expected":""}
+{"id":"rl-124","input":"{\"op\":\"compact\",\"text\":\"Dual \"}","expected":""}
