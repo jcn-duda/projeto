@@ -8,9 +8,15 @@
 //! Vocabulário: porta SÓ `titleTokens` (módulo `matching_vocabulary`), com
 //! golden próprio em `rust/golden/matching-vocabulary-title-tokens.jsonl`.
 
+mod latin_table;
+mod matching_tokens;
 mod matching_vocabulary;
 mod title_normalization;
 
+pub use matching_tokens::{
+    episode_work_tokens, extract_sequence_markers, first_work_token, is_non_latin_token,
+    is_non_naming_token, Marker,
+};
 pub use matching_vocabulary::{
     episode_token_test, title_tokens, vocabulary_contents, year_range_test,
 };

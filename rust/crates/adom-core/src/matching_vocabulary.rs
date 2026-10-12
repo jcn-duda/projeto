@@ -9,10 +9,12 @@
 //! `v` que abrevia "Versão" quando colado numa palavra de edição
 //! ("Apocalypse Now V.Exten"). O `v` sozinho é obra ("V de Vingança") e fica.
 
+use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use regex::Regex;
 
+use crate::latin_table::is_latin_or_mark;
 use crate::title_normalization::normalize_title;
 
 /// Palavras de edição que, logo após um `v`, fazem o `v` virar abreviação.
@@ -178,4 +180,74 @@ pub fn year_range_test(input: &str) -> bool {
 /// Equivalente a `EPISODE_TOKEN.test(input)` no JS.
 pub fn episode_token_test(input: &str) -> bool {
     episode_token_re().is_match(input)
+}
+
+/// Monta um conjunto de palavras a partir das listas de vocabulário, uma vez.
+fn build_set(parts: &[&'static str]) -> HashSet<&'static str> {
+    parts
+        .iter()
+        .flat_map(|p| p.split(' '))
+        .filter(|w| !w.is_empty())
+        .collect()
+}
+
+macro_rules! vocab_set {
+    ($(#[$doc:meta])* $name:ident, [$($part:expr),+ $(,)?]) => {
+        $(#[$doc])*
+        pub(crate) fn $name() -> &'static HashSet<&'static str> {
+            static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+            SET.get_or_init(|| build_set(&[$($part),+]))
+        }
+    };
+}
+
+vocab_set!(/// `PACK_WORDS`.
+    pack_words, [PACK_WORDS]);
+vocab_set!(/// `STRONG_PACK_WORDS`.
+    strong_pack_words, [STRONG_PACK_WORDS]);
+vocab_set!(/// `SEQUENCE_WORDS`.
+    sequence_words, [SEQUENCE_WORDS]);
+vocab_set!(/// `LEADING_ARTICLES`.
+    leading_articles, [LEADING_ARTICLES]);
+vocab_set!(/// `RELEASE_NOISE` = técnico ∪ ligação ∪ idioma ∪ marca d'água.
+    release_noise, [TECH_NOISE, LINK_WORDS, LANG_NOISE, WATERMARK_NOISE]);
+vocab_set!(/// `STOP_AT` = técnico ∪ empacotamento.
+    stop_at, [TECH_NOISE, PACK_WORDS]);
+
+/// `NUMERAL_CANON[palavra]`: o valor do numeral, se a palavra for um.
+pub(crate) fn numeral_value(word: &str) -> Option<u8> {
+    NUMERAL_CANON
+        .iter()
+        .find(|(k, _)| *k == word)
+        .map(|(_, v)| *v)
+}
+
+/// `EPISODE_MARK_RE` de matching-tokens.ts: marcador composto ou longo.
+fn episode_mark_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^(?:s[0-9]{1,2}(?:e[0-9]{1,4})+|[0-9]{1,2}x[0-9]{1,4})$")
+            .expect("EPISODE_MARK_RE compila")
+    })
+}
+
+/// `STRUCTURE_TOKEN_RE` de matching-tokens.ts: só dígito, `x`, ponto ou hífen.
+fn structure_token_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"^[0-9x.\-]+$").expect("STRUCTURE_TOKEN_RE compila"))
+}
+
+pub(crate) fn episode_mark_test(token: &str) -> bool {
+    episode_mark_re().is_match(token)
+}
+
+pub(crate) fn structure_token_test(token: &str) -> bool {
+    structure_token_re().is_match(token)
+}
+
+/// `LATIN_LETTER_RE` de matching-tokens.ts (`[\p{Script=Latin}\p{M}]`), por
+/// tabela gerada do Unicode 17: ver `latin_table.rs` para o porquê de não usar
+/// o crate `regex` aqui.
+pub(crate) fn latin_letter_test(token: &str) -> bool {
+    token.chars().any(|c| is_latin_or_mark(u32::from(c)))
 }
