@@ -31,17 +31,35 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MANIFEST_FORMAT = 'adom-golden-manifest/1';
 
-// Registro de funções cobertas: SÓ normalizeTitle nesta fatia. Função nova
-// do piloto ganha uma entrada aqui com corpus e saída próprios.
-const FUNCTION = {
-  id: 'title-normalization/normalizeTitle',
-  name: 'normalizeTitle',
-  source: 'src/utils/title-normalization.ts',
-  artifact: 'dist/src/utils/title-normalization.js',
-  corpus: 'scripts/golden/corpus-title-normalization.json',
-  outJsonl: 'rust/golden/title-normalization.jsonl',
-  outManifest: 'rust/golden/title-normalization.manifest.json',
+// Registro de funções cobertas. Cada entrada tem corpus e saída próprios e um
+// manifest por função (o check exige um registry por arquivo). Sem `--fn`, o
+// gerador usa `title-normalization`, o padrão de sempre.
+//
+// `toText` converte a saída do oracle em string para o JSONL, quando a função
+// devolve outra coisa. Para listas, `join(' ')` é sem perda: os tokens saem de
+// `split(' ')` e nunca são vazios nem contêm espaço.
+const FUNCTIONS = {
+  'title-normalization': {
+    id: 'title-normalization/normalizeTitle',
+    name: 'normalizeTitle',
+    source: 'src/utils/title-normalization.ts',
+    artifact: 'dist/src/utils/title-normalization.js',
+    corpus: 'scripts/golden/corpus-title-normalization.json',
+    outJsonl: 'rust/golden/title-normalization.jsonl',
+    outManifest: 'rust/golden/title-normalization.manifest.json',
+  },
+  'matching-vocabulary': {
+    id: 'matching-vocabulary/titleTokens',
+    name: 'titleTokens',
+    source: 'src/utils/matching-vocabulary.ts',
+    artifact: 'dist/src/utils/matching-vocabulary.js',
+    corpus: 'scripts/golden/corpus-matching-vocabulary.json',
+    outJsonl: 'rust/golden/matching-vocabulary-title-tokens.jsonl',
+    outManifest: 'rust/golden/matching-vocabulary-title-tokens.manifest.json',
+    toText: (tokens) => tokens.join(' '),
+  },
 };
+const DEFAULT_FN = 'title-normalization';
 
 const fail = (msg) => {
   console.error(`[golden] FALHA: ${msg}`);
@@ -51,13 +69,14 @@ const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 const toPosix = (p) => p.split(path.sep).join('/');
 
 function parseArgs(argv) {
-  const args = { check: false, force: false, corpus: null, out: null };
+  const args = { check: false, force: false, corpus: null, out: null, fn: DEFAULT_FN };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--check') args.check = true;
     else if (a === '--force') args.force = true;
     else if (a === '--corpus') args.corpus = argv[++i];
     else if (a === '--out') args.out = argv[++i];
+    else if (a === '--fn') args.fn = argv[++i];
     else fail(`flag desconhecida: ${a}`);
   }
   return args;
@@ -91,8 +110,9 @@ async function loadOracle(fn) {
   } catch (e) {
     fail(`não consegui importar o oracle do dist: ${e.message}`);
   }
-  const f = mod[fn.exportName ?? fn.name];
-  if (typeof f !== 'function') fail(`dist não exporta ${fn.name}`);
+  const raw = mod[fn.exportName ?? fn.name];
+  if (typeof raw !== 'function') fail(`dist não exporta ${fn.name}`);
+  const f = fn.toText ? (input) => fn.toText(raw(input)) : raw;
   return { f, sourceSha: sha256(readFileSync(sourcePath)), artifactSha: sha256(readFileSync(artifactPath)) };
 }
 
@@ -200,7 +220,7 @@ function check(fn, oracle, corpus, outDir) {
   const manifest = readManifestIfExists(outManifest);
   if (!manifest) fail(`manifest ausente ou ilegível: ${outManifest}`);
   if (manifest.format !== MANIFEST_FORMAT) fail(`formato de manifest desconhecido: ${manifest.format}`);
-  if (!Array.isArray(manifest.registry) || manifest.registry.join(',') !== FUNCTION.id) {
+  if (!Array.isArray(manifest.registry) || manifest.registry.join(',') !== fn.id) {
     fail(`registry do manifest diverge do esperado: ${JSON.stringify(manifest.registry)}`);
   }
   let committed;
@@ -235,7 +255,8 @@ function check(fn, oracle, corpus, outDir) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const fn = FUNCTION;
+  const fn = FUNCTIONS[args.fn];
+  if (!fn) fail(`--fn desconhecido: ${args.fn} (válidos: ${Object.keys(FUNCTIONS).join(', ')})`);
   const oracle = await loadOracle(fn);
   const corpus = loadCorpus(resolveCliPath(args.corpus, fn.corpus));
   const outDir = resolveCliPath(args.out, path.dirname(fn.outJsonl));

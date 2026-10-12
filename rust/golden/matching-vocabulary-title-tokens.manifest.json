@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "matching-vocabulary/titleTokens"
+  ],
+  "function": {
+    "name": "titleTokens",
+    "sourcePath": "src/utils/matching-vocabulary.ts",
+    "sourceSha256": "e09288e33baf12fd48622c44040e8c4052228f24cc3361e40c1ccb64c4e3007b",
+    "artifactPath": "dist/src/utils/matching-vocabulary.js",
+    "artifactSha256": "632f2884dfc5caefcd86b5934e169741898ece2a33ecf4e72aee2253c6e30b8b"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-matching-vocabulary.json",
+    "sha256": "19e474163226021fd0ad83bd4570dc68cddef38d288e7873bcc407c801c50a23",
+    "cases": 203
+  },
+  "output": {
+    "path": "rust/golden/matching-vocabulary-title-tokens.jsonl",
+    "sha256": "44418e917726f57a45ffcb0e4419e0e25b400d32e2389c5888e5895ab1ea34f5",
+    "lines": 203
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "d8b24f332b30909b54d5e94e5eace737b9379c58"
+  }
+}

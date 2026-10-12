@@ -1,0 +1,203 @@
+{"id":"vt-001","input":"","expected":""}
+{"id":"vt-002","input":"   ","expected":""}
+{"id":"vt-003","input":"Torrent (2019) Legendado WEB DL 720p","expected":"torrent 2019 legendado web dl 720p"}
+{"id":"vt-004","input":"Apocalypse Now V.Exten (1979) [BluRay 1080p][DUAL]","expected":"apocalypse now exten 1979 bluray 1080p dual"}
+{"id":"vt-005","input":"Apocalypse Now V. Estendida (1979)","expected":"apocalypse now estendida 1979"}
+{"id":"vt-006","input":"V de Vingança 2005 1080p","expected":"v de vinganca 2005 1080p"}
+{"id":"vt-007","input":"V 2009 720p","expected":"v 2009 720p"}
+{"id":"vt-008","input":"A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR","expected":"a viagem de chihiro 2001 dvdrip mp4 dublado pt br"}
+{"id":"vt-009","input":"A Rocha (1996) BDRip BluRay 720p dublado - FB","expected":"a rocha 1996 bdrip bluray 720p dublado fb"}
+{"id":"vt-010","input":"Zumbilândia BDRip derew 720p","expected":"zumbilandia bdrip derew 720p"}
+{"id":"vt-011","input":"Zumbilandia (www ThePirateFilms.com)","expected":"zumbilandia www thepiratefilms com"}
+{"id":"vt-012","input":"Atire Duas Vezes 1990 1080p","expected":"atire duas vezes 1990 1080p"}
+{"id":"vt-013","input":"Todos os filmes 1979-2016","expected":"todos os filmes 1979 2016"}
+{"id":"vt-014","input":"Todos os filmes 1979 2016","expected":"todos os filmes 1979 2016"}
+{"id":"vt-015","input":"Coleção Guerra nas Estrelas","expected":"colecao guerra nas estrelas"}
+{"id":"vt-016","input":"Game of Thrones Todas as Temporadas","expected":"game of thrones todas as temporadas"}
+{"id":"vt-017","input":"Velozes e Furiosos 5 2011 1080p","expected":"velozes e furiosos 5 2011 1080p"}
+{"id":"vt-018","input":"The Hulk 2003 1080p","expected":"the hulk 2003 1080p"}
+{"id":"vt-019","input":"Para Sempre 2010 720p","expected":"para sempre 2010 720p"}
+{"id":"vt-020","input":"S01E01 A Casa do Dragão S01E01 x264 DUAL","expected":"s01e01 a casa do dragao s01e01 x264 dual"}
+{"id":"vt-021","input":"1A TEMPORADA COMPLETA House of the Dragon S01","expected":"1a temporada completa house of the dragon s01"}
+{"id":"vt-022","input":"Rocky II 1979 1080p","expected":"rocky ii 1979 1080p"}
+{"id":"vt-023","input":"Duna Parte Dois 2024 1080p","expected":"duna parte dois 2024 1080p"}
+{"id":"vt-024","input":"Batman Begins 2005 1080p BluRay","expected":"batman begins 2005 1080p bluray"}
+{"id":"vt-025","input":"Dublado Legendado","expected":"dublado legendado"}
+{"id":"vt-026","input":"I Am Legend 2007 1080p","expected":"i am legend 2007 1080p"}
+{"id":"vt-027","input":"Monster Hunter 2021 720p","expected":"monster hunter 2021 720p"}
+{"id":"vt-028","input":"Trilogia Matrix 1080p","expected":"trilogia matrix 1080p"}
+{"id":"vt-029","input":"Histórias de Um Casamento: 2ª Temporada","expected":"historias de um casamento 2 temporada"}
+{"id":"vt-030","input":"Stranger Things 4 1080p WEB-DL DUAL","expected":"stranger things 4 1080p web dl dual"}
+{"id":"vt-031","input":"","expected":""}
+{"id":"vt-032","input":"   \t \n ","expected":""}
+{"id":"vt-033","input":"G.O.R.A.","expected":"gora"}
+{"id":"vt-034","input":"S.W.A.T. 2003 Dual Áudio 1080p","expected":"swat 2003 dual audio 1080p"}
+{"id":"vt-035","input":"M.A.S.H","expected":"mash"}
+{"id":"vt-036","input":"U.S.Marshals","expected":"us marshals"}
+{"id":"vt-037","input":"Once.Upon.a.Time.in.America","expected":"once upon a time in america"}
+{"id":"vt-038","input":"H.264 x264","expected":"h 264 x264"}
+{"id":"vt-039","input":"Resident.Evil.2026.1080p.TELESYNC","expected":"resident evil 2026 1080p telesync"}
+{"id":"vt-040","input":"Poção do Avô","expected":"pocao do avo"}
+{"id":"vt-041","input":"Poção do Avô","expected":"pocao do avo"}
+{"id":"vt-042","input":"Histórias de Um Casamento: 2ª Temporada","expected":"historias de um casamento 2 temporada"}
+{"id":"vt-043","input":"Volume¹²³ Remux","expected":"volume remux"}
+{"id":"vt-044","input":"Adım Farah","expected":"adim farah"}
+{"id":"vt-045","input":"Straße ẞ","expected":"strasse ss"}
+{"id":"vt-046","input":"Cœurs Déchirés","expected":"coeurs dechires"}
+{"id":"vt-047","input":"Søren Łukasz Đoković","expected":"soren lukasz dokovic"}
+{"id":"vt-048","input":"すずめの戸締まり","expected":"すずめの戸締まり"}
+{"id":"vt-049","input":"Ну, погоди!","expected":"ну погоди"}
+{"id":"vt-050","input":"!!! --- ___ ??? ***","expected":""}
+{"id":"vt-051","input":"Se7en   Dual\tÁudio","expected":"se7en dual audio"}
+{"id":"vt-052","input":"&amp; Filmes","expected":"amp filmes"}
+{"id":"vt-053","input":"DUAL ÁUDIO 4K","expected":"dual audio 4k"}
+{"id":"vt-054","input":"A 2024 Dublado 1080p","expected":"a 2024 dublado 1080p"}
+{"id":"vt-055","input":"A Casa Do Dragao Dublado 1080p","expected":"a casa do dragao dublado 1080p"}
+{"id":"vt-056","input":"A Rocha LEGENDADO DUAL","expected":"a rocha legendado dual"}
+{"id":"vt-057","input":"A viagem de chihiro dublado pt-pt","expected":"a viagem de chihiro dublado pt pt"}
+{"id":"vt-058","input":"A.Rocha.1996.1080p.BluRay.DUAL-SF","expected":"a rocha 1996 1080p bluray dual sf"}
+{"id":"vt-059","input":"A.Rocha.1996.1080p.BluRay.DUAL.MULTi","expected":"a rocha 1996 1080p bluray dual multi"}
+{"id":"vt-060","input":"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES","expected":"a rocha 1996 bluray 1080p x264 dual 2 0 starckfilmes"}
+{"id":"vt-061","input":"A.Rocha.1996.DUAL.ESP.ENG","expected":"a rocha 1996 dual esp eng"}
+{"id":"vt-062","input":"Acervo Dublado","expected":"acervo dublado"}
+{"id":"vt-063","input":"Ativa.DUAL","expected":"ativa dual"}
+{"id":"vt-064","input":"BR Dublado","expected":"br dublado"}
+{"id":"vt-065","input":"BR dublado recebe score 80","expected":"br dublado recebe score 80"}
+{"id":"vt-066","input":"Cidade de Deus 2002 1080p BluRay","expected":"cidade de deus 2002 1080p bluray"}
+{"id":"vt-067","input":"Cold 720p","expected":"cold 720p"}
+{"id":"vt-068","input":"Corvo 1994 1080p BluRay DUAL","expected":"corvo 1994 1080p bluray dual"}
+{"id":"vt-069","input":"Cult Film 2010 BluRay 1080p","expected":"cult film 2010 bluray 1080p"}
+{"id":"vt-070","input":"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P","expected":"download torrent legendado 5 1 mkv 720p"}
+{"id":"vt-071","input":"DUB BR 720p","expected":"dub br 720p"}
+{"id":"vt-072","input":"Dedupe Case 1988 DVDrip","expected":"dedupe case 1988 dvdrip"}
+{"id":"vt-073","input":"Devoradores de Estrelas 2026 Dual 5.1","expected":"devoradores de estrelas 2026 dual 5 1"}
+{"id":"vt-074","input":"Dia D Dublado","expected":"dia d dublado"}
+{"id":"vt-075","input":"Dublado global recebe score 40","expected":"dublado global recebe score 40"}
+{"id":"vt-076","input":"Fallback.Seeds.1080p","expected":"fallback seeds 1080p"}
+{"id":"vt-077","input":"Fallout S01 Complete Pack 1080p","expected":"fallout s01 complete pack 1080p"}
+{"id":"vt-078","input":"Fallout S01E05 1080p Dual","expected":"fallout s01e05 1080p dual"}
+{"id":"vt-079","input":"Fallout.S01E01.1080p.WEBRip.x264","expected":"fallout s01e01 1080p webrip x264"}
+{"id":"vt-080","input":"Fast Movie 1080p","expected":"fast movie 1080p"}
+{"id":"vt-081","input":"Filme 1 1080p","expected":"filme 1 1080p"}
+{"id":"vt-082","input":"Filme 1080p Dublado","expected":"filme 1080p dublado"}
+{"id":"vt-083","input":"Filme 1080p x265","expected":"filme 1080p x265"}
+{"id":"vt-084","input":"Filme 2009 1080p BluRay","expected":"filme 2009 1080p bluray"}
+{"id":"vt-085","input":"Filme 2019 IMAX 2160p","expected":"filme 2019 imax 2160p"}
+{"id":"vt-086","input":"Filme 2024 1080p WEB-DL","expected":"filme 2024 1080p web dl"}
+{"id":"vt-087","input":"Filme 480p SD","expected":"filme 480p sd"}
+{"id":"vt-088","input":"Filme 720p HD","expected":"filme 720p hd"}
+{"id":"vt-089","input":"Filme BR 1080p Dublado","expected":"filme br 1080p dublado"}
+{"id":"vt-090","input":"Filme CAM Dublado 1080p","expected":"filme cam dublado 1080p"}
+{"id":"vt-091","input":"Filme Dublado 1080p","expected":"filme dublado 1080p"}
+{"id":"vt-092","input":"Filme HDTV","expected":"filme hdtv"}
+{"id":"vt-093","input":"Filme Qualquer Dublado","expected":"filme qualquer dublado"}
+{"id":"vt-094","input":"Filme Stall Zero Dublado","expected":"filme stall zero dublado"}
+{"id":"vt-095","input":"Filme Teste 2024 1080p Dublado","expected":"filme teste 2024 1080p dublado"}
+{"id":"vt-096","input":"Filme WEB-DL 1080p","expected":"filme web dl 1080p"}
+{"id":"vt-097","input":"Filme.2019.1080p.BluRay.x264.mkv","expected":"filme 2019 1080p bluray x264 mkv"}
+{"id":"vt-098","input":"Filme.2019.1080p.x264-RARBG","expected":"filme 2019 1080p x264 rarbg"}
+{"id":"vt-099","input":"Filme.2024.1080p.BTHD","expected":"filme 2024 1080p bthd"}
+{"id":"vt-100","input":"Filme.2026.1080p.BluRay.x264","expected":"filme 2026 1080p bluray x264"}
+{"id":"vt-101","input":"Filme.Rico.2024.1080p.mkv","expected":"filme rico 2024 1080p mkv"}
+{"id":"vt-102","input":"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG","expected":"gora 2004 1080p hmax web dl ddp2 0 h 264 turg"}
+{"id":"vt-103","input":"Global Dual 1080p","expected":"global dual 1080p"}
+{"id":"vt-104","input":"Goliath.S03.2160p","expected":"goliath s03 2160p"}
+{"id":"vt-105","input":"Grace.BR.Dublado.1080p","expected":"grace br dublado 1080p"}
+{"id":"vt-106","input":"HINDI.HQ.DUB","expected":"hindi hq dub"}
+{"id":"vt-107","input":"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p","expected":"harry potter e a pedra filosofal 2001 dublado 1080p"}
+{"id":"vt-108","input":"Hawaii Five O S01E01 1080p WEB-DL x264","expected":"hawaii five o s01e01 1080p web dl x264"}
+{"id":"vt-109","input":"Healthy Case 2003 DVDRip","expected":"healthy case 2003 dvdrip"}
+{"id":"vt-110","input":"Idx Release 1080p","expected":"idx release 1080p"}
+{"id":"vt-111","input":"Joker 2019 1080p","expected":"joker 2019 1080p"}
+{"id":"vt-112","input":"Joker S01E01 1080p WEB-DL","expected":"joker s01e01 1080p web dl"}
+{"id":"vt-113","input":"Joker.2019.2160p.WEB-DL.DUAL.5.1","expected":"joker 2019 2160p web dl dual 5 1"}
+{"id":"vt-114","input":"Lost Girl S01 720p","expected":"lost girl s01 720p"}
+{"id":"vt-115","input":"Lost Girl S03 1080p","expected":"lost girl s03 1080p"}
+{"id":"vt-116","input":"Lost.Girl.S01.720p.x265-ZMNT","expected":"lost girl s01 720p x265 zmnt"}
+{"id":"vt-117","input":"Meu Release 1080p","expected":"meu release 1080p"}
+{"id":"vt-118","input":"Mortuary 1982 1080p DUBLADO","expected":"mortuary 1982 1080p dublado"}
+{"id":"vt-119","input":"Mortuary 1983 1080p WEBRip","expected":"mortuary 1983 1080p webrip"}
+{"id":"vt-120","input":"Mortuary 1983 720p DVDRip","expected":"mortuary 1983 720p dvdrip"}
+{"id":"vt-121","input":"Movie 1080p","expected":"movie 1080p"}
+{"id":"vt-122","input":"Movie 1080p BluRay","expected":"movie 1080p bluray"}
+{"id":"vt-123","input":"Movie 1080p Dublado","expected":"movie 1080p dublado"}
+{"id":"vt-124","input":"Movie 2024 1080p","expected":"movie 2024 1080p"}
+{"id":"vt-125","input":"Movie 2026 1080p","expected":"movie 2026 1080p"}
+{"id":"vt-126","input":"Movie 2026 BluRay 1080p","expected":"movie 2026 bluray 1080p"}
+{"id":"vt-127","input":"Movie 2026 WEB-DL 1080p","expected":"movie 2026 web dl 1080p"}
+{"id":"vt-128","input":"Movie WEB-DL 720p","expected":"movie web dl 720p"}
+{"id":"vt-129","input":"Movie.2020.TRUEFRENCH.1080p.x264","expected":"movie 2020 truefrench 1080p x264"}
+{"id":"vt-130","input":"Movie.2024.1080p.BR.Seeds1","expected":"movie 2024 1080p br seeds1"}
+{"id":"vt-131","input":"Movie.2024.1080p.DUBLADO","expected":"movie 2024 1080p dublado"}
+{"id":"vt-132","input":"Movie.2024.1080p.Test","expected":"movie 2024 1080p test"}
+{"id":"vt-133","input":"Movie.2024.2160p.UHD","expected":"movie 2024 2160p uhd"}
+{"id":"vt-134","input":"Movie.2024.CAM.1080p.DUBLADO","expected":"movie 2024 cam 1080p dublado"}
+{"id":"vt-135","input":"Movie.2024.Dual.Audio.Telugu.1080p.BluRay","expected":"movie 2024 dual audio telugu 1080p bluray"}
+{"id":"vt-136","input":"Movie.2026.1080p.mkv","expected":"movie 2026 1080p mkv"}
+{"id":"vt-137","input":"Movie.Title.2024.2160p","expected":"movie title 2024 2160p"}
+{"id":"vt-138","input":"My Name Is Farah S01E01 1080p WEB-DL","expected":"my name is farah s01e01 1080p web dl"}
+{"id":"vt-139","input":"Nao.Tem.Temporada.1080p","expected":"nao tem temporada 1080p"}
+{"id":"vt-140","input":"NoDate2.Movie.2019.1080p","expected":"nodate2 movie 2019 1080p"}
+{"id":"vt-141","input":"NoSub.Movie.2019.1080p","expected":"nosub movie 2019 1080p"}
+{"id":"vt-142","input":"Nome 1080p, 2160p, 720p, HD, WEB-DL","expected":"nome 1080p 2160p 720p hd web dl"}
+{"id":"vt-143","input":"Nome do Filme 2019 Dual Audio 1080p","expected":"nome do filme 2019 dual audio 1080p"}
+{"id":"vt-144","input":"Nome do Filme Dublado 2024 1080p","expected":"nome do filme dublado 2024 1080p"}
+{"id":"vt-145","input":"O Corvo 1994 1080p BluRay DUAL","expected":"o corvo 1994 1080p bluray dual"}
+{"id":"vt-146","input":"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay","expected":"o corvo the crow e dual o corvo dual x265 bluray 1080p 1080p bluray"}
+{"id":"vt-147","input":"O.Corvo.1994.Dual.Audio.1080p","expected":"o corvo 1994 dual audio 1080p"}
+{"id":"vt-148","input":"Obra.DUAL.mkv","expected":"obra dual mkv"}
+{"id":"vt-149","input":"ObraB.Seeds.1080p","expected":"obrab seeds 1080p"}
+{"id":"vt-150","input":"Old Movie 1990 1080p BluRay x264","expected":"old movie 1990 1080p bluray x264"}
+{"id":"vt-151","input":"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0","expected":"origem s01 2022 web dl 1080p x264 dual 2 0"}
+{"id":"vt-152","input":"OtherDigest.Movie.2019.1080p","expected":"otherdigest movie 2019 1080p"}
+{"id":"vt-153","input":"Outro 720p","expected":"outro 720p"}
+{"id":"vt-154","input":"Parasita 2020 1080p BluRay DUBLADO","expected":"parasita 2020 1080p bluray dublado"}
+{"id":"vt-155","input":"Partial Case 1988 DVDrip","expected":"partial case 1988 dvdrip"}
+{"id":"vt-156","input":"Predador A 1080p DUBLADO","expected":"predador a 1080p dublado"}
+{"id":"vt-157","input":"Probe Movie 2011 1080p LEGENDADO","expected":"probe movie 2011 1080p legendado"}
+{"id":"vt-158","input":"Project Hail Mary 2026 1080p WEB.mkv","expected":"project hail mary 2026 1080p web mkv"}
+{"id":"vt-159","input":"Prometheus Dual","expected":"prometheus dual"}
+{"id":"vt-160","input":"Prot.Movie.2019.1080p","expected":"prot movie 2019 1080p"}
+{"id":"vt-161","input":"Qualquer.Coisa.1080p","expected":"qualquer coisa 1080p"}
+{"id":"vt-162","input":"Rare Case 1988 DVDRip","expected":"rare case 1988 dvdrip"}
+{"id":"vt-163","input":"Reacher 2 Temporada Dual","expected":"reacher 2 temporada dual"}
+{"id":"vt-164","input":"Readd.Movie.2019.1080p","expected":"readd movie 2019 1080p"}
+{"id":"vt-165","input":"Release Qualquer 1080p","expected":"release qualquer 1080p"}
+{"id":"vt-166","input":"S01E01.1080p.DDP5.1.mkv","expected":"s01e01 1080p ddp5 1 mkv"}
+{"id":"vt-167","input":"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE","expected":"s01e02 the bear 1080p webrip x264 evolve"}
+{"id":"vt-168","input":"Saga Crepusculo 2008-2012 Dublado","expected":"saga crepusculo 2008 2012 dublado"}
+{"id":"vt-169","input":"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST","expected":"scary movie 2000 repack bluray 1080p dts hd ma 5 1 avc hybrid remux framest"}
+{"id":"vt-170","input":"Scary Movie Part Two 1080p BluRay","expected":"scary movie part two 1080p bluray"}
+{"id":"vt-171","input":"Serie 1a ate 8a Temporada Completa DUAL","expected":"serie 1a ate 8a temporada completa dual"}
+{"id":"vt-172","input":"Serie S01E01 1080p","expected":"serie s01e01 1080p"}
+{"id":"vt-173","input":"Serie S01E02 Dublado","expected":"serie s01e02 dublado"}
+{"id":"vt-174","input":"Serie Sem Hash S02E01 1080p","expected":"serie sem hash s02e01 1080p"}
+{"id":"vt-175","input":"Serie T01 E001 e E002 720p","expected":"serie t01 e001 e e002 720p"}
+{"id":"vt-176","input":"Serie Teste 1080p","expected":"serie teste 1080p"}
+{"id":"vt-177","input":"Serie Teste S01E02 1080p","expected":"serie teste s01e02 1080p"}
+{"id":"vt-178","input":"Serie Teste S02E05 DUBLADO","expected":"serie teste s02e05 dublado"}
+{"id":"vt-179","input":"Serie Todas as Temporadas DUAL","expected":"serie todas as temporadas dual"}
+{"id":"vt-180","input":"Serie.S01E01.DUAL","expected":"serie s01e01 dual"}
+{"id":"vt-181","input":"Serie.S04E03.1080p.WEB-DL.DUBLADO","expected":"serie s04e03 1080p web dl dublado"}
+{"id":"vt-182","input":"Shes The Boss S01E01 1080p","expected":"shes the boss s01e01 1080p"}
+{"id":"vt-183","input":"Show S01 1080p EP","expected":"show s01 1080p ep"}
+{"id":"vt-184","input":"Show S01 Dublado","expected":"show s01 dublado"}
+{"id":"vt-185","input":"Show S01E01 Dual 1080p","expected":"show s01e01 dual 1080p"}
+{"id":"vt-186","input":"Show S01E05 Dual 1080p","expected":"show s01e05 dual 1080p"}
+{"id":"vt-187","input":"Show S01E1176-2160p","expected":"show s01e1176 2160p"}
+{"id":"vt-188","input":"Show.3ordm.Temporada.Completa.1080p","expected":"show 3ordm temporada completa 1080p"}
+{"id":"vt-189","input":"Show.S01E01.1080p.mkv","expected":"show s01e01 1080p mkv"}
+{"id":"vt-190","input":"Show.S02.1080p","expected":"show s02 1080p"}
+{"id":"vt-191","input":"Show.S02E05.1080p.mkv","expected":"show s02e05 1080p mkv"}
+{"id":"vt-192","input":"Show.S03.1080p.DTS5.1.mkv","expected":"show s03 1080p dts5 1 mkv"}
+{"id":"vt-193","input":"Some.Global.Dub.1080p","expected":"some global dub 1080p"}
+{"id":"vt-194","input":"Some.Swarm.1080p","expected":"some swarm 1080p"}
+{"id":"vt-195","input":"Star Wars Todos os filmes 1977-2019 Dublado","expected":"star wars todos os filmes 1977 2019 dublado"}
+{"id":"vt-196","input":"Strict Full 1988 DVDRip","expected":"strict full 1988 dvdrip"}
+{"id":"vt-197","input":"Swarm.Movie.2019.1080p","expected":"swarm movie 2019 1080p"}
+{"id":"vt-198","input":"Terrace House Boys S01E01 1080p","expected":"terrace house boys s01e01 1080p"}
+{"id":"vt-199","input":"Test Title 2024 1080p EN ONLY","expected":"test title 2024 1080p en only"}
+{"id":"vt-200","input":"Test Title 2024 720p DUBLADO","expected":"test title 2024 720p dublado"}
+{"id":"vt-201","input":"The Bear S01E01 1080p WEB-DL x264","expected":"the bear s01e01 1080p web dl x264"}
+{"id":"vt-202","input":"The Boys S04 1080p AMZN WEB-DL","expected":"the boys s04 1080p amzn web dl"}
+{"id":"vt-203","input":"The Locals 2003 720p WEB-DL","expected":"the locals 2003 720p web dl"}
