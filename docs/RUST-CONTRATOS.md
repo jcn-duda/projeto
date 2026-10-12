@@ -169,12 +169,12 @@ A reproduzir **sem** acrescentar regex:
   `stream` (`src/routes/addon-router.ts:124`). Não abrir o documentor completo
   de rotas nesta etapa.
 
-## 2. Oráculo golden (VERIFICADO — 46 datasets, 45 manifests)
+## 2. Oráculo golden (VERIFICADO — 50 datasets, 49 manifests)
 
 O que esta seção descrevia como "planejado" **existe e roda**. No snapshot
-`33a6cad` (2026-10-12) o diretório [`rust/golden/`](../rust/golden/) tem **46
-`.jsonl`** e **45 manifests** — todos os datasets têm manifest menos
-`stream-quotas-extra.jsonl`. A soma de linhas é **5.411** (**5.384** pela soma de
+`6474084` (2026-10-12) o diretório [`rust/golden/`](../rust/golden/) tem **50
+`.jsonl`** e **49 manifests** — todos os datasets têm manifest menos
+`stream-quotas-extra.jsonl`. A soma de linhas é **5.824** (**5.797** pela soma de
 `corpus.cases` dos manifests); as contagens por dataset estão no mapa do §3.
 
 Contrato comum a todos os oráculos, no padrão de
@@ -201,13 +201,14 @@ no manifest.
 
 Manifests gerados **antes** do commit `fef1cf6` (que introduziu a política) não
 têm o campo e podem carregar hash **residual de CRLF**; `config-encoding` e
-`reply-budget` foram corrigidos no commit `f305f44`. No snapshot, só **13**
+`reply-budget` foram corrigidos no commit `f305f44`. No snapshot, **17**
 manifests declaram `sourceHashLineEndings`: `indexer-priority`, `magnet-uri`,
 `matching-vocabulary-regex`, `matching-vocabulary-sets`,
 `matching-vocabulary-title-tokens`, `release-name-matching`, `resolve-sign`,
 `config-encoding`, `reply-budget`, `audio-presentation`, `stream-display`,
-`stream-relabel`, `stream-trace`. Os demais já eram LF (hash bruto == hash LF),
-logo dispensam o rótulo.
+`stream-relabel`, `stream-trace`, `video-header`, `br-pool-selection`,
+`tmdb-br-aliases`, `audio-cleanup-verdicts`. Os demais já eram LF (hash bruto ==
+hash LF), logo dispensam o rótulo.
 
 ### 2.2 Ferramentas (três gerações coexistem)
 
@@ -221,9 +222,10 @@ logo dispensam o rótulo.
 | [`dump-search-name-helpers.mjs`](../scripts/golden/dump-search-name-helpers.mjs) + `search-name-helpers-oracle.mjs` | `search-name-helpers` | `npm run golden:search-name-helpers:check` |
 | [`dump-indexer-priority.mjs`](../scripts/golden/dump-indexer-priority.mjs) | `indexer-priority` | `npm run golden:indexer-priority:check` |
 | [`dump-audio-presentation.mjs`](../scripts/golden/dump-audio-presentation.mjs) + `audio-presentation-oracle.mjs` | `audio-presentation` | `npm run golden:audio-presentation:check` |
-| [`dump-stream-display.mjs`](../scripts/golden/dump-stream-display.mjs) + `stream-display-oracle.mjs` | `stream-display` (**oráculo, sem porte Rust**) | `npm run golden:stream-display:check` |
-| [`dump-stream-relabel.mjs`](../scripts/golden/dump-stream-relabel.mjs) + `stream-relabel-oracle.mjs` | `stream-relabel` (**oráculo, sem porte Rust**) | `npm run golden:stream-relabel:check` |
-| [`dump-stream-trace.mjs`](../scripts/golden/dump-stream-trace.mjs) + `stream-trace-oracle.mjs` | `stream-trace` (**oráculo, sem porte Rust**) | `npm run golden:stream-trace:check` |
+| [`dump-stream-display.mjs`](../scripts/golden/dump-stream-display.mjs) + `stream-display-oracle.mjs` | `stream-display` (porte Rust, `dd7c7c2`) | `npm run golden:stream-display:check` |
+| [`dump-stream-relabel.mjs`](../scripts/golden/dump-stream-relabel.mjs) + `stream-relabel-oracle.mjs` | `stream-relabel` (porte Rust, `4d6fcbb`) | `npm run golden:stream-relabel:check` |
+| [`dump-stream-trace.mjs`](../scripts/golden/dump-stream-trace.mjs) + `stream-trace-oracle.mjs` | `stream-trace` (porte Rust, `e2b083b`) | `npm run golden:stream-trace:check` |
+| [`dump-audio-cleanup-verdicts.mjs`](../scripts/golden/dump-audio-cleanup-verdicts.mjs) + `audio-cleanup-verdicts-oracle.mjs` | `audio-cleanup-verdicts` (porte Rust, `6474084`) | `npm run golden:audio-cleanup-verdicts:check` |
 | [`dump-config-encoding.mjs`](../scripts/golden/dump-config-encoding.mjs) | `config-encoding` | linha de comando |
 | [`registry-matches-br-title.mjs`](../scripts/golden/registry-matches-br-title.mjs) | `matches-br-title` (tem `resolve` que importa o `dist`, mas não está ligado a runner nem a `--fn` — §4) | — |
 | **nenhum gerador** | `reply-budget` (**órfão**: manifest existe, gerador não) | — |
@@ -233,8 +235,9 @@ produz a tabela interna `latin_table.rs`; `generate-stream-quotas-extra.mjs`
 produz `stream-quotas-extra.jsonl` (que **não** tem manifest). São pares de
 scripts npm: `golden:titles`, `golden:resolve-sign`, `golden:release-labels`,
 `golden:pt-audio-guards`, `golden:search-name-helpers`, `golden:indexer-priority`,
-`golden:audio-presentation`, `golden:stream-display`, `golden:stream-relabel` e
-`golden:stream-trace`; os demais rodam por linha de comando.
+`golden:audio-presentation`, `golden:stream-display`, `golden:stream-relabel`,
+`golden:stream-trace` e `golden:audio-cleanup-verdicts`; os demais rodam por linha
+de comando.
 
 Do lado Node, o teste permanente
 [`test/golden-title-normalization.test.ts`](../test/golden-title-normalization.test.ts)
@@ -246,16 +249,16 @@ verificados pelos testes Rust e pelo `--check` manual.
 
 Runtime de produção é **TS** (`dist/` roda; a única ponte ativa é
 `src/utils/rust-core.ts` → `normalizeTitle` no `addon.ts`, sob `RUST_CORE` off). O
-Rust de hoje é **paridade provada, não adoção**: `rust/crates/adom-core` porta **44
+Rust de hoje é **paridade provada, não adoção**: `rust/crates/adom-core` porta **52
 módulos** (contagem por `mod` no `lib.rs`), quase todos **função pura**
-(texto/objeto → valor), cobertos por **46 goldens** e um teste por golden. **Não
+(texto/objeto → valor), cobertos por **50 goldens** e um teste por golden. **Não
 se deve ler esta lista como "pipeline migrado"**: só as unidades puras abaixo
 saíram do Node; busca, providers, debrid, crawl e o wiring de I/O continuam em
 `src/` (§5).
 
 Mapa de capacidades (módulo Rust · API pública · fonte TS · golden/casos). A
-contagem de casos é do snapshot `33a6cad`: **5.411** linhas de `.jsonl` no total;
-a soma de `corpus.cases` dos 45 manifests é **5.384** (faltam os 27 de
+contagem de casos é do snapshot `6474084`: **5.824** linhas de `.jsonl` no total;
+a soma de `corpus.cases` dos 49 manifests é **5.797** (faltam os 27 de
 `stream-quotas-extra`, sem manifest). As colunas abaixo vêm do manifest quando
 existe.
 
@@ -410,20 +413,48 @@ TS-vs-Rust é feita ou afirmada. Sem suposições de deploy em VPS.
   TS aceita `unknown` e devolve `false` para não-string. Hoje **não há consumidor
   TS** do binding (§4); a diferença só apareceria quando `src/` começar a
   consumi-lo.
-- **Oráculos commitados, sem porte Rust**: `stream-display` (124; reexporta o
-  `streamDisplayName`), `stream-relabel` (129) e `stream-trace` (138) têm golden
-  e checker (`npm run golden:stream-*:check`), mas **nenhum módulo Rust** em
-  `lib.rs` — o porte é fatia futura. Traps declarados nos manifestos:
+- **Oráculos com porte Rust concluído (leva 3)**: `js_text16` (o tipo),
+  `stream-display` (124, `dd7c7c2`), `stream-relabel` (129, `4d6fcbb`) e
+  `stream-trace` (138, `e2b083b`) estão em `lib.rs` com paridade provada, e os
+  `npm run golden:stream-*:check` seguem valendo. Traps declarados nos manifestos:
   - `stream-display`/`stream-relabel`: `compactTracker` fatia em unidades UTF-16
-    e pode produzir surrogate isolado (4 + 10 vetores). Rust não tem `String`
-    com surrogate solto: **não** dropar em silêncio nem trocar por U+FFFD —
-    preservar via `expectedJson` (JSON-texto) ou reportar `Fail`.
+    e pode produzir surrogate isolado (4 + 10 vetores). Resolvido pelo contrato
+    `JsText` (§3.2): o órfão **sobrevive** no `Vec<u16>` e é re-escapado como
+    `\uXXXX` na serialização, sem U+FFFD.
   - `stream-trace`: 2 vetores de borda 59/159 com surrogate isolado; item cap
     300, `account-*` 60, label 60, chupim 160.
   - O campo `expected` do `relabel`/`trace` é **JSON-texto** (`JSON.stringify`);
     o do `display` é **texto cru** e é **omitido** nos órfãos — o leitor Rust
-    precisa aceitar `expected` ausente (`Option<String>`) e comparar por
-    `expectedJson`. Uniformizar o contrato é fatia própria.
+    aceita `expected` ausente (`Option<String>`). Uniformizar o contrato segue
+    como fatia própria.
+
+## 3.2 Contrato de texto UTF-16 (`JsText`) — VERIFICADO
+
+`adom-core::JsText` (módulo `js_text16`) representa a string JS como `Vec<u16>` —
+**unidade de código UTF-16**, não `char`. Portes que cortam em índice de string
+(`slice`, `substring`, teto de 60/160) precisam dele, porque um corte pode cair
+no meio de um par substituto e o JS **preserva** o órfão.
+
+- **Onde usar**: funções cujo resultado dependa de `String.prototype.slice` ou de
+  contagem de unidades (`compactTracker`, `streamDisplayName`,
+  `sanitizeTraceLabel`, `sanitizeChupimNote`).
+- **Onde NÃO usar**: payload assinado (HMAC de `/resolve`), chave de cache e
+  serialização de produção — ali `String` do Rust basta e a paridade é byte a
+  byte (§1). `JsText` não entra em `resolve_sign`, `cache-keys` nem `dk_seal`.
+- **`js_slice(a, b)`**: corta como o `slice` do JS (índices em unidades; par
+  substituto partido permanece órfão).
+- **`js_stringify()`**: serializa escapando o órfão como `\uXXXX` (hex
+  minúsculo, como o `JSON.stringify`), nunca `to_string_lossy` nem U+FFFD.
+- **`from_json_string_literal(s)`**: decodifica um literal JSON de volta para as
+  unidades, recompondo o órfão — é o caminho de leitura dos `expected` em
+  JSON-texto.
+- **Proibições**: não expor `to_string_lossy` público; não comparar golden por
+  `String` com perda (comparar por `expectedJson`/unidades).
+- **Dívidas de paridade do `stream-trace` (P3, latentes)**: `cloneStreamTrace`
+  reconstrói forma fixa (feito); `spread` de item não-objeto, coerção de
+  `stages`/`accountItems` a partir de string, ordem de chave inteiro-símile e
+  `Number`→`String` fora do range inteiro divergem do JS, mas só para entradas
+  fora do contrato tipado do chamador — documentadas, não corrigidas.
 
 ## 4. Riscos e ambiguidades
 
