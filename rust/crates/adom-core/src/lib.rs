@@ -20,8 +20,8 @@ pub use matching_decisions::{
 };
 
 pub use matching_tokens::{
-    episode_work_tokens, extract_sequence_markers, first_work_token, is_non_latin_token,
-    is_non_naming_token, Marker,
+    episode_work_tokens, extract_sequence_markers, first_unmarked_token, first_work_token,
+    is_non_latin_token, is_non_naming_token, Marker,
 };
 pub use matching_vocabulary::{
     episode_token_test, title_tokens, vocabulary_contents, year_range_test,

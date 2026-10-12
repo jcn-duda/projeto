@@ -167,3 +167,12 @@ pub fn first_work_token(tokens: &[String]) -> Option<&str> {
         .map(String::as_str)
         .find(|w| !w.is_empty() && !is_non_naming_token(w) && !is_non_latin_token(w))
 }
+
+/// Primeiro token que nomeia a obra, em qualquer script (`firstUnmarkedToken`).
+/// Diferente de `first_work_token`, aceita título localizado (光環).
+pub fn first_unmarked_token(tokens: &[String]) -> Option<&str> {
+    tokens
+        .iter()
+        .map(String::as_str)
+        .find(|w| !w.is_empty() && !is_non_naming_token(w))
+}

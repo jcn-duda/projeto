@@ -7,8 +7,8 @@
 use std::collections::HashSet;
 
 use adom_core::{
-    episode_work_tokens, extract_sequence_markers, first_work_token, is_non_latin_token,
-    is_non_naming_token, title_tokens, MANIFEST_FORMAT,
+    episode_work_tokens, extract_sequence_markers, first_unmarked_token, first_work_token,
+    is_non_latin_token, is_non_naming_token, title_tokens, MANIFEST_FORMAT,
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -91,6 +91,7 @@ fn render(input: &str) -> String {
         Some(words) => words.join(" "),
     };
     let first = first_work_token(&tokens).unwrap_or("-");
+    let unm = first_unmarked_token(&tokens).unwrap_or("-");
     let nn: String = tokens
         .iter()
         .map(|t| if is_non_naming_token(t) { '1' } else { '0' })
@@ -100,7 +101,7 @@ fn render(input: &str) -> String {
         .map(|t| if is_non_latin_token(t) { '1' } else { '0' })
         .collect();
     format!(
-        "seq={} epi={epi} first={first} nn={nn} nl={nl}",
+        "seq={} epi={epi} first={first} unm={unm} nn={nn} nl={nl}",
         seq.join(",")
     )
 }
