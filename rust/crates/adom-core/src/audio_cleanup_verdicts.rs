@@ -114,7 +114,15 @@ pub fn dubbed_lie_verdict(
     pt_markers: &[&str],
     en_groups: &[&str],
 ) -> DubbedLieVerdict {
-    let video_count = video_paths.len();
+    // O TS roda `videoPaths.map(String).filter(Boolean)` e usa o length FILTRADO
+    // em TODA saída, inclusive no portão de lista vazia: path vazio não conta
+    // como vídeo.
+    let paths: Vec<&str> = video_paths
+        .iter()
+        .copied()
+        .filter(|p| !p.is_empty())
+        .collect();
+    let video_count = paths.len();
     if !enabled || !promised_dubbed || video_count == 0 {
         return DubbedLieVerdict {
             lie: false,
@@ -122,17 +130,14 @@ pub fn dubbed_lie_verdict(
             video_count,
         };
     }
-    if video_paths
-        .iter()
-        .any(|path| has_pt_audio_mark(path, pt_markers))
-    {
+    if paths.iter().any(|path| has_pt_audio_mark(path, pt_markers)) {
         return DubbedLieVerdict {
             lie: false,
             matched_group: None,
             video_count,
         };
     }
-    match video_paths
+    match paths
         .iter()
         .find_map(|path| strong_en_scene_mark(path, pt_markers, en_groups))
     {

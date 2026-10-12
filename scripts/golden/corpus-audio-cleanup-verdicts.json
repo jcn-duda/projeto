@@ -140,6 +140,9 @@
     {"id":"acv-124","input":"{\"op\":\"lie\",\"paths\":[\"Movie.Во.DUBBED-KILLERS.mkv\"],\"promisedDubbed\":true}","note":"cirílico desmente DUBBED; o grupo ainda conta"},
     {"id":"acv-125","input":"{\"op\":\"lie\",\"paths\":[\"Movie.1080p.WEB-DL.x264-ETTV.mkv\"],\"promisedDubbed\":true}","note":"grupo ettv"},
     {"id":"acv-126","input":"{\"op\":\"lie\",\"paths\":[\"Movie.1080p.WEB-DL.x264-TGx.mkv\",\"Movie.1080p.WEB-DL.x264-ETTV.mkv\"],\"promisedDubbed\":true}","note":"primeiro path define o grupo"},
-    {"id":"acv-127","input":"{\"op\":\"lie\",\"paths\":[\"Movie.a.mkv\",\"Movie.b.mkv\",\"Movie.c.mkv\"],\"promisedDubbed\":true}","note":"nenhum grupo"}
+    {"id":"acv-127","input":"{\"op\":\"lie\",\"paths\":[\"Movie.a.mkv\",\"Movie.b.mkv\",\"Movie.c.mkv\"],\"promisedDubbed\":true}","note":"nenhum grupo"},
+    {"id":"acv-128","input":"{\"op\":\"lie\",\"paths\":[\"Movie.KILLERS.mkv\",\"\"],\"promisedDubbed\":true}","note":"path vazio é filtrado: videoCount 1, mentira"},
+    {"id":"acv-129","input":"{\"op\":\"lie\",\"paths\":[\"\",\"\"],\"promisedDubbed\":true}","note":"só vazios: lista filtrada vazia, sem veredito"},
+    {"id":"acv-130","input":"{\"op\":\"lie\",\"paths\":[\"\",\"Movie.Dublado.mkv\"],\"promisedDubbed\":true}","note":"vazio filtrado + marcador PT: videoCount 1, preserva"}
   ]
 }

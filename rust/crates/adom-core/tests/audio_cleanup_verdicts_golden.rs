@@ -138,7 +138,11 @@ fn ids_unicos_e_corpus_concorda_com_o_golden() {
 #[test]
 fn predicados_batem_com_o_golden_caso_a_caso() {
     let cfg = config();
-    for case in parse_cases(JSONL_BYTES) {
+    let cases = parse_cases(JSONL_BYTES);
+    // Catraca de contagem: 127 originais + acv-128..130 (paths vazios). Uma
+    // regeneração que encolha o corpus junto com o manifest não passa aqui.
+    assert_eq!(cases.len(), 130, "contagem de casos do corpus mudou");
+    for case in cases {
         let obtido = render(&case.input, &cfg);
         assert_eq!(
             obtido, case.expected,

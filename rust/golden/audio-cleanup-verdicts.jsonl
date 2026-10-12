@@ -125,3 +125,6 @@
 {"id":"acv-125","input":"{\"op\":\"lie\",\"paths\":[\"Movie.1080p.WEB-DL.x264-ETTV.mkv\"],\"promisedDubbed\":true}","expected":"1|ettv|1"}
 {"id":"acv-126","input":"{\"op\":\"lie\",\"paths\":[\"Movie.1080p.WEB-DL.x264-TGx.mkv\",\"Movie.1080p.WEB-DL.x264-ETTV.mkv\"],\"promisedDubbed\":true}","expected":"1|tgx|2"}
 {"id":"acv-127","input":"{\"op\":\"lie\",\"paths\":[\"Movie.a.mkv\",\"Movie.b.mkv\",\"Movie.c.mkv\"],\"promisedDubbed\":true}","expected":"0||3"}
+{"id":"acv-128","input":"{\"op\":\"lie\",\"paths\":[\"Movie.KILLERS.mkv\",\"\"],\"promisedDubbed\":true}","expected":"1|killers|1"}
+{"id":"acv-129","input":"{\"op\":\"lie\",\"paths\":[\"\",\"\"],\"promisedDubbed\":true}","expected":"0||0"}
+{"id":"acv-130","input":"{\"op\":\"lie\",\"paths\":[\"\",\"Movie.Dublado.mkv\"],\"promisedDubbed\":true}","expected":"0||1"}

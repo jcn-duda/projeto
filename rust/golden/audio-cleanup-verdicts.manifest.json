@@ -13,18 +13,18 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-audio-cleanup-verdicts.json",
-    "sha256": "e0fff32c0d304e5301a14663eea006c4aad1893dc39c56685d786fdeecd4654d",
-    "cases": 127
+    "sha256": "55b1addcd89f926742ec17f2dcdad1eed154a42d4ba818573b6f48b8046f43ee",
+    "cases": 130
   },
   "output": {
     "path": "rust/golden/audio-cleanup-verdicts.jsonl",
-    "sha256": "5c4094c46909b9f5968ebb63cedf500192bae2d6b8b86ab8821a0e877d945902",
-    "lines": 127
+    "sha256": "9a5bb136a32759fa52131ea0ed818e71cf8e14b7c0eb771fe2f2307884ba9252",
+    "lines": 130
   },
   "node": {
     "major": 22
   },
   "git": {
-    "revision": "71dc68a26fe46dbe9f5c6ff0dc49b73b82433523"
+    "revision": "c4f54e09cf8308a475bf1d809f97e4daa685e2a1"
   }
 }
