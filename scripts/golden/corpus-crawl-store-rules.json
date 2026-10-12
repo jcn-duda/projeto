@@ -833,6 +833,26 @@
       "id": "csr-165",
       "input": "{\"op\":\"emptyCounters\"}",
       "note": "contadores zerados com todos os status"
+    },
+    {
+      "id": "csr-166",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":\\\"u\\\",\\\"skip\\\":-4},\\\"totalCards\\\":1}\"}",
+      "note": "dry reusa render: clampa skip negativo do card"
+    },
+    {
+      "id": "csr-167",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"card\\\":{\\\"url\\\":\\\"u\\\",\\\"skip\\\":2.9},\\\"totalCards\\\":1}\"}",
+      "note": "dry reusa render: trunca skip float do card"
+    },
+    {
+      "id": "csr-168",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":-5}\"}",
+      "note": "dry reusa render: clampa totalCards negativo"
+    },
+    {
+      "id": "csr-169",
+      "input": "{\"op\":\"withDryFlag\",\"raw\":\"{\\\"v\\\":1,\\\"doneCards\\\":[],\\\"totalCards\\\":3.9}\"}",
+      "note": "dry reusa render: trunca totalCards float"
     }
   ]
 }

@@ -15,6 +15,7 @@ mod catalog_classify;
 mod catalog_year;
 mod collapse_acronyms;
 pub mod config_encoding;
+mod crawl_store_rules;
 mod crawl_url_key;
 mod decode_entities;
 mod dedupe_names;
@@ -159,6 +160,11 @@ pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_bl
 pub use bytes_to_size::bytes_to_size;
 pub use catalog_classify::{classify_by_title, classify_with_evidence, foreign_proof_label, Proof};
 pub use collapse_acronyms::collapse_acronyms;
+pub use crawl_store_rules::{
+    apply_result, decide_upsert, empty_counters, error_backoff_ms, parse_progress, parse_status,
+    parse_url_row, progress_advanced, render_progress, render_url, with_dry_flag, CRAWL_GIVE_UP_MS,
+    DEFAULT_RETRY_BASE_MS, ERROR_BACKOFF_CAP_MS, URL_COLUMNS,
+};
 pub use crawl_url_key::crawl_url_key;
 pub use decode_entities::decode_entities;
 pub use dedupe_names::dedupe_names;

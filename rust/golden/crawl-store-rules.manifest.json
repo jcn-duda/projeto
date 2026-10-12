@@ -13,18 +13,18 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-crawl-store-rules.json",
-    "sha256": "34e3eaf787eaf270f2bc53600ea82eff12e77ee14b67da3e1ed5ab926b024334",
-    "cases": 165
+    "sha256": "ec9b0ecac10ccdf568b9f9f0fd295ef6df83129e4c9a4a38ab28ae9b229c84da",
+    "cases": 169
   },
   "output": {
     "path": "rust/golden/crawl-store-rules.jsonl",
-    "sha256": "5d70b9617e04418cfa7f523a64e1e9a9ecda4d900f90a6efa6b510430c0f4f33",
-    "lines": 165
+    "sha256": "5553475d5520fb8beea16f8f86a023ca953dd8d78acd9da0838fbc4e553275f2",
+    "lines": 169
   },
   "node": {
     "major": 22
   },
   "git": {
-    "revision": "a4ee15906bebe3e6816aa1d5fb612a400eba7c61"
+    "revision": "0df9c5c38ec216eac463006735190d16fa89012e"
   }
 }

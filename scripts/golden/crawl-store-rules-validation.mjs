@@ -8,8 +8,8 @@
  * piso derruba a geração ANTES de medir/escrever — vale igual para `--check` e
  * para `--force`.
  *
- * Distribuição vigente (165 casos), na ordem de OPS:
- * 18 / 29 / 18 / 15 / 6 / 15 / 31 / 7 / 14 / 11 / 1. O piso de cada op é essa
+ * Distribuição vigente (169 casos), na ordem de OPS:
+ * 18 / 29 / 18 / 15 / 10 / 15 / 31 / 7 / 14 / 11 / 1. O piso de cada op é essa
  * contagem. Reduzir um piso é decisão consciente (atualize número e comentário);
  * derivar o piso do próprio corpus tornaria qualquer redução silenciosa.
  */
@@ -26,7 +26,7 @@ export const OP_MIN_CASES = {
   parseProgress: 29,
   renderProgress: 18,
   progressAdvanced: 15,
-  withDryFlag: 6,
+  withDryFlag: 10,
   decideUpsert: 15,
   applyResult: 31,
   renderUrl: 7,
