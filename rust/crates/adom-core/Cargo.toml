@@ -29,8 +29,15 @@ hmac = "0.12"
 sha2 = "0.10"
 # Comparação constant-time (verify_resolve): evita vazamento por timing.
 subtle = "2"
+# serde_json: usado por js_text (config encoding).
+# preserve_order: o encode_config depende da ordem de inserção do JSON (paridade com JS).
+serde_json = { version = "1", features = ["preserve_order"] }
+# ── config_encoding / dk_seal (selo AES da dk) ──────────────────────
+# AES-256-GCM para o selo da dk (paridade com crypto.createCipheriv do Node).
+aes-gcm = "0.10"
+# scrypt para derivar chave do segredo (paridade com crypto.scrypt do Node).
+scrypt = "0.11"
 
 [dev-dependencies]
 # Só para os testes de integridade do golden (nunca entram no runtime):
 serde = { version = "1", features = ["derive"] } # desserializa manifest/casos
-serde_json = "1"                                  # parse do JSONL e do manifest

@@ -19,7 +19,7 @@ license = "UNLICENSED"
 
 # Biblioteca dinâmica — o napi-rs precisa de cdylib para gerar o .node.
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Núcleo com as funções portadas (normalize_title, etc.).

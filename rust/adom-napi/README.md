@@ -1,8 +1,8 @@
 # @adom/napi — bindings NAPI-RS do adom-core
 
-> **Status: esqueleto inicial.** As três funções críticas (`normalizeTitle`,
-> `signResolve`, `verifyResolve`) estão expostas. Expandir conforme mais
-> funções forem portadas do TS para o `adom-core`.
+> **Status: 12 funções expostas.** O crate expõe as funções críticas do
+> `adom-core` para o Node: normalização, matching BR, parse de S/E, magnet,
+> origem BR, quotas e sign/verify. Testes de paridade cobrindo 34 casos.
 
 ## Como buildar
 
@@ -57,13 +57,30 @@ const ok = verifyResolve(secret, infoHash, 'S01E01', reqSig, '');
 
 ## Funções expostas
 
-| NAPI (snake_case)      | Node (camelCase)      | Origem                                     |
-|------------------------|-----------------------|--------------------------------------------|
-| `normalize_title`      | `normalizeTitle`      | `adom_core::normalize_title`               |
-| `sign_resolve`         | `signResolve`         | HMAC-SHA256 (paridade com `src/utils/sign.ts`) |
-| `verify_resolve`       | `verifyResolve`       | Comparação constante (paridade com TS)     |
+| NAPI (snake_case)            | Node (camelCase)            | Origem `adom-core`                     | Propósito                                    |
+|------------------------------|-----------------------------|----------------------------------------|----------------------------------------------|
+| `normalize_title`            | `normalizeTitle`            | `normalize_title`                      | Normalização de títulos (paridade com TS)    |
+| `sign_resolve`               | `signResolve`               | `sign_resolve`                         | Assina URLs de /resolve (HMAC-SHA256)        |
+| `verify_resolve`             | `verifyResolve`             | `verify_resolve`                       | Verifica assinaturas (tempo constante)       |
+| `matches_br_title`           | `matchesBrTitle`            | `matches_br_title`                     | Filtro estrito BR de título                  |
+| `parse_title_season_episode` | `parseTitleSeasonEpisode`   | `parse_title_season_episode`           | Parse de S/E do título da release            |
+| `matches_name`               | `matchesName`               | `matches_name`                         | Portão de cobertura de nome (60% tokens)     |
+| `sanitize_magnet`            | `sanitizeMagnet`            | `sanitize_magnet`                      | Valida/limpa URI magnet                      |
+| `default_magnet`             | `defaultMagnet`             | `default_magnet`                       | Magnet padrão com trackers do piso           |
+| `extract_info_hash`          | `extractInfoHash`           | `extract_info_hash`                    | Extrai infoHash (hex/base32/btih)            |
+| `br_origin_mark`             | `brOriginMark`              | `br_origin_mark`                       | Origem BR (site/PT/filme)                    |
+| `has_pt_signs`               | `hasPtSigns`                | `has_pt_signs`                         | Sinais de português no título                |
+| `limit_by_indexer`           | `limitByIndexer`            | `limit_by_indexer`                     | Cota por indexador                           |
 
 O napi-rs converte automaticamente `snake_case` → `camelCase` nos exports JS.
+
+### Structs de saída
+
+| NAPI object             | Espelha `adom-core`            | Campos                                        |
+|-------------------------|--------------------------------|-----------------------------------------------|
+| `ParsedSeasonEpisode`   | `ParsedSeasonEpisode`          | `seasons`, `episodes`, `complete`, `seasonPack` |
+
+O `#[napi(object)]` gera a interface TypeScript automaticamente.
 
 ## Estrutura
 
@@ -112,11 +129,10 @@ O Dockerfile atual **NÃO** builda o crate Rust. Para integrar, será preciso:
 
 ## Próximos passos
 
-- [ ] Adicionar mais funções do `adom-core` conforme forem portadas
-  (`parse_title_season_episode`, `br_origin_mark`, etc.)
+- [x] Adicionar mais funções do `adom-core` (12 expostas)
+- [x] Testes de paridade (34 casos)
 - [ ] Wrapper ESM (`index.mjs`) para evitar `createRequire` no addon
 - [ ] Integrar build Rust no Dockerfile (stage separado)
-- [ ] Testes de paridade: comparar saída NAPI vs. TS para os três exports
 - [ ] Benchmark: medir ganho de performance vs. implementação TS
 - [ ] CI: buildar o `.node` em matrix (linux-x64-gnu, linux-x64-musl, darwin-arm64, win32-x64-msvc)
 
