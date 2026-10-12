@@ -45,6 +45,7 @@ mod release_name_matching;
 mod release_title_rules;
 mod release_work;
 mod reply_budget;
+mod request_key;
 mod resolve_sign;
 mod search_name_helpers;
 mod short_name_tail;
@@ -172,6 +173,7 @@ pub use release_guards::{
 };
 pub use release_labels::{compact_audio, edition_from_title, source_from_title};
 pub use reply_budget::remaining_check_budget;
+pub use request_key::{account_scope, streams_cache_key, streams_cache_scope};
 pub use search_name_helpers::{
     build_search_query, mark_debrid_name, matches_quality_filter, numeral_search_variant,
     parse_stremio_id, resolve_original_step_name, resolve_search_names,
