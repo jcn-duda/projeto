@@ -4,7 +4,7 @@
 //! A integração com o Node é via `adom-napi` (bindings NAPI-RS).
 //!
 //! Módulos principais: `normalize_title`, `sign_resolve`/`verify_resolve`,
-//! `parse_title_season_episode`, `admits_multi_work_pack`,
+//! `matches_br_title`, `parse_title_season_episode`, `admits_multi_work_pack`,
 //! `limit_by_indexer`, `matches_name`, `matches_title_structure`.
 
 mod br_origin;
@@ -15,6 +15,7 @@ mod info_hash;
 mod js_text;
 mod latin_table;
 mod magnet_uri;
+mod matches_br_title;
 mod matching_decisions;
 mod matching_tokens;
 mod matching_vocabulary;
@@ -45,6 +46,7 @@ pub use multiwork_pack::{
 pub use release_name_matching::{
     contains_token_run, ends_with_sequence_marker, franchise_root, franchise_roots, matches_name,
 };
+pub use matches_br_title::matches_br_title;
 pub use release_title_rules::{
     matches_short_name_identity, matches_title_structure, short_name_identity, ShortNameIdentity,
 };
