@@ -22,6 +22,11 @@ pub mod work_name;
 pub mod resolver_text;
 pub mod nested_url;
 pub mod resolver_matching;
+pub mod resolver_concurrency;
+pub mod http_session;
+pub mod resolver_warm;
+pub mod resolver_cache;
+pub mod resolver_site_selector;
 
 pub use page_parser::*;
 pub use policy::*;

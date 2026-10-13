@@ -25,6 +25,8 @@ tokio = { version = "1", features = ["sync", "time", "macros", "rt-multi-thread"
 rusqlite = { version = "0.32", features = ["bundled"] }
 # ── servidor HTTP do sidecar (painel + entrypoint) ────────────────────
 axum = { version = "0.8", features = ["json"] }
+# ── SHA1 para button_id (matching de botões) ─────────────────────────
+sha1 = "0.10"
 
 [[bin]]
 name = "adom-crawl"

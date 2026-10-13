@@ -4,6 +4,7 @@
 //! detecção de posts de listagem genérica e seleção de botão por índice.
 
 use regex::Regex;
+use sha1::{Sha1, Digest};
 use std::sync::LazyLock;
 
 // ── Regex compiladas uma vez ─────────────────────────────────────────────────
@@ -177,29 +178,45 @@ pub fn is_generic_list_post(title: &str) -> bool {
     }
 }
 
+/// Calcula o identificador SHA1 curto de um link (URL).
+///
+/// Equivalente a `buttonId` em `resolvers/matching.ts:84-86`.
+/// SHA1 da URL truncado para 10 caracteres hex.
+pub fn button_id(url: &str) -> String {
+    let mut hasher = Sha1::new();
+    hasher.update(url.as_bytes());
+    let result = hasher.finalize();
+    // Converte os primeiros 5 bytes (10 caracteres hex)
+    result.iter()
+        .take(5)
+        .map(|b| format!("{:02x}", b))
+        .collect()
+}
+
 /// Extrai o link do botão de índice N de uma lista de URLs.
 ///
-/// Simplificação do `pickButton` de `resolvers/matching.ts:88-100`.
+/// Equivalente a `pickButton` de `resolvers/matching.ts:88-100`.
 ///
-/// A versão TS recebe um array de objetos com `url` e usa hash SHA1 do href
-/// para identificação estável. Esta versão Rust recebe uma slice de URLs
-/// (strings) e seleciona por índice. O matching por hash fica como `todo!()`
-/// pois requer SHA1 (dependência não disponível).
-///
-/// Se `hash` for fornecido, retorna `None` (não implementado sem SHA1).
-/// Se `count` for fornecido e diferir do tamanho da slice, retorna `None`.
+/// Se `hash` for fornecido, busca o link cujo `button_id` corresponde ao hash.
+/// Se não encontrado e `count` for incompatível com o tamanho da lista, retorna `None`.
+/// Caso contrário, retorna o link pelo índice.
 pub fn pick_button(links: &[String], index: usize, hash: Option<&str>, count: Option<usize>) -> Option<String> {
-    // Se hash foi fornecido, a versão TS faria matching por SHA1 do href.
-    // Sem SHA1 disponível, retorna None quando hash está presente.
-    if hash.is_some() {
-        // TODO: implementar matching por hash quando SHA1 estiver disponível.
-        // A versão TS faz: links.find(link => buttonId(link) === hash)
-        // buttonId = sha1(href).slice(0, 10)
-        if count.is_some() && links.len() != count.unwrap() {
-            return None;
+    // Se hash foi fornecido, busca por matching de button_id
+    if let Some(expected_hash) = hash {
+        // Busca o link cujo button_id corresponde ao hash esperado
+        for link in links {
+            if button_id(link) == expected_hash {
+                return Some(link.clone());
+            }
         }
-        return None; // hash fornecido mas não podemos fazer matching
+        // Se não encontrou e count é incompatível, retorna None
+        if let Some(expected_count) = count {
+            if links.len() != expected_count {
+                return None;
+            }
+        }
     }
+    // Fallback: retorna pelo índice
     links.get(index).cloned()
 }
 
@@ -291,14 +308,50 @@ mod tests {
     #[test]
     fn pick_button_com_count_incompativel() {
         let links = vec!["https://example.com/1".to_string()];
-        // hash + count incompatível = None
-        assert_eq!(pick_button(&links, 0, Some("abc"), Some(5)), None);
+        // hash não encontrado + count incompatível = None
+        assert_eq!(pick_button(&links, 0, Some("abc1234567"), Some(5)), None);
     }
 
     #[test]
-    fn pick_button_hash_sem_sha1() {
+    fn pick_button_hash_nao_encontrado_count_compativel() {
         let links = vec!["https://example.com/1".to_string()];
-        // hash fornecido mas SHA1 não implementado = None
-        assert_eq!(pick_button(&links, 0, Some("abc"), None), None);
+        // hash não encontrado mas count compatível = fallback para índice
+        assert_eq!(pick_button(&links, 0, Some("abc1234567"), Some(1)), Some("https://example.com/1".to_string()));
+    }
+
+    #[test]
+    fn pick_button_com_hash_valido() {
+        let links = vec![
+            "https://example.com/1".to_string(),
+            "https://example.com/2".to_string(),
+            "https://example.com/3".to_string(),
+        ];
+        // Calcula o hash esperado para o segundo link
+        let expected_hash = button_id("https://example.com/2");
+        // Deve encontrar pelo hash, independente do índice
+        assert_eq!(pick_button(&links, 99, Some(&expected_hash), None), Some("https://example.com/2".to_string()));
+    }
+
+    // button_id
+
+    #[test]
+    fn button_id_valor_conhecido() {
+        // SHA1 de "https://example.com" = 6cd41e56ee67c3a522f561a07e58a7d30b4d62ce
+        // Primeiros 10 chars hex = "6cd41e56ee"
+        assert_eq!(button_id("https://example.com"), "6cd41e56ee");
+    }
+
+    #[test]
+    fn button_id_url_vazia() {
+        // SHA1 de "" = da39a3ee5e6b4b0d3255bfef95601890afd80709
+        // Primeiros 10 chars hex = "da39a3ee5e"
+        assert_eq!(button_id(""), "da39a3ee5e");
+    }
+
+    #[test]
+    fn button_id_urls_diferentes_hash_diferente() {
+        let hash1 = button_id("https://example.com/1");
+        let hash2 = button_id("https://example.com/2");
+        assert_ne!(hash1, hash2);
     }
 }

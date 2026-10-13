@@ -36,7 +36,8 @@ impl std::error::Error for ProtectorError {}
 
 const MAGNET_PREFIX: &str = "magnet:";
 fn magnet_raw_re() -> Regex { Regex::new(r#"(?i)magnet:\?[^""'<>\s]+"#).unwrap() }
-fn href_magnet_re() -> Regex { Regex::new(r#"(?i)href\s*=\s*(["'])(magnet:\?[^"'<>]+)\1"#).unwrap() }
+// regex sem backreference (crate `regex` não suporta \1); aspa de fecho livre
+fn href_magnet_re() -> Regex { Regex::new(r#"(?i)href\s*=\s*["']?(magnet:\?[^"'<>\s]+)"#).unwrap() }
 fn meta_tag_re() -> Regex { Regex::new(r"(?i)<meta\b[^>]*>").unwrap() }
 fn meta_refresh_re() -> Regex { Regex::new(r#"(?i)\bhttp-equiv\s*=\s*["']?refresh["']?"#).unwrap() }
 fn meta_content_re() -> Regex { Regex::new(r#"(?i)\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#).unwrap() }
@@ -72,7 +73,7 @@ pub fn extract_meta_refresh(html: &str) -> Option<String> {
 /// Normaliza scheme para minúsculo (`MAGNET:` → `magnet:`).
 pub fn extract_magnet(html: &str) -> Option<String> {
     if let Some(cap) = href_magnet_re().captures(html) {
-        if let Some(m) = cap.get(2) { return Some(normalize_magnet(m.as_str())); }
+        if let Some(m) = cap.get(1) { return Some(normalize_magnet(m.as_str())); }
     }
     magnet_raw_re().find(html).map(|m| normalize_magnet(m.as_str()))
 }

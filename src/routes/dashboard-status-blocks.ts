@@ -287,7 +287,12 @@ export async function computeStatusPayload(
     if (services.config.crawl.crawlEngine === 'rust') {
       const sidecarUrl = `http://127.0.0.1:${services.config.crawl.sidecarPort}/status`;
       try {
-        const resp = await fetch(sidecarUrl, { signal: AbortSignal.timeout(3000) });
+        const resp = await fetch(sidecarUrl, {
+          signal: AbortSignal.timeout(3000),
+          headers: {
+            ...(services.config.jackett.testToken ? { 'X-Indexer-Test-Token': services.config.jackett.testToken } : {}),
+          },
+        });
         if (resp.ok) {
           const sidecarStatus = await resp.json() as Record<string, unknown>;
           out.crawl = {
