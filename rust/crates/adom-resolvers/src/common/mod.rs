@@ -1,18 +1,18 @@
-//! Núcleo comum dos 8 profiles: o que no TS vive em `resolvers/release-format.ts`
-//! e `resolvers/link-collector.ts`. Cada site (`crate::sites`) liga seus ganchos
-//! aqui; a saída (HTML do Cardigann, feed torznab) tem que sair byte a byte igual
-//! à do TS, porque é o que as definições do Jackett leem.
+//! Fachada do núcleo BR. A implementação mora em `adom_crawl::br_core` (crate de
+//! baixo, que o raspador também consome) — ver o doc de lá. Reexportar em vez de
+//! mover os `use` dos 30 arquivos de `sites`/`flows` mantém `crate::common::…`
+//! valendo e o golden do resolver como teste de regressão da mudança.
 
-pub mod collector;
-pub mod episode;
-pub mod magnet;
-pub mod page;
-pub mod release;
-pub mod rules;
-pub mod text;
+pub use adom_crawl::br_core::collector;
+pub use adom_crawl::br_core::episode;
+pub use adom_crawl::br_core::magnet;
+pub use adom_crawl::br_core::page;
+pub use adom_crawl::br_core::release;
+pub use adom_crawl::br_core::rules;
+pub use adom_crawl::br_core::text;
 
-pub use collector::{parse_download_links, CollectorHooks, Resolved, Step};
-pub use page::{
-    encode_uri_component, rss_xml, search_page_html, RssConfig, SearchItem, SitePost, UNKNOWN_SIZE,
+pub use adom_crawl::br_core::{
+    clean_post_title, encode_uri_component, episode_tag, parse_download_links, release_title,
+    rss_xml, search_page_html, CollectorHooks, ReleaseTitleConfig, Resolved, RssConfig, SearchItem,
+    SitePost, Step, UNKNOWN_SIZE,
 };
-pub use release::{clean_post_title, episode_tag, release_title, ReleaseTitleConfig};

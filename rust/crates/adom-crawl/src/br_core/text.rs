@@ -6,7 +6,7 @@
 
 use std::sync::LazyLock;
 
-use adom_crawl::resolver_text::strip_tags_with;
+use crate::resolver_text::strip_tags_with;
 use regex::{Captures, Regex};
 
 static HEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)&#x([0-9a-f]+);").expect("hex"));

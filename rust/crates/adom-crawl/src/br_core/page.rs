@@ -2,9 +2,9 @@
 //! `resolvers/release-format.ts`. Cada botão do post vira uma linha; o href de
 //! download carrega o índice exato do botão (`/resolve?url=&i=&h=&n=`).
 
-use adom_crawl::profile_parsers::ResolverLink;
-use adom_crawl::resolver_matching::button_id;
-use adom_crawl::resolver_text::{escape_xml, parse_size};
+use crate::profile_parsers::ResolverLink;
+use crate::resolver_matching::button_id;
+use crate::resolver_text::{escape_xml, parse_size};
 use serde::{Deserialize, Serialize};
 
 /// Tamanho sentinela das fontes BR: o Cardigann exige um valor.

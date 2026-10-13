@@ -8,7 +8,7 @@
 
 use std::sync::LazyLock;
 
-use crate::common::text::decode_entities;
+use super::text::decode_entities;
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 use url::Url;

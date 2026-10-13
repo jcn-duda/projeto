@@ -1,6 +1,7 @@
 //! Submódulos e parsers puros do raspador de sites BR do Adom.
 //! Divididos por famílias de parser conforme fase C1 do plano de migração.
 
+pub mod br_core;
 pub mod flare;
 pub mod http_session;
 pub mod listing;

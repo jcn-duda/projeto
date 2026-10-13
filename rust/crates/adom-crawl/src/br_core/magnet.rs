@@ -7,8 +7,8 @@
 
 use std::sync::LazyLock;
 
-use adom_crawl::profile_parsers::b64_decode;
-use adom_crawl::shared::decode_uri_component;
+use crate::profile_parsers::b64_decode;
+use crate::shared::decode_uri_component;
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 

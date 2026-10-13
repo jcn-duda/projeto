@@ -6,8 +6,8 @@
 
 use std::sync::LazyLock;
 
-use crate::common::text::decode_entities;
-use adom_crawl::profile_parsers::ResolverLink;
+use super::text::decode_entities;
+use crate::profile_parsers::ResolverLink;
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 

@@ -5,7 +5,7 @@
 
 use std::sync::LazyLock;
 
-use adom_crawl::profile_parsers::ResolverLink;
+use crate::profile_parsers::ResolverLink;
 use fancy_regex::{Captures, Regex as FancyRegex};
 use regex::Regex;
 
