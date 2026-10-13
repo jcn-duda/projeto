@@ -12,10 +12,11 @@
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-use adom_core::decode_entities;
+use crate::common::text::decode_entities;
+use crate::common::text::strip_tags;
 use adom_crawl::profile_parsers::{ResolverLink, BASE_PROTECTOR_SUFFIXES};
 use adom_crawl::resolver_matching::{button_id, is_generic_list_post};
-use adom_crawl::resolver_text::{escape_html, strip_tags};
+use adom_crawl::resolver_text::escape_html;
 use fancy_regex::{Captures, Regex as FancyRegex};
 use regex::Regex;
 use url::Url;

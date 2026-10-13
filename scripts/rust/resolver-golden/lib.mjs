@@ -69,7 +69,7 @@ export function titleCombos(titles) {
   const cases = [];
   for (const title of titles) {
     for (const quality of [null, 1080, 2160]) {
-      for (const audio of [null, 'dublado', 'legendado', 'desconhecido']) {
+      for (const audio of [null, 'dublado', 'legendado', 'dual', 'desconhecido']) {
         for (const source of [null, 'WEB-DL', 'BLU-RAY']) {
           for (const size of [null, '2.4 GB']) {
             for (const [episode, episodeLast] of [[null, null], [5, null], [5, 7]]) {
@@ -93,6 +93,10 @@ const EXTRA_TITLES = [
   'Batman: A Queda do Morcego – Parte 1 Torrent (2026) WEB-DL 1080p Dual Áudio',
   'Coração de Lutador &#8211; Torrent (2019) HD TV Nacional Grátis Online',
   'S.W.A.T. 7ª Temporada Torrent (2024) WEB-RIP 720p HD Assistir',
+  // Entidades: o decodeEntities do text.ts tem 15 nomes; &ordf;/&eacute; ficam crus.
+  'The Walking Dead 4&ordf; Temporada Torrent (2013) &#8211; Dublado &amp; Legendado',
+  'Cora&ccedil;&atilde;o Valente &#x2014; Torrent (1995) BluRay&hellip; &quot;Nacional&quot;',
+  'Ex&eacute;rcito de Ladr&otilde;es&nbsp;Torrent (2024) WEB-DL 1080p &laquo;Dual &Aacute;udio&raquo;',
 ];
 
 function corpusTitles() {

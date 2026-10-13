@@ -5,9 +5,9 @@
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-use adom_core::decode_entities;
+use crate::common::text::decode_entities;
+use crate::common::text::strip_tags;
 use adom_crawl::profile_parsers::ResolverLink;
-use adom_crawl::resolver_text::strip_tags;
 use regex::Regex;
 use url::Url;
 

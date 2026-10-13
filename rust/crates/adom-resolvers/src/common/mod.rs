@@ -8,6 +8,7 @@ pub mod episode;
 pub mod page;
 pub mod release;
 pub mod rules;
+pub mod text;
 
 pub use collector::{parse_download_links, CollectorHooks, Resolved, Step};
 pub use page::{
