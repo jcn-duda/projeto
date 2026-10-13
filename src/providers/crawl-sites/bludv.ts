@@ -230,6 +230,12 @@ export function createBludvCrawlSite(surface: BludvResolverSurface, options: Blu
         }
         // 1 REQUISIÇÃO: o HTML do post já carrega o magnet no bloco de download.
         const pageHtml = await countedFetchText(workUrl.href, countRequest);
+        // O `parseDownloadLinks` do profile lê o magnet DIRETO e o `.torrent`
+        // (que ele ignora: não é magnet nem protetor na allowlist). O `post`
+        // resolve href relativo e é o que o card vivo entrega. Os LINKS da
+        // página (pré-protetor) + o corpo são a unidade do shadow/captura.
+        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
+        pageOpts?.onPageContent?.(pageHtml, links);
         if (!season && postDeclaresSeries(pageHtml)) {
           // O slug não disse temporada, mas o post se declara série nas próprias
           // categorias ("Boneca Russa 1ª Temporada" em slug sem "temporada").
@@ -250,10 +256,6 @@ export function createBludvCrawlSite(surface: BludvResolverSurface, options: Blu
         // ComandoTorrents); `null` devolve a identificação para título+ano, que
         // é o estado honesto — obra errada é pior que obra nenhuma.
         const imdb = parseImdbId(pageHtml);
-        // O `parseDownloadLinks` do profile lê o magnet DIRETO e o `.torrent`
-        // (que ele ignora: não é magnet nem protetor na allowlist). O `post`
-        // resolve href relativo e é o que o card vivo entrega.
-        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
         const type = season ? 'series' as const : 'movie' as const;
         if (!links.length) {
           // Post sem botão de torrent (só streaming, ou o `.torrent` morreu):

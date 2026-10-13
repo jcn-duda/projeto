@@ -36,7 +36,7 @@ pub struct CrawlPageParsedNapi {
     pub error: Option<String>,
 }
 
-#[napi]
+#[napi(catch_unwind)]
 pub fn parse_crawl_page(
     site: String,
     kind: String,
@@ -101,5 +101,76 @@ pub fn parse_crawl_page(
             })
             .collect(),
         error: parsed.error,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// O `#[napi(catch_unwind)]` é a rede no limite Node; ela só faz sentido se o
+    /// parser do núcleo não entrar em pânico. Varre entradas hostis (site vazio,
+    /// HTML truncado/desbalanceado, JSON inválido) e exige um status válido, sem
+    /// `panic`/indexação fora de faixa.
+    #[test]
+    fn parse_crawl_page_resiste_a_entrada_hostil() {
+        let enorme = "🌐".repeat(2000);
+        let hostis = [
+            ("", "movie", "", ""),
+            ("desconhecido", "movie", "https://x/", "<html>"),
+            (
+                "mico",
+                "series",
+                "https://mico/",
+                "{\"streams\":[{\"title\":\"x\"}]}",
+            ),
+            ("mico", "movie", "https://mico/", "não é json"),
+            ("bludv", "movie", "https://bludv/f", "<h1>Filme (2024)</h1>"),
+            (
+                "hdrtorrents",
+                "tv_show",
+                "https://hdr/",
+                "<main itemscope itemtype=\"https://schema.org/TVSeries\"><h1>Serie</h1></main>",
+            ),
+            (
+                "vacatorrent",
+                "series",
+                "https://vaca/",
+                "<h1>Serie</h1><a href=\"magnet:?xt=urn:btih:\">x</a>",
+            ),
+            (
+                "redetorrent",
+                "movie",
+                "https://rede/",
+                "<h1>Filme</h1><table><tr><td>",
+            ),
+            (
+                "apachetorrent",
+                "movie",
+                "https://apache/",
+                "<h1>Filme</h1>",
+            ),
+            ("nerdfilmes", "movie", "https://nerd/", "\u{0}\u{0}\u{0}"),
+            (
+                "comandotorrents",
+                "movie",
+                "https://comando/",
+                "<h1>   </h1>",
+            ),
+            ("torrentdosfilmes", "movie", "https://tdf/", enorme.as_str()),
+        ];
+        for (site, kind, url, html) in hostis {
+            let parsed = parse_crawl_page(
+                site.to_string(),
+                kind.to_string(),
+                url.to_string(),
+                html.to_string(),
+            );
+            assert!(
+                matches!(parsed.status.as_str(), "done" | "no-torrent" | "error"),
+                "status inesperado para site={site}: {}",
+                parsed.status
+            );
+        }
     }
 }

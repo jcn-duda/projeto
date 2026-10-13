@@ -159,8 +159,7 @@ function countedFetchText(surface: HdrtorrentsResolverSurface) {
   let n = 0;
   return {
     fetchText: async (url: string): Promise<string> => {
-      n += 1;
-      return surface.fetchText(url);
+      n += 1; return surface.fetchText(url);
     },
     taken: (): number => n,
   };
@@ -299,6 +298,7 @@ export function createHdrtorrentsCrawlSite(
         // como série agregada: recusá-la deixou 235 séries em erro na VPS
         // (Dragon Ball Z, Pucca, 2026-10-06) e o reprocesso repetia o erro.
         const html = await counter.fetchText(parsed.href);
+        pageOpts?.onPageContent?.(stripHtmlComments(html), surface.parseContentMagnets(stripHtmlComments(html), parsed.href)); // texto do buildWork (sem comentários) + links
         const asSeries = season || (seriesEnabled && declaresSeries(html));
         return buildWork(html, parsed.href, asSeries, surface, counter.taken(), asSeries && !isSeasonSlug(parsed));
       } catch (err) {

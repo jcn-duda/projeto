@@ -41,11 +41,10 @@
 //
 // Nada aqui grava banco nem decide quando rodar: o motor chama, o recorder
 // grava, a config (CRAWL_SERIES_*) limita.
-import type { RawItem } from '../../../types/domain.js';
 import type { ParsedResolverLink, ResolverLink } from '../../../resolvers/types.js';
 import { seriesSeasonInternalUrl, parseSeasonInternal, extractBatchTitle } from '../../../resolvers/profiles/vacatorrent-parsers.js';
-import type { VacaResolverSurface } from './vaca.js';
-import type { CrawlReleaseGroup, CrawlSeriesLimits, CrawlWorkResult, SeriesWorkProgress } from '../crawl-types.js';
+import { type VacaSeriesContext, isExpired, isTerminal, isBlockedHost } from './vaca-series-context.js';
+import type { CrawlPageLink, CrawlReleaseGroup, CrawlSeriesLimits, CrawlWorkResult, SeriesWorkProgress } from '../crawl-types.js';
 import { declaredSeriesLocation, groupSeriesReleases, seasonFromCardSlug } from './vaca-series-locate.js';
 import type { SeriesReleaseEntry } from './vaca-series-locate.js';
 import { magnetDisplayName } from '../../utils/title-normalization.js';
@@ -74,30 +73,10 @@ export function packSignature(link: Pick<ResolverLink, 'quality' | 'audio' | 'si
 export const DEFAULT_SERIES_LIMITS: CrawlSeriesLimits = { enabled: false, maxCards: 10, maxButtons: 40 };
 
 /**
- * Recorte do adaptador de filme que a série REUSA (mesma régua de título,
- * IMDb e dedupe por hash — duplicar divergiria em silêncio). Tudo o que é
- * estado do `createVacaCrawlSite` (assertSiteUrl, contador de requisições)
- * entra por aqui, então este módulo não importa o `vaca.ts` em runtime
- * (só o tipo da superfície, que é apagado na compilação).
+ * Contexto da série e classificadores de falha extraídos para
+ * `vaca-series-context.ts` (catraca de linhas); este reexport preserva a API.
  */
-export interface VacaSeriesContext {
-  surface: VacaResolverSurface;
-  /** Host safety canônico do adaptador (hostname candidato + assert do resolver). */
-  assertSiteUrl(value: string): URL;
-  parseTitleYear(html: string): { title: string; year: number | null };
-  parseImdbId(html: string): string | null;
-  magnetHash(magnet: string): string | null;
-  releaseToRawItem(obra: { title: string; year: number | null }, link: ResolverLink, magnet: string): RawItem;
-  /** Conta UMA requisição HTTP real (usado como `onRequest` do transporte —
-   * cada hop de redirect/protetor conta um, F3). */
-  countRequest(): void;
-  /** Custo acumulado até agora (para anexar a erros, F1: throw não perde o
-   * que já foi gasto — o motor cobra o que mediu, não 1 por página). */
-  requestCost(): number;
-  /** Cerca do passo: expirado, o laço de cards/botões para (o motor descarta
-   * o resultado — a retomada vem do `progress` já gravado). */
-  isAborted?: () => boolean;
-}
+export type { VacaSeriesContext } from './vaca-series-context.js';
 
 /**
  * Anexa o custo medido ao erro (F1): a exceção sobe com `requestCost` e o
@@ -114,20 +93,6 @@ export { withRequestCost } from './shared.js';
 // o consumo existente (testes e o próprio motor).
 export { seasonFromCardSlug, groupSeriesReleases } from './vaca-series-locate.js';
 export type { SeriesReleaseEntry } from './vaca-series-locate.js';
-
-const isExpired = (err: unknown) => /protector_link_expired/i.test(
-  err instanceof Error ? err.message : String(err),
-);
-/** Terminal do protetor (F1): expirado OU destino provado não-magnet (download
- * direto). Ambos provam "não há torrent a colher" — sem retry que não muda nada. */
-const isTerminal = (err: unknown) => /protector_(?:link_expired|non_magnet)/i.test(
-  err instanceof Error ? err.message : String(err),
-);
-/** F6: host de fora num card (HTML adulterado/anúncio) é diagnóstico, não
- * card falho tolerado — sobe como erro de página (site-level para o painel). */
-const isBlockedHost = (err: unknown) => /blocked_host:/i.test(
-  err instanceof Error ? err.message : String(err),
-);
 
 /**
  * Processa UMA página de série e devolve o resultado GRUPADO por locação.
@@ -154,6 +119,8 @@ export async function fetchSeriesWork(
   // F3: custo por HOP — a contagem é feita pelo transporte (`onRequest`),
   // não à mão antes do fetch (redirect/protetor contam cada um).
   const pageHtml = await crawlFetch(ctx.surface, workUrl.href, undefined, { onRequest: ctx.countRequest });
+  // Página primária da série (season page) para captura/shadow (opcional).
+  ctx.onPageContent?.(pageHtml);
   const { title, year } = ctx.parseTitleYear(pageHtml);
   if (!title) {
     return { url, status: 'error', error: 'layout: página sem <h1> de título' };
@@ -187,6 +154,10 @@ export async function fetchSeriesWork(
   let otherFails = 0;
   let cardsFailed = 0;
   let lastError: unknown = null;
+  // Unidade do shadow/captura: corpo da season page + dos cards e os LINKS de
+  // cada card (pré-protetor). O tap final (abaixo) entrega a série inteira.
+  const cardParts: string[] = [];
+  const cardLinks: CrawlPageLink[] = [];
 
   // F5/Parte B: a contagem da truncagem é sobre os cards QUE FALTAM — o
   // resume pula os `doneCards`, então uma série maior que o teto converge em
@@ -236,6 +207,8 @@ export async function fetchSeriesWork(
       // porque a locação é decidida pelo roteador (title × dn), não pelo rótulo.
       ...(card.isBatch ? { realTitle: batchTitle } : {}),
     });
+    cardParts.push(cardHtml);
+    cardLinks.push(...links);
     // Retomada do meio do card: `skip` é o índice do PRÓXIMO botão a seguir.
     const skip = resume?.card && resume.card.url === card.url
       ? Math.max(0, Math.trunc(Number(resume.card.skip) || 0))
@@ -305,6 +278,10 @@ export async function fetchSeriesWork(
       cardsCompletedThisPass += 1;
     }
   }
+
+  // Tap final (vence o tap da season page): corpo = season page + cards; links =
+  // os de card (pré-protetor). É a unidade de parsing que o shadow compara.
+  ctx.onPageContent?.([pageHtml, ...cardParts].join('\n'), cardLinks);
 
   // Progresso desta passada (união monotônica; `card` só quando o teto de
   // botões cortou no meio de um card).

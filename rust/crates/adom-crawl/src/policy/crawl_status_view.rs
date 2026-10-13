@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(view.avg_request_cost, Some(1.25));
         assert_eq!(view.idle_fraction, Some(0.85));
         assert_eq!(view.site.label, "Vaca Torrent");
-        assert_eq!(view.site.known, false);
+        assert!(!view.site.known);
         assert!(view.site.adapter);
         assert!(view.probe.ok);
     }

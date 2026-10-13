@@ -21,6 +21,13 @@
     "golden:audio-cleanup-verdicts:check": "node scripts/golden/dump-audio-cleanup-verdicts.mjs --check",
     "golden:crawl-store-rules": "node scripts/golden/dump-crawl-store-rules.mjs",
     "golden:crawl-store-rules:check": "node scripts/golden/dump-crawl-store-rules.mjs --check",
+    "golden:crawl-policy": "node scripts/golden/dump-crawl-policy.mjs",
+    "golden:crawl-policy:corpus": "node scripts/golden/build-corpus-crawl-policy.mjs",
+    "golden:crawl-policy:check": "node scripts/golden/dump-crawl-policy.mjs --check",
+    "golden:crawl-parsers": "node scripts/golden/dump-crawl-parsers.mjs",
+    "golden:crawl-parsers:corpus": "node scripts/golden/build-corpus-crawl-parsers.mjs",
+    "golden:crawl-parsers:check": "node scripts/golden/dump-crawl-parsers.mjs --check",
+    "test:crawl-parity": "node scripts/rust/crawl-parity.mjs",
     "golden:metric-id": "node scripts/golden/dump-metric-id.mjs",
     "golden:metric-id:check": "node scripts/golden/dump-metric-id.mjs --check",
     "golden:catalog-classify": "node scripts/golden/dump-catalog-classify.mjs",
@@ -95,6 +102,7 @@
     "typescript": "^5.9.3"
   },
   "testFiles": [
+    "test/rust-crawl-shadow.test.js",
     "test/golden-title-normalization.test.js",
     "test/app-routes.test.js",
     "test/app-routes-resolve.test.js",

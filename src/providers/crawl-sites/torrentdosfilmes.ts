@@ -288,6 +288,8 @@ export function createTorrentdosfilmesCrawlSite(
           return { url, status: 'error', error: message };
         }
         const pageHtml = await surface.fetchTextDirect(workUrl.href, undefined, { onRequest: countRequest });
+        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
+        pageOpts?.onPageContent?.(pageHtml, links); // captura/shadow (unidade da página)
         const { title, year, raw } = workTitleYear(pageHtml);
         if (!title) {
           // Página sem nome é quebra de layout, não obra sem nome: erro para o
@@ -299,7 +301,6 @@ export function createTorrentdosfilmesCrawlSite(
         // o Mala do seu Pai (2008)" com tt de "Refém (2005)"). A identificação
         // é por título+ano — o caminho real deste site.
         const imdb = null;
-        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
         const type = season ? 'series' as const : 'movie' as const;
         if (!links.length) {
           // Post sem botão (só streaming, ou o post é "torrentgdrive" sem

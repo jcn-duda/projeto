@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "crawl-policy/crawlPolicy"
+  ],
+  "function": {
+    "name": "crawlPolicy",
+    "sourcePath": "src/providers/crawl-site-select.ts",
+    "sourceSha256": "104d3bc992e95d5eb9ba7b275070cf9d8f09b471ea093d0cfe24387ec92ccdf5",
+    "artifactPath": "dist/src/providers/crawl-site-select.js",
+    "artifactSha256": "1be07d1e73c60c88eeeb2b1a07bf45c9fb20b9a35df214c8d46a71901aa5b27a"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-crawl-policy.json",
+    "sha256": "50a1fcab4c7c1e638df33a0e4bd43d5f84044c3f34ba0b50fd9c0d68c05ec749",
+    "cases": 146
+  },
+  "output": {
+    "path": "rust/golden/crawl-policy.jsonl",
+    "sha256": "d269408dc3f42a17c9118b3c05edb87ba0ef400e54d00b8b8002703f97dfab22",
+    "lines": 146
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "4449f43d0a87d517c1c592ff0c4d2ae5aee1fd62"
+  }
+}

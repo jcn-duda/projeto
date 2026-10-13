@@ -276,6 +276,7 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
             countRequest,
             requestCost: () => counter.n,
             isAborted: pageOpts.isAborted,
+            onPageContent: pageOpts.onPageContent,
           }, url, pageOpts.series ?? DEFAULT_SERIES_LIMITS, pageOpts.resume ?? null);
           result.requestCost = counter.n;
           return result;
@@ -295,12 +296,14 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
         if (!title) {
           // Página sem título é quebra de layout, não obra sem nome: erro para o
           // backoff do motor (e canário do painel), nunca release inventada.
+          pageOpts?.onPageContent?.(pageHtml); // unidade sem links: só a obra
           return { url, status: 'error', error: 'layout: página sem <h1> de título', requestCost: counter.n };
         }
         const imdb = parseImdbId(pageHtml);
         const linksUrl = surface.extractMovieLinks(pageHtml, workUrl.href);
         if (!linksUrl) {
           // Página só de streaming (ou recém-criada, sem botões): sem magnet.
+          pageOpts?.onPageContent?.(pageHtml); // unidade sem links: só a obra
           return { url, status: 'no-torrent', imdb, title, year, type: 'movie', requestCost: counter.n };
         }
         // movie-links também é página do site: href adulterado para host de fora
@@ -308,6 +311,11 @@ export function createVacaCrawlSite(surface: VacaResolverSurface): CrawlSite {
         const linksChecked = assertSiteUrl(linksUrl);
         const linksHtml = await crawlFetch(surface, linksChecked.href, undefined, { onRequest: countRequest });
         const links = surface.parseDownloadLinks(linksHtml, linksChecked.href);
+        // Unidade COMPARÁVEL do shadow: obra (H1/IMDb) + página de links (botões)
+        // concatenadas — o parser Rust lê as duas de um só corpo; os LINKS
+        // extraídos (pré-protetor) são o lado TS da comparação. Só a obra daria
+        // "sem H1" ou "sem release" e a divergência seria sistemática.
+        pageOpts?.onPageContent?.(`${pageHtml}\n${linksHtml}`, links);
         if (!links.length) {
           // A página movie-links existe mas só tem "Assistir" (players não são
           // âncora de protetor, o coletor os ignora): sem torrent publicado.

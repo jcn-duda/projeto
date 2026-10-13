@@ -192,7 +192,10 @@ export function createMicoCrawlSite(): CrawlSite {
         // e ignora o `ok` (que é sinal do breaker AO VIVO, nunca reutilizado
         // aqui). Um 4xx vem com `items:[]` → cai no `no-torrent` abaixo, sem
         // lançar. Só 429/5xx/rede LANÇAM (catch → backoff do motor).
-        ({ items } = await fetchMicoStreams(streamUrl, config.mico.timeout));
+        let raw = '';
+        ({ items } = await fetchMicoStreams(streamUrl, config.mico.timeout, (c) => { raw = c; }));
+        // Unidade da página: o JSON da resposta + os itens que dele saíram.
+        opts?.onPageContent?.(raw, items);
       } catch (err) {
         // 429/5xx/rede: honra o Retry-After e sobe com o custo medido (o motor
         // faz o backoff). NUNCA exceção crua sem custo.

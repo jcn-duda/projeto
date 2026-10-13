@@ -296,6 +296,8 @@ export function createNerdfilmesCrawlSite(
           return { url, status: 'error', error: message };
         }
         const pageHtml = await surface.fetchTextDirect(workUrl.href, undefined, { onRequest: countRequest });
+        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
+        pageOpts?.onPageContent?.(pageHtml, links); // captura/shadow (unidade da página)
         const { title, year } = parseTitleYear(pageHtml);
         if (!title) {
           // Página sem título é quebra de layout, não obra sem nome: erro para o
@@ -303,7 +305,6 @@ export function createNerdfilmesCrawlSite(
           return { url, status: 'error', error: 'layout: página sem <h1> de título', requestCost: counter.n };
         }
         const imdb = parseImdbId(pageHtml);
-        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
         const type = season ? 'series' as const : 'movie' as const;
         if (!links.length) {
           // Post sem botão (medido: 1 de 24) — só streaming, ou botão removido.

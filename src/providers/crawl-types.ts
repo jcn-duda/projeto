@@ -188,6 +188,46 @@ export interface CrawlPageOptions extends CrawlDiscoverOptions {
   /** Progresso retomável da página de série (da coluna `progress` da linha).
    * O `discover` ignora o campo; quem o usa é `fetchWork` do adaptador. */
   resume?: SeriesWorkProgress | null;
+  /**
+   * TAP de observação (`crawl-page`): o adaptador entrega aqui o CORPO da página
+   * PRIMÁRIA da obra que buscou (HTML nos sites HTML; JSON no Mico) E os LINKS
+   * que o parser daquela página produziu ANTES de seguir protetor. É a unidade
+   * real do parser (página + links) usada na captura de fixture e no shadow do
+   * Rust — comparar o `CrawlWorkResult` pós-rede/protetor com um parse de página
+   * única divergiria sistematicamente.
+   *
+   * OPCIONAL e fail-open: adaptador que não o chamar não gera captura/shadow.
+   * NUNCA recebe hop de protetor seguido, cookie ou header: só a página do site
+   * e os links que o parser EXTRAIU dela (podem ser URLs de protetor — o Rust
+   * decide o que representar).
+   */
+  onPageContent?: (content: string, links?: readonly CrawlPageLink[], unit?: CrawlPageUnit) => void;
+}
+
+/**
+ * Resultado da MESMA unidade do conteúdo do tap, quando ele NÃO é o
+ * `CrawlWorkResult` agregado. Ex.: o Mico série entrega um episódio por tap,
+ * então o shadow compara o `status`/metadados DO EPISÓDIO, não os da série
+ * inteira (comparar agregado com parse de um episódio divergiria sempre).
+ * Ausente = usa o `CrawlWorkResult` normal (sites de uma página só).
+ */
+export interface CrawlPageUnit {
+  status?: 'done' | 'no-torrent' | 'error';
+  title?: string | null;
+  year?: number | null;
+  imdb?: string | null;
+}
+
+/**
+ * Link de PÁGINA observado pelo adaptador (saída do parser do site, ANTES de
+ * seguir a cadeia de protetor). `url` pode ser URL de protetor; `magnet`/
+ * `infoHash` existem quando o parser já tem o magnet (site de magnet direto,
+ * Mico). É o que o shadow compara com os releases do Rust.
+ */
+export interface CrawlPageLink {
+  url?: string | null;
+  magnet?: string | null;
+  infoHash?: string | null;
 }
 
 /** Grupo de releases por LOCALIZAÇÃO declarada da obra (Fase 7 séries). Uma

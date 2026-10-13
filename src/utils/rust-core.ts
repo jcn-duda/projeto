@@ -143,4 +143,12 @@ function install() {
   log.info(`[rust] núcleo carregado (${file}); normalizeTitle em modo ${mode}`);
 }
 
-export { install, getCore, getMode };
+/**
+ * Só para TESTE: injeta um núcleo (stub) sem carregar o `.node`. O boot real
+ * usa `install()`; nenhum caminho de produção chama isto.
+ */
+function setCoreForTest(core: NapiCore | null): void {
+  loadedCore = core;
+}
+
+export { install, getCore, getMode, setCoreForTest };

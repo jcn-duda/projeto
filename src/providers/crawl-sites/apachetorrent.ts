@@ -285,6 +285,9 @@ export function createApachetorrentCrawlSite(
           };
         }
         const html = await counter.fetchText(parsed.href);
+        // Unidade da página: o MESMO texto que o buildWork lê (comentários HTML
+        // removidos) + os links que o parser extrai dele.
+        pageOpts?.onPageContent?.(stripHtmlComments(html), surface.parsePostMagnets(stripHtmlComments(html), parsed.href));
         return buildWork(html, parsed.href, season, surface, counter.taken());
       } catch (err) {
         // F1: throw NÃO perde o custo medido.

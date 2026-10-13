@@ -222,12 +222,13 @@ export function createComandotorrentsCrawlSite(
           return { url, status: 'error', error: message };
         }
         const pageHtml = await surface.fetchTextDirect(workUrl.href, undefined, { onRequest: countRequest });
+        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
+        pageOpts?.onPageContent?.(pageHtml, links); // captura/shadow (unidade da página)
         const { title, year } = workTitleYear(pageHtml);
         if (!title) {
           return { url, status: 'error', error: 'layout: página sem <h1> de título', requestCost: counter.n };
         }
         const imdb = parseImdbId(pageHtml);
-        const links = surface.parseDownloadLinks(pageHtml, workUrl.href);
         const type = season ? 'series' as const : 'movie' as const;
         if (!links.length) {
           return { url, status: 'no-torrent', imdb, title, year, type, requestCost: counter.n };

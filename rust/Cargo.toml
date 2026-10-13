@@ -4,3 +4,7 @@
 [workspace]
 members = ["crates/adom-core", "crates/adom-napi", "crates/adom-crawl"]
 resolver = "2"
+
+# A ponte NAPI captura panic; abort desligaria essa proteção do processo Node.
+[profile.release]
+panic = "unwind"

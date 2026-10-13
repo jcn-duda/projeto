@@ -226,7 +226,13 @@ export function retryAfterMs(header: string | null | undefined): number | null {
  *  - `429` ou `5xx` → LANÇA `MicoHttpError` com `status` e `retryAfter` (ms);
  *  - erro de rede/timeout → LANÇA o erro original.
  */
-export async function fetchMicoStreams(url: string, timeoutMs: number): Promise<{ items: RawItem[]; ok: boolean }> {
+export async function fetchMicoStreams(
+  url: string,
+  timeoutMs: number,
+  /** Tap opcional do raspador (captura/shadow do parser Rust): recebe o corpo
+   * JSON da resposta (re-serializado). Ausente na busca ao vivo = zero custo. */
+  onContent?: (raw: string) => void,
+): Promise<{ items: RawItem[]; ok: boolean }> {
   // Prazo DURO de rede (fetch + CORPO) via `fetchJsonWithin`: ele corre a
   // promessa contra um timer NOSSO que aborta o controller E, independente do
   // abort, REJEITA a corrida — a promessa sempre termina. O `AbortSignal.timeout`
@@ -249,6 +255,9 @@ export async function fetchMicoStreams(url: string, timeoutMs: number): Promise<
     if (retryAfter != null) err.retryAfter = retryAfter;
     throw err;
   }
+  // Corpo da resposta para captura/shadow (só quando o tap existe: a busca ao
+  // vivo não paga a serialização).
+  if (onContent) onContent(JSON.stringify(data));
   const raw = Array.isArray(data?.streams) ? data.streams : [];
   const seen = new Set<string>();
   const items: RawItem[] = [];

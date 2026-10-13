@@ -213,6 +213,12 @@ export function createRedetorrentCrawlSite(
         }
         // 1 REQUISIÇÃO: o HTML do post já carrega o magnet na `tbl-mv-list`.
         const pageHtml = await surface.fetchText(workUrl.href, undefined, { onRequest: countRequest });
+        // O `post` do parser resolve href relativo e é o que o card vivo entrega;
+        // o mesmo parser lê o `magnet:` direto e o token `systemads` do DOM já
+        // renderizado. Os LINKS da página (pré-protetor) + o corpo são a unidade
+        // do shadow/captura.
+        const links = surface.parsePostLinks(pageHtml, { url: workUrl.href });
+        pageOpts?.onPageContent?.(pageHtml, links);
         const { title, year, raw } = workTitleYear(pageHtml);
         if (!title) {
           // Página sem nome é quebra de layout, não obra sem nome: erro para o
@@ -223,11 +229,6 @@ export function createRedetorrentCrawlSite(
         // recomendação), e a identificação cai para título+ano. O widget de
         // NOTA do site (`nota-imdb`, medido nos cards de busca) não traz `tt`.
         const imdb = parseImdbId(pageHtml);
-        // O `post` do parser resolve href relativo e é o que o card vivo
-        // entrega; o mesmo parser lê o `magnet:` direto e o token `systemads`
-        // do DOM já renderizado, então o HTML que o FlareSolverr devolve entra
-        // pelo mesmo caminho.
-        const links = surface.parsePostLinks(pageHtml, { url: workUrl.href });
         const type = season ? 'series' as const : 'movie' as const;
         if (!links.length) {
           // Post sem linha de release: terminal, sem gastar nada além da
