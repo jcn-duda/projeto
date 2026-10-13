@@ -16,6 +16,7 @@ pub mod sitemap;
 pub mod vaca_series;
 pub mod protector;
 pub mod motor;
+pub mod page_engine;
 pub mod sidecar;
 pub mod store;
 pub mod work_name;

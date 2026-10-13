@@ -14,6 +14,7 @@ static RE_TRAILING_YEAR: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\d{4}$").expect("regex de ano válida"));
 
 /// Detecta padrão de temporada (S01, 1ª Temporada, etc.).
+#[allow(dead_code)] // reservada para matching de série (R3)
 static RE_SEASON: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)").expect("regex de temporada válida")
 });
@@ -336,9 +337,9 @@ mod tests {
 
     #[test]
     fn button_id_valor_conhecido() {
-        // SHA1 de "https://example.com" = 6cd41e56ee67c3a522f561a07e58a7d30b4d62ce
-        // Primeiros 10 chars hex = "6cd41e56ee"
-        assert_eq!(button_id("https://example.com"), "6cd41e56ee");
+        // SHA1 de "https://example.com" = 327c3fda87...
+        // Primeiros 10 chars hex = "327c3fda87"
+        assert_eq!(button_id("https://example.com"), "327c3fda87");
     }
 
     #[test]

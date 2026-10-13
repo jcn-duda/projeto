@@ -49,6 +49,21 @@ type ResolverEntry = ResolverProfileModule & {
   siteUrl: string;
 };
 
+/**
+ * Sites cujo resolvedor HTTP é servido pelo binário Rust (`adom-resolvers`)
+ * em vez do processo Node. Lista vem da env `BR_RESOLVER_RUST` como CSV
+ * (ex.: `comandotorrents,torrentdosfilmes`). Vazio = todos TS (retrocompatível).
+ *
+ * Para cada site na lista:
+ * - O Node NÃO abre a porta daquele profile (pula no loop de load());
+ * - O binário Rust abre a porta no lugar, com o mesmo contrato HTTP;
+ * - instance() devolve null (não há módulo TS carregado);
+ * - probe() continua funcionando — o contrato GET /search?q= é idêntico.
+ */
+const rustResolvers = new Set(
+  String(process.env.BR_RESOLVER_RUST || '').split(',').map(s => s.trim()).filter(Boolean),
+);
+
 const RESOLVERS: ResolverEntry[] = [
   { name: 'bludv', createResolver: createBludvResolver, port: config.resolvers.ports.bludv, siteEnv: 'BLUDV_URL', siteUrl: config.resolvers.bludvUrl },
   { name: 'comandotorrents', createResolver: createComandotorrentsResolver, port: config.resolvers.ports.comandotorrents, siteEnv: 'COMANDOTORRENTS_URL', siteUrl: config.resolvers.comandotorrentsUrl },
@@ -76,6 +91,12 @@ function load(controls: ResolverControls = config.resolvers) {
   const loaded: string[] = [];
 
   for (const resolver of RESOLVERS) {
+    // Site delegado ao resolvedor Rust: o Node não abre a porta, o binário
+    // adom-resolvers assume. Pula load, instance e warm — tudo TS seria morto.
+    if (rustResolvers.has(resolver.name)) {
+      log.info(`[br] ${resolver.name} delegado ao resolver Rust (BR_RESOLVER_RUST)`);
+      continue;
+    }
     const port = resolver.port + portOffset;
     try {
       // Cada profile recebe a configuração explícita completa: porta própria,
@@ -162,6 +183,9 @@ function activeSite(name: string): string | null {
  */
 function instance(name: string): unknown {
   try {
+    // Site delegado ao Rust: não há módulo TS carregado, devolve null.
+    // Quem recebe null trata como fonte indisponível no caminho TS.
+    if (rustResolvers.has(String(name || ''))) return null;
     return modules.get(String(name || '')) ?? null;
   } catch {
     return null;

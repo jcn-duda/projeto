@@ -1,0 +1,20 @@
+[package]
+name = "adom-resolvers"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Resolvers BR em Rust — servidor HTTP compatível com Cardigann/Jackett."
+license = "UNLICENSED"
+
+[dependencies]
+adom-crawl = { path = "../adom-crawl" }
+adom-core = { path = "../adom-core" }
+axum = { version = "0.8", features = ["json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+regex = "=1.13.1"
+url = "=2.5.8"
+# Traits async (callbacks injetados por perfil, dyn-compatible).
+async-trait = "0.1"
