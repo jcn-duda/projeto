@@ -35,6 +35,9 @@ impl Default for SiteSelectorOptions {
     }
 }
 
+/// Listener de mudança de domínio (callback injetado por `on_change`).
+type ChangeListener = Box<dyn Fn(&str) + Send + Sync>;
+
 /// Estado interno mutável do seletor (protegido por Mutex).
 struct Inner {
     /// URL ativa atual.
@@ -44,7 +47,7 @@ struct Inner {
     /// Instant do último probe (para TTL).
     last_probe_at: Option<Instant>,
     /// Listener de mudança de domínio.
-    change_listeners: Vec<Box<dyn Fn(&str) + Send + Sync>>,
+    change_listeners: Vec<ChangeListener>,
 }
 
 /// Seletor de domínio com failover automático.
@@ -153,12 +156,7 @@ impl SiteSelector {
                 for listener in &inner.change_listeners {
                     listener(&winner);
                 }
-                eprintln!(
-                    "[{}] domínio ativo mudou: {} → {}",
-                    self.tag,
-                    old,
-                    winner
-                );
+                eprintln!("[{}] domínio ativo mudou: {} → {}", self.tag, old, winner);
             }
             inner.current.clone()
         } else {
@@ -267,10 +265,7 @@ mod tests {
     fn url_returns_first_candidate() {
         let selector = SiteSelector::new(
             "test",
-            vec![
-                "https://site1.com".into(),
-                "https://site2.com".into(),
-            ],
+            vec!["https://site1.com".into(), "https://site2.com".into()],
             None,
         );
         assert_eq!(selector.url(), "https://site1.com");
@@ -302,10 +297,7 @@ mod tests {
     async fn note_failure_below_threshold_no_probe() {
         let selector = SiteSelector::new(
             "test",
-            vec![
-                "https://site1.com".into(),
-                "https://site2.com".into(),
-            ],
+            vec!["https://site1.com".into(), "https://site2.com".into()],
             Some(SiteSelectorOptions {
                 fails_before_probe: 3,
                 probe_ttl_ms: 1000,
@@ -362,11 +354,7 @@ mod tests {
 
     #[test]
     fn on_domain_change_registers_listener() {
-        let selector = SiteSelector::new(
-            "test",
-            vec!["https://site1.com".into()],
-            None,
-        );
+        let selector = SiteSelector::new("test", vec!["https://site1.com".into()], None);
 
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
@@ -387,8 +375,14 @@ mod tests {
 
     #[test]
     fn parse_host_extracts_hostname() {
-        assert_eq!(parse_host("https://Example.COM/path"), Some("example.com".into()));
-        assert_eq!(parse_host("http://sub.site.org:8080"), Some("sub.site.org".into()));
+        assert_eq!(
+            parse_host("https://Example.COM/path"),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            parse_host("http://sub.site.org:8080"),
+            Some("sub.site.org".into())
+        );
         assert_eq!(parse_host("not-a-url"), None);
     }
 }

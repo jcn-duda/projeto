@@ -65,10 +65,7 @@ impl HttpSession {
 
     /// Retorna o número de cookies atualmente na sessão.
     pub fn cookie_count(&self) -> usize {
-        self.cookies
-            .lock()
-            .map(|g| g.len())
-            .unwrap_or(0)
+        self.cookies.lock().map(|g| g.len()).unwrap_or(0)
     }
 
     /// Remove um cookie da sessão por nome.
@@ -147,15 +144,11 @@ mod tests {
 
         headers.append(
             reqwest::header::SET_COOKIE,
-            "PHPSESSID=newsession123; Path=/; HttpOnly"
-                .parse()
-                .unwrap(),
+            "PHPSESSID=newsession123; Path=/; HttpOnly".parse().unwrap(),
         );
         headers.append(
             reqwest::header::SET_COOKIE,
-            "token=mytoken456; Path=/; Secure"
-                .parse()
-                .unwrap(),
+            "token=mytoken456; Path=/; Secure".parse().unwrap(),
         );
 
         session.harvest_from_headers(&headers);
@@ -171,10 +164,7 @@ mod tests {
     fn harvest_sem_atributos() {
         let session = HttpSession::new();
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.append(
-            reqwest::header::SET_COOKIE,
-            "simple=value".parse().unwrap(),
-        );
+        headers.append(reqwest::header::SET_COOKIE, "simple=value".parse().unwrap());
         session.harvest_from_headers(&headers);
 
         let header = session.get_cookie_header();
@@ -187,10 +177,7 @@ mod tests {
         let session = HttpSession::new();
         let mut headers = reqwest::header::HeaderMap::new();
         // Sem `=` → inválido
-        headers.append(
-            reqwest::header::SET_COOKIE,
-            "malformado".parse().unwrap(),
-        );
+        headers.append(reqwest::header::SET_COOKIE, "malformado".parse().unwrap());
         session.harvest_from_headers(&headers);
 
         assert_eq!(session.cookie_count(), 0);
@@ -238,8 +225,7 @@ mod tests {
     /// parse_set_cookie unitário.
     #[test]
     fn parse_set_cookie_valido() {
-        let (name, value) =
-            parse_set_cookie("PHPSESSID=abc; Path=/; HttpOnly").unwrap();
+        let (name, value) = parse_set_cookie("PHPSESSID=abc; Path=/; HttpOnly").unwrap();
         assert_eq!(name, "PHPSESSID");
         assert_eq!(value, "abc");
     }
@@ -247,8 +233,7 @@ mod tests {
     /// parse_set_cookie com valor que contém `=`.
     #[test]
     fn parse_set_cookie_valor_com_equals() {
-        let (name, value) =
-            parse_set_cookie("token=abc=def; Path=/").unwrap();
+        let (name, value) = parse_set_cookie("token=abc=def; Path=/").unwrap();
         assert_eq!(name, "token");
         assert_eq!(value, "abc=def");
     }

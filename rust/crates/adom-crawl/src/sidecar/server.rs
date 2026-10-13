@@ -13,12 +13,11 @@
 use std::sync::Arc;
 
 use axum::{
-    Router,
     extract::State,
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
-    Json,
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -153,9 +152,7 @@ async fn action_handler(
     let site = body.site.trim().to_string();
 
     match action {
-        "crawl-reprocess-errors" => {
-            handle_reprocess_errors(&state, &site).await
-        }
+        "crawl-reprocess-errors" => handle_reprocess_errors(&state, &site).await,
         "crawl-reset" => {
             if !body.confirm {
                 return (
@@ -173,30 +170,25 @@ async fn action_handler(
             }
             handle_reset(&state, &site).await
         }
-        _ => {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ActionResponse {
-                    ok: false,
-                    action: action.to_string(),
-                    site: Some(site),
-                    requeued: None,
-                    urls: None,
-                    error: Some(format!("ação desconhecida: {}", action)),
-                }),
-            )
-                .into_response()
-        }
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(ActionResponse {
+                ok: false,
+                action: action.to_string(),
+                site: Some(site),
+                requeued: None,
+                urls: None,
+                error: Some(format!("ação desconhecida: {}", action)),
+            }),
+        )
+            .into_response(),
     }
 }
 
 // ─── Handlers de ações ───────────────────────────────────────────────────────
 
 /// Processa `crawl-reprocess-errors`: reenfileira URLs com erro.
-async fn handle_reprocess_errors(
-    state: &AppState,
-    site: &str,
-) -> axum::response::Response {
+async fn handle_reprocess_errors(state: &AppState, site: &str) -> axum::response::Response {
     let store = state.store.lock().await;
     match store.requeue_errors(site) {
         Ok(requeued) => (
@@ -227,23 +219,12 @@ async fn handle_reprocess_errors(
 }
 
 /// Processa `crawl-reset`: apaga todas as URLs do site.
-async fn handle_reset(
-    state: &AppState,
-    site: &str,
-) -> axum::response::Response {
+async fn handle_reset(state: &AppState, site: &str) -> axum::response::Response {
     let store = state.store.lock().await;
 
     // Conta URLs antes de apagar (para o campo `urls` na resposta).
     let url_count = match store.counters(site) {
-        Ok(c) => {
-            c.pending
-                + c.done
-                + c.no_torrent
-                + c.no_work
-                + c.error
-                + c.inflight
-                + c.simulated
-        }
+        Ok(c) => c.pending + c.done + c.no_torrent + c.no_work + c.error + c.inflight + c.simulated,
         Err(_) => 0,
     };
 
@@ -281,6 +262,7 @@ async fn handle_reset(
 ///
 /// Retorna `Err(response)` com 401 se o token estiver inválido.
 /// Se o token esperado estiver vazio, permite (modo dev).
+#[allow(clippy::result_large_err)] // Response contém Body; é o contrato do axum handler
 fn validate_token(expected: &str, headers: &HeaderMap) -> Result<(), axum::response::Response> {
     if expected.is_empty() {
         // Token não configurado — permite (modo dev).

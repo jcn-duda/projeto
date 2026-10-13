@@ -11,4 +11,4 @@ pub mod server;
 
 pub use activity::recent_user_traffic;
 pub use http_client::{SidecarHttpClient, SidecarHttpError};
-pub use server::{AppState, run as run_server};
+pub use server::{run as run_server, AppState};

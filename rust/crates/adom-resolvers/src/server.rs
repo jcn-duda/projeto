@@ -171,14 +171,16 @@ async fn resolve_handler(
 
     let result = match unwrapped.index {
         None => callbacks.resolve_best(&unwrapped.url).await,
-        Some(idx) => callbacks
-            .resolve_button(
-                &unwrapped.url,
-                idx,
-                unwrapped.hash.as_deref(),
-                unwrapped.count.as_deref(),
-            )
-            .await,
+        Some(idx) => {
+            callbacks
+                .resolve_button(
+                    &unwrapped.url,
+                    idx,
+                    unwrapped.hash.as_deref(),
+                    unwrapped.count.as_deref(),
+                )
+                .await
+        }
     };
 
     match result {
@@ -321,10 +323,7 @@ pub async fn run_resolver(config: ResolverConfig) -> Result<(), Box<dyn std::err
     let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
     let listener = TcpListener::bind(addr).await?;
 
-    eprintln!(
-        "[resolver] {} ouvindo em http://{}",
-        config.site_name, addr
-    );
+    eprintln!("[resolver] {} ouvindo em http://{}", config.site_name, addr);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

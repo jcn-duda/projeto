@@ -1,9 +1,9 @@
 //! Operações do `crawl.db`: upsert, take_next, mark_result, contadores, etc.
 //! Transações para passos múltiplos; `rusqlite::params!` (nunca interpolação).
 
+use super::schema;
 use rusqlite::{params, Connection};
 use std::fmt;
-use super::schema;
 
 /// Erros da camada de persistência.
 #[derive(Debug)]
@@ -22,7 +22,9 @@ impl fmt::Display for StoreError {
 }
 impl std::error::Error for StoreError {}
 impl From<rusqlite::Error> for StoreError {
-    fn from(e: rusqlite::Error) -> Self { Self::Sqlite(e.to_string()) }
+    fn from(e: rusqlite::Error) -> Self {
+        Self::Sqlite(e.to_string())
+    }
 }
 
 /// Linha da tabela `crawl_url`. Representa uma URL na fila de trabalho.
@@ -47,26 +49,33 @@ pub struct UrlRow {
 /// Resultado de processar uma URL (gravado via `mark_result`).
 #[derive(Debug, Clone)]
 pub struct MarkResult {
-    pub status: String,      // "done", "no-torrent", "error", etc.
+    pub status: String, // "done", "no-torrent", "error", etc.
     pub imdb: Option<String>,
     pub title: Option<String>,
     pub year: Option<i64>,
     pub releases: u32,
     pub error: String,
     pub progress: String,
-    pub next_at: i64,        // 0 se terminal, ou epoch ms de retry
+    pub next_at: i64, // 0 se terminal, ou epoch ms de retry
     pub request_cost: u32,
 }
 
 /// Contadores por status (para o painel).
 #[derive(Debug, Clone, Default)]
 pub struct StatusCounters {
-    pub pending: u32, pub done: u32, pub no_torrent: u32,
-    pub no_work: u32, pub error: u32, pub inflight: u32, pub simulated: u32,
+    pub pending: u32,
+    pub done: u32,
+    pub no_torrent: u32,
+    pub no_work: u32,
+    pub error: u32,
+    pub inflight: u32,
+    pub simulated: u32,
 }
 
 /// Acesso ao `crawl.db` (wraps `rusqlite::Connection`).
-pub struct CrawlStore { conn: Connection }
+pub struct CrawlStore {
+    conn: Connection,
+}
 
 impl CrawlStore {
     /// Abre (ou cria) o crawl.db no caminho dado.
@@ -101,9 +110,19 @@ impl CrawlStore {
             )?;
             for row in urls {
                 stmt.execute(params![
-                    site, row.url, row.url_key, row.lastmod, row.kind,
-                    row.status, row.imdb, row.tries, row.next_at,
-                    row.checked_at, row.releases, row.error, row.progress,
+                    site,
+                    row.url,
+                    row.url_key,
+                    row.lastmod,
+                    row.kind,
+                    row.status,
+                    row.imdb,
+                    row.tries,
+                    row.next_at,
+                    row.checked_at,
+                    row.releases,
+                    row.error,
+                    row.progress,
                     row.added_at,
                 ])?;
             }
@@ -231,14 +250,25 @@ impl CrawlStore {
         result: &MarkResult,
     ) -> Result<(), StoreError> {
         let now = now_ms();
-        let final_status = if result.next_at > 0 { "pending".into() } else { result.status.clone() };
+        let final_status = if result.next_at > 0 {
+            "pending".into()
+        } else {
+            result.status.clone()
+        };
         self.conn.execute(
             "UPDATE crawl_url SET status=?1, imdb=COALESCE(?2,imdb), \
              releases=?3, error=?4, progress=?5, next_at=?6, \
              tries=tries+1, checked_at=?7 WHERE site=?8 AND url_key=?9",
             params![
-                final_status, result.imdb, result.releases, result.error,
-                result.progress, result.next_at, now, site, url_key,
+                final_status,
+                result.imdb,
+                result.releases,
+                result.error,
+                result.progress,
+                result.next_at,
+                now,
+                site,
+                url_key,
             ],
         )?;
         Ok(())
@@ -268,9 +298,9 @@ impl CrawlStore {
 
     /// Contadores por status (para o painel).
     pub fn counters(&self, site: &str) -> Result<StatusCounters, StoreError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT status, COUNT(*) FROM crawl_url WHERE site = ?1 GROUP BY status",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT status, COUNT(*) FROM crawl_url WHERE site = ?1 GROUP BY status")?;
         let rows = stmt.query_map(params![site], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?))
         })?;
@@ -314,9 +344,9 @@ impl CrawlStore {
 
     /// Lê estado durável por site.
     pub fn get_state(&self, site: &str, key: &str) -> Result<Option<String>, StoreError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT value FROM crawl_state WHERE site = ?1 AND key = ?2",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM crawl_state WHERE site = ?1 AND key = ?2")?;
         let mut rows = stmt.query_map(params![site, key], |row| row.get(0))?;
         match rows.next() {
             Some(Ok(val)) => Ok(Some(val)),
@@ -375,10 +405,19 @@ fn now_ms() -> i64 {
 /// Extrai uma `UrlRow` de uma linha SQLite (mesma ordem do SELECT).
 fn row_from_sqlite(row: &rusqlite::Row<'_>) -> rusqlite::Result<UrlRow> {
     Ok(UrlRow {
-        site: row.get(0)?, url: row.get(1)?, url_key: row.get(2)?,
-        lastmod: row.get(3)?, kind: row.get(4)?, status: row.get(5)?,
-        imdb: row.get(6)?, tries: row.get(7)?, next_at: row.get(8)?,
-        checked_at: row.get(9)?, releases: row.get(10)?, error: row.get(11)?,
-        progress: row.get(12)?, added_at: row.get(13)?,
+        site: row.get(0)?,
+        url: row.get(1)?,
+        url_key: row.get(2)?,
+        lastmod: row.get(3)?,
+        kind: row.get(4)?,
+        status: row.get(5)?,
+        imdb: row.get(6)?,
+        tries: row.get(7)?,
+        next_at: row.get(8)?,
+        checked_at: row.get(9)?,
+        releases: row.get(10)?,
+        error: row.get(11)?,
+        progress: row.get(12)?,
+        added_at: row.get(13)?,
     })
 }

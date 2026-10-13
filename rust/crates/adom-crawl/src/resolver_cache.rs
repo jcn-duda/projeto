@@ -63,7 +63,10 @@ impl<V: Clone + Send + 'static> ResolverCache<V> {
     ///
     /// Útil quando um profile tem postCache/searchCache/magnetCache e quer
     /// deduplicar requisições entre eles.
-    pub fn with_shared_inflight(limit: usize, in_flight: Arc<Mutex<HashMap<String, PendingEntry>>>) -> Self {
+    pub fn with_shared_inflight(
+        limit: usize,
+        in_flight: Arc<Mutex<HashMap<String, PendingEntry>>>,
+    ) -> Self {
         Self {
             values: Mutex::new(HashMap::new()),
             in_flight: Arc::clone(&in_flight),
@@ -134,7 +137,12 @@ impl<V: Clone + Send + 'static> ResolverCache<V> {
 
         // --- miss total: cria entrada pendente e executa o loader ---
         let notify = Arc::new(tokio::sync::Notify::new());
-        in_flight.insert(key.to_string(), PendingEntry { notify: Arc::clone(&notify) });
+        in_flight.insert(
+            key.to_string(),
+            PendingEntry {
+                notify: Arc::clone(&notify),
+            },
+        );
         drop(in_flight);
         drop(values);
         // Todos os locks liberados antes do .await do loader.

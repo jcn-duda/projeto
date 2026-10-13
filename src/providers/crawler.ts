@@ -346,9 +346,7 @@ function siteView(id: string, live: CrawlerEffectiveConfig, engine: CrawlEngine)
     enabled: cfg.enabled,
     dryRun: cfg.dryRun,
     siteConfig: cfg,
-    // O gate lê `crawl_state` pela MESMA engine do card: com o motor ligado e
-    // desligado o veredito é o mesmo. Sem a engine ele virava `null` — "nunca
-    // rodou" para um site que já rodou.
+    // O gate lê crawl_state pela mesma engine do card (sem ela virava null).
     probe: probeGate(cfg.requireProbe, readVerdict(engine, id)),
     lastActiveAt: rt.lastActiveAt,
     skipReason: skipReasonFor(rt, cfg, live.enabled),
@@ -356,15 +354,13 @@ function siteView(id: string, live: CrawlerEffectiveConfig, engine: CrawlEngine)
   };
 }
 
-/** Foto do motor para o painel — sem credencial e sem segredo. A montagem do
- * formato (cards por site, ETA, listas) mora em `crawl-status.ts` (pura). */
+/** Foto do motor para o painel (montagem em crawl-status.ts). */
 function status() {
   const live = crawlerLive.effective();
   const configured = siteIds();
   const engine = statusEngine(configured.length);
   const input: CrawlerStatusInput = {
-    // `engine` só é `null` quando não há site configurado — e aí a lista de
-    // cards seria vazia de todo modo, por isso o `[]` explícito.
+    // engine é null só sem site configurado (lista vazia de todo modo).
     sites: engine ? configured.map((id) => siteView(id, live, engine)) : [],
     globalPaused: paused,
     active: activeSiteId || configured[0] || null,
@@ -383,8 +379,6 @@ export function _setSitesForTest(factory: ((id: string) => CrawlSite | null) | n
 
 /** Zera o relógio da próxima descoberta (o teste não espera 60 min). */
 export function _forceDiscoveryForTest(siteId?: string): void {
-  // Sem argumento: todos os sites conhecidos — os que já têm runtime E os
-  // configurados (o teste pode forçar antes do primeiro tick).
   const ids = siteId ? [siteId] : [...new Set([...runtimes.keys(), ...siteIds()])];
   for (const id of ids) runtimeFor(id).nextDiscoverAt = 0;
 }

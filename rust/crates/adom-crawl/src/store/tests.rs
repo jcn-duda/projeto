@@ -62,19 +62,22 @@ fn migrate_cria_tres_tabelas() {
 fn upsert_e_take_next_roundtrip() {
     let (store, _dir) = temp_store();
 
-    let urls = vec![
-        sample_url("/filme-a"),
-        sample_url("/filme-b"),
-    ];
+    let urls = vec![sample_url("/filme-a"), sample_url("/filme-b")];
     store.upsert_urls("test-site", &urls).expect("upsert");
 
     // Primeira take_next: deve retornar a primeira URL (menor url_key).
-    let row = store.take_next("test-site").expect("take_next").expect("deve ter");
+    let row = store
+        .take_next("test-site")
+        .expect("take_next")
+        .expect("deve ter");
     assert_eq!(row.url_key, "/filme-a");
     assert_eq!(row.status, "inflight");
 
     // Segunda take_next: retorna a outra.
-    let row2 = store.take_next("test-site").expect("take_next 2").expect("deve ter");
+    let row2 = store
+        .take_next("test-site")
+        .expect("take_next 2")
+        .expect("deve ter");
     assert_eq!(row2.url_key, "/filme-b");
 
     // Terceira: não há mais URLs due.
@@ -108,7 +111,9 @@ fn upsert_substitui_existente() {
 fn mark_result_done_zera_next_at() {
     let (store, _dir) = temp_store();
 
-    store.upsert_urls("test-site", &[sample_url("/filme-a")]).expect("upsert");
+    store
+        .upsert_urls("test-site", &[sample_url("/filme-a")])
+        .expect("upsert");
     let row = store.take_next("test-site").expect("take").expect("row");
 
     let result = MarkResult {
@@ -122,14 +127,19 @@ fn mark_result_done_zera_next_at() {
         next_at: 0, // terminal
         request_cost: 1,
     };
-    store.mark_result("test-site", &row.url_key, &result).expect("mark");
+    store
+        .mark_result("test-site", &row.url_key, &result)
+        .expect("mark");
 
     // Verifica que o status ficou "done" e next_at = 0.
-    let (status, next_at, releases): (String, i64, u32) = store.conn().query_row(
-        "SELECT status, next_at, releases FROM crawl_url WHERE site = ?1 AND url_key = ?2",
-        rusqlite::params!["test-site", "/filme-a"],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-    ).expect("query");
+    let (status, next_at, releases): (String, i64, u32) = store
+        .conn()
+        .query_row(
+            "SELECT status, next_at, releases FROM crawl_url WHERE site = ?1 AND url_key = ?2",
+            rusqlite::params!["test-site", "/filme-a"],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("query");
     assert_eq!(status, "done");
     assert_eq!(next_at, 0);
     assert_eq!(releases, 3);
@@ -140,7 +150,9 @@ fn mark_result_done_zera_next_at() {
 fn mark_result_retry_volta_pending() {
     let (store, _dir) = temp_store();
 
-    store.upsert_urls("test-site", &[sample_url("/filme-a")]).expect("upsert");
+    store
+        .upsert_urls("test-site", &[sample_url("/filme-a")])
+        .expect("upsert");
     let row = store.take_next("test-site").expect("take").expect("row");
 
     let result = MarkResult {
@@ -154,13 +166,18 @@ fn mark_result_retry_volta_pending() {
         next_at: 9999999999999, // retry no futuro
         request_cost: 1,
     };
-    store.mark_result("test-site", &row.url_key, &result).expect("mark");
+    store
+        .mark_result("test-site", &row.url_key, &result)
+        .expect("mark");
 
-    let status: String = store.conn().query_row(
-        "SELECT status FROM crawl_url WHERE site = ?1 AND url_key = ?2",
-        rusqlite::params!["test-site", "/filme-a"],
-        |row| row.get(0),
-    ).expect("query");
+    let status: String = store
+        .conn()
+        .query_row(
+            "SELECT status FROM crawl_url WHERE site = ?1 AND url_key = ?2",
+            rusqlite::params!["test-site", "/filme-a"],
+            |row| row.get(0),
+        )
+        .expect("query");
     assert_eq!(status, "pending", "next_at > 0 deve voltar para pending");
 }
 
@@ -171,14 +188,22 @@ fn mark_result_retry_volta_pending() {
 fn requeue_inflight_recupera_urls() {
     let (store, _dir) = temp_store();
 
-    store.upsert_urls("test-site", &[
-        sample_url("/filme-a"),
-        sample_url("/filme-b"),
-    ]).expect("upsert");
+    store
+        .upsert_urls(
+            "test-site",
+            &[sample_url("/filme-a"), sample_url("/filme-b")],
+        )
+        .expect("upsert");
 
     // Reivindica ambas (ficam inflight).
-    store.take_next("test-site").expect("take a").expect("row a");
-    store.take_next("test-site").expect("take b").expect("row b");
+    store
+        .take_next("test-site")
+        .expect("take a")
+        .expect("row a");
+    store
+        .take_next("test-site")
+        .expect("take b")
+        .expect("row b");
 
     // Confirma que estão inflight.
     let c = store.counters("test-site").expect("counters");
@@ -202,29 +227,52 @@ fn counters_reflete_estados() {
     let (store, _dir) = temp_store();
 
     // 3 URLs: uma done, uma error, uma pending.
-    store.upsert_urls("test-site", &[
-        sample_url("/a"),
-        sample_url("/b"),
-        sample_url("/c"),
-    ]).expect("upsert");
+    store
+        .upsert_urls(
+            "test-site",
+            &[sample_url("/a"), sample_url("/b"), sample_url("/c")],
+        )
+        .expect("upsert");
 
     // Processa /a → done.
     let ra = store.take_next("test-site").expect("take").expect("row");
-    store.mark_result("test-site", &ra.url_key, &MarkResult {
-        status: "done".to_string(),
-        imdb: None, title: None, year: None,
-        releases: 2, error: String::new(), progress: String::new(),
-        next_at: 0, request_cost: 1,
-    }).expect("mark a");
+    store
+        .mark_result(
+            "test-site",
+            &ra.url_key,
+            &MarkResult {
+                status: "done".to_string(),
+                imdb: None,
+                title: None,
+                year: None,
+                releases: 2,
+                error: String::new(),
+                progress: String::new(),
+                next_at: 0,
+                request_cost: 1,
+            },
+        )
+        .expect("mark a");
 
     // Processa /b → error terminal.
     let rb = store.take_next("test-site").expect("take").expect("row");
-    store.mark_result("test-site", &rb.url_key, &MarkResult {
-        status: "error".to_string(),
-        imdb: None, title: None, year: None,
-        releases: 0, error: "fail".to_string(), progress: String::new(),
-        next_at: 0, request_cost: 1,
-    }).expect("mark b");
+    store
+        .mark_result(
+            "test-site",
+            &rb.url_key,
+            &MarkResult {
+                status: "error".to_string(),
+                imdb: None,
+                title: None,
+                year: None,
+                releases: 0,
+                error: "fail".to_string(),
+                progress: String::new(),
+                next_at: 0,
+                request_cost: 1,
+            },
+        )
+        .expect("mark b");
 
     let c = store.counters("test-site").expect("counters");
     assert_eq!(c.done, 1);
@@ -240,13 +288,21 @@ fn counters_reflete_estados() {
 fn clear_site_apaga_tudo() {
     let (store, _dir) = temp_store();
 
-    store.upsert_urls("test-site", &[sample_url("/filme-a")]).expect("upsert");
-    store.set_state("test-site", "cursor", "abc").expect("set_state");
+    store
+        .upsert_urls("test-site", &[sample_url("/filme-a")])
+        .expect("upsert");
+    store
+        .set_state("test-site", "cursor", "abc")
+        .expect("set_state");
     let run_id = store.start_run("test-site").expect("start_run");
-    store.finish_run(run_id, "{\"done\":1}").expect("finish_run");
+    store
+        .finish_run(run_id, "{\"done\":1}")
+        .expect("finish_run");
 
     // Outra site não deve ser afetado.
-    store.upsert_urls("outro-site", &[sample_url("/x")]).expect("upsert outro");
+    store
+        .upsert_urls("outro-site", &[sample_url("/x")])
+        .expect("upsert outro");
 
     store.clear_site("test-site").expect("clear");
 
@@ -270,7 +326,9 @@ fn has_due_detecta_trabalho() {
 
     assert!(!store.has_due("test-site").expect("has_due vazio"));
 
-    store.upsert_urls("test-site", &[sample_url("/filme-a")]).expect("upsert");
+    store
+        .upsert_urls("test-site", &[sample_url("/filme-a")])
+        .expect("upsert");
     assert!(store.has_due("test-site").expect("has_due com pendente"));
 }
 
@@ -284,12 +342,16 @@ fn state_get_set() {
     let missing = store.get_state("test-site", "cursor").expect("get");
     assert!(missing.is_none());
 
-    store.set_state("test-site", "cursor", "pagina-42").expect("set");
+    store
+        .set_state("test-site", "cursor", "pagina-42")
+        .expect("set");
     let val = store.get_state("test-site", "cursor").expect("get 2");
     assert_eq!(val.as_deref(), Some("pagina-42"));
 
     // Sobrescreve.
-    store.set_state("test-site", "cursor", "pagina-43").expect("set 2");
+    store
+        .set_state("test-site", "cursor", "pagina-43")
+        .expect("set 2");
     let val2 = store.get_state("test-site", "cursor").expect("get 3");
     assert_eq!(val2.as_deref(), Some("pagina-43"));
 }
@@ -304,13 +366,18 @@ fn run_start_finish() {
     let run_id = store.start_run("test-site").expect("start");
     assert!(run_id > 0);
 
-    store.finish_run(run_id, "{\"done\":5,\"error\":1}").expect("finish");
+    store
+        .finish_run(run_id, "{\"done\":5,\"error\":1}")
+        .expect("finish");
 
-    let counters: String = store.conn().query_row(
-        "SELECT counters FROM crawl_run WHERE id = ?1",
-        rusqlite::params![run_id],
-        |row| row.get(0),
-    ).expect("query");
+    let counters: String = store
+        .conn()
+        .query_row(
+            "SELECT counters FROM crawl_run WHERE id = ?1",
+            rusqlite::params![run_id],
+            |row| row.get(0),
+        )
+        .expect("query");
     assert_eq!(counters, "{\"done\":5,\"error\":1}");
 }
 
@@ -339,9 +406,15 @@ fn sum_releases_soma() {
 fn take_next_batch_multiplos_sites() {
     let (store, _dir) = temp_store();
 
-    store.upsert_urls("site-a", &[sample_url("/1")]).expect("upsert a");
-    store.upsert_urls("site-b", &[sample_url("/2")]).expect("upsert b");
-    store.upsert_urls("site-c", &[sample_url("/3")]).expect("upsert c");
+    store
+        .upsert_urls("site-a", &[sample_url("/1")])
+        .expect("upsert a");
+    store
+        .upsert_urls("site-b", &[sample_url("/2")])
+        .expect("upsert b");
+    store
+        .upsert_urls("site-c", &[sample_url("/3")])
+        .expect("upsert c");
 
     let batch = store.take_next_batch(2).expect("batch");
     assert_eq!(batch.len(), 2, "deve retornar 2 sites (limite)");
@@ -359,27 +432,48 @@ fn take_next_batch_multiplos_sites() {
 fn requeue_errors_recupera() {
     let (store, _dir) = temp_store();
 
-    store.upsert_urls("test-site", &[
-        sample_url("/a"),
-        sample_url("/b"),
-    ]).expect("upsert");
+    store
+        .upsert_urls("test-site", &[sample_url("/a"), sample_url("/b")])
+        .expect("upsert");
 
     // Marca /a como error, /b como no-work.
     let ra = store.take_next("test-site").expect("take").expect("row");
-    store.mark_result("test-site", &ra.url_key, &MarkResult {
-        status: "error".to_string(),
-        imdb: None, title: None, year: None,
-        releases: 0, error: "oops".to_string(), progress: String::new(),
-        next_at: 0, request_cost: 1,
-    }).expect("mark a");
+    store
+        .mark_result(
+            "test-site",
+            &ra.url_key,
+            &MarkResult {
+                status: "error".to_string(),
+                imdb: None,
+                title: None,
+                year: None,
+                releases: 0,
+                error: "oops".to_string(),
+                progress: String::new(),
+                next_at: 0,
+                request_cost: 1,
+            },
+        )
+        .expect("mark a");
 
     let rb = store.take_next("test-site").expect("take").expect("row");
-    store.mark_result("test-site", &rb.url_key, &MarkResult {
-        status: "no-work".to_string(),
-        imdb: None, title: None, year: None,
-        releases: 0, error: String::new(), progress: String::new(),
-        next_at: 0, request_cost: 1,
-    }).expect("mark b");
+    store
+        .mark_result(
+            "test-site",
+            &rb.url_key,
+            &MarkResult {
+                status: "no-work".to_string(),
+                imdb: None,
+                title: None,
+                year: None,
+                releases: 0,
+                error: String::new(),
+                progress: String::new(),
+                next_at: 0,
+                request_cost: 1,
+            },
+        )
+        .expect("mark b");
 
     let c = store.counters("test-site").expect("counters antes");
     assert_eq!(c.error, 1);

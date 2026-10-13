@@ -39,6 +39,9 @@ RUN cargo build --locked --release -p adom-napi \
 # Compila o sidecar do raspador (binário estático musl, igual ao adom-napi)
 RUN cargo build --locked --release --bin adom-sidecar \
  && cp target/release/adom-sidecar /adom-sidecar
+# Compila os resolvers BR em Rust (binário estático musl, mesmo padrão)
+RUN cargo build --locked --release --bin adom-resolvers \
+ && cp target/release/adom-resolvers /adom-resolvers
 
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.
 FROM node:22-alpine AS builder
@@ -135,6 +138,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=rustcore /adom_napi.node ./dist/rust/adom_napi.node
 # Sidecar do raspador Rust (C4): loop de crawl em binário estático musl.
 COPY --from=rustcore /adom-sidecar ./dist/rust/adom-sidecar
+# Resolvers BR em Rust (BR_RESOLVER_RUST): binário que assume as portas dos sites delegados.
+COPY --from=rustcore /adom-resolvers ./dist/rust/adom-resolvers
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

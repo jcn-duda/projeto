@@ -37,6 +37,21 @@ pub(crate) fn collapse_whitespace(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Substitui aspas tipográficas Unicode por ASCII equivalente.
+///
+/// Evita `.replace().replace().replace()` encadeado (clippy::consecutive_str_replace).
+fn normalize_typographic_quotes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\u{2018}' | '\u{2019}' => out.push('\''),
+            '\u{201C}' | '\u{201D}' => out.push('"'),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 /// Comentário HTML fora com a semântica do navegador: `<!--` sem fecho engole o resto do documento.
 pub fn strip_html_comments(html: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
@@ -63,11 +78,7 @@ pub fn parse_title_year(html: &str) -> TitleYear {
     let stripped = re_tag.replace_all(h1_content, " ");
     let decoded = decode_entities(&stripped);
     // Normaliza aspas tipográficas para ASCII (ex.: &#8217; → ' → ')
-    let decoded = decoded
-        .replace('\u{2018}', "'")
-        .replace('\u{2019}', "'")
-        .replace('\u{201C}', "\"")
-        .replace('\u{201D}', "\"");
+    let decoded = normalize_typographic_quotes(&decoded);
     let text = collapse_whitespace(&decoded);
 
     let (title, year) = if let Some(caps) = re_year.captures(&text) {

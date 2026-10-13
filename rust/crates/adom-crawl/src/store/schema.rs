@@ -93,9 +93,18 @@ mod tests {
             .unwrap()
             .map(|r| r.unwrap())
             .collect();
-        assert!(tables.contains(&"crawl_url".to_string()), "crawl_url deve existir");
-        assert!(tables.contains(&"crawl_run".to_string()), "crawl_run deve existir");
-        assert!(tables.contains(&"crawl_state".to_string()), "crawl_state deve existir");
+        assert!(
+            tables.contains(&"crawl_url".to_string()),
+            "crawl_url deve existir"
+        );
+        assert!(
+            tables.contains(&"crawl_run".to_string()),
+            "crawl_run deve existir"
+        );
+        assert!(
+            tables.contains(&"crawl_state".to_string()),
+            "crawl_state deve existir"
+        );
     }
 
     /// O índice `crawl_url_due` é criado corretamente.

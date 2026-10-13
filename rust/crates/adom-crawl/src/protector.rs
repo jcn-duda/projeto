@@ -3,17 +3,23 @@
 //! Loop de fetches com `redirect: manual`, extração de magnet e descoberta
 //! do próximo salto. Referência: `resolvers/transport.ts:76-176`.
 
-use std::time::Duration;
+use adom_core::decode_entities;
 use regex::Regex;
 use reqwest::Client;
+use std::time::Duration;
 use url::Url;
-use adom_core::decode_entities;
 
 /// Erros possíveis no loop do protetor.
 #[derive(Debug)]
 pub enum ProtectorError {
-    InvalidUrl, MissingRedirect, LinkExpired, HttpError(u16),
-    NoMagnet, TooManyRedirects, Timeout, Network(String),
+    InvalidUrl,
+    MissingRedirect,
+    LinkExpired,
+    HttpError(u16),
+    NoMagnet,
+    TooManyRedirects,
+    Timeout,
+    Network(String),
 }
 
 impl std::fmt::Display for ProtectorError {
@@ -35,13 +41,25 @@ impl std::error::Error for ProtectorError {}
 // ── Regex ────────────────────────────────────────────────────────────────────
 
 const MAGNET_PREFIX: &str = "magnet:";
-fn magnet_raw_re() -> Regex { Regex::new(r#"(?i)magnet:\?[^""'<>\s]+"#).unwrap() }
+fn magnet_raw_re() -> Regex {
+    Regex::new(r#"(?i)magnet:\?[^""'<>\s]+"#).unwrap()
+}
 // regex sem backreference (crate `regex` não suporta \1); aspa de fecho livre
-fn href_magnet_re() -> Regex { Regex::new(r#"(?i)href\s*=\s*["']?(magnet:\?[^"'<>\s]+)"#).unwrap() }
-fn meta_tag_re() -> Regex { Regex::new(r"(?i)<meta\b[^>]*>").unwrap() }
-fn meta_refresh_re() -> Regex { Regex::new(r#"(?i)\bhttp-equiv\s*=\s*["']?refresh["']?"#).unwrap() }
-fn meta_content_re() -> Regex { Regex::new(r#"(?i)\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#).unwrap() }
-fn meta_url_re() -> Regex { Regex::new(r#"(?i)\burl\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))"#).unwrap() }
+fn href_magnet_re() -> Regex {
+    Regex::new(r#"(?i)href\s*=\s*["']?(magnet:\?[^"'<>\s]+)"#).unwrap()
+}
+fn meta_tag_re() -> Regex {
+    Regex::new(r"(?i)<meta\b[^>]*>").unwrap()
+}
+fn meta_refresh_re() -> Regex {
+    Regex::new(r#"(?i)\bhttp-equiv\s*=\s*["']?refresh["']?"#).unwrap()
+}
+fn meta_content_re() -> Regex {
+    Regex::new(r#"(?i)\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#).unwrap()
+}
+fn meta_url_re() -> Regex {
+    Regex::new(r#"(?i)\burl\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s;]+))"#).unwrap()
+}
 fn js_var_url_re() -> Regex {
     Regex::new(r#"(?i)(?:DEST_URL|DOWNLOAD_URL|NEXT_URL|TARGET_URL|destino|link|url)\s*[:=]\s*["'](https?://[^"']+)["']"#).unwrap()
 }
@@ -53,16 +71,31 @@ fn js_var_url_re() -> Regex {
 pub fn extract_meta_refresh(html: &str) -> Option<String> {
     for tag in meta_tag_re().find_iter(html) {
         let t = tag.as_str();
-        if !meta_refresh_re().is_match(t) { continue; }
+        if !meta_refresh_re().is_match(t) {
+            continue;
+        }
         let content = meta_content_re().captures(t).and_then(|c| {
-            c.get(1).or(c.get(2)).or(c.get(3)).map(|m| decode_entities(m.as_str()))
+            c.get(1)
+                .or(c.get(2))
+                .or(c.get(3))
+                .map(|m| decode_entities(m.as_str()))
         })?;
         let target = meta_url_re().captures(&content).and_then(|c| {
-            let raw = c.get(1).or(c.get(2)).or(c.get(3)).map(|m| m.as_str().trim())?;
+            let raw = c
+                .get(1)
+                .or(c.get(2))
+                .or(c.get(3))
+                .map(|m| m.as_str().trim())?;
             let cleaned = raw.trim_matches(|ch| ch == '\'' || ch == '"');
-            if cleaned.is_empty() { None } else { Some(decode_entities(cleaned)) }
+            if cleaned.is_empty() {
+                None
+            } else {
+                Some(decode_entities(cleaned))
+            }
         })?;
-        if !target.is_empty() { return Some(target); }
+        if !target.is_empty() {
+            return Some(target);
+        }
     }
     None
 }
@@ -73,15 +106,23 @@ pub fn extract_meta_refresh(html: &str) -> Option<String> {
 /// Normaliza scheme para minúsculo (`MAGNET:` → `magnet:`).
 pub fn extract_magnet(html: &str) -> Option<String> {
     if let Some(cap) = href_magnet_re().captures(html) {
-        if let Some(m) = cap.get(1) { return Some(normalize_magnet(m.as_str())); }
+        if let Some(m) = cap.get(1) {
+            return Some(normalize_magnet(m.as_str()));
+        }
     }
-    magnet_raw_re().find(html).map(|m| normalize_magnet(m.as_str()))
+    magnet_raw_re()
+        .find(html)
+        .map(|m| normalize_magnet(m.as_str()))
 }
 
 fn normalize_magnet(v: &str) -> String {
-    if v.len() >= MAGNET_PREFIX.len() && v[..MAGNET_PREFIX.len()].eq_ignore_ascii_case(MAGNET_PREFIX) {
+    if v.len() >= MAGNET_PREFIX.len()
+        && v[..MAGNET_PREFIX.len()].eq_ignore_ascii_case(MAGNET_PREFIX)
+    {
         format!("magnet:{}", &v[MAGNET_PREFIX.len()..])
-    } else { v.to_string() }
+    } else {
+        v.to_string()
+    }
 }
 
 fn is_magnet(v: &str) -> bool {
@@ -93,7 +134,10 @@ fn is_magnet(v: &str) -> bool {
 /// Descobre próxima URL de protetor no HTML.
 /// 1. Variável JS com URL em host permitido. 2. Busca genérica por sufixos.
 pub fn discover_next_url(
-    html: &str, base_url: &str, hosts: &[String], suffixes: &[String],
+    html: &str,
+    base_url: &str,
+    hosts: &[String],
+    suffixes: &[String],
 ) -> Option<String> {
     let base = Url::parse(base_url).ok()?;
     // 1. Variável JavaScript.
@@ -110,12 +154,17 @@ pub fn discover_next_url(
     // 2. Busca genérica por sufixos.
     if !suffixes.is_empty() {
         let esc: Vec<String> = suffixes.iter().map(|s| regex::escape(s)).collect();
-        let pat = format!(r#"(?i)https?://[^""'<>\s]*?(?:{})[^""'<>\s]*"#, esc.join("|"));
+        let pat = format!(
+            r#"(?i)https?://[^""'<>\s]*?(?:{})[^""'<>\s]*"#,
+            esc.join("|")
+        );
         if let Ok(re) = Regex::new(&pat) {
             if let Some(m) = re.find(html) {
                 let decoded = decode_entities(m.as_str());
                 if let Ok(u) = Url::parse(&decoded).or_else(|_| base.join(&decoded)) {
-                    if is_protector_host(u.host_str().unwrap_or(""), hosts) && u.as_str() != base_url {
+                    if is_protector_host(u.host_str().unwrap_or(""), hosts)
+                        && u.as_str() != base_url
+                    {
                         return Some(u.into());
                     }
                 }
@@ -127,7 +176,10 @@ pub fn discover_next_url(
 
 fn is_protector_host(hostname: &str, hosts: &[String]) -> bool {
     let low = hostname.to_lowercase();
-    hosts.iter().any(|h| { let hl = h.to_lowercase(); low == hl || low.ends_with(&format!(".{}", hl)) })
+    hosts.iter().any(|h| {
+        let hl = h.to_lowercase();
+        low == hl || low.ends_with(&format!(".{}", hl))
+    })
 }
 
 // ── follow_protected_url ─────────────────────────────────────────────────────
@@ -148,60 +200,100 @@ pub struct FollowOptions<'a> {
 
 /// Loop de saltos pelo protetor. Retorna o magnet final ou erro.
 pub async fn follow_protected_url(opts: FollowOptions<'_>) -> ProtectorResult {
-    if opts.url.is_empty() { return Err(ProtectorError::InvalidUrl); }
-    if is_magnet(opts.url) { return Ok(normalize_magnet(opts.url)); }
+    if opts.url.is_empty() {
+        return Err(ProtectorError::InvalidUrl);
+    }
+    if is_magnet(opts.url) {
+        return Ok(normalize_magnet(opts.url));
+    }
 
     let mut cur = Url::parse(opts.url).map_err(|_| ProtectorError::InvalidUrl)?;
     let mut prev_ref = opts.referer.map(|s| s.to_string());
 
     for _ in 0..=opts.max_hops {
         let mut hdrs = reqwest::header::HeaderMap::new();
-        hdrs.insert(reqwest::header::USER_AGENT,
+        hdrs.insert(
+            reqwest::header::USER_AGENT,
             reqwest::header::HeaderValue::from_str(opts.user_agent)
-                .unwrap_or_else(|_| reqwest::header::HeaderValue::from_static("Mozilla/5.0")));
-        hdrs.insert(reqwest::header::ACCEPT,
-            reqwest::header::HeaderValue::from_static("text/html,application/xhtml+xml"));
+                .unwrap_or_else(|_| reqwest::header::HeaderValue::from_static("Mozilla/5.0")),
+        );
+        hdrs.insert(
+            reqwest::header::ACCEPT,
+            reqwest::header::HeaderValue::from_static("text/html,application/xhtml+xml"),
+        );
         if let Some(ref r) = prev_ref {
             if let Ok(v) = reqwest::header::HeaderValue::from_str(r) {
                 hdrs.insert(reqwest::header::REFERER, v);
             }
         }
-        let resp = opts.client.get(cur.as_str()).headers(hdrs)
-            .timeout(opts.timeout).send().await.map_err(|e| {
-                if e.is_timeout() { ProtectorError::Timeout } else { ProtectorError::Network(e.to_string()) }
+        let resp = opts
+            .client
+            .get(cur.as_str())
+            .headers(hdrs)
+            .timeout(opts.timeout)
+            .send()
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    ProtectorError::Timeout
+                } else {
+                    ProtectorError::Network(e.to_string())
+                }
             })?;
         let st = resp.status().as_u16();
 
         // Redirect 3xx.
         if (300..400).contains(&st) {
-            let loc = resp.headers().get(reqwest::header::LOCATION)
-                .and_then(|v| v.to_str().ok()).ok_or(ProtectorError::MissingRedirect)?;
-            if is_magnet(loc) { return Ok(normalize_magnet(loc)); }
+            let loc = resp
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .ok_or(ProtectorError::MissingRedirect)?;
+            if is_magnet(loc) {
+                return Ok(normalize_magnet(loc));
+            }
             prev_ref = Some(cur.to_string());
-            cur = Url::parse(loc).or_else(|_| cur.join(loc)).map_err(|_| ProtectorError::InvalidUrl)?;
+            cur = Url::parse(loc)
+                .or_else(|_| cur.join(loc))
+                .map_err(|_| ProtectorError::InvalidUrl)?;
             continue;
         }
         // HTTP error.
         if !resp.status().is_success() {
             if st == 400 {
                 let body = resp.text().await.unwrap_or_default();
-                if body.contains("Link inválido ou expirado") || body.contains("link inválido ou expirado") {
+                if body.contains("Link inválido ou expirado")
+                    || body.contains("link inválido ou expirado")
+                {
                     return Err(ProtectorError::LinkExpired);
                 }
             }
             return Err(ProtectorError::HttpError(st));
         }
-        let html = resp.text().await.map_err(|e| ProtectorError::Network(format!("body: {}", e)))?;
-        if let Some(m) = extract_magnet(&html) { return Ok(m); }
-        if let Some(next) = discover_next_url(&html, cur.as_str(), opts.protector_hosts, opts.suffixes) {
+        let html = resp
+            .text()
+            .await
+            .map_err(|e| ProtectorError::Network(format!("body: {}", e)))?;
+        if let Some(m) = extract_magnet(&html) {
+            return Ok(m);
+        }
+        if let Some(next) =
+            discover_next_url(&html, cur.as_str(), opts.protector_hosts, opts.suffixes)
+        {
             prev_ref = Some(cur.to_string());
-            cur = Url::parse(&next).or_else(|_| cur.join(&next)).map_err(|_| ProtectorError::InvalidUrl)?;
+            cur = Url::parse(&next)
+                .or_else(|_| cur.join(&next))
+                .map_err(|_| ProtectorError::InvalidUrl)?;
             continue;
         }
         if let Some(tgt) = extract_meta_refresh(&html) {
-            if is_magnet(&tgt) { return Ok(normalize_magnet(&tgt)); }
+            if is_magnet(&tgt) {
+                return Ok(normalize_magnet(&tgt));
+            }
             prev_ref = Some(cur.to_string());
-            cur = Url::parse(&tgt).or_else(|_| cur.join(&tgt)).map_err(|_| ProtectorError::InvalidUrl)?;
+            cur = Url::parse(&tgt)
+                .or_else(|_| cur.join(&tgt))
+                .map_err(|_| ProtectorError::InvalidUrl)?;
             continue;
         }
         return Err(ProtectorError::NoMagnet);
@@ -211,7 +303,10 @@ pub async fn follow_protected_url(opts: FollowOptions<'_>) -> ProtectorResult {
 
 /// Cria `reqwest::Client` sem redirect automático (adequado ao protetor).
 pub fn build_protector_client() -> Result<Client, reqwest::Error> {
-    Client::builder().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(15)).build()
+    Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(15))
+        .build()
 }
 
 // ── Testes ───────────────────────────────────────────────────────────────────
@@ -227,7 +322,8 @@ mod tests {
     }
     #[test]
     fn is_magnet_cases() {
-        assert!(is_magnet("magnet:?xt=a")); assert!(is_magnet("MAGNET:?xt=a"));
+        assert!(is_magnet("magnet:?xt=a"));
+        assert!(is_magnet("MAGNET:?xt=a"));
         assert!(!is_magnet("https://x.com"));
     }
     #[test]
@@ -237,12 +333,17 @@ mod tests {
     }
     #[test]
     fn meta_refresh_simples() {
-        assert_eq!(extract_meta_refresh("<meta http-equiv='refresh' content='0;url=https://x.com/g'>"),
-                   Some("https://x.com/g".into()));
+        assert_eq!(
+            extract_meta_refresh("<meta http-equiv='refresh' content='0;url=https://x.com/g'>"),
+            Some("https://x.com/g".into())
+        );
     }
     #[test]
     fn meta_refresh_sem_url() {
-        assert_eq!(extract_meta_refresh(r#"<meta http-equiv="refresh" content="5">"#), None);
+        assert_eq!(
+            extract_meta_refresh(r#"<meta http-equiv="refresh" content="5">"#),
+            None
+        );
     }
     #[test]
     fn meta_refresh_inexistente() {
@@ -255,25 +356,55 @@ mod tests {
     }
     #[test]
     fn magnet_uppercase() {
-        assert!(extract_magnet(r#"href="MAGNET:?xt=urn:btih:X""#).unwrap().starts_with("magnet:"));
+        assert!(extract_magnet(r#"href="MAGNET:?xt=urn:btih:X""#)
+            .unwrap()
+            .starts_with("magnet:"));
     }
     #[test]
-    fn magnet_ausente() { assert_eq!(extract_magnet("<p>x</p>"), None); }
+    fn magnet_ausente() {
+        assert_eq!(extract_magnet("<p>x</p>"), None);
+    }
     #[test]
     fn discover_js_var() {
-        let h = vec!["p.com".into()]; let s = vec!["p.com".into()];
-        assert_eq!(discover_next_url(r#"var DEST_URL = "https://p.com/go/1";"#, "https://s.com/p", &h, &s),
-                   Some("https://p.com/go/1".into()));
+        let h = vec!["p.com".into()];
+        let s = vec!["p.com".into()];
+        assert_eq!(
+            discover_next_url(
+                r#"var DEST_URL = "https://p.com/go/1";"#,
+                "https://s.com/p",
+                &h,
+                &s
+            ),
+            Some("https://p.com/go/1".into())
+        );
     }
     #[test]
     fn discover_host_forbidden() {
-        let h = vec!["p.com".into()]; let s = vec!["p.com".into()];
-        assert_eq!(discover_next_url(r#"var DEST_URL = "https://evil.com/x";"#, "https://s.com/p", &h, &s), None);
+        let h = vec!["p.com".into()];
+        let s = vec!["p.com".into()];
+        assert_eq!(
+            discover_next_url(
+                r#"var DEST_URL = "https://evil.com/x";"#,
+                "https://s.com/p",
+                &h,
+                &s
+            ),
+            None
+        );
     }
     #[test]
     fn discover_ignora_mesma_url() {
-        let h = vec!["s.com".into()]; let s = vec!["s.com".into()];
-        assert_eq!(discover_next_url(r#"var DEST_URL = "https://s.com/p";"#, "https://s.com/p", &h, &s), None);
+        let h = vec!["s.com".into()];
+        let s = vec!["s.com".into()];
+        assert_eq!(
+            discover_next_url(
+                r#"var DEST_URL = "https://s.com/p";"#,
+                "https://s.com/p",
+                &h,
+                &s
+            ),
+            None
+        );
     }
     #[test]
     fn error_display() {
@@ -290,19 +421,41 @@ mod tests {
     #[tokio::test]
     async fn follow_magnet_direto() {
         let c = build_protector_client().unwrap();
-        let h: Vec<String> = vec![]; let s: Vec<String> = vec![];
-        let opts = FollowOptions { url: "magnet:?xt=urn:btih:abc", referer: None,
-            protector_hosts: &h, suffixes: &s, max_hops: 5,
-            timeout: Duration::from_secs(10), user_agent: "test/1.0", client: &c };
-        assert_eq!(follow_protected_url(opts).await.unwrap(), "magnet:?xt=urn:btih:abc");
+        let h: Vec<String> = vec![];
+        let s: Vec<String> = vec![];
+        let opts = FollowOptions {
+            url: "magnet:?xt=urn:btih:abc",
+            referer: None,
+            protector_hosts: &h,
+            suffixes: &s,
+            max_hops: 5,
+            timeout: Duration::from_secs(10),
+            user_agent: "test/1.0",
+            client: &c,
+        };
+        assert_eq!(
+            follow_protected_url(opts).await.unwrap(),
+            "magnet:?xt=urn:btih:abc"
+        );
     }
     #[tokio::test]
     async fn follow_url_vazia() {
         let c = build_protector_client().unwrap();
-        let h: Vec<String> = vec![]; let s: Vec<String> = vec![];
-        let opts = FollowOptions { url: "", referer: None,
-            protector_hosts: &h, suffixes: &s, max_hops: 5,
-            timeout: Duration::from_secs(10), user_agent: "test/1.0", client: &c };
-        assert!(matches!(follow_protected_url(opts).await, Err(ProtectorError::InvalidUrl)));
+        let h: Vec<String> = vec![];
+        let s: Vec<String> = vec![];
+        let opts = FollowOptions {
+            url: "",
+            referer: None,
+            protector_hosts: &h,
+            suffixes: &s,
+            max_hops: 5,
+            timeout: Duration::from_secs(10),
+            user_agent: "test/1.0",
+            client: &c,
+        };
+        assert!(matches!(
+            follow_protected_url(opts).await,
+            Err(ProtectorError::InvalidUrl)
+        ));
     }
 }

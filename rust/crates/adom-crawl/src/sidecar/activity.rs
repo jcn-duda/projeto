@@ -13,15 +13,15 @@ use super::http_client::SidecarHttpClient;
 /// **Fail-open**: se não consegue consultar o Node, retorna `false`
 /// (assume que não há tráfego e continua o crawl). Isso evita que
 /// uma falha temporária no Node paralise o raspador indefinidamente.
-pub async fn recent_user_traffic(
-    client: &SidecarHttpClient,
-    idle_window_ms: u64,
-) -> bool {
+pub async fn recent_user_traffic(client: &SidecarHttpClient, idle_window_ms: u64) -> bool {
     match client.check_activity(idle_window_ms).await {
         Ok(recent) => recent,
         Err(e) => {
             // Loga o erro mas não bloqueia o crawl.
-            eprintln!("[sidecar] falha ao consultar atividade do usuário: {}; continuando", e);
+            eprintln!(
+                "[sidecar] falha ao consultar atividade do usuário: {}; continuando",
+                e
+            );
             false
         }
     }
@@ -38,8 +38,7 @@ mod tests {
     #[tokio::test]
     async fn recent_user_traffic_fail_open() {
         // Porta 1 raramente está em uso; a conexão será recusada.
-        let client =
-            SidecarHttpClient::new("http://127.0.0.1:1".into(), "token-fake".into());
+        let client = SidecarHttpClient::new("http://127.0.0.1:1".into(), "token-fake".into());
 
         let should_pause = recent_user_traffic(&client, 30_000).await;
         assert!(

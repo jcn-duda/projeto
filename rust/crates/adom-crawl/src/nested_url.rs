@@ -121,13 +121,10 @@ pub fn unwrap_resolver_url(
 
         // Extrai campos dos parâmetros de query (primeiro valor encontrado).
         for (field, param) in &opts.field_params {
-            if result_fields.get(field).is_none()
-                || result_fields.get(field).unwrap().is_none()
-            {
-                let value = inner
-                    .query_pairs()
-                    .find(|(k, _)| k == param)
-                    .map(|(_, v): (std::borrow::Cow<'_, str>, std::borrow::Cow<'_, str>)| v.to_string());
+            if result_fields.get(field).is_none_or(|v| v.is_none()) {
+                let value = inner.query_pairs().find(|(k, _)| k == param).map(
+                    |(_, v): (std::borrow::Cow<'_, str>, std::borrow::Cow<'_, str>)| v.to_string(),
+                );
                 if value.is_some() {
                     result_fields.insert(field.clone(), value);
                 }
@@ -166,13 +163,10 @@ mod tests {
 
     #[test]
     fn um_salto_de_resolve() {
-        let nested = "https://resolver.example.com/resolve?url=https%3A%2F%2Fexample.com%2Ffilme%2Fpost-123";
-        let result = unwrap_resolver_url(
-            nested,
-            "https://resolver.example.com",
-            &empty_seed(),
-            None,
-        );
+        let nested =
+            "https://resolver.example.com/resolve?url=https%3A%2F%2Fexample.com%2Ffilme%2Fpost-123";
+        let result =
+            unwrap_resolver_url(nested, "https://resolver.example.com", &empty_seed(), None);
         assert_eq!(result.url, "https://example.com/filme/post-123");
     }
 
@@ -183,24 +177,16 @@ mod tests {
             "https://resolver.example.com/resolve?url={}",
             url::form_urlencoded::byte_serialize(inner.as_bytes()).collect::<String>()
         );
-        let result = unwrap_resolver_url(
-            &outer,
-            "https://resolver.example.com",
-            &empty_seed(),
-            None,
-        );
+        let result =
+            unwrap_resolver_url(&outer, "https://resolver.example.com", &empty_seed(), None);
         assert_eq!(result.url, "https://example.com/filme");
     }
 
     #[test]
     fn extrai_campos_de_query() {
         let nested = "https://resolver.example.com/resolve?url=https%3A%2F%2Fexample.com%2Ffilme&i=2&h=abc123&n=5";
-        let result = unwrap_resolver_url(
-            nested,
-            "https://resolver.example.com",
-            &empty_seed(),
-            None,
-        );
+        let result =
+            unwrap_resolver_url(nested, "https://resolver.example.com", &empty_seed(), None);
         assert_eq!(result.url, "https://example.com/filme");
         assert_eq!(
             result.fields.get("index").cloned().flatten(),
@@ -222,13 +208,9 @@ mod tests {
         let mut seed = UnwrapSeed {
             fields: HashMap::new(),
         };
-        seed.fields.insert("index".to_string(), Some("7".to_string()));
-        let result = unwrap_resolver_url(
-            nested,
-            "https://resolver.example.com",
-            &seed,
-            None,
-        );
+        seed.fields
+            .insert("index".to_string(), Some("7".to_string()));
+        let result = unwrap_resolver_url(nested, "https://resolver.example.com", &seed, None);
         // Seed não é sobrescrito quando o parâmetro está ausente.
         assert_eq!(
             result.fields.get("index").cloned().flatten(),
@@ -239,12 +221,7 @@ mod tests {
     #[test]
     fn path_diferente_de_resolve_nao_desempacota() {
         let url = "https://resolver.example.com/other?url=https%3A%2F%2Fexample.com%2Ffilme";
-        let result = unwrap_resolver_url(
-            url,
-            "https://resolver.example.com",
-            &empty_seed(),
-            None,
-        );
+        let result = unwrap_resolver_url(url, "https://resolver.example.com", &empty_seed(), None);
         // Não desempacota porque o path é /other, não /resolve.
         assert_eq!(result.url, url);
     }

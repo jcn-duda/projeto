@@ -24,9 +24,7 @@ pub const PROTECTOR_SUFFIXES: &[&str] = &[
 
 /// Sufixos extras específicos do VacaTorrent (base + estes).
 /// Separados para que resolvers que não são do Vaca usem apenas a base.
-pub const VACA_EXTRA_PROTECTOR_SUFFIXES: &[&str] = &[
-    "systemtech.space",
-];
+pub const VACA_EXTRA_PROTECTOR_SUFFIXES: &[&str] = &["systemtech.space"];
 
 /// Verifica se um hostname é um protetor conhecido (base comum).
 ///
@@ -58,10 +56,7 @@ mod tests {
     fn base_cobre_todos_os_sufixos() {
         for suffix in PROTECTOR_SUFFIXES {
             assert!(is_protector_host(suffix), "{suffix}");
-            assert!(
-                is_protector_host(&format!("cdn.{suffix}")),
-                "sub.{suffix}"
-            );
+            assert!(is_protector_host(&format!("cdn.{suffix}")), "sub.{suffix}");
         }
     }
 

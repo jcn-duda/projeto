@@ -26,10 +26,7 @@ pub async fn warm_hdr(_cache: &()) -> Result<(), String> {
 ///
 /// Placeholder — a assinatura final dependerá do tipo de cache (R2 cache)
 /// e do trait de parser de listagem.
-pub async fn warm_listing_generic(
-    _site: &str,
-    _cache: &(),
-) -> Result<(), String> {
+pub async fn warm_listing_generic(_site: &str, _cache: &()) -> Result<(), String> {
     // TODO: implementar quando a infraestrutura de cache estiver pronta.
     Ok(())
 }

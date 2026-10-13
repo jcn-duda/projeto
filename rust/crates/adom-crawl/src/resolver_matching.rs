@@ -4,7 +4,7 @@
 //! detecção de posts de listagem genérica e seleção de botão por índice.
 
 use regex::Regex;
-use sha1::{Sha1, Digest};
+use sha1::{Digest, Sha1};
 use std::sync::LazyLock;
 
 // ── Regex compiladas uma vez ─────────────────────────────────────────────────
@@ -16,32 +16,57 @@ static RE_TRAILING_YEAR: LazyLock<Regex> =
 /// Detecta padrão de temporada (S01, 1ª Temporada, etc.).
 #[allow(dead_code)] // reservada para matching de série (R3)
 static RE_SEASON: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)").expect("regex de temporada válida")
+    Regex::new(r"(?i)(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)")
+        .expect("regex de temporada válida")
 });
 
 /// Detecta início de lista genérica ("lista", "listão", "índice").
-static RE_LIST_START: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(lista|listao|indice)").expect("regex de lista válida")
-});
+static RE_LIST_START: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(lista|listao|indice)").expect("regex de lista válida"));
 
 /// Detecta categorias após "lista de".
 static RE_LIST_CATEGORY: LazyLock<Regex> = LazyLock::new(|| {
     let categories = [
-        "filme", "filmes", "serie", "series", "anime", "animes", "desenho", "desenhos",
-        "documentario", "documentarios", "temporada", "temporadas", "dorama", "doramas",
-        "jogo", "jogos", "musica", "musicas", "categoria", "categorias", "todo", "todos",
-        "toda", "todas", "tudo", "geral", "completa", "completo",
-    ].join("|");
+        "filme",
+        "filmes",
+        "serie",
+        "series",
+        "anime",
+        "animes",
+        "desenho",
+        "desenhos",
+        "documentario",
+        "documentarios",
+        "temporada",
+        "temporadas",
+        "dorama",
+        "doramas",
+        "jogo",
+        "jogos",
+        "musica",
+        "musicas",
+        "categoria",
+        "categorias",
+        "todo",
+        "todos",
+        "toda",
+        "todas",
+        "tudo",
+        "geral",
+        "completa",
+        "completo",
+    ]
+    .join("|");
     Regex::new(&format!(
         r"^(lista|listao|indice)\s+de\s+({})\b(.*)$",
         categories
-    )).expect("regex de categoria válida")
+    ))
+    .expect("regex de categoria válida")
 });
 
 /// Detecta artigos definidos após a categoria (para exclusão).
-static RE_DEFINITE_ARTICLE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:do|da|dos|das|de)\b").expect("regex de artigo válida")
-});
+static RE_DEFINITE_ARTICLE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:do|da|dos|das|de)\b").expect("regex de artigo válida"));
 
 // ── Normalização de texto ────────────────────────────────────────────────────
 
@@ -188,7 +213,8 @@ pub fn button_id(url: &str) -> String {
     hasher.update(url.as_bytes());
     let result = hasher.finalize();
     // Converte os primeiros 5 bytes (10 caracteres hex)
-    result.iter()
+    result
+        .iter()
         .take(5)
         .map(|b| format!("{:02x}", b))
         .collect()
@@ -201,7 +227,12 @@ pub fn button_id(url: &str) -> String {
 /// Se `hash` for fornecido, busca o link cujo `button_id` corresponde ao hash.
 /// Se não encontrado e `count` for incompatível com o tamanho da lista, retorna `None`.
 /// Caso contrário, retorna o link pelo índice.
-pub fn pick_button(links: &[String], index: usize, hash: Option<&str>, count: Option<usize>) -> Option<String> {
+pub fn pick_button(
+    links: &[String],
+    index: usize,
+    hash: Option<&str>,
+    count: Option<usize>,
+) -> Option<String> {
     // Se hash foi fornecido, busca por matching de button_id
     if let Some(expected_hash) = hash {
         // Busca o link cujo button_id corresponde ao hash esperado
@@ -260,7 +291,10 @@ mod tests {
 
     #[test]
     fn matches_resolver_query_sem_casamento() {
-        assert!(!matches_resolver_query("Documentário Natureza", "filme acao"));
+        assert!(!matches_resolver_query(
+            "Documentário Natureza",
+            "filme acao"
+        ));
     }
 
     #[test]
@@ -297,7 +331,10 @@ mod tests {
             "https://example.com/2".to_string(),
             "https://example.com/3".to_string(),
         ];
-        assert_eq!(pick_button(&links, 1, None, None), Some("https://example.com/2".to_string()));
+        assert_eq!(
+            pick_button(&links, 1, None, None),
+            Some("https://example.com/2".to_string())
+        );
     }
 
     #[test]
@@ -317,7 +354,10 @@ mod tests {
     fn pick_button_hash_nao_encontrado_count_compativel() {
         let links = vec!["https://example.com/1".to_string()];
         // hash não encontrado mas count compatível = fallback para índice
-        assert_eq!(pick_button(&links, 0, Some("abc1234567"), Some(1)), Some("https://example.com/1".to_string()));
+        assert_eq!(
+            pick_button(&links, 0, Some("abc1234567"), Some(1)),
+            Some("https://example.com/1".to_string())
+        );
     }
 
     #[test]
@@ -330,7 +370,10 @@ mod tests {
         // Calcula o hash esperado para o segundo link
         let expected_hash = button_id("https://example.com/2");
         // Deve encontrar pelo hash, independente do índice
-        assert_eq!(pick_button(&links, 99, Some(&expected_hash), None), Some("https://example.com/2".to_string()));
+        assert_eq!(
+            pick_button(&links, 99, Some(&expected_hash), None),
+            Some("https://example.com/2".to_string())
+        );
     }
 
     // button_id
