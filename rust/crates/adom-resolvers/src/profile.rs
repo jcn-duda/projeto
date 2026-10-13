@@ -19,6 +19,8 @@ use adom_crawl::site_profiles::{
 use reqwest::header::{HeaderMap, HeaderValue, SET_COOKIE};
 use url::Url;
 
+use crate::listing_parsers;
+
 /// Entradas máximas do cache de listagem por profile.
 pub const SEARCH_CACHE_LIMIT: usize = 60;
 pub const POST_CACHE_LIMIT: usize = 200;
@@ -304,13 +306,16 @@ fn site_needs_session(site_name: &str) -> bool {
 
 /// Converte o HTML da listagem em posts.
 ///
-/// `todo!()` deliberado: o crawl não tem parser `HTML de busca → posts` com
-/// título — `listing::parse_listing_cards` só cobre Apache e devolve `{ url,
-/// kind }`; `profile_parsers::parse_post_links` devolve botões de uma página.
-/// Os parsers por site vivem no TS (`resolvers/profiles/*-parsers.ts`): ao
-/// portá-los, isto vira um match no `site_name`.
-fn parse_search_posts(_site_name: &str, _html: &str, _base_url: &str) -> Vec<ResolverPost> {
-    todo!("parser de listagem ainda não portado para adom-crawl")
+/// Delega ao parser do site correspondente em `listing_parsers`. Cada parser
+/// extrai title + url (+ poster opcional) e filtra posts genéricos.
+fn parse_search_posts(site_name: &str, html: &str, base_url: &str) -> Vec<ResolverPost> {
+    listing_parsers::parse_listing_posts(site_name, html, base_url)
+        .into_iter()
+        .map(|p| ResolverPost {
+            title: p.title,
+            url: p.url,
+        })
+        .collect()
 }
 
 #[cfg(test)]

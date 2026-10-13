@@ -4,5 +4,6 @@
 //! própria, com o mesmo contrato HTTP do TS: /health, /search, /resolve, /dl, /api.
 
 pub mod callbacks;
+pub mod listing_parsers;
 pub mod profile;
 pub mod server;
