@@ -10,8 +10,31 @@ fn vacatorrent_has_flare() {
     assert_eq!(cfg.site_id, "vacatorrent");
     assert_eq!(
         cfg.candidate_hosts,
-        vec!["vaqueirofilmes1.com", "vaqueirofilmes.com"]
+        vec![
+            "vaqueirofilmes1.com",
+            "vaqueirofilmes.com",
+            "vacatorrentmov.com"
+        ]
     );
+}
+
+/// Os hosts do registry espelham o `FALLBACK_SITE_SUFFIXES` dos profiles TS:
+/// a lista antiga (`.com`/`.tv` inventados) barrava o domínio vivo de 5 sites.
+#[test]
+fn registry_tem_dominio_vivo_dos_profiles_ts() {
+    for (site, host) in [
+        ("comandotorrents", "comandotorrents.to"),
+        ("nerdfilmes", "xfilmeshd.org"),
+        ("torrentdosfilmesv2", "torrentdosfilmes-v2.xyz"),
+        ("redetorrent-cardigann", "redetorrent.xyz"),
+        ("apachetorrent-cardigann", "apachetorrents.com"),
+    ] {
+        let cfg = site_network_config(site).expect("site no registry");
+        assert!(
+            cfg.candidate_hosts.iter().any(|h| h == host),
+            "{site} sem {host}"
+        );
+    }
 }
 
 /// `mico` tem ritmo próprio e gap mínimo configurado.

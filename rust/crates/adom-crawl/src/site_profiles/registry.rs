@@ -69,12 +69,19 @@ fn strings(v: &[&str]) -> Vec<String> {
 }
 
 // ─── Builders por site ──────────────────────────────────────────────────────
+//
+// `candidate_hosts` espelha o `FALLBACK_SITE_SUFFIXES` de cada profile TS
+// (`resolvers/profiles/*`). Domínio de site BR muda: ao trocar lá, troque aqui.
 
 /// VacaTorrent: base + systemtech.space; assert-only: t.co, vacadb.org.
 fn build_vacatorrent() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "vacatorrent".into(),
-        candidate_hosts: strings(&["vaqueirofilmes1.com", "vaqueirofilmes.com"]),
+        candidate_hosts: strings(&[
+            "vaqueirofilmes1.com",
+            "vaqueirofilmes.com",
+            "vacatorrentmov.com",
+        ]),
         protector_suffixes: protector_suffixes(&["systemtech.space"]),
         assert_only_suffixes: strings(&["t.co", "vacadb.org"]),
         timeout_ms: 15_000,
@@ -91,9 +98,8 @@ fn build_vacatorrent() -> SiteNetworkConfig {
 fn build_redetorrent() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "redetorrent-cardigann".into(),
-        candidate_hosts: strings(&["redetorrent.com", "redetorrent.tv"]),
-        // TODO: confirmar hosts específicos do TS (redetorrent usa systemads base)
-        protector_suffixes: protector_suffixes(&[]),
+        candidate_hosts: strings(&["redetorrent.xyz", "redetorrent.com"]),
+        protector_suffixes: protector_suffixes(&["systemads.free.nf"]),
         assert_only_suffixes: Vec::new(),
         timeout_ms: 15_000,
         max_hops: 10,
@@ -133,7 +139,17 @@ fn build_bludv() -> SiteNetworkConfig {
 fn build_nerdfilmes() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "nerdfilmes".into(),
-        candidate_hosts: strings(&["nerdfilmes.net", "nerdfilmes.tv"]),
+        candidate_hosts: strings(&[
+            "xnerdfilmes.net",
+            "nerdfilmestorrent.com",
+            "nerdfilmestorrent.org",
+            "nerdfilmestorrent.net",
+            "nerdviatorrents.net",
+            "filmesviatorrents.net",
+            "filmesviatorrenthd.org",
+            "filmesviatorrenthd.net",
+            "xfilmeshd.org",
+        ]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),
         timeout_ms: 15_000,
@@ -150,7 +166,11 @@ fn build_nerdfilmes() -> SiteNetworkConfig {
 fn build_comandotorrents() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "comandotorrents".into(),
-        candidate_hosts: strings(&["comandotorrents.com", "comandotorrents.tv"]),
+        candidate_hosts: strings(&[
+            "comandotorrents.to",
+            "comandotorrents.net",
+            "comandotorrents.org",
+        ]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),
         timeout_ms: 15_000,
@@ -167,7 +187,11 @@ fn build_comandotorrents() -> SiteNetworkConfig {
 fn build_torrentdosfilmes() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "torrentdosfilmesv2".into(),
-        candidate_hosts: strings(&["torrentdosfilmes.net", "torrentdosfilmes.tv"]),
+        candidate_hosts: strings(&[
+            "torrentdosfilmes-v2.xyz",
+            "torrentdosfilmes.com",
+            "torrentdosfilmes.net",
+        ]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),
         timeout_ms: 15_000,
@@ -201,7 +225,7 @@ fn build_hdrtorrent() -> SiteNetworkConfig {
 fn build_apachetorrent() -> SiteNetworkConfig {
     SiteNetworkConfig {
         site_id: "apachetorrent-cardigann".into(),
-        candidate_hosts: strings(&["apachetorrent.com"]),
+        candidate_hosts: strings(&["apachetorrents.com", "apachetorrent.com"]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),
         timeout_ms: 15_000,

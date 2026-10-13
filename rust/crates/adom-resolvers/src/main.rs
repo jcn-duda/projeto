@@ -92,8 +92,28 @@ fn parse_entry(entry: &str) -> Result<(String, u16), Box<dyn std::error::Error>>
     }
 }
 
-/// URL primária do site: lê `<SITE>_URL` do env, fallback vazio (seletor usa candidates do registry).
+/// URL primária por site quando `<SITE>_URL` não está no env — a mesma de
+/// `src/config/resolvers.ts`, para Node e Rust buscarem no mesmo domínio.
+const DEFAULT_URLS: &[(&str, &str)] = &[
+    ("bludv", "https://bludvfilmes.xyz"),
+    ("comandotorrents", "https://comandotorrents.to"),
+    ("nerdfilmes", "https://www.xfilmeshd.org"),
+    ("torrentdosfilmes", "https://torrentdosfilmes-v2.xyz"),
+    ("vacatorrent", "https://vaqueirofilmes1.com"),
+    ("redetorrent", "https://www.redetorrent.xyz"),
+    ("apachetorrent", "https://apachetorrents.com"),
+    ("hdrtorrents", "https://hdrtorrents.net"),
+];
+
+/// URL primária do site: `<SITE>_URL` do env, senão o default do TS.
 fn site_url_env(name: &str) -> String {
     let env_key = format!("{}_URL", name.to_uppercase());
-    std::env::var(&env_key).unwrap_or_default()
+    match std::env::var(&env_key) {
+        Ok(v) if !v.trim().is_empty() => v,
+        _ => DEFAULT_URLS
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, u)| u.to_string())
+            .unwrap_or_default(),
+    }
 }

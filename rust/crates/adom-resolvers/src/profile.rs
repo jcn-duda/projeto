@@ -60,13 +60,19 @@ impl ResolverProfile {
         let network = network_config_for(site_name);
         // A URL do operador vem antes dos hosts do registry: é ela que sabe qual
         // domínio responde hoje.
-        let selector = SiteSelector::new(site_name, build_candidates(site_url, &network), None);
+        let candidates = build_candidates(site_url, &network);
+        // Como o `CANDIDATE_HOSTS` do site-profile TS: o host de TODO candidato,
+        // inclusive o da URL do operador, é confiável desde o boot. Sem isso o
+        // domínio que o operador configurou era barrado no primeiro fetch.
+        let mut allowed_hosts = network.candidate_hosts.clone();
+        allowed_hosts.extend(candidates.iter().filter_map(|c| host_of(c)));
+        let selector = SiteSelector::new(site_name, candidates, None);
         let session = site_needs_session(site_name).then(HttpSession::new);
         let mut protector_suffixes = network.protector_suffixes.clone();
         // `Allowlist::new` normaliza e deduplica os sufixos — não precisa daqui.
         protector_suffixes.extend_from_slice(&extra_protectors);
         let allowlist = Allowlist::new(
-            network.candidate_hosts.clone(),
+            allowed_hosts,
             protector_suffixes,
             network.assert_only_suffixes.clone(),
         );
@@ -135,14 +141,27 @@ impl ResolverProfile {
         url: &str,
     ) -> Result<String, String> {
         let owned = url.to_string();
+        // O loader só devolve String: a causa da falha sai por aqui, senão o 502
+        // dizia só "fetch_failed" e host barrado parecia site fora do ar.
+        let cause = std::sync::Mutex::new(None::<String>);
         let html = cache
             .cached(key, ttl_ms, || async {
-                self.fetch(&owned).await.unwrap_or_default()
+                match self.fetch(&owned).await {
+                    Ok(body) => body,
+                    Err(err) => {
+                        *cause.lock().unwrap_or_else(|p| p.into_inner()) = Some(err);
+                        String::new()
+                    }
+                }
             })
             .await;
         if html.is_empty() {
             cache.clear().await;
-            return Err(format!("fetch_failed:{owned}"));
+            let cause = cause
+                .into_inner()
+                .unwrap_or_else(|p| p.into_inner())
+                .unwrap_or_else(|| "corpo vazio".to_string());
+            return Err(format!("fetch_failed:{owned}: {cause}"));
         }
         Ok(html)
     }
@@ -283,19 +302,26 @@ fn lookup_site_config(site_name: &str) -> Option<&'static SiteNetworkConfig> {
 /// Candidatos: URL do operador primeiro, depois hosts do registry, sem duplicar host.
 fn build_candidates(site_url: &str, network: &SiteNetworkConfig) -> Vec<String> {
     let primary = site_url.trim().trim_end_matches('/');
-    if primary.is_empty() {
-        return Vec::new();
+    let primary_host = host_of(primary);
+    let mut candidates = Vec::new();
+    // Sem URL do operador o seletor ainda tem os mirrors do registry; antes a
+    // lista vazia deixava o site sem nenhum candidato.
+    if !primary.is_empty() {
+        candidates.push(primary.to_string());
     }
-    let primary_host = Url::parse(primary)
-        .ok()
-        .and_then(|u| u.host_str().map(|h| h.to_lowercase()));
-    let mut candidates = vec![primary.to_string()];
     for host in &network.candidate_hosts {
         if primary_host.as_deref() != Some(host.as_str()) {
             candidates.push(format!("https://{host}"));
         }
     }
     candidates
+}
+
+/// Host em minúsculas de uma URL; `None` se ela não parseia.
+fn host_of(url: &str) -> Option<String> {
+    Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
 }
 
 /// Sites que precisam de sessão: ApacheTorrent exige PHPSESSID + token

@@ -42,7 +42,24 @@ fn candidatos_ordem_e_dedup() {
     assert_eq!(hosts.first(), Some(&"comandotorrents.com".to_string()));
     let do_operador = hosts.iter().filter(|h| *h == "comandotorrents.com").count();
     assert_eq!(do_operador, 1);
-    assert!(hosts.contains(&"comandotorrents.tv".to_string()));
+    assert!(hosts.contains(&"comandotorrents.to".to_string()));
+}
+
+/// O domínio do operador (`.com`, fora do registry) entra na allowlist: antes
+/// ele virava candidato mas era barrado no fetch, e a busca dava 502.
+#[test]
+fn host_do_operador_entra_na_allowlist() {
+    let p = profile();
+    assert!(p.allowlist.has_allowed_host("comandotorrents.com"));
+    assert!(p.allowlist.has_allowed_host("comandotorrents.to"));
+    assert!(!p.allowlist.has_allowed_host("evil.example"));
+}
+
+/// Sem URL do operador, os mirrors do registry ainda viram candidatos.
+#[test]
+fn sem_url_do_operador_usa_mirrors_do_registry() {
+    let p = ResolverProfile::new("comandotorrents", "", vec![]);
+    assert_eq!(p.selector.url(), "https://comandotorrents.to");
 }
 
 #[test]
