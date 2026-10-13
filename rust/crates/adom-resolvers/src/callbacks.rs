@@ -1,60 +1,83 @@
 //! Implementação de `ResolverCallbacks` para `ResolverProfile`.
 //!
 //! Separado de `profile.rs` pela catraca de 400 linhas. Cada método é a costura
-//! entre o contrato HTTP do server (axum) e a lógica de rede/cache/protetor do
-//! profile. Parsers de listagem ainda não portados: `search` devolve JSON
-//! básico e `render_html`/`render_xml` são templates mínimos.
+//! entre o contrato HTTP do server (axum) e a lógica do profile: a busca devolve
+//! um item por BOTÃO de post (`crate::items`) e a página/feed saem do formato do
+//! site (`crate::sites`), o mesmo que a definição do Jackett lê do TS.
 
+use std::collections::HashMap;
+
+use adom_crawl::nested_url::{self, UnwrapSeed as NestedSeed};
+
+use crate::common::SearchItem;
 use crate::profile::ResolverProfile;
 use crate::server::{ResolverCallbacks, SearchItems, UnwrapSeed, UnwrappedUrl};
+
+fn to_items(values: &SearchItems) -> Vec<SearchItem> {
+    values
+        .iter()
+        .filter_map(|v| serde_json::from_value(v.clone()).ok())
+        .collect()
+}
 
 #[async_trait::async_trait]
 impl ResolverCallbacks for ResolverProfile {
     async fn search(&self, q: &str) -> Result<SearchItems, String> {
-        let posts = ResolverProfile::search(self, q).await?;
-        Ok(posts
-            .into_iter()
-            .map(|p| serde_json::json!({ "title": p.title, "url": p.url }))
+        let items = self.search_items(q).await?;
+        Ok(items
+            .iter()
+            .filter_map(|item| serde_json::to_value(item).ok())
             .collect())
     }
 
     fn render_html(&self, items: &SearchItems) -> String {
-        let mut html = String::from("<html><body>");
-        for item in items {
-            let title = item["title"].as_str().unwrap_or("");
-            let url = item["url"].as_str().unwrap_or("");
-            html.push_str(&format!(
-                r#"<div class="release"><a href="{}">{}</a></div>"#,
-                url, title
-            ));
-        }
-        html.push_str("</body></html>");
-        html
+        self.render_items_html(&to_items(items))
     }
 
     async fn resolve_best(&self, url: &str) -> Result<String, String> {
-        ResolverProfile::resolve(self, url).await
+        self.resolve_best_of(url).await
     }
 
     async fn resolve_button(
         &self,
         url: &str,
-        _index: usize,
-        _hash: Option<&str>,
-        _count: Option<&str>,
+        index: usize,
+        hash: Option<&str>,
+        count: Option<&str>,
     ) -> Result<String, String> {
-        // Sem parser de port ainda, resolve_best é o único caminho.
-        ResolverProfile::resolve(self, url).await
+        self.resolve_button_of(url, index, hash, count).await
     }
 
+    /// `unwrapResolverUrl` do site-profile: o Cardigann pode embrulhar o
+    /// `/resolve` no próprio `/resolve` (até 3 saltos); os campos do nível mais
+    /// interno vencem. Índice presente e não inteiro ≥ 0 é `invalid_index`.
     fn unwrap_resolver_url(&self, value: &str, seed: UnwrapSeed) -> Result<UnwrappedUrl, String> {
-        // Desempacotamento simples: sem aninhamento (o TS faz até 3 saltos).
-        let index = seed.index.as_deref().and_then(|s| s.parse::<usize>().ok());
+        let mut fields = HashMap::new();
+        fields.insert("index".to_string(), seed.index);
+        fields.insert("hash".to_string(), seed.hash);
+        fields.insert("count".to_string(), seed.count);
+        let out =
+            nested_url::unwrap_resolver_url(value, &self.self_url, &NestedSeed { fields }, None);
+        let field = |name: &str| {
+            out.fields
+                .get(name)
+                .cloned()
+                .flatten()
+                .filter(|v| !v.is_empty())
+        };
+        let index = match field("index") {
+            None => None,
+            Some(raw) => Some(
+                raw.trim()
+                    .parse::<usize>()
+                    .map_err(|_| "invalid_index".to_string())?,
+            ),
+        };
         Ok(UnwrappedUrl {
-            url: value.to_string(),
+            url: out.url,
             index,
-            hash: seed.hash,
-            count: seed.count,
+            hash: field("hash"),
+            count: field("count"),
         })
     }
 
@@ -72,16 +95,9 @@ impl ResolverCallbacks for ResolverProfile {
         )
     }
 
-    fn render_xml(&self, items: &SearchItems, _category: u32) -> String {
-        let mut xml = format!(
-            r#"<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>{}</title>"#,
-            self.site_name
-        );
-        for item in items {
-            let title = item["title"].as_str().unwrap_or("");
-            xml.push_str(&format!("<item><title>{title}</title></item>"));
-        }
-        xml.push_str("</channel></rss>");
-        xml
+    fn render_xml(&self, items: &SearchItems, category: u32) -> String {
+        let items = to_items(items);
+        self.render_items_xml(&items, category)
+            .unwrap_or_else(|| self.empty_xml(category, ""))
     }
 }

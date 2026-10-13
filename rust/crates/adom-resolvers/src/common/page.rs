@@ -24,7 +24,7 @@ pub struct SitePost {
 }
 
 /// Um botão de um post, já com o índice e o total de botões do post.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SearchItem {
     pub post: SitePost,
     pub link: ResolverLink,

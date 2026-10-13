@@ -51,8 +51,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (name, port) = parse_entry(entry)?;
         let site_url = site_url_env(&name);
         let mirrors = site_mirrors_env(&name);
+        // Mesmo `selfUrl` que o Node monta para o profile TS (`br-resolvers.ts`),
+        // só que na porta do Rust: é ela que atende o `/resolve` dos links.
+        let host = std::env::var("BR_RESOLVERS_HOST")
+            .ok()
+            .filter(|h| !h.trim().is_empty())
+            .unwrap_or_else(|| "127.0.0.1".to_string());
         let profile =
-            ResolverProfile::with_mirrors(&name, &site_url, &mirrors, extra_protectors.clone());
+            ResolverProfile::with_mirrors(&name, &site_url, &mirrors, extra_protectors.clone())
+                .with_self_url(&format!("http://{host}:{port}"));
         let config = ResolverConfig {
             port,
             site_name: name.clone(),

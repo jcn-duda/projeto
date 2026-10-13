@@ -8,6 +8,8 @@ license = "UNLICENSED"
 
 [dependencies]
 fancy-regex = "=0.19.2"
+# `buffered`: posts abertos em paralelo limitado (o mapLimit dos profiles TS).
+futures-util = "0.3"
 adom-crawl = { path = "../adom-crawl" }
 adom-core = { path = "../adom-core" }
 axum = { version = "0.8", features = ["json"] }

@@ -36,6 +36,8 @@ const HTML_ACCEPT: &str = "text/html,application/xhtml+xml";
 pub struct ResolverPost {
     pub title: String,
     pub url: String,
+    /// Capa do card da busca: o comando a põe na linha da página.
+    pub poster: Option<String>,
 }
 
 /// Profile de um resolver BR. É `Send + Sync`, então `Arc<ResolverProfile>` cabe
@@ -56,6 +58,9 @@ pub struct ResolverProfile {
     /// Cookies do FlareSolverr por host, reusados no fetch direto seguinte
     /// (só sites com `uses_flare`: BLUDV, RedeTorrent, VacaTorrent).
     pub flare_sessions: Arc<Mutex<FlareSessions>>,
+    /// Origem deste resolver nos links da página (`/resolve`, `/dl`): o
+    /// `selfUrl` que o Node monta como `http://<BR_RESOLVERS_HOST>:<porta>`.
+    pub self_url: String,
 }
 
 impl ResolverProfile {
@@ -103,7 +108,14 @@ impl ResolverProfile {
             flare_sessions: Arc::new(Mutex::new(FlareSessions::new(network.flare_session_ttl_ms))),
             network,
             allowlist,
+            self_url: String::new(),
         }
+    }
+
+    /// Fixa o `selfUrl` dos links da página (o `main` passa o da porta Rust).
+    pub fn with_self_url(mut self, self_url: &str) -> Self {
+        self.self_url = self_url.trim_end_matches('/').to_string();
+        self
     }
 
     /// Chave do cache de listagem para uma query.
@@ -328,6 +340,7 @@ fn parse_search_posts(site_name: &str, html: &str, base_url: &str) -> Vec<Resolv
         .map(|p| ResolverPost {
             title: p.title,
             url: p.url,
+            poster: p.poster,
         })
         .collect()
 }
