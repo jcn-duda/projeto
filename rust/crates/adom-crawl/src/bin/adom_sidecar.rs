@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use adom_crawl::motor::types::MotorConfig;
 use adom_crawl::motor::CrawlMotor;
+use adom_crawl::page_engine::CrawlPageEngine;
 use adom_crawl::sidecar::server::AppState;
 use adom_crawl::sidecar::SidecarHttpClient;
 use adom_crawl::store::CrawlStore;
@@ -104,7 +105,11 @@ async fn main() {
         delay_ms,
         ..Default::default()
     };
-    let motor = Arc::new(CrawlMotor::new(config));
+    // Conecta o PageEngine real (C5): fetch + parser. Sem isto o motor usa
+    // UnwiredPageEngine (is_ready=false) e nenhuma URL é processada.
+    let motor = Arc::new(
+        CrawlMotor::new(config).with_page_engine(Arc::new(CrawlPageEngine::default())),
+    );
 
     // ── 6. Inicia o servidor HTTP do sidecar ─────────────────────────
     // O servidor roda em background, em loopback, para o painel e entrypoint.
