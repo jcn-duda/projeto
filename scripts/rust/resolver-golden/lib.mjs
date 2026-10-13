@@ -21,11 +21,12 @@ const OUT_DIR = path.join(ROOT, 'rust/crates/adom-resolvers/tests/golden');
 export const fixture = (name) => fs.readFileSync(path.join(FIXTURES, name), 'utf8');
 
 /**
- * Importa um módulo do `dist/` (build do TS). `ADOM_DIST` aponta para o
+ * Importa um módulo do `dist/` (build do TS). `--dist=<caminho>` aponta para o
  * `dist/` de outro checkout — um worktree não tem build próprio.
  */
 export async function distImport(rel) {
-  const dist = process.env.ADOM_DIST ? path.resolve(process.env.ADOM_DIST) : path.join(ROOT, 'dist');
+  const flag = process.argv.find((a) => a.startsWith('--dist='));
+  const dist = flag ? path.resolve(flag.slice('--dist='.length)) : path.join(ROOT, 'dist');
   return import(pathToFileURL(path.join(dist, rel)).href);
 }
 

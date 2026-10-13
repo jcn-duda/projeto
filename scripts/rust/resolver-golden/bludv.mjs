@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Oráculo do golden do resolver Rust: roda o profile TS (dist/) sobre as
 // fixtures e grava o que o Rust tem que reproduzir byte a byte.
-//   ADOM_DIST="E:/stremio adom/dist" DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/bludv.mjs
+//   DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/bludv.mjs
 // Saída: rust/crates/adom-resolvers/tests/golden/bludv.json
 //
 // O BLUDV não exporta o feed torznab (`createBludvRssXml` fica interno ao

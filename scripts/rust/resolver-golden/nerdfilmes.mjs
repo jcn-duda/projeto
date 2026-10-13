@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Oráculo do golden do resolver Rust (NerdFilmes): roda o profile TS (dist/)
 // sobre as fixtures e grava o que o Rust tem que reproduzir byte a byte.
-//   ADOM_DIST="<dist>" DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/nerdfilmes.mjs
+//   DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/nerdfilmes.mjs
 // Saídas: rust/crates/adom-resolvers/tests/golden/nerdfilmes.json (goldenRun)
 // e rust/crates/adom-resolvers/tests/golden/nerdfilmes-date.json (parsePostDate,
 // que o golden de goldenRun não exercita: o post do oráculo não carrega data).

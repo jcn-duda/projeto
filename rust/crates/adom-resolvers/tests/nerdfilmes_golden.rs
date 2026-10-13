@@ -1,5 +1,5 @@
 //! Paridade do NerdFilmes com o profile TS. Golden:
-//! `ADOM_DIST="<dist>" DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/nerdfilmes.mjs`
+//! `DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/nerdfilmes.mjs`
 
 mod golden_support;
 

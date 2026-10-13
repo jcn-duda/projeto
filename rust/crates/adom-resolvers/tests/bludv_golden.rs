@@ -1,5 +1,5 @@
 //! Paridade do BLUDV com o profile TS. Golden:
-//! `ADOM_DIST="E:/stremio adom/dist" DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/bludv.mjs`
+//! `DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/bludv.mjs`
 
 mod golden_support;
 
