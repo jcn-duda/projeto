@@ -141,8 +141,11 @@ impl ResolverProfile {
             return Ok(url.to_string());
         }
         url.set_path("/");
-        // `query_pairs_mut` codifica a query; espaço vira `+` (o TS usa `%20`).
-        url.query_pairs_mut().append_pair("s", query);
+        // Mesmo encoding do TS: `encodeURIComponent` → espaço vira `%20`.
+        // `query_pairs_mut` segue form-urlencoded (espaço → '+'), que o
+        // WordPress/Cloudflare do BLUDV não decodifica como espaço.
+        let encoded = crate::common::encode_uri_component(query);
+        url.set_query(Some(&format!("s={encoded}")));
         Ok(url.to_string())
     }
 

@@ -74,7 +74,7 @@ fn sessao_apenas_para_apache() {
 fn chave_e_url_de_busca() {
     assert_eq!(ResolverProfile::search_cache_key("  Aton  "), "search:aton");
     let url = profile().search_url("Aton 2024").unwrap();
-    assert_eq!(url, "https://comandotorrents.com/?s=Aton+2024");
+    assert_eq!(url, "https://comandotorrents.com/?s=Aton%202024");
 }
 
 /// Sem candidato válido a busca falha antes de tocar na rede.

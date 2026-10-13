@@ -112,7 +112,7 @@ impl Scraper {
 }
 
 fn store(listing: &mut Listing, items: Vec<HdrWork>, partial: bool) {
-    let ttl = if partial {
+    let ttl = if partial || items.is_empty() {
         LISTING_PARTIAL_TTL
     } else {
         LISTING_TTL
@@ -120,7 +120,8 @@ fn store(listing: &mut Listing, items: Vec<HdrWork>, partial: bool) {
     listing.items = items;
     listing.partial = partial;
     listing.expires_at = Some(Instant::now() + ttl);
-    listing.has_good = true;
+    // Só marca "bom" se tem itens — catálogo vazio não é bom.
+    listing.has_good = !listing.items.is_empty();
 }
 
 /// Refresh em fundo com o prazo longo; erro só vira log.
@@ -136,33 +137,57 @@ fn spawn_refresh(scraper: Scraper) {
     });
 }
 
-/// `fetchAllListingsDetailed`: cache → SWR → cold start (prazo curto, sob o
-/// lock: buscas concorrentes esperam a MESMA raspagem).
+/// `fetchAllListingsDetailed`: cache → SWR → cold start (lock só para ler/gravar,
+/// NUNCA durante o HTTP; buscas concorrentes não bloqueiam a raspagem).
 async fn listings(profile: &ResolverProfile) -> Result<(Vec<HdrWork>, bool), String> {
-    let mut listing = LISTING.lock().await;
-    if listing.expires_at.is_some_and(|t| t > Instant::now()) {
-        return Ok((listing.items.clone(), listing.partial));
-    }
-    if listing.has_good {
-        if !listing.refreshing {
-            listing.refreshing = true;
-            spawn_refresh(Scraper::of(profile));
+    // 1. Check cache sob lock rápido.
+    {
+        let listing = LISTING.lock().await;
+        if listing.expires_at.is_some_and(|t| t > Instant::now()) {
+            return Ok((listing.items.clone(), listing.partial));
         }
-        return Ok((listing.items.clone(), listing.partial));
-    }
+        if listing.has_good {
+            if !listing.refreshing {
+                // SWR: devolve o bom agora, refresca em fundo.
+                let items = listing.items.clone();
+                let partial = listing.partial;
+                drop(listing); // libera lock ANTES do scrape
+                spawn_refresh(Scraper::of(profile));
+                // Marca refreshing sob lock.
+                let mut listing = LISTING.lock().await;
+                listing.refreshing = true;
+                return Ok((items, partial));
+            }
+            // Já está refrescando; devolve o que tem.
+            return Ok((listing.items.clone(), listing.partial));
+        }
+    } // lock liberado aqui
+
+    // 2. Cold start: scrape SEM o lock (outras buscas também podem raspar).
     let (items, partial) = Scraper::of(profile).scrape(LISTING_BUDGET).await?;
-    store(&mut listing, items.clone(), partial);
+
+    // 3. Grava sob lock rápido.
+    {
+        let mut listing = LISTING.lock().await;
+        store(&mut listing, items.clone(), partial);
+    }
     Ok((items, partial))
 }
 
 /// Aquece o catálogo no boot (`warm()` do TS): a primeira busca já o encontra.
+/// Libera o lock ANTES do scrape (pode demorar 120s).
 pub fn warm(profile: &ResolverProfile) {
     let scraper = Scraper::of(profile);
     tokio::spawn(async move {
-        let mut listing = LISTING.lock().await;
-        if listing.has_good {
-            return;
-        }
+        // Check rápido sob lock.
+        {
+            let listing = LISTING.lock().await;
+            if listing.has_good {
+                return;
+            }
+        } // lock liberado
+
+        // Scrape SEM o lock.
         match scraper.scrape(LISTING_WARM_BUDGET).await {
             Ok((items, partial)) => {
                 eprintln!(
@@ -170,6 +195,8 @@ pub fn warm(profile: &ResolverProfile) {
                     items.len(),
                     if partial { " (parcial)" } else { "" }
                 );
+                // Grava sob lock rápido.
+                let mut listing = LISTING.lock().await;
                 store(&mut listing, items, partial);
             }
             Err(e) => eprintln!("[resolver] hdrtorrents: warm falhou ({e})"),

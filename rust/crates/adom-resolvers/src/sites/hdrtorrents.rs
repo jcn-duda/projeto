@@ -59,6 +59,11 @@ static CARD_TITLE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)class=["'][^"']*media-card-title[^"']*["'][\s\S]*?>([\s\S]*?)$"#)
         .expect("título")
 });
+/// Fallback sem `$`: o TS tem dois regex para título.
+static CARD_TITLE_FALLBACK: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)class=["'][^"']*media-card-title[^"']*["'][\s\S]*?>([\s\S]*)"#)
+        .expect("título fallback")
+});
 static CARD_YEAR: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)class=["'][^"']*media-card-year[^"']*["'][\s\S]*?>\s*\(?([0-9]{4})\)?"#)
         .expect("ano")
@@ -194,7 +199,11 @@ pub fn parse_listing_html(html: &str, base_url: &str) -> Result<Vec<HdrWork>, St
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     for caps in BLOCK.captures_iter(html) {
-        let href = decode_entities_ts(&caps[1])?;
+        // Tolerar erro por card: uma entidade inválida não aborta a página inteira.
+        let href = match decode_entities_ts(&caps[1]) {
+            Ok(h) => h,
+            Err(_) => continue,
+        };
         let inner = &caps[2];
         if inner.is_empty() {
             continue;
@@ -212,9 +221,13 @@ pub fn parse_listing_html(html: &str, base_url: &str) -> Result<Vec<HdrWork>, St
         if !seen.insert(resolved.clone()) {
             continue;
         }
+        // Título com fallback (paridade com o TS).
         let title = match CARD_TITLE.captures(inner) {
-            Some(c) => strip_tags_ts(&c[1])?,
-            None => String::new(),
+            Some(c) => strip_tags_ts(&c[1]).unwrap_or_default(),
+            None => match CARD_TITLE_FALLBACK.captures(inner) {
+                Some(c) => strip_tags_ts(&c[1]).unwrap_or_default(),
+                None => String::new(),
+            },
         };
         if title.is_empty() {
             continue;
@@ -222,10 +235,10 @@ pub fn parse_listing_html(html: &str, base_url: &str) -> Result<Vec<HdrWork>, St
         let year = CARD_YEAR
             .captures(inner)
             .and_then(|c| c[1].parse::<u32>().ok());
-        let type_text = match CARD_TYPE.captures(inner) {
-            Some(c) => strip_tags_ts(&c[1])?,
-            None => String::new(),
-        };
+        let type_text = CARD_TYPE
+            .captures(inner)
+            .and_then(|c| strip_tags_ts(&c[1]).ok())
+            .unwrap_or_default();
         let kind = if KIND_SERIE.is_match(&type_text) {
             Some("Série")
         } else if KIND_DESENHO.is_match(&type_text) {
@@ -235,14 +248,13 @@ pub fn parse_listing_html(html: &str, base_url: &str) -> Result<Vec<HdrWork>, St
         } else {
             None
         };
-        let quality = match CARD_QUALITY.captures(inner) {
-            Some(c) => Some(strip_tags_ts(&c[1])?).filter(|q| !q.is_empty()),
-            None => None,
-        };
-        let poster = match CARD_POSTER.captures(inner) {
-            Some(c) => Some(decode_entities_ts(&c[1])?),
-            None => None,
-        };
+        let quality = CARD_QUALITY
+            .captures(inner)
+            .and_then(|c| strip_tags_ts(&c[1]).ok())
+            .filter(|q| !q.is_empty());
+        let poster = CARD_POSTER
+            .captures(inner)
+            .and_then(|c| decode_entities_ts(&c[1]).ok());
         out.push(HdrWork {
             url: resolved,
             title,
