@@ -61,7 +61,7 @@ type ResolverEntry = ResolverProfileModule & {
  * - probe() continua funcionando — o contrato GET /search?q= é idêntico.
  */
 const rustResolvers = new Set(
-  String(process.env.BR_RESOLVER_RUST || '').split(',').map(s => s.trim()).filter(Boolean),
+  String(process.env.BR_RESOLVER_RUST || '').split(',').map(s => s.split(':')[0].trim()).filter(Boolean),
 );
 
 const RESOLVERS: ResolverEntry[] = [

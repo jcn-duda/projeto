@@ -282,7 +282,7 @@ fi
 
 # Resolvers BR em Rust (só quando BR_RESOLVER_RUST está preenchido).
 # O binário lê a env e sobe um servidor HTTP por site delegado.
-# Fora do wait -n: o addon supervisiona o processo; se o resolver cair,
+# Fora do wait -n: sem supervisão do entrypoint; se o resolver cair,
 # o Node já pula a porta e o site fica sem fonte (igual ao TS).
 if [ -n "${BR_RESOLVER_RUST:-}" ]; then
     echo "[entrypoint] iniciando adom-resolvers (BR_RESOLVER_RUST=${BR_RESOLVER_RUST})"

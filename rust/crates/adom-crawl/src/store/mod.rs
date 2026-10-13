@@ -13,6 +13,10 @@ pub mod schema;
 
 #[cfg(test)]
 mod tests;
+// Segunda metade dos testes da camada store: separada para a fonte .rs ficar
+// abaixo da catraca de 400 linhas do CI Rust; reusa os helpers de `tests`.
+#[cfg(test)]
+mod tests_part2;
 
 // Re-exports para conveniência do consumidor.
 pub use ops::{CrawlStore, MarkResult, StatusCounters, StoreError, UrlRow};
