@@ -56,7 +56,11 @@ pub fn epoch_days_to_iso_day(days: i64) -> String {
 /// `cycle = floor((dayIndex - phase) / period)`
 /// `lastmod = cycle * period + phase`
 pub fn bucket_lastmod(tt: &str, now: i64, period_days: u32) -> String {
-    let period = if period_days == 0 { 14 } else { period_days as i64 };
+    let period = if period_days == 0 {
+        14
+    } else {
+        period_days as i64
+    };
     let day_index = if now >= 0 {
         now / DAY_MS
     } else {
@@ -439,7 +443,7 @@ mod tests {
         episode_aired.insert("3:1".to_string(), "2022-05-27T00:00:00.000Z".to_string());
         episode_aired.insert("3:2".to_string(), "2022-05-27T00:00:00.000Z".to_string());
         episode_aired.insert("3:3".to_string(), "2099-01-01T00:00:00.000Z".to_string()); // futura
-        // 3:4 ausente
+                                                                                         // 3:4 ausente
         episode_aired.insert("2:1".to_string(), "2017-10-27T00:00:00.000Z".to_string());
         episode_aired.insert("2:2".to_string(), "2017-10-27T00:00:00.000Z".to_string());
         episode_aired.insert("2:3".to_string(), "2017-10-27T00:00:00.000Z".to_string());
@@ -460,8 +464,14 @@ mod tests {
         assert_eq!(
             t1,
             vec![
-                TargetEpisode { season: 3, episode: 1 },
-                TargetEpisode { season: 3, episode: 2 }
+                TargetEpisode {
+                    season: 3,
+                    episode: 1
+                },
+                TargetEpisode {
+                    season: 3,
+                    episode: 2
+                }
             ]
         );
 
@@ -470,11 +480,26 @@ mod tests {
         assert_eq!(
             t2,
             vec![
-                TargetEpisode { season: 3, episode: 1 },
-                TargetEpisode { season: 3, episode: 2 },
-                TargetEpisode { season: 2, episode: 1 },
-                TargetEpisode { season: 2, episode: 2 },
-                TargetEpisode { season: 2, episode: 3 },
+                TargetEpisode {
+                    season: 3,
+                    episode: 1
+                },
+                TargetEpisode {
+                    season: 3,
+                    episode: 2
+                },
+                TargetEpisode {
+                    season: 2,
+                    episode: 1
+                },
+                TargetEpisode {
+                    season: 2,
+                    episode: 2
+                },
+                TargetEpisode {
+                    season: 2,
+                    episode: 3
+                },
             ]
         );
 
@@ -492,9 +517,6 @@ mod tests {
             clean_title("Coringa 2019 1080p DUAL 👥 12 💾 2.5 GB"),
             "Coringa 2019 1080p DUAL"
         );
-        assert_eq!(
-            clean_title("Matrix (brazilian, eng)"),
-            "Matrix"
-        );
+        assert_eq!(clean_title("Matrix (brazilian, eng)"), "Matrix");
     }
 }

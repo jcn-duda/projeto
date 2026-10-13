@@ -24,6 +24,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # Núcleo com as funções portadas (normalize_title, etc.).
 adom-core = { path = "../adom-core" }
+adom-crawl = { path = "../adom-crawl" }
 
 # NAPI-RS: runtime + macro de export.
 # "napi8" = API estável do Node 20+; "napi9" exigiria Node 22.

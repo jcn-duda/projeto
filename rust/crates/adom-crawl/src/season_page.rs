@@ -129,7 +129,11 @@ pub fn season_page_groups<T: CrawlReleaseItem + Clone>(
         .iter()
         .map(|release| {
             let dn_str = release.magnet_display_name();
-            let dn = if dn_str.is_empty() { None } else { Some(dn_str) };
+            let dn = if dn_str.is_empty() {
+                None
+            } else {
+                Some(dn_str)
+            };
             let request = declared_series_location(&LinkEvidence {
                 card_season: page.season,
                 card_title: page.title.to_string(),
@@ -180,7 +184,11 @@ pub fn series_row_groups<T: CrawlReleaseItem + Clone>(
     let mut entries = Vec::new();
     for row in rows {
         let dn_str = row.release.magnet_display_name();
-        let dn = if dn_str.is_empty() { None } else { Some(dn_str) };
+        let dn = if dn_str.is_empty() {
+            None
+        } else {
+            Some(dn_str)
+        };
         let request = declared_series_location(&LinkEvidence {
             card_season: row.row_season,
             card_title: String::new(),
@@ -267,7 +275,10 @@ mod tests {
             Some(1)
         );
         // Sem episódio
-        assert_eq!(label_episode("The Boys [1080p WEB-DL DUBLADO]", Some(4)), None);
+        assert_eq!(
+            label_episode("The Boys [1080p WEB-DL DUBLADO]", Some(4)),
+            None
+        );
         // Sem episódio e declara temporada diferente -> None
         assert_eq!(
             label_episode("The Boys 3ª Temporada [1080p DUBLADO]", Some(4)),

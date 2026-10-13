@@ -21,7 +21,55 @@ import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
 
 /** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
 export type BatchCore = { evaluateReleases(probes: ReleaseProbe[]): ReleaseVerdict[] };
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore>;
+
+export type CrawlPageParsedNapi = {
+  url: string;
+  status: string;
+  imdb?: string;
+  title?: string;
+  year?: number;
+  originalTitle?: string;
+  season?: number;
+  workType?: string;
+  releases: Array<{
+    title: string;
+    magnet: string;
+    indexer: string;
+    tracker: string;
+    isBr: boolean;
+    seeders: number;
+    size?: string;
+  }>;
+  groups: Array<{
+    season?: number;
+    episode?: number;
+    releases: Array<{
+      title: string;
+      magnet: string;
+      indexer: string;
+      tracker: string;
+      isBr: boolean;
+      seeders: number;
+      size?: string;
+    }>;
+  }>;
+  unlocated: Array<{
+    title: string;
+    magnet: string;
+    indexer: string;
+    tracker: string;
+    isBr: boolean;
+    seeders: number;
+    size?: string;
+  }>;
+  error?: string;
+};
+
+export type CrawlCore = {
+  parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
+};
+
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore>;
 
 const _require = createRequire(import.meta.url);
 

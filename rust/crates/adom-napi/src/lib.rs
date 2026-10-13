@@ -32,6 +32,9 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 
 mod batch;
+mod crawl;
+
+pub use crawl::*;
 
 // ---------------------------------------------------------------------------
 // Structs de saída (espelham os tipos do adom-core com campos NAPI-compatible)

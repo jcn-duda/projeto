@@ -175,7 +175,8 @@ pub fn b64_decode(s: &str) -> Vec<u8> {
 /// Gate-2 do vacadb cujo `data-link` base64 decodifica para uma URL http(s).
 pub fn b64_data_link_is_http(html: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r#"(?i)data-link=["']([A-Za-z0-9+/=]{32,})["']"#).unwrap());
+    let re =
+        RE.get_or_init(|| Regex::new(r#"(?i)data-link=["']([A-Za-z0-9+/=]{32,})["']"#).unwrap());
     let Some(caps) = re.captures(html) else {
         return false;
     };
@@ -251,9 +252,8 @@ pub fn extract_magnet(html: &str) -> Option<String> {
 
     // 3.5. data-link base64 (gate-2 do vacadb)
     static RE_B64: OnceLock<Regex> = OnceLock::new();
-    let re_b64 = RE_B64.get_or_init(|| {
-        Regex::new(r#"(?i)data-link=["']([A-Za-z0-9+/=]{32,})["']"#).unwrap()
-    });
+    let re_b64 = RE_B64
+        .get_or_init(|| Regex::new(r#"(?i)data-link=["']([A-Za-z0-9+/=]{32,})["']"#).unwrap());
     if let Some(caps) = re_b64.captures(html) {
         let clean: String = caps[1].chars().filter(|c| !c.is_whitespace()).collect();
         let bytes = b64_decode(&clean);
@@ -265,11 +265,15 @@ pub fn extract_magnet(html: &str) -> Option<String> {
             // Mutilado: magnet:?xt=urnbtih<hash>
             static RE_MANGLED: OnceLock<fancy_regex::Regex> = OnceLock::new();
             let re_mangled = RE_MANGLED.get_or_init(|| {
-                fancy_regex::Regex::new(r"(?i)^magnet:\?xt=urn:?btih:?([a-f0-9]{40})(?![a-f0-9])").unwrap()
+                fancy_regex::Regex::new(r"(?i)^magnet:\?xt=urn:?btih:?([a-f0-9]{40})(?![a-f0-9])")
+                    .unwrap()
             });
             if let Ok(Some(m)) = re_mangled.captures(dec_trim) {
                 if let Some(h) = m.get(1) {
-                    return Some(format!("magnet:?xt=urn:btih:{}", h.as_str().to_ascii_lowercase()));
+                    return Some(format!(
+                        "magnet:?xt=urn:btih:{}",
+                        h.as_str().to_ascii_lowercase()
+                    ));
                 }
             }
         }
@@ -277,9 +281,8 @@ pub fn extract_magnet(html: &str) -> Option<String> {
 
     // 4. href entre aspas
     static RE_HREF: OnceLock<Regex> = OnceLock::new();
-    let re_href = RE_HREF.get_or_init(|| {
-        Regex::new(r#"(?i)href\s*=\s*["'](magnet:\?[^"'<>]+)["']"#).unwrap()
-    });
+    let re_href = RE_HREF
+        .get_or_init(|| Regex::new(r#"(?i)href\s*=\s*["'](magnet:\?[^"'<>]+)["']"#).unwrap());
     if let Some(caps) = re_href.captures(html) {
         let m = &caps[1];
         if is_valid_magnet_uri(m) {
@@ -289,9 +292,7 @@ pub fn extract_magnet(html: &str) -> Option<String> {
 
     // 5. Magnet cru no documento
     static RE_RAW: OnceLock<Regex> = OnceLock::new();
-    let re_raw = RE_RAW.get_or_init(|| {
-        Regex::new(r#"(?i)magnet:\?[^"'<>\s]+"#).unwrap()
-    });
+    let re_raw = RE_RAW.get_or_init(|| Regex::new(r#"(?i)magnet:\?[^"'<>\s]+"#).unwrap());
     if let Some(m) = re_raw.find(html) {
         if is_valid_magnet_uri(m.as_str()) {
             return Some(normalize_magnet_uri(m.as_str()));
@@ -300,9 +301,8 @@ pub fn extract_magnet(html: &str) -> Option<String> {
 
     // 6. Magnet URL-encoded no documento
     static RE_ENCODED: OnceLock<Regex> = OnceLock::new();
-    let re_encoded = RE_ENCODED.get_or_init(|| {
-        Regex::new(r#"(?i)magnet%3A%3F[^"'<>\s]+"#).unwrap()
-    });
+    let re_encoded =
+        RE_ENCODED.get_or_init(|| Regex::new(r#"(?i)magnet%3A%3F[^"'<>\s]+"#).unwrap());
     if let Some(m) = re_encoded.find(html) {
         if let Some(decoded) = crate::shared::decode_uri_component(m.as_str()) {
             if is_valid_magnet_uri(&decoded) {
@@ -408,7 +408,9 @@ pub fn quality_from_text(text: &str) -> Option<u32> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"(?i)\b(\d{3,4})\s*p\b").unwrap());
     let m = re.captures(text)?;
-    m[1].parse::<u32>().ok().and_then(|n| normalize_quality(&format!("{n}p")))
+    m[1].parse::<u32>()
+        .ok()
+        .and_then(|n| normalize_quality(&format!("{n}p")))
 }
 
 /// Normaliza fonte de release (REMUX, BLU-RAY, WEB-DL, WEBRIP, HDTV, CAM).
@@ -492,14 +494,11 @@ pub fn parse_post_magnets(html: &str, base_url: Option<&str>) -> Vec<ResolverLin
     });
 
     static RE_ANCHOR: OnceLock<Regex> = OnceLock::new();
-    let re_anchor = RE_ANCHOR.get_or_init(|| {
-        Regex::new(r#"(?i)<a\b[\s\S]*?</a>"#).unwrap()
-    });
+    let re_anchor = RE_ANCHOR.get_or_init(|| Regex::new(r#"(?i)<a\b[\s\S]*?</a>"#).unwrap());
 
     static RE_HREF: OnceLock<Regex> = OnceLock::new();
-    let re_href = RE_HREF.get_or_init(|| {
-        Regex::new(r#"(?i)<a\b[^>]*\bhref=["']([^"']+)["']"#).unwrap()
-    });
+    let re_href =
+        RE_HREF.get_or_init(|| Regex::new(r#"(?i)<a\b[^>]*\bhref=["']([^"']+)["']"#).unwrap());
 
     let mut out = Vec::new();
     let blocks: Vec<&str> = re_block_split.split(html).skip(1).collect();
@@ -577,7 +576,8 @@ fn extract_redetorrent_magnet(href: &str) -> Option<String> {
         static RE_TOKEN: OnceLock<Regex> = OnceLock::new();
         let re_token = RE_TOKEN.get_or_init(|| Regex::new(r#"[?&]token=([^&"']+)"#).unwrap());
         if let Some(c) = re_token.captures(&value) {
-            let decoded_url = crate::shared::decode_uri_component(&c[1]).unwrap_or_else(|| c[1].to_string());
+            let decoded_url =
+                crate::shared::decode_uri_component(&c[1]).unwrap_or_else(|| c[1].to_string());
             let bytes = b64_decode(&decoded_url);
             if let Ok(decoded_str) = String::from_utf8(bytes) {
                 let trimmed = decoded_str.trim();
@@ -606,24 +606,20 @@ pub fn parse_post_links(html: &str, base_url: Option<&str>) -> Vec<ResolverLink>
         return Vec::new();
     }
     static RE_TABLE: OnceLock<Regex> = OnceLock::new();
-    let re_table = RE_TABLE.get_or_init(|| {
-        Regex::new(r#"(?i)<table class="tbl-mv-list">[\s\S]*?</table>"#).unwrap()
-    });
+    let re_table = RE_TABLE
+        .get_or_init(|| Regex::new(r#"(?i)<table class="tbl-mv-list">[\s\S]*?</table>"#).unwrap());
 
     static RE_HEADER: OnceLock<Regex> = OnceLock::new();
-    let re_header = RE_HEADER.get_or_init(|| {
-        Regex::new(r#"(?i)<div class="tf[^"]*">([\s\S]*?)</div>"#).unwrap()
-    });
+    let re_header = RE_HEADER
+        .get_or_init(|| Regex::new(r#"(?i)<div class="tf[^"]*">([\s\S]*?)</div>"#).unwrap());
 
     static RE_ROW: OnceLock<Regex> = OnceLock::new();
-    let re_row = RE_ROW.get_or_init(|| {
-        Regex::new(r#"(?i)<tr class="tr-mv-list">([\s\S]*?)</tr>"#).unwrap()
-    });
+    let re_row =
+        RE_ROW.get_or_init(|| Regex::new(r#"(?i)<tr class="tr-mv-list">([\s\S]*?)</tr>"#).unwrap());
 
     static RE_HREF: OnceLock<Regex> = OnceLock::new();
-    let re_href = RE_HREF.get_or_init(|| {
-        Regex::new(r#"(?i)<a\s+[^>]*?href\s*=\s*["']([^"']+)["']"#).unwrap()
-    });
+    let re_href = RE_HREF
+        .get_or_init(|| Regex::new(r#"(?i)<a\s+[^>]*?href\s*=\s*["']([^"']+)["']"#).unwrap());
 
     static RE_SEASON: OnceLock<Regex> = OnceLock::new();
     let re_season = RE_SEASON.get_or_init(|| Regex::new(r"(?i)^S(\d{1,2})$").unwrap());
@@ -754,9 +750,8 @@ pub fn parse_content_magnets(html: &str, _base_url: Option<&str>) -> Vec<Resolve
     });
 
     static RE_MAGNET: OnceLock<Regex> = OnceLock::new();
-    let re_magnet = RE_MAGNET.get_or_init(|| {
-        Regex::new(r#"(?i)<a\b[^>]*href=["'](magnet:[^"']+)["']"#).unwrap()
-    });
+    let re_magnet = RE_MAGNET
+        .get_or_init(|| Regex::new(r#"(?i)<a\b[^>]*href=["'](magnet:[^"']+)["']"#).unwrap());
 
     let mut out = Vec::new();
     let rows: Vec<&str> = re_split.split(html).skip(1).collect();
@@ -811,9 +806,8 @@ pub fn parse_content_magnets(html: &str, _base_url: Option<&str>) -> Vec<Resolve
 /// Filme: página do post → link da página de botões (`/movie-links/<id>/`).
 pub fn extract_movie_links(html: &str, base_url: Option<&str>) -> Option<String> {
     static RE_HREF: OnceLock<Regex> = OnceLock::new();
-    let re_href = RE_HREF.get_or_init(|| {
-        Regex::new(r#"(?i)href=["']([^"']*\bmovie-links\b[^"']*)["']"#).unwrap()
-    });
+    let re_href = RE_HREF
+        .get_or_init(|| Regex::new(r#"(?i)href=["']([^"']*\bmovie-links\b[^"']*)["']"#).unwrap());
     static RE_ID: OnceLock<Regex> = OnceLock::new();
     let re_id = RE_ID.get_or_init(|| Regex::new(r"movie-links/(\d+)").unwrap());
 
@@ -974,9 +968,13 @@ pub fn filter_season_cards(
 /// Repara entidades destruídas (ex.: "4ordf" -> "4ª", "4ordm" -> "4º").
 pub fn repair_mangled_entities(value: &str) -> String {
     static RE_ORDF: OnceLock<fancy_regex::Regex> = OnceLock::new();
-    let re_ordf = RE_ORDF.get_or_init(|| fancy_regex::Regex::new(r"(?i)(?<![a-z])(\d{1,2})\s*ordf(?![a-z0-9])").unwrap());
+    let re_ordf = RE_ORDF.get_or_init(|| {
+        fancy_regex::Regex::new(r"(?i)(?<![a-z])(\d{1,2})\s*ordf(?![a-z0-9])").unwrap()
+    });
     static RE_ORDM: OnceLock<fancy_regex::Regex> = OnceLock::new();
-    let re_ordm = RE_ORDM.get_or_init(|| fancy_regex::Regex::new(r"(?i)(?<![a-z])(\d{1,2})\s*ordm(?![a-z0-9])").unwrap());
+    let re_ordm = RE_ORDM.get_or_init(|| {
+        fancy_regex::Regex::new(r"(?i)(?<![a-z])(\d{1,2})\s*ordm(?![a-z0-9])").unwrap()
+    });
 
     let s1 = re_ordf.replace_all(value, "${1}ª");
     let s2 = re_ordm.replace_all(&s1, "${1}º");
@@ -987,9 +985,8 @@ pub fn repair_mangled_entities(value: &str) -> String {
 pub fn normalize_batch_title(raw: &str) -> String {
     let repaired = repair_mangled_entities(raw);
     static RE_PREFIX: OnceLock<Regex> = OnceLock::new();
-    let re_prefix = RE_PREFIX.get_or_init(|| {
-        Regex::new(r"(?i)^\s*(?:batch|pack)\b[\s:–—|·-]*\s*").unwrap()
-    });
+    let re_prefix =
+        RE_PREFIX.get_or_init(|| Regex::new(r"(?i)^\s*(?:batch|pack)\b[\s:–—|·-]*\s*").unwrap());
     let stripped = re_prefix.replace(&repaired, "");
     stripped.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -1192,9 +1189,8 @@ pub fn clean_post_title(title: &str) -> String {
     let mut clean = decode_entities(title);
 
     static RE_TORRENT: OnceLock<Regex> = OnceLock::new();
-    let re_torrent = RE_TORRENT.get_or_init(|| {
-        Regex::new(r"(?i)\s*Torrent(?:s)?\s*(?:[–\-—/|:&+]|&#8211;)?\s*").unwrap()
-    });
+    let re_torrent = RE_TORRENT
+        .get_or_init(|| Regex::new(r"(?i)\s*Torrent(?:s)?\s*(?:[–\-—/|:&+]|&#8211;)?\s*").unwrap());
     clean = re_torrent.replace_all(&clean, " ").into_owned();
 
     static RE_RES: OnceLock<fancy_regex::Regex> = OnceLock::new();
@@ -1210,9 +1206,8 @@ pub fn clean_post_title(title: &str) -> String {
     clean = re_source.replace_all(&clean, " ").into_owned();
 
     static RE_AUDIO: OnceLock<Regex> = OnceLock::new();
-    let re_audio = RE_AUDIO.get_or_init(|| {
-        Regex::new(r"(?i)\b(?:5\.1|7\.1|2\.0|7\.2|DDP\s*5\.1|ATMOS)\b").unwrap()
-    });
+    let re_audio = RE_AUDIO
+        .get_or_init(|| Regex::new(r"(?i)\b(?:5\.1|7\.1|2\.0|7\.2|DDP\s*5\.1|ATMOS)\b").unwrap());
     clean = re_audio.replace_all(&clean, " ").into_owned();
 
     static RE_LANG: OnceLock<Regex> = OnceLock::new();
@@ -1223,17 +1218,18 @@ pub fn clean_post_title(title: &str) -> String {
 
     static RE_SEO: OnceLock<Regex> = OnceLock::new();
     let re_seo = RE_SEO.get_or_init(|| {
-        Regex::new(r"(?i)\b(?:Download|Baixar|Gr[áa]tis|Online|Completo|Completa|Assistir)\b").unwrap()
+        Regex::new(r"(?i)\b(?:Download|Baixar|Gr[áa]tis|Online|Completo|Completa|Assistir)\b")
+            .unwrap()
     });
     clean = re_seo.replace_all(&clean, " ").into_owned();
 
     static RE_SEPARATORS: OnceLock<Regex> = OnceLock::new();
-    let re_separators = RE_SEPARATORS.get_or_init(|| {
-        Regex::new(r"\s*[/|–\-—:&+]\s*([/|–\-—:&+]\s*)+").unwrap()
-    });
+    let re_separators =
+        RE_SEPARATORS.get_or_init(|| Regex::new(r"\s*[/|–\-—:&+]\s*([/|–\-—:&+]\s*)+").unwrap());
     clean = re_separators.replace_all(&clean, " ").into_owned();
 
-    clean.trim_matches(|c: char| matches!(c, '–' | '-' | '—' | '/' | '|' | ':' | '&' | '+' | ' '))
+    clean
+        .trim_matches(|c: char| matches!(c, '–' | '-' | '—' | '/' | '|' | ':' | '&' | '+' | ' '))
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -1307,7 +1303,10 @@ pub fn release_title(
         _ => None,
     };
 
-    let size_tag = link.size.clone().or_else(|| index.map(|i| format!("opção {}", i + 1)));
+    let size_tag = link
+        .size
+        .clone()
+        .or_else(|| index.map(|i| format!("opção {}", i + 1)));
 
     let mut tags = Vec::new();
     if let Some(q) = link.quality {
@@ -1354,7 +1353,8 @@ mod tests {
 
     #[test]
     fn test_normalize_magnet_uri() {
-        let raw = "MAGNET:?xt=urn:btih:abc1234567890123456789012345678901234567&amp;dn=Nome com espaco";
+        let raw =
+            "MAGNET:?xt=urn:btih:abc1234567890123456789012345678901234567&amp;dn=Nome com espaco";
         let norm = normalize_magnet_uri(raw);
         assert!(norm.starts_with("magnet:?"));
         assert!(norm.contains("&dn=Nome%20com%20espaco"));
@@ -1367,7 +1367,9 @@ mod tests {
         let js = r#"const DOWNLOAD_URL = "magnet:?xt=urn:btih:c90ba3b1e4aff23edde22eb755ca4392c12bc91d&dn=Test";"#;
         assert_eq!(
             extract_magnet(js),
-            Some("magnet:?xt=urn:btih:c90ba3b1e4aff23edde22eb755ca4392c12bc91d&dn=Test".to_string())
+            Some(
+                "magnet:?xt=urn:btih:c90ba3b1e4aff23edde22eb755ca4392c12bc91d&dn=Test".to_string()
+            )
         );
 
         // 2. data-link base64
@@ -1382,8 +1384,16 @@ mod tests {
                 let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
                 out.push(alphabet[((n >> 18) & 63) as usize] as char);
                 out.push(alphabet[((n >> 12) & 63) as usize] as char);
-                out.push(if chunk.len() > 1 { alphabet[((n >> 6) & 63) as usize] as char } else { '=' });
-                out.push(if chunk.len() > 2 { alphabet[(n & 63) as usize] as char } else { '=' });
+                out.push(if chunk.len() > 1 {
+                    alphabet[((n >> 6) & 63) as usize] as char
+                } else {
+                    '='
+                });
+                out.push(if chunk.len() > 2 {
+                    alphabet[(n & 63) as usize] as char
+                } else {
+                    '='
+                });
             }
             out
         };
@@ -1394,7 +1404,9 @@ mod tests {
         let a = r#"<a href="magnet:?xt=urn:btih:c90ba3b1e4aff23edde22eb755ca4392c12bc91d&dn=Test">Download</a>"#;
         assert_eq!(
             extract_magnet(a),
-            Some("magnet:?xt=urn:btih:c90ba3b1e4aff23edde22eb755ca4392c12bc91d&dn=Test".to_string())
+            Some(
+                "magnet:?xt=urn:btih:c90ba3b1e4aff23edde22eb755ca4392c12bc91d&dn=Test".to_string()
+            )
         );
     }
 

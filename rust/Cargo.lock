@@ -37,6 +37,7 @@ name = "adom-napi"
 version = "0.1.0"
 dependencies = [
  "adom-core",
+ "adom-crawl",
  "napi",
  "napi-build",
  "napi-derive",

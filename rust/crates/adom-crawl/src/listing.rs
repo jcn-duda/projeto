@@ -115,7 +115,8 @@ pub fn apache_markup_of(html: &str) -> String {
     static STYLE_RE: OnceLock<Regex> = OnceLock::new();
 
     let comment_re = COMMENT_RE.get_or_init(|| Regex::new(r"(?s)<!--.*?-->").unwrap());
-    let script_re = SCRIPT_RE.get_or_init(|| Regex::new(r"(?is)<script\b[^>]*>.*?</script>").unwrap());
+    let script_re =
+        SCRIPT_RE.get_or_init(|| Regex::new(r"(?is)<script\b[^>]*>.*?</script>").unwrap());
     let style_re = STYLE_RE.get_or_init(|| Regex::new(r"(?is)<style\b[^>]*>.*?</style>").unwrap());
 
     let s1 = comment_re.replace_all(html, " ");
@@ -129,7 +130,8 @@ pub fn apache_markup_of(html: &str) -> String {
 pub fn is_imdb_widget_reference(suffix: &str) -> bool {
     static PATH_RE: OnceLock<Regex> = OnceLock::new();
     static PLG_RE: OnceLock<Regex> = OnceLock::new();
-    let path_re = PATH_RE.get_or_init(|| Regex::new(r"(?i)/(?:ref_|list|listicle)(?:[/?]|$)").unwrap());
+    let path_re =
+        PATH_RE.get_or_init(|| Regex::new(r"(?i)/(?:ref_|list|listicle)(?:[/?]|$)").unwrap());
     let plg_re = PLG_RE.get_or_init(|| Regex::new(r"(?i)^tt_plg(?:_|$)").unwrap());
 
     if path_re.is_match(suffix) {
@@ -186,7 +188,13 @@ fn extract_pathname(href: &str) -> String {
     if let Ok(parsed) = url::Url::parse(href) {
         parsed.path().to_string()
     } else {
-        href.split('?').next().unwrap_or("").split('#').next().unwrap_or("").to_string()
+        href.split('?')
+            .next()
+            .unwrap_or("")
+            .split('#')
+            .next()
+            .unwrap_or("")
+            .to_string()
     }
 }
 
@@ -229,7 +237,8 @@ pub fn apache_card_text(chunk: &str) -> String {
 
     let h2_re = H2_RE.get_or_init(|| Regex::new(r"(?is)<h2[^>]*>(.*?)</h2>").unwrap());
     let tag_re = TAG_RE.get_or_init(|| Regex::new(r"<[^>]+>").unwrap());
-    let attr_re = ATTR_RE.get_or_init(|| Regex::new(r#"(?i)\b(?:aria-label|title)=["']([^"']*)["']"#).unwrap());
+    let attr_re = ATTR_RE
+        .get_or_init(|| Regex::new(r#"(?i)\b(?:aria-label|title)=["']([^"']*)["']"#).unwrap());
     let ws_re = WS_RE.get_or_init(|| Regex::new(r"\s+").unwrap());
 
     if let Some(caps) = h2_re.captures(chunk) {
@@ -251,9 +260,8 @@ pub fn apache_card_text(chunk: &str) -> String {
 
 pub fn apache_declared_type(text: &str) -> Option<String> {
     static CARD_TYPE_RE: OnceLock<Regex> = OnceLock::new();
-    let re = CARD_TYPE_RE.get_or_init(|| {
-        Regex::new(r"(?i)\(\s*([^()]{2,20}?)\s+de\s+(?:19|20)\d{2}\s*\)").unwrap()
-    });
+    let re = CARD_TYPE_RE
+        .get_or_init(|| Regex::new(r"(?i)\(\s*([^()]{2,20}?)\s+de\s+(?:19|20)\d{2}\s*\)").unwrap());
 
     let mut last_type = None;
     for caps in re.captures_iter(text) {
@@ -266,7 +274,8 @@ pub fn apache_declared_type(text: &str) -> Option<String> {
 
 pub fn apache_count_listing_cards(html: &str) -> usize {
     static CAPA_RE: OnceLock<Regex> = OnceLock::new();
-    let capa_re = CAPA_RE.get_or_init(|| Regex::new(r#"(?i)<div class=["']capa-item["']>"#).unwrap());
+    let capa_re =
+        CAPA_RE.get_or_init(|| Regex::new(r#"(?i)<div class=["']capa-item["']>"#).unwrap());
     let markup = apache_markup_of(html);
     capa_re.find_iter(&markup).count()
 }
@@ -278,11 +287,13 @@ pub fn apache_parse_listing_cards(html: &str, base_url: &str) -> Vec<ApacheListi
     static FILME_RE: OnceLock<Regex> = OnceLock::new();
     static SERIE_RE: OnceLock<Regex> = OnceLock::new();
 
-    let capa_re = CAPA_SPLIT_RE.get_or_init(|| Regex::new(r#"(?i)<div class=["']capa-item["']>"#).unwrap());
+    let capa_re =
+        CAPA_SPLIT_RE.get_or_init(|| Regex::new(r#"(?i)<div class=["']capa-item["']>"#).unwrap());
     let non_work_re = NON_WORK_TYPE_RE.get_or_init(|| {
         Regex::new(r"(?i)^\s*(?:M[úu]sicas?|Jogos?|Games?|Programas?|Softwares?|Apps?|Aplicativos?|Livros?|Cursos?)\s*$").unwrap()
     });
-    let href_re = A_HREF_RE.get_or_init(|| Regex::new(r#"(?i)<a\b[^>]*?\bhref=["']([^"']+)["']"#).unwrap());
+    let href_re =
+        A_HREF_RE.get_or_init(|| Regex::new(r#"(?i)<a\b[^>]*?\bhref=["']([^"']+)["']"#).unwrap());
     let filme_re = FILME_RE.get_or_init(|| Regex::new(r"(?i)^\s*filme\s*$").unwrap());
     let serie_re = SERIE_RE.get_or_init(|| Regex::new(r"(?i)^\s*s[ée]rie\s*$").unwrap());
 
@@ -353,7 +364,8 @@ pub fn apache_page_kind_of(html: &str) -> Option<CrawlPageKind> {
         Regex::new(r#"(?is)<p[^>]*class=["'][^"']*item-lead[^"']*["'][^>]*>(.*?)</p>"#).unwrap()
     });
     let lead_type_re = LEAD_TYPE_RE.get_or_init(|| {
-        Regex::new(r"(?i)\b(Filme|S[ée]rie|Desenho|Document[áa]rio|Anime)\s+de\s+(?:19|20)\d{2}\b").unwrap()
+        Regex::new(r"(?i)\b(Filme|S[ée]rie|Desenho|Document[áa]rio|Anime)\s+de\s+(?:19|20)\d{2}\b")
+            .unwrap()
     });
     let work_type_re = WORK_TYPE_RE.get_or_init(|| {
         Regex::new(r"(?i)^\s*(?:Filme|S[ée]rie|Desenho|Document[áa]rio|Anime)\s*$").unwrap()
@@ -363,11 +375,17 @@ pub fn apache_page_kind_of(html: &str) -> Option<CrawlPageKind> {
     let tag_re = TAG_RE.get_or_init(|| Regex::new(r"<[^>]+>").unwrap());
 
     let markup = apache_markup_of(html);
-    let lead = lead_re.captures(&markup).and_then(|c| c.get(1)).map(|m| m.as_str())?;
+    let lead = lead_re
+        .captures(&markup)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())?;
     let no_tags = tag_re.replace_all(lead, " ");
     let decoded = adom_core::decode_entities(&no_tags);
 
-    let declared = lead_type_re.captures(&decoded).and_then(|c| c.get(1)).map(|m| m.as_str())?;
+    let declared = lead_type_re
+        .captures(&decoded)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())?;
     if !work_type_re.is_match(declared) {
         return None;
     }
@@ -405,7 +423,8 @@ pub fn apache_ficha_original_title(html: &str) -> Option<String> {
     static S_SEASON_RE: OnceLock<Regex> = OnceLock::new();
 
     let strong_re = STRONG_RE.get_or_init(|| Regex::new(r"(?is)<strong>(.*?)</strong>").unwrap());
-    let colon_re = COLON_RE.get_or_init(|| Regex::new(r"(?i)<strong>\s*[^<]{1,40}?\s*</strong>\s*:").unwrap());
+    let colon_re =
+        COLON_RE.get_or_init(|| Regex::new(r"(?i)<strong>\s*[^<]{1,40}?\s*</strong>\s*:").unwrap());
     let tag_re = TAG_RE.get_or_init(|| Regex::new(r"<[^>]+>").unwrap());
     let ws_re = WS_RE.get_or_init(|| Regex::new(r"\s+").unwrap());
     let s_season_re = S_SEASON_RE.get_or_init(|| Regex::new(r"(?i)\s*S\d{1,2}$").unwrap());
@@ -528,7 +547,10 @@ pub fn hdr_page_kind_of(html: &str) -> Option<CrawlPageKind> {
     static SERIES_RE: OnceLock<Regex> = OnceLock::new();
 
     let main_re = MAIN_RE.get_or_init(|| {
-        Regex::new(r#"(?i)<main\b[^>]*\bitemtype=["']https?://schema\.org/(Movie|TVSeries)["'][^>]*>"#).unwrap()
+        Regex::new(
+            r#"(?i)<main\b[^>]*\bitemtype=["']https?://schema\.org/(Movie|TVSeries)["'][^>]*>"#,
+        )
+        .unwrap()
     });
     let movie_re = MOVIE_RE.get_or_init(|| Regex::new(r"(?i)/Movie").unwrap());
     let series_re = SERIES_RE.get_or_init(|| Regex::new(r"(?i)/TVSeries").unwrap());
@@ -552,7 +574,9 @@ pub fn hdr_declares_series(html: &str) -> bool {
 pub fn hdr_kind_conflict_of(html: &str, season: bool) -> Option<&'static str> {
     match (season, hdr_page_kind_of(html)) {
         (true, Some(CrawlPageKind::Movie)) => Some("filme_com_kind_tv_show: a ficha declara Movie"),
-        (false, Some(CrawlPageKind::TvShow)) => Some("serie_com_kind_movie: a ficha declara TVSeries"),
+        (false, Some(CrawlPageKind::TvShow)) => {
+            Some("serie_com_kind_movie: a ficha declara TVSeries")
+        }
         _ => None,
     }
 }
@@ -592,17 +616,23 @@ pub fn hdr_parse_listing_cards(html: &str, base_url: &str) -> Vec<HdrListingCard
     static TAG_RE: OnceLock<Regex> = OnceLock::new();
 
     let block_re = A_BLOCK_RE.get_or_init(|| {
-        Regex::new(r#"(?is)<a\b[^>]*?\bclass=["'][^"']*media-card-link[^"']*["'][^>]*>(.*?)</a>"#).unwrap()
+        Regex::new(r#"(?is)<a\b[^>]*?\bclass=["'][^"']*media-card-link[^"']*["'][^>]*>(.*?)</a>"#)
+            .unwrap()
     });
     let href_re = HREF_RE.get_or_init(|| Regex::new(r#"(?i)\bhref=["']([^"']+)["']"#).unwrap());
     let title_re = TITLE_RE.get_or_init(|| {
-        Regex::new(r#"(?is)class=["'][^"']*media-card-title[^"']*["'][^>]*>(.*?)(?:</h3>|</article>|$)"#).unwrap()
+        Regex::new(
+            r#"(?is)class=["'][^"']*media-card-title[^"']*["'][^>]*>(.*?)(?:</h3>|</article>|$)"#,
+        )
+        .unwrap()
     });
     let year_re = YEAR_RE.get_or_init(|| {
-        Regex::new(r#"(?i)class=["'][^"']*media-card-year[^"']*["'][^>]*>\s*\(?(\d{4})\)?"#).unwrap()
+        Regex::new(r#"(?i)class=["'][^"']*media-card-year[^"']*["'][^>]*>\s*\(?(\d{4})\)?"#)
+            .unwrap()
     });
     let type_re = TYPE_RE.get_or_init(|| {
-        Regex::new(r#"(?i)class=["'][^"']*badge-tipo[^"']*["'][^>]*>(.*?)</(?:span|div|a)>"#).unwrap()
+        Regex::new(r#"(?i)class=["'][^"']*badge-tipo[^"']*["'][^>]*>(.*?)</(?:span|div|a)>"#)
+            .unwrap()
     });
     let tag_re = TAG_RE.get_or_init(|| Regex::new(r"<[^>]+>").unwrap());
 
@@ -632,15 +662,23 @@ pub fn hdr_parse_listing_cards(html: &str, base_url: &str) -> Vec<HdrListingCard
         }
         seen.insert(resolved.clone());
 
-        let raw_title = title_re.captures(inner).and_then(|c| c.get(1)).map(|m| m.as_str()).unwrap_or("");
+        let raw_title = title_re
+            .captures(inner)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str())
+            .unwrap_or("");
         let title_no_tags = tag_re.replace_all(raw_title, " ");
-        let title = adom_core::decode_entities(&title_no_tags).trim().to_string();
+        let title = adom_core::decode_entities(&title_no_tags)
+            .trim()
+            .to_string();
 
-        let year: Option<u32> = year_re.captures(inner)
+        let year: Option<u32> = year_re
+            .captures(inner)
             .and_then(|c| c.get(1))
             .and_then(|m| m.as_str().parse().ok());
 
-        let card_type = type_re.captures(inner)
+        let card_type = type_re
+            .captures(inner)
             .and_then(|c| c.get(1))
             .map(|m| tag_re.replace_all(m.as_str(), " ").trim().to_string());
 
@@ -705,9 +743,9 @@ pub fn check_listing_recognition(
 
 // ── Aliases convencionais ───────────────────────────────────────────────────
 
-pub use apache_parse_listing_cards as parse_listing_cards;
 pub use apache_count_listing_cards as count_listing_cards;
 pub use apache_page_kind_of as page_kind_of;
+pub use apache_parse_listing_cards as parse_listing_cards;
 
 #[cfg(test)]
 mod tests {
@@ -746,26 +784,45 @@ mod tests {
 
     // ── Testes com Fixtures Reais do ApacheTorrents ─────────────────────────
 
-    const APACHE_PAGE1: &str = include_str!("../../../../test/fixtures/crawl/apachetorrent/pagina-1-cheia.html");
-    const APACHE_PAGE_END: &str = include_str!("../../../../test/fixtures/crawl/apachetorrent/pagina-fim-calcanhar.html");
-    const APACHE_POST_FILME: &str = include_str!("../../../../test/fixtures/crawl/apachetorrent/post-filme.html");
-    const APACHE_POST_SERIE: &str = include_str!("../../../../test/fixtures/crawl/apachetorrent/post-serie.html");
-    const APACHE_POST_DESENHO: &str = include_str!("../../../../test/fixtures/crawl/apachetorrent/post-serie-desenho.html");
+    const APACHE_PAGE1: &str =
+        include_str!("../../../../test/fixtures/crawl/apachetorrent/pagina-1-cheia.html");
+    const APACHE_PAGE_END: &str =
+        include_str!("../../../../test/fixtures/crawl/apachetorrent/pagina-fim-calcanhar.html");
+    const APACHE_POST_FILME: &str =
+        include_str!("../../../../test/fixtures/crawl/apachetorrent/post-filme.html");
+    const APACHE_POST_SERIE: &str =
+        include_str!("../../../../test/fixtures/crawl/apachetorrent/post-serie.html");
+    const APACHE_POST_DESENHO: &str =
+        include_str!("../../../../test/fixtures/crawl/apachetorrent/post-serie-desenho.html");
 
     #[test]
     fn test_apache_listing_page_real_fixture() {
         assert_eq!(apache_count_listing_cards(APACHE_PAGE1), 20);
         let cards = apache_parse_listing_cards(APACHE_PAGE1, "https://apachetorrents.com/");
-        assert_eq!(cards.len(), 20, "20 obras unicas apos deduplicacao de capa e titulo");
+        assert_eq!(
+            cards.len(),
+            20,
+            "20 obras unicas apos deduplicacao de capa e titulo"
+        );
 
-        let movies: Vec<_> = cards.iter().filter(|c| c.kind == CrawlPageKind::Movie).collect();
-        let series: Vec<_> = cards.iter().filter(|c| c.kind == CrawlPageKind::TvShow).collect();
+        let movies: Vec<_> = cards
+            .iter()
+            .filter(|c| c.kind == CrawlPageKind::Movie)
+            .collect();
+        let series: Vec<_> = cards
+            .iter()
+            .filter(|c| c.kind == CrawlPageKind::TvShow)
+            .collect();
         assert_eq!(movies.len(), 11, "11 filmes na pagina 1");
         assert_eq!(series.len(), 9, "9 series na pagina 1");
 
         // Futurama e Presidente Curtis sao desenhos com temporada no slug -> tv_show
-        assert!(series.iter().any(|c| c.url.contains("futurama-14a-temporada")));
-        assert!(series.iter().any(|c| c.url.contains("presidente-curtis-1a-temporada")));
+        assert!(series
+            .iter()
+            .any(|c| c.url.contains("futurama-14a-temporada")));
+        assert!(series
+            .iter()
+            .any(|c| c.url.contains("presidente-curtis-1a-temporada")));
 
         // Pagina fim calcanhar tem 15 cards
         assert_eq!(apache_count_listing_cards(APACHE_PAGE_END), 15);
@@ -776,27 +833,52 @@ mod tests {
     #[test]
     fn test_apache_posts_real_fixtures() {
         // post-filme.html
-        assert_eq!(apache_page_kind_of(APACHE_POST_FILME), Some(CrawlPageKind::Movie));
-        assert_eq!(apache_parse_imdb_id(APACHE_POST_FILME), Some("tt5125894".to_string()));
-        assert_eq!(apache_ficha_original_title(APACHE_POST_FILME), Some("Poms".to_string()));
+        assert_eq!(
+            apache_page_kind_of(APACHE_POST_FILME),
+            Some(CrawlPageKind::Movie)
+        );
+        assert_eq!(
+            apache_parse_imdb_id(APACHE_POST_FILME),
+            Some("tt5125894".to_string())
+        );
+        assert_eq!(
+            apache_ficha_original_title(APACHE_POST_FILME),
+            Some("Poms".to_string())
+        );
         assert_eq!(apache_ficha_size_bytes(APACHE_POST_FILME), Some(1911260447)); // 1.78 GB
 
         // post-serie.html
-        assert_eq!(apache_page_kind_of(APACHE_POST_SERIE), Some(CrawlPageKind::TvShow));
-        assert_eq!(apache_ficha_original_title(APACHE_POST_SERIE), Some("Lanterns".to_string()));
+        assert_eq!(
+            apache_page_kind_of(APACHE_POST_SERIE),
+            Some(CrawlPageKind::TvShow)
+        );
+        assert_eq!(
+            apache_ficha_original_title(APACHE_POST_SERIE),
+            Some("Lanterns".to_string())
+        );
 
         // post-serie-desenho.html (Desenho e ambiguo no item-lead -> None)
         assert_eq!(apache_page_kind_of(APACHE_POST_DESENHO), None);
-        assert_eq!(apache_parse_imdb_id(APACHE_POST_DESENHO), Some("tt37692332".to_string()));
-        assert_eq!(apache_ficha_original_title(APACHE_POST_DESENHO), Some("President Curtis".to_string()));
+        assert_eq!(
+            apache_parse_imdb_id(APACHE_POST_DESENHO),
+            Some("tt37692332".to_string())
+        );
+        assert_eq!(
+            apache_ficha_original_title(APACHE_POST_DESENHO),
+            Some("President Curtis".to_string())
+        );
     }
 
     // ── Testes com Fixtures Reais do HDRTorrents ────────────────────────────
 
-    const HDR_PAGE1: &str = include_str!("../../../../test/fixtures/crawl/hdrtorrents/pagina-1-cheia.html");
-    const HDR_PAGE_END: &str = include_str!("../../../../test/fixtures/crawl/hdrtorrents/pagina-fim-calcanhar.html");
-    const HDR_POST_FILME: &str = include_str!("../../../../test/fixtures/crawl/hdrtorrents/post-filme.html");
-    const HDR_POST_SERIE: &str = include_str!("../../../../test/fixtures/crawl/hdrtorrents/post-serie.html");
+    const HDR_PAGE1: &str =
+        include_str!("../../../../test/fixtures/crawl/hdrtorrents/pagina-1-cheia.html");
+    const HDR_PAGE_END: &str =
+        include_str!("../../../../test/fixtures/crawl/hdrtorrents/pagina-fim-calcanhar.html");
+    const HDR_POST_FILME: &str =
+        include_str!("../../../../test/fixtures/crawl/hdrtorrents/post-filme.html");
+    const HDR_POST_SERIE: &str =
+        include_str!("../../../../test/fixtures/crawl/hdrtorrents/post-serie.html");
 
     #[test]
     fn test_hdr_listing_page_real_fixture() {
@@ -806,35 +888,57 @@ mod tests {
         let cards = hdr_parse_listing_cards(HDR_PAGE1, "https://hdrtorrents.net/");
         assert_eq!(cards.len(), 20);
 
-        let movies: Vec<_> = cards.iter().filter(|c| c.kind == CrawlPageKind::Movie).collect();
-        let series: Vec<_> = cards.iter().filter(|c| c.kind == CrawlPageKind::TvShow).collect();
+        let movies: Vec<_> = cards
+            .iter()
+            .filter(|c| c.kind == CrawlPageKind::Movie)
+            .collect();
+        let series: Vec<_> = cards
+            .iter()
+            .filter(|c| c.kind == CrawlPageKind::TvShow)
+            .collect();
         assert_eq!(movies.len(), 11);
         assert_eq!(series.len(), 9);
 
-        assert_eq!(cards[0].url, "https://hdrtorrents.net/futurama-14a-temporada-torrent-download/");
+        assert_eq!(
+            cards[0].url,
+            "https://hdrtorrents.net/futurama-14a-temporada-torrent-download/"
+        );
         assert_eq!(cards[0].kind, CrawlPageKind::TvShow);
     }
 
-    const HDR_POST_SERIE_AGREGADA: &str = include_str!("../../../../test/fixtures/crawl/hdrtorrents/post-serie-agregada.html");
+    const HDR_POST_SERIE_AGREGADA: &str =
+        include_str!("../../../../test/fixtures/crawl/hdrtorrents/post-serie-agregada.html");
 
     #[test]
     fn test_hdr_posts_real_fixtures() {
         // post-filme.html (snippet sem <main> retorna None)
         assert_eq!(hdr_page_kind_of(HDR_POST_FILME), None);
         assert_eq!(hdr_declares_series(HDR_POST_FILME), false);
-        assert_eq!(hdr_parse_imdb_id(HDR_POST_FILME), Some("tt1197624".to_string()));
+        assert_eq!(
+            hdr_parse_imdb_id(HDR_POST_FILME),
+            Some("tt1197624".to_string())
+        );
 
         // post-serie.html (snippet sem <main> retorna None)
         assert_eq!(hdr_page_kind_of(HDR_POST_SERIE), None);
-        assert_eq!(hdr_parse_imdb_id(HDR_POST_SERIE), Some("tt10893694".to_string()));
+        assert_eq!(
+            hdr_parse_imdb_id(HDR_POST_SERIE),
+            Some("tt10893694".to_string())
+        );
 
         // post-serie-agregada.html traz <main class="container my-3" itemscope itemtype="https://schema.org/TVSeries">
-        assert_eq!(hdr_page_kind_of(HDR_POST_SERIE_AGREGADA), Some(CrawlPageKind::TvShow));
+        assert_eq!(
+            hdr_page_kind_of(HDR_POST_SERIE_AGREGADA),
+            Some(CrawlPageKind::TvShow)
+        );
         assert_eq!(hdr_declares_series(HDR_POST_SERIE_AGREGADA), true);
 
         // Sintético com Movie
         let synthetic_movie = r#"<main class="container my-3" itemscope itemtype="https://schema.org/Movie"><h1>Filme</h1></main>"#;
-        assert_eq!(hdr_page_kind_of(synthetic_movie), Some(CrawlPageKind::Movie));
+        assert_eq!(
+            hdr_page_kind_of(synthetic_movie),
+            Some(CrawlPageKind::Movie)
+        );
         assert_eq!(hdr_declares_series(synthetic_movie), false);
     }
 
@@ -845,8 +949,14 @@ mod tests {
         let widget = r#"<a href="https://www.imdb.com/title/tt1959490/?ref_=tt_plg_rt">7.0</a>"#;
         assert_eq!(extract_single_imdb_id(widget), None);
 
-        let with_valid = format!(r#"{}<a href="https://www.imdb.com/title/tt0340163/">IMDb</a>"#, widget);
-        assert_eq!(extract_single_imdb_id(&with_valid), Some("tt0340163".to_string()));
+        let with_valid = format!(
+            r#"{}<a href="https://www.imdb.com/title/tt0340163/">IMDb</a>"#,
+            widget
+        );
+        assert_eq!(
+            extract_single_imdb_id(&with_valid),
+            Some("tt0340163".to_string())
+        );
 
         let ambiguous = r#"<a href="https://www.imdb.com/title/tt0340163/">IMDb</a><a href="https://www.imdb.com/title/tt1234567/">IMDb</a>"#;
         assert_eq!(extract_single_imdb_id(ambiguous), None);
@@ -857,9 +967,22 @@ mod tests {
         let fake_domain = r#"<a href="https://notimdb.com/title/tt1234567/">falso domínio</a>"#;
         assert_eq!(extract_single_imdb_id(fake_domain), None);
 
-        assert_eq!(extract_single_imdb_id(r#"<a href="https://www.imdb.com/title/tt0340163/listend">IMDb</a>"#), Some("tt0340163".to_string()));
-        assert_eq!(extract_single_imdb_id(r#"<a href="https://m.imdb.com/title/tt0340163/">IMDb</a>"#), Some("tt0340163".to_string()));
-        assert_eq!(extract_single_imdb_id(r#"<a href="https://www.imdb.com/title/tt1234567/?ref_=tt_review">obra</a>"#), Some("tt1234567".to_string()));
+        assert_eq!(
+            extract_single_imdb_id(
+                r#"<a href="https://www.imdb.com/title/tt0340163/listend">IMDb</a>"#
+            ),
+            Some("tt0340163".to_string())
+        );
+        assert_eq!(
+            extract_single_imdb_id(r#"<a href="https://m.imdb.com/title/tt0340163/">IMDb</a>"#),
+            Some("tt0340163".to_string())
+        );
+        assert_eq!(
+            extract_single_imdb_id(
+                r#"<a href="https://www.imdb.com/title/tt1234567/?ref_=tt_review">obra</a>"#
+            ),
+            Some("tt1234567".to_string())
+        );
     }
 
     // ── Testes de Paginação e Reconhecimento ─────────────────────────────────
@@ -875,8 +998,14 @@ mod tests {
         assert!(!is_repeated_page(5, false));
 
         assert_eq!(check_listing_recognition(20, 20, 20), Ok(()));
-        assert_eq!(check_listing_recognition(20, 20, 0), Err("nenhuma-obra-no-host"));
-        assert_eq!(check_listing_recognition(20, 0, 0), Err("cards-nao-reconhecidos"));
+        assert_eq!(
+            check_listing_recognition(20, 20, 0),
+            Err("nenhuma-obra-no-host")
+        );
+        assert_eq!(
+            check_listing_recognition(20, 0, 0),
+            Err("cards-nao-reconhecidos")
+        );
         assert_eq!(check_listing_recognition(0, 0, 0), Err("nenhum-card"));
     }
 
@@ -897,7 +1026,13 @@ mod tests {
         assert!(apache_is_season_slug("serie-3-temporada-baixar-torrent"));
         assert!(!apache_is_season_slug("filme-comum-baixar-torrent"));
 
-        assert_eq!(apache_kind_from_work_slug("serie-1a-temporada-baixar-torrent"), CrawlPageKind::TvShow);
-        assert_eq!(apache_kind_from_work_slug("filme-comum-baixar-torrent"), CrawlPageKind::Movie);
+        assert_eq!(
+            apache_kind_from_work_slug("serie-1a-temporada-baixar-torrent"),
+            CrawlPageKind::TvShow
+        );
+        assert_eq!(
+            apache_kind_from_work_slug("filme-comum-baixar-torrent"),
+            CrawlPageKind::Movie
+        );
     }
 }

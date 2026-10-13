@@ -173,9 +173,10 @@ pub fn decode_evidence(text: &str) -> String {
 pub fn season_from_card_slug(value: &str) -> Option<i64> {
     let parsed_url = if let Ok(u) = url::Url::parse(value) {
         u
-    } else if let Ok(u) =
-        url::Url::parse(&format!("http://localhost/{}", value.trim_start_matches('/')))
-    {
+    } else if let Ok(u) = url::Url::parse(&format!(
+        "http://localhost/{}",
+        value.trim_start_matches('/')
+    )) {
         u
     } else {
         return None;
@@ -185,8 +186,7 @@ pub fn season_from_card_slug(value: &str) -> Option<i64> {
     let path = decode_evidence(&decoded_path).to_lowercase();
 
     static RE_SEGMENT: OnceLock<regex::Regex> = OnceLock::new();
-    let re_segment =
-        RE_SEGMENT.get_or_init(|| regex::Regex::new(r"/season/([^/]+)/?$").unwrap());
+    let re_segment = RE_SEGMENT.get_or_init(|| regex::Regex::new(r"/season/([^/]+)/?$").unwrap());
     let segment = re_segment
         .captures(&path)
         .and_then(|c| c.get(1))

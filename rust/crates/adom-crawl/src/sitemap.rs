@@ -127,10 +127,29 @@ impl SitemapSiteConfig {
             post_sitemap_pattern: r"(?i)/post-sitemap\d*\.xml$",
             work_path_regex: None,
             not_work_segments: &[
-                "filmes", "series", "anime", "novela", "generos", "genero", "lancamento",
-                "qualidades", "resolucao", "m2ts", "mkv", "mp4", "uncategorized", "tag",
-                "author", "page", "feed", "wp-json", "wp-admin", "robots.txt", "sitemap.xml",
-                "sitemap_index.xml", "wp-sitemap.xml",
+                "filmes",
+                "series",
+                "anime",
+                "novela",
+                "generos",
+                "genero",
+                "lancamento",
+                "qualidades",
+                "resolucao",
+                "m2ts",
+                "mkv",
+                "mp4",
+                "uncategorized",
+                "tag",
+                "author",
+                "page",
+                "feed",
+                "wp-json",
+                "wp-admin",
+                "robots.txt",
+                "sitemap.xml",
+                "sitemap_index.xml",
+                "wp-sitemap.xml",
             ],
             season_slug_patterns: &["temporada", "minis+erie", "serie-completa"],
             supports_viewer: false,
@@ -261,13 +280,10 @@ impl SitemapSiteConfig {
 
 // ── Reconhecimento de Forma e Guardas ───────────────────────────────────────
 
-static COMMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)<!--.*?-->").unwrap()
-});
+static COMMENT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)<!--.*?-->").unwrap());
 
-static STRIP_COMMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)<!--.*?(?:-->|$)").unwrap()
-});
+static STRIP_COMMENT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<!--.*?(?:-->|$)").unwrap());
 
 /// Remove comentários HTML/XML sem substituir por espaço (`sitemap-guard.ts:7`).
 pub fn without_html_comments(source: &str) -> String {
@@ -304,13 +320,11 @@ pub fn is_vaca_sitemap_shape(source: &str) -> bool {
     VACA_TABLE_FANCY_RE.is_match(&text).unwrap_or(false)
 }
 
-static XML_SHAPE_SIMPLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)<(?:urlset|sitemapindex|sitemap|url)\b|<loc\b").unwrap()
-});
+static XML_SHAPE_SIMPLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)<(?:urlset|sitemapindex|sitemap|url)\b|<loc\b").unwrap());
 
-static VIEWER_SHAPE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)<td\b[^>]*\bclass="[^"]*\bleft\b"#).unwrap()
-});
+static VIEWER_SHAPE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?i)<td\b[^>]*\bclass="[^"]*\bleft\b"#).unwrap());
 
 /// Em que formato o site respondeu este sitemap (`redetorrent-discovery.ts:142`).
 pub fn sitemap_shape(source: &str) -> SitemapShape {
@@ -386,17 +400,15 @@ pub fn parse_viewer_entries(html: &str) -> Vec<SitemapEntry> {
     out
 }
 
-static ISO_DATE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(\d{4})-(\d{2})-(\d{2})$").unwrap()
-});
+static ISO_DATE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\d{4})-(\d{2})-(\d{2})$").unwrap());
 
 static DATE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^(\d{1,2})\s+(?:de\s+)?([A-Za-z]{3,9})\.?,?\s+(?:de\s+)?(\d{4})$").unwrap()
 });
 
-static TIME_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$").unwrap()
-});
+static TIME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$").unwrap());
 
 /// Converte data do visualizador AIOSEO para ISO UTC (`redetorrent-discovery.ts:278`).
 pub fn parse_rendered_lastmod(date_raw: &str, time_raw: Option<&str>) -> String {
@@ -459,15 +471,13 @@ pub fn parse_rendered_lastmod(date_raw: &str, time_raw: Option<&str>) -> String 
     format!("{year:04}-{month:02}-{day:02}T{hh:02}:{mm:02}:{ss:02}Z")
 }
 
-static REDE_ROW_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?is)<tr\b[^>]*>(.*?)</tr>").unwrap()
-});
+static REDE_ROW_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?is)<tr\b[^>]*>(.*?)</tr>").unwrap());
 static REDE_URL_CELL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?is)<td\b[^>]*\bclass="[^"]*\bleft\b[^"]*"[^>]*>(.*?)</td>"#).unwrap()
 });
-static REDE_HREF_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']"#).unwrap()
-});
+static REDE_HREF_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?i)<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']"#).unwrap());
 static REDE_DATE_DIV_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?is)<div\b[^>]*\bclass="[^"]*\bdate\b[^"]*"[^>]*>(.*?)</div>"#).unwrap()
 });
@@ -520,9 +530,8 @@ fn cell_text(raw: &str) -> String {
 
 // ── Parsers de XML ──────────────────────────────────────────────────────────
 
-static CDATA_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$").unwrap()
-});
+static CDATA_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$").unwrap());
 
 fn xml_text(raw: &str) -> String {
     let trimmed = raw.trim();
@@ -549,15 +558,12 @@ fn normalize_lastmod(raw: &str) -> String {
     String::new()
 }
 
-static BLOCK_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?is)<(?:url|sitemap)\b[^>]*>(.*?)</(?:url|sitemap)>").unwrap()
-});
-static LOC_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?is)<loc\b[^>]*>(.*?)</loc>").unwrap()
-});
-static LASTMOD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?is)<lastmod\b[^>]*>(.*?)</lastmod>").unwrap()
-});
+static BLOCK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?is)<(?:url|sitemap)\b[^>]*>(.*?)</(?:url|sitemap)>").unwrap());
+static LOC_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?is)<loc\b[^>]*>(.*?)</loc>").unwrap());
+static LASTMOD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?is)<lastmod\b[^>]*>(.*?)</lastmod>").unwrap());
 
 /// Pares loc/lastmod de um sitemap (XML ou viewer Yoast do Vaca como fallback).
 pub fn parse_sitemap_entries(xml: &str) -> Vec<SitemapEntry> {
@@ -649,9 +655,8 @@ pub fn parse_sitemap_rows(html: &str) -> Vec<SitemapEntry> {
         .collect()
 }
 
-static POST_SITEMAP_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)/post-sitemap\d*\.xml$").unwrap()
-});
+static POST_SITEMAP_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)/post-sitemap\d*\.xml$").unwrap());
 
 /// Locs de `post-sitemap*` do índice, ignorando host alheio e deduplicando.
 pub fn parse_sitemap_index_locs(
@@ -701,8 +706,14 @@ pub fn parse_sitemap_index_locs_matching(
 // ── Validação de Caminho de Obra e URLs ─────────────────────────────────────
 
 const DEFAULT_NOT_WORK_SEGMENTS: &[&str] = &[
-    "link.php", "feed", "wp-json", "wp-admin", "robots.txt", "sitemap.xml",
-    "sitemap_index.xml", "wp-sitemap.xml",
+    "link.php",
+    "feed",
+    "wp-json",
+    "wp-admin",
+    "robots.txt",
+    "sitemap.xml",
+    "sitemap_index.xml",
+    "wp-sitemap.xml",
 ];
 
 /// O caminho É de página de obra (um segmento com barra final, sem taxonomias conhecidas).
@@ -727,11 +738,7 @@ pub fn is_work_path(href: &str, custom_not_work: Option<&[&str]>) -> bool {
 }
 
 /// Loc de post → URL de obra, ou `None` se não for página do site ou não for obra.
-pub fn to_work_url(
-    loc: &str,
-    base: &str,
-    is_detail_host: impl Fn(&str) -> bool,
-) -> Option<Url> {
+pub fn to_work_url(loc: &str, base: &str, is_detail_host: impl Fn(&str) -> bool) -> Option<Url> {
     to_work_url_with_options(loc, base, is_detail_host, None)
 }
 
@@ -787,25 +794,23 @@ pub fn is_season_slug(href: &str) -> bool {
 
 // ── IMDb Parsing ────────────────────────────────────────────────────────────
 
-static IMDB_WIDGET_PATH_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)/(?:ref_[^/?]*|list|listicle)(?:[/?]|$)").unwrap()
-});
-static IMDB_PLG_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)^tt_plg(?:_|$)").unwrap()
-});
-static IMDB_WIDGET_QUERY_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)[?&]ref_=tt_").unwrap()
-});
-static IMDB_TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)imdb\.com/title/(tt\d{5,})([^"'\s<>]*)"#).unwrap()
-});
+static IMDB_WIDGET_PATH_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)/(?:ref_[^/?]*|list|listicle)(?:[/?]|$)").unwrap());
+static IMDB_PLG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^tt_plg(?:_|$)").unwrap());
+static IMDB_WIDGET_QUERY_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)[?&]ref_=tt_").unwrap());
+static IMDB_TITLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?i)imdb\.com/title/(tt\d{5,})([^"'\s<>]*)"#).unwrap());
 
 /// O sufixo depois de `title/tt…` é de widget de recomendação? (`shared.ts:132`).
 pub fn is_imdb_widget_reference(suffix: &str) -> bool {
     if IMDB_WIDGET_PATH_RE.is_match(suffix) || IMDB_WIDGET_QUERY_RE.is_match(suffix) {
         return true;
     }
-    let dummy = format!("https://www.imdb.com/title/tt0000000{}", suffix.replace("&amp;", "&"));
+    let dummy = format!(
+        "https://www.imdb.com/title/tt0000000{}",
+        suffix.replace("&amp;", "&")
+    );
     if let Ok(url) = Url::parse(&dummy) {
         for (key, val) in url.query_pairs() {
             if key.eq_ignore_ascii_case("ref_") && IMDB_PLG_RE.is_match(&val) {
@@ -855,12 +860,9 @@ pub fn parse_vaca_imdb_id(html: &str) -> Option<String> {
 
 /// IMDb da obra com rótulo "IMDb" dentro da janela de 200 caracteres (`bludv-discovery.ts:272`).
 pub fn parse_bludv_imdb_id(html: &str) -> Option<String> {
-    static IMDB_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)imdb\.com/title/(tt\d{5,})").unwrap()
-    });
-    static IMDB_LABEL_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)IMDb").unwrap()
-    });
+    static IMDB_ID_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)imdb\.com/title/(tt\d{5,})").unwrap());
+    static IMDB_LABEL_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)IMDb").unwrap());
     const IMDB_LABEL_WINDOW: usize = 200;
 
     let mut found = HashSet::new();
@@ -901,7 +903,8 @@ fn decode_uri_component(s: &str) -> String {
         decoded.push(bytes[i]);
         i += 1;
     }
-    String::from_utf8(decoded).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+    String::from_utf8(decoded)
+        .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
 // ── Testes Unitários ────────────────────────────────────────────────────────
@@ -932,7 +935,9 @@ mod tests {
         assert!(is_xml_sitemap_shape(
             "<sitemapindex><sitemap><loc>https://site.test/post.xml</loc></sitemap></sitemapindex>"
         ));
-        assert!(is_xml_sitemap_shape("<url><loc>https://site.test/</loc></url>"));
+        assert!(is_xml_sitemap_shape(
+            "<url><loc>https://site.test/</loc></url>"
+        ));
         assert!(is_xml_sitemap_shape("<loc>https://site.test/</loc>"));
 
         // Comentários são ignorados
@@ -944,7 +949,9 @@ mod tests {
             "<image:loc>https://site.test/image.jpg</image:loc>"
         ));
         // Lookahead exige [\s/>]: <location> não casa
-        assert!(!is_xml_sitemap_shape("<location>https://site.test/</location>"));
+        assert!(!is_xml_sitemap_shape(
+            "<location>https://site.test/</location>"
+        ));
         // HTML genérico não é XML
         assert!(!is_xml_sitemap_shape(
             "<html><body>Just a moment... <table><tr><td>challenge</td></tr></table></body></html>"
@@ -1180,10 +1187,7 @@ mod tests {
     #[test]
     fn test_parse_vaca_imdb_id() {
         let html = r#"<li><b>Avaliação da IMDb:</b> <a href="https://www.imdb.com/title/tt1706620/" target="_blank">7.1</a></li>"#;
-        assert_eq!(
-            parse_vaca_imdb_id(html),
-            Some("tt1706620".to_string())
-        );
+        assert_eq!(parse_vaca_imdb_id(html), Some("tt1706620".to_string()));
 
         let no_anchor = r#"<li><b>Classificação:</b> 16</li>"#;
         assert_eq!(parse_vaca_imdb_id(no_anchor), None);
@@ -1191,11 +1195,9 @@ mod tests {
 
     #[test]
     fn test_parse_bludv_imdb_id() {
-        let html = r#"<strong>IMDb:</strong> <a href="https://www.imdb.com/title/tt3416744/">7.4</a>"#;
-        assert_eq!(
-            parse_bludv_imdb_id(html),
-            Some("tt3416744".to_string())
-        );
+        let html =
+            r#"<strong>IMDb:</strong> <a href="https://www.imdb.com/title/tt3416744/">7.4</a>"#;
+        assert_eq!(parse_bludv_imdb_id(html), Some("tt3416744".to_string()));
     }
 
     // ── Testes com Fixtures Reais ───────────────────────────────────────────
@@ -1207,19 +1209,26 @@ mod tests {
         assert_eq!(entries.len(), 1001);
         assert_eq!(entries[0].loc, "https://bludvfilmes1.xyz/");
         // Nenhuma entrada contém upload de imagem
-        assert!(!entries.iter().any(|e| e.loc.contains("/wp-content/uploads/")));
+        assert!(!entries
+            .iter()
+            .any(|e| e.loc.contains("/wp-content/uploads/")));
 
         let config = SitemapSiteConfig::bludv();
         let is_host = |h: &str| h == "bludvfilmes1.xyz";
         // A primeira linha é a home '/' e é recusada como obra
-        assert_eq!(config.to_work_url(&entries[0].loc, "https://bludvfilmes1.xyz", is_host), None);
+        assert_eq!(
+            config.to_work_url(&entries[0].loc, "https://bludvfilmes1.xyz", is_host),
+            None
+        );
 
         // Obra real é aceita
         let work_entry = entries
             .iter()
             .find(|e| e.loc.contains("espirito-de-lobo"))
             .expect("espirito-de-lobo deve estar presente");
-        assert!(config.to_work_url(&work_entry.loc, "https://bludvfilmes1.xyz", is_host).is_some());
+        assert!(config
+            .to_work_url(&work_entry.loc, "https://bludvfilmes1.xyz", is_host)
+            .is_some());
     }
 
     #[test]
@@ -1301,9 +1310,15 @@ mod tests {
 
         assert_eq!(from_xml.len(), 11);
         assert_eq!(from_html.len(), 11);
-        assert_eq!(from_xml[0].loc, "https://www.redetorrent.xyz/filmes/coringa-delirio-a-dois/");
+        assert_eq!(
+            from_xml[0].loc,
+            "https://www.redetorrent.xyz/filmes/coringa-delirio-a-dois/"
+        );
         assert_eq!(from_xml[0].lastmod, "2026-02-06T14:22:00Z");
-        assert_eq!(from_html[0].loc, "https://www.redetorrent.xyz/filmes/coringa-delirio-a-dois/");
+        assert_eq!(
+            from_html[0].loc,
+            "https://www.redetorrent.xyz/filmes/coringa-delirio-a-dois/"
+        );
         assert_eq!(from_html[0].lastmod, "2026-02-06T14:22:00Z");
 
         // Ambas as leituras devem ser equivalentes

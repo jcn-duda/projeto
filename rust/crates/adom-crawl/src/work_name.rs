@@ -2,12 +2,12 @@
 //!
 //! Porte fiel de `src/providers/crawl-sites/work-name.ts`.
 
-use std::sync::OnceLock;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
-use adom_core::decode_entities;
 use crate::shared::{collapse_whitespace, without_noise};
+use adom_core::decode_entities;
 
 /// Ano em parênteses, em qualquer posição do título (o site o põe no meio).
 pub const YEAR_PAREN_RE: &str = r"[（(]\s*((?:19|20)\d{2})\s*[)）]";
@@ -178,25 +178,21 @@ pub fn clean_work_name(text: &str) -> String {
 
     // Separadores órfãos e colapso de espaços
     static RE_ORPHAN_SEP: OnceLock<Regex> = OnceLock::new();
-    let re_orphan_sep = RE_ORPHAN_SEP.get_or_init(|| {
-        Regex::new(r"\s*[-–—/|+]\s*(?:[-–—/|+]\s*)*").unwrap()
-    });
+    let re_orphan_sep =
+        RE_ORPHAN_SEP.get_or_init(|| Regex::new(r"\s*[-–—/|+]\s*(?:[-–—/|+]\s*)*").unwrap());
     title = re_orphan_sep.replace_all(&title, " ").into_owned();
     title = collapse_whitespace(&title);
 
     // Conector órfão final (" e")
     static RE_TRAILING: OnceLock<Regex> = OnceLock::new();
-    let re_trailing = RE_TRAILING.get_or_init(|| {
-        Regex::new(r"(?i)\s+e$").unwrap()
-    });
+    let re_trailing = RE_TRAILING.get_or_init(|| Regex::new(r"(?i)\s+e$").unwrap());
     title = re_trailing.replace(&title, "").into_owned();
     title = title.trim().to_string();
 
     // Separadores de borda
     static RE_EDGE_SEP: OnceLock<Regex> = OnceLock::new();
-    let re_edge_sep = RE_EDGE_SEP.get_or_init(|| {
-        Regex::new(r"^[–\-—/|:&+\s]+|[–\-—/|:&+\s]+$").unwrap()
-    });
+    let re_edge_sep =
+        RE_EDGE_SEP.get_or_init(|| Regex::new(r"^[–\-—/|:&+\s]+|[–\-—/|:&+\s]+$").unwrap());
     title = re_edge_sep.replace_all(&title, "").into_owned();
     collapse_whitespace(&title)
 }
@@ -204,11 +200,8 @@ pub fn clean_work_name(text: &str) -> String {
 #[allow(non_snake_case)]
 pub mod compat {
     pub use super::{
-        clean_work_name as cleanWorkName,
-        ficha_year as fichaYear,
-        h1_text as h1Text,
-        read_work_title as readWorkTitle,
-        split_paren_year as splitParenYear,
+        clean_work_name as cleanWorkName, ficha_year as fichaYear, h1_text as h1Text,
+        read_work_title as readWorkTitle, split_paren_year as splitParenYear,
     };
 }
 pub use compat::*;
@@ -288,11 +281,23 @@ mod tests {
 
     #[test]
     fn test_o_que_a_regua_nao_pode_comer() {
-        assert_eq!(name_of("Temporada de Caça (2006) Dublado").0, "Temporada de Caça");
-        assert_eq!(name_of("Temporada de Caça 2 (2008) Dublado").0, "Temporada de Caça 2");
-        assert_eq!(name_of("Temporada de Patos (2004) Legendado").0, "Temporada de Patos");
+        assert_eq!(
+            name_of("Temporada de Caça (2006) Dublado").0,
+            "Temporada de Caça"
+        );
+        assert_eq!(
+            name_of("Temporada de Caça 2 (2008) Dublado").0,
+            "Temporada de Caça 2"
+        );
+        assert_eq!(
+            name_of("Temporada de Patos (2004) Legendado").0,
+            "Temporada de Patos"
+        );
         assert_eq!(name_of("Pit Stop Temporada Completa (2021)").0, "Pit Stop");
-        assert_eq!(name_of("The Office Todas as Temporadas Completas").0, "The Office");
+        assert_eq!(
+            name_of("The Office Todas as Temporadas Completas").0,
+            "The Office"
+        );
         assert_eq!(
             name_of("O Caçador 1ª Temporada Completa Mini Série (2014) Dublado").0,
             "O Caçador"
@@ -304,9 +309,18 @@ mod tests {
         );
         assert_eq!(name_of("Avatar 3D SBS (2009) BluRay 1080p").0, "Avatar");
 
-        assert_eq!(name_of("O Oficial e o Espião (2019) Dublado").0, "O Oficial e o Espião");
-        assert_eq!(name_of("Deuses e Monstros (1998) Dublado").0, "Deuses e Monstros");
-        assert_eq!(name_of("Star Wars: Episódio I (1999) BluRay").0, "Star Wars: Episódio I");
+        assert_eq!(
+            name_of("O Oficial e o Espião (2019) Dublado").0,
+            "O Oficial e o Espião"
+        );
+        assert_eq!(
+            name_of("Deuses e Monstros (1998) Dublado").0,
+            "Deuses e Monstros"
+        );
+        assert_eq!(
+            name_of("Star Wars: Episódio I (1999) BluRay").0,
+            "Star Wars: Episódio I"
+        );
 
         assert_eq!(
             name_of("Blade Runner 2049 Torrent"),
@@ -367,11 +381,7 @@ mod tests {
                 "Os Simpsons",
                 Some(2021),
             ),
-            (
-                "Vikings 1ª a 6ª Temporada (2013)",
-                "Vikings",
-                Some(2013),
-            ),
+            ("Vikings 1ª a 6ª Temporada (2013)", "Vikings", Some(2013)),
             ("Blood TVRip (2006)", "Blood", Some(2006)),
             (
                 "Animais Fantásticos e Onde Habitam HDRip (2017)",
@@ -388,11 +398,7 @@ mod tests {
                 "Mr. Robot",
                 Some(2015),
             ),
-            (
-                "Dexter 1ª á 8ª Temporada (2006)",
-                "Dexter",
-                Some(2006),
-            ),
+            ("Dexter 1ª á 8ª Temporada (2006)", "Dexter", Some(2006)),
             (
                 "Elite Histórias Breves Todas Temporadas Torrent (2021) WEB-DL 720p/1080p Dublado",
                 "Elite Histórias Breves",
@@ -403,11 +409,7 @@ mod tests {
                 "Stranger Things: Histórias de 85",
                 Some(2026),
             ),
-            (
-                "Agente 007 1ª Temporada (2015)",
-                "Agente 007",
-                Some(2015),
-            ),
+            ("Agente 007 1ª Temporada (2015)", "Agente 007", Some(2015)),
         ];
 
         for &(raw, title, year) in cases {
@@ -417,13 +419,22 @@ mod tests {
 
     #[test]
     fn test_ampersand_e_conectores() {
-        assert_eq!(name_of("Batman &amp; Robin 1080p Dublado").0, "Batman & Robin");
+        assert_eq!(
+            name_of("Batman &amp; Robin 1080p Dublado").0,
+            "Batman & Robin"
+        );
         assert_eq!(
             name_of("Fast &amp; Furious 7 Múltiplos Torrent (2015) BluRay 1080p Dual Áudio").0,
             "Fast & Furious 7 Múltiplos"
         );
-        assert_eq!(name_of("Plano de fuga Dublado &amp; Legendado 1080p").0, "Plano de fuga");
-        assert_eq!(name_of("Filme Qualquer 720p &amp; 1080p Dublado").0, "Filme Qualquer");
+        assert_eq!(
+            name_of("Plano de fuga Dublado &amp; Legendado 1080p").0,
+            "Plano de fuga"
+        );
+        assert_eq!(
+            name_of("Filme Qualquer 720p &amp; 1080p Dublado").0,
+            "Filme Qualquer"
+        );
 
         assert_eq!(name_of("Deadpool – Rip").0, "Deadpool");
         assert_eq!(name_of("Noturno / FULL").0, "Noturno");
@@ -449,8 +460,14 @@ mod tests {
         assert_eq!(res_cores.year, Some(2021));
         assert_eq!(res_cores.title, "As Cores do Amor");
 
-        assert_eq!(ficha_year("<b>Ano de Lançamento:</b> 2017 (Brasil)<br />"), Some(2017));
-        assert_eq!(ficha_year("<b>Lan&ccedil;amento:</b> 1962<br />"), Some(1962));
+        assert_eq!(
+            ficha_year("<b>Ano de Lançamento:</b> 2017 (Brasil)<br />"),
+            Some(2017)
+        );
+        assert_eq!(
+            ficha_year("<b>Lan&ccedil;amento:</b> 1962<br />"),
+            Some(1962)
+        );
 
         let paradox = format!(
             "{}<b>Lançamento:</b> 2018<br />",
@@ -460,7 +477,10 @@ mod tests {
         assert_eq!(res_paradox.title, "Comando Final 3 Paradox");
         assert_eq!(res_paradox.year, Some(2018));
 
-        assert_eq!(read_work_title(&h1("Blade Runner 2049 (2017) Dublado")).title, "Blade Runner 2049");
+        assert_eq!(
+            read_work_title(&h1("Blade Runner 2049 (2017) Dublado")).title,
+            "Blade Runner 2049"
+        );
         assert_eq!(read_work_title(&h1("1984 (1984) Dublado")).title, "1984");
 
         let boneca = format!(
@@ -473,7 +493,9 @@ mod tests {
 
         assert_eq!(ficha_year("<i>Lançamento:</i> 2019"), Some(2019));
         assert_eq!(
-            ficha_year(r#"<option class="level-0" value="158">Lançamento</option><option class="level-1" value="23945">&nbsp;&nbsp;&nbsp;1918</option>"#),
+            ficha_year(
+                r#"<option class="level-0" value="158">Lançamento</option><option class="level-1" value="23945">&nbsp;&nbsp;&nbsp;1918</option>"#
+            ),
             None
         );
 
@@ -489,7 +511,11 @@ mod tests {
         assert!(!res_homeland.title.contains('(') && !res_homeland.title.contains(')'));
 
         assert_eq!(
-            read_work_title(&format!("{}<b>Lançamento:</b> 2008", h1("Juno (2007) Dublado"))).year,
+            read_work_title(&format!(
+                "{}<b>Lançamento:</b> 2008",
+                h1("Juno (2007) Dublado")
+            ))
+            .year,
             Some(2007)
         );
         assert_eq!(read_work_title(&h1("Sem Ano Torrent")).year, None);
