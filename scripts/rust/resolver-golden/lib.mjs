@@ -12,13 +12,22 @@
 // }
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const FIXTURES = path.join(ROOT, 'test/fixtures');
 const OUT_DIR = path.join(ROOT, 'rust/crates/adom-resolvers/tests/golden');
 
 export const fixture = (name) => fs.readFileSync(path.join(FIXTURES, name), 'utf8');
+
+/**
+ * Importa um módulo do `dist/` (build do TS). `ADOM_DIST` aponta para o
+ * `dist/` de outro checkout — um worktree não tem build próprio.
+ */
+export async function distImport(rel) {
+  const dist = process.env.ADOM_DIST ? path.resolve(process.env.ADOM_DIST) : path.join(ROOT, 'dist');
+  return import(pathToFileURL(path.join(dist, rel)).href);
+}
 
 const SNAKE = { episodeLast: 'episode_last', realTitle: 'real_title' };
 const LINK_KEYS = ['url', 'quality', 'size', 'audio', 'episode', 'episode_last', 'season', 'source', 'real_title', 'description'];

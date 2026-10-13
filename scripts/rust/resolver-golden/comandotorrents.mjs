@@ -3,9 +3,9 @@
 // fixtures e grava o que o Rust tem que reproduzir byte a byte.
 //   DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/comandotorrents.mjs
 // Saída: rust/crates/adom-resolvers/tests/golden/comandotorrents.json
-import { goldenRun } from './lib.mjs';
+import { distImport, goldenRun } from './lib.mjs';
 
-const site = (await import('../../../dist/comandotorrents-resolver/server.js')).default;
+const site = (await distImport('comandotorrents-resolver/server.js')).default;
 
 await goldenRun({
   site: 'comandotorrents',

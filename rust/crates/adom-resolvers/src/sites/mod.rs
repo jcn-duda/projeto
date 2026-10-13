@@ -8,7 +8,14 @@ use adom_crawl::profile_parsers::ResolverLink;
 
 use crate::common::{SearchItem, SitePost};
 
+pub mod apachetorrent;
+pub mod bludv;
 pub mod comandotorrents;
+pub mod hdrtorrents;
+pub mod nerdfilmes;
+pub mod redetorrent;
+pub mod torrentdosfilmes;
+pub mod vacatorrent;
 
 /// O que cada site entrega para a busca e o feed.
 pub trait SiteOutput: Send + Sync {
@@ -29,6 +36,13 @@ pub trait SiteOutput: Send + Sync {
 pub fn site_output(name: &str) -> Option<&'static dyn SiteOutput> {
     match name {
         "comandotorrents" => Some(&comandotorrents::COMANDO),
+        "bludv" => Some(&bludv::BLUDV),
+        "nerdfilmes" => Some(&nerdfilmes::NERD),
+        "torrentdosfilmes" => Some(&torrentdosfilmes::TDF),
+        "vacatorrent" => Some(&vacatorrent::VACA),
+        "redetorrent" => Some(&redetorrent::REDE),
+        "apachetorrent" => Some(&apachetorrent::APACHE),
+        "hdrtorrents" => Some(&hdrtorrents::HDR),
         _ => None,
     }
 }
