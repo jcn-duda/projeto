@@ -10,6 +10,7 @@
 
 pub mod ops;
 pub mod schema;
+pub mod types;
 
 #[cfg(test)]
 mod tests;
