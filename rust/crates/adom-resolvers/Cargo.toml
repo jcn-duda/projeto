@@ -7,6 +7,7 @@ description = "Resolvers BR em Rust — servidor HTTP compatível com Cardigann/
 license = "UNLICENSED"
 
 [dependencies]
+fancy-regex = "=0.19.2"
 adom-crawl = { path = "../adom-crawl" }
 adom-core = { path = "../adom-core" }
 axum = { version = "0.8", features = ["json"] }

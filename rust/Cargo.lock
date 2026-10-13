@@ -57,6 +57,7 @@ dependencies = [
  "adom-crawl",
  "async-trait",
  "axum",
+ "fancy-regex",
  "regex",
  "reqwest",
  "serde",
