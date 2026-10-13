@@ -16,6 +16,7 @@
 import type express from 'express';
 import type { AppServices } from './types.js';
 import { maxFromBody } from './dashboard-actions-shared.js';
+import config from '../config.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -25,6 +26,34 @@ type ActionDeps = {
 };
 
 type CrawlAction = (deps: ActionDeps) => Promise<express.Response> | express.Response;
+
+/** Encaminha uma ação destrutiva ao sidecar Rust via HTTP. Fail-open: se o
+ * sidecar não responde, devolve 502 com o motivo (não crash). */
+async function forwardToSidecar(
+  services: AppServices,
+  action: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: boolean; sidecarError?: string; result?: Record<string, unknown> }> {
+  const url = `http://127.0.0.1:${config.crawl.sidecarPort}/action`;
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(config.jackett.testToken ? { 'X-Indexer-Test-Token': config.jackett.testToken } : {}),
+      },
+      body: JSON.stringify({ action, ...body }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (resp.ok) {
+      const result = await resp.json() as Record<string, unknown>;
+      return { ok: true, result };
+    }
+    return { ok: false, sidecarError: `sidecar respondeu HTTP ${resp.status}` };
+  } catch (err) {
+    return { ok: false, sidecarError: 'sidecar não acessível' };
+  }
+}
 
 /** `site` do corpo: string limpa, ou `''` (o handler decide o alvo). */
 function siteFromBody(req: express.Request): string {
@@ -58,9 +87,20 @@ export const crawlSimulate: CrawlAction = async ({ services, req, res, action })
   // HTTP — devolve 200 com o motivo, como o `catalog-scan`.
   return res.json({ action, ...result });};
 
-export const crawlReprocessErrors: CrawlAction = ({ services, req, res, action }) => {
+export const crawlReprocessErrors: CrawlAction = async ({ services, req, res, action }) => {
   // Mesmo tratamento das outras ações por site: id sem espaços nas bordas.
   const site = typeof req.body?.site === 'string' ? req.body.site.trim() : undefined;
+  // Fase C4: encaminha ao sidecar quando o motor é Rust.
+  if (config.crawl.crawlEngine === 'rust') {
+    const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site: site || '' });
+    if (!fwd.ok) {
+      services.metrics.count('dashboard.crawl.reprocess.sidecar-error');
+      return res.status(502).json({ ok: false, action, error: fwd.sidecarError });
+    }
+    services.metrics.count('dashboard.crawl.reprocess');
+    services.log.info(`[dashboard] erros reprocessados (sidecar Rust): ${site || 'global'}`);
+    return res.json({ action, ...fwd.result });
+  }
   const result = services.crawler.reprocessErrors(site);
   if (!result.ok) return rejectReprocess(services, res, action, result);
   services.metrics.count('dashboard.crawl.reprocess');
@@ -91,8 +131,19 @@ export const crawlReprocessNoWork: CrawlAction = ({ services, req, res, action }
   return res.json({ action, ...result });
 };
 
-export const crawlReset: CrawlAction = ({ services, req, res, action }) => {
+export const crawlReset: CrawlAction = async ({ services, req, res, action }) => {
   const site = typeof req.body?.site === 'string' ? req.body.site.trim() : '';
+  // Fase C4: encaminha ao sidecar quando o motor é Rust.
+  if (config.crawl.crawlEngine === 'rust') {
+    const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site });
+    if (!fwd.ok) {
+      services.metrics.count('dashboard.crawl.reset.sidecar-error');
+      return res.status(502).json({ ok: false, action, error: fwd.sidecarError });
+    }
+    services.metrics.count('dashboard.crawl.reset');
+    services.log.warn(`[dashboard] site da raspagem zerado (sidecar Rust): ${site || '(global)'}`);
+    return res.json({ action, ...fwd.result });
+  }
   const result = services.crawler.resetSite(site);
   if (!result.ok) {
     services.metrics.count('dashboard.crawl.reset.rejected');

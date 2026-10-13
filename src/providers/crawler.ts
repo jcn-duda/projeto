@@ -239,6 +239,12 @@ function start(): void {
     log.warn('[crawl] nenhum site configurado em CRAWL_SITES');
     return;
   }
+  // Motor Rust ativo: o sidecar assume o loop de descoberta/páginas. O TS
+  // não arma timer — apenas faz recovery de inflight (o sidecar vai processar).
+  if (config.crawl.crawlEngine === 'rust') {
+    log.info('[crawl] motor Rust ativo — sidecar assume o loop');
+    return;
+  }
   scheduler.rearm(withCadence(live));
   log.info(`[crawl] motor armado (sites=${ids.join(',')}, delay=${cadenceDelayMs(live)}ms, dryRun=${live.dryRun})`);
 }

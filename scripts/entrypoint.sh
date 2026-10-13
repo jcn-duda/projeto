@@ -36,8 +36,11 @@ set -uo pipefail
 ulimit -c 0 2>/dev/null || true
 
 pids=()
+SIDECAR_PID=""
 shutdown() {
   echo "[entrypoint] sinal recebido; encerrando subprocessos" >&2
+  # Sidecar do raspador (se ativo): mata sem esperar, ele não está no wait -n
+  [ -n "$SIDECAR_PID" ] && kill -TERM "$SIDECAR_PID" 2>/dev/null || true
   kill -TERM "${pids[@]}" 2>/dev/null || true
   wait "${pids[@]}" 2>/dev/null || true
   exit 0
@@ -258,6 +261,24 @@ run '[jackett]' env XDG_CONFIG_HOME=/config XDG_DATA_HOME=/config TMPDIR=/run/ja
 # PORT do ambiente — sem isso ele tenta subir na porta do addon e morre em
 # "Address in use".
 run '[flaresolverr]' env PORT=8191 python3 -u /app/flaresolverr/flaresolverr.py
+
+# Sidecar do raspador Rust (só quando CRAWL_ENGINE=rust).
+# O sidecar NÃO entra no `wait -n` abaixo: ele tem reinício próprio ou fica
+# fora do supervisionamento. O `wait -n` continua supervisionando só
+# caddy+jackett+flaresolverr+addon.
+if [ "${CRAWL_ENGINE:-ts}" = "rust" ]; then
+    echo "[entrypoint] iniciando sidecar adom-crawl (CRAWL_ENGINE=rust)"
+    /app/dist/rust/adom-sidecar &
+    SIDECAR_PID=$!
+    # Aguarda sidecar ficar pronto (healthcheck)
+    for i in $(seq 1 10); do
+        if curl -sf http://127.0.0.1:${CRAWL_SIDECAR_PORT:-7077}/health > /dev/null 2>&1; then
+            echo "[entrypoint] sidecar pronto"
+            break
+        fi
+        sleep 1
+    done
+fi
 
 # Saída do tsc, não o fonte: a imagem de runtime recebe só `dist/` (o COPY
 # --from=builder do Dockerfile), então `src/addon.js` não existe lá dentro.

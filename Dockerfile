@@ -36,6 +36,9 @@ COPY rust/crates ./crates
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 RUN cargo build --locked --release -p adom-napi \
  && cp target/release/libadom_napi.so /adom_napi.node
+# Compila o sidecar do raspador (binário estático musl, igual ao adom-napi)
+RUN cargo build --release --bin adom-sidecar \
+ && cp target/release/adom-sidecar /adom-sidecar
 
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.
 FROM node:22-alpine AS builder
@@ -130,6 +133,8 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 # Ponte Rust: caminho default do src/utils/rust-core.ts (dist/rust/).
 COPY --from=rustcore /adom_napi.node ./dist/rust/adom_napi.node
+# Sidecar do raspador Rust (C4): loop de crawl em binário estático musl.
+COPY --from=rustcore /adom-sidecar ./dist/rust/adom-sidecar
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

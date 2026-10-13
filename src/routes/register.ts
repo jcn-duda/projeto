@@ -3,6 +3,8 @@ import { makePublicHandlers } from './public.js';
 import { makeDiagnosticHandlers } from './diagnostics.js';
 import { makeResolveHandler } from './resolve.js';
 import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
+import { registerInternalCrawlResult } from './internal-crawl-result.js';
+import { registerInternalActivity } from './internal-activity.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
@@ -55,6 +57,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // (o handler lê o `req` direto) — ver routes/magnet-bank-transfer.ts.
   app.get('/magnet-bank-export', bankTransfer.exportBank);
   app.post('/magnet-bank-import', bankTransfer.importBank);
+  // Rotas internas do sidecar Rust (C4): antes do /:userConfig, sem config.
+  registerInternalCrawlResult(app, services);
+  registerInternalActivity(app, services);
   app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({

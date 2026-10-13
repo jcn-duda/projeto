@@ -281,11 +281,33 @@ export async function computeStatusPayload(
   // Bloco: crawl (Fase 4). Um card por site + config ao vivo (o painel monta o
   // LiveConfigCard sem outra chamada). `crawler.status()` só LÊ o `crawl.db`, mas
   // ABRE o que não estiver aberto (idempotente, sem gravar veredito nem fila).
+  // Fase C4: quando CRAWL_ENGINE=rust, o status vem do sidecar via HTTP;
+  // falha aberta (sidecar não acessível → { active: false, error }).
   if (isReq('crawl')) {
-    out.crawl = {
-      ...services.crawler.status(),
-      config: services.crawlerLive.snapshot(),
-    };
+    if (services.config.crawl.crawlEngine === 'rust') {
+      const sidecarUrl = `http://127.0.0.1:${services.config.crawl.sidecarPort}/status`;
+      try {
+        const resp = await fetch(sidecarUrl, { signal: AbortSignal.timeout(3000) });
+        if (resp.ok) {
+          const sidecarStatus = await resp.json() as Record<string, unknown>;
+          out.crawl = {
+            ...sidecarStatus,
+            engine: 'rust',
+            config: services.crawlerLive.snapshot(),
+          };
+        } else {
+          out.crawl = { active: false, engine: 'rust', error: `sidecar respondeu HTTP ${resp.status}`, config: services.crawlerLive.snapshot() };
+        }
+      } catch (err) {
+        out.crawl = { active: false, engine: 'rust', error: 'sidecar não acessível', config: services.crawlerLive.snapshot() };
+      }
+    } else {
+      out.crawl = {
+        ...services.crawler.status(),
+        engine: 'ts',
+        config: services.crawlerLive.snapshot(),
+      };
+    }
   }
 
   // Bloco: f3
