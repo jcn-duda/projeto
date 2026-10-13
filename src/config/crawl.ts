@@ -30,6 +30,8 @@ export const crawl = () => ({
   // SQLite próprio do estado da raspagem. Fora do cache.db: 10 mil+ URLs por
   // site não cabem na cota do L1/L2 (folga real do teto global: ~779).
   dbPath: process.env.CRAWL_DB_PATH || DEFAULT_CRAWL_DB_PATH,
+  // Diretório opcional para capturar páginas reais (HTML/XML/JSON) para golden/parity.
+  captureDir: String(process.env.CRAWL_CAPTURE_DIR || '').trim() || null,
   // Pausa entre páginas: o motor faz UMA requisição por vez, sem FlareSolverr.
   delayMs: Math.max(0, num(process.env.CRAWL_DELAY_MS, 1000)),
   // Teto de REQUISIÇÕES por hora (educação com o site; bloqueio de IP custa

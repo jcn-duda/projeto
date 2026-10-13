@@ -1,0 +1,19 @@
+[package]
+name = "adom-crawl"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Raspador de sites BR do Adom (fase C1): parsers puros e utilidades de extração."
+license = "UNLICENSED"
+
+[dependencies]
+adom-core = { path = "../adom-core" }
+regex = "=1.13.1"
+fancy-regex = "=0.19.2"
+url = "=2.5.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }

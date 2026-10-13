@@ -7,6 +7,7 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
+use crate::audio_presentation::strip_quality_tag_blob;
 use crate::episode_parse::parse_title_season_episode;
 use crate::js_text::js_trim;
 use crate::stream_quotas::clamp_limit;
@@ -20,19 +21,6 @@ pub use selection::{
 
 pub const UNKNOWN_QUALITY: &str = "sem resolução";
 pub const QUALITY_KEYS: [&str; 6] = ["2160p", "1080p", "720p", "480p", "SD", UNKNOWN_QUALITY];
-
-const TAG_BLOB_VOCAB: [&str; 11] = [
-    "480p", "540p", "576p", "720p", "1080p", "1440p", "2160p", "4k", "uhd", "sd", "fullhd",
-];
-
-fn is_blob_tag(tag: &str) -> bool {
-    let norm: String = tag
-        .to_lowercase()
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect();
-    TAG_BLOB_VOCAB.contains(&norm.as_str())
-}
 
 #[derive(Debug, Clone)]
 pub struct StreamRef {
@@ -50,54 +38,14 @@ pub type QualityLimits = HashMap<String, f64>;
 
 // ─── Classificação de qualidade ──────────────────────────────────────────────
 
-fn tag_trail_re() -> &'static Regex {
+fn sd_quality_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"[,;]\s*[A-Za-z0-9][A-Za-z0-9+.\-]*\s*$").expect("regex"))
-}
-
-/// Remove blob de tags do fim do título (lista de qualidades separadas por vírgula).
-fn strip_quality_tag_blob(title: &str) -> &str {
-    if !title.contains(',') {
-        return title;
-    }
-    let mut cut = title.len();
-    let mut tags = 0u32;
-    loop {
-        let prefix = &title[..cut];
-        let re = tag_trail_re();
-        let Some(m) = re.find(prefix) else { break };
-        let tag_text = prefix[m.start() + 1..m.end()].trim();
-        if !is_blob_tag(tag_text) {
-            break;
-        }
-        cut = m.start();
-        tags += 1;
-    }
-    if tags < 2 {
-        return title;
-    }
-    let before = title[..cut].trim_end();
-    if let Some(start) = before.rfind(|c: char| c.is_ascii_whitespace()) {
-        let head = &before[start + 1..];
-        if !head.is_empty()
-            && head
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_alphanumeric())
-            && is_blob_tag(head)
-        {
-            return before[..start].trim_end();
-        }
-    } else if !before.is_empty()
-        && before
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphanumeric())
-        && is_blob_tag(before)
-    {
-        return "";
-    }
-    before
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?-u:\b)(576P|540P|360P|240P|SDTV|DVD5|DVD9|DVD[- ]?R|DVD[- ]?(?:RIP|SCR)|VHS[- ]?RIP|TS|TC|CAM[- ]?RIP|CAM)(?-u:\b)",
+        )
+        .expect("regex SD")
+    })
 }
 
 /// Classifica a qualidade a partir do título.
@@ -125,23 +73,7 @@ pub fn quality_from_title(title: &str) -> &str {
     if wb_contains(&t, "480P") {
         return "480p";
     }
-    if wb_contains(&t, "576P")
-        || wb_contains(&t, "540P")
-        || wb_contains(&t, "360P")
-        || wb_contains(&t, "240P")
-        || wb_contains(&t, "SDTV")
-        || wb_contains(&t, "DVD5")
-        || wb_contains(&t, "DVD9")
-        || t.contains("DVD-R")
-        || t.contains("DVDR")
-        || t.contains("DVD RIP")
-        || t.contains("DVD SCR")
-        || t.contains("VHS RIP")
-        || wb_contains(&t, "TS")
-        || wb_contains(&t, "TC")
-        || t.contains("CAM RIP")
-        || wb_contains(&t, "CAM")
-    {
+    if sd_quality_re().is_match(&t) {
         return "SD";
     }
     UNKNOWN_QUALITY

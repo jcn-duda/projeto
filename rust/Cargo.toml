@@ -2,5 +2,5 @@
 # `adom-core`: núcleo com lógica pura portada (18+ módulos) + golden.
 # `adom-napi`: bindings NAPI-RS para o addon Node (cdylib).
 [workspace]
-members = ["crates/adom-core", "crates/adom-napi"]
+members = ["crates/adom-core", "crates/adom-napi", "crates/adom-crawl"]
 resolver = "2"

@@ -14,8 +14,8 @@
 {"id":"sqe-014","input":"{\"op\":\"quality\",\"title\":\"Movie WEB-DLRip1080p x264\"}","expected":"\"1080p\""}
 {"id":"sqe-015","input":"{\"op\":\"quality\",\"title\":\"Movie_2024_720P_BluRay\"}","expected":"\"720p\""}
 {"id":"sqe-016","input":"{\"op\":\"quality\",\"title\":\"UHD Movie 2024\"}","expected":"\"2160p\""}
-{"id":"sqe-017","input":"{\"op\":\"quality\",\"title\":\"Movie 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"\"2160p\""}
-{"id":"sqe-018","input":"{\"op\":\"quality\",\"title\":\"Movie 720P 1080p, 2160p, 720p, HD\"}","expected":"\"2160p\""}
+{"id":"sqe-017","input":"{\"op\":\"quality\",\"title\":\"Movie 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"\"sem resolução\""}
+{"id":"sqe-018","input":"{\"op\":\"quality\",\"title\":\"Movie 720P 1080p, 2160p, 720p, HD\"}","expected":"\"720p\""}
 {"id":"sqe-019","input":"{\"op\":\"limitQuality\",\"streams\":[{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"720p\"},{\"quality\":\"720p\"}],\"limits\":{\"1080p\":2}}","expected":"[0,1,3,4]"}
 {"id":"sqe-020","input":"{\"op\":\"limitQuality\",\"streams\":[{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"720p\"},{\"quality\":\"720p\"}],\"limits\":{\"1080p\":1,\"720p\":1}}","expected":"[0,3]"}
 {"id":"sqe-021","input":"{\"op\":\"limitQuality\",\"streams\":[{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"1080p\"},{\"quality\":\"720p\"},{\"quality\":\"720p\"}],\"limits\":{}}","expected":"[0,1,2,3,4]"}

@@ -21,6 +21,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-crawl"
+version = "0.0.0"
+dependencies = [
+ "adom-core",
+ "fancy-regex",
+ "regex",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "adom-napi"
 version = "0.1.0"
 dependencies = [
