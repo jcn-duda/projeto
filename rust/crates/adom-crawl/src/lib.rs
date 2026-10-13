@@ -14,10 +14,14 @@ pub mod shared;
 pub mod site_profiles;
 pub mod sitemap;
 pub mod vaca_series;
+pub mod protector;
 pub mod motor;
 pub mod sidecar;
 pub mod store;
 pub mod work_name;
+pub mod resolver_text;
+pub mod nested_url;
+pub mod resolver_matching;
 
 pub use page_parser::*;
 pub use policy::*;

@@ -19,5 +19,13 @@
 	# /configure e /defaults.json são públicos de propósito (qualquer um gera
 	# install URL nesta instância). O token de diagnóstico do painel NÃO passa
 	# por aqui — ele continua só no header das rotas JSON do addon.
+
+	# Bloquear /internal/* da internet (só loopback pode acessar).
+	# O sidecar Rust e o painel usam essas rotas, mas elas não devem
+	# ser acessíveis externamente — o token é a segunda camada.
+	respond /internal/* 403 {
+		close
+	}
+
 	reverse_proxy 127.0.0.1:7000
 }

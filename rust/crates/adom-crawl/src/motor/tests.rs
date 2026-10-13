@@ -162,8 +162,7 @@ fn crawl_work_result_com_grupos_series() {
     };
 
     let json = serde_json::to_string(&result).expect("serializa com grupos");
-    let roundtrip: CrawlWorkResult =
-        serde_json::from_str(&json).expect("deserializa com grupos");
+    let roundtrip: CrawlWorkResult = serde_json::from_str(&json).expect("deserializa com grupos");
 
     assert_eq!(roundtrip.groups.len(), 1);
     assert_eq!(roundtrip.groups[0].season, Some(1));
@@ -204,9 +203,9 @@ fn motor_status_serializa_json_valido() {
 
     // Verifica que o JSON é válido e contém os campos esperados
     let parsed: serde_json::Value = serde_json::from_str(&json).expect("JSON válido");
-    assert_eq!(parsed["active"], true);
+    assert!(parsed["active"].as_bool().unwrap());
     assert_eq!(parsed["pages_this_hour"], 150);
-    assert_eq!(parsed["global_paused"], false);
+    assert!(!parsed["global_paused"].as_bool().unwrap());
     assert!(parsed["sites"].is_array());
     assert_eq!(parsed["sites"].as_array().unwrap().len(), 2);
     assert_eq!(parsed["sites"][0]["site_id"], "nerd");
@@ -226,8 +225,8 @@ fn motor_status_roundtrip_completo() {
     let json = serde_json::to_string(&original).unwrap();
     let roundtrip: MotorStatus = serde_json::from_str(&json).unwrap();
 
-    assert_eq!(roundtrip.active, false);
+    assert!(!roundtrip.active);
     assert_eq!(roundtrip.pages_this_hour, 0);
-    assert_eq!(roundtrip.global_paused, true);
+    assert!(roundtrip.global_paused);
     assert!(roundtrip.sites.is_empty());
 }

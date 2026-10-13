@@ -21,6 +21,17 @@ license = "UNLICENSED"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# Features de rede (reqwest/tokio) ficam atrás de `net` para que o .node
+# compilado para o addon Node NÃO embarque o stack de rede do Rust. O .node
+# só faz wrapping de `adom-core` (lógica pura) e `adom-crawl` (parsers puros).
+# Quando adom-resolvers precisar de rede via napi, ative: `--features net`.
+[features]
+default = []
+# `net` habilita deps de rede opcionais. Hoje o .node não usa rede;
+# a feature existe para que futuros resolvers BR em Rust possam ser
+# invocados via napi sem recompilar tudo.
+net = []
+
 [dependencies]
 # Núcleo com as funções portadas (normalize_title, etc.).
 adom-core = { path = "../adom-core" }

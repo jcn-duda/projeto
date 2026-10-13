@@ -4,7 +4,7 @@
 //! `X-Indexer-Test-Token` para autenticação com o endpoint interno do Node.
 
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::fmt;
 
 use crate::motor::types::CrawlWorkResult;
@@ -167,9 +167,8 @@ impl SidecarHttpClient {
 fn classify_reqwest_error(e: &reqwest::Error) -> SidecarHttpError {
     if e.is_timeout() {
         SidecarHttpError::Timeout
-    } else if e.is_connect() {
-        SidecarHttpError::ConnectionError(e.to_string())
     } else {
+        // is_connect() e demais erros caem aqui como ConnectionError
         SidecarHttpError::ConnectionError(e.to_string())
     }
 }
@@ -177,7 +176,6 @@ fn classify_reqwest_error(e: &reqwest::Error) -> SidecarHttpError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json;
 
     /// Verifica que o enum de erro formata mensagens legíveis.
     #[test]

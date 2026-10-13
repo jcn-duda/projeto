@@ -37,7 +37,7 @@ ENV RUSTFLAGS="-C target-feature=-crt-static"
 RUN cargo build --locked --release -p adom-napi \
  && cp target/release/libadom_napi.so /adom_napi.node
 # Compila o sidecar do raspador (binário estático musl, igual ao adom-napi)
-RUN cargo build --release --bin adom-sidecar \
+RUN cargo build --locked --release --bin adom-sidecar \
  && cp target/release/adom-sidecar /adom-sidecar
 
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.

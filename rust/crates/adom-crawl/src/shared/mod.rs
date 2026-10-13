@@ -6,6 +6,9 @@ use std::sync::OnceLock;
 
 use adom_core::decode_entities;
 
+/// Sufixos de protetor de link (fonte única para crawl e futuros resolvers BR).
+pub mod protector_suffixes;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TitleYear {
     pub title: String,
@@ -258,7 +261,7 @@ mod tests {
         assert_eq!(
             parse_title_year(h1_entities),
             TitleYear {
-                title: "A Gangster’s Life".to_string(),
+                title: "A Gangster's Life".to_string(),
                 year: Some(2020)
             }
         );
