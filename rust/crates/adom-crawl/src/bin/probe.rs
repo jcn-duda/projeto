@@ -41,6 +41,7 @@ impl std::fmt::Display for ProbeError {
 impl std::error::Error for ProbeError {}
 
 /// Argumentos parseados do subcomando probe.
+#[derive(Debug)]
 struct ProbeArgs {
     site: String,
     url: String,
@@ -67,9 +68,9 @@ fn parse_args(args: &[String]) -> Result<ProbeArgs, ProbeError> {
         } else if let Some(val) = arg.strip_prefix("--flare-url=") {
             flare_url = val.to_string();
         } else if let Some(val) = arg.strip_prefix("--timeout-ms=") {
-            timeout_ms = val.parse::<u64>().map_err(|_| {
-                ProbeError::Arg(format!("--timeout-ms inválido: {}", val))
-            })?;
+            timeout_ms = val
+                .parse::<u64>()
+                .map_err(|_| ProbeError::Arg(format!("--timeout-ms inválido: {}", val)))?;
         } else if arg == "--no-parse" {
             no_parse = true;
         } else if arg == "--json" {
@@ -301,10 +302,11 @@ mod tests {
 
     #[test]
     fn test_extract_btih_valid() {
-        let magnet = "magnet:?xt=urn:btih:ABC123DEF456789012345678901234&dn=test";
+        // btih de 40 hex (o de 30 do teste original é curto demais: a regra exige >= 32).
+        let magnet = "magnet:?xt=urn:btih:ABC123DEF4567890123456789012345678901234&dn=test";
         assert_eq!(
             extract_btih(magnet),
-            Some("abc123def456789012345678901234".into())
+            Some("abc123def4567890123456789012345678901234".into())
         );
     }
 

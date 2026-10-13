@@ -14,8 +14,7 @@ pub const DEFAULT_MAX_HOPS: usize = 10;
 pub const FLARE_SESSION_TTL_MS: u64 = 1_200_000;
 
 /// User-Agent padrão do raspador.
-pub const DEFAULT_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
 /// Base comum de protetores de link (TS: `BASE_PROTECTOR_SUFFIXES`).
 ///

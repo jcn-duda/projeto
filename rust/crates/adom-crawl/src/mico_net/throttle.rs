@@ -114,10 +114,7 @@ impl MicoThrottle {
         let deadline = now + Duration::from_millis(retry_after_ms);
         let mut state = self.state.lock().unwrap();
         // Só atualiza se o novo deadline for mais tarde que o atual.
-        let should_update = state
-            .not_before
-            .map(|nb| deadline > nb)
-            .unwrap_or(true);
+        let should_update = state.not_before.map(|nb| deadline > nb).unwrap_or(true);
         if should_update {
             state.not_before = Some(deadline);
         }

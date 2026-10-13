@@ -5,6 +5,9 @@ edition = "2021"
 publish = false
 description = "Raspador de sites BR do Adom (fase C1): parsers puros e utilidades de extração."
 license = "UNLICENSED"
+# src/bin/probe.rs é MÓDULO do binário adom-crawl (`mod probe;`), não um
+# binário próprio: sem isto o Cargo o compila sozinho e falha sem `main`.
+autobins = false
 
 [dependencies]
 adom-core = { path = "../adom-core" }

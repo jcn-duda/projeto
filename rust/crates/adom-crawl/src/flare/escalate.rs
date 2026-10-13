@@ -2,7 +2,6 @@
 //!
 //! Porte fiel de `resolvers/profiles/vacatorrent-crawl-fetch.ts:21-38`.
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::challenge::is_cloudflare_challenge;
@@ -46,15 +45,13 @@ pub struct CrawlFetchDeps {
 ///    - Se o body retornado ainda é desafio → limpa sessões e retorna erro
 ///    - Senão → retorna o body
 /// 3. Se o erro é diferente de desafio → propaga o erro
-pub async fn fetch_text_crawl(
-    url: &str,
-    deps: &CrawlFetchDeps,
-) -> Result<String, FlareError> {
+pub async fn fetch_text_crawl(url: &str, deps: &CrawlFetchDeps) -> Result<String, FlareError> {
     // Monta headers de sessão (se houver sessão ativa para o hostname)
     let extra_headers = {
-        let sessions_guard = deps.sessions.lock().map_err(|_| FlareError::DirectError(
-            "lock de sessões envenenado".to_string(),
-        ))?;
+        let sessions_guard = deps
+            .sessions
+            .lock()
+            .map_err(|_| FlareError::DirectError("lock de sessões envenenado".to_string()))?;
         build_flare_headers(&sessions_guard, url)
     };
 
@@ -81,12 +78,8 @@ pub async fn fetch_text_crawl(
                     on_req();
                 }
 
-                let solution = fetch_text_via_flare(
-                    url,
-                    &deps.solver_url,
-                    deps.flare_timeout_ms,
-                )
-                .await?;
+                let solution =
+                    fetch_text_via_flare(url, &deps.solver_url, deps.flare_timeout_ms).await?;
 
                 // Verifica se o body retornado ainda é desafio
                 let empty_headers = reqwest::header::HeaderMap::new();
@@ -118,19 +111,15 @@ pub async fn fetch_text_crawl(
                     if let Some(session_host) = hostname {
                         let ttl = {
                             let sessions = deps.sessions.lock().ok();
-                            sessions
-                                .as_ref()
-                                .map(|s| s.session_ttl())
-                                .unwrap_or(std::time::Duration::from_millis(
+                            sessions.as_ref().map(|s| s.session_ttl()).unwrap_or(
+                                std::time::Duration::from_millis(
                                     super::types::defaults::SESSION_TTL_MS,
-                                ))
+                                ),
+                            )
                         };
 
-                        let session = FlareSession::new(
-                            cookies_str,
-                            solution.user_agent.clone(),
-                            ttl,
-                        );
+                        let session =
+                            FlareSession::new(cookies_str, solution.user_agent.clone(), ttl);
 
                         if let Ok(mut sessions) = deps.sessions.lock() {
                             let mut hosts = vec![session_host];

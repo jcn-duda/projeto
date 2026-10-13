@@ -90,8 +90,6 @@ impl MicoClient {
             .map_err(|e| {
                 if e.is_timeout() {
                     MicoError::Timeout
-                } else if e.is_connect() {
-                    MicoError::ConnectionError(e.to_string())
                 } else {
                     MicoError::ConnectionError(e.to_string())
                 }
@@ -116,9 +114,10 @@ impl MicoClient {
         }
 
         // Parse JSON.
-        let data: Value = response.json().await.map_err(|e| {
-            MicoError::JsonParseError(e.to_string())
-        })?;
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|e| MicoError::JsonParseError(e.to_string()))?;
 
         // Extrai metas[].id e filtra por IMDb ID válido.
         let metas = data
@@ -212,10 +211,7 @@ fn parse_http_date_to_ms(date_str: &str) -> Option<u64> {
     let timestamp = date_to_unix_timestamp(year, month, day, hour, min, sec)?;
 
     // Calcula ms até esse instante.
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_secs() as i64;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs() as i64;
 
     let diff_secs = timestamp as i64 - now;
     if diff_secs < 0 {
@@ -247,7 +243,14 @@ fn month_to_number(month: &str) -> Option<u32> {
 /// Converte uma data para timestamp Unix (seconds since epoch).
 ///
 /// Fórmula simplificada (não considera leap seconds, mas é suficiente para Retry-After).
-fn date_to_unix_timestamp(year: u32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Option<u64> {
+fn date_to_unix_timestamp(
+    year: u32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    min: u32,
+    sec: u32,
+) -> Option<u64> {
     // Anos desde epoch (1970).
     if year < 1970 {
         return None;
@@ -278,5 +281,5 @@ fn date_to_unix_timestamp(year: u32, month: u32, day: u32, hour: u32, min: u32, 
 
 /// Verifica se um ano é bissexto.
 fn is_leap_year(year: u32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
 }

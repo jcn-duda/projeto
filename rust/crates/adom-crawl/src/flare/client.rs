@@ -174,7 +174,8 @@ mod tests {
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("\"cmd\":\"request.get\""));
         assert!(json.contains("\"url\":\"https://example.com\""));
-        assert!(json.contains("\"max_timeout\":55000"));
+        // O FlareSolverr espera camelCase (`maxTimeout`), como o TS (resolvers/flare.ts).
+        assert!(json.contains("\"maxTimeout\":55000"));
     }
 
     #[test]

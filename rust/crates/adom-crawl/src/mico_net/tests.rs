@@ -24,10 +24,7 @@ mod throttle_tests {
         throttle.wait().await;
         let elapsed = start.elapsed().as_millis() as u64;
         // A segunda chamada deve esperar ~200ms (gap mínimo).
-        assert!(
-            elapsed >= 180,
-            "esperava >= 180ms, got {elapsed}ms"
-        );
+        assert!(elapsed >= 180, "esperava >= 180ms, got {elapsed}ms");
     }
 
     /// Retry-After atrasa a próxima chamada além do gap mínimo.
@@ -69,10 +66,7 @@ mod throttle_tests {
         let t2 = Arc::clone(&throttle);
 
         let start = Instant::now();
-        let (r1, r2) = tokio::join!(
-            async { t1.wait().await },
-            async { t2.wait().await },
-        );
+        let (r1, r2) = tokio::join!(async { t1.wait().await }, async { t2.wait().await },);
         let elapsed = start.elapsed().as_millis() as u64;
 
         // Ambas completam sem panic.
@@ -100,7 +94,6 @@ mod throttle_tests {
             "primeira chamada deveria ser rápida, got {elapsed}ms"
         );
     }
-
 }
 
 #[cfg(test)]
@@ -163,7 +156,10 @@ mod parse_retry_after_tests {
     #[test]
     fn returns_none_for_invalid() {
         let mut headers = HeaderMap::new();
-        headers.insert(RETRY_AFTER, HeaderValue::from_static("not-a-number-or-date"));
+        headers.insert(
+            RETRY_AFTER,
+            HeaderValue::from_static("not-a-number-or-date"),
+        );
         let ms = parse_retry_after(&headers);
         assert_eq!(ms, None);
     }

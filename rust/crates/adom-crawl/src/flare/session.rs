@@ -180,10 +180,7 @@ mod tests {
             "TestUA/1.0".into(),
             Duration::from_secs(60),
         );
-        map.store_for_hosts(
-            vec!["requested.com".into(), "resolved.com".into()],
-            session,
-        );
+        map.store_for_hosts(vec!["requested.com".into(), "resolved.com".into()], session);
         assert!(map.get("requested.com").is_some());
         assert!(map.get("resolved.com").is_some());
         assert_eq!(map.len(), 2);
@@ -234,7 +231,10 @@ mod tests {
             ),
         );
         let headers = build_flare_headers(&map, "https://example.com/page");
-        assert_eq!(headers.get("Cookie").unwrap(), "cf_clearance=abc; __cf_bm=def");
+        assert_eq!(
+            headers.get("Cookie").unwrap(),
+            "cf_clearance=abc; __cf_bm=def"
+        );
         assert_eq!(headers.get("User-Agent").unwrap(), "FlareUA/5.0");
     }
 

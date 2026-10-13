@@ -8,7 +8,10 @@ fn vacatorrent_has_flare() {
     let cfg = site_network_config("vacatorrent").expect("vacatorrent deve existir");
     assert!(cfg.uses_flare, "vacatorrent deve usar FlareSolverr");
     assert_eq!(cfg.site_id, "vacatorrent");
-    assert_eq!(cfg.candidate_hosts, vec!["vaqueirofilmes1.com", "vaqueirofilmes.com"]);
+    assert_eq!(
+        cfg.candidate_hosts,
+        vec!["vaqueirofilmes1.com", "vaqueirofilmes.com"]
+    );
 }
 
 /// `mico` tem ritmo próprio e gap mínimo configurado.
@@ -17,7 +20,10 @@ fn mico_own_pace() {
     let cfg = site_network_config("mico").expect("mico deve existir");
     assert!(cfg.own_pace, "mico deve ter own_pace=true");
     assert_eq!(cfg.min_gap_ms, Some(1_000));
-    assert!(cfg.candidate_hosts.is_empty(), "mico é API, não tem host de site");
+    assert!(
+        cfg.candidate_hosts.is_empty(),
+        "mico é API, não tem host de site"
+    );
     assert_eq!(cfg.max_hops, 1);
 }
 

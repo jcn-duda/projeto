@@ -4,6 +4,7 @@
 //! HTTP. Testes de integração do redirect chain ficam para o CLI ou harness.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use std::collections::HashMap;
 
@@ -179,10 +180,7 @@ mod tests {
     #[test]
     fn cookie_jar_multiplos_cookies() {
         let mut jar = CookieJar::new();
-        jar.parse_and_store(
-            "systemads1.com",
-            "session=abc; Path=/, theme=dark; Path=/",
-        );
+        jar.parse_and_store("systemads1.com", "session=abc; Path=/, theme=dark; Path=/");
         let header = jar.headers_for("systemads1.com").unwrap();
         assert!(header.contains("session=abc"));
         assert!(header.contains("theme=dark"));

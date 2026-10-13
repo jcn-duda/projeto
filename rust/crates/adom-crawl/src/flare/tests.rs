@@ -55,8 +55,7 @@ fn flare_error_display_timeout() {
 #[test]
 fn flare_error_is_std_error() {
     // Verifica que FlareError implementa std::error::Error
-    let err: Box<dyn std::error::Error> =
-        Box::new(FlareError::ChallengeNotResolved);
+    let err: Box<dyn std::error::Error> = Box::new(FlareError::ChallengeNotResolved);
     assert!(err.to_string().contains("Desafio"));
 }
 
@@ -177,7 +176,11 @@ fn challenge_detection_header_only_no_body_match() {
     // Header cf-mitigated: challenge, body limpo — deve detectar pelo header
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert("cf-mitigated", "challenge".parse().unwrap());
-    assert!(is_cloudflare_challenge(200, &headers, "<html>clean page</html>"));
+    assert!(is_cloudflare_challenge(
+        200,
+        &headers,
+        "<html>clean page</html>"
+    ));
 }
 
 #[test]
