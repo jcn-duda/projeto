@@ -12,13 +12,16 @@
 //! ganchos aqui; a saída (HTML do Cardigann, feed torznab) tem que sair byte a
 //! byte igual à do TS, porque é o que as definições do Jackett leem.
 
+pub mod apache;
 pub mod collector;
 pub mod episode;
+pub mod hdr;
 pub mod magnet;
 pub mod page;
 pub mod release;
 pub mod rules;
 pub mod text;
+pub mod vaca;
 
 pub use collector::{parse_download_links, CollectorHooks, Resolved, Step};
 pub use page::{
