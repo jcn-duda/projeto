@@ -50,7 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let (name, port) = parse_entry(entry)?;
         let site_url = site_url_env(&name);
-        let profile = ResolverProfile::new(&name, &site_url, extra_protectors.clone());
+        let mirrors = site_mirrors_env(&name);
+        let profile =
+            ResolverProfile::with_mirrors(&name, &site_url, &mirrors, extra_protectors.clone());
         let config = ResolverConfig {
             port,
             site_name: name.clone(),
@@ -104,6 +106,16 @@ const DEFAULT_URLS: &[(&str, &str)] = &[
     ("apachetorrent", "https://apachetorrents.com"),
     ("hdrtorrents", "https://hdrtorrents.net"),
 ];
+
+/// Espelhos do operador: `<SITE>_URLS` em CSV, o `urlsEnv` dos profiles TS.
+fn site_mirrors_env(name: &str) -> Vec<String> {
+    std::env::var(format!("{}_URLS", name.to_uppercase()))
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
 
 /// URL primária do site: `<SITE>_URL` do env, senão o default do TS.
 fn site_url_env(name: &str) -> String {

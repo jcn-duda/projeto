@@ -6,20 +6,22 @@
 //! vêm do registry do crawl (`adom_crawl::site_profiles`) — nada é duplicado.
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use adom_crawl::flare::FlareSessions;
 use adom_crawl::http_session::HttpSession;
 use adom_crawl::net::{fetch_follow_redirects, Allowlist, FetchRedirectsOptions};
 use adom_crawl::protector::{self, FollowOptions};
 use adom_crawl::resolver_cache::ResolverCache;
 use adom_crawl::resolver_site_selector::{is_network_error, SiteSelector};
-use adom_crawl::site_profiles::{
-    all_site_configs, site_network_config, SiteNetworkConfig, BASE_PROTECTOR_SUFFIXES,
-};
+use adom_crawl::site_profiles::SiteNetworkConfig;
 use reqwest::header::{HeaderMap, HeaderValue, SET_COOKIE};
 use url::Url;
 
 use crate::listing_parsers;
+use crate::search_select;
+use crate::site_config::{build_candidates, host_of, network_config_for};
 
 /// Entradas máximas do cache de listagem por profile.
 pub const SEARCH_CACHE_LIMIT: usize = 60;
@@ -51,16 +53,30 @@ pub struct ResolverProfile {
     pub network: SiteNetworkConfig,
     /// Allowlist derivada de `network` + `extra_protectors`, montada uma vez.
     pub allowlist: Allowlist,
+    /// Cookies do FlareSolverr por host, reusados no fetch direto seguinte
+    /// (só sites com `uses_flare`: BLUDV, RedeTorrent, VacaTorrent).
+    pub flare_sessions: Arc<Mutex<FlareSessions>>,
 }
 
 impl ResolverProfile {
     /// Monta o profile: `site_name` é o id do registry (variantes sem o sufixo
     /// `-cardigann` funcionam) e `site_url` é a URL primária do operador.
     pub fn new(site_name: &str, site_url: &str, extra_protectors: Vec<String>) -> Self {
+        Self::with_mirrors(site_name, site_url, &[], extra_protectors)
+    }
+
+    /// Como [`Self::new`], com os espelhos do `<SITE>_URLS` do operador logo
+    /// depois da URL primária (o `urlsCsv` do seletor TS).
+    pub fn with_mirrors(
+        site_name: &str,
+        site_url: &str,
+        mirrors: &[String],
+        extra_protectors: Vec<String>,
+    ) -> Self {
         let network = network_config_for(site_name);
         // A URL do operador vem antes dos hosts do registry: é ela que sabe qual
         // domínio responde hoje.
-        let candidates = build_candidates(site_url, &network);
+        let candidates = build_candidates(site_url, mirrors, &network);
         // Como o `CANDIDATE_HOSTS` do site-profile TS: o host de TODO candidato,
         // inclusive o da URL do operador, é confiável desde o boot. Sem isso o
         // domínio que o operador configurou era barrado no primeiro fetch.
@@ -84,6 +100,7 @@ impl ResolverProfile {
             post_cache: ResolverCache::new(POST_CACHE_LIMIT),
             session,
             extra_protectors,
+            flare_sessions: Arc::new(Mutex::new(FlareSessions::new(network.flare_session_ttl_ms))),
             network,
             allowlist,
         }
@@ -99,10 +116,25 @@ impl ResolverProfile {
     pub fn search_url(&self, query: &str) -> Result<String, String> {
         let base = self.selector.url();
         let mut url = Url::parse(&base).map_err(|_| format!("invalid_url:{base}"))?;
+        if self.is_vaca() {
+            // O Vaca busca por AJAX JSON (`vacatorrent.ts`); `/?s=` devolve o tema
+            // sem resultado. Query vazia (browse/Test do Jackett) vira "de".
+            url.set_path("/wp-admin/admin-ajax.php");
+            let term = if query.is_empty() { "de" } else { query };
+            url.query_pairs_mut()
+                .append_pair("action", "search_posts")
+                .append_pair("s", term)
+                .append_pair("lang", "pt-BR");
+            return Ok(url.to_string());
+        }
         url.set_path("/");
         // `query_pairs_mut` codifica a query; espaço vira `+` (o TS usa `%20`).
         url.query_pairs_mut().append_pair("s", query);
         Ok(url.to_string())
+    }
+
+    fn is_vaca(&self) -> bool {
+        self.site_name == "vacatorrent"
     }
 
     /// HTML da listagem de uma query.
@@ -113,13 +145,21 @@ impl ResolverProfile {
             .await
     }
 
-    /// Busca posts de uma query (cache → fetch → parse → cache).
+    /// Busca posts de uma query (cache → fetch → parse → seleção). O site recebe
+    /// a query normalizada; o filtro de título/temporada e o `max_posts` seguem o
+    /// `selectSearchPosts` do TS — sem eles a listagem inteira do site vazava.
     pub async fn search(&self, query: &str) -> Result<Vec<ResolverPost>, String> {
-        let html = self.search_html(query).await?;
-        Ok(parse_search_posts(
-            &self.site_name,
-            &html,
-            &self.selector.url(),
+        let rules = search_select::rules_for(&self.site_name);
+        let season = search_select::requested_season(query);
+        let normalized = search_select::normalize_query(query, rules);
+        let html = self.search_html(&normalized).await?;
+        let posts = parse_search_posts(&self.site_name, &html, &self.selector.url());
+        Ok(search_select::select_posts(
+            posts,
+            |p| p.title.as_str(),
+            &normalized,
+            season,
+            rules.max_posts,
         ))
     }
 
@@ -209,6 +249,9 @@ impl ResolverProfile {
     /// Fetch com allowlist por hop, cookies da sessão e contabilidade de failover.
     /// Usa `net::fetch_follow_redirects` porque os headers colhem o `Set-Cookie`.
     async fn fetch(&self, url: &str) -> Result<String, String> {
+        if self.network.uses_flare {
+            return self.fetch_with_flare(url).await;
+        }
         let mut headers: HashMap<String, String> = HashMap::new();
         if let Some(session) = &self.session {
             let cookie = session.get_cookie_header();
@@ -248,7 +291,7 @@ impl ResolverProfile {
 
     /// Erro de rede conta falha no seletor (dispara probe/troca de domínio); erro
     /// de lógica não derruba o domínio ativo.
-    async fn account_failure(&self, message: &str) {
+    pub(crate) async fn account_failure(&self, message: &str) {
         if is_network_error(message, "") {
             self.selector.note_failure().await;
         } else {
@@ -267,61 +310,6 @@ impl ResolverProfile {
             session.harvest_from_headers(&header_map);
         }
     }
-}
-
-/// Rede do site no registry, tolerando variantes: o registry usa ids como
-/// `apachetorrent-cardigann`, o operador chama de `apachetorrent`.
-fn network_config_for(site_name: &str) -> SiteNetworkConfig {
-    if let Some(found) = lookup_site_config(site_name) {
-        return found.clone();
-    }
-    // Site desconhecido: defaults do crawl + base de protetores compartilhada.
-    let mut config = SiteNetworkConfig::new(site_name);
-    config.protector_suffixes = BASE_PROTECTOR_SUFFIXES
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-    config
-}
-
-/// Busca no registry: nome exato → `nome-cardigann` → prefixo mais curto.
-fn lookup_site_config(site_name: &str) -> Option<&'static SiteNetworkConfig> {
-    let needle = site_name.trim().to_lowercase();
-    if let Some(found) = site_network_config(&needle) {
-        return Some(found);
-    }
-    if let Some(found) = site_network_config(&format!("{needle}-cardigann")) {
-        return Some(found);
-    }
-    all_site_configs()
-        .into_iter()
-        .filter(|c| c.site_id.to_lowercase().starts_with(&needle))
-        .min_by_key(|c| c.site_id.len())
-}
-
-/// Candidatos: URL do operador primeiro, depois hosts do registry, sem duplicar host.
-fn build_candidates(site_url: &str, network: &SiteNetworkConfig) -> Vec<String> {
-    let primary = site_url.trim().trim_end_matches('/');
-    let primary_host = host_of(primary);
-    let mut candidates = Vec::new();
-    // Sem URL do operador o seletor ainda tem os mirrors do registry; antes a
-    // lista vazia deixava o site sem nenhum candidato.
-    if !primary.is_empty() {
-        candidates.push(primary.to_string());
-    }
-    for host in &network.candidate_hosts {
-        if primary_host.as_deref() != Some(host.as_str()) {
-            candidates.push(format!("https://{host}"));
-        }
-    }
-    candidates
-}
-
-/// Host em minúsculas de uma URL; `None` se ela não parseia.
-fn host_of(url: &str) -> Option<String> {
-    Url::parse(url)
-        .ok()
-        .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
 }
 
 /// Sites que precisam de sessão: ApacheTorrent exige PHPSESSID + token
