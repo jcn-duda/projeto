@@ -6,6 +6,7 @@
 pub mod callbacks;
 pub mod common;
 mod flare_fetch;
+pub mod flows;
 mod items;
 pub mod listing_parsers;
 pub mod profile;

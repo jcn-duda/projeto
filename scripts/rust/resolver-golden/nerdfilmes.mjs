@@ -19,6 +19,9 @@ const postFixtures = [
   'crawl/nerdfilmes/post-movie.html',
   'crawl/nerdfilmes/post-series.html',
   'crawl/nerdfilmes/post-no-buttons.html',
+  // Post real (2026-10-13): "Dublado e Legendado" no título e "Dual Áudio" perto do
+  // botão — o TS marca DUBLADO; o Rust marcava LEGENDADO.
+  'crawl/nerdfilmes/post-dual-legendado-ao-lado.html',
 ];
 
 await goldenRun({

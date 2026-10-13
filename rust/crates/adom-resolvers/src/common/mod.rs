@@ -5,6 +5,7 @@
 
 pub mod collector;
 pub mod episode;
+pub mod magnet;
 pub mod page;
 pub mod release;
 pub mod rules;

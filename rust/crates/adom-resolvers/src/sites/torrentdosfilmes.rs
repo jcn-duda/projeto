@@ -223,6 +223,7 @@ pub fn parse_search_posts(html: &str, base_url: &str) -> Vec<SitePost> {
             continue;
         };
         found.push(SitePost {
+            kind: None,
             title: clean,
             url,
             poster: None,
@@ -247,6 +248,14 @@ fn join_url(href: &str, base_url: &str) -> Option<String> {
 }
 
 impl SiteOutput for Tdf {
+    fn name(&self) -> &'static str {
+        "torrentdosfilmes"
+    }
+
+    fn search_posts(&self, html: &str, base_url: &str) -> Vec<SitePost> {
+        parse_search_posts(html, base_url)
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         parse_download_links(&Hooks, html, Some(post_url))
     }

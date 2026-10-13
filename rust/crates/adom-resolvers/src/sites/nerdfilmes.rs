@@ -115,8 +115,13 @@ impl CollectorHooks for Hooks {
         last_audio_marker(segment, &NERD_AUDIO, &NERD_LEGENDADO)
     }
 
-    /// Sem `audioFromAnchor` no TS do nerd: o botão herda o áudio da seção
-    /// (o default do trait já é `None`).
+    /// O marcador no texto do PRÓPRIO botão vence a seção: post "Dublado e
+    /// Legendado" com o botão "Dual Áudio" é dublado (sem isto o Rust marcava
+    /// legendado o dublado BR — medido ao vivo em 2026-10-13).
+    fn audio_from_anchor(&self, anchor_text: &str) -> Option<String> {
+        last_audio_marker(anchor_text, &NERD_AUDIO, &NERD_LEGENDADO)
+    }
+
     fn episode_step(
         &self,
         segment: &str,
@@ -154,6 +159,18 @@ fn date_row(post: &SitePost) -> String {
 }
 
 impl SiteOutput for Nerd {
+    fn name(&self) -> &'static str {
+        "nerdfilmes"
+    }
+
+    fn search_posts(&self, html: &str, base_url: &str) -> Vec<SitePost> {
+        parse_search_posts(html, base_url)
+    }
+
+    fn post_date(&self, html: &str) -> Option<String> {
+        parse_post_date(html)
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         parse_download_links(&Hooks, html, Some(post_url))
     }

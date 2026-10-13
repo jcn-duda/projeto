@@ -38,6 +38,7 @@ fn cards_da_listagem() {
                     poster: w.poster,
                     date: None,
                     year: w.year,
+                    kind: None,
                 })
                 .collect()
         },

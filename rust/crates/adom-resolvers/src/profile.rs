@@ -12,13 +12,14 @@ use std::time::Duration;
 use adom_crawl::flare::FlareSessions;
 use adom_crawl::http_session::HttpSession;
 use adom_crawl::net::{fetch_follow_redirects, Allowlist, FetchRedirectsOptions};
-use adom_crawl::protector::{self, FollowOptions};
+use adom_crawl::protector::{self, FollowHooks, FollowOptions};
 use adom_crawl::resolver_cache::ResolverCache;
 use adom_crawl::resolver_site_selector::{is_network_error, SiteSelector};
 use adom_crawl::site_profiles::SiteNetworkConfig;
 use reqwest::header::{HeaderMap, HeaderValue, SET_COOKIE};
 use url::Url;
 
+use crate::common::magnet;
 use crate::listing_parsers;
 use crate::search_select;
 use crate::site_config::{build_candidates, host_of, network_config_for};
@@ -235,6 +236,36 @@ impl ResolverProfile {
         suffixes.extend_from_slice(&self.extra_protectors);
         let site_referer = self.selector.url();
         let referer = (!magnet_only).then_some(site_referer.as_str());
+        // `assertAllowedUrl` em CADA salto, como o transporte do TS: sem isto um
+        // 302 do protetor levava o laço a qualquer host.
+        let allow = |u: &str| {
+            self.allowlist
+                .assert_allowed_url(u)
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        };
+        // `extractMagnet` de cada profile (`createMagnetExtractor`): rica no
+        // bludv/comando, básica no nerd/tdf, rica + base64 no vaca.
+        let variant = match self.site_name.as_str() {
+            "vacatorrent" => Some(magnet::VACA),
+            "bludv" | "comandotorrents" => Some(magnet::RICH),
+            "nerdfilmes" | "torrentdosfilmes" => Some(magnet::BASIC),
+            _ => None,
+        };
+        let extract = move |html: &str| variant.and_then(|v| v.extract(html));
+        let mut hooks = FollowHooks {
+            assert_allowed: Some(&allow),
+            extract_magnet: variant.is_some().then_some(&extract as _),
+            ..Default::default()
+        };
+        if self.site_name == "vacatorrent" {
+            // Cadeia do vaca: next/URL_ETAPA2/t.co, Drive como fim e cookies por
+            // host (`relay.php` exige o do `processar.php`). O seed de cookies do
+            // vacadb.org que o TS injeta NÃO foi portado: é pular etapa de gate.
+            hooks.next_url = Some(&crate::sites::vacatorrent::protector::next_protected_url);
+            hooks.non_magnet = Some(&adom_crawl::profile_parsers::b64_data_link_is_http);
+            hooks.cookie_jar = true;
+        }
         protector::follow_protected_url(FollowOptions {
             url,
             referer,
@@ -244,6 +275,7 @@ impl ResolverProfile {
             timeout: Duration::from_millis(self.network.timeout_ms),
             user_agent: &self.network.user_agent,
             client: &client,
+            hooks,
         })
         .await
         .map_err(|e| e.to_string())

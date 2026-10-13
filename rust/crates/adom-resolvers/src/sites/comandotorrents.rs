@@ -102,6 +102,10 @@ impl CollectorHooks for Hooks {
 }
 
 impl SiteOutput for Comando {
+    fn name(&self) -> &'static str {
+        "comandotorrents"
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         parse_download_links(&Hooks, html, Some(post_url))
     }

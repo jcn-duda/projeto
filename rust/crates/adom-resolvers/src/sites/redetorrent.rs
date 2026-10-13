@@ -81,6 +81,81 @@ const TITLE: ReleaseTitleConfig = ReleaseTitleConfig {
 };
 
 impl SiteOutput for Rede {
+    fn name(&self) -> &'static str {
+        "redetorrent"
+    }
+
+    /// `parseSearchHtml` + `workTypeFromPath` (`/filmes/` × `/series/`).
+    fn search_posts(&self, html: &str, base_url: &str) -> Vec<SitePost> {
+        parse_search_posts(html, base_url)
+            .into_iter()
+            .map(|mut post| {
+                let path = url::Url::parse(&post.url)
+                    .map(|u| u.path().to_string())
+                    .unwrap_or_default();
+                post.kind = if path.starts_with("/filmes/") {
+                    Some("Filme".into())
+                } else if path.starts_with("/series/") {
+                    Some("Série".into())
+                } else {
+                    None
+                };
+                post
+            })
+            .collect()
+    }
+
+    /// Com temporada pedida, série vem antes de filme (ANTES do corte).
+    fn select_posts(
+        &self,
+        posts: Vec<SitePost>,
+        normalized: &str,
+        season: Option<u32>,
+        max_posts: usize,
+    ) -> Vec<SitePost> {
+        let mut posts = crate::search_select::select_posts(
+            posts,
+            |p| p.title.as_str(),
+            normalized,
+            season,
+            usize::MAX,
+        );
+        if season.is_some() {
+            let (series, rest): (Vec<_>, Vec<_>) = posts
+                .into_iter()
+                .partition(|p| p.kind.as_deref() == Some("Série"));
+            posts = series.into_iter().chain(rest).collect();
+        }
+        posts.truncate(max_posts);
+        posts
+    }
+
+    /// `postToItems`: botão de outra temporada sai; o índice conta a lista
+    /// FILTRADA e o total é o do post inteiro, como o TS.
+    fn items_of(
+        &self,
+        post: &SitePost,
+        links: Vec<ResolverLink>,
+        season: Option<u32>,
+    ) -> Vec<SearchItem> {
+        let count = links.len();
+        links
+            .into_iter()
+            .filter(|l| l.season.is_none() || season.is_none() || l.season == season)
+            .enumerate()
+            .map(|(index, link)| SearchItem {
+                post: post.clone(),
+                link,
+                index,
+                count,
+            })
+            .collect()
+    }
+
+    fn post_error_is_empty(&self) -> bool {
+        true
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         Ok(parse::parse_post_links(html, post_url))
     }

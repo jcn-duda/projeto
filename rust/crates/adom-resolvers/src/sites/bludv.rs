@@ -258,6 +258,7 @@ pub fn parse_search_entries(html: &str, base_url: &str) -> Vec<SearchEntry> {
             .map(|m| m.as_str().trim().to_string());
         out.push(SearchEntry {
             post: SitePost {
+                kind: None,
                 title,
                 url,
                 poster,
@@ -337,6 +338,14 @@ pub fn card_html(self_url: &str, rows: &[CardRow<'_>]) -> String {
 }
 
 impl SiteOutput for Bludv {
+    fn name(&self) -> &'static str {
+        "bludv"
+    }
+
+    fn search_posts(&self, html: &str, base_url: &str) -> Vec<SitePost> {
+        parse_search_posts(html, base_url)
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         parse_download_links(&Hooks, html, Some(post_url))
     }

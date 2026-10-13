@@ -85,6 +85,7 @@ pub fn parse_search_posts(html: &str, base_url: &str) -> Vec<SitePost> {
         }
         let year = YEAR.captures(&title).and_then(|c| c[1].parse::<u32>().ok());
         out.push(SitePost {
+            kind: None,
             title,
             url,
             poster: None,

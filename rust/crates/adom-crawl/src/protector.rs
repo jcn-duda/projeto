@@ -20,6 +20,10 @@ pub enum ProtectorError {
     TooManyRedirects,
     Timeout,
     Network(String),
+    /// Destino final é download direto (Drive), não magnet (`protector_non_magnet`).
+    NonMagnet,
+    /// Salto para host fora da allowlist do site.
+    Blocked(String),
 }
 
 impl std::fmt::Display for ProtectorError {
@@ -33,6 +37,8 @@ impl std::fmt::Display for ProtectorError {
             Self::TooManyRedirects => write!(f, "excedeu saltos máximos"),
             Self::Timeout => write!(f, "timeout"),
             Self::Network(m) => write!(f, "rede: {}", m),
+            Self::NonMagnet => write!(f, "protector_non_magnet"),
+            Self::Blocked(m) => write!(f, "blocked_host: {}", m),
         }
     }
 }
@@ -103,16 +109,16 @@ pub fn extract_meta_refresh(html: &str) -> Option<String> {
 // ── extract_magnet ───────────────────────────────────────────────────────────
 
 /// Extrai o primeiro magnet do HTML (href entre aspas primeiro, depois cru).
-/// Normaliza scheme para minúsculo (`MAGNET:` → `magnet:`).
+/// Normaliza scheme para minúsculo (`MAGNET:` → `magnet:`) e decodifica as
+/// entidades, como o `extractMagnet` do TS: o href do `link.php` do NerdFilmes
+/// publica `&amp;dn=` e o magnet cru saía com `&amp;` (player quebrado).
 pub fn extract_magnet(html: &str) -> Option<String> {
-    if let Some(cap) = href_magnet_re().captures(html) {
-        if let Some(m) = cap.get(1) {
-            return Some(normalize_magnet(m.as_str()));
-        }
-    }
-    magnet_raw_re()
-        .find(html)
-        .map(|m| normalize_magnet(m.as_str()))
+    let found = href_magnet_re()
+        .captures(html)
+        .and_then(|cap| cap.get(1))
+        .map(|m| m.as_str())
+        .or_else(|| magnet_raw_re().find(html).map(|m| m.as_str()))?;
+    Some(normalize_magnet(&adom_core::decode_entities(found)))
 }
 
 fn normalize_magnet(v: &str) -> String {
@@ -186,6 +192,30 @@ fn is_protector_host(hostname: &str, hosts: &[String]) -> bool {
 
 pub type ProtectorResult = Result<String, ProtectorError>;
 
+/// `assertAllowedUrl` do site.
+pub type AssertFn<'a> = &'a (dyn Fn(&str) -> Result<(), String> + Sync);
+/// `extractMagnet` do site.
+pub type ExtractFn<'a> = &'a (dyn Fn(&str) -> Option<String> + Sync);
+/// `nextProtectedUrl(html, base)` do site.
+pub type NextUrlFn<'a> = &'a (dyn Fn(&str, &str) -> Option<String> + Sync);
+
+/// Regras do site no laço (as opções do `followProtectedUrl` do TS). Vazio =
+/// comportamento comum: magnet → descoberta genérica → meta refresh, sem jar.
+#[derive(Default)]
+pub struct FollowHooks<'a> {
+    /// `assertAllowedUrl`: cada salto passa por ele ANTES do fetch.
+    pub assert_allowed: Option<AssertFn<'a>>,
+    /// `extractMagnet` do site (ex.: variantes codificadas/base64 do vaca).
+    pub extract_magnet: Option<ExtractFn<'a>>,
+    /// `nextProtectedUrl(html, base)` do site.
+    pub next_url: Option<NextUrlFn<'a>>,
+    /// `isNonMagnetTarget`: para com erro em vez de gastar saltos.
+    pub non_magnet: Option<&'a (dyn Fn(&str) -> bool + Sync)>,
+    /// Jar de cookies por host local à cadeia (o `relay.php` do vaca exige o
+    /// cookie que o `processar.php` emite).
+    pub cookie_jar: bool,
+}
+
 /// Opções do loop do protetor.
 pub struct FollowOptions<'a> {
     pub url: &'a str,
@@ -196,6 +226,7 @@ pub struct FollowOptions<'a> {
     pub timeout: Duration,
     pub user_agent: &'a str,
     pub client: &'a Client,
+    pub hooks: FollowHooks<'a>,
 }
 
 /// Loop de saltos pelo protetor. Retorna o magnet final ou erro.
@@ -209,8 +240,16 @@ pub async fn follow_protected_url(opts: FollowOptions<'_>) -> ProtectorResult {
 
     let mut cur = Url::parse(opts.url).map_err(|_| ProtectorError::InvalidUrl)?;
     let mut prev_ref = opts.referer.map(|s| s.to_string());
+    let mut jar = opts
+        .hooks
+        .cookie_jar
+        .then(crate::net::cookie_jar::CookieJar::new);
+    let host_of = |u: &Url| u.host_str().unwrap_or("").to_string();
 
     for _ in 0..=opts.max_hops {
+        if let Some(assert) = opts.hooks.assert_allowed {
+            assert(cur.as_str()).map_err(ProtectorError::Blocked)?;
+        }
         let mut hdrs = reqwest::header::HeaderMap::new();
         hdrs.insert(
             reqwest::header::USER_AGENT,
@@ -224,6 +263,11 @@ pub async fn follow_protected_url(opts: FollowOptions<'_>) -> ProtectorResult {
         if let Some(ref r) = prev_ref {
             if let Ok(v) = reqwest::header::HeaderValue::from_str(r) {
                 hdrs.insert(reqwest::header::REFERER, v);
+            }
+        }
+        if let Some(cookie) = jar.as_ref().and_then(|j| j.headers_for(&host_of(&cur))) {
+            if let Ok(v) = reqwest::header::HeaderValue::from_str(&cookie) {
+                hdrs.insert(reqwest::header::COOKIE, v);
             }
         }
         let resp = opts
@@ -240,6 +284,9 @@ pub async fn follow_protected_url(opts: FollowOptions<'_>) -> ProtectorResult {
                     ProtectorError::Network(e.to_string())
                 }
             })?;
+        if let Some(j) = jar.as_mut() {
+            j.store_from_response(&resp, &host_of(&cur));
+        }
         let st = resp.status().as_u16();
 
         // Redirect 3xx.
@@ -274,12 +321,21 @@ pub async fn follow_protected_url(opts: FollowOptions<'_>) -> ProtectorResult {
             .text()
             .await
             .map_err(|e| ProtectorError::Network(format!("body: {}", e)))?;
-        if let Some(m) = extract_magnet(&html) {
+        let magnet = match opts.hooks.extract_magnet {
+            Some(extract) => extract(&html).map(|m| normalize_magnet(&m)),
+            None => extract_magnet(&html),
+        };
+        if let Some(m) = magnet {
             return Ok(m);
         }
-        if let Some(next) =
-            discover_next_url(&html, cur.as_str(), opts.protector_hosts, opts.suffixes)
-        {
+        if opts.hooks.non_magnet.is_some_and(|f| f(&html)) {
+            return Err(ProtectorError::NonMagnet);
+        }
+        let next = match opts.hooks.next_url {
+            Some(next_url) => next_url(&html, cur.as_str()),
+            None => discover_next_url(&html, cur.as_str(), opts.protector_hosts, opts.suffixes),
+        };
+        if let Some(next) = next {
             prev_ref = Some(cur.to_string());
             cur = Url::parse(&next)
                 .or_else(|_| cur.join(&next))

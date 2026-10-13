@@ -50,6 +50,15 @@ fn magnet_uppercase() {
 fn magnet_ausente() {
     assert_eq!(extract_magnet("<p>x</p>"), None);
 }
+/// O `link.php` do NerdFilmes publica `&amp;` no href: o magnet sai decodificado.
+#[test]
+fn magnet_com_entidades_sai_decodificado() {
+    let html = r#"<a href="magnet:?xt=urn:btih:a2d1&amp;dn=Coringa&amp;tr=udp%3A%2F%2Fx">"#;
+    assert_eq!(
+        extract_magnet(html).unwrap(),
+        "magnet:?xt=urn:btih:a2d1&dn=Coringa&tr=udp%3A%2F%2Fx"
+    );
+}
 #[test]
 fn discover_js_var() {
     let h = vec!["p.com".into()];
@@ -118,6 +127,7 @@ async fn follow_magnet_direto() {
         timeout: Duration::from_secs(10),
         user_agent: "test/1.0",
         client: &c,
+        hooks: Default::default(),
     };
     assert_eq!(
         follow_protected_url(opts).await.unwrap(),
@@ -138,6 +148,7 @@ async fn follow_url_vazia() {
         timeout: Duration::from_secs(10),
         user_agent: "test/1.0",
         client: &c,
+        hooks: Default::default(),
     };
     assert!(matches!(
         follow_protected_url(opts).await,

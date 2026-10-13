@@ -60,6 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let profile =
             ResolverProfile::with_mirrors(&name, &site_url, &mirrors, extra_protectors.clone())
                 .with_self_url(&format!("http://{host}:{port}"));
+        // O HDR busca no catálogo raspado: aquece no boot, como o `warm()` do
+        // TS, para a primeira busca não pagar a varredura.
+        if name == "hdrtorrents" {
+            adom_resolvers::flows::hdr::warm(&profile);
+        }
         let config = ResolverConfig {
             port,
             site_name: name.clone(),

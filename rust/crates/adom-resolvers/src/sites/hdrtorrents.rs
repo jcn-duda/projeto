@@ -348,6 +348,14 @@ fn search_page(items: &[SearchItem]) -> String {
 }
 
 impl SiteOutput for Hdr {
+    fn name(&self) -> &'static str {
+        "hdrtorrents"
+    }
+
+    fn post_error_is_empty(&self) -> bool {
+        true
+    }
+
     fn post_links(&self, html: &str, _post_url: &str) -> Result<Vec<ResolverLink>, String> {
         parse_content_magnets(html)
     }

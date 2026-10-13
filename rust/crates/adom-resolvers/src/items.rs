@@ -9,6 +9,7 @@ use futures_util::stream::{self, StreamExt, TryStreamExt};
 
 use crate::common::{SearchItem, SitePost};
 use crate::profile::ResolverProfile;
+use crate::search_select;
 use crate::sites::{site_output, SiteOutput};
 
 /// Posts abertos em paralelo: o `mapLimit` dos profiles TS (`concurrency = 3`).
@@ -21,37 +22,64 @@ impl ResolverProfile {
 
     /// Botões de um post (`getPostLinks`): página do post (cache) → parser do site.
     pub async fn post_links(&self, post_url: &str) -> Result<Vec<ResolverLink>, String> {
+        if self.site_name == "vacatorrent" {
+            return crate::flows::vaca::collect_links(self, post_url).await;
+        }
         let site = self.site()?;
         let html = self.post_html(post_url).await?;
         site.post_links(&html, post_url)
     }
 
-    /// Itens da busca: um por botão de cada post, com índice e total do post.
-    /// Um post que falha derruba a busca, como o `mapLimit` sem `try` do TS.
+    /// Itens da busca: um por botão de cada post selecionado. Apache, HDR e
+    /// Vaca têm busca própria (`crate::flows`); os demais seguem o `/?s=`.
     pub async fn search_items(&self, query: &str) -> Result<Vec<SearchItem>, String> {
-        let posts = self.search(query).await?;
+        match self.site_name.as_str() {
+            "apachetorrent" => crate::flows::apache::search_items(self, query).await,
+            "hdrtorrents" => crate::flows::hdr::search_items(self, query).await,
+            "vacatorrent" => crate::flows::vaca::search_items(self, query).await,
+            _ => {
+                let rules = search_select::rules_for(&self.site_name);
+                let season = search_select::requested_season(query);
+                let normalized = search_select::normalize_query(query, rules);
+                let html = self.search_html(&normalized).await?;
+                let site = self.site()?;
+                let posts = site.search_posts(&html, &self.selector.url());
+                let posts = site.select_posts(posts, &normalized, season, rules.max_posts);
+                self.items_for_posts(posts, season).await
+            }
+        }
+    }
+
+    /// `mapLimit(posts, postToItems)`: abre cada post (3 em paralelo) e monta
+    /// os itens pelo site. Falha de um post derruba a busca ou vira lista
+    /// vazia, conforme o `try` do profile (`post_error_is_empty`).
+    pub(crate) async fn items_for_posts(
+        &self,
+        posts: Vec<SitePost>,
+        season: Option<u32>,
+    ) -> Result<Vec<SearchItem>, String> {
+        let site = self.site()?;
         let per_post: Vec<Vec<SearchItem>> = stream::iter(posts)
-            .map(|post| async move {
-                let links = self.post_links(&post.url).await?;
-                let count = links.len();
-                let site_post = SitePost {
-                    title: post.title,
-                    url: post.url,
-                    poster: post.poster,
-                    ..Default::default()
-                };
-                Ok::<_, String>(
-                    links
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, link)| SearchItem {
-                            post: site_post.clone(),
-                            link,
-                            index,
-                            count,
-                        })
-                        .collect(),
-                )
+            .map(|mut post| async move {
+                let opened = async {
+                    let html = self.post_html(&post.url).await?;
+                    let links = site.post_links(&html, &post.url)?;
+                    Ok::<_, String>((links, site.post_date(&html)))
+                }
+                .await;
+                match opened {
+                    Ok((links, date)) => {
+                        if date.is_some() {
+                            post.date = date;
+                        }
+                        Ok(site.items_of(&post, links, season))
+                    }
+                    Err(e) if site.post_error_is_empty() => {
+                        eprintln!("[resolver] {}: post sem botões ({e})", self.site_name);
+                        Ok(Vec::new())
+                    }
+                    Err(e) => Err(e),
+                }
             })
             .buffered(POST_CONCURRENCY)
             .try_collect()

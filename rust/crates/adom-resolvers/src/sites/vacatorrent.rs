@@ -23,6 +23,8 @@ use crate::common::rules::{
 };
 use crate::common::{release_title, search_page_html, ReleaseTitleConfig, SearchItem, SitePost};
 
+#[path = "vacatorrent_protector.rs"]
+pub mod protector;
 #[path = "vacatorrent_search.rs"]
 mod search;
 #[path = "vacatorrent_shapes.rs"]
@@ -247,6 +249,14 @@ const TITLE: ReleaseTitleConfig = ReleaseTitleConfig {
 };
 
 impl SiteOutput for Vaca {
+    fn name(&self) -> &'static str {
+        "vacatorrent"
+    }
+
+    fn post_error_is_empty(&self) -> bool {
+        true
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         post_links_with(html, post_url, &VacaParseOptions::default())
     }

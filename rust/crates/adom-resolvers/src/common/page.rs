@@ -21,6 +21,10 @@ pub struct SitePost {
     pub date: Option<String>,
     #[serde(default)]
     pub year: Option<u32>,
+    /// Tipo do card da busca ("Série", "Filme"...) quando o site publica: o
+    /// Rede põe série na frente quando a query pede temporada.
+    #[serde(default)]
+    pub kind: Option<String>,
 }
 
 /// Um botão de um post, já com o índice e o total de botões do post.

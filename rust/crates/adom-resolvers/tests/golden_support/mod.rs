@@ -44,6 +44,7 @@ pub fn post_of(v: &Value) -> SitePost {
         poster: opt_str(&v["poster"]),
         date: opt_str(&v["date"]),
         year: opt_u32(&v["year"]),
+        kind: opt_str(&v["type"]),
     }
 }
 

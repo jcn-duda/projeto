@@ -134,6 +134,18 @@ fn utc_now() -> String {
 }
 
 impl SiteOutput for Apache {
+    fn name(&self) -> &'static str {
+        "apachetorrent"
+    }
+
+    fn search_posts(&self, html: &str, base_url: &str) -> Vec<SitePost> {
+        parse_search_posts(html, base_url)
+    }
+
+    fn post_error_is_empty(&self) -> bool {
+        true
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         Ok(parse::parse_post_magnets(html, post_url))
     }

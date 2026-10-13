@@ -111,6 +111,7 @@ pub fn parse_search_posts(html: &str, base_url: &str) -> Vec<SitePost> {
             .or_else(|| YEAR_PLAIN.captures(&text))
             .and_then(|c| c[1].parse::<u32>().ok());
         out.push(SitePost {
+            kind: None,
             title,
             url,
             poster: None,
