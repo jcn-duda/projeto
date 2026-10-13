@@ -4,6 +4,7 @@
 pub mod listing;
 pub mod mico;
 pub mod page_parser;
+pub mod policy;
 pub mod profile_parsers;
 pub mod season_page;
 pub mod shared;
@@ -12,6 +13,7 @@ pub mod vaca_series;
 pub mod work_name;
 
 pub use page_parser::*;
+pub use policy::*;
 pub use season_page::*;
 pub use sitemap::*;
 pub use vaca_series::*;
