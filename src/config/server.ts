@@ -30,6 +30,8 @@ export const server = () => ({
   // a rede e a escrita na conta continuam no Node. Valor desconhecido = off.
   rustDebrid: {
     file: rustMode(process.env.RUST_DEBRID_FILE),
+    // Veredito known/unusable a partir da resposta já obtida. Não refaz a API.
+    cache: rustMode(process.env.RUST_DEBRID_CACHE),
   },
 });
 

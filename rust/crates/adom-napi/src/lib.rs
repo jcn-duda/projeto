@@ -21,6 +21,8 @@
 //! | `hasPtSigns`              | `has_pt_signs`             | Sinais de português no título       |
 //! | `limitByIndexer`          | `limit_by_indexer`         | Cota por indexador                  |
 //! | `pickFile`                | `pick_file`                | Seletor de arquivo do debrid        |
+//! | `debridCacheVerdict`      | `debrid_cache_verdict`     | Veredito known/unusable do cache    |
+//! | `debridCacheCheckHonest`  | `debrid_cache_check_honest`| Flag cacheCheck do adaptador        |
 //!
 //! ## Responsabilidade
 //!
@@ -35,10 +37,12 @@ use napi_derive::napi;
 mod batch;
 mod crawl;
 mod debrid;
+mod debrid_cache;
 
 pub use crawl::*;
 // Reexporta o seletor: sem isto o clippy marca `#[napi]` do módulo privado como morto.
 pub use debrid::*;
+pub use debrid_cache::*;
 
 // ---------------------------------------------------------------------------
 // Structs de saída (espelham os tipos do adom-core com campos NAPI-compatible)

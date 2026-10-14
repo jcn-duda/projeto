@@ -10,6 +10,7 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import { notify } from '../utils/notify.js';
+import { noteDebridCacheHonest, shadowCacheVerdict } from '../utils/rust-debrid-cache.js';
 import { current } from './registry.js';
 
 // Consulta não abortável em andamento (hoje, AllDebrid). O passe tardio junta
@@ -110,7 +111,14 @@ function normalizeCacheResult(adapter: DebridAdapter, result: AdapterCacheRespon
       `[${adapter.id}] checagem de cache incompleta; tratando como "não sei" em vez de "não tem"`,
     );
   }
-  return { cached, known: complete };
+  const verdict = { cached, known: complete };
+  return shadowCacheVerdict({
+    form: result instanceof Set ? 'set' : 'object',
+    cached: [...cached],
+    complete: result instanceof Set ? null : (result?.complete ?? null),
+    failure: null,
+    message: '',
+  }, verdict);
 }
 
 function nonAbortableKey(adapter: DebridAdapter, apiKey: string, infoHashes: string[]) {
@@ -210,9 +218,16 @@ function nonAbortableCheck(
       // credencial recusada precisa ser reconhecida NESTE catch também — não
       // só no caminho abortável lá embaixo.
       const reason = unusableReason(err);
-      if (reason) return unusable(adapter, reason, err);
+      if (reason) {
+        const verdict = unusable(adapter, reason, err);
+        return shadowCacheVerdict({
+          form: 'object', cached: [], complete: null, failure: reason, message: verdict.unusable?.message || '',
+        }, verdict);
+      }
       log.warn(`[${adapter.id}] falha na checagem de cache:`, log.errorMessage(err));
-      return { cached: new Set(), known: false };
+      return shadowCacheVerdict({
+        form: 'object', cached: [], complete: null, failure: 'falha', message: '',
+      }, { cached: new Set(), known: false });
     });
   nonAbortableChecks.set(key, entry);
   entry.promise.then(({ known }: { known?: boolean }) => {
@@ -253,6 +268,7 @@ async function checkCached(
 ): Promise<CacheCheckResult> {
   const adapter = current();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
+  noteDebridCacheHonest(adapter.id, adapter.cacheCheck === true);
   if (!adapter.cacheCheck) return { cached: new Set(), known: false };
 
   // Tempo restante esgotado: degrada na hora, sem rede. É a MESMA semântica de
@@ -329,14 +345,22 @@ async function checkCached(
       result = normalizeCacheResult(adapter, await adapter.checkCached(apiKey, toAsk, fileHashes?.length ? { timeoutMs, fileHashes } : { timeoutMs }));
     } catch (err) {
       const reason = unusableReason(err);
-      if (reason) result = unusable(adapter, reason, err);
-      else if (isRateLimitError(err)) {
+      if (reason) {
+        const verdict = unusable(adapter, reason, err);
+        result = shadowCacheVerdict({
+          form: 'object', cached: [], complete: null, failure: reason, message: verdict.unusable?.message || '',
+        }, verdict);
+      } else if (isRateLimitError(err)) {
         metrics.count('debrid.rate_limit');
         log.warn(`[${adapter.id}] rate limit na checagem de cache (${err.message}); tentando de novo no passe tardio`);
-        result = { cached: new Set(), known: false };
+        result = shadowCacheVerdict({
+          form: 'object', cached: [], complete: null, failure: 'rate', message: '',
+        }, { cached: new Set(), known: false });
       } else {
         log.warn(`[${adapter.id}] falha na checagem de cache:`, err.message);
-        result = { cached: new Set(), known: false };
+        result = shadowCacheVerdict({
+          form: 'object', cached: [], complete: null, failure: 'falha', message: '',
+        }, { cached: new Set(), known: false });
       }
     }
   }

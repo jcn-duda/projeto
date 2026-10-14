@@ -19,6 +19,8 @@ import * as metrics from './metrics.js';
 import { installNormalizeTitle } from './title-normalization.js';
 import { installDebridPickHook } from './rust-debrid-pick.js';
 import type { PickCore } from './rust-debrid-pick.js';
+import { installDebridCacheHook } from './rust-debrid-cache.js';
+import type { CacheCore } from './rust-debrid-cache.js';
 import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
 
 /** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
@@ -71,7 +73,7 @@ export type CrawlCore = {
   parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
 };
 
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore>;
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore>;
 
 const _require = createRequire(import.meta.url);
 
@@ -147,19 +149,17 @@ function installTitle(core: NapiCore, mode: 'shadow' | 'on') {
 function install() {
   const titleMode = config.rustCore.mode;
   const fileMode = config.rustDebrid.file;
-  // Os dois off: não carrega o .node, como antes.
-  if (titleMode === 'off' && fileMode === 'off') return;
+  const cacheMode = config.rustDebrid.cache;
+  // Tudo off: não carrega o .node, como antes.
+  if (titleMode === 'off' && fileMode === 'off' && cacheMode === 'off') return;
   const file = config.rustCore.path || DEFAULT_PATH;
   const core = load(file);
   if (!core) return;
   loadedCore = core;
   if (titleMode !== 'off') installTitle(core, titleMode);
-  if (fileMode !== 'off') {
-    installDebridPickHook(() => loadedCore);
-    log.info(`[rust] núcleo carregado (${file}); pickFile em modo ${fileMode}`);
-  } else if (titleMode !== 'off') {
-    log.info(`[rust] núcleo carregado (${file})`);
-  }
+  if (fileMode !== 'off') installDebridPickHook(() => loadedCore);
+  if (cacheMode !== 'off') installDebridCacheHook(() => loadedCore);
+  log.info(`[rust] núcleo carregado (${file}); pickFile=${fileMode} cache=${cacheMode}`);
 }
 
 /**
