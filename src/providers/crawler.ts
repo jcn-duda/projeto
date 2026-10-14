@@ -13,7 +13,7 @@
 // site (`siteOverrides`); gate da sonda.
 import * as crawlerLive from '../utils/crawler-live.js';
 import * as store from '../utils/crawl-store.js';
-import type { CrawlEngine, SiteCounters } from '../utils/crawl-store.js';
+import type { CrawlEngine } from '../utils/crawl-store.js';
 import * as activity from './activity.js';
 import { createCrawlStepper } from './crawl-step.js';
 import * as recovery from './crawl-recovery.js';
@@ -25,7 +25,8 @@ import { cursorsView, primeCursors } from './crawl-cursor-load.js';
 import {
   cadenceDelayMs, knownSites, siteConfigOf, withCadence, type CrawlerEffectiveConfig, type CrawlerSiteConfig,
 } from '../utils/crawler-live-schema.js';
-import { readVerdict, probeGate, probeGateOpen } from './crawl-probe-gate.js';
+import { readVerdict, probeGate } from './crawl-probe-gate.js';
+import { selectDepsOf } from './crawl-select-deps.js';
 import {
   ensureRuntime, forgetRun, idleFractionOf, pauseSite, type SiteRuntime, type SiteRuntimeMap,
 } from './crawl-site-runtime.js';
@@ -35,7 +36,7 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { AutoPauseReason } from './crawl-pauses.js';
 import type { CrawlSite } from './crawl-types.js';
-import { applySkipReasons, skipReasonFor, type SelectDeps, type SiteCandidate } from './crawl-site-select.js';
+import { applySkipReasons, skipReasonFor, type SiteCandidate } from './crawl-site-select.js';
 import { pickBatch } from './crawl-dispatch.js';
 
 // --- Estado do motor ---------------------------------------------------------
@@ -66,29 +67,8 @@ function runtimeFor(id: string): SiteRuntime {
   return ensureRuntime(runtimes, id);
 }
 
-/** Contadores sem abrir o `crawl.db` (o status não pode abrir nada). */
-const EMPTY_COUNTERS: SiteCounters = {
-  total: 0,
-  byStatus: { pending: 0, inflight: 0, done: 0, 'no-torrent': 0, 'no-work': 0, error: 0, simulated: 0, partial: 0 },
-};
-
-/** A engine pode expor `hasDue` (consulta exata de vencido); até lá, contadores. */
-function hasDue(siteId: string, now: number): boolean {
-  const engine = store.currentEngine() as (CrawlEngine & { hasDue?: (s: string, n: number) => boolean }) | null;
-  if (engine && typeof engine.hasDue === 'function') return engine.hasDue(siteId, now);
-  const by = engine?.counters(siteId).byStatus ?? EMPTY_COUNTERS.byStatus;
-  return (by.pending || 0) + (by.error || 0) + (by.inflight || 0) + (by.partial || 0) > 0;
-}
-
-/** Deps da seleção — sempre sobre o SNAPSHOT do tick, nunca `effective()`. */
-function selectDeps(live: CrawlerEffectiveConfig): SelectDeps {
-  return {
-    counters: (id) => store.currentEngine()?.counters(id) ?? EMPTY_COUNTERS,
-    probeOpen: (id) => probeGateOpen(siteConfigOf(live, id).requireProbe, readVerdict(store.currentEngine(), id)),
-    globalCapHit: () => hourPages.current() >= live.maxPerHour,
-    hasDue,
-  };
-}
+/** Deps da seleção (em `crawl-select-deps.ts`): o teto agregado entra por closure. */
+const selectDepsFor = selectDepsOf(hourPages);
 
 // Timer rearmável: cadência viva = MENOR `delayMs` dos sites (`withCadence`);
 // o delay global atrasaria o site rápido.
@@ -97,6 +77,15 @@ const scheduler = createCrawlScheduler({
   tick: () => tick(),
   warn: (message) => log.warn('[crawl] tick falhou:', message),
   onDisabled: () => log.info('[crawl] desativado pela config ao vivo (enabled=false)'),
+});
+
+/** Timer do MODO RUST: SÓ os sites own_pace (Mico) — o sidecar é dono dos
+ *  demais e os exclui no claim. Ambos chamam o MESMO `tick()`, que roteia. */
+const ownPaceScheduler = createCrawlScheduler({
+  isStarted: () => started,
+  tick: () => tick(),
+  warn: (message) => log.warn('[crawl] tick ritmo-próprio falhou:', message),
+  onDisabled: () => log.info('[crawl] ritmo próprio desativado pela config ao vivo (enabled=false)'),
 });
 
 /** Resolve o adaptador do site e reflete o resultado no runtime dele. */
@@ -136,10 +125,15 @@ async function runSite(chosen: SiteCandidate): Promise<void> {
  */
 async function tick(): Promise<void> {
   const live = crawlerLive.effective();
+  // Roteamento por modo: em rust o sidecar é dono dos sites normais — o TS
+  // arma o timer RESTRITO aos own_pace (Mico), senão ele deixaria de ser
+  // raspado (o sidecar o recusa no claim). Um só `tick()`, clock certo.
+  const rust = config.crawl.crawlEngine === 'rust';
+  const clock = rust ? ownPaceScheduler : scheduler;
+  const ids = rust ? configuredSites(live).filter(registry.isOwnPace) : configuredSites(live);
   // Rearma antes de retorno precoce (cadência não fica presa a freio/pausa).
-  scheduler.rearm(withCadence(live));
+  clock.rearm(withCadence(live));
   if (!live.enabled || paused) return;
-  const ids = configuredSites(live);
   if (ids.length === 0) return;
   // O gate lê `crawl_state` e o store pode não estar aberto (boot desligado não
   // abre): sem abrir aqui, `probeOpen` veria `null` e barraria todo site com
@@ -147,7 +141,7 @@ async function tick(): Promise<void> {
   if (ids.some((id) => siteConfigOf(live, id).requireProbe) && !store.currentEngine()) store.engine();
   const { chosen, all, paced } = pickBatch({
     ids, inflight, maxParallel: config.crawl.maxParallel, flareSites: new Set(config.crawl.flareSites),
-    runtimeOf: runtimeFor, configOf: (id) => siteConfigOf(live, id), deps: selectDeps(live), now: Date.now(),
+    runtimeOf: runtimeFor, configOf: (id) => siteConfigOf(live, id), deps: selectDepsFor(live), now: Date.now(),
   });
   // Site que DEVE trabalho e não foi servido: "aguarda a vez" (ou o próprio
   // ritmo), não "sem trabalho" — a diferença que o painel precisa mostrar.
@@ -199,7 +193,9 @@ function onLiveConfigChange(): void {
     // recuperação `simulated` em toda mudança de config seguinte.
     rt.wasDryRun = cfg.dryRun;
   }
-  scheduler.sync(withCadence(live));
+  // O sync acompanha o MODO: sem isto uma virada de config ao vivo armaria
+  // o timer global em rust e duplicaria trabalho com o sidecar.
+  (config.crawl.crawlEngine === 'rust' ? ownPaceScheduler : scheduler).sync(withCadence(live));
 }
 
 /** Recuperações e cursores de um site no boot (processo novo). */
@@ -239,10 +235,12 @@ function start(): void {
     log.warn('[crawl] nenhum site configurado em CRAWL_SITES');
     return;
   }
-  // Motor Rust ativo: o sidecar assume o loop de descoberta/páginas. O TS
-  // não arma timer — apenas faz recovery de inflight (o sidecar vai processar).
+  // Motor Rust ativo: o sidecar é dono dos sites normais; o TS arma o timer
+  // SÓ do ritmo próprio (Mico) — o sidecar o exclui no claim e sem isto ele
+  // pararia de ser raspado (nenhum dos dois o processaria).
   if (config.crawl.crawlEngine === 'rust') {
-    log.info('[crawl] motor Rust ativo — sidecar assume o loop');
+    ownPaceScheduler.rearm(withCadence(live));
+    log.info(`[crawl] motor Rust ativo — sidecar assume o loop (TS: ritmo próprio=${ids.filter(registry.isOwnPace).join(',') || 'nenhum'})`);
     return;
   }
   scheduler.rearm(withCadence(live));
@@ -386,6 +384,7 @@ export function _forceDiscoveryForTest(siteId?: string): void {
 /** Estado limpo entre casos (o processo sobe `start()` uma vez só). */
 export function _resetForTest(): void {
   scheduler.disarm();
+  ownPaceScheduler.disarm();
   started = false;
   inflight.clear();
   paused = false;

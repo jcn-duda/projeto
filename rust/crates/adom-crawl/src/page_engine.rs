@@ -169,8 +169,10 @@ impl PageEngine for CrawlPageEngine {
             let Some(profile) = site_profiles::site_network_config(&row.site) else {
                 return PageOutcome::Failed(format!("site sem perfil de rede: {}", row.site));
             };
-            // 2. Mico (`own_pace`): recusar aqui degrada a fila sem gastar rede.
-            //    TODO(C6): adaptador dedicado com throttle e laço de episódios.
+            // 2. Mico (`own_pace`): CINTA DE SEGURANÇA. O dono é o motor TS e o
+            //    claim do store já o exclui (roteamento single-owner) — se isto
+            //    dispara, alguém reivindicou fora do caminho normal. Recusar
+            //    aqui degrada a fila SEM gastar rede (nunca deveria acontecer).
             if profile.own_pace {
                 return PageOutcome::Failed(format!(
                     "{}: ritmo próprio exige adaptador dedicado",

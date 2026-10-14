@@ -214,6 +214,38 @@ async fn tick_entrega_marca_done_e_cobra_o_custo_real() {
     assert_eq!(motor.status().await.pages_this_hour, 2);
 }
 
+/// Roteamento single-owner: o motor Rust NÃO processa site own_pace (Mico).
+/// O claim do store o exclui; se isto regredir, o engine recusaria a página e
+/// queimaria tentativa (incidente de 2026-10: ~300 páginas viraram erro).
+#[tokio::test]
+async fn tick_nao_reivindica_own_pace() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = dir.path().join("crawl.db");
+    let caminho = db.to_str().unwrap();
+    // Semeia a fila do Mico com o id real (o critério é o perfil de rede).
+    let mut mico = linha("tt0000001");
+    mico.site = "mico".to_string();
+    mico.url =
+        "https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0000001/".to_string();
+    {
+        let db_semente = CrawlStore::open(caminho).expect("abrir para semear");
+        db_semente.migrate().expect("migrar");
+        db_semente.upsert_urls("mico", &[mico]).expect("semear");
+    }
+
+    let posts = Arc::new(AtomicUsize::new(0));
+    let node = node_falso(posts.clone()).await;
+    let motor =
+        CrawlMotor::new(config(caminho, &node)).with_page_engine(EngineFake::pronta());
+
+    let outcome = motor.tick_once().await.expect("tick");
+    assert_eq!(outcome, TickOutcome::Skipped("sem-fila"));
+    let (status, tries, _) = ler_linha(caminho, "tt0000001");
+    assert_eq!(status, "pending", "fila do Mico fica intacta para o TS");
+    assert_eq!(tries, 0, "nenhuma tentativa queimada");
+    assert_eq!(posts.load(Ordering::SeqCst), 0, "nada entregue ao Node");
+}
+
 #[tokio::test]
 async fn tick_com_falha_dorme_com_backoff() {
     let dir = tempfile::tempdir().expect("tempdir");

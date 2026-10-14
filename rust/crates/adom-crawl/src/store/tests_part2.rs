@@ -152,7 +152,59 @@ fn take_next_batch_multiplos_sites() {
     }
 }
 
-// ─── requeue_errors ──────────────────────────────────────────────────────────
+// ─── roteamento own_pace (dono único: motor TS) ─────────────────────────
+
+/// Site real com ritmo próprio (o critério vem do perfil de rede, não do id).
+const OWN_PACE: &str = "mico";
+
+/// `take_next` nunca reivindica own_pace: o sidecar não é o dono dele e uma
+/// recusa do engine queimaria tentativa (incidente de 2026-10).
+#[test]
+fn take_next_recusa_own_pace() {
+    let (store, _dir) = temp_store();
+    store
+        .upsert_urls(OWN_PACE, &[sample_url("/crawl/movie/tt0000001/")])
+        .expect("upsert mico");
+
+    let none = store.take_next(OWN_PACE).expect("take mico");
+    assert!(none.is_none(), "own_pace não pode ser reivindicado pelo Rust");
+
+    // A fila fica intacta (pending, sem tentativa queimada) para o TS processar.
+    let c = store.counters(OWN_PACE).expect("counters mico");
+    assert_eq!(c.pending, 1);
+    assert_eq!(c.inflight, 0);
+}
+
+/// `take_next_batch` exclui own_pace SEM consumir vaga do limite: o Mico tem a
+/// fila mais antiga, então um recorte no SQL o põe no topo — sem o filtro, os
+/// sites normais perderiam vaga para quem não vai trabalhar.
+#[test]
+fn take_next_batch_exclui_own_pace_sem_gastar_vaga() {
+    let (store, _dir) = temp_store();
+    store
+        .upsert_urls(OWN_PACE, &[sample_url("/crawl/movie/tt0000001/")])
+        .expect("upsert mico");
+    store
+        .upsert_urls("site-a", &[sample_url("/a")])
+        .expect("upsert a");
+    store
+        .upsert_urls("site-b", &[sample_url("/b")])
+        .expect("upsert b");
+
+    let batch = store.take_next_batch(2).expect("batch");
+    let sites: Vec<&str> = batch.iter().map(|r| r.site.as_str()).collect();
+    assert!(
+        !sites.contains(&OWN_PACE),
+        "own_pace nunca entra no lote do sidecar"
+    );
+    assert_eq!(
+        batch.len(),
+        2,
+        "o limite é preenchido com os sites normais"
+    );
+}
+
+// ─── requeue_errors ────────────────────────────────────────────────────────
 
 /// `requeue_errors` reenfileira URLs com status error/no-work.
 #[test]

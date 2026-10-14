@@ -70,6 +70,13 @@ impl CrawlStore {
     /// Transação: SELECT da URL mais antiga due + UPDATE para 'inflight'.
     /// Retorna `None` se não há trabalho pendente.
     pub fn take_next(&self, site: &str) -> Result<Option<UrlRow>, StoreError> {
+        // Roteamento single-owner: site own_pace (Mico) é do MOTOR TS. O sidecar
+        // nunca o reivindica — o PageEngine o recusaria e a recusa queimaria
+        // tentativa (2026-10: ~300 páginas do Mico viraram erro assim). A fila
+        // fica intacta para o TS processar.
+        if crate::site_profiles::is_own_pace(site) {
+            return Ok(None);
+        }
         let now = now_ms();
         let tx = self.conn.unchecked_transaction()?;
 
@@ -111,18 +118,27 @@ impl CrawlStore {
         let tx = self.conn.unchecked_transaction()?;
 
         // Encontra sites com trabalho due, ordenados pelo next_at mais antigo.
+        // SEM `LIMIT` aqui: own_pace é excluído logo abaixo e o teto real
+        // (`limit`) é aplicado em Rust — se o Mico (fila antiga) estivesse no
+        // recorte do SQL, ele consumiria uma vaga sem trabalhar.
         let sites: Vec<String> = {
             let mut stmt = tx.prepare(
                 "SELECT site FROM crawl_url \
                  WHERE status = 'pending' AND next_at <= ?1 \
                  GROUP BY site \
-                 ORDER BY MIN(next_at) \
-                 LIMIT ?2",
+                 ORDER BY MIN(next_at)",
             )?;
-            let rows = stmt.query_map(params![now, limit as i64], |row| row.get(0))?;
+            let rows = stmt.query_map(params![now], |row| row.get(0))?;
             let collected: Result<Vec<_>, _> = rows.collect();
             collected?
         };
+        // Roteamento single-owner: sites own_pace são processados pelo motor TS;
+        // o sidecar fica só com os demais.
+        let sites: Vec<String> = sites
+            .into_iter()
+            .filter(|site| !crate::site_profiles::is_own_pace(site))
+            .take(limit)
+            .collect();
 
         let mut result = Vec::with_capacity(sites.len());
         {

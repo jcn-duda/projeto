@@ -191,6 +191,7 @@
     "test/crawl-step-cost.test.js",
     "test/crawl-step-deadline.test.js",
     "test/crawler.test.js",
+    "test/crawler-rust-own-pace.test.js",
     "test/crawler-incremental.test.js",
     "test/crawl-recorder.test.js",
     "test/crawl-recorder-integration.test.js",

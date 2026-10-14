@@ -14,7 +14,7 @@ pub use config::{
     SiteNetworkConfig, BASE_PROTECTOR_SUFFIXES, DEFAULT_MAX_HOPS, DEFAULT_TIMEOUT_MS,
     DEFAULT_USER_AGENT, FLARE_SESSION_TTL_MS,
 };
-pub use registry::{all_site_configs, all_site_ids, site_network_config};
+pub use registry::{all_site_configs, all_site_ids, is_own_pace, site_network_config};
 
 /// Monta uma `Allowlist` (do módulo `net`) a partir da config de rede de um site.
 ///

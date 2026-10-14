@@ -37,6 +37,15 @@ pub fn all_site_configs() -> Vec<&'static SiteNetworkConfig> {
     table.iter().collect()
 }
 
+/// O site tem ritmo próprio (ex.: Mico)?
+///
+/// Roteamento single-owner: o dono de um site `own_pace` é o MOTOR TS. O
+/// sidecar não o reivindica (`store::ops` filtra no claim), não processa nem
+/// o recusa — uma recusa queimaria tentativa de quem não vai trabalhar.
+pub fn is_own_pace(site_id: &str) -> bool {
+    site_network_config(site_id).is_some_and(|c| c.own_pace)
+}
+
 /// Lista de todos os `site_id` conhecidos.
 pub fn all_site_ids() -> Vec<&'static str> {
     vec![
