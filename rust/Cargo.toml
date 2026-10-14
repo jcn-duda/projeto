@@ -3,7 +3,13 @@
 # `adom-napi`: bindings NAPI-RS para o addon Node (cdylib).
 # `adom-resolvers`: servidor HTTP dos resolvers BR (axum).
 [workspace]
-members = ["crates/adom-core", "crates/adom-napi", "crates/adom-crawl", "crates/adom-resolvers"]
+members = [
+    "crates/adom-core",
+    "crates/adom-napi",
+    "crates/adom-crawl",
+    "crates/adom-resolvers",
+    "crates/adom-server",
+]
 resolver = "2"
 
 # A ponte NAPI captura panic; abort desligaria essa proteção do processo Node.

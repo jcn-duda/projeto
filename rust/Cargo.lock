@@ -69,6 +69,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-server"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "aead"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

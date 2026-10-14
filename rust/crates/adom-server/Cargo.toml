@@ -1,0 +1,17 @@
+[package]
+name = "adom-server"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Gateway HTTP do Adom. Com ROUTES_RUST vazio, só faz proxy para o Node."
+license = "UNLICENSED"
+
+[dependencies]
+axum = { version = "0.8", features = ["json"] }
+bytes = "1"
+http = "1"
+http-body-util = "0.1"
+hyper = "1"
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
