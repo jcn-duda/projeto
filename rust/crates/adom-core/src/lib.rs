@@ -18,6 +18,7 @@ pub mod config_encoding;
 mod crawl_store_rules;
 mod crawl_url_key;
 mod debrid;
+mod debrid_cache_verdict;
 mod decode_entities;
 mod dedupe_names;
 mod dk_seal;
@@ -96,6 +97,10 @@ pub use debrid::{
     base_name, is_site_ad, looks_multi_work_files, pick_code_label, pick_file, pick_work_file,
     work_coverage, DebridFile, EpisodeContext, EpisodeEvidence, PickCode, PickOutcome, PlayHint,
     WorkHint,
+};
+pub use debrid_cache_verdict::{
+    cache_check_honest, failure_reason, failure_verdict, normalize_cache_result, unusable_reason,
+    unusable_verdict, CacheAnswer, CacheVerdict, Unusable, UnusableReason,
 };
 
 // ── episode ───────────────────────────────────────────────────────────

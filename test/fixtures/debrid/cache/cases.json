@@ -1,0 +1,41 @@
+{
+  "normalize": [
+    { "id": "set-hashes", "form": "set", "cached": ["h1", "h2"] },
+    { "id": "set-mixed-case", "form": "set", "cached": ["AbC"] },
+    { "id": "set-dupes", "form": "set", "cached": ["h1", "h2", "h1"] },
+    { "id": "object-complete-true", "form": "object", "cached": ["h1"], "complete": true },
+    { "id": "object-complete-false", "form": "object", "cached": ["h1", "h2"], "complete": false },
+    { "id": "object-complete-omitted", "form": "object", "cached": ["h1"] },
+    { "id": "object-complete-null", "form": "object", "cached": ["h1"], "complete": null },
+    { "id": "object-dupes", "form": "object", "cached": ["h1", "h1"], "complete": true },
+    { "id": "empty-set-known-true", "form": "set", "cached": [] },
+    { "id": "empty-object-complete-true", "form": "object", "cached": [], "complete": true },
+    { "id": "empty-object-complete-false", "form": "object", "cached": [], "complete": false }
+  ],
+  "errors": [
+    { "id": "auth-class", "class": "AuthError", "message": "credencial recusada" },
+    { "id": "auth-message", "class": "Error", "message": "AUTH_BAD_APIKEY" },
+    { "id": "auth-invalid-key", "class": "Error", "message": "invalid api key" },
+    { "id": "quota-class", "class": "QuotaError", "message": "conta no teto" },
+    { "id": "quota-message", "class": "Error", "message": "MAGNET_TOO_MANY_ACTIVE" },
+    { "id": "quota-limit-reached", "class": "Error", "message": "quota exceeded" },
+    { "id": "quota-class-account-code", "class": "QuotaError", "message": "account_limit_reached" },
+    { "id": "plain-account-code-not-quota", "class": "Error", "message": "account_limit_reached" },
+    { "id": "rate-class", "class": "RateLimitError", "message": "rate_limit_reached" },
+    { "id": "rate-message", "class": "Error", "message": "too many requests" },
+    { "id": "rate-slow-down", "class": "Error", "message": "slow down" },
+    { "id": "rate-blocks-quota", "class": "RateLimitError", "message": "MAGNET_TOO_MANY_ACTIVE", "isQuotaError": true },
+    { "id": "auth-wins-over-rate", "class": "AuthError", "message": "forbidden", "isRateLimitError": true },
+    { "id": "generic", "class": "Error", "message": "socket hang up" },
+    { "id": "plain-cooldown-not-rate", "class": "Error", "message": "COOLDOWN_LIMIT" },
+    { "id": "rate-class-cooldown", "class": "RateLimitError", "message": "COOLDOWN_LIMIT" }
+  ],
+  "honest": [
+    { "id": "honest-premiumize", "service": "premiumize" },
+    { "id": "honest-torbox", "service": "torbox" },
+    { "id": "honest-alldebrid", "service": "alldebrid" },
+    { "id": "honest-debridlink", "service": "debridlink" },
+    { "id": "honest-realdebrid", "service": "realdebrid" },
+    { "id": "honest-unknown", "service": "outro" }
+  ]
+}

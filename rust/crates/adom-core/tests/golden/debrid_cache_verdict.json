@@ -1,0 +1,551 @@
+{
+  "oracle": "dist/src/debrid/cache-check.js",
+  "cases": [
+    {
+      "id": "set-hashes",
+      "op": "normalize",
+      "input": {
+        "form": "set",
+        "cached": [
+          "h1",
+          "h2"
+        ]
+      },
+      "expect": {
+        "cached": [
+          "h1",
+          "h2"
+        ],
+        "known": true
+      }
+    },
+    {
+      "id": "set-mixed-case",
+      "op": "normalize",
+      "input": {
+        "form": "set",
+        "cached": [
+          "AbC"
+        ]
+      },
+      "expect": {
+        "cached": [
+          "AbC"
+        ],
+        "known": true
+      }
+    },
+    {
+      "id": "set-dupes",
+      "op": "normalize",
+      "input": {
+        "form": "set",
+        "cached": [
+          "h1",
+          "h2",
+          "h1"
+        ]
+      },
+      "expect": {
+        "cached": [
+          "h1",
+          "h2"
+        ],
+        "known": true
+      }
+    },
+    {
+      "id": "object-complete-true",
+      "op": "normalize",
+      "input": {
+        "form": "object",
+        "cached": [
+          "h1"
+        ],
+        "complete": true
+      },
+      "expect": {
+        "cached": [
+          "h1"
+        ],
+        "known": true
+      }
+    },
+    {
+      "id": "object-complete-false",
+      "op": "normalize",
+      "input": {
+        "form": "object",
+        "cached": [
+          "h1",
+          "h2"
+        ],
+        "complete": false
+      },
+      "expect": {
+        "cached": [
+          "h1",
+          "h2"
+        ],
+        "known": false
+      }
+    },
+    {
+      "id": "object-complete-omitted",
+      "op": "normalize",
+      "input": {
+        "form": "object",
+        "cached": [
+          "h1"
+        ]
+      },
+      "expect": {
+        "cached": [
+          "h1"
+        ],
+        "known": true
+      }
+    },
+    {
+      "id": "object-complete-null",
+      "op": "normalize",
+      "input": {
+        "form": "object",
+        "cached": [
+          "h1"
+        ],
+        "complete": null
+      },
+      "expect": {
+        "cached": [
+          "h1"
+        ],
+        "known": true
+      }
+    },
+    {
+      "id": "object-dupes",
+      "op": "normalize",
+      "input": {
+        "form": "object",
+        "cached": [
+          "h1",
+          "h1"
+        ],
+        "complete": true
+      },
+      "expect": {
+        "cached": [
+          "h1"
+        ],
+        "known": true
+      }
+    },
+    {
+      "id": "empty-set-known-true",
+      "op": "normalize",
+      "input": {
+        "form": "set",
+        "cached": []
+      },
+      "expect": {
+        "cached": [],
+        "known": true
+      }
+    },
+    {
+      "id": "empty-object-complete-true",
+      "op": "normalize",
+      "input": {
+        "form": "object",
+        "cached": [],
+        "complete": true
+      },
+      "expect": {
+        "cached": [],
+        "known": true
+      }
+    },
+    {
+      "id": "empty-object-complete-false",
+      "op": "normalize",
+      "input": {
+        "form": "object",
+        "cached": [],
+        "complete": false
+      },
+      "expect": {
+        "cached": [],
+        "known": false
+      }
+    },
+    {
+      "id": "auth-class",
+      "op": "failure",
+      "input": {
+        "isAuthError": true,
+        "isQuotaError": false,
+        "isRateLimitError": false,
+        "message": "credencial recusada"
+      },
+      "expect": {
+        "unusableReason": "auth",
+        "failureReason": "auth",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "auth",
+            "message": "credencial recusada"
+          }
+        }
+      }
+    },
+    {
+      "id": "auth-message",
+      "op": "failure",
+      "input": {
+        "isAuthError": true,
+        "isQuotaError": false,
+        "isRateLimitError": false,
+        "message": "AUTH_BAD_APIKEY"
+      },
+      "expect": {
+        "unusableReason": "auth",
+        "failureReason": "auth",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "auth",
+            "message": "AUTH_BAD_APIKEY"
+          }
+        }
+      }
+    },
+    {
+      "id": "auth-invalid-key",
+      "op": "failure",
+      "input": {
+        "isAuthError": true,
+        "isQuotaError": false,
+        "isRateLimitError": false,
+        "message": "invalid api key"
+      },
+      "expect": {
+        "unusableReason": "auth",
+        "failureReason": "auth",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "auth",
+            "message": "invalid api key"
+          }
+        }
+      }
+    },
+    {
+      "id": "quota-class",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": true,
+        "isRateLimitError": false,
+        "message": "conta no teto"
+      },
+      "expect": {
+        "unusableReason": "quota",
+        "failureReason": "quota",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "quota",
+            "message": "conta no teto"
+          }
+        }
+      }
+    },
+    {
+      "id": "quota-message",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": true,
+        "isRateLimitError": false,
+        "message": "MAGNET_TOO_MANY_ACTIVE"
+      },
+      "expect": {
+        "unusableReason": "quota",
+        "failureReason": "quota",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "quota",
+            "message": "MAGNET_TOO_MANY_ACTIVE"
+          }
+        }
+      }
+    },
+    {
+      "id": "quota-limit-reached",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": true,
+        "isRateLimitError": false,
+        "message": "quota exceeded"
+      },
+      "expect": {
+        "unusableReason": "quota",
+        "failureReason": "quota",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "quota",
+            "message": "quota exceeded"
+          }
+        }
+      }
+    },
+    {
+      "id": "quota-class-account-code",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": true,
+        "isRateLimitError": false,
+        "message": "account_limit_reached"
+      },
+      "expect": {
+        "unusableReason": "quota",
+        "failureReason": "quota",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "quota",
+            "message": "account_limit_reached"
+          }
+        }
+      }
+    },
+    {
+      "id": "plain-account-code-not-quota",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": false,
+        "message": "account_limit_reached"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "falha",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "rate-class",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": true,
+        "message": "rate_limit_reached"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "rate",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "rate-message",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": true,
+        "message": "too many requests"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "rate",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "rate-slow-down",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": true,
+        "message": "slow down"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "rate",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "rate-blocks-quota",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": true,
+        "message": "MAGNET_TOO_MANY_ACTIVE"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "rate",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "auth-wins-over-rate",
+      "op": "failure",
+      "input": {
+        "isAuthError": true,
+        "isQuotaError": false,
+        "isRateLimitError": true,
+        "message": "forbidden"
+      },
+      "expect": {
+        "unusableReason": "auth",
+        "failureReason": "auth",
+        "verdict": {
+          "cached": [],
+          "known": false,
+          "unusable": {
+            "reason": "auth",
+            "message": "forbidden"
+          }
+        }
+      }
+    },
+    {
+      "id": "generic",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": false,
+        "message": "socket hang up"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "falha",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "plain-cooldown-not-rate",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": false,
+        "message": "COOLDOWN_LIMIT"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "falha",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "rate-class-cooldown",
+      "op": "failure",
+      "input": {
+        "isAuthError": false,
+        "isQuotaError": false,
+        "isRateLimitError": true,
+        "message": "COOLDOWN_LIMIT"
+      },
+      "expect": {
+        "unusableReason": null,
+        "failureReason": "rate",
+        "verdict": {
+          "cached": [],
+          "known": false
+        }
+      }
+    },
+    {
+      "id": "honest-premiumize",
+      "op": "honest",
+      "input": {
+        "service": "premiumize"
+      },
+      "expect": true
+    },
+    {
+      "id": "honest-torbox",
+      "op": "honest",
+      "input": {
+        "service": "torbox"
+      },
+      "expect": true
+    },
+    {
+      "id": "honest-alldebrid",
+      "op": "honest",
+      "input": {
+        "service": "alldebrid"
+      },
+      "expect": true
+    },
+    {
+      "id": "honest-debridlink",
+      "op": "honest",
+      "input": {
+        "service": "debridlink"
+      },
+      "expect": false
+    },
+    {
+      "id": "honest-realdebrid",
+      "op": "honest",
+      "input": {
+        "service": "realdebrid"
+      },
+      "expect": false
+    },
+    {
+      "id": "honest-unknown",
+      "op": "honest",
+      "input": {
+        "service": "outro"
+      },
+      "expect": false
+    }
+  ]
+}

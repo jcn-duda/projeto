@@ -369,5 +369,5 @@ async function checkCached(
   return result;
 }
 
-export { checkCached, noteAvailable, peekDavail, noteUnavailable, UNUSABLE, failureReason };
+export { checkCached, noteAvailable, peekDavail, noteUnavailable, UNUSABLE, failureReason, normalizeCacheResult, unusableReason };
 export type { CacheCheckResult };
