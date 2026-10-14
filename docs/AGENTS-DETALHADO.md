@@ -3436,6 +3436,42 @@ o orçamento com a resposta.
   (sessão quente) e o `/test-indexer.json` do card ficou verde. Os magnets
   voltaram a ser **diretos no HTML do post** (sem protetor). `bludvfilmes.net`
   e `bludv.to` continuam parkeados (ParkLogic) — inúteis como fallback.
+- **O BLUDV fechou no portão de anúncio (2026-10-13).** Os botões `Magnet-Link`
+  do post deixaram de publicar o link do protetor e passaram a apontar para
+  `https://bludvfilmes1.xyz/gate/go/<16 hex>?p=<id do post>` — hub que exige
+  ver/clicar um anúncio. Captura pelo FlareSolverr do container (a mesma sessão
+  do resolvedor): nos dois posts medidos (`batman-a-queda-do-morcego-parte-1…`
+  e `batman-cruzado-encapuzado-2a-temporada…`) não há UMA âncora
+  `systemads`/`videosad` e nenhum `magnet:` no HTML. A lista cai a 0 e o
+  sintoma é indistinguível de "site sem o título" — por isso o portão é
+  detectado e vira MOTIVO (warn no provider em processo, log do drop no
+  `/search` e 502 com `bludv: portão de anúncio` no `/resolve`), nunca 0
+  silencioso. **NÃO automatizar** o portão (é medição de clique/anúncio, fora
+  do escopo do addon). Detalhe que quebrou a primeira regex: o `<a>` real tem o
+  overlay do player injetado DENTRO dele
+  (`Magnet-Link<div class="eas-video-overlay-wrapper">…</div></a>`), então
+  exigir `</a>` logo após o rótulo casava só metade dos posts medidos. A
+  fixture `test/fixtures/bludv-gate-post.html` é trecho literal dessa captura.
+- **Erro de UM post do resolvedor BR não sobe até o HTTP.** O
+  `mapLimit` de `resolvers/concurrency.ts` captura a exceção, loga (`onError`, só
+  o bludv usa) e filtra o item — um post sem botão é rotina nos WordPress BR e
+  custaria os outros N-1. No port Rust o mesmo ramo é `post_error_is_empty`
+  (`sites/mod.rs`). Deixar a falha subir faz o `/search` devolver 502 e o
+  Jackett marcar o card como "The tracker seems to be down", que é pior que o
+  silêncio original: a fonte some da busca e do breaker como se estivesse morta.
+- **O feed `/api` do resolvedor existe em SEIS sites, não oito (2026-10-13).**
+  Só bludv, torrentdosfilmes, apachetorrent, hdrtorrents, redetorrent e nerdfilmes
+  importam `createApiRoute` (`resolvers/resolver-http.ts`) no seu mapa de rotas;
+  `comandotorrents.ts` e `vacatorrent.ts` não registram a rota — o TS devolve
+  `404 not_found` ali. O golden do port tem `rss` nesses seis e é fronteira
+  assumida nos outros dois (comentário no próprio oráculo). Medido ao vivo no
+  container: o binário Rust registra `/api` para todos os oito e, onde o perfil não
+  tem feed, cai no `empty_xml`/`caps_xml` genéricos de `adom-resolvers/src/callbacks.rs`
+  (inclusive com `\n` literal dentro da *raw string*, ou seja, XML com
+  barra-n-back barra-n) e devolve 200 onde o TS daria 404. Nenhum consumidor cai
+  aí: os cards Cardigann (`jackett-bludv/*.yml`) apontam apenas `/search` e
+  `/resolve`. É frente de trabalho aberta, não bug do pipeline — e o `caps` do TS
+  é por perfil (o do bludv/tdf difere da string genérica).
 - **O resolver bludv ganhou passagem pelo FlareSolverr** (para quando o site
   voltar): `fetchText` agora, ao receber 403 do Cloudflare, re-resolve via
   `POST <FLARE_SOLVERR_URL>/v1` e memoriza a sessão (`cf_clearance` + userAgent)
