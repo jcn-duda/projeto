@@ -10,6 +10,7 @@ use futures_util::stream::{self, StreamExt, TryStreamExt};
 use crate::common::{SearchItem, SitePost};
 use crate::profile::ResolverProfile;
 use crate::search_select;
+use crate::sites::bludv::gate_links::is_gate_url;
 use crate::sites::{site_output, SiteOutput};
 
 /// Posts abertos em paralelo: o `mapLimit` dos profiles TS (`concurrency = 3`).
@@ -111,6 +112,9 @@ impl ResolverProfile {
     ) -> Result<String, String> {
         let links = self.post_links(post_url).await?;
         let link = pick_button(&links, index, hash, count).ok_or("no_such_button")?;
+        if is_gate_url(&link.url, Some(post_url)) {
+            return self.resolve_gate(&link.url, post_url).await;
+        }
         self.resolve(&link.url).await
     }
 
@@ -121,7 +125,12 @@ impl ResolverProfile {
         links.sort_by_key(|l| std::cmp::Reverse(score_link(l)));
         let mut last_err = "no_links".to_string();
         for link in links {
-            match self.resolve(&link.url).await {
+            let res = if is_gate_url(&link.url, Some(post_url)) {
+                self.resolve_gate(&link.url, post_url).await
+            } else {
+                self.resolve(&link.url).await
+            };
+            match res {
                 Ok(magnet) => return Ok(magnet),
                 Err(e) => last_err = e,
             }

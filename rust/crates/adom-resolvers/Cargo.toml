@@ -21,3 +21,5 @@ regex = "=1.13.1"
 url = "=2.5.8"
 # Traits async (callbacks injetados por perfil, dyn-compatible).
 async-trait = "0.1"
+# UUID v4 para a sessao do solvedor (criada antes do request, como no TS).
+uuid = { version = "1", features = ["v4"] }

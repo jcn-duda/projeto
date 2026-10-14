@@ -28,7 +28,9 @@ use crate::vaca_series::{group_series_releases, GroupSeriesOptions, SeriesReleas
 use crate::work_name::read_work_title;
 
 use build::{build_parsed_outcome, build_release_from_link, parse_mico_content};
-use sites::{parse_bludv_links, parse_nerdfilmes_links, parse_tdf_links};
+use sites::{
+    bludv_has_gate_button, parse_bludv_links, parse_nerdfilmes_links, parse_tdf_links,
+};
 
 /// Normaliza o identificador do site para a chave padrão.
 pub fn canonical_site_id(site: &str) -> &'static str {
@@ -256,6 +258,15 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
                 _ => parse_download_links(content, Some(url), None, None),
             };
             if links.is_empty() {
+                // BLUDV: portao de anuncio nao resolvido NUNCA e "sem torrent"
+                // nem "done"; e erro retentavel honesto. A espera do anuncio
+                // so roda em /resolve//dl (resolver), nunca no indice.
+                if site_id == "bludv-cardigann" && bludv_has_gate_button(content) {
+                    return CrawlPageParsed::error(
+                        url,
+                        "bludv: portao de anuncio sem link resolvivel",
+                    );
+                }
                 return CrawlPageParsed::no_torrent(
                     url,
                     Some(title),

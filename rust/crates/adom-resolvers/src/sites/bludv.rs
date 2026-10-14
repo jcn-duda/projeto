@@ -23,7 +23,7 @@ use regex::Regex;
 use url::Url;
 
 use super::{host_matches, SiteOutput};
-use crate::common::collector::{parse_download_links, CollectorHooks, Resolved, Step};
+use crate::common::collector::{CollectorHooks, Resolved, Step};
 use crate::common::episode::{EpisodeRules, EpisodeScope, EpisodeStepConfig, PackMatchAll};
 use crate::common::http_date::http_date_now;
 use crate::common::rules::{
@@ -37,6 +37,14 @@ mod card;
 mod feed;
 #[path = "bludv_gate.rs"]
 mod gate;
+#[path = "bludv_gate_links.rs"]
+pub mod gate_links;
+#[path = "bludv_gate_transport.rs"]
+pub mod gate_transport;
+#[path = "bludv_gate_flow.rs"]
+pub mod gate_flow;
+#[path = "bludv_gate_real.rs"]
+pub mod gate_real;
 
 pub use card::{card_html, CardRow};
 pub use feed::{feed_with_date, parse_post_date};
@@ -105,7 +113,7 @@ fn is_protector_host(host: &str) -> bool {
     host_matches(host, BASE_PROTECTOR_SUFFIXES)
 }
 
-struct Hooks;
+pub struct Hooks;
 
 impl CollectorHooks for Hooks {
     fn anchor_re(&self) -> &FancyRegex {
@@ -310,7 +318,7 @@ impl SiteOutput for Bludv {
         // Fase 4: o portão de anúncio só vira motivo quando não sobrou botão, na
         // mesma ordem do TS (`assertNoAdGate` depois do parse). Errar com link
         // aproveitável presente faria o detector jogar fora release boa.
-        let links = parse_download_links(&Hooks, html, Some(post_url))?;
+        let links = gate_links::parse_gate_and_legacy_links(html, post_url)?;
         gate::assert_blocked(html, links.len())?;
         Ok(links)
     }

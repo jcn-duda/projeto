@@ -144,3 +144,95 @@ pub fn parse_tdf_links(html: &str) -> Vec<ResolverLink> {
     }
     out
 }
+
+// ─── portao de anuncio do BLUDV (deteccao honesta no raspador) ──────────────
+
+/// Hosts do BLUDV que publicam o portao de anuncios. Lista LOCAL ao gate do
+/// site: NAO e protetor global nem amplia allowlist compartilhada.
+const BLUDV_GATE_HOSTS: &[&str] = &[
+    "bludvfilmes.xyz",
+    "bludvfilmes1.xyz",
+    "bludv.net",
+    "bludv.xyz",
+    "bludv.to",
+];
+
+/// O href e um botao do portao? HTTPS, host do BLUDV, `/gate/go/<16hex>` e um
+/// unico `p` numerico; rejeita porta, credencial e fragmento.
+pub fn bludv_is_gate_button(href: &str) -> bool {
+    let Ok(u) = Url::parse(href) else {
+        return false;
+    };
+    if u.scheme() != "https"
+        || u.port().is_some()
+        || !u.username().is_empty()
+        || u.password().is_some()
+        || u.fragment().is_some()
+    {
+        return false;
+    }
+    let host = u.host_str().unwrap_or("");
+    if !BLUDV_GATE_HOSTS.contains(&host) {
+        return false;
+    }
+    let Some(rest) = u.path().strip_prefix("/gate/go/") else {
+        return false;
+    };
+    if rest.len() != 16 || !rest.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return false;
+    }
+    let pairs: Vec<_> = u.query_pairs().collect();
+    pairs.len() == 1
+        && pairs[0].0 == "p"
+        && !pairs[0].1.is_empty()
+        && pairs[0].1.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// A pagina tem ao menos um botao do portao? Usado para nao marcar post com
+/// portao nao resolvido como `no-torrent`/`done` no raspador.
+pub fn bludv_has_gate_button(html: &str) -> bool {
+    for tag in anchor_tags(html) {
+        let Some(raw) = href_of(&tag) else { continue };
+        if bludv_is_gate_button(&decode_entities(raw.trim())) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod gate_tests {
+    use super::*;
+
+    #[test]
+    fn reconhece_botao_do_portao() {
+        assert!(bludv_is_gate_button(
+            "https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609"
+        ));
+    }
+
+    #[test]
+    fn rejeita_variaveis_inseguras() {
+        for bad in [
+            "http://bludvfilmes1.xyz/gate/go/0646028353024d92?p=1",
+            "https://bludvfilmes1.xyz:8443/gate/go/0646028353024d92?p=1",
+            "https://user@bludvfilmes1.xyz/gate/go/0646028353024d92?p=1",
+            "https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=1#f",
+            "https://malware.example/gate/go/0646028353024d92?p=1",
+            "https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=1&x=2",
+            "https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=abc",
+            "https://bludvfilmes1.xyz/gate/go/ZZZZZZZZZZZZZZZZ?p=1",
+        ] {
+            assert!(!bludv_is_gate_button(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn pagina_so_portao_tem_botao_de_portao() {
+        let html = r#"<div class="downloads">
+            <a href="https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609" class="customButton">Baixar</a>
+        </div>"#;
+        assert!(bludv_has_gate_button(html));
+        assert!(parse_bludv_links(html).is_empty(), "portao nao e link coletavel");
+    }
+}
