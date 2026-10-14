@@ -32,6 +32,8 @@ export const server = () => ({
     file: rustMode(process.env.RUST_DEBRID_FILE),
     // Veredito known/unusable a partir da resposta já obtida. Não refaz a API.
     cache: rustMode(process.env.RUST_DEBRID_CACHE),
+    // Ledger e AIMD do Real-Debrid. O estado continua no Node.
+    rd: rustMode(process.env.RUST_DEBRID_RD),
   },
 });
 

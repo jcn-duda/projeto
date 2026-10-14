@@ -21,6 +21,8 @@ import { installDebridPickHook } from './rust-debrid-pick.js';
 import type { PickCore } from './rust-debrid-pick.js';
 import { installDebridCacheHook } from './rust-debrid-cache.js';
 import type { CacheCore } from './rust-debrid-cache.js';
+import { installDebridRdHook } from './rust-debrid-rd.js';
+import type { RdCore } from './rust-debrid-rd.js';
 import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
 
 /** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
@@ -73,7 +75,7 @@ export type CrawlCore = {
   parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
 };
 
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore>;
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore>;
 
 const _require = createRequire(import.meta.url);
 
@@ -150,8 +152,9 @@ function install() {
   const titleMode = config.rustCore.mode;
   const fileMode = config.rustDebrid.file;
   const cacheMode = config.rustDebrid.cache;
+  const rdMode = config.rustDebrid.rd;
   // Tudo off: não carrega o .node, como antes.
-  if (titleMode === 'off' && fileMode === 'off' && cacheMode === 'off') return;
+  if (titleMode === 'off' && fileMode === 'off' && cacheMode === 'off' && rdMode === 'off') return;
   const file = config.rustCore.path || DEFAULT_PATH;
   const core = load(file);
   if (!core) return;
@@ -159,7 +162,8 @@ function install() {
   if (titleMode !== 'off') installTitle(core, titleMode);
   if (fileMode !== 'off') installDebridPickHook(() => loadedCore);
   if (cacheMode !== 'off') installDebridCacheHook(() => loadedCore);
-  log.info(`[rust] núcleo carregado (${file}); pickFile=${fileMode} cache=${cacheMode}`);
+  if (rdMode !== 'off') installDebridRdHook(() => loadedCore);
+  log.info(`[rust] núcleo carregado (${file}); pickFile=${fileMode} cache=${cacheMode} rd=${rdMode}`);
 }
 
 /**

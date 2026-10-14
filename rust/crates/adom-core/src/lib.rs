@@ -104,9 +104,11 @@ pub use debrid_cache_verdict::{
     cache_check_honest, failure_reason, failure_verdict, normalize_cache_result, unusable_reason,
     unusable_verdict, CacheAnswer, CacheVerdict, Unusable,     UnusableReason,
 };
-pub use debrid_rd_gate::{admit, initial_state, next_grant, on_finished, on_rate_limit, on_success};
+pub use debrid_rd_gate::{
+    admit, initial_state, next_grant, on_finished, on_rate_limit, on_success, GateQueues, GateState,
+};
 pub use debrid_rd_ledger::{
-    ledger_key, next_on_blocked, next_on_hit, next_on_miss, normalize_hash, peek_state,
+    ledger_key, next_on_blocked, next_on_hit, next_on_miss, normalize_hash, peek_state, LedgerWrite,
 };
 
 // ── episode ───────────────────────────────────────────────────────────
