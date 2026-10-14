@@ -2,12 +2,18 @@
 // encaminha ao crawl-recorder. Rota SEM config (montada antes de /:userConfig
 // no register.ts). Autenticação: X-Indexer-Test-Token no header (mesmo token
 // do painel). Fail-open: erro no recorder responde 500 mas não derruba o
-// sidecar — o Rust trata o 5xx como temporário e retenta.
+// sidecar — o Rust trata o 5xx como temporário e retenta (motor/types.rs:
+// delivered=false → backoff até esgotar tries; 2xx é terminal).
+// Página sem IMDb com releases segue a MESMA semântica do motor Node
+// (crawl-page.ts): identifyWork no TMDB; 'unavailable' → 500 (retentável),
+// 'unidentified'/'ambiguous' → 200 terminal (obra errada é pior que nenhuma).
 import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
 import { recordCrawlReleases } from '../providers/crawl-recorder.js';
-import type { CrawlObra, CrawlObraLocation } from '../providers/crawl-recorder.js';
+import type { CrawlObra, CrawlObraLocation, CrawlRecorder } from '../providers/crawl-recorder.js';
+import { identifyWork } from '../providers/crawl-identify.js';
+import type { IdentifyInput, IdentifyResult } from '../providers/crawl-identify.js';
 import type { RawItem } from '../../types/domain.js';
 import * as log from '../utils/logger.js';
 
@@ -82,10 +88,28 @@ function toRawItem(site: string, r: RustRelease): RawItem {
 }
 
 /**
+ * Colaboradores da rota — trocáveis em teste pela MESMA via do motor Node
+ * (createPageProcessor): módulos ESM são namespaces congelados, então o teste
+ * prova o fio pelos parâmetros de registro e a produção usa os reais.
+ */
+export interface InternalCrawlCollaborators {
+  identify(input: IdentifyInput): Promise<IdentifyResult>;
+  record: CrawlRecorder['record'];
+}
+
+/**
  * Registra a rota POST /internal/crawl-result no router fornecido.
  * O maestro (register.ts) monta esta rota ANTES do overlay /:userConfig.
  */
-export function registerInternalCrawlResult(router: Router, services: AppServices): void {
+export function registerInternalCrawlResult(
+  router: Router,
+  services: AppServices,
+  overrides: Partial<InternalCrawlCollaborators> = {},
+): void {
+  const identify = overrides.identify ?? identifyWork;
+  const record = overrides.record
+    ?? ((...args: Parameters<CrawlRecorder['record']>) => recordCrawlReleases.record(...args));
+
   router.post('/internal/crawl-result',
     express.json({ limit: '512kb' }),
     asyncRoute(async (req, res) => {
@@ -113,15 +137,53 @@ export function registerInternalCrawlResult(router: Router, services: AppService
         return res.json({ ok: true, kept: 0, added: 0, note: body.status });
       }
 
-      // 4. Sem IMDb não há como gravar no índice (o recorder exige obra).
-      if (!body.imdb) {
-        log.info(`[internal-crawl] ${body.site} ${body.url_key}: sem IMDb (status=${body.status})`);
-        return res.json({ ok: true, kept: 0, added: 0, note: 'no-imdb' });
+      // 4. Sem IMDb: espelha o motor Node (crawl-page.ts "done" sem IMDb
+      //    ancorado → identifyWork). Página sem NENHUMA release a gravar não
+      //    consulta o TMDB (no motor, no-torrent não gasta identificação) e
+      //    mantém a nota de sempre.
+      const hasReleasesToRecord =
+        (body.groups || []).some((g) => (g.releases || []).length > 0) ||
+        (body.releases || []).length > 0;
+      let imdb = body.imdb;
+      if (!imdb) {
+        if (!hasReleasesToRecord) {
+          log.info(`[internal-crawl] ${body.site} ${body.url_key}: sem IMDb e sem release (status=${body.status})`);
+          return res.json({ ok: true, kept: 0, added: 0, note: 'no-imdb' });
+        }
+        // identifyWork é fail-open (nunca lança; rede → 'unavailable'), mas o
+        // try/catch garante que um bug não derrube a rota: cai no 500, que o
+        // sidecar reentrega com backoff.
+        let identification: IdentifyResult;
+        try {
+          identification = await identify({
+            type: body.kind === 'series' ? 'series' : 'movie',
+            title: String(body.title || ''),
+            year: body.year ?? null,
+          });
+        } catch (err) {
+          log.error(`[internal-crawl] ${body.site} ${body.url_key}: identify lançou:`, err);
+          return res.status(500).json({ ok: false, error: 'identify-indisponivel' });
+        }
+        if (identification.outcome === 'identified' && identification.imdb) {
+          imdb = identification.imdb;
+        } else if (identification.outcome === 'unavailable') {
+          // TMDB fora/timeout é retentável, NÃO é veredicto (crawl-page.ts
+          // "tmdb-indisponivel"): 500 → sidecar reentrega (from_work:
+          // delivered=false → backoff; esgota tries, sem laço infinito).
+          log.warn(`[internal-crawl] ${body.site} ${body.url_key}: identify indisponível (${identification.reason}); reentrega`);
+          return res.status(500).json({ ok: false, error: `identify-indisponivel:${identification.reason}` });
+        } else {
+          // 'unidentified'/'ambiguous': veredicto terminal do TMDB — obra errada
+          // é pior que nenhuma (crawl-page.ts marca no-work). 200 aqui: 500
+          // viraria retentativa infinita de uma resposta definitiva.
+          log.info(`[internal-crawl] ${body.site} ${body.url_key}: identify sem obra (${identification.reason})`);
+          return res.json({ ok: true, kept: 0, added: 0, note: `no-work:${identification.reason}` });
+        }
       }
 
       // 5. Converte para o formato do recorder.
       const obra: CrawlObra = {
-        imdb: body.imdb,
+        imdb,
         title: body.title ?? body.url_key,
         year: body.year,
         kind: body.kind === 'series' ? 'tv_show' : 'movie',
@@ -140,7 +202,7 @@ export function registerInternalCrawlResult(router: Router, services: AppService
               season: group.season ?? null,
               episode: group.episode ?? null,
             };
-            const report = await recordCrawlReleases.record(body.site, obra, releases, location);
+            const report = await record(body.site, obra, releases, location);
             totalKept += report.kept;
             totalAdded += report.added;
           }
@@ -149,7 +211,7 @@ export function registerInternalCrawlResult(router: Router, services: AppService
         // 6b. Releases avulsos (filme ou série sem grupos).
         const topLevel = (body.releases || []).map((r) => toRawItem(body.site, r));
         if (topLevel.length) {
-          const report = await recordCrawlReleases.record(body.site, obra, topLevel, {});
+          const report = await record(body.site, obra, topLevel, {});
           totalKept += report.kept;
           totalAdded += report.added;
         }

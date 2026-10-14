@@ -109,14 +109,16 @@ test('POST /internal/crawl-result: status done com IMDb válido → 200 { ok: tr
   }
 });
 
-test('POST /internal/crawl-result: sem IMDb → 200 com note=no-imdb', async () => {
+test('POST /internal/crawl-result: sem IMDb e sem release → 200 com note=no-imdb', async () => {
+  // Página sem NADA a gravar não consulta o TMDB (mesma semântica do motor:
+  // no-torrent não gasta identificação). O caso "sem IMDb MAS com releases"
+  // (identifyWork no TMDB) fica em internal-crawl-result-identify.test.ts.
   const res = await server.request('POST', '/internal/crawl-result', {
     headers: { 'X-Indexer-Test-Token': TOKEN },
     body: {
       url: 'https://teste.com/sem-imdb', url_key: 'sem-imdb', site: 'fake',
       status: 'done', imdb: null, title: 'Sem IMDb', year: null, kind: 'movie',
-      releases: [{ title: 'Test', magnet: null, link: null, size: null, seeders: null, tracker: null, is_br: false }],
-      groups: [], unlocated: [], progress: null,
+      releases: [], groups: [], unlocated: [], progress: null,
       request_cost: 1, error: '',
     },
   });
