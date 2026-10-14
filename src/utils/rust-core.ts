@@ -17,6 +17,8 @@ import config from '../config.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
 import { installNormalizeTitle } from './title-normalization.js';
+import { installDebridPickHook } from './rust-debrid-pick.js';
+import type { PickCore } from './rust-debrid-pick.js';
 import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
 
 /** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
@@ -69,7 +71,7 @@ export type CrawlCore = {
   parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
 };
 
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore>;
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore>;
 
 const _require = createRequire(import.meta.url);
 
@@ -92,7 +94,9 @@ function getMode(): 'off' | 'shadow' | 'on' {
 function load(file: string): NapiCore | null {
   try {
     const mod = _require(file) as Partial<NapiCore>;
-    if (typeof mod.normalizeTitle !== 'function') throw new Error('normalizeTitle ausente no módulo');
+    const hasTitle = typeof mod.normalizeTitle === 'function';
+    const hasPick = typeof mod.pickFile === 'function';
+    if (!hasTitle && !hasPick) throw new Error('normalizeTitle e pickFile ausentes no módulo');
     return mod as NapiCore;
   } catch (err) {
     log.warn(`[rust] núcleo não carregou (${file}); seguindo só com TS:`, log.errorMessage(err));
@@ -107,14 +111,11 @@ function logDiff(input: string, ts: string, rust: string) {
   log.warn(`[rust] normalizeTitle divergiu: entrada=${JSON.stringify(input)} ts=${JSON.stringify(ts)} rust=${JSON.stringify(rust)}`);
 }
 
-function install() {
-  const { mode } = config.rustCore;
-  if (mode === 'off') return;
-  const file = config.rustCore.path || DEFAULT_PATH;
-  const core = load(file);
-  if (!core) return;
-  loadedCore = core;
-
+function installTitle(core: NapiCore, mode: 'shadow' | 'on') {
+  if (typeof core.normalizeTitle !== 'function') {
+    log.warn('[rust] normalizeTitle ausente no núcleo; seguindo só com TS');
+    return;
+  }
   if (mode === 'shadow') {
     installNormalizeTitle((input, ts) => {
       const expected = ts(input);
@@ -140,7 +141,25 @@ function install() {
       }
     });
   }
-  log.info(`[rust] núcleo carregado (${file}); normalizeTitle em modo ${mode}`);
+  log.info(`[rust] normalizeTitle em modo ${mode}`);
+}
+
+function install() {
+  const titleMode = config.rustCore.mode;
+  const fileMode = config.rustDebrid.file;
+  // Os dois off: não carrega o .node, como antes.
+  if (titleMode === 'off' && fileMode === 'off') return;
+  const file = config.rustCore.path || DEFAULT_PATH;
+  const core = load(file);
+  if (!core) return;
+  loadedCore = core;
+  if (titleMode !== 'off') installTitle(core, titleMode);
+  if (fileMode !== 'off') {
+    installDebridPickHook(() => loadedCore);
+    log.info(`[rust] núcleo carregado (${file}); pickFile em modo ${fileMode}`);
+  } else if (titleMode !== 'off') {
+    log.info(`[rust] núcleo carregado (${file})`);
+  }
 }
 
 /**

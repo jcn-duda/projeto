@@ -217,7 +217,17 @@ function pickWorkFile(files: DebridFile[], { names, year }: { names?: string[]; 
   }
   return null;
 }
-function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {}) {
+// Gancho do núcleo Rust (`rust-debrid-pick.ts`), instalado só no boot do
+// processo. Sem ele, `pickFile` é o TS puro: teste e oráculo medem esta função.
+type PickFileFn = (files: DebridFile[], hint?: PlayHint) => DebridFile | null;
+type PickFileHook = (files: DebridFile[], hint: PlayHint | undefined, ts: PickFileFn) => DebridFile | null;
+let pickFileHook: PickFileHook | null = null;
+function installPickFile(hook: PickFileHook | null) { pickFileHook = hook; }
+function pickFile(files: DebridFile[], hint?: PlayHint): DebridFile | null {
+  return pickFileHook ? pickFileHook(files, hint, pickFilePure) : pickFilePure(files, hint);
+}
+function pickFilePure(files: DebridFile[], hint: PlayHint = {}) {
+  const { season, episode, work } = hint;
   let videos = files.filter((file) => VIDEO_EXT.test(file.path || '') && !SAMPLE.test(file.path || ''));
   if (videos.length === 0) {
     if (files.length > 0) throw new NoVideoError();
@@ -329,4 +339,4 @@ function pickFile(files: DebridFile[], { season, episode, work }: PlayHint = {})
   return videos.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
 }
 
-export { WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError, NoVideoError, isNoVideoError, DubLieError, isDubLieError, VIDEO_EXT, SAMPLE, EXTRA, isSiteAd, baseName, workCoverage, looksMultiWorkFiles, pickWorkFile, pickFile };
+export { WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError, NoVideoError, isNoVideoError, DubLieError, isDubLieError, VIDEO_EXT, SAMPLE, EXTRA, isSiteAd, baseName, workCoverage, looksMultiWorkFiles, pickWorkFile, pickFile, installPickFile };

@@ -26,6 +26,11 @@ export const server = () => ({
     // Teto de releases por busca no shadow em lote (`rust-shadow.ts`).
     shadowMaxPerSearch: num(process.env.RUST_CORE_SHADOW_MAX, 300),
   },
+  // Seletor de arquivo do debrid. Mesma escala do RUST_CORE, chave própria:
+  // a rede e a escrita na conta continuam no Node. Valor desconhecido = off.
+  rustDebrid: {
+    file: rustMode(process.env.RUST_DEBRID_FILE),
+  },
 });
 
 function rustMode(raw: unknown): 'off' | 'shadow' | 'on' {

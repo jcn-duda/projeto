@@ -17,6 +17,7 @@ mod collapse_acronyms;
 pub mod config_encoding;
 mod crawl_store_rules;
 mod crawl_url_key;
+mod debrid;
 mod decode_entities;
 mod dedupe_names;
 mod dk_seal;
@@ -89,6 +90,13 @@ pub use cache_quotas::{
 // ── config encoding / dk seal ─────────────────────────────────────────
 pub use config_encoding::{decode_config, encode_config, parse_segment, seal_segment};
 pub use dk_seal::{derive_dk_key, is_sealed, seal_dk, unseal_dk};
+
+// ── debrid file select ────────────────────────────────────────────────
+pub use debrid::{
+    base_name, is_site_ad, looks_multi_work_files, pick_code_label, pick_file, pick_work_file,
+    work_coverage, DebridFile, EpisodeContext, EpisodeEvidence, PickCode, PickOutcome, PlayHint,
+    WorkHint,
+};
 
 // ── episode ───────────────────────────────────────────────────────────
 pub use episode_matching::{is_season_pack_fill_eligible, is_season_pack_release, matches_episode};

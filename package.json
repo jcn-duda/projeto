@@ -503,6 +503,7 @@
     "test/comandotorrents-parser-titles.test.js",
     "test/debrid-pick-episodes.test.js",
     "test/debrid-pick-season-evidence.test.js",
+    "test/debrid-pick-rust-shadow.test.js",
     "test/br-resolvers-traversal.test.js",
     "test/debrid-rd-oracle-sources.test.js",
     "test/observability-first.test.js",

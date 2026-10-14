@@ -20,6 +20,7 @@
 //! | `brOriginMark`            | `br_origin_mark`           | Origem BR (site/PT/filme)           |
 //! | `hasPtSigns`              | `has_pt_signs`             | Sinais de português no título       |
 //! | `limitByIndexer`          | `limit_by_indexer`         | Cota por indexador                  |
+//! | `pickFile`                | `pick_file`                | Seletor de arquivo do debrid        |
 //!
 //! ## Responsabilidade
 //!
@@ -33,8 +34,11 @@ use napi_derive::napi;
 
 mod batch;
 mod crawl;
+mod debrid;
 
 pub use crawl::*;
+// Reexporta o seletor: sem isto o clippy marca `#[napi]` do módulo privado como morto.
+pub use debrid::*;
 
 // ---------------------------------------------------------------------------
 // Structs de saída (espelham os tipos do adom-core com campos NAPI-compatible)
