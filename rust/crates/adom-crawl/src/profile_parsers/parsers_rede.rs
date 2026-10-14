@@ -3,34 +3,20 @@
 //!
 //! O validador/extrator de magnet vem de `br_core::magnet` — não reimplemente
 //! aqui: a variante local era justamente uma das cópias que divergiam do TS.
+//! O `decode_entities` é o de `br_core::text` (15 nomes, `nbsp` = espaço
+//! comum), não o `adom_core::decode_entities` (tabela maior de
+//! `title-normalization.ts`): autoridade `redetorrent-parsers.ts:9` que importa
+//! `decodeEntities` de `../text.js`.
 
 use super::*;
-use adom_core::decode_entities;
+use crate::br_core::magnet::fmt_size;
 use regex::Regex;
 use std::sync::OnceLock;
 
+/// `extractMagnetHref` do TS (`redetorrent-parsers.ts:133-137`): magnet direto
+/// no href OU token systemads decodificado. Delega ao núcleo fiel.
 fn extract_redetorrent_magnet(href: &str) -> Option<String> {
-    let value = decode_entities(href.trim());
-    if is_valid_magnet_uri(&value) {
-        return Some(normalize_magnet_uri(&value));
-    }
-    // Token systemads (?token=base64)
-    if value.to_lowercase().contains("systemads") {
-        static RE_TOKEN: OnceLock<Regex> = OnceLock::new();
-        let re_token = RE_TOKEN.get_or_init(|| Regex::new(r#"[?&]token=([^&"']+)"#).unwrap());
-        if let Some(c) = re_token.captures(&value) {
-            let decoded_url =
-                crate::shared::decode_uri_component(&c[1]).unwrap_or_else(|| c[1].to_string());
-            let bytes = b64_decode(&decoded_url);
-            if let Ok(decoded_str) = String::from_utf8(bytes) {
-                let trimmed = decoded_str.trim();
-                if is_valid_magnet_uri(trimmed) {
-                    return Some(normalize_magnet_uri(trimmed));
-                }
-            }
-        }
-    }
-    None
+    crate::br_core::magnet::extract_magnet_href(href)
 }
 
 fn cell_text(row: &str, class_name: &str) -> String {

@@ -4,6 +4,12 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
+// O `decode_entities` aqui é o `adom_core::decode_entities` (tabela maior de
+// `src/utils/title-normalization.ts`). Autoridade: `crawl-sites/shared.ts:17`
+// importa `decodeEntities` de `../../utils/title-normalization.js` — a mesma
+// tabela grande. O `br_core::text::decode_entities` (15 nomes) NÃO basta aqui:
+// `parseOriginalTitle` precisa de `iacute`→`í` para casar o prefixo
+// "Título original:" (medido no teste `test_parse_original_title`).
 use adom_core::decode_entities;
 
 /// Sufixos de protetor de link (fonte única para crawl e futuros resolvers BR).

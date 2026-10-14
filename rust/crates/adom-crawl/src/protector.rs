@@ -3,7 +3,12 @@
 //! Loop de fetches com `redirect: manual`, extração de magnet e descoberta
 //! do próximo salto. Referência: `resolvers/transport.ts:76-176`.
 
-use adom_core::decode_entities;
+// O `decode_entities` aqui é o de `br_core::text` (15 nomes de
+// `resolvers/text.ts`). Autoridade: o protetor é chamado pelos profiles TS
+// (bludv, vaca, nerd, tdf, comando, rede) que passam `decodeEntities` de
+// `text.ts` como parâmetro. No Rust, a função é chamada sem parâmetro, então
+// usa o decoder rico (mesmo que todos os profiles TS usem).
+use crate::br_core::text::decode_entities;
 use regex::Regex;
 use reqwest::Client;
 use std::time::Duration;
@@ -118,7 +123,7 @@ pub fn extract_magnet(html: &str) -> Option<String> {
         .and_then(|cap| cap.get(1))
         .map(|m| m.as_str())
         .or_else(|| magnet_raw_re().find(html).map(|m| m.as_str()))?;
-    Some(normalize_magnet(&adom_core::decode_entities(found)))
+    Some(normalize_magnet(&decode_entities(found)))
 }
 
 fn normalize_magnet(v: &str) -> String {

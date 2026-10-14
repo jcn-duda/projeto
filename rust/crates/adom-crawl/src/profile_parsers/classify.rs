@@ -1,4 +1,9 @@
-use adom_core::decode_entities;
+// O `decode_entities` aqui é o de `br_core::text` (15 nomes de
+// `resolvers/text.ts`), não o `adom_core` (tabela maior de
+// `title-normalization.ts`). Autoridade: os profiles TS que usam
+// `stripTags`/`decodeEntities` de `text.ts` (bludv-parsers.ts:1-6,
+// redetorrent-parsers.ts:9, vacatorrent-parsers.ts).
+use crate::br_core::text::decode_entities;
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -147,13 +152,15 @@ pub fn normalize_source(context: &str) -> Option<&'static str> {
     last
 }
 
-/// Formata bytes como tamanho legível ("2.54 GB", "850 MB").
-pub fn fmt_size(bytes: Option<u64>) -> Option<String> {
+/// `fmtSize` (`redetorrent-parsers.ts:151-162`): bytes → "1.5 GB" (base 1024).
+/// Aceita `f64` para paridade com o `Number()` do TS (que converte qualquer
+/// valor, não só inteiro). Ausente, não finito ou não positivo é None.
+pub fn fmt_size(bytes: Option<f64>) -> Option<String> {
     let bytes = bytes?;
-    if bytes == 0 {
+    if !bytes.is_finite() || bytes <= 0.0 {
         return None;
     }
-    let b = bytes as f64;
+    let b = bytes;
     let units = ["KB", "MB", "GB", "TB"];
     let mut val = b;
     let mut unit = "B";

@@ -1,70 +1,33 @@
-use adom_core::decode_entities;
+//! Magnet do raspador: reexporta o núcleo fiel (`br_core::magnet`) e mantém
+//! `normalize_magnet_uri` (normalização própria do crawl: lowercase do scheme,
+//! espaços → `%20`, decode de entidades). O `extract_magnet` daqui é o do
+//! crawl (valida cada candidato com `is_valid_magnet_uri` e normaliza); o do
+//! `br_core::magnet::MagnetExtractor` é a factory fiel ao TS (sem validação).
+//!
+//! Divergências eliminadas (o código local NÃO aceitava o que o TS aceita):
+//! - `is_valid_magnet_uri`: só `magnet:`/`MAGNET:`/`Magnet:` literais → agora
+//!   usa regex `(?i)^magnet:` (qualquer caixa, como `bludv-parsers.ts:78`).
+//! - `magnet_params`: `xl` só `u64` decimal → agora `f64` com `js_number`
+//!   (como `redetorrent-parsers.ts:139-149`).
+//! - `extract_magnet`: usava o validador fraco → agora delega ao `br_core`.
+
+// Reexporta o núcleo fiel. `is_valid_magnet_uri`, `is_valid_btih_hash`,
+// `magnet_params`, `fmt_size`, `extract_magnet_href`, `decode_uri_strict` e
+// `b64_decode` passam a ser os do `br_core::magnet` (fiéis ao TS).
+pub use crate::br_core::magnet::{
+    b64_decode, decode_uri_strict, extract_magnet_href, is_valid_btih_hash, is_valid_magnet_uri,
+    magnet_params,
+};
+
 use regex::Regex;
 use std::sync::OnceLock;
 
-// ─── Magnet Helpers ─────────────────────────────────────────────────────────
-
-/// Hash btih válido: 40 hex ou 32 base32 (alfabeto A-Z2-7), case-insensitive.
-pub fn is_valid_btih_hash(hash: &str) -> bool {
-    let h = hash.trim();
-    if h.len() == 40 && h.chars().all(|c| c.is_ascii_hexdigit()) {
-        return true;
-    }
-    if h.len() == 32
-        && h.chars().all(|c| {
-            matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z')
-                && matches!(c, 'a'..='z' | 'A'..='Z' | '2'..='7')
-        })
-    {
-        return true;
-    }
-    false
-}
-
-/// Magnet direto só vale com parâmetro `xt=urn:btih:` de hash válido em qualquer posição.
-pub fn is_valid_magnet_uri(value: &str) -> bool {
-    let s = value.trim();
-    if !s.starts_with("magnet:") && !s.starts_with("MAGNET:") && !s.starts_with("Magnet:") {
-        return false;
-    }
-    let Some(q) = s.find('?') else {
-        return false;
-    };
-    let query = &s[q + 1..];
-    let mut found = false;
-    for param in query.split('&') {
-        let p = param.trim();
-        let stripped = if let Some(r) = p.strip_prefix("xt=") {
-            r
-        } else if let Some(r) = p.strip_prefix("XT=") {
-            r
-        } else if let Some(r) = p.strip_prefix("xt =") {
-            r
-        } else {
-            continue;
-        };
-        let val = stripped.trim();
-        let hash = if let Some(h) = val.strip_prefix("urn:btih:") {
-            h
-        } else if let Some(h) = val.strip_prefix("URN:BTIH:") {
-            h
-        } else {
-            continue;
-        };
-        let clean_hash = hash.split(';').next().unwrap_or(hash).trim();
-        if !is_valid_btih_hash(clean_hash) {
-            return false;
-        }
-        found = true;
-    }
-    found
-}
-
-/// Normaliza URI magnet: decodifica entidades HTML, garante `magnet:` minúsculo e
-/// substitui espaços no magnet por `%20`.
+/// Normaliza URI magnet: decodifica entidades HTML, garante `magnet:` minúsculo
+/// e substitui espaços no magnet por `%20`. Específico do crawl (o resolver não
+/// normaliza — usa o magnet como extraído).
 pub fn normalize_magnet_uri(value: &str) -> String {
     let trimmed = value.trim();
-    let decoded = decode_entities(trimmed);
+    let decoded = crate::br_core::text::decode_entities(trimmed);
     let with_lower = if decoded.len() >= 7 && decoded[..7].eq_ignore_ascii_case("magnet:") {
         format!("magnet:{}", &decoded[7..])
     } else {
@@ -87,58 +50,8 @@ pub fn normalize_magnet_uri(value: &str) -> String {
     out
 }
 
-/// Extrai parâmetros `dn` e `xl` de um URI magnet.
-pub fn magnet_params(magnet: &str) -> (String, Option<u64>) {
-    let Ok(parsed) = url::Url::parse(magnet) else {
-        return (String::new(), None);
-    };
-    let mut dn = String::new();
-    let mut xl = None;
-    for (k, v) in parsed.query_pairs() {
-        if k.eq_ignore_ascii_case("dn") {
-            dn = v.into_owned();
-        } else if k.eq_ignore_ascii_case("xl") {
-            xl = v.parse::<u64>().ok();
-        }
-    }
-    (dn, xl)
-}
-
-// ─── Base64 Decodificador ───────────────────────────────────────────────────
-
-fn base64_val(c: u8) -> Option<u8> {
-    match c {
-        b'A'..=b'Z' => Some(c - b'A'),
-        b'a'..=b'z' => Some(c - b'a' + 26),
-        b'0'..=b'9' => Some(c - b'0' + 52),
-        b'+' | b'-' => Some(62),
-        b'/' | b'_' => Some(63),
-        _ => None,
-    }
-}
-
-/// Decodifica Base64 tolerante (como `Buffer.from(s, 'base64')` do Node).
-pub fn b64_decode(s: &str) -> Vec<u8> {
-    let mut out = Vec::with_capacity(s.len() * 3 / 4);
-    let (mut acc, mut bits) = (0u32, 0u32);
-    for &c in s.as_bytes() {
-        if c == b'=' {
-            break;
-        }
-        let Some(v) = base64_val(c) else {
-            continue;
-        };
-        acc = ((acc << 6) | u32::from(v)) & 0xFFF;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-        }
-    }
-    out
-}
-
-/// Gate-2 do vacadb cujo `data-link` base64 decodifica para uma URL http(s).
+/// Gate-2 do vacadb cujo `data-link` base64 decodifica para uma URL http(s)
+/// — é download direto (Google Drive), não torrent.
 pub fn b64_data_link_is_http(html: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re =
@@ -156,10 +69,12 @@ pub fn b64_data_link_is_http(html: &str) -> bool {
     }
 }
 
-// ─── Extract Magnet Genérico ────────────────────────────────────────────────
+// ─── Extract Magnet Genérico (crawl) ────────────────────────────────────────
 
-/// Extrai magnet de HTML buscando variáveis JS, atributos customizados, base64 data-link,
-/// tags `<a href="magnet:...">`, ou menções diretas / codificadas.
+/// Extrai magnet de HTML buscando variáveis JS, atributos customizados, base64
+/// data-link, tags `<a href="magnet:...">`, ou menções diretas / codificadas.
+/// Cada candidato é validado com `is_valid_magnet_uri` (fiel ao TS) e
+/// normalizado com `normalize_magnet_uri` (específico do crawl).
 pub fn extract_magnet(html: &str) -> Option<String> {
     if html.is_empty() {
         return None;
