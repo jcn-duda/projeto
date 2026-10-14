@@ -80,25 +80,3 @@ pub(super) fn strip_tags_ts(value: &str) -> Result<String, String> {
         .collect::<Vec<_>>()
         .join(" "))
 }
-
-/// `decodeURIComponent` do JS: `%XX` precisa de dois hex e a sequência tem que ser UTF-8.
-pub(super) fn decode_uri_component(text: &str) -> Result<String, String> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' {
-            let hex = bytes
-                .get(i + 1..i + 3)
-                .filter(|h| h.iter().all(u8::is_ascii_hexdigit))
-                .ok_or("URIError: malformed")?;
-            let text = std::str::from_utf8(hex).map_err(|_| "URIError: malformed")?;
-            out.push(u8::from_str_radix(text, 16).map_err(|_| "URIError: malformed")?);
-            i += 3;
-        } else {
-            out.push(bytes[i]);
-            i += 1;
-        }
-    }
-    String::from_utf8(out).map_err(|_| "URIError: malformed utf-8".to_string())
-}

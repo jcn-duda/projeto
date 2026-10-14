@@ -6,7 +6,8 @@
 //! classificadores PRÓPRIOS (a fonte sai com `[. ]` trocado por `-`). O título
 //! usa a limpeza curta do próprio perfil. Todo `stripTags`/`href` do perfil
 //! decodifica com `decodeEntitiesBasic`, a variante histórica, não a rica do
-//! núcleo. O feed compacto não entra aqui: o profile não exporta `rssXml`.
+//! núcleo. O feed compacto com `<enclosure>` entra aqui pelo `br_core::rss_xml`
+//! (a data do `pubDate` é injetada para o golden ser reprodutível).
 
 use std::sync::LazyLock;
 
@@ -20,9 +21,12 @@ use url::Url;
 use super::{host_matches, SiteOutput};
 use crate::common::collector::{parse_download_links, CollectorHooks, Resolved, Step};
 use crate::common::episode::{EpisodeScope, EpisodeStepConfig, NARROW_EPISODE, NARROW_PACK_RESET};
+use crate::common::http_date::http_date_now;
 use crate::common::release::FB;
 use crate::common::rules::{attribute, compile, last_audio_marker, NERD_AUDIO, NERD_LEGENDADO};
-use crate::common::{release_title, search_page_html, ReleaseTitleConfig, SearchItem, SitePost};
+use crate::common::{
+    release_title, rss_xml, search_page_html, ReleaseTitleConfig, RssConfig, SearchItem, SitePost,
+};
 
 pub struct Tdf;
 
@@ -247,6 +251,28 @@ fn join_url(href: &str, base_url: &str) -> Option<String> {
     base.join(href).ok().map(|u| u.to_string())
 }
 
+/// Feed torznab compacto do tdf com a data de publicação injetada. O TS
+/// carimba `new Date().toUTCString()` em cada item; o oráculo congela o
+/// relógio e o Rust recebe a data por parâmetro para o golden ser reprodutível.
+pub fn feed_with_date(
+    self_url: &str,
+    items: &[SearchItem],
+    category: u32,
+    pub_date: &str,
+) -> String {
+    let cfg = RssConfig {
+        self_url,
+        channel_title: "TorrentDosFilmes V2",
+        title_of: &|post: &SitePost, link: &ResolverLink| release_title(&TITLE, post, link, None),
+        pub_date_of: &|_post: &SitePost| pub_date.to_string(),
+        with_description: false,
+        seeders_comment: None,
+        with_enclosure: true,
+        compact: true,
+    };
+    rss_xml(&cfg, items, category)
+}
+
 impl SiteOutput for Tdf {
     fn name(&self) -> &'static str {
         "torrentdosfilmes"
@@ -254,6 +280,12 @@ impl SiteOutput for Tdf {
 
     fn search_posts(&self, html: &str, base_url: &str) -> Vec<SitePost> {
         parse_search_posts(html, base_url)
+    }
+
+    /// Post que falha sai do lote (o TS engole no `mapLimit` compartilhado, sem
+    /// logar); um post quebrado não pode custar os outros N-1 da busca.
+    fn post_error_is_empty(&self) -> bool {
+        true
     }
 
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
@@ -272,5 +304,11 @@ impl SiteOutput for Tdf {
             &|_| String::new(),
             &|post| Some(post.title.clone()),
         )
+    }
+
+    fn rss_xml(&self, self_url: &str, items: &[SearchItem], category: u32) -> Option<String> {
+        // O `rss_xml` do trait usa o relógio real; o golden usa `feed_with_date`.
+        let now = http_date_now();
+        Some(feed_with_date(self_url, items, category, &now))
     }
 }

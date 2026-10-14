@@ -1,7 +1,8 @@
 //! Rede (`resolvers/profiles/redetorrent.ts + redetorrent-parsers.ts`). Os
 //! magnets vêm DIRETOS no HTML do post: não há protetor nem /resolve. Parsers
-//! em `redetorrent_parse.rs`, magnet em `redetorrent_magnet.rs`, página e feed
-//! em `redetorrent_feed.rs`. Paridade travada por `tests/redetorrent_golden.rs`.
+//! em `redetorrent_parse.rs` (que lê o magnet do núcleo `common::magnet`),
+//! página e feed em `redetorrent_feed.rs`. Paridade travada por
+//! `tests/redetorrent_golden.rs`.
 
 use std::sync::LazyLock;
 
@@ -14,8 +15,6 @@ use crate::common::{release_title, ReleaseTitleConfig, SearchItem, SitePost};
 
 #[path = "redetorrent_feed.rs"]
 mod feed;
-#[path = "redetorrent_magnet.rs"]
-mod magnet;
 #[path = "redetorrent_parse.rs"]
 mod parse;
 

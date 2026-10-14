@@ -34,6 +34,8 @@ await goldenRun({
   releaseTitle: (post, link, index) => site.releaseTitle(post, link, index),
   searchPageHtml: (items) => site.searchPageHtml(items),
   cleanTitle: (title) => site.cleanPostTitle(title),
+  // Feed multilinha sem <enclosure> — o profile agora exporta rssXml.
+  rssXml: (items, category) => site.rssXml(items, category),
 });
 
 // Datas: fixtures reais + casos sintéticos (precedência meta > JSON-LD, fuso,

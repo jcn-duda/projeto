@@ -10,14 +10,13 @@
 #[path = "apachetorrent_parse.rs"]
 mod parse;
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use adom_crawl::profile_parsers::ResolverLink;
 use adom_crawl::resolver_text::escape_xml;
 
 pub use parse::{extract_search_token, parse_search_posts};
 
 use super::SiteOutput;
+use crate::common::http_date::{http_date_now, http_date_secs};
 use crate::common::page::UNKNOWN_SIZE;
 use crate::common::{clean_post_title, release_title, ReleaseTitleConfig, SearchItem, SitePost};
 
@@ -96,41 +95,16 @@ pub fn feed_with_date(items: &[SearchItem], category: u32, pub_date: &str) -> St
     )
 }
 
-const WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS: [&str; 12] = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
 /// `Date.prototype.toUTCString()` de um instante em segundos desde a época:
-/// "Tue, 13 Oct 2026 12:00:00 GMT". Civil-from-days sem dependência de data.
+/// "Tue, 13 Oct 2026 12:00:00 GMT". Wrapper do núcleo `br_core::http_date`, que
+/// é a única implementação (o dia da semana é calculado, nunca fixo).
 pub fn utc_date(epoch_secs: i64) -> String {
-    let days = epoch_secs.div_euclid(86_400);
-    let secs = epoch_secs.rem_euclid(86_400);
-    // 1970-01-01 foi quinta-feira: índice 4 em WEEKDAYS.
-    let weekday = WEEKDAYS[(days + 4).rem_euclid(7) as usize];
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    let month_name = MONTHS[(month - 1) as usize];
-    format!(
-        "{weekday}, {day:02} {month_name} {year} {:02}:{:02}:{:02} GMT",
-        secs / 3_600,
-        secs % 3_600 / 60,
-        secs % 60
-    )
+    http_date_secs(epoch_secs)
 }
 
+/// `new Date().toUTCString()`: o relógio que o TS carimba em cada item.
 fn utc_now() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
-    utc_date(secs)
+    http_date_now()
 }
 
 impl SiteOutput for Apache {

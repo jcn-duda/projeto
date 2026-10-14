@@ -370,7 +370,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     matchesResolverQuery, normalizeSeasonValue, matchesSeasonSeason,
     selectSearchPosts, buttonId, pickButton, unwrapResolverUrl,
     isGenericListPost, cleanPostTitle, normalizeSource, scoreLink,
-    cache, inFlight, serveMain: bootstrap.serveMain,
+    cache, inFlight, rssXml, serveMain: bootstrap.serveMain,
   };
 }
 

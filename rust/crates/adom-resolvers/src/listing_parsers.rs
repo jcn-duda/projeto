@@ -1,7 +1,31 @@
-//! Parsers de listagem de busca por site BR.
+//! Parsers de listagem de busca por site BR — são o **default** do gancho
+//! `SiteOutput::search_posts`, não um caminho morto.
 //!
-//! Cada parser extrai posts (title + url + poster opcional) do HTML de busca.
-//! Portado de `resolvers/profiles/*-parsers.ts` — apenas a função de listagem.
+//! Cada parser extrai posts (title + url + poster opcional) do HTML de busca. Portado
+//! de `resolvers/profiles/*-parsers.ts` — apenas a função de listagem.
+//!
+//! Quem chega aqui:
+//! - `sites/mod.rs` (default de `search_posts`): despacha pelo `SiteOutput::name()`.
+//!   Dos oito sites, três NÃO sobrescrevem o gancho e herdam esta rota —
+//!   `comandotorrents`, `hdrtorrents` e `vacatorrent`.
+//! - `tests/comandotorrents_golden.rs`: chama `parse_listing_posts(SITE, ..)`
+//!   direto, travando o default contra o golden gerado do TS.
+//!
+//! No fluxo HTTP, porém, só o Comando alcança este dispatch: `items.rs` abre
+//! exceção para Apache, HDR e Vaca, que vão para `crate::flows` antes do gancho,
+//! e os demais sites têm parser próprio em `crate::sites`. Como o `name()` chega
+//! como string, o compilador não prova o ramo alcançável e `cargo clippy` não
+//! marca nada aqui — por isso os outros ramos (tdf, nerd, bludv, vaca, apache,
+//! hdr, rede) ficam cobertos pelos testes deste módulo e sobrevivem como
+//! registro do formato de cada site. Remover um deles é decisão de porte (exige
+//! comparar com o profile TS), não limpeza de código morto.
+//!
+//! O ramo do Vaca (`parse_vaca_posts`, que mora em `listing_vaca.rs` apenas para
+//! este arquivo caber no teto de 400 linhas) lê o JSON da busca AJAX. A rota viva
+//! do site é outra: `sites/vacatorrent_search.rs`, chamada por
+//! `crate::flows::vaca` — por isso o ramo do dispatch não é a fonte de verdade do
+//! Vaca, mas tampouco é morto: é o que `parse_listing_posts("vacatorrent", ..)`
+//! devolve, e `listing_parsers_tests.rs` o trava.
 
 use regex::Regex;
 use std::collections::HashSet;

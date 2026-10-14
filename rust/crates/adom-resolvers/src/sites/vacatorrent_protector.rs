@@ -12,22 +12,26 @@ use url::Url;
 
 use crate::common::release::FB;
 use crate::common::text::decode_entities;
+use crate::common::vaca::is_vaca_protector_host;
 use crate::sites::host_matches;
 
-/// Protetores do vaca: base do TS + `systemtech.space`.
-pub const VACA_PROTECTORS: &[&str] = &[
-    "systemads1.com",
-    "systemads.net",
-    "videosad.net",
-    "canalfutebol.com",
-    "temreceita.com",
-    "systemtech.space",
-];
-/// `ASSERT_ONLY_SUFFIXES`.
+/// Sufixos de protetor do vaca: a FONTE ÚNICA do crate
+/// (`adom-crawl/src/shared/protector_suffixes.rs`: a base do TS
+/// `resolvers/protector.ts:9-15` mais `systemtech.space`). A lista literal que
+/// havia aqui era uma segunda cópia da mesma régua e ficava para trás quando a
+/// base mudasse.
+fn vaca_protector_suffixes() -> impl Iterator<Item = &'static str> {
+    adom_crawl::shared::protector_suffixes::PROTECTOR_SUFFIXES
+        .iter()
+        .chain(adom_crawl::shared::protector_suffixes::VACA_EXTRA_PROTECTOR_SUFFIXES)
+        .copied()
+}
+/// `ASSERT_ONLY_SUFFIXES` (`vacatorrent-parsers.ts:51`): vale como salto, nunca
+/// como botão de download.
 pub const VACA_ASSERT_ONLY: &[&str] = &["t.co", "vacadb.org"];
 
 fn is_protector(host: &str) -> bool {
-    host_matches(host, VACA_PROTECTORS)
+    is_vaca_protector_host(host)
 }
 
 fn is_hop_host(host: &str) -> bool {
@@ -131,7 +135,7 @@ fn discover_next_url(html: &str, base: &str) -> Option<String> {
             }
         }
     }
-    let escaped: Vec<String> = VACA_PROTECTORS.iter().map(|s| regex::escape(s)).collect();
+    let escaped: Vec<String> = vaca_protector_suffixes().map(regex::escape).collect();
     let re = Regex::new(&format!(
         r#"(?i)https?://[^"'<>\s]*?(?:{})[^"'<>\s]*"#,
         escaped.join("|")

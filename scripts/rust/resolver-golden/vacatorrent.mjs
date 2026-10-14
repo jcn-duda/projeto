@@ -5,6 +5,13 @@
 // Saída: rust/crates/adom-resolvers/tests/golden/vacatorrent.json. Além do formato do
 // goldenRun, o campo `shapes` leva as funções de forma (link da página de botões,
 // URL do season-internal, cards de temporada e título do batch).
+//
+// SEM o caso `rss` (feed /api), pelo mesmo motivo do comando: o profile TS não
+// registra `createApiRoute` (só bludv, tdf, apache, hdr, rede e nerd registram).
+// Medido ao vivo no container (Rust em 8704): `/api?t=caps` e
+// `/api?t=movie&q=duna` devolvem 200 com o feed genérico do port, onde o TS
+// devolveria 404; `jackett-bludv/vacatorrent.yml` só consulta `/search` e
+// `/resolve`, então nada no pipeline cai nessa rota.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

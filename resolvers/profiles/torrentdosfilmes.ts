@@ -347,6 +347,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
     isNetworkError,
     postCache,
     inFlight,
+    rssXml,
     serveMain: bootstrap.serveMain,
   };
 }

@@ -10,6 +10,11 @@
 //!   de nomes é a curta, o `xt` aceita caixa e espaço, e a magnet não é
 //!   normalizada (só decodificada).
 //!
+//! O núcleo do `parseContentMagnets` (regex de `.download-row`, `classifyAudio`,
+//! `extractEpisodeFromName`, `dn` do magnet, `extractSizeFromTechSheet`) mora em
+//! `br_core::hdr` — compartilhado com o raspador. A listagem (`parseListingHtml`)
+//! e a página sintética ficam aqui porque são exclusivas do resolver.
+//!
 //! Divergências conhecidas e aceitas: `\s` das regex é o Unicode (o JS exclui
 //! U+0085 e inclui U+FEFF); entidade numérica de surrogate falha aqui (o JS
 //! produz um surrogate solto). Ambas ficam fora do golden.
@@ -23,7 +28,7 @@ use regex::Regex;
 use url::Url;
 
 use super::SiteOutput;
-use crate::common::rules::{normalize_quality, normalize_source};
+use crate::common::http_date::{http_date_now, http_date_secs};
 use crate::common::{
     clean_post_title, release_title, ReleaseTitleConfig, SearchItem, SitePost, UNKNOWN_SIZE,
 };
@@ -31,7 +36,7 @@ use crate::common::{
 #[path = "hdrtorrents_text.rs"]
 mod text;
 
-use text::{decode_entities_ts, decode_uri_component, strip_tags_ts};
+use text::{decode_entities_ts, strip_tags_ts};
 
 /// Card da listagem (`HDRWork` do TS).
 #[derive(Debug, Clone, PartialEq)]
@@ -49,7 +54,7 @@ pub struct Hdr;
 
 pub static HDR: Hdr = Hdr;
 
-// ─── regex (paridade com o JS: `\b` ASCII via `(?-u:\b)`, `\d` = `[0-9]`) ──
+// ─── regex da listagem (paridade com o JS) ─────────────────────────────────
 
 static BLOCK: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)<a(?-u:\b)[^>]*?(?-u:\b)href=["']([^"']+)["'][^>]*?(?-u:\b)class=["'][^"']*media-card-link[^"']*["'][^>]*>([\s\S]*?)</a>"#)
@@ -86,107 +91,6 @@ static KIND_SERIE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)s[ée]rie
 static KIND_DESENHO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)desenho|anima").expect("desenho"));
 static KIND_FILME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)filme").expect("filme"));
-
-static ROW_SPLIT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)<div[^>]*class=["'][^"']*download-row[^"']*["'][^>]*>"#).expect("linha")
-});
-static ROW_NAME: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)class=["'][^"']*download-name[^"']*"[^>]*>([\s\S]*?)</div"#)
-        .expect("nome da linha")
-});
-static ROW_MAGNET: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)<a(?-u:\b)[^>]*href=["'](magnet:[^"']+)["']"#).expect("magnet da linha")
-});
-static TECH_SIZE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)Tamanho[\s\S]{0,40}?([0-9.,]+\s*(?:TB|GB|MB|KB))").expect("tamanho")
-});
-
-// classifyAudio: roda sobre o texto em caixa-alta, como no TS.
-static AUDIO_LEG: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"LEGENDAD|\[\s*LEG\s*\]|\(\s*LEG\s*\)").expect("legendado"));
-static AUDIO_DUAL: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"DUAL[-\s]*[AÁ]UDIO|AUDIO[-\s]*DUPLO").expect("dual"));
-static AUDIO_DUB: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"DUBLAD|(?-u:\b)DUB(?-u:\b)|NACIONAL|PORTUGU[ÊE]S").expect("dublado")
-});
-static EP_SHORT: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?-u:\b)[Ee]([0-9]{1,3})(?-u:\b)").expect("ep"));
-static EP_WORD: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)EPIS[ÓO]DIO\s*([0-9]+)").expect("episódio"));
-static DN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)[?&]dn=([^&]+)").expect("dn"));
-static XT: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^xt\s*=\s*urn:btih:([^;&\s]+)").expect("xt"));
-
-// ─── magnet e áudio ───────────────────────────────────────────────────────
-
-/// `isValidBtihHash` do `bludv-parsers.ts`: 40 hex ou 32 base32.
-fn is_valid_btih(hash: &str) -> bool {
-    let h = hash.trim();
-    (h.len() == 40 && h.bytes().all(|b| b.is_ascii_hexdigit()))
-        || (h.len() == 32
-            && h.bytes()
-                .all(|b| b.is_ascii_alphabetic() || (b'2'..=b'7').contains(&b)))
-}
-
-/// `isValidMagnetUri` do `bludv-parsers.ts`: `xt=urn:btih:` válido em qualquer
-/// posição da query; `xt` e `urn:btih:` sem diferença de caixa.
-fn is_valid_magnet_ts(value: &str) -> bool {
-    if !value
-        .get(..7)
-        .is_some_and(|p| p.eq_ignore_ascii_case("magnet:"))
-    {
-        return false;
-    }
-    let Some(q) = value.find('?') else {
-        return false;
-    };
-    let mut found = false;
-    for param in value[q + 1..].split('&') {
-        let Some(caps) = XT.captures(param) else {
-            continue;
-        };
-        if !is_valid_btih(&caps[1]) {
-            return false;
-        }
-        found = true;
-    }
-    found
-}
-
-/// `classifyAudio` do HDR: DUAL vence DUBLADO ("DUBLADO DUAL AUDIO").
-fn classify_audio(context: &str) -> Option<&'static str> {
-    let text = context.to_uppercase();
-    if AUDIO_LEG.is_match(&text) {
-        Some("legendado")
-    } else if AUDIO_DUAL.is_match(&text) {
-        Some("dual")
-    } else if AUDIO_DUB.is_match(&text) {
-        Some("dublado")
-    } else {
-        None
-    }
-}
-
-/// `extractEpisodeFromName`: `E01` solto, senão `EPISÓDIO 12`.
-fn extract_episode(name: &str) -> Option<u32> {
-    EP_SHORT
-        .captures(name)
-        .or_else(|| EP_WORD.captures(name))
-        .and_then(|c| c[1].parse::<u32>().ok())
-}
-
-/// `dn=` do magnet, decodificado; ausente vira vazio.
-fn magnet_dn(magnet: &str) -> Result<String, String> {
-    match DN.captures(magnet) {
-        Some(caps) => decode_uri_component(&caps[1]),
-        None => Ok(String::new()),
-    }
-}
-
-/// `extractSizeFromTechSheet`: a ficha publica uma vez por obra, em `<dd>`.
-fn tech_sheet_size(html: &str) -> Option<String> {
-    TECH_SIZE.captures(html).map(|c| c[1].replacen(',', ".", 1))
-}
 
 // ─── parsers ──────────────────────────────────────────────────────────────
 
@@ -267,48 +171,6 @@ pub fn parse_listing_html(html: &str, base_url: &str) -> Result<Vec<HdrWork>, St
     Ok(out)
 }
 
-/// `parseContentMagnets(html)`: uma linha `.download-row` por magnet direto.
-fn parse_content_magnets(html: &str) -> Result<Vec<ResolverLink>, String> {
-    if html.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut out = Vec::new();
-    for row in ROW_SPLIT.split(html).skip(1) {
-        let name = match ROW_NAME.captures(row) {
-            Some(c) => strip_tags_ts(&c[1])?,
-            None => String::new(),
-        };
-        let Some(caps) = ROW_MAGNET.captures(row) else {
-            continue;
-        };
-        let magnet = decode_entities_ts(&caps[1])?;
-        if !is_valid_magnet_ts(&magnet) {
-            continue;
-        }
-        let dn = magnet_dn(&magnet)?;
-        out.push(ResolverLink {
-            quality: normalize_quality(&name).or_else(|| normalize_quality(&dn)),
-            size: None,
-            audio: classify_audio(&name).map(String::from),
-            episode: extract_episode(&name),
-            episode_last: None,
-            season: None,
-            source: normalize_source(&name).or_else(|| normalize_source(&dn)),
-            real_title: None,
-            description: (!name.is_empty()).then(|| name.clone()),
-            url: magnet,
-        });
-    }
-    if let Some(size) = tech_sheet_size(html) {
-        for link in &mut out {
-            if link.size.is_none() {
-                link.size = Some(size.clone());
-            }
-        }
-    }
-    Ok(out)
-}
-
 // ─── saída ────────────────────────────────────────────────────────────────
 
 /// Áudio do botão no título: DUBLADO, DUAL ou LEGENDADO (sem tamanho na tag).
@@ -326,6 +188,43 @@ const TITLE: ReleaseTitleConfig = ReleaseTitleConfig {
     audio_tag_of: Some(audio_tag),
     ..ReleaseTitleConfig::new(clean_post_title)
 };
+
+/// Feed torznab do HDR com a data de publicação injetada (paridade com
+/// `apachetorrent::feed_with_date`). O `hdrRssXml` do TS carimba
+/// `new Date().toUTCString()` em cada item; para o golden ser reprodutível,
+/// a data entra por parâmetro.
+pub fn feed_with_date(items: &[SearchItem], category: u32, pub_date: &str) -> String {
+    let body: String = items
+        .iter()
+        .map(|item| {
+            let title = escape_xml(&release_title(
+                &TITLE,
+                &item.post,
+                &item.link,
+                Some(item.index),
+            ));
+            let link = escape_xml(&item.link.url);
+            let comments = escape_xml(&item.post.url);
+            format!(
+                r#"<item><title>{title}</title><guid isPermaLink="false">{link}</guid><link>{link}</link><comments>{comments}</comments><pubDate>{pub_date}</pubDate><size>0</size><category>{category}</category><torznab:attr name="category" value="{category}"/><torznab:attr name="size" value="0"/><torznab:attr name="seeders" value="1"/><torznab:attr name="peers" value="1"/><torznab:attr name="downloadvolumefactor" value="0"/><torznab:attr name="uploadvolumefactor" value="1"/></item>"#
+            )
+        })
+        .collect();
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><title>HDR Torrents</title>{body}</channel></rss>"#
+    )
+}
+
+/// `Date.prototype.toUTCString()` — wrapper do núcleo `br_core::http_date`.
+/// Fica público porque `tests/hdrtorrents_golden.rs` o usa como asserts.
+pub fn utc_date(epoch_secs: i64) -> String {
+    http_date_secs(epoch_secs)
+}
+
+/// `new Date().toUTCString()`: o relógio que o TS carimba em cada item.
+fn utc_now() -> String {
+    http_date_now()
+}
 
 /// Página sintética do Cardigann: o href de cada linha É o magnet (sem /resolve).
 /// Não usa o `search_page_html` do núcleo: o layout tem a linha `post` e o
@@ -369,7 +268,8 @@ impl SiteOutput for Hdr {
     }
 
     fn post_links(&self, html: &str, _post_url: &str) -> Result<Vec<ResolverLink>, String> {
-        parse_content_magnets(html)
+        // Delega ao núcleo compartilhado (`br_core::hdr`, via fachada `common`).
+        Ok(crate::common::hdr::parse_content_magnets(html))
     }
 
     fn release_title(&self, post: &SitePost, link: &ResolverLink, index: Option<usize>) -> String {
@@ -378,5 +278,9 @@ impl SiteOutput for Hdr {
 
     fn search_page_html(&self, _self_url: &str, items: &[SearchItem]) -> String {
         search_page(items)
+    }
+
+    fn rss_xml(&self, _self_url: &str, items: &[SearchItem], category: u32) -> Option<String> {
+        Some(feed_with_date(items, category, &utc_now()))
     }
 }

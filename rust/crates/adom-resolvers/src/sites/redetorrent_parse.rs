@@ -11,7 +11,7 @@ use adom_crawl::profile_parsers::ResolverLink;
 use regex::Regex;
 use url::Url;
 
-use super::magnet::{extract_magnet_href, fmt_size, magnet_params};
+use crate::common::magnet::{extract_magnet_href, fmt_size, magnet_params};
 use crate::common::rules::{normalize_quality, normalize_source};
 use crate::common::SitePost;
 

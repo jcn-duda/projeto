@@ -13,8 +13,8 @@ use crate::common::{SearchItem, SitePost};
 use crate::profile::ResolverProfile;
 use crate::search_select;
 use crate::sites::vacatorrent::{
-    extract_batch_title, extract_movie_links, parse_search_json, parse_season_internal,
-    post_links_with, series_season_internal_url, VacaParseOptions, VacaWork,
+    extract_batch_title, extract_movie_links, filter_season_cards, parse_search_json,
+    parse_season_internal, post_links_with, series_season_internal_url, VacaParseOptions, VacaWork,
 };
 use crate::sites::{site_output, SiteOutput};
 
@@ -45,10 +45,13 @@ async fn series_links(
         return Ok(Vec::new());
     };
     let internal = profile.post_html(&internal_url).await?;
-    let cards: Vec<_> = parse_season_internal(&internal, Some(&internal_url))
-        .into_iter()
-        .filter(|c| season.is_none() || c.season.is_none() || c.season == season)
-        .collect();
+    // `filterSeasonCards` (`vacatorrent-shapes.ts:82-89`): sem temporada pedida
+    // ficam todos os cards; com pedida, batches e cards sem temporada ficam e as
+    // outras temporadas caem. É a regra do núcleo, não uma cópia daqui.
+    let cards = filter_season_cards(
+        &parse_season_internal(&internal, Some(&internal_url)),
+        season,
+    );
     let mut out = Vec::new();
     let mut incomplete = None;
     for card in cards {

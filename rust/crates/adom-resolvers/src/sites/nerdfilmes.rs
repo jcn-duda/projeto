@@ -2,8 +2,8 @@
 //! `nerdfilmes-feeds.ts`). Saída: botões do post pelo `createLinkCollector`
 //! (âncora sem `advance`, par estreito de pack/episódio com faixa, áudio
 //! `NERD_*`, qualidade/fonte próprias), título da release e a página do
-//! Cardigann com a data do post (`escapeXml`). O feed torznab fica de fora: o
-//! TS não o exporta pelo objeto do profile (`rssXml` não está em `server.ts`).
+//! Cardigann com a data do post (`escapeXml`). O feed torznab multilinha
+//! (sem `<enclosure>`) entra aqui pelo `br_core::rss_xml`.
 
 #[path = "nerdfilmes_parse.rs"]
 mod parse;
@@ -21,9 +21,12 @@ use url::Url;
 use super::{host_matches, SiteOutput};
 use crate::common::collector::{parse_download_links, CollectorHooks, Resolved, Step};
 use crate::common::episode::{EpisodeScope, EpisodeStepConfig, NARROW_EPISODE, NARROW_PACK_RESET};
+use crate::common::http_date::{days_from_civil, http_date};
 use crate::common::release::FB;
 use crate::common::rules::{compile, last_audio_marker, NERD_AUDIO, NERD_LEGENDADO};
-use crate::common::{release_title, search_page_html, ReleaseTitleConfig, SearchItem, SitePost};
+use crate::common::{
+    release_title, rss_xml, search_page_html, ReleaseTitleConfig, RssConfig, SearchItem, SitePost,
+};
 
 pub use parse::{parse_post_date, parse_search_posts};
 pub use text::clean_nerd_post_title;
@@ -158,6 +161,84 @@ fn date_row(post: &SitePost) -> String {
     }
 }
 
+/// Extrai o primeiro ano (19xx/20xx) do título. `\b` e `\d` restritos a ASCII
+/// pela regra de paridade com o JS (`(?-u:\b)`, `[0-9]`).
+fn extract_year(title: &str) -> Option<u32> {
+    static YEAR_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?-u:\b)((?:19|20)[0-9]{2})(?-u:\b)").expect("ano do título")
+    });
+    YEAR_RE.find(title).and_then(|m| m.as_str().parse().ok())
+}
+
+/// Milissegundos de um dia: o `Date.UTC` do JS trabalha em ms.
+const DAY_MS: i64 = 86_400_000;
+
+/// Parse ISO 8601 em ms desde a época (o mesmo subconjunto do `iso_from_js_date`
+/// do `nerdfilmes_parse.rs`, mas sem converter para ISO de saída). O JS aceita
+/// `2024-05-01T10:00:00.000Z`, `2024-05-01T10:00:00-03:00`, `2023-01-02` etc.
+fn parse_iso_to_ms(date: &str) -> Option<i64> {
+    static ISO: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"^([0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2}))?)?(?:T([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.([0-9]+))?)?(Z|[+-][0-9]{2}:[0-9]{2})?)?$",
+        )
+        .expect("iso")
+    });
+    let caps = ISO.captures(date)?;
+    let num = |i: usize, default: i64| -> i64 {
+        caps.get(i)
+            .map_or(default, |m| m.as_str().parse().unwrap_or(default))
+    };
+    let (y, mo, d) = (num(1, 1970), num(2, 1), num(3, 1));
+    let (h, mi, s) = (num(4, 0), num(5, 0), num(6, 0));
+    let ms_frac = caps.get(7).map_or(0, |m| {
+        let digits: String = m.as_str().chars().take(3).collect();
+        format!("{digits:0<3}").parse::<i64>().unwrap_or(0)
+    });
+    if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 24 || mi > 59 || s > 59 {
+        return None;
+    }
+    let offset_ms = match caps.get(8).map(|m| m.as_str()) {
+        None | Some("Z") => 0,
+        Some(off) => {
+            let sign = if off.starts_with('-') { -1 } else { 1 };
+            let hh: i64 = off[1..3].parse().ok()?;
+            let mm: i64 = off[4..6].parse().ok()?;
+            sign * (hh * 60 + mm) * 60_000
+        }
+    };
+    Some(
+        days_from_civil(y, mo, d) * DAY_MS + h * 3_600_000 + mi * 60_000 + s * 1000 + ms_frac
+            - offset_ms,
+    )
+}
+
+/// `pubDate` formatado como HTTP date (o TS chama `.toUTCString()`).
+fn pub_date_http(post: &SitePost) -> String {
+    if let Some(date) = post.date.as_deref().filter(|d| !d.is_empty()) {
+        if let Some(ms) = parse_iso_to_ms(date) {
+            return http_date(ms);
+        }
+    }
+    let year = extract_year(&post.title).unwrap_or(2000);
+    // `new Date(Date.UTC(year, 0, 1)).toUTCString()` — 1 Jan, 00:00:00 UTC.
+    http_date(days_from_civil(i64::from(year), 1, 1) * DAY_MS)
+}
+
+/// `rssXml`: feed torznab multilinha sem `<enclosure>`.
+fn nerdfilmes_rss_xml(self_url: &str, items: &[SearchItem], category: u32) -> String {
+    let cfg = RssConfig {
+        self_url,
+        channel_title: "NerdFilmesTorrent / XNerdFilmes",
+        title_of: &|post: &SitePost, link: &ResolverLink| release_title(&TITLE, post, link, None),
+        pub_date_of: &|post: &SitePost| pub_date_http(post),
+        with_description: false,
+        seeders_comment: None,
+        with_enclosure: false,
+        compact: false,
+    };
+    rss_xml(&cfg, items, category)
+}
+
 impl SiteOutput for Nerd {
     fn name(&self) -> &'static str {
         "nerdfilmes"
@@ -169,6 +250,13 @@ impl SiteOutput for Nerd {
 
     fn post_date(&self, html: &str) -> Option<String> {
         parse_post_date(html)
+    }
+
+    /// Mesma regra do TS: o `mapLimit` compartilhado engole o post que falha e a
+    /// busca segue com os outros. O nerd não loga a falha (só o bludv tem
+    /// `onError`); aqui o log do drop é o do `items_for_posts`, único no port.
+    fn post_error_is_empty(&self) -> bool {
+        true
     }
 
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
@@ -187,5 +275,9 @@ impl SiteOutput for Nerd {
             &date_row,
             &|post| Some(post.title.clone()),
         )
+    }
+
+    fn rss_xml(&self, self_url: &str, items: &[SearchItem], category: u32) -> Option<String> {
+        Some(nerdfilmes_rss_xml(self_url, items, category))
     }
 }

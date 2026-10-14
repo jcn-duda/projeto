@@ -20,8 +20,6 @@ use reqwest::header::{HeaderMap, HeaderValue, SET_COOKIE};
 use url::Url;
 
 use crate::common::magnet;
-use crate::listing_parsers;
-use crate::search_select;
 use crate::site_config::{build_candidates, host_of, network_config_for};
 
 /// Entradas máximas do cache de listagem por profile.
@@ -31,15 +29,6 @@ pub const POST_CACHE_LIMIT: usize = 200;
 pub const SEARCH_TTL_MS: i64 = 5 * 60_000;
 pub const POST_TTL_MS: i64 = 30 * 60_000;
 const HTML_ACCEPT: &str = "text/html,application/xhtml+xml";
-
-/// Post extraído da listagem de busca (nome herdado de `resolvers/types.ts`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolverPost {
-    pub title: String,
-    pub url: String,
-    /// Capa do card da busca: o comando a põe na linha da página.
-    pub poster: Option<String>,
-}
 
 /// Profile de um resolver BR. É `Send + Sync`, então `Arc<ResolverProfile>` cabe
 /// no `State` do axum.
@@ -153,30 +142,18 @@ impl ResolverProfile {
         self.site_name == "vacatorrent"
     }
 
-    /// HTML da listagem de uma query.
+    /// HTML da listagem de uma query (cache → fetch).
+    ///
+    /// Depois daqui quem decide o formato da listagem é o site: `items.rs` e os
+    /// `flows/` chamam `SiteOutput::search_posts` (`sites/mod.rs`) e
+    /// `search_select::select_posts`. Não existe um `search()` no profile porque
+    /// ele é compartilhado pelos oito sites e não conhece HTML de post — era a
+    /// mesma rota duplicada, anterior ao gancho do trait, e sem chamada.
     pub async fn search_html(&self, query: &str) -> Result<String, String> {
         let url = self.search_url(query)?;
         let key = Self::search_cache_key(query);
         self.cached_html(&self.search_cache, &key, SEARCH_TTL_MS, &url)
             .await
-    }
-
-    /// Busca posts de uma query (cache → fetch → parse → seleção). O site recebe
-    /// a query normalizada; o filtro de título/temporada e o `max_posts` seguem o
-    /// `selectSearchPosts` do TS — sem eles a listagem inteira do site vazava.
-    pub async fn search(&self, query: &str) -> Result<Vec<ResolverPost>, String> {
-        let rules = search_select::rules_for(&self.site_name);
-        let season = search_select::requested_season(query);
-        let normalized = search_select::normalize_query(query, rules);
-        let html = self.search_html(&normalized).await?;
-        let posts = parse_search_posts(&self.site_name, &html, &self.selector.url());
-        Ok(search_select::select_posts(
-            posts,
-            |p| p.title.as_str(),
-            &normalized,
-            season,
-            rules.max_posts,
-        ))
     }
 
     /// HTML de um post/página de download, com cache chaveado pela URL.
@@ -363,21 +340,6 @@ impl ResolverProfile {
 /// (`apachetorrent.ts:12`). VacaTorrent usa cookies por *seed* (`vacatorrent.ts:285`).
 fn site_needs_session(site_name: &str) -> bool {
     site_name.to_lowercase().contains("apache")
-}
-
-/// Converte o HTML da listagem em posts.
-///
-/// Delega ao parser do site correspondente em `listing_parsers`. Cada parser
-/// extrai title + url (+ poster opcional) e filtra posts genéricos.
-fn parse_search_posts(site_name: &str, html: &str, base_url: &str) -> Vec<ResolverPost> {
-    listing_parsers::parse_listing_posts(site_name, html, base_url)
-        .into_iter()
-        .map(|p| ResolverPost {
-            title: p.title,
-            url: p.url,
-            poster: p.poster,
-        })
-        .collect()
 }
 
 #[cfg(test)]

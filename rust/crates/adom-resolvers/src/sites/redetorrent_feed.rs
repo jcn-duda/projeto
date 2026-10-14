@@ -3,11 +3,10 @@
 //! de cada linha É o magnet do post: sem /resolve e sem download.before. O
 //! layout é próprio (não o compacto do núcleo `common::page`).
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use adom_crawl::profile_parsers::ResolverLink;
 use adom_crawl::resolver_text::{escape_xml, parse_size};
 
+use crate::common::http_date::http_date_now;
 use crate::common::{SearchItem, SitePost};
 
 /// Título da release, com o índice do botão quando a página o informa.
@@ -39,7 +38,8 @@ pub fn search_page(items: &[SearchItem], title: TitleFn<'_>) -> String {
 }
 
 /// `rssXml`: feed torznab. O título da release sai SEM índice (o TS não passa
-/// `index`, então não há "opção N"). Sem data no post, usa o relógio.
+/// `index`, então não há "opção N"). Sem data no post, usa o relógio
+/// (`br_core::http_date::http_date_now`, o `new Date().toUTCString()` do TS).
 pub fn rss_feed(items: &[SearchItem], category: u32, title: TitleFn<'_>) -> String {
     let body: String = items
         .iter()
@@ -64,34 +64,4 @@ pub fn rss_feed(items: &[SearchItem], category: u32, title: TitleFn<'_>) -> Stri
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><title>Rede Torrent</title>{body}</channel></rss>"#
     )
-}
-
-/// `new Date().toUTCString()`: "Tue, 13 Oct 2026 17:00:00 GMT" (dia com dois dígitos).
-pub fn http_date_now() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs() as i64);
-    let days = secs.div_euclid(86_400);
-    let (hour, minute, second) = (
-        secs.rem_euclid(86_400) / 3_600,
-        secs.rem_euclid(3_600) / 60,
-        secs.rem_euclid(60),
-    );
-    // 1970-01-01 foi quinta-feira (índice 4 com domingo = 0).
-    let weekday =
-        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][(days + 4).rem_euclid(7) as usize];
-    // Data civil a partir de dias desde 1970 (algoritmo de Howard Hinnant).
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    let month_name = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ][(month - 1) as usize];
-    format!("{weekday}, {day:02} {month_name} {year} {hour:02}:{minute:02}:{second:02} GMT")
 }

@@ -9,6 +9,21 @@ import { distImport, goldenRun, postTitleOf } from './lib.mjs';
 const BASE_URL = 'https://torrentdosfilmes-v2.xyz';
 const site = (await distImport('torrentdosfilmes-resolver/server.js')).default;
 
+// Relógio fixo: o feed torznab do tdf carimba `new Date().toUTCString()` em
+// cada item (pubDateOf do createRssXml). Sem isto o golden mudaria a cada
+// execução. O Rust recebe a data por parâmetro (`feed_with_date`).
+const FIXED_MS = Date.UTC(2026, 9, 13, 12, 0, 0);
+const RealDate = Date;
+globalThis.Date = class extends RealDate {
+  constructor(...args) {
+    if (args.length === 0) super(FIXED_MS);
+    else super(...args);
+  }
+  static now() {
+    return FIXED_MS;
+  }
+};
+
 // Post sintético: título do <h1> da fixture e URL de detalhe no domínio do
 // site (o tdf não publica poster na página de post).
 const postOf = (name, html) => ({
@@ -31,7 +46,8 @@ await goldenRun({
   postLinks: (html, postUrl) => site.parseDownloadLinks(html, postUrl),
   releaseTitle: (post, link, index) => site.releaseTitle(post, link, index),
   searchPageHtml: (items) => site.searchPageHtml(items),
+  // Feed compacto com <enclosure> — o profile agora exporta rssXml.
+  rssXml: (items, category) => site.rssXml(items, category),
   // Sem `cleanTitle`: o profile não exporta a limpeza própria (o título
-  // limpo é coberto pelo golden de `releaseTitle`). Sem `rssXml`: o feed
-  // compacto não é exportado pelo profile.
+  // limpo é coberto pelo golden de `releaseTitle`).
 });
