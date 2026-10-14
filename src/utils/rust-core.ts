@@ -23,6 +23,8 @@ import { installDebridCacheHook } from './rust-debrid-cache.js';
 import type { CacheCore } from './rust-debrid-cache.js';
 import { installDebridRdHook } from './rust-debrid-rd.js';
 import type { RdCore } from './rust-debrid-rd.js';
+import { installDebridCleanHook } from './rust-debrid-clean.js';
+import type { CleanCore } from './rust-debrid-clean.js';
 import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
 
 /** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
@@ -75,7 +77,7 @@ export type CrawlCore = {
   parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
 };
 
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore>;
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore>;
 
 const _require = createRequire(import.meta.url);
 
@@ -153,8 +155,9 @@ function install() {
   const fileMode = config.rustDebrid.file;
   const cacheMode = config.rustDebrid.cache;
   const rdMode = config.rustDebrid.rd;
+  const cleanMode = config.rustDebrid.clean;
   // Tudo off: não carrega o .node, como antes.
-  if (titleMode === 'off' && fileMode === 'off' && cacheMode === 'off' && rdMode === 'off') return;
+  if (titleMode === 'off' && fileMode === 'off' && cacheMode === 'off' && rdMode === 'off' && cleanMode === 'off') return;
   const file = config.rustCore.path || DEFAULT_PATH;
   const core = load(file);
   if (!core) return;
@@ -163,7 +166,8 @@ function install() {
   if (fileMode !== 'off') installDebridPickHook(() => loadedCore);
   if (cacheMode !== 'off') installDebridCacheHook(() => loadedCore);
   if (rdMode !== 'off') installDebridRdHook(() => loadedCore);
-  log.info(`[rust] núcleo carregado (${file}); pickFile=${fileMode} cache=${cacheMode} rd=${rdMode}`);
+  if (cleanMode !== 'off') installDebridCleanHook(() => loadedCore);
+  log.info(`[rust] núcleo carregado (${file}); pickFile=${fileMode} cache=${cacheMode} rd=${rdMode} clean=${cleanMode}`);
 }
 
 /**

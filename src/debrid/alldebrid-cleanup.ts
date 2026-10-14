@@ -8,6 +8,7 @@ import { foreignVerdict } from '../utils/audio-quality.js';
 import { markReuploadBlocked } from './alldebrid-reupload.js';
 import { call, id, isDeadMagnet, ACTIVE_STATES, type AllDebridMagnet } from './alldebrid-api.js';
 import { preexistingHashes } from './alldebrid-inventory.js';
+import { mayDeleteHash } from '../utils/rust-debrid-clean.js';
 
 /**
  * Um magnet está a salvo da limpeza se há proteção VOLÁTIL (hold, autofetch em
@@ -248,9 +249,14 @@ export async function sweepUndubbed(
     if (!m.id) return false;
     // Download em curso não é lixo: estado ativo NUNCA é alvo.
     if (ACTIVE_STATES.test(String(m.status || ''))) return false;
-    // BR retido no acervo (durável) ou autofetch em voo (volátil) não saem.
-    if (skipCleanup(account, String(m.hash || ''))) return false;
-    if (preexistentes.has(String(m.hash || '').toLowerCase())) return false;
+    const hash = String(m.hash || '').toLowerCase();
+    // BR retido, autofetch em voo ou acervo anterior não saem. Inventário
+    // desta varredura já chegou (null teria pulado a rodada).
+    if (!mayDeleteHash({
+      inventoryLoaded: true,
+      knownBefore: preexistentes.has(hash),
+      protected: skipCleanup(account, hash),
+    })) return false;
     // Só estrangeiro PROVADO; ambíguo (`unknown`) fica para a auditoria de
     // arquivos do catálogo. Ausência de marca PT nunca mais condena.
     if (foreignVerdict(String(m.filename || '')) !== 'condena') return false;

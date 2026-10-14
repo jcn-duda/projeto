@@ -33,6 +33,7 @@ import { foreignVerdict } from '../utils/audio-quality.js';
 import { ACTIVE_STATES, magnetList, type AllDebridMagnetRow } from './alldebrid-api.js';
 import { preexistingHashes } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets } from './alldebrid-cleanup.js';
+import { mayDeleteHash } from '../utils/rust-debrid-clean.js';
 import { markReuploadBlocked } from './alldebrid-reupload.js';
 
 /**
@@ -124,9 +125,12 @@ async function runEvict(apiKey: string, account: string, consultados: string[]):
       if (m.id == null) return false;
       const hash = String(m.hash || '').toLowerCase();
       if (!hash || atuais.has(hash)) return false; // nunca o que ESTA busca subiu
-      if (preexistentes.has(hash)) return false; // nunca o que já era do usuário
       if (ACTIVE_STATES.test(m.status)) return false; // download em curso não é lixo
-      if (skipCleanup(account, hash)) return false; // held (volátil) + adprot (durável)
+      if (!mayDeleteHash({
+        inventoryLoaded: true,
+        knownBefore: preexistentes.has(hash),
+        protected: skipCleanup(account, hash),
+      })) return false;
       // Só estrangeiro PROVADO; `unknown` fica para a auditoria de arquivos.
       if (foreignVerdict(m.filename) !== 'condena') return false;
       return Number(m.uploadDate) > 0; // sem data a idade não está provada — fica

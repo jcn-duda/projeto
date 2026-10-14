@@ -24,6 +24,7 @@
 //! | `debridCacheVerdict`      | `debrid_cache_verdict`     | Veredito known/unusable do cache    |
 //! | `debridCacheCheckHonest`  | `debrid_cache_check_honest`| Flag cacheCheck do adaptador        |
 //! | `debridRdNextHit`         | `debrid_rd_next_hit`       | Próximo estado do ledger RD         |
+//! | `debridMayDelete`         | `may_delete`               | Pode apagar este hash da conta      |
 //!
 //! ## Responsabilidade
 //!
@@ -39,12 +40,14 @@ mod batch;
 mod crawl;
 mod debrid;
 mod debrid_cache;
+mod debrid_clean;
 mod debrid_rd;
 
 pub use crawl::*;
 // Reexporta o seletor: sem isto o clippy marca `#[napi]` do módulo privado como morto.
 pub use debrid::*;
 pub use debrid_cache::*;
+pub use debrid_clean::*;
 pub use debrid_rd::*;
 
 // ---------------------------------------------------------------------------

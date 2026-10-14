@@ -19,6 +19,7 @@ mod crawl_store_rules;
 mod crawl_url_key;
 mod debrid;
 mod debrid_cache_verdict;
+mod debrid_may_delete;
 mod debrid_rd_gate;
 mod debrid_rd_ledger;
 mod decode_entities;
@@ -102,8 +103,9 @@ pub use debrid::{
 };
 pub use debrid_cache_verdict::{
     cache_check_honest, failure_reason, failure_verdict, normalize_cache_result, unusable_reason,
-    unusable_verdict, CacheAnswer, CacheVerdict, Unusable,     UnusableReason,
+    unusable_verdict, CacheAnswer, CacheVerdict, Unusable, UnusableReason,
 };
+pub use debrid_may_delete::{may_delete, DeleteFacts};
 pub use debrid_rd_gate::{
     admit, initial_state, next_grant, on_finished, on_rate_limit, on_success, GateQueues, GateState,
 };

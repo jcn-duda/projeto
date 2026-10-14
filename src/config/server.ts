@@ -34,6 +34,9 @@ export const server = () => ({
     cache: rustMode(process.env.RUST_DEBRID_CACHE),
     // Ledger e AIMD do Real-Debrid. O estado continua no Node.
     rd: rustMode(process.env.RUST_DEBRID_RD),
+    // Decisão de apagar. off/shadow não mudam o que sai da conta. on só pode
+    // recusar um apagamento: a recusa do Node sempre vence.
+    clean: rustMode(process.env.RUST_DEBRID_CLEAN),
   },
 });
 

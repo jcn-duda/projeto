@@ -13,6 +13,7 @@ import { filterReuploadBlocked, unblockIfInventoryReady } from './alldebrid-reup
 import { scheduleEvict } from './alldebrid-evict.js';
 import { scheduleReconcile } from './alldebrid-reconcile.js';
 import { scheduleSuppressedRevalidate } from './alldebrid-suppressed-revalidate.js';
+import { mayDeleteHash } from '../utils/rust-debrid-clean.js';
 
 /**
  * O /magnet/instant foi removido, mas o próprio /magnet/upload responde
@@ -136,13 +137,14 @@ export async function checkCached(
         // não está protegido — volátil NEM durável (BR retido no acervo).
         if (config.debrid.dropReady && magnet.id && hash && !skipCleanup(account, hash)) {
           if (preexistentes !== null && preexistentes.has(hash)) {
-            // Decisão, não supressão: é do usuário (prova do inventário).
+            mayDeleteHash({ inventoryLoaded: !skipReadyDrop, knownBefore: true, protected: false });
           } else if (skipReadyDrop || preexistentes === null) {
+            mayDeleteHash({ inventoryLoaded: false, knownBefore: false, protected: false });
             // Supressão por FALTA DE AUTORIDADE (primeira checagem do processo
             // ou inventário ausente): a rodada não pôde decidir nada. Conta à
             // parte para o diagnóstico não confundir com a proteção.
             metrics.count('debrid.drop.suppressedReady');
-          } else {
+          } else if (mayDeleteHash({ inventoryLoaded: true, knownBefore: false, protected: false })) {
             dropReady.push(magnet.id);
             readyHashById.set(String(magnet.id), hash);
           }
@@ -159,7 +161,11 @@ export async function checkCached(
         // não ser do usuário. `null` ⇒ nada sai — a ausência de referência
         // nunca autoriza remoção, em nenhuma das duas listas. Sem hash no
         // magnet, pula: sem ele não há nem prova de proveniência nem purga.
-        if (magnet.id && hash && !skipCleanup(account, hash) && preexistentes && !preexistentes.has(hash)) {
+        if (magnet.id && hash && mayDeleteHash({
+          inventoryLoaded: preexistentes != null,
+          knownBefore: preexistentes != null && preexistentes.has(hash),
+          protected: skipCleanup(account, hash),
+        })) {
           dropDownload.push(magnet.id);
           downloadHashById.set(String(magnet.id), hash);
         }

@@ -8,6 +8,7 @@ import { skipCleanup } from './alldebrid-cleanup.js';
 import { reuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
 import * as metrics from '../utils/metrics.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
+import { mayDeleteHash } from '../utils/rust-debrid-clean.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
 
 /**
@@ -62,7 +63,13 @@ export async function resolveLink(apiKey: string, infoHash: string, { season, ep
     // então apagar não custa nada — se o usuário voltar, ele é reenviado.
     // Idem no play: se o usuário clicou num BR que está baixando por nossa
     // conta, apagar aqui jogaria fora o progresso.
-    if (config.debrid.dropUncached && !skipCleanup(account, infoHash)) {
+    if (config.debrid.dropUncached && mayDeleteHash({
+      // O magnet acabou de ser enviado por este play. Não é varredura do acervo:
+      // knownBefore não se aplica, e o inventário não autoriza nem barra este id.
+      inventoryLoaded: true,
+      knownBefore: false,
+      protected: skipCleanup(account, infoHash),
+    })) {
       try {
         await call(apiKey, '/magnet/delete', { id: magnet.id });
       } catch (err) {

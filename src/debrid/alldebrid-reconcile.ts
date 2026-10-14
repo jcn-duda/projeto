@@ -51,6 +51,7 @@ import * as metrics from '../utils/metrics.js';
 import { ACTIVE_STATES, magnetList, type AllDebridMagnetRow } from './alldebrid-api.js';
 import { preexistingHashes, forgetSubmitted, submittedAt } from './alldebrid-inventory.js';
 import { skipCleanup, deleteMagnets } from './alldebrid-cleanup.js';
+import { mayDeleteHash } from '../utils/rust-debrid-clean.js';
 import { markReuploadBlocked } from './alldebrid-reupload.js';
 
 /**
@@ -172,7 +173,11 @@ async function runReconcile(apiKey: string, account: string, atuais: Set<string>
 
   // N5 — a trava vale no MOMENTO da deleção: held/adprot reavaliados na
   // seleção, que é o instante imediatamente anterior ao gate de delete.
-  const candidatos = elegiveis.filter((m) => !skipCleanup(account, m.hash));
+  const candidatos = elegiveis.filter((m) => mayDeleteHash({
+    inventoryLoaded: true,
+    knownBefore: false,
+    protected: skipCleanup(account, m.hash),
+  }));
 
   // Mais antigos primeiro, teto por rodada = min(candidatos, maxPerRound).
   candidatos.sort((a, b) => a.uploadDate - b.uploadDate);
