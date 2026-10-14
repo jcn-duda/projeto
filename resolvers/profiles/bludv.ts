@@ -43,6 +43,9 @@ import {
   capsXml, createBludvRssXml,
 } from './bludv-parsers.js';
 import type { BludvLinkPrefs } from './bludv-parsers.js';
+// Detecção do portão importada direto do módulo compartilhado: o provider em
+// processo (src/providers/bludv.ts) usa a MESMA regex, sem cópia.
+import { assertNoAdGate } from './bludv-gate.js';
 import type { ResolverLink } from '../types.js';
 
 // Defaults ESTÁTICOS do perfil (sem env). O env do operador é lido por
@@ -179,7 +182,13 @@ function createResolver(overrides: ProfileOverrides = {}) {
     if (!isDetailHost(post.hostname)) throw new Error('not_detail_page');
     return cachedPost(post.href, POST_CACHE_MS, async () => {
       const html = await fetchText(post);
-      return { post, links: parseDownloadLinks(html) };
+      // Fase 4: o portão de anúncio só é motivo quando não sobrou botão — sem
+      // isso o post viraria "0 releases" silencioso, indistinguível de site sem
+      // o título. Com link aproveitável o portão é irrelevante: não se joga fora
+      // resultado bom para reclamar do botão bloqueado ao lado.
+      const links = parseDownloadLinks(html);
+      assertNoAdGate(html, links.length);
+      return { post, links };
     });
   }
 
@@ -338,6 +347,8 @@ function createResolver(overrides: ProfileOverrides = {}) {
     qualityRules, sourceRules, brAudioHooks, isValidBtihHash, isValidMagnetUri,
     serveMain: bootstrap.serveMain,
     defaultNextProtectedUrl, MAX_CARD_WINDOW, AUDIO_RANK, JS_URL_VAR_RE,
+    // Fase 4: exporta o feed torznab para o golden e para o /api
+    createBludvRssXml,
   };
 }
 

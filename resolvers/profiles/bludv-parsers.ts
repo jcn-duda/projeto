@@ -32,6 +32,10 @@ import type {
 } from '../release-format.js';
 import type { ResolverLink, ResolverPost } from '../types.js';
 
+// O portão de anúncio mora em bludv-gate.ts (regex única para o perfil e para o
+// provider em processo); reexportado aqui para não partir importadores antigos.
+export { hasAdGate, assertNoAdGate, isBludvAdGate, BLUDV_AD_GATE_REASON } from './bludv-gate.js';
+
 const MAX_CARD_WINDOW = 8000;
 const AUDIO_RANK: Record<string, number | undefined> = { dublado: 0, desconhecido: 1, legendado: 2 };
 const JS_URL_VAR_RE = /(?:DEST_URL|DOWNLOAD_URL|REDIRECT_URL|NEXT_URL|LINK_DOWNLOAD|URL_DOWNLOAD|DOWNLOAD|LINK_FINAL|TARGET_URL|DESTINO|target_url|dest|target|link|url)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i;

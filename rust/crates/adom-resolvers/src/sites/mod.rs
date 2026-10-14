@@ -83,9 +83,16 @@ pub trait SiteOutput: Send + Sync {
             .collect()
     }
 
-    /// `true` quando o profile engole a falha de um post (`try` no `mapLimit`:
-    /// rede/apache/hdr/vaca); `false` deixa o erro derrubar a busca (comando,
-    /// bludv, tdf).
+    /// `true` quando a falha de UM post sai do lote sem derrubar a busca.
+    ///
+    /// No TS isso não é escolha do perfil: `resolvers/concurrency.ts` captura a
+    /// exceção, chama `onError` (só o bludv loga) e filtra o `null` — NENHUM
+    /// perfil deixa um post derrubar o `/search`, e por isso o erro do post só
+    /// chega ao HTTP no `/resolve`. O que muda entre perfis é o LOG, não o lote.
+    ///
+    /// `false` fica só no comandotorrents: o `mapLimit` dele tem `try/catch`
+    /// interno devolvendo `[]` (nunca lança), então o ramo nunca é exercido —
+    /// trocá-lo seria cosmético e esconderia a real diferença (o log próprio).
     fn post_error_is_empty(&self) -> bool {
         false
     }

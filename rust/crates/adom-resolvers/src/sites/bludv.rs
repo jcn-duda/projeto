@@ -1,6 +1,8 @@
 //! Bludv (`resolvers/profiles/bludv.ts` + `bludv-parsers.ts`).
 //!
-//! Três peças próprias do site, fora do núcleo comum:
+//! Peças próprias do site, fora do núcleo comum: neste módulo ficam o coletor de
+//! botões e os posts da busca; o cartão da página vai em `bludv_card.rs`, o feed
+//! torznab em `bludv_feed.rs` e o portão de anúncio em `bludv_gate.rs`.
 //! - o coletor de botões (`createParseDownloadLinks`): âncora SEM decodificação
 //!   do HTML inteiro, href decodificado só no botão, magnet direto validado
 //!   pelo `xt=urn:btih:` e protetor só por host absoluto (sem base);
@@ -15,8 +17,7 @@ use std::sync::LazyLock;
 use crate::common::text::decode_entities;
 use crate::common::text::strip_tags;
 use adom_crawl::profile_parsers::{ResolverLink, BASE_PROTECTOR_SUFFIXES};
-use adom_crawl::resolver_matching::{button_id, is_generic_list_post};
-use adom_crawl::resolver_text::escape_html;
+use adom_crawl::resolver_matching::is_generic_list_post;
 use fancy_regex::{Captures, Regex as FancyRegex};
 use regex::Regex;
 use url::Url;
@@ -24,13 +25,21 @@ use url::Url;
 use super::{host_matches, SiteOutput};
 use crate::common::collector::{parse_download_links, CollectorHooks, Resolved, Step};
 use crate::common::episode::{EpisodeRules, EpisodeScope, EpisodeStepConfig, PackMatchAll};
+use crate::common::http_date::http_date_now;
 use crate::common::rules::{
     br_audio_from_anchor, br_audio_from_segment, normalize_quality, normalize_source,
 };
-use crate::common::{
-    clean_post_title, encode_uri_component, release_title, ReleaseTitleConfig, SearchItem,
-    SitePost, UNKNOWN_SIZE,
-};
+use crate::common::{clean_post_title, release_title, ReleaseTitleConfig, SearchItem, SitePost};
+
+#[path = "bludv_card.rs"]
+mod card;
+#[path = "bludv_feed.rs"]
+mod feed;
+#[path = "bludv_gate.rs"]
+mod gate;
+
+pub use card::{card_html, CardRow};
+pub use feed::{feed_with_date, parse_post_date};
 
 pub struct Bludv;
 
@@ -279,64 +288,6 @@ pub fn parse_search_posts(html: &str, base_url: &str) -> Vec<SitePost> {
         .collect()
 }
 
-// ─── página do cartão Cardigann ──────────────────────────────────────────
-
-/// Uma linha do cartão: o botão, e a descrição do post se a busca a trouxe.
-pub struct CardRow<'a> {
-    pub item: &'a SearchItem,
-    pub original: Option<&'a str>,
-}
-
-/// Campo opcional: vazio ou ausente some, como o `${x ? ... : ''}` do TS.
-fn nonempty(value: Option<&str>) -> Option<&str> {
-    value.filter(|v| !v.is_empty())
-}
-
-/// Uma linha do cartão. Os três campos opcionais deixam linha só com espaços,
-/// igual ao template do TS (que o golden compara byte a byte).
-fn card_row(self_url: &str, row: &CardRow<'_>) -> String {
-    let item = row.item;
-    let download = format!(
-        "{self_url}/resolve?url={}&i={}&h={}&n={}",
-        encode_uri_component(&item.post.url),
-        item.index,
-        button_id(&item.link.url),
-        item.count
-    );
-    let size = nonempty(item.link.size.as_deref()).unwrap_or(UNKNOWN_SIZE);
-    let title = release_title(&TITLE, &item.post, &item.link, None);
-    let date = match nonempty(item.post.date.as_deref()) {
-        Some(d) => format!(r#"<div class="date">{}</div>"#, escape_html(d)),
-        None => String::new(),
-    };
-    let poster = match nonempty(item.post.poster.as_deref()) {
-        Some(p) => format!(
-            r#"<div class="poster"><img src="{}" alt=""></div>"#,
-            escape_html(p)
-        ),
-        None => String::new(),
-    };
-    let original = match nonempty(row.original) {
-        Some(o) => format!(r#"<div class="description">{}</div>"#, escape_html(o)),
-        None => String::new(),
-    };
-    format!(
-        "  <div class=\"release\">\n    <div class=\"title\"><a href=\"{}\">{}</a></div>\n    <div class=\"size\">{}</div>\n    {date}\n    {poster}\n    {original}\n    <div class=\"seeders\">1</div>\n  </div>",
-        escape_html(&download),
-        escape_html(&title),
-        escape_html(size),
-    )
-}
-
-/// `createSearchPageHtml` do bludv: uma linha de cartão por botão do post.
-pub fn card_html(self_url: &str, rows: &[CardRow<'_>]) -> String {
-    let body: Vec<String> = rows.iter().map(|row| card_row(self_url, row)).collect();
-    format!(
-        "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>BLUDV (resolver)</title></head>\n<body><div class=\"posts\">\n{}\n</div></body></html>",
-        body.join("\n")
-    )
-}
-
 impl SiteOutput for Bludv {
     fn name(&self) -> &'static str {
         "bludv"
@@ -346,8 +297,23 @@ impl SiteOutput for Bludv {
         parse_search_posts(html, base_url)
     }
 
+    /// Um post que falha sai do lote; a busca continua. O TS faz isso no `mapLimit`
+    /// compartilhado (`concurrency.ts` captura, loga `post sem botões` e filtra),
+    /// não no perfil. Sem este override o portão de anúncio de um post virava 502
+    /// no `/search` inteiro, e o Jackett passava a tratar o card como fonte caída
+    /// ("The tracker seems to be down") — o TS devolvia 200 com o que existisse.
+    /// O motivo do portão continua visível: no log do drop e no 502 do `/resolve`.
+    fn post_error_is_empty(&self) -> bool {
+        true
+    }
+
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
-        parse_download_links(&Hooks, html, Some(post_url))
+        // Fase 4: o portão de anúncio só vira motivo quando não sobrou botão, na
+        // mesma ordem do TS (`assertNoAdGate` depois do parse). Errar com link
+        // aproveitável presente faria o detector jogar fora release boa.
+        let links = parse_download_links(&Hooks, html, Some(post_url))?;
+        gate::assert_blocked(html, links.len())?;
+        Ok(links)
     }
 
     fn release_title(&self, post: &SitePost, link: &ResolverLink, index: Option<usize>) -> String {
@@ -365,5 +331,14 @@ impl SiteOutput for Bludv {
             })
             .collect();
         card_html(self_url, &rows)
+    }
+
+    /// Fase 4: feed torznab do BLUDV (`bludv_feed.rs`). O TS usa
+    /// `createBludvRssXml` com `withDescription: true` e `seedersComment`. O
+    /// `pubDate` vem da data do post (`parsePostDate`); sem data, do relógio
+    /// real — e é por isso que o golden chama `feed_with_date` com a data
+    /// congelada pelo oráculo.
+    fn rss_xml(&self, self_url: &str, items: &[SearchItem], category: u32) -> Option<String> {
+        Some(feed_with_date(self_url, items, category, &http_date_now()))
     }
 }

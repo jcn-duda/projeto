@@ -4,6 +4,8 @@ import * as cache from '../utils/cache.js';
 import { mapLimit } from '../utils/concurrency.js';
 import * as log from '../utils/logger.js';
 import { prefix } from '../utils/cache-keys.js';
+// A detecção do portão é a MESMA do resolvedor standalone: nada de regex local.
+import { assertNoAdGate, isBludvAdGate } from '../../resolvers/profiles/bludv-gate.js';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
@@ -44,9 +46,12 @@ async function get(url: string, referer = '') {
   return res.text();
 }
 
+/** Card da lista do WordPress: o que a raspa do post consome. */
+type BludvPost = { url: string; title: string };
+
 /** Cards da página de busca: div.post > div.title > a[href] */
 function parsePosts(html: string) {
-  const posts: { url: string; title: string }[] = [];
+  const posts: BludvPost[] = [];
   const re = /<div class="post">[\s\S]*?<div class="title">\s*<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
   let m;
   while ((m = re.exec(html))) {
@@ -107,9 +112,14 @@ async function resolveMagnet(link: string, referer: string) {
   return m ? decodeEntities(m[0]) : null;
 }
 
-async function collectFromPost(post: any) {
+async function collectFromPost(post: BludvPost) {
   const html = await get(post.url, config.bludv.baseUrl);
   let links = parseDownloadLinks(html);
+  // O BLUDV pode trocar o protetor de link por um portão de anúncio: nesse caso
+  // o post não traz nenhum `systemads`/`videosad` e a raspa viraria 0 releases
+  // silencioso. Lançar aqui é o que dá ao `search()` um MOTIVO para logar — mas
+  // só quando não sobrou botão, para não perder release boa.
+  assertNoAdGate(html, links.length);
 
   if (opts().dubbedOnly) {
     links = links.filter((l) => l.audio !== 'legendado');
@@ -168,15 +178,38 @@ async function search(query: string) {
     const posts = parsePosts(html).slice(0, config.bludv.maxPosts);
 
     // 'drop': post que falhou (site fora, layout quebrado) sai do lote em vez
-    // de contaminar o resultado — menos resultado, nunca erro.
-    const chunks = await mapLimit(posts, config.bludv.concurrency, collectFromPost, { onItemError: 'drop' });
+    // de contaminar o resultado — menos resultado, nunca erro. O portão de
+    // anúncio é separado da contagem genérica: sem ele o resumo
+    // "N post(s) → 0 magnet(s)" não diz se o site mudou de protetor ou só não
+    // tem o título procurado.
+    let gatePosts = 0;
+    const chunks = await mapLimit(
+      posts,
+      config.bludv.concurrency,
+      async (post) => {
+        try {
+          return await collectFromPost(post);
+        } catch (err) {
+          if (isBludvAdGate(err)) {
+            gatePosts++;
+            log.warn('[bludv] portão de anúncio ativo —', post.url);
+          }
+          // Rejoga: é o 'drop' do mapLimit que tira o post do lote.
+          throw err;
+        }
+      },
+      { onItemError: 'drop' },
+    );
     const items = chunks.flat();
     if (ttlBr > 0 && maxItems > 0 && items.length <= maxItems) {
       // Vazio usa o TTL curto: site fora/rate-limit não pode congelar a
       // resposta. Falha (catch) continua sem cache — retry na próxima busca.
       cache.set(rawKey, { items }, items.length === 0 ? emptyTtl : ttlBr);
     }
-    log.info(`[bludv] ${posts.length} post(s) → ${items.length} magnet(s)`);
+    log.info(
+      `[bludv] ${posts.length} post(s) → ${items.length} magnet(s)` +
+        (gatePosts > 0 ? ` [portão de anúncio em ${gatePosts}/${posts.length} post(s)]` : ''),
+    );
     return items;
   } catch (err) {
     log.warn('[bludv]', err.message);

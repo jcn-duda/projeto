@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!--
+  Fixture do post do BLUDV com portao de anuncio (Fase 4).
+
+  PROVENIENCIA (captura real): HTML obtido em 2026-10-13 pelo FlareSolverr do
+  container (cmd request.get), na busca `https://bludvfilmes1.xyz/?s=batman`.
+  Os dois blocos abaixo sao de posts diferentes, capturados no mesmo minuto:
+
+    * bludvfilmes1.xyz/batman-a-queda-do-morcego-parte-1-torrent-2026-web-dl-1080p-dual-audio/
+      -> botao com o overlay do player DENTRO do <a> (o formato que a regex
+         antiga, que exigia `</a>` logo apos o rotulo, nunca casava)
+    * bludvfilmes1.xyz/batman-cruzado-encapuzado-2a-temporada-torrent-2026-web-dl-1080p-dual-audio/
+      -> botao simples, `>Magnet-Link</a>`
+
+  Nada foi inventado aqui: hrefs, classes e rotulos sao literais do capture. O
+  unico corte esta marcado no corpo (o overlay do player tem ~33 KB de markup
+  injetado pelo browser e nao participa da decisao do detector). Estes posts nao
+  publicam NENHUM link do protetor -- e exatamente isso que o portao faz
+  com a lista.
+
+  O que a fixture trava: o detector casa as duas formas, e nao casa o protetor
+  verdadeiro (ver test/fixtures/bludv-post.html).
+-->
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Fixture do portao de anuncio do BLUDV</title></head>
+<body>
+<div class="post-single">
+
+  <!-- POST 1 (literal): batman-a-queda-do-morcego-parte-1-torrent-2026-web-dl-1080p-dual-audio -->
+  <h1 class="entry-title">Batman: A Queda do Morcego – Parte 1 Torrent (2026) WEB-DL 1080p Dual Áudio</h1>
+  <center><span style="color: #008B00;"><strong><em>SERVIDOR PARA DOWNLOAD WEB-DL 1080p (1.65 GB)</em></strong></span><br>
+<a href="https://bludvfilmes1.xyz/gate/go/38a7e919c6e717de?p=80753" class="customButton" rel="noopener noreferrer" target="_blank">Magnet-Link<div class="eas-video-overlay-wrapper" style="position: absolute; top: 0px; left: 0px;"><div class="eas-video-overlay-container iphon-hack"><div id="e
+<!-- ...overlay do player (eas-video-overlay-wrapper) cortado: 33336 chars de markup injetado pelo browser... -->
+</a>
+
+  <!-- POST 2 (literal): batman-cruzado-encapuzado-2a-temporada-torrent-2026-web-dl-1080p-dual-audio -->
+  <h1 class="entry-title">Batman: Cruzado Encapuzado 2ª Temporada Torrent (2026) WEB-DL 1080p Dual Áudio</h1>
+  <center><span style="color: #008B00;"><strong><em>SERVIDOR PARA DOWNLOAD WEB-DL 1080p (7.80 GB)</em></strong></span><br>
+<a href="https://bludvfilmes1.xyz/gate/go/f1d9d62d0c5cc562?p=80137" class="customButton" rel="noopener noreferrer" target="_blank">Magnet-Link</a>
+
+</div>
+</body>
+</html>

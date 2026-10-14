@@ -4,8 +4,9 @@
 //   DOTENV_CONFIG_PATH=test/fixtures/env-empty node scripts/rust/resolver-golden/bludv.mjs
 // Saída: rust/crates/adom-resolvers/tests/golden/bludv.json
 //
-// O BLUDV não exporta o feed torznab (`createBludvRssXml` fica interno ao
-// perfil), então não há gancho `rssXml`: o golden não traz o campo `rss`.
+// Fase 4: o BLUDV agora exporta o feed torznab (`createBludvRssXml`), então
+// o golden traz o campo `rss` com o feed de cada post. O relógio é congelado
+// no oráculo para o golden ser reprodutível (a data do post vem do HTML).
 import path from 'node:path';
 import { distImport, goldenRun, postTitleOf } from './lib.mjs';
 
@@ -25,6 +26,21 @@ function postOf(name, html) {
   };
 }
 
+// Relógio congelado para o feed ser reprodutível. A data do pubDate vem do
+// post (parsePostDate), mas quando o post não tem data, o TS usa new Date().
+// Congelamos o relógio para o golden não mudar a cada execução.
+const FROZEN_DATE = 'Sun, 01 Jan 2023 00:00:00 GMT';
+const originalDate = globalThis.Date;
+globalThis.Date = class extends originalDate {
+  constructor(...args) {
+    if (args.length === 0) return new originalDate(FROZEN_DATE);
+    return new originalDate(...args);
+  }
+  static now() { return new originalDate(FROZEN_DATE).getTime(); }
+  static parse(...args) { return originalDate.parse(...args); }
+  static UTC(...args) { return originalDate.UTC(...args); }
+};
+
 await goldenRun({
   site: 'bludv',
   searchFixtures: ['bludv-search.html'],
@@ -39,5 +55,13 @@ await goldenRun({
   postLinks: (html, postUrl) => site.parseDownloadLinks(html, postUrl),
   releaseTitle: (post, link, index) => site.releaseTitle(post, link, index),
   searchPageHtml: (items) => site.searchPageHtml(items),
+  rssXml: (items, category) => {
+    // O BLUDV exporta createBludvRssXml; usamos o selfUrl do resolver.
+    const rssXml = site.createBludvRssXml ? site.createBludvRssXml({ selfUrl: 'http://bludv-resolver:8700' }) : null;
+    return rssXml ? rssXml(items, category) : null;
+  },
   cleanTitle: (title) => site.cleanPostTitle(title),
 });
+
+// Restaura o Date original.
+globalThis.Date = originalDate;
