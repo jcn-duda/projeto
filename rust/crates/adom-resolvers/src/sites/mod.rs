@@ -86,15 +86,14 @@ pub trait SiteOutput: Send + Sync {
     /// `true` quando a falha de UM post sai do lote sem derrubar a busca.
     ///
     /// No TS isso não é escolha do perfil: `resolvers/concurrency.ts` captura a
-    /// exceção, chama `onError` (só o bludv loga) e filtra o `null` — NENHUM
-    /// perfil deixa um post derrubar o `/search`, e por isso o erro do post só
-    /// chega ao HTTP no `/resolve`. O que muda entre perfis é o LOG, não o lote.
-    ///
-    /// `false` fica só no comandotorrents: o `mapLimit` dele tem `try/catch`
-    /// interno devolvendo `[]` (nunca lança), então o ramo nunca é exercido —
-    /// trocá-lo seria cosmético e esconderia a real diferença (o log próprio).
+    /// exceção, chama `onError` (só o bludv loga) e filtra o `null`, e o comando
+    /// ainda tem `try/catch` próprio devolvendo `[]` — NENHUM perfil deixa um
+    /// post derrubar o `/search` (502 faz o Jackett marcar "tracker down" e a
+    /// fonte sai da busca e do breaker). No Rust o ramo É exercido (página do
+    /// post que falha, o throw do desempate de episódio), então o padrão é
+    /// `true` para os oito; `false` só serviria a um perfil que o TS não tem.
     fn post_error_is_empty(&self) -> bool {
-        false
+        true
     }
 
     /// Metadado do post lido da PRÓPRIA página do post (o nerd põe a data
@@ -122,10 +121,38 @@ pub fn site_output(name: &str) -> Option<&'static dyn SiteOutput> {
     }
 }
 
+/// Os oito resolvers, na ordem das portas 8700-8707.
+pub const SITES: [&str; 8] = [
+    "bludv",
+    "comandotorrents",
+    "nerdfilmes",
+    "torrentdosfilmes",
+    "vacatorrent",
+    "redetorrent",
+    "apachetorrent",
+    "hdrtorrents",
+];
+
 /// `hasAllowedHost`: o host é o sufixo ou subdomínio dele.
 pub fn host_matches(hostname: &str, suffixes: &[&str]) -> bool {
     let host = hostname.to_lowercase();
     suffixes
         .iter()
         .any(|s| host == *s || host.ends_with(&format!(".{s}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Falha de um post nunca derruba o `/search` (o `mapLimit` do TS). O
+    /// comando ficou de fora quando o padrão era `false` e devolvia 502.
+    #[test]
+    fn post_que_falha_sai_do_lote_nos_oito() {
+        for name in SITES {
+            let site = site_output(name).expect("site registrado");
+            assert_eq!(site.name(), name);
+            assert!(site.post_error_is_empty(), "{name} derrubaria a busca");
+        }
+    }
 }

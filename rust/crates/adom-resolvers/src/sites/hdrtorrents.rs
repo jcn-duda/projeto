@@ -263,10 +263,6 @@ impl SiteOutput for Hdr {
         "hdrtorrents"
     }
 
-    fn post_error_is_empty(&self) -> bool {
-        true
-    }
-
     fn post_links(&self, html: &str, _post_url: &str) -> Result<Vec<ResolverLink>, String> {
         // Delega ao núcleo compartilhado (`br_core::hdr`, via fachada `common`).
         Ok(crate::common::hdr::parse_content_magnets(html))

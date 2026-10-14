@@ -151,10 +151,6 @@ impl SiteOutput for Rede {
             .collect()
     }
 
-    fn post_error_is_empty(&self) -> bool {
-        true
-    }
-
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         Ok(parse::parse_post_links(html, post_url))
     }

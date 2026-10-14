@@ -58,10 +58,6 @@ impl SiteOutput for Vaca {
         "vacatorrent"
     }
 
-    fn post_error_is_empty(&self) -> bool {
-        true
-    }
-
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         post_links_with(html, post_url, &VacaParseOptions::default())
     }

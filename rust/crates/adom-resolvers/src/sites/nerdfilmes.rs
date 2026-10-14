@@ -252,13 +252,6 @@ impl SiteOutput for Nerd {
         parse_post_date(html)
     }
 
-    /// Mesma regra do TS: o `mapLimit` compartilhado engole o post que falha e a
-    /// busca segue com os outros. O nerd não loga a falha (só o bludv tem
-    /// `onError`); aqui o log do drop é o do `items_for_posts`, único no port.
-    fn post_error_is_empty(&self) -> bool {
-        true
-    }
-
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         parse_download_links(&Hooks, html, Some(post_url))
     }

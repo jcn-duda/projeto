@@ -282,12 +282,6 @@ impl SiteOutput for Tdf {
         parse_search_posts(html, base_url)
     }
 
-    /// Post que falha sai do lote (o TS engole no `mapLimit` compartilhado, sem
-    /// logar); um post quebrado não pode custar os outros N-1 da busca.
-    fn post_error_is_empty(&self) -> bool {
-        true
-    }
-
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         parse_download_links(&Hooks, html, Some(post_url))
     }

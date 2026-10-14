@@ -297,16 +297,6 @@ impl SiteOutput for Bludv {
         parse_search_posts(html, base_url)
     }
 
-    /// Um post que falha sai do lote; a busca continua. O TS faz isso no `mapLimit`
-    /// compartilhado (`concurrency.ts` captura, loga `post sem botões` e filtra),
-    /// não no perfil. Sem este override o portão de anúncio de um post virava 502
-    /// no `/search` inteiro, e o Jackett passava a tratar o card como fonte caída
-    /// ("The tracker seems to be down") — o TS devolvia 200 com o que existisse.
-    /// O motivo do portão continua visível: no log do drop e no 502 do `/resolve`.
-    fn post_error_is_empty(&self) -> bool {
-        true
-    }
-
     fn post_links(&self, html: &str, post_url: &str) -> Result<Vec<ResolverLink>, String> {
         // Fase 4: o portão de anúncio só vira motivo quando não sobrou botão, na
         // mesma ordem do TS (`assertNoAdGate` depois do parse). Errar com link
