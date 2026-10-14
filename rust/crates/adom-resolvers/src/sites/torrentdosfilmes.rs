@@ -274,6 +274,10 @@ pub fn feed_with_date(
 }
 
 impl SiteOutput for Tdf {
+    fn caps_xml(&self) -> Option<String> {
+        Some(r#"<?xml version="1.0"?><caps><server title="TorrentDosFilmes V2" version="1.0"/><limits max="100" default="100"/><searching><search available="yes" supportedParams="q"/><tv-search available="yes" supportedParams="q,season,ep"/><movie-search available="yes" supportedParams="q"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>"#.to_string())
+    }
+
     fn name(&self) -> &'static str {
         "torrentdosfilmes"
     }

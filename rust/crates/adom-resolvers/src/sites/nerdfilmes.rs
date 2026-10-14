@@ -240,6 +240,10 @@ fn nerdfilmes_rss_xml(self_url: &str, items: &[SearchItem], category: u32) -> St
 }
 
 impl SiteOutput for Nerd {
+    fn caps_xml(&self) -> Option<String> {
+        Some(super::torznab_caps("NerdFilmesTorrent / XNerdFilmes"))
+    }
+
     fn name(&self) -> &'static str {
         "nerdfilmes"
     }

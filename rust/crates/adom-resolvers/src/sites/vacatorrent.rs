@@ -54,6 +54,14 @@ pub fn post_links_with(
 }
 
 impl SiteOutput for Vaca {
+    fn routes(&self) -> crate::server::RouteSet {
+        crate::server::RouteSet {
+            resolve: true,
+            dl: false,
+            api: false,
+        }
+    }
+
     fn name(&self) -> &'static str {
         "vacatorrent"
     }

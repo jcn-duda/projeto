@@ -79,6 +79,33 @@ pub trait ResolverCallbacks: Send + Sync + 'static {
     fn validate_index(&self) -> bool {
         false
     }
+
+    /// Rotas que o profile TS registra (`createResolverRouter`): o resto é 404.
+    fn routes(&self) -> RouteSet {
+        RouteSet::ALL
+    }
+
+    /// Query do `/api` que vira feed vazio. O nerd decide pela query JÁ
+    /// normalizada (`handleApi` próprio); os demais pela crua (`createApiRoute`).
+    fn api_query_is_empty(&self, q: &str) -> bool {
+        q.trim().is_empty()
+    }
+}
+
+/// Rotas opcionais de um profile (`/health` e `/search` existem em todos).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RouteSet {
+    pub resolve: bool,
+    pub dl: bool,
+    pub api: bool,
+}
+
+impl RouteSet {
+    pub const ALL: Self = Self {
+        resolve: true,
+        dl: true,
+        api: true,
+    };
 }
 
 // ── Config do resolver ──────────────────────────────────────────────────────
@@ -270,7 +297,7 @@ async fn api_handler(
     let category: u32 = if type_ == "tvsearch" { 5000 } else { 2000 };
 
     let q = params.q.unwrap_or_default();
-    if q.trim().is_empty() {
+    if callbacks.api_query_is_empty(&q) {
         return (
             StatusCode::OK,
             [("content-type", "application/xml; charset=utf-8")],
@@ -302,14 +329,21 @@ async fn fallback_handler(_uri: Uri) -> Response {
 
 /// Monta o Router axum com todas as rotas do resolver.
 pub fn build_router(callbacks: Arc<dyn ResolverCallbacks>) -> Router {
-    Router::new()
+    let routes = callbacks.routes();
+    let mut router = Router::new()
         .route("/health", get(health_handler))
-        .route("/search", get(search_handler))
-        .route("/resolve", get(resolve_handler))
-        .route("/dl", get(dl_handler))
-        .route("/api", get(api_handler))
-        .fallback(get(fallback_handler))
-        .with_state(callbacks)
+        .route("/search", get(search_handler));
+    // Rota que o profile TS não tem responde 404, não um 200 genérico.
+    if routes.resolve {
+        router = router.route("/resolve", get(resolve_handler));
+    }
+    if routes.dl {
+        router = router.route("/dl", get(dl_handler));
+    }
+    if routes.api {
+        router = router.route("/api", get(api_handler));
+    }
+    router.fallback(get(fallback_handler)).with_state(callbacks)
 }
 
 /// Executa o servidor resolver na porta configurada.

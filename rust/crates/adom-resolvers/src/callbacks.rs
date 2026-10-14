@@ -5,13 +5,15 @@
 //! um item por BOTÃO de post (`crate::items`) e a página/feed saem do formato do
 //! site (`crate::sites`), o mesmo que a definição do Jackett lê do TS.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use adom_crawl::nested_url::{self, UnwrapSeed as NestedSeed};
 
 use crate::common::SearchItem;
 use crate::profile::ResolverProfile;
-use crate::server::{ResolverCallbacks, SearchItems, UnwrapSeed, UnwrappedUrl};
+use crate::search_select;
+use crate::server::{ResolverCallbacks, RouteSet, SearchItems, UnwrapSeed, UnwrappedUrl};
+use crate::sites::site_output;
 
 fn to_items(values: &SearchItems) -> Vec<SearchItem> {
     values
@@ -81,23 +83,41 @@ impl ResolverCallbacks for ResolverProfile {
         })
     }
 
+    /// `capsXml()` do profile; sem `/api` no TS a rota nem é registrada.
     fn caps_xml(&self) -> String {
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<caps><server version="1.0"/><limits max="100" default="50"/>
-<searching><search available="yes"/><tv-search available="yes"/></searching></caps>"#
-            .to_string()
+        site_output(&self.site_name)
+            .and_then(|s| s.caps_xml())
+            .unwrap_or_default()
     }
 
-    fn empty_xml(&self, _category: u32, _type_: &str) -> String {
-        format!(
-            r#"<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>{}</title><response offset="0" total="0"/></channel></rss>"#,
-            self.site_name
-        )
+    /// `emptyXml`: o feed do próprio site sem itens (o bludv fixa 2000).
+    fn empty_xml(&self, category: u32, _type_: &str) -> String {
+        site_output(&self.site_name)
+            .and_then(|s| s.rss_xml(&self.self_url, &[], s.empty_feed_category(category)))
+            .unwrap_or_default()
     }
 
     fn render_xml(&self, items: &SearchItems, category: u32) -> String {
-        let items = to_items(items);
+        let mut items = to_items(items);
+        if self.site_name == "nerdfilmes" {
+            // `handleApi` do nerd: o mesmo botão de um post não repete no feed.
+            let mut seen = HashSet::new();
+            items.retain(|i| seen.insert(format!("{}|{}", i.post.url, i.link.url)));
+        }
         self.render_items_xml(&items, category)
             .unwrap_or_else(|| self.empty_xml(category, ""))
+    }
+
+    fn routes(&self) -> RouteSet {
+        site_output(&self.site_name).map_or(RouteSet::ALL, |s| s.routes())
+    }
+
+    /// O nerd decide o feed vazio pela query normalizada (`normalizeQuery`).
+    fn api_query_is_empty(&self, q: &str) -> bool {
+        if self.site_name == "nerdfilmes" {
+            let rules = search_select::rules_for(&self.site_name);
+            return search_select::normalize_query(q, rules).is_empty();
+        }
+        q.trim().is_empty()
     }
 }

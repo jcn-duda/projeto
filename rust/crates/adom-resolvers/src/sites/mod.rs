@@ -7,6 +7,7 @@
 use adom_crawl::profile_parsers::ResolverLink;
 
 use crate::common::{SearchItem, SitePost};
+use crate::server::RouteSet;
 
 pub mod apachetorrent;
 pub mod bludv;
@@ -102,6 +103,24 @@ pub trait SiteOutput: Send + Sync {
         None
     }
 
+    // ── Rotas e torznab (`createResolverRouter`/`createApiRoute` do profile).
+
+    /// Rotas que o profile TS registra. Comando e vaca não têm `/api` nem
+    /// `/dl`; rede, apache e hdr não têm `/resolve` nem `/dl`.
+    fn routes(&self) -> RouteSet {
+        RouteSet::ALL
+    }
+
+    /// `capsXml()` do profile (só nos que têm `/api`).
+    fn caps_xml(&self) -> Option<String> {
+        None
+    }
+
+    /// Categoria do feed vazio (`emptyXml`): a pedida, salvo o bludv (sempre 2000).
+    fn empty_feed_category(&self, requested: u32) -> u32 {
+        requested
+    }
+
     /// Nome do resolver (o mesmo de `site_output`).
     fn name(&self) -> &'static str;
 }
@@ -120,6 +139,29 @@ pub fn site_output(name: &str) -> Option<&'static dyn SiteOutput> {
         _ => None,
     }
 }
+
+/// `capsXml(title)` de `resolvers/torznab.ts` (bludv e nerd).
+pub fn torznab_caps(title: &str) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<caps>
+  <server title=\"{title}\" version=\"1.0\"/>
+  <limits max=\"100\" default=\"100\"/>
+  <searching>
+    <search available=\"yes\" supportedParams=\"q\"/>
+    <tv-search available=\"yes\" supportedParams=\"q,season,ep\"/>
+    <movie-search available=\"yes\" supportedParams=\"q\"/>
+  </searching>
+  <categories>
+    <category id=\"2000\" name=\"Movies\"/>
+    <category id=\"5000\" name=\"TV\"/>
+  </categories>
+</caps>"
+    )
+}
+
+/// `capsXml` inline de rede, apache e hdr (o mesmo texto nos três).
+pub const COMPACT_CAPS: &str = r#"<?xml version="1.0" encoding="UTF-8"?><caps><server version="1.0"/><searching><search available="yes"/><tv-search available="yes" supportedParams="q,season,ep"/><movie-search available="yes" supportedParams="q"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>"#;
 
 /// Os oito resolvers, na ordem das portas 8700-8707.
 pub const SITES: [&str; 8] = [
@@ -147,6 +189,31 @@ mod tests {
 
     /// Falha de um post nunca derruba o `/search` (o `mapLimit` do TS). O
     /// comando ficou de fora quando o padrão era `false` e devolvia 502.
+    /// Rotas do `createResolverRouter` de cada profile TS; o que falta é 404.
+    #[test]
+    fn rotas_iguais_as_do_profile_ts() {
+        let want = |resolve, dl, api| RouteSet { resolve, dl, api };
+        let table = [
+            ("bludv", want(true, true, true)),
+            ("comandotorrents", want(true, false, false)),
+            ("nerdfilmes", want(true, true, true)),
+            ("torrentdosfilmes", want(true, true, true)),
+            ("vacatorrent", want(true, false, false)),
+            ("redetorrent", want(false, false, true)),
+            ("apachetorrent", want(false, false, true)),
+            ("hdrtorrents", want(false, false, true)),
+        ];
+        for (name, routes) in table {
+            let site = site_output(name).unwrap();
+            assert_eq!(site.routes(), routes, "{name}");
+            assert_eq!(
+                site.caps_xml().is_some(),
+                routes.api,
+                "{name}: caps só com /api"
+            );
+        }
+    }
+
     #[test]
     fn post_que_falha_sai_do_lote_nos_oito() {
         for name in SITES {

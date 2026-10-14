@@ -80,6 +80,18 @@ const TITLE: ReleaseTitleConfig = ReleaseTitleConfig {
 };
 
 impl SiteOutput for Rede {
+    fn routes(&self) -> crate::server::RouteSet {
+        crate::server::RouteSet {
+            resolve: false,
+            dl: false,
+            api: true,
+        }
+    }
+
+    fn caps_xml(&self) -> Option<String> {
+        Some(super::COMPACT_CAPS.to_string())
+    }
+
     fn name(&self) -> &'static str {
         "redetorrent"
     }

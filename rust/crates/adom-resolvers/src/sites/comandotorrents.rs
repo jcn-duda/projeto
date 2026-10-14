@@ -102,6 +102,14 @@ impl CollectorHooks for Hooks {
 }
 
 impl SiteOutput for Comando {
+    fn routes(&self) -> crate::server::RouteSet {
+        crate::server::RouteSet {
+            resolve: true,
+            dl: false,
+            api: false,
+        }
+    }
+
     fn name(&self) -> &'static str {
         "comandotorrents"
     }

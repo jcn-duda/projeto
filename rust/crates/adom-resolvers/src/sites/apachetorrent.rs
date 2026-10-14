@@ -108,6 +108,18 @@ fn utc_now() -> String {
 }
 
 impl SiteOutput for Apache {
+    fn routes(&self) -> crate::server::RouteSet {
+        crate::server::RouteSet {
+            resolve: false,
+            dl: false,
+            api: true,
+        }
+    }
+
+    fn caps_xml(&self) -> Option<String> {
+        Some(super::COMPACT_CAPS.to_string())
+    }
+
     fn name(&self) -> &'static str {
         "apachetorrent"
     }

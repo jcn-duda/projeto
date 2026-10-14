@@ -289,6 +289,15 @@ pub fn parse_search_posts(html: &str, base_url: &str) -> Vec<SitePost> {
 }
 
 impl SiteOutput for Bludv {
+    fn caps_xml(&self) -> Option<String> {
+        Some(super::torznab_caps("BLUDV (resolver)"))
+    }
+
+    /// `emptyXml: () => rssXml([], 2000)`: o bludv ignora a categoria pedida.
+    fn empty_feed_category(&self, _requested: u32) -> u32 {
+        2000
+    }
+
     fn name(&self) -> &'static str {
         "bludv"
     }
