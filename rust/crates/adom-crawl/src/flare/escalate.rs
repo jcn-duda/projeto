@@ -187,11 +187,7 @@ async fn fetch_direct_detecting_challenge(
 /// Regra do `isVacaChallenge` + status do `fetchTextDirect` (`vacatorrent.ts`):
 /// só 2xx/403/503 contam, e corpo JSON (a busca AJAX) nunca é desafio, a menos
 /// que o header `cf-mitigated` diga que é.
-pub(crate) fn is_direct_challenge(
-    status: u16,
-    headers: &HashMap<String, String>,
-    body: &str,
-) -> bool {
+pub fn is_direct_challenge(status: u16, headers: &HashMap<String, String>, body: &str) -> bool {
     if !(200..300).contains(&status) && status != 403 && status != 503 {
         return false;
     }

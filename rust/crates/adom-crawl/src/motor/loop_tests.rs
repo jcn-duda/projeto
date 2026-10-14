@@ -129,6 +129,26 @@ async fn node_falso(posts: Arc<AtomicUsize>) -> String {
     format!("http://{addr}")
 }
 
+/// Node que responde o freio de tráfego mas RECUSA a entrega (500): o tick
+/// processa e a entrega falha. Com o freio fail-closed, um Node em porta
+/// fechada nem deixa o tick começar — por isso a falha de entrega precisa disto.
+async fn node_recusa_entrega() -> String {
+    let app = axum::Router::new()
+        .route("/internal/activity", get(activity))
+        .route(
+            "/internal/crawl-result",
+            post(|| async { axum::http::StatusCode::INTERNAL_SERVER_ERROR }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind do node que recusa");
+    let addr = listener.local_addr().expect("addr do node que recusa");
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    format!("http://{addr}")
+}
+
 async fn activity() -> Json<serde_json::Value> {
     // `recent: false` = app ocioso, o motor pode raspando.
     Json(serde_json::json!({ "recent": false }))
@@ -149,7 +169,8 @@ async fn tick_sem_parser_nao_reivindica_nenhuma_url() {
     let caminho = db.to_str().unwrap();
     seed(caminho, linha("filme-1"));
 
-    let motor = CrawlMotor::new(config(caminho, "http://127.0.0.1:1"));
+    let node = node_falso(Arc::new(AtomicUsize::new(0))).await;
+    let motor = CrawlMotor::new(config(caminho, &node));
     let outcome = motor.tick_once().await.expect("tick");
 
     assert_eq!(outcome, TickOutcome::Skipped("parser-pendente"));
@@ -200,9 +221,9 @@ async fn tick_com_falha_dorme_com_backoff() {
     let caminho = db.to_str().unwrap();
     seed(caminho, linha("filme-3"));
 
-    // Node em porta fechada: a entrega falha, o tick não derruba o motor.
-    let motor = CrawlMotor::new(config(caminho, "http://127.0.0.1:1"))
-        .with_page_engine(EngineFake::com_erro());
+    // A entrega falha (500), o tick não derruba o motor.
+    let node = node_recusa_entrega().await;
+    let motor = CrawlMotor::new(config(caminho, &node)).with_page_engine(EngineFake::com_erro());
     let outcome = motor.tick_once().await.expect("tick");
 
     assert_eq!(
@@ -230,8 +251,8 @@ async fn tries_esgotados_viram_erro_terminal() {
     cansada.tries = 2; // max_tries default = 3 → esta é a última tentativa
     seed(caminho, cansada);
 
-    let motor = CrawlMotor::new(config(caminho, "http://127.0.0.1:1"))
-        .with_page_engine(EngineFake::com_erro());
+    let node = node_recusa_entrega().await;
+    let motor = CrawlMotor::new(config(caminho, &node)).with_page_engine(EngineFake::com_erro());
     motor.tick_once().await.expect("tick");
 
     let (status, tries, next_at) = ler_linha(caminho, "filme-4");

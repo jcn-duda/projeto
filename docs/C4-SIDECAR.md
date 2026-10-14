@@ -148,7 +148,7 @@ Não há migração de dados. O schema é idêntico.
 | `CRAWL_SIDECAR_PORT` | `7077` | Porta do healthcheck/status do sidecar |
 | `CRAWL_DB_PATH` | `./data/crawl.db` | Caminho do SQLite compartilhado |
 | `CRAWL_NODE_URL` | `http://127.0.0.1:7000` | URL do Node para POST de resultados |
-| `ADMIN_TOKEN` | *(obrigatório)* | Token de autenticação (header `X-Indexer-Test-Token`). Alias: `JACKETT_TEST_TOKEN` |
+| `JACKETT_TEST_TOKEN` | *(obrigatório)* | Token de autenticação (header `X-Indexer-Test-Token`), o mesmo das rotas de diagnóstico. `ADMIN_TOKEN` é alias (com aviso) |
 | `CRAWL_IDLE_WINDOW_MS` | `60000` | Janela de inatividade para freio (sidecar binário) |
 | `CRAWL_MAX_CONCURRENT` | `4` | Tarefas simultâneas |
 | `CRAWL_DELAY_MS` | `1000` | Atraso entre ciclos em ms |
@@ -199,5 +199,5 @@ bloqueia acesso externo a essas rotas com `respond /internal/* 403`. O token
   migração do protetor ativo acontecerá quando o sidecar for o default.
 - O `crawl.db` é compartilhado, mas o sidecar e o motor TS **não** devem
   rodar simultaneamente no mesmo banco (risco de conflito de escrita).
-- O `ADMIN_TOKEN` é obrigatório para o sidecar iniciar. Sem ele, o processo
+- O `JACKETT_TEST_TOKEN` (ou o alias `ADMIN_TOKEN`) é obrigatório para o sidecar iniciar. Sem ele, o processo
   recusa (exit 1).

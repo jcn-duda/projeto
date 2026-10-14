@@ -27,7 +27,9 @@ pub mod types;
 // Re-exports para conveniência do consumidor.
 pub use challenge::is_cloudflare_challenge;
 pub use client::fetch_text_via_flare;
-pub use escalate::{fetch_text_crawl, fetch_text_crawl_accept, CrawlFetchDeps};
+pub use escalate::{
+    fetch_text_crawl, fetch_text_crawl_accept, is_direct_challenge, CrawlFetchDeps,
+};
 pub use session::{build_flare_headers, FlareSession, FlareSessions};
 pub use types::{FlareError, FlareSolution, DIRECT_CHALLENGE_MSG};
 
