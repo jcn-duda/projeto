@@ -1,11 +1,17 @@
 import config from '../config.js';
-import { opts } from '../runtime.js';
+import { opts, capture, run } from '../runtime.js';
+import { instance } from '../br-resolvers.js';
+import { raceWithDeadline } from '../utils/deadline.js';
+import type { BludvResolverSurface } from './crawl-sites/bludv.js';
+import { extractMagnet, isValidMagnetUri, releaseTitle } from '../../resolvers/profiles/bludv-parsers.js';
+import { parseGateAndLegacyLinks, isGateUrl } from '../../resolvers/profiles/bludv-gate-links.js';
+import { prefetchGateMagnet, resolveGateMagnet } from '../../resolvers/profiles/bludv-gate-flow.js';
 import * as cache from '../utils/cache.js';
 import { mapLimit } from '../utils/concurrency.js';
 import * as log from '../utils/logger.js';
 import { prefix } from '../utils/cache-keys.js';
 // A detecção do portão é a MESMA do resolvedor standalone: nada de regex local.
-import { assertNoAdGate, isBludvAdGate } from '../../resolvers/profiles/bludv-gate.js';
+import { assertNoAdGate, hasAdGate, isBludvAdGate } from '../../resolvers/profiles/bludv-gate.js';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
@@ -32,7 +38,18 @@ function parseSize(text: string) {
   return Number.isFinite(value) ? Math.round(value * mult) : null;
 }
 
-async function get(url: string, referer = '') {
+async function get(url: string, referer = '', deadlineAt = Date.now() + config.bludv.timeout) {
+  const remaining = deadlineAt - Date.now();
+  if (remaining <= 0) throw new Error('bludv: orçamento esgotado');
+  // Sem criar servidor ou outra sessão: o perfil carregado já sabe vencer o 403.
+  const surface = instance('bludv') as BludvResolverSurface | null;
+  if (surface?.isDetailHost(new URL(url).hostname)) {
+    const allowed = surface.assertAllowedUrl(url);
+    return raceWithDeadline(surface.fetchText(allowed, referer), remaining, () => {
+      throw new Error('bludv: prazo da página esgotado');
+    });
+  }
+  const task = (async () => {
   const res = await fetch(url, {
     redirect: 'follow',
     headers: {
@@ -40,10 +57,12 @@ async function get(url: string, referer = '') {
       Accept: 'text/html,application/xhtml+xml',
       ...(referer ? { Referer: referer } : {}),
     },
-    signal: AbortSignal.timeout(config.bludv.timeout),
+    signal: AbortSignal.timeout(Math.max(1, remaining)),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
+  })();
+  return raceWithDeadline(task, remaining, () => { throw new Error('bludv: prazo esgotado'); });
 }
 
 /** Card da lista do WordPress: o que a raspa do post consome. */
@@ -105,16 +124,19 @@ function parseDownloadLinks(html: string) {
   return out;
 }
 
-/** systemads → 302 → videosad → HTML com o magnet. Dois saltos, sem atalho. */
-async function resolveMagnet(link: string, referer: string) {
-  const html = await get(String((link as any).url ?? link), referer);
-  const m = html.match(/magnet:\?[^"'<\s]+/);
-  return m ? decodeEntities(m[0]) : null;
+/** O magnet direto não gasta rede; o legado continua seguindo seu protetor. */
+async function resolveMagnet(link: string, referer: string, deadlineAt: number) {
+  if (isValidMagnetUri(link)) return link;
+  const html = await get(link, referer, deadlineAt);
+  const magnet = extractMagnet(html);
+  return magnet && isValidMagnetUri(magnet) ? magnet : null;
 }
 
-async function collectFromPost(post: BludvPost) {
-  const html = await get(post.url, config.bludv.baseUrl);
-  let links = parseDownloadLinks(html);
+async function collectFromPost(post: BludvPost, deadlineAt: number, notePending: () => void) {
+  const html = await get(post.url, config.bludv.baseUrl, deadlineAt);
+  let links = parseGateAndLegacyLinks(html, post.url);
+  // Nem vazio nem lote misto com gate pendente viram cache cru de longa duração.
+  if (hasAdGate(html) || links.some((link) => isGateUrl(link.url, post.url))) notePending();
   // O BLUDV pode trocar o protetor de link por um portão de anúncio: nesse caso
   // o post não traz nenhum `systemads`/`videosad` e a raspa viraria 0 releases
   // silencioso. Lançar aqui é o que dá ao `search()` um MOTIVO para logar — mas
@@ -124,21 +146,29 @@ async function collectFromPost(post: BludvPost) {
   if (opts().dubbedOnly) {
     links = links.filter((l) => l.audio !== 'legendado');
   }
-  links = links.slice(0, config.bludv.maxLinksPerPost);
+  // Gate não rouba as vagas dos links legados nem dispara N solves por post.
+  const gate = links.find((link) => isGateUrl(link.url, post.url));
+  links = links.filter((link) => !isGateUrl(link.url, post.url)).slice(0, config.bludv.maxLinksPerPost);
+  if (gate && Date.now() < deadlineAt) links.push(gate);
+  const context = capture();
 
   // 'drop': botão sem magnet não tem o que exibir.
   const resolved = await mapLimit(
     links,
     config.bludv.concurrency,
-    async (link: any) => {
-      const magnet = await resolveMagnet(link, post.url);
-      if (!magnet) return null;
-      // O magnet não traz `dn`, então o nome vem do título do post + spec do botão.
-      const name = post.title.replace(/\s*\((\d{4})\).*$/, ' $1').trim();
+    async (link) => {
+      let magnet: string | null;
+      if (isGateUrl(link.url, post.url)) {
+        // Resolve e prefetch compartilham coalescing/cache no núcleo. Aqui só se
+        // aproveita o hit imediato; os ~30s do anúncio nunca entram na resposta.
+        run(context, () => prefetchGateMagnet(link.url, post.url));
+        magnet = await raceWithDeadline(resolveGateMagnet(link.url, post.url).catch(() => null), 0, () => null);
+      } else {
+        magnet = await resolveMagnet(link.url, post.url, deadlineAt);
+      }
+      if (!magnet || !isValidMagnetUri(magnet)) return null;
       return {
-        title: [name, link.label, link.audio === 'dublado' ? 'DUBLADO' : 'LEGENDADO']
-          .filter(Boolean)
-          .join(' '),
+        title: releaseTitle(post.title, link),
         magnet,
         // O site não publica seeds. 0 faria o filtro MIN_SEEDERS descartar a
         // release antes de consultar o swarm; 1 é o valor neutro.
@@ -173,8 +203,9 @@ async function search(query: string) {
     if (hit && Array.isArray(hit.items)) return hit.items;
   }
 
+  const deadlineAt = Date.now() + config.bludv.timeout;
   try {
-    const html = await get(`${config.bludv.baseUrl}/?s=${encodeURIComponent(q)}`);
+    const html = await get(`${config.bludv.baseUrl}/?s=${encodeURIComponent(q)}`, '', deadlineAt);
     const posts = parsePosts(html).slice(0, config.bludv.maxPosts);
 
     // 'drop': post que falhou (site fora, layout quebrado) sai do lote em vez
@@ -183,14 +214,20 @@ async function search(query: string) {
     // "N post(s) → 0 magnet(s)" não diz se o site mudou de protetor ou só não
     // tem o título procurado.
     let gatePosts = 0;
+    let incomplete = false;
     const chunks = await mapLimit(
       posts,
       config.bludv.concurrency,
       async (post) => {
         try {
-          return await collectFromPost(post);
+          return await collectFromPost(post, deadlineAt, () => {
+            incomplete = true;
+            gatePosts++;
+            log.warn('[bludv] portão de anúncio ativo —', post.url);
+          });
         } catch (err) {
-          if (isBludvAdGate(err)) {
+          incomplete = true;
+          if (isBludvAdGate(err) && !gatePosts) {
             gatePosts++;
             log.warn('[bludv] portão de anúncio ativo —', post.url);
           }
@@ -201,7 +238,7 @@ async function search(query: string) {
       { onItemError: 'drop' },
     );
     const items = chunks.flat();
-    if (ttlBr > 0 && maxItems > 0 && items.length <= maxItems) {
+    if (!incomplete && ttlBr > 0 && maxItems > 0 && items.length <= maxItems) {
       // Vazio usa o TTL curto: site fora/rate-limit não pode congelar a
       // resposta. Falha (catch) continua sem cache — retry na próxima busca.
       cache.set(rawKey, { items }, items.length === 0 ? emptyTtl : ttlBr);

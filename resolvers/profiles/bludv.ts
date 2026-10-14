@@ -46,6 +46,8 @@ import type { BludvLinkPrefs } from './bludv-parsers.js';
 // Detecção do portão importada direto do módulo compartilhado: o provider em
 // processo (src/providers/bludv.ts) usa a MESMA regex, sem cópia.
 import { assertNoAdGate } from './bludv-gate.js';
+import { parseGateAndLegacyLinks, isGateUrl } from './bludv-gate-links.js';
+import { resolveGateMagnet } from './bludv-gate-flow.js';
 import type { ResolverLink } from '../types.js';
 
 // Defaults ESTÁTICOS do perfil (sem env). O env do operador é lido por
@@ -182,14 +184,26 @@ function createResolver(overrides: ProfileOverrides = {}) {
     if (!isDetailHost(post.hostname)) throw new Error('not_detail_page');
     return cachedPost(post.href, POST_CACHE_MS, async () => {
       const html = await fetchText(post);
-      // Fase 4: o portão de anúncio só é motivo quando não sobrou botão — sem
-      // isso o post viraria "0 releases" silencioso, indistinguível de site sem
-      // o título. Com link aproveitável o portão é irrelevante: não se joga fora
-      // resultado bom para reclamar do botão bloqueado ao lado.
-      const links = parseDownloadLinks(html);
+      // O portão de anúncio é BOTÃO, não sentinela de post vazio: a raspa
+      // gate+legado preserva o que ainda funciona. Errorizar só quando não
+      // sobra nada — num post misto, reclamar do botão bloqueado jogaria fora
+      // releases boas. O gate abre no play, nunca em /search: o card do Jackett
+      // paga o download tarde e o FlareSolverr atende uma requisição por vez.
+      const links = parseGateAndLegacyLinks(html, post.href, parseDownloadLinks);
       assertNoAdGate(html, links.length);
       return { post, links };
     });
+  }
+
+  /**
+   * Um único ponto de decisão para /resolve e /dl. O botão do portão paga a
+   * cadeia do anúncio (~30s na mesma sessão do solvedor); o legado continua
+   * seguindo o protetor. Duplicar a regra faria as duas rotas divergir.
+   */
+  function followButton(link: ResolverLink, referer: string): Promise<string> {
+    return isGateUrl(link.url, referer)
+      ? resolveGateMagnet(link.url, referer, { solverUrl: FLARE.solverUrl })
+      : fetchFollowingAllowed(link.url, referer);
   }
 
   async function resolvePost(postUrl: string, prefs: BludvLinkPrefs = {}) {
@@ -204,7 +218,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
       console.log(
         `[resolve] ${links.length} botão(ões), tentando ${sorted.length} em ordem de preferência ${post.pathname}`,
       );
-      return tryLinksInOrder(sorted, (link) => fetchFollowingAllowed(link.url, post.href), {
+      return tryLinksInOrder(sorted, (link) => followButton(link, post.href), {
         onError: (link, error) =>
           console.warn(`[resolve] botão ${link.quality || '?'}p falhou (${error.message}); tentando o próximo`),
       });
@@ -221,7 +235,7 @@ function createResolver(overrides: ProfileOverrides = {}) {
       const link = pickButton(links, index, hash, count);
       if (!link) throw new Error('no_such_button');
       console.log(`[dl] botão ${index} → ${link.quality || '?'}p ${link.audio} ${link.size || ''} ${post.pathname}`);
-      return fetchFollowingAllowed(link.url, post.href);
+      return followButton(link, post.href);
     });
   }
 
