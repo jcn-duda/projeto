@@ -42,6 +42,9 @@ RUN cargo build --locked --release --bin adom-sidecar \
 # Compila os resolvers BR em Rust (binário estático musl, mesmo padrão)
 RUN cargo build --locked --release --bin adom-resolvers \
  && cp target/release/adom-resolvers /adom-resolvers
+# Gateway (GATEWAY=on): escuta a 7000 e encaminha ao Node na 7100.
+RUN cargo build --locked --release --bin adom-server \
+ && cp target/release/adom-server /adom-server
 
 # --- Build: compila .ts → .js em dist/ e copia assets estáticos.
 FROM node:22-alpine AS builder
@@ -140,6 +143,7 @@ COPY --from=rustcore /adom_napi.node ./dist/rust/adom_napi.node
 COPY --from=rustcore /adom-sidecar ./dist/rust/adom-sidecar
 # Resolvers BR em Rust (BR_RESOLVER_RUST): binário que assume as portas dos sites delegados.
 COPY --from=rustcore /adom-resolvers ./dist/rust/adom-resolvers
+COPY --from=rustcore /adom-server ./dist/rust/adom-server
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

@@ -49,15 +49,17 @@ RESOLVERS_BACKOFF_MAX=60   # teto do backoff: 2→4→8→16→32→60…
 pids=()
 SIDECAR_PID=""
 RESOLVERS_SUPERVISOR_PID=""
+GATEWAY_SUPERVISOR_PID=""
 shutdown() {
   echo "[entrypoint] sinal recebido; encerrando subprocessos" >&2
   # Sidecar do raspador (se ativo): mata sem esperar, ele não está no wait -n
   [ -n "$SIDECAR_PID" ] && kill -TERM "$SIDECAR_PID" 2>/dev/null || true
-  # Supervisor dos resolvers: o trap do laço repassa o TERM ao filho em
-  # andamento (variável do laço só é visível lá dentro — daqui não dá para
-  # matar o binário direto). A saída deste shell derruba o container, e o
+  # Supervisor dos resolvers e do gateway: o trap do laço repassa o TERM ao
+  # filho em andamento (variável do laço só é visível lá dentro — daqui não dá
+  # para matar o binário direto). A saída deste shell derruba o container, e o
   # Docker ceifa o que sobrou.
   [ -n "$RESOLVERS_SUPERVISOR_PID" ] && kill -TERM "$RESOLVERS_SUPERVISOR_PID" 2>/dev/null || true
+  [ -n "$GATEWAY_SUPERVISOR_PID" ] && kill -TERM "$GATEWAY_SUPERVISOR_PID" 2>/dev/null || true
   kill -TERM "${pids[@]}" 2>/dev/null || true
   wait "${pids[@]}" 2>/dev/null || true
   exit 0
@@ -279,6 +281,12 @@ run '[jackett]' env XDG_CONFIG_HOME=/config XDG_DATA_HOME=/config TMPDIR=/run/ja
 # "Address in use".
 run '[flaresolverr]' env PORT=8191 python3 -u /app/flaresolverr/flaresolverr.py
 
+# Com GATEWAY=on o Node sai da 7000. O sidecar fala com ele direto (o Caddy
+# responde 403 em /internal no vhost público).
+if [ "${GATEWAY:-}" = "on" ] && [ -z "${CRAWL_NODE_URL:-}" ]; then
+  export CRAWL_NODE_URL=http://127.0.0.1:7100
+fi
+
 # Sidecar do raspador Rust (só quando CRAWL_ENGINE=rust).
 # O sidecar NÃO entra no `wait -n` abaixo: ele tem reinício próprio ou fica
 # fora do supervisionamento. O `wait -n` continua supervisionando só
@@ -356,9 +364,46 @@ if [ -n "${BR_RESOLVER_RUST:-}" ]; then
     RESOLVERS_SUPERVISOR_PID=$!
 fi
 
+# Mesmo laço dos resolvers: a 1ª queda do gateway não pode derrubar Caddy,
+# Jackett e Flare. A 5ª morte seguidas mata o pai. Fora do wait -n de propósito.
+supervise_gateway() {
+  local tentativa=0 delay="$RESOLVERS_BACKOFF_START" code GATEWAY_CHILD_PID=""
+  trap 'kill "$GATEWAY_CHILD_PID" 2>/dev/null || true; exit 143' TERM INT
+  while :; do
+    /app/dist/rust/adom-server > >(awk -v t='[gateway]' '{ print t " " $0; fflush() }') 2>&1 &
+    GATEWAY_CHILD_PID=$!
+    wait "$GATEWAY_CHILD_PID"
+    code=$?
+    tentativa=$((tentativa + 1))
+    if [ "$tentativa" -ge "$RESOLVERS_MAX_RESTARTS" ]; then
+      echo "[gateway] adom-server caiu $tentativa vezes seguidas (código $code); sem mais reinícios — derrubando o container" >&2
+      kill -TERM "$$" 2>/dev/null || true
+      exit "$code"
+    fi
+    echo "[gateway] adom-server saiu com código $code; recriando em ${delay}s (morte $tentativa de $((RESOLVERS_MAX_RESTARTS - 1)))" >&2
+    sleep "$delay"
+    delay=$((delay * 2))
+    [ "$delay" -gt "$RESOLVERS_BACKOFF_MAX" ] && delay="$RESOLVERS_BACKOFF_MAX"
+  done
+}
+
 # Saída do tsc, não o fonte: a imagem de runtime recebe só `dist/` (o COPY
 # --from=builder do Dockerfile), então `src/addon.js` não existe lá dentro.
-run '[addon]' node dist/src/addon.js
+# GATEWAY=on: o binário ocupa a 7000 (Caddy e healthcheck) e o Node nasce só
+# neste processo com PORT=7100. O PORT do container continua 7000, senão o
+# FlareSolverr disputa a porta.
+if [ "${GATEWAY:-}" = "on" ]; then
+  if [ ! -x /app/dist/rust/adom-server ]; then
+    echo "[gateway] binario ausente; GATEWAY=on exige a imagem com adom-server" >&2
+    exit 1
+  fi
+  echo "[entrypoint] iniciando adom-server supervisionado (GATEWAY=on)"
+  supervise_gateway &
+  GATEWAY_SUPERVISOR_PID=$!
+  run '[addon]' env PORT=7100 node dist/src/addon.js
+else
+  run '[addon]' node dist/src/addon.js
+fi
 
 wait -n "${pids[@]}"
 code=$?
