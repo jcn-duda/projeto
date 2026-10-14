@@ -2,189 +2,163 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import config from '../src/config.js';
-// Extração §5.8: a allowlist e a lista de confirmação moram em
-// dashboard-actions.ts. Importar os conjuntos exportados verifica o ESTADO
-// real do despacho (em vez de regex sobre o texto do fonte, que quebrava a
-// cada refactor de formato sem relação com comportamento).
+// A allowlist e a lista de confirmação moram em dashboard-actions.ts.
 import { DASHBOARD_ACTIONS, DESTRUCTIVE_ACTIONS } from '../src/routes/dashboard-actions.js';
+// Modelo puro da aba Limpeza do /painel (o cliente legado de /dashboard saiu).
+import {
+  catalogListRows,
+  catalogVerdict,
+  catalogSelection,
+  toggleAllSelection,
+  catalogPageCount,
+  catalogPageSlice,
+  cleanupPreviewSummary,
+  canApplyCleanup,
+  cleanupSkippedLine,
+} from '../src/client/painel/limpeza/catalogo-model.js';
 
 const ACTIONS = [
-  'catalog-scan',
-  'catalog-report',
-  'dedup-preview',
-  'dedup-apply',
-  'audit-backfill',
-  'audit-requeue',
-  'catalog-list',
-  'manual-delete',
-  'cleanup-preview',
-  'cleanup-apply',
+  'catalog-scan', 'catalog-report', 'dedup-preview', 'dedup-apply', 'audit-backfill',
+  'audit-requeue', 'catalog-list', 'manual-delete', 'cleanup-preview', 'cleanup-apply',
 ];
-// As destrutivas exigem confirm: true. Nenhuma das outras é destrutiva.
 const DESTRUCTIVE = ['dedup-apply', 'cleanup-apply', 'manual-delete'];
 
-function dashboardHtml() {
-  return readFileSync(new URL('../../src/public/dashboard.html', import.meta.url), 'utf8');
-}
-
 test('dashboard-actions: as 10 ações do catálogo estão na allowlist do despacho', () => {
-  for (const action of ACTIONS) {
-    assert.ok(DASHBOARD_ACTIONS.has(action), `${action} deve estar na allowlist`);
-  }
+  for (const action of ACTIONS) assert.ok(DASHBOARD_ACTIONS.has(action), action);
 });
 
-test('dashboard-actions: exatamente dedup-apply, cleanup-apply e manual-delete exigem confirm', () => {
-  for (const action of DESTRUCTIVE) {
-    assert.ok(DESTRUCTIVE_ACTIONS.has(action), `${action} deve estar na lista de confirmação`);
-  }
+test('dashboard-actions: só dedup-apply, cleanup-apply e manual-delete exigem confirm', () => {
+  for (const action of DESTRUCTIVE) assert.ok(DESTRUCTIVE_ACTIONS.has(action), action);
   for (const action of ACTIONS) {
     if (DESTRUCTIVE.includes(action)) continue;
-    assert.ok(!DESTRUCTIVE_ACTIONS.has(action), `${action} NÃO deve exigir confirmação`);
+    assert.ok(!DESTRUCTIVE_ACTIONS.has(action), action + ' não deve exigir confirm');
   }
 });
 
-test('dashboard.html: seção Conta / Catálogo com os IDs exigidos e botões das ações', () => {
-  const html = dashboardHtml();
-  assert.match(html, /id="catalog_report"/);
-  assert.match(html, /id="catalog_dedup_preview"/);
-  assert.match(html, /id="catalog_targets"/);
-  // Botões que postam as ações (via catalogAction no JS).
-  assert.match(html, /id="catalogScanBtn"/);
-  assert.match(html, /id="catalogDedupApplyBtn"/);
-  // O JS recorre a catalogAction com as ações esperadas.
-  assert.match(html, /catalogAction\(\s*"catalog-scan"/);
-  assert.match(html, /catalogAction\(\s*"dedup-apply"/);
+test('catalogListRows normaliza o contrato real de catalog-list e o veredito exige prova', () => {
+  const rows = catalogListRows({
+    ok: true,
+    rows: [
+      { serviceId: 'a1', hash: 'a1b2c3d4e5', filename: 'Filme Estrangeiro', size: 2048, bucket: 'lixo', foreignProof: 'lang:en', active: true },
+      { serviceId: 'b2', hash: 'b2c3d4e5f6', filename: 'Filme PT', size: 1024, bucket: 'dub', ptProof: 'pt' },
+    ],
+  });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].hashShort, 'a1b2c3d4');
+  assert.equal(rows[0].bucketName, 'Lixo / indefinido');
+  assert.equal(rows[0].active, true);
+  assert.equal(catalogVerdict(rows[0]).text, 'estrangeiro');
+  assert.equal(catalogVerdict(rows[1]).text, 'PT');
+  // Sem prova alguma, o veredito não condena nem promove.
+  const [semProva] = catalogListRows({ ok: true, rows: [{ serviceId: 'c', bucket: 'dual' }] });
+  assert.equal(catalogVerdict(semProva).text, 'Dual');
+  assert.deepEqual(catalogListRows(null), []);
 });
 
-test('dashboard.html: aplicar de dedup exige confirmação nativa antes de postar', () => {
-  const html = dashboardHtml();
-  const idx = html.indexOf('function runCatalogDedupApply');
-  assert.ok(idx !== -1, 'handler do dedup-apply presente');
-  const body = html.slice(idx, idx + 260);
-  assert.match(body, /window\.confirm/);
-  const confirmIdx = body.indexOf('window.confirm');
-  const actionIdx = body.indexOf('catalogAction("dedup-apply"');
-  assert.ok(confirmIdx !== -1 && actionIdx !== -1 && confirmIdx < actionIdx, 'confirm antes do post');
+test('seleção ignora download em curso e o resumo carrega bytes', () => {
+  const rows = catalogListRows({
+    ok: true,
+    rows: [
+      { serviceId: 'a', size: 2048, bucket: 'dub' },
+      { serviceId: 'b', size: 1024, bucket: 'dub', active: true },
+    ],
+  });
+  // O desabilitado (active) nunca é elegível; o marcado respeita a mesma regra.
+  assert.deepEqual(toggleAllSelection(rows, []), ['a']);
+  assert.deepEqual(toggleAllSelection(rows, ['a']), []);
+  const selection = catalogSelection(rows, ['a', 'b']);
+  assert.equal(selection.count, 1, 'linha em curso não conta');
+  assert.equal(selection.bytes, 2048);
+  assert.equal(selection.eligible, 1);
 });
 
-test('dashboard.html: o JS da nova seção continua ES5 (WebView de Smart TV)', () => {
-  const html = dashboardHtml();
-  assert.doesNotMatch(html, /\b(?:const|let)\b|=>|\?\.|\?\?/, 'dashboard.html continua ES5');
+test('paginação do cliente respeita o tamanho de página e clampa', () => {
+  assert.equal(catalogPageCount(0), 1);
+  assert.equal(catalogPageCount(45), 3);
+  const rows = Array.from({ length: 45 }, (_, i) => i);
+  assert.equal(catalogPageSlice(rows, 1).length, 20);
+  assert.equal(catalogPageSlice(rows, 3).length, 5);
+  assert.equal(catalogPageSlice(rows, 99)[0], 40, 'página acima do teto clampa na última');
 });
 
-test('dashboard.html: checkbox catalog_include_known presente e enviado como includeKnown no corpo', () => {
-  const html = dashboardHtml();
-  assert.match(html, /id="catalog_include_known"/);
-  assert.match(html, /includeKnown: catalogIncludeKnown\(\)/, 'o corpo da ação carrega includeKnown lido do checkbox');
-  assert.match(html, /function catalogIncludeKnown/, 'há uma função que lê o estado do checkbox');
+test('cleanupPreviewSummary normaliza targets/skipped e a falha preserva o motivo', () => {
+  const ok = cleanupPreviewSummary({
+    ok: true,
+    targets: [{ hash: 'abc', size: 10 }],
+    skipped: { protected: 1, known: 2 },
+  });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.targets.length, 1);
+  assert.equal(ok.skipped.protected, 1);
+  assert.equal(ok.skipped.known, 2);
+  assert.match(cleanupSkippedLine(ok.skipped), /protegidos: 1/);
+
+  const fail = cleanupPreviewSummary({ ok: false, reason: 'sem-adapter', hint: 'ligue DEBRID_OPERATOR_ENV_ACCOUNT' });
+  assert.equal(fail.ok, false);
+  assert.match(String(fail.reason), /ligue DEBRID_OPERATOR_ENV_ACCOUNT/);
+  assert.deepEqual(fail.targets, []);
+  assert.equal(canApplyCleanup(null), false);
+  assert.equal(canApplyCleanup(fail), false);
+  assert.equal(canApplyCleanup(ok), true, 'só com alvo a ação destrutiva é liberada');
 });
 
-test('dashboard.html: alvo com t.known é marcado (preexistente) na lista da limpeza', () => {
-  const html = dashboardHtml();
-  assert.match(html, /preexistente/);
-});
-
-// Limpador BR com prova: o default de idade mínima foi fixado em 48h. Motivo
-// medido: o acervo da AllDebrid se recicla em até ~3 dias, então o antigo
-// default de 7 dias nunca liberava vaga; duas janelas de observação (48h)
-// ainda descartam o download que acabou de ser aquecido.
-test('cleanupMinAgeMs default é 48h, não 7 dias', () => {
+test('cleanupMinAgeMs default é 48h e a env explícita vence', async () => {
   assert.equal(config.catalog.cleanupMinAgeMs, 48 * 3600 * 1000);
-});
-
-// Valor explícito da env ainda vence o default: config.js lê o process.env uma
-// vez no load, então este teste importa uma cópia fresca do módulo (bust de
-// cache via query) com a variável setada antes, sem tocar o singleton do topo
-// deste arquivo nem o estado de outros testes do processo.
-test('CATALOG_CLEANUP_MIN_AGE_MS explícito vence o default de 48h', async () => {
   process.env.CATALOG_CLEANUP_MIN_AGE_MS = '999000';
   try {
-    // Expressão não-literal: mantém o cache bust via query (instância fresca
-    // do módulo) sem o TS tentar resolver a URL literal (TS2307). O default
-    // do módulo é o objeto config.
     const fresh = (await import('../src/config.js' + '?cleanup-age=override')) as any;
-    const cfg: { catalog: { cleanupMinAgeMs: number } } = fresh.default;
-    assert.equal(cfg.catalog.cleanupMinAgeMs, 999000);
+    assert.equal(fresh.default.catalog.cleanupMinAgeMs, 999000);
   } finally {
     delete process.env.CATALOG_CLEANUP_MIN_AGE_MS;
   }
 });
 
-// Regressão do painel: `audit-backfill`, `dedup-apply` e `cleanup-apply`
-// devolvem CONTADORES (`scanned`/`deleted`/`falhas`), nunca um relatório.
-// Ligá-los ao renderCatalogReport fazia `report.byCached["hit"]` estourar
-// sobre `undefined` — e, por acontecer DENTRO do .then(), o .catch() do
-// catalogAction pintava "Ação não concluída" para uma auditoria que já tinha
-// rodado e gravado evidência no servidor. Medido no dashboard ao vivo:
-// "Cannot read properties of undefined (reading 'hit')".
-test('dashboard.html: ações que mutam usam renderCatalogOutcome, não renderCatalogReport', () => {
-  const html = dashboardHtml();
-  const linhas = html.split('\n');
-  for (const action of ['audit-backfill', 'dedup-apply', 'cleanup-apply']) {
-    const alvo = `catalogAction("${action}"`;
-    const linha = linhas.find((l) => l.includes(alvo));
-    assert.ok(linha, `ação ${action} não encontrada no painel`);
-    assert.ok(
-      linha!.includes('renderCatalogOutcome'),
-      `${action} deve renderizar contadores, não relatório`,
-    );
+test('a aba de catálogo do /painel é ESM sem new Function e usa as ações reais do backend', () => {
+  for (const file of ['limpeza/catalogo-model.ts', 'limpeza/view-catalogo.ts', 'limpeza/view-manutencao.ts']) {
+    const src = readFileSync(new URL('../../src/client/painel/' + file, import.meta.url), 'utf8');
+    assert.doesNotMatch(src, /new Function/, file + ' não pode usar new Function');
+  }
+  const view = readFileSync(new URL('../../src/client/painel/limpeza/view-catalogo.ts', import.meta.url), 'utf8');
+  const maint = readFileSync(new URL('../../src/client/painel/limpeza/view-manutencao.ts', import.meta.url), 'utf8');
+  for (const action of ['catalog-list', 'catalog-scan', 'manual-delete']) {
+    assert.match(view, new RegExp(`'${action}'`), action + ' preservado na navegação');
+  }
+  for (const action of ['cleanup-preview', 'cleanup-apply', 'audit-requeue', 'audit-backfill', 'warm-pause', 'warm-resume', 'warm-drain']) {
+    assert.match(maint, new RegExp(`'${action}'`), action + ' preservado na manutenção');
   }
 });
 
-// Um relatório ausente ou parcial não pode derrubar o render: os dois mapas
-// agregados (`byCached` e `byBucket`) precisam de default próprio, do mesmo
-// jeito que `report.works` e `report.totals` já são acessados com guarda.
-test('dashboard.html: byCached e byBucket têm default antes do acesso indexado', () => {
-  const html = dashboardHtml();
-  assert.match(html, /var cached = report\.byCached \|\| \{\};/);
-  assert.match(html, /var buckets = report\.byBucket \|\| \{\};/);
-  assert.doesNotMatch(html, /report\.byCached\[/);
-  assert.doesNotMatch(html, /report\.byBucket\[/);
+import { nextCatalogListState } from '../src/client/painel/limpeza/catalogo-model.js';
+
+test('nextCatalogListState preserva a ultima lista boa e nao trava em carregando', () => {
+  const semLista = nextCatalogListState(null, { ok: false, error: '429' });
+  assert.equal(semLista.ok, false);
+  assert.equal(semLista.reason, '429');
+  assert.equal(semLista.retry, true, 'sem lista previa a falha vira erro com retry');
+
+  const boa = { ok: true, rows: [{ serviceId: 'a' }], total: 1 };
+  assert.equal(nextCatalogListState(boa, { ok: false, error: 'timeout' }), boa, 'refresh que falhou nao apaga a lista boa');
+
+  const erroAnterior = { ok: false, reason: 'sem-adapter' };
+  const depois = nextCatalogListState(erroAnterior, { ok: false, error: 'boom' });
+  assert.equal(depois.ok, false);
+  assert.equal(depois.retry, true, 'erro anterior nao e lista boa');
+
+  assert.deepEqual(nextCatalogListState(boa, { ok: true, data: { ok: true, rows: [] } }), { ok: true, rows: [] });
+  assert.equal(nextCatalogListState(boa, { ok: true }).reason, 'resposta vazia do servidor');
 });
 
-// Erro de RENDER não pode ser reportado como falha da AÇÃO: o servidor já
-// executou (a auditoria escreve evidência antes de a tela desenhar).
-test('dashboard.html: callback do catalogAction roda isolado em try/catch', () => {
-  const html = dashboardHtml();
-  assert.match(html, /callback\(data\);\s*\}\s*catch \(renderError\)/);
-});
-
-// Indisponibilidade (`ok:false` com 200 — ex.: conta do operador desligada no
-// .env) não pode pintar feedback verde "concluída": o operador via sucesso na
-// tela e o motivo cru só no corpo do painel. O ramo de erro precisa vir ANTES
-// do feedback de sucesso dentro do .then, e o hint do backend (o conserto)
-// tem de chegar ao painel via bucketError.
-test('dashboard.html: indisponibilidade da ação vira feedback de erro com hint, antes do sucesso', () => {
-  const html = dashboardHtml();
-  const idx = html.indexOf('function catalogAction');
-  assert.ok(idx !== -1, 'catalogAction presente');
-  const corpo = html.slice(idx, idx + 1400);
-  const erroIdx = corpo.indexOf('!data.ok');
-  assert.ok(erroIdx !== -1, 'ramo de indisponibilidade presente no .then');
-  const sucessoIdx = corpo.indexOf('concluída.');
-  assert.ok(sucessoIdx !== -1 && erroIdx < sucessoIdx, 'erro avaliado antes do feedback de sucesso');
-  assert.match(corpo, /setCatalogFeedback\("Ação " \+ action \+ " indisponível: " \+ bucketError\(data\), "error"\)/);
-  // bucketError anexa o hint (com escaping de valueText, sem innerHTML).
-  const bucketIdx = html.indexOf('function bucketError');
-  assert.ok(bucketIdx !== -1);
-  const bucket = html.slice(bucketIdx, bucketIdx + 400);
-  assert.match(bucket, /data\.hint/);
-  assert.match(bucket, /valueText\(data\.hint\)/);
-});
-
-// Selecionar todos: conveniência sobre uma ação IRREVERSÍVEL, então duas
-// invariantes. (a) download em curso nunca entra na seleção em massa — o
-// checkbox nasce `disabled` e o toggle o ignora; (b) o resumo mostra o TAMANHO
-// junto da contagem, porque "12 selecionados" não diz se são 2 GB ou 2 TB.
-test('dashboard.html: selecionar todos pula os desabilitados e resume com tamanho', () => {
-  const html = dashboardHtml();
-  assert.match(html, /id="catalogSelectAllBtn"/);
-  assert.match(html, /id="catalog_selection"/);
-  const idx = html.indexOf('function toggleCatalogSelectAll');
-  assert.ok(idx !== -1, 'handler do selecionar-todos presente');
-  const corpo = html.slice(idx, idx + 900);
-  assert.match(corpo, /if \(!nodes\[i\]\.disabled\) nodes\[i\]\.checked = ligar;/, 'só marca o que não está desabilitado');
-  assert.match(html, /box\.setAttribute\("data-size"/, 'o checkbox carrega o tamanho para o resumo somar');
-  const resumo = html.slice(html.indexOf('function refreshCatalogSelection'), html.indexOf('function toggleCatalogSelectAll'));
-  assert.match(resumo, /formatBytes\(bytes\)/, 'o resumo mostra bytes, não só contagem');
+test('a manutencao da limpeza invalida a previa ao mudar o maximo (contrato de fonte)', () => {
+  const src = readFileSync(new URL('../../src/client/painel/limpeza/view-manutencao.ts', import.meta.url), 'utf8');
+  const at = src.search(/label="M[^"]*ximo por rodada"/);
+  assert.ok(at >= 0, 'campo maximo por rodada encontrado');
+  // Isola o PROPRIO campo (label -> fim do elemento `/>`): olhar uma janela
+  // larga pescava o `setCleanup(null)` do ToggleField logo abaixo e o teste
+  // passava vazio.
+  const fim = src.indexOf('/>', at);
+  assert.ok(fim > at, 'fim do campo maximo');
+  const campo = src.slice(at, fim + 2);
+  assert.match(campo, /onChange=/, 'o campo maximo tem onChange');
+  assert.match(campo, /setMax/, 'o campo atualiza o estado do maximo');
+  assert.match(campo, /setCleanup\(null\)/, 'mudar o maximo invalida a previa (o plano mostrado nao pode divergir do aplicado)');
 });

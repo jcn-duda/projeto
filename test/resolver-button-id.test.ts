@@ -5,11 +5,11 @@ import bludv from '../bludv-resolver/server.js';
 import comandotorrents from '../comandotorrents-resolver/server.js';
 import nerdfilmes from '../nerdfilmes-resolver/server.js';
 import torrentdosfilmes from '../torrentdosfilmes-resolver/server.js';
-import text from '../resolvers/text.js';
-import torznab from '../resolvers/torznab.js';
-import nestedUrl from '../resolvers/nested-url.js';
-import searchPosts from '../resolvers/search-posts.js';
-import protector from '../resolvers/protector.js';
+import * as text from '../resolvers/text.js';
+import * as torznab from '../resolvers/torznab.js';
+import * as nestedUrl from '../resolvers/nested-url.js';
+import * as searchPosts from '../resolvers/search-posts.js';
+import * as protector from '../resolvers/protector.js';
 
 const resolvers = {
   bludv,

@@ -1,0 +1,44 @@
+[package]
+name = "adom-crawl"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Raspador de sites BR do Adom (fase C1): parsers puros e utilidades de extração."
+license = "UNLICENSED"
+# src/bin/probe.rs é MÓDULO do binário adom-crawl (`mod probe;`), não um
+# binário próprio: sem isto o Cargo o compila sozinho e falha sem `main`.
+autobins = false
+
+[dependencies]
+adom-core = { path = "../adom-core" }
+regex = "=1.13.1"
+fancy-regex = "=0.19.2"
+url = "=2.5.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+# ── mico_net (cliente HTTP do Mico Leão Dublado) ──────────────────────
+# reqwest com rustls-tls (TLS puro Rust, sem OpenSSL) e json (serde integration).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# tokio: sync (Mutex) e time (sleep, Duration) para o throttle.
+tokio = { version = "1", features = ["sync", "time", "macros", "rt-multi-thread", "signal"] }
+# ── store (crawl.db via rusqlite com SQLite bundled) ──────────────────
+rusqlite = { version = "0.32", features = ["bundled"] }
+# ── servidor HTTP do sidecar (painel + entrypoint) ────────────────────
+axum = { version = "0.8", features = ["json"] }
+# ── SHA1 para button_id (matching de botões) ─────────────────────────
+sha1 = "0.10"
+
+[[bin]]
+name = "adom-crawl"
+path = "src/bin/adom_crawl.rs"
+
+[[bin]]
+name = "adom-sidecar"
+path = "src/bin/adom_sidecar.rs"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+# tokio para testes async (macros + rt-multi-thread).
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3"

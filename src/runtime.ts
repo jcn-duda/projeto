@@ -16,6 +16,8 @@ interface RuntimeContext {
   opts?: RuntimeOptions;
   encoded?: string | null;
   origin?: string | null;
+  /** Prazo da resposta deste cliente (app com timeout maior); ausente = `config.replyDeadline`. */
+  replyDeadlineMs?: number | null;
 }
 type RuntimeOptions = ReturnType<typeof defaults>;
 const store = new AsyncLocalStorage<RuntimeContext>();
@@ -84,13 +86,14 @@ function defaultProviders(): string[] {
   // operador escolhe isso explicitamente; nas demais fontes reais entra junto.
   if (base.includes('demo')) return ['demo'];
   const hasKnownSearchProvider = base.some((name) => ['jackett', 'prowlarr', 'torrentio'].includes(name));
-  if (config.torrentio.enabled && hasKnownSearchProvider && !base.includes('torrentio')) base.push('torrentio');
+  if (config.torrentio.enabled && config.torrentio.defaultOn && hasKnownSearchProvider && !base.includes('torrentio')) base.push('torrentio');
   return base.length ? base : ['demo'];
 }
 
 function defaults() {
   return {
-    // Pool global Torrentio entra por PADRÃO quando o operador usa uma fonte de
+    // Pool global Torrentio entra por PADRÃO só com TORRENTIO_DEFAULT=true (e
+    // TORRENTIO_ENABLED), quando o operador usa uma fonte de
     // busca real (jackett/prowlarr/both) e a env habilita — o demo segue
     // isolado (sem rede). O usuário ainda pode desligar/ligar por instalação
     // via o toggle da página (p... sem/com torrentio).
@@ -100,7 +103,12 @@ function defaults() {
     minSeeders: config.minSeeders,
     brReservedSlots: config.brReservedSlots,
     brFirst: true,
-    jackettIndexers: [...config.jackett.indexers],
+    // O card virtual do Mico entra no `ji` padrão só com MICO_DEFAULT: é assim
+    // que a instalação nova já nasce com ele marcado na /configure.
+    jackettIndexers: [
+      ...config.jackett.indexers,
+      ...(config.mico.enabled && config.mico.default && !config.jackett.indexers.includes('mico') ? ['mico'] : []),
+    ],
     indexerPriority: [],
     indexerLimits: {},
     brOnly: false,
@@ -269,6 +277,22 @@ function origin() {
   return store.getStore()?.origin || null;
 }
 
+/** Prazo da resposta para a requisição corrente (ver `appReplyDeadline`). */
+function replyDeadline(): number {
+  return store.getStore()?.replyDeadlineMs || config.replyDeadline;
+}
+
+/** O User-Agent é do app com timeout próprio? Devolve o prazo dele, ou null. */
+function clientReplyDeadline(userAgent: string | undefined): number | null {
+  const ms = config.appReplyDeadline;
+  if (!(ms > 0) || !userAgent) return null;
+  try {
+    return new RegExp(config.appClientUa).test(userAgent) ? ms : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Roda `fn` com um patch de contexto MESCLADO sobre o store atual, em vez de
  * substituí-lo. É o que deixa o middleware de origin (acima do router) conviver
@@ -290,6 +314,8 @@ export {
   opts,
   prefix,
   origin,
+  replyDeadline,
+  clientReplyDeadline,
   capture,
   run,
 };

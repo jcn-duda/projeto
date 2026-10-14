@@ -1,0 +1,64 @@
+{
+  "comment": "Corpus do golden de config base64url + selo da `dk`. Valores fictícios; o oráculo é dist/src/runtime.js + dist/src/utils/secret-box.js. `blobs` são selos REAIS produzidos pelo Node (aes-256-gcm + scryptSync com o salt do secret-box) e servem de ENTRADA para `open`; o `--check` continua determinístico porque a única fonte de IV aleatório está congelada aqui.",
+  "blobs": {
+    "nodeIvAleatorio": "enc.v1.qzuysAIOzWre62zPld9HOeYVW7sJ68rC-jlqTwPp2TGkPujPSVn2skZi",
+    "nodeAdulterado": "enc.v1.qzuysAIOzWre62zPld9HOeYVW7sJ68rC-jlqTwPp2TGkPujPSVn2skAi",
+    "nodeOutroSegredo": "enc.v1.CgsMDQ4PEBESExQVUdRaVtsQ63uSXye--WPJGCB6qOY6imirovrmGm",
+    "nodeCurto": "enc.v1.AAAAAA"
+  },
+  "cases": [
+    { "id": "ce-enc-001", "op": "encode", "raw": { "ds": "alldebrid", "dk": "chave-ficticia", "m": 20, "bf": 1 } },
+    { "id": "ce-enc-002", "op": "encode", "raw": { "p": "jackett,prowlarr", "ns": "a\nb\tc\r\"d\\e\bf\f\u0001éü\ud83c\udfac", "q": ["1080p", "720P"] } },
+    { "id": "ce-enc-003", "op": "encode", "raw": { "m": -3, "z": 20.7, "big": 1e21, "tiny": 1e-7, "jl": { "a-b": 1, "a_b": 2 } } },
+    { "id": "ce-enc-004", "op": "encode", "raw": {} },
+    { "id": "ce-enc-005", "op": "encode", "raw": { "dk": "enc.v1.texto-que-comeca-com-o-prefixo", "ordem": [1, "2", null, true], "nul": null } },
+
+    { "id": "ce-dec-001", "op": "decode", "raw": { "ds": "alldebrid", "dk": "chave-ficticia", "m": 20, "bf": 1 }, "secret": "" },
+    { "id": "ce-dec-002", "op": "decode", "raw": { "p": " Jackett + Torrentio ", "ji": ["MICo", "vacatorrent"], "ip": "a,,b" }, "secret": "" },
+    { "id": "ce-dec-003", "op": "decode", "raw": { "m": 500, "s": "0x10", "z": "abc", "q4": "1e3", "b": true, "qi": [7] }, "secret": "" },
+    { "id": "ce-dec-004", "op": "decode", "raw": { "bf": "true", "o": 1, "d": "1", "a": true, "c": false, "dc": "0", "bu": 0, "st": [] }, "secret": "" },
+    { "id": "ce-dec-005", "op": "decode", "raw": { "jl": "a-b:3,a_b:0,1337x:999,A:5,_y:2,a1:1,z:-4,aa:6,br:7" }, "secret": "" },
+    { "id": "ce-dec-006", "op": "decode", "raw": { "jl": ["ji:2", "x:", "y:1:9"], "q": [["1080p"]], "ip": { "A-B": 1 } }, "secret": "" },
+    { "id": "ce-dec-007", "op": "decode", "raw": { "jl": { "zz": "3", "aa": "4" }, "ds": 20.5 }, "secret": "" },
+    { "id": "ce-dec-008", "op": "decode", "raw": { "ds": "um-servico-com-mais-de-duzentos-caracteres-para-cortar-na-regua-do-runtime-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-0123456789-FIM" }, "secret": "" },
+    { "id": "ce-dec-009", "op": "decode", "raw": { "xx": 1, "desconhecida": "valor", "dk": null, "p": null }, "secret": "" },
+    { "id": "ce-dec-010", "op": "decode", "raw": { "dk": "enc.v1.texto-que-parece-selado-mas-nao-ebase64-valido!!" }, "secret": "segredo-do-operador-ficticio" },
+    { "id": "ce-dec-011", "op": "decode", "segmentoCru": "", "secret": "" },
+    { "id": "ce-dec-012", "op": "decode", "segmentoCru": "nao-e-base64url!", "secret": "" },
+    { "id": "ce-dec-013", "op": "decode", "raw": [1, 2], "secret": "" },
+    { "id": "ce-dec-014", "op": "decode", "raw": "lixo", "secret": "" },
+    { "id": "ce-dec-015", "op": "decode", "segmentoCru": "AAAAAAAAAAAAAAAAAAAA", "secret": "" },
+    { "id": "ce-dec-016", "op": "decode", "raw": { "dk": "chave-selada-pelo-oraculo" }, "secret": "segredo-do-operador-ficticio", "selarAntes": true },
+    { "id": "ce-dec-017", "op": "decode", "raw": { "dk": "chave-selada-com-outro-segredo" }, "secret": "segredo-novo-do-operador", "selarAntes": true, "selarCom": "segredo-antigo-do-operador" },
+    { "id": "ce-dec-018", "op": "decode", "raw": { "dk": "chave-selada-mas-servidor-sem-secret" }, "secret": "", "selarAntes": true, "selarCom": "segredo-do-operador-ficticio" },
+    { "id": "ce-dec-019", "op": "decode", "raw": { "dk": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "ds": "yyy" }, "secret": "", "repetirDk": 17 },
+    { "id": "ce-dec-020", "op": "decode", "raw": { "p": ["jackett", "demo", "DEMO", " both "], "q": "+1080p+", "ns": "  Espacos  " }, "secret": "" },
+
+    { "id": "ce-seg-001", "op": "sealSegment", "raw": { "ds": "alldebrid", "dk": "chave-ficticia", "m": 20, "bf": 1 }, "secret": "segredo-do-operador-ficticio", "nonce": "0102030405060708090a0b0c" },
+    { "id": "ce-seg-002", "op": "sealSegment", "raw": { "ds": "", "m": 10 }, "secret": "segredo-do-operador-ficticio", "nonce": "000000000000000000000000" },
+    { "id": "ce-seg-003", "op": "sealSegment", "raw": { "dk": "enc.v1.ja-selado-anteriormente" }, "secret": "segredo-do-operador-ficticio", "nonce": "000000000000000000000000" },
+    { "id": "ce-seg-004", "op": "sealSegment", "segmentoCru": "manifest", "secret": "segredo-do-operador-ficticio", "nonce": "000000000000000000000000" },
+    { "id": "ce-seg-005", "op": "sealSegment", "raw": { "dk": 20 }, "secret": "segredo-do-operador-ficticio", "nonce": "0b0b0b0b0b0b0b0b0b0b0b0b" },
+    { "id": "ce-seg-006", "op": "sealSegment", "raw": { "zz": 1, "dk": "chave-ficticia", "aa": 2 }, "secret": "", "nonce": "000000000000000000000000" },
+    { "id": "ce-seg-007", "op": "sealSegment", "raw": { "dk": false }, "secret": "segredo-do-operador-ficticio", "nonce": "000000000000000000000000" },
+
+    { "id": "ce-seal-001", "op": "seal", "plaintext": "chave-ficticia", "secret": "segredo-do-operador-ficticio", "nonce": "0102030405060708090a0b0c" },
+    { "id": "ce-seal-002", "op": "seal", "plaintext": "chave-ficticia", "secret": "", "nonce": "000000000000000000000000" },
+    { "id": "ce-seal-003", "op": "seal", "plaintext": "", "secret": "segredo-do-operador-ficticio", "nonce": "000000000000000000000000" },
+    { "id": "ce-seal-004", "op": "seal", "plaintext": "enc.v1.ja-selado", "secret": "segredo-do-operador-ficticio", "nonce": "000000000000000000000000" },
+    { "id": "ce-seal-005", "op": "seal", "plaintext": "chave-çé-🎬-ünïcode", "secret": "contraseña-mal-escogida", "nonce": "ffeeddccbbaa998877665544" },
+    { "id": "ce-seal-006", "op": "seal", "plaintext": "a-muito-mais-longa-que-os-28-bytes-do-header-para-provar-o-layout-iv-tag-ct", "secret": "segredo-do-operador-ficticio", "nonce": "11223344556677889900aabb" },
+
+    { "id": "ce-open-001", "op": "open", "sealed": "blobs.nodeIvAleatorio", "secret": "segredo-do-operador-ficticio" },
+    { "id": "ce-open-002", "op": "open", "sealed": "blobs.nodeAdulterado", "secret": "segredo-do-operador-ficticio" },
+    { "id": "ce-open-003", "op": "open", "sealed": "blobs.nodeCurto", "secret": "segredo-do-operador-ficticio" },
+    { "id": "ce-open-004", "op": "open", "sealed": "blobs.nodeOutroSegredo", "secret": "segredo-do-operador-ficticio" },
+    { "id": "ce-open-005", "op": "open", "sealed": "blobs.nodeIvAleatorio", "secret": "" },
+    { "id": "ce-open-006", "op": "open", "sealed": "chave-em-texto-puro", "secret": "segredo-do-operador-ficticio" },
+    { "id": "ce-open-007", "op": "open", "sealed": "enc.v1.", "secret": "segredo-do-operador-ficticio" },
+
+    { "id": "ce-key-001", "op": "key", "secret": "segredo-do-operador-ficticio" },
+    { "id": "ce-key-002", "op": "key", "secret": "contraseña-mal-escogida" },
+    { "id": "ce-key-003", "op": "key", "secret": "" }
+  ]
+}

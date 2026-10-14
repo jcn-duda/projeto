@@ -47,31 +47,50 @@ interface Baseline {
  * plano original pedia o glob puro "*-resolver", e aqui ele casa ZERO arquivos
  * dos shims — `git ls-files src resolvers scripts test types "*-resolver"`
  * devolve exatamente os mesmos 237 caminhos que sem o argumento. Com
- * "*-resolver/**" entram os 21 arquivos dos cinco diretórios de resolver
- * (bludv, comandotorrents, nerdfilmes, torrentdosfilmes, vacatorrent).
+ * "*-resolver/**" entram os arquivos dos diretórios de resolver.
+ *
+ * PONTO CEGO FECHADO (U4): `git ls-files` sozinho lista só o ÍNDICE, então um
+ * arquivo NOVO ainda não adicionado (rascunho de trabalho dentro dos roots
+ * escopados) não era medido — o portão via 0 acima do teto enquanto o arquivo
+ * tinha centenas de linhas. Agora entram `--cached` + `--others
+ * --exclude-standard`: rastreado + NÃO-rastreado, respeitando .gitignore
+ * (dist/, node_modules/ e .tmp-* continuam fora). Dedupe explícito cobre o
+ * caso de um caminho aparecer nas duas listas; as exclusões de extensão
+ * (.d.ts, não-código) são preservadas.
  */
 function listarArquivos(): string[] {
-  // git ls-files lista o ÍNDICE, não o disco: rascunhos locais não-rastreados
-  // (scratch/, .env.bak-*) não triplicam o portão, e o que o CI examina é
-  // exatamente o estado commitado. A regra A (arquivo novo) dispara no
-  // `git add` — encenar um arquivo novo no índice já a exercita.
   const raw = execFileSync(
     'git',
-    ['ls-files', 'src', 'resolvers', 'scripts', 'test', 'types', '*-resolver/**'],
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '-z',
+      'src',
+      'resolvers',
+      'scripts',
+      'test',
+      'types',
+      '*-resolver/**',
+    ],
     { encoding: 'utf8', cwd: root },
   );
-  return raw
-    .split(/\r?\n/)
-    .map((linha) => linha.trim())
-    .filter(
-      (linha) =>
-        linha.length > 0 &&
-        // .css entrou na varredura com a Fase 3 (5.9): os CSS passaram a ter
-        // arquivo próprio depois de viverem inline no html (fora de qualquer
-        // escopo). Sem isso, o configure.css de 505 linhas seria débito invisível.
-        (linha.endsWith('.ts') || linha.endsWith('.js') || linha.endsWith('.css')) &&
-        !linha.endsWith('.d.ts'), // types/ é contrato declarativo, não código
-    );
+  const vistos = new Set<string>();
+  const arquivos: string[] = [];
+  for (const linha of raw.split('\0')) {
+    const caminho = linha.trim();
+    if (caminho.length === 0) continue;
+    // .css entrou na varredura com a Fase 3 (5.9): os CSS passaram a ter
+    // arquivo próprio depois de viverem inline no html (fora de qualquer
+    // escopo). Sem isso, o configure.css de 505 linhas seria débito invisível.
+    if (!(caminho.endsWith('.ts') || caminho.endsWith('.js') || caminho.endsWith('.css'))) continue;
+    if (caminho.endsWith('.d.ts')) continue; // types/ é contrato declarativo, não código
+    if (vistos.has(caminho)) continue;
+    vistos.add(caminho);
+    arquivos.push(caminho);
+  }
+  return arquivos;
 }
 
 /**

@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "matches-br-title/matchesBrTitle"
+  ],
+  "function": {
+    "name": "matchesBrTitle",
+    "sourcePath": "src/utils/release-title-rules.ts",
+    "sourceSha256": "c309b98513db80a7058a6eb6d1d86809e7fe69991fef1019bd44c21017e909a1",
+    "artifactPath": "dist/src/utils/release-title-rules.js",
+    "artifactSha256": "3c7e3886a242ce8ba2b5b7e49d66cfdf86763d2c2a4027f18970fe7369c6c0a1"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-matches-br-title.json",
+    "sha256": "98b302ab98651c661ed86ea2d3e8929d476feb3c016bbc5530f9ead98fb2d51f",
+    "cases": 50
+  },
+  "output": {
+    "path": "rust/golden/matches-br-title.jsonl",
+    "sha256": "c9c11b1ae83575355e3ccbd657e3e199a41e80a9fb0bc24c0be1d0958ffdbb63",
+    "lines": 50
+  },
+  "node": {
+    "major": 20
+  },
+  "git": {
+    "revision": "ec850cf2594f60d4cabfb36d0d162ffbb0bdd41f"
+  }
+}

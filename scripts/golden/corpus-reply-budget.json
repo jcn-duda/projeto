@@ -1,0 +1,20 @@
+{
+  "version": "corpus-reply-budget/1",
+  "note": "Casos de remainingCheckBudget em deadline.ts. Sempre com now explícito. Saída: ms em texto decimal, ou null quando não há prazo. 0 é prazo vencido.",
+  "cases": [
+    {"id":"rb-001","input":"{\"deadlineAt\":null,\"now\":1760000000000,\"margin\":0}","note":"deadline null: sem teto (passe tardio)"},
+    {"id":"rb-002","input":"{\"deadlineAt\":1760000010000,\"now\":1760000000000,\"margin\":0}","note":"folga positiva com margin 0"},
+    {"id":"rb-003","input":"{\"deadlineAt\":1760000000500,\"now\":1760000000000,\"margin\":500}","note":"folga exatamente zero depois da margin"},
+    {"id":"rb-004","input":"{\"deadlineAt\":1759999000000,\"now\":1760000000000,\"margin\":0}","note":"já negativo vira 0"},
+    {"id":"rb-005","input":"{\"deadlineAt\":1760000001000,\"now\":1760000000000,\"margin\":2000}","note":"margin que estoura a folga vira 0"},
+    {"id":"rb-006","input":"{\"deadlineAt\":10000,\"now\":2500,\"margin\":0}","note":"margin 0 deixa a folga inteira"},
+    {"id":"rb-007","input":"{\"deadlineAt\":1728691200000,\"now\":1728691195000,\"margin\":500}","note":"epoch ms com margin de formatação"},
+    {"id":"rb-008","input":"{\"deadlineAt\":1760000000000,\"now\":1760000000000,\"margin\":0}","note":"agora igual ao prazo, margin 0"},
+    {"id":"rb-009","input":"{\"deadlineAt\":8000,\"now\":1000,\"margin\":500}","note":"folga positiva depois da margin"},
+    {"id":"rb-010","input":"{\"deadlineAt\":null,\"now\":123456,\"margin\":500}","note":"null ignora now e margin"},
+    {"id":"rb-011","input":"{\"deadlineAt\":1000,\"now\":0,\"margin\":999}","note":"resta 1 ms"},
+    {"id":"rb-012","input":"{\"deadlineAt\":0,\"now\":1760000000000,\"margin\":500}","note":"prazo zero contra epoch atual vira 0"},
+    {"id":"rb-013","input":"{\"deadlineAt\":500,\"now\":0,\"margin\":500}","note":"margin consome a folga inteira"},
+    {"id":"rb-014","input":"{\"deadlineAt\":2000000000000,\"now\":1760000000000,\"margin\":500}","note":"folga grande em epoch ms"}
+  ]
+}

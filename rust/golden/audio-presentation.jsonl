@@ -1,0 +1,170 @@
+{"id":"apr-001","input":"{\"op\":\"strip\",\"title\":\"Fallout 1ª Temporada LEGENDADA 720P 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"Fallout 1ª Temporada LEGENDADA 720P"}
+{"id":"apr-002","input":"{\"op\":\"strip\",\"title\":\"Filme 2026, 1080p\"}","expected":"Filme 2026, 1080p"}
+{"id":"apr-003","input":"{\"op\":\"strip\",\"title\":\"Filme 2026 1080p, 2160p\"}","expected":"Filme 2026 1080p, 2160p"}
+{"id":"apr-004","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p; 2160p\"}","expected":"Filme 1080p; 2160p"}
+{"id":"apr-005","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p; 2160p; 720p\"}","expected":"Filme 1080p; 2160p; 720p"}
+{"id":"apr-006","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p; 720p\"}","expected":"Filme"}
+{"id":"apr-007","input":"{\"op\":\"strip\",\"title\":\"Filme , 1080p, 2160p\"}","expected":"Filme"}
+{"id":"apr-008","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p , 2160p, 720p\"}","expected":"Filme 1080p"}
+{"id":"apr-009","input":"{\"op\":\"strip\",\"title\":\"Filme DUAL 1080p, 2160p\"}","expected":"Filme DUAL 1080p, 2160p"}
+{"id":"apr-010","input":"{\"op\":\"strip\",\"title\":\"Filme 720P 1080p, 2160p, 720p, HD, WEB-DL\"}","expected":"Filme 720P"}
+{"id":"apr-011","input":"{\"op\":\"strip\",\"title\":\"Filme, HD\"}","expected":"Filme, HD"}
+{"id":"apr-012","input":"{\"op\":\"strip\",\"title\":\"Filme, HD, WEB-DL\"}","expected":"Filme"}
+{"id":"apr-013","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, x264, 2160p\"}","expected":"Filme"}
+{"id":"apr-014","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, BluRay, 2160p\"}","expected":"Filme"}
+{"id":"apr-015","input":"{\"op\":\"strip\",\"title\":\"Serie S01 1080p, 2160p, 720p\"}","expected":"Serie S01"}
+{"id":"apr-016","input":"{\"op\":\"strip\",\"title\":\"Movie_1080p,_720p,_2160p\"}","expected":"Movie_1080p,_720p,_2160p"}
+{"id":"apr-017","input":"{\"op\":\"strip\",\"title\":\"Movie 1080p,_720p,_2160p\"}","expected":"Movie 1080p,_720p,_2160p"}
+{"id":"apr-018","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p LEGENDADO\"}","expected":"Filme 1080p, 2160p LEGENDADO"}
+{"id":"apr-019","input":"{\"op\":\"strip\",\"title\":\"Filme Titanic 1080p, 720p DUBLADO\"}","expected":"Filme Titanic 1080p, 720p DUBLADO"}
+{"id":"apr-020","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p DUBLADO\"}","expected":"Filme 1080p, 2160p DUBLADO"}
+{"id":"apr-021","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, \"}","expected":"Filme 1080p, "}
+{"id":"apr-022","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p \"}","expected":"Filme 1080p, 2160p "}
+{"id":"apr-023","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p, \"}","expected":"Filme 1080p, 2160p, "}
+{"id":"apr-024","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p,2160p\"}","expected":"Filme 1080p,2160p"}
+{"id":"apr-025","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p,2160p,720p\"}","expected":"Filme"}
+{"id":"apr-026","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p ,2160p,720p\"}","expected":"Filme 1080p"}
+{"id":"apr-027","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p﻿, 2160p, 720p\"}","expected":"Filme 1080p"}
+{"id":"apr-028","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p, 720p\"}","expected":"Filme 1080p"}
+{"id":"apr-029","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p , 2160p, 720p\"}","expected":"Filme 1080p"}
+{"id":"apr-030","input":"{\"op\":\"strip\",\"title\":\"﻿Filme 1080p\"}","expected":"﻿Filme 1080p"}
+{"id":"apr-031","input":"{\"op\":\"strip\",\"title\":\"\"}","expected":""}
+{"id":"apr-032","input":"{\"op\":\"strip\",\"title\":\"   \"}","expected":"   "}
+{"id":"apr-033","input":"{\"op\":\"strip\",\"title\":\",\"}","expected":","}
+{"id":"apr-034","input":"{\"op\":\"strip\",\"title\":\", HD\"}","expected":", HD"}
+{"id":"apr-035","input":"{\"op\":\"strip\",\"title\":\", HD, 1080p\"}","expected":""}
+{"id":"apr-036","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 4k\"}","expected":"Filme 1080p, 4k"}
+{"id":"apr-037","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 4K, UHD\"}","expected":"Filme"}
+{"id":"apr-038","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, HDR, 10bit, 2160p\"}","expected":"Filme"}
+{"id":"apr-039","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, HD, 2160p,\"}","expected":"Filme 1080p, HD, 2160p,"}
+{"id":"apr-040","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, hdrip, HD\"}","expected":"Filme"}
+{"id":"apr-041","input":"{\"op\":\"strip\",\"title\":\"Remux Filme, 1080p, 2160p\"}","expected":"Remux Filme"}
+{"id":"apr-042","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p, 720p﻿ \"}","expected":"Filme"}
+{"id":"apr-043","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p, 720p, 480p, SD, TS, CAM\"}","expected":"Filme 1080p, 2160p, 720p, 480p, SD, TS, CAM"}
+{"id":"apr-044","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, SD, 720p, 2160p\"}","expected":"Filme"}
+{"id":"apr-045","input":"{\"op\":\"strip\",\"title\":\"O Filme 1080p, 2160p\"}","expected":"O Filme 1080p, 2160p"}
+{"id":"apr-046","input":"{\"op\":\"strip\",\"title\":\"1080p, 2160p\"}","expected":"1080p, 2160p"}
+{"id":"apr-047","input":"{\"op\":\"strip\",\"title\":\"Filme Legítimo 1080p, 2160p, 720p\"}","expected":"Filme Legítimo"}
+{"id":"apr-048","input":"{\"op\":\"strip\",\"title\":\"Filme Áudio 1080p, 2160p, 720p\"}","expected":"Filme Áudio"}
+{"id":"apr-049","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p, 720p DUBLADO, LEGENDADO\"}","expected":"Filme 1080p, 2160p, 720p DUBLADO, LEGENDADO"}
+{"id":"apr-050","input":"{\"op\":\"strip\",\"title\":\"Filme,1080p,2160p,720p\"}","expected":"Filme"}
+{"id":"apr-051","input":"{\"op\":\"strip\",\"title\":\"S.W.A.T. 1080p, 2160p, 720p\"}","expected":"S.W.A.T."}
+{"id":"apr-052","input":"{\"op\":\"strip\",\"title\":\"A.O. 1080p, 2160p, 720p\"}","expected":"A.O."}
+{"id":"apr-053","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p , 2160p, 720p\"}","expected":"Filme 1080p"}
+{"id":"apr-054","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p　, 2160p, 720p\"}","expected":"Filme 1080p"}
+{"id":"apr-055","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, 2160p, 720p\\t\"}","expected":"Filme"}
+{"id":"apr-056","input":"{\"op\":\"strip\",\"title\":\"\\tFilme 1080p, 2160p, 720p\"}","expected":"\tFilme"}
+{"id":"apr-057","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, uhd, 2160p\"}","expected":"Filme"}
+{"id":"apr-058","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, AV1, 2160p\"}","expected":"Filme"}
+{"id":"apr-059","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, hevc, 2160p\"}","expected":"Filme"}
+{"id":"apr-060","input":"{\"op\":\"strip\",\"title\":\"Filme 1080p, DUBLADO\"}","expected":"Filme 1080p, DUBLADO"}
+{"id":"apr-061","input":"{\"op\":\"audio\",\"title\":\"Show Dublada e Dual LEGENDADA 1080p\"}","expected":"Legendado"}
+{"id":"apr-062","input":"{\"op\":\"audio\",\"title\":\"Show COMPLETA DUBLADA Dual 1080P\"}","expected":"Dual"}
+{"id":"apr-063","input":"{\"op\":\"audio\",\"title\":\"Show Dublada e Dual DUBLADO 1080p\"}","expected":"Dual"}
+{"id":"apr-064","input":"{\"op\":\"audio\",\"title\":\"Show Dublada e Dual LEGENDADA SUBBED\"}","expected":"Legendado"}
+{"id":"apr-065","input":"{\"op\":\"audio\",\"title\":\"Show dublada e dual legendada\"}","expected":"Legendado"}
+{"id":"apr-066","input":"{\"op\":\"audio\",\"title\":\"Show DUBLADA E DUAL 1080p\"}","expected":"Dual"}
+{"id":"apr-067","input":"{\"op\":\"audio\",\"title\":\"Movie DUAL AUDIO 1080p\"}","expected":"Dual"}
+{"id":"apr-068","input":"{\"op\":\"audio\",\"title\":\"Movie MULTI 1080p\"}","expected":"Dual"}
+{"id":"apr-069","input":"{\"op\":\"audio\",\"title\":\"Movie DUAL MULTI 1080p\"}","expected":"Dual"}
+{"id":"apr-070","input":"{\"op\":\"audio\",\"title\":\"Movie MULTIAUDIO\"}","expected":"Dual"}
+{"id":"apr-071","input":"{\"op\":\"audio\",\"title\":\"Movie DUPLO AUDIO\"}","expected":"Dual"}
+{"id":"apr-072","input":"{\"op\":\"audio\",\"title\":\"Movie AUDIO DUPLO\"}","expected":"Dual"}
+{"id":"apr-073","input":"{\"op\":\"audio\",\"title\":\"Movie DOUBLE 1080p\"}","expected":"Dual"}
+{"id":"apr-074","input":"{\"op\":\"audio\",\"title\":\"Movie NACIONAL 1080p\"}","expected":"Nacional"}
+{"id":"apr-075","input":"{\"op\":\"audio\",\"title\":\"Movie NAC 1080p\"}","expected":"Nacional"}
+{"id":"apr-076","input":"{\"op\":\"audio\",\"title\":\"Movie NACIONAL LEGENDADO\"}","expected":"Legendado"}
+{"id":"apr-077","input":"{\"op\":\"audio\",\"title\":\"Movie NAC SUB 1080p\"}","expected":""}
+{"id":"apr-078","input":"{\"op\":\"audio\",\"title\":\"Movie NAC LEG 1080p\"}","expected":"Legendado"}
+{"id":"apr-079","input":"{\"op\":\"audio\",\"title\":\"Movie NACAO 1080p\"}","expected":""}
+{"id":"apr-080","input":"{\"op\":\"audio\",\"title\":\"Movie NACIONAL SUB\"}","expected":""}
+{"id":"apr-081","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADO 1080p\"}","expected":"Dublado"}
+{"id":"apr-082","input":"{\"op\":\"audio\",\"title\":\"Movie LEGENDADO 1080p\"}","expected":"Legendado"}
+{"id":"apr-083","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADO LEGENDADO\"}","expected":"Dual"}
+{"id":"apr-084","input":"{\"op\":\"audio\",\"title\":\"Movie LEGENDADO DUBLADO\"}","expected":"Dual"}
+{"id":"apr-085","input":"{\"op\":\"audio\",\"title\":\"Movie_DUBLADO_1080p\"}","expected":"Dublado"}
+{"id":"apr-086","input":"{\"op\":\"audio\",\"title\":\"Movie Dublado720p mp4\"}","expected":"Dublado"}
+{"id":"apr-087","input":"{\"op\":\"audio\",\"title\":\"Movie PT-BR 1080p\"}","expected":"Dublado"}
+{"id":"apr-088","input":"{\"op\":\"audio\",\"title\":\"Movie PT-BR LEGENDADO\"}","expected":"Legendado"}
+{"id":"apr-089","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLAGEM 1080p\"}","expected":"Dublado"}
+{"id":"apr-090","input":"{\"op\":\"audio\",\"title\":\"Movie DUB-BR\"}","expected":"Dublado"}
+{"id":"apr-091","input":"{\"op\":\"audio\",\"title\":\"Movie AUDIO-PT-BR\"}","expected":"Dublado"}
+{"id":"apr-092","input":"{\"op\":\"audio\",\"title\":\"Movie [DUB] 1080p\"}","expected":"Dublado"}
+{"id":"apr-093","input":"{\"op\":\"audio\",\"title\":\"Movie English Dubbed\"}","expected":""}
+{"id":"apr-094","input":"{\"op\":\"audio\",\"title\":\"Movie DUBBED\"}","expected":"Dublado"}
+{"id":"apr-095","input":"{\"op\":\"audio\",\"title\":\"Movie DUAL ÁUDIO\"}","expected":"Dual"}
+{"id":"apr-096","input":"{\"op\":\"audio\",\"title\":\"Movie DUAL ÁUDIO\"}","expected":"Dual"}
+{"id":"apr-097","input":"{\"op\":\"audio\",\"title\":\"Movie Dublada\"}","expected":"Dublado"}
+{"id":"apr-098","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADAS\"}","expected":"Dublado"}
+{"id":"apr-099","input":"{\"op\":\"audio\",\"title\":\"Movie Dubladores\"}","expected":""}
+{"id":"apr-100","input":"{\"op\":\"audio\",\"title\":\"Movie DubladoX\"}","expected":""}
+{"id":"apr-101","input":"{\"op\":\"audio\",\"title\":\"ADUBLADO 1080p\"}","expected":""}
+{"id":"apr-102","input":"{\"op\":\"audio\",\"title\":\"2024Dublado\"}","expected":"Dublado"}
+{"id":"apr-103","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADO DUB\"}","expected":"Dublado"}
+{"id":"apr-104","input":"{\"op\":\"audio\",\"title\":\"Movie FILME NACIONAL\"}","expected":"Nacional"}
+{"id":"apr-105","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADO PT-BR HINDI\"}","expected":"Dublado"}
+{"id":"apr-106","input":"{\"op\":\"audio\",\"title\":\"Movie LEGENDADO PT-BR HINDI\"}","expected":"Legendado"}
+{"id":"apr-107","input":"{\"op\":\"audio\",\"title\":\"Movie FILME\"}","expected":""}
+{"id":"apr-108","input":"{\"op\":\"audio\",\"title\":\"\"}","expected":""}
+{"id":"apr-109","input":"{\"op\":\"audio\",\"title\":\"   \"}","expected":""}
+{"id":"apr-110","input":"{\"op\":\"audio\",\"title\":\"DUBLADO\"}","expected":"Dublado"}
+{"id":"apr-111","input":"{\"op\":\"audio\",\"title\":\"LEGENDADO\"}","expected":"Legendado"}
+{"id":"apr-112","input":"{\"op\":\"audio\",\"title\":\"DUAL\"}","expected":"Dual"}
+{"id":"apr-113","input":"{\"op\":\"audio\",\"title\":\"NACIONAL\"}","expected":"Nacional"}
+{"id":"apr-114","input":"{\"op\":\"audio\",\"title\":\"Movie LEGENDADO e Dublado\"}","expected":"Dual"}
+{"id":"apr-115","input":"{\"op\":\"audio\",\"title\":\"Movie Dublada e Dual\"}","expected":"Dual"}
+{"id":"apr-116","input":"{\"op\":\"audio\",\"title\":\"Movie Dublada e Dual LEGENDADO 1080p\"}","expected":"Legendado"}
+{"id":"apr-117","input":"{\"op\":\"audio\",\"title\":\"Movie Dublada  e  Dual LEGENDADA\"}","expected":"Legendado"}
+{"id":"apr-118","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADA E DUAL\"}","expected":"Dual"}
+{"id":"apr-119","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADA E DUAL 1080p\"}","expected":"Dual"}
+{"id":"apr-120","input":"{\"op\":\"audio\",\"title\":\"Movie 1080p, 2160p, 720p LEGENDADO\"}","expected":"Legendado"}
+{"id":"apr-121","input":"{\"op\":\"audio\",\"title\":\"Filme DUBLADO 1080p, 2160p, 720p\"}","expected":"Dublado"}
+{"id":"apr-122","input":"{\"op\":\"audio\",\"title\":\"Filme 1080p, DUAL, 2160p\"}","expected":"Dual"}
+{"id":"apr-123","input":"{\"op\":\"audio\",\"title\":\"Filme LEGENDADO 1080p, 2160p, 720p\"}","expected":"Legendado"}
+{"id":"apr-124","input":"{\"op\":\"audio\",\"title\":\"Movie DUAL DUBLADO\"}","expected":"Dual"}
+{"id":"apr-125","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADO DUAL\"}","expected":"Dual"}
+{"id":"apr-126","input":"{\"op\":\"audio\",\"title\":\"Movie Nacional LEGENDADO\"}","expected":"Legendado"}
+{"id":"apr-127","input":"{\"op\":\"audio\",\"title\":\"Movie NACIONAL DUBLADO\"}","expected":"Nacional"}
+{"id":"apr-128","input":"{\"op\":\"audio\",\"title\":\"Movie SUB 1080p\"}","expected":""}
+{"id":"apr-129","input":"{\"op\":\"audio\",\"title\":\"Movie SOFT SUB 1080p\"}","expected":"Legendado"}
+{"id":"apr-130","input":"{\"op\":\"audio\",\"title\":\"Movie SOFT-SUB\"}","expected":"Legendado"}
+{"id":"apr-131","input":"{\"op\":\"audio\",\"title\":\"Movie [LEG] 1080p\"}","expected":"Legendado"}
+{"id":"apr-132","input":"{\"op\":\"audio\",\"title\":\"Movie (LEG)\"}","expected":"Legendado"}
+{"id":"apr-133","input":"{\"op\":\"audio\",\"title\":\"Movie LEG\"}","expected":"Legendado"}
+{"id":"apr-134","input":"{\"op\":\"audio\",\"title\":\"Movie LEGENDAS\"}","expected":"Legendado"}
+{"id":"apr-135","input":"{\"op\":\"audio\",\"title\":\"Movie SUB-PT-BR\"}","expected":"Legendado"}
+{"id":"apr-136","input":"{\"op\":\"audio\",\"title\":\"Movie LEG-PT-BR\"}","expected":"Legendado"}
+{"id":"apr-137","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADO [LEG]\"}","expected":"Dual"}
+{"id":"apr-138","input":"{\"op\":\"audio\",\"title\":\"Movie Фильм DUBLADO\"}","expected":"Dublado"}
+{"id":"apr-139","input":"{\"op\":\"audio\",\"title\":\"Movie DUBLADOЖ\"}","expected":"Dublado"}
+{"id":"apr-140","input":"{\"op\":\"audio\",\"title\":\"Movie ß DUBLADO\"}","expected":"Dublado"}
+{"id":"apr-141","input":"{\"op\":\"audio\",\"title\":\"Movie Dual Misso\"}","expected":"Dual"}
+{"id":"apr-142","input":"{\"op\":\"audio\",\"title\":\"Film_Dual_Misso\"}","expected":"Dual"}
+{"id":"apr-143","input":"{\"op\":\"audio\",\"title\":\"Filme DUBLADO 1080p_720p_2160p\"}","expected":"Dublado"}
+{"id":"apr-169","input":"{\"op\":\"audio\",\"title\":\"Movie ENG DUBBED\"}","expected":""}
+{"id":"apr-144","input":"{\"op\":\"looks\",\"title\":\"Movie DUBLADO\"}","expected":"1"}
+{"id":"apr-145","input":"{\"op\":\"looks\",\"title\":\"Movie NACIONAL\"}","expected":"1"}
+{"id":"apr-146","input":"{\"op\":\"looks\",\"title\":\"Movie DUAL 1080p\"}","expected":"0"}
+{"id":"apr-147","input":"{\"op\":\"looks\",\"title\":\"Movie Dual Áudio\"}","expected":"0"}
+{"id":"apr-148","input":"{\"op\":\"looks\",\"title\":\"Movie Dual PT-BR 1080p\"}","expected":"1"}
+{"id":"apr-149","input":"{\"op\":\"looks\",\"title\":\"Movie Dual DUBLADO\"}","expected":"1"}
+{"id":"apr-150","input":"{\"op\":\"looks\",\"title\":\"Movie Legendado\"}","expected":"0"}
+{"id":"apr-151","input":"{\"op\":\"looks\",\"title\":\"Movie\"}","expected":"0"}
+{"id":"apr-152","input":"{\"op\":\"looks\",\"title\":\"Movie Dual 1080p, 2160p, 720p\"}","expected":"0"}
+{"id":"apr-153","input":"{\"op\":\"looks\",\"title\":\"Movie DUAL English Dubbed\"}","expected":"0"}
+{"id":"apr-154","input":"{\"op\":\"looks\",\"title\":\"Filme Dual Áudio\"}","expected":"0"}
+{"id":"apr-155","input":"{\"op\":\"looks\",\"title\":\"Filme Dual e Dublado\"}","expected":"1"}
+{"id":"apr-156","input":"{\"op\":\"looks\",\"title\":\"Movie PORTUGUÊS Dual\"}","expected":"1"}
+{"id":"apr-157","input":"{\"op\":\"looks\",\"title\":\"Movie Portugues Dual\"}","expected":"1"}
+{"id":"apr-158","input":"{\"op\":\"looks\",\"title\":\"Movie DUAL\"}","expected":"0"}
+{"id":"apr-159","input":"{\"op\":\"looks\",\"title\":\"Movie DUAL LEG\"}","expected":"0"}
+{"id":"apr-160","input":"{\"op\":\"looks\",\"title\":\"Movie NACIONAL LEG\"}","expected":"0"}
+{"id":"apr-161","input":"{\"op\":\"looks\",\"title\":\"Filme Dublada e Dual\"}","expected":"1"}
+{"id":"apr-162","input":"{\"op\":\"looks\",\"title\":\"Serie S01 DUBLADO 1080p, 2160p, 720p\"}","expected":"1"}
+{"id":"apr-163","input":"{\"op\":\"looks\",\"title\":\"Movie PT-BR\"}","expected":"1"}
+{"id":"apr-164","input":"{\"op\":\"looks\",\"title\":\"Filme Coração Dual\"}","expected":"1"}
+{"id":"apr-165","input":"{\"op\":\"looks\",\"title\":\"Movie de do Dual\"}","expected":"1"}
+{"id":"apr-166","input":"{\"op\":\"looks\",\"title\":\"Movie DUAL ÁUDIO 1080p, 2160p, 720p\"}","expected":"0"}
+{"id":"apr-167","input":"{\"op\":\"looks\",\"title\":\"Movie DUBLADOЖ\"}","expected":"1"}
+{"id":"apr-168","input":"{\"op\":\"looks\",\"title\":\"Movie DUB\"}","expected":"1"}
+{"id":"apr-170","input":"{\"op\":\"looks\",\"title\":\"Movie Dual Áudio HD\"}","expected":"0"}

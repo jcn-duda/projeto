@@ -1,0 +1,559 @@
+{
+  "config": {
+    "floorPolicy": "crawl-parsers-validation.mjs"
+  },
+  "cases": [
+    {
+      "id": "rwt-bludv-movie",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/bludv/post-movie.html\"}"
+    },
+    {
+      "id": "rwt-bludv-series",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/bludv/post-series.html\"}"
+    },
+    {
+      "id": "rwt-apache-filme",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/apachetorrent/post-filme.html\"}"
+    },
+    {
+      "id": "rwt-apache-serie",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/apachetorrent/post-serie.html\"}"
+    },
+    {
+      "id": "rwt-hdr-filme",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/hdrtorrents/post-filme.html\"}"
+    },
+    {
+      "id": "rwt-hdr-serie",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/hdrtorrents/post-serie.html\"}"
+    },
+    {
+      "id": "rwt-hdr-agregada",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/hdrtorrents/post-serie-agregada.html\"}"
+    },
+    {
+      "id": "rwt-nerd-movie",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/nerdfilmes/post-movie.html\"}"
+    },
+    {
+      "id": "rwt-nerd-series",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/nerdfilmes/post-series.html\"}"
+    },
+    {
+      "id": "rwt-tdf-movie",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/torrentdosfilmes/post-movie.html\"}"
+    },
+    {
+      "id": "rwt-tdf-series",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/torrentdosfilmes/post-series.html\"}"
+    },
+    {
+      "id": "rwt-vaca-movie",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/vaca/movie-page-torrent.html\"}"
+    },
+    {
+      "id": "rwt-vaca-links",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/vaca/movie-links-torrent.html\"}"
+    },
+    {
+      "id": "rwt-vaca-tv",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"crawl/vaca/tv-show-page.html\"}"
+    },
+    {
+      "id": "rwt-rede-coringa",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"redetorrent/post-coringa-delirio.html\"}"
+    },
+    {
+      "id": "rwt-rede-fallout",
+      "input": "{\"op\":\"readWorkTitle\",\"fixture\":\"redetorrent/serie-fallout.html\"}"
+    },
+    {
+      "id": "h1-bludv-movie",
+      "input": "{\"op\":\"h1Text\",\"fixture\":\"crawl/bludv/post-movie.html\"}"
+    },
+    {
+      "id": "h1-hdr-filme",
+      "input": "{\"op\":\"h1Text\",\"fixture\":\"crawl/hdrtorrents/post-filme.html\"}"
+    },
+    {
+      "id": "h1-rede-coringa",
+      "input": "{\"op\":\"h1Text\",\"fixture\":\"redetorrent/post-coringa-delirio.html\"}"
+    },
+    {
+      "id": "h1-vaca-movie",
+      "input": "{\"op\":\"h1Text\",\"fixture\":\"crawl/vaca/movie-page-torrent.html\"}"
+    },
+    {
+      "id": "spy-Matrix_(1999)_Dublado",
+      "input": "{\"op\":\"splitParenYear\",\"raw\":\"Matrix (1999) Dublado\"}"
+    },
+    {
+      "id": "spy-O_Filme_2020",
+      "input": "{\"op\":\"splitParenYear\",\"raw\":\"O Filme 2020\"}"
+    },
+    {
+      "id": "spy-Sem_Ano_Aqui",
+      "input": "{\"op\":\"splitParenYear\",\"raw\":\"Sem Ano Aqui\"}"
+    },
+    {
+      "id": "spy-Duna_2021_1080p",
+      "input": "{\"op\":\"splitParenYear\",\"raw\":\"Duna 2021 1080p\"}"
+    },
+    {
+      "id": "cwn-Matrix_(1999)_Dublado",
+      "input": "{\"op\":\"cleanWorkName\",\"text\":\"Matrix (1999) Dublado\"}"
+    },
+    {
+      "id": "cwn-Filme_Top_(2016)",
+      "input": "{\"op\":\"cleanWorkName\",\"text\":\"Filme Top (2016)\"}"
+    },
+    {
+      "id": "cwn-Série_Completa",
+      "input": "{\"op\":\"cleanWorkName\",\"text\":\"Série Completa\"}"
+    },
+    {
+      "id": "ficha-bludv-movie",
+      "input": "{\"op\":\"fichaYear\",\"fixture\":\"crawl/bludv/post-movie.html\"}"
+    },
+    {
+      "id": "ficha-hdr-filme",
+      "input": "{\"op\":\"fichaYear\",\"fixture\":\"crawl/hdrtorrents/post-filme.html\"}"
+    },
+    {
+      "id": "ficha-rede-coringa",
+      "input": "{\"op\":\"fichaYear\",\"fixture\":\"redetorrent/post-coringa-delirio.html\"}"
+    },
+    {
+      "id": "ficha-tdf-movie",
+      "input": "{\"op\":\"fichaYear\",\"fixture\":\"crawl/torrentdosfilmes/post-movie.html\"}"
+    },
+    {
+      "id": "pty-bludv-movie",
+      "input": "{\"op\":\"parseTitleYear\",\"fixture\":\"crawl/bludv/post-movie.html\"}"
+    },
+    {
+      "id": "pty-hdr-filme",
+      "input": "{\"op\":\"parseTitleYear\",\"fixture\":\"crawl/hdrtorrents/post-filme.html\"}"
+    },
+    {
+      "id": "pty-rede-coringa",
+      "input": "{\"op\":\"parseTitleYear\",\"fixture\":\"redetorrent/post-coringa-delirio.html\"}"
+    },
+    {
+      "id": "pty-nerd-series",
+      "input": "{\"op\":\"parseTitleYear\",\"fixture\":\"crawl/nerdfilmes/post-series.html\"}"
+    },
+    {
+      "id": "pot-bludv-movie",
+      "input": "{\"op\":\"parseOriginalTitle\",\"fixture\":\"crawl/bludv/post-movie.html\"}"
+    },
+    {
+      "id": "pot-hdr-filme",
+      "input": "{\"op\":\"parseOriginalTitle\",\"fixture\":\"crawl/hdrtorrents/post-filme.html\"}"
+    },
+    {
+      "id": "pot-rede-coringa",
+      "input": "{\"op\":\"parseOriginalTitle\",\"fixture\":\"redetorrent/post-coringa-delirio.html\"}"
+    },
+    {
+      "id": "mh-65-2&dn=x",
+      "input": "{\"op\":\"magnetHash\",\"magnet\":\"magnet:?xt=urn:btih:ABCDEF1234567890ABCDEF1234567890ABCDEF12&dn=x\"}"
+    },
+    {
+      "id": "mh-65-z&dn=y",
+      "input": "{\"op\":\"magnetHash\",\"magnet\":\"magnet:?xt=urn:btih:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz&dn=y\"}"
+    },
+    {
+      "id": "mh-12-magnet",
+      "input": "{\"op\":\"magnetHash\",\"magnet\":\"não é magnet\"}"
+    },
+    {
+      "id": "iwr-37",
+      "input": "{\"op\":\"isImdbWidgetReference\",\"suffix\":\"https://www.imdb.com/title/tt0133093/\"}"
+    },
+    {
+      "id": "iwr-11",
+      "input": "{\"op\":\"isImdbWidgetReference\",\"suffix\":\"/title/tt1/\"}"
+    },
+    {
+      "id": "iwr-4",
+      "input": "{\"op\":\"isImdbWidgetReference\",\"suffix\":\"nada\"}"
+    },
+    {
+      "id": "pso-eries_y-2a-temporada",
+      "input": "{\"op\":\"pageSeasonOf\",\"h1\":\"Temporada 2\",\"url\":\"https://x/series/y-2a-temporada\"}"
+    },
+    {
+      "id": "pso-eries_y-1a-temporada",
+      "input": "{\"op\":\"pageSeasonOf\",\"h1\":\"Série Completa\",\"url\":\"https://x/series/y-1a-temporada\"}"
+    },
+    {
+      "id": "pso-https___x_series_y",
+      "input": "{\"op\":\"pageSeasonOf\",\"h1\":\"Sem marcador\",\"url\":\"https://x/series/y\"}"
+    },
+    {
+      "id": "stride-0",
+      "input": "{\"op\":\"strideAt\",\"skip\":0}"
+    },
+    {
+      "id": "stride-999",
+      "input": "{\"op\":\"strideAt\",\"skip\":999}"
+    },
+    {
+      "id": "stride-1000",
+      "input": "{\"op\":\"strideAt\",\"skip\":1000}"
+    },
+    {
+      "id": "stride-1050",
+      "input": "{\"op\":\"strideAt\",\"skip\":1050}"
+    },
+    {
+      "id": "blm-tt0133093-3",
+      "input": "{\"op\":\"bucketLastmod\",\"tt\":\"tt0133093\",\"now\":1767225600000,\"periodDays\":3}"
+    },
+    {
+      "id": "blm-tt1-7",
+      "input": "{\"op\":\"bucketLastmod\",\"tt\":\"tt1\",\"now\":1781481600000,\"periodDays\":7}"
+    },
+    {
+      "id": "blm-tt3416744-1",
+      "input": "{\"op\":\"bucketLastmod\",\"tt\":\"tt3416744\",\"now\":1798675200000,\"periodDays\":1}"
+    },
+    {
+      "id": "pmu-l_movie_tt0133093_",
+      "input": "{\"op\":\"parseMicoUrl\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\"}"
+    },
+    {
+      "id": "pmu-_series_tt1234567_",
+      "input": "{\"op\":\"parseMicoUrl\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/series/tt1234567/\"}"
+    },
+    {
+      "id": "pmu-https___exemplo_x",
+      "input": "{\"op\":\"parseMicoUrl\",\"url\":\"https://exemplo/x\"}"
+    },
+    {
+      "id": "syn-movie-tt0133093",
+      "input": "{\"op\":\"syntheticUrl\",\"kind\":\"movie\",\"tt\":\"tt0133093\"}"
+    },
+    {
+      "id": "syn-series-tt1234567",
+      "input": "{\"op\":\"syntheticUrl\",\"kind\":\"series\",\"tt\":\"tt1234567\"}"
+    },
+    {
+      "id": "xml-bludv-recorte",
+      "input": "{\"op\":\"isXmlSitemapShape\",\"fixture\":\"crawl/bludv/post-sitemap-recorte.xml\"}"
+    },
+    {
+      "id": "xml-comando",
+      "input": "{\"op\":\"isXmlSitemapShape\",\"fixture\":\"crawl/comandotorrents/post-sitemap.xml\"}"
+    },
+    {
+      "id": "xml-nerd",
+      "input": "{\"op\":\"isXmlSitemapShape\",\"fixture\":\"crawl/nerdfilmes/post-sitemap.xml\"}"
+    },
+    {
+      "id": "xml-tdf",
+      "input": "{\"op\":\"isXmlSitemapShape\",\"fixture\":\"crawl/torrentdosfilmes/post-sitemap.xml\"}"
+    },
+    {
+      "id": "xml-vaca-min",
+      "input": "{\"op\":\"isXmlSitemapShape\",\"fixture\":\"crawl/vaca/movie-sitemap-min.xml\"}"
+    },
+    {
+      "id": "vacaShape-vaca-min",
+      "input": "{\"op\":\"isVacaSitemapShape\",\"fixture\":\"crawl/vaca/movie-sitemap-min.xml\"}"
+    },
+    {
+      "id": "vacaShape-comando",
+      "input": "{\"op\":\"isVacaSitemapShape\",\"fixture\":\"crawl/comandotorrents/post-sitemap.xml\"}"
+    },
+    {
+      "id": "vacaShape-nerd",
+      "input": "{\"op\":\"isVacaSitemapShape\",\"fixture\":\"crawl/nerdfilmes/post-sitemap.xml\"}"
+    },
+    {
+      "id": "parse-sitemap-entries-bludv",
+      "input": "{\"op\":\"parseSitemapEntries\",\"site\":\"bludv\",\"fixture\":\"crawl/bludv/post-sitemap-recorte.xml\"}"
+    },
+    {
+      "id": "parse-sitemap-entries-comando",
+      "input": "{\"op\":\"parseSitemapEntries\",\"site\":\"comando\",\"fixture\":\"crawl/comandotorrents/post-sitemap.xml\"}"
+    },
+    {
+      "id": "parse-sitemap-entries-nerd",
+      "input": "{\"op\":\"parseSitemapEntries\",\"site\":\"nerd\",\"fixture\":\"crawl/nerdfilmes/post-sitemap.xml\"}"
+    },
+    {
+      "id": "parse-sitemap-entries-tdf",
+      "input": "{\"op\":\"parseSitemapEntries\",\"site\":\"tdf\",\"fixture\":\"crawl/torrentdosfilmes/post-sitemap.xml\"}"
+    },
+    {
+      "id": "parse-sitemap-rows-rede-movies",
+      "input": "{\"op\":\"parseSitemapRows\",\"fixture\":\"redetorrent/movies-sitemap.html\"}"
+    },
+    {
+      "id": "parse-sitemap-rows-rede-index",
+      "input": "{\"op\":\"parseSitemapRows\",\"fixture\":\"redetorrent/sitemap-index.html\"}"
+    },
+    {
+      "id": "imdb-vaca",
+      "input": "{\"op\":\"parseImdbId\",\"site\":\"vaca\",\"fixture\":\"crawl/vaca/movie-page-torrent.html\"}"
+    },
+    {
+      "id": "imdb-bludv",
+      "input": "{\"op\":\"parseImdbId\",\"site\":\"bludv\",\"fixture\":\"crawl/bludv/post-movie.html\"}"
+    },
+    {
+      "id": "imdb-hdr",
+      "input": "{\"op\":\"parseImdbId\",\"site\":\"hdr\",\"fixture\":\"crawl/hdrtorrents/post-filme.html\"}"
+    },
+    {
+      "id": "imdb-apache",
+      "input": "{\"op\":\"parseImdbId\",\"site\":\"apache\",\"fixture\":\"crawl/apachetorrent/post-filme.html\"}"
+    },
+    {
+      "id": "imdb-rede",
+      "input": "{\"op\":\"parseImdbId\",\"site\":\"rede\",\"fixture\":\"redetorrent/post-coringa-delirio.html\"}"
+    },
+    {
+      "id": "imdb-nerd",
+      "input": "{\"op\":\"parseImdbId\",\"site\":\"nerd\",\"fixture\":\"crawl/nerdfilmes/post-series.html\"}"
+    },
+    {
+      "id": "apache-cards-1",
+      "input": "{\"op\":\"apacheParseListingCards\",\"fixture\":\"crawl/apachetorrent/pagina-1-cheia.html\",\"baseUrl\":\"https://apachetorrent.com\"}"
+    },
+    {
+      "id": "apache-cards-2",
+      "input": "{\"op\":\"apacheParseListingCards\",\"fixture\":\"crawl/apachetorrent/pagina-fim-calcanhar.html\",\"baseUrl\":\"https://apachetorrent.com\"}"
+    },
+    {
+      "id": "hdr-count-1",
+      "input": "{\"op\":\"hdrCountListingCards\",\"fixture\":\"crawl/hdrtorrents/pagina-1-cheia.html\"}"
+    },
+    {
+      "id": "hdr-count-2",
+      "input": "{\"op\":\"hdrCountListingCards\",\"fixture\":\"crawl/hdrtorrents/pagina-fim-calcanhar.html\"}"
+    },
+    {
+      "id": "size-2_5_GB",
+      "input": "{\"op\":\"parseSize\",\"text\":\"2.5 GB\"}"
+    },
+    {
+      "id": "size-1_01_GB",
+      "input": "{\"op\":\"parseSize\",\"text\":\"1,01 GB\"}"
+    },
+    {
+      "id": "size-700_MB",
+      "input": "{\"op\":\"parseSize\",\"text\":\"700 MB\"}"
+    },
+    {
+      "id": "size-1_KB",
+      "input": "{\"op\":\"parseSize\",\"text\":\"1 KB\"}"
+    },
+    {
+      "id": "size-sem_tamanho",
+      "input": "{\"op\":\"parseSize\",\"text\":\"sem tamanho\"}"
+    },
+    {
+      "id": "size-empty",
+      "input": "{\"op\":\"parseSize\",\"text\":\"\"}"
+    },
+    {
+      "id": "ppm-apache-filme",
+      "input": "{\"op\":\"parsePostMagnets\",\"fixture\":\"crawl/apachetorrent/post-filme.html\",\"url\":\"https://apachetorrent.com\"}"
+    },
+    {
+      "id": "ppm-apache-serie",
+      "input": "{\"op\":\"parsePostMagnets\",\"fixture\":\"crawl/apachetorrent/post-serie.html\",\"url\":\"https://apachetorrent.com\"}"
+    },
+    {
+      "id": "ppm-apache-desenho",
+      "input": "{\"op\":\"parsePostMagnets\",\"fixture\":\"crawl/apachetorrent/post-serie-desenho.html\",\"url\":\"https://apachetorrent.com\"}"
+    },
+    {
+      "id": "pcm-hdr-filme",
+      "input": "{\"op\":\"parseContentMagnets\",\"fixture\":\"crawl/hdrtorrents/post-filme.html\",\"url\":\"https://hdrtorrents.org\"}"
+    },
+    {
+      "id": "pcm-hdr-serie",
+      "input": "{\"op\":\"parseContentMagnets\",\"fixture\":\"crawl/hdrtorrents/post-serie.html\",\"url\":\"https://hdrtorrents.org\"}"
+    },
+    {
+      "id": "pcm-hdr-episodios",
+      "input": "{\"op\":\"parseContentMagnets\",\"fixture\":\"crawl/hdrtorrents/post-serie-episodios.html\",\"url\":\"https://hdrtorrents.org\"}"
+    },
+    {
+      "id": "ppl-rede-coringa",
+      "input": "{\"op\":\"parsePostLinks\",\"fixture\":\"redetorrent/post-coringa-delirio.html\",\"url\":\"https://redetorrent.xyz\"}"
+    },
+    {
+      "id": "ppl-rede-fallout",
+      "input": "{\"op\":\"parsePostLinks\",\"fixture\":\"redetorrent/serie-fallout.html\",\"url\":\"https://redetorrent.xyz\"}"
+    },
+    {
+      "id": "pdl-vaca-links",
+      "input": "{\"op\":\"parseDownloadLinks\",\"fixture\":\"crawl/vaca/movie-links-torrent.html\",\"url\":\"https://vacatorrent.com/x/\"}"
+    },
+    {
+      "id": "pdl-vaca-links-alt",
+      "input": "{\"op\":\"parseDownloadLinks\",\"fixture\":\"crawl/vaca/movie-links-torrent.html\",\"url\":\"https://vacatorrent.com/y/\"}"
+    },
+    {
+      "id": "psi-stranger",
+      "input": "{\"op\":\"parseSeasonInternal\",\"fixture\":\"crawl/vaca/season-internal-stranger.html\",\"baseUrl\":\"https://vaqueirofilmes.com/tv/stranger-things/season/stranger-things/\"}"
+    },
+    {
+      "id": "psi-mixed",
+      "input": "{\"op\":\"parseSeasonInternal\",\"fixture\":\"crawl/vaca/season-internal-mixed.html\",\"baseUrl\":\"https://vaqueirofilmes.com/tv/outer-banks/season/temporada-2/\"}"
+    },
+    {
+      "id": "sfcs-straight",
+      "input": "{\"op\":\"seasonFromCardSlug\",\"url\":\"https://vaqueirofilmes.com/tv/x/season/temporada-4/\"}"
+    },
+    {
+      "id": "sfcs-ordinal-a",
+      "input": "{\"op\":\"seasonFromCardSlug\",\"url\":\"https://vaqueirofilmes.com/tv/x/season/1a-temporada/\"}"
+    },
+    {
+      "id": "sfcs-ordinal-o",
+      "input": "{\"op\":\"seasonFromCardSlug\",\"url\":\"https://vaqueirofilmes.com/tv/x/season/3o-temporada/\"}"
+    },
+    {
+      "id": "sfcs-batch",
+      "input": "{\"op\":\"seasonFromCardSlug\",\"url\":\"https://vaqueirofilmes.com/tv/x/batch/\"}"
+    },
+    {
+      "id": "dsl-dn-wins",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":1,\"cardTitle\":\"Temporada 1\",\"isBatch\":false,\"realTitle\":null,\"dn\":\"Show.S04E02.1080p.DUBLADO\",\"linkEpisode\":3}"
+    },
+    {
+      "id": "dsl-dn-complete",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":2,\"cardTitle\":\"x\",\"isBatch\":true,\"realTitle\":null,\"dn\":\"Show.Complete.1080p\",\"linkEpisode\":null}"
+    },
+    {
+      "id": "dsl-dn-season-no-ep",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":null,\"cardTitle\":\"\",\"isBatch\":true,\"realTitle\":null,\"dn\":\"Show.4a.Temporada.1080p\",\"linkEpisode\":5}"
+    },
+    {
+      "id": "dsl-title-declares",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":null,\"cardTitle\":\"4a Temporada\",\"isBatch\":true,\"realTitle\":null,\"dn\":null,\"linkEpisode\":null}"
+    },
+    {
+      "id": "dsl-cardseason-fallback",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":3,\"cardTitle\":\"x\",\"isBatch\":false,\"realTitle\":null,\"dn\":null,\"linkEpisode\":2}"
+    },
+    {
+      "id": "dsl-trailing-digit",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":null,\"cardTitle\":\"East Blue1\",\"isBatch\":false,\"realTitle\":null,\"dn\":null,\"linkEpisode\":1}"
+    },
+    {
+      "id": "dsl-root-none",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":null,\"cardTitle\":\"\",\"isBatch\":false,\"realTitle\":null,\"dn\":null,\"linkEpisode\":null}"
+    },
+    {
+      "id": "dsl-encoded-ordinal",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":null,\"cardTitle\":\"4&ordf; Temporada\",\"isBatch\":true,\"realTitle\":null,\"dn\":null,\"linkEpisode\":null}"
+    },
+    {
+      "id": "dsl-mangled-ordinal",
+      "input": "{\"op\":\"declaredSeriesLocation\",\"cardSeason\":null,\"cardTitle\":\"4ordf Temporada\",\"isBatch\":true,\"realTitle\":null,\"dn\":null,\"linkEpisode\":null}"
+    },
+    {
+      "id": "gsr-by-title",
+      "input": "{\"op\":\"groupSeriesReleases\",\"entries\":[{\"release\":{\"title\":\"Serie S01E01 1080p Dublado\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"request\":{\"season\":1,\"episode\":1}},{\"release\":{\"title\":\"Serie S02 COMPLETA 1080p\",\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"request\":{\"season\":2,\"episode\":null}},{\"release\":{\"title\":\"Serie Sem Marcador\",\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc\"},\"request\":{\"season\":null,\"episode\":null}}],\"year\":\"2020\"}"
+    },
+    {
+      "id": "gsr-by-declared",
+      "input": "{\"op\":\"groupSeriesReleases\",\"entries\":[{\"release\":{\"title\":\"Serie S01E01 1080p Dublado\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"request\":{\"season\":1,\"episode\":1}},{\"release\":{\"title\":\"Serie S02 COMPLETA 1080p\",\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"request\":{\"season\":2,\"episode\":null}},{\"release\":{\"title\":\"Serie Sem Marcador\",\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc\"},\"request\":{\"season\":null,\"episode\":null}}],\"year\":\"2020\",\"byDeclaredLocation\":true}"
+    },
+    {
+      "id": "gsr-no-year",
+      "input": "{\"op\":\"groupSeriesReleases\",\"entries\":[{\"release\":{\"title\":\"Serie S01E01 1080p Dublado\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"request\":{\"season\":1,\"episode\":1}},{\"release\":{\"title\":\"Serie S02 COMPLETA 1080p\",\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"request\":{\"season\":2,\"episode\":null}},{\"release\":{\"title\":\"Serie Sem Marcador\",\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc\"},\"request\":{\"season\":null,\"episode\":null}}],\"year\":null}"
+    },
+    {
+      "id": "gsr-live-action-year",
+      "input": "{\"op\":\"groupSeriesReleases\",\"entries\":[{\"release\":{\"title\":\"Serie Live Action 2026 S01\",\"magnet\":\"magnet:?xt=urn:btih:dddddddddddddddddddddddddddddddddddddddd\"},\"request\":{\"season\":1,\"episode\":1}}],\"year\":\"2019\"}"
+    },
+    {
+      "id": "dev-4_ordf__Temporada",
+      "input": "{\"op\":\"decodeEvidence\",\"text\":\"4&ordf; Temporada\"}"
+    },
+    {
+      "id": "dev-4ordf_Temporada",
+      "input": "{\"op\":\"decodeEvidence\",\"text\":\"4ordf Temporada\"}"
+    },
+    {
+      "id": "dev-Show__amp__Filme",
+      "input": "{\"op\":\"decodeEvidence\",\"text\":\"Show &amp; Filme\"}"
+    },
+    {
+      "id": "rme-4ordf",
+      "input": "{\"op\":\"repairMangledEntities\",\"text\":\"4ordf\"}"
+    },
+    {
+      "id": "rme-Show__amp__x",
+      "input": "{\"op\":\"repairMangledEntities\",\"text\":\"Show &amp; x\"}"
+    },
+    {
+      "id": "pdl-vaca-card-stranger",
+      "input": "{\"op\":\"parseDownloadLinks\",\"fixture\":\"crawl/vaca/season-card-stranger.html\",\"url\":\"https://vaqueirofilmes.com/tv/stranger-things/season/stranger-things/\"}"
+    },
+    {
+      "id": "pdl-vaca-card-episodes",
+      "input": "{\"op\":\"parseDownloadLinks\",\"fixture\":\"crawl/vaca/season-card-episodes.html\",\"url\":\"https://vaqueirofilmes.com/tv/outer-banks/season/temporada-2/\"}"
+    },
+    {
+      "id": "pdl-vaca-protector-base",
+      "input": "{\"op\":\"parseDownloadLinks\",\"fixture\":\"crawl/vaca/protector-hosts.html\",\"url\":\"https://vaqueirofilmes.com/movie-links/1/\"}"
+    },
+    {
+      "id": "mico-dedupe-e-normaliza",
+      "input": "{\"op\":\"parseMicoPage\",\"kind\":\"movie\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\",\"streams\":{\"streams\":[{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme Um\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme Um (dup)\"},{\"infoHash\":\"invalido\",\"title\":\"Sem hash\"},{\"infoHash\":\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\",\"title\":\"Filme Dois\\nlinha extra\"},{\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\"}]}}"
+    },
+    {
+      "id": "mico-invalid-hash",
+      "input": "{\"op\":\"parseMicoPage\",\"kind\":\"movie\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\",\"streams\":{\"streams\":[{\"infoHash\":\"zz\",\"title\":\"X\"}]}}"
+    },
+    {
+      "id": "mico-no-title",
+      "input": "{\"op\":\"parseMicoPage\",\"kind\":\"movie\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\",\"streams\":{\"streams\":[{\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\"}]}}"
+    },
+    {
+      "id": "mico-uppercase",
+      "input": "{\"op\":\"parseMicoPage\",\"kind\":\"movie\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\",\"streams\":{\"streams\":[{\"infoHash\":\"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE\",\"title\":\"Filme Maiúsculo\"}]}}"
+    },
+    {
+      "id": "mico-name-fallback",
+      "input": "{\"op\":\"parseMicoPage\",\"kind\":\"movie\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\",\"streams\":{\"streams\":[{\"infoHash\":\"ffffffffffffffffffffffffffffffffffffffff\",\"name\":\"Via Nome\"}]}}"
+    },
+    {
+      "id": "mico-empty",
+      "input": "{\"op\":\"parseMicoPage\",\"kind\":\"movie\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\",\"streams\":{\"streams\":[]}}"
+    },
+    {
+      "id": "mico-emoji-title",
+      "input": "{\"op\":\"parseMicoPage\",\"kind\":\"movie\",\"url\":\"https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0133093/\",\"streams\":{\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"title\":\"Filme Emoji 👥 12 💾 1.5 GB (brazilian, eng)\"}]}}"
+    },
+    {
+      "id": "spg-season1",
+      "input": "{\"op\":\"seasonPageGroups\",\"releases\":[{\"title\":\"Serie S01E01 1080p DUBLADO\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"title\":\"Serie S01 COMPLETA 1080p\",\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},{\"title\":\"Serie Sem Marcador\",\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc\"}],\"page\":{\"season\":1,\"title\":\"Serie 1a Temporada\"}}"
+    },
+    {
+      "id": "spg-no-season",
+      "input": "{\"op\":\"seasonPageGroups\",\"releases\":[{\"title\":\"Serie S01E01 1080p DUBLADO\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"title\":\"Serie S01 COMPLETA 1080p\",\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},{\"title\":\"Serie Sem Marcador\",\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc\"}],\"page\":{\"season\":null,\"title\":\"Serie\"}}"
+    },
+    {
+      "id": "srg-rowseason",
+      "input": "{\"op\":\"seriesRowGroups\",\"rows\":[{\"release\":{\"title\":\"Serie S01E01 1080p DUBLADO\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"rowSeason\":1},{\"release\":{\"title\":\"Serie S01 COMPLETA 1080p\",\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"rowSeason\":2},{\"release\":{\"title\":\"Serie Sem Marcador\",\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc\"},\"rowSeason\":null}]}"
+    },
+    {
+      "id": "srg-dn-wins",
+      "input": "{\"op\":\"seriesRowGroups\",\"rows\":[{\"release\":{\"title\":\"Pack S04 1080p\",\"magnet\":\"magnet:?xt=urn:btih:dddddddddddddddddddddddddddddddddddddddd\"},\"rowSeason\":1}]}"
+    },
+    {
+      "id": "unlocated-basic",
+      "input": "{\"op\":\"unlocatedReleases\",\"releases\":[{\"title\":\"Serie S01E01 1080p DUBLADO\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"title\":\"Serie S01 COMPLETA 1080p\",\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},{\"title\":\"Serie Sem Marcador\",\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc\"}],\"groups\":[{\"season\":1,\"episode\":1,\"releases\":[{\"title\":\"Serie S01E01 1080p DUBLADO\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}]}"
+    }
+  ]
+}

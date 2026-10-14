@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "release-work/routing"
+  ],
+  "function": {
+    "name": "releaseWork",
+    "sourcePath": "src/utils/release-work.ts",
+    "sourceSha256": "e551806bb602392af53e5b1c626415da0d780883091c79394b68e776d465ff55",
+    "artifactPath": "dist/src/utils/release-work.js",
+    "artifactSha256": "00ee578acc46ee9e301dc67d4f287ea2385d8ba595b8a4ab58c41ef69453ab9b"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-release-work.json",
+    "sha256": "df1989ca03e1b7977986561ef46a55f57a81f6d168902309fdc1375132cc5c94",
+    "cases": 72
+  },
+  "output": {
+    "path": "rust/golden/release-work.jsonl",
+    "sha256": "b1c2e19f2c14561295eff6637b87b97a72178bb498b8562b9bc1357a55448462",
+    "lines": 72
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "b22f041a4682d4d9da7dc844b4c8b48551193ef0"
+  }
+}

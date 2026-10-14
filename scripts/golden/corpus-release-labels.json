@@ -1,0 +1,626 @@
+{
+  "version": "corpus-release-labels/1",
+  "note": "Casos de src/utils/audio-quality.ts: sourceFromTitle (op source), editionFromTitle (op edition) e compactAudio (op compact). Saída gerada pelo oráculo do dist isolado.",
+  "cases": [
+    {
+      "id": "rl-001",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 2024 1080p BluRay x264\"}",
+      "note": "BluRay vence as demais fontes"
+    },
+    {
+      "id": "rl-002",
+      "input": "{\"op\":\"source\",\"text\":\"Filme.Blu-Ray.1080p\"}",
+      "note": "BLU-RAY com hífen"
+    },
+    {
+      "id": "rl-003",
+      "input": "{\"op\":\"source\",\"text\":\"Filme BDREMUX 2160p HDR\"}",
+      "note": "BDREMUX é BluRay"
+    },
+    {
+      "id": "rl-004",
+      "input": "{\"op\":\"source\",\"text\":\"Filme BD 1080p DUAL\"}",
+      "note": "BD isolado com fronteira é BluRay"
+    },
+    {
+      "id": "rl-005",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 1080p WEB-DL BluRay\"}",
+      "note": "BluRay precede WEB-DL"
+    },
+    {
+      "id": "rl-006",
+      "input": "{\"op\":\"source\",\"text\":\"Filme BluRay WEBRip HDTV\"}",
+      "note": "BluRay precede WEBRip/HDTV"
+    },
+    {
+      "id": "rl-007",
+      "input": "{\"op\":\"source\",\"text\":\"Filme BluRay CAM\"}",
+      "note": "BluRay precede CAM"
+    },
+    {
+      "id": "rl-008",
+      "input": "{\"op\":\"source\",\"text\":\"filme bluray 1080p\"}",
+      "note": "caixa baixa vira BluRay"
+    },
+    {
+      "id": "rl-009",
+      "input": "{\"op\":\"source\",\"text\":\"BLURAY\"}",
+      "note": "só BluRay"
+    },
+    {
+      "id": "rl-010",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 1080p WEB-DL\"}",
+      "note": "WEB-DL canônico"
+    },
+    {
+      "id": "rl-011",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB.DL 720p\"}",
+      "note": "WEB.DL com ponto"
+    },
+    {
+      "id": "rl-012",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEBDL 1080p\"}",
+      "note": "WEBDL colado"
+    },
+    {
+      "id": "rl-013",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB DL 1080p\"}",
+      "note": "WEB DL com espaço"
+    },
+    {
+      "id": "rl-014",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 1080p WEB-DL HDTV\"}",
+      "note": "WEB-DL precede HDTV"
+    },
+    {
+      "id": "rl-015",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB-DL CAM\"}",
+      "note": "WEB-DL precede CAM"
+    },
+    {
+      "id": "rl-016",
+      "input": "{\"op\":\"source\",\"text\":\"web-dl 1080p\"}",
+      "note": "caixa baixa WEB-DL"
+    },
+    {
+      "id": "rl-017",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 1080p WEBRip\"}",
+      "note": "WEBRip canônico"
+    },
+    {
+      "id": "rl-018",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB-RIP\"}",
+      "note": "WEB-RIP com hífen"
+    },
+    {
+      "id": "rl-019",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB.RIP 720p\"}",
+      "note": "WEB.RIP com ponto"
+    },
+    {
+      "id": "rl-020",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEBRip HDTV 1080p\"}",
+      "note": "WEBRip precede HDTV"
+    },
+    {
+      "id": "rl-021",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB-DLRip1080p\"}",
+      "note": "sem fronteira após DL: fonte desconhecida"
+    },
+    {
+      "id": "rl-022",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB-DL-RIP\"}",
+      "note": "WEB-DL casado antes do RIP"
+    },
+    {
+      "id": "rl-023",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HDTV 1080p\"}",
+      "note": "HDTV canônico"
+    },
+    {
+      "id": "rl-024",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 720p HDTV\"}",
+      "note": "HDTV no fim"
+    },
+    {
+      "id": "rl-025",
+      "input": "{\"op\":\"source\",\"text\":\"HDTV\"}",
+      "note": "só HDTV"
+    },
+    {
+      "id": "rl-026",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HDTV CAM\"}",
+      "note": "HDTV precede CAM"
+    },
+    {
+      "id": "rl-027",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HDTV TS 1080p\"}",
+      "note": "HDTV precede TS"
+    },
+    {
+      "id": "rl-028",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 2024 HDCAM\"}",
+      "note": "HDCAM"
+    },
+    {
+      "id": "rl-029",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HDCAM 1080p\"}",
+      "note": "HDCAM com resolução"
+    },
+    {
+      "id": "rl-030",
+      "input": "{\"op\":\"source\",\"text\":\"Filme CAM\"}",
+      "note": "CAM isolado"
+    },
+    {
+      "id": "rl-031",
+      "input": "{\"op\":\"source\",\"text\":\"Filme CAMRip\"}",
+      "note": "CAMRip colado"
+    },
+    {
+      "id": "rl-032",
+      "input": "{\"op\":\"source\",\"text\":\"Filme CAM-RIP\"}",
+      "note": "CAM-RIP com hífen"
+    },
+    {
+      "id": "rl-033",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HD CAM\"}",
+      "note": "HD CAM com espaço"
+    },
+    {
+      "id": "rl-034",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HD-CAM\"}",
+      "note": "HD-CAM com hífen"
+    },
+    {
+      "id": "rl-035",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HDCAMRip 720p\"}",
+      "note": "HDCAMRip"
+    },
+    {
+      "id": "rl-036",
+      "input": "{\"op\":\"source\",\"text\":\"Filme CAM RIP\"}",
+      "note": "CAM RIP separado"
+    },
+    {
+      "id": "rl-037",
+      "input": "{\"op\":\"source\",\"text\":\"filme cam\"}",
+      "note": "caixa baixa CAM"
+    },
+    {
+      "id": "rl-038",
+      "input": "{\"op\":\"source\",\"text\":\"Filme (CAM)\"}",
+      "note": "CAM entre parênteses"
+    },
+    {
+      "id": "rl-039",
+      "input": "{\"op\":\"source\",\"text\":\"Filme [CAM]\"}",
+      "note": "CAM entre colchetes"
+    },
+    {
+      "id": "rl-040",
+      "input": "{\"op\":\"source\",\"text\":\"Filme CAM.\"}",
+      "note": "CAM com ponto final"
+    },
+    {
+      "id": "rl-041",
+      "input": "{\"op\":\"source\",\"text\":\"Filme D.TS.1080p\"}",
+      "note": "D.TS medido no Resident Evil"
+    },
+    {
+      "id": "rl-042",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 2024 TS 1080p\"}",
+      "note": "TS isolado"
+    },
+    {
+      "id": "rl-043",
+      "input": "{\"op\":\"source\",\"text\":\"Filme TC\"}",
+      "note": "TC isolado"
+    },
+    {
+      "id": "rl-044",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HDTS\"}",
+      "note": "HDTS"
+    },
+    {
+      "id": "rl-045",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HD TS 1080p\"}",
+      "note": "HD TS separado"
+    },
+    {
+      "id": "rl-046",
+      "input": "{\"op\":\"source\",\"text\":\"Filme TELESYNC\"}",
+      "note": "TELESYNC"
+    },
+    {
+      "id": "rl-047",
+      "input": "{\"op\":\"source\",\"text\":\"Filme TELESYNC 1080p\"}",
+      "note": "TELESYNC com resolução"
+    },
+    {
+      "id": "rl-048",
+      "input": "{\"op\":\"source\",\"text\":\"Filme TELECINE\"}",
+      "note": "TELECINE"
+    },
+    {
+      "id": "rl-049",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HQ PreDVD\"}",
+      "note": "HQ PreDVD medido no Resident Evil"
+    },
+    {
+      "id": "rl-050",
+      "input": "{\"op\":\"source\",\"text\":\"Filme PRE-DVD\"}",
+      "note": "PRE-DVD com hífen"
+    },
+    {
+      "id": "rl-051",
+      "input": "{\"op\":\"source\",\"text\":\"Filme PREDVD\"}",
+      "note": "PREDVD colado"
+    },
+    {
+      "id": "rl-052",
+      "input": "{\"op\":\"source\",\"text\":\"Filme Pre DVD\"}",
+      "note": "Pre DVD separado"
+    },
+    {
+      "id": "rl-053",
+      "input": "{\"op\":\"source\",\"text\":\"Filme.2019.1080p.H264.ts\"}",
+      "note": "extensão .ts não é Telesync"
+    },
+    {
+      "id": "rl-054",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 2020 720p.mkv\"}",
+      "note": "extensão .mkv"
+    },
+    {
+      "id": "rl-055",
+      "input": "{\"op\":\"source\",\"text\":\"Filme.1080p.avi\"}",
+      "note": "extensão .avi"
+    },
+    {
+      "id": "rl-056",
+      "input": "{\"op\":\"source\",\"text\":\"Filme.1080p.mp4\"}",
+      "note": "extensão .mp4"
+    },
+    {
+      "id": "rl-057",
+      "input": "{\"op\":\"source\",\"text\":\"Filme.1080p.mov\"}",
+      "note": "extensão .mov"
+    },
+    {
+      "id": "rl-058",
+      "input": "{\"op\":\"source\",\"text\":\"Filme.1080p.webm\"}",
+      "note": "extensão .webm"
+    },
+    {
+      "id": "rl-059",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 2019 TS\"}",
+      "note": "TS sem extensão continua CAM"
+    },
+    {
+      "id": "rl-060",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 2019.TS\"}",
+      "note": "ponto + TS no fim vira extensão: desconhecido"
+    },
+    {
+      "id": "rl-061",
+      "input": "{\"op\":\"source\",\"text\":\"Filme 2020.mkv BluRay\"}",
+      "note": "extensão só no fim absoluto"
+    },
+    {
+      "id": "rl-062",
+      "input": "{\"op\":\"source\",\"text\":\"Filme_2026_1080p_BluRay\"}",
+      "note": "underscore separa tokens"
+    },
+    {
+      "id": "rl-063",
+      "input": "{\"op\":\"source\",\"text\":\"HDCAM_1080p\"}",
+      "note": "HDCAM_1080p"
+    },
+    {
+      "id": "rl-064",
+      "input": "{\"op\":\"source\",\"text\":\"D.TS_1080p\"}",
+      "note": "D.TS_1080p"
+    },
+    {
+      "id": "rl-065",
+      "input": "{\"op\":\"source\",\"text\":\"Filme_WEB_DL_1080p\"}",
+      "note": "WEB_DL com underscore"
+    },
+    {
+      "id": "rl-066",
+      "input": "{\"op\":\"source\",\"text\":\"Filme_TS_1080p\"}",
+      "note": "TS com underscore"
+    },
+    {
+      "id": "rl-067",
+      "input": "{\"op\":\"source\",\"text\":\"Filme_TC\"}",
+      "note": "TC com underscore"
+    },
+    {
+      "id": "rl-068",
+      "input": "{\"op\":\"source\",\"text\":\"Filme_PreDVD\"}",
+      "note": "PreDVD com underscore"
+    },
+    {
+      "id": "rl-069",
+      "input": "{\"op\":\"source\",\"text\":\"Filme_WEB_RIP\"}",
+      "note": "WEB_RIP com underscore"
+    },
+    {
+      "id": "rl-070",
+      "input": "{\"op\":\"source\",\"text\":\"Filme H264 1080p\"}",
+      "note": "H264 não é CAM/TS/TC"
+    },
+    {
+      "id": "rl-071",
+      "input": "{\"op\":\"source\",\"text\":\"Filme H.264 1080p\"}",
+      "note": "H.264 com ponto"
+    },
+    {
+      "id": "rl-072",
+      "input": "{\"op\":\"source\",\"text\":\"Filme HEVC 10bit\"}",
+      "note": "HEVC sem fonte"
+    },
+    {
+      "id": "rl-073",
+      "input": "{\"op\":\"source\",\"text\":\"1080p\"}",
+      "note": "só resolução"
+    },
+    {
+      "id": "rl-074",
+      "input": "{\"op\":\"source\",\"text\":\"\"}",
+      "note": "string vazia"
+    },
+    {
+      "id": "rl-075",
+      "input": "{\"op\":\"source\",\"text\":\"   \"}",
+      "note": "só espaços"
+    },
+    {
+      "id": "rl-076",
+      "input": "{\"op\":\"source\",\"text\":\"Filme\"}",
+      "note": "título sem tag"
+    },
+    {
+      "id": "rl-077",
+      "input": "{\"op\":\"source\",\"text\":\"TSFILE\"}",
+      "note": "TS sem fronteira direita"
+    },
+    {
+      "id": "rl-078",
+      "input": "{\"op\":\"source\",\"text\":\"Filme TSX\"}",
+      "note": "TS seguido de letra"
+    },
+    {
+      "id": "rl-079",
+      "input": "{\"op\":\"source\",\"text\":\"TSCAM\"}",
+      "note": "TS colado em CAM"
+    },
+    {
+      "id": "rl-080",
+      "input": "{\"op\":\"source\",\"text\":\"Filme\\tHDTV 1080p\"}",
+      "note": "tab antes de HDTV"
+    },
+    {
+      "id": "rl-081",
+      "input": "{\"op\":\"source\",\"text\":\"Filme WEB\\tDL\"}",
+      "note": "tab não serve de separador WEB-DL"
+    },
+    {
+      "id": "rl-082",
+      "input": "{\"op\":\"source\",\"text\":\"Filme CAMH264\"}",
+      "note": "CAM sem fronteira direita"
+    },
+    {
+      "id": "rl-083",
+      "input": "{\"op\":\"source\",\"text\":\"Filme DDP5.1 1080p\"}",
+      "note": "DDP5.1 não é TS/TC"
+    },
+    {
+      "id": "rl-084",
+      "input": "{\"op\":\"edition\",\"text\":\"Filme 2024 Alternate Ending\"}",
+      "note": "Alt.End"
+    },
+    {
+      "id": "rl-085",
+      "input": "{\"op\":\"edition\",\"text\":\"ALTERNATE FINAL\"}",
+      "note": "Alt.End com FINAL"
+    },
+    {
+      "id": "rl-086",
+      "input": "{\"op\":\"edition\",\"text\":\"Alternate Version\"}",
+      "note": "Alt.Ver"
+    },
+    {
+      "id": "rl-087",
+      "input": "{\"op\":\"edition\",\"text\":\"VERSÃO ALTERNATIVA\"}",
+      "note": "Alt.Ver em PT"
+    },
+    {
+      "id": "rl-088",
+      "input": "{\"op\":\"edition\",\"text\":\"Director's Cut\"}",
+      "note": "DC com apóstrofo"
+    },
+    {
+      "id": "rl-089",
+      "input": "{\"op\":\"edition\",\"text\":\"Directors Cut\"}",
+      "note": "DC sem apóstrofo"
+    },
+    {
+      "id": "rl-090",
+      "input": "{\"op\":\"edition\",\"text\":\"Director Cut\"}",
+      "note": "sem S: não é DC"
+    },
+    {
+      "id": "rl-091",
+      "input": "{\"op\":\"edition\",\"text\":\"Extended\"}",
+      "note": "Extended"
+    },
+    {
+      "id": "rl-092",
+      "input": "{\"op\":\"edition\",\"text\":\"VERSÃO ESTENDIDA\"}",
+      "note": "Extended em PT"
+    },
+    {
+      "id": "rl-093",
+      "input": "{\"op\":\"edition\",\"text\":\"ESTENDIDA\"}",
+      "note": "ESTENDIDA sem VERSÃO não casa"
+    },
+    {
+      "id": "rl-094",
+      "input": "{\"op\":\"edition\",\"text\":\"Theatrical\"}",
+      "note": "Cinema"
+    },
+    {
+      "id": "rl-095",
+      "input": "{\"op\":\"edition\",\"text\":\"VERSÃO DE CINEMA\"}",
+      "note": "Cinema em PT"
+    },
+    {
+      "id": "rl-096",
+      "input": "{\"op\":\"edition\",\"text\":\"Remaster\"}",
+      "note": "Remaster"
+    },
+    {
+      "id": "rl-097",
+      "input": "{\"op\":\"edition\",\"text\":\"Remastered\"}",
+      "note": "Remastered"
+    },
+    {
+      "id": "rl-098",
+      "input": "{\"op\":\"edition\",\"text\":\"REMASTERIZADO\"}",
+      "note": "Remaster em PT (masc)"
+    },
+    {
+      "id": "rl-099",
+      "input": "{\"op\":\"edition\",\"text\":\"REMASTERIZADA\"}",
+      "note": "Remaster em PT (fem)"
+    },
+    {
+      "id": "rl-100",
+      "input": "{\"op\":\"edition\",\"text\":\"IMAX\"}",
+      "note": "IMAX"
+    },
+    {
+      "id": "rl-101",
+      "input": "{\"op\":\"edition\",\"text\":\"IMAX Enhanced\"}",
+      "note": "IMAX com sufixo"
+    },
+    {
+      "id": "rl-102",
+      "input": "{\"op\":\"edition\",\"text\":\"Uncut\"}",
+      "note": "Uncut"
+    },
+    {
+      "id": "rl-103",
+      "input": "{\"op\":\"edition\",\"text\":\"Unrated\"}",
+      "note": "Unrated"
+    },
+    {
+      "id": "rl-104",
+      "input": "{\"op\":\"edition\",\"text\":\"SEM CORTES\"}",
+      "note": "Uncut em PT"
+    },
+    {
+      "id": "rl-105",
+      "input": "{\"op\":\"edition\",\"text\":\"Alternate Ending + Director's Cut\"}",
+      "note": "precede Alt.End"
+    },
+    {
+      "id": "rl-106",
+      "input": "{\"op\":\"edition\",\"text\":\"IMAX Uncut\"}",
+      "note": "IMAX precede Uncut"
+    },
+    {
+      "id": "rl-107",
+      "input": "{\"op\":\"edition\",\"text\":\"Extended IMAX\"}",
+      "note": "Extended precede IMAX"
+    },
+    {
+      "id": "rl-108",
+      "input": "{\"op\":\"edition\",\"text\":\"Theatrical Remaster\"}",
+      "note": "Cinema precede Remaster"
+    },
+    {
+      "id": "rl-109",
+      "input": "{\"op\":\"edition\",\"text\":\"﻿Filme IMAX\"}",
+      "note": "BOM antes do título"
+    },
+    {
+      "id": "rl-110",
+      "input": "{\"op\":\"edition\",\"text\":\"VERSÃO ALTERNATIVA\"}",
+      "note": "NFD (A + til combinante) não casa"
+    },
+    {
+      "id": "rl-111",
+      "input": "{\"op\":\"edition\",\"text\":\"ALTERNATE\\tENDING\"}",
+      "note": "tab como separador (\\s)"
+    },
+    {
+      "id": "rl-112",
+      "input": "{\"op\":\"edition\",\"text\":\"ALTERNATE ENDING\"}",
+      "note": "NBSP como separador (\\s)"
+    },
+    {
+      "id": "rl-113",
+      "input": "{\"op\":\"edition\",\"text\":\"VERSÃO ESTENDIDA\"}",
+      "note": "til pré-composto + \\s"
+    },
+    {
+      "id": "rl-114",
+      "input": "{\"op\":\"edition\",\"text\":\"DIRECTOR’S CUT\"}",
+      "note": "apóstrofo curvo não casa"
+    },
+    {
+      "id": "rl-115",
+      "input": "{\"op\":\"edition\",\"text\":\"Alternative Final\"}",
+      "note": "inglês Alternative não casa"
+    },
+    {
+      "id": "rl-116",
+      "input": "{\"op\":\"edition\",\"text\":\"\"}",
+      "note": "string vazia"
+    },
+    {
+      "id": "rl-117",
+      "input": "{\"op\":\"compact\",\"text\":\"Dublado\"}",
+      "note": "DUB"
+    },
+    {
+      "id": "rl-118",
+      "input": "{\"op\":\"compact\",\"text\":\"Legendado\"}",
+      "note": "LEG"
+    },
+    {
+      "id": "rl-119",
+      "input": "{\"op\":\"compact\",\"text\":\"Dual\"}",
+      "note": "DUAL"
+    },
+    {
+      "id": "rl-120",
+      "input": "{\"op\":\"compact\",\"text\":\"Nacional\"}",
+      "note": "NAC"
+    },
+    {
+      "id": "rl-121",
+      "input": "{\"op\":\"compact\",\"text\":\"\"}",
+      "note": "vazio devolve vazio"
+    },
+    {
+      "id": "rl-122",
+      "input": "{\"op\":\"compact\",\"text\":\"dublado\"}",
+      "note": "caixa baixa não casa"
+    },
+    {
+      "id": "rl-123",
+      "input": "{\"op\":\"compact\",\"text\":\"DUBLADO\"}",
+      "note": "rótulo já compacto não casa"
+    },
+    {
+      "id": "rl-124",
+      "input": "{\"op\":\"compact\",\"text\":\"Dual \"}",
+      "note": "espaço à direita não casa"
+    }
+  ]
+}

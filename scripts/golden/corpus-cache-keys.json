@@ -1,0 +1,276 @@
+{
+  "version": "corpus-cache-keys/1",
+  "note": "Casos de cache-keys.ts: NAMESPACE_VERSIONS (op versions), LEGACY_PREFIXES (op legacy), prefix() (op prefix), magMetaCountsKey() (op magmeta) e a composição de chave dos chamadores (op key). Namespace ausente da tabela não tem caso: o TS montaria ns:undefined:, o porte devolve vazio de propósito.",
+  "cases": [
+    {
+      "id": "ck-versions",
+      "input": "{\"op\":\"versions\"}",
+      "note": "tabela completa na ordem de inserção"
+    },
+    {
+      "id": "ck-legacy",
+      "input": "{\"op\":\"legacy\"}",
+      "note": "prefixos aposentados no boot"
+    },
+    {
+      "id": "ck-magmeta",
+      "input": "{\"op\":\"magmeta\"}",
+      "note": "chave única do agregado do MagnetDB"
+    },
+    {
+      "id": "ck-prefix-01",
+      "input": "{\"op\":\"prefix\",\"ns\":\"streams\"}",
+      "note": "prefixo de streams"
+    },
+    {
+      "id": "ck-prefix-02",
+      "input": "{\"op\":\"prefix\",\"ns\":\"autofetch\"}",
+      "note": "prefixo de autofetch"
+    },
+    {
+      "id": "ck-prefix-03",
+      "input": "{\"op\":\"prefix\",\"ns\":\"raw\"}",
+      "note": "prefixo de raw"
+    },
+    {
+      "id": "ck-prefix-04",
+      "input": "{\"op\":\"prefix\",\"ns\":\"dinv\"}",
+      "note": "prefixo de dinv"
+    },
+    {
+      "id": "ck-prefix-05",
+      "input": "{\"op\":\"prefix\",\"ns\":\"davail\"}",
+      "note": "prefixo de davail"
+    },
+    {
+      "id": "ck-prefix-06",
+      "input": "{\"op\":\"prefix\",\"ns\":\"mag\"}",
+      "note": "prefixo de mag"
+    },
+    {
+      "id": "ck-prefix-07",
+      "input": "{\"op\":\"prefix\",\"ns\":\"mag_meta\"}",
+      "note": "prefixo de mag_meta"
+    },
+    {
+      "id": "ck-prefix-08",
+      "input": "{\"op\":\"prefix\",\"ns\":\"rdc\"}",
+      "note": "prefixo de rdc"
+    },
+    {
+      "id": "ck-prefix-09",
+      "input": "{\"op\":\"prefix\",\"ns\":\"rdt\"}",
+      "note": "prefixo de rdt"
+    },
+    {
+      "id": "ck-prefix-10",
+      "input": "{\"op\":\"prefix\",\"ns\":\"rdq\"}",
+      "note": "prefixo de rdq"
+    },
+    {
+      "id": "ck-prefix-11",
+      "input": "{\"op\":\"prefix\",\"ns\":\"idx\"}",
+      "note": "prefixo de idx"
+    },
+    {
+      "id": "ck-prefix-12",
+      "input": "{\"op\":\"prefix\",\"ns\":\"harvest\"}",
+      "note": "prefixo de harvest"
+    },
+    {
+      "id": "ck-prefix-13",
+      "input": "{\"op\":\"prefix\",\"ns\":\"notify\"}",
+      "note": "prefixo de notify"
+    },
+    {
+      "id": "ck-prefix-14",
+      "input": "{\"op\":\"prefix\",\"ns\":\"seed\"}",
+      "note": "prefixo de seed"
+    },
+    {
+      "id": "ck-prefix-15",
+      "input": "{\"op\":\"prefix\",\"ns\":\"cfg\"}",
+      "note": "prefixo de cfg"
+    },
+    {
+      "id": "ck-prefix-16",
+      "input": "{\"op\":\"prefix\",\"ns\":\"adprot\"}",
+      "note": "prefixo de adprot"
+    },
+    {
+      "id": "ck-prefix-17",
+      "input": "{\"op\":\"prefix\",\"ns\":\"adsub\"}",
+      "note": "prefixo de adsub"
+    },
+    {
+      "id": "ck-prefix-18",
+      "input": "{\"op\":\"prefix\",\"ns\":\"adrm\"}",
+      "note": "prefixo de adrm"
+    },
+    {
+      "id": "ck-prefix-19",
+      "input": "{\"op\":\"prefix\",\"ns\":\"fsz\"}",
+      "note": "prefixo de fsz"
+    },
+    {
+      "id": "ck-prefix-20",
+      "input": "{\"op\":\"prefix\",\"ns\":\"tsz\"}",
+      "note": "prefixo de tsz"
+    },
+    {
+      "id": "ck-prefix-21",
+      "input": "{\"op\":\"prefix\",\"ns\":\"vres\"}",
+      "note": "prefixo de vres"
+    },
+    {
+      "id": "ck-key-01",
+      "input": "{\"op\":\"key\",\"ns\":\"streams\",\"parts\":[\"movie\",\"tt0111111\"]}",
+      "note": "chave composta de streams"
+    },
+    {
+      "id": "ck-key-02",
+      "input": "{\"op\":\"key\",\"ns\":\"autofetch\",\"parts\":[\"dead\",\"jackett\",\"1\",\"aa4f91c3d0\"]}",
+      "note": "chave composta de autofetch"
+    },
+    {
+      "id": "ck-key-03",
+      "input": "{\"op\":\"key\",\"ns\":\"raw\",\"parts\":[\"jackett\",\"1\",\"movie\",\"tt0111111\"]}",
+      "note": "chave composta de raw"
+    },
+    {
+      "id": "ck-key-04",
+      "input": "{\"op\":\"key\",\"ns\":\"dinv\",\"parts\":[\"torrentio\",\"1\"]}",
+      "note": "chave composta de dinv"
+    },
+    {
+      "id": "ck-key-05",
+      "input": "{\"op\":\"key\",\"ns\":\"davail\",\"parts\":[\"a1b2c3d4e5f6\"]}",
+      "note": "chave composta de davail"
+    },
+    {
+      "id": "ck-key-06",
+      "input": "{\"op\":\"key\",\"ns\":\"mag\",\"parts\":[\"a1b2c3d4e5f6a7b8c9d0\"]}",
+      "note": "chave composta de mag"
+    },
+    {
+      "id": "ck-key-07",
+      "input": "{\"op\":\"key\",\"ns\":\"mag_meta\",\"parts\":[\"counts\"]}",
+      "note": "chave composta de mag_meta"
+    },
+    {
+      "id": "ck-key-08",
+      "input": "{\"op\":\"key\",\"ns\":\"rdc\",\"parts\":[\"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"]}",
+      "note": "chave composta de rdc"
+    },
+    {
+      "id": "ck-key-09",
+      "input": "{\"op\":\"key\",\"ns\":\"rdt\",\"parts\":[\"trt\",\"movie\",\"tt0139217\"]}",
+      "note": "chave composta de rdt"
+    },
+    {
+      "id": "ck-key-10",
+      "input": "{\"op\":\"key\",\"ns\":\"rdq\",\"parts\":[\"wq\"]}",
+      "note": "chave composta de rdq"
+    },
+    {
+      "id": "ck-key-11",
+      "input": "{\"op\":\"key\",\"ns\":\"idx\",\"parts\":[\"movie\",\"tt0111111\"]}",
+      "note": "chave composta de idx"
+    },
+    {
+      "id": "ck-key-12",
+      "input": "{\"op\":\"key\",\"ns\":\"harvest\",\"parts\":[\"seen\",\"deadbeef\"]}",
+      "note": "chave composta de harvest"
+    },
+    {
+      "id": "ck-key-13",
+      "input": "{\"op\":\"key\",\"ns\":\"notify\",\"parts\":[\"release:1\"]}",
+      "note": "chave composta de notify"
+    },
+    {
+      "id": "ck-key-14",
+      "input": "{\"op\":\"key\",\"ns\":\"seed\",\"parts\":[\"cohort\"]}",
+      "note": "chave composta de seed"
+    },
+    {
+      "id": "ck-key-15",
+      "input": "{\"op\":\"key\",\"ns\":\"cfg\",\"parts\":[\"runtime\"]}",
+      "note": "chave composta de cfg"
+    },
+    {
+      "id": "ck-key-16",
+      "input": "{\"op\":\"key\",\"ns\":\"adprot\",\"parts\":[\"alldebrid\",\"2\",\"a1b2c3\"]}",
+      "note": "chave composta de adprot"
+    },
+    {
+      "id": "ck-key-17",
+      "input": "{\"op\":\"key\",\"ns\":\"adsub\",\"parts\":[\"2\",\"a1b2c3\"]}",
+      "note": "chave composta de adsub"
+    },
+    {
+      "id": "ck-key-18",
+      "input": "{\"op\":\"key\",\"ns\":\"adrm\",\"parts\":[\"2\",\"a1b2c3\"]}",
+      "note": "chave composta de adrm"
+    },
+    {
+      "id": "ck-key-19",
+      "input": "{\"op\":\"key\",\"ns\":\"fsz\",\"parts\":[\"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"]}",
+      "note": "chave composta de fsz"
+    },
+    {
+      "id": "ck-key-20",
+      "input": "{\"op\":\"key\",\"ns\":\"tsz\",\"parts\":[\"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"]}",
+      "note": "chave composta de tsz"
+    },
+    {
+      "id": "ck-key-21",
+      "input": "{\"op\":\"key\",\"ns\":\"vres\",\"parts\":[\"a1b2c3\",\"9f86d081\"]}",
+      "note": "chave composta de vres"
+    },
+    {
+      "id": "ck-key-empty-parts",
+      "input": "{\"op\":\"key\",\"ns\":\"raw\",\"parts\":[]}",
+      "note": "sem parte: só o prefixo"
+    },
+    {
+      "id": "ck-key-one-part",
+      "input": "{\"op\":\"key\",\"ns\":\"rdq\",\"parts\":[\"wq\"]}",
+      "note": "uma parte"
+    },
+    {
+      "id": "ck-key-blank-part",
+      "input": "{\"op\":\"key\",\"ns\":\"idx\",\"parts\":[\"\",\"movie\"]}",
+      "note": "parte vazia no meio"
+    },
+    {
+      "id": "ck-key-trailing-blank",
+      "input": "{\"op\":\"key\",\"ns\":\"idx\",\"parts\":[\"movie\",\"\"]}",
+      "note": "parte vazia no fim"
+    },
+    {
+      "id": "ck-key-colon-in-part",
+      "input": "{\"op\":\"key\",\"ns\":\"streams\",\"parts\":[\"series:tv:tt0159256\",\"s1e2\"]}",
+      "note": "parte que já traz dois-pontos"
+    },
+    {
+      "id": "ck-key-unicode",
+      "input": "{\"op\":\"key\",\"ns\":\"streams\",\"parts\":[\"movie\",\"título-acentuado\"]}",
+      "note": "sem normalização: byte a byte"
+    },
+    {
+      "id": "ck-key-uppercase",
+      "input": "{\"op\":\"key\",\"ns\":\"fsz\",\"parts\":[\"A1B2C3\"]}",
+      "note": "maiúsculo fica como está (toLowerCase é do chamador)"
+    },
+    {
+      "id": "ck-key-many-parts",
+      "input": "{\"op\":\"key\",\"ns\":\"adprot\",\"parts\":[\"jackett\",\"3\",\"aa\",\"bb\",\"cc\"]}",
+      "note": "cinco partes"
+    },
+    {
+      "id": "ck-prefix-repeat",
+      "input": "{\"op\":\"prefix\",\"ns\":\"idx\"}",
+      "note": "idx está em v14, não em v1"
+    }
+  ]
+}

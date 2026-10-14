@@ -29,11 +29,14 @@ errada.
 - `src/runtime.ts`
 - `src/config.ts`
 - `src/utils/secret-box.ts`
-- `src/public/configure.html` (o mapa `KEYS` e `collect`/`apply`/`fromUrl` ficam
-  **inline** aqui por contrato — os testes regexam o corpo dessas funções no html)
-- `src/public/configure-app.js` (extraído em §5.9: el/estado, base64url, selo,
-  wiring — top-level, ES5, sem IIFE, escopo compartilhado com o inline)
-- `src/routes/public.ts` (inclui a allowlist FECHADA `PAGE_ASSETS`)
+- `src/public/configure.html` (HTML + CSS; o JS saiu para `src/client/configure/`
+  e o HTML só carrega o entry ESM `/client/configure/entry.js`)
+- `src/client/configure/*.ts` (cliente ESM nativo: `keys.ts` tem o `KEYS`,
+  `view.ts` o `collect`/`render`/presets, `init.ts` o `apply`/`fromUrl`/wiring;
+  emitido por `tsconfig.client.json` no browser e por
+  `tsconfig.client.test.json` no Node para os testes)
+- `src/routes/public.ts` (inclui a allowlist FECHADA `PAGE_ASSETS` e a
+  `CLIENT_ASSETS` do cliente de `/configure`)
 - `src/routes/register.ts` (ordem: rota sem config antes do overlay `/:userConfig`)
 
 ## Guardrails
@@ -49,6 +52,10 @@ errada.
    `/configure` quanto em `/<config>/configure`; e o `?v=<hash>` é injetado no
    HTML em memória (a rota casa pelo path, então a query não entra na
    allowlist) — é o que permite `maxAge` de 30d sem skew de deploy.
+3c. Módulo do cliente ESM de `/configure` entra na `CLIENT_ASSETS` **por nome**
+   (caminho aninhado `client/configure/<arquivo>.js`). O entry versionado é
+   `immutable`; os filhos importados saem `no-cache` e revalidam por ETag/304.
+   Mexer no cliente é editar `src/client/configure/*.ts`, nunca o `.js` emitido.
 4. `prefix()` carrega a mesma config no link de play (`/resolve`).
 
 ## Contrato de saída (auditoria)

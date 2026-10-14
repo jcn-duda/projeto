@@ -1,0 +1,25 @@
+{"id":"esm-001","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon S01E02.The Rogue Prince  HMAX  DDP5.1.x264 NTb 1080p\",\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","expected":"1"}
+{"id":"esm-002","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"[ReQ]True Detective s01e01 hdtv x264-KILLERS\",\"allNames\":[\"True Detective\"]}","expected":"1"}
+{"id":"esm-003","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Demon Slayer S01E01 1080p WEB-DL\",\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","expected":"0"}
+{"id":"esm-004","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon 1ª Temporada 1080p\",\"allNames\":[\"House of the Dragon\"]}","expected":"1"}
+{"id":"esm-005","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon S01E02 1080p\",\"allNames\":null}","expected":"1"}
+{"id":"esm-006","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"House of the Dragon S01E02 1080p\",\"allNames\":[]}","expected":"1"}
+{"id":"esm-007","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"S02E01   A Casa do Dragão S02E01 x264 DUAL 5.1 1080p\",\"allNames\":[\"House of the Dragon\",\"A Casa do Dragão\"]}","expected":"1"}
+{"id":"esm-008","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Rick And Morty The Anime S01E02 1080p\",\"allNames\":[\"Rick and Morty\",\"Rick e Morty\"]}","expected":"0"}
+{"id":"esm-009","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Breaking Bad S01E01 720p\",\"allNames\":[\"Breaking Bad\"]}","expected":"1"}
+{"id":"esm-010","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Better Call Saul S01E01 1080p\",\"allNames\":[\"Breaking Bad\"]}","expected":"0"}
+{"id":"esm-011","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer: Infinity Castle 2025 1080p\",\"tokens\":[\"demon\",\"slayer\",\"infinity\",\"castle\",\"2025\",\"1080p\"],\"universe\":[\"demon\",\"slayer\",\"kimetsu\",\"no\",\"yaiba\"]}","expected":"0"}
+{"id":"esm-012","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer 2ª Temporada 1080p\",\"tokens\":[\"demon\",\"slayer\",\"2ª\",\"temporada\",\"1080p\"],\"universe\":[\"demon\",\"slayer\"]}","expected":"1"}
+{"id":"esm-013","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer S01E01 1080p\",\"tokens\":[\"demon\",\"slayer\",\"s01e01\",\"1080p\"],\"universe\":[\"demon\",\"slayer\"]}","expected":"1"}
+{"id":"esm-014","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Demon Slayer Kimetsu no Yaiba 1080p\",\"tokens\":[\"demon\",\"slayer\",\"kimetsu\",\"no\",\"yaiba\",\"1080p\"],\"universe\":[\"demon\",\"slayer\",\"kimetsu\",\"no\",\"yaiba\"]}","expected":"1"}
+{"id":"esm-015","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Attack on Titan 1080p\",\"tokens\":[\"attack\",\"on\",\"titan\",\"1080p\"],\"universe\":[\"attack\",\"on\",\"titan\",\"shingeki\",\"no\",\"kyojin\"]}","expected":"1"}
+{"id":"esm-016","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Shingeki no Kyojin 1080p\",\"tokens\":[\"shingeki\",\"no\",\"kyojin\",\"1080p\"],\"universe\":[\"attack\",\"on\",\"titan\",\"shingeki\",\"no\",\"kyojin\"]}","expected":"1"}
+{"id":"esm-017","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"One Piece 1080p\",\"tokens\":[\"one\",\"piece\",\"1080p\"],\"universe\":[\"one\",\"piece\"]}","expected":"1"}
+{"id":"esm-018","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Naruto Shippuden 1080p\",\"tokens\":[\"naruto\",\"shippuden\",\"1080p\"],\"universe\":[\"naruto\",\"shippuden\"]}","expected":"1"}
+{"id":"esm-019","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Boku no Hero Academia 1080p\",\"tokens\":[\"boku\",\"no\",\"hero\",\"academia\",\"1080p\"],\"universe\":[\"my\",\"hero\",\"academia\"]}","expected":"0"}
+{"id":"esm-020","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"My Hero Academia 1080p\",\"tokens\":[\"my\",\"hero\",\"academia\",\"1080p\"],\"universe\":[\"my\",\"hero\",\"academia\"]}","expected":"1"}
+{"id":"esm-021","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"The Boys S05E01 1080p WEB-DL\",\"allNames\":[\"The Boys\"],\"cutTail\":false}","expected":"1"}
+{"id":"esm-022","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"The Boys 1080p\",\"tokens\":[\"the\",\"boys\",\"1080p\"],\"universe\":[\"the\",\"boys\"],\"cutTail\":false}","expected":"1"}
+{"id":"esm-023","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"www.UIndex.org - The Boys S05E01 1080p\",\"allNames\":[\"The Boys\"]}","expected":"1"}
+{"id":"esm-024","input":"{\"op\":\"globalSeriesNoMarker\",\"title\":\"Stranger Things 1080p\",\"tokens\":[\"stranger\",\"things\",\"1080p\"],\"universe\":[\"stranger\",\"things\"]}","expected":"1"}
+{"id":"esm-025","input":"{\"op\":\"episodeWorkIdentity\",\"title\":\"Game of Thrones S01E01 Winter is Coming 1080p\",\"allNames\":[\"Game of Thrones\",\"A Game of Thrones\"]}","expected":"1"}

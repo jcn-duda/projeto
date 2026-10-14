@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "inventory-filter/filterInventoryRelevant"
+  ],
+  "function": {
+    "name": "inventoryFilter",
+    "sourcePath": "src/utils/release-filters.ts",
+    "sourceSha256": "12aca2be02a3b18521d0be849081d9890b06aa8fd1faaf89f0f2b8617e4f61fb",
+    "artifactPath": "dist/src/utils/release-filters.js",
+    "artifactSha256": "caa356d3387f36d2ccfa9d76c41a09bd8804a03ef49333a121f3777ef071b439"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-inventory-filter.json",
+    "sha256": "1d14d8b2227aa8cf61fddc8457a16d567a9730ddacd7e4f0a12ee00c3eeff3c1",
+    "cases": 96
+  },
+  "output": {
+    "path": "rust/golden/inventory-filter.jsonl",
+    "sha256": "e05fe64a4fae1381c3178a5dec96559d3c3f0e4d696b196360497c0e8b103125",
+    "lines": 96
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "96316cefdeaaead28701498b8c1bfe422ed1b5f0"
+  }
+}

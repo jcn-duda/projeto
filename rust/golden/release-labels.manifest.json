@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "release-labels/releaseLabels"
+  ],
+  "function": {
+    "name": "releaseLabels",
+    "sourcePath": "src/utils/audio-quality.ts",
+    "sourceSha256": "85be8ad4483a3e75bef686c2cb7173b0aeff71bc98230864f9acf052f7004496",
+    "artifactPath": "dist/src/utils/audio-quality.js",
+    "artifactSha256": "b4eafd884bb2897066b88fb2ed558e17bfaf64fddb61546f68e73d4b892462f0"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-release-labels.json",
+    "sha256": "a37f48d151c5e2735964a345b478b6ec451aee0fb8ab8be2b158f579593f5062",
+    "cases": 124
+  },
+  "output": {
+    "path": "rust/golden/release-labels.jsonl",
+    "sha256": "98fcf57f103f86070f797c9002841502e150593355654fed9a13635b11f5efc1",
+    "lines": 124
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "9fb915dfa0c10b8ffe770fd2ce1791d808ced841"
+  }
+}

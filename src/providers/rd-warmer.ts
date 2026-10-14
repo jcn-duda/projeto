@@ -13,6 +13,7 @@ import * as held from '../debrid/protected.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as autofetch from './autofetch.js';
 import * as activity from './activity.js';
+import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import { prefix } from '../utils/cache-keys.js';
 import { accountScope } from '../utils/request-key.js';
 import { rdGate } from '../debrid/rd-gate.js';
@@ -26,6 +27,8 @@ type WarmEntry = {
 };
 
 const QUEUE_KEY = `${prefix('rdq')}wq`;
+// Teto horário durável (≠ `wq`): restart não zera o teto na mesma hora civil.
+const HOUR_KEY = `${prefix('rdq')}hour`;
 
 // Prefixo das chaves `bad` do magnetdb escopadas ao Real-Debrid (qualquer
 // conta): é o que delimita o reparo seletivo dos hashes que a varredura
@@ -73,12 +76,24 @@ function queriesThisHour(): number {
   for (const bucket of [...hourBuckets.keys()]) {
     if (bucket < hour) hourBuckets.delete(bucket);
   }
+  // Lazy: Map vazio pós-restart reidrata do L1/L2 se ainda for a hora corrente.
+  if (!hourBuckets.has(hour)) {
+    const stored = cache.get(HOUR_KEY) as { hour?: unknown; count?: unknown } | null;
+    const n = stored && Number(stored.hour) === hour ? Number(stored.count) : NaN;
+    if (Number.isFinite(n) && n > 0) hourBuckets.set(hour, n);
+  }
   return hourBuckets.get(hour) || 0;
 }
 
 function noteQueries(count: number): void {
+  if (!count) return;
   const hour = Math.floor(Date.now() / 3_600_000);
-  hourBuckets.set(hour, (hourBuckets.get(hour) || 0) + count);
+  // Hidrata antes de somar: senão o 1º note pós-restart sobrescreve o total.
+  const next = queriesThisHour() + count;
+  hourBuckets.set(hour, next);
+  // TTL = resto da hora + 60s de folga (mín. 60): o balde some na virada.
+  const ttl = Math.max(60, Math.ceil(((hour + 1) * 3_600_000 - Date.now()) / 1000) + 60);
+  cache.set(HOUR_KEY, { hour, count: next }, ttl);
 }
 
 /**
@@ -101,22 +116,20 @@ function noteCredential(apiKey: string): void {
 }
 
 /**
- * Chave para o aquecimento. O `.env` do operador tem precedência — é a conta
- * que ele escolheu gastar; sem ela, vale a última credencial vista numa
- * requisição com Real-Debrid.
+ * Chave para o aquecimento e a origem dela. Painel é fonte ÚNICA: RD liga,
+ * AllDebrid desliga mesmo com `.env` RD; sem override, `.env` com gate de
+ * operador; senão, a última credencial RD vista numa requisição.
  */
-function resolveApiKey(): string | null {
-  if (!config.debrid.rdWarm.enabled) return null;
-  // Gate de OPERADOR (conta do .env), não o de herança para installs.
-  if (config.debrid.service === 'realdebrid' && config.debrid.apiKey && config.debrid.envOperatorAccount) {
-    return config.debrid.apiKey;
-  }
-  return notedApiKey || null;
+function resolveApiKeySource(): { apiKey: string | null; source: 'panel' | 'env' | 'sessao' | 'none' } {
+  const warm = harvesterDebrid.resolveWarm();
+  if (warm.source === 'panel' || warm.source === 'env') return { apiKey: warm.apiKey, source: warm.source };
+  if (warm.reason === 'painel-desliga') return { apiKey: null, source: 'none' };
+  return notedApiKey ? { apiKey: notedApiKey, source: 'sessao' } : { apiKey: null, source: 'none' };
 }
 
-/** Real-Debrid está em uso aqui, seja pelo `.env` ou pela config da URL. */
+/** Real-Debrid está em uso aqui, seja pelo `.env`, painel ou pela URL. */
 function rdInPlay(): boolean {
-  return Boolean(resolveApiKey());
+  return config.debrid.rdWarm.enabled ? Boolean(resolveApiKeySource().apiKey) : false;
 }
 
 /**
@@ -167,7 +180,7 @@ function enqueue(hashes: string[], score = 0): void {
 
 async function processBatch(maxItems: number): Promise<number> {
   ensureQueueLoaded();
-  const apiKey = resolveApiKey();
+  const apiKey = resolveApiKeySource().apiKey;
   if (!apiKey) return 0;
   const account = accountScope(apiKey);
   if (rdGate.isCoolingDown(account)) return 0;
@@ -246,7 +259,7 @@ async function processBatch(maxItems: number): Promise<number> {
 async function tick(): Promise<void> {
   if (paused || inFlight || !config.debrid.rdWarm.enabled) return;
   if (activity.recentUserTraffic(config.debrid.rdWarm.idleWindowMs)) return;
-  const apiKey = resolveApiKey();
+  const apiKey = resolveApiKeySource().apiKey;
   if (!apiKey) return;
   const account = accountScope(apiKey);
   if (rdGate.isCoolingDown(account)) return;
@@ -355,7 +368,7 @@ function setPaused(v: boolean): void {
 }
 
 /** Estado operacional do warmer. */
-function status(): { enabled: boolean; queueDepth: number; lastTickAt: number | null; paused: boolean; processedLastHour: number } {
+function status(): { enabled: boolean; queueDepth: number; lastTickAt: number | null; paused: boolean; processedLastHour: number; accountSource: 'panel' | 'env' | 'sessao' | 'none' } {
   ensureQueueLoaded();
   return {
     enabled: config.debrid.rdWarm.enabled,
@@ -363,6 +376,7 @@ function status(): { enabled: boolean; queueDepth: number; lastTickAt: number | 
     lastTickAt: lastTickAt || null,
     paused,
     processedLastHour: queriesThisHour(),
+    accountSource: config.debrid.rdWarm.enabled ? resolveApiKeySource().source : 'none',
   };
 }
 
@@ -375,6 +389,8 @@ function reset(): void {
   lastTickAt = 0;
   notedApiKey = '';
   hourBuckets.clear();
+  // Sem forget, reset deixaria o balde no cache e o próximo teste reidrataria.
+  cache.forget(HOUR_KEY);
 }
 
 export { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, noteCredential, rdInPlay };

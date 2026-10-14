@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<!--
+  VISUALIZADOR XML DO CHROMIUM — recorte de `/tvshows-sitemap.xml` do
+  RedeTorrent, medido em 2026-09-28 pelo FlareSolverr. O acervo tem 705 páginas
+  em `/series/<slug>/`; o índice traz UM `tvshows-sitemap.xml` (sem número — o
+  `\d*` do filtro aceita o caso presente e o futuro).
+
+  Este arquivo só é lido em MODO AMOSTRA (`seriesProbe`): com séries desligadas
+  o adaptador nem o requisita. `/filmes/` aqui sai pela mesma régua de caminho, e
+  a linha com a data ilegível (`<div class="date">0000-00-00</div>`) entra com
+  `lastmod` vazio — nunca com data inventada.
+-->
+<html>
+<head><title>TV Shows Sitemap</title></head>
+<body>
+<table class="xml-tree">
+  <thead><tr><th>URL</th><th>Last modified</th></tr></thead>
+  <tbody>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/series/fallout/">https://www.redetorrent.xyz/series/fallout/</a></td><td><div class="date">16 de September de 2026</div><div class="time">17:55</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/series/casa-do-dragao/">https://www.redetorrent.xyz/series/casa-do-dragao/</a></td><td><div class="date">4 de September de 2026</div><div class="time">19:30</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/series/breaking-bad/">https://www.redetorrent.xyz/series/breaking-bad/</a></td><td><div class="date">0000-00-00</div><div class="time">00:00</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/series/">https://www.redetorrent.xyz/series/</a></td><td><div class="date">16 de September de 2026</div><div class="time">17:50</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/coringa/">https://www.redetorrent.xyz/filmes/coringa/</a></td><td><div class="date">2 de March de 2025</div><div class="time">10:05</div></td></tr>
+  </tbody>
+</table>
+</body>
+</html>

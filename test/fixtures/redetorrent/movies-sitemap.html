@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<!--
+  VISUALIZADOR XML DO CHROMIUM — recorte de `/movies-sitemap.xml` do
+  RedeTorrent, medido em 2026-09-28 pelo FlareSolverr (o arquivo real tem
+  1.000 entradas; aqui só as linhas que os testes leem).
+
+  Mesmo molde do índice: tabela renderizada, zero `<loc>`, `lastmod` em
+  `<div class="date">16 de September de 2026</div>` + `<div class="time">17:56`
+  (locale inglês, mês por NOME). As slugs são reais do acervo (mesma rede do
+  card de busca `search-coringa.html`).
+
+  Linhas que NÃO podem virar fila, cada uma por um motivo:
+   - `/filmes/` e `/series/`: as LISTAGENS (sem slug) — o slug único é a régua;
+   - `/genero/acao/`, `/page/2/`: taxonomias e paginação;
+   - `/filmes/coringa` SEM barra final: mesma página com `url_key` distinto
+     (`crawl-url-key.ts` normaliza, mas o site publica com a barra);
+   - host alheio: nunca vira nem requisição;
+   - data ILEGÍVEL (`0000-00-00`, que o AIOSEO às vezes emite): `lastmod` vira
+     `''` e a URL ENTRA — inventar data seria pior que data ausente, porque o
+     cursor do motor anda a partir dela.
+-->
+<html>
+<head><title>Filmes Sitemap</title></head>
+<body>
+<table class="xml-tree">
+  <thead><tr><th>URL</th><th>Last modified</th></tr></thead>
+  <tbody>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/coringa-delirio-a-dois/">https://www.redetorrent.xyz/filmes/coringa-delirio-a-dois/</a></td><td><div class="date">6 de February de 2026</div><div class="time">14:22</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/coringa/">https://www.redetorrent.xyz/filmes/coringa/</a></td><td><div class="date">2 de March de 2025</div><div class="time">10:05</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/batman-a-mascara-do-fantasma/">https://www.redetorrent.xyz/filmes/batman-a-mascara-do-fantasma/</a></td><td><div class="date">11 de January de 2024</div><div class="time">08:41</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/injustice/">https://www.redetorrent.xyz/filmes/injustice/</a></td><td><div class="date">0000-00-00</div><div class="time">00:00</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/lego-batman-o-filme/">https://www.redetorrent.xyz/filmes/lego-batman-o-filme/</a></td><td><div class="date"></div><div class="time"></div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/">https://www.redetorrent.xyz/filmes/</a></td><td><div class="date">16 de September de 2026</div><div class="time">17:50</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/series/">https://www.redetorrent.xyz/series/</a></td><td><div class="date">16 de September de 2026</div><div class="time">17:50</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/genero/acao/">https://www.redetorrent.xyz/genero/acao/</a></td><td><div class="date">16 de September de 2026</div><div class="time">17:49</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/page/2/">https://www.redetorrent.xyz/page/2/</a></td><td><div class="date">16 de September de 2026</div><div class="time">17:49</div></td></tr>
+    <tr><td class="left"><a href="https://www.redetorrent.xyz/filmes/coringa">https://www.redetorrent.xyz/filmes/coringa</a></td><td><div class="date">2 de March de 2025</div><div class="time">10:05</div></td></tr>
+    <tr><td class="left"><a href="https://filmes-exemplo-spam.test/filmes/coringa/">https://filmes-exemplo-spam.test/filmes/coringa/</a></td><td><div class="date">16 de September de 2026</div><div class="time">17:56</div></td></tr>
+  </tbody>
+</table>
+</body>
+</html>

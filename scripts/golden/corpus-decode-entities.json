@@ -1,0 +1,131 @@
+{
+  "version": "corpus-decode-entities/1",
+  "note": "Casos de decodeEntities em title-normalization.ts. Entrada: JSON {\"text\":\"...\"}. Saída: a string decodificada pelo Node.",
+  "cases": [
+    {
+      "id": "de-001",
+      "input": "{\"text\":\"\"}",
+      "note": "vazio"
+    },
+    {
+      "id": "de-002",
+      "input": "{\"text\":\"Sem entidade aqui\"}",
+      "note": "texto sem entidade"
+    },
+    {
+      "id": "de-003",
+      "input": "{\"text\":\"Episódio II &#8211; Ataque dos Clones\"}",
+      "note": "decimal &#8211; (en dash), caso Episódio II do comentário"
+    },
+    {
+      "id": "de-004",
+      "input": "{\"text\":\"&#x2014;\"}",
+      "note": "hex &#x2014; (em dash)"
+    },
+    {
+      "id": "de-005",
+      "input": "{\"text\":\"&amp;\"}",
+      "note": "amp"
+    },
+    {
+      "id": "de-006",
+      "input": "{\"text\":\"&lt;\"}",
+      "note": "lt"
+    },
+    {
+      "id": "de-007",
+      "input": "{\"text\":\"&nbsp;\"}",
+      "note": "nbsp vira o espaço da tabela"
+    },
+    {
+      "id": "de-008",
+      "input": "{\"text\":\"&ordf;\"}",
+      "note": "ordinal feminino"
+    },
+    {
+      "id": "de-009",
+      "input": "{\"text\":\"&ordm;\"}",
+      "note": "ordinal masculino"
+    },
+    {
+      "id": "de-010",
+      "input": "{\"text\":\"&Aacute;\"}",
+      "note": "inicial maiúscula herda a caixa: Á"
+    },
+    {
+      "id": "de-011",
+      "input": "{\"text\":\"&aacute;\"}",
+      "note": "nome minúsculo fica á"
+    },
+    {
+      "id": "de-012",
+      "input": "{\"text\":\"&Amp;\"}",
+      "note": "amp com inicial maiúscula continua &"
+    },
+    {
+      "id": "de-013",
+      "input": "{\"text\":\"&foo;\"}",
+      "note": "entidade desconhecida fica intacta"
+    },
+    {
+      "id": "de-014",
+      "input": "{\"text\":\"4&ordf; Temporada\"}",
+      "note": "ordinal no meio do título"
+    },
+    {
+      "id": "de-015",
+      "input": "{\"text\":\"Tom &amp; Jerry &lt;3\"}",
+      "note": "duas entidades na mesma string"
+    },
+    {
+      "id": "de-016",
+      "input": "{\"text\":\"&hellip;\"}",
+      "note": "reticências"
+    },
+    {
+      "id": "de-017",
+      "input": "{\"text\":\"Dual &Aacute;udio\"}",
+      "note": "acento no meio, caixa herdada"
+    },
+    {
+      "id": "de-018",
+      "input": "{\"text\":\"&gt;&quot;&apos;\"}",
+      "note": "gt, aspas e apóstrofo"
+    },
+    {
+      "id": "de-019",
+      "input": "{\"text\":\"&#x26;lt;\"}",
+      "note": "hex antes do nome: o passe seguinte vê &lt;"
+    },
+    {
+      "id": "de-020",
+      "input": "{\"text\":\"&#38;ordf;\"}",
+      "note": "decimal antes do nome: o passe seguinte vê &ordf;"
+    },
+    {
+      "id": "de-021",
+      "input": "{\"text\":\"&amp;amp;\"}",
+      "note": "uma passagem só: sobra &amp;"
+    },
+    {
+      "id": "de-022",
+      "input": "{\"text\":\"&#X2014;\"}",
+      "note": "hex com X maiúsculo"
+    },
+    {
+      "id": "de-023",
+      "input": "{\"text\":\"&aAcute;\"}",
+      "note": "inicial minúscula não herda a caixa"
+    },
+    {
+      "id": "de-024",
+      "input": "{\"text\":\"&mdash;&ndash;&deg;&ccedil;&ntilde;&laquo;x&raquo;\"}",
+      "note": "travessões, grau, cedilha, ñ e aspas angulares"
+    },
+    {
+      "id": "de-025",
+      "input": "{\"text\":\"&eacute;&iacute;&oacute;&uacute;&acirc;&ecirc;&ocirc;&atilde;&otilde;&agrave;&uuml;&lsquo;&rsquo;&ldquo;&rdquo;\"}",
+      "note": "resto das acentuadas e aspas tipográficas"
+    }
+  ]
+}

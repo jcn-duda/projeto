@@ -170,17 +170,40 @@ function noteUnavailable(adapterId: string, apiKey: string, infoHash: string) {
   }
 }
 
-function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: string[]) {
+function nonAbortableCheck(
+  adapter: DebridAdapter,
+  apiKey: string,
+  infoHashes: string[],
+  fileWaitTimeoutMs?: number,
+  fileHashes?: string[],
+) {
   const key = nonAbortableKey(adapter, apiKey, infoHashes);
   let entry = nonAbortableChecks.get(key);
   if (entry) return entry.promise;
 
   entry = {};
   entry.promise = Promise.resolve()
-    // Sem timeout dinâmico: abortar depois do upload perderia os ids necessários
-    // para apagar o que não estava em cache. O teto próprio do adaptador continua
-    // valendo, mas a corrida da resposta não cancela este trabalho.
-    .then(() => adapter.checkCached(apiKey, infoHashes))
+    // Continua NÃO abortável: NENHUM `timeoutMs` vai ao adaptador — os
+    // timeouts próprios de rede (upload, leitura de arquivos) continuam sendo
+    // os dele, e o trabalho segue após perder a corrida externa. O orçamento
+    // DINÂMICO da resposta viaja SÓ como `fileWaitTimeoutMs`: é o teto com que
+    // a AllDebrid espera a leitura dos arquivos de pack dentro da própria
+    // checagem (alldebrid-check), sem tornar nada abortável. A espera interna
+    // desiste com a MARGEM (packFilesWaitMarginMs) ANTES do orçamento: o timer
+    // externo começa antes e o upload consome parte dele — esperar o valor
+    // cheio transformava leitura lenta de pack em known:false/raceLost e
+    // apagava o ⚡ por causa de um tamanho cosmético. A corrida EXTERNA não
+    // muda: perder nela segue deixando o trabalho correr em fundo. A entrada
+    // coalescida guarda o primeiro orçamento visto (o dedupe é pelo conjunto
+    // de hashes); quem chegar depois continua protegido pela corrida.
+    // `fileHashes` só vai quando existe: é por ele que a AllDebrid lê a lista
+    // de arquivos dos packs antes da limpeza apagar o id do magnet.
+    .then(() => adapter.checkCached(apiKey, infoHashes, {
+      ...(fileWaitTimeoutMs != null
+        ? { fileWaitTimeoutMs: Math.max(0, fileWaitTimeoutMs - config.debrid.packFilesWaitMarginMs) }
+        : {}),
+      ...(fileHashes?.length ? { fileHashes } : {}),
+    }))
     .then((result) => normalizeCacheResult(adapter, result))
     .catch((err: unknown) => {
       // A AllDebrid é justamente o serviço que passa por aqui, então a
@@ -226,7 +249,7 @@ function nonAbortableCheck(adapter: DebridAdapter, apiKey: string, infoHashes: s
  */
 async function checkCached(
   infoHashes: string[],
-  { timeoutMs, forceFresh }: { timeoutMs?: number; forceFresh?: boolean } = {},
+  { timeoutMs, forceFresh, fileHashes }: { timeoutMs?: number; forceFresh?: boolean; fileHashes?: string[] } = {},
 ): Promise<CacheCheckResult> {
   const adapter = current();
   if (!adapter || infoHashes.length === 0) return { cached: new Set(), known: false };
@@ -262,6 +285,18 @@ async function checkCached(
     }
     if (missing.length < unique.length) metrics.count('davail.servedHashes', unique.length - missing.length);
     toAsk = missing;
+    // Pack sem lista de arquivos servido pelo davail nunca voltava ao serviço, e
+    // só a checagem de verdade lê arquivos (AllDebrid /magnet/status, TorBox
+    // list_files). Star Trek (2009), 2026-09-13: três coleções prontas ficaram
+    // em movie-no-files com zero leituras. Esses voltam à pergunta, até o teto
+    // de leituras por checagem; o positivo do davail continua valendo.
+    const refetch = [...new Set((fileHashes || []).map((hash) => String(hash).toLowerCase()))]
+      .filter((hash) => fromCache.has(hash))
+      .slice(0, config.debrid.packFilesPerCheck);
+    if (refetch.length) {
+      toAsk = [...missing, ...refetch];
+      metrics.count('davail.fileRefetch', refetch.length);
+    }
     if (toAsk.length === 0) {
       // O atalho respondeu TUDO pela memória, mas a evidência é a mesma do
       // caminho com rede — positivo confirmado. Sem renovar aqui, quanto mais
@@ -283,7 +318,7 @@ async function checkCached(
     // Medição fica no ponto onde a checagem REAL acontece: degradação por
     // prazo ou ausência de serviço não é pergunta feita ao debrid.
     trackCheckedHashes(toAsk);
-    const task = nonAbortableCheck(adapter, apiKey, toAsk);
+    const task = nonAbortableCheck(adapter, apiKey, toAsk, timeoutMs, fileHashes);
     result = timeoutMs == null ? await task : await raceWithDeadline(task, timeoutMs, () => {
       metrics.count('debrid.check.raceLost');
       return { cached: new Set(), known: false };
@@ -291,7 +326,7 @@ async function checkCached(
   } else {
     trackCheckedHashes(toAsk);
     try {
-      result = normalizeCacheResult(adapter, await adapter.checkCached(apiKey, toAsk, { timeoutMs }));
+      result = normalizeCacheResult(adapter, await adapter.checkCached(apiKey, toAsk, fileHashes?.length ? { timeoutMs, fileHashes } : { timeoutMs }));
     } catch (err) {
       const reason = unusableReason(err);
       if (reason) result = unusable(adapter, reason, err);

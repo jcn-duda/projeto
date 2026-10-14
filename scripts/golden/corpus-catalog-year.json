@@ -1,0 +1,20 @@
+{
+  "version": "corpus-catalog-year/1",
+  "note": "Casos de catalog-year.ts: catalogYearOf (op catalog) e catalogAltYearOf (op alt). Saída: o ano em texto, null como o literal null, ou o ano alternativo.",
+  "cases": [
+    {"id":"cy-001","input":"{\"op\":\"catalog\",\"meta\":\"2010\",\"tmdb\":\"2010\"}","note":"mesmo ano nos dois"},
+    {"id":"cy-002","input":"{\"op\":\"catalog\",\"meta\":\"2011\",\"tmdb\":\"2010\"}","note":"divergência de até 2 anos: usa meta"},
+    {"id":"cy-003","input":"{\"op\":\"catalog\",\"meta\":\"1967\",\"tmdb\":\"1964\"}","note":"divergência acima de 2: usa tmdb"},
+    {"id":"cy-004","input":"{\"op\":\"catalog\",\"meta\":\"\",\"tmdb\":\"2010\"}","note":"meta vazia: usa tmdb"},
+    {"id":"cy-005","input":"{\"op\":\"catalog\",\"meta\":\"2010\",\"tmdb\":null}","note":"tmdb ausente: usa meta"},
+    {"id":"cy-006","input":"{\"op\":\"catalog\",\"meta\":null,\"tmdb\":null}","note":"ambos ausentes: null"},
+    {"id":"cy-007","input":"{\"op\":\"catalog\",\"meta\":\"2010–2012\",\"tmdb\":\"2010\"}","note":"ano com texto ao redor"},
+    {"id":"cy-008","input":"{\"op\":\"catalog\",\"meta\":\"sem ano\",\"tmdb\":\"2001\"}","note":"meta sem ano e tmdb com ano: usa tmdb"},
+    {"id":"cy-009","input":"{\"op\":\"catalog\",\"meta\":\"2018\",\"tmdb\":\"2021\"}","note":"Monster: divergência acima de 2 nos dois sentidos"},
+    {"id":"cy-010","input":"{\"op\":\"alt\",\"meta\":\"2018\",\"tmdb\":\"2021\"}","note":"alt: divergência acima de 2 devolve o outro"},
+    {"id":"cy-011","input":"{\"op\":\"alt\",\"meta\":\"2011\",\"tmdb\":\"2010\"}","note":"alt: divergência de até 2 não devolve nada"},
+    {"id":"cy-012","input":"{\"op\":\"alt\",\"meta\":\"2018\",\"tmdb\":null}","note":"alt: sem tmdb não devolve nada"},
+    {"id":"cy-013","input":"{\"op\":\"alt\",\"meta\":null,\"tmdb\":\"2001\"}","note":"alt: sem meta e tmdb com ano não devolve nada"},
+    {"id":"cy-014","input":"{\"op\":\"alt\",\"meta\":\"1967\",\"tmdb\":\"1964\"}","note":"alt: tmdb escolhido quando meta diverge muito"}
+  ]
+}

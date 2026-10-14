@@ -5,7 +5,7 @@
  * `rdLedger.noteBlocked` e NUNCA o banco de magnets (regra de AGENTS.md).
  */
 import {
-  magnetFor, pickFile, isBlockedError, isNoVideoError, wait,
+  magnetForPlay, pickFile, isBlockedError, isNoVideoError, wait,
 } from './common.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
@@ -166,7 +166,7 @@ export async function resolveLink(apiKey: string, infoHash: string, hint: PlayHi
     return await rdGate.run(accountScope(apiKey), 'play', async () => {
       const add = await rawWrite(apiKey, '/torrents/addMagnet', {
         method: 'POST',
-        body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
+        body: new URLSearchParams({ magnet: magnetForPlay(infoHash) }),
       });
       if (!add?.id) return null;
       try {
@@ -205,7 +205,7 @@ async function enqueueUngated(apiKey: string, infoHash: string, { season, episod
   try {
     add = await rawWrite(apiKey, '/torrents/addMagnet', {
       method: 'POST',
-      body: new URLSearchParams({ magnet: magnetFor(infoHash) }),
+      body: new URLSearchParams({ magnet: magnetForPlay(infoHash) }),
     });
   } catch (err) {
     // O 451 recusa o magnet antes de existir um id; não há torrent para limpar

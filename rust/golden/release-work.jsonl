@@ -1,0 +1,72 @@
+{"id":"rw-001","input":"{\"op\":\"specificity\",\"title\":\"Dark S01E01 1080p WEB\"}","expected":"3"}
+{"id":"rw-002","input":"{\"op\":\"specificity\",\"title\":\"Dark S01 Complete 1080p\"}","expected":"2"}
+{"id":"rw-003","input":"{\"op\":\"specificity\",\"title\":\"Dark 1ª Temporada 1080p\"}","expected":"2"}
+{"id":"rw-004","input":"{\"op\":\"specificity\",\"title\":\"Dark Temporada 2 BluRay\"}","expected":"2"}
+{"id":"rw-005","input":"{\"op\":\"specificity\",\"title\":\"Dark S01E01-E03 1080p\"}","expected":"2"}
+{"id":"rw-006","input":"{\"op\":\"specificity\",\"title\":\"Dark Complete Series 1080p\"}","expected":"0"}
+{"id":"rw-007","input":"{\"op\":\"specificity\",\"title\":\"Dark 1080p WEB-DL\"}","expected":"0"}
+{"id":"rw-008","input":"{\"op\":\"specificity\",\"title\":\"Monster Hunter 2021 1080p\"}","expected":"0"}
+{"id":"rw-009","input":"{\"op\":\"specificity\",\"title\":\"Dark S01 S02 Completas\"}","expected":"1"}
+{"id":"rw-010","input":"{\"op\":\"specificity\",\"title\":\"\"}","expected":"0"}
+{"id":"rw-011","input":"{\"op\":\"choose\",\"title\":\"Dark S01E04 1080p\",\"dn\":null}","expected":"complete=0 seasons=1 episodes=4 pack=0"}
+{"id":"rw-012","input":"{\"op\":\"choose\",\"title\":\"Dark S01E04 1080p\",\"dn\":\"\"}","expected":"complete=0 seasons=1 episodes=4 pack=0"}
+{"id":"rw-013","input":"{\"op\":\"choose\",\"title\":\"Dark 2ª Temporada 1080p\",\"dn\":\"Dark.S02E05.1080p.WEB\"}","expected":"complete=0 seasons=2 episodes=5 pack=0"}
+{"id":"rw-014","input":"{\"op\":\"choose\",\"title\":\"Dark S02E05 1080p\",\"dn\":\"Dark 2ª Temporada\"}","expected":"complete=0 seasons=2 episodes=5 pack=0"}
+{"id":"rw-015","input":"{\"op\":\"choose\",\"title\":\"Dark S03E01 1080p\",\"dn\":\"Dark.S01E02.1080p\"}","expected":"complete=0 seasons=3 episodes=1 pack=0"}
+{"id":"rw-016","input":"{\"op\":\"choose\",\"title\":\"Dark S01 Complete\",\"dn\":\"Dark 1080p\"}","expected":"complete=0 seasons=1 episodes= pack=0"}
+{"id":"rw-017","input":"{\"op\":\"choose\",\"title\":\"Dark 1080p\",\"dn\":\"Dark S04 Complete\"}","expected":"complete=0 seasons=4 episodes= pack=0"}
+{"id":"rw-018","input":"{\"op\":\"choose\",\"title\":\"Dark S01E01-E03\",\"dn\":\"Dark Complete Series\"}","expected":"complete=0 seasons=1 episodes=1,2,3 pack=0"}
+{"id":"rw-019","input":"{\"op\":\"choose\",\"title\":\"\",\"dn\":\"Dark S01E02\"}","expected":"complete=0 seasons=1 episodes=2 pack=0"}
+{"id":"rw-020","input":"{\"op\":\"choose\",\"title\":\"Dark 4K HDR\",\"dn\":\"Dark.S05E09.2160p.HDR\"}","expected":"complete=0 seasons=5 episodes=9 pack=0"}
+{"id":"rw-021","input":"{\"op\":\"route\",\"title\":\"Dark S01E05 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":2}}","expected":"1:5"}
+{"id":"rw-022","input":"{\"op\":\"route\",\"title\":\"Dark S02E01 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"2:1"}
+{"id":"rw-023","input":"{\"op\":\"route\",\"title\":\"Dark S02 Complete\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"2:-"}
+{"id":"rw-024","input":"{\"op\":\"route\",\"title\":\"Dark Complete Series\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"1:1"}
+{"id":"rw-025","input":"{\"op\":\"route\",\"title\":\"Dark 1080p WEB\",\"dn\":null,\"request\":{\"season\":2,\"episode\":4}}","expected":"2:4"}
+{"id":"rw-026","input":"{\"op\":\"route\",\"title\":\"Dark 3ª Temporada\",\"dn\":\"Dark.S03E07.1080p\",\"request\":{\"season\":3,\"episode\":1}}","expected":"3:7"}
+{"id":"rw-027","input":"{\"op\":\"route\",\"title\":\"Dark 2ª Temporada 1080p\",\"dn\":null,\"request\":{\"season\":2,\"episode\":3}}","expected":"2:-"}
+{"id":"rw-028","input":"{\"op\":\"route\",\"title\":\"Monster Hunter S02E03\",\"dn\":null,\"request\":{\"season\":null,\"episode\":null}}","expected":"-:-"}
+{"id":"rw-029","input":"{\"op\":\"route\",\"title\":\"Monster Hunter 2021\",\"dn\":null,\"request\":{\"season\":null,\"episode\":5}}","expected":"-:5"}
+{"id":"rw-030","input":"{\"op\":\"route\",\"title\":\"Dark S01E01\",\"dn\":null,\"request\":null}","expected":"-:-"}
+{"id":"rw-031","input":"{\"op\":\"route\",\"title\":\"Dark 1080p\",\"dn\":\"Dark.S01E06.1080p\",\"request\":{\"season\":1,\"episode\":2}}","expected":"1:6"}
+{"id":"rw-032","input":"{\"op\":\"route\",\"title\":\"Dark S01 S02 Completas\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"-:-"}
+{"id":"rw-033","input":"{\"op\":\"fits\",\"title\":\"Dark S01E02 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":2}}","expected":"1"}
+{"id":"rw-034","input":"{\"op\":\"fits\",\"title\":\"Dark S01E03 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":2}}","expected":"0"}
+{"id":"rw-035","input":"{\"op\":\"fits\",\"title\":\"Dark S02E02 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":2}}","expected":"0"}
+{"id":"rw-036","input":"{\"op\":\"fits\",\"title\":\"Dark S01 Complete\",\"dn\":null,\"request\":{\"season\":1,\"episode\":7}}","expected":"1"}
+{"id":"rw-037","input":"{\"op\":\"fits\",\"title\":\"Dark S03 Complete\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"0"}
+{"id":"rw-038","input":"{\"op\":\"fits\",\"title\":\"Dark Complete Series\",\"dn\":null,\"request\":{\"season\":2,\"episode\":4}}","expected":"1"}
+{"id":"rw-039","input":"{\"op\":\"fits\",\"title\":\"Dark 1080p WEB\",\"dn\":null,\"request\":{\"season\":1,\"episode\":2}}","expected":"1"}
+{"id":"rw-040","input":"{\"op\":\"fits\",\"title\":\"Monster Hunter S02E03\",\"dn\":null,\"request\":{\"season\":null,\"episode\":null}}","expected":"1"}
+{"id":"rw-041","input":"{\"op\":\"fits\",\"title\":\"Dark S01E01 1080p\",\"dn\":\"Dark.S01E02.1080p\",\"request\":{\"season\":1,\"episode\":2}}","expected":"0"}
+{"id":"rw-042","input":"{\"op\":\"fits\",\"title\":\"Dark 1ª Temporada\",\"dn\":\"Dark.S01E02.1080p\",\"request\":{\"season\":1,\"episode\":2}}","expected":"1"}
+{"id":"rw-043","input":"{\"op\":\"fits\",\"title\":\"Dark 1ª Temporada 1080p\",\"dn\":\"Dark.S01E09.1080p\",\"request\":{\"season\":1,\"episode\":2}}","expected":"0"}
+{"id":"rw-044","input":"{\"op\":\"fits\",\"title\":\"Dark S01E09 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":null}}","expected":"1"}
+{"id":"rw-045","input":"{\"op\":\"fits\",\"title\":\"Dark S01 S02 Completas\",\"dn\":null,\"request\":{\"season\":3,\"episode\":1}}","expected":"0"}
+{"id":"rw-046","input":"{\"op\":\"fits\",\"title\":\"Dark S01 S02 Completas\",\"dn\":null,\"request\":{\"season\":2,\"episode\":null}}","expected":"1"}
+{"id":"rw-047","input":"{\"op\":\"fits\",\"title\":\"\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"1"}
+{"id":"rw-048","input":"{\"op\":\"fits\",\"title\":\"Dark S01E02\",\"dn\":\"\",\"request\":{\"season\":1,\"episode\":2}}","expected":"1"}
+{"id":"rw-049","input":"{\"op\":\"targets\",\"title\":\"Dark S01E02 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":2},\"year\":2017}","expected":"1:2"}
+{"id":"rw-050","input":"{\"op\":\"targets\",\"title\":\"Monster Hunter 2021 1080p\",\"dn\":null,\"request\":{\"season\":null,\"episode\":null},\"year\":2021}","expected":"-:-"}
+{"id":"rw-051","input":"{\"op\":\"targets\",\"title\":\"Dark S01 Complete 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":4},\"year\":2017}","expected":"1:4 1:-"}
+{"id":"rw-052","input":"{\"op\":\"targets\",\"title\":\"Dark S02 Complete\",\"dn\":null,\"request\":{\"season\":1,\"episode\":4},\"year\":2017}","expected":"2:-"}
+{"id":"rw-053","input":"{\"op\":\"targets\",\"title\":\"Dark Complete Series\",\"dn\":null,\"request\":{\"season\":1,\"episode\":4},\"year\":2017}","expected":"1:4"}
+{"id":"rw-054","input":"{\"op\":\"targets\",\"title\":\"Dark S02E01 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1},\"year\":2017}","expected":"2:1"}
+{"id":"rw-055","input":"{\"op\":\"targets\",\"title\":\"Dark S01 S02 Completas\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1},\"year\":2017}","expected":"1:1 -:-"}
+{"id":"rw-056","input":"{\"op\":\"targets\",\"title\":\"Dark 1080p WEB\",\"dn\":null,\"request\":{\"season\":2,\"episode\":3},\"year\":2017}","expected":"2:3"}
+{"id":"rw-057","input":"{\"op\":\"targets\",\"title\":\"Dark 2ª Temporada 1080p\",\"dn\":\"Dark.S02E05.1080p\",\"request\":{\"season\":2,\"episode\":1},\"year\":2017}","expected":"2:5"}
+{"id":"rw-058","input":"{\"op\":\"targets\",\"title\":\"Dark 1080p\",\"dn\":\"Dark S03 Complete\",\"request\":{\"season\":1,\"episode\":1},\"year\":2017}","expected":"3:-"}
+{"id":"rw-059","input":"{\"op\":\"targets\",\"title\":\"Dark S01E01\",\"dn\":null,\"request\":null,\"year\":2017}","expected":"-:-"}
+{"id":"rw-060","input":"{\"op\":\"targets\",\"title\":\"Dark S01 Complete\",\"dn\":null,\"request\":{\"season\":1,\"episode\":null},\"year\":2017}","expected":"1:-"}
+{"id":"rw-061","input":"{\"op\":\"targets\",\"title\":\"Dark S02 Complete\",\"dn\":null,\"request\":{\"season\":2,\"episode\":9},\"year\":2017}","expected":"2:9 2:-"}
+{"id":"rw-062","input":"{\"op\":\"targets\",\"title\":\"Dark S01E03 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":3},\"year\":2017}","expected":"1:3"}
+{"id":"rw-063","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop Live Action 2021 S01E01 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1},\"year\":1998}","expected":"(none)"}
+{"id":"rw-064","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop Live Action 1999 S01E01 1080p\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1},\"year\":1998}","expected":"1:1"}
+{"id":"rw-065","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop S01E01 1080p\",\"dn\":\"Cowboy.Bebop.Live.Action.2021.S01E01\",\"request\":{\"season\":1,\"episode\":1},\"year\":\"1998\"}","expected":"(none)"}
+{"id":"rw-066","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop Live Action S01E01\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1},\"year\":1998}","expected":"1:1"}
+{"id":"rw-067","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop Live Action 2021 S01E01\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1},\"year\":null}","expected":"1:1"}
+{"id":"rw-068","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop Live Action 2021\",\"dn\":null,\"request\":{\"season\":null,\"episode\":null},\"year\":1998}","expected":"-:-"}
+{"id":"rw-069","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop Live Action 1990-2010 S01\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1},\"year\":1998}","expected":"1:1 1:-"}
+{"id":"rw-070","input":"{\"op\":\"targets\",\"title\":\"Cowboy Bebop Live Action 2021 S01 Complete\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"1:1 1:-"}
+{"id":"rw-071","input":"{\"op\":\"targets\",\"title\":\"Dark S02 Complete\",\"dn\":null,\"request\":{\"season\":1,\"episode\":1}}","expected":"2:-"}
+{"id":"rw-072","input":"{\"op\":\"targets\",\"title\":\"Dark S03 Complete 1080p\",\"dn\":null,\"request\":{\"season\":2,\"episode\":2},\"year\":2017}","expected":"3:-"}

@@ -12,10 +12,13 @@ import * as log from '../utils/logger.js';
 import * as autofetch from '../providers/autofetch.js';
 import * as autofetchRunner from '../providers/autofetch-runner.js';
 import * as autofetchLive from '../utils/autofetch-live.js';
+import * as autofetchSuppressed from '../providers/autofetch-suppressed.js';
+import * as harvesterDebrid from '../utils/harvester-debrid-live.js';
 import * as releaseIndex from '../utils/release-index.js';
 import harvester from '../providers/harvester.js';
 import * as harvesterLive from '../utils/harvester-live.js';
 import * as magnetdb from '../utils/magnetdb.js';
+import * as magnetBank from '../utils/magnet-bank.js';
 import * as brResolvers from '../br-resolvers.js';
 import * as providers from '../providers/index.js';
 import * as debridCommon from '../debrid/common.js';
@@ -25,6 +28,8 @@ import { authorized, createDiagnosticGate } from '../utils/diagnostic-guard.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
 import { rdGate } from '../debrid/rd-gate.js';
 import rdWarmer from '../providers/rd-warmer.js';
+import crawler from '../providers/crawler.js';
+import * as crawlerLive from '../utils/crawler-live.js';
 import { prefetchInFlight } from './state.js';
 import type { AppServices } from './types.js';
 
@@ -44,10 +49,13 @@ function buildServices(): AppServices {
     autofetch,
     autofetchRunner,
     autofetchLive,
+    autofetchSuppressed,
     releaseIndex,
     harvester,
     harvesterLive,
+    harvesterDebrid,
     magnetdb,
+    magnetBank,
     brResolvers,
     providers,
     debridCommon,
@@ -67,6 +75,8 @@ function buildServices(): AppServices {
     rdLedger,
     rdGate,
     rdWarmer,
+    crawler,
+    crawlerLive,
   };
 }
 

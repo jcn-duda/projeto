@@ -1,0 +1,71 @@
+{"id":"al-001","input":"{\"op\":\"generic\",\"text\":\"Movie 2024 DUBBED\"}","expected":"1"}
+{"id":"al-002","input":"{\"op\":\"generic\",\"text\":\"Spider-Man HINDI.HQ.DUB\"}","expected":"0"}
+{"id":"al-003","input":"{\"op\":\"generic\",\"text\":\"Во все тяжкие / Breaking Bad [DUB]\"}","expected":"0"}
+{"id":"al-004","input":"{\"op\":\"generic\",\"text\":\"Coyote Ugly AVO Dub\"}","expected":"0"}
+{"id":"al-005","input":"{\"op\":\"generic\",\"text\":\"Film MVO DUB\"}","expected":"0"}
+{"id":"al-006","input":"{\"op\":\"generic\",\"text\":\"1080p.WEBRip.LAT.DUB.PINUP\"}","expected":"0"}
+{"id":"al-007","input":"{\"op\":\"bucket\",\"text\":\"Dual Audio English\"}","expected":"0"}
+{"id":"al-008","input":"{\"op\":\"names\",\"text\":\"Dual Audio English\"}","expected":"0"}
+{"id":"al-009","input":"{\"op\":\"names\",\"text\":\"Movie MULTI Audio\"}","expected":"1"}
+{"id":"al-010","input":"{\"op\":\"bucket\",\"text\":\"Movie MULTI Audio\"}","expected":"0"}
+{"id":"al-011","input":"{\"op\":\"bucket\",\"text\":\"A Casa dos Espíritos\"}","expected":"0"}
+{"id":"al-012","input":"{\"op\":\"bucket\",\"text\":\"Vírus [1080p DUAL]\"}","expected":"0"}
+{"id":"al-013","input":"{\"op\":\"bucket\",\"text\":\"Film VFF 1080p\"}","expected":"1"}
+{"id":"al-014","input":"{\"op\":\"bucket\",\"text\":\"Film VOSTFR 1080p\"}","expected":"1"}
+{"id":"al-015","input":"{\"op\":\"generic\",\"text\":\"\"}","expected":"0"}
+{"id":"al-016","input":"{\"op\":\"bucket\",\"text\":\"\"}","expected":"0"}
+{"id":"al-017","input":"{\"op\":\"names\",\"text\":\"\"}","expected":"0"}
+{"id":"al-018","input":"{\"op\":\"generic\",\"text\":\"Movie [DUB]\"}","expected":"1"}
+{"id":"al-019","input":"{\"op\":\"generic\",\"text\":\"Movie (DUB)\"}","expected":"1"}
+{"id":"al-020","input":"{\"op\":\"generic\",\"text\":\"Movie DUB 1080p\"}","expected":"1"}
+{"id":"al-021","input":"{\"op\":\"generic\",\"text\":\"Movie 1080p BluRay\"}","expected":"0"}
+{"id":"al-022","input":"{\"op\":\"generic\",\"text\":\"Spirited Away English Dubbed\"}","expected":"0"}
+{"id":"al-023","input":"{\"op\":\"generic\",\"text\":\"Spider-Man: Brand New Day 2026 [Ukr Dub]\"}","expected":"0"}
+{"id":"al-024","input":"{\"op\":\"generic\",\"text\":\"The Whisper Man 2026.DUB.NF.WEB-DLRip.x264.seleZen\"}","expected":"0"}
+{"id":"al-025","input":"{\"op\":\"generic\",\"text\":\"The Matrix: Trilogy [1999-2003, USA, sci-fi, WEBRip] Dub\"}","expected":"0"}
+{"id":"al-026","input":"{\"op\":\"generic\",\"text\":\"Show (2009-2013) DUB\"}","expected":"1"}
+{"id":"al-027","input":"{\"op\":\"generic\",\"text\":\"Movie POL DUBBED\"}","expected":"1"}
+{"id":"al-028","input":"{\"op\":\"generic\",\"text\":\"Movie ENG DUBBED\"}","expected":"0"}
+{"id":"al-029","input":"{\"op\":\"generic\",\"text\":\"Filme DUBLADO\"}","expected":"0"}
+{"id":"al-030","input":"{\"op\":\"generic\",\"text\":\"Movie UNDUBBED\"}","expected":"0"}
+{"id":"al-031","input":"{\"op\":\"bucket\",\"text\":\"Audio Español\"}","expected":"1"}
+{"id":"al-032","input":"{\"op\":\"generic\",\"text\":\"Español DUB\"}","expected":"1"}
+{"id":"al-033","input":"{\"op\":\"bucket\",\"text\":\"hindi audio\"}","expected":"1"}
+{"id":"al-034","input":"{\"op\":\"names\",\"text\":\"audio multi\"}","expected":"1"}
+{"id":"al-035","input":"{\"op\":\"names\",\"text\":\"MULTIVERSE 2024\"}","expected":"0"}
+{"id":"al-036","input":"{\"op\":\"bucket\",\"text\":\"Audio ESP Dual\"}","expected":"1"}
+{"id":"al-037","input":"{\"op\":\"bucket\",\"text\":\"Movie LAT\"}","expected":"1"}
+{"id":"al-038","input":"{\"op\":\"bucket\",\"text\":\"Film RUS\"}","expected":"1"}
+{"id":"al-039","input":"{\"op\":\"names\",\"text\":\"A Casa dos Espíritos\"}","expected":"0"}
+{"id":"al-040","input":"{\"op\":\"bucket\",\"text\":\"film hdlight\"}","expected":"1"}
+{"id":"al-041","input":"{\"op\":\"generic\",\"text\":\"Film DVO DUB\"}","expected":"0"}
+{"id":"al-042","input":"{\"op\":\"generic\",\"text\":\"Film SVO [DUB]\"}","expected":"0"}
+{"id":"al-043","input":"{\"op\":\"bucket\",\"text\":\"Movie SPA\"}","expected":"1"}
+{"id":"al-044","input":"{\"op\":\"generic\",\"text\":\"Movie SPA DUBBED\"}","expected":"1"}
+{"id":"al-045","input":"{\"op\":\"bucket\",\"text\":\"Film VF2\"}","expected":"1"}
+{"id":"al-046","input":"{\"op\":\"bucket\",\"text\":\"Film VFQ\"}","expected":"1"}
+{"id":"al-047","input":"{\"op\":\"names\",\"text\":\"Во все тяжкие\"}","expected":"1"}
+{"id":"al-048","input":"{\"op\":\"generic\",\"text\":\"movie dubbed\"}","expected":"1"}
+{"id":"al-049","input":"{\"op\":\"bucket\",\"text\":\"Audio CASTELLANO\"}","expected":"1"}
+{"id":"al-050","input":"{\"op\":\"generic\",\"text\":\"Coyote Ugly [2000, USA, drama, BDRip] Dub\"}","expected":"0"}
+{"id":"al-051","input":"{\"op\":\"bucket\",\"text\":\"A Casa dos Espiritos\"}","expected":"0"}
+{"id":"al-052","input":"{\"op\":\"generic\",\"text\":\"   \"}","expected":"0"}
+{"id":"al-053","input":"{\"op\":\"generic\",\"text\":\"DUBBED\"}","expected":"1"}
+{"id":"al-054","input":"{\"op\":\"bucket\",\"text\":\"ENGLISH\"}","expected":"0"}
+{"id":"al-055","input":"{\"op\":\"names\",\"text\":\"Film VOSTFR\"}","expected":"1"}
+{"id":"al-056","input":"{\"op\":\"generic\",\"text\":\"Movie [ DUB ]\"}","expected":"1"}
+{"id":"al-057","input":"{\"op\":\"generic\",\"text\":\"Movie ( DUB )\"}","expected":"1"}
+{"id":"al-058","input":"{\"op\":\"bucket\",\"text\":\"TRUEFRENCH\"}","expected":"1"}
+{"id":"al-059","input":"{\"op\":\"generic\",\"text\":\"Фильм DUBBED\"}","expected":"0"}
+{"id":"al-060","input":"{\"op\":\"names\",\"text\":\"multi.audio\"}","expected":"1"}
+{"id":"al-061","input":"{\"op\":\"generic\",\"text\":\"film avo dub\"}","expected":"0"}
+{"id":"al-062","input":"{\"op\":\"bucket\",\"text\":\"The Boys S04 [Azerbaijan Dubbed]\"}","expected":"1"}
+{"id":"al-063","input":"{\"op\":\"generic\",\"text\":\"Rus Dubbed\"}","expected":"0"}
+{"id":"al-064","input":"{\"op\":\"bucket\",\"text\":\"Vírus\"}","expected":"0"}
+{"id":"al-065","input":"{\"op\":\"generic\",\"text\":\"Movie [1979–1997, USA] Dub\"}","expected":"0"}
+{"id":"al-066","input":"{\"op\":\"generic\",\"text\":\"Show [1999 - 2003, USA] Dub\"}","expected":"0"}
+{"id":"al-067","input":"{\"op\":\"generic\",\"text\":\"Kyiv і [DUB]\"}","expected":"0"}
+{"id":"al-068","input":"{\"op\":\"generic\",\"text\":\"LATITUDE DUB\"}","expected":"1"}
+{"id":"al-069","input":"{\"op\":\"bucket\",\"text\":\"LATITUDE\"}","expected":"0"}
+{"id":"al-070","input":"{\"op\":\"generic\",\"text\":\"Movie LATINO DUBBED\"}","expected":"0"}
+{"id":"al-071","input":"{\"op\":\"names\",\"text\":\"film vf2\"}","expected":"1"}

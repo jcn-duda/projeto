@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "audio-presentation/audioQualityPresentation"
+  ],
+  "function": {
+    "name": "audioPresentation",
+    "sourcePath": "src/utils/audio-quality.ts",
+    "sourceSha256": "85be8ad4483a3e75bef686c2cb7173b0aeff71bc98230864f9acf052f7004496",
+    "artifactPath": "dist/src/utils/audio-quality.js",
+    "artifactSha256": "b4eafd884bb2897066b88fb2ed558e17bfaf64fddb61546f68e73d4b892462f0"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-audio-presentation.json",
+    "sha256": "a4155a975ff6e1d44e7072200252d9d234073d2615d4104f9d7478d330c2bce5",
+    "cases": 170
+  },
+  "output": {
+    "path": "rust/golden/audio-presentation.jsonl",
+    "sha256": "8c7a1c65329efad5f7f351a4b87b9f12e8eb04a5b8c54c5a16485ae21e90bf4d",
+    "lines": 170
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "b133bd13a3fafe06f59c5169310a723761511d51"
+  }
+}

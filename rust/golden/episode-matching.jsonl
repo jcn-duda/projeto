@@ -1,0 +1,40 @@
+{"id":"em-0001","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":1,\"episode\":4}","expected":"1"}
+{"id":"em-0002","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones S01E04 1080p\",\"season\":1,\"episode\":5}","expected":"0"}
+{"id":"em-0003","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones S02E04 1080p\",\"season\":1,\"episode\":4}","expected":"0"}
+{"id":"em-0004","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones Todas as Temporadas WEB-DL\",\"season\":3,\"episode\":7}","expected":"1"}
+{"id":"em-0005","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones 1a ate 8a Temporada (2011)\",\"season\":1,\"episode\":1}","expected":"1"}
+{"id":"em-0006","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones 1a ate 8a Temporada (2011)\",\"season\":8,\"episode\":1}","expected":"1"}
+{"id":"em-0007","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones 1a ate 8a Temporada (2011)\",\"season\":9,\"episode\":1}","expected":"0"}
+{"id":"em-0008","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones 1ª 2ª 3ª 4ª 5ª 6ª e 7ª Temporadas\",\"season\":3,\"episode\":1}","expected":"1"}
+{"id":"em-0009","input":"{\"op\":\"matches\",\"title\":\"True Detective 1ª Temporada Completa Dublada\",\"season\":1,\"episode\":1}","expected":"1"}
+{"id":"em-0010","input":"{\"op\":\"matches\",\"title\":\"True Detective 3ª Temporada Completa Dublada\",\"season\":2,\"episode\":1}","expected":"0"}
+{"id":"em-0011","input":"{\"op\":\"matches\",\"title\":\"True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA\",\"season\":2,\"episode\":1}","expected":"0"}
+{"id":"em-0012","input":"{\"op\":\"matches\",\"title\":\"True Detective 2ª Temporada Dublada e Dual 1ª TEMPORADA COMPLETA DUBLADA\",\"season\":1,\"episode\":1}","expected":"1"}
+{"id":"em-0013","input":"{\"op\":\"matches\",\"title\":\"True Blood Todas as Temporadas Completas Dublada e Dual 3ª TEMPORADA\",\"season\":1,\"episode\":1}","expected":"0"}
+{"id":"em-0014","input":"{\"op\":\"matches\",\"title\":\"Coisa 1 a 90 temporada\",\"season\":1,\"episode\":1}","expected":"0"}
+{"id":"em-0015","input":"{\"op\":\"matches\",\"title\":\"Game of Thrones Dublado\",\"season\":1,\"episode\":1}","expected":"1"}
+{"id":"em-0016","input":"{\"op\":\"matches\",\"title\":\"Show S01E07 1080p\",\"season\":1,\"episode\":8}","expected":"0"}
+{"id":"em-0017","input":"{\"op\":\"matches\",\"title\":\"Show S01E07 1080p\",\"season\":1,\"episode\":7}","expected":"1"}
+{"id":"em-0018","input":"{\"op\":\"pack\",\"title\":\"Show S01 Dublado\",\"season\":1}","expected":"1"}
+{"id":"em-0019","input":"{\"op\":\"pack\",\"title\":\"Show S01 Dublado\",\"season\":2}","expected":"0"}
+{"id":"em-0020","input":"{\"op\":\"pack\",\"title\":\"Show Todas as Temporadas\",\"season\":3}","expected":"1"}
+{"id":"em-0021","input":"{\"op\":\"pack\",\"title\":\"Show S01E04 1080p\",\"season\":1}","expected":"0"}
+{"id":"em-0022","input":"{\"op\":\"pack\",\"title\":\"Show Temporada Completa Dublada\",\"season\":1}","expected":"1"}
+{"id":"em-0023","input":"{\"op\":\"pack\",\"title\":\"Show S01 Dublado\",\"season\":null}","expected":"0"}
+{"id":"em-0024","input":"{\"op\":\"fill\",\"title\":\"Show S01 Dublado\",\"season\":1}","expected":"1"}
+{"id":"em-0025","input":"{\"op\":\"fill\",\"title\":\"Show S01 Dublado\",\"season\":2}","expected":"0"}
+{"id":"em-0026","input":"{\"op\":\"fill\",\"title\":\"Show Todas as Temporadas\",\"season\":3}","expected":"1"}
+{"id":"em-0027","input":"{\"op\":\"fill\",\"title\":\"Show S01E04 1080p\",\"season\":1}","expected":"0"}
+{"id":"em-0028","input":"{\"op\":\"fill\",\"title\":\"Show Temporada Completa Dublada\",\"season\":1}","expected":"0"}
+{"id":"em-0029","input":"{\"op\":\"fill\",\"title\":\"Show S01 Dublado\",\"season\":null}","expected":"0"}
+{"id":"em-0030","input":"{\"op\":\"matches\",\"title\":\"Lanterns S01 Dublado\",\"season\":1,\"episode\":7}","expected":"1"}
+{"id":"em-0031","input":"{\"op\":\"matches\",\"title\":\"Lanterns S02 Dublado\",\"season\":1,\"episode\":1}","expected":"0"}
+{"id":"em-0032","input":"{\"op\":\"pack\",\"title\":\"Show S01-S03 Dublado\",\"season\":2}","expected":"1"}
+{"id":"em-0033","input":"{\"op\":\"fill\",\"title\":\"Show S01-S03 Dublado\",\"season\":2}","expected":"1"}
+{"id":"em-0034","input":"{\"op\":\"matches\",\"title\":\"Anime 1x04 720p\",\"season\":1,\"episode\":4}","expected":"1"}
+{"id":"em-0035","input":"{\"op\":\"pack\",\"title\":\"Anime S01E01-E10 1080p\",\"season\":1}","expected":"0"}
+{"id":"em-0036","input":"{\"op\":\"fill\",\"title\":\"Anime S01E01-E10 1080p\",\"season\":1}","expected":"0"}
+{"id":"em-0037","input":"{\"op\":\"matches\",\"title\":\"Novela Capítulo 086 ao 123\",\"season\":1,\"episode\":100}","expected":"1"}
+{"id":"em-0038","input":"{\"op\":\"pack\",\"title\":\"Novela S01 Temporada Completa\",\"season\":1}","expected":"1"}
+{"id":"em-0039","input":"{\"op\":\"fill\",\"title\":\"Novela S01 Temporada Completa\",\"season\":1}","expected":"1"}
+{"id":"em-0040","input":"{\"op\":\"matches\",\"title\":\"Show S01E01-E10 1080p\",\"season\":1,\"episode\":5}","expected":"1"}

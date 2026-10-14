@@ -1,0 +1,434 @@
+{"id":"rn-001","input":"{\"op\":\"matches\",\"title\":\"Dune 2021\",\"name\":\"\"}","expected":"0"}
+{"id":"rn-002","input":"{\"op\":\"matches\",\"title\":\"Dune\",\"name\":\"---\"}","expected":"0"}
+{"id":"rn-003","input":"{\"op\":\"matches\",\"title\":\"\",\"name\":\"!!!\"}","expected":"0"}
+{"id":"rn-004","input":"{\"op\":\"matches\",\"title\":\"Dune 2021 1080p\",\"name\":\"Dune\"}","expected":"1"}
+{"id":"rn-005","input":"{\"op\":\"matches\",\"title\":\"Dune Part Two\",\"name\":\"Dune\"}","expected":"1"}
+{"id":"rn-006","input":"{\"op\":\"matches\",\"title\":\"Blade Runner\",\"name\":\"Dune\"}","expected":"0"}
+{"id":"rn-007","input":"{\"op\":\"matches\",\"title\":\"Alpha Beta Gamma\",\"name\":\"Alpha Beta Gamma Delta Epsilon\"}","expected":"1"}
+{"id":"rn-008","input":"{\"op\":\"matches\",\"title\":\"Alpha Beta\",\"name\":\"Alpha Beta Gamma Delta Epsilon\"}","expected":"0"}
+{"id":"rn-009","input":"{\"op\":\"matches\",\"title\":\"Monster Hunter\",\"name\":\"Monster Hunter Movie\"}","expected":"1"}
+{"id":"rn-010","input":"{\"op\":\"matches\",\"title\":\"Monster\",\"name\":\"Monster Hunter\"}","expected":"0"}
+{"id":"rn-011","input":"{\"op\":\"matches\",\"title\":\"Diabo\",\"name\":\"Dia\"}","expected":"0"}
+{"id":"rn-012","input":"{\"op\":\"matches\",\"title\":\"Dia D Disclosure\",\"name\":\"Dia D\"}","expected":"1"}
+{"id":"rn-013","input":"{\"op\":\"matches\",\"title\":\"Office 2005\",\"name\":\"The Office\"}","expected":"0"}
+{"id":"rn-014","input":"{\"op\":\"matches\",\"title\":\"The Office\",\"name\":\"The Office\"}","expected":"1"}
+{"id":"rn-015","input":"{\"op\":\"matches\",\"title\":\"City\",\"name\":\"Dead Dead City\"}","expected":"0"}
+{"id":"rn-016","input":"{\"op\":\"matches\",\"title\":\"Dead City\",\"name\":\"Dead Dead City\"}","expected":"1"}
+{"id":"rn-017","input":"{\"op\":\"matches\",\"title\":\"Poção do Avô 2019\",\"name\":\"Poção do Avô\"}","expected":"1"}
+{"id":"rn-018","input":"{\"op\":\"matches\",\"title\":\"Avo\",\"name\":\"Poção do Avô\"}","expected":"0"}
+{"id":"rn-019","input":"{\"op\":\"matches\",\"title\":\"DUNE 2021\",\"name\":\"dune\"}","expected":"1"}
+{"id":"rn-020","input":"{\"op\":\"matches\",\"title\":\"Dune: Part Two (2024) 2160p\",\"name\":\"Dune\"}","expected":"1"}
+{"id":"rn-021","input":"{\"op\":\"matches\",\"title\":\"Duna\",\"name\":\"Dune\"}","expected":"0"}
+{"id":"rn-022","input":"{\"op\":\"matches\",\"title\":\"Up in the Air\",\"name\":\"Up in Air\"}","expected":"1"}
+{"id":"rn-023","input":"{\"op\":\"matches\",\"title\":\"Air\",\"name\":\"Up in Air\"}","expected":"0"}
+{"id":"rn-024","input":"{\"op\":\"matches\",\"title\":\"Up Air\",\"name\":\"Up in Air\"}","expected":"1"}
+{"id":"rn-025","input":"{\"op\":\"matches\",\"title\":\"Resident Evil Vendetta\",\"name\":\"Resident Evil\"}","expected":"1"}
+{"id":"rn-026","input":"{\"op\":\"matches\",\"title\":\"Evil\",\"name\":\"Resident Evil\"}","expected":"0"}
+{"id":"rn-027","input":"{\"op\":\"matches\",\"title\":\"Evil Resident\",\"name\":\"Resident Evil\"}","expected":"1"}
+{"id":"rn-028","input":"{\"op\":\"matches\",\"title\":\"Jornada Estrelas\",\"name\":\"Jornada nas Estrelas\"}","expected":"1"}
+{"id":"rn-029","input":"{\"op\":\"matches\",\"title\":\"Jornada\",\"name\":\"Jornada nas Estrelas\"}","expected":"0"}
+{"id":"rn-030","input":"{\"op\":\"matches\",\"title\":\"Shaun of the Dead 2004\",\"name\":\"Shaun of the Dead\"}","expected":"1"}
+{"id":"rn-031","input":"{\"op\":\"matches\",\"title\":\"The Dead\",\"name\":\"Shaun of the Dead\"}","expected":"0"}
+{"id":"rn-032","input":"{\"op\":\"matches\",\"title\":\"Monster Hunter\",\"name\":\"Monster Monster Hunter\"}","expected":"1"}
+{"id":"rn-033","input":"{\"op\":\"matches\",\"title\":\"Qualquer coisa\",\"name\":\"Monster Hunter\",\"tokens\":[\"monster\"]}","expected":"0"}
+{"id":"rn-034","input":"{\"op\":\"matches\",\"title\":\"Nada\",\"name\":\"Monster Hunter\",\"tokens\":[\"monster\",\"hunter\"]}","expected":"1"}
+{"id":"rn-035","input":"{\"op\":\"matches\",\"title\":\"Monster Hunter\",\"name\":\"Monster Hunter\",\"tokens\":[]}","expected":"0"}
+{"id":"rn-036","input":"{\"op\":\"matches\",\"title\":\"Monster Hunter\",\"name\":\"Monster Hunter\",\"tokens\":null}","expected":"1"}
+{"id":"rn-037","input":"{\"op\":\"matches\",\"title\":\"Dune\",\"name\":\"Dune\",\"tokens\":[\"DUNE\"]}","expected":"0"}
+{"id":"rn-038","input":"{\"op\":\"matches\",\"title\":\"x\",\"name\":\"Dune Part Two\",\"tokens\":[\"dune\",\"part\"]}","expected":"1"}
+{"id":"rn-039","input":"{\"op\":\"matches\",\"title\":\"x\",\"name\":\"Dune Part Two\",\"tokens\":[\"dune\"]}","expected":"0"}
+{"id":"rn-040","input":"{\"op\":\"matches\",\"title\":\"x\",\"name\":\"Dune Part Two\",\"tokens\":[\"two\",\"dune\"]}","expected":"1"}
+{"id":"rn-041","input":"{\"op\":\"matches\",\"title\":\"Dune\",\"name\":\"Dune Part Two\",\"tokens\":[\"part\",\"two\",\"dune\",\"extra\"]}","expected":"1"}
+{"id":"rn-042","input":"{\"op\":\"matches\",\"title\":\"Alpha\",\"name\":\"Beta\",\"tokens\":[\"alpha\"]}","expected":"0"}
+{"id":"rn-043","input":"{\"op\":\"matches\",\"title\":\"Blade Runner 2049\",\"name\":\"Blade Runner\"}","expected":"1"}
+{"id":"rn-044","input":"{\"op\":\"matches\",\"title\":\"Runner\",\"name\":\"Blade Runner\"}","expected":"0"}
+{"id":"rn-045","input":"{\"op\":\"matches\",\"title\":\"Mad Max\",\"name\":\"Mad Max Fury Road\"}","expected":"0"}
+{"id":"rn-046","input":"{\"op\":\"matches\",\"title\":\"Mad Max Fury\",\"name\":\"Mad Max Fury Road\"}","expected":"1"}
+{"id":"rn-047","input":"{\"op\":\"matches\",\"title\":\"Max Road\",\"name\":\"Mad Max Fury Road\"}","expected":"0"}
+{"id":"rn-048","input":"{\"op\":\"matches\",\"title\":\"Toy Story\",\"name\":\"Toy Story 4\"}","expected":"1"}
+{"id":"rn-049","input":"{\"op\":\"matches\",\"title\":\"Toy 4\",\"name\":\"Toy Story 4\"}","expected":"0"}
+{"id":"rn-050","input":"{\"op\":\"matches\",\"title\":\"Acao Total\",\"name\":\"Ação Total\"}","expected":"1"}
+{"id":"rn-051","input":"{\"op\":\"matches\",\"title\":\"SWAT\",\"name\":\"S.W.A.T.\"}","expected":"1"}
+{"id":"rn-052","input":"{\"op\":\"matches\",\"title\":\"Homem Aranha 2\",\"name\":\"Homem-Aranha\"}","expected":"1"}
+{"id":"rn-053","input":"{\"op\":\"matches\",\"title\":\"Star Wars: O Despertar da Força\",\"name\":\"Star Wars\"}","expected":"1"}
+{"id":"rn-054","input":"{\"op\":\"matches\",\"title\":\"Starship\",\"name\":\"Star\"}","expected":"0"}
+{"id":"rn-055","input":"{\"op\":\"matches\",\"title\":\"Bear\",\"name\":\"The Bear\"}","expected":"0"}
+{"id":"rn-056","input":"{\"op\":\"matches\",\"title\":\"The Bear S01\",\"name\":\"The Bear\"}","expected":"1"}
+{"id":"rn-057","input":"{\"op\":\"matches\",\"title\":\"From\",\"name\":\"From\"}","expected":"1"}
+{"id":"rn-058","input":"{\"op\":\"matches\",\"title\":\"\",\"name\":\"Dune\"}","expected":"0"}
+{"id":"rn-059","input":"{\"op\":\"matches\",\"title\":\"   \",\"name\":\"Dune\"}","expected":"0"}
+{"id":"rn-060","input":"{\"op\":\"matches\",\"title\":\"Avatar The Way of Water\",\"name\":\"Avatar\"}","expected":"1"}
+{"id":"rn-061","input":"{\"op\":\"matches\",\"title\":\"Pinoquio\",\"name\":\"Pinóquio\"}","expected":"1"}
+{"id":"rn-062","input":"{\"op\":\"matches\",\"title\":\"Hunter Hunter\",\"name\":\"Hunter X Hunter\"}","expected":"1"}
+{"id":"rn-063","input":"{\"op\":\"matches\",\"title\":\"Poção Avô\",\"name\":\"Poção do Avô\"}","expected":"1"}
+{"id":"rn-064","input":"{\"op\":\"matches\",\"title\":\"Ab Cd\",\"name\":\"Ab\"}","expected":"1"}
+{"id":"rn-065","input":"{\"op\":\"matches\",\"title\":\"The Bear\",\"name\":\"The\"}","expected":"1"}
+{"id":"rn-066","input":"{\"op\":\"matches\",\"title\":\"x\",\"name\":\"Dune Part\",\"tokens\":[\"dune\",\"dune\"]}","expected":"0"}
+{"id":"rn-067","input":"{\"op\":\"coverage\",\"name\":\"\"}","expected":""}
+{"id":"rn-068","input":"{\"op\":\"coverage\",\"name\":\"Resident Evil\"}","expected":"resident evil"}
+{"id":"rn-069","input":"{\"op\":\"coverage\",\"name\":\"The Office of the Dead\"}","expected":"office dead"}
+{"id":"rn-070","input":"{\"op\":\"coverage\",\"name\":\"Up in Air\"}","expected":"up in air"}
+{"id":"rn-071","input":"{\"op\":\"coverage\",\"name\":\"Monster Monster Hunter\"}","expected":"monster hunter"}
+{"id":"rn-072","input":"{\"op\":\"coverage\",\"name\":\"Poção do Avô: Parte 2\"}","expected":"pocao avo parte"}
+{"id":"rn-073","input":"{\"op\":\"coverage\",\"name\":\"S.W.A.T. Força Especial\"}","expected":"swat forca especial"}
+{"id":"rn-074","input":"{\"op\":\"coverage\",\"name\":\"!!!\"}","expected":""}
+{"id":"rn-075","input":"{\"op\":\"coverage\",\"name\":\"a b c\"}","expected":"a b c"}
+{"id":"rn-076","input":"{\"op\":\"coverage\",\"name\":\"O Lobo\"}","expected":"o lobo"}
+{"id":"rn-077","input":"{\"op\":\"coverage\",\"name\":\"Dune Part Two\"}","expected":"dune part two"}
+{"id":"rn-078","input":"{\"op\":\"coverage\",\"name\":\"Dune Dune\"}","expected":"dune"}
+{"id":"rn-079","input":"{\"op\":\"coverage\",\"name\":\"Ab Cd Efg\"}","expected":"ab cd efg"}
+{"id":"rn-080","input":"{\"op\":\"coverage\",\"name\":\"Ab Cde Fgh\"}","expected":"cde fgh"}
+{"id":"rn-081","input":"{\"op\":\"coverage\",\"name\":\"The The Bear\"}","expected":"the bear"}
+{"id":"rn-082","input":"{\"op\":\"coverage\",\"name\":\"Le Mans\"}","expected":"le mans"}
+{"id":"rn-083","input":"{\"op\":\"coverage\",\"name\":\"Le Grand Bleu\"}","expected":"grand bleu"}
+{"id":"rn-084","input":"{\"op\":\"coverage\",\"name\":\"Os Vingadores\"}","expected":"os vingadores"}
+{"id":"rn-085","input":"{\"op\":\"coverage\",\"name\":\"Um Dia de Sorte\"}","expected":"dia sorte"}
+{"id":"rn-086","input":"{\"op\":\"coverage\",\"name\":\"Harry Potter e a Pedra Filosofal\"}","expected":"harry potter pedra filosofal"}
+{"id":"rn-087","input":"{\"op\":\"coverage\",\"name\":\"Toy Story 4\"}","expected":"toy story"}
+{"id":"rn-088","input":"{\"op\":\"coverage\",\"name\":\"Homem-Aranha: Um Novo Dia\"}","expected":"homem aranha novo dia"}
+{"id":"rn-089","input":"{\"op\":\"coverage\",\"name\":\"Ação Total\"}","expected":"acao total"}
+{"id":"rn-090","input":"{\"op\":\"coverage\",\"name\":\"Pinóquio\"}","expected":"pinoquio"}
+{"id":"rn-091","input":"{\"op\":\"coverage\",\"name\":\"Blade Runner 2049\"}","expected":"blade runner 2049"}
+{"id":"rn-092","input":"{\"op\":\"coverage\",\"name\":\"x y\"}","expected":"x y"}
+{"id":"rn-093","input":"{\"op\":\"coverage\",\"name\":\"Ana\"}","expected":"ana"}
+{"id":"rn-094","input":"{\"op\":\"coverage\",\"name\":\"A Ana\"}","expected":"a ana"}
+{"id":"rn-095","input":"{\"op\":\"coverage\",\"name\":\"Star Wars Star\"}","expected":"star wars"}
+{"id":"rn-096","input":"{\"op\":\"coverage\",\"name\":\"Mad Max 2: A Estrada da Fúria\"}","expected":"mad max estrada furia"}
+{"id":"rn-097","input":"{\"op\":\"coverage\",\"name\":\"Ghost in the Shell\"}","expected":"ghost shell"}
+{"id":"rn-098","input":"{\"op\":\"coverage\",\"name\":\"It\"}","expected":"it"}
+{"id":"rn-099","input":"{\"op\":\"coverage\",\"name\":\"Iron Man 3 Iron\"}","expected":"iron man"}
+{"id":"rn-100","input":"{\"op\":\"coverage\",\"name\":\"Eu Robô\"}","expected":"eu robo"}
+{"id":"rn-101","input":"{\"op\":\"coverage\",\"name\":\"Pé de Feijão\"}","expected":"pe de feijao"}
+{"id":"rn-102","input":"{\"op\":\"coverage\",\"name\":\"Filmes Dublados\"}","expected":"filmes dublados"}
+{"id":"rn-103","input":"{\"op\":\"coverage\",\"name\":\"Sol Lua\"}","expected":"sol lua"}
+{"id":"rn-104","input":"{\"op\":\"coverage\",\"name\":\"Ab Lobo Gato\"}","expected":"lobo gato"}
+{"id":"rn-105","input":"{\"op\":\"coverage\",\"name\":\"Thor Ragnarok\"}","expected":"thor ragnarok"}
+{"id":"rn-106","input":"{\"op\":\"coverage\",\"name\":\"The Dark Knight Rises\"}","expected":"dark knight rises"}
+{"id":"rn-107","input":"{\"op\":\"coverage\",\"name\":\"De Volta para o Futuro\"}","expected":"volta para futuro"}
+{"id":"rn-108","input":"{\"op\":\"coverage\",\"name\":\"A Vida é Bela\"}","expected":"vida bela"}
+{"id":"rn-109","input":"{\"op\":\"coverage\",\"name\":\"Jurassic Park III\"}","expected":"jurassic park iii"}
+{"id":"rn-110","input":"{\"op\":\"coverage\",\"name\":\"Die Hard\"}","expected":"die hard"}
+{"id":"rn-111","input":"{\"op\":\"coverage\",\"name\":\"Il Postino\"}","expected":"il postino"}
+{"id":"rn-112","input":"{\"op\":\"coverage\",\"name\":\"Der Himmel\"}","expected":"der himmel"}
+{"id":"rn-113","input":"{\"op\":\"coverage\",\"name\":\"El Secreto de sus ojos\"}","expected":"secreto sus ojos"}
+{"id":"rn-114","input":"{\"op\":\"coverage\",\"name\":\"Un Monde\"}","expected":"un monde"}
+{"id":"rn-115","input":"{\"op\":\"multiWork\",\"title\":\"Trilogia Matrix 1080p\"}","expected":"1"}
+{"id":"rn-116","input":"{\"op\":\"multiWork\",\"title\":\"Monster Hunter 2021 1080p\"}","expected":"0"}
+{"id":"rn-117","input":"{\"op\":\"multiWork\",\"title\":\"Todos os Filmes 1080p\"}","expected":"0"}
+{"id":"rn-118","input":"{\"op\":\"multiWork\",\"title\":\"Todos os filmes 1979-2016\"}","expected":"1"}
+{"id":"rn-119","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1979 2016\"}","expected":"1"}
+{"id":"rn-120","input":"{\"op\":\"multiWork\",\"title\":\"Filme 1979-2016\"}","expected":"0"}
+{"id":"rn-121","input":"{\"op\":\"multiWork\",\"title\":\"Filmografia Spielberg\"}","expected":"1"}
+{"id":"rn-122","input":"{\"op\":\"multiWork\",\"title\":\"The Twilight Saga Breaking Dawn\"}","expected":"0"}
+{"id":"rn-123","input":"{\"op\":\"multiWork\",\"title\":\"Coleção Guerra nas Estrelas\"}","expected":"1"}
+{"id":"rn-124","input":"{\"op\":\"multiWork\",\"title\":\"\"}","expected":"0"}
+{"id":"rn-125","input":"{\"op\":\"multiWork\",\"title\":\"Trilogy 2001-2003\"}","expected":"1"}
+{"id":"rn-126","input":"{\"op\":\"multiWork\",\"title\":\"Duology\"}","expected":"1"}
+{"id":"rn-127","input":"{\"op\":\"multiWork\",\"title\":\"Quadrilogia X\"}","expected":"1"}
+{"id":"rn-128","input":"{\"op\":\"multiWork\",\"title\":\"Pentalogia\"}","expected":"1"}
+{"id":"rn-129","input":"{\"op\":\"multiWork\",\"title\":\"Antologia 1990 2000\"}","expected":"1"}
+{"id":"rn-130","input":"{\"op\":\"multiWork\",\"title\":\"Anthology\"}","expected":"1"}
+{"id":"rn-131","input":"{\"op\":\"multiWork\",\"title\":\"Boxset Marvel\"}","expected":"1"}
+{"id":"rn-132","input":"{\"op\":\"multiWork\",\"title\":\"Box Set\"}","expected":"0"}
+{"id":"rn-133","input":"{\"op\":\"multiWork\",\"title\":\"Temporada 1 1080p\"}","expected":"0"}
+{"id":"rn-134","input":"{\"op\":\"multiWork\",\"title\":\"Temporadas 1-3 1979-1981\"}","expected":"1"}
+{"id":"rn-135","input":"{\"op\":\"multiWork\",\"title\":\"Todas as temporadas 2010 2012\"}","expected":"1"}
+{"id":"rn-136","input":"{\"op\":\"multiWork\",\"title\":\"Série 2001 2003\"}","expected":"1"}
+{"id":"rn-137","input":"{\"op\":\"multiWork\",\"title\":\"Serie 2001\"}","expected":"0"}
+{"id":"rn-138","input":"{\"op\":\"multiWork\",\"title\":\"Completa 1990-1995\"}","expected":"1"}
+{"id":"rn-139","input":"{\"op\":\"multiWork\",\"title\":\"Completo 2000 2010\"}","expected":"1"}
+{"id":"rn-140","input":"{\"op\":\"multiWork\",\"title\":\"Integral 1970-1975\"}","expected":"1"}
+{"id":"rn-141","input":"{\"op\":\"multiWork\",\"title\":\"Movies 1990 2000\"}","expected":"1"}
+{"id":"rn-142","input":"{\"op\":\"multiWork\",\"title\":\"Films 1990 2000\"}","expected":"1"}
+{"id":"rn-143","input":"{\"op\":\"multiWork\",\"title\":\"Complete 1990-2000\"}","expected":"1"}
+{"id":"rn-144","input":"{\"op\":\"multiWork\",\"title\":\"Collection 1990-2000\"}","expected":"1"}
+{"id":"rn-145","input":"{\"op\":\"multiWork\",\"title\":\"Monster 2021 2018\"}","expected":"0"}
+{"id":"rn-146","input":"{\"op\":\"multiWork\",\"title\":\"Blade Runner 1982 2049\"}","expected":"0"}
+{"id":"rn-147","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1979-2016 Dublado\"}","expected":"1"}
+{"id":"rn-148","input":"{\"op\":\"multiWork\",\"title\":\"Trilogia 2010–2012 BluRay\"}","expected":"1"}
+{"id":"rn-149","input":"{\"op\":\"multiWork\",\"title\":\"Filmes de 1979 a 2016\"}","expected":"1"}
+{"id":"rn-150","input":"{\"op\":\"multiWork\",\"title\":\"Filmes de 1979 até 2016\"}","expected":"1"}
+{"id":"rn-151","input":"{\"op\":\"multiWork\",\"title\":\"Filmes de 1979 ate 2016\"}","expected":"1"}
+{"id":"rn-152","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1979, 2016\"}","expected":"1"}
+{"id":"rn-153","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1979 — 2016\"}","expected":"1"}
+{"id":"rn-154","input":"{\"op\":\"multiWork\",\"title\":\"FILMES 1979-2016\"}","expected":"1"}
+{"id":"rn-155","input":"{\"op\":\"multiWork\",\"title\":\"Monster Hunter Coleção 2010\"}","expected":"1"}
+{"id":"rn-156","input":"{\"op\":\"multiWork\",\"title\":\"Coletanea Ação\"}","expected":"1"}
+{"id":"rn-157","input":"{\"op\":\"multiWork\",\"title\":\"Mestres do Terror 1960 1970\"}","expected":"0"}
+{"id":"rn-158","input":"{\"op\":\"multiWork\",\"title\":\"Cinema Redux 2000\"}","expected":"0"}
+{"id":"rn-159","input":"{\"op\":\"multiWork\",\"title\":\"Trilogia\"}","expected":"1"}
+{"id":"rn-160","input":"{\"op\":\"multiWork\",\"title\":\"Saga\"}","expected":"0"}
+{"id":"rn-161","input":"{\"op\":\"multiWork\",\"title\":\"Filmes\"}","expected":"0"}
+{"id":"rn-162","input":"{\"op\":\"multiWork\",\"title\":\"Dune 2021 Todos\"}","expected":"0"}
+{"id":"rn-163","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1899 1950\"}","expected":"0"}
+{"id":"rn-164","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 2016 2030\"}","expected":"1"}
+{"id":"rn-165","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1990 1995 2000\"}","expected":"1"}
+{"id":"rn-166","input":"{\"op\":\"multiWork\",\"title\":\"PACK TRILOGY 1990\"}","expected":"1"}
+{"id":"rn-167","input":"{\"op\":\"multiWork\",\"title\":\"Quadrilogy\"}","expected":"1"}
+{"id":"rn-168","input":"{\"op\":\"multiWork\",\"title\":\"Tetralogy\"}","expected":"1"}
+{"id":"rn-169","input":"{\"op\":\"multiWork\",\"title\":\"Duologia Dublada\"}","expected":"1"}
+{"id":"rn-170","input":"{\"op\":\"multiWork\",\"title\":\"Antologia do Terror\"}","expected":"1"}
+{"id":"rn-171","input":"{\"op\":\"multiWork\",\"title\":\"Ghost Filmografia 1\"}","expected":"1"}
+{"id":"rn-172","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1990 dublado\"}","expected":"0"}
+{"id":"rn-173","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 1990 2000 completo\"}","expected":"1"}
+{"id":"rn-174","input":"{\"op\":\"multiWork\",\"title\":\"Colecao Star Wars Completa 2016\"}","expected":"1"}
+{"id":"rn-175","input":"{\"op\":\"multiWork\",\"title\":\"Filmes 19791980\"}","expected":"0"}
+{"id":"rn-176","input":"{\"op\":\"multiWork\",\"title\":\"Mais Filmes Dublados 2010\"}","expected":"0"}
+{"id":"rn-177","input":"{\"op\":\"multiWork\",\"title\":\"Series 2001\"}","expected":"0"}
+{"id":"rn-178","input":"{\"op\":\"root\",\"title\":\"\"}","expected":""}
+{"id":"rn-179","input":"{\"op\":\"root\",\"title\":\"   \"}","expected":""}
+{"id":"rn-180","input":"{\"op\":\"root\",\"title\":\"Dune\"}","expected":"Dune"}
+{"id":"rn-181","input":"{\"op\":\"root\",\"title\":\"Jornada nas Estrelas: O Filme\"}","expected":"Jornada nas Estrelas"}
+{"id":"rn-182","input":"{\"op\":\"root\",\"title\":\"Jornada nas Estrelas II\"}","expected":"Jornada nas Estrelas"}
+{"id":"rn-183","input":"{\"op\":\"root\",\"title\":\"Mad Max Parte III\"}","expected":"Mad Max"}
+{"id":"rn-184","input":"{\"op\":\"root\",\"title\":\"Mad Max 2: A Estrada da Fúria\"}","expected":"Mad Max"}
+{"id":"rn-185","input":"{\"op\":\"root\",\"title\":\"Rocky 2\"}","expected":"Rocky 2"}
+{"id":"rn-186","input":"{\"op\":\"root\",\"title\":\"Distrito 9\"}","expected":"Distrito 9"}
+{"id":"rn-187","input":"{\"op\":\"root\",\"title\":\"Blade Runner 2049\"}","expected":"Blade Runner 2049"}
+{"id":"rn-188","input":"{\"op\":\"root\",\"title\":\"Vingadores: Guerra Infinita\"}","expected":"Vingadores: Guerra Infinita"}
+{"id":"rn-189","input":"{\"op\":\"root\",\"title\":\": O Filme\"}","expected":": O Filme"}
+{"id":"rn-190","input":"{\"op\":\"root\",\"title\":\"Ab: Cd\"}","expected":"Ab: Cd"}
+{"id":"rn-191","input":"{\"op\":\"root\",\"title\":\"Ab Cd: Ef Gh\"}","expected":"Ab Cd"}
+{"id":"rn-192","input":"{\"op\":\"root\",\"title\":\"Ab Cd – Ef\"}","expected":"Ab Cd"}
+{"id":"rn-193","input":"{\"op\":\"root\",\"title\":\"Ab Cd — Ef\"}","expected":"Ab Cd"}
+{"id":"rn-194","input":"{\"op\":\"root\",\"title\":\"Ab Cd: Ef: Gh\"}","expected":"Ab Cd"}
+{"id":"rn-195","input":"{\"op\":\"root\",\"title\":\"Ab Cd: Ef\\nGh\"}","expected":"Ab Cd: Ef\nGh"}
+{"id":"rn-196","input":"{\"op\":\"root\",\"title\":\"Ab Cd\\nFoo: bar\"}","expected":"Ab Cd\nFoo"}
+{"id":"rn-197","input":"{\"op\":\"root\",\"title\":\"Ab\\nCd\"}","expected":"Ab\nCd"}
+{"id":"rn-198","input":"{\"op\":\"root\",\"title\":\"  Mad Max Parte 2  \"}","expected":"Mad Max"}
+{"id":"rn-199","input":"{\"op\":\"root\",\"title\":\"mad max parte ii\"}","expected":"mad max"}
+{"id":"rn-200","input":"{\"op\":\"root\",\"title\":\"Rocky PARTE 3\"}","expected":"Rocky PARTE 3"}
+{"id":"rn-201","input":"{\"op\":\"root\",\"title\":\"Jornada nas Estrelas 10\"}","expected":"Jornada nas Estrelas"}
+{"id":"rn-202","input":"{\"op\":\"root\",\"title\":\"Jornada nas Estrelas 100\"}","expected":"Jornada nas Estrelas 100"}
+{"id":"rn-203","input":"{\"op\":\"root\",\"title\":\"Star Wars IV\"}","expected":"Star Wars"}
+{"id":"rn-204","input":"{\"op\":\"root\",\"title\":\"Star Wars VIII Parte\"}","expected":"Star Wars VIII Parte"}
+{"id":"rn-205","input":"{\"op\":\"root\",\"title\":\"Star Wars Episodio VII\"}","expected":"Star Wars Episodio"}
+{"id":"rn-206","input":"{\"op\":\"root\",\"title\":\"Alfa Beta Gama Delta X\"}","expected":"Alfa Beta Gama Delta"}
+{"id":"rn-207","input":"{\"op\":\"root\",\"title\":\"Rocky Balboa\"}","expected":"Rocky Balboa"}
+{"id":"rn-208","input":"{\"op\":\"root\",\"title\":\"Vingadores: Guerra Infinita 2\"}","expected":"Vingadores: Guerra Infinita"}
+{"id":"rn-209","input":"{\"op\":\"root\",\"title\":\"Monster Hunter 1080p\"}","expected":"Monster Hunter 1080p"}
+{"id":"rn-210","input":"{\"op\":\"root\",\"title\":\"Pinoquio 2 2 2\"}","expected":"Pinoquio 2 2"}
+{"id":"rn-211","input":"{\"op\":\"root\",\"title\":\"Resident Evil 2 Parte 2\"}","expected":"Resident Evil 2"}
+{"id":"rn-212","input":"{\"op\":\"root\",\"title\":\"Harry Potter e a Pedra Filosofal\"}","expected":"Harry Potter e a Pedra Filosofal"}
+{"id":"rn-213","input":"{\"op\":\"root\",\"title\":\"﻿Dune 2\"}","expected":"Dune 2"}
+{"id":"rn-214","input":"{\"op\":\"root\",\"title\":\"Ação e Reação 3\"}","expected":"Ação e Reação"}
+{"id":"rn-215","input":"{\"op\":\"root\",\"title\":\"Esquadrão Suicida\"}","expected":"Esquadrão Suicida"}
+{"id":"rn-216","input":"{\"op\":\"root\",\"title\":\"Dune: Part Two\"}","expected":"Dune: Part Two"}
+{"id":"rn-217","input":"{\"op\":\"root\",\"title\":\"Iron Man 3: Homem de Ferro 3\"}","expected":"Iron Man"}
+{"id":"rn-218","input":"{\"op\":\"root\",\"title\":\"Ab Cd Ii\"}","expected":"Ab Cd"}
+{"id":"rn-219","input":"{\"op\":\"root\",\"title\":\"Ab Cd Ivxi\"}","expected":"Ab Cd"}
+{"id":"rn-220","input":"{\"op\":\"root\",\"title\":\"Ab Cd Iiiii\"}","expected":"Ab Cd Iiiii"}
+{"id":"rn-221","input":"{\"op\":\"root\",\"title\":\"Ab Cd Parte Iv\"}","expected":"Ab Cd"}
+{"id":"rn-222","input":"{\"op\":\"root\",\"title\":\"Ab  Cd   3\"}","expected":"Ab  Cd"}
+{"id":"rn-223","input":"{\"op\":\"root\",\"title\":\"Ab Cd Parte  II\"}","expected":"Ab Cd"}
+{"id":"rn-224","input":"{\"op\":\"root\",\"title\":\"Ab Parte 2\"}","expected":"Ab Parte 2"}
+{"id":"rn-225","input":"{\"op\":\"root\",\"title\":\"Ab 2\"}","expected":"Ab 2"}
+{"id":"rn-226","input":"{\"op\":\"root\",\"title\":\"A: B\"}","expected":"A: B"}
+{"id":"rn-227","input":"{\"op\":\"root\",\"title\":\":\"}","expected":":"}
+{"id":"rn-228","input":"{\"op\":\"root\",\"title\":\"Dia D\"}","expected":"Dia D"}
+{"id":"rn-229","input":"{\"op\":\"root\",\"title\":\"Dia 1 X\"}","expected":"Dia 1"}
+{"id":"rn-230","input":"{\"op\":\"root\",\"title\":\"Rocky Vi\"}","expected":"Rocky Vi"}
+{"id":"rn-231","input":"{\"op\":\"root\",\"title\":\"Ab Cd Xxxx\"}","expected":"Ab Cd"}
+{"id":"rn-232","input":"{\"op\":\"root\",\"title\":\"Ab Cd Ivxi\"}","expected":"Ab Cd"}
+{"id":"rn-233","input":"{\"op\":\"root\",\"title\":\"Ab Cd 00\"}","expected":"Ab Cd"}
+{"id":"rn-234","input":"{\"op\":\"root\",\"title\":\"Ab Cd 123\"}","expected":"Ab Cd 123"}
+{"id":"rn-235","input":"{\"op\":\"root\",\"title\":\"Ab Cd Parte\"}","expected":"Ab Cd Parte"}
+{"id":"rn-236","input":"{\"op\":\"root\",\"title\":\"Ab Cd Parte 1 1\"}","expected":"Ab Cd Parte 1"}
+{"id":"rn-237","input":"{\"op\":\"root\",\"title\":\"S.W.A.T. Força\"}","expected":"S.W.A.T. Força"}
+{"id":"rn-238","input":"{\"op\":\"root\",\"title\":\"Monster 2021 Parte 2\"}","expected":"Monster 2021"}
+{"id":"rn-239","input":"{\"op\":\"roots\",\"names\":[]}","expected":"[]"}
+{"id":"rn-240","input":"{\"op\":\"roots\",\"names\":[\"Dune\"]}","expected":"[\"dune\"]"}
+{"id":"rn-241","input":"{\"op\":\"roots\",\"names\":[\"Jornada nas Estrelas II\",\"Jornada nas Estrelas: O Filme\"]}","expected":"[\"jornada nas estrelas\"]"}
+{"id":"rn-242","input":"{\"op\":\"roots\",\"names\":[\"\",\"!!!\"]}","expected":"[]"}
+{"id":"rn-243","input":"{\"op\":\"roots\",\"names\":[\"Dune\",\"Dune Part Two\"]}","expected":"[\"dune\",\"dune part two\"]"}
+{"id":"rn-244","input":"{\"op\":\"roots\",\"names\":[\"Mad Max 2\",\"Mad Max\"]}","expected":"[\"mad max\"]"}
+{"id":"rn-245","input":"{\"op\":\"roots\",\"names\":[\"Rocky 2\",\"Rocky\"]}","expected":"[\"rocky 2\",\"rocky\"]"}
+{"id":"rn-246","input":"{\"op\":\"roots\",\"names\":[\"Ação\",\"Acao\"]}","expected":"[\"acao\"]"}
+{"id":"rn-247","input":"{\"op\":\"roots\",\"names\":[\"A\",\"B C\",\"B C\"]}","expected":"[\"a\",\"b c\"]"}
+{"id":"rn-248","input":"{\"op\":\"roots\",\"names\":[\"Star Wars IV\",\"Star Wars\"]}","expected":"[\"star wars\"]"}
+{"id":"rn-249","input":"{\"op\":\"roots\",\"names\":[\"Ab: Cd\"]}","expected":"[\"ab cd\"]"}
+{"id":"rn-250","input":"{\"op\":\"roots\",\"names\":[\"Pé de Feijão\"]}","expected":"[\"pe de feijao\"]"}
+{"id":"rn-251","input":"{\"op\":\"roots\",\"names\":[\"Harry Potter e a Pedra Filosofal\",\"Harry Potter\"]}","expected":"[\"harry potter e a pedra filosofal\",\"harry potter\"]"}
+{"id":"rn-252","input":"{\"op\":\"roots\",\"names\":[\"Monster Hunter 2021\"]}","expected":"[\"monster hunter 2021\"]"}
+{"id":"rn-253","input":"{\"op\":\"roots\",\"names\":[\"!!!\",\"Dune\",\"!!!\"]}","expected":"[\"dune\"]"}
+{"id":"rn-254","input":"{\"op\":\"roots\",\"names\":[\"Dune 2\",\"dune 3\"]}","expected":"[\"dune 2\",\"dune 3\"]"}
+{"id":"rn-255","input":"{\"op\":\"roots\",\"names\":[\"x\"]}","expected":"[\"x\"]"}
+{"id":"rn-256","input":"{\"op\":\"roots\",\"names\":[\"Trilogia Matrix\",\"trilogia matrix\"]}","expected":"[\"trilogia matrix\"]"}
+{"id":"rn-257","input":"{\"op\":\"roots\",\"names\":[\"Vingadores: Guerra Infinita 2\",\"Vingadores: Guerra Infinita\"]}","expected":"[\"vingadores guerra infinita\"]"}
+{"id":"rn-258","input":"{\"op\":\"roots\",\"names\":[\"Iron Man 3: Homem de Ferro 3\"]}","expected":"[\"iron man\"]"}
+{"id":"rn-259","input":"{\"op\":\"roots\",\"names\":[\"Ação e Reação 3\",\"Ação e Reação\"]}","expected":"[\"acao e reacao\"]"}
+{"id":"rn-260","input":"{\"op\":\"roots\",\"names\":[\"S.W.A.T.\",\"SWAT\"]}","expected":"[\"swat\"]"}
+{"id":"rn-261","input":"{\"op\":\"roots\",\"names\":[\"Mad Max Parte III\",\"Mad Max\"]}","expected":"[\"mad max\"]"}
+{"id":"rn-262","input":"{\"op\":\"roots\",\"names\":[\"Alpha Beta\",\"Gama Delta\",\"Alpha Beta 2\"]}","expected":"[\"alpha beta\",\"gama delta\"]"}
+{"id":"rn-263","input":"{\"op\":\"roots\",\"names\":[\"Dune\",\"\",\"Duna\"]}","expected":"[\"dune\",\"duna\"]"}
+{"id":"rn-264","input":"{\"op\":\"roots\",\"names\":[\"﻿Dune 2\"]}","expected":"[\"dune 2\"]"}
+{"id":"rn-265","input":"{\"op\":\"roots\",\"names\":[\"Distrito 9\",\"Distrito\"]}","expected":"[\"distrito 9\",\"distrito\"]"}
+{"id":"rn-266","input":"{\"op\":\"roots\",\"names\":[\"Rocky II\",\"Rocky III\"]}","expected":"[\"rocky ii\",\"rocky iii\"]"}
+{"id":"rn-267","input":"{\"op\":\"roots\",\"names\":[\"Vingadores: Ultimato\"]}","expected":"[\"vingadores ultimato\"]"}
+{"id":"rn-268","input":"{\"op\":\"roots\",\"names\":[\"Jornada 2\",\"Jornada 3\",\"Jornada 4\",\"Jornada 5\",\"Jornada 6\",\"Jornada 7\",\"Jornada 8\",\"Jornada 9\",\"Jornada 10\",\"Jornada II\"]}","expected":"[\"jornada 2\",\"jornada 3\",\"jornada 4\",\"jornada 5\",\"jornada 6\",\"jornada 7\",\"jornada 8\",\"jornada 9\",\"jornada 10\",\"jornada ii\"]"}
+{"id":"rn-269","input":"{\"op\":\"roots\",\"names\":[\"Blade Runner 2049\",\"Blade Runner\"]}","expected":"[\"blade runner 2049\",\"blade runner\"]"}
+{"id":"rn-270","input":"{\"op\":\"roots\",\"names\":[\"Harry Potter e a Pedra Filosofal: Edição\"]}","expected":"[\"harry potter e a pedra filosofal\"]"}
+{"id":"rn-271","input":"{\"op\":\"roots\",\"names\":[\"Coração Valente\"]}","expected":"[\"coracao valente\"]"}
+{"id":"rn-272","input":"{\"op\":\"roots\",\"names\":[\"Toy Story 4\",\"Toy Story 3\"]}","expected":"[\"toy story\"]"}
+{"id":"rn-273","input":"{\"op\":\"roots\",\"names\":[\"Ab  Cd   3\",\"Ab Cd\"]}","expected":"[\"ab cd\"]"}
+{"id":"rn-274","input":"{\"op\":\"roots\",\"names\":[\"Ab Cd Parte II\",\"Ab Cd\"]}","expected":"[\"ab cd\"]"}
+{"id":"rn-275","input":"{\"op\":\"roots\",\"names\":[\"  \",\"Dune\"]}","expected":"[\"dune\"]"}
+{"id":"rn-276","input":"{\"op\":\"roots\",\"names\":[\"DUNE\"]}","expected":"[\"dune\"]"}
+{"id":"rn-277","input":"{\"op\":\"roots\",\"names\":[\"Homem-Aranha\",\"Homem Aranha 2\"]}","expected":"[\"homem aranha\"]"}
+{"id":"rn-278","input":"{\"op\":\"roots\",\"names\":[\"Dune: Part Two\",\"Dune: Part One\"]}","expected":"[\"dune part two\",\"dune part one\"]"}
+{"id":"rn-279","input":"{\"op\":\"roots\",\"names\":[\"Star Wars Episodio VII\",\"Star Wars\"]}","expected":"[\"star wars episodio\",\"star wars\"]"}
+{"id":"rn-280","input":"{\"op\":\"roots\",\"names\":[\"Ab\",\"Cd\",\"Ab\",\"Ef\",\"Cd\",\"Gh\"]}","expected":"[\"ab\",\"cd\",\"ef\",\"gh\"]"}
+{"id":"rn-281","input":"{\"op\":\"roots\",\"names\":[\"Ab Cd\\nFoo: bar\"]}","expected":"[\"ab cd foo\"]"}
+{"id":"rn-282","input":"{\"op\":\"roots\",\"names\":[\"Pinoquio 2 2 2\"]}","expected":"[\"pinoquio 2 2\"]"}
+{"id":"rn-283","input":"{\"op\":\"roots\",\"names\":[\"a\"]}","expected":"[\"a\"]"}
+{"id":"rn-284","input":"{\"op\":\"roots\",\"names\":[\"2001\",\"2001 2\"]}","expected":"[\"2001\",\"2001 2\"]"}
+{"id":"rn-285","input":"{\"op\":\"roots\",\"names\":[\"O Lobo\",\"Lobo\"]}","expected":"[\"o lobo\",\"lobo\"]"}
+{"id":"rn-286","input":"{\"op\":\"roots\",\"names\":[\"Cidade de Deus\",\"Cidade de Deus 2\"]}","expected":"[\"cidade de deus\"]"}
+{"id":"rn-287","input":"{\"op\":\"roots\",\"names\":[\"Trilogia Matrix 1\"]}","expected":"[\"trilogia matrix\"]"}
+{"id":"rn-288","input":"{\"op\":\"roots\",\"names\":[\"Ação\",\"Dune\",\"Acao\"]}","expected":"[\"acao\",\"dune\"]"}
+{"id":"rn-289","input":"{\"op\":\"roots\",\"names\":[\"Star Wars Star\"]}","expected":"[\"star wars star\"]"}
+{"id":"rn-290","input":"{\"op\":\"endsSeq\",\"title\":\"\"}","expected":"0"}
+{"id":"rn-291","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky II\"}","expected":"1"}
+{"id":"rn-292","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 2\"}","expected":"1"}
+{"id":"rn-293","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 22\"}","expected":"1"}
+{"id":"rn-294","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 100\"}","expected":"0"}
+{"id":"rn-295","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky2\"}","expected":"0"}
+{"id":"rn-296","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte 2\"}","expected":"1"}
+{"id":"rn-297","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky parte ii\"}","expected":"1"}
+{"id":"rn-298","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky PARTE III\"}","expected":"1"}
+{"id":"rn-299","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte\"}","expected":"0"}
+{"id":"rn-300","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte 100\"}","expected":"0"}
+{"id":"rn-301","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 2 1080p\"}","expected":"0"}
+{"id":"rn-302","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 2   \"}","expected":"1"}
+{"id":"rn-303","input":"{\"op\":\"endsSeq\",\"title\":\"  Rocky 2\"}","expected":"1"}
+{"id":"rn-304","input":"{\"op\":\"endsSeq\",\"title\":\"Distrito 9\"}","expected":"1"}
+{"id":"rn-305","input":"{\"op\":\"endsSeq\",\"title\":\"Blade Runner 2049\"}","expected":"0"}
+{"id":"rn-306","input":"{\"op\":\"endsSeq\",\"title\":\"Mad Max Fury Road\"}","expected":"0"}
+{"id":"rn-307","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky IIII\"}","expected":"1"}
+{"id":"rn-308","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky IIIII\"}","expected":"0"}
+{"id":"rn-309","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky X\"}","expected":"1"}
+{"id":"rn-310","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Vi\"}","expected":"1"}
+{"id":"rn-311","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Ivxi\"}","expected":"1"}
+{"id":"rn-312","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Ivxiv\"}","expected":"0"}
+{"id":"rn-313","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 1 2\"}","expected":"1"}
+{"id":"rn-314","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 2 Dublado\"}","expected":"0"}
+{"id":"rn-315","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky\\t3\"}","expected":"1"}
+{"id":"rn-316","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky\\n3\"}","expected":"1"}
+{"id":"rn-317","input":"{\"op\":\"endsSeq\",\"title\":\"II\"}","expected":"0"}
+{"id":"rn-318","input":"{\"op\":\"endsSeq\",\"title\":\" II\"}","expected":"0"}
+{"id":"rn-319","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 02\"}","expected":"1"}
+{"id":"rn-320","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 002\"}","expected":"0"}
+{"id":"rn-321","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte 1 Parte 2\"}","expected":"1"}
+{"id":"rn-322","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte II Final\"}","expected":"0"}
+{"id":"rn-323","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte Final\"}","expected":"0"}
+{"id":"rn-324","input":"{\"op\":\"endsSeq\",\"title\":\"Mad 1\"}","expected":"1"}
+{"id":"rn-325","input":"{\"op\":\"endsSeq\",\"title\":\"1\"}","expected":"0"}
+{"id":"rn-326","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 3.\"}","expected":"0"}
+{"id":"rn-327","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte 2\"}","expected":"1"}
+{"id":"rn-328","input":"{\"op\":\"endsSeq\",\"title\":\"Star Wars Episodio VII\"}","expected":"1"}
+{"id":"rn-329","input":"{\"op\":\"endsSeq\",\"title\":\"Star Wars IV: Uma Nova Esperança\"}","expected":"0"}
+{"id":"rn-330","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Balboa\"}","expected":"0"}
+{"id":"rn-331","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 2 \"}","expected":"1"}
+{"id":"rn-332","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Parte 2 3\"}","expected":"1"}
+{"id":"rn-333","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Dez 10\"}","expected":"1"}
+{"id":"rn-334","input":"{\"op\":\"endsSeq\",\"title\":\"Ab Cd Vii\"}","expected":"1"}
+{"id":"rn-335","input":"{\"op\":\"endsSeq\",\"title\":\"Ab Cd Xi\"}","expected":"1"}
+{"id":"rn-336","input":"{\"op\":\"endsSeq\",\"title\":\"Ab Cd Ai\"}","expected":"0"}
+{"id":"rn-337","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky  2\"}","expected":"1"}
+{"id":"rn-338","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky﻿2\"}","expected":"1"}
+{"id":"rn-339","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky 2!\"}","expected":"0"}
+{"id":"rn-340","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky IV Parte\"}","expected":"0"}
+{"id":"rn-341","input":"{\"op\":\"endsSeq\",\"title\":\"10\"}","expected":"0"}
+{"id":"rn-342","input":"{\"op\":\"endsSeq\",\"title\":\"Ab 10\"}","expected":"1"}
+{"id":"rn-343","input":"{\"op\":\"endsSeq\",\"title\":\"Ab Parte 10\"}","expected":"1"}
+{"id":"rn-344","input":"{\"op\":\"endsSeq\",\"title\":\"Ab Partes 10\"}","expected":"1"}
+{"id":"rn-345","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Ii 3\"}","expected":"1"}
+{"id":"rn-346","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Dois\"}","expected":"0"}
+{"id":"rn-347","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Vx\"}","expected":"1"}
+{"id":"rn-348","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Xvi\"}","expected":"1"}
+{"id":"rn-349","input":"{\"op\":\"endsSeq\",\"title\":\"Rocky Ii3\"}","expected":"0"}
+{"id":"rn-350","input":"{\"op\":\"run\",\"title\":\"Dune 2021\",\"root\":\"\"}","expected":"0"}
+{"id":"rn-351","input":"{\"op\":\"run\",\"title\":\"Dune 2021\",\"root\":\"dune 2021 2160p extra words\"}","expected":"0"}
+{"id":"rn-352","input":"{\"op\":\"run\",\"title\":\"Dune\",\"root\":\"dune\"}","expected":"1"}
+{"id":"rn-353","input":"{\"op\":\"run\",\"title\":\"Dune Part Two\",\"root\":\"part two\"}","expected":"1"}
+{"id":"rn-354","input":"{\"op\":\"run\",\"title\":\"Dune Part Two\",\"root\":\"dune two\"}","expected":"0"}
+{"id":"rn-355","input":"{\"op\":\"run\",\"title\":\"Dune Part Two\",\"root\":\"two part\"}","expected":"0"}
+{"id":"rn-356","input":"{\"op\":\"run\",\"title\":\"Dune Part Two\",\"root\":\"Dune\"}","expected":"0"}
+{"id":"rn-357","input":"{\"op\":\"run\",\"title\":\"DUNE\",\"root\":\"dune\"}","expected":"1"}
+{"id":"rn-358","input":"{\"op\":\"run\",\"title\":\"Dunes\",\"root\":\"dune\"}","expected":"0"}
+{"id":"rn-359","input":"{\"op\":\"run\",\"title\":\"Ação Total\",\"root\":\"acao total\"}","expected":"1"}
+{"id":"rn-360","input":"{\"op\":\"run\",\"title\":\"Ação Total\",\"root\":\"ação total\"}","expected":"0"}
+{"id":"rn-361","input":"{\"op\":\"run\",\"title\":\"Jornada nas Estrelas II\",\"root\":\"jornada nas estrelas\"}","expected":"1"}
+{"id":"rn-362","input":"{\"op\":\"run\",\"title\":\"Jornada II\",\"root\":\"jornada nas estrelas\"}","expected":"0"}
+{"id":"rn-363","input":"{\"op\":\"run\",\"title\":\"a b a b\",\"root\":\"a b\"}","expected":"1"}
+{"id":"rn-364","input":"{\"op\":\"run\",\"title\":\"a b a c\",\"root\":\"a b c\"}","expected":"0"}
+{"id":"rn-365","input":"{\"op\":\"run\",\"title\":\"x\",\"root\":\"x\"}","expected":"1"}
+{"id":"rn-366","input":"{\"op\":\"run\",\"title\":\"Mad Max\",\"root\":\"  mad   max  \"}","expected":"1"}
+{"id":"rn-367","input":"{\"op\":\"run\",\"title\":\"\",\"root\":\"dune\"}","expected":"0"}
+{"id":"rn-368","input":"{\"op\":\"run\",\"title\":\"\",\"root\":\"\"}","expected":"0"}
+{"id":"rn-369","input":"{\"op\":\"run\",\"title\":\"Toy Story 4\",\"root\":\"story 4\"}","expected":"1"}
+{"id":"rn-370","input":"{\"op\":\"run\",\"title\":\"Toy Story 4\",\"root\":\"toy story 4 5\"}","expected":"0"}
+{"id":"rn-371","input":"{\"op\":\"run\",\"title\":\"Toy Story 4\",\"root\":\"toy story 4\"}","expected":"1"}
+{"id":"rn-372","input":"{\"op\":\"run\",\"title\":\"Star Wars: O Despertar\",\"root\":\"star wars o\"}","expected":"1"}
+{"id":"rn-373","input":"{\"op\":\"run\",\"title\":\"Star Wars Despertar\",\"root\":\"wars despertar\"}","expected":"1"}
+{"id":"rn-374","input":"{\"op\":\"run\",\"title\":\"Star Wars\",\"root\":\"star wars despertar\"}","expected":"0"}
+{"id":"rn-375","input":"{\"op\":\"run\",\"title\":\"Harry Potter\",\"root\":\"potter\"}","expected":"1"}
+{"id":"rn-376","input":"{\"op\":\"run\",\"title\":\"Harry Potters\",\"root\":\"potter\"}","expected":"0"}
+{"id":"rn-377","input":"{\"op\":\"run\",\"title\":\"Pé de Feijão\",\"root\":\"pe de feijao\"}","expected":"1"}
+{"id":"rn-378","input":"{\"op\":\"run\",\"title\":\"Homem-Aranha\",\"root\":\"homem aranha\"}","expected":"1"}
+{"id":"rn-379","input":"{\"op\":\"run\",\"title\":\"S.W.A.T. Força\",\"root\":\"swat forca\"}","expected":"1"}
+{"id":"rn-380","input":"{\"op\":\"run\",\"title\":\"Rocky 2 1080p\",\"root\":\"rocky 2\"}","expected":"1"}
+{"id":"rn-381","input":"{\"op\":\"run\",\"title\":\"Rocky 1080p\",\"root\":\"rocky 2\"}","expected":"0"}
+{"id":"rn-382","input":"{\"op\":\"run\",\"title\":\"Rocky 2\",\"root\":\"2\"}","expected":"1"}
+{"id":"rn-383","input":"{\"op\":\"run\",\"title\":\"Dune\",\"root\":\"  \"}","expected":"0"}
+{"id":"rn-384","input":"{\"op\":\"run\",\"title\":\"Vingadores Guerra Infinita\",\"root\":\"guerra infinita\"}","expected":"1"}
+{"id":"rn-385","input":"{\"op\":\"run\",\"title\":\"Monster Hunter 2021\",\"root\":\"hunter 2021\"}","expected":"1"}
+{"id":"rn-386","input":"{\"op\":\"run\",\"title\":\"Monster Hunter 2021\",\"root\":\"monster 2021\"}","expected":"0"}
+{"id":"rn-387","input":"{\"op\":\"run\",\"title\":\"Trilogia Matrix\",\"root\":\"trilogia matrix\"}","expected":"1"}
+{"id":"rn-388","input":"{\"op\":\"run\",\"title\":\"Dia D\",\"root\":\"dia d\"}","expected":"1"}
+{"id":"rn-389","input":"{\"op\":\"run\",\"title\":\"Diabo\",\"root\":\"dia\"}","expected":"0"}
+{"id":"rn-390","input":"{\"op\":\"run\",\"title\":\"The Bear\",\"root\":\"the bear\"}","expected":"1"}
+{"id":"rn-391","input":"{\"op\":\"run\",\"title\":\"Bear\",\"root\":\"the bear\"}","expected":"0"}
+{"id":"rn-392","input":"{\"op\":\"run\",\"title\":\"Ab Cd Ef\",\"root\":\"cd ef\"}","expected":"1"}
+{"id":"rn-393","input":"{\"op\":\"run\",\"title\":\"Ab Cd Ef\",\"root\":\"ab ef\"}","expected":"0"}
+{"id":"rn-394","input":"{\"op\":\"run\",\"title\":\"Ab Ab Cd\",\"root\":\"ab cd\"}","expected":"1"}
+{"id":"rn-395","input":"{\"op\":\"run\",\"title\":\"Ab Ab Cd\",\"root\":\"ab ab cd\"}","expected":"1"}
+{"id":"rn-396","input":"{\"op\":\"run\",\"title\":\"Ab Ab Cd\",\"root\":\"ab ab ab\"}","expected":"0"}
+{"id":"rn-397","input":"{\"op\":\"run\",\"title\":\"Dune Part Two\",\"root\":\"dune part two\"}","expected":"1"}
+{"id":"rn-398","input":"{\"op\":\"run\",\"title\":\"Dune Part\",\"root\":\"dune part two\"}","expected":"0"}
+{"id":"rn-399","input":"{\"op\":\"run\",\"title\":\"Dune (2021) [1080p]\",\"root\":\"dune 2021\"}","expected":"1"}
+{"id":"rn-400","input":"{\"op\":\"run\",\"title\":\"Dune (2021) [1080p]\",\"root\":\"2021 1080p\"}","expected":"1"}
+{"id":"rn-401","input":"{\"op\":\"run\",\"title\":\"Dune.2021.1080p\",\"root\":\"dune 2021\"}","expected":"1"}
+{"id":"rn-402","input":"{\"op\":\"run\",\"title\":\"Blade Runner 2049\",\"root\":\"runner 2049\"}","expected":"1"}
+{"id":"rn-403","input":"{\"op\":\"run\",\"title\":\"Blade Runner 2049\",\"root\":\"runner 2017\"}","expected":"0"}
+{"id":"rn-404","input":"{\"op\":\"run\",\"title\":\"Ghost in the Shell\",\"root\":\"in the shell\"}","expected":"1"}
+{"id":"rn-405","input":"{\"op\":\"run\",\"title\":\"Ghost in the Shell\",\"root\":\"ghost shell\"}","expected":"0"}
+{"id":"rn-406","input":"{\"op\":\"run\",\"title\":\"Resident Evil Vendetta\",\"root\":\"resident evil\"}","expected":"1"}
+{"id":"rn-407","input":"{\"op\":\"run\",\"title\":\"Evil Resident\",\"root\":\"resident evil\"}","expected":"0"}
+{"id":"rn-408","input":"{\"op\":\"run\",\"title\":\"Resident  Evil\",\"root\":\"resident evil\"}","expected":"1"}
+{"id":"rn-409","input":"{\"op\":\"run\",\"title\":\"Mad Max Fury Road\",\"root\":\"fury road\"}","expected":"1"}
+{"id":"rn-410","input":"{\"op\":\"run\",\"title\":\"Mad Max Fury Road\",\"root\":\"max fury\"}","expected":"1"}
+{"id":"rn-411","input":"{\"op\":\"run\",\"title\":\"Mad Max\",\"root\":\"mad max fury\"}","expected":"0"}
+{"id":"rn-412","input":"{\"op\":\"coverage\",\"name\":\"The Man and the Dog\"}","expected":"man and dog"}
+{"id":"rn-413","input":"{\"op\":\"coverage\",\"name\":\"The Fly\"}","expected":"the fly"}
+{"id":"rn-414","input":"{\"op\":\"coverage\",\"name\":\"Bear The\"}","expected":"bear the"}
+{"id":"rn-415","input":"{\"op\":\"coverage\",\"name\":\"Sol Mar Rio\"}","expected":"sol mar rio"}
+{"id":"rn-416","input":"{\"op\":\"coverage\",\"name\":\"Harry Ao Potter\"}","expected":"harry potter"}
+{"id":"rn-417","input":"{\"op\":\"coverage\",\"name\":\"Blade 2 X\"}","expected":"blade 2 x"}
+{"id":"rn-418","input":"{\"op\":\"coverage\",\"name\":\"Mad Max Parte 2\"}","expected":"mad max parte"}
+{"id":"rn-419","input":"{\"op\":\"coverage\",\"name\":\"Ocean's Eleven\"}","expected":"ocean eleven"}
+{"id":"rn-420","input":"{\"op\":\"coverage\",\"name\":\"Dune DUNE dune\"}","expected":"dune"}
+{"id":"rn-421","input":"{\"op\":\"coverage\",\"name\":\"La Casa de Papel\"}","expected":"casa papel"}
+{"id":"rn-422","input":"{\"op\":\"coverage\",\"name\":\"Lo Chiamavano Trinità\"}","expected":"chiamavano trinita"}
+{"id":"rn-423","input":"{\"op\":\"coverage\",\"name\":\"Um Conto de Natal\"}","expected":"conto natal"}
+{"id":"rn-424","input":"{\"op\":\"coverage\",\"name\":\"Der Film\"}","expected":"der film"}
+{"id":"rn-425","input":"{\"op\":\"roots\",\"names\":[\"Dune: Part Two\",\"Dune Part Two\"]}","expected":"[\"dune part two\"]"}
+{"id":"rn-426","input":"{\"op\":\"roots\",\"names\":[\"Rocky\",\"Rocky Balboa\",\"Rocky 2\",\"Rocky\"]}","expected":"[\"rocky\",\"rocky balboa\",\"rocky 2\"]"}
+{"id":"rn-427","input":"{\"op\":\"roots\",\"names\":[\"Ghost Parte II\",\"Ghost\"]}","expected":"[\"ghost parte ii\",\"ghost\"]"}
+{"id":"rn-428","input":"{\"op\":\"roots\",\"names\":[\"Blade Runner 2049\"]}","expected":"[\"blade runner 2049\"]"}
+{"id":"rn-429","input":"{\"op\":\"roots\",\"names\":[\"--\",\"Ab\"]}","expected":"[\"ab\"]"}
+{"id":"rn-430","input":"{\"op\":\"roots\",\"names\":[\"Ab: Cd Ef Gh\"]}","expected":"[\"ab cd ef gh\"]"}
+{"id":"rn-431","input":"{\"op\":\"roots\",\"names\":[\"Ab Cd – Ef\",\"Ab Cd\"]}","expected":"[\"ab cd\"]"}
+{"id":"rn-432","input":"{\"op\":\"roots\",\"names\":[\"Mad Max PARTE 3\",\"Mad Max\"]}","expected":"[\"mad max\"]"}
+{"id":"rn-433","input":"{\"op\":\"roots\",\"names\":[\"10\"]}","expected":"[\"10\"]"}
+{"id":"rn-434","input":"{\"op\":\"roots\",\"names\":[\"10\",\"10 2\",\"10\"]}","expected":"[\"10\",\"10 2\"]"}

@@ -1,0 +1,881 @@
+{
+  "version": "corpus-release-filters/1",
+  "note": "Relevância crua de src/utils/release-filters.ts (filterRelevantRaw + corte de filterRelevantRawForYear). Cada caso é um JSON tipado: items (RawItem), names, year, altYear, isSeries, season, episode, multiWork, homeReleaseAt, e o ambiente que o TS lê em tempo de chamada (now = Date.now, preHomeCut, preHomeMarginMs). A saída é medida pelo oráculo isolado contra o dist REAL. titlePrecisionTailCut fica no default do processo (valor de módulo no TS).",
+  "cases": [
+    {
+      "id": "rf-001",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p BluRay x264\",\"isBr\":false},{\"title\":\"Inception (2010) [1080p]\",\"isBr\":false},{\"title\":\"Inception.2010.720p.WEB-DL\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme global: nome e ano batem, três formatos"
+    },
+    {
+      "id": "rf-002",
+      "input": "{\"items\":[{\"title\":\"Interstellar 2014 1080p\",\"isBr\":false},{\"title\":\"Inception Trailer 2010 1080p\",\"isBr\":false},{\"title\":\"Inception 2010 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme global: outro título sai por title"
+    },
+    {
+      "id": "rf-003",
+      "input": "{\"items\":[{\"title\":\"Movie\",\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Inception.2010.1080p\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "título só no dn= não conta como título"
+    },
+    {
+      "id": "rf-004",
+      "input": "{\"items\":[{\"Title\":\"Inception 2010 BluRay\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "Title (PascalCase) vale quando title falta"
+    },
+    {
+      "id": "rf-005",
+      "input": "{\"items\":[{}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "sem título nenhum: rejeita por title"
+    },
+    {
+      "id": "rf-006",
+      "input": "{\"items\":[{\"title\":\"Qualquer 1080p\",\"isBr\":false},{\"title\":\"Outro\",\"isBr\":false}],\"names\":[],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nomes vazios: nada é filtrado"
+    },
+    {
+      "id": "rf-007",
+      "input": "{\"items\":[{\"title\":\"Monster 2018 1080p\",\"isBr\":false},{\"title\":\"Monster Hospital 2021 4K\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":null,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "ano nulo: não checa ano"
+    },
+    {
+      "id": "rf-008",
+      "input": "{\"items\":[{\"title\":\"Monster 2024 1080p\",\"isBr\":false},{\"title\":\"Monster 2019 1080p\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":\"2024–\",\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "ano sujo \"2024–\": catálogo lido pelo primeiro ano"
+    },
+    {
+      "id": "rf-009",
+      "input": "{\"items\":[{\"title\":\"Monster 2018 1080p\",\"isBr\":false},{\"title\":\"Monster 2025 1080p\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":\"2018\",\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "ano como string"
+    },
+    {
+      "id": "rf-010",
+      "input": "{\"items\":[{\"title\":\"Alien 1979 Directors Cut\",\"isBr\":false},{\"title\":\"Alien 2017 1080p\",\"isBr\":false}],\"names\":[\"Alien\"],\"year\":1979,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "ano numérico"
+    },
+    {
+      "id": "rf-011",
+      "input": "{\"items\":[{\"title\":\"Alien 1979 1080p\",\"isBr\":false}],\"names\":[\"Alien\"],\"year\":0,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "ano zero: sem catálogo"
+    },
+    {
+      "id": "rf-012",
+      "input": "{\"items\":[{\"title\":\"Alien 1979 Directors Cut 1080p\",\"isBr\":false},{\"title\":\"Alien Covenant 2017 1080p\",\"isBr\":false},{\"title\":\"Xenomorph Alien 1979 1080p\",\"isBr\":false},{\"title\":\"Alien (1979) [Director's Cut] 1080p BrRip -YTS\",\"isBr\":false}],\"names\":[\"Alien\"],\"year\":1979,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: prefixo obrigatório"
+    },
+    {
+      "id": "rf-013",
+      "input": "{\"items\":[{\"title\":\"Resident Evil 2026 1080p WEB-DL x264\",\"isBr\":false},{\"title\":\"Resident Evil: Vendetta 2017 BD 1080p\",\"isBr\":false},{\"title\":\"Resident Evil Vendetta (Full Japanese Audio) BD 1080p\",\"isBr\":false},{\"title\":\"Resident Evil 1080p TELESYNC MULTi\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de dois tokens: franquia com subtítulo"
+    },
+    {
+      "id": "rf-014",
+      "input": "{\"items\":[{\"title\":\"Monster Hunter 2021 1080p\",\"isBr\":false},{\"title\":\"Monster Hospital 2021 4K 2160p WEB DL\",\"isBr\":false},{\"title\":\"Monster 2021 1080p WEB-DL\",\"isBr\":false},{\"title\":\"Monster Pets A Hotel Transylvania Short (2021) 1080p WEBRip\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":2021,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome curto: palavra a mais entre nome e ano"
+    },
+    {
+      "id": "rf-015",
+      "input": "{\"items\":[{\"title\":\"Joker 2019 1080p\",\"isBr\":false},{\"title\":\"Coringa - Joker 2019 1080p WEB-DL DUAL\",\"isBr\":false},{\"title\":\"Joker.Folie.a.Deux.2024.1080p\",\"isBr\":false},{\"title\":\"Joker.2019.1080p.WEBRip.x264\",\"isBr\":false}],\"names\":[\"Coringa\",\"Joker\"],\"year\":2019,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dois nomes: um prefixo e outro idioma"
+    },
+    {
+      "id": "rf-016",
+      "input": "{\"items\":[{\"title\":\"S.W.A.T. 2017 1080p\",\"isBr\":false},{\"title\":\"SWAT 2017 1080p\",\"isBr\":false},{\"title\":\"S.W.A.T. (2017) Dublado\",\"isBr\":true},{\"title\":\"SWAT (2017) Dublado\",\"isBr\":true}],\"names\":[\"S.W.A.T.\"],\"year\":2017,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "sigla com ponto: global e BR"
+    },
+    {
+      "id": "rf-017",
+      "input": "{\"items\":[{\"title\":\"[ReQ]True Detective 2014 1080p\",\"isBr\":false},{\"title\":\"www.Torrenting.com - True Detective 2014 1080p\",\"isBr\":false}],\"names\":[\"True Detective\"],\"year\":2014,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "etiqueta de uploader antes do título"
+    },
+    {
+      "id": "rf-018",
+      "input": "{\"items\":[{\"title\":\"Blade Runner 2049 2017 1080p BluRay\",\"isBr\":false},{\"title\":\"Blade.Runner.2049.2017.2160p.UHD\",\"isBr\":false}],\"names\":[\"Blade Runner 2049\"],\"year\":2017,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "título com ano no meio e pontuação"
+    },
+    {
+      "id": "rf-019",
+      "input": "{\"items\":[{\"title\":\"Indiana Jones and the Crystal Skull 1080p\",\"isBr\":false}],\"names\":[\"Indiana Jones and the Crystal Skull\"],\"year\":2008,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme sem ano no título com nome longo"
+    },
+    {
+      "id": "rf-020",
+      "input": "{\"items\":[{\"title\":\"Monstro (2021) [1080p WEB-DL DUBLADO 3.9 GB]\",\"isBr\":true},{\"title\":\"Monstro 2018 1080p Dublado\",\"isBr\":true}],\"names\":[\"Monstro\"],\"year\":2021,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR título exato com ano"
+    },
+    {
+      "id": "rf-021",
+      "input": "{\"items\":[{\"title\":\"Monstro - Monster [1080p WEB-DL DUAL]\",\"isBr\":true},{\"title\":\"Monstro 1080p DUAL\",\"isBr\":true}],\"names\":[\"Monstro\",\"Monster\"],\"year\":2021,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR título com dual sem ano"
+    },
+    {
+      "id": "rf-022",
+      "input": "{\"items\":[{\"title\":\"A Vigilante do Amanhã (1995) Dublado\",\"isBr\":true},{\"title\":\"Ghost in the Shell 1995 Dual\",\"isBr\":true}],\"names\":[\"Ghost in the Shell\",\"A Vigilante do Amanhã\"],\"year\":1995,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR com nome em outro idioma e ano"
+    },
+    {
+      "id": "rf-023",
+      "input": "{\"items\":[{\"title\":\"Alien, O Oitavo Passageiro 1979 Dublado\",\"isBr\":true},{\"title\":\"O Alien 1979 Dublado\",\"isBr\":true}],\"names\":[\"Alien\"],\"year\":1979,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR não passa pela cadeia global de nome curto"
+    },
+    {
+      "id": "rf-024",
+      "input": "{\"items\":[{\"title\":\"Resident Evil: Apocalypse (2004) 1080p BluRay\",\"isBr\":false},{\"title\":\"Resident Evil: Extinction (2007) 720p WEB-DL\",\"isBr\":false},{\"title\":\"Resident Evil (2002) 1080p BluRay YIFY\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "sequela nomeada com ano exato diferente"
+    },
+    {
+      "id": "rf-025",
+      "input": "{\"items\":[{\"title\":\"Resident Evil 1 - O Hóspede Maldito (2002) 1080p Dual\",\"isBr\":true},{\"title\":\"Resident Evil Extinção (2007) Dublado\",\"isBr\":true}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "sequela nomeada em BR não é cortada por named-sequel"
+    },
+    {
+      "id": "rf-026",
+      "input": "{\"items\":[{\"title\":\"Batman: O Cavaleiro Das Trevas Ressurge 720p HD Dublado\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Cavaleiro.Das.Trevas.Ressurge\"},{\"title\":\"The Dark Knight 2008 1080p\",\"isBr\":false}],\"names\":[\"Batman: O Cavaleiro das Trevas\",\"The Dark Knight\"],\"year\":2008,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome + sequela sem ano: SEQUENCE_WORDS corta"
+    },
+    {
+      "id": "rf-027",
+      "input": "{\"items\":[{\"title\":\"Resident Evil: Apocalypse (2004) 1080p BluRay\",\"isBr\":false}],\"names\":[\"Resident Evil: Apocalypse\",\"O Hóspede Maldito: Apocalipse\"],\"year\":2004,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "busca explícita Apocalypse deixa Apocalypse passar"
+    },
+    {
+      "id": "rf-028",
+      "input": "{\"items\":[{\"title\":\"The Crow 1080p DUAL\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=The.Crow.2024.1080p\"},{\"title\":\"The Crow 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=The.Crow.1994.1080p\"},{\"title\":\"The Crow 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=The.Crow.1996.1080p\"}],\"names\":[\"The Crow\"],\"year\":1994,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dn= com ano muito distante do catálogo"
+    },
+    {
+      "id": "rf-029",
+      "input": "{\"items\":[{\"title\":\"O Corvo 1080p DUAL\",\"isBr\":true,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=The.Crow.2024.1080p\"},{\"title\":\"O Corvo 1994 1080p\",\"isBr\":true,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=O.Corvo.1994.1080p\"}],\"names\":[\"O Corvo\"],\"year\":1994,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dn= com ano em BR: contradição por magnet-year"
+    },
+    {
+      "id": "rf-030",
+      "input": "{\"items\":[{\"title\":\"Resident Evil Collection 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Resident.Evil.Collection.2002.2016\"},{\"title\":\"Resident Evil Collection 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Resident.Evil.Collection.2002.2026\"}],\"names\":[\"Resident Evil\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dn= com vários anos: intervalo e catálogo fora"
+    },
+    {
+      "id": "rf-031",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Inception.2010.1920x1080.BluRay\"},{\"title\":\"Inception 2010 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Inception.2010.3840x2160.BluRay\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dn= com resolução que parece ano"
+    },
+    {
+      "id": "rf-032",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"Guid\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Inception.2016\"},{\"title\":\"Inception 2010 1080p\",\"MagnetUri\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Inception.2016\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "Guid como magnet: dn lido, mas packYearSource não usa Guid"
+    },
+    {
+      "id": "rf-033",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false,\"magnet\":\"http://x.example/?dn=Inception.2016\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet que não é magnet: dn ignorado"
+    },
+    {
+      "id": "rf-034",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&dn=Inception+2010+BluRay\"},{\"title\":\"Inception 2010 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=The%E0%A4%A.2010\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dn com + e percent malformado"
+    },
+    {
+      "id": "rf-035",
+      "input": "{\"items\":[{\"title\":\"Dune 2026 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Dune 2026 HDTS 720p\",\"isBr\":false},{\"title\":\"Dune 2026 BluRay x264\",\"isBr\":false}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786432000000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "lançamento doméstico em 5 dias: fonte WEB sai, CAM fica"
+    },
+    {
+      "id": "rf-036",
+      "input": "{\"items\":[{\"title\":\"Dune 2026 WEB-DL 1080p\",\"isBr\":false}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786432000000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":864000000}",
+      "note": "margem grande: não corta"
+    },
+    {
+      "id": "rf-037",
+      "input": "{\"items\":[{\"title\":\"Dune 2026 WEB-DL 1080p\",\"isBr\":false}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786432000000,\"now\":1786000000000,\"preHomeCut\":false,\"preHomeMarginMs\":172800000}",
+      "note": "corte desligado: não corta"
+    },
+    {
+      "id": "rf-038",
+      "input": "{\"items\":[{\"title\":\"Dune 2026 WEB-DL 1080p\",\"isBr\":false}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1785913600000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "lançamento já passou: não corta"
+    },
+    {
+      "id": "rf-039",
+      "input": "{\"items\":[{\"title\":\"Dune 2026 WEB-DL 1080p\",\"isBr\":false}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":0,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "homeReleaseAt zero: não corta"
+    },
+    {
+      "id": "rf-040",
+      "input": "{\"items\":[{\"title\":\"Dune 2026 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Dune.2026.1080p.BluRay\"},{\"title\":\"Dune 2026 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Dune.2026.1080p.TS\"}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786259200000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "fonte doméstica no dn="
+    },
+    {
+      "id": "rf-041",
+      "input": "{\"items\":[{\"title\":\"Duna 2026 WEB-DL Dublado\",\"isBr\":true},{\"title\":\"Duna 2026 CAM Dublado\",\"isBr\":true}],\"names\":[\"Duna\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786172800000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR também sofre o corte pré-doméstico"
+    },
+    {
+      "id": "rf-042",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 Trailer 1080p\",\"isBr\":false},{\"title\":\"Inception Teaser HD 2010\",\"isBr\":false},{\"title\":\"Inception 2010 Soundtrack OST\",\"isBr\":false},{\"title\":\"Inception 2010 BluRay 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "trailer, teaser e trilha saem sem o nome da obra explicá-los"
+    },
+    {
+      "id": "rf-043",
+      "input": "{\"items\":[{\"title\":\"Inception Trailer 2010 1080p\",\"isBr\":false}],\"names\":[\"Inception Trailer\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "o nome da obra contém a palavra: não é extra"
+    },
+    {
+      "id": "rf-044",
+      "input": "{\"items\":[{\"title\":\"Indiana Jones - A Coleção Completa 1981-2023 1080p BluRay DUAL\",\"isBr\":false},{\"title\":\"Indiana Jones Collection 1981 2008 2023 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Indiana.Jones.Collection.1981.2008.2023\"}],\"names\":[\"Indiana Jones and the Kingdom of the Crystal Skull\"],\"year\":2008,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008,2023]},\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pack multiobra admitido com ano coberto (filme)"
+    },
+    {
+      "id": "rf-045",
+      "input": "{\"items\":[{\"title\":\"Indiana Jones - A Coleção Completa 1981-2023 1080p BluRay DUAL\",\"isBr\":false}],\"names\":[\"Indiana Jones and the Kingdom of the Crystal Skull\"],\"year\":2008,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "mesmo pack sem multiWork: sai por title"
+    },
+    {
+      "id": "rf-046",
+      "input": "{\"items\":[{\"title\":\"Indiana Jones - A Coleção Completa 1981-2023 1080p BluRay DUAL\",\"isBr\":false}],\"names\":[\"Indiana Jones and the Kingdom of the Crystal Skull\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008,2023]},\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pack multiobra sem cobertura do ano: sai"
+    },
+    {
+      "id": "rf-047",
+      "input": "{\"items\":[{\"title\":\"Indiana Jones - A Coleção Completa 1981-2023 1080p BluRay DUAL\",\"isBr\":false}],\"names\":[\"Indiana Jones and the Kingdom of the Crystal Skull\"],\"year\":2008,\"altYear\":null,\"isSeries\":true,\"season\":null,\"episode\":null,\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008,2023]},\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pack multiobra com série: nunca admitido"
+    },
+    {
+      "id": "rf-048",
+      "input": "{\"items\":[{\"title\":\"Indiana Jones - A Coleção Completa 1981-2023 1080p BluRay DUAL\",\"isBr\":false}],\"names\":[\"Indiana Jones and the Kingdom of the Crystal Skull\"],\"year\":2008,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":{\"name\":\"x\",\"root\":\"jones indiana\",\"years\":[]},\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pack multiobra com raiz não contígua: sai"
+    },
+    {
+      "id": "rf-049",
+      "input": "{\"items\":[{\"title\":\"Indiana Jones - A Coleção Completa 1981-2023 1080p BluRay DUAL\",\"isBr\":false}],\"names\":[],\"year\":2008,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008,2023]},\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pack multiobra com nomes vazios: nunca admitido"
+    },
+    {
+      "id": "rf-050",
+      "input": "{\"items\":[{\"title\":\"Monster.Hunter.2021.1080p.WEB-DL.DD5.1.H264-EVO[TGx]\",\"isBr\":false},{\"title\":\"Monster Hospital 2021 4K 2160p WEB DL\",\"isBr\":false},{\"title\":\"Monster Pets A Hotel Transylvania Short (2021) 1080p WEBRip 5.1 x264 -YTS\",\"isBr\":false},{\"title\":\"Monster (2018) (1080p) [WEBRip] [5 1] [YTS MX]\",\"isBr\":false},{\"title\":\"Monster.2018.1080p.NF.WEB-DL.DDP5.1.x264-NTG\",\"isBr\":false},{\"title\":\"Monstro (2021) [1080p WEB-DL DUBLADO 3.9 GB]\",\"isBr\":true},{\"title\":\"Monstro - Monster [1080p WEB-DL DUAL]\",\"isBr\":true}],\"names\":[\"Monster\",\"Monstro\"],\"year\":2021,\"altYear\":2018,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "Monster: ano dual, o que passa por qualquer lado vale"
+    },
+    {
+      "id": "rf-051",
+      "input": "{\"items\":[{\"title\":\"Monster 2021 1080p\",\"isBr\":false},{\"title\":\"Monster 2018 1080p\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":2021,\"altYear\":2021,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "altYear igual ao year: caminho simples"
+    },
+    {
+      "id": "rf-052",
+      "input": "{\"items\":[{\"title\":\"Monster 2018 1080p\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":2021,\"altYear\":0,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "altYear zero: caminho simples"
+    },
+    {
+      "id": "rf-053",
+      "input": "{\"items\":[{\"title\":\"Monster 2018 1080p\",\"isBr\":false},{\"title\":\"Monster 2021 1080p\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":\"2021\",\"altYear\":\"2018\",\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "altYear string"
+    },
+    {
+      "id": "rf-054",
+      "input": "{\"items\":[{\"title\":\"Dune 1990 1080p\",\"isBr\":false},{\"title\":\"Dune 2026 1080p\",\"isBr\":false},{\"title\":\"Dune 1984 1080p\",\"isBr\":false}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":1984,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "altYear: rejeitado pelos dois anos, motivo do ano alternativo"
+    },
+    {
+      "id": "rf-055",
+      "input": "{\"items\":[{\"title\":\"The Crow 2024 1080p\",\"isBr\":false},{\"title\":\"The Crow 1994 720p\",\"isBr\":false},{\"title\":\"The Crow 2002 1080p\",\"isBr\":false}],\"names\":[\"The Crow\"],\"year\":1994,\"altYear\":2024,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "altYear: nome que bate só no alternativo"
+    },
+    {
+      "id": "rf-056",
+      "input": "{\"items\":[{\"title\":\"Breaking Bad S01E02 1080p WEB-DL\",\"isBr\":false},{\"title\":\"Breaking.Bad.1x02.720p\",\"isBr\":false},{\"title\":\"Breaking Bad S01E03 1080p\",\"isBr\":false},{\"title\":\"Breaking Bad S02E02 1080p\",\"isBr\":false}],\"names\":[\"Breaking Bad\"],\"year\":2008,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: episódio pedido e outros"
+    },
+    {
+      "id": "rf-057",
+      "input": "{\"items\":[{\"title\":\"Breaking Bad Temporada 1 Completa 1080p\",\"isBr\":false},{\"title\":\"Breaking Bad Todas as Temporadas 1080p\",\"isBr\":false},{\"title\":\"Breaking Bad 1ª a 3ª Temporada Completa\",\"isBr\":false}],\"names\":[\"Breaking Bad\"],\"year\":2008,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: pack de temporada e série completa"
+    },
+    {
+      "id": "rf-058",
+      "input": "{\"items\":[{\"title\":\"Breaking Bad 1080p WEB-DL\",\"isBr\":false}],\"names\":[\"Breaking Bad\"],\"year\":2008,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: sem marcador de episódio no título global"
+    },
+    {
+      "id": "rf-059",
+      "input": "{\"items\":[{\"title\":\"Breaking Bad S01E02 Dublado\",\"isBr\":true},{\"title\":\"Breaking Bad Dublado Série\",\"isBr\":true},{\"title\":\"Breaking Bad S03E01 Dublado\",\"isBr\":true}],\"names\":[\"Breaking Bad\"],\"year\":2008,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série BR: episódio pedido e os outros"
+    },
+    {
+      "id": "rf-060",
+      "input": "{\"items\":[{\"title\":\"Breaking Bad S01E02 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Breaking.Bad.S02E02.1080p\"},{\"title\":\"Breaking Bad S01E02 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Breaking.Bad.S01E02.1080p\"},{\"title\":\"Breaking Bad S01E02 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Breaking.Bad.S01E05.1080p\"}],\"names\":[\"Breaking Bad\"],\"year\":2008,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: dn= contradiz temporada/episódio"
+    },
+    {
+      "id": "rf-061",
+      "input": "{\"items\":[{\"title\":\"Show S02E10-E11 1080p\",\"isBr\":false},{\"title\":\"Show 2x10 720p\",\"isBr\":false},{\"title\":\"Show 1ª a 3ª Temporada Completa 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":2,\"episode\":10,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: episódio dentro de faixa"
+    },
+    {
+      "id": "rf-062",
+      "input": "{\"items\":[{\"title\":\"Show 3ª Temporada Completa 1080p\",\"isBr\":false},{\"title\":\"Show Temporada 3 Completa 1080p\",\"isBr\":false},{\"title\":\"Show S03 Completa 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":3,\"episode\":4,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: episódio com dn de pack"
+    },
+    {
+      "id": "rf-063",
+      "input": "{\"items\":[{\"title\":\"Lost 2004 S01 1080p\",\"isBr\":false},{\"title\":\"Lost (2004) 1080p\",\"isBr\":false},{\"title\":\"Lost 2010 1080p\",\"isBr\":false}],\"names\":[\"Lost\"],\"year\":2004,\"altYear\":null,\"isSeries\":true,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série sem temporada pedida: só título e ano"
+    },
+    {
+      "id": "rf-064",
+      "input": "{\"items\":[{\"title\":\"Lost S01E01 1080p\",\"isBr\":false},{\"title\":\"Lost S01E02 1080p\",\"isBr\":false}],\"names\":[\"Lost\"],\"year\":\"2004–2010\",\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série com ano sujo de faixa"
+    },
+    {
+      "id": "rf-065",
+      "input": "{\"items\":[{\"title\":\"Dark 2017 1080p\",\"isBr\":false},{\"title\":\"Dark S01E01 1080p\",\"isBr\":false},{\"title\":\"Dark Matter S01E01 1080p\",\"isBr\":false}],\"names\":[\"Dark\"],\"year\":2017,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: nome de um token com palavra a mais"
+    },
+    {
+      "id": "rf-066",
+      "input": "{\"items\":[{\"title\":\"Show S01E01 1080p\",\"isBr\":false},{\"title\":\"Show Dublado\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: sem temporada e sem episódio"
+    },
+    {
+      "id": "rf-067",
+      "input": "{\"items\":[{\"title\":\"Show S01E01 1080p\",\"isBr\":false},{\"title\":\"Show S02E01 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série com episódio null: ainda passa"
+    },
+    {
+      "id": "rf-068",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2026 S01E01 1080p\",\"isBr\":false},{\"title\":\"One Piece 2023 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece\"],\"year\":2023,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: adaptação live action com ano longe da estreia"
+    },
+    {
+      "id": "rf-069",
+      "input": "{\"items\":[{\"title\":\"Supernatural (2010) 1080p\",\"isBr\":false},{\"title\":\"Supernatural S01E01 1080p\",\"isBr\":false}],\"names\":[\"Supernatural\"],\"year\":2005,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: filme homônimo com ano +1 e sem marcador"
+    },
+    {
+      "id": "rf-070",
+      "input": "{\"items\":[{\"title\":\"Sobrenatural (2010) 1080p Dublado\",\"isBr\":true},{\"title\":\"Sobrenatural S01E01 1080p Dublado\",\"isBr\":true}],\"names\":[\"Supernatural\",\"Sobrenatural\"],\"year\":2005,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série BR: filme homônimo \"Sobrenatural (2010) Dublado\""
+    },
+    {
+      "id": "rf-071",
+      "input": "{\"items\":[{\"title\":\"Supernatural 2005 2010 S01E01 1080p\",\"isBr\":false}],\"names\":[\"Supernatural\"],\"year\":2005,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série com dois anos no título: não é filme homônimo"
+    },
+    {
+      "id": "rf-072",
+      "input": "{\"items\":[{\"title\":\"Resident Evil - A Série - 1ª Temporada [1080p WEBRIP LEGENDADO]\",\"isBr\":false},{\"title\":\"Resident Evil - A Série - 1ª Temporada [720p WEBRIP LEGENDADO]\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme pede: \"A Série\" com temporada sai"
+    },
+    {
+      "id": "rf-073",
+      "input": "{\"items\":[{\"title\":\"Resident Evil S01E01 1080p WEB-DL\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme: marcador S01E01 sem nome de série"
+    },
+    {
+      "id": "rf-074",
+      "input": "{\"items\":[{\"title\":\"A Series of Unfortunate Events (2004) 1080p BluRay\",\"isBr\":false},{\"title\":\"A Series of Unfortunate Events 2004 S01E01\",\"isBr\":false}],\"names\":[\"A Series of Unfortunate Events\"],\"year\":2004,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme: nome \"A Series of Unfortunate Events\" tem o rótulo"
+    },
+    {
+      "id": "rf-075",
+      "input": "{\"items\":[{\"title\":\"Series 7 The Contenders (2001) 720p BluRay\",\"isBr\":false}],\"names\":[\"Series 7: The Contenders\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme: \"Series 7\" não é rótulo de série"
+    },
+    {
+      "id": "rf-076",
+      "input": "{\"items\":[{\"title\":\"S1m0ne (2002) 1080p BluRay\",\"isBr\":false}],\"names\":[\"S1m0ne\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme: S1m0ne com nome de temporada"
+    },
+    {
+      "id": "rf-077",
+      "input": "{\"items\":[{\"title\":\"Pack Coisa 1994 e 2024 DUAL 1080p\",\"isBr\":false}],\"names\":[\"Pack Coisa\"],\"year\":1994,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme: pack de dois anos não vira série"
+    },
+    {
+      "id": "rf-078",
+      "input": "{\"items\":[{\"title\":\"Inception.2010.1920x1080.BluRay.x264\",\"isBr\":false},{\"title\":\"Inception.2010.1280x720.BluRay.x264\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme: resolução 1920x1080 não vira temporada"
+    },
+    {
+      "id": "rf-079",
+      "input": "{\"items\":[{\"title\":\"Dune Minissérie 2026 1080p\",\"isBr\":false}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme: \"minissérie\" no título sai"
+    },
+    {
+      "id": "rf-080",
+      "input": "{\"items\":[{\"title\":\"Monster 2018 S01E02 1080p\",\"isBr\":false},{\"title\":\"Monster 2018 1080p\",\"isBr\":false}],\"names\":[\"Monster\"],\"year\":2018,\"altYear\":null,\"isSeries\":false,\"season\":1,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme com season e episode informados"
+    },
+    {
+      "id": "rf-081",
+      "input": "{\"items\":[{\"title\":\"Show 2011 A Série 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: release de filme com ano +1 e rótulo de série"
+    },
+    {
+      "id": "rf-082",
+      "input": "{\"items\":[{\"title\":\"Show 2011 S01E01 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: ano +1 com sinal de temporada"
+    },
+    {
+      "id": "rf-083",
+      "input": "{\"items\":[{\"title\":\"Show S01E01 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.2008-2014.S01E01\"}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série: dn= com marcador de faixa de anos"
+    },
+    {
+      "id": "rf-084",
+      "input": "{\"items\":[{\"title\":\"Lost S01E01 1080p\",\"isBr\":false},{\"title\":\"Lost 2010 S01E01 1080p\",\"isBr\":false},{\"title\":\"Lost 2015 S01E01 1080p\",\"isBr\":false}],\"names\":[\"Lost\"],\"year\":2004,\"altYear\":2010,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "ano dual e série"
+    },
+    {
+      "id": "rf-085",
+      "input": "{\"items\":[{\"title\":\"POSTER PROIBIDO 2020 1080p\",\"isBr\":false},{\"title\":\"Poster Proibido 2020 1080p\",\"isBr\":false}],\"names\":[\"Pôster Proibido\"],\"year\":2020,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome com acento e caixa diferente"
+    },
+    {
+      "id": "rf-086",
+      "input": "{\"items\":[{\"title\":\"Star Wars Episode IV 1977 1080p\",\"isBr\":false},{\"title\":\"Star Wars: Episode IV (1977) 4K\",\"isBr\":false}],\"names\":[\"Star Wars: Episode IV\"],\"year\":1977,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome com dois-pontos e ano em parênteses"
+    },
+    {
+      "id": "rf-087",
+      "input": "{\"items\":[{\"title\":\"The_Matrix_1999_1080p\",\"isBr\":false}],\"names\":[\"The Matrix\"],\"year\":1999,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "título com underscore"
+    },
+    {
+      "id": "rf-088",
+      "input": "{\"items\":[{\"title\":\"Fast X 2023 1080p\",\"isBr\":false},{\"title\":\"Fast.Furious.X.2023\",\"isBr\":false}],\"names\":[\"Fast X\"],\"year\":2023,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome com número e sigla"
+    },
+    {
+      "id": "rf-089",
+      "input": "{\"items\":[{\"title\":\"Coringa Joker 2019 1080p\",\"isBr\":false},{\"title\":\"The Joker 2019 1080p\",\"isBr\":false}],\"names\":[\"Joker\"],\"year\":2019,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token com palavra antes"
+    },
+    {
+      "id": "rf-090",
+      "input": "{\"items\":[{\"title\":\"Gladiator II 2024 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Gladiator II 2024 CAM\",\"isBr\":false},{\"title\":\"Gladiador II 2024 Dublado WEB\",\"isBr\":true},{\"title\":\"Gladiador II 2024 CAM Dublado\",\"isBr\":true}],\"names\":[\"Gladiator II\"],\"year\":2024,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786086400000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pré-doméstico combinatório 0"
+    },
+    {
+      "id": "rf-091",
+      "input": "{\"items\":[{\"title\":\"Gladiator II 2024 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Gladiator II 2024 CAM\",\"isBr\":false},{\"title\":\"Gladiador II 2024 Dublado WEB\",\"isBr\":true},{\"title\":\"Gladiador II 2024 CAM Dublado\",\"isBr\":true}],\"names\":[\"Gladiator II\"],\"year\":2024,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786345600000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pré-doméstico combinatório 1"
+    },
+    {
+      "id": "rf-092",
+      "input": "{\"items\":[{\"title\":\"Gladiator II 2024 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Gladiator II 2024 CAM\",\"isBr\":false},{\"title\":\"Gladiador II 2024 Dublado WEB\",\"isBr\":true},{\"title\":\"Gladiador II 2024 CAM Dublado\",\"isBr\":true}],\"names\":[\"Gladiator II\"],\"year\":2024,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786777600000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pré-doméstico combinatório 2"
+    },
+    {
+      "id": "rf-093",
+      "input": "{\"items\":[{\"title\":\"Show S01E01 1080p\",\"isBr\":false},{\"title\":\"Show S01E02 1080p\",\"isBr\":false},{\"title\":\"Show S02E01 1080p\",\"isBr\":false},{\"title\":\"Show S01E01 Dublado\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade série S1E1"
+    },
+    {
+      "id": "rf-094",
+      "input": "{\"items\":[{\"title\":\"Show S01E02 1080p\",\"isBr\":false},{\"title\":\"Show S01E03 1080p\",\"isBr\":false},{\"title\":\"Show S02E02 1080p\",\"isBr\":false},{\"title\":\"Show S01E02 Dublado\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade série S1E2"
+    },
+    {
+      "id": "rf-095",
+      "input": "{\"items\":[{\"title\":\"Show S02E01 1080p\",\"isBr\":false},{\"title\":\"Show S02E02 1080p\",\"isBr\":false},{\"title\":\"Show S03E01 1080p\",\"isBr\":false},{\"title\":\"Show S02E01 Dublado\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":2,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade série S2E1"
+    },
+    {
+      "id": "rf-096",
+      "input": "{\"items\":[{\"title\":\"Show S02E02 1080p\",\"isBr\":false},{\"title\":\"Show S02E03 1080p\",\"isBr\":false},{\"title\":\"Show S03E02 1080p\",\"isBr\":false},{\"title\":\"Show S02E02 Dublado\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":2,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade série S2E2"
+    },
+    {
+      "id": "rf-097",
+      "input": "{\"items\":[{\"title\":\"Show S03E01 1080p\",\"isBr\":false},{\"title\":\"Show S03E02 1080p\",\"isBr\":false},{\"title\":\"Show S04E01 1080p\",\"isBr\":false},{\"title\":\"Show S03E01 Dublado\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":3,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade série S3E1"
+    },
+    {
+      "id": "rf-098",
+      "input": "{\"items\":[{\"title\":\"Show S03E02 1080p\",\"isBr\":false},{\"title\":\"Show S03E03 1080p\",\"isBr\":false},{\"title\":\"Show S04E02 1080p\",\"isBr\":false},{\"title\":\"Show S03E02 Dublado\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":3,\"episode\":2,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade série S3E2"
+    },
+    {
+      "id": "rf-099",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false},{\"title\":\"Inception 2016 1080p\",\"isBr\":false},{\"title\":\"Inception 2026 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2000,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade de anos 2000 contra três títulos"
+    },
+    {
+      "id": "rf-100",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false},{\"title\":\"Inception 2016 1080p\",\"isBr\":false},{\"title\":\"Inception 2026 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade de anos 2010 contra três títulos"
+    },
+    {
+      "id": "rf-101",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false},{\"title\":\"Inception 2016 1080p\",\"isBr\":false},{\"title\":\"Inception 2026 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2016,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade de anos 2016 contra três títulos"
+    },
+    {
+      "id": "rf-102",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false},{\"title\":\"Inception 2016 1080p\",\"isBr\":false},{\"title\":\"Inception 2026 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "grade de anos 2026 contra três títulos"
+    },
+    {
+      "id": "rf-103",
+      "input": "{\"items\":[{\"title\":\"Inception Trailer 2010 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "não-filme: Trailer"
+    },
+    {
+      "id": "rf-104",
+      "input": "{\"items\":[{\"title\":\"Inception Teaser 2010 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "não-filme: Teaser"
+    },
+    {
+      "id": "rf-105",
+      "input": "{\"items\":[{\"title\":\"Inception Featurette 2010 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "não-filme: Featurette"
+    },
+    {
+      "id": "rf-106",
+      "input": "{\"items\":[{\"title\":\"Inception Making of 2010 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "não-filme: Making of"
+    },
+    {
+      "id": "rf-107",
+      "input": "{\"items\":[{\"title\":\"Inception Behind the scenes 2010 1080p\",\"isBr\":false}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "não-filme: Behind the scenes"
+    },
+    {
+      "id": "rf-108",
+      "input": "{\"items\":[{\"title\":\"Mulher-Maravilha 2017 1080p\",\"isBr\":false},{\"title\":\"Mulher Maravilha 2017 720p\",\"isBr\":false},{\"title\":\"Wonder Woman 2017 1080p\",\"isBr\":false}],\"names\":[\"Mulher-Maravilha\"],\"year\":2017,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "mesmo título BR=false: sigla e acento"
+    },
+    {
+      "id": "rf-109",
+      "input": "{\"items\":[{\"title\":\"Mulher-Maravilha 2017 1080p\",\"isBr\":true},{\"title\":\"Mulher Maravilha 2017 720p\",\"isBr\":true},{\"title\":\"Wonder Woman 2017 1080p\",\"isBr\":true}],\"names\":[\"Mulher-Maravilha\"],\"year\":2017,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "mesmo título BR=true: sigla e acento"
+    },
+    {
+      "id": "rf-110",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2023 S01E01 1080p\",\"isBr\":false},{\"title\":\"One Piece Live-Action 2026 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: live action 2023 com estreia 2010"
+    },
+    {
+      "id": "rf-111",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2026 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece\"],\"year\":2023,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: live action com ano próximo da estreia: fica"
+    },
+    {
+      "id": "rf-112",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2023 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: live action sem temporada pedida: não aplica"
+    },
+    {
+      "id": "rf-113",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2023 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece\"],\"year\":null,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: live action sem estreia: não condena"
+    },
+    {
+      "id": "rf-114",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2023 S01E01 Dublado\",\"isBr\":true},{\"title\":\"One Piece Live Action 2023 Dublado S01E01 1080p\",\"isBr\":true}],\"names\":[\"One Piece\",\"Um Pedaço\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: BR live action"
+    },
+    {
+      "id": "rf-115",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2008-2023 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: ano de faixa cobre a estreia"
+    },
+    {
+      "id": "rf-116",
+      "input": "{\"items\":[{\"title\":\"Show 2010 The Making of Documentary Behind the Scenes Extra Featurette Bonus\",\"isBr\":false},{\"title\":\"Show Dublado 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "series-work: título longo sem marcador, pouca precisão"
+    },
+    {
+      "id": "rf-117",
+      "input": "{\"items\":[{\"title\":\"Lost Planet 2010 Temporada 2 Completa 1080p\",\"isBr\":false},{\"title\":\"Lost Planet 2010 Completa Extra Stuff Alien Galaxy War 1080p\",\"isBr\":false}],\"names\":[\"Lost Planet\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "series-work: título com marcador de temporada sem episódio certo"
+    },
+    {
+      "id": "rf-118",
+      "input": "{\"items\":[{\"title\":\"Show 2010 The Making of Documentary Behind the Scenes Extra Featurette Bonus\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "series-work: BR com mesmo título nunca passa pelo work"
+    },
+    {
+      "id": "rf-119",
+      "input": "{\"items\":[{\"title\":\"Resident Evil 2: Sequela (2004) 1080p BluRay\",\"isBr\":false},{\"title\":\"Resident Evil Sequela 2004 720p\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "named-sequel: Resident Evil parte 2 (2004) contra catálogo 2002"
+    },
+    {
+      "id": "rf-120",
+      "input": "{\"items\":[{\"title\":\"Resident Evil 3: Sequela (2007) 1080p BluRay\",\"isBr\":false},{\"title\":\"Resident Evil Sequela 2007 720p\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "named-sequel: Resident Evil parte 3 (2007) contra catálogo 2002"
+    },
+    {
+      "id": "rf-121",
+      "input": "{\"items\":[{\"title\":\"Resident Evil 4: Sequela (2010) 1080p BluRay\",\"isBr\":false},{\"title\":\"Resident Evil Sequela 2010 720p\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "named-sequel: Resident Evil parte 4 (2010) contra catálogo 2002"
+    },
+    {
+      "id": "rf-122",
+      "input": "{\"items\":[{\"title\":\"Resident Evil 5: Sequela (2012) 1080p BluRay\",\"isBr\":false},{\"title\":\"Resident Evil Sequela 2012 720p\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "named-sequel: Resident Evil parte 5 (2012) contra catálogo 2002"
+    },
+    {
+      "id": "rf-123",
+      "input": "{\"items\":[{\"title\":\"Resident Evil 6: Sequela (2016) 1080p BluRay\",\"isBr\":false},{\"title\":\"Resident Evil Sequela 2016 720p\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "named-sequel: Resident Evil parte 6 (2016) contra catálogo 2002"
+    },
+    {
+      "id": "rf-124",
+      "input": "{\"items\":[{\"title\":\"Resident Evil: Apocalypse (2004) 1080p BluRay\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2004,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "named-sequel: catálogo dentro do ano exato: não corta"
+    },
+    {
+      "id": "rf-125",
+      "input": "{\"items\":[{\"title\":\"Resident Evil: Apocalypse 1080p BluRay\",\"isBr\":false}],\"names\":[\"Resident Evil\"],\"year\":2002,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "named-sequel: subtítulo sem ano não é sequela"
+    },
+    {
+      "id": "rf-126",
+      "input": "{\"items\":[{\"title\":\"The 1994 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=The.Crow.2000\"}],\"names\":[\"The\"],\"year\":1994,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet-year: dn=The.Crow.2000 contra catálogo 1994"
+    },
+    {
+      "id": "rf-127",
+      "input": "{\"items\":[{\"title\":\"The 1994 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=The.Crow.1980\"}],\"names\":[\"The\"],\"year\":1994,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet-year: dn=The.Crow.1980 contra catálogo 1994"
+    },
+    {
+      "id": "rf-128",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Inception.2014\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet-year: dn=Inception.2014 contra catálogo 2010"
+    },
+    {
+      "id": "rf-129",
+      "input": "{\"items\":[{\"title\":\"Inception 2010 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Inception.2008\"}],\"names\":[\"Inception\"],\"year\":2010,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet-year: dn=Inception.2008 contra catálogo 2010"
+    },
+    {
+      "id": "rf-130",
+      "input": "{\"items\":[{\"title\":\"Alien 1979 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Alien.1995\"}],\"names\":[\"Alien\"],\"year\":1979,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet-year: dn=Alien.1995 contra catálogo 1979"
+    },
+    {
+      "id": "rf-131",
+      "input": "{\"items\":[{\"title\":\"Dune 2026 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Dune.2010.1080p\"}],\"names\":[\"Dune\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet-year: dn=Dune.2010.1080p contra catálogo 2026"
+    },
+    {
+      "id": "rf-132",
+      "input": "{\"items\":[{\"title\":\"Dune 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Dune.2000.2021.1080p\"}],\"names\":[\"Dune\"],\"year\":1984,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "magnet-year: dn com duas faixas de anos"
+    },
+    {
+      "id": "rf-133",
+      "input": "{\"items\":[{\"title\":\"Dune Parte Dois 2024 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Dune Parte Dois 2024 HDTS\",\"isBr\":false},{\"title\":\"Duna Parte Dois 2024 Dublado WEB\",\"isBr\":true}],\"names\":[\"Dune Parte Dois\"],\"year\":2024,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786259200000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pré-doméstico variação 0"
+    },
+    {
+      "id": "rf-134",
+      "input": "{\"items\":[{\"title\":\"Dune Parte Dois 2024 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Dune Parte Dois 2024 HDTS\",\"isBr\":false},{\"title\":\"Duna Parte Dois 2024 Dublado WEB\",\"isBr\":true}],\"names\":[\"Dune Parte Dois\"],\"year\":2024,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786086400000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "pré-doméstico variação 1"
+    },
+    {
+      "id": "rf-135",
+      "input": "{\"items\":[{\"title\":\"Dune Parte Dois 2024 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Dune Parte Dois 2024 HDTS\",\"isBr\":false},{\"title\":\"Duna Parte Dois 2024 Dublado WEB\",\"isBr\":true}],\"names\":[\"Dune Parte Dois\"],\"year\":2024,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786691200000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":777600000}",
+      "note": "pré-doméstico variação 2"
+    },
+    {
+      "id": "rf-136",
+      "input": "{\"items\":[{\"title\":\"Dune Parte Dois 2024 WEB-DL 1080p\",\"isBr\":false},{\"title\":\"Dune Parte Dois 2024 HDTS\",\"isBr\":false},{\"title\":\"Duna Parte Dois 2024 Dublado WEB\",\"isBr\":true}],\"names\":[\"Dune Parte Dois\"],\"year\":2024,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":1786172800000,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":0}",
+      "note": "pré-doméstico variação 3"
+    },
+    {
+      "id": "rf-137",
+      "input": "{\"items\":[{\"title\":\"Mad Max - A Série - 1ª Temporada 1080p\",\"isBr\":false},{\"title\":\"Mad Max 1ª Temporada Completa 1080p\",\"isBr\":false},{\"title\":\"Mad Max 2015 1080p\",\"isBr\":false}],\"names\":[\"Mad Max\"],\"year\":2015,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "movie-is-series: Mad Max com \"1ª Temporada\""
+    },
+    {
+      "id": "rf-138",
+      "input": "{\"items\":[{\"title\":\"Blade Runner - A Série - 1ª Temporada 1080p\",\"isBr\":false},{\"title\":\"Blade Runner 1ª Temporada Completa 1080p\",\"isBr\":false},{\"title\":\"Blade Runner 1982 1080p\",\"isBr\":false}],\"names\":[\"Blade Runner\"],\"year\":1982,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "movie-is-series: Blade Runner com \"1ª Temporada\""
+    },
+    {
+      "id": "rf-139",
+      "input": "{\"items\":[{\"title\":\"Dark Knight - A Série - 1ª Temporada 1080p\",\"isBr\":false},{\"title\":\"Dark Knight 1ª Temporada Completa 1080p\",\"isBr\":false},{\"title\":\"Dark Knight 2008 1080p\",\"isBr\":false}],\"names\":[\"Dark Knight\"],\"year\":2008,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "movie-is-series: Dark Knight com \"1ª Temporada\""
+    },
+    {
+      "id": "rf-140",
+      "input": "{\"items\":[{\"title\":\"Resident Evil - A Série Dublado S01E01\",\"isBr\":true},{\"title\":\"Resident Evil 2026 Dublado\",\"isBr\":true}],\"names\":[\"Resident Evil\"],\"year\":2026,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "movie-is-series: BR com rótulo de série"
+    },
+    {
+      "id": "rf-141",
+      "input": "{\"items\":[{\"title\":\"Show 2008 S01E01 1080p\",\"isBr\":false},{\"title\":\"Show 2005 S01E01 1080p\",\"isBr\":false},{\"title\":\"Show 2013 S01E01 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2008,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série grade de ano 2008"
+    },
+    {
+      "id": "rf-142",
+      "input": "{\"items\":[{\"title\":\"Show 2014 S01E01 1080p\",\"isBr\":false},{\"title\":\"Show 2011 S01E01 1080p\",\"isBr\":false},{\"title\":\"Show 2019 S01E01 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2014,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série grade de ano 2014"
+    },
+    {
+      "id": "rf-143",
+      "input": "{\"items\":[{\"title\":\"Show 2020 S01E01 1080p\",\"isBr\":false},{\"title\":\"Show 2017 S01E01 1080p\",\"isBr\":false},{\"title\":\"Show 2025 S01E01 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2020,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série grade de ano 2020"
+    },
+    {
+      "id": "rf-144",
+      "input": "{\"items\":[{\"title\":\"Show S04E5 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S04E5.1080p\"},{\"title\":\"Show S04E5 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S04E06.1080p\"},{\"title\":\"Show S04E5 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S05E5.1080p\"}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":4,\"episode\":5,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série grade S4E5 com dn"
+    },
+    {
+      "id": "rf-145",
+      "input": "{\"items\":[{\"title\":\"Show S05E1 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S05E1.1080p\"},{\"title\":\"Show S05E1 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S05E02.1080p\"},{\"title\":\"Show S05E1 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S06E1.1080p\"}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":5,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série grade S5E1 com dn"
+    },
+    {
+      "id": "rf-146",
+      "input": "{\"items\":[{\"title\":\"Show S06E12 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S06E12.1080p\"},{\"title\":\"Show S06E12 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S06E013.1080p\"},{\"title\":\"Show S06E12 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Show.S07E12.1080p\"}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":6,\"episode\":12,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "série grade S6E12 com dn"
+    },
+    {
+      "id": "rf-147",
+      "input": "{\"items\":[{\"title\":\"Matrix 1999 1080p\",\"isBr\":false},{\"title\":\"A Matriz 1999 Dublado\",\"isBr\":true},{\"title\":\"Matrix Reloaded 1999 1080p\",\"isBr\":false},{\"title\":\"A Matriz Reloaded 1999 Dual\",\"isBr\":true}],\"names\":[\"Matrix\",\"A Matriz\"],\"year\":1999,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dois nomes BR/global ano 1999"
+    },
+    {
+      "id": "rf-148",
+      "input": "{\"items\":[{\"title\":\"Matrix 2003 1080p\",\"isBr\":false},{\"title\":\"A Matriz 2003 Dublado\",\"isBr\":true},{\"title\":\"Matrix Reloaded 2003 1080p\",\"isBr\":false},{\"title\":\"A Matriz Reloaded 2003 Dual\",\"isBr\":true}],\"names\":[\"Matrix\",\"A Matriz\"],\"year\":2003,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dois nomes BR/global ano 2003"
+    },
+    {
+      "id": "rf-149",
+      "input": "{\"items\":[{\"title\":\"Matrix 2011 1080p\",\"isBr\":false},{\"title\":\"A Matriz 2011 Dublado\",\"isBr\":true},{\"title\":\"Matrix Reloaded 2011 1080p\",\"isBr\":false},{\"title\":\"A Matriz Reloaded 2011 Dual\",\"isBr\":true}],\"names\":[\"Matrix\",\"A Matriz\"],\"year\":2011,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dois nomes BR/global ano 2011"
+    },
+    {
+      "id": "rf-150",
+      "input": "{\"items\":[{\"title\":\"Sapo\",\"isBr\":false},{\"title\":\"Sapo\",\"isBr\":false}],\"names\":[\"Sapo\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: Sapo"
+    },
+    {
+      "id": "rf-151",
+      "input": "{\"items\":[{\"title\":\"Sapo Sapo\",\"isBr\":false},{\"title\":\"Sapo.Sapo\",\"isBr\":false}],\"names\":[\"Sapo\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: Sapo Sapo"
+    },
+    {
+      "id": "rf-152",
+      "input": "{\"items\":[{\"title\":\"Gato Sapo\",\"isBr\":false},{\"title\":\"Gato.Sapo\",\"isBr\":false}],\"names\":[\"Sapo\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: Gato Sapo"
+    },
+    {
+      "id": "rf-153",
+      "input": "{\"items\":[{\"title\":\"Sapo de Botas\",\"isBr\":false},{\"title\":\"Sapo.de.Botas\",\"isBr\":false}],\"names\":[\"Sapo\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: Sapo de Botas"
+    },
+    {
+      "id": "rf-154",
+      "input": "{\"items\":[{\"title\":\"O Sapo 2001 1080p\",\"isBr\":false},{\"title\":\"O.Sapo.2001.1080p\",\"isBr\":false}],\"names\":[\"Sapo\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: O Sapo 2001 1080p"
+    },
+    {
+      "id": "rf-155",
+      "input": "{\"items\":[{\"title\":\"Sapo 2001 720p\",\"isBr\":false},{\"title\":\"Sapo.2001.720p\",\"isBr\":false}],\"names\":[\"Sapo\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: Sapo 2001 720p"
+    },
+    {
+      "id": "rf-156",
+      "input": "{\"items\":[{\"title\":\"Sapo 2001 TS\",\"isBr\":false},{\"title\":\"Sapo.2001.TS\",\"isBr\":false}],\"names\":[\"Sapo\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome de um token: Sapo 2001 TS"
+    },
+    {
+      "id": "rf-157",
+      "input": "{\"items\":[{\"title\":\"Chapolin\",\"isBr\":false}],\"names\":[\"Chapolin\"],\"year\":1973,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome curto BR/global: Chapolin"
+    },
+    {
+      "id": "rf-158",
+      "input": "{\"items\":[{\"title\":\"Chapolin 1973 1080p\",\"isBr\":false}],\"names\":[\"Chapolin\"],\"year\":1973,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome curto BR/global: Chapolin 1973 1080p"
+    },
+    {
+      "id": "rf-159",
+      "input": "{\"items\":[{\"title\":\"Chapolin 1980 1080p\",\"isBr\":false}],\"names\":[\"Chapolin\"],\"year\":1973,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome curto BR/global: Chapolin 1980 1080p"
+    },
+    {
+      "id": "rf-160",
+      "input": "{\"items\":[{\"title\":\"O Chapolin 1973 Dublado\",\"isBr\":true}],\"names\":[\"Chapolin\"],\"year\":1973,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "nome curto BR/global: O Chapolin 1973 Dublado"
+    },
+    {
+      "id": "rf-161",
+      "input": "{\"items\":[{\"title\":\"Ratatouille 2007 1080p\",\"isBr\":false},{\"title\":\"Ratatouille 2007 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Ratatouille.2007.1080p\"}],\"names\":[\"Ratatouille\"],\"year\":2007,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme de animação: Ratatouille 2007 1080p"
+    },
+    {
+      "id": "rf-162",
+      "input": "{\"items\":[{\"title\":\"Ratatouille (2007) WEB-DL\",\"isBr\":false},{\"title\":\"Ratatouille (2007) WEB-DL\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Ratatouille.(2007).WEB-DL\"}],\"names\":[\"Ratatouille\"],\"year\":2007,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme de animação: Ratatouille (2007) WEB-DL"
+    },
+    {
+      "id": "rf-163",
+      "input": "{\"items\":[{\"title\":\"Ratatouille 2010 720p\",\"isBr\":false},{\"title\":\"Ratatouille 2010 720p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Ratatouille.2010.720p\"}],\"names\":[\"Ratatouille\"],\"year\":2007,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme de animação: Ratatouille 2010 720p"
+    },
+    {
+      "id": "rf-164",
+      "input": "{\"items\":[{\"title\":\"Ratatouille Trailer 2007\",\"isBr\":false},{\"title\":\"Ratatouille Trailer 2007\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Ratatouille.Trailer.2007\"}],\"names\":[\"Ratatouille\"],\"year\":2007,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "filme de animação: Ratatouille Trailer 2007"
+    },
+    {
+      "id": "rf-165",
+      "input": "{\"items\":[{\"title\":\"O Labirinto 2019 Dublado\",\"isBr\":true}],\"names\":[\"O Labirinto\",\"Labirinto\"],\"year\":2019,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR título parcial: O Labirinto 2019 Dublado"
+    },
+    {
+      "id": "rf-166",
+      "input": "{\"items\":[{\"title\":\"Labirinto 2019 1080p\",\"isBr\":true}],\"names\":[\"O Labirinto\",\"Labirinto\"],\"year\":2019,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR título parcial: Labirinto 2019 1080p"
+    },
+    {
+      "id": "rf-167",
+      "input": "{\"items\":[{\"title\":\"Labirinto do Fauno 2006 1080p\",\"isBr\":true}],\"names\":[\"O Labirinto\",\"Labirinto\"],\"year\":2019,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "BR título parcial: Labirinto do Fauno 2006 1080p"
+    },
+    {
+      "id": "rf-168",
+      "input": "{\"items\":[{\"title\":\"Show Name S01E03 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&dn=Show+Name+S01E03+1080p\"},{\"title\":\"Show Name S01E04 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb&dn=Show+Name+S01E04+1080p\"}],\"names\":[\"Show Name\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":3,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dn com + em série"
+    },
+    {
+      "id": "rf-169",
+      "input": "{\"items\":[{\"title\":\"Amélie 2001 1080p\",\"isBr\":false,\"magnet\":\"magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dn=Am%C3%A9lie.2001.1080p\"}],\"names\":[\"Amélie\"],\"year\":2001,\"altYear\":null,\"isSeries\":false,\"season\":null,\"episode\":null,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "dn com percent válido em filme"
+    },
+    {
+      "id": "rf-170",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2023 S01E01 1080p\",\"isBr\":false},{\"title\":\"One Piece Live-Action 2026 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece Live Action\",\"One Piece\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: nome com live action, estreia 2010, ano 2023"
+    },
+    {
+      "id": "rf-171",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2023 S01E01 Dublado\",\"isBr\":true}],\"names\":[\"One Piece Live Action\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: nome com live action, BR"
+    },
+    {
+      "id": "rf-172",
+      "input": "{\"items\":[{\"title\":\"One Piece Live Action 2008-2023 S01E01 1080p\",\"isBr\":false}],\"names\":[\"One Piece Live Action\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "identity: nome com live action, faixa cobre estreia: fica"
+    },
+    {
+      "id": "rf-173",
+      "input": "{\"items\":[{\"title\":\"Show The Making of Documentary Behind the Scenes Extra Featurette Bonus 1080p\",\"isBr\":false}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "series-work: título sem ano e sem marcador, precisão baixa"
+    },
+    {
+      "id": "rf-174",
+      "input": "{\"items\":[{\"title\":\"Show The Making of Documentary Behind the Scenes Extra Featurette Bonus 1080p\",\"isBr\":true}],\"names\":[\"Show\"],\"year\":2010,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "series-work: mesmo título em BR não passa pelo work"
+    },
+    {
+      "id": "rf-175",
+      "input": "{\"items\":[{\"title\":\"Dark Matter Universe Extra Documentary Featurette Bonus Material\",\"isBr\":false}],\"names\":[\"Dark\"],\"year\":2017,\"altYear\":null,\"isSeries\":true,\"season\":1,\"episode\":1,\"multiWork\":null,\"homeReleaseAt\":null,\"now\":1786000000000,\"preHomeCut\":true,\"preHomeMarginMs\":172800000}",
+      "note": "series-work: título curto sem marcador"
+    }
+  ]
+}

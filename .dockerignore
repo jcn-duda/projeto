@@ -9,7 +9,8 @@ dist
 .qoder
 .kilo
 .agents
-spike-esm
 test
 *.md
 jackett-screenshot.png
+# Workspace Rust: nunca vai ao contexto de build.
+rust/target

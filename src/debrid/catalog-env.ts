@@ -53,10 +53,12 @@ function catalogContext(): { adapter: DebridAdapter | null; guardos: { ok: false
  * delete não chega ao hook — o `applyDeletions` só o dispara com o id em
  * `removedIds`.
  */
-function reuploadHook(account: string, adapterId: string): { onDeleted: (hash: string, filename?: string) => void } | undefined {
+function reuploadHook(account: string, adapterId: string, apiKey: string): { onDeleted: (hash: string, filename?: string) => void } | undefined {
   if (adapterId !== 'alldebrid') return undefined;
   return {
-    onDeleted: (hash: string, filename?: string) => markReuploadBlocked(account, hash, filename),
+    // apiKey vai junto para o mark invalidar o hash no memo dinv (H1): a conta
+    // acabou de perder o magnet, o memo stale não pode destravá-lo depois.
+    onDeleted: (hash: string, filename?: string) => markReuploadBlocked(account, hash, filename, apiKey),
   };
 }
 
@@ -130,7 +132,7 @@ async function dedupApplyEnv(max?: number) {
   let list = [...byId.values()];
   if (max != null && Number.isFinite(max)) list = list.slice(0, Math.max(0, Math.trunc(max)));
   try {
-    const res = await catalog.applyDeletions(account, adapter.id, list, (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids), reuploadHook(account, adapter.id));
+    const res = await catalog.applyDeletions(account, adapter.id, list, (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids), reuploadHook(account, adapter.id, config.debrid.apiKey));
     metrics.count('dashboard.catalog.dedup', res.ok);
     return { ok: true, deleted: res.ok, falhas: res.falhas };
   } catch (err: unknown) {
@@ -228,7 +230,7 @@ async function manualDeleteEnv({ serviceIds }: { serviceIds?: Array<string | num
       adapter.id,
       plan.targets.map((t) => ({ serviceId: t.serviceId, hash: t.hash, reason: t.reason, filename: t.filename })),
       (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids),
-      reuploadHook(account, adapter.id),
+      reuploadHook(account, adapter.id, config.debrid.apiKey),
     );
     metrics.count('dashboard.catalog.manual', res.ok);
     return { ok: true, total: plan.targets.length, deleted: res.ok, falhas: res.falhas, ...plan.skipped };
@@ -299,7 +301,7 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
       adapter.id,
       deletions,
       (ids) => adapter.deleteMagnets!(config.debrid.apiKey, ids),
-      reuploadHook(account, adapter.id),
+      reuploadHook(account, adapter.id, config.debrid.apiKey),
     );
     metrics.count('dashboard.catalog.cleanup', res.ok);
     return { ok: true, total: list.length, deleted: res.ok, falhas: res.falhas };
@@ -307,6 +309,13 @@ async function cleanupApplyEnv(max?: number, { includeKnown }: { includeKnown?: 
     log.warn(`[catalog] limpeza falhou:`, log.errorMessage(err));
     return { ok: false, reason: 'erro' };
   }
+}
+
+/** Plano de versões da mesma obra (T3; leitura pura; nenhuma deleção). */
+function catalogVersionsEnv() {
+  const { adapter, guardos } = catalogContext();
+  if (adapter == null || guardos) return guardos || { ok: false, reason: 'sem-adapter' };
+  return { ok: true, plan: catalog.planWorkVersions(accountScope(config.debrid.apiKey), adapter.id) };
 }
 
 export {
@@ -320,4 +329,5 @@ export {
   auditRequeueEnv,
   cleanupPreviewEnv,
   cleanupApplyEnv,
+  catalogVersionsEnv,
 };

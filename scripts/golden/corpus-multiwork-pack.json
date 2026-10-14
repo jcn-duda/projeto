@@ -1,0 +1,1326 @@
+{
+  "version": "corpus-multiwork-pack/1",
+  "note": "multiwork-pack.ts: collectionRoot, collectionRootTokens, coversYear, packYearSource e admitsMultiWorkPack. Entrada JSON com op. Saída: string ou 1/0. IDs estáveis: nunca renomear; caso novo recebe id no fim.",
+  "cases": [
+    {
+      "id": "mp-001",
+      "input": "{\"op\":\"root\",\"name\":\"Indiana Jones - A Coleção Completa 1981-2008\"}",
+      "note": "root: coleção com faixa de anos"
+    },
+    {
+      "id": "mp-002",
+      "input": "{\"op\":\"root\",\"name\":\"Indiana Jones (Coleção)\"}",
+      "note": "root: coleção entre parênteses"
+    },
+    {
+      "id": "mp-003",
+      "input": "{\"op\":\"root\",\"name\":\"Trilogia Indiana Jones\"}",
+      "note": "root: trilogia como prefixo de empacotamento"
+    },
+    {
+      "id": "mp-004",
+      "input": "{\"op\":\"root\",\"name\":\"O Senhor dos Anéis\"}",
+      "note": "root: artigo inicial sai"
+    },
+    {
+      "id": "mp-005",
+      "input": "{\"op\":\"root\",\"name\":\"Jornada nas Estrelas: O Filme\"}",
+      "note": "root: subtítulo cortado por dois-pontos"
+    },
+    {
+      "id": "mp-006",
+      "input": "{\"op\":\"root\",\"name\":\"Jornada nas Estrelas — O Filme\"}",
+      "note": "root: subtítulo cortado por travessão"
+    },
+    {
+      "id": "mp-007",
+      "input": "{\"op\":\"root\",\"name\":\"Jornada nas Estrelas – O Filme\"}",
+      "note": "root: subtítulo cortado por en dash"
+    },
+    {
+      "id": "mp-008",
+      "input": "{\"op\":\"root\",\"name\":\"Star Wars Episódio VIII\"}",
+      "note": "root: marcador romano no fim sai"
+    },
+    {
+      "id": "mp-009",
+      "input": "{\"op\":\"root\",\"name\":\"Rocky Parte II\"}",
+      "note": "root: marcador com Parte sai"
+    },
+    {
+      "id": "mp-010",
+      "input": "{\"op\":\"root\",\"name\":\"Rocky VIIII\"}",
+      "note": "root: VIIII (5 letras) não é marcador"
+    },
+    {
+      "id": "mp-011",
+      "input": "{\"op\":\"root\",\"name\":\"Matrix 100\"}",
+      "note": "root: número de três dígitos não é marcador"
+    },
+    {
+      "id": "mp-012",
+      "input": "{\"op\":\"root\",\"name\":\"Matrix 10\"}",
+      "note": "root: número de dois dígitos sai"
+    },
+    {
+      "id": "mp-013",
+      "input": "{\"op\":\"root\",\"name\":\"Saga\"}",
+      "note": "root: palavra só de empacotamento deixa menos de 2 tokens"
+    },
+    {
+      "id": "mp-014",
+      "input": "{\"op\":\"root\",\"name\":\"\"}",
+      "note": "root: vazio"
+    },
+    {
+      "id": "mp-015",
+      "input": "{\"op\":\"root\",\"name\":\":Subtítulo Longo\"}",
+      "note": "root: dois-pontos no início não corta"
+    },
+    {
+      "id": "mp-016",
+      "input": "{\"op\":\"root\",\"name\":\"A: Coleção Trilogia\"}",
+      "note": "root: candidato com uma palavra não corta"
+    },
+    {
+      "id": "mp-017",
+      "input": "{\"op\":\"root\",\"name\":\"Mad Max: Fury\\nRoad\"}",
+      "note": "root: quebra de linha depois do separador impede corte"
+    },
+    {
+      "id": "mp-018",
+      "input": "{\"op\":\"root\",\"name\":\"Batman  Coleção  Completa\"}",
+      "note": "root: espaços múltiplos entre palavras"
+    },
+    {
+      "id": "mp-019",
+      "input": "{\"op\":\"root\",\"name\":\"Filme Coleção\\tCompleta\"}",
+      "note": "root: nbsp e tab como espaço"
+    },
+    {
+      "id": "mp-020",
+      "input": "{\"op\":\"root\",\"name\":\"Distrito 9\"}",
+      "note": "root: sem marcador e com dois tokens"
+    },
+    {
+      "id": "mp-021",
+      "input": "{\"op\":\"root\",\"name\":\"Coleção Completa\"}",
+      "note": "root: só coleção e completa sobra vazio"
+    },
+    {
+      "id": "mp-022",
+      "input": "{\"op\":\"root\",\"name\":\"Os Os Miseráveis\"}",
+      "note": "root: nome com artigo duplo"
+    },
+    {
+      "id": "mp-023",
+      "input": "{\"op\":\"rootTokens\",\"name\":\"Coleção\"}",
+      "note": "rootTokens: lista vazia vira string vazia"
+    },
+    {
+      "id": "mp-024",
+      "input": "{\"op\":\"rootTokens\",\"name\":\"Dragon Ball Z: Parte 2\"}",
+      "note": "rootTokens: nome com marcador e subtítulo"
+    },
+    {
+      "id": "mp-025",
+      "input": "{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":\"1981\"}",
+      "note": "covers: faixa inclui o ano (borda inferior)"
+    },
+    {
+      "id": "mp-026",
+      "input": "{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":2008}",
+      "note": "covers: faixa inclui o ano (borda superior)"
+    },
+    {
+      "id": "mp-027",
+      "input": "{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":2009}",
+      "note": "covers: faixa não inclui o ano"
+    },
+    {
+      "id": "mp-028",
+      "input": "{\"op\":\"covers\",\"text\":\"1981 a 2008\",\"year\":2000}",
+      "note": "covers: faixa com a palavra de ligação a"
+    },
+    {
+      "id": "mp-029",
+      "input": "{\"op\":\"covers\",\"text\":\"1981 até 2008\",\"year\":2000}",
+      "note": "covers: faixa com até e espaços (boundary falha depois do é)"
+    },
+    {
+      "id": "mp-030",
+      "input": "{\"op\":\"covers\",\"text\":\"1981 até2008\",\"year\":2000}",
+      "note": "covers: até grudado no ano passa pelo boundary"
+    },
+    {
+      "id": "mp-031",
+      "input": "{\"op\":\"covers\",\"text\":\"1981 de 2008\",\"year\":1990}",
+      "note": "covers: faixa com de"
+    },
+    {
+      "id": "mp-032",
+      "input": "{\"op\":\"covers\",\"text\":\"1981 to 2008\",\"year\":1990}",
+      "note": "covers: faixa com to"
+    },
+    {
+      "id": "mp-033",
+      "input": "{\"op\":\"covers\",\"text\":\"1981 ATE 2008\",\"year\":1990}",
+      "note": "covers: faixa com ate em maiúscula"
+    },
+    {
+      "id": "mp-034",
+      "input": "{\"op\":\"covers\",\"text\":\"1981~2008\",\"year\":2008}",
+      "note": "covers: faixa com til"
+    },
+    {
+      "id": "mp-035",
+      "input": "{\"op\":\"covers\",\"text\":\"1981—2008\",\"year\":1990}",
+      "note": "covers: faixa com travessão em dash"
+    },
+    {
+      "id": "mp-036",
+      "input": "{\"op\":\"covers\",\"text\":\"1920x1080\",\"year\":1920}",
+      "note": "covers: resolução não conta como ano"
+    },
+    {
+      "id": "mp-037",
+      "input": "{\"op\":\"covers\",\"text\":\"1981-2008 1920x1080\",\"year\":1984}",
+      "note": "covers: resolução no meio da faixa"
+    },
+    {
+      "id": "mp-038",
+      "input": "{\"op\":\"covers\",\"text\":\"Filme 2009\",\"year\":2010}",
+      "note": "covers: ano avulso dentro da tolerância"
+    },
+    {
+      "id": "mp-039",
+      "input": "{\"op\":\"covers\",\"text\":\"Filme 2007\",\"year\":2010}",
+      "note": "covers: ano avulso fora da tolerância"
+    },
+    {
+      "id": "mp-040",
+      "input": "{\"op\":\"covers\",\"text\":\"Filme 2012\",\"year\":2010}",
+      "note": "covers: ano avulso na borda da tolerância"
+    },
+    {
+      "id": "mp-041",
+      "input": "{\"op\":\"covers\",\"text\":\"2000-2008\",\"year\":2010}",
+      "note": "covers: faixa consumida não gera ano avulso"
+    },
+    {
+      "id": "mp-042",
+      "input": "{\"op\":\"covers\",\"text\":\"12019\",\"year\":2019}",
+      "note": "covers: ano grudado em dígito não é ano (lookbehind)"
+    },
+    {
+      "id": "mp-043",
+      "input": "{\"op\":\"covers\",\"text\":\"20191\",\"year\":2019}",
+      "note": "covers: ano seguido de dígito não é ano (lookahead)"
+    },
+    {
+      "id": "mp-044",
+      "input": "{\"op\":\"covers\",\"text\":\"1981-2008-2010\",\"year\":2010}",
+      "note": "covers: hífen depois do ano casa como faixa encadeada"
+    },
+    {
+      "id": "mp-045",
+      "input": "{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":null}",
+      "note": "covers: ano catálogo null"
+    },
+    {
+      "id": "mp-046",
+      "input": "{\"op\":\"covers\",\"text\":\"1981-2008\",\"year\":\"sem ano\"}",
+      "note": "covers: ano sem dígitos"
+    },
+    {
+      "id": "mp-047",
+      "input": "{\"op\":\"covers\",\"text\":\"\",\"year\":2000}",
+      "note": "covers: texto vazio"
+    },
+    {
+      "id": "mp-048",
+      "input": "{\"op\":\"covers\",\"text\":\"Blade Runner 2049 2017\",\"year\":2017}",
+      "note": "covers: dois anos avulsos e o catálogo entre eles"
+    },
+    {
+      "id": "mp-049",
+      "input": "{\"op\":\"covers\",\"text\":\"Blade Runner 2049\",\"year\":2017}",
+      "note": "covers: ano de nome (2049) não é o do catálogo"
+    },
+    {
+      "id": "mp-050",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"Filme A\"}}",
+      "note": "evidence: sem magnet devolve só o título"
+    },
+    {
+      "id": "mp-051",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xt=urn:btih:x&dn=Foo+Bar\"}}",
+      "note": "evidence: magnet real acrescenta dn decodificado"
+    },
+    {
+      "id": "mp-052",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xt=urn:btih:x&dn=A&tr=udp\"}}",
+      "note": "evidence: dn depois de outros parâmetros"
+    },
+    {
+      "id": "mp-053",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"MAGNET:?dn=Maiuscula\"}}",
+      "note": "evidence: prefixo magnet em maiúscula"
+    },
+    {
+      "id": "mp-054",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"  magnet:?dn=Aparado\"}}",
+      "note": "evidence: espaço antes do magnet é aparado para o prefixo"
+    },
+    {
+      "id": "mp-055",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xt=x&DN=Caixa\"}}",
+      "note": "evidence: DN em maiúscula"
+    },
+    {
+      "id": "mp-056",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?xdn=No&dn=Yes\"}}",
+      "note": "evidence: xdn não é dn"
+    },
+    {
+      "id": "mp-057",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=First&dn=Second\"}}",
+      "note": "evidence: primeiro dn vence"
+    },
+    {
+      "id": "mp-058",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=&xt=1\"}}",
+      "note": "evidence: dn vazio não casa"
+    },
+    {
+      "id": "mp-059",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=A+B+C\"}}",
+      "note": "evidence: mais é espaço"
+    },
+    {
+      "id": "mp-060",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=A%2BB\"}}",
+      "note": "evidence: %2B decodifica para mais literal"
+    },
+    {
+      "id": "mp-061",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"X\",\"magnet\":\"magnet:?dn=Ca%C3%A7a\"}}",
+      "note": "evidence: percent UTF-8 válido"
+    },
+    {
+      "id": "mp-062",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=100%\"}}",
+      "note": "evidence: percent malformado mantém o texto"
+    },
+    {
+      "id": "mp-063",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"magnet:?dn=%E9\"}}",
+      "note": "evidence: percent UTF-8 inválido mantém o texto"
+    },
+    {
+      "id": "mp-064",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\"https://protetor.example/?dn=Nao\"}}",
+      "note": "evidence: URL de protetor não é magnet"
+    },
+    {
+      "id": "mp-065",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"\",\"magnet\":\"magnet:?dn=A\"}}",
+      "note": "evidence: título vazio deixa espaço inicial"
+    },
+    {
+      "id": "mp-066",
+      "input": "{\"op\":\"evidence\",\"item\":null}",
+      "note": "evidence: item nulo"
+    },
+    {
+      "id": "mp-067",
+      "input": "{\"op\":\"evidence\",\"item\":{\"Title\":\"Caixa Alta\",\"MagnetUri\":\"magnet:?dn=Dn+Alta\"}}",
+      "note": "evidence: campos Title e MagnetUri são usados sem title/magnet"
+    },
+    {
+      "id": "mp-068",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"\",\"Title\":\"Cai No Title\",\"magnet\":\"magnet:?dn=Ok\"}}",
+      "note": "evidence: title vazio cai no Title"
+    },
+    {
+      "id": "mp-069",
+      "input": "{\"op\":\"evidence\",\"item\":{\"title\":\"T\",\"magnet\":\" magnet:?dn=Nbsp\"}}",
+      "note": "evidence: nbsp antes do magnet é aparado"
+    },
+    {
+      "id": "mp-070",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: pack de coleção com faixa cobrindo o ano"
+    },
+    {
+      "id": "mp-071",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":2008,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: borda superior da faixa"
+    },
+    {
+      "id": "mp-072",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":2009,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: ano fora da faixa"
+    },
+    {
+      "id": "mp-073",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":null,\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: sem multiWork"
+    },
+    {
+      "id": "mp-074",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"x\",\"root\":\"\",\"years\":[]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: raiz vazia"
+    },
+    {
+      "id": "mp-075",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"],\"isSeries\":true}",
+      "note": "admits: série fica fora"
+    },
+    {
+      "id": "mp-076",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[]}",
+      "note": "admits: sem nomes não há dica de obra"
+    },
+    {
+      "id": "mp-077",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":null,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: ano null"
+    },
+    {
+      "id": "mp-078",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":\"1984\",\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: ano em string"
+    },
+    {
+      "id": "mp-079",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones e os Caçadores da Arca Perdida 1981\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: título de filme isolado sem coleção"
+    },
+    {
+      "id": "mp-080",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Jones Indiana - Coleção 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: raiz não contígua no título"
+    },
+    {
+      "id": "mp-081",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Todos os Filmes 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: pack com palavra fraca e faixa"
+    },
+    {
+      "id": "mp-082",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Todos os Filmes 1981\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: palavra fraca sem faixa não é pack"
+    },
+    {
+      "id": "mp-083",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Filme 1981\",\"magnet\":\"magnet:?xt=urn:btih:abc&dn=Indiana+Jones+Colecao+Completa+1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: coleção só no dn do magnet"
+    },
+    {
+      "id": "mp-084",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones 1981\",\"magnet\":\"magnet:?dn=Indiana%20Jones%20Colecao%201981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: coleção só no dn com percent-encoding"
+    },
+    {
+      "id": "mp-085",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones 1981\",\"magnet\":\"https://x.example/?dn=Indiana+Jones+Colecao+1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: URL de protetor não tem dn"
+    },
+    {
+      "id": "mp-086",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Colecao 1981-2008\",\"magnet\":\"magnet:?dn=Indiana%ZZ+Jones+Colecao+1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: dn malformado não derruba a admissão"
+    },
+    {
+      "id": "mp-087",
+      "input": "{\"op\":\"admits\",\"item\":null,\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: item nulo"
+    },
+    {
+      "id": "mp-088",
+      "input": "{\"op\":\"admits\",\"item\":{\"Title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: Title fallback"
+    },
+    {
+      "id": "mp-089",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Colecao 1981-1989\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1984,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: faixa de anos com dois anos do catálogo distantes"
+    },
+    {
+      "id": "mp-090",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones Colecao 1983\"},\"multiWork\":{\"name\":\"Indiana Jones\",\"root\":\"indiana jones\",\"years\":[1981,1984,1989,2008]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: ano avulso dentro de dois do catálogo"
+    },
+    {
+      "id": "mp-091",
+      "input": "{\"op\":\"admits\",\"item\":{\"title\":\"Indiana Jones - A Coleção Completa 1981-2008\"},\"multiWork\":{\"name\":\"x\",\"root\":\"senhor dos aneis\",\"years\":[]},\"year\":1981,\"names\":[\"Indiana Jones e os Caçadores da Arca Perdida\"]}",
+      "note": "admits: multiWork com root contendo token que não aparece"
+    },
+    {
+      "id": "mp-092",
+      "input": "{\"op\":\"root\",\"name\":\"\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-093",
+      "input": "{\"op\":\"root\",\"name\":\"   \\t \\n \"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-094",
+      "input": "{\"op\":\"root\",\"name\":\"G.O.R.A.\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-095",
+      "input": "{\"op\":\"root\",\"name\":\"S.W.A.T. 2003 Dual Áudio 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-096",
+      "input": "{\"op\":\"root\",\"name\":\"M.A.S.H\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-097",
+      "input": "{\"op\":\"root\",\"name\":\"U.S.Marshals\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-098",
+      "input": "{\"op\":\"root\",\"name\":\"Once.Upon.a.Time.in.America\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-099",
+      "input": "{\"op\":\"root\",\"name\":\"H.264 x264\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-100",
+      "input": "{\"op\":\"root\",\"name\":\"Resident.Evil.2026.1080p.TELESYNC\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-101",
+      "input": "{\"op\":\"root\",\"name\":\"Poção do Avô\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-102",
+      "input": "{\"op\":\"root\",\"name\":\"Poção do Avô\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-103",
+      "input": "{\"op\":\"root\",\"name\":\"Histórias de Um Casamento: 2ª Temporada\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-104",
+      "input": "{\"op\":\"root\",\"name\":\"Volume¹²³ Remux\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-105",
+      "input": "{\"op\":\"root\",\"name\":\"Adım Farah\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-106",
+      "input": "{\"op\":\"root\",\"name\":\"Straße ẞ\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-107",
+      "input": "{\"op\":\"root\",\"name\":\"Cœurs Déchirés\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-108",
+      "input": "{\"op\":\"root\",\"name\":\"Søren Łukasz Đoković\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-109",
+      "input": "{\"op\":\"root\",\"name\":\"すずめの戸締まり\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-110",
+      "input": "{\"op\":\"root\",\"name\":\"Ну, погоди!\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-111",
+      "input": "{\"op\":\"root\",\"name\":\"!!! --- ___ ??? ***\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-112",
+      "input": "{\"op\":\"root\",\"name\":\"Se7en   Dual\\tÁudio\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-113",
+      "input": "{\"op\":\"root\",\"name\":\"&amp; Filmes\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-114",
+      "input": "{\"op\":\"root\",\"name\":\"DUAL ÁUDIO 4K\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-115",
+      "input": "{\"op\":\"root\",\"name\":\"A 2024 Dublado 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-116",
+      "input": "{\"op\":\"root\",\"name\":\"A Casa Do Dragao Dublado 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-117",
+      "input": "{\"op\":\"root\",\"name\":\"A Rocha LEGENDADO DUAL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-118",
+      "input": "{\"op\":\"root\",\"name\":\"A viagem de chihiro dublado pt-pt\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-119",
+      "input": "{\"op\":\"root\",\"name\":\"A.Rocha.1996.1080p.BluRay.DUAL-SF\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-120",
+      "input": "{\"op\":\"root\",\"name\":\"A.Rocha.1996.1080p.BluRay.DUAL.MULTi\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-121",
+      "input": "{\"op\":\"root\",\"name\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-122",
+      "input": "{\"op\":\"root\",\"name\":\"A.Rocha.1996.DUAL.ESP.ENG\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-123",
+      "input": "{\"op\":\"root\",\"name\":\"Acervo Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-124",
+      "input": "{\"op\":\"root\",\"name\":\"Ativa.DUAL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-125",
+      "input": "{\"op\":\"root\",\"name\":\"BR Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-126",
+      "input": "{\"op\":\"root\",\"name\":\"BR dublado recebe score 80\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-127",
+      "input": "{\"op\":\"root\",\"name\":\"Cidade de Deus 2002 1080p BluRay\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-128",
+      "input": "{\"op\":\"root\",\"name\":\"Cold 720p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-129",
+      "input": "{\"op\":\"root\",\"name\":\"Corvo 1994 1080p BluRay DUAL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-130",
+      "input": "{\"op\":\"root\",\"name\":\"Cult Film 2010 BluRay 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-131",
+      "input": "{\"op\":\"root\",\"name\":\"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-132",
+      "input": "{\"op\":\"root\",\"name\":\"DUB BR 720p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-133",
+      "input": "{\"op\":\"root\",\"name\":\"Dedupe Case 1988 DVDrip\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-134",
+      "input": "{\"op\":\"root\",\"name\":\"Devoradores de Estrelas 2026 Dual 5.1\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-135",
+      "input": "{\"op\":\"root\",\"name\":\"Dia D Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-136",
+      "input": "{\"op\":\"root\",\"name\":\"Dublado global recebe score 40\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-137",
+      "input": "{\"op\":\"root\",\"name\":\"Fallback.Seeds.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-138",
+      "input": "{\"op\":\"root\",\"name\":\"Fallout S01 Complete Pack 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-139",
+      "input": "{\"op\":\"root\",\"name\":\"Fallout S01E05 1080p Dual\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-140",
+      "input": "{\"op\":\"root\",\"name\":\"Fallout.S01E01.1080p.WEBRip.x264\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-141",
+      "input": "{\"op\":\"root\",\"name\":\"Fast Movie 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-142",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 1 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-143",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 1080p Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-144",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 1080p x265\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-145",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 2009 1080p BluRay\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-146",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 2019 IMAX 2160p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-147",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 2024 1080p WEB-DL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-148",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 480p SD\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-149",
+      "input": "{\"op\":\"root\",\"name\":\"Filme 720p HD\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-150",
+      "input": "{\"op\":\"root\",\"name\":\"Filme BR 1080p Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-151",
+      "input": "{\"op\":\"root\",\"name\":\"Filme CAM Dublado 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-152",
+      "input": "{\"op\":\"root\",\"name\":\"Filme Dublado 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-153",
+      "input": "{\"op\":\"root\",\"name\":\"Filme HDTV\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-154",
+      "input": "{\"op\":\"root\",\"name\":\"Filme Qualquer Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-155",
+      "input": "{\"op\":\"root\",\"name\":\"Filme Stall Zero Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-156",
+      "input": "{\"op\":\"root\",\"name\":\"Filme Teste 2024 1080p Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-157",
+      "input": "{\"op\":\"root\",\"name\":\"Filme WEB-DL 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-158",
+      "input": "{\"op\":\"root\",\"name\":\"Filme.2019.1080p.BluRay.x264.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-159",
+      "input": "{\"op\":\"root\",\"name\":\"Filme.2019.1080p.x264-RARBG\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-160",
+      "input": "{\"op\":\"root\",\"name\":\"Filme.2024.1080p.BTHD\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-161",
+      "input": "{\"op\":\"root\",\"name\":\"Filme.2026.1080p.BluRay.x264\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-162",
+      "input": "{\"op\":\"root\",\"name\":\"Filme.Rico.2024.1080p.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-163",
+      "input": "{\"op\":\"root\",\"name\":\"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-164",
+      "input": "{\"op\":\"root\",\"name\":\"Global Dual 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-165",
+      "input": "{\"op\":\"root\",\"name\":\"Goliath.S03.2160p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-166",
+      "input": "{\"op\":\"root\",\"name\":\"Grace.BR.Dublado.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-167",
+      "input": "{\"op\":\"root\",\"name\":\"HINDI.HQ.DUB\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-168",
+      "input": "{\"op\":\"root\",\"name\":\"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-169",
+      "input": "{\"op\":\"root\",\"name\":\"Hawaii Five O S01E01 1080p WEB-DL x264\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-170",
+      "input": "{\"op\":\"root\",\"name\":\"Healthy Case 2003 DVDRip\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-171",
+      "input": "{\"op\":\"root\",\"name\":\"Idx Release 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-172",
+      "input": "{\"op\":\"root\",\"name\":\"Joker 2019 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-173",
+      "input": "{\"op\":\"root\",\"name\":\"Joker S01E01 1080p WEB-DL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-174",
+      "input": "{\"op\":\"root\",\"name\":\"Joker.2019.2160p.WEB-DL.DUAL.5.1\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-175",
+      "input": "{\"op\":\"root\",\"name\":\"Lost Girl S01 720p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-176",
+      "input": "{\"op\":\"root\",\"name\":\"Lost Girl S03 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-177",
+      "input": "{\"op\":\"root\",\"name\":\"Lost.Girl.S01.720p.x265-ZMNT\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-178",
+      "input": "{\"op\":\"root\",\"name\":\"Meu Release 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-179",
+      "input": "{\"op\":\"root\",\"name\":\"Mortuary 1982 1080p DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-180",
+      "input": "{\"op\":\"root\",\"name\":\"Mortuary 1983 1080p WEBRip\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-181",
+      "input": "{\"op\":\"root\",\"name\":\"Mortuary 1983 720p DVDRip\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-182",
+      "input": "{\"op\":\"root\",\"name\":\"Movie 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-183",
+      "input": "{\"op\":\"root\",\"name\":\"Movie 1080p BluRay\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-184",
+      "input": "{\"op\":\"root\",\"name\":\"Movie 1080p Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-185",
+      "input": "{\"op\":\"root\",\"name\":\"Movie 2024 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-186",
+      "input": "{\"op\":\"root\",\"name\":\"Movie 2026 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-187",
+      "input": "{\"op\":\"root\",\"name\":\"Movie 2026 BluRay 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-188",
+      "input": "{\"op\":\"root\",\"name\":\"Movie 2026 WEB-DL 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-189",
+      "input": "{\"op\":\"root\",\"name\":\"Movie WEB-DL 720p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-190",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2020.TRUEFRENCH.1080p.x264\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-191",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2024.1080p.BR.Seeds1\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-192",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2024.1080p.DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-193",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2024.1080p.Test\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-194",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2024.2160p.UHD\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-195",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2024.CAM.1080p.DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-196",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2024.Dual.Audio.Telugu.1080p.BluRay\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-197",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.2026.1080p.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-198",
+      "input": "{\"op\":\"root\",\"name\":\"Movie.Title.2024.2160p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-199",
+      "input": "{\"op\":\"root\",\"name\":\"My Name Is Farah S01E01 1080p WEB-DL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-200",
+      "input": "{\"op\":\"root\",\"name\":\"Nao.Tem.Temporada.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-201",
+      "input": "{\"op\":\"root\",\"name\":\"NoDate2.Movie.2019.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-202",
+      "input": "{\"op\":\"root\",\"name\":\"NoSub.Movie.2019.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-203",
+      "input": "{\"op\":\"root\",\"name\":\"Nome 1080p, 2160p, 720p, HD, WEB-DL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-204",
+      "input": "{\"op\":\"root\",\"name\":\"Nome do Filme 2019 Dual Audio 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-205",
+      "input": "{\"op\":\"root\",\"name\":\"Nome do Filme Dublado 2024 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-206",
+      "input": "{\"op\":\"root\",\"name\":\"O Corvo 1994 1080p BluRay DUAL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-207",
+      "input": "{\"op\":\"root\",\"name\":\"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-208",
+      "input": "{\"op\":\"root\",\"name\":\"O.Corvo.1994.Dual.Audio.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-209",
+      "input": "{\"op\":\"root\",\"name\":\"Obra.DUAL.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-210",
+      "input": "{\"op\":\"root\",\"name\":\"ObraB.Seeds.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-211",
+      "input": "{\"op\":\"root\",\"name\":\"Old Movie 1990 1080p BluRay x264\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-212",
+      "input": "{\"op\":\"root\",\"name\":\"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-213",
+      "input": "{\"op\":\"root\",\"name\":\"OtherDigest.Movie.2019.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-214",
+      "input": "{\"op\":\"root\",\"name\":\"Outro 720p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-215",
+      "input": "{\"op\":\"root\",\"name\":\"Parasita 2020 1080p BluRay DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-216",
+      "input": "{\"op\":\"root\",\"name\":\"Partial Case 1988 DVDrip\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-217",
+      "input": "{\"op\":\"root\",\"name\":\"Predador A 1080p DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-218",
+      "input": "{\"op\":\"root\",\"name\":\"Probe Movie 2011 1080p LEGENDADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-219",
+      "input": "{\"op\":\"root\",\"name\":\"Project Hail Mary 2026 1080p WEB.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-220",
+      "input": "{\"op\":\"root\",\"name\":\"Prometheus Dual\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-221",
+      "input": "{\"op\":\"root\",\"name\":\"Prot.Movie.2019.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-222",
+      "input": "{\"op\":\"root\",\"name\":\"Qualquer.Coisa.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-223",
+      "input": "{\"op\":\"root\",\"name\":\"Rare Case 1988 DVDRip\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-224",
+      "input": "{\"op\":\"root\",\"name\":\"Reacher 2 Temporada Dual\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-225",
+      "input": "{\"op\":\"root\",\"name\":\"Readd.Movie.2019.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-226",
+      "input": "{\"op\":\"root\",\"name\":\"Release Qualquer 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-227",
+      "input": "{\"op\":\"root\",\"name\":\"S01E01.1080p.DDP5.1.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-228",
+      "input": "{\"op\":\"root\",\"name\":\"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-229",
+      "input": "{\"op\":\"root\",\"name\":\"Saga Crepusculo 2008-2012 Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-230",
+      "input": "{\"op\":\"root\",\"name\":\"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-231",
+      "input": "{\"op\":\"root\",\"name\":\"Scary Movie Part Two 1080p BluRay\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-232",
+      "input": "{\"op\":\"root\",\"name\":\"Serie 1a ate 8a Temporada Completa DUAL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-233",
+      "input": "{\"op\":\"root\",\"name\":\"Serie S01E01 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-234",
+      "input": "{\"op\":\"root\",\"name\":\"Serie S01E02 Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-235",
+      "input": "{\"op\":\"root\",\"name\":\"Serie Sem Hash S02E01 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-236",
+      "input": "{\"op\":\"root\",\"name\":\"Serie T01 E001 e E002 720p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-237",
+      "input": "{\"op\":\"root\",\"name\":\"Serie Teste 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-238",
+      "input": "{\"op\":\"root\",\"name\":\"Serie Teste S01E02 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-239",
+      "input": "{\"op\":\"root\",\"name\":\"Serie Teste S02E05 DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-240",
+      "input": "{\"op\":\"root\",\"name\":\"Serie Todas as Temporadas DUAL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-241",
+      "input": "{\"op\":\"root\",\"name\":\"Serie.S01E01.DUAL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-242",
+      "input": "{\"op\":\"root\",\"name\":\"Serie.S04E03.1080p.WEB-DL.DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-243",
+      "input": "{\"op\":\"root\",\"name\":\"Shes The Boss S01E01 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-244",
+      "input": "{\"op\":\"root\",\"name\":\"Show S01 1080p EP\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-245",
+      "input": "{\"op\":\"root\",\"name\":\"Show S01 Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-246",
+      "input": "{\"op\":\"root\",\"name\":\"Show S01E01 Dual 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-247",
+      "input": "{\"op\":\"root\",\"name\":\"Show S01E05 Dual 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-248",
+      "input": "{\"op\":\"root\",\"name\":\"Show S01E1176-2160p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-249",
+      "input": "{\"op\":\"root\",\"name\":\"Show.3ordm.Temporada.Completa.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-250",
+      "input": "{\"op\":\"root\",\"name\":\"Show.S01E01.1080p.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-251",
+      "input": "{\"op\":\"root\",\"name\":\"Show.S02.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-252",
+      "input": "{\"op\":\"root\",\"name\":\"Show.S02E05.1080p.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-253",
+      "input": "{\"op\":\"root\",\"name\":\"Show.S03.1080p.DTS5.1.mkv\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-254",
+      "input": "{\"op\":\"root\",\"name\":\"Some.Global.Dub.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-255",
+      "input": "{\"op\":\"root\",\"name\":\"Some.Swarm.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-256",
+      "input": "{\"op\":\"root\",\"name\":\"Star Wars Todos os filmes 1977-2019 Dublado\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-257",
+      "input": "{\"op\":\"root\",\"name\":\"Strict Full 1988 DVDRip\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-258",
+      "input": "{\"op\":\"root\",\"name\":\"Swarm.Movie.2019.1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-259",
+      "input": "{\"op\":\"root\",\"name\":\"Terrace House Boys S01E01 1080p\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-260",
+      "input": "{\"op\":\"root\",\"name\":\"Test Title 2024 1080p EN ONLY\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-261",
+      "input": "{\"op\":\"root\",\"name\":\"Test Title 2024 720p DUBLADO\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-262",
+      "input": "{\"op\":\"root\",\"name\":\"The Bear S01E01 1080p WEB-DL x264\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-263",
+      "input": "{\"op\":\"root\",\"name\":\"The Boys S04 1080p AMZN WEB-DL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    },
+    {
+      "id": "mp-264",
+      "input": "{\"op\":\"root\",\"name\":\"The Locals 2003 720p WEB-DL\"}",
+      "note": "root: título herdado do corpus de normalização"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "version": "corpus-resolve-sign/1",
+  "note": "Corpus sintético do golden HMAC de /resolve (assinatura/verificação). IDs estáveis: nunca renomear/reciclar; caso novo entra no FIM com id novo. Todas as chaves aqui são FICTÍCIAS e públicas (kind fictitious-test-key) — nenhum segredo real, nenhuma conta, nenhum .env. Oráculo: signResolve/verifyResolve REAIS de src/utils/sign.ts via dist compilado, executados em child isolado por grupo (env mínima + CWD staging em TEMP, sem rede, sem data/, CACHE_PERSIST=false).",
+  "semantics": {
+    "precedence": "secret() = config.debrid.resolveSecret || opts().debridApiKey || '' — RESOLVE_SECRET vence; o fallback é a chave de debrid efetiva da requisição (aqui, em child sem request, vem de config.debrid.apiKey via defaults()/DEBRID_ALLOW_ENV_KEY).",
+    "payload": "signResolve(infoHash, ep, hint) = hmac_sha256_hex(secret, infoHash + ep + (hint ? '&w=' + hint : '')); com hint vazio a string assinada é exatamente infoHash+ep.",
+    "hintRaw": "O hint entra CRU na assinatura (JSON string como veio). Na URL ele vai com encodeURIComponent; a codificação é só do transporte, NUNCA da assinatura.",
+    "hintFalsy": "Só o hint string VAZIO é omitido. '{}' e 'null' são strings não vazias e ENTRAM como &w={} / &w=null.",
+    "jsonOrder": "A ordem das chaves do JSON do hint muda a string assinada (JSON.stringify preserva a ordem de inserção) — portanto muda a assinatura.",
+    "infoHashCase": "sign/verify NÃO normalizam caixa do infoHash. A rota /resolve (fora do escopo deste golden) é quem faz toLowerCase antes de chamar verifyResolve. Aqui o vetor registra o comportamento cru da função.",
+    "verifyGuards": "verifyResolve: sem segredo (expected === '') → false; sig não-string → false; Buffer.from UTF-8 dos dois lados; lengths diferentes → false; senão timingSafeEqual. digest('hex') é MINÚSCULO; uppercase tem o MESMO comprimento (64) e falha em timingSafeEqual — não existe comparação case-insensitive.",
+    "noKey": "Sem RESOLVE_SECRET e sem chave de debrid efetiva, signResolve devolve '' e verifyResolve sempre false (rota não assinável)."
+  },
+  "keys": {
+    "primary": {
+      "id": "primary",
+      "kind": "fictitious-test-key",
+      "keySource": "resolveSecret",
+      "source": "config.debrid.resolveSecret",
+      "env": "RESOLVE_SECRET",
+      "value": "adom-golden-resolve-sign-FAKE-primary-v1-NOT-A-REAL-SECRET"
+    },
+    "fallback": {
+      "id": "fallback",
+      "kind": "fictitious-test-key",
+      "keySource": "opts.debridApiKey",
+      "source": "opts().debridApiKey (config.debrid.apiKey via defaults(); DEBRID_ALLOW_ENV_KEY=true de fábrica)",
+      "env": "DEBRID_API_KEY",
+      "value": "adom-golden-resolve-sign-FAKE-fallback-v1-NOT-A-REAL-SECRET"
+    },
+    "nokey": {
+      "id": "nokey",
+      "kind": "empty",
+      "keySource": "none",
+      "source": "none (sem RESOLVE_SECRET e sem DEBRID_API_KEY)",
+      "env": null,
+      "value": ""
+    }
+  },
+  "cases": [
+    { "id": "rs-001", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "note": "filme, sem dica: payload = infoHash" },
+    { "id": "rs-002", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{}", "note": "JSON vazio É string não vazia: entra como &w={}" },
+    { "id": "rs-003", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"p\":1}", "note": "dica de pack multiobra (p) não é parâmetro separado: vai dentro do JSON" },
+    { "id": "rs-004", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"d\":1}", "note": "promessa de dublado (d) dentro do hint" },
+    { "id": "rs-005", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"i\":\"tt1234567\"}", "note": "obra (i) sozinha" },
+    { "id": "rs-006", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"n\":[\"Duna\",\"Duna: Parte Dois\"],\"y\":2024,\"p\":1,\"d\":1,\"i\":\"tt15239678\"}", "note": "hint completo ordenado n,y,p,d,i" },
+    { "id": "rs-007", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"i\":\"tt15239678\",\"d\":1,\"p\":1,\"y\":2024,\"n\":[\"Duna\",\"Duna: Parte Dois\"]}", "note": "MESMOS campos, ordem diferente: assinatura difere (ordem importa)" },
+    { "id": "rs-008", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "?s=2&e=5", "hint": "{\"i\":\"tt1234567\"}", "note": "série: ep real concatena direto no infoHash (sem separador)" },
+    { "id": "rs-009", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "?s=1", "hint": "{\"i\":\"tt1234567\"}", "note": "fragmento de ep (só temporada): a função concatena cru, não valida a forma" },
+    { "id": "rs-010", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"n\":[\"Poção do Avô\",\"Cœurs Déchirés\",\"Adım Farah\",\"すずめの戸締まり\"],\"y\":2021,\"i\":\"tt11737520\"}", "note": "hint com Unicode (acentos, œ, ı, CJK): bytes UTF-8 crus na assinatura" },
+    { "id": "rs-011", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"n\":[\"A&B = \\\"aspas\\\" / barra\"],\"y\":2019,\"d\":1}", "note": "hint com espaço/&/=/aspas escapadas: assinatura usa o RAW; encodeURIComponent só na URL (o vetor prova que a assinatura é sobre o raw)" },
+    { "id": "rs-012", "key": "primary", "infoHash": "0123456789ABCDEF0123456789ABCDEF01234567", "ep": "", "hint": "{\"i\":\"tt1234567\"}", "note": "infoHash MAIÚSCULO: signResolve não normaliza (par de rs-013)" },
+    { "id": "rs-013", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"i\":\"tt1234567\"}", "note": "infoHash minúsculo: assinatura difere do caso MAIÚSCULO" },
+    { "id": "rs-014", "key": "primary", "infoHash": "", "ep": "", "hint": "", "note": "tudo vazio: payload vazio; HMAC do vazio ainda é 64 hex (a função não valida infoHash)" },
+    { "id": "rs-015", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "note": "verify com a assinatura CORRETA (modo default: sig = expected) → true" },
+    { "id": "rs-016", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "sigMutate": "flipLastHex", "note": "assinatura corrompida no último nibble → false" },
+    { "id": "rs-017", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "sigMutate": "upper", "note": "hex MAIÚSCULO (mesmo comprimento 64): digest é minúsculo, então false — sem fold de caixa" },
+    { "id": "rs-018", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "sigMutate": "dropLast", "note": "assinatura com 63 chars: lengths diferentes → false" },
+    { "id": "rs-019", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "sig": null, "note": "sig = null (não-string) → false (guard typeof sig !== 'string')" },
+    { "id": "rs-020", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "sig": 0, "note": "sig = 0 (não-string) → false; guard antes de qualquer Buffer.from" },
+    { "id": "rs-021", "key": "primary", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "{\"i\":\"tt1234567\"}", "sigFrom": "rs-012", "note": "entrada adulterada: assinatura válida do MESMO hint com infoHash MAIÚSCULO (rs-012) não verifica aqui → false" },
+    { "id": "rs-022", "key": "fallback", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "note": "MESMA entrada de rs-001, mas sem RESOLVE_SECRET: assina com opts().debridApiKey (DEBRID_API_KEY) → assinatura diferente" },
+    { "id": "rs-023", "key": "nokey", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "", "hint": "", "note": "sem segredo: signResolve = '' e verifyResolve sempre false" },
+    { "id": "rs-024", "key": "nokey", "infoHash": "0123456789abcdef0123456789abcdef01234567", "ep": "?s=1&e=1", "hint": "{\"i\":\"tt1234567\"}", "note": "sem segredo com série/ep: mesmo '' (rota não assinável)" }
+  ]
+}

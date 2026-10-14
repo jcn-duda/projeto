@@ -1,0 +1,8 @@
+---
+description: Usa a skill TypeSafe/Jev neste projeto quando o trabalho envolve julgamento tipado, verificação semântica ou decisão estruturada via System One.
+alwaysApply: false
+---
+
+Quando o pedido envolver AI programável (roteamento, ranking, verificação, extração tipada, “prompt-and-parse” → decisão estruturada), leia e siga `.cursor/skills/typesafe-ai/SKILL.md` e a documentação ao vivo em https://docs.typesafe.ai/llms.txt.
+
+Credencial: `TYPESAFE_API_KEY` no `.env` (nunca no git). Auth: `Authorization: Bearer <key>` em `POST https://api.typesafe.ai/v1/systemone`. Modelo padrão: `jev-latest`.

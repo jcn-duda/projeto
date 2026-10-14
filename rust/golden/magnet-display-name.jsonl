@@ -1,0 +1,17 @@
+{"id":"md-001","input":"{\"magnet\":null,\"magnetUri\":null,\"guid\":null}","expected":""}
+{"id":"md-002","input":"{\"magnet\":\"https://protetor.example/go?url=abc&dn=Resident.Evil.2026\",\"magnetUri\":null,\"guid\":null}","expected":""}
+{"id":"md-003","input":"{\"magnet\":\"http://protetor.example/dl/arquivo\",\"magnetUri\":null,\"guid\":null}","expected":""}
+{"id":"md-004","input":"{\"magnet\":\"magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567\",\"magnetUri\":null,\"guid\":null}","expected":""}
+{"id":"md-005","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident.Evil.2026.1080p\",\"magnetUri\":null,\"guid\":null}","expected":"Resident.Evil.2026.1080p"}
+{"id":"md-006","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident+Evil+2026\",\"magnetUri\":null,\"guid\":null}","expected":"Resident Evil 2026"}
+{"id":"md-007","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident%20Evil%202026\",\"magnetUri\":null,\"guid\":null}","expected":"Resident Evil 2026"}
+{"id":"md-008","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Resident%20Evil%ZZ\",\"magnetUri\":null,\"guid\":null}","expected":"Resident%20Evil%ZZ"}
+{"id":"md-009","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=Ok%20Bad%\",\"magnetUri\":null,\"guid\":null}","expected":"Ok%20Bad%"}
+{"id":"md-010","input":"{\"magnet\":\"\",\"magnetUri\":\"magnet:?xt=urn:btih:HASH&dn=Pelo+MagnetUri\",\"guid\":\"magnet:?dn=Nao+Guid\"}","expected":"Pelo MagnetUri"}
+{"id":"md-011","input":"{\"magnet\":null,\"magnetUri\":\"\",\"guid\":\"magnet:?xt=urn:btih:HASH&dn=Pelo+Guid\"}","expected":"Pelo Guid"}
+{"id":"md-012","input":"{\"magnet\":\"magnet:?xt=urn:btih:AAA&dn=Do+Magnet\",\"magnetUri\":\"magnet:?xt=urn:btih:BBB&dn=Do+Uri\",\"guid\":\"magnet:?dn=Do+Guid\"}","expected":"Do Magnet"}
+{"id":"md-013","input":"{\"magnet\":\"magnet:?dn=Inicio+Da+Query&xt=urn:btih:HASH\",\"magnetUri\":null,\"guid\":null}","expected":"Inicio Da Query"}
+{"id":"md-014","input":"{\"magnet\":\"MAGNET:?xt=urn:btih:HASH&dn=Esquema+Maiusculo\",\"magnetUri\":null,\"guid\":null}","expected":"Esquema Maiusculo"}
+{"id":"md-015","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=A%C3%A7%C3%A3o.2024.1080p\",\"magnetUri\":null,\"guid\":null}","expected":"Ação.2024.1080p"}
+{"id":"md-016","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&DN=Caixa+Alta\",\"magnetUri\":null,\"guid\":null}","expected":"Caixa Alta"}
+{"id":"md-017","input":"{\"magnet\":\"magnet:?xt=urn:btih:HASH&dn=A+B%ZZ\",\"magnetUri\":null,\"guid\":null}","expected":"A B%ZZ"}

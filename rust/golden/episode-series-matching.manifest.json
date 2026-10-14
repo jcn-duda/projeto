@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "episode-series-matching/matchesEpisodeWorkIdentity",
+    "episode-series-matching/matchesGlobalSeriesNoMarker"
+  ],
+  "function": {
+    "name": "matchesEpisodeWorkIdentity, matchesGlobalSeriesNoMarker",
+    "sourcePath": "src/utils/release-title-rules.ts",
+    "sourceSha256": "c309b98513db80a7058a6eb6d1d86809e7fe69991fef1019bd44c21017e909a1",
+    "artifactPath": "dist/src/utils/release-title-rules.js",
+    "artifactSha256": "3c7e3886a242ce8ba2b5b7e49d66cfdf86763d2c2a4027f18970fe7369c6c0a1"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-episode-series-matching.json",
+    "sha256": "1a3b2ae8ad8e702ae35d16a66938261dca20874567d32a3213eaf8b66af25285",
+    "cases": 25
+  },
+  "output": {
+    "path": "rust/golden/episode-series-matching.jsonl",
+    "sha256": "471fb8bc2414b28a8bf96af6ca359270c0f2f9826afe08dbc985a0c857e09d44",
+    "lines": 25
+  },
+  "node": {
+    "major": 20
+  },
+  "git": {
+    "revision": "d8505b2be60288a0d6e31d976b3bb062b3763402"
+  }
+}

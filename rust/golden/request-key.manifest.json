@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "request-key/streamsCacheKey"
+  ],
+  "function": {
+    "name": "streamsCacheKey",
+    "sourcePath": "src/utils/request-key.ts",
+    "sourceSha256": "a5a8f587f0c9fd69aefd74f9da702bb97d38eba946a70ca24ee803a04b19e2d1",
+    "artifactPath": "dist/src/utils/request-key.js",
+    "artifactSha256": "47bc6593ce916d251d90d7835305445eea7d86288fe00b3fb28892b9ac26d166"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-request-key.json",
+    "sha256": "32962189abce6127bdbbbaa8aeeb288cf94bad23fd829b327612b8533f25a74a",
+    "cases": 65
+  },
+  "output": {
+    "path": "rust/golden/request-key.jsonl",
+    "sha256": "d6dae8d421f46dd796a2b77000c0e8ed519720cac14e86482fc4880df6e21bf5",
+    "lines": 65
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "790bfacffa5f14461a10d09cc16e2fa4e324b677"
+  }
+}

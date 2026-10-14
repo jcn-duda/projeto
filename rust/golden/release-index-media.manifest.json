@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "release-index-media/bankAndMerge"
+  ],
+  "function": {
+    "name": "releaseIndexMedia",
+    "sourcePath": "src/utils/release-index-media.ts",
+    "sourceSha256": "4aab712fa251750b46bf3db5ebd4acb884fbf86f7a12032a90b499176ce9a38f",
+    "artifactPath": "dist/src/utils/release-index-media.js",
+    "artifactSha256": "8720267dc3753bcf8b5ba3898193af1844549e732a6c5ae2213682f5c64c8e79"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-release-index-media.json",
+    "sha256": "27efeb6a0b32d29d34dfeff3626c1b56d2ca714cd7692f8a207ceb8ac72d2433",
+    "cases": 66
+  },
+  "output": {
+    "path": "rust/golden/release-index-media.jsonl",
+    "sha256": "583d65ec908db2fc90a2944a3a18cb4fca8729608763864ddd0127c0c7063fd0",
+    "lines": 66
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "96316cefdeaaead28701498b8c1bfe422ed1b5f0"
+  }
+}

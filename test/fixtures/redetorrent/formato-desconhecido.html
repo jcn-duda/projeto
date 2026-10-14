@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!--
+  RESPOSTA QUE O PARSER NÃO ENTENDE — nem XML (`<loc>`/`<urlset>`/`<sitemap>`)
+  nem tabela do visualizador (`<td class="left">`). É o pior caso possível: o
+  FlareSolverr respondeu 200 com HTML, e um parser que transforma "não
+  entendi" em "não há nada" devolve `urls: []` com `complete: true`, que é a
+  combinação que faz o cursor do crawler avançar sobre acervo nunca lido.
+
+  A página abaixo é o que um theme quebrado ou um interstitial devolveria:
+  200, HTML válido, nenhuma linha de sitemap. A descoberta tem de tratar isso
+  como FALHA (`failures` + `completeByKind.movie = false`, ou exceção se for o
+  único arquivo) — nunca como rodada vazia bem-sucedida.
+-->
+<html>
+<head><title>Redirecting…</title></head>
+<body>
+<div class="wrap">
+  <p>If you are not redirected automatically, follow this link.</p>
+  <a href="/filmes/coringa/">Voltar</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,439 @@
+{"id":"bo-001","input":"","expected":"pt=0 origin=0"}
+{"id":"bo-002","input":"Filme sem marca","expected":"pt=0 origin=1"}
+{"id":"bo-003","input":"The Dark Knight 2008 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-004","input":"X-Men - O Filme 1080p - The Pirate Filmes","expected":"pt=0 origin=1"}
+{"id":"bo-005","input":"Troia - The Pirate Filmes","expected":"pt=0 origin=1"}
+{"id":"bo-006","input":"Zumbilândia BDRip derew 720p","expected":"pt=0 origin=0"}
+{"id":"bo-007","input":"zumbilandia (www.thepiratefilmes.com)","expected":"pt=0 origin=1"}
+{"id":"bo-008","input":"www.UIndex.org - Movie 2020 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-009","input":"www.nerdfilmes.org - Filme 2010","expected":"pt=1 origin=1"}
+{"id":"bo-010","input":"HDBTHD.com Movie 2020","expected":"pt=0 origin=0"}
+{"id":"bo-011","input":"Movie bthd 2020","expected":"pt=1 origin=1"}
+{"id":"bo-012","input":"bthd","expected":"pt=1 origin=1"}
+{"id":"bo-013","input":"xbthd x","expected":"pt=0 origin=0"}
+{"id":"bo-014","input":"BTHD","expected":"pt=1 origin=1"}
+{"id":"bo-015","input":"hdtorrents.net Movie","expected":"pt=1 origin=1"}
+{"id":"bo-016","input":"hdtorrent Movie","expected":"pt=1 origin=1"}
+{"id":"bo-017","input":"torrentbr Movie","expected":"pt=1 origin=1"}
+{"id":"bo-018","input":"Lapumia 720p","expected":"pt=1 origin=1"}
+{"id":"bo-019","input":"OPERAÇÃO INVASÃO 2020","expected":"pt=1 origin=1"}
+{"id":"bo-020","input":"Operação Invasão 2020","expected":"pt=1 origin=1"}
+{"id":"bo-021","input":"OPERAÇÕES 2020","expected":"pt=1 origin=1"}
+{"id":"bo-022","input":"Cães de Guerra 2010","expected":"pt=1 origin=1"}
+{"id":"bo-023","input":"Cidade de Deus 2002 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-024","input":"Coração Valente 1995","expected":"pt=1 origin=1"}
+{"id":"bo-025","input":"Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-026","input":"DUBLADO 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-027","input":"dublagem pt","expected":"pt=1 origin=1"}
+{"id":"bo-028","input":"Temporada 2 Completa","expected":"pt=1 origin=1"}
+{"id":"bo-029","input":"Episódio 3","expected":"pt=1 origin=1"}
+{"id":"bo-030","input":"Coleção Guerra nas Estrelas","expected":"pt=1 origin=1"}
+{"id":"bo-031","input":"Filme ſ de noite","expected":"pt=1 origin=1"}
+{"id":"bo-032","input":"Filme K de noite","expected":"pt=1 origin=1"}
+{"id":"bo-033","input":"Dublıdo cidade","expected":"pt=1 origin=1"}
+{"id":"bo-034","input":"Ç cidade","expected":"pt=1 origin=1"}
+{"id":"bo-035","input":"Zumbilandia BDRip","expected":"pt=0 origin=0"}
+{"id":"bo-036","input":"Movie de noite","expected":"pt=1 origin=1"}
+{"id":"bo-037","input":"Movie de de","expected":"pt=1 origin=1"}
+{"id":"bo-038","input":"Movie das dos","expected":"pt=1 origin=1"}
+{"id":"bo-039","input":"Movie 2020 entre sobre atrás","expected":"pt=1 origin=1"}
+{"id":"bo-040","input":"filmes","expected":"pt=0 origin=1"}
+{"id":"bo-041","input":"O Filme 2019","expected":"pt=0 origin=1"}
+{"id":"bo-042","input":"Filmes Antigos","expected":"pt=0 origin=1"}
+{"id":"bo-043","input":"Pirate Filmes Movie","expected":"pt=0 origin=1"}
+{"id":"bo-044","input":"Ação de Ouro","expected":"pt=1 origin=1"}
+{"id":"bo-045","input":"Fúria Selvagem 2014","expected":"pt=1 origin=1"}
+{"id":"bo-046","input":"Vingança 2010","expected":"pt=1 origin=1"}
+{"id":"bo-047","input":"Maldição 2015","expected":"pt=1 origin=1"}
+{"id":"bo-048","input":"ASSASSINO 1990","expected":"pt=1 origin=1"}
+{"id":"bo-049","input":"estreia 2024","expected":"pt=1 origin=1"}
+{"id":"bo-050","input":"nacional 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-051","input":"Movie filmes 2010","expected":"pt=0 origin=1"}
+{"id":"bo-052","input":"Movie filmeſ 2010","expected":"pt=0 origin=1"}
+{"id":"bo-053","input":"Movie FILMEſ 2010","expected":"pt=0 origin=1"}
+{"id":"bo-054","input":"nerdfilmes 2010","expected":"pt=1 origin=1"}
+{"id":"bo-055","input":"nerdfilmeſ 2010","expected":"pt=0 origin=0"}
+{"id":"bo-056","input":"Movie capitulo 2","expected":"pt=1 origin=1"}
+{"id":"bo-057","input":"Movie capıtulo 2","expected":"pt=0 origin=0"}
+{"id":"bo-058","input":"Movie capítulo 2","expected":"pt=1 origin=1"}
+{"id":"bo-059","input":"Movie KK 2010","expected":"pt=0 origin=0"}
+{"id":"bo-060","input":"Movie hdtorrent 2010","expected":"pt=1 origin=1"}
+{"id":"bo-061","input":"Movie hdtorrent 2010","expected":"pt=1 origin=1"}
+{"id":"bo-062","input":"Movie İLMES 2010","expected":"pt=0 origin=0"}
+{"id":"bo-063","input":"Movie ılmes 2010","expected":"pt=0 origin=0"}
+{"id":"bo-064","input":"","expected":"pt=0 origin=0"}
+{"id":"bo-065","input":"   \t \n ","expected":"pt=0 origin=0"}
+{"id":"bo-066","input":"G.O.R.A.","expected":"pt=0 origin=0"}
+{"id":"bo-067","input":"S.W.A.T. 2003 Dual Áudio 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-068","input":"M.A.S.H","expected":"pt=0 origin=0"}
+{"id":"bo-069","input":"U.S.Marshals","expected":"pt=0 origin=0"}
+{"id":"bo-070","input":"Once.Upon.a.Time.in.America","expected":"pt=0 origin=0"}
+{"id":"bo-071","input":"H.264 x264","expected":"pt=0 origin=0"}
+{"id":"bo-072","input":"Resident.Evil.2026.1080p.TELESYNC","expected":"pt=0 origin=0"}
+{"id":"bo-073","input":"Poção do Avô","expected":"pt=1 origin=1"}
+{"id":"bo-074","input":"Poção do Avô","expected":"pt=0 origin=0"}
+{"id":"bo-075","input":"Histórias de Um Casamento: 2ª Temporada","expected":"pt=1 origin=1"}
+{"id":"bo-076","input":"Volume¹²³ Remux","expected":"pt=0 origin=0"}
+{"id":"bo-077","input":"Adım Farah","expected":"pt=0 origin=0"}
+{"id":"bo-078","input":"Straße ẞ","expected":"pt=0 origin=0"}
+{"id":"bo-079","input":"Cœurs Déchirés","expected":"pt=0 origin=0"}
+{"id":"bo-080","input":"Søren Łukasz Đoković","expected":"pt=0 origin=0"}
+{"id":"bo-081","input":"すずめの戸締まり","expected":"pt=0 origin=0"}
+{"id":"bo-082","input":"Ну, погоди!","expected":"pt=0 origin=0"}
+{"id":"bo-083","input":"!!! --- ___ ??? ***","expected":"pt=0 origin=0"}
+{"id":"bo-084","input":"Se7en   Dual\tÁudio","expected":"pt=0 origin=0"}
+{"id":"bo-085","input":"&amp; Filmes","expected":"pt=0 origin=1"}
+{"id":"bo-086","input":"DUAL ÁUDIO 4K","expected":"pt=0 origin=0"}
+{"id":"bo-087","input":"A 2024 Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-088","input":"A Casa Do Dragao Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-089","input":"A Rocha LEGENDADO DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-090","input":"A viagem de chihiro dublado pt-pt","expected":"pt=1 origin=1"}
+{"id":"bo-091","input":"A.Rocha.1996.1080p.BluRay.DUAL-SF","expected":"pt=0 origin=0"}
+{"id":"bo-092","input":"A.Rocha.1996.1080p.BluRay.DUAL.MULTi","expected":"pt=0 origin=0"}
+{"id":"bo-093","input":"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES","expected":"pt=0 origin=0"}
+{"id":"bo-094","input":"A.Rocha.1996.DUAL.ESP.ENG","expected":"pt=0 origin=0"}
+{"id":"bo-095","input":"Acervo Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-096","input":"Ativa.DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-097","input":"BR Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-098","input":"BR dublado recebe score 80","expected":"pt=1 origin=1"}
+{"id":"bo-099","input":"Cidade de Deus 2002 1080p BluRay","expected":"pt=1 origin=1"}
+{"id":"bo-100","input":"Cold 720p","expected":"pt=0 origin=0"}
+{"id":"bo-101","input":"Corvo 1994 1080p BluRay DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-102","input":"Cult Film 2010 BluRay 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-103","input":"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P","expected":"pt=0 origin=0"}
+{"id":"bo-104","input":"DUB BR 720p","expected":"pt=0 origin=0"}
+{"id":"bo-105","input":"Dedupe Case 1988 DVDrip","expected":"pt=0 origin=0"}
+{"id":"bo-106","input":"Devoradores de Estrelas 2026 Dual 5.1","expected":"pt=0 origin=0"}
+{"id":"bo-107","input":"Dia D Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-108","input":"Dublado global recebe score 40","expected":"pt=1 origin=1"}
+{"id":"bo-109","input":"Fallback.Seeds.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-110","input":"Fallout S01 Complete Pack 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-111","input":"Fallout S01E05 1080p Dual","expected":"pt=0 origin=0"}
+{"id":"bo-112","input":"Fallout.S01E01.1080p.WEBRip.x264","expected":"pt=0 origin=0"}
+{"id":"bo-113","input":"Fast Movie 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-114","input":"Filme 1 1080p","expected":"pt=0 origin=1"}
+{"id":"bo-115","input":"Filme 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-116","input":"Filme 1080p x265","expected":"pt=0 origin=1"}
+{"id":"bo-117","input":"Filme 2009 1080p BluRay","expected":"pt=0 origin=1"}
+{"id":"bo-118","input":"Filme 2019 IMAX 2160p","expected":"pt=0 origin=1"}
+{"id":"bo-119","input":"Filme 2024 1080p WEB-DL","expected":"pt=0 origin=1"}
+{"id":"bo-120","input":"Filme 480p SD","expected":"pt=0 origin=1"}
+{"id":"bo-121","input":"Filme 720p HD","expected":"pt=0 origin=1"}
+{"id":"bo-122","input":"Filme BR 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-123","input":"Filme CAM Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-124","input":"Filme Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-125","input":"Filme HDTV","expected":"pt=0 origin=1"}
+{"id":"bo-126","input":"Filme Qualquer Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-127","input":"Filme Stall Zero Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-128","input":"Filme Teste 2024 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-129","input":"Filme WEB-DL 1080p","expected":"pt=0 origin=1"}
+{"id":"bo-130","input":"Filme.2019.1080p.BluRay.x264.mkv","expected":"pt=0 origin=1"}
+{"id":"bo-131","input":"Filme.2019.1080p.x264-RARBG","expected":"pt=0 origin=1"}
+{"id":"bo-132","input":"Filme.2024.1080p.BTHD","expected":"pt=1 origin=1"}
+{"id":"bo-133","input":"Filme.2026.1080p.BluRay.x264","expected":"pt=0 origin=1"}
+{"id":"bo-134","input":"Filme.Rico.2024.1080p.mkv","expected":"pt=0 origin=1"}
+{"id":"bo-135","input":"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG","expected":"pt=0 origin=0"}
+{"id":"bo-136","input":"Global Dual 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-137","input":"Goliath.S03.2160p","expected":"pt=0 origin=0"}
+{"id":"bo-138","input":"Grace.BR.Dublado.1080p","expected":"pt=1 origin=1"}
+{"id":"bo-139","input":"HINDI.HQ.DUB","expected":"pt=0 origin=0"}
+{"id":"bo-140","input":"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-141","input":"Hawaii Five O S01E01 1080p WEB-DL x264","expected":"pt=0 origin=0"}
+{"id":"bo-142","input":"Healthy Case 2003 DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-143","input":"Idx Release 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-144","input":"Joker 2019 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-145","input":"Joker S01E01 1080p WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-146","input":"Joker.2019.2160p.WEB-DL.DUAL.5.1","expected":"pt=0 origin=0"}
+{"id":"bo-147","input":"Lost Girl S01 720p","expected":"pt=0 origin=0"}
+{"id":"bo-148","input":"Lost Girl S03 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-149","input":"Lost.Girl.S01.720p.x265-ZMNT","expected":"pt=0 origin=0"}
+{"id":"bo-150","input":"Meu Release 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-151","input":"Mortuary 1982 1080p DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-152","input":"Mortuary 1983 1080p WEBRip","expected":"pt=0 origin=0"}
+{"id":"bo-153","input":"Mortuary 1983 720p DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-154","input":"Movie 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-155","input":"Movie 1080p BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-156","input":"Movie 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-157","input":"Movie 2024 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-158","input":"Movie 2026 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-159","input":"Movie 2026 BluRay 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-160","input":"Movie 2026 WEB-DL 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-161","input":"Movie WEB-DL 720p","expected":"pt=0 origin=0"}
+{"id":"bo-162","input":"Movie.2020.TRUEFRENCH.1080p.x264","expected":"pt=0 origin=0"}
+{"id":"bo-163","input":"Movie.2024.1080p.BR.Seeds1","expected":"pt=0 origin=0"}
+{"id":"bo-164","input":"Movie.2024.1080p.DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-165","input":"Movie.2024.1080p.Test","expected":"pt=0 origin=0"}
+{"id":"bo-166","input":"Movie.2024.2160p.UHD","expected":"pt=0 origin=0"}
+{"id":"bo-167","input":"Movie.2024.CAM.1080p.DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-168","input":"Movie.2024.Dual.Audio.Telugu.1080p.BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-169","input":"Movie.2026.1080p.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-170","input":"Movie.Title.2024.2160p","expected":"pt=0 origin=0"}
+{"id":"bo-171","input":"My Name Is Farah S01E01 1080p WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-172","input":"Nao.Tem.Temporada.1080p","expected":"pt=1 origin=1"}
+{"id":"bo-173","input":"NoDate2.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-174","input":"NoSub.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-175","input":"Nome 1080p, 2160p, 720p, HD, WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-176","input":"Nome do Filme 2019 Dual Audio 1080p","expected":"pt=0 origin=1"}
+{"id":"bo-177","input":"Nome do Filme Dublado 2024 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-178","input":"O Corvo 1994 1080p BluRay DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-179","input":"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-180","input":"O.Corvo.1994.Dual.Audio.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-181","input":"Obra.DUAL.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-182","input":"ObraB.Seeds.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-183","input":"Old Movie 1990 1080p BluRay x264","expected":"pt=0 origin=0"}
+{"id":"bo-184","input":"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0","expected":"pt=0 origin=0"}
+{"id":"bo-185","input":"OtherDigest.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-186","input":"Outro 720p","expected":"pt=0 origin=0"}
+{"id":"bo-187","input":"Parasita 2020 1080p BluRay DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-188","input":"Partial Case 1988 DVDrip","expected":"pt=0 origin=0"}
+{"id":"bo-189","input":"Predador A 1080p DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-190","input":"Probe Movie 2011 1080p LEGENDADO","expected":"pt=0 origin=0"}
+{"id":"bo-191","input":"Project Hail Mary 2026 1080p WEB.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-192","input":"Prometheus Dual","expected":"pt=0 origin=0"}
+{"id":"bo-193","input":"Prot.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-194","input":"Qualquer.Coisa.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-195","input":"Rare Case 1988 DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-196","input":"Reacher 2 Temporada Dual","expected":"pt=1 origin=1"}
+{"id":"bo-197","input":"Readd.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-198","input":"Release Qualquer 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-199","input":"S01E01.1080p.DDP5.1.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-200","input":"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE","expected":"pt=0 origin=0"}
+{"id":"bo-201","input":"Saga Crepusculo 2008-2012 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-202","input":"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST","expected":"pt=0 origin=0"}
+{"id":"bo-203","input":"Scary Movie Part Two 1080p BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-204","input":"Serie 1a ate 8a Temporada Completa DUAL","expected":"pt=1 origin=1"}
+{"id":"bo-205","input":"Serie S01E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-206","input":"Serie S01E02 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-207","input":"Serie Sem Hash S02E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-208","input":"Serie T01 E001 e E002 720p","expected":"pt=0 origin=0"}
+{"id":"bo-209","input":"Serie Teste 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-210","input":"Serie Teste S01E02 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-211","input":"Serie Teste S02E05 DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-212","input":"Serie Todas as Temporadas DUAL","expected":"pt=1 origin=1"}
+{"id":"bo-213","input":"Serie.S01E01.DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-214","input":"Serie.S04E03.1080p.WEB-DL.DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-215","input":"Shes The Boss S01E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-216","input":"Show S01 1080p EP","expected":"pt=0 origin=0"}
+{"id":"bo-217","input":"Show S01 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-218","input":"Show S01E01 Dual 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-219","input":"Show S01E05 Dual 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-220","input":"Show S01E1176-2160p","expected":"pt=0 origin=0"}
+{"id":"bo-221","input":"Show.3ordm.Temporada.Completa.1080p","expected":"pt=1 origin=1"}
+{"id":"bo-222","input":"Show.S01E01.1080p.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-223","input":"Show.S02.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-224","input":"Show.S02E05.1080p.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-225","input":"Show.S03.1080p.DTS5.1.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-226","input":"Some.Global.Dub.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-227","input":"Some.Swarm.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-228","input":"Star Wars Todos os filmes 1977-2019 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-229","input":"Strict Full 1988 DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-230","input":"Swarm.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-231","input":"Terrace House Boys S01E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-232","input":"Test Title 2024 1080p EN ONLY","expected":"pt=0 origin=0"}
+{"id":"bo-233","input":"Test Title 2024 720p DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-234","input":"The Bear S01E01 1080p WEB-DL x264","expected":"pt=0 origin=0"}
+{"id":"bo-235","input":"The Boys S04 1080p AMZN WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-236","input":"The Locals 2003 720p WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-237","input":"","expected":"pt=0 origin=0"}
+{"id":"bo-238","input":"   ","expected":"pt=0 origin=0"}
+{"id":"bo-239","input":"Torrent (2019) Legendado WEB DL 720p","expected":"pt=0 origin=0"}
+{"id":"bo-240","input":"Apocalypse Now V.Exten (1979) [BluRay 1080p][DUAL]","expected":"pt=0 origin=0"}
+{"id":"bo-241","input":"Apocalypse Now V. Estendida (1979)","expected":"pt=1 origin=1"}
+{"id":"bo-242","input":"V de Vingança 2005 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-243","input":"V 2009 720p","expected":"pt=0 origin=0"}
+{"id":"bo-244","input":"A Viagem de Chihiro (2001) DVDRip MP4 Dublado pt-BR","expected":"pt=1 origin=1"}
+{"id":"bo-245","input":"A Rocha (1996) BDRip BluRay 720p dublado - FB","expected":"pt=1 origin=1"}
+{"id":"bo-246","input":"Zumbilândia BDRip derew 720p","expected":"pt=0 origin=0"}
+{"id":"bo-247","input":"Zumbilandia (www ThePirateFilms.com)","expected":"pt=0 origin=0"}
+{"id":"bo-248","input":"Atire Duas Vezes 1990 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-249","input":"Todos os filmes 1979-2016","expected":"pt=0 origin=1"}
+{"id":"bo-250","input":"Todos os filmes 1979 2016","expected":"pt=0 origin=1"}
+{"id":"bo-251","input":"Coleção Guerra nas Estrelas","expected":"pt=1 origin=1"}
+{"id":"bo-252","input":"Game of Thrones Todas as Temporadas","expected":"pt=1 origin=1"}
+{"id":"bo-253","input":"Velozes e Furiosos 5 2011 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-254","input":"The Hulk 2003 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-255","input":"Para Sempre 2010 720p","expected":"pt=0 origin=0"}
+{"id":"bo-256","input":"S01E01 A Casa do Dragão S01E01 x264 DUAL","expected":"pt=1 origin=1"}
+{"id":"bo-257","input":"1A TEMPORADA COMPLETA House of the Dragon S01","expected":"pt=1 origin=1"}
+{"id":"bo-258","input":"Rocky II 1979 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-259","input":"Duna Parte Dois 2024 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-260","input":"Batman Begins 2005 1080p BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-261","input":"Dublado Legendado","expected":"pt=1 origin=1"}
+{"id":"bo-262","input":"I Am Legend 2007 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-263","input":"Monster Hunter 2021 720p","expected":"pt=0 origin=0"}
+{"id":"bo-264","input":"Trilogia Matrix 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-265","input":"Histórias de Um Casamento: 2ª Temporada","expected":"pt=1 origin=1"}
+{"id":"bo-266","input":"Stranger Things 4 1080p WEB-DL DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-267","input":"","expected":"pt=0 origin=0"}
+{"id":"bo-268","input":"   \t \n ","expected":"pt=0 origin=0"}
+{"id":"bo-269","input":"G.O.R.A.","expected":"pt=0 origin=0"}
+{"id":"bo-270","input":"S.W.A.T. 2003 Dual Áudio 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-271","input":"M.A.S.H","expected":"pt=0 origin=0"}
+{"id":"bo-272","input":"U.S.Marshals","expected":"pt=0 origin=0"}
+{"id":"bo-273","input":"Once.Upon.a.Time.in.America","expected":"pt=0 origin=0"}
+{"id":"bo-274","input":"H.264 x264","expected":"pt=0 origin=0"}
+{"id":"bo-275","input":"Resident.Evil.2026.1080p.TELESYNC","expected":"pt=0 origin=0"}
+{"id":"bo-276","input":"Poção do Avô","expected":"pt=1 origin=1"}
+{"id":"bo-277","input":"Poção do Avô","expected":"pt=0 origin=0"}
+{"id":"bo-278","input":"Histórias de Um Casamento: 2ª Temporada","expected":"pt=1 origin=1"}
+{"id":"bo-279","input":"Volume¹²³ Remux","expected":"pt=0 origin=0"}
+{"id":"bo-280","input":"Adım Farah","expected":"pt=0 origin=0"}
+{"id":"bo-281","input":"Straße ẞ","expected":"pt=0 origin=0"}
+{"id":"bo-282","input":"Cœurs Déchirés","expected":"pt=0 origin=0"}
+{"id":"bo-283","input":"Søren Łukasz Đoković","expected":"pt=0 origin=0"}
+{"id":"bo-284","input":"すずめの戸締まり","expected":"pt=0 origin=0"}
+{"id":"bo-285","input":"Ну, погоди!","expected":"pt=0 origin=0"}
+{"id":"bo-286","input":"!!! --- ___ ??? ***","expected":"pt=0 origin=0"}
+{"id":"bo-287","input":"Se7en   Dual\tÁudio","expected":"pt=0 origin=0"}
+{"id":"bo-288","input":"&amp; Filmes","expected":"pt=0 origin=1"}
+{"id":"bo-289","input":"DUAL ÁUDIO 4K","expected":"pt=0 origin=0"}
+{"id":"bo-290","input":"A 2024 Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-291","input":"A Casa Do Dragao Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-292","input":"A Rocha LEGENDADO DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-293","input":"A viagem de chihiro dublado pt-pt","expected":"pt=1 origin=1"}
+{"id":"bo-294","input":"A.Rocha.1996.1080p.BluRay.DUAL-SF","expected":"pt=0 origin=0"}
+{"id":"bo-295","input":"A.Rocha.1996.1080p.BluRay.DUAL.MULTi","expected":"pt=0 origin=0"}
+{"id":"bo-296","input":"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES","expected":"pt=0 origin=0"}
+{"id":"bo-297","input":"A.Rocha.1996.DUAL.ESP.ENG","expected":"pt=0 origin=0"}
+{"id":"bo-298","input":"Acervo Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-299","input":"Ativa.DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-300","input":"BR Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-301","input":"BR dublado recebe score 80","expected":"pt=1 origin=1"}
+{"id":"bo-302","input":"Cidade de Deus 2002 1080p BluRay","expected":"pt=1 origin=1"}
+{"id":"bo-303","input":"Cold 720p","expected":"pt=0 origin=0"}
+{"id":"bo-304","input":"Corvo 1994 1080p BluRay DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-305","input":"Cult Film 2010 BluRay 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-306","input":"DOWNLOAD TORRENT LEGENDADO 5.1 MKV 720P","expected":"pt=0 origin=0"}
+{"id":"bo-307","input":"DUB BR 720p","expected":"pt=0 origin=0"}
+{"id":"bo-308","input":"Dedupe Case 1988 DVDrip","expected":"pt=0 origin=0"}
+{"id":"bo-309","input":"Devoradores de Estrelas 2026 Dual 5.1","expected":"pt=0 origin=0"}
+{"id":"bo-310","input":"Dia D Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-311","input":"Dublado global recebe score 40","expected":"pt=1 origin=1"}
+{"id":"bo-312","input":"Fallback.Seeds.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-313","input":"Fallout S01 Complete Pack 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-314","input":"Fallout S01E05 1080p Dual","expected":"pt=0 origin=0"}
+{"id":"bo-315","input":"Fallout.S01E01.1080p.WEBRip.x264","expected":"pt=0 origin=0"}
+{"id":"bo-316","input":"Fast Movie 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-317","input":"Filme 1 1080p","expected":"pt=0 origin=1"}
+{"id":"bo-318","input":"Filme 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-319","input":"Filme 1080p x265","expected":"pt=0 origin=1"}
+{"id":"bo-320","input":"Filme 2009 1080p BluRay","expected":"pt=0 origin=1"}
+{"id":"bo-321","input":"Filme 2019 IMAX 2160p","expected":"pt=0 origin=1"}
+{"id":"bo-322","input":"Filme 2024 1080p WEB-DL","expected":"pt=0 origin=1"}
+{"id":"bo-323","input":"Filme 480p SD","expected":"pt=0 origin=1"}
+{"id":"bo-324","input":"Filme 720p HD","expected":"pt=0 origin=1"}
+{"id":"bo-325","input":"Filme BR 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-326","input":"Filme CAM Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-327","input":"Filme Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-328","input":"Filme HDTV","expected":"pt=0 origin=1"}
+{"id":"bo-329","input":"Filme Qualquer Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-330","input":"Filme Stall Zero Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-331","input":"Filme Teste 2024 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-332","input":"Filme WEB-DL 1080p","expected":"pt=0 origin=1"}
+{"id":"bo-333","input":"Filme.2019.1080p.BluRay.x264.mkv","expected":"pt=0 origin=1"}
+{"id":"bo-334","input":"Filme.2019.1080p.x264-RARBG","expected":"pt=0 origin=1"}
+{"id":"bo-335","input":"Filme.2024.1080p.BTHD","expected":"pt=1 origin=1"}
+{"id":"bo-336","input":"Filme.2026.1080p.BluRay.x264","expected":"pt=0 origin=1"}
+{"id":"bo-337","input":"Filme.Rico.2024.1080p.mkv","expected":"pt=0 origin=1"}
+{"id":"bo-338","input":"G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG","expected":"pt=0 origin=0"}
+{"id":"bo-339","input":"Global Dual 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-340","input":"Goliath.S03.2160p","expected":"pt=0 origin=0"}
+{"id":"bo-341","input":"Grace.BR.Dublado.1080p","expected":"pt=1 origin=1"}
+{"id":"bo-342","input":"HINDI.HQ.DUB","expected":"pt=0 origin=0"}
+{"id":"bo-343","input":"Harry Potter e a Pedra Filosofal 2001 Dublado 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-344","input":"Hawaii Five O S01E01 1080p WEB-DL x264","expected":"pt=0 origin=0"}
+{"id":"bo-345","input":"Healthy Case 2003 DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-346","input":"Idx Release 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-347","input":"Joker 2019 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-348","input":"Joker S01E01 1080p WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-349","input":"Joker.2019.2160p.WEB-DL.DUAL.5.1","expected":"pt=0 origin=0"}
+{"id":"bo-350","input":"Lost Girl S01 720p","expected":"pt=0 origin=0"}
+{"id":"bo-351","input":"Lost Girl S03 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-352","input":"Lost.Girl.S01.720p.x265-ZMNT","expected":"pt=0 origin=0"}
+{"id":"bo-353","input":"Meu Release 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-354","input":"Mortuary 1982 1080p DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-355","input":"Mortuary 1983 1080p WEBRip","expected":"pt=0 origin=0"}
+{"id":"bo-356","input":"Mortuary 1983 720p DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-357","input":"Movie 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-358","input":"Movie 1080p BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-359","input":"Movie 1080p Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-360","input":"Movie 2024 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-361","input":"Movie 2026 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-362","input":"Movie 2026 BluRay 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-363","input":"Movie 2026 WEB-DL 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-364","input":"Movie WEB-DL 720p","expected":"pt=0 origin=0"}
+{"id":"bo-365","input":"Movie.2020.TRUEFRENCH.1080p.x264","expected":"pt=0 origin=0"}
+{"id":"bo-366","input":"Movie.2024.1080p.BR.Seeds1","expected":"pt=0 origin=0"}
+{"id":"bo-367","input":"Movie.2024.1080p.DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-368","input":"Movie.2024.1080p.Test","expected":"pt=0 origin=0"}
+{"id":"bo-369","input":"Movie.2024.2160p.UHD","expected":"pt=0 origin=0"}
+{"id":"bo-370","input":"Movie.2024.CAM.1080p.DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-371","input":"Movie.2024.Dual.Audio.Telugu.1080p.BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-372","input":"Movie.2026.1080p.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-373","input":"Movie.Title.2024.2160p","expected":"pt=0 origin=0"}
+{"id":"bo-374","input":"My Name Is Farah S01E01 1080p WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-375","input":"Nao.Tem.Temporada.1080p","expected":"pt=1 origin=1"}
+{"id":"bo-376","input":"NoDate2.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-377","input":"NoSub.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-378","input":"Nome 1080p, 2160p, 720p, HD, WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-379","input":"Nome do Filme 2019 Dual Audio 1080p","expected":"pt=0 origin=1"}
+{"id":"bo-380","input":"Nome do Filme Dublado 2024 1080p","expected":"pt=1 origin=1"}
+{"id":"bo-381","input":"O Corvo 1994 1080p BluRay DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-382","input":"O Corvo The Crow e Dual O CORVO  Dual  X265 BLURAY 1080P 1080p, BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-383","input":"O.Corvo.1994.Dual.Audio.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-384","input":"Obra.DUAL.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-385","input":"ObraB.Seeds.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-386","input":"Old Movie 1990 1080p BluRay x264","expected":"pt=0 origin=0"}
+{"id":"bo-387","input":"Origem S01 2022 WEB-DL 1080p x264 DUAL 2.0","expected":"pt=0 origin=0"}
+{"id":"bo-388","input":"OtherDigest.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-389","input":"Outro 720p","expected":"pt=0 origin=0"}
+{"id":"bo-390","input":"Parasita 2020 1080p BluRay DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-391","input":"Partial Case 1988 DVDrip","expected":"pt=0 origin=0"}
+{"id":"bo-392","input":"Predador A 1080p DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-393","input":"Probe Movie 2011 1080p LEGENDADO","expected":"pt=0 origin=0"}
+{"id":"bo-394","input":"Project Hail Mary 2026 1080p WEB.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-395","input":"Prometheus Dual","expected":"pt=0 origin=0"}
+{"id":"bo-396","input":"Prot.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-397","input":"Qualquer.Coisa.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-398","input":"Rare Case 1988 DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-399","input":"Reacher 2 Temporada Dual","expected":"pt=1 origin=1"}
+{"id":"bo-400","input":"Readd.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-401","input":"Release Qualquer 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-402","input":"S01E01.1080p.DDP5.1.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-403","input":"S01E02.The.Bear.1080p.WEBRip.x264-EVOLVE","expected":"pt=0 origin=0"}
+{"id":"bo-404","input":"Saga Crepusculo 2008-2012 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-405","input":"Scary Movie 2000 REPACK BluRay 1080p DTS-HD MA 5 1 AVC HYBRID REMUX-FraMeST","expected":"pt=0 origin=0"}
+{"id":"bo-406","input":"Scary Movie Part Two 1080p BluRay","expected":"pt=0 origin=0"}
+{"id":"bo-407","input":"Serie 1a ate 8a Temporada Completa DUAL","expected":"pt=1 origin=1"}
+{"id":"bo-408","input":"Serie S01E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-409","input":"Serie S01E02 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-410","input":"Serie Sem Hash S02E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-411","input":"Serie T01 E001 e E002 720p","expected":"pt=0 origin=0"}
+{"id":"bo-412","input":"Serie Teste 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-413","input":"Serie Teste S01E02 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-414","input":"Serie Teste S02E05 DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-415","input":"Serie Todas as Temporadas DUAL","expected":"pt=1 origin=1"}
+{"id":"bo-416","input":"Serie.S01E01.DUAL","expected":"pt=0 origin=0"}
+{"id":"bo-417","input":"Serie.S04E03.1080p.WEB-DL.DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-418","input":"Shes The Boss S01E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-419","input":"Show S01 1080p EP","expected":"pt=0 origin=0"}
+{"id":"bo-420","input":"Show S01 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-421","input":"Show S01E01 Dual 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-422","input":"Show S01E05 Dual 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-423","input":"Show S01E1176-2160p","expected":"pt=0 origin=0"}
+{"id":"bo-424","input":"Show.3ordm.Temporada.Completa.1080p","expected":"pt=1 origin=1"}
+{"id":"bo-425","input":"Show.S01E01.1080p.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-426","input":"Show.S02.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-427","input":"Show.S02E05.1080p.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-428","input":"Show.S03.1080p.DTS5.1.mkv","expected":"pt=0 origin=0"}
+{"id":"bo-429","input":"Some.Global.Dub.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-430","input":"Some.Swarm.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-431","input":"Star Wars Todos os filmes 1977-2019 Dublado","expected":"pt=1 origin=1"}
+{"id":"bo-432","input":"Strict Full 1988 DVDRip","expected":"pt=0 origin=0"}
+{"id":"bo-433","input":"Swarm.Movie.2019.1080p","expected":"pt=0 origin=0"}
+{"id":"bo-434","input":"Terrace House Boys S01E01 1080p","expected":"pt=0 origin=0"}
+{"id":"bo-435","input":"Test Title 2024 1080p EN ONLY","expected":"pt=0 origin=0"}
+{"id":"bo-436","input":"Test Title 2024 720p DUBLADO","expected":"pt=1 origin=1"}
+{"id":"bo-437","input":"The Bear S01E01 1080p WEB-DL x264","expected":"pt=0 origin=0"}
+{"id":"bo-438","input":"The Boys S04 1080p AMZN WEB-DL","expected":"pt=0 origin=0"}
+{"id":"bo-439","input":"The Locals 2003 720p WEB-DL","expected":"pt=0 origin=0"}

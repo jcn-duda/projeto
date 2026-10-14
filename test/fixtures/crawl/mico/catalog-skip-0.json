@@ -1,0 +1,64 @@
+{
+  "metas": [
+    {
+      "_id": "68f000000000000000000001",
+      "id": "tt33100314",
+      "type": "movie",
+      "name": "Remarkably Bright Creatures",
+      "genres": ["Comedy", "Drama"],
+      "releaseInfo": "2026",
+      "imdbRating": 7.8,
+      "runtime": "114 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    },
+    {
+      "_id": "68f000000000000000000002",
+      "id": "tt0816692",
+      "type": "movie",
+      "name": "Interstellar",
+      "genres": ["Adventure", "Drama", "Sci-Fi"],
+      "releaseInfo": "2014",
+      "imdbRating": 8.7,
+      "runtime": "169 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    },
+    {
+      "_id": "68f000000000000000000003",
+      "id": "tt0133093",
+      "type": "movie",
+      "name": "The Matrix",
+      "genres": ["Action", "Sci-Fi"],
+      "releaseInfo": "1999",
+      "imdbRating": 8.7,
+      "runtime": "136 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    },
+    {
+      "_id": "68f000000000000000000004",
+      "id": "tt0468569",
+      "type": "movie",
+      "name": "The Dark Knight",
+      "genres": ["Action", "Crime", "Drama"],
+      "releaseInfo": "2008",
+      "imdbRating": 9.0,
+      "runtime": "152 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    },
+    {
+      "_id": "68f000000000000000000005",
+      "id": "tt0111161",
+      "type": "movie",
+      "name": "The Shawshank Redemption",
+      "genres": ["Drama"],
+      "releaseInfo": "1994",
+      "imdbRating": 9.3,
+      "runtime": "142 min",
+      "catalogs": ["MicoFilmes"],
+      "__v": 0
+    }
+  ]
+}

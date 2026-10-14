@@ -1,0 +1,73 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "stream-display/streamDisplayName"
+  ],
+  "function": {
+    "id": "stream-display/streamDisplayName",
+    "name": "streamDisplayName",
+    "sourcePath": "src/utils/stream-display.ts",
+    "sourceSha256": "69d1ece3a5f562b5d7401b6a2038355d8b24955a9fcfda228e214d0abff2bfdd",
+    "artifactPath": "dist/src/utils/stream-display.js",
+    "artifactSha256": "9f9b1953dba56e8b0574c7658f51f0d6222491224d31fa7c59010f36adf21ccb",
+    "configEnv": {
+      "STREAM_NAME_STYLE": "'full' liga o estilo full; ausente/compact = compact",
+      "STREAM_NAME_SHOW_SOURCE": "'false' esconde o tracker; ausente = true"
+    },
+    "fieldContract": {
+      "expectedJson": "JSON.stringify(resultado) do Node: SEMPRE JSON válido e ASCII-safe (escapa surrogate \\uD800-\\uDFFF órfão). Campo de comparação do leitor Rust.",
+      "expected": "string JS crua; OMITIDA quando orphanSurrogate=true (serde_json estrito recusa surrogate órfão).",
+      "orphanSurrogate": "true quando compactTracker corta um par surrogate UTF-16 ao meio."
+    }
+  },
+  "configGroups": [
+    {
+      "key": "default|default",
+      "cases": 106
+    },
+    {
+      "key": "default|false",
+      "cases": 5
+    },
+    {
+      "key": "full|default",
+      "cases": 9
+    },
+    {
+      "key": "full|false",
+      "cases": 4
+    }
+  ],
+  "traps": [
+    {
+      "id": "compactTracker/utf16-cut",
+      "where": "src/utils/audio-quality.ts:compactTracker (slice em unidades UTF-16)",
+      "detail": "Par surrogate astral na fronteira do corte vira surrogate órfão. O porte Rust NÃO pode dropar em silêncio: preserve o quirk via expectedJson ou reporte Fail.",
+      "vectorIds": [
+        "sd-083",
+        "sd-084",
+        "sd-085",
+        "sd-086"
+      ],
+      "count": 4
+    }
+  ],
+  "corpus": {
+    "path": "scripts/golden/corpus-stream-display.json",
+    "sha256": "87a5c143e04244b19275eb8fbf146607d35c7022b1fa24e23a62d9f52e70d6c5",
+    "cases": 124
+  },
+  "output": {
+    "path": "rust/golden/stream-display.jsonl",
+    "sha256": "e6be5f9131e878e1303b3ad513483547ba212d7acb626a699be24804dbfb82fa",
+    "lines": 124
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "b133bd13a3fafe06f59c5169310a723761511d51"
+  }
+}

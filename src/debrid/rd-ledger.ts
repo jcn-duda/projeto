@@ -171,7 +171,9 @@ function status() {
   let misses = 0;
   let blocked = 0;
   for (const [hash, item] of tracked) {
-    if (item.expiresAt <= now) {
+    // Evicção/forget do cache não notifica o Map — sem o peek a amostra
+    // SUPERCONTA depois que a cota rdc gira (mesmo padrão do magnetdb).
+    if (item.expiresAt <= now || cache.peek(key(hash)) == null) {
       tracked.delete(hash);
       continue;
     }
@@ -179,7 +181,30 @@ function status() {
     else if (item.state === 'miss') misses += 1;
     else blocked += 1;
   }
-  return { tracked: hits + misses + blocked, hits, misses, blocked };
+  // Ocupação real do namespace `rdc` no L1 — snapshot do cache, igual ao mag
+  // do magnetdb. Inclui chaves plantadas antes do processo (L2→L1) e órfãs
+  // sem track; por isso pode diferir da amostra.
+  const ns = cache.snapshot().namespaces as Record<string, { entries?: number; maxEntries?: number }>;
+  const rdcNs = ns?.rdc;
+  // `_origem` aditivo: tracked/hits/… = amostra do processo; l1* = L1 durável
+  // (Mecanismo A — debrid-status / painel).
+  return {
+    tracked: hits + misses + blocked,
+    hits,
+    misses,
+    blocked,
+    l1Entries: rdcNs?.entries || 0,
+    // Sem snapshot/QUOTAS, inventar um número no painel é pior que zero.
+    l1Max: rdcNs?.maxEntries || cache.QUOTAS?.rdc || 0,
+    _origem: {
+      tracked: 'amostra' as const,
+      hits: 'amostra' as const,
+      misses: 'amostra' as const,
+      blocked: 'amostra' as const,
+      l1Entries: 'duravel' as const,
+      l1Max: 'duravel' as const,
+    },
+  };
 }
 
 function reset() {

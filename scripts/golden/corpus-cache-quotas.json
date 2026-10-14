@@ -1,0 +1,646 @@
+{
+  "version": "corpus-cache-quotas/1",
+  "note": "Casos de cache-quotas.ts: QUOTAS (op quotas), MAX_ENTRIES (op max), quotaFor (op quota), namespaceFor (op namespace) e a conta do universo que test/cache-namespaces.test.ts faz (ops universe/validate). incrementNamespace/removeFromStore/quotaOverflow dependem do store LRU e não têm caso.",
+  "cases": [
+    {
+      "id": "cq-quotas",
+      "input": "{\"op\":\"quotas\"}",
+      "note": "tabela completa na ordem de inserção"
+    },
+    {
+      "id": "cq-max",
+      "input": "{\"op\":\"max\"}",
+      "note": "teto global do L1"
+    },
+    {
+      "id": "cq-universe",
+      "input": "{\"op\":\"universe\"}",
+      "note": "união QUOTAS ∪ NAMESPACE_VERSIONS + __default"
+    },
+    {
+      "id": "cq-validate",
+      "input": "{\"op\":\"validate\"}",
+      "note": "soma do universo abaixo do teto e sem fallback"
+    },
+    {
+      "id": "cq-quota-01",
+      "input": "{\"op\":\"quota\",\"ns\":\"streams\"}",
+      "note": "cota de streams"
+    },
+    {
+      "id": "cq-quota-02",
+      "input": "{\"op\":\"quota\",\"ns\":\"dlmag\"}",
+      "note": "cota de dlmag"
+    },
+    {
+      "id": "cq-quota-03",
+      "input": "{\"op\":\"quota\",\"ns\":\"tmdb\"}",
+      "note": "cota de tmdb"
+    },
+    {
+      "id": "cq-quota-04",
+      "input": "{\"op\":\"quota\",\"ns\":\"tmdbc\"}",
+      "note": "cota de tmdbc"
+    },
+    {
+      "id": "cq-quota-05",
+      "input": "{\"op\":\"quota\",\"ns\":\"meta\"}",
+      "note": "cota de meta"
+    },
+    {
+      "id": "cq-quota-06",
+      "input": "{\"op\":\"quota\",\"ns\":\"raw\"}",
+      "note": "cota de raw"
+    },
+    {
+      "id": "cq-quota-07",
+      "input": "{\"op\":\"quota\",\"ns\":\"davail\"}",
+      "note": "cota de davail"
+    },
+    {
+      "id": "cq-quota-08",
+      "input": "{\"op\":\"quota\",\"ns\":\"mag\"}",
+      "note": "cota de mag"
+    },
+    {
+      "id": "cq-quota-09",
+      "input": "{\"op\":\"quota\",\"ns\":\"mag_meta\"}",
+      "note": "cota de mag_meta"
+    },
+    {
+      "id": "cq-quota-10",
+      "input": "{\"op\":\"quota\",\"ns\":\"rdc\"}",
+      "note": "cota de rdc"
+    },
+    {
+      "id": "cq-quota-11",
+      "input": "{\"op\":\"quota\",\"ns\":\"rdq\"}",
+      "note": "cota de rdq"
+    },
+    {
+      "id": "cq-quota-12",
+      "input": "{\"op\":\"quota\",\"ns\":\"rdt\"}",
+      "note": "cota de rdt"
+    },
+    {
+      "id": "cq-quota-13",
+      "input": "{\"op\":\"quota\",\"ns\":\"idx\"}",
+      "note": "cota de idx"
+    },
+    {
+      "id": "cq-quota-14",
+      "input": "{\"op\":\"quota\",\"ns\":\"autofetch\"}",
+      "note": "cota de autofetch"
+    },
+    {
+      "id": "cq-quota-15",
+      "input": "{\"op\":\"quota\",\"ns\":\"indexer-status\"}",
+      "note": "cota de indexer-status"
+    },
+    {
+      "id": "cq-quota-16",
+      "input": "{\"op\":\"quota\",\"ns\":\"cfg\"}",
+      "note": "cota de cfg"
+    },
+    {
+      "id": "cq-quota-17",
+      "input": "{\"op\":\"quota\",\"ns\":\"adprot\"}",
+      "note": "cota de adprot"
+    },
+    {
+      "id": "cq-quota-18",
+      "input": "{\"op\":\"quota\",\"ns\":\"adsub\"}",
+      "note": "cota de adsub"
+    },
+    {
+      "id": "cq-quota-19",
+      "input": "{\"op\":\"quota\",\"ns\":\"adrm\"}",
+      "note": "cota de adrm"
+    },
+    {
+      "id": "cq-quota-20",
+      "input": "{\"op\":\"quota\",\"ns\":\"fsz\"}",
+      "note": "cota de fsz"
+    },
+    {
+      "id": "cq-quota-21",
+      "input": "{\"op\":\"quota\",\"ns\":\"vres\"}",
+      "note": "cota de vres"
+    },
+    {
+      "id": "cq-quota-22",
+      "input": "{\"op\":\"quota\",\"ns\":\"tsz\"}",
+      "note": "cota de tsz"
+    },
+    {
+      "id": "cq-quota-23",
+      "input": "{\"op\":\"quota\",\"ns\":\"dinv\"}",
+      "note": "cota de dinv"
+    },
+    {
+      "id": "cq-quota-24",
+      "input": "{\"op\":\"quota\",\"ns\":\"notify\"}",
+      "note": "cota de notify"
+    },
+    {
+      "id": "cq-quota-25",
+      "input": "{\"op\":\"quota\",\"ns\":\"seed\"}",
+      "note": "cota de seed"
+    },
+    {
+      "id": "cq-quota-26",
+      "input": "{\"op\":\"quota\",\"ns\":\"harvest\"}",
+      "note": "cota de harvest"
+    },
+    {
+      "id": "cq-quota-27",
+      "input": "{\"op\":\"quota\",\"ns\":\"__default\"}",
+      "note": "cota de __default"
+    },
+    {
+      "id": "cq-ns-streams",
+      "input": "{\"op\":\"namespace\",\"key\":\"streams:qualquer:coisa\"}",
+      "note": "namespace de uma chave de streams"
+    },
+    {
+      "id": "cq-ns-dlmag",
+      "input": "{\"op\":\"namespace\",\"key\":\"dlmag:qualquer:coisa\"}",
+      "note": "namespace de uma chave de dlmag"
+    },
+    {
+      "id": "cq-ns-tmdb",
+      "input": "{\"op\":\"namespace\",\"key\":\"tmdb:qualquer:coisa\"}",
+      "note": "namespace de uma chave de tmdb"
+    },
+    {
+      "id": "cq-ns-tmdbc",
+      "input": "{\"op\":\"namespace\",\"key\":\"tmdbc:qualquer:coisa\"}",
+      "note": "namespace de uma chave de tmdbc"
+    },
+    {
+      "id": "cq-ns-meta",
+      "input": "{\"op\":\"namespace\",\"key\":\"meta:qualquer:coisa\"}",
+      "note": "namespace de uma chave de meta"
+    },
+    {
+      "id": "cq-ns-raw",
+      "input": "{\"op\":\"namespace\",\"key\":\"raw:qualquer:coisa\"}",
+      "note": "namespace de uma chave de raw"
+    },
+    {
+      "id": "cq-ns-davail",
+      "input": "{\"op\":\"namespace\",\"key\":\"davail:qualquer:coisa\"}",
+      "note": "namespace de uma chave de davail"
+    },
+    {
+      "id": "cq-ns-mag",
+      "input": "{\"op\":\"namespace\",\"key\":\"mag:qualquer:coisa\"}",
+      "note": "namespace de uma chave de mag"
+    },
+    {
+      "id": "cq-ns-mag_meta",
+      "input": "{\"op\":\"namespace\",\"key\":\"mag_meta:qualquer:coisa\"}",
+      "note": "namespace de uma chave de mag_meta"
+    },
+    {
+      "id": "cq-ns-rdc",
+      "input": "{\"op\":\"namespace\",\"key\":\"rdc:qualquer:coisa\"}",
+      "note": "namespace de uma chave de rdc"
+    },
+    {
+      "id": "cq-ns-rdq",
+      "input": "{\"op\":\"namespace\",\"key\":\"rdq:qualquer:coisa\"}",
+      "note": "namespace de uma chave de rdq"
+    },
+    {
+      "id": "cq-ns-rdt",
+      "input": "{\"op\":\"namespace\",\"key\":\"rdt:qualquer:coisa\"}",
+      "note": "namespace de uma chave de rdt"
+    },
+    {
+      "id": "cq-ns-idx",
+      "input": "{\"op\":\"namespace\",\"key\":\"idx:qualquer:coisa\"}",
+      "note": "namespace de uma chave de idx"
+    },
+    {
+      "id": "cq-ns-autofetch",
+      "input": "{\"op\":\"namespace\",\"key\":\"autofetch:qualquer:coisa\"}",
+      "note": "namespace de uma chave de autofetch"
+    },
+    {
+      "id": "cq-ns-indexer-status",
+      "input": "{\"op\":\"namespace\",\"key\":\"indexer-status:qualquer:coisa\"}",
+      "note": "namespace de uma chave de indexer-status"
+    },
+    {
+      "id": "cq-ns-cfg",
+      "input": "{\"op\":\"namespace\",\"key\":\"cfg:qualquer:coisa\"}",
+      "note": "namespace de uma chave de cfg"
+    },
+    {
+      "id": "cq-ns-adprot",
+      "input": "{\"op\":\"namespace\",\"key\":\"adprot:qualquer:coisa\"}",
+      "note": "namespace de uma chave de adprot"
+    },
+    {
+      "id": "cq-ns-adsub",
+      "input": "{\"op\":\"namespace\",\"key\":\"adsub:qualquer:coisa\"}",
+      "note": "namespace de uma chave de adsub"
+    },
+    {
+      "id": "cq-ns-adrm",
+      "input": "{\"op\":\"namespace\",\"key\":\"adrm:qualquer:coisa\"}",
+      "note": "namespace de uma chave de adrm"
+    },
+    {
+      "id": "cq-ns-fsz",
+      "input": "{\"op\":\"namespace\",\"key\":\"fsz:qualquer:coisa\"}",
+      "note": "namespace de uma chave de fsz"
+    },
+    {
+      "id": "cq-ns-vres",
+      "input": "{\"op\":\"namespace\",\"key\":\"vres:qualquer:coisa\"}",
+      "note": "namespace de uma chave de vres"
+    },
+    {
+      "id": "cq-ns-tsz",
+      "input": "{\"op\":\"namespace\",\"key\":\"tsz:qualquer:coisa\"}",
+      "note": "namespace de uma chave de tsz"
+    },
+    {
+      "id": "cq-ns-dinv",
+      "input": "{\"op\":\"namespace\",\"key\":\"dinv:qualquer:coisa\"}",
+      "note": "namespace de uma chave de dinv"
+    },
+    {
+      "id": "cq-ns-notify",
+      "input": "{\"op\":\"namespace\",\"key\":\"notify:qualquer:coisa\"}",
+      "note": "namespace de uma chave de notify"
+    },
+    {
+      "id": "cq-ns-seed",
+      "input": "{\"op\":\"namespace\",\"key\":\"seed:qualquer:coisa\"}",
+      "note": "namespace de uma chave de seed"
+    },
+    {
+      "id": "cq-ns-harvest",
+      "input": "{\"op\":\"namespace\",\"key\":\"harvest:qualquer:coisa\"}",
+      "note": "namespace de uma chave de harvest"
+    },
+    {
+      "id": "cq-ns-__default",
+      "input": "{\"op\":\"namespace\",\"key\":\"__default:qualquer:coisa\"}",
+      "note": "namespace de uma chave de __default"
+    },
+    {
+      "id": "cq-quota-ns-streams",
+      "input": "{\"op\":\"quota\",\"ns\":\"streams\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-autofetch",
+      "input": "{\"op\":\"quota\",\"ns\":\"autofetch\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-raw",
+      "input": "{\"op\":\"quota\",\"ns\":\"raw\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-dinv",
+      "input": "{\"op\":\"quota\",\"ns\":\"dinv\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-davail",
+      "input": "{\"op\":\"quota\",\"ns\":\"davail\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-mag",
+      "input": "{\"op\":\"quota\",\"ns\":\"mag\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-mag_meta",
+      "input": "{\"op\":\"quota\",\"ns\":\"mag_meta\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-rdc",
+      "input": "{\"op\":\"quota\",\"ns\":\"rdc\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-rdt",
+      "input": "{\"op\":\"quota\",\"ns\":\"rdt\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-rdq",
+      "input": "{\"op\":\"quota\",\"ns\":\"rdq\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-idx",
+      "input": "{\"op\":\"quota\",\"ns\":\"idx\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-harvest",
+      "input": "{\"op\":\"quota\",\"ns\":\"harvest\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-notify",
+      "input": "{\"op\":\"quota\",\"ns\":\"notify\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-seed",
+      "input": "{\"op\":\"quota\",\"ns\":\"seed\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-cfg",
+      "input": "{\"op\":\"quota\",\"ns\":\"cfg\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-adprot",
+      "input": "{\"op\":\"quota\",\"ns\":\"adprot\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-adsub",
+      "input": "{\"op\":\"quota\",\"ns\":\"adsub\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-adrm",
+      "input": "{\"op\":\"quota\",\"ns\":\"adrm\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-fsz",
+      "input": "{\"op\":\"quota\",\"ns\":\"fsz\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-tsz",
+      "input": "{\"op\":\"quota\",\"ns\":\"tsz\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-quota-ns-vres",
+      "input": "{\"op\":\"quota\",\"ns\":\"vres\"}",
+      "note": "namespace versionado tem cota explícita"
+    },
+    {
+      "id": "cq-ns-sample-01",
+      "input": "{\"op\":\"namespace\",\"key\":\"streams:v21:movie:tt0111111\"}",
+      "note": "namespace de \"streams:v21:movie:tt0111111\""
+    },
+    {
+      "id": "cq-ns-sample-02",
+      "input": "{\"op\":\"namespace\",\"key\":\"streams:v21:series:tv:tt0159256\"}",
+      "note": "namespace de \"streams:v21:series:tv:tt0159256\""
+    },
+    {
+      "id": "cq-ns-sample-03",
+      "input": "{\"op\":\"namespace\",\"key\":\"idx:v14:movie:tt0139217\"}",
+      "note": "namespace de \"idx:v14:movie:tt0139217\""
+    },
+    {
+      "id": "cq-ns-sample-04",
+      "input": "{\"op\":\"namespace\",\"key\":\"autofetch:v3:dead:jackett:1:aa4f91c3d0\"}",
+      "note": "namespace de \"autofetch:v3:dead:jackett:1:aa4f91c3d0\""
+    },
+    {
+      "id": "cq-ns-sample-05",
+      "input": "{\"op\":\"namespace\",\"key\":\"autofetch:v3:o:9f86d081884c7d65\"}",
+      "note": "namespace de \"autofetch:v3:o:9f86d081884c7d65\""
+    },
+    {
+      "id": "cq-ns-sample-06",
+      "input": "{\"op\":\"namespace\",\"key\":\"autofetch:v3:sup:aa4f91c3d0\"}",
+      "note": "namespace de \"autofetch:v3:sup:aa4f91c3d0\""
+    },
+    {
+      "id": "cq-ns-sample-07",
+      "input": "{\"op\":\"namespace\",\"key\":\"raw:v1:jackett:1:movie:tt0111111\"}",
+      "note": "namespace de \"raw:v1:jackett:1:movie:tt0111111\""
+    },
+    {
+      "id": "cq-ns-sample-08",
+      "input": "{\"op\":\"namespace\",\"key\":\"rdc:v2:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"}",
+      "note": "namespace de \"rdc:v2:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\""
+    },
+    {
+      "id": "cq-ns-sample-09",
+      "input": "{\"op\":\"namespace\",\"key\":\"rdt:v1:trt:movie:tt0139217\"}",
+      "note": "namespace de \"rdt:v1:trt:movie:tt0139217\""
+    },
+    {
+      "id": "cq-ns-sample-10",
+      "input": "{\"op\":\"namespace\",\"key\":\"rdq:v1:wq\"}",
+      "note": "namespace de \"rdq:v1:wq\""
+    },
+    {
+      "id": "cq-ns-sample-11",
+      "input": "{\"op\":\"namespace\",\"key\":\"mag:v1:a1b2c3d4e5f6a7b8c9d0\"}",
+      "note": "namespace de \"mag:v1:a1b2c3d4e5f6a7b8c9d0\""
+    },
+    {
+      "id": "cq-ns-sample-12",
+      "input": "{\"op\":\"namespace\",\"key\":\"mag_meta:v1:counts\"}",
+      "note": "namespace de \"mag_meta:v1:counts\""
+    },
+    {
+      "id": "cq-ns-sample-13",
+      "input": "{\"op\":\"namespace\",\"key\":\"davail:v1:a1b2c3d4e5f6\"}",
+      "note": "namespace de \"davail:v1:a1b2c3d4e5f6\""
+    },
+    {
+      "id": "cq-ns-sample-14",
+      "input": "{\"op\":\"namespace\",\"key\":\"dinv:v1:torrentio:1\"}",
+      "note": "namespace de \"dinv:v1:torrentio:1\""
+    },
+    {
+      "id": "cq-ns-sample-15",
+      "input": "{\"op\":\"namespace\",\"key\":\"fsz:v1:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"}",
+      "note": "namespace de \"fsz:v1:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\""
+    },
+    {
+      "id": "cq-ns-sample-16",
+      "input": "{\"op\":\"namespace\",\"key\":\"tsz:v1:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"}",
+      "note": "namespace de \"tsz:v1:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\""
+    },
+    {
+      "id": "cq-ns-sample-17",
+      "input": "{\"op\":\"namespace\",\"key\":\"vres:v1:a1b2c3:9f86d081\"}",
+      "note": "namespace de \"vres:v1:a1b2c3:9f86d081\""
+    },
+    {
+      "id": "cq-ns-sample-18",
+      "input": "{\"op\":\"namespace\",\"key\":\"adprot:v1:alldebrid:2:a1b2c3\"}",
+      "note": "namespace de \"adprot:v1:alldebrid:2:a1b2c3\""
+    },
+    {
+      "id": "cq-ns-sample-19",
+      "input": "{\"op\":\"namespace\",\"key\":\"adsub:v1:2:a1b2c3\"}",
+      "note": "namespace de \"adsub:v1:2:a1b2c3\""
+    },
+    {
+      "id": "cq-ns-sample-20",
+      "input": "{\"op\":\"namespace\",\"key\":\"adrm:v1:2:a1b2c3\"}",
+      "note": "namespace de \"adrm:v1:2:a1b2c3\""
+    },
+    {
+      "id": "cq-ns-sample-21",
+      "input": "{\"op\":\"namespace\",\"key\":\"harvest:v1:seen:deadbeef\"}",
+      "note": "namespace de \"harvest:v1:seen:deadbeef\""
+    },
+    {
+      "id": "cq-ns-sample-22",
+      "input": "{\"op\":\"namespace\",\"key\":\"notify:v1:release:1\"}",
+      "note": "namespace de \"notify:v1:release:1\""
+    },
+    {
+      "id": "cq-ns-sample-23",
+      "input": "{\"op\":\"namespace\",\"key\":\"seed:v1:cohort\"}",
+      "note": "namespace de \"seed:v1:cohort\""
+    },
+    {
+      "id": "cq-ns-sample-24",
+      "input": "{\"op\":\"namespace\",\"key\":\"cfg:v1:runtime\"}",
+      "note": "namespace de \"cfg:v1:runtime\""
+    },
+    {
+      "id": "cq-ns-sample-25",
+      "input": "{\"op\":\"namespace\",\"key\":\"dlmag:alldebrid:a1b2c3\"}",
+      "note": "namespace de \"dlmag:alldebrid:a1b2c3\""
+    },
+    {
+      "id": "cq-ns-sample-26",
+      "input": "{\"op\":\"namespace\",\"key\":\"tmdb:movie:tt0111111\"}",
+      "note": "namespace de \"tmdb:movie:tt0111111\""
+    },
+    {
+      "id": "cq-ns-sample-27",
+      "input": "{\"op\":\"namespace\",\"key\":\"tmdbc:tt0111111\"}",
+      "note": "namespace de \"tmdbc:tt0111111\""
+    },
+    {
+      "id": "cq-ns-sample-28",
+      "input": "{\"op\":\"namespace\",\"key\":\"meta:movie:tt0111111\"}",
+      "note": "namespace de \"meta:movie:tt0111111\""
+    },
+    {
+      "id": "cq-ns-sample-29",
+      "input": "{\"op\":\"namespace\",\"key\":\"indexer-status:jackett\"}",
+      "note": "namespace de \"indexer-status:jackett\""
+    },
+    {
+      "id": "cq-ns-sample-30",
+      "input": "{\"op\":\"namespace\",\"key\":\"muri:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\"}",
+      "note": "namespace de \"muri:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\""
+    },
+    {
+      "id": "cq-ns-sample-31",
+      "input": "{\"op\":\"namespace\",\"key\":\"tsj:v1:movie:tt0111111\"}",
+      "note": "namespace de \"tsj:v1:movie:tt0111111\""
+    },
+    {
+      "id": "cq-ns-sample-32",
+      "input": "{\"op\":\"namespace\",\"key\":\"raw1:jackett:1\"}",
+      "note": "namespace de \"raw1:jackett:1\""
+    },
+    {
+      "id": "cq-ns-sample-33",
+      "input": "{\"op\":\"namespace\",\"key\":\"dinv1:torrentio:1\"}",
+      "note": "namespace de \"dinv1:torrentio:1\""
+    },
+    {
+      "id": "cq-ns-sample-34",
+      "input": "{\"op\":\"namespace\",\"key\":\"sem-dos-pontos\"}",
+      "note": "namespace de \"sem-dos-pontos\""
+    },
+    {
+      "id": "cq-ns-sample-35",
+      "input": "{\"op\":\"namespace\",\"key\":\"\"}",
+      "note": "namespace de \"\""
+    },
+    {
+      "id": "cq-ns-sample-36",
+      "input": "{\"op\":\"namespace\",\"key\":\":x\"}",
+      "note": "namespace de \":x\""
+    },
+    {
+      "id": "cq-ns-sample-37",
+      "input": "{\"op\":\"namespace\",\"key\":\":\"}",
+      "note": "namespace de \":\""
+    },
+    {
+      "id": "cq-ns-sample-38",
+      "input": "{\"op\":\"namespace\",\"key\":\"streams:\"}",
+      "note": "namespace de \"streams:\""
+    },
+    {
+      "id": "cq-ns-sample-39",
+      "input": "{\"op\":\"namespace\",\"key\":\"Streams:v21:x\"}",
+      "note": "namespace de \"Streams:v21:x\""
+    },
+    {
+      "id": "cq-ns-sample-40",
+      "input": "{\"op\":\"namespace\",\"key\":\"streams:v21:\"}",
+      "note": "namespace de \"streams:v21:\""
+    },
+    {
+      "id": "cq-ns-sample-41",
+      "input": "{\"op\":\"namespace\",\"key\":\"a:b:c:d:e\"}",
+      "note": "namespace de \"a:b:c:d:e\""
+    },
+    {
+      "id": "cq-ns-sample-42",
+      "input": "{\"op\":\"namespace\",\"key\":\"ão:tem-versao\"}",
+      "note": "namespace de \"ão:tem-versao\""
+    },
+    {
+      "id": "cq-quota-fallback-1",
+      "input": "{\"op\":\"quota\",\"ns\":\"muri\"}",
+      "note": "fallback para \"muri\""
+    },
+    {
+      "id": "cq-quota-fallback-2",
+      "input": "{\"op\":\"quota\",\"ns\":\"tsj\"}",
+      "note": "fallback para \"tsj\""
+    },
+    {
+      "id": "cq-quota-fallback-3",
+      "input": "{\"op\":\"quota\",\"ns\":\"__default\"}",
+      "note": "fallback para \"__default\""
+    },
+    {
+      "id": "cq-quota-fallback-4",
+      "input": "{\"op\":\"quota\",\"ns\":\"__nao_existe__\"}",
+      "note": "fallback para \"__nao_existe__\""
+    },
+    {
+      "id": "cq-quota-fallback-5",
+      "input": "{\"op\":\"quota\",\"ns\":\"\"}",
+      "note": "fallback para \"\""
+    },
+    {
+      "id": "cq-quota-fallback-6",
+      "input": "{\"op\":\"quota\",\"ns\":\"Streams\"}",
+      "note": "fallback para \"Streams\""
+    },
+    {
+      "id": "cq-quota-fallback-7",
+      "input": "{\"op\":\"quota\",\"ns\":\"raw1\"}",
+      "note": "fallback para \"raw1\""
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{"id":"nf-001","input":"{\"op\":\"home\",\"text\":\"WEB-DL\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-002","input":"{\"op\":\"home\",\"text\":\"BluRay\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-003","input":"{\"op\":\"home\",\"text\":\"CAM\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-004","input":"{\"op\":\"home\",\"text\":\"TS\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-005","input":"{\"op\":\"home\",\"text\":\"TELESYNC\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-006","input":"{\"op\":\"home\",\"text\":\"TS-V2-WEB.DL\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-007","input":"{\"op\":\"home\",\"text\":\"The-Odyssey-2026-1080p-TS-V2-WEB.DL-GP-M-NLsubs\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-008","input":"{\"op\":\"home\",\"text\":\"The Odyssey (2026) [1080p] [WEBRip] [5.1]\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-009","input":"{\"op\":\"home\",\"text\":\"Blu-Ray\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-010","input":"{\"op\":\"home\",\"text\":\"HDTV\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-011","input":"{\"op\":\"home\",\"text\":\"Movie_2026_WEB_DL\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-012","input":"{\"op\":\"home\",\"text\":\"éweb\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-013","input":"{\"op\":\"home\",\"text\":\"éts-web\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-014","input":"{\"op\":\"home\",\"text\":\"DVDRip\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-015","input":"{\"op\":\"home\",\"text\":\"CAMRIP\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-016","input":"{\"op\":\"home\",\"text\":\"PRE-DVD\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-017","input":"{\"op\":\"home\",\"text\":\"TC\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-018","input":"{\"op\":\"home\",\"text\":\"\",\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-019","input":"{\"op\":\"nonFeature\",\"texts\":[\"The Odyssey (2026) Trailer 3 4k UHD Lossless\"],\"names\":[\"The Odyssey\",\"A Odisseia\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-020","input":"{\"op\":\"nonFeature\",\"texts\":[\"The Odyssey (2026) Official Teaser Trailer 4K\"],\"names\":[\"The Odyssey\",\"A Odisseia\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-021","input":"{\"op\":\"nonFeature\",\"texts\":[\"Ludwig Goransson The Odyssey (Original Motion Picture Soundtrack) OST 16BIT WEB FLAC\"],\"names\":[\"The Odyssey\",\"A Odisseia\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-022","input":"{\"op\":\"nonFeature\",\"texts\":[\"The Trailer Park 2014 720p WEB-DL\"],\"names\":[\"The Trailer Park\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-023","input":"{\"op\":\"nonFeature\",\"texts\":[\"Featurette\"],\"names\":[\"The Odyssey\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-024","input":"{\"op\":\"nonFeature\",\"texts\":[\"Movie 2024 BluRay + Featurettes\"],\"names\":[\"Movie\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-025","input":"{\"op\":\"nonFeature\",\"texts\":[\"Mission Impossible Ghost Protocol\"],\"names\":[\"Mission Impossible\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-026","input":"{\"op\":\"nonFeature\",\"texts\":[\"Ludwig Goransson The Odyssey (Original Motion Picture Soundtrack) OST 16BIT WEB FLAC\"],\"names\":[\"The Odyssey Soundtrack\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-027","input":"{\"op\":\"nonFeature\",\"texts\":[\"Movie trailers pack\"],\"names\":[\"Movie\"],\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-028","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":1794700800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-029","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":1791205200000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-030","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":1791374400000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-031","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":1791374400001,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-032","input":"{\"op\":\"preHome\",\"texts\":[\"The.Odyssey.2026.1080p.TELESYNC.HEVC.AAC2.0-SPLiCE\"],\"homeReleaseAt\":1794700800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-033","input":"{\"op\":\"preHome\",\"texts\":[\"The-Odyssey-2026-1080p-TS-V2-WEB.DL-GP-M-NLsubs\"],\"homeReleaseAt\":1794700800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-034","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":null,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-035","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":0,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-036","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":1788220800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-037","input":"{\"op\":\"preHome\",\"texts\":[\"The Odyssey (2026) Trailer 3 4k UHD Lossless\"],\"homeReleaseAt\":1794700800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-038","input":"{\"op\":\"preHome\",\"texts\":[\"\",\"The Odyssey 2026 1080p WEB H264 EDITH\"],\"homeReleaseAt\":1794700800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"1"}
+{"id":"nf-039","input":"{\"op\":\"preHome\",\"texts\":[],\"homeReleaseAt\":1794700800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}
+{"id":"nf-040","input":"{\"op\":\"preHome\",\"texts\":[\"A Odisseia (2026) [1080p CAM DUBLADO]\"],\"homeReleaseAt\":1794700800000,\"now\":1791201600000,\"cutEnabled\":true,\"marginMs\":172800000}","expected":"0"}

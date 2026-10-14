@@ -10,22 +10,47 @@ import * as held from '../src/debrid/protected.js';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
+import autofetchLive from '../src/utils/autofetch-live.js';
 import { canAutoFetchBr } from '../src/utils/format.js';
-import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
-import type { DebridAdapter, AccountStatus } from '../types/domain.js';
+import type { DebridAdapter } from '../types/domain.js';
+import { recordAutofetchRelease } from '../src/providers/autofetch-index.js';
+import * as releaseIndex from '../src/utils/release-index.js';
+import {
+  H1, H2, H3, H4, sleep, mkAdapter, premiumizeRunCtx, dinvKeyFor,
+} from './helpers/autofetch-fixtures.js';
 
-const H1 = '1111111111111111111111111111111111111111';
-const H2 = '2222222222222222222222222222222222222222';
-const H3 = '3333333333333333333333333333333333333333';
-const H4 = '4444444444444444444444444444444444444444';
+test('reindexQueues reconstrói knownQueues a partir do cache (bypass writeQueue)', () => {
+  const searchKey = 'streams:v7:movie:ttReindexBoot';
+  const key = autofetch.queueKey(searchKey);
+  autofetch.dropQueue(key);
+
+  const cand: autofetch.QueueCandidate[] = [
+    { infoHash: H1, title: 'Reindex candidate' },
+  ];
+  // Sem writeQueue: knownQueues só vê a fila após reindex.
+  cache.set(key, cand, 3600);
+  const before = autofetch.snapshot().queues.count;
+  const added = autofetch.reindexQueues();
+  // Outras filas órfãs (sujeira paralela) também entram — basta subir o count.
+  assert.ok(added >= 1, 'reindex descobriu ao menos a fila plantada');
+  const after = autofetch.snapshot().queues.count;
+  assert.equal(after, before + added, 'snapshot.count sobe pelo retorno do reindex');
+  assert.equal(autofetch.readQueue(searchKey).length, 1, 'fila plantada legível após reindex');
+  autofetch.dropQueue(key);
+  assert.equal(
+    autofetch.snapshot().queues.count,
+    after - 1,
+    'dropQueue remove a fila reindexada do knownQueues',
+  );
+});
 
 test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
   const searchKey = 'streams:v5:series:tt0903747:1:1';
   autofetch.dropQueue(searchKey);
 
   const candidates: autofetch.QueueCandidate[] = [
-    { infoHash: H1, title: 'Breaking Bad S01E01 1080p DUB', quality: '1080p' },
+    { infoHash: H1, title: 'Breaking Bad S01E01 1080p DUB', quality: '1080p', lied: true },
     { infoHash: H2, title: 'Breaking Bad S01E01 720p DUB', quality: '720p' },
     { infoHash: H1, title: 'Breaking Bad S01E01 Duplicate' },
   ];
@@ -34,6 +59,18 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
   const read = autofetch.readQueue(searchKey);
   assert.equal(read.length, 2, 'deduplica hashes na gravacao da fila');
   assert.equal(read[0].infoHash, H1);
+  assert.equal(read[0].lied, true, 'a fila preserva a condenação de áudio até o dreno');
+  recordAutofetchRelease('tt9000046', { ...read[0], br: true, dubbed: true });
+  assert.equal(releaseIndex.lookupQuiet('tt9000046')[0]?.lied, true, 'o dreno não limpa a condenação');
+  // O stream chega sem `_size` (o sortAndLimit o apaga): o índice grava o total
+  // do download pelo título — o "📦 pack", não o 💾 que já é do episódio.
+  recordAutofetchRelease('tt9000047', {
+    infoHash: H3,
+    title: 'Serie S01 1080p WEB-DL DUBLADO\n👤 9 💾 750.51 MB 📦 pack 70.36 GB (média) ⚙️ bludv',
+    br: true,
+    dubbed: true,
+  });
+  assert.equal(releaseIndex.lookupQuiet('tt9000047')[0]?.size, Math.round(70.36 * 1024 ** 3), 'tamanho do download no índice');
   assert.equal(read[1].infoHash, H2);
 
   const { next, remaining } = autofetch.takeNext(read);
@@ -48,6 +85,7 @@ test('fila persistente: writeQueue, readQueue, dropQueue e takeNext', () => {
 test('blacklist de torrents mortos: isDead e blacklist com TTL', () => {
   const adapterId = 'alldebrid';
   const account = 'acc_test_dead';
+  cache.forget(autofetch.deadKey(adapterId, account, H1));
   assert.equal(autofetch.isDead(adapterId, account, H1), false);
 
   autofetch.blacklist(adapterId, account, H1, 86400);
@@ -56,8 +94,7 @@ test('blacklist de torrents mortos: isDead e blacklist com TTL', () => {
   assert.equal(autofetch.isDead(adapterId, 'other_acc', H1), false);
 });
 
-test('takeNext pula hashes mortos, já cacheados ou protegidos', () => {
-  const searchKey = 'streams:v5:movie:tt123456';
+test('takeNext purga obsoletos (dead/marker) e ADIA held sem purgá-lo', () => {
   const adapterId = 'torbox';
   const account = 'acc_skip_test';
 
@@ -65,24 +102,15 @@ test('takeNext pula hashes mortos, já cacheados ou protegidos', () => {
   cache.set(autofetch.markerKey(adapterId, account, H2), 1, 3600);
   held.hold(H3, 3600, account);
 
-  const queue: autofetch.QueueCandidate[] = [
-    { infoHash: H1, title: 'Dead candidate' },
-    { infoHash: H2, title: 'Already marked candidate' },
-    { infoHash: H3, title: 'Currently held candidate' },
-    { infoHash: H4, title: 'Good candidate' },
-  ];
-
-  const { next, remaining } = autofetch.takeNext(queue, (cand) => {
-    const h = String(cand.infoHash).toLowerCase();
-    return (
-      autofetch.isDead(adapterId, account, h) ||
-      Boolean(cache.get(autofetch.markerKey(adapterId, account, h))) ||
-      held.isHeld(h, account)
-    );
-  });
+  const { next, remaining } = autofetch.takeNext(
+    [{ infoHash: H1 }, { infoHash: H2 }, { infoHash: H3 }, { infoHash: H4 }],
+    (cand) => autofetch.isDead(adapterId, account, cand.infoHash) ||
+      Boolean(cache.get(autofetch.markerKey(adapterId, account, cand.infoHash))),
+    (cand) => held.isHeld(cand.infoHash, account),
+  );
 
   assert.equal(next?.infoHash, H4, 'pula H1 (dead), H2 (marker) e H3 (held)');
-  assert.equal(remaining.length, 3);
+  assert.deepEqual(remaining.map((c) => c.infoHash), [H3], 'adiado (held) não é purgado');
   held.release(H3, account);
 });
 
@@ -97,42 +125,18 @@ test('orçamento deslizante de enqueues/hora por adapter:account', () => {
   assert.equal(autofetch.checkAndRecordBudget(adapterId, account, limit), true);
   assert.equal(autofetch.checkAndRecordBudget(adapterId, account, limit), false, 'quarto enqueue bloqueado pelo limite');
 
-  // Outra conta não é afetada
   assert.equal(autofetch.checkAndRecordBudget(adapterId, 'other_user', limit), true);
   autofetch.resetBudget();
 });
 
 test('canAutoFetchBr aceita tanto cacheCheck quanto autofetchSource (RD/DL)', () => {
-  const mockAllDebrid: DebridAdapter = {
-    id: 'alldebrid',
-    label: 'AllDebrid',
-    short: 'AD',
-    cacheCheck: true,
-    keyUrl: '',
-    checkCached: async () => ({ cached: new Set(), known: true }),
-    resolveLink: async () => 'http://stream.url',
-  };
-
-  const mockRealDebrid: DebridAdapter = {
-    id: 'realdebrid',
-    label: 'Real-Debrid',
-    short: 'RD',
-    cacheCheck: false,
-    autofetchSource: true,
-    keyUrl: '',
-    checkCached: async () => ({ cached: new Set(), known: false }),
-    resolveLink: async () => 'http://stream.url',
-  };
-
-  const mockGenericNoSource: DebridAdapter = {
-    id: 'generic',
-    label: 'Generic',
-    short: 'GE',
-    cacheCheck: false,
-    keyUrl: '',
-    checkCached: async () => ({ cached: new Set(), known: false }),
-    resolveLink: async () => 'http://stream.url',
-  };
+  const mockAllDebrid = mkAdapter('alldebrid', undefined, { label: 'AllDebrid', short: 'AD' });
+  const mockRealDebrid = mkAdapter('realdebrid', undefined, {
+    label: 'Real-Debrid', short: 'RD', cacheCheck: false, autofetchSource: true,
+  });
+  const mockGenericNoSource = mkAdapter('generic', undefined, {
+    label: 'Generic', short: 'GE', cacheCheck: false,
+  });
 
   assert.equal(canAutoFetchBr({ autoFetchBr: true }, mockAllDebrid), true);
   assert.equal(canAutoFetchBr({ autoFetchBr: true }, mockRealDebrid), true);
@@ -151,27 +155,15 @@ test('gate de ocupação: fail-open, memo, trava anti-duplicação e flag 0', as
   const originalPauseAt = config.debrid.autoFetchPauseAt;
   const originalRefreshMs = config.debrid.autoFetchPauseRefreshMs;
   const apiKey = 'chave-gate-unit';
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-  const mkAdapter = (id: string, status?: (key: string) => Promise<AccountStatus>): DebridAdapter => ({
-    id,
-    label: id,
-    short: id.slice(0, 2).toUpperCase(),
-    cacheCheck: true,
-    keyUrl: '',
-    checkCached: async () => ({ cached: new Set(), known: true }),
-    resolveLink: async () => null,
-    accountStatus: status,
-  });
 
   try {
     config.debrid.autoFetchPauseAt = 5;
     config.debrid.autoFetchPauseRefreshMs = 900_000;
 
-    // Adaptador sem accountStatus nunca bloqueia: sem medição não há evidência.
+    // Sem accountStatus nunca bloqueia: sem medição não há evidência.
     assert.equal(autofetch.accountGateBlocked(mkAdapter('alldebrid'), apiKey), false);
 
-    // Memo frio: fail-open; o refresh em background grava a contagem e a
-    // chamada em voo não dispara um segundo refresh (trava anti-duplicação).
+    // Memo frio fail-open; refresh em voo não dispara segundo refresh.
     let calls = 0;
     const busy = mkAdapter('alldebrid', async () => { calls += 1; return { magnets: 42 }; });
     autofetch.resetAccountGate();
@@ -181,22 +173,19 @@ test('gate de ocupação: fail-open, memo, trava anti-duplicação e flag 0', as
     assert.equal(calls, 1, 'um único refresh por memo vencido');
     assert.equal(autofetch.accountGateBlocked(busy, apiKey), true, 'memo quente acima do limiar bloqueia');
 
-    // Contagem abaixo do limiar mantém o gate aberto.
     const calm = mkAdapter('alldebrid', async () => ({ magnets: 2 }));
     autofetch.resetAccountGate();
     assert.equal(autofetch.accountGateBlocked(calm, apiKey), false);
     await sleep(20);
     assert.equal(autofetch.accountGateBlocked(calm, apiKey), false, 'abaixo do limiar segue aberto');
 
-    // Status sem contagem numérica (ex.: Premiumize, só fair-use) nunca grava
-    // memo: o serviço continua fail-open.
+    // Sem contagem numérica (ex.: só fair-use) nunca grava memo.
     const noCount = mkAdapter('alldebrid', async () => ({ limitUsed: 0.99 }));
     autofetch.resetAccountGate();
     assert.equal(autofetch.accountGateBlocked(noCount, apiKey), false);
     await sleep(20);
     assert.equal(autofetch.accountGateBlocked(noCount, apiKey), false, 'sem contagem total não há bloqueio');
 
-    // Flag 0 desliga o gate mesmo com memo quente.
     autofetch.resetAccountGate();
     assert.equal(autofetch.accountGateBlocked(busy, apiKey), false);
     await sleep(20);
@@ -213,33 +202,20 @@ test('gate de ocupação: fail-open, memo, trava anti-duplicação e flag 0', as
 test('gate de ocupação usa o inventário memoizado (sem rede) quando existe', async () => {
   const originalPauseAt = config.debrid.autoFetchPauseAt;
   const apiKey = 'chave-gate-inv';
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   let statusCalls = 0;
-  const adapter: DebridAdapter = {
-    id: 'torbox',
-    label: 'TorBox',
-    short: 'TB',
-    cacheCheck: true,
-    keyUrl: '',
-    checkCached: async () => ({ cached: new Set(), known: true }),
-    resolveLink: async () => null,
-    accountStatus: async () => { statusCalls += 1; return { magnets: 0 }; },
-  };
-  const invKey = `${prefix('dinv')}torbox:${accountScope(apiKey)}`;
+  const adapter = mkAdapter('torbox', async () => { statusCalls += 1; return { magnets: 0 }; });
+  const invKey = dinvKeyFor('torbox', apiKey);
 
   try {
     config.debrid.autoFetchPauseAt = 2;
     autofetch.resetAccountGate();
-    // Inventário acima do limiar bloqueia na hora, sem passar pelo accountStatus.
     cache.set(invKey, [
       { title: 'Filme Um', infoHash: '1'.repeat(40), size: 1 },
       { title: 'Filme Dois', infoHash: '2'.repeat(40), size: 1 },
     ], 60);
     assert.equal(autofetch.accountGateBlocked(adapter, apiKey), true, 'inventário cheio bloqueia sem rede');
     assert.equal(statusCalls, 0, 'acima do limiar o peek bloqueia sem chamar accountStatus');
-    // Abaixo do limiar o peek NÃO decide: o dinv guarda só PRONTOS e a
-    // ocupação que derruba a conta é o total — a decisão segue para o
-    // memo/accountStatus (que vê 0 magnets e mantém aberto).
+    // Abaixo do limiar o peek não decide (dinv = só prontos); segue memo/status.
     cache.set(invKey, [{ title: 'Filme Um', infoHash: '1'.repeat(40), size: 1 }], 60);
     assert.equal(autofetch.accountGateBlocked(adapter, apiKey), false, 'abaixo do limiar o peek não bloqueia');
     await sleep(20);
@@ -253,12 +229,9 @@ test('gate de ocupação usa o inventário memoizado (sem rede) quando existe', 
 });
 
 test('gate de ocupação bloqueia o drainNext: cabeça permanece na fila intacta', async () => {
-  // Memo quente acima do limiar + fila não vazia: a drenagem para ANTES de
-  // tocar na fila — a cabeça fica intacta e nenhum debrid.enqueue acontece.
   const originalPauseAt = config.debrid.autoFetchPauseAt;
   const apiKey = 'chave-gate-drain';
   const searchKey = 'streams:v6:movie:ttGateDrain';
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
   const originalEnqueue = pmAdapter.enqueue;
   const originalStatus = pmAdapter.accountStatus;
@@ -268,9 +241,8 @@ test('gate de ocupação bloqueia o drainNext: cabeça permanece na fila intacta
     config.debrid.autoFetchPauseAt = 2;
     autofetch.resetAccountGate();
     autofetch.dropQueue(searchKey);
-    cache.forget(`${prefix('dinv')}premiumize:${accountScope(apiKey)}`);
+    cache.forget(dinvKeyFor('premiumize', apiKey));
 
-    // Memo quente acima do limiar (900 >= 2).
     pmAdapter.accountStatus = async () => ({ magnets: 900 });
     pmAdapter.enqueue = async () => { enqueues += 1; return true; };
     assert.equal(autofetch.accountGateBlocked(pmAdapter, apiKey), false, 'memo frio é fail-open');
@@ -284,10 +256,9 @@ test('gate de ocupação bloqueia o drainNext: cabeça permanece na fila intacta
     const antes = autofetch.readQueue(searchKey);
     assert.equal(antes.length, 2);
 
-    await runtime.run(
-      { opts: { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: apiKey }, encoded: 'cfg-gate-drain' },
-      async () => { drainNext(searchKey, { refusals: 0 }); },
-    );
+    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-gate-drain'), async () => {
+      drainNext(searchKey, { refusals: 0 });
+    });
     await sleep(10);
 
     assert.deepEqual(autofetch.readQueue(searchKey), antes, 'a fila permanece intacta (readQueue inalterada)');
@@ -298,5 +269,121 @@ test('gate de ocupação bloqueia o drainNext: cabeça permanece na fila intacta
     config.debrid.autoFetchPauseAt = originalPauseAt;
     autofetch.resetAccountGate();
     autofetch.dropQueue(searchKey);
+  }
+});
+
+test('drainNext no teto de recusas: não toma a cabeça nem chama enqueue', async () => {
+  const apiKey = 'chave-drain-refusals';
+  const searchKey = 'streams:v6:movie:ttDrainRefusals';
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  let enqueues = 0;
+
+  try {
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', accountScope(apiKey));
+    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
+    autofetch.writeQueue(searchKey, [
+      { infoHash: H1, title: 'A' },
+      { infoHash: H2, title: 'B' },
+    ], 3600);
+    const antes = autofetch.readQueue(searchKey);
+
+    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-refusals'), async () => {
+      drainNext(searchKey, { refusals: config.debrid.autoFetchDrainMaxRefusals });
+    });
+
+    assert.deepEqual(autofetch.readQueue(searchKey), antes, 'A e B permanecem na fila');
+    assert.equal(enqueues, 0, 'enqueue não é chamado no teto de recusas');
+  } finally {
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', accountScope(apiKey));
+  }
+});
+
+test('drainNext devolve a cabeça quando o lock do marker já está adquirido', async () => {
+  const apiKey = 'chave-drain-lock';
+  const account = accountScope(apiKey);
+  const searchKey = 'streams:v6:movie:ttDrainLock';
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter;
+  const originalEnqueue = pmAdapter.enqueue;
+  const mKey = autofetch.markerKey('premiumize', account, H1);
+  let enqueues = 0;
+
+  try {
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', account);
+    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
+    assert.equal(autofetch.acquire(mKey), true, 'lock de A pré-adquirido');
+    autofetch.writeQueue(searchKey, [
+      { infoHash: H1, title: 'A' },
+      { infoHash: H2, title: 'B' },
+    ], 3600);
+
+    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-lock'), async () => {
+      drainNext(searchKey, { refusals: 0 });
+    });
+
+    const fila = autofetch.readQueue(searchKey);
+    assert.equal(fila[0]?.infoHash, H1, 'A volta à CABEÇA');
+    assert.equal(fila[1]?.infoHash, H2);
+    assert.equal(enqueues, 0, 'sem enqueue enquanto o lock impede');
+  } finally {
+    autofetch.release(mKey);
+    pmAdapter.enqueue = originalEnqueue;
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', account);
+  }
+});
+
+test('drainNext com orçamento estourado: A na frente, backoff e segunda passagem inerte', async () => {
+  const apiKey = 'chave-drain-budget';
+  const account = accountScope(apiKey);
+  const searchKey = 'streams:v6:movie:ttDrainBudget';
+  const pmAdapter = debrid.BY_ID.get('premiumize') as DebridAdapter & { enqueueHourlyLimit?: number };
+  const originalEnqueue = pmAdapter.enqueue;
+  const originalLimit = pmAdapter.enqueueHourlyLimit;
+  let enqueues = 0;
+
+  try {
+    autofetchLive.set({ autoFetchQueueDepth: 2 });
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', account);
+    pmAdapter.enqueueHourlyLimit = 0;
+    pmAdapter.enqueue = async () => { enqueues += 1; return true; };
+    autofetch.writeQueue(searchKey, [
+      { infoHash: H1, title: 'A' },
+      { infoHash: H2, title: 'B' },
+    ], 3600, 'premiumize', account);
+    assert.equal(autofetch.readQueue(searchKey).length, 2, 'fila na profundidade máxima');
+
+    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-budget'), async () => {
+      drainNext(searchKey, { refusals: 0 });
+    });
+
+    const depois = autofetch.readQueue(searchKey);
+    assert.equal(depois[0]?.infoHash, H1, 'A sobrevive na cabeça');
+    assert.equal(depois[1]?.infoHash, H2);
+    assert.ok(autofetch.budgetBlockedUntil('premiumize', account) > Date.now(), 'backoff no futuro');
+    assert.equal(enqueues, 0);
+
+    const snapshot = depois.map((c) => c.infoHash);
+    await runtime.run(premiumizeRunCtx(apiKey, 'cfg-drain-budget'), async () => {
+      drainNext(searchKey, { refusals: 0 });
+    });
+    assert.deepEqual(
+      autofetch.readQueue(searchKey).map((c) => c.infoHash),
+      snapshot,
+      'segunda drainNext não toca a fila enquanto o backoff vale',
+    );
+    assert.equal(enqueues, 0);
+  } finally {
+    pmAdapter.enqueue = originalEnqueue;
+    if (originalLimit == null) delete pmAdapter.enqueueHourlyLimit;
+    else pmAdapter.enqueueHourlyLimit = originalLimit;
+    autofetchLive.reset();
+    autofetch.dropQueue(searchKey);
+    autofetch.resetBudget('premiumize', account);
   }
 });

@@ -18,12 +18,19 @@ despejo global morder antes da repartição por namespace.
 
 Versão de cada namespace vive em `src/utils/cache-keys.ts` (`NAMESPACE_VERSIONS`);
 bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga o que não bate).
-`streams:v6:<config>:<digest-conta>` isola config do usuário + digest da conta.
+`streams:v11:<config>:<digest-conta>` isola config do usuário + digest da conta.
+`idx:v10` é o índice de releases (versão atual — leia `cache-keys.ts`, não
+fixe número antigo na cabeça). Os dois divergem de propósito: `streams` subiu a
+v11 porque o `title` entregue ao cliente remove o blob de qualidades do
+HDRTorrent (listas v10 faziam cliente reclassificar botão 1080p/720p como 4K);
+`idx` continua em v10. Cota `mag=50000`, teto global `84000`
+(soma das cotas ~82550 — teto **acima** da soma).
 
 ## Arquivos-âncora
 
 - `src/utils/cache.ts`
 - `src/utils/cache-keys.ts`
+- `src/utils/cache-quotas.ts`
 - `src/utils/request-key.ts`
 - `src/utils/latest-writer.ts`
 - `src/providers/search-cache.ts`
@@ -31,13 +38,14 @@ bumpar lá invalida o formato antigo no boot (`loadFromDisk` apaga o que não ba
 
 ## Guardrails
 
-1. **SOMA das cotas < teto global (36000).** Se a soma ficar >= teto, volta o
+1. **SOMA das cotas < teto global (84000).** Se a soma ficar >= teto, volta o
    despejo global antes da repartição por namespace (bug real).
 2. SWR só serve o que o `finish` promoveria a completa: `partial === false`,
    `debridKnown === true` e pelo menos um stream **tocável** (`url`/`infoHash`).
 3. Item de aviso (`name` + `externalUrl`) **não** conta como tocável.
 4. Hit de `raw` não pinta card de status (medição ~0ms mentiria).
-5. A chave nunca vaza credencial: `streams:v6` usa digest `sha256(apiKey)`.
+5. A chave nunca vaza credencial: `streams:v11` usa digest `sha256(apiKey)`.
+6. Cota ≠ permanência: TTL tira do `mag`; despejo por cota apaga L1 **e** L2.
 
 ## Contrato de saída (auditoria)
 

@@ -1,0 +1,71 @@
+{"id":"mi-safe-undefined","input":"{\"op\":\"safe\"}","expected":"unknown"}
+{"id":"mi-safe-null","input":"{\"op\":\"safe\",\"value\":null}","expected":"unknown"}
+{"id":"mi-safe-empty","input":"{\"op\":\"safe\",\"value\":\"\"}","expected":"unknown"}
+{"id":"mi-safe-zero-number","input":"{\"op\":\"safe\",\"value\":0}","expected":"unknown"}
+{"id":"mi-safe-false","input":"{\"op\":\"safe\",\"value\":false}","expected":"unknown"}
+{"id":"mi-safe-whitespace","input":"{\"op\":\"safe\",\"value\":\"   \\t\\n \"}","expected":"unknown"}
+{"id":"mi-safe-nbsp","input":"{\"op\":\"safe\",\"value\":\" \"}","expected":"unknown"}
+{"id":"mi-safe-string-zero","input":"{\"op\":\"safe\",\"value\":\"0\"}","expected":"0"}
+{"id":"mi-safe-upper","input":"{\"op\":\"safe\",\"value\":\"ABC\"}","expected":"abc"}
+{"id":"mi-safe-mixedcase","input":"{\"op\":\"safe\",\"value\":\"NerdFilmes\"}","expected":"nerdfilmes"}
+{"id":"mi-safe-trim-edges","input":"{\"op\":\"safe\",\"value\":\"  Jackett  \"}","expected":"jackett"}
+{"id":"mi-safe-tab-newline","input":"{\"op\":\"safe\",\"value\":\"\\tComando\\n\"}","expected":"comando"}
+{"id":"mi-safe-internal-space-trim","input":"{\"op\":\"safe\",\"value\":\"  a b  \"}","expected":"a_b"}
+{"id":"mi-safe-bank-test-id","input":"{\"op\":\"safe\",\"value\":\"Bank Test/ID\"}","expected":"bank_test_id"}
+{"id":"mi-safe-slash","input":"{\"op\":\"safe\",\"value\":\"Jackett/xyz\"}","expected":"jackett_xyz"}
+{"id":"mi-safe-allowed-chars","input":"{\"op\":\"safe\",\"value\":\"jackett_1337x.tv-v2\"}","expected":"jackett_1337x.tv-v2"}
+{"id":"mi-safe-dashes","input":"{\"op\":\"safe\",\"value\":\"Torrent-Dos-Filmes\"}","expected":"torrent-dos-filmes"}
+{"id":"mi-safe-dots-underscore","input":"{\"op\":\"safe\",\"value\":\"top_10.indexer\"}","expected":"top_10.indexer"}
+{"id":"mi-safe-upper-dot-dash","input":"{\"op\":\"safe\",\"value\":\"UPPER.CASE-ID\"}","expected":"upper.case-id"}
+{"id":"mi-safe-dots-only","input":"{\"op\":\"safe\",\"value\":\"...\"}","expected":"..."}
+{"id":"mi-safe-dash-only","input":"{\"op\":\"safe\",\"value\":\"-\"}","expected":"-"}
+{"id":"mi-safe-clean-passthrough","input":"{\"op\":\"safe\",\"value\":\"comandotorrents\"}","expected":"comandotorrents"}
+{"id":"mi-safe-leading-digits","input":"{\"op\":\"safe\",\"value\":\"1337x-indexer\"}","expected":"1337x-indexer"}
+{"id":"mi-safe-utf8-accent","input":"{\"op\":\"safe\",\"value\":\"Ação\"}","expected":"a__o"}
+{"id":"mi-safe-spaces","input":"{\"op\":\"safe\",\"value\":\"a b c\"}","expected":"a_b_c"}
+{"id":"mi-safe-at","input":"{\"op\":\"safe\",\"value\":\"indexer@home\"}","expected":"indexer_home"}
+{"id":"mi-safe-colon-semicolon","input":"{\"op\":\"safe\",\"value\":\"a:b;c\"}","expected":"a_b_c"}
+{"id":"mi-safe-percent","input":"{\"op\":\"safe\",\"value\":\"50%off\"}","expected":"50_off"}
+{"id":"mi-safe-accent-e","input":"{\"op\":\"safe\",\"value\":\"café\"}","expected":"caf_"}
+{"id":"mi-safe-accent-ao","input":"{\"op\":\"safe\",\"value\":\"Ação&Comédia\"}","expected":"a__o_com_dia"}
+{"id":"mi-safe-punct-only-hash","input":"{\"op\":\"safe\",\"value\":\"###\"}","expected":"___"}
+{"id":"mi-safe-punct-only-bang","input":"{\"op\":\"safe\",\"value\":\"!\"}","expected":"_"}
+{"id":"mi-safe-punct-only-at","input":"{\"op\":\"safe\",\"value\":\"@@\"}","expected":"__"}
+{"id":"mi-safe-zerowidth","input":"{\"op\":\"safe\",\"value\":\"a​b\"}","expected":"a_b"}
+{"id":"mi-safe-40-exact","input":"{\"op\":\"safe\",\"value\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}","expected":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+{"id":"mi-safe-41-trunc","input":"{\"op\":\"safe\",\"value\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}","expected":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+{"id":"mi-safe-45-upper","input":"{\"op\":\"safe\",\"value\":\"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ\"}","expected":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+{"id":"mi-safe-45-mixed-punct","input":"{\"op\":\"safe\",\"value\":\"xxxxxxxxxxxxxxxxxxxx/yyyyyyyyyyyyyyyyyyyyyyyy\"}","expected":"xxxxxxxxxxxxxxxxxxxx_yyyyyyyyyyyyyyyyyyy"}
+{"id":"mi-safe-number","input":"{\"op\":\"safe\",\"value\":1337}","expected":"1337"}
+{"id":"mi-safe-float","input":"{\"op\":\"safe\",\"value\":42.5}","expected":"42.5"}
+{"id":"mi-safe-true","input":"{\"op\":\"safe\",\"value\":true}","expected":"true"}
+{"id":"mi-safe-array","input":"{\"op\":\"safe\",\"value\":[\"a\",\"b\"]}","expected":"a_b"}
+{"id":"mi-safe-array-empty","input":"{\"op\":\"safe\",\"value\":[]}","expected":"unknown"}
+{"id":"mi-safe-object","input":"{\"op\":\"safe\",\"value\":{}}","expected":"_object_object_"}
+{"id":"mi-safe-object-key","input":"{\"op\":\"safe\",\"value\":{\"a\":1}}","expected":"_object_object_"}
+{"id":"mi-safe-emoji","input":"{\"op\":\"safe\",\"value\":\"😀\"}","expected":"__"}
+{"id":"mi-safe-emoji-inner","input":"{\"op\":\"safe\",\"value\":\"a😀b\"}","expected":"a__b"}
+{"id":"mi-key-undefined","input":"{\"op\":\"key\"}","expected":"fallback.indexer.unknown"}
+{"id":"mi-key-empty","input":"{\"op\":\"key\",\"value\":\"\"}","expected":"fallback.indexer.unknown"}
+{"id":"mi-key-null","input":"{\"op\":\"key\",\"value\":null}","expected":"fallback.indexer.unknown"}
+{"id":"mi-key-zero","input":"{\"op\":\"key\",\"value\":0}","expected":"fallback.indexer.unknown"}
+{"id":"mi-key-whitespace","input":"{\"op\":\"key\",\"value\":\"   \"}","expected":"fallback.indexer.unknown"}
+{"id":"mi-key-bank-test-id","input":"{\"op\":\"key\",\"value\":\"Bank Test/ID\"}","expected":"fallback.indexer.bank_test_id"}
+{"id":"mi-key-slash","input":"{\"op\":\"key\",\"value\":\"Jackett/xyz\"}","expected":"fallback.indexer.jackett_xyz"}
+{"id":"mi-key-mixedcase","input":"{\"op\":\"key\",\"value\":\"NerdFilmes\"}","expected":"fallback.indexer.nerdfilmes"}
+{"id":"mi-key-dots","input":"{\"op\":\"key\",\"value\":\"S.W.A.T.\"}","expected":"fallback.indexer.s.w.a.t."}
+{"id":"mi-key-allowed","input":"{\"op\":\"key\",\"value\":\"jackett_1337x.tv-v2\"}","expected":"fallback.indexer.jackett_1337x.tv-v2"}
+{"id":"mi-key-accent","input":"{\"op\":\"key\",\"value\":\"Ação\"}","expected":"fallback.indexer.a__o"}
+{"id":"mi-key-45","input":"{\"op\":\"key\",\"value\":\"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\"}","expected":"fallback.indexer.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"}
+{"id":"mi-key-array","input":"{\"op\":\"key\",\"value\":[\"a\",\"b\"]}","expected":"fallback.indexer.a_b"}
+{"id":"mi-key-emoji","input":"{\"op\":\"key\",\"value\":\"😀\"}","expected":"fallback.indexer.__"}
+{"id":"mi-safe-float-integral","input":"{\"op\":\"safe\",\"value\":1337.0}","expected":"1337"}
+{"id":"mi-safe-float-hundred","input":"{\"op\":\"safe\",\"value\":100.0}","expected":"100"}
+{"id":"mi-safe-float-exp-small","input":"{\"op\":\"safe\",\"value\":1.5e3}","expected":"1500"}
+{"id":"mi-safe-float-exp-negative","input":"{\"op\":\"safe\",\"value\":2.5e-7}","expected":"2.5e-7"}
+{"id":"mi-safe-float-exp-positive","input":"{\"op\":\"safe\",\"value\":1e21}","expected":"1e_21"}
+{"id":"mi-safe-float-exp-large","input":"{\"op\":\"safe\",\"value\":1e100}","expected":"1e_100"}
+{"id":"mi-safe-negative-zero","input":"{\"op\":\"safe\",\"value\":-0}","expected":"unknown"}
+{"id":"mi-key-float-integral","input":"{\"op\":\"key\",\"value\":1337.0}","expected":"fallback.indexer.1337"}
+{"id":"mi-key-float-exp-small","input":"{\"op\":\"key\",\"value\":1.5e3}","expected":"fallback.indexer.1500"}
+{"id":"mi-key-negative-zero","input":"{\"op\":\"key\",\"value\":-0}","expected":"fallback.indexer.unknown"}

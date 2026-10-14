@@ -1,0 +1,15 @@
+{"id":"st-001","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-002","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"1"}
+{"id":"st-003","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\",\"hunter\"]}","expected":"0"}
+{"id":"st-004","input":"{\"op\":\"shortTail\",\"tokens\":[\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-005","input":"{\"op\":\"shortTail\",\"tokens\":[\"resident\",\"evil\",\"apocalypse\",\"2004\"],\"check\":{\"kind\":\"prefix\",\"want\":\"resident\",\"run\":[\"resident\",\"evil\"]},\"universe\":[\"resident\",\"evil\"]}","expected":"0"}
+{"id":"st-006","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"skip\"},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-007","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"no-token\"},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-008","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"hunter\",\"pets\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-009","input":"{\"op\":\"shortTail\",\"tokens\":[\"filme\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-010","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"1080p\",\"hunter\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"1"}
+{"id":"st-011","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"42\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-012","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"of\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-013","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"光環\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-014","input":"{\"op\":\"shortTail\",\"tokens\":[\"monster\",\"monster\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"monster\",\"run\":[\"monster\"]},\"universe\":[\"monster\"]}","expected":"0"}
+{"id":"st-015","input":"{\"op\":\"shortTail\",\"tokens\":[\"x\",\"2021\"],\"check\":{\"kind\":\"prefix\",\"want\":\"x\",\"run\":[\"x\"]},\"universe\":[]}","expected":"0"}

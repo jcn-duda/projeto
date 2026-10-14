@@ -1,0 +1,26 @@
+{
+  "version": "corpus-bytes-to-size/1",
+  "note": "Casos de bytesToSize em title-normalization.ts. O mesmo input do golden; o expected fica só no JSONL, medido no Node.",
+  "cases": [
+    {"id":"bt-001","input":"{\"bytes\":1}","note":"um byte, sem casa decimal"},
+    {"id":"bt-002","input":"{\"bytes\":512}","note":"meio KiB ainda em bytes"},
+    {"id":"bt-003","input":"{\"bytes\":1023}","note":"último inteiro antes de 1 KB"},
+    {"id":"bt-004","input":"{\"bytes\":1024}","note":"fronteira exata de 1 KB"},
+    {"id":"bt-005","input":"{\"bytes\":1536}","note":"1.50 KB exato"},
+    {"id":"bt-006","input":"{\"bytes\":1048576}","note":"fronteira exata de 1 MB"},
+    {"id":"bt-007","input":"{\"bytes\":1073741824}","note":"fronteira exata de 1 GB"},
+    {"id":"bt-008","input":"{\"bytes\":1099511627776}","note":"fronteira exata de 1 TB"},
+    {"id":"bt-009","input":"{\"bytes\":1125899906842624}","note":"1024 TB: a unidade para em TB"},
+    {"id":"bt-010","input":"{\"bytes\":0}","note":"zero não é tamanho"},
+    {"id":"bt-011","input":"{\"bytes\":-1}","note":"negativo não é tamanho"},
+    {"id":"bt-012","input":"{\"bytes\":1500}","note":"fração que força duas casas"},
+    {"id":"bt-013","input":"{\"bytes\":2.5}","note":"meio exato desempata para longe de zero"},
+    {"id":"bt-014","input":"{\"bytes\":0.5}","note":"meio byte desempata para 1 B"},
+    {"id":"bt-015","input":"{\"bytes\":1029.12}","note":"escala para o f64 de 1.005; duas casas ficam 1.00"},
+    {"id":"bt-016","input":"{\"bytes\":1023.5}","note":"arredonda para 1024 B sem subir de unidade"},
+    {"id":"bt-017","input":"{\"bytes\":1073741823}","note":"um byte abaixo de 1 GB"},
+    {"id":"bt-018","input":"{\"bytes\":0.4}","note":"positivo que arredonda para 0 B"},
+    {"id":"bt-019","input":"{\"bytes\":1.005}","note":"literal clássico 1.005 ainda em bytes"},
+    {"id":"bt-020","input":"{\"bytes\":1.099511627776e+33}","note":"depois da escala o valor é >= 1e21 e o toFixed vira notação científica"}
+  ]
+}

@@ -4,7 +4,7 @@
  * TPB) fora do balde até depois dos ~6,5s. Globais de teto curto continuam
  * agrupados — cabem no prazo. `ptBrIndexers` só decide a query em pt-BR.
  */
-import { numeralSearchVariant, franchiseRoot } from '../utils/format.js';
+import { numeralSearchVariant, franchiseRoot, endsWithSequenceMarker } from '../utils/format.js';
 
 interface SearchPlanTask {
   query: string;
@@ -13,6 +13,21 @@ interface SearchPlanTask {
   variant?: string;
   /** Query original como fallback (só BR+ptQuery). */
   fallback?: string;
+  /** Raiz da franquia, degrau após o título sem ano (só BR com sequência). */
+  franchise?: string;
+  /** Título original da obra (TMDB), degrau de último recurso. A regra de quem
+   * o executa (queryIndexer): global recebe sempre; BR só sem fallback pt-BR. */
+  original?: string;
+  /** Raiz da coleção multiobra (TMDB), degrau SEQUENCIAL só no indexer BR. */
+  multiWork?: string;
+  /**
+   * Marca ESTRUTURAL da task de varredura pt-BR agrupada (só os globais do
+   * plano). O `collectRaw` usa ISTO — nunca a comparação de texto — para
+   * decidir `inlineSweep`: uma task BR isolada cuja query coincide com a raiz
+   * da varredura (`ptQuery === sweepQuery`, o caso do filme sem ano) continua
+   * sendo consulta PRINCIPAL e precisa alimentar `onQueryResult`/status.
+   */
+  sweep?: boolean;
 }
 
 function planJackettQueries(
@@ -22,6 +37,8 @@ function planJackettQueries(
   ptBrIndexers: string[],
   isolateIndexers: string[] = [],
   sweepQuery: string | null = null,
+  originalQuery: string | null = null,
+  multiWorkQuery: string | null = null,
 ): SearchPlanTask[] {
   const brSet = new Set(ptBrIndexers);
   const isolateSet = new Set([...ptBrIndexers, ...isolateIndexers]);
@@ -44,7 +61,26 @@ function planJackettQueries(
         const variant = numeralSearchVariant(task.query);
         if (variant) task.variant = variant;
         if (ptQuery && ptQuery !== query) task.fallback = query;
+        // Raiz da franquia como degrau SEQUENCIAL (nunca tarefa própria): o
+        // WordPress BR não acha o post da coleção com o marcador no fim —
+        // "Se Beber, Não Case! Parte II" devolve 0 onde "Se Beber, Não Case!"
+        // acha a Trilogia. O ano sai antes (o marcador ancora no fim e
+        // "Parte II 2011" nunca casaria) e o degrau só existe quando o corte
+        // do franchiseRoot veio de marcador de sequência no fim — subtítulo só
+        // (": O Devoto") e filme sem sequência nenhuma ficam sem degrau.
+        const bare = task.query.replace(/\s+(?:19|20)\d{2}\s*$/, '').trim();
+        const franchise = franchiseRoot(bare);
+        if (franchise && franchise !== bare && endsWithSequenceMarker(bare)) task.franchise = franchise;
+        // Raiz da coleção multiobra (TMDB): degrau SEQUENCIAL SÓ no indexer BR
+        // — o dublado raro mora na coleção publicada por site BR, e a query do
+        // filme isolado nunca acha. Global não recebe: a franquia multiobra é
+        // um artefato da listagem BR (e o pack global iria P2P).
+        if (multiWorkQuery) task.multiWork = multiWorkQuery;
       }
+      // O original é degrau de último recurso em AMBOS os caminhos; a regra de
+      // quem NÃO o executa (BR com fallback pt-BR ativo) mora no queryIndexer,
+      // que conhece o contexto de cada indexer — aqui o campo segue completo.
+      if (originalQuery) task.original = originalQuery;
       isolated.push(task);
     } else {
       grouped.push(indexer);
@@ -53,8 +89,13 @@ function planJackettQueries(
 
   const plan: SearchPlanTask[] = [];
   if (grouped.length) {
-    plan.push({ query, indexers: grouped });
-    if (sweepQuery && sweepQuery !== query) plan.push({ query: sweepQuery, indexers: [...grouped] });
+    const main: SearchPlanTask = { query, indexers: grouped };
+    // Globais não têm caminho pt-BR próprio: o título original ("Adım Farah")
+    // é o que trackers como o magnetdownload publicam e a query em inglês
+    // ("My Name Is Farah") nunca encontra.
+    if (originalQuery) main.original = originalQuery;
+    plan.push(main);
+    if (sweepQuery && sweepQuery !== query) plan.push({ query: sweepQuery, indexers: [...grouped], sweep: true });
   }
   plan.push(...isolated);
   return plan;
@@ -66,10 +107,17 @@ function planJackettQueries(
  * strip/bare-title pensados para buscador WordPress, que não se aplicam aos
  * globais); tracker global é quem hospeda dublado titulado em português que a
  * query em inglês não acha.
+ *
+ * Index-only também saem (terceiro parâmetro): eles já são consultados
+ * INDIVIDUALMENTE pela fila do colhedor, com orçamento dedicado — varrê-los
+ * aqui (busca viva) ou na sweep pt do colhedor seria uma segunda porta pela
+ * qual a latência deles escapa. No colhedor o loop individual permanece
+ * integral, incluindo os BR index-only.
  */
-function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[]) {
+function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[], indexOnlyIndexers: string[] = []) {
   const brSet = new Set(ptBrIndexers);
-  return selectedIndexers.filter((indexer) => !brSet.has(indexer));
+  const fora = new Set(indexOnlyIndexers);
+  return selectedIndexers.filter((indexer) => !brSet.has(indexer) && !fora.has(indexer));
 }
 
 /**
@@ -79,10 +127,24 @@ function ptSweepIndexers(selectedIndexers: string[], ptBrIndexers: string[]) {
  * original. A busca ao vivo serve do índice (idxPoolCovered decide); quem
  * mantém as releases deles frescas é o colhedor, cujas falhas não contam no
  * breaker nem pintam card. Lista vazia = comportamento antigo.
+ *
+ * Exceções de presença (exempt): indexers que continuam sendo index-only para
+ * o resto do sistema (allowedSourceIndexer, magnet-bank-instant, timeout do
+ * colhedor), mas cuja busca cabe no orçamento ao vivo e devem ser consultados.
+ *
+ * O 1337x é o caso global desta lista: busca fria de 12,2–19s (Cloudflare
+ * re-resolvido) e redirect /dl/ de 1,8–6,5s contra orçamento de 4s. Estar
+ * aqui vale MESMO quando o usuário o seleciona na config — a exclusão roda
+ * antes do plano, e todos-index-only não reabrem o fallback /all.
  */
-function liveIndexers(selectedIndexers: string[], indexOnlyIndexers: string[] = []) {
+function liveIndexers(
+  selectedIndexers: string[],
+  indexOnlyIndexers: string[] = [],
+  exemptIndexers: string[] = [],
+) {
   const fora = new Set(indexOnlyIndexers);
-  return selectedIndexers.filter((indexer) => !fora.has(indexer));
+  const isentos = new Set(exemptIndexers);
+  return selectedIndexers.filter((indexer) => !fora.has(indexer) || isentos.has(indexer));
 }
 
 /**
@@ -116,4 +178,24 @@ function ptSweepQueryFor({ titles }: { titles?: any }) {
   return ptSweepQuery(titles.pt) || null;
 }
 
-export { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor, liveIndexers };
+const comparable = (s: unknown) => String(s || '').toLowerCase().normalize('NFD')
+  .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * Variante "<título> dublado" para quando o pt é IGUAL ao original ("Apocalypse
+ * Now"): aí a varredura pt não existe (`ptSweepQueryFor` → null) e o tracker
+ * global, que pagina (LimeTorrents devolve 12), enterra o dublado atrás das
+ * edições gringas. Medido em 15 filmes assim (2026-09-24): 2 dublados reais e
+ * tocáveis só apareciam com ela (Apocalypse Now 720p AndreTPF, 30 seeders;
+ * Deadpool e Wolverine 720p WEB-DL). SÓ o colhedor usa — p90 de 4,4s por
+ * consulta, e o kickass passa pelo FlareSolverr serial.
+ */
+function dubbedSweepQueryFor({ titles }: { titles?: any }) {
+  if (!titles?.pt) return null;
+  const original = titles.en || titles.original;
+  if (!original || comparable(titles.pt) !== comparable(original)) return null;
+  const root = ptSweepQuery(titles.pt);
+  return root ? `${root} dublado` : null;
+}
+
+export { planJackettQueries, ptSweepIndexers, ptSweepQuery, ptSweepQueryFor, dubbedSweepQueryFor, liveIndexers };

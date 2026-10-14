@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- tv_show-sitemap MÍNIMO (captura real tem a mesma forma): entradas de série
+  com slug (`/pt/tv-shows/<slug>/`) e a LISTAGEM raiz `/tv-shows/` sem slug —
+  que a descoberta deve excluir. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://vaqueirofilmes.com/pt/tv-shows/outer-banks/</loc>
+    <lastmod>2026-09-26T21:00:00+00:00</lastmod>
+  </url>
+  <url>
+    <loc>https://vaqueirofilmes.com/pt/tv-shows/the-last-of-us/</loc>
+    <lastmod>2026-09-26T21:10:00+00:00</lastmod>
+  </url>
+  <url>
+    <loc>https://vaqueirofilmes.com/tv-shows/</loc>
+    <lastmod>2026-09-26T21:20:00+00:00</lastmod>
+  </url>
+</urlset>

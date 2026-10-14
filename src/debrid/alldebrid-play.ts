@@ -2,10 +2,10 @@ import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
 import { pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
-import { call, flattenFiles, DEAD, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
+import { call, flattenFiles, isDeadMagnet, ACTIVE_STATES, id, type AllDebridMagnet } from './alldebrid-api.js';
 import { rememberSubmitted, waitProvenanceReference } from './alldebrid-inventory.js';
 import { skipCleanup } from './alldebrid-cleanup.js';
-import { reuploadBlocked } from './alldebrid-reupload.js';
+import { reuploadBlocked, unblockIfInventoryReady } from './alldebrid-reupload.js';
 import * as metrics from '../utils/metrics.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
@@ -97,7 +97,13 @@ export async function enqueue(apiKey: string, infoHash: string) {
   // 8.14 — o chupim não re-sobe o que a limpeza intencional apagou: enfileirar
   // hash bloqueado reabriria a ferida que o marcador fecha. O play explícito
   // (resolveLink) NÃO é bloqueado de propósito — escolha do usuário vence.
+  //
+  // Exceção decisiva: bloqueado que o memo dinv prova PRONTO na conta não
+  // precisa de upload nenhum — o ⚡ já existe. A marca é expurgada e o enqueue
+  // devolve sucesso (o item está pronto no serviço), sem recusa e sem log de
+  // recusa; métrica/log únicos no helper. Ausente do inventário segue recusa.
   if (reuploadBlocked(account, hash)) {
+    if (unblockIfInventoryReady(apiKey, account, hash)) return true;
     metrics.count('debrid.reupload.blocked');
     log.info(`[alldebrid] enqueue de ${hash.slice(0, 8)}… recusado: hash bloqueado para re-upload`);
     return false;
@@ -125,6 +131,15 @@ export async function enqueue(apiKey: string, infoHash: string) {
 
 /**
  * Status detalhado de torrents na conta para o ciclo de recheck / detecção de mortos.
+ *
+ * `progress` sai dos campos REAIS medidos no `/magnet/status` (2026-09-15):
+ * `downloaded` (bytes), `size` (total em bytes), `downloadSpeed` (bytes/s) e
+ * `seeders`. Eles só existem em download ATIVO; magnet pronto ou terminal não
+ * os traz, e aí `progress` fica ausente de propósito — ausência é "sem sinal",
+ * não "parado". NÃO derivamos `stalled` aqui: a parada por progresso é
+ * conservadora e mora no recheck (`autofetch-progress`), que exige N
+ * observações consecutivas; o `stalled` nativo dos outros serviços continua
+ * saindo do próprio adaptador.
  */
 export async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
   const data = await call(apiKey, '/magnet/status');
@@ -137,12 +152,43 @@ export async function torrentStatus(apiKey: string, _infoHashes?: string[]) {
     const statusStr = String(magnet.status || '');
     if (magnet.ready || /^ready$/i.test(statusStr)) {
       state = 'ready';
-    } else if (DEAD.test(statusStr)) {
+    } else if (isDeadMagnet(statusStr)) {
       state = 'dead';
     } else if (ACTIVE_STATES.test(statusStr)) {
       state = 'downloading';
     }
-    out[hash] = { state, id: magnet.id };
+    // Progresso SÓ de download ATIVO e com os campos CRUS tipados como número
+    // finito. `Number(null)`/`Number('')`/`Number(false)` viram 0 e fabricariam
+    // uma parada inexistente — por isso o guard é `typeof === 'number'`, sem
+    // coerção. `size` é sempre presente; `downloaded`/`downloadSpeed`/`seeders`
+    // só existem em `status: "Downloading"` (medido 2026-09-15). `total > 0` e
+    // `bytes < total`: completo/limítrofe não é progresso útil (o `ready` cuida).
+    const num = (v: unknown): number | undefined =>
+      typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+    const bytes = num(magnet.downloaded);
+    const total = num(magnet.size);
+    const speed = num(magnet.downloadSpeed);
+    const seeders = num(magnet.seeders);
+    const ativo = String(magnet.status || '') === 'Downloading';
+    const progress = ativo && bytes !== undefined && total !== undefined
+      && speed !== undefined && seeders !== undefined
+      && total > 0 && bytes < total
+      ? { bytes, total, speed, seeders }
+      : undefined;
+    // `via: 'hash'` DELIBERADO: o status sai da listagem autoritativa por hash
+    // do `/magnet/status`, e o `id` já estava disponível nela. Marcar `via:id`
+    // aqui prendia a remoção terminal ao gate `DEBRID_REMOVE_BY_ID` (default
+    // false) SEM que a AllDebrid dependesse de id para o delete — resultado:
+    // morto/expirado ficava na conta e o `sweepDead`/painel era a única saída.
+    // Com `hash`, o recheck remove o terminal direto (o `id` continua sendo a
+    // âncora do `removeTorrent`); o ramo progress-stalled NÃO usa este campo,
+    // ele é sempre represado.
+    out[hash] = {
+      state,
+      id: magnet.id,
+      via: 'hash',
+      ...(progress ? { progress } : {}),
+    };
   }
   return out;
 }

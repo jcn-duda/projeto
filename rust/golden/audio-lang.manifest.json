@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "audio-lang/audioLang"
+  ],
+  "function": {
+    "name": "audioLang",
+    "sourcePath": "src/utils/audio-cleanup.ts",
+    "sourceSha256": "13e520559b3b42b89dd72b306b59ce5b5fc6380c15e50f57982950d2dba7b859",
+    "artifactPath": "dist/src/utils/audio-cleanup.js",
+    "artifactSha256": "c85b3aaa0146a37d793e46d97fe8545e0cca176a85927b9b74d5cecd2b579e1e"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-audio-lang.json",
+    "sha256": "42560b5ef293cb3e6ed092f02ed75b9265d42b790a55b7ec198814189d160d89",
+    "cases": 71
+  },
+  "output": {
+    "path": "rust/golden/audio-lang.jsonl",
+    "sha256": "cf7a2dd35273e92bb6c45aabc11cc6823feb21042e82a9b9ef868f0fbc7d73ef",
+    "lines": 71
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "5bad2df84bd169a83b9600bc0007a6c39029288d"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "short-name-tail/shortNameTailContradicts"
+  ],
+  "function": {
+    "name": "shortNameTailContradicts",
+    "sourcePath": "src/utils/short-name-tail.ts",
+    "sourceSha256": "2ea37f1fc005f0f571bd358f030706c9fc853663b480423c8ff69c5d186d55bc",
+    "artifactPath": "dist/src/utils/short-name-tail.js",
+    "artifactSha256": "e5f2a0a6116728960c96dee93080d1d01350086bab375166a78b6c34d9dc52a9"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-short-name-tail.json",
+    "sha256": "2c78e0f6c18520fff50e7097d3c33f01f116f84be2018e983181a0ceabc3ee7e",
+    "cases": 15
+  },
+  "output": {
+    "path": "rust/golden/short-name-tail.jsonl",
+    "sha256": "15af6a9898a3618024198a3197d4742dc26abf8761d5b6ad151cd8f664044760",
+    "lines": 15
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "7898671d12c33c7a848c169afb28dc2ed1fc56ae"
+  }
+}
