@@ -35,12 +35,29 @@ set -uo pipefail
 # impede que a autopsia de 700 MB vire um problema de infraestrutura.
 ulimit -c 0 2>/dev/null || true
 
+# Knobs da supervisão do adom-resolvers (laço abaixo).
+#
+# Ficam AQUI e não em src/config.ts + .env.example porque são do entrypoint, não
+# do operador: o binário Rust não lê config.ts (é outro processo, e a policy de
+# restart é decisão do supervisor, não do resolvido). O interruptor que o
+# operador controla já existe e é um só — BR_RESOLVER_RUST preenchido liga a
+# supervisão; vazio desliga tudo (caminho TS intacto).
+RESOLVERS_MAX_RESTARTS=5   # mortes seguidas toleradas; a 5ª derruba o container
+RESOLVERS_BACKOFF_START=2  # segundos até o 1º reinício (dobra a cada morte)
+RESOLVERS_BACKOFF_MAX=60   # teto do backoff: 2→4→8→16→32→60…
+
 pids=()
 SIDECAR_PID=""
+RESOLVERS_SUPERVISOR_PID=""
 shutdown() {
   echo "[entrypoint] sinal recebido; encerrando subprocessos" >&2
   # Sidecar do raspador (se ativo): mata sem esperar, ele não está no wait -n
   [ -n "$SIDECAR_PID" ] && kill -TERM "$SIDECAR_PID" 2>/dev/null || true
+  # Supervisor dos resolvers: o trap do laço repassa o TERM ao filho em
+  # andamento (variável do laço só é visível lá dentro — daqui não dá para
+  # matar o binário direto). A saída deste shell derruba o container, e o
+  # Docker ceifa o que sobrou.
+  [ -n "$RESOLVERS_SUPERVISOR_PID" ] && kill -TERM "$RESOLVERS_SUPERVISOR_PID" 2>/dev/null || true
   kill -TERM "${pids[@]}" 2>/dev/null || true
   wait "${pids[@]}" 2>/dev/null || true
   exit 0
@@ -280,14 +297,63 @@ if [ "${CRAWL_ENGINE:-ts}" = "rust" ]; then
     done
 fi
 
+# Laço de supervisão do adom-resolvers — só rodado com BR_RESOLVER_RUST não vazio.
+#
+# O binário serve TODOS os sites delegados num processo único
+# (rust/crates/adom-resolvers/src/main.rs: um tokio::spawn por entrada do CSV).
+# Morto ele, as portas 8700-8707 somem, o healthcheck do Dockerfile NÃO cobre
+# essas portas, e o `wait -n` não o enxerga: o container ficaria "saudável" com
+# todos os indexers BR ausentes da busca — a falha silenciosa que o contrato dos
+# outros quatro processos existe para evitar.
+#
+# Por que laço de restart e NÃO `wait -n` direto: a delegação é parcial por
+# design (BR_RESOLVER_RUST aceita subconjunto dos 8 sites — um site experimental
+# derrubaria a stack inteira, Chromium e ACME inclusos, a cada crash dele), e o
+# binário sai com código 0 quando o CSV é inválido (main.rs: "nenhuma entrada
+# válida") — no wait -n um typo no .env viraria crash-loop instantâneo do
+# container, sem nenhuma chance de recuperação local. O laço cobre o crash
+# transitório (OOM, panic de um site) sem reiniciar nada; o crash PERMANENTE
+# degenera para o mesmo contrato dos outros quatro: esgotadas
+# RESOLVERS_MAX_RESTARTS mortes seguidas, derruba o container e o
+# `restart: unless-stopped` recria a stack (o contador zera no recriar — sem
+# reset por uptime de propósito: 5 quedas ao longo de semanas já justificam um
+# reinício limpo, e complicar a contabilidade para evitar isso escondia o
+# problema em vez de mostrá-lo).
+supervise_resolvers() {
+  local tentativa=0 delay="$RESOLVERS_BACKOFF_START" code RESOLVERS_CHILD_PID=""
+  # Mesmo motivo do run(): substituição de processo, não pipeline — o `$!` tem
+  # que ser o PID do binário (o kill do shutdown e o wait deste laço dependem
+  # dele; num pipeline seria o PID do awk).
+  trap 'kill "$RESOLVERS_CHILD_PID" 2>/dev/null || true; exit 143' TERM INT
+  while :; do
+    /app/dist/rust/adom-resolvers > >(awk -v t='[resolvers]' '{ print t " " $0; fflush() }') 2>&1 &
+    RESOLVERS_CHILD_PID=$!
+    wait "$RESOLVERS_CHILD_PID"
+    code=$?
+    tentativa=$((tentativa + 1))
+    if [ "$tentativa" -ge "$RESOLVERS_MAX_RESTARTS" ]; then
+      echo "[resolvers] adom-resolvers caiu $tentativa vezes seguidas (código $code); sem mais reinícios — derrubando o container para o orquestrador recriar a stack" >&2
+      # $$ no laço em segundo plano é o PID do shell PAI (não BASHPID): TERM no
+      # entrypoint dispara o shutdown() — o mesmo caminho de um sinal do Docker,
+      # com os quatro supervisionados encerrados em ordem.
+      kill -TERM "$$" 2>/dev/null || true
+      exit "$code"
+    fi
+    echo "[resolvers] adom-resolvers saiu com código $code; recriando em ${delay}s (morte $tentativa de $((RESOLVERS_MAX_RESTARTS - 1)))" >&2
+    sleep "$delay"
+    delay=$((delay * 2))
+    [ "$delay" -gt "$RESOLVERS_BACKOFF_MAX" ] && delay="$RESOLVERS_BACKOFF_MAX"
+  done
+}
+
 # Resolvers BR em Rust (só quando BR_RESOLVER_RUST está preenchido).
-# O binário lê a env e sobe um servidor HTTP por site delegado.
-# Fora do wait -n: sem supervisão do entrypoint; se o resolver cair,
-# o Node já pula a porta e o site fica sem fonte (igual ao TS).
+# O binário lê a env e sobe um servidor HTTP por site delegado. Com a env vazia
+# (produção TS de hoje) este bloco inteiro é pulado: nenhum processo novo,
+# nenhum log novo — o caminho do addon em `wait -n` fica exatamente o que era.
 if [ -n "${BR_RESOLVER_RUST:-}" ]; then
-    echo "[entrypoint] iniciando adom-resolvers (BR_RESOLVER_RUST=${BR_RESOLVER_RUST})"
-    /app/dist/rust/adom-resolvers &
-    RESOLVER_PID=$!
+    echo "[entrypoint] iniciando adom-resolvers supervisionado (BR_RESOLVER_RUST=${BR_RESOLVER_RUST})"
+    supervise_resolvers &
+    RESOLVERS_SUPERVISOR_PID=$!
 fi
 
 # Saída do tsc, não o fonte: a imagem de runtime recebe só `dist/` (o COPY
