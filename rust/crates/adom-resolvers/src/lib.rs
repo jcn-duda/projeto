@@ -4,10 +4,10 @@
 //! própria, com o mesmo contrato HTTP do TS: /health, /search, /resolve, /dl, /api.
 
 pub mod callbacks;
-mod gate_resolve;
 pub mod common;
 mod flare_fetch;
 pub mod flows;
+mod gate_resolve;
 mod items;
 pub mod listing_parsers;
 pub mod profile;

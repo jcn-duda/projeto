@@ -28,9 +28,7 @@ use crate::vaca_series::{group_series_releases, GroupSeriesOptions, SeriesReleas
 use crate::work_name::read_work_title;
 
 use build::{build_parsed_outcome, build_release_from_link, parse_mico_content};
-use sites::{
-    bludv_has_gate_button, parse_bludv_links, parse_nerdfilmes_links, parse_tdf_links,
-};
+use sites::{bludv_has_gate_button, parse_bludv_links, parse_nerdfilmes_links, parse_tdf_links};
 
 /// Normaliza o identificador do site para a chave padrão.
 pub fn canonical_site_id(site: &str) -> &'static str {

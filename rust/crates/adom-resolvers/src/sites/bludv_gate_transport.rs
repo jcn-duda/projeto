@@ -1,4 +1,4 @@
-﻿//! Gate transport: trait + guards + erro. Espelho de
+//! Gate transport: trait + guards + erro. Espelho de
 //! resolvers/profiles/bludv-gate-transport.ts.
 
 use std::fmt;
@@ -83,8 +83,7 @@ pub fn at(host: &str, path_prefix: &str) -> Box<UrlGuard> {
     let host = host.to_string();
     let path_prefix = path_prefix.to_string();
     Box::new(move |url: &Url| {
-        url.host_str().unwrap_or("") == host.as_str()
-            && url.path().starts_with(&path_prefix)
+        url.host_str().unwrap_or("") == host.as_str() && url.path().starts_with(&path_prefix)
     })
 }
 
@@ -97,8 +96,8 @@ pub fn at_regex(host: &str, pattern: &str) -> Box<UrlGuard> {
 }
 
 pub fn check_allowed(gate_hostname: &str, value: &str, base: Option<&str>) -> GateResult<Url> {
-    let url = safe_gate_url(value, base)
-        .ok_or_else(|| GateError::refused("destino nao permitido"))?;
+    let url =
+        safe_gate_url(value, base).ok_or_else(|| GateError::refused("destino nao permitido"))?;
     let host = url.host_str().unwrap_or("");
     if host != gate_hostname && !is_ad_host(host) {
         return Err(GateError::refused("destino nao permitido"));

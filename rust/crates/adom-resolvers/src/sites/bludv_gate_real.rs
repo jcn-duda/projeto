@@ -1,4 +1,4 @@
-﻿//! Transporte REAL do portao (FlareSolverr + GET de redirect manual).
+//! Transporte REAL do portao (FlareSolverr + GET de redirect manual).
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -57,7 +57,12 @@ impl RealGateTransport {
         ["c", "m", "d"].concat()
     }
 
-    fn flare_body(method: &str, url: Option<&str>, session: Option<&str>, max_timeout_ms: u64) -> Value {
+    fn flare_body(
+        method: &str,
+        url: Option<&str>,
+        session: Option<&str>,
+        max_timeout_ms: u64,
+    ) -> Value {
         let mut map = serde_json::Map::new();
         map.insert(Self::method_key(), json!(method));
         if let Some(u) = url {
@@ -71,12 +76,21 @@ impl RealGateTransport {
     }
 
     async fn post_v1(&self, body: &Value, timeout: Duration) -> GateResult<Value> {
-        let resp = self.client.post(&self.solver_endpoint).json(body).timeout(timeout).send().await
+        let resp = self
+            .client
+            .post(&self.solver_endpoint)
+            .json(body)
+            .timeout(timeout)
+            .send()
+            .await
             .map_err(|_| GateError::refused("solvedor indisponivel"))?;
         if !resp.status().is_success() {
             return Err(GateError::refused("solvedor indisponivel"));
         }
-        let bytes = resp.bytes().await.map_err(|_| GateError::refused("solvedor indisponivel"))?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|_| GateError::refused("solvedor indisponivel"))?;
         if !Self::body_within_limit(bytes.len()) {
             return Err(GateError::refused("resposta grande demais"));
         }
@@ -84,20 +98,40 @@ impl RealGateTransport {
     }
 
     async fn get_direct(&self, url: &str) -> GateResult<(u16, Option<String>, String)> {
-        let resp = self.client.get(url).send().await
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
             .map_err(|_| GateError::refused("destino nao permitido"))?;
         let status = resp.status().as_u16();
-        let location = resp.headers().get(reqwest::header::LOCATION).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
-        if let Some(cl) = resp.headers().get(reqwest::header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<usize>().ok()) {
+        let location = resp
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        if let Some(cl) = resp
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<usize>().ok())
+        {
             if !Self::body_within_limit(cl) {
                 return Err(GateError::refused("corpo grande demais"));
             }
         }
-        let bytes = resp.bytes().await.map_err(|_| GateError::refused("leitura falhou"))?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|_| GateError::refused("leitura falhou"))?;
         if !Self::body_within_limit(bytes.len()) {
             return Err(GateError::refused("corpo grande demais"));
         }
-        Ok((status, location, String::from_utf8_lossy(&bytes).into_owned()))
+        Ok((
+            status,
+            location,
+            String::from_utf8_lossy(&bytes).into_owned(),
+        ))
     }
 }
 
@@ -106,7 +140,8 @@ impl GateTransport for RealGateTransport {
     async fn create_session(&self) -> GateResult<()> {
         let id = Uuid::new_v4().simple().to_string();
         let body = Self::flare_body("sessions.create", None, Some(&id), self.max_timeout_ms);
-        self.post_v1(&body, Duration::from_millis(self.max_timeout_ms)).await?;
+        self.post_v1(&body, Duration::from_millis(self.max_timeout_ms))
+            .await?;
         let mut s = self.session.lock().map_err(|_| GateError::Cancelled)?;
         s.id = Some(id);
         Ok(())
@@ -115,12 +150,27 @@ impl GateTransport for RealGateTransport {
     async fn flare_get(&self, value: &str, guard: &UrlGuard) -> GateResult<FlareGetResult> {
         let entry = check_allowed(&self.gate_host, value, None)?;
         let session = self.session_id();
-        let body = Self::flare_body("request.get", Some(entry.as_str()), session.as_deref(), self.max_timeout_ms);
-        let out = self.post_v1(&body, Duration::from_millis(self.max_timeout_ms + 10_000)).await?;
-        let solution = out.get("solution").ok_or_else(|| GateError::refused("solvedor sem saida"))?;
-        let html = solution.get("response").and_then(|v| v.as_str()).filter(|s| !s.is_empty())
-            .ok_or_else(|| GateError::refused("solvedor sem saida"))?.to_string();
-        let final_url = solution.get("url").and_then(|v| v.as_str())
+        let body = Self::flare_body(
+            "request.get",
+            Some(entry.as_str()),
+            session.as_deref(),
+            self.max_timeout_ms,
+        );
+        let out = self
+            .post_v1(&body, Duration::from_millis(self.max_timeout_ms + 10_000))
+            .await?;
+        let solution = out
+            .get("solution")
+            .ok_or_else(|| GateError::refused("solvedor sem saida"))?;
+        let html = solution
+            .get("response")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| GateError::refused("solvedor sem saida"))?
+            .to_string();
+        let final_url = solution
+            .get("url")
+            .and_then(|v| v.as_str())
             .ok_or_else(|| GateError::refused("solvedor sem saida"))?;
         let parsed = check_allowed(&self.gate_host, final_url, Some(entry.as_str()))?;
         if !guard(&parsed) {
@@ -136,7 +186,11 @@ impl GateTransport for RealGateTransport {
             Some(loc) => Some(check_allowed(&self.gate_host, &loc, Some(url.as_str()))?),
             None => None,
         };
-        Ok(GetResult { url, location, html })
+        Ok(GetResult {
+            url,
+            location,
+            html,
+        })
     }
 
     async fn follow_text(&self, value: &str, guard: &UrlGuard) -> GateResult<String> {
@@ -157,7 +211,8 @@ impl GateTransport for RealGateTransport {
         let _ = tokio::time::timeout(
             Duration::from_millis(CLEANUP_MS),
             self.post_v1(&body, Duration::from_millis(CLEANUP_MS)),
-        ).await;
+        )
+        .await;
         if let Ok(mut s) = self.session.lock() {
             s.id = None;
         }
@@ -175,7 +230,8 @@ mod tests {
 
     #[test]
     fn flare_body_request_get_tem_sessao_e_timeout() {
-        let b = RealGateTransport::flare_body("request.get", Some("https://x/y"), Some("sid"), 55000);
+        let b =
+            RealGateTransport::flare_body("request.get", Some("https://x/y"), Some("sid"), 55000);
         assert_eq!(b[&RealGateTransport::method_key()], "request.get");
         assert_eq!(b["url"], "https://x/y");
         assert_eq!(b["maxTimeout"], 55000);
@@ -199,7 +255,12 @@ mod tests {
 
     #[tokio::test]
     async fn destroy_sem_sessao_e_inerte() {
-        let t = Arc::new(RealGateTransport::new("http://127.0.0.1:1", "bludv.to", "UA", 1000));
+        let t = Arc::new(RealGateTransport::new(
+            "http://127.0.0.1:1",
+            "bludv.to",
+            "UA",
+            1000,
+        ));
         t.destroy_session().await;
         assert!(t.session_id().is_none());
     }

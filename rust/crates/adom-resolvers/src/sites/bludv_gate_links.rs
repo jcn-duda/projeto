@@ -1,4 +1,4 @@
-﻿//! Gate URL validation and link parsing - port of resolvers/profiles/bludv-gate-links.ts.
+//! Gate URL validation and link parsing - port of resolvers/profiles/bludv-gate-links.ts.
 //!
 //! Hosts EXATOS do gate; nao altera protetores globais nem allowlists compartilhadas.
 
@@ -248,11 +248,16 @@ mod tests {
     fn gate_e_legado_coexistem() {
         let html = r#"<a href="https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609" class="customButton">Magnet-Link</a>
 <a href="https://systemads1.com/go/aaa111">Download 1080p (2 GB)</a>"#;
-        let links =
-            parse_gate_and_legacy_links(html, "https://bludvfilmes1.xyz/post/").unwrap();
+        let links = parse_gate_and_legacy_links(html, "https://bludvfilmes1.xyz/post/").unwrap();
         assert_eq!(links.len(), 2);
-        assert!(is_gate_url(&links[0].url, Some("https://bludvfilmes1.xyz/post/")));
-        assert!(!is_gate_url(&links[1].url, Some("https://bludvfilmes1.xyz/post/")));
+        assert!(is_gate_url(
+            &links[0].url,
+            Some("https://bludvfilmes1.xyz/post/")
+        ));
+        assert!(!is_gate_url(
+            &links[1].url,
+            Some("https://bludvfilmes1.xyz/post/")
+        ));
     }
 
     #[test]

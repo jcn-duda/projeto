@@ -12,7 +12,10 @@ pub struct DebridCacheVerdict {
 
 fn verdict_of(verdict: adom_core::CacheVerdict) -> DebridCacheVerdict {
     let (reason, message) = match verdict.unusable {
-        Some(unusable) => (Some(unusable.reason.as_str().to_string()), Some(unusable.message)),
+        Some(unusable) => (
+            Some(unusable.reason.as_str().to_string()),
+            Some(unusable.message),
+        ),
         None => (None, None),
     };
     DebridCacheVerdict {

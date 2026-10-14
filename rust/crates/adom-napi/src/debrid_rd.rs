@@ -33,7 +33,13 @@ fn write_of(value: Option<adom_core::LedgerWrite>) -> RdWriteOut {
     }
 }
 
-fn bare_gate(gap_ms: f64, successes: i64, next_allowed_at: f64, cooldown_until: f64, rate_limits: Vec<f64>) -> adom_core::GateState {
+fn bare_gate(
+    gap_ms: f64,
+    successes: i64,
+    next_allowed_at: f64,
+    cooldown_until: f64,
+    rate_limits: Vec<f64>,
+) -> adom_core::GateState {
     adom_core::GateState {
         busy: false,
         gap_ms,
@@ -79,7 +85,12 @@ pub fn debrid_rd_next_miss(
 }
 
 #[napi(catch_unwind)]
-pub fn debrid_rd_next_blocked(enabled: bool, hash: String, blocked_ttl: f64, now: f64) -> RdWriteOut {
+pub fn debrid_rd_next_blocked(
+    enabled: bool,
+    hash: String,
+    blocked_ttl: f64,
+    now: f64,
+) -> RdWriteOut {
     write_of(adom_core::next_on_blocked(enabled, &hash, blocked_ttl, now))
 }
 
@@ -107,7 +118,14 @@ pub fn debrid_rd_on_rate_limit(
     retry_after_ms: Option<f64>,
 ) -> RdRateOut {
     let state = bare_gate(gap_ms, 0, next_allowed_at, cooldown_until, rate_limits);
-    let step = adom_core::on_rate_limit(&state, now, min_gap_ms, max_gap_ms, cooldown_ms, retry_after_ms);
+    let step = adom_core::on_rate_limit(
+        &state,
+        now,
+        min_gap_ms,
+        max_gap_ms,
+        cooldown_ms,
+        retry_after_ms,
+    );
     RdRateOut {
         gap_ms: step.state.gap_ms,
         successes: step.state.successes,
@@ -125,10 +143,19 @@ pub struct RdSuccessOut {
 }
 
 #[napi(catch_unwind)]
-pub fn debrid_rd_on_success(gap_ms: f64, successes: i64, success_threshold: i64, min_gap_ms: f64, max_gap_ms: f64) -> RdSuccessOut {
+pub fn debrid_rd_on_success(
+    gap_ms: f64,
+    successes: i64,
+    success_threshold: i64,
+    min_gap_ms: f64,
+    max_gap_ms: f64,
+) -> RdSuccessOut {
     let state = bare_gate(gap_ms, successes, 0.0, 0.0, Vec::new());
     let next = adom_core::on_success(&state, success_threshold, min_gap_ms, max_gap_ms);
-    RdSuccessOut { gap_ms: next.gap_ms, successes: next.successes }
+    RdSuccessOut {
+        gap_ms: next.gap_ms,
+        successes: next.successes,
+    }
 }
 
 #[napi(catch_unwind)]

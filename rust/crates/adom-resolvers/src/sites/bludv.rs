@@ -37,14 +37,14 @@ mod card;
 mod feed;
 #[path = "bludv_gate.rs"]
 mod gate;
-#[path = "bludv_gate_links.rs"]
-pub mod gate_links;
-#[path = "bludv_gate_transport.rs"]
-pub mod gate_transport;
 #[path = "bludv_gate_flow.rs"]
 pub mod gate_flow;
+#[path = "bludv_gate_links.rs"]
+pub mod gate_links;
 #[path = "bludv_gate_real.rs"]
 pub mod gate_real;
+#[path = "bludv_gate_transport.rs"]
+pub mod gate_transport;
 
 pub use card::{card_html, CardRow};
 pub use feed::{feed_with_date, parse_post_date};

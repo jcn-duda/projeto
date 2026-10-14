@@ -1,4 +1,4 @@
-﻿use super::*;
+use super::*;
 use crate::sites::bludv::gate_transport::{FlareGetResult, GetResult};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -91,9 +91,9 @@ impl GateTransport for MockTransport {
             }
         } else {
             match self.scenario {
-                Scenario::BadCallback => {
-                    Some(Url::parse("https://other.example.com/gate/callback?token=T&ref=R").unwrap())
-                }
+                Scenario::BadCallback => Some(
+                    Url::parse("https://other.example.com/gate/callback?token=T&ref=R").unwrap(),
+                ),
                 Scenario::MultiRef => Some(
                     Url::parse(&format!(
                         "https://{}/gate/callback?token=T&ref=R&ref=R2",
@@ -110,7 +110,11 @@ impl GateTransport for MockTransport {
                 ),
             }
         };
-        Ok(GetResult { url, location, html: String::new() })
+        Ok(GetResult {
+            url,
+            location,
+            html: String::new(),
+        })
     }
     async fn follow_text(&self, value: &str, guard: &UrlGuard) -> GateResult<String> {
         let url = Url::parse(value).map_err(|_| GateError::refused("url invalida"))?;
@@ -145,7 +149,9 @@ fn gate(p: &str) -> Url {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cadeia_completa_devolve_magnet() {
     let (t, runs, destroyed) = MockTransport::new(Scenario::Ok);
-    let magnet = run_chain(t.as_ref(), &gate("60001"), &cfg(0)).await.unwrap();
+    let magnet = run_chain(t.as_ref(), &gate("60001"), &cfg(0))
+        .await
+        .unwrap();
     assert!(magnet.contains("btih:0123456789abcdef"), "magnet: {magnet}");
     assert!(is_valid_magnet_uri_pub(&magnet));
     assert_eq!(runs.load(Ordering::SeqCst), 1);
@@ -159,8 +165,14 @@ async fn espera_minima_contada_do_inicio() {
     let r = run_chain(t.as_ref(), &gate("60002"), &cfg(250)).await;
     r.unwrap();
     let elapsed = started.elapsed();
-    assert!(elapsed >= Duration::from_millis(250), "espera {elapsed:?} < 250ms");
-    assert!(elapsed < Duration::from_secs(5), "nao dormiu 30s: {elapsed:?}");
+    assert!(
+        elapsed >= Duration::from_millis(250),
+        "espera {elapsed:?} < 250ms"
+    );
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "nao dormiu 30s: {elapsed:?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -211,7 +223,11 @@ async fn falha_nao_entra_em_cache() {
     assert!(first.is_err());
     let second = resolve_gate_magnet(&url, &post, Arc::clone(&t), &cfg(0)).await;
     assert!(second.is_err());
-    assert_eq!(runs.load(Ordering::SeqCst), 2, "falha reexecuta, nao cacheou");
+    assert_eq!(
+        runs.load(Ordering::SeqCst),
+        2,
+        "falha reexecuta, nao cacheou"
+    );
 }
 
 // Ponte para o validador privado do site (evita duplicar regra no teste).

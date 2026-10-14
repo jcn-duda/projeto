@@ -233,6 +233,9 @@ mod gate_tests {
             <a href="https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609" class="customButton">Baixar</a>
         </div>"#;
         assert!(bludv_has_gate_button(html));
-        assert!(parse_bludv_links(html).is_empty(), "portao nao e link coletavel");
+        assert!(
+            parse_bludv_links(html).is_empty(),
+            "portao nao e link coletavel"
+        );
     }
 }

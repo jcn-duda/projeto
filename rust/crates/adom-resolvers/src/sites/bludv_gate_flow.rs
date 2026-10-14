@@ -1,4 +1,4 @@
-﻿//! Gate chain + cache + coalescing. Espelho de
+//! Gate chain + cache + coalescing. Espelho de
 //! resolvers/profiles/bludv-gate-flow.ts.
 
 use std::collections::HashMap;
@@ -95,13 +95,17 @@ async fn try_chain(
     let landing = transport.flare_get(gate.as_str(), &*jump_guard).await?;
 
     // 2. HTML promocao -> extrai href x.gd
-    let promo_html = transport.follow_text(landing.url.as_str(), &*jump_guard).await?;
+    let promo_html = transport
+        .follow_text(landing.url.as_str(), &*jump_guard)
+        .await?;
     let xg_guard = at_regex("x.gd", r"^/");
     let short_url = href_of(&promo_html, landing.url.as_str(), &*xg_guard)?;
 
     // 3. GET x.gd redirect manual -> valedesconto.shop/r/...?utm_content=CODE
     let redir = transport.direct_get(&short_url).await?;
-    let voucher = redir.location.ok_or_else(|| GateError::refused("sem location"))?;
+    let voucher = redir
+        .location
+        .ok_or_else(|| GateError::refused("sem location"))?;
     if !at_regex("valedesconto.shop", r"^/r/.+")(&voucher) {
         return Err(GateError::refused("saida do encurtador invalida"));
     }
@@ -116,9 +120,9 @@ async fn try_chain(
     let code = &codes[0];
     if code.is_empty()
         || code.len() > 512
-        || !code.bytes().all(|b| {
-            b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'_' | b'=' | b'-')
-        })
+        || !code
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'_' | b'=' | b'-'))
     {
         return Err(GateError::refused("codigo do anuncio invalido"));
     }
@@ -148,15 +152,26 @@ async fn try_chain(
 
     // 6. GET /go/ redirect manual -> callback no gate host
     let go_res = transport.direct_get(&go_url).await?;
-    let callback =
-        go_res.location.ok_or_else(|| GateError::refused("callback invalido"))?;
+    let callback = go_res
+        .location
+        .ok_or_else(|| GateError::refused("callback invalido"))?;
     if callback.host_str().unwrap_or("") != gate_host || callback.path() != "/gate/callback" {
         return Err(GateError::refused("callback invalido"));
     }
-    let tok_n = callback.query_pairs().filter(|(k,_)| k.as_ref()=="token").count();
-    let ref_n = callback.query_pairs().filter(|(k,_)| k.as_ref()=="ref").count();
-    let tok_ok = callback.query_pairs().any(|(k,v)| k.as_ref()=="token" && !v.is_empty());
-    let ref_ok = callback.query_pairs().any(|(k,v)| k.as_ref()=="ref" && !v.is_empty());
+    let tok_n = callback
+        .query_pairs()
+        .filter(|(k, _)| k.as_ref() == "token")
+        .count();
+    let ref_n = callback
+        .query_pairs()
+        .filter(|(k, _)| k.as_ref() == "ref")
+        .count();
+    let tok_ok = callback
+        .query_pairs()
+        .any(|(k, v)| k.as_ref() == "token" && !v.is_empty());
+    let ref_ok = callback
+        .query_pairs()
+        .any(|(k, v)| k.as_ref() == "ref" && !v.is_empty());
     if tok_n != 1 || ref_n != 1 || !tok_ok || !ref_ok {
         return Err(GateError::refused("callback invalido"));
     }
@@ -173,7 +188,11 @@ async fn try_chain(
         Box::new(move |u: &Url| u.host_str().unwrap_or("") == h)
     };
     let solved = transport.flare_get(callback.as_str(), &*cb_guard).await?;
-    if solved.url.query_pairs().any(|(k,_)| k.as_ref()=="gate_erro") {
+    if solved
+        .url
+        .query_pairs()
+        .any(|(k, _)| k.as_ref() == "gate_erro")
+    {
         return Err(GateError::refused("callback recusado"));
     }
     let decoded = crate::common::text::decode_entities(&solved.html);
@@ -198,20 +217,29 @@ pub async fn resolve_gate_magnet(
         .ok_or_else(|| GateError::refused("botao invalido"))?;
     let key = gate.to_string();
 
-    if let Some(hit) = cache_get(&key) { return Ok(hit); }
+    if let Some(hit) = cache_get(&key) {
+        return Ok(hit);
+    }
 
     let (flight, rx) = {
         let mut map = IN_FLIGHT.lock().unwrap();
         if let Some(existing) = map.get(&key) {
             let mut w = existing.waiters.lock().unwrap();
-            if *w >= MAX_WAITERS { return Err(GateError::refused("consumidores demais")); }
+            if *w >= MAX_WAITERS {
+                return Err(GateError::refused("consumidores demais"));
+            }
             *w += 1;
             let rx = existing.tx.subscribe();
             (Arc::clone(existing), rx)
         } else {
-            if map.len() >= MAX_QUEUED + 1 { return Err(GateError::refused("fila cheia")); }
+            if map.len() >= MAX_QUEUED + 1 {
+                return Err(GateError::refused("fila cheia"));
+            }
             let (tx, _rx) = watch::channel(None);
-            let f = Arc::new(InFlight { tx, waiters: Mutex::new(1) });
+            let f = Arc::new(InFlight {
+                tx,
+                waiters: Mutex::new(1),
+            });
             map.insert(key.clone(), Arc::clone(&f));
             let f2 = Arc::clone(&f);
             let t2 = Arc::clone(&transport);
@@ -236,7 +264,9 @@ async fn wait_for_result(
     loop {
         {
             let v = rx.borrow_and_update();
-            if let Some(ref r) = *v { return r.clone(); }
+            if let Some(ref r) = *v {
+                return r.clone();
+            }
         }
         if rx.changed().await.is_err() {
             return Err(GateError::refused("falha na resolucao"));
@@ -258,7 +288,10 @@ async fn run_spawned(
     )
     .await;
     let result = match out {
-        Ok(Ok(magnet)) => { cache_set(&key, &magnet); Ok(magnet) }
+        Ok(Ok(magnet)) => {
+            cache_set(&key, &magnet);
+            Ok(magnet)
+        }
         Ok(Err(e)) => Err(e),
         Err(_) => Err(GateError::Cancelled),
     };
@@ -268,7 +301,11 @@ async fn run_spawned(
 
 fn cache_get(key: &str) -> Option<String> {
     CACHE.lock().unwrap().get(key).and_then(|(m, exp)| {
-        if Instant::now() < *exp { Some(m.clone()) } else { None }
+        if Instant::now() < *exp {
+            Some(m.clone())
+        } else {
+            None
+        }
     })
 }
 
@@ -277,11 +314,18 @@ fn cache_set(key: &str, magnet: &str) {
     let now = Instant::now();
     c.retain(|_, (_, e)| now < *e);
     while c.len() >= MAX_CACHE {
-        if let Some(k) = c.keys().next().cloned() { c.remove(&k); } else { break; }
+        if let Some(k) = c.keys().next().cloned() {
+            c.remove(&k);
+        } else {
+            break;
+        }
     }
     c.insert(
         key.to_string(),
-        (magnet.to_string(), now + Duration::from_secs(CACHE_TTL_SECS)),
+        (
+            magnet.to_string(),
+            now + Duration::from_secs(CACHE_TTL_SECS),
+        ),
     );
 }
 
@@ -296,7 +340,9 @@ pub fn prefetch_gate_magnet(
     let p = post_url.to_string();
     let t = Arc::clone(&transport);
     let c = config.clone();
-    tokio::spawn(async move { let _ = resolve_gate_magnet(&g, &p, t, &c).await; });
+    tokio::spawn(async move {
+        let _ = resolve_gate_magnet(&g, &p, t, &c).await;
+    });
 }
 
 #[cfg(test)]
