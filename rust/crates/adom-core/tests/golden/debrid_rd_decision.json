@@ -1,0 +1,2839 @@
+{
+  "generatedBy": "scripts/rust/debrid-golden/rd-decision.mjs",
+  "ledger": [
+    {
+      "id": "hash-lower",
+      "op": "normalize_hash",
+      "input": {
+        "hash": "0123456789abcdef0123456789abcdef01234567"
+      },
+      "expect": {
+        "hash": "0123456789abcdef0123456789abcdef01234567"
+      }
+    },
+    {
+      "id": "hash-upper",
+      "op": "normalize_hash",
+      "input": {
+        "hash": "0123456789ABCDEF0123456789ABCDEF01234567"
+      },
+      "expect": {
+        "hash": "0123456789abcdef0123456789abcdef01234567"
+      }
+    },
+    {
+      "id": "hash-short",
+      "op": "normalize_hash",
+      "input": {
+        "hash": "0123456789abcdef0123456789abcdef0123456"
+      },
+      "expect": {
+        "hash": ""
+      }
+    },
+    {
+      "id": "hash-long",
+      "op": "normalize_hash",
+      "input": {
+        "hash": "0123456789abcdef0123456789abcdef01234567a"
+      },
+      "expect": {
+        "hash": ""
+      }
+    },
+    {
+      "id": "hash-nonhex",
+      "op": "normalize_hash",
+      "input": {
+        "hash": "0123456789abcdef0123456789abcdef0123456g"
+      },
+      "expect": {
+        "hash": ""
+      }
+    },
+    {
+      "id": "hash-empty",
+      "op": "normalize_hash",
+      "input": {
+        "hash": ""
+      },
+      "expect": {
+        "hash": ""
+      }
+    },
+    {
+      "id": "hash-space",
+      "op": "normalize_hash",
+      "input": {
+        "hash": " 0123456789abcdef0123456789abcdef01234567"
+      },
+      "expect": {
+        "hash": ""
+      }
+    },
+    {
+      "id": "key-valid",
+      "op": "ledger_key",
+      "input": {
+        "hash": "0123456789ABCDEF0123456789ABCDEF01234567"
+      },
+      "expect": {
+        "key": "rdc:v2:0123456789abcdef0123456789abcdef01234567"
+      }
+    },
+    {
+      "id": "key-invalid",
+      "op": "ledger_key",
+      "input": {
+        "hash": "nao-e-hash"
+      },
+      "expect": {
+        "key": "rdc:v2:"
+      }
+    },
+    {
+      "id": "peek-off",
+      "op": "peek_state",
+      "input": {
+        "enabled": false,
+        "stored": {
+          "s": "hit",
+          "at": 1,
+          "n": 0
+        }
+      },
+      "expect": {
+        "state": "unknown"
+      }
+    },
+    {
+      "id": "peek-absent",
+      "op": "peek_state",
+      "input": {
+        "enabled": true,
+        "stored": null
+      },
+      "expect": {
+        "state": "unknown"
+      }
+    },
+    {
+      "id": "peek-bad-s",
+      "op": "peek_state",
+      "input": {
+        "enabled": true,
+        "stored": {
+          "s": "uncached",
+          "at": 1,
+          "n": 0
+        }
+      },
+      "expect": {
+        "state": "unknown"
+      }
+    },
+    {
+      "id": "peek-hit",
+      "op": "peek_state",
+      "input": {
+        "enabled": true,
+        "stored": {
+          "s": "hit",
+          "at": 1,
+          "n": 0
+        }
+      },
+      "expect": {
+        "state": "hit"
+      }
+    },
+    {
+      "id": "peek-miss",
+      "op": "peek_state",
+      "input": {
+        "enabled": true,
+        "stored": {
+          "s": "miss",
+          "at": 1,
+          "n": 2
+        }
+      },
+      "expect": {
+        "state": "miss"
+      }
+    },
+    {
+      "id": "peek-blocked",
+      "op": "peek_state",
+      "input": {
+        "enabled": true,
+        "stored": {
+          "s": "blocked",
+          "at": 1,
+          "n": 0
+        }
+      },
+      "expect": {
+        "state": "blocked"
+      }
+    },
+    {
+      "id": "peek-no-s",
+      "op": "peek_state",
+      "input": {
+        "enabled": true,
+        "stored": {}
+      },
+      "expect": {
+        "state": "unknown"
+      }
+    },
+    {
+      "id": "hit-off",
+      "op": "next_on_hit",
+      "input": {
+        "enabled": false,
+        "hitTtl": 2592000,
+        "now": 10,
+        "current": "unknown"
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "hit-ttl-zero",
+      "op": "next_on_hit",
+      "input": {
+        "enabled": true,
+        "hitTtl": 0,
+        "now": 10,
+        "current": "unknown"
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "hit-ttl-neg",
+      "op": "next_on_hit",
+      "input": {
+        "enabled": true,
+        "hitTtl": -1,
+        "now": 10,
+        "current": "miss"
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "hit-blocked",
+      "op": "next_on_hit",
+      "input": {
+        "enabled": true,
+        "hitTtl": 2592000,
+        "now": 10,
+        "current": "blocked"
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "hit-unknown",
+      "op": "next_on_hit",
+      "input": {
+        "enabled": true,
+        "hitTtl": 2592000,
+        "now": 10,
+        "current": "unknown"
+      },
+      "expect": {
+        "write": {
+          "s": "hit",
+          "at": 10,
+          "n": 0,
+          "ttlSeconds": 2592000
+        }
+      }
+    },
+    {
+      "id": "hit-from-miss",
+      "op": "next_on_hit",
+      "input": {
+        "enabled": true,
+        "hitTtl": 2592000,
+        "now": 11,
+        "current": "miss"
+      },
+      "expect": {
+        "write": {
+          "s": "hit",
+          "at": 11,
+          "n": 0,
+          "ttlSeconds": 2592000
+        }
+      }
+    },
+    {
+      "id": "hit-refresh",
+      "op": "next_on_hit",
+      "input": {
+        "enabled": true,
+        "hitTtl": 100,
+        "now": 12,
+        "current": "hit"
+      },
+      "expect": {
+        "write": {
+          "s": "hit",
+          "at": 12,
+          "n": 0,
+          "ttlSeconds": 100
+        }
+      }
+    },
+    {
+      "id": "miss-off",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": false,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "miss-bad-hash",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "curto",
+        "backoffMs": [
+          1800000
+        ],
+        "now": 5000,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "miss-no-backoff",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [],
+        "now": 5000,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "miss-blocked",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "blocked",
+        "prior": {
+          "s": "miss",
+          "at": 1,
+          "n": 3
+        }
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "miss-first",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789ABCDEF0123456789ABCDEF01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 5000,
+          "n": 1,
+          "ttlSeconds": 1800,
+          "hash": "0123456789abcdef0123456789abcdef01234567"
+        }
+      }
+    },
+    {
+      "id": "miss-from-hit",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "hit",
+        "prior": {
+          "s": "hit",
+          "at": 1,
+          "n": 9
+        }
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 5000,
+          "n": 1,
+          "ttlSeconds": 1800,
+          "hash": "0123456789abcdef0123456789abcdef01234567"
+        }
+      }
+    },
+    {
+      "id": "miss-second",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "miss",
+        "prior": {
+          "s": "miss",
+          "at": 1,
+          "n": 1
+        }
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 5000,
+          "n": 2,
+          "ttlSeconds": 7200,
+          "hash": "0123456789abcdef0123456789abcdef01234567"
+        }
+      }
+    },
+    {
+      "id": "miss-third",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "miss",
+        "prior": {
+          "s": "miss",
+          "at": 1,
+          "n": 2
+        }
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 5000,
+          "n": 3,
+          "ttlSeconds": 43200,
+          "hash": "0123456789abcdef0123456789abcdef01234567"
+        }
+      }
+    },
+    {
+      "id": "miss-fourth",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "miss",
+        "prior": {
+          "s": "miss",
+          "at": 1,
+          "n": 3
+        }
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 5000,
+          "n": 4,
+          "ttlSeconds": 259200,
+          "hash": "0123456789abcdef0123456789abcdef01234567"
+        }
+      }
+    },
+    {
+      "id": "miss-past-cap",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "backoffMs": [
+          1800000,
+          7200000,
+          43200000,
+          259200000
+        ],
+        "now": 5000,
+        "current": "miss",
+        "prior": {
+          "s": "miss",
+          "at": 1,
+          "n": 4
+        }
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 5000,
+          "n": 5,
+          "ttlSeconds": 259200,
+          "hash": "0123456789abcdef0123456789abcdef01234567"
+        }
+      }
+    },
+    {
+      "id": "miss-ceil",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "backoffMs": [
+          1001
+        ],
+        "now": 8,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 8,
+          "n": 1,
+          "ttlSeconds": 2,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    {
+      "id": "miss-one-ms",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "backoffMs": [
+          1
+        ],
+        "now": 8,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 8,
+          "n": 1,
+          "ttlSeconds": 1,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    {
+      "id": "miss-zero-slot",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "backoffMs": [
+          0
+        ],
+        "now": 8,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "miss-subsecond",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "backoffMs": [
+          400
+        ],
+        "now": 8,
+        "current": "unknown",
+        "prior": null
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 8,
+          "n": 1,
+          "ttlSeconds": 1,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    {
+      "id": "miss-n-zero",
+      "op": "next_on_miss",
+      "input": {
+        "enabled": true,
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "backoffMs": [
+          1800000,
+          7200000
+        ],
+        "now": 9,
+        "current": "miss",
+        "prior": {
+          "s": "miss",
+          "at": 1,
+          "n": 0
+        }
+      },
+      "expect": {
+        "write": {
+          "s": "miss",
+          "at": 9,
+          "n": 1,
+          "ttlSeconds": 1800,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    {
+      "id": "blocked-off",
+      "op": "next_on_blocked",
+      "input": {
+        "enabled": false,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "blockedTtl": 2592000,
+        "now": 20
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "blocked-ttl-zero",
+      "op": "next_on_blocked",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "blockedTtl": 0,
+        "now": 20
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "blocked-bad-hash",
+      "op": "next_on_blocked",
+      "input": {
+        "enabled": true,
+        "hash": "",
+        "blockedTtl": 2592000,
+        "now": 20
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "blocked-neg-ttl",
+      "op": "next_on_blocked",
+      "input": {
+        "enabled": true,
+        "hash": "0123456789abcdef0123456789abcdef01234567",
+        "blockedTtl": -5,
+        "now": 20
+      },
+      "expect": {
+        "write": null
+      }
+    },
+    {
+      "id": "blocked-write",
+      "op": "next_on_blocked",
+      "input": {
+        "enabled": true,
+        "hash": "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+        "blockedTtl": 2592000,
+        "now": 21
+      },
+      "expect": {
+        "write": {
+          "s": "blocked",
+          "at": 21,
+          "n": 0,
+          "ttlSeconds": 2592000,
+          "hash": "abcdef0123456789abcdef0123456789abcdef01"
+        }
+      }
+    }
+  ],
+  "gate": [
+    {
+      "id": "initial",
+      "op": "initial_state",
+      "input": {
+        "minGapMs": 1000,
+        "maxGapMs": 30000
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "initial-clamp-max",
+      "op": "initial_state",
+      "input": {
+        "minGapMs": 5000,
+        "maxGapMs": 100
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 5000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "initial-neg-min",
+      "op": "initial_state",
+      "input": {
+        "minGapMs": -10,
+        "maxGapMs": 100
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 0,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-double",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": null,
+        "state": {
+          "busy": false,
+          "gapMs": 100,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": false,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-cap",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": 1000,
+        "state": {
+          "busy": false,
+          "gapMs": 800,
+          "successes": 2,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": true,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 1000,
+          "cooldownUntil": 1000,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-floor-min",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 1000,
+        "maxGapMs": 30000,
+        "cooldownMs": 90000,
+        "retryAfterMs": null,
+        "state": {
+          "busy": false,
+          "gapMs": 10,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": false,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-retry",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": 30000,
+        "state": {
+          "busy": false,
+          "gapMs": 100,
+          "successes": 4,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": true,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 30000,
+          "cooldownUntil": 30000,
+          "nextOrder": 1,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-cooldown",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": null,
+        "state": {
+          "busy": false,
+          "gapMs": 100,
+          "successes": 1,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": false,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-retry-zero",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 50,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 100,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": true,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 50,
+          "cooldownUntil": 50,
+          "nextOrder": 0,
+          "rateLimits": [
+            50
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-retry-neg",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": -1,
+        "state": {
+          "busy": false,
+          "gapMs": 100,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": false,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-cooldown-max",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": 30000,
+        "state": {
+          "busy": false,
+          "gapMs": 100,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 100000,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": true,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 100000,
+          "cooldownUntil": 100000,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-next-stays",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": 30000,
+        "state": {
+          "busy": true,
+          "gapMs": 100,
+          "successes": 0,
+          "nextAllowedAt": 200000,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": true,
+        "state": {
+          "busy": true,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 200000,
+          "cooldownUntil": 30000,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-prune",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 10000000,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "cooldownMs": 90000,
+        "retryAfterMs": null,
+        "state": {
+          "busy": false,
+          "gapMs": 100,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [
+            6400000,
+            6399999,
+            500
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": false,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 10090000,
+          "cooldownUntil": 10090000,
+          "nextOrder": 0,
+          "rateLimits": [
+            6400000,
+            10000000
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "rl-clamp-limits",
+      "op": "on_rate_limit",
+      "input": {
+        "now": 0,
+        "minGapMs": 1000,
+        "maxGapMs": 100,
+        "cooldownMs": -5,
+        "retryAfterMs": null,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 3,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "honoredRetryAfter": false,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [
+            0
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "ok-below",
+      "op": "on_success",
+      "input": {
+        "successThreshold": 5,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 2,
+          "nextAllowedAt": 40,
+          "cooldownUntil": 0,
+          "nextOrder": 2,
+          "rateLimits": [
+            1
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 3,
+          "nextAllowedAt": 40,
+          "cooldownUntil": 0,
+          "nextOrder": 2,
+          "rateLimits": [
+            1
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "ok-shrink",
+      "op": "on_success",
+      "input": {
+        "successThreshold": 5,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 4,
+          "nextAllowedAt": 40,
+          "cooldownUntil": 0,
+          "nextOrder": 2,
+          "rateLimits": [
+            1
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 180,
+          "successes": 0,
+          "nextAllowedAt": 40,
+          "cooldownUntil": 0,
+          "nextOrder": 2,
+          "rateLimits": [
+            1
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "ok-min-floor",
+      "op": "on_success",
+      "input": {
+        "successThreshold": 1,
+        "minGapMs": 1,
+        "maxGapMs": 10,
+        "state": {
+          "busy": false,
+          "gapMs": 1,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 1,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "ok-threshold-1",
+      "op": "on_success",
+      "input": {
+        "successThreshold": 1,
+        "minGapMs": 100,
+        "maxGapMs": 1000,
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 180,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "ok-floor-111",
+      "op": "on_success",
+      "input": {
+        "successThreshold": 1,
+        "minGapMs": 0,
+        "maxGapMs": 1000,
+        "state": {
+          "busy": false,
+          "gapMs": 111,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 99,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "finished-moves",
+      "op": "on_finished",
+      "input": {
+        "now": 1000,
+        "state": {
+          "busy": true,
+          "gapMs": 200,
+          "successes": 1,
+          "nextAllowedAt": 500,
+          "cooldownUntil": 0,
+          "nextOrder": 3,
+          "rateLimits": [
+            7
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 1,
+          "nextAllowedAt": 1200,
+          "cooldownUntil": 0,
+          "nextOrder": 3,
+          "rateLimits": [
+            7
+          ],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "finished-keeps",
+      "op": "on_finished",
+      "input": {
+        "now": 1000,
+        "state": {
+          "busy": true,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 30,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "state": {
+          "busy": false,
+          "gapMs": 200,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 30,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-off",
+      "op": "admit",
+      "input": {
+        "enabled": false,
+        "priority": "probe",
+        "now": 0,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 90000,
+          "nextOrder": 4,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "passthrough",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 90000,
+          "nextOrder": 4,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-probe-deny",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "probe",
+        "now": 50,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 100,
+          "nextOrder": 4,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "deny",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 100,
+          "nextOrder": 4,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-autofetch-deny",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "autofetch",
+        "now": 0,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "deny",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-play-cool",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "play",
+        "now": 0,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 2,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "enqueue",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 2,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-cleanup-cool",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "cleanup",
+        "now": 10,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "enqueue",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [
+              {
+                "priority": "cleanup",
+                "order": 0,
+                "queuedAt": 10,
+                "bypassAt": 1510
+              }
+            ],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-probe-gap",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "probe",
+        "now": 0,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "enqueue",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-boundary",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "probe",
+        "now": 100,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 100,
+          "nextOrder": 6,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "enqueue",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 100,
+          "nextOrder": 7,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 6,
+                "queuedAt": 100,
+                "bypassAt": 1600
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-sort",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "play",
+        "now": 20,
+        "playMaxWaitMs": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 5,
+                "queuedAt": 1,
+                "bypassAt": 1600
+              },
+              {
+                "priority": "play",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "enqueue",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 4,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              },
+              {
+                "priority": "play",
+                "order": 3,
+                "queuedAt": 20,
+                "bypassAt": 1520
+              },
+              {
+                "priority": "play",
+                "order": 5,
+                "queuedAt": 1,
+                "bypassAt": 1600
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "admit-bypass-neg",
+      "op": "admit",
+      "input": {
+        "enabled": true,
+        "priority": "play",
+        "now": 40,
+        "playMaxWaitMs": -10,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "enqueue",
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 40,
+                "bypassAt": 40
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-idle",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "idle",
+        "until": null,
+        "priority": null,
+        "order": null,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 0,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-busy",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 5000,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "busy",
+        "until": null,
+        "priority": null,
+        "order": null,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-off",
+      "op": "next_grant",
+      "input": {
+        "enabled": false,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "idle",
+        "until": null,
+        "priority": null,
+        "order": null,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-cleanup-cool",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 2,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [
+              {
+                "priority": "cleanup",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "grant",
+        "until": null,
+        "priority": "cleanup",
+        "order": 1,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 2,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-cleanup-gap",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [
+              {
+                "priority": "cleanup",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "grant",
+        "until": null,
+        "priority": "cleanup",
+        "order": 0,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-play-waits",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "wait",
+        "until": 1500,
+        "priority": null,
+        "order": null,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-play-furrows",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 1500,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "grant",
+        "until": null,
+        "priority": "play",
+        "order": 0,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-play-early",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 100,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 100,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 5000
+              }
+            ],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "grant",
+        "until": null,
+        "priority": "play",
+        "order": 0,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 100,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-play-blocks-cleanup",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 2,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "cleanup": [
+              {
+                "priority": "cleanup",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "wait",
+        "until": 1500,
+        "priority": null,
+        "order": null,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 90000,
+          "cooldownUntil": 90000,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 2,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "cleanup": [
+              {
+                "priority": "cleanup",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "autofetch": [],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-priority",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 4,
+          "rateLimits": [],
+          "queues": {
+            "play": [
+              {
+                "priority": "play",
+                "order": 4,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "cleanup": [
+              {
+                "priority": "cleanup",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "autofetch": [
+              {
+                "priority": "autofetch",
+                "order": 2,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 3,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "action": "grant",
+        "until": null,
+        "priority": "play",
+        "order": 4,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 4,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [
+              {
+                "priority": "cleanup",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "autofetch": [
+              {
+                "priority": "autofetch",
+                "order": 2,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 3,
+                "queuedAt": 0,
+                "bypassAt": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-autofetch-gap",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [
+              {
+                "priority": "autofetch",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "probe": []
+          }
+        }
+      },
+      "expect": {
+        "action": "wait",
+        "until": 5000,
+        "priority": null,
+        "order": null,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 5000,
+          "cooldownUntil": 0,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [
+              {
+                "priority": "autofetch",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ],
+            "probe": []
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-probe-cooldown-wait",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "action": "wait",
+        "until": 90000,
+        "priority": null,
+        "order": null,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 90000,
+          "nextOrder": 1,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 0,
+                "queuedAt": 0,
+                "bypassAt": 1500
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "grant-fifo",
+      "op": "next_grant",
+      "input": {
+        "enabled": true,
+        "now": 0,
+        "state": {
+          "busy": false,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 1,
+                "queuedAt": 0,
+                "bypassAt": 0
+              },
+              {
+                "priority": "probe",
+                "order": 2,
+                "queuedAt": 1,
+                "bypassAt": 0
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "action": "grant",
+        "until": null,
+        "priority": "probe",
+        "order": 1,
+        "state": {
+          "busy": true,
+          "gapMs": 1000,
+          "successes": 0,
+          "nextAllowedAt": 0,
+          "cooldownUntil": 0,
+          "nextOrder": 3,
+          "rateLimits": [],
+          "queues": {
+            "play": [],
+            "cleanup": [],
+            "autofetch": [],
+            "probe": [
+              {
+                "priority": "probe",
+                "order": 2,
+                "queuedAt": 1,
+                "bypassAt": 0
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

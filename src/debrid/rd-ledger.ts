@@ -16,11 +16,90 @@ export type LedgerState = 'hit' | 'miss' | 'blocked' | 'unknown';
 type LedgerValue = { s: Exclude<LedgerState, 'unknown'>; at: number; n: number };
 type Tracked = { state: Exclude<LedgerState, 'unknown'>; expiresAt: number };
 
+/** Próximo valor do ledger. `hash` só vem em miss/blocked (a chave lógica). */
+export type RdLedgerWrite = {
+  s: Exclude<LedgerState, 'unknown'>;
+  at: number;
+  n: number;
+  ttlSeconds: number;
+  hash?: string;
+};
+
 const tracked = new Map<string, Tracked>();
 
-function hashOf(hash: string) {
+/** 40 hex depois de lower; qualquer outra forma é vazio e a leitura é unknown. */
+export function normalizeRdHash(hash: string): string {
   const value = String(hash || '').toLowerCase();
   return /^[a-f0-9]{40}$/.test(value) ? value : '';
+}
+
+function hashOf(hash: string) {
+  return normalizeRdHash(hash);
+}
+
+/** Desligado, ausente ou `s` fora do trio → `unknown`. Não olha apiKey. */
+export function peekLedgerState(
+  enabled: boolean,
+  stored: { s?: unknown } | null | undefined,
+): LedgerState {
+  if (!enabled || !stored) return 'unknown';
+  const s = stored.s;
+  if (s === 'hit' || s === 'miss' || s === 'blocked') return s;
+  return 'unknown';
+}
+
+/**
+ * Hit refresca `{s,at,n:0}`. Bloqueio legal não é apagado por inventário
+ * atrasado: `current === 'blocked'` não escreve.
+ */
+export function nextOnHit(input: {
+  enabled: boolean;
+  hitTtl: number;
+  now: number;
+  current: LedgerState;
+}): RdLedgerWrite | null {
+  if (!input.enabled || input.hitTtl <= 0 || input.current === 'blocked') return null;
+  return { s: 'hit', at: input.now, n: 0, ttlSeconds: input.hitTtl };
+}
+
+/**
+ * Miss só adia a próxima sonda. O degrau é `backoff[min(n, último)]` e o `n`
+ * continua crescendo — nunca vira "uncached permanente". `blocked` não cede.
+ * `ttlMs` 0/NaN não escreve; o resto vira segundos com teto mínimo de 1.
+ */
+export function nextOnMiss(input: {
+  enabled: boolean;
+  hash: string;
+  backoffMs: readonly number[];
+  now: number;
+  current: LedgerState;
+  prior: { s?: unknown; n?: number } | null;
+}): RdLedgerWrite | null {
+  const normalized = normalizeRdHash(input.hash);
+  if (!input.enabled || !normalized || input.backoffMs.length === 0 || input.current === 'blocked') {
+    return null;
+  }
+  let attempts = 1;
+  if (input.prior?.s === 'miss') {
+    const n = input.prior.n;
+    attempts = (typeof n === 'number' ? n : Number.NaN) + 1;
+  }
+  const ttlMs = input.backoffMs[Math.min(attempts - 1, input.backoffMs.length - 1)];
+  if (!ttlMs) return null;
+  const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
+  return { s: 'miss', at: input.now, n: attempts, ttlSeconds, hash: normalized };
+}
+
+/** Bloqueio cobre hit e miss. TTL não positivo ou hash inválido não escreve. */
+export function nextOnBlocked(input: {
+  enabled: boolean;
+  hash: string;
+  blockedTtl: number;
+  now: number;
+}): RdLedgerWrite | null {
+  const normalized = normalizeRdHash(input.hash);
+  if (!input.enabled || input.blockedTtl <= 0 || !normalized) return null;
+  return { s: 'blocked', at: input.now, n: 0, ttlSeconds: input.blockedTtl, hash: normalized };
 }
 
 function key(hash: string) {
@@ -75,19 +154,16 @@ function writeMany(entries: { key: string; value: LedgerValue; ttlSeconds: numbe
 }
 
 function peek(hash: string): LedgerState {
-  const value = read(hash);
   // `blocked` ocupa a mesma chave e não é sobrescrito por hit/miss; assim ele
   // vence mesmo quando uma evidência antiga ainda existe no processo.
-  return value?.s || 'unknown';
+  return peekLedgerState(config.debrid.rdLedger.enabled, read(hash));
 }
 
 /** Leitura para varreduras: não promove LRU nem incrementa hit/miss do cache. */
 function peekQuiet(hash: string): LedgerState {
   const normalized = hashOf(hash);
   if (!config.debrid.rdLedger.enabled || !normalized) return 'unknown';
-  const value = cache.peek(key(normalized)) as LedgerValue | null;
-  if (!value || !['hit', 'miss', 'blocked'].includes(value.s)) return 'unknown';
-  return value.s;
+  return peekLedgerState(true, cache.peek(key(normalized)) as LedgerValue | null);
 }
 
 function isHit(hash: string) {
@@ -104,15 +180,16 @@ function noteHit(hashes: string[]) {
   // `peek` pós-escrita, custando mais uma leitura L1+SQLite por hash; o peek
   // pós-write só distinguia "escrita venceu" de "blocked", e assumindo que o
   // writeMany não falha silenciosamente a elegibilidade já cobre isso.
-  const eligible = unique
+  const eligible: string[] = [];
+  const writes: { key: string; value: LedgerValue; ttlSeconds: number }[] = [];
+  for (const hash of unique) {
     // Bloqueio legal é mais específico que confirmação anterior e não pode ser
     // apagado por um caminho atrasado de inventário/recheck.
-    .filter((hash) => peek(hash) !== 'blocked');
-  const writes = eligible.map((hash) => ({
-    key: key(hash),
-    value: { s: 'hit' as const, at: now, n: 0 },
-    ttlSeconds: ttl,
-  }));
+    const write = nextOnHit({ enabled: true, hitTtl: ttl, now, current: peek(hash) });
+    if (!write) continue;
+    eligible.push(hash);
+    writes.push({ key: key(hash), value: { s: 'hit', at: write.at, n: write.n }, ttlSeconds: write.ttlSeconds });
+  }
   writeMany(writes);
   // Podar uma vez pelo lote inteiro: o prune varre o Map `tracked` inteiro, e
   // chamá-lo por hash seria O(|lote| × |tracked|).
@@ -132,12 +209,17 @@ function noteMiss(hash: string) {
   const backoff = config.debrid.rdLedger.missBackoffMs;
   if (!normalized || backoff.length === 0 || peek(normalized) === 'blocked') return;
   const prior = read(normalized);
-  const attempts = prior?.s === 'miss' ? prior.n + 1 : 1;
-  const ttlMs = backoff[Math.min(attempts - 1, backoff.length - 1)];
-  if (!ttlMs) return;
-  const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
-  writeMany([{ key: key(normalized), value: { s: 'miss', at: Date.now(), n: attempts }, ttlSeconds }]);
-  track(normalized, 'miss', ttlSeconds);
+  const write = nextOnMiss({
+    enabled: true,
+    hash: normalized,
+    backoffMs: backoff,
+    now: Date.now(),
+    current: peekLedgerState(true, prior),
+    prior,
+  });
+  if (!write?.hash) return;
+  writeMany([{ key: key(write.hash), value: { s: 'miss', at: write.at, n: write.n }, ttlSeconds: write.ttlSeconds }]);
+  track(write.hash, 'miss', write.ttlSeconds);
   metrics.count('debrid.rd.ledger.miss');
   metrics.count('debrid.rd.ledger.noted');
 }
@@ -145,9 +227,15 @@ function noteMiss(hash: string) {
 function noteBlocked(hash: string) {
   const ttl = config.debrid.rdLedger.blockedTtl;
   const normalized = hashOf(hash);
-  if (!config.debrid.rdLedger.enabled || ttl <= 0 || !normalized) return;
-  writeMany([{ key: key(normalized), value: { s: 'blocked', at: Date.now(), n: 0 }, ttlSeconds: ttl }]);
-  track(normalized, 'blocked', ttl);
+  const write = nextOnBlocked({
+    enabled: config.debrid.rdLedger.enabled,
+    hash: normalized,
+    blockedTtl: ttl,
+    now: Date.now(),
+  });
+  if (!write?.hash) return;
+  writeMany([{ key: key(write.hash), value: { s: 'blocked', at: write.at, n: write.n }, ttlSeconds: write.ttlSeconds }]);
+  track(write.hash, 'blocked', write.ttlSeconds);
   metrics.count('debrid.rd.ledger.blocked');
   metrics.count('debrid.rd.ledger.noted');
 }

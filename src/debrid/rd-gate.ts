@@ -36,6 +36,112 @@ export type RdGateOptions = {
   sleep?: (ms: number) => Promise<void>;
 };
 
+export type RdGateWaiterSnap = { priority: RdGatePriority; order: number; queuedAt: number; bypassAt: number };
+
+/** Snapshot serializável. Sem fila de Promise: o Node guarda o job. */
+export type RdGateSnap = {
+  busy: boolean; gapMs: number; successes: number; nextAllowedAt: number; cooldownUntil: number;
+  nextOrder: number; rateLimits: number[]; queues: Record<RdGatePriority, RdGateWaiterSnap[]>;
+};
+
+type AimdInput = { minGapMs: number; maxGapMs: number; cooldownMs: number; retryAfterMs: number | undefined; now: number };
+
+export function rdGateLimits(minGapMs: number, maxGapMs: number) {
+  const min = Math.max(0, minGapMs);
+  return { min, max: Math.max(min, maxGapMs) };
+}
+
+export function rdGateInitialState(minGapMs: number, maxGapMs: number): RdGateSnap {
+  return {
+    busy: false, gapMs: rdGateLimits(minGapMs, maxGapMs).min, successes: 0, nextAllowedAt: 0,
+    cooldownUntil: 0, nextOrder: 0, rateLimits: [],
+    queues: { play: [], cleanup: [], autofetch: [], probe: [] },
+  };
+}
+
+export function rdGateOnRateLimit(state: Pick<RdGateSnap, 'gapMs' | 'nextAllowedAt' | 'cooldownUntil' | 'rateLimits'>, input: AimdInput) {
+  const { min, max } = rdGateLimits(input.minGapMs, input.maxGapMs);
+  const supplied = Number(input.retryAfterMs);
+  const honoredRetryAfter = Number.isFinite(supplied) && supplied >= 0;
+  const waitMs = honoredRetryAfter ? supplied : Math.max(0, input.cooldownMs);
+  const cooldownUntil = Math.max(state.cooldownUntil, input.now + waitMs);
+  const hourAgo = input.now - 3_600_000;
+  const rateLimits = state.rateLimits.filter((at) => at >= hourAgo);
+  rateLimits.push(input.now);
+  return {
+    gapMs: Math.min(max, Math.max(min, state.gapMs * 2)), successes: 0,
+    nextAllowedAt: Math.max(state.nextAllowedAt, cooldownUntil), cooldownUntil, rateLimits, honoredRetryAfter,
+  };
+}
+
+export function rdGateOnSuccess(gapMs: number, successes: number, successThreshold: number, minGapMs: number, maxGapMs: number) {
+  const next = successes + 1;
+  if (next < successThreshold) return { gapMs, successes: next };
+  const { min } = rdGateLimits(minGapMs, maxGapMs);
+  return { gapMs: Math.max(min, Math.floor(gapMs * 0.9)), successes: 0 };
+}
+
+export function rdGateOnFinished(nextAllowedAt: number, gapMs: number, now: number) {
+  return Math.max(nextAllowedAt, now + gapMs);
+}
+
+export function rdGateBypassAt(now: number, playMaxWaitMs: number) {
+  return now + Math.max(0, playMaxWaitMs);
+}
+
+export function rdGateAdmit(enabled: boolean, priority: RdGatePriority, cooldownUntil: number, now: number): 'passthrough' | 'deny' | 'enqueue' {
+  if (!enabled) return 'passthrough';
+  if (priority !== 'play' && priority !== 'cleanup' && cooldownUntil > now) return 'deny';
+  return 'enqueue';
+}
+
+export function rdGateHeadPriority(queues: { play: readonly unknown[]; cleanup: readonly unknown[]; autofetch: readonly unknown[]; probe: readonly unknown[] }): RdGatePriority | null {
+  if (queues.play.length) return 'play';
+  if (queues.cleanup.length) return 'cleanup';
+  if (queues.autofetch.length) return 'autofetch';
+  if (queues.probe.length) return 'probe';
+  return null;
+}
+
+/** Cleanup ignora gap e cooldown. Play fura os dois só a partir de `bypassAt`. */
+export function rdGateEligibleAt(priority: RdGatePriority, now: number, nextAllowedAt: number, cooldownUntil: number, bypassAt: number) {
+  const normalAt = Math.max(nextAllowedAt, cooldownUntil);
+  if (priority === 'cleanup') return now;
+  if (priority === 'play') return Math.min(normalAt, bypassAt);
+  return normalAt;
+}
+
+function copyGateQueues(queues: RdGateSnap['queues']): RdGateSnap['queues'] {
+  const copy = (items: RdGateWaiterSnap[]) => items.map((item) => ({ ...item }));
+  return { play: copy(queues.play), cleanup: copy(queues.cleanup), autofetch: copy(queues.autofetch), probe: copy(queues.probe) };
+}
+
+export function rdGateApplyAdmit(state: RdGateSnap, input: { enabled: boolean; priority: RdGatePriority; now: number; playMaxWaitMs: number }) {
+  const action = rdGateAdmit(input.enabled, input.priority, state.cooldownUntil, input.now);
+  if (action !== 'enqueue') return { action, state };
+  const queues = copyGateQueues(state.queues);
+  queues[input.priority].push({
+    priority: input.priority, order: state.nextOrder, queuedAt: input.now,
+    bypassAt: rdGateBypassAt(input.now, input.playMaxWaitMs),
+  });
+  queues[input.priority].sort((a, b) => a.order - b.order);
+  return { action, state: { ...state, nextOrder: state.nextOrder + 1, queues } };
+}
+
+export function rdGateNextGrant(state: RdGateSnap, now: number, enabled: boolean) {
+  const hold = (action: 'idle' | 'busy') => ({ action, until: null as number | null, priority: null as RdGatePriority | null, order: null as number | null, state });
+  if (!enabled) return hold('idle');
+  if (state.busy) return hold('busy');
+  const priority = rdGateHeadPriority(state.queues);
+  if (!priority) return hold('idle');
+  const waiter = state.queues[priority][0];
+  const eligibleAt = rdGateEligibleAt(priority, now, state.nextAllowedAt, state.cooldownUntil, waiter.bypassAt);
+  if (eligibleAt > now) return { action: 'wait' as const, until: eligibleAt, priority: null, order: null, state };
+  const queues = copyGateQueues(state.queues);
+  queues[priority].shift();
+  return { action: 'grant' as const, until: null, priority, order: waiter.order, state: { ...state, busy: true, queues } };
+}
+
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)).unref());
 }
@@ -59,8 +165,7 @@ export function createRdGate(options: RdGateOptions = {}) {
   let order = 0;
 
   function limits() {
-    const min = Math.max(0, minGapMs());
-    return { min, max: Math.max(min, maxGapMs()) };
+    return rdGateLimits(minGapMs(), maxGapMs());
   }
 
   function stateFor(accountScope: string): AccountState {
@@ -95,7 +200,8 @@ export function createRdGate(options: RdGateOptions = {}) {
   }
 
   function nextWaiter(state: AccountState): Waiter | undefined {
-    return state.queues.play[0] || state.queues.cleanup[0] || state.queues.autofetch[0] || state.queues.probe[0];
+    const priority = rdGateHeadPriority(state.queues);
+    return priority ? state.queues[priority][0] : undefined;
   }
 
   function removeNext(state: AccountState, waiter: Waiter): void {
@@ -103,27 +209,30 @@ export function createRdGate(options: RdGateOptions = {}) {
   }
 
   function noteRateLimit(state: AccountState, retryAfterMs: number | undefined): void {
-    const { min, max } = limits();
-    state.gapMs = Math.min(max, Math.max(min, state.gapMs * 2));
-    state.successes = 0;
     const supplied = Number(retryAfterMs);
     const hasRetryAfter = Number.isFinite(supplied) && supplied >= 0;
-    const waitMs = hasRetryAfter ? supplied : Math.max(0, cooldownMs());
-    state.cooldownUntil = Math.max(state.cooldownUntil, now() + waitMs);
-    state.nextAllowedAt = Math.max(state.nextAllowedAt, state.cooldownUntil);
-    const hourAgo = now() - 3_600_000;
-    state.rateLimits = state.rateLimits.filter((at) => at >= hourAgo);
-    state.rateLimits.push(now());
+    const step = rdGateOnRateLimit(state, {
+      minGapMs: minGapMs(),
+      maxGapMs: maxGapMs(),
+      cooldownMs: hasRetryAfter ? 0 : cooldownMs(),
+      retryAfterMs: hasRetryAfter ? supplied : undefined,
+      now: now(),
+    });
+    state.gapMs = step.gapMs;
+    state.successes = step.successes;
+    state.nextAllowedAt = step.nextAllowedAt;
+    state.cooldownUntil = step.cooldownUntil;
+    state.rateLimits = step.rateLimits;
     metrics.count('debrid.rd.gate.rateLimit');
-    if (hasRetryAfter) metrics.count('debrid.rd.gate.retryAfterHonored');
+    if (step.honoredRetryAfter) metrics.count('debrid.rd.gate.retryAfterHonored');
   }
 
   function noteSuccess(state: AccountState): void {
-    state.successes += 1;
-    if (state.successes < successThreshold) return;
-    state.successes = 0;
-    const { min } = limits();
-    state.gapMs = Math.max(min, Math.floor(state.gapMs * 0.9));
+    const willShrink = state.successes + 1 >= successThreshold;
+    const lim = willShrink ? limits() : { min: 0, max: 0 };
+    const next = rdGateOnSuccess(state.gapMs, state.successes, successThreshold, lim.min, lim.max);
+    state.gapMs = next.gapMs;
+    state.successes = next.successes;
   }
 
   function pump(accountScope: string, state = stateFor(accountScope)): void {
@@ -131,13 +240,10 @@ export function createRdGate(options: RdGateOptions = {}) {
     const waiter = nextWaiter(state);
     if (!waiter) return;
     const current = now();
-    const normalAt = Math.max(state.nextAllowedAt, state.cooldownUntil);
-    // Cleanup libera vaga na conta; não deve esperar o cooldown que existe
-    // para conter escritas que consomem recurso. Ainda respeita job em voo e
-    // perde a vez para play já enfileirado.
-    const eligibleAt = waiter.priority === 'cleanup'
-      ? current
-      : waiter.priority === 'play' ? Math.min(normalAt, waiter.bypassAt) : normalAt;
+    // Cleanup não espera cooldown/gap; ainda perde para play já na frente e para job em voo.
+    const eligibleAt = rdGateEligibleAt(
+      waiter.priority, current, state.nextAllowedAt, state.cooldownUntil, waiter.bypassAt,
+    );
     if (eligibleAt > current) {
       wake(accountScope, state, eligibleAt);
       return;
@@ -158,7 +264,7 @@ export function createRdGate(options: RdGateOptions = {}) {
       },
     ).finally(() => {
       state.busy = false;
-      state.nextAllowedAt = Math.max(state.nextAllowedAt, now() + state.gapMs);
+      state.nextAllowedAt = rdGateOnFinished(state.nextAllowedAt, state.gapMs, now());
       pump(accountScope, state);
     });
   }
@@ -171,7 +277,7 @@ export function createRdGate(options: RdGateOptions = {}) {
     if (!enabled()) return job();
     const state = stateFor(accountScope);
     const current = now();
-    if (priority !== 'play' && priority !== 'cleanup' && state.cooldownUntil > current) {
+    if (rdGateAdmit(true, priority, state.cooldownUntil, current) === 'deny') {
       metrics.count('debrid.rd.gate.denied');
       return Promise.reject(new RateLimitError('governador RD em cooldown'));
     }
@@ -180,7 +286,7 @@ export function createRdGate(options: RdGateOptions = {}) {
         priority,
         order: order++,
         queuedAt: current,
-        bypassAt: current + Math.max(0, playMaxWaitMs()),
+        bypassAt: rdGateBypassAt(current, playMaxWaitMs()),
         job,
         resolve,
         reject,

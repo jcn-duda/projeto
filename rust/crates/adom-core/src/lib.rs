@@ -19,6 +19,8 @@ mod crawl_store_rules;
 mod crawl_url_key;
 mod debrid;
 mod debrid_cache_verdict;
+mod debrid_rd_gate;
+mod debrid_rd_ledger;
 mod decode_entities;
 mod dedupe_names;
 mod dk_seal;
@@ -100,7 +102,11 @@ pub use debrid::{
 };
 pub use debrid_cache_verdict::{
     cache_check_honest, failure_reason, failure_verdict, normalize_cache_result, unusable_reason,
-    unusable_verdict, CacheAnswer, CacheVerdict, Unusable, UnusableReason,
+    unusable_verdict, CacheAnswer, CacheVerdict, Unusable,     UnusableReason,
+};
+pub use debrid_rd_gate::{admit, initial_state, next_grant, on_finished, on_rate_limit, on_success};
+pub use debrid_rd_ledger::{
+    ledger_key, next_on_blocked, next_on_hit, next_on_miss, normalize_hash, peek_state,
 };
 
 // ── episode ───────────────────────────────────────────────────────────
