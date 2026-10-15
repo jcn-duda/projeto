@@ -1,0 +1,38 @@
+{
+  "config": {
+    "source": "src/providers/autofetch-gates.ts",
+    "description": "Portões de decisão do Chupim: classificação dos 9 portões (ordem exata) + tabela de rollback por motivo"
+  },
+  "cases": [
+    {"id":"afg-001","input":"{\"op\":\"classifyEnqueue\",\"gates\":{}}"},
+    {"id":"afg-002","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isPaused\":true}}"},
+    {"id":"afg-003","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isDead\":true}}"},
+    {"id":"afg-004","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isCached\":true}}"},
+    {"id":"afg-005","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"markerActive\":true}}"},
+    {"id":"afg-006","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"tryLock\":false}}"},
+    {"id":"afg-007","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"trySlot\":false}}"},
+    {"id":"afg-008","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"tryObraCap\":false}}"},
+    {"id":"afg-009","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"accountBlocked\":true}}"},
+    {"id":"afg-010","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"tryBudget\":false}}"},
+    {"id":"afg-011","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isPaused\":true,\"isDead\":true}}"},
+    {"id":"afg-012","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isDead\":true,\"isCached\":true}}"},
+    {"id":"afg-013","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isCached\":true,\"markerActive\":true}}"},
+    {"id":"afg-014","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"markerActive\":true,\"tryLock\":false}}"},
+    {"id":"afg-015","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"tryLock\":false,\"trySlot\":false}}"},
+    {"id":"afg-016","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"trySlot\":false,\"tryObraCap\":false}}"},
+    {"id":"afg-017","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"tryObraCap\":false,\"accountBlocked\":true}}"},
+    {"id":"afg-018","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"accountBlocked\":true,\"tryBudget\":false}}"},
+    {"id":"afg-019","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isPaused\":true,\"isDead\":true,\"isCached\":true,\"markerActive\":true,\"tryLock\":false,\"trySlot\":false,\"tryObraCap\":false,\"accountBlocked\":true,\"tryBudget\":false}}"},
+    {"id":"afg-020","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"tryLock\":true,\"accountBlocked\":true,\"tryBudget\":false}}"},
+    {"id":"afg-021","input":"{\"op\":\"classifyEnqueue\",\"gates\":{\"isCached\":true,\"tryObraCap\":false,\"accountBlocked\":true}}"},
+    {"id":"afg-022","input":"{\"op\":\"rollbackFor\",\"reason\":\"paused\"}"},
+    {"id":"afg-023","input":"{\"op\":\"rollbackFor\",\"reason\":\"dead\"}"},
+    {"id":"afg-024","input":"{\"op\":\"rollbackFor\",\"reason\":\"already-cached\"}"},
+    {"id":"afg-025","input":"{\"op\":\"rollbackFor\",\"reason\":\"marker\"}"},
+    {"id":"afg-026","input":"{\"op\":\"rollbackFor\",\"reason\":\"in-flight\"}"},
+    {"id":"afg-027","input":"{\"op\":\"rollbackFor\",\"reason\":\"search-slot-busy\"}"},
+    {"id":"afg-028","input":"{\"op\":\"rollbackFor\",\"reason\":\"obra-cap\"}"},
+    {"id":"afg-029","input":"{\"op\":\"rollbackFor\",\"reason\":\"account-gate\"}"},
+    {"id":"afg-030","input":"{\"op\":\"rollbackFor\",\"reason\":\"budget\"}"}
+  ]
+}

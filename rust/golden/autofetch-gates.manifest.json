@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-gates/classifyEnqueue"
+  ],
+  "function": {
+    "name": "classifyEnqueue",
+    "sourcePath": "src/providers/autofetch-gates.ts",
+    "sourceSha256": "f8a18a95f1f45de27db8bc1b87446cc4c99a3ca7684c26d6ce9363ad90beed3f",
+    "artifactPath": "dist/src/providers/autofetch-gates.js",
+    "artifactSha256": "f82f3ec24db4c0586696dd983e3b2ef8f52fd47bbe91de7a2d805f0537df507f"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-gates.json",
+    "sha256": "cdb39e8a6b69068642b3d967f0f5e20e27da9d42d8036bf8df79d63de71d85b1",
+    "cases": 30
+  },
+  "output": {
+    "path": "rust/golden/autofetch-gates.jsonl",
+    "sha256": "03d29fe1dec1c7b9a3d52d849fb20e542c23af320bb3012f2386062d0dc5886d",
+    "lines": 30
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "438e0177de077937af43c49f3eee2d967484c93a"
+  }
+}

@@ -6,6 +6,7 @@
 mod audio_cleanup_verdicts;
 mod audio_lang;
 mod audio_presentation;
+mod autofetch_gates;
 mod autofetch_keys;
 mod autofetch_marker;
 mod autofetch_obra_overflow;
@@ -210,6 +211,9 @@ pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
 pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_blob};
+pub use autofetch_gates::{
+    classify_enqueue, rollback_for, skip_reason_label, EnqueueGates, RollbackAction, SkipReason,
+};
 pub use autofetch_keys::dead_key;
 pub use autofetch_marker::{
     marker_key, marker_obra, marker_transfer_id, marker_value, MarkerMeta, MarkerValue,
