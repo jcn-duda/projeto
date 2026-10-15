@@ -1,0 +1,28 @@
+[package]
+name = "adom-debrid"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Cliente HTTP, estado e API interna do debrid (fase D0)."
+license = "UNLICENSED"
+
+[dependencies]
+regex = "=1.13.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+axum = { version = "0.8", features = ["json"] }
+subtle = "2"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net"] }
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[[bin]]
+name = "adom-debrid"
+path = "src/bin/adom_debrid.rs"

@@ -39,6 +39,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-debrid"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "http-body-util",
+ "regex",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "subtle",
+ "tempfile",
+ "tokio",
+ "tower",
+]
+
+[[package]]
 name = "adom-napi"
 version = "0.1.0"
 dependencies = [
@@ -72,6 +90,7 @@ dependencies = [
 name = "adom-server"
 version = "0.0.0"
 dependencies = [
+ "adom-debrid",
  "axum",
  "bytes",
  "http",

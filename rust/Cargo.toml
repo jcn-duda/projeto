@@ -8,6 +8,7 @@ members = [
     "crates/adom-napi",
     "crates/adom-crawl",
     "crates/adom-resolvers",
+    "crates/adom-debrid",
     "crates/adom-server",
 ]
 resolver = "2"

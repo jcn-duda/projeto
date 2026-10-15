@@ -235,6 +235,7 @@
     "test/debrid-batch.test.js",
     "test/debrid-catalog-adapter.test.js",
     "test/debrid-status.test.js",
+    "test/debrid-rust-remote.test.js",
     "test/premiumize-files.test.js",
     "test/title-acronyms.test.js",
     "test/index-rescue.test.js",

@@ -3,6 +3,7 @@ import type { DebridAdapter } from '../../types/domain.js';
 import config from '../config.js';
 import * as log from '../utils/logger.js';
 import * as rdOracle from './rd-oracle.js';
+import { wrap as wrapRust } from './rust-remote.js';
 
 /**
  * Registry de serviços de debrid. Cada adaptador expõe a mesma forma:
@@ -51,7 +52,7 @@ const SERVICES = ADAPTERS.map(({ id, label, short, cacheCheck, keyUrl }) => ({
 function current(): DebridAdapter | null {
   const { debridService, debridApiKey } = opts();
   if (!debridService || !debridApiKey) return null;
-  const adapter = BY_ID.get(debridService);
+  let adapter = BY_ID.get(debridService);
   if (!adapter) {
     log.warn(`[debrid] serviço desconhecido: ${debridService}`);
     return null;
@@ -62,8 +63,9 @@ function current(): DebridAdapter | null {
   if (adapter.id === 'realdebrid') {
     // available() exige fonte utilizável COM a credencial efetiva da instalação;
     // sem apiKey (P2P puro) o RD honesto não promete cacheCheck.
-    return { ...adapter, cacheCheck: config.debrid.rdLedger.enabled && rdOracle.available(debridApiKey) };
+    adapter = { ...adapter, cacheCheck: config.debrid.rdLedger.enabled && rdOracle.available(debridApiKey) };
   }
+  if (config.debrid.rustServices.includes(adapter.id)) return wrapRust(adapter);
   return adapter;
 }
 

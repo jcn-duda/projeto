@@ -1,10 +1,10 @@
 import { asyncRoute } from './async.js';
 import type { AppServices, GateAdmission } from './types.js';
-import type express from 'express';
 import { dispatchDashboardAction } from './dashboard-actions.js';
 import * as brCoverage from '../utils/br-coverage.js';
 import { unavailable, makeStreamTraceHandler } from './stream-trace.js';
 import { computeStatusPayload, accountTimeout } from './dashboard-status-blocks.js';
+import { pullMetrics } from '../debrid/rust-remote.js';
 
 function makeDiagnosticHandlers(services: AppServices) {
   // Último probe de cada resolvedor (/test-resolver.json), SÓ em memória e
@@ -21,16 +21,17 @@ function makeDiagnosticHandlers(services: AppServices) {
     results: number | null;
   }>();
 
-  const metrics = (req: express.Request, res: express.Response) => {
+  const metrics = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'métricas desativadas: defina JACKETT_TEST_TOKEN')) return;
     const admission = services.diagnosticGate.enter('global') as GateAdmission;
     if (!admission.ok) return res.status(admission.status).json({ error: admission.error, reason: admission.reason });
     try {
-      return res.json({ ...services.metrics.snapshot(), logLevel: services.log.level(), cache: services.cache.snapshot() });
+      const rust = await pullMetrics();
+      return res.json({ ...services.metrics.snapshot(), ...rust, logLevel: services.log.level(), cache: services.cache.snapshot() });
     } finally {
       admission.release();
     }
-  };
+  });
 
   const dashboardStatus = asyncRoute(async (req, res) => {
     if (unavailable(services, req, res, 'dashboard desativado: defina JACKETT_TEST_TOKEN')) return;

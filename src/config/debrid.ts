@@ -10,10 +10,10 @@ import { suppressedRevalidate } from './debrid-suppressed.js';
 // Camada de debrid: serviço, checagem de cache, limpeza, autofetch, sonda e
 // paridade Real-Debrid (gate/ledger/oráculo/warmer).
 export const debrid = () => ({
-  // premiumize | realdebrid | alldebrid | torbox | debridlink
-  // Vazio = modo P2P puro (infoHash direto). A lista viva está em src/debrid/index.js.
+  // premiumize | realdebrid | alldebrid | torbox | debridlink. Vazio = P2P puro.
   service: (process.env.DEBRID_SERVICE || '').toLowerCase(),
   apiKey: process.env.DEBRID_API_KEY || '',
+  rustServices: list(process.env.DEBRID_RUST_SERVICES).map((id) => id.toLowerCase()),
   // Em instância pública, não deixe uma instalação sem config gastar a conta
   // do operador. O default preserva o modo de usuário único já existente.
   // Este gate autoriza SÓ a HERANÇA da chave para instalações sem dk

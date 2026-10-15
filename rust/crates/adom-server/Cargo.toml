@@ -7,6 +7,7 @@ description = "Gateway HTTP do Adom. Com ROUTES_RUST vazio, só faz proxy para o
 license = "UNLICENSED"
 
 [dependencies]
+adom-debrid = { path = "../adom-debrid" }
 axum = { version = "0.8", features = ["json"] }
 bytes = "1"
 http = "1"
