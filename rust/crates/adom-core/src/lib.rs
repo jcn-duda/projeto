@@ -9,6 +9,7 @@ mod audio_presentation;
 mod autofetch_gates;
 mod autofetch_keys;
 mod autofetch_marker;
+mod autofetch_obra;
 mod autofetch_obra_overflow;
 mod autofetch_policy;
 mod br_origin;
@@ -217,6 +218,11 @@ pub use autofetch_gates::{
 pub use autofetch_keys::dead_key;
 pub use autofetch_marker::{
     marker_key, marker_obra, marker_transfer_id, marker_value, MarkerMeta, MarkerValue,
+};
+pub use autofetch_obra::{
+    combined_view, counts_from, obra_digest, obra_identity, obra_key, obra_prefix, pool_cap,
+    read_record, seeds_rare, window_ms, ObraCounts, ObraIdentityInput, ObraLiveConfig,
+    ObraRecordEntry, PendingReservation, OBRA_LEASE_TTL_MS,
 };
 pub use autofetch_obra_overflow::{overflow_upgrade_allowed, quality_rank, ObraEntry};
 pub use autofetch_policy::{

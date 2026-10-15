@@ -1,0 +1,33 @@
+{
+  "config": {
+    "source": "src/providers/autofetch-obra.ts",
+    "description": "Identidade, chave e digest do teto por obra (Chupim Fase 2): obraIdentity, obraKey, obraDigest"
+  },
+  "cases": [
+    {"id":"oi-001","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"imdbId\":\"tt1234567\"}"},
+    {"id":"oi-002","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"imdbId\":\"tt7000001\",\"season\":1,\"episode\":2}"},
+    {"id":"oi-003","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"imdbId\":\"tt7000001\",\"season\":1,\"episode\":2,\"isPack\":true}"},
+    {"id":"oi-004","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\",\"searchKey\":\"chave-busca\"}"},
+    {"id":"oi-005","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\"}"},
+    {"id":"oi-006","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"x\",\"account\":\"y\",\"type\":\"movie\",\"imdbId\":\"tt100\",\"season\":1}"},
+    {"id":"oi-007","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"x\",\"account\":\"y\",\"type\":\"series\",\"imdbId\":\"tt100\"}"},
+    {"id":"oi-008","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"\",\"account\":\"\",\"imdbId\":\"tt9999999\"}"},
+    {"id":"oi-009","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"tt7000001\",\"season\":1}"},
+    {"id":"oi-010","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"invalid\",\"searchKey\":\"sk-fallback\"}"},
+    {"id":"oi-011","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"tt0000001\",\"season\":0,\"episode\":0}"},
+    {"id":"oi-012","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"tt1234567\",\"season\":null,\"episode\":null}"},
+    {"id":"ok-013","input":"{\"op\":\"obraKey\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"imdbId\":\"tt1234567\"}"},
+    {"id":"ok-014","input":"{\"op\":\"obraKey\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"imdbId\":\"tt7000001\",\"season\":1,\"episode\":2}"},
+    {"id":"ok-015","input":"{\"op\":\"obraKey\",\"adapterId\":\"pm\",\"account\":\"a\",\"searchKey\":\"chave-busca\"}"},
+    {"id":"ok-016","input":"{\"op\":\"obraKey\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"tt7000001\",\"season\":1,\"episode\":2,\"isPack\":true}"},
+    {"id":"ok-017","input":"{\"op\":\"obraKey\",\"adapterId\":\"\",\"account\":\"\",\"imdbId\":\"tt9999999\"}"},
+    {"id":"od-018","input":"{\"op\":\"obraDigest\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"imdbId\":\"tt1234567\"}"},
+    {"id":"od-019","input":"{\"op\":\"obraDigest\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"imdbId\":\"tt7000001\",\"season\":1,\"episode\":2}"},
+    {"id":"od-020","input":"{\"op\":\"obraDigest\",\"adapterId\":\"pm\",\"account\":\"a\",\"searchKey\":\"chave-busca\"}"},
+    {"id":"od-021","input":"{\"op\":\"obraDigest\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"tt7000001\",\"season\":1,\"episode\":2,\"isPack\":true}"},
+    {"id":"od-022","input":"{\"op\":\"obraDigest\",\"adapterId\":\"\",\"account\":\"\",\"imdbId\":\"tt9999999\"}"},
+    {"id":"oi-023","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"alldebrid\",\"account\":\"sha256hash\",\"imdbId\":\"tt1375666\",\"type\":\"movie\"}"},
+    {"id":"oi-024","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"tt100\",\"type\":\"SERIES\",\"season\":3,\"episode\":10}"},
+    {"id":"oi-025","input":"{\"op\":\"obraIdentity\",\"adapterId\":\"pm\",\"account\":\"a\",\"imdbId\":\"tt100\",\"season\":2,\"episode\":1,\"isPack\":false}"}
+  ]
+}

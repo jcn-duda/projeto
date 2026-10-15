@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-obra/obraIdentity"
+  ],
+  "function": {
+    "name": "obraIdentity",
+    "sourcePath": "src/providers/autofetch-obra.ts",
+    "sourceSha256": "44378803023bcba49544168b0e53531838d7b9436fb23b4ebb15165bb4dbc3d5",
+    "artifactPath": "dist/src/providers/autofetch-obra.js",
+    "artifactSha256": "e46204ce6122a911c1d4df85df56fa242c4a5d6f5ea6a095eae7667feac44fb4"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-obra.json",
+    "sha256": "e0831be5da298cec366038d9c0ffd99c0d0395210214a6ff99197fd1f50b3c4e",
+    "cases": 25
+  },
+  "output": {
+    "path": "rust/golden/autofetch-obra.jsonl",
+    "sha256": "0497279e63f4a72c3038607e67466fbcccf5bbefeb01b57039ab28d8eec82adf",
+    "lines": 25
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "27363b049abacac92cf3f0aac0f6449d31f1f45f"
+  }
+}
