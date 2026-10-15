@@ -26,21 +26,25 @@ export const server = () => ({
     // Teto de releases por busca no shadow em lote (`rust-shadow.ts`).
     shadowMaxPerSearch: num(process.env.RUST_CORE_SHADOW_MAX, 300),
   },
-  // Seletor de arquivo do debrid. Mesma escala do RUST_CORE, chave própria:
-  // a rede e a escrita na conta continuam no Node. Valor desconhecido = off.
+  // Debrid: as decisões são do Rust por padrão (on; TS de reserva se o Rust
+  // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
+  // explícitos voltam ao TS; valor desconhecido = off.
   rustDebrid: {
-    file: rustMode(process.env.RUST_DEBRID_FILE),
+    // Seletor de arquivo (pickFile).
+    file: rustMode(process.env.RUST_DEBRID_FILE, 'on'),
     // Veredito known/unusable a partir da resposta já obtida. Não refaz a API.
-    cache: rustMode(process.env.RUST_DEBRID_CACHE),
+    cache: rustMode(process.env.RUST_DEBRID_CACHE, 'on'),
     // Ledger e AIMD do Real-Debrid. O estado continua no Node.
-    rd: rustMode(process.env.RUST_DEBRID_RD),
-    // Decisão de apagar. off/shadow não mudam o que sai da conta. on só pode
-    // recusar um apagamento: a recusa do Node sempre vence.
-    clean: rustMode(process.env.RUST_DEBRID_CLEAN),
+    rd: rustMode(process.env.RUST_DEBRID_RD, 'on'),
+    // Decisão de apagar. on só pode recusar um apagamento: a recusa do Node
+    // sempre vence, nada sai da conta por causa do Rust.
+    clean: rustMode(process.env.RUST_DEBRID_CLEAN, 'on'),
   },
 });
 
-function rustMode(raw: unknown): 'off' | 'shadow' | 'on' {
-  const v = String(raw || '').trim().toLowerCase();
+/** Ausente usa `fallback`; presente e desconhecido vira off. */
+function rustMode(raw: unknown, fallback: 'off' | 'on' = 'off'): 'off' | 'shadow' | 'on' {
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (v === '') return fallback;
   return v === 'shadow' || v === 'on' ? v : 'off';
 }

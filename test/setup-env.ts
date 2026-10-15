@@ -96,3 +96,10 @@ process.env.RESOLVE_SECRET = '';
 // (crawler-rust-own-pace.test.ts), que sobrescreve `config.crawl.crawlEngine`
 // no próprio caso.
 process.env.CRAWL_ENGINE = 'ts';
+
+// Debrid em Rust é `on` por padrão na produção; a suíte mede o TS puro (o
+// .node nem é carregado aqui). Os casos da ponte ligam o modo no próprio teste.
+process.env.RUST_DEBRID_FILE = 'off';
+process.env.RUST_DEBRID_CACHE = 'off';
+process.env.RUST_DEBRID_RD = 'off';
+process.env.RUST_DEBRID_CLEAN = 'off';
