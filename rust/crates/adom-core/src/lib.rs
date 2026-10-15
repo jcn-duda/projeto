@@ -6,6 +6,9 @@
 mod audio_cleanup_verdicts;
 mod audio_lang;
 mod audio_presentation;
+mod autofetch_keys;
+mod autofetch_marker;
+mod autofetch_obra_overflow;
 mod autofetch_policy;
 mod br_origin;
 mod br_pool_selection;
@@ -200,6 +203,11 @@ pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
 pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_blob};
+pub use autofetch_keys::dead_key;
+pub use autofetch_marker::{
+    marker_key, marker_obra, marker_transfer_id, marker_value, MarkerMeta, MarkerValue,
+};
+pub use autofetch_obra_overflow::{overflow_upgrade_allowed, quality_rank, ObraEntry};
 pub use autofetch_policy::{
     decide_seeds_stop, effective_seeds_max_bytes, filter_seeds_universe, has_playable_stream,
     normalize_seeds_max_quality, seeds_download_bytes, seeds_drain_rejection,

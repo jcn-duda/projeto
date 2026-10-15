@@ -1,0 +1,32 @@
+{
+  "config": {
+    "source": "src/providers/autofetch-marker.ts",
+    "description": "Marker do Chupim: chave, valor gravado e leitura pura de id/obra"
+  },
+  "cases": [
+    {"id":"mk-001","input":"{\"op\":\"markerKey\",\"adapterId\":\"premiumize\",\"account\":\"acc\",\"infoHash\":\"AABBCCDDEEFF00112233445566778899AABBCCDD\"}"},
+    {"id":"mk-002","input":"{\"op\":\"markerKey\",\"adapterId\":\"alldebrid\",\"account\":\"acc2\",\"infoHash\":\"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\"}"},
+    {"id":"mk-003","input":"{\"op\":\"markerKey\",\"adapterId\":\"realdebrid\",\"account\":\"\",\"infoHash\":\"aabb\"}"},
+    {"id":"mk-004","input":"{\"op\":\"markerKey\",\"adapterId\":\"torbox\",\"account\":\"acc\",\"infoHash\":\"\"}"},
+    {"id":"mk-005","input":"{\"op\":\"markerKey\",\"adapterId\":\"\",\"account\":\"acc\",\"infoHash\":\"ff\"}"},
+    {"id":"mk-006","input":"{\"op\":\"markerKey\",\"adapterId\":\"Premiumize\",\"account\":\"ACC\",\"infoHash\":\"aa\"}"},
+    {"id":"mv-011","input":"{\"op\":\"markerValue\",\"accepted\":\"\",\"meta\":null}"},
+    {"id":"mv-012","input":"{\"op\":\"markerValue\",\"accepted\":\"tid123\",\"meta\":null}"},
+    {"id":"mv-013","input":"{\"op\":\"markerValue\",\"accepted\":\"\",\"meta\":{\"pool\":\"br\",\"obra\":\"dig\",\"acceptedAt\":1700000000000,\"title\":\"Movie\",\"br\":true,\"dubbed\":true}}"},
+    {"id":"mv-014","input":"{\"op\":\"markerValue\",\"accepted\":\"tid\",\"meta\":{\"pool\":\"br\",\"obra\":\"o\",\"acceptedAt\":123,\"title\":\"T\",\"br\":false,\"dubbed\":false}}"},
+    {"id":"mv-015","input":"{\"op\":\"markerValue\",\"accepted\":\"\",\"meta\":{\"pool\":\"\",\"obra\":\"\",\"acceptedAt\":5,\"title\":\"\",\"br\":true,\"dubbed\":false}}"},
+    {"id":"mv-016","input":"{\"op\":\"markerValue\",\"accepted\":\"\",\"meta\":{\"acceptedAt\":1}}"},
+    {"id":"mv-017","input":"{\"op\":\"markerValue\",\"accepted\":\"t\",\"meta\":{\"pool\":\"seeds\",\"obra\":\"x\",\"acceptedAt\":42,\"title\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"br\":true,\"dubbed\":true}}"},
+    {"id":"mt-001","input":"{\"op\":\"markerTransferId\",\"value\":1}"},
+    {"id":"mt-002","input":"{\"op\":\"markerTransferId\",\"value\":{\"id\":\"tid\"}}"},
+    {"id":"mt-003","input":"{\"op\":\"markerTransferId\",\"value\":{\"id\":\"\"}}"},
+    {"id":"mt-004","input":"{\"op\":\"markerTransferId\",\"value\":{\"pool\":\"br\"}}"},
+    {"id":"mt-005","input":"{\"op\":\"markerTransferId\",\"value\":{\"id\":\"x\",\"obra\":\"o\"}}"},
+    {"id":"mt-006","input":"{\"op\":\"markerTransferId\",\"value\":{}}"},
+    {"id":"mo-001","input":"{\"op\":\"markerObra\",\"value\":1}"},
+    {"id":"mo-002","input":"{\"op\":\"markerObra\",\"value\":{\"obra\":\"dig\"}}"},
+    {"id":"mo-003","input":"{\"op\":\"markerObra\",\"value\":{\"obra\":\"\"}}"},
+    {"id":"mo-004","input":"{\"op\":\"markerObra\",\"value\":{\"id\":\"x\"}}"},
+    {"id":"mo-005","input":"{\"op\":\"markerObra\",\"value\":{\"pool\":\"br\",\"obra\":\"o\"}}"}
+  ]
+}

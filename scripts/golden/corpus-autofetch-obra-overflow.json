@@ -1,0 +1,33 @@
+{
+  "config": {
+    "source": "src/providers/autofetch-obra-overflow.ts",
+    "description": "Overflow de upgrade do teto por obra (C11): qualityRank e overflowUpgradeAllowed"
+  },
+  "cases": [
+    {"id":"qr-001","input":"{\"op\":\"qualityRank\",\"q\":\"2160p\"}"},
+    {"id":"qr-002","input":"{\"op\":\"qualityRank\",\"q\":\"1080p\"}"},
+    {"id":"qr-003","input":"{\"op\":\"qualityRank\",\"q\":\"720p\"}"},
+    {"id":"qr-004","input":"{\"op\":\"qualityRank\",\"q\":\"480p\"}"},
+    {"id":"qr-005","input":"{\"op\":\"qualityRank\",\"q\":\"sd\"}"},
+    {"id":"qr-006","input":"{\"op\":\"qualityRank\",\"q\":\"SD\"}"},
+    {"id":"qr-007","input":"{\"op\":\"qualityRank\",\"q\":\"1080P\"}"},
+    {"id":"qr-008","input":"{\"op\":\"qualityRank\",\"q\":\"\"}"},
+    {"id":"qr-009","input":"{\"op\":\"qualityRank\",\"q\":\"unknown\"}"},
+    {"id":"qr-010","input":"{\"op\":\"qualityRank\",\"q\":\"4K\"}"},
+    {"id":"ov-011","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"720p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-012","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"720p\"}],\"input\":{\"pool\":\"seeds\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-013","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"720p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"480p\"}}"},
+    {"id":"ov-014","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"720p\",\"overflow\":true}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-015","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"1080p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-016","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"seeds\",\"quality\":\"720p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-017","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-018","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"2160p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-019","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"720p\"},{\"pool\":\"br\",\"quality\":\"480p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-020","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"720p\"},{\"pool\":\"seeds\",\"quality\":\"1080p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-021","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"1080p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"2160p\"}}"},
+    {"id":"ov-022","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"1080p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"720p\"}}"},
+    {"id":"ov-023","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"480p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"720p\"}}"},
+    {"id":"ov-024","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[],\"input\":{\"pool\":\"br\",\"quality\":\"1080p\"}}"},
+    {"id":"ov-025","input":"{\"op\":\"overflowUpgradeAllowed\",\"entries\":[{\"pool\":\"br\",\"quality\":\"720p\"}],\"input\":{\"pool\":\"br\",\"quality\":\"1080P\"}}"}
+  ]
+}

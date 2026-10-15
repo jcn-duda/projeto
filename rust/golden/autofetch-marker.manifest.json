@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-marker/markerValue"
+  ],
+  "function": {
+    "name": "markerValue",
+    "sourcePath": "src/providers/autofetch-marker.ts",
+    "sourceSha256": "5ad0e0fdb2dd3317725f812e7f6aa34b8233e14c2a647e5df6aab9fd9d08305f",
+    "artifactPath": "dist/src/providers/autofetch-marker.js",
+    "artifactSha256": "916d558ad444ce915c72a10ae37ad8053a2b0ef2d698604a8b2b61b29a1fd1db"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-marker.json",
+    "sha256": "66e800c6faf23ca8f0464d8988b363e50ab8e4744c9f23caf1c8c7b0c0e912de",
+    "cases": 24
+  },
+  "output": {
+    "path": "rust/golden/autofetch-marker.jsonl",
+    "sha256": "68bbbc676f8afb909c7946a9b8e6859e981d606c2eb1faf3d02ae4ffcb58272c",
+    "lines": 24
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "13798bf0e8c1b61b0496bd964f65da35820b6c10"
+  }
+}

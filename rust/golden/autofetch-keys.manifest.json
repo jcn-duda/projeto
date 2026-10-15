@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-keys/deadKey"
+  ],
+  "function": {
+    "name": "deadKey",
+    "sourcePath": "src/providers/autofetch-keys.ts",
+    "sourceSha256": "bc38f0095180bd488a745f279f1e312b7e7686fb33fc0f77d18158f2beca14cb",
+    "artifactPath": "dist/src/providers/autofetch-keys.js",
+    "artifactSha256": "2855f4b982426bb7cbb4716ba47ee51f5d215895efe944edd911e45efc73cc65"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-keys.json",
+    "sha256": "30ad4193c10d3704d41564f78911c925a6d73048c26fb7b8a878390dc55e3d8d",
+    "cases": 10
+  },
+  "output": {
+    "path": "rust/golden/autofetch-keys.jsonl",
+    "sha256": "60f7387c90af01d2da3a3cef781f3f20661f1fef23bf578804baba2566725b08",
+    "lines": 10
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "13798bf0e8c1b61b0496bd964f65da35820b6c10"
+  }
+}

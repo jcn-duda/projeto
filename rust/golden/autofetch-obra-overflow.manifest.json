@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-obra-overflow/overflowUpgradeAllowed"
+  ],
+  "function": {
+    "name": "overflowUpgradeAllowed",
+    "sourcePath": "src/providers/autofetch-obra-overflow.ts",
+    "sourceSha256": "6ec32cab026442c093af449f2063c69319c9db2737db59da65564079f05818c3",
+    "artifactPath": "dist/src/providers/autofetch-obra-overflow.js",
+    "artifactSha256": "4e8309ed1bb31a270aeffd392c7633410f43bee416cde013caa64b241d9b880b"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-obra-overflow.json",
+    "sha256": "1054cde29260a76730fb860b4440e9d899803bd1134eefdf5531989fdfa03b8e",
+    "cases": 25
+  },
+  "output": {
+    "path": "rust/golden/autofetch-obra-overflow.jsonl",
+    "sha256": "c27ed6db6ba2184e51c7c9f450fa2e13de4601791b2b5535dd87562ad5b76baf",
+    "lines": 25
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "13798bf0e8c1b61b0496bd964f65da35820b6c10"
+  }
+}

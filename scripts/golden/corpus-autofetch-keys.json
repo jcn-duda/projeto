@@ -1,0 +1,18 @@
+{
+  "config": {
+    "source": "src/providers/autofetch-keys.ts",
+    "description": "Chave folha do registro de mortas do Chupim (deadKey)"
+  },
+  "cases": [
+    {"id":"ak-001","input":"{\"op\":\"deadKey\",\"adapterId\":\"premiumize\",\"account\":\"acc1\",\"infoHash\":\"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\"}"},
+    {"id":"ak-002","input":"{\"op\":\"deadKey\",\"adapterId\":\"alldebrid\",\"account\":\"acc2\",\"infoHash\":\"DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF\"}"},
+    {"id":"ak-003","input":"{\"op\":\"deadKey\",\"adapterId\":\"realdebrid\",\"account\":\"\",\"infoHash\":\"aabbccddeeff00112233445566778899aabbccdd\"}"},
+    {"id":"ak-004","input":"{\"op\":\"deadKey\",\"adapterId\":\"torbox\",\"account\":\"acc\",\"infoHash\":\"\"}"},
+    {"id":"ak-005","input":"{\"op\":\"deadKey\",\"adapterId\":\"\",\"account\":\"acc\",\"infoHash\":\"abc123\"}"},
+    {"id":"ak-006","input":"{\"op\":\"deadKey\",\"adapterId\":\"debridlink\",\"account\":\"acc\",\"infoHash\":\"AbCdEf0123456789abcdef0123456789ABCDEF01\"}"},
+    {"id":"ak-007","input":"{\"op\":\"deadKey\",\"adapterId\":\"premiumize\",\"account\":\"acc\",\"infoHash\":\"xyz\"}"},
+    {"id":"ak-008","input":"{\"op\":\"deadKey\",\"adapterId\":\"ad:apter\",\"account\":\"ac:ct\",\"infoHash\":\"ff\"}"},
+    {"id":"ak-009","input":"{\"op\":\"deadKey\",\"adapterId\":\"premiumize\",\"account\":\"acc\",\"infoHash\":\"  SpAcEd  \"}"},
+    {"id":"ak-010","input":"{\"op\":\"deadKey\",\"adapterId\":\"Premiumize\",\"account\":\"ACC\",\"infoHash\":\"aa\"}"}
+  ]
+}
