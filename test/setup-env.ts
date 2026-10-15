@@ -1,0 +1,98 @@
+/**
+ * Ambiente da suíte, carregado por `--import` ANTES de qualquer módulo de
+ * produção.
+ *
+ * Existe por causa de uma diferença real entre CommonJS e ESM: `require` roda na
+ * ordem em que aparece no arquivo, então `process.env.X = ...` antes do require
+ * funcionava. Em ESM os `import` são **içados** e executam antes da primeira
+ * linha do módulo — a atribuição chega tarde, e quem lê a variável no topo do
+ * próprio módulo (como `src/utils/cache.ts` no `openDatabase`) já leu o valor
+ * antigo.
+ *
+ * O sintoma era silencioso: dez arquivos de teste declaravam
+ * `process.env.CACHE_PERSIST = 'false'` e mesmo assim abriam o SQLite de
+ * verdade, tocando `data/cache.db` e compartilhando estado entre si.
+ */
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
+
+// Precisa vir antes do primeiro import de produção: `dotenv/config` resolve o
+// path no load. Assim `npm test` é hermético também fora do CI.
+process.env.DOTENV_CONFIG_PATH = 'test/fixtures/env-empty';
+process.env.CACHE_PERSIST = 'false';
+
+// O banco de magnets vivo tem default no VOLUME real (`data/magnets.db`): sem
+// apontar a suíte para um temporário, qualquer leitura (status, fallback,
+// warmup, via instantânea) abre o acervo REAL da máquina e o verde passa a
+// depender do conteúdo local. Cada PROCESSO de teste ganha o próprio
+// subdiretório (isola arquivos que `node --test` roda em paralelo); o
+// `run-tests` cria a base e a remove depois que todos os filhos encerram — a
+// remoção por processo aqui é o fallback para quem roda um teste direto
+// (`node dist/test/...`) e, se um handle SQLite ainda estiver aberto no
+// Windows, é best-effort (a via com limpeza garantida é o `run-tests`).
+if (!process.env.MAGNET_BANK_DB_PATH) {
+  const base = process.env.MAGNET_BANK_TEST_DIR || os.tmpdir();
+  const bankDir = fs.mkdtempSync(path.join(base, 'proc-'));
+  process.env.MAGNET_BANK_DB_PATH = path.join(bankDir, 'magnets.db');
+  process.on('exit', () => {
+    try { fs.rmSync(bankDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+  });
+}
+
+// O config le a .env do operador, entao um DEBRID_CACHED_ONLY=true na maquina
+// de quem roda a suite mudava o comportamento de applyDebrid e quebrava testes
+// que nada tem a ver com cache. Quem quer testar o corte liga o `dc` na config
+// da propria requisicao.
+process.env.DEBRID_CACHED_ONLY = 'false';
+
+// O verificador de conta captura o limiar de aviso em constante de MÓDULO no
+// load (`ACCOUNT_WARN_TOTAL` em src/debrid/index.ts), então pinar o config
+// dentro do teste chega tarde. O `.env` do operador pode ter outro valor (uma
+// máquina de desenvolvimento rodava com 4000) e o verde/vermelho do
+// debrid-status.test.ts passava a depender de quem rodou a suíte.
+process.env.DEBRID_ACCOUNT_WARN_TOTAL = '800';
+
+// A suíte roda com o mesmo governador que a produção; os testes isolam contas
+// e restauram o estado global do gate quando exercitam Real-Debrid.
+process.env.DEBRID_RD_GATE = 'true';
+
+// TTLs curtos do cache de disponibilidade por hash (davail, fase 3). Os únicos
+// consumidores da camada são os testes do debrid-avail, e o teste de expiração
+// espera o timer REAL (~1,3s e ~2,6s). O par <2s,1s> também mantém as entradas
+// vivas durante os demais testes do arquivo, que se resolvem em milissegundos.
+// `0` desliga cada lado — se a camada estiver inerte, nenhum outro teste muda.
+process.env.DEBRID_AVAIL_POS_TTL = '2';
+process.env.DEBRID_AVAIL_NEG_TTL = '1';
+
+// Filtro de qualidade e cotas por faixa: a suíte monta as próprias fixtures e
+// espera o comportamento SEM filtro (o default do código: lista vazia = tudo
+// passa, 6 vagas por faixa). Quando o operador aperta esses valores no `.env`
+// — foi o caso ao alinhar a instância à config de referência: QUALITY_FILTER
+// com três faixas e as cotas em 2 —, streams das fixtures somem antes da
+// asserção e testes de aviso/notice quebram sem que nada no código tenha
+// mudado. Mesmo motivo dos pins acima: o verde não pode depender de quem roda.
+process.env.QUALITY_FILTER = '';
+process.env.MAX_STREAMS_2160P = '6';
+process.env.MAX_STREAMS_1080P = '6';
+process.env.MAX_STREAMS_720P = '6';
+process.env.MAX_STREAMS_480P = '6';
+process.env.MAX_STREAMS_SD = '6';
+process.env.MAX_STREAMS_UNKNOWN = '6';
+
+// O selo do install URL é exercitado pelos próprios testes (withSecret e
+// atribuição local em app-routes/tier2/tier3, sempre restaurada em finally).
+// O `.env` do operador pode ter RESOLVE_SECRET (caso do dev que ligou o selo
+// no painel do colhedor), e com ele ativo os e2e que assumem o selo DESLIGADO
+// quebram — o dk viaja em claro e o HMAC é sobre a chave crua. Mesmo motivo
+// dos pins acima: o verde da suíte não pode depender de quem roda.
+process.env.RESOLVE_SECRET = '';
+
+// Motor do raspador PINADO no modo TS: a suíte inteira do motor (crawler,
+// steps, dispatch, séries) exercita o loop TS como DONO. Com o `.env` do
+// operador em CRAWL_ENGINE=rust, o roteamento single-owner do `tick()`
+// restringiria os sites aos own_pace e ~19 arquivos virariam vermelhos sem
+// nada ter mudado neles. O modo rust tem caso próprio
+// (crawler-rust-own-pace.test.ts), que sobrescreve `config.crawl.crawlEngine`
+// no próprio caso.
+process.env.CRAWL_ENGINE = 'ts';

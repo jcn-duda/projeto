@@ -1,0 +1,400 @@
+import crypto from 'node:crypto';
+import { prefix } from '../utils/cache-keys.js';
+import * as cache from '../utils/cache.js';
+import config from '../config.js';
+import autofetchLive from '../utils/autofetch-live.js';
+import * as metrics from '../utils/metrics.js';
+import * as log from '../utils/logger.js';
+import { markerKey, markerValue, markerTransferId } from './autofetch-marker.js';
+import { accountGateBlocked, resetAccountGate, accountGateSnapshot } from './autofetch-gate.js';
+import { countAllSuppressed } from './autofetch-suppressed.js';
+import { deadKey } from './autofetch-keys.js';
+
+const pending = new Map();
+const searchSlots = new Map();
+const LOCK_TTL_MS = 60_000;
+
+// Janela deslizante de 1h de enqueues por adapter:account
+const hourlyEnqueues = new Map<string, number[]>();
+const hourlyLimits = new Map<string, number>();
+const budgetBlocked = new Map<string, number>();
+// Índices de diagnóstico deste processo. As filas/blacklists continuam no
+// cache persistente; estes sets só permitem contar sem enumerar chaves privadas.
+const knownQueues = new Map<string, number>();
+const knownDead = new Set<string>();
+
+function sha256(str: string) {
+  return crypto.createHash('sha256').update(String(str || '')).digest('hex');
+}
+
+const QUEUE_PREFIX = `${prefix('autofetch')}q:`;
+const DEAD_PREFIX = `${prefix('autofetch')}dead:`;
+
+function queueKey(searchKey: string) {
+  return `${QUEUE_PREFIX}${sha256(searchKey)}`;
+}
+
+function prefetchKey(account: string, id: string, s: number | string, e: number | string) {
+  return `${prefix('autofetch')}pf:${account}:${id}:${s}:${e}`;
+}
+
+/**
+ * Trava apenas enquanto a API responde. Persistir antes do aceite criava seis
+ * horas de falso positivo quando o processo reiniciava ou a chamada falhava.
+ */
+function acquire(key: string) {
+  if (pending.has(key)) return false;
+  const token = Symbol(key);
+  pending.set(key, token);
+  setTimeout(() => {
+    if (pending.get(key) === token) pending.delete(key);
+  }, LOCK_TTL_MS).unref();
+  return true;
+}
+
+function release(key: string) {
+  pending.delete(key);
+}
+
+/**
+ * Contador de vagas por busca, compartilhado entre o passe parcial e o tardio
+ * (os dois usam o mesmo searchKey). Substitui o boolean antigo: permitia só um
+ * torrent por busca, qualquer que fosse; agora cabem até `max` candidatos.
+ *
+ * A TTL limpa a entrada inteira quando a busca morre (o lote tardio pode
+ * terminar dezenas de segundos depois); cada `releaseSearchSlot` em refusa/erro
+ * devolve a vaga sem vazar o contador.
+ */
+function acquireSearchSlot(searchKey: string, max = 1) {
+  if (!searchKey) return false;
+  const limit = Math.max(1, Math.trunc(Number(max) || 1));
+  const entry = searchSlots.get(searchKey);
+  if (entry) {
+    if (entry.used >= limit) return false;
+    entry.used += 1;
+    return true;
+  }
+  const token = Symbol(searchKey);
+  searchSlots.set(searchKey, { used: 1, token });
+  setTimeout(() => {
+    if (searchSlots.get(searchKey)?.token === token) searchSlots.delete(searchKey);
+  }, LOCK_TTL_MS).unref();
+  return true;
+}
+
+function releaseSearchSlot(searchKey: string) {
+  const entry = searchSlots.get(searchKey);
+  if (!entry) return;
+  entry.used -= 1;
+  if (entry.used <= 0) searchSlots.delete(searchKey);
+}
+
+/** Compatibilidade com o contrato antigo: uma vaga só por busca. */
+function acquireSearch(searchKey: string) {
+  return acquireSearchSlot(searchKey, 1);
+}
+
+function releaseSearch(searchKey: string) {
+  releaseSearchSlot(searchKey);
+}
+
+/** Blacklist por adapter:account:hash com TTL 24h */
+function isDead(adapterId: string, account: string, infoHash: string): boolean {
+  if (!adapterId || !account || !infoHash) return false;
+  return cache.get(deadKey(adapterId, account, infoHash)) === 1;
+}
+
+/** Leitura de diagnóstico (P5): mesma blacklist, `cache.peek` — sem promover
+ * o LRU nem contar hit/miss. Quem pergunta é o funil explicando um sumiço,
+ * não o pipeline decidindo uma vaga. */
+function isDeadQuiet(adapterId: string, account: string, infoHash: string): boolean {
+  if (!adapterId || !account || !infoHash) return false;
+  return cache.peek(deadKey(adapterId, account, infoHash)) === 1;
+}
+
+function blacklist(
+  adapterId: string,
+  account: string,
+  infoHash: string,
+  ttlSeconds = autofetchLive.effective().autoFetchDeadTtl,
+) {
+  if (!adapterId || !account || !infoHash) return;
+  const key = deadKey(adapterId, account, infoHash);
+  cache.set(key, 1, ttlSeconds);
+  knownDead.add(key);
+}
+
+/** Fila persistente de candidatos excedentes */
+interface QueueCandidate {
+  infoHash: string;
+  name?: string;
+  title?: string;
+  quality?: string;
+  size?: number; // bytes do download (política seeds do dreno); ausente = cai no 💾 do title
+  seeders?: number;
+  br?: boolean; dubbed?: boolean; lied?: boolean;
+  // Classificação de áudio que só o banco tem (`_bankDub`): o dreno precisa
+  // dela para o protectBr do AllDebrid — o registro `dubbed` sozinho perdeu a
+  // marca.
+  bankDub?: boolean;
+  pool?: string;
+  imdbId?: string;
+  isPack?: boolean; rare?: boolean; slotLimit?: number; // evidência rara do pool seeds p/ o dreno
+  // Sonda (Fase 4): a identidade ORIGINAL da busca fica em probeSeason/
+  // probeEpisode — o pack tem `episode` nulo para cap, mas a sonda olha o E.
+  season?: number | null; episode?: number | null; probeSeason?: number | null; probeEpisode?: number | null;
+  addedAt?: number;
+  [key: string]: unknown;
+}
+
+function readQueue(searchKey: string): QueueCandidate[] {
+  if (!searchKey) return [];
+  const hit = cache.get(queueKey(searchKey));
+  return Array.isArray(hit) ? hit : [];
+}
+
+function writeQueue(
+  searchKey: string,
+  candidates: QueueCandidate[],
+  ttlSeconds = config.debrid.autoFetchQueueTtl,
+  adapterId?: string,
+  account?: string, countAdded = true,
+) {
+  if (!searchKey) return;
+  const seen = new Set<string>();
+  const clean: QueueCandidate[] = [];
+  const depth = autofetchLive.effective().autoFetchQueueDepth;
+
+  for (const c of candidates) {
+    if (!c?.infoHash) continue;
+    const hash = String(c.infoHash).toLowerCase();
+    if (seen.has(hash)) continue;
+    seen.add(hash);
+    if (adapterId && account && isDead(adapterId, account, hash)) continue;
+    clean.push({ ...c, infoHash: hash, addedAt: c.addedAt || Date.now() });
+    if (clean.length >= depth) break;
+  }
+
+  if (clean.length > 0) {
+    const key = queueKey(searchKey);
+    cache.set(key, clean, ttlSeconds);
+    knownQueues.set(key, clean.length);
+    if (countAdded) metrics.count('autofetch.queue.added', clean.length);
+  } else {
+    const key = queueKey(searchKey);
+    cache.forget(key);
+    knownQueues.delete(key);
+  }
+}
+
+function dropQueue(keyOrSearchKey: string) {
+  if (!keyOrSearchKey) return;
+  const k = keyOrSearchKey.startsWith('autofetch:') ? keyOrSearchKey : queueKey(keyOrSearchKey);
+  if (cache.get(k)) {
+    cache.forget(k);
+    metrics.count('autofetch.queue.dropped');
+  }
+  knownQueues.delete(k);
+}
+
+function drainQueues(): { queues: number; items: number } {
+  let queues = 0;
+  let items = 0;
+  for (const [key, count] of [...knownQueues.entries()]) {
+    dropQueue(key);
+    queues += 1;
+    items += count;
+  }
+  metrics.count('autofetch.queue.drained_all', items);
+  return { queues, items };
+}
+
+// drainNext nunca esteve cego (lê cache.get direto); cego era snapshot() do
+// painel e drainQueues(). reindexQueues/reindexDead no boot varrem o L1
+// (`autofetch:v3:q:` / `autofetch:v3:dead:`) e reconstroem knownQueues /
+// knownDead — por isso o painel marca queues e deadBlacklistCount como
+// "duravel": o índice de processo espelha o que sobreviveu no cache.
+function reindexQueues() {
+  let n = 0;
+  for (const key of cache.keysMatching(QUEUE_PREFIX)) {
+    if (knownQueues.has(key)) continue;
+    const value = cache.get(key);
+    if (!Array.isArray(value) || value.length === 0) continue;
+    knownQueues.set(key, value.length);
+    n += 1;
+  }
+  metrics.count('autofetch.queue.reindexed', n);
+  return n;
+}
+
+function reindexDead() {
+  let n = 0;
+  for (const key of cache.keysMatching(DEAD_PREFIX)) {
+    if (knownDead.has(key)) continue;
+    if (cache.get(key) !== 1) continue;
+    knownDead.add(key);
+    n += 1;
+  }
+  metrics.count('autofetch.dead.reindexed', n);
+  return n;
+}
+
+function takeNext(
+  queue: QueueCandidate[],
+  skipFn?: (item: QueueCandidate) => boolean,
+  deferFn?: (item: QueueCandidate) => boolean,
+): { next: QueueCandidate | null; remaining: QueueCandidate[] } {
+  // skipFn = obsoleto (sai da fila). deferFn = apenas ADIADO (hold transitório):
+  // fica em `remaining`, pois purgá-lo perderia candidato que drenaria depois.
+  if (!Array.isArray(queue) || queue.length === 0) return { next: null, remaining: [] };
+  const kept: QueueCandidate[] = []; let next: QueueCandidate | null = null;
+  for (const candidate of queue) {
+    if (skipFn?.(candidate)) continue;
+    if (next === null && !deferFn?.(candidate)) next = candidate;
+    else kept.push(candidate);
+  }
+  return { next, remaining: kept };
+}
+/**
+ * Orçamento deslizante de enqueues/hora por adapter:account.
+ */
+function checkAndRecordBudget(adapterId: string, account: string, limit?: number): boolean {
+  if (!adapterId || !account) return true;
+  const key = `${adapterId}:${account}`;
+  const now = Date.now();
+  const oneHourAgo = now - 3600_000;
+  let timestamps = (hourlyEnqueues.get(key) || []).filter((t) => t > oneHourAgo);
+  const maxHourly = limit != null && Number.isFinite(limit)
+    ? limit
+    : autofetchLive.effective().autoFetchEnqueueMaxHour;
+  hourlyLimits.set(key, maxHourly);
+
+  if (timestamps.length >= maxHourly) {
+    metrics.count('autofetch.budget');
+    log.warn(
+      `[autofetch] orçamento de enqueues esgotado para ${adapterId}:${account} ` +
+        `(${timestamps.length}/${maxHourly} na última hora)`,
+    );
+    hourlyEnqueues.set(key, timestamps);
+    return false;
+  }
+
+  timestamps.push(now);
+  hourlyEnqueues.set(key, timestamps);
+  return true;
+}
+
+function budgetKey(adapterId: string, account: string) {
+  return `${adapterId}:${account}`;
+}
+
+/** Pausa a drenagem quando o limite horário já foi consumido. */
+function blockBudget(adapterId: string, account: string, backoffMs: number) {
+  if (!adapterId || !account || backoffMs <= 0) return;
+  budgetBlocked.set(budgetKey(adapterId, account), Date.now() + backoffMs);
+}
+
+function budgetBlockedUntil(adapterId: string, account: string) {
+  const key = budgetKey(adapterId, account);
+  const until = budgetBlocked.get(key) || 0;
+  if (until <= Date.now()) {
+    budgetBlocked.delete(key);
+    return 0;
+  }
+  return until;
+}
+
+function resetBudget(adapterId?: string, account?: string) {
+  if (adapterId && account) {
+    hourlyEnqueues.delete(`${adapterId}:${account}`);
+    hourlyLimits.delete(`${adapterId}:${account}`);
+    budgetBlocked.delete(budgetKey(adapterId, account));
+  } else {
+    hourlyEnqueues.clear();
+    hourlyLimits.clear();
+    budgetBlocked.clear();
+  }
+}
+
+/**
+ * Gate de ocupação da conta (backpressure): conta cheia não recebe mais
+ * download do autofetch. Encher a conta é o que derruba a checagem de cache
+ * (um upload, na AllDebrid) e faz o ⚡ sumir da lista inteira — o gate para
+ * de escrever ANTES do teto, no mesmo limiar em que o /debrid-status.json
+ * começa a avisar.
+ *
+ * Contrato: NUNCA faz rede no caminho síncrono. A contagem vem de duas
+ * leituras locais — o inventário memoizado (dinv, quando existe) ou o memo
+ * em memória abaixo — e o refresh roda em background. Memo frio ou vencido
+ * é FAIL-OPEN: melhor um download a mais que bloquear sem evidência.
+ *
+ * A implementação mora em autofetch-gate.ts (extraído para a catraca); aqui
+ * fica só o reexport, para `autofetch.accountGateBlocked` continuar o contrato
+ * que os testes e o runner já usam.
+ */
+
+/** Estado operacional sem expor searchKey, conta ou infoHash. */
+function snapshot() {
+  const now = Date.now();
+  const oneHourAgo = now - 3600_000;
+  const live = autofetchLive.effective();
+  let used = 0;
+  let limit = 0;
+  const budgets: Array<{ id: string; used: number; limit: number }> = [];
+  for (const [key, raw] of hourlyEnqueues) {
+    const timestamps = raw.filter((t) => t > oneHourAgo);
+    hourlyEnqueues.set(key, timestamps);
+    const itemLimit = hourlyLimits.get(key) || live.autoFetchEnqueueMaxHour;
+    used += timestamps.length;
+    limit += itemLimit;
+    budgets.push({ id: sha256(key).slice(0, 12), used: timestamps.length, limit: itemLimit });
+  }
+
+  let queueItems = 0;
+  for (const [key] of [...knownQueues]) {
+    const value = cache.get(key);
+    if (!Array.isArray(value) || value.length === 0) {
+      knownQueues.delete(key);
+      continue;
+    }
+    knownQueues.set(key, value.length);
+    queueItems += value.length;
+  }
+  for (const key of [...knownDead]) {
+    if (cache.get(key) !== 1) knownDead.delete(key);
+  }
+  let occupiedSlots = 0;
+  for (const entry of searchSlots.values()) occupiedSlots += Number(entry?.used || 0);
+
+  // Fila de remoções represadas (autofetch-suppressed): o snapshot é síncrono
+  // e sem contexto de conta, então o número é o AGREGADO de todas as contas —
+  // o drain do painel age só na conta do operador, e a diferença aparece lá.
+  const suppressed = countAllSuppressed();
+
+  return {
+    pendingLocks: pending.size,
+    searchSlots: { searches: searchSlots.size, occupied: occupiedSlots },
+    budget: { used, limit, accounts: budgets },
+    deadBlacklistCount: knownDead.size,
+    queues: { count: knownQueues.size, items: queueItems },
+    suppressed,
+    accountGate: accountGateSnapshot(),
+    config: autofetchLive.snapshot(),
+    // queues/dead/suppressed=durável (varredura do L1, não Map de processo);
+    // resto=amostra deste processo.
+    _origem: { queues: 'duravel', deadBlacklistCount: 'duravel', budget: 'amostra', accountGate: 'amostra', suppressed: 'duravel' },
+  };
+}
+
+export {
+  LOCK_TTL_MS, markerKey, markerValue, markerTransferId, deadKey, queueKey, prefetchKey,
+  acquire, release, acquireSearch, releaseSearch, acquireSearchSlot, releaseSearchSlot,
+  isDead, isDeadQuiet, blacklist, readQueue, writeQueue, dropQueue, drainQueues, takeNext,
+  checkAndRecordBudget, blockBudget, budgetBlockedUntil, resetBudget,
+  accountGateBlocked, resetAccountGate, accountGateSnapshot, snapshot, reindexQueues, reindexDead,
+};
+
+reindexQueues();
+reindexDead();
+
+export type { QueueCandidate };

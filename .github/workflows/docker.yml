@@ -1,7 +1,10 @@
-# Constrói a imagem para quebrar antes do deploy um COPY de caminho que sumiu.
+# O Dockerfile copia o núcleo resolvers/, todos os *-resolver/ e definitions. A
+# suíte Node não percebe um caminho quebrado: renomear um arquivo passa verde no
+# CI e só falha no deploy. Este workflow existe só para quebrar antes disso.
 #
-# Os filtros de caminho espelham a lista de COPY do Dockerfile (rust/, scripts/,
-# web/ e as definitions). .dockerignore também afeta esses COPYs.
+# Os filtros de caminho espelham a lista de COPY do Dockerfile: src/, types/ e
+# scripts/ alimentam o builder (tsc), e os diretórios de resolvers
+# entram na imagem de runtime. .dockerignore também afeta esses COPYs.
 # Mudança em qualquer um deles sem estar aqui é alteração de imagem que o
 # workflow nunca vê.
 #
@@ -17,11 +20,19 @@ on:
       - 'docker-compose.yml'
       - '.dockerignore'
       - 'scripts/**'
-      - 'web/**'
+      - 'src/**'
+      - 'types/**'
       - 'jackett-bludv/**'
+      - 'resolvers/**'
+      - '*-resolver/**'
       - 'rust/Cargo.toml'
       - 'rust/Cargo.lock'
       - 'rust/crates/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.client.json'
+      - 'tsconfig.client.test.json'
       - '.github/workflows/docker.yml'
   pull_request:
     paths:
@@ -29,11 +40,19 @@ on:
       - 'docker-compose.yml'
       - '.dockerignore'
       - 'scripts/**'
-      - 'web/**'
+      - 'src/**'
+      - 'types/**'
       - 'jackett-bludv/**'
+      - 'resolvers/**'
+      - '*-resolver/**'
       - 'rust/Cargo.toml'
       - 'rust/Cargo.lock'
       - 'rust/crates/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.client.json'
+      - 'tsconfig.client.test.json'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
 

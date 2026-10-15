@@ -1,0 +1,373 @@
+import { TECH_NOISE } from './release-matching.js';
+import { hasPtSigns, brOriginMark } from './br-origin.js';
+import { genericDubProvesPt, hasPtAudioMark, strongEnSceneMark, dubbedLieVerdict, foreignLangNamedForBucket } from './audio-cleanup.js';
+
+// Resolução que o título não informa. Balde e cota próprios, separados do SD.
+const UNKNOWN_QUALITY = 'sem resolução';
+
+// Ruído de release: o mesmo vocabulário técnico do matching, mas aqui usado
+// para achar o BLOB de tags no fim do título (ver stripQualityTagBlob). Derivado
+// de TECH_NOISE (não de lista nova) para os dois vocabulários não divergirem.
+const normalizeBlobTag = (tag: string) => tag.toLowerCase().replace(/[^a-z0-9+]/g, '');
+
+// Recorte do TECH_NOISE com as tags de qualidade/fonte que aparecem no blob.
+// tokens curtos não-técnicos ("h", "tv", "us", "gb") ficam de fora — cortar
+// cauda por eles é convidar falso corte de título legítimo.
+const TAG_BLOB_VOCAB = new Set(
+  TECH_NOISE.filter((w) =>
+    /^(?:\d{3,4}p|4k|uhd|sd|hd|hdrip|fullhd|webdl|webrip|bluray|bdrip|brrip|hdtv|remux|hybrid|x264|x265|h264|h265|avc|hevc|av1|xvid|divx|10bit|8bit|hdr|hdr10|imax|mkv|mp4|avi|web|dl|blu|ray)$/.test(w),
+  ).map(normalizeBlobTag),
+);
+
+/**
+ * Posts de site BR (hdrtorrent medido) anexam ao FIM do título um blob de tags
+ * separadas por vírgula listando TODAS as qualidades do post:
+ *
+ *   "Fallout 1ª Temporada … LEGENDADA 720P 1080p, 2160p, 720p, HD, WEB-DL"
+ *
+ * Sem cortar essa cauda, `qualityFromTitle` varre a string inteira, casa o
+ * "2160p" do blob e classifica um botão 720P como 4K — e o rótulo errado
+ * alimenta cota de qualidade, reserva BR, autofetch e o índice (que persiste
+ * por semanas). O corte exige 2+ tags do vocabulário de qualidade/fonte
+ * separadas por vírgula NO FIM: título legítimo que termina em "1080p" (tag
+ * única) não perde o sufixo.
+ */
+function stripQualityTagBlob(title = '') {
+  const raw = String(title || '');
+  if (!raw.includes(',')) return raw;
+  let cut = raw.length;
+  let tags = 0;
+  for (;;) {
+    // Consome uma tag por vez do fim; o índice do separador é onde a cauda
+    // começa. Parar na primeira tag fora do vocabulário preserva o corpo.
+    const m = raw.slice(0, cut).match(/[,;]\s*([A-Za-z0-9][A-Za-z0-9+.\-]*)\s*$/);
+    if (!m) break;
+    if (!TAG_BLOB_VOCAB.has(normalizeBlobTag(m[1]))) break;
+    cut = m.index as number;
+    tags += 1;
+  }
+  if (tags < 2) return raw;
+
+  // O post cola a PRIMEIRA tag do blob direto na qualidade do botão, sem
+  // vírgula ("… LEGENDADA 720P 1080p, 2160p, …"). Essa cabeça é enumeração do
+  // post e sai com a cauda: se o mesmo valor já existe no corpo ("… Dual
+  // 1080P 1080p, …"), o corpo o retém; se não existe, era só o blob repetindo
+  // a lista — e mantê-la faria qualityFromTitle escolher a maior resolução da
+  // enumeração em vez da qualidade do botão.
+  const before = raw.slice(0, cut);
+  const head = before.match(/(?:^|\s)([A-Za-z0-9][A-Za-z0-9+.\-]*)$/);
+  if (head && TAG_BLOB_VOCAB.has(normalizeBlobTag(head[1]))) {
+    return before.slice(0, before.length - head[1].length).trimEnd();
+  }
+  return before.trimEnd();
+}
+
+/**
+ * "Não sei" é diferente de "é ruim". Título sem resolução vira UNKNOWN_QUALITY,
+ * não SD: os sites BR quase nunca publicam resolução ("Nome (2026) [opção 3]"),
+ * e enquanto isso caía no balde do SD, zerar a cota de SD desligava a
+ * prioridade brasileira inteira — inclusive as vagas reservadas.
+ * SD agora exige uma marca explícita de baixa qualidade.
+ */
+function qualityFromTitle(title = '') {
+  // Resolução colada na tag de fonte ("WEB-DLRip1080p") não tem fronteira de
+  // palavra, e o \b1080P\b falhava. Medido em Adım Farah S01 (2026-09-13): o
+  // pack saía "sem resolução" e era cortado pelo filtro de qualidade.
+  const t = stripQualityTagBlob(title)
+    .toUpperCase()
+    // `_` separa de fato ("Filme_2026_1080p_…"): sem a troca, o \b1080P\b não
+    // vê fronteira antes/depois do underscore e a resolução some.
+    .replace(/_/g, ' ')
+    .replace(/(RIP|DL|WEB|HDTV)(?=(?:2160|1080|720|480)P\b)/g, '$1 ');
+  if (/\b(2160P|4K|UHD)\b/.test(t)) return '2160p';
+  if (/\b1080P\b/.test(t)) return '1080p';
+  if (/\b720P\b/.test(t)) return '720p';
+  if (/\b480P\b/.test(t)) return '480p';
+  // 576p/540p são resoluções SD de verdade (PAL), não "não sei".
+  // DVD5/DVD9/DVDR também: são formatos de DVD, cujo conteúdo é SD por
+  // definição (MPEG-2 480i/576i) — release "DVD5" explícita não pode ficar
+  // sem selo de qualidade. A resolução declarada (1080p/720p/…) continua
+  // ganhando porque vem ANTES nesta ordem.
+  if (/\b(576P|540P|360P|240P|SDTV|DVD5|DVD9|DVD[- ]?R|DVD[- ]?(?:RIP|SCR)|VHS[- ]?RIP|TS|TC|CAM[- ]?RIP|CAM)\b/.test(t)) return 'SD';
+  return UNKNOWN_QUALITY;
+}
+
+function sourceFromTitle(title = '') {
+  // Remove extensão de arquivo do final (.ts, .mkv, .avi, .mp4, .mov) antes
+  // de classificar fonte: "Filme.2019.1080p.H264.ts" é arquivo .ts, não
+  // TELESYNC. Sem isso, o \bTS\b do CAM casa com o ".ts" final porque o "."
+  // conta como fronteira de palavra.
+  // `_` também é separador de release ("HDCAM_1080p", "D.TS_1080p"): vira
+  // espaço antes dos testes para o \b enxergar a fronteira.
+  const t = title.toUpperCase().replace(/\.(?:TS|MKV|AVI|MP4|MOV|FLV|WMV|WEBM)$/i, '').replace(/_/g, ' ');
+  if (/\b(BLURAY|BLU-RAY|BDREMUX|BD\b)/.test(t)) return 'BluRay';
+  if (/\bWEB[-. ]?DL\b/.test(t)) return 'WEB-DL';
+  if (/\bWEB[-. ]?RIP\b/.test(t)) return 'WEBRip';
+  if (/\bHDTV\b/.test(t)) return 'HDTV';
+  // Gravações de cinema: HDCAM/CAMRip/CAM já eram reconhecidas; TS/TC/TELESYNC/
+  // TELECINE/PreDVD não eram tratados e releases "D.TS.1080p" ou "HQ PreDVD"
+  // passavam como fonte desconhecida. Medido no Resident Evil (2026): Kickass
+  // publicou "HQ PreDVD" e "D.TS.1080p" que o excludeCam=true do usuário não
+  // cortava. A ordem preserva a precedência: WEB-DL/WEBRip/HDTV continuam
+  // ganhando; TS/TC curtos exigem fronteira de token (\b) para não casar dentro
+  // de "DDP5.1" ou "H264". PreDVD/Pre-DVD cobre o estágio anterior ao DVD.
+  if (/\b(?:HD[-. ]?)?CAM(?:[-. ]?RIP)?\b/.test(t)) return 'CAM';
+  if (/\b(?:HD[-. ]?)?(?:TS|TC)\b/.test(t)) return 'CAM';
+  if (/\bTELESYNC\b/.test(t)) return 'CAM';
+  if (/\bTELECINE\b/.test(t)) return 'CAM';
+  if (/\bPRE[-. ]?DVD\b/.test(t)) return 'CAM';
+  return '';
+}
+
+/**
+ * Corte do filme, quando o release anuncia um. Não é firula: numa lista de
+ * quatro 4K do mesmo filme, "Theatrical" e "Alternate Ending" são FILMES
+ * DIFERENTES no fim, e a linha compacta não tinha como diferenciá-los — só o
+ * número de seeders mudava. Escolher pelo maior seed levava ao corte errado.
+ *
+ * Rótulos curtos de propósito: isto divide a coluna estreita com qualidade,
+ * fonte e áudio.
+ */
+function editionFromTitle(title = '') {
+  const t = title.toUpperCase();
+  if (/\bALTERNAT(E|IVO|IVA)\s+(ENDING|FINAL)\b/.test(t)) return 'Alt.End';
+  // "Alternate Version" não diz QUAL é a diferença, mas diz que não é o corte
+  // padrão — e isso já basta para o usuário não escolher por acidente.
+  if (/\bALTERNAT(E|IVO|IVA)\s+(VERSION|VERS[AÃ]O|CUT)\b|\bVERS[AÃ]O\s+ALTERNATIVA\b/.test(t)) return 'Alt.Ver';
+  if (/\b(DIRECTOR'?S\s+CUT|DIRECTORS\s+CUT)\b/.test(t)) return 'DC';
+  if (/\b(EXTENDED|VERS[AÃ]O\s+ESTENDIDA)\b/.test(t)) return 'Extended';
+  if (/\b(THEATRICAL|VERS[AÃ]O\s+DE\s+CINEMA)\b/.test(t)) return 'Cinema';
+  if (/\b(REMASTER(ED)?|REMASTERIZAD[OA])\b/.test(t)) return 'Remaster';
+  if (/\bIMAX\b/.test(t)) return 'IMAX';
+  if (/\b(UNCUT|UNRATED|SEM\s+CORTES)\b/.test(t)) return 'Uncut';
+  return '';
+}
+
+function explicitPtAudio(title = '') {
+  // Mesma troca do audioFromTitle: `_` é separador ("… DUAL_Misso") e o \b
+  // não enxerga fronteira dentro de caractere de palavra.
+  const t = title.toUpperCase().replace(/_/g, ' ');
+  const isExplicitSub =
+    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(t) ||
+    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(t);
+
+  const isGenericDub = genericDubProvesPt(t);
+
+  return (
+    // `DUBLAD[OA]S?` sai do `\b` e passa a exigir só que não haja LETRA colada.
+    // Com `\b` o marcador morria quando o release grudava a resolução no fim:
+    // "Tucker e Dale contra o mal Dublado720p mp4" é real e está no índice de
+    // produção — entrou como isBr=false/dubbed=false, um falso negativo mudo
+    // numa fonte dublada. Dígito colado não desfaz a afirmação do dono; letra
+    // colada desfaz (evita casar dentro de outra palavra). O `S?` alinha com o
+    // PT_VOCAB do br-origin, que já aceitava o plural.
+    /(?<![A-Z])DUBLAD[OA]S?(?![A-Z])/.test(t) ||
+    /\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b/.test(t) ||
+    isGenericDub ||
+    (/\b(PT[-.]?BR|PTBR|PORTUGU[EÊ]S|BRAZILIAN)\b/.test(t) && !isExplicitSub)
+  );
+}
+
+/**
+ * Áudio é a informação que mais importa neste addon (foco em dublado) e os
+ * sites BR a escrevem no título. Sem ela o usuário abre o torrent pra descobrir.
+ */
+function audioFromTitle(title = '') {
+  // O blob de tags do fim não descreve áudio, mas pode citar "DUAL" entre as
+  // tags — classifica sobre o título sem a cauda.
+  // `_` é separador de fato nos posts BR ("… x264 DUAL_Misso"): dentro do \b
+  // ele conta como caractere de palavra e o marcador colado nele não casava.
+  const t = stripQualityTagBlob(title).toUpperCase().replace(/_/g, ' ');
+
+  // Convenção de nome de post (hdrtorrent medido): o PREFIXO é sempre
+  // "... Dublada e Dual", mesmo quando o botão é LEGENDADA. O marcador do
+  // segmento do botão é mais específico e vence: se existe LEGENDADA/
+  // LEGENDADO/SUBBED fora dessa frase e nenhum outro marcador de dublagem,
+  // o título é legendado — o prefixo do post não pode mentir melhor que o
+  // botão. Um DUBLADO/DUAL FORA da frase ("... COMPLETA DUBLADA Dual 1080P")
+  // mantém o comportamento de sempre.
+  const semConvencao = t.replace(/\bDUBLAD[OA]\s+E\s+DUAL\b/g, ' ');
+  const isExplicitSub =
+    /\b(LEGENDAD[OA]|LEGENDAS?|LEG[-.]?PT[-.]?BR|SUB[-.]?PT[-.]?BR|SOFT[- ]?SUB)\b/.test(semConvencao) ||
+    /\[\s*LEG\s*\]|\(\s*LEG\s*\)|\bLEG\b/.test(semConvencao);
+  const isExplicitDub = explicitPtAudio(semConvencao);
+
+  if (isExplicitSub && explicitPtAudio(t) && !isExplicitDub) return 'Legendado';
+
+  // Dual / Multi áudio. MULTI sozinho entra aqui: o comentário do
+  // hasExplicitForeignAudio já dizia que MULTI carrega a faixa original e não
+  // prova conteúdo estrangeiro — cair no balde `lixo` contradizia isso e
+  // entregava o magnet à limpeza por ausência de marcador.
+  if (/\b(DUAL|DOUBLE|MULTI|DUAL[- ]?AUDIO|AUDIO[- ]?DUPLO|DUPLO[- ]?AUDIO|MULTI[- ]?AUDIO|MULTIAUDIO)\b/.test(t)) {
+    return 'Dual';
+  }
+
+  // Produções nacionais brasileiras (áudio original em PT-BR)
+  if (/\b(NACIONAL|NAC)\b/.test(t) && !/\b(LEG|LEGENDAD[OA]|SUB|SUBBED)\b/.test(t)) {
+    return 'Nacional';
+  }
+
+  if (isExplicitDub && isExplicitSub) return 'Dual';
+  if (isExplicitDub) return 'Dublado';
+  if (isExplicitSub) return 'Legendado';
+
+  return '';
+}
+
+// Marcas estrangeiras explícitas não devem vencer por seeders quando o objetivo
+// é aquecer um pack utilizável. MULTI/DUAL ficam fora desta lista: carregam a
+// faixa original e não provam que o torrent não serve ao usuário.
+function hasExplicitForeignAudio(title = '') {
+  const t = String(title).toUpperCase();
+  if (explicitPtAudio(title)) return false;
+  // Esta lista é OUTRA coisa da guarda FOREIGN_DUB_LANG_RE: aqui é EVIDÊNCIA de
+  // idioma estrangeiro (prova positiva que autoriza condenar), não guarda de
+  // marcador PT — por isso a assimetria é deliberada, e por isso esta lista é
+  // a MENOR das duas. Condenar aciona sweepUndubbed, que APAGA da conta: um
+  // idioma entra aqui só depois de aparecer numa medição real, um por vez.
+  // HINDI entrou assim; UKRAINIAN entra agora pelo mesmo motivo (`[Ukr Dub]`
+  // medido em produção). A guarda pode ser generosa porque só deixa de
+  // absolver; esta não pode, porque destrói. Assimetria travada por
+  // test/audio-cleanup-classifiers.test.ts — com PT-BR explícito ao lado,
+  // explicitPtAudio corta aqui antes.
+  return /\b(TRUEFRENCH|FRENCH|VOSTFR|VF|ITA|SUBITA|ESPANOL|CASTELLANO|RUS|GERMAN|NL|HINDI|UKR|UKRAINIAN)\b/.test(t);
+}
+
+/**
+ * Dublado pt-BR visível no TÍTULO, independente do indexer. Tracker global
+ * hospeda bastante release dublada titulada em português ("Jornada Nas
+ * Estrelas … Dublado"); sem essa marca o resultado chegava com isBr=false,
+ * era julgado contra o nome em inglês e morria antes das vagas BR.
+ *
+ * "Dual" sozinho não basta: em tracker global pode ser EN+qualquer idioma —
+ * só conta com o PT explícito ao lado. Reusa os classificadores de áudio já
+ * calibrados, em vez de uma segunda lista que divergiria.
+ */
+function looksPtBr(title = '') {
+  const audio = audioFromTitle(title);
+  if (audio === 'Dublado' || audio === 'Nacional') return true;
+  // `Dual` SOZINHO segue ambíguo (invariante 8.12): `hasPtSigns` entra em
+  // CONJUNÇÃO, nunca no lugar da marca de áudio. Sem isto a release BR escrita
+  // "Dual Áudio" (em vez de "Dublado") não era reconhecida e sumia da lista na
+  // disputa de cota. Medição e cadeia causal em AGENTS.md, "Dual + título em
+  // português".
+  return audio === 'Dual' && (explicitPtAudio(title) || hasPtSigns(title));
+}
+
+type AudioBucket = 'dub' | 'dual' | 'pt' | 'lixo';
+
+/**
+ * Balde de áudio por título:
+ *   dub  — dublado/nacional/dual+PT explícito (looksPtBr);
+ *   dual — Dual/Multi sem PT ao lado E sem idioma nomeado (ambíguo);
+ *   pt   — sem marca de áudio, mas com sinal de português ou ORIGEM BR no
+ *          título (brOriginMark, blindagem 8.4 — os 4 falsos positivos
+ *          medidos eram site BR condenado por não citar "dublado");
+ *   lixo — legendado, áudio estrangeiro explícito, dual com idioma estrangeiro
+ *          nomeado, ou sem marca NEM sinal de PT.
+ *
+ * Dual + idioma nomeado (`[Dual Audio] [Hindi DD 5.1]`) saiu do balde ambíguo:
+ * a faixa extra é Hindi/Tamil/Ukr, não o português — ficar em `dual` escondia o
+ * item da triagem do painel (~452 linhas misturadas) e a absolvição pelo
+ * marcador `dual` deixava `foreignProof` vazio. A guarda é o núcleo da lista
+ * AMPLA sem `MULTI`: MULTI puro continua `dual` (contrato de `audioFromTitle`),
+ * e Dual com PT ao lado sobe para `dub` antes daqui (looksPtBr).
+ */
+function audioBucket(title = ''): AudioBucket {
+  if (looksPtBr(title)) return 'dub';
+  if (audioFromTitle(title) === 'Dual') return foreignLangNamedForBucket(title) ? 'lixo' : 'dual';
+  if (hasPtSigns(title) || brOriginMark(title)) return 'pt';
+  return 'lixo';
+}
+
+/**
+ * Veredito de ESTRANGEIRO com a assimetria do dubbedLieVerdict invertida para
+ * o caminho da deleção: ausência de PT nunca condena — condenar exige prova
+ * positiva de idioma estrangeiro. Um único marcador PT em qualquer lugar
+ * (título do post OU path real de arquivo) absolve, porque falso positivo
+ * aqui destrói acervo BR que custou horas de download.
+ *
+ *   absolve  — sinal PT em algum lugar;
+ *   condena  — marca de áudio estrangeiro explícita OU grupo de cena EN
+ *              reconhecido, e NENHUM sinal PT em lugar nenhum;
+ *   unknown  — sem prova nos dois lados: nunca apaga (é o caso que o
+ *              catálogo resolve com auditoria de arquivos, não com palpite).
+ */
+type ForeignVerdict = 'absolve' | 'condena' | 'unknown';
+
+function foreignVerdict(filename = '', videoPaths: string[] = []): ForeignVerdict {
+  const candidates = [String(filename || ''), ...videoPaths.map(String)].filter(Boolean);
+  // brOriginMark (8.4) entra no lado que ABSOLVE: origem BR no nome protege
+  // mesmo sem marca de áudio — condenar aqui apaga acervo da conta.
+  const temSinalPt = candidates.some((p) => looksPtBr(p) || hasPtSigns(p) || hasPtAudioMark(p) || brOriginMark(p));
+  if (temSinalPt) return 'absolve';
+  // Dublagem declarada no título (DUB/DUBBED/DUBLADO…): o dono afirma que o
+  // áudio É dublado — o idioma pode ser qualquer um, mas não é prova de que
+  // NÃO é o PT, então o grupo de cena EN sozinho não basta para condenar.
+  const declaraDublagem = (p: string) => /\b(?:DUB|DUBBED|DUBLAD[OA]|DUBLAGEM)\b/i.test(p);
+  const provaEstrangeira = candidates.some(
+    (p) => hasExplicitForeignAudio(p) || (Boolean(strongEnSceneMark(p)) && !declaraDublagem(p)),
+  );
+  return provaEstrangeira ? 'condena' : 'unknown';
+}
+
+function compactAudio(audio = '') {
+  if (audio === 'Dublado') return 'DUB';
+  if (audio === 'Legendado') return 'LEG';
+  if (audio === 'Dual') return 'DUAL';
+  if (audio === 'Nacional') return 'NAC';
+  return '';
+}
+
+const TRACKER_LABEL_MAX = 14;
+
+/**
+ * Nome da fonte para a coluna estreita: o TLD não ajuda a reconhecer o site e,
+ * passando de TRACKER_LABEL_MAX, o rótulo empurra o seeder para fora.
+ *
+ * A escada existe porque cortar seco parte a palavra no meio ("kickasstorrents"
+ * virava "kickasstorrent"), e nome truncado assim é pior que nome curto: o
+ * usuário lê como se fosse outra fonte.
+ */
+function compactTracker(tracker = '') {
+  let label = String(tracker).trim().replace(/(?:\.[a-z]{2,})+$/i, '');
+  if (label.length <= TRACKER_LABEL_MAX) return label;
+
+  // Todos esses sites repetem "torrent(s)" no nome — é a parte que menos
+  // identifica ("ComandoTorrents" → "Comando", como o Torrentio exibe).
+  const withoutSuffix = label.replace(/[\s_-]*torrents?$/i, '');
+  if (withoutSuffix.length >= 4) label = withoutSuffix;
+  if (label.length <= TRACKER_LABEL_MAX) return label;
+
+  // Última fronteira que ainda cabe: separador ou transição camelCase
+  // ("NerdFilmesTorrent" → "NerdFilmes"). Sobrando menos de 4 chars o corte
+  // não identifica mais nada, e aí o corte seco é menos ruim.
+  const window = label.slice(0, TRACKER_LABEL_MAX + 1);
+  const boundaries = [...window.matchAll(/[\s_-]+|(?<=[a-z0-9])(?=[A-Z])/g)]
+    .map((m) => m.index)
+    .filter((index) => index >= 4);
+  if (boundaries.length) return label.slice(0, boundaries[boundaries.length - 1]);
+
+  return label.slice(0, TRACKER_LABEL_MAX);
+}
+
+export {
+  UNKNOWN_QUALITY,
+  stripQualityTagBlob,
+  qualityFromTitle,
+  sourceFromTitle,
+  editionFromTitle,
+  explicitPtAudio,
+  hasPtAudioMark,
+  strongEnSceneMark,
+  dubbedLieVerdict,
+  audioFromTitle,
+  hasExplicitForeignAudio,
+  looksPtBr,
+  audioBucket,
+  foreignVerdict,
+  compactAudio,
+  compactTracker,
+};
+export type { AudioBucket, ForeignVerdict };
+export { hasPtSigns, brOriginMark } from './br-origin.js';

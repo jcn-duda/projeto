@@ -1,0 +1,24 @@
+{
+  // Emit do cliente para o BROWSER: ESM nativo (sem AMD, sem loader, sem
+  // bundle). O entry e os filhos são servidos por allowlist fechada em
+  // src/routes/public.ts; por isso os imports do fonte usam extensão `.js`
+  // explícita — o browser resolve o grafo real, módulo a módulo.
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": [],
+    "rootDir": "src/client",
+    "outDir": "dist/src/public/client",
+    "noEmitOnError": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "useUnknownInCatchVariables": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "sourceMap": false,
+    "declaration": false
+  },
+  "include": ["src/client/**/*.ts"]
+}

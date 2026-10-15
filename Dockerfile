@@ -1,8 +1,7 @@
-# Container único: servidor Rust + Jackett + FlareSolverr + Caddy na mesma
-# imagem. Branch `rust`: sem Node — a versão TypeScript vive no branch `esm`.
+# Container único: addon + Jackett + FlareSolverr + Caddy na mesma imagem.
 # Cada stage só empresta o binário/app; o runtime é um alpine só.
 #
-# A base é alpine:3.24 de propósito: é o MESMO musl da imagem
+# A base é node:22-alpine (alpine 3.24) de propósito: é o MESMO musl da imagem
 # linuxserver/jackett, então o .NET self-contained do Jackett (libcoreclr.so
 # embutida) roda sem risco de incompatibilidade de libc.
 
@@ -22,22 +21,62 @@ FROM lscr.io/linuxserver/jackett@sha256:099e895abbeb4564f8c5cb5f2def66462d73dffa
 # (2026-09-12; antes v3.5.0).
 FROM ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767 AS flaresolverr
 
-# --- Binários Rust (estáticos, musl). Mesma toolchain do rust/rust-toolchain.toml
-# (1.92.0); o arquivo não é copiado porque os componentes clippy/rustfmt dele
-# fariam o rustup baixar o que o build não usa.
-FROM rust:1.92.0-alpine AS rust
+# --- Núcleo Rust (ponte napi): compila o adom-napi como .node para o musl do
+# runtime. Mesma toolchain do rust/rust-toolchain.toml (1.92.0 = Unicode 17, a
+# paridade do toLowerCase com o Node depende disso). O rust-toolchain.toml não
+# é copiado de propósito: os componentes clippy/rustfmt dele fariam o rustup
+# baixar coisa que o build não usa. Em musl o Rust linka estático por padrão e
+# recusa cdylib — o `-crt-static` é o que deixa sair a biblioteca dinâmica.
+# Só é CARREGADO com RUST_CORE=shadow|on; sem isso a imagem ignora o arquivo.
+FROM rust:1.92.0-alpine AS rustcore
 RUN apk add --no-cache musl-dev
 WORKDIR /rust
 COPY rust/Cargo.toml rust/Cargo.lock ./
 COPY rust/crates ./crates
-RUN cargo build --locked --release --bin adom-sidecar --bin adom-resolvers --bin adom-server \
- && mkdir /out \
- && cp target/release/adom-sidecar target/release/adom-resolvers target/release/adom-server /out/
+ENV RUSTFLAGS="-C target-feature=-crt-static"
+RUN cargo build --locked --release -p adom-napi \
+ && cp target/release/libadom_napi.so /adom_napi.node
+# Compila o sidecar do raspador (binário estático musl, igual ao adom-napi)
+RUN cargo build --locked --release --bin adom-sidecar \
+ && cp target/release/adom-sidecar /adom-sidecar
+# Compila os resolvers BR em Rust (binário estático musl, mesmo padrão)
+RUN cargo build --locked --release --bin adom-resolvers \
+ && cp target/release/adom-resolvers /adom-resolvers
+# Gateway (GATEWAY=on): escuta a 7000 e encaminha ao Node na 7100.
+RUN cargo build --locked --release --bin adom-server \
+ && cp target/release/adom-server /adom-server
+
+# --- Build: compila .ts → .js em dist/ e copia assets estáticos.
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+# O cliente tem os próprios tsconfigs: o `npm run build` do builder emite o
+# browser (dist/src/public/client) e o Node para testes (dist/src/client).
+COPY tsconfig.client.json ./
+COPY tsconfig.client.test.json ./
+COPY src ./src
+COPY types ./types
+COPY scripts ./scripts
+COPY resolvers ./resolvers
+COPY bludv-resolver ./bludv-resolver
+COPY comandotorrents-resolver ./comandotorrents-resolver
+COPY nerdfilmes-resolver ./nerdfilmes-resolver
+COPY torrentdosfilmes-resolver ./torrentdosfilmes-resolver
+COPY vacatorrent-resolver ./vacatorrent-resolver
+COPY redetorrent-resolver ./redetorrent-resolver
+COPY apachetorrent-resolver ./apachetorrent-resolver
+# `test/` fica de fora de propósito: está no .dockerignore e a imagem de runtime
+# não roda a suíte. O `include` do tsconfig cobre test/**, mas glob que não casa
+# nada é no-op para o tsc — o build sai com dist/src, dist/scripts e os assets.
+RUN npm run build
 
 # --- Runtime.
-FROM alpine:3.24
+FROM node:22-alpine
 
 WORKDIR /app
+ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=7000
 
@@ -76,31 +115,63 @@ COPY --from=flaresolverr /app /app/flaresolverr
 RUN cp /usr/bin/chromedriver /app/chromedriver \
  && python3 -m pip install --break-system-packages --no-cache-dir \
       -r /app/flaresolverr/requirements.txt
-# O FlareSolverr lê a própria versão de /app/package.json (diretório pai).
-RUN echo '{"name":"flaresolverr","version":"3.5.2"}' > /app/package.json
 
-# --- Servidor, resolvers BR (8700-8707, chamados pelo Jackett) e raspador.
-COPY --from=rust /out/ /app/bin/
-# Páginas estáticas (configuração e painel) para as rotas que o servidor portar.
-COPY web/public /app/web/public
+# --- Addon compilado + resolvedores BR embutidos (8700-8706, chamados pelo Jackett).
+# O br-resolvers importa estaticamente os PROFILES por caminho relativo ao
+# próprio módulo ("../resolvers/profiles/<nome>.js", ESM nativo), que a partir
+# de dist/src/ resolve em dist/resolvers/. É o tsc que compila/emite resolvers/
+# para dentro de dist/ (include `resolvers/**` no tsconfig; o build-assets não
+# copia mais resolvers/), então o layout da imagem é o mesmo do `npm run build`.
+# Os shims dist/*-resolver/ são ESM (export default lazy) e existem para testes
+# e modo processo-separado; o caminho de produção não os usa.
+COPY package.json package-lock.json ./
+# O FlareSolverr procura package.json no diretório PAI (/app/package.json),
+# que é o do addon — escrito no Windows com BOM. Python 3.14+ rejeita BOM
+# no json.loads.
+RUN python3 -c "p='/app/package.json';b=open(p,'rb').read();open(p,'wb').write(b[3:]if b[:3]==b'\xef\xbb\xbf'else b)"
+# Usa as mesmas versões verificadas no builder e no CI.
+RUN npm ci --omit=dev
+
+# Saída do tsc: dist/src/, dist/scripts/ e dist/src/public/ (assets). Sem
+# dist/test: a suíte não vai para a imagem (ver o builder). O núcleo dos
+# resolvedores vive SÓ em dist/resolvers (é o que o br-resolvers resolve a
+# partir de dist/src/); não há cópia crua em /app/resolvers.
+COPY --from=builder /app/dist ./dist
+# Ponte Rust: caminho default do src/utils/rust-core.ts (dist/rust/).
+COPY --from=rustcore /adom_napi.node ./dist/rust/adom_napi.node
+# Sidecar do raspador Rust (C4): loop de crawl em binário estático musl.
+COPY --from=rustcore /adom-sidecar ./dist/rust/adom-sidecar
+# Resolvers BR em Rust (BR_RESOLVER_RUST): binário que assume as portas dos sites delegados.
+COPY --from=rustcore /adom-resolvers ./dist/rust/adom-resolvers
+COPY --from=rustcore /adom-server ./dist/rust/adom-server
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# 7000 (servidor/LAN), 80/443 (Caddy). Jackett e FlareSolverr ficam em loopback,
+# 7000 (addon/LAN), 80/443 (Caddy). Jackett e FlareSolverr ficam em loopback,
 # expostos só se o compose publicar 127.0.0.1:9117/8191.
 EXPOSE 7000 80 443
 
-# Os QUATRO serviços: servidor, Jackett, FlareSolverr e Caddy. A API admin do
-# Caddy exige `Origin` explícito (sem ele responde 403 e o container cairia em
-# unhealthy com tudo vivo). 301/302 do Jackett (login) conta como vivo: o
-# busybox wget se perde no redirect dele, então vale o primeiro status. O
-# HEALTHCHECK não reinicia nada — quem age é o `wait -n` do entrypoint; isto é
-# sinal para `docker ps`.
+# Os QUATRO serviços da stack: addon, Jackett, FlareSolverr e Caddy. A API
+# administrativa do Caddy fica só no loopback e confirma processo + config sem
+# acoplar o healthcheck ao desafio ACME/DNS do site público. 302 do Jackett
+# (login) conta como vivo.
+#
+#  - a sonda do Caddy vai com `Origin` explícito: a API admin faz origin check
+#    e o fetch do Node não manda o header, então sem ele a resposta é
+#    403 ("client is not allowed to access from origin ''") e o container
+#    inteiro cairia em unhealthy com os quatro processos vivos.
+#
+# Escopo, pra não confiar demais nisto:
+#  - o HEALTHCHECK sozinho NÃO reinicia nada aqui. `restart: unless-stopped`
+#    reage à saída do container, não ao status unhealthy (só o Swarm reage a
+#    ele). Quem age é o `wait -n` do entrypoint, que derruba tudo quando um
+#    processo morre. Isto é sinal para `docker ps`/log, não recuperação.
+#  - o GET / do FlareSolverr responde do próprio processo, sem abrir o
+#    Chromium: pega processo morto ou porta fechada, NÃO pega Chromium travado
+#    no meio de um desafio. Cobrir isso exigiria um request.get real a cada
+#    30s — caro e falso-positivo fácil.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1:7000/health \
-   && wget -S -O /dev/null http://127.0.0.1:9117/ 2>&1 | grep -q "HTTP/1.1 [23]" \
-   && wget -q -O /dev/null http://127.0.0.1:8191/ \
-   && wget -q -O /dev/null --header "Origin: http://127.0.0.1:2019" http://127.0.0.1:2019/config/
+  CMD node -e "Promise.all([...['http://127.0.0.1:7000/manifest.json','http://127.0.0.1:9117/','http://127.0.0.1:8191/'].map(u=>fetch(u,{redirect:'manual'})),fetch('http://127.0.0.1:2019/config/',{redirect:'manual',headers:{Origin:'http://127.0.0.1:2019'}})]).then(rs=>{for(const r of rs)if(!(r.ok||r.status<400))process.exit(1)}).catch(()=>process.exit(1))"
 
 CMD ["/app/entrypoint.sh"]

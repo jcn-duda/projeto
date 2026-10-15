@@ -1,6 +1,11 @@
-# Portão do workspace Rust (branch `rust`: só Rust). Testes contra os goldens
-# commitados (gerados do TypeScript do branch `esm`), clippy, fmt, catraca de
-# 400 linhas e auditoria do Cargo.lock (cargo-audit).
+# Portão de regressão do workspace Rust (fatias F0/F1 da migração TS→Rust).
+# Testa o crate `adom-core` — integridade do golden + paridade do `normalizeTitle`
+# — sem portar função nova e sem tocar no addon Node. Audita também as
+# dependências do Cargo.lock contra o RustSec advisory-db (cargo-audit).
+#
+# Workflow separado do ci.yml porque o filtro de caminho é por workflow: sem
+# ele, mudança em rust/ (ou no corpus/gerador que o golden consome) passaria sem
+# nenhum gate Rust, e o verde do CI Node não diria nada sobre a paridade.
 #
 # A toolchain NÃO é fixada aqui: quem manda é `rust/rust-toolchain.toml` (1.92.0,
 # a primeira estável com `char::UNICODE_VERSION = (17, 0, 0)`, o mesmo Unicode do
@@ -21,7 +26,11 @@ on:
       # verificado (hash/contagem) e precisa passar pelo mesmo portão.
       - 'scripts/golden/**'
       - 'scripts/rust/**'
+      - 'src/**'
+      - 'resolvers/**'
       - 'test/fixtures/**'
+      - 'package.json'
+      - 'package-lock.json'
       # Auto-referência: editar este workflow precisa reexecutá-lo (PR incluído).
       - '.github/workflows/rust.yml'
   pull_request:
@@ -31,7 +40,11 @@ on:
       - 'rust/**'
       - 'scripts/golden/**'
       - 'scripts/rust/**'
+      - 'src/**'
+      - 'resolvers/**'
       - 'test/fixtures/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/rust.yml'
   workflow_dispatch:
 
@@ -57,7 +70,25 @@ jobs:
       - name: Toolchain pinada (rust/rust-toolchain.toml)
         run: rustup show
 
-      # Contra o `expected` commitado dos goldens — nunca input == expected.
+      # O oráculo é o TypeScript compilado, sem hooks Rust instalados.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+
+      - name: Compilar oráculo TypeScript
+        working-directory: .
+        run: npm ci && npm run build
+
+      - name: Goldens do raspador contra TypeScript puro
+        working-directory: .
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: npm run golden:crawl-parsers:check && npm run golden:crawl-policy:check
+
+      # 16 testes, 76 comparações (23 goldens + 45 vetores Unicode 17 + 8 do
+      # glue UTF-16 da sigla) contra o `expected` commitado — nunca input == expected.
       - name: Testes
         run: cargo test --workspace --locked
 
@@ -67,7 +98,22 @@ jobs:
       - name: Formatação
         run: cargo fmt --all -- --check
 
-      # Catraca de 400 linhas por arquivo.
+      # Carrega a ponte real no Node; compilar só o rlib não valida o NAPI.
+      - name: Compilar ponte NAPI
+        run: cargo build -p adom-napi --locked
+
+      - name: Preparar artefato NAPI
+        working-directory: .
+        run: mkdir -p dist/rust && cp rust/target/debug/libadom_napi.so dist/rust/adom_napi.node
+
+      - name: Paridade real dos parsers TS × Rust (NAPI)
+        working-directory: .
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: npm run test:crawl-parity
+
+      # Catraca de 400 linhas por arquivo, par da de .ts (npm run lint:lines).
       # O default do job é rust/, mas a régua é o caminho rust/crates/** — por
       # isso este passo volta para a RAIZ do repo. Percorre só fontes .rs, fora
       # de target/vendor: qualquer fonte acima do teto reprova e ZERO fontes

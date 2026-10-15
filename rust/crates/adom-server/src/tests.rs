@@ -12,13 +12,7 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use tokio::net::TcpListener;
 
-use std::sync::atomic::AtomicI64;
-
-use crate::acervo::Acervo;
 use crate::config::{native_health, Config};
-use crate::internal::Internal;
-
-pub(crate) const TOKEN: &str = "token-de-teste";
 use crate::proxy::{self, AppState};
 
 #[derive(Clone)]
@@ -62,18 +56,13 @@ async fn echo(State(hits): State<Hits>, req: Request<Body>) -> Body {
     Body::from(payload.to_string())
 }
 
-pub(crate) async fn spawn_gateway(upstream: Option<SocketAddr>, native_health: bool) -> SocketAddr {
+async fn spawn_gateway(upstream: SocketAddr, native_health: bool) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let state = AppState {
         client: proxy::client(),
-        upstream: upstream.map(|u| format!("http://{u}").parse().unwrap()),
+        upstream: format!("http://{upstream}").parse().unwrap(),
         native_health,
-        internal: Arc::new(Internal {
-            token: TOKEN.to_string(),
-            acervo: Acervo::in_memory().unwrap(),
-            last_user_ms: AtomicI64::new(0),
-        }),
     };
     tokio::spawn(async move {
         axum::serve(listener, proxy::router(state)).await.unwrap();
@@ -81,7 +70,7 @@ pub(crate) async fn spawn_gateway(upstream: Option<SocketAddr>, native_health: b
     addr
 }
 
-pub(crate) async fn call(addr: SocketAddr, req: Request<Body>) -> (StatusCode, String) {
+async fn call(addr: SocketAddr, req: Request<Body>) -> (StatusCode, String) {
     let client = proxy::client();
     let (mut parts, body) = req.into_parts();
     let pq = parts
@@ -110,7 +99,7 @@ fn health_so_com_token_exato() {
 #[tokio::test]
 async fn proxy_repassa_corpo_query_e_host() {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway(Some(upstream), false).await;
+    let gateway = spawn_gateway(upstream, false).await;
     let req = Request::builder()
         .method("POST")
         .uri("/filme?ano=2024")
@@ -133,7 +122,7 @@ async fn proxy_repassa_corpo_query_e_host() {
 #[tokio::test]
 async fn health_nativo_nao_toca_o_upstream() {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway(Some(upstream), true).await;
+    let gateway = spawn_gateway(upstream, true).await;
     let health = Request::builder()
         .uri("/health")
         .body(Body::empty())
@@ -157,7 +146,7 @@ async fn upstream_morto_responde_502() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     drop(listener);
-    let gateway = spawn_gateway(Some(SocketAddr::from(([127, 0, 0, 1], port))), false).await;
+    let gateway = spawn_gateway(SocketAddr::from(([127, 0, 0, 1], port)), false).await;
     let req = Request::builder()
         .uri("/health")
         .body(Body::empty())
@@ -179,13 +168,4 @@ fn config_rejeita_upstream_sem_host() {
     assert!(Config::parse("127.0.0.1:9", "http://", "").is_err());
     let ok = Config::parse("127.0.0.1:9", "http://127.0.0.1:7100", "health").unwrap();
     assert!(ok.native_health);
-    let only_rust = Config::parse("127.0.0.1:9", "", "").unwrap();
-    assert!(
-        only_rust.upstream.is_none() && only_rust.native_health,
-        "sem Node o health é nativo"
-    );
-    assert!(Config::parse("127.0.0.1:9", "off", "")
-        .unwrap()
-        .upstream
-        .is_none());
 }
