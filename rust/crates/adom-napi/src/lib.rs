@@ -28,6 +28,7 @@
 //! | `cacheQuotaFor`           | `cache_quotas::quota_for`  | Cota de um namespace do cache       |
 //! | `cacheNamespaceFor`       | `cache_quotas::namespace_for`| Namespace de uma chave            |
 //! | `cacheQuotasDump`         | `cache_quotas` (tabela)    | Contrato inteiro das cotas em JSON  |
+//! | `releaseIndexMediaMerge`  | `merge_media_source`       | Fonte de mídia do índice (sombra)   |
 //!
 //! ## Responsabilidade
 //!
@@ -46,6 +47,7 @@ mod debrid;
 mod debrid_cache;
 mod debrid_clean;
 mod debrid_rd;
+mod release_index_media;
 
 pub use cache::*;
 pub use crawl::*;
@@ -54,6 +56,7 @@ pub use debrid::*;
 pub use debrid_cache::*;
 pub use debrid_clean::*;
 pub use debrid_rd::*;
+pub use release_index_media::*;
 
 // ---------------------------------------------------------------------------
 // Structs de saída (espelham os tipos do adom-core com campos NAPI-compatible)
