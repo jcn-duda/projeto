@@ -31,6 +31,12 @@ export const server = () => ({
   rustReleaseIndex: {
     mode: rustMode(process.env.RUST_RELEASE_INDEX, 'off'),
   },
+  // Autofetch (Chupim): sombra do lote de seleção de candidatos
+  // (`rust-autofetch.ts`). A seleção real (portões/travas/sonda/fila) segue no
+  // TS; off = no-op, shadow/on rodam a comparação agendada fora da resposta.
+  rustAutofetch: {
+    mode: rustMode(process.env.RUST_AUTOFETCH, 'off'),
+  },
   // Debrid: as decisões são do Rust por padrão (on; TS de reserva se o Rust
   // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
   // explícitos voltam ao TS; valor desconhecido = off.

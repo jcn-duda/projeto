@@ -469,6 +469,7 @@
     "test/idx-media-source.test.js",
     "test/stream-builder-idx-episode.test.js",
     "test/rust-release-index.test.js",
-    "test/rust-shadow.test.js"
+    "test/rust-shadow.test.js",
+    "test/rust-autofetch.test.js"
   ]
 }

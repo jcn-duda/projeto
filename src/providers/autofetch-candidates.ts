@@ -27,6 +27,7 @@ import {
 import { writeChupimTrace, chupimProbeLabel, type ChupimSeeds } from './autofetch-chupim-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import * as metrics from '../utils/metrics.js';
+import { observeAutofetch, autofetchShadowEnabled } from '../utils/rust-autofetch.js';
 
 // Seleção do Chupim extraída do runner para a catraca de linhas. Continua sendo
 // o passe SÍNCRONO, sem rede: escolhe os candidatos e segura os hashes; quem
@@ -124,6 +125,8 @@ export function autoFetchCandidates(
 
   const queueDepth = live.autoFetchQueue ? live.autoFetchQueueDepth : 0;
   const totalMax = live.autoFetchMax + queueDepth;
+  // Sombra Rust (`RUST_AUTOFETCH`): fila capturada só quando o hook está ligado.
+  let queueEntriesForShadow: Array<{ hash: string; pool: string }> = [];
 
   // Cascata br → any → seeds: no pool BR pega 1 por qualidade-alvo
   // (720/1080/4K); recusar o nível `any` não pode abortar a busca inteira —
@@ -270,6 +273,10 @@ export function autoFetchCandidates(
       fallbacks,
       queueDepth,
     );
+    // Sombra Rust: captura a fila já calculada (hash+pool) sem tocar na escrita.
+    if (autofetchShadowEnabled()) {
+      queueEntriesForShadow = entries.map((e) => ({ hash: String(e.stream.infoHash || ''), pool: e.pool }));
+    }
     autofetch.writeQueue(
       searchKey,
       entries.map(({ stream, pool: entryPool, rare, slotLimit }) => toQueueCandidate(stream, entryPool, {
@@ -292,6 +299,23 @@ export function autoFetchCandidates(
   const poolOut: 'br' | 'any' | 'seeds' | 'none' = candidates.length > 0 ? (pool as 'br' | 'any' | 'seeds') : 'none';
   const seedsOut: ChupimSeeds = seedsEvaluated ? (seedsReason ? `blocked:${seedsReason}` : 'allowed') : 'n/a';
   writeChupimTrace(trace, { pool: poolOut, seeds: seedsOut, probe: chupimProbeLabel(probeWork) });
+
+  // Sombra Rust: agenda (fora da resposta) a repetição determinística da cascata
+  // e compara com o que o TS acabou de decidir. off = no-op; nunca muda o retorno.
+  if (autofetchShadowEnabled()) {
+    observeAutofetch({
+      streams: liveStreams,
+      pool,
+      immediateHashes: immediate.map((s) => String(s.infoHash || '')),
+      queueEntries: queueEntriesForShadow,
+      season,
+      queueDepth,
+      live,
+      policy,
+      autoFetchBr,
+      adapter,
+    });
+  }
 
   return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit, rare: seedsRare } : {}) }));
 }

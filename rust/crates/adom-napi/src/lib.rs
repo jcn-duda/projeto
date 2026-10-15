@@ -29,6 +29,7 @@
 //! | `cacheNamespaceFor`       | `cache_quotas::namespace_for`| Namespace de uma chave            |
 //! | `cacheQuotasDump`         | `cache_quotas` (tabela)    | Contrato inteiro das cotas em JSON  |
 //! | `releaseIndexMediaMerge`  | `merge_media_source`       | Fonte de mídia do índice (sombra)   |
+//! | `evaluateAutofetchCandidates` | módulos `autofetch_*`  | Lote da seleção de candidatos       |
 //!
 //! ## Responsabilidade
 //!
@@ -40,6 +41,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
+mod autofetch;
 mod batch;
 mod cache;
 mod crawl;
@@ -49,6 +51,8 @@ mod debrid_clean;
 mod debrid_rd;
 mod release_index_media;
 
+// Lote do autofetch (Chupim): reexporta para o `#[napi]` não ser marcado morto.
+pub use autofetch::*;
 pub use cache::*;
 pub use crawl::*;
 // Reexporta o seletor: sem isto o clippy marca `#[napi]` do módulo privado como morto.
