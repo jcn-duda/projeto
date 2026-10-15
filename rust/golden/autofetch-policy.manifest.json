@@ -13,7 +13,7 @@
   },
   "corpus": {
     "path": "scripts/golden/corpus-autofetch-policy.json",
-    "sha256": "467a5fd8b2144fa6066ac48d138c61ba5e3a72d688f9e4e2d91a4deaa8016155",
+    "sha256": "f8c0fd21b6ee7c2f6f7627bf6aadd215b0a971aa0be237a33ea2f473073f5d80",
     "cases": 72
   },
   "output": {
