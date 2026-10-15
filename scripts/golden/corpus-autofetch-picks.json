@@ -1,0 +1,316 @@
+{
+  "version": "corpus-autofetch-picks/1",
+  "note": "Cascata de picks do autofetch BR (src/utils/autofetch-picks.ts), medida no dist vivo pelo oráculo isolado. Ops: pickBr/pickAny/pickTop → {\"ids\":[...],\"stable\":true}; hasCachedBr/hasCachedAny/canAutoFetch → {\"value\":bool,\"stable\":true}; cachedTargets → {\"qualities\":[...],\"stable\":true}; uncachedBr → {\"ids\":[...],\"stable\":true} (ordem de seleção, casca original); filterKnown → {\"ids\":[...],\"visibleBr\":[...],\"stable\":true}. pickBrDubbedByTargetQualities já é coberto pelo golden br-pool-selection; brListableDubPool/pickFromPool não são exportados pelo TS e entram via uncachedBr/filterKnown/pickers.",
+  "cases": [
+    {
+      "id": "pickbr-001",
+      "input": "{\"op\":\"pickBr\",\"limit\":1,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"seeders\":5,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"1080p\",\"seeders\":9,\"br\":true,\"dubbed\":true}]}",
+      "note": "mesma qualidade: mais seeders vence"
+    },
+    {
+      "id": "pickbr-002",
+      "input": "{\"op\":\"pickBr\",\"limit\":4,\"cached\":[\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"480p\",\"seeders\":3,\"br\":true,\"dubbed\":true},{\"id\":\"dup\",\"infoHash\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"quality\":\"1080p\",\"seeders\":1,\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"seeders\":2,\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"1080p\",\"seeders\":1,\"br\":true,\"dubbed\":true}]}",
+      "note": "dedupe case-insensitive + pula cacheado (B)"
+    },
+    {
+      "id": "pickbr-003",
+      "input": "{\"op\":\"pickBr\",\"limit\":0,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "limit 0 → vazio"
+    },
+    {
+      "id": "pickbr-004",
+      "input": "{\"op\":\"pickBr\",\"limit\":1,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"720p\",\"seeders\":1,\"br\":true,\"dubClaim\":true}]}",
+      "note": "promessa do post vira candidata"
+    },
+    {
+      "id": "pickbr-005",
+      "input": "{\"op\":\"pickBr\",\"limit\":1,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubClaim\":true,\"lied\":true}]}",
+      "note": "promessa que mentiu: fora"
+    },
+    {
+      "id": "pickbr-006",
+      "input": "{\"op\":\"pickBr\",\"limit\":1,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme CAM Dublado 1080p\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "CAM: fora"
+    },
+    {
+      "id": "pickbr-007",
+      "input": "{\"op\":\"pickBr\",\"limit\":1,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true,\"fromFallback\":true}]}",
+      "note": "fallback bloqueado: fora"
+    },
+    {
+      "id": "pickbr-008",
+      "input": "{\"op\":\"pickBr\",\"limit\":1,\"season\":1,\"streams\":[{\"id\":\"ep\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Serie S01E03 1080p Dublado\",\"quality\":\"1080p\",\"seeders\":50,\"br\":true,\"dubbed\":true},{\"id\":\"pack\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Serie S01 Dublado 720p\",\"quality\":\"720p\",\"seeders\":2,\"br\":true,\"dubbed\":true}]}",
+      "note": "pack da temporada pedida vence qualidade/seeders"
+    },
+    {
+      "id": "pickbr-009",
+      "input": "{\"op\":\"pickBr\",\"limit\":9,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "limit maior que o pool"
+    },
+    {
+      "id": "pickbr-010",
+      "input": "{\"op\":\"pickBr\",\"limit\":1,\"streams\":[]}",
+      "note": "pool vazio"
+    },
+    {
+      "id": "pickbr-011",
+      "input": "{\"op\":\"pickBr\",\"limit\":2,\"streams\":[{\"id\":\"leg\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"1080p\",\"seeders\":50,\"br\":true,\"dubbed\":false},{\"id\":\"dub\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"seeders\":1,\"br\":true,\"dubbed\":true}]}",
+      "note": "marca de dublado vence qualidade maior"
+    },
+    {
+      "id": "pickany-001",
+      "input": "{\"op\":\"pickAny\",\"limit\":4,\"streams\":[{\"id\":\"leg\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"1080p\",\"seeders\":50,\"dubbed\":false},{\"id\":\"cam\",\"infoHash\":\"camxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"title\":\"Filme CAM Dublado 1080p\",\"quality\":\"1080p\",\"seeders\":99,\"dubbed\":true},{\"id\":\"dual\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"seeders\":2,\"dubbed\":true}]}",
+      "note": "global sem marca de áudio e CAM: fora"
+    },
+    {
+      "id": "pickany-002",
+      "input": "{\"op\":\"pickAny\",\"limit\":4,\"streams\":[{\"id\":\"uhd\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"2160p\",\"seeders\":999,\"dubbed\":true},{\"id\":\"g720\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"seeders\":100,\"dubbed\":true},{\"id\":\"gdup\",\"infoHash\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"quality\":\"1080p\",\"seeders\":5,\"dubbed\":true},{\"id\":\"g1080\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"seeders\":5,\"dubbed\":true}]}",
+      "note": "ordem 1080/720 antes do 2160 + dedupe"
+    },
+    {
+      "id": "pickany-003",
+      "input": "{\"op\":\"pickAny\",\"limit\":4,\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[{\"id\":\"g1080\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"seeders\":5,\"dubbed\":true},{\"id\":\"g720\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"seeders\":1,\"dubbed\":true}]}",
+      "note": "pula cacheado"
+    },
+    {
+      "id": "pickany-004",
+      "input": "{\"op\":\"pickAny\",\"limit\":1,\"streams\":[{\"id\":\"g1080\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"seeders\":5,\"dubbed\":true},{\"id\":\"g720\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"seeders\":100,\"dubbed\":true}]}",
+      "note": "limit 1 pega o melhor"
+    },
+    {
+      "id": "pickany-005",
+      "input": "{\"op\":\"pickAny\",\"limit\":0,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"dubbed\":true}]}",
+      "note": "limit 0 → vazio"
+    },
+    {
+      "id": "pickany-006",
+      "input": "{\"op\":\"pickAny\",\"limit\":4,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"dubClaim\":true}]}",
+      "note": "claim sem prova não entra no any"
+    },
+    {
+      "id": "pickany-007",
+      "input": "{\"op\":\"pickAny\",\"limit\":4,\"streams\":[]}",
+      "note": "pool vazio"
+    },
+    {
+      "id": "picktop-001",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Movie 1080p\",\"seeders\":1},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Movie2 1080p\",\"seeders\":20}]}",
+      "note": "swarm: mais semeado primeiro"
+    },
+    {
+      "id": "picktop-002",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"minSeeders\":10,\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Movie 1080p\",\"seeders\":1},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Movie2 1080p\",\"seeders\":20}]}",
+      "note": "minSeeders corta o fraco"
+    },
+    {
+      "id": "picktop-003",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"streams\":[{\"id\":\"pt\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme Dublado 720p\",\"seeders\":5},{\"id\":\"raw\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Movie 1080p\",\"seeders\":50}]}",
+      "note": "ptFirst: sinal de PT antes do mais semeado"
+    },
+    {
+      "id": "picktop-004",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"ptFirst\":false,\"streams\":[{\"id\":\"pt\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme Dublado 720p\",\"seeders\":5},{\"id\":\"raw\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Movie 1080p\",\"seeders\":50}]}",
+      "note": "ptFirst=false: seeders decide"
+    },
+    {
+      "id": "picktop-005",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"streams\":[{\"id\":\"fr\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Movie FRENCH 1080p\",\"seeders\":9}]}",
+      "note": "áudio estrangeiro explícito: fora"
+    },
+    {
+      "id": "picktop-006",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"streams\":[{\"id\":\"n\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Movie 👤 42\"}]}",
+      "note": "seeders lidos do 👤 no name"
+    },
+    {
+      "id": "picktop-007",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"cached\":[\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Movie 1080p\",\"seeders\":5},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Movie2 1080p\",\"seeders\":50}]}",
+      "note": "pula cacheado"
+    },
+    {
+      "id": "picktop-008",
+      "input": "{\"op\":\"pickTop\",\"limit\":2,\"streams\":[]}",
+      "note": "pool vazio"
+    },
+    {
+      "id": "hasbr-001",
+      "input": "{\"op\":\"hasCachedBr\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "BR dublado cacheado → true"
+    },
+    {
+      "id": "hasbr-002",
+      "input": "{\"op\":\"hasCachedBr\",\"cached\":[],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "nada cacheado → false"
+    },
+    {
+      "id": "hasbr-003",
+      "input": "{\"op\":\"hasCachedBr\",\"cached\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "cache MAIÚSCULO casa hash minúsculo"
+    },
+    {
+      "id": "hasbr-004",
+      "input": "{\"op\":\"hasCachedBr\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true,\"lied\":true}]}",
+      "note": "lied fora do pool → false"
+    },
+    {
+      "id": "hasbr-005",
+      "input": "{\"op\":\"hasCachedBr\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[]}",
+      "note": "vazio → false"
+    },
+    {
+      "id": "hasany-001",
+      "input": "{\"op\":\"hasCachedAny\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"dubbed\":true}]}",
+      "note": "global dublado cacheado → true"
+    },
+    {
+      "id": "hasany-002",
+      "input": "{\"op\":\"hasCachedAny\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"dubClaim\":true}]}",
+      "note": "claim sem prova: any não conta → false"
+    },
+    {
+      "id": "hasany-003",
+      "input": "{\"op\":\"hasCachedAny\",\"cached\":[],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"dubbed\":true}]}",
+      "note": "vazio de cache → false"
+    },
+    {
+      "id": "ct-001",
+      "input": "{\"op\":\"cachedTargets\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "só a faixa cacheada conta (1080p)"
+    },
+    {
+      "id": "ct-002",
+      "input": "{\"op\":\"cachedTargets\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"cccccccccccccccccccccccccccccccccccccccc\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "três faixas-alvo cobertas"
+    },
+    {
+      "id": "ct-003",
+      "input": "{\"op\":\"cachedTargets\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"sem resolução\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"480p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "unknown/SD nunca entram"
+    },
+    {
+      "id": "ct-004",
+      "input": "{\"op\":\"cachedTargets\",\"cached\":[],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "nada cacheado → vazio"
+    },
+    {
+      "id": "ct-005",
+      "input": "{\"op\":\"cachedTargets\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"streams\":[]}",
+      "note": "pool vazio → vazio"
+    },
+    {
+      "id": "ub-001",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":2,\"cached\":[\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "cacheado no meio não trava; corta no limite"
+    },
+    {
+      "id": "ub-002",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":1,\"cached\":[],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "limit 1"
+    },
+    {
+      "id": "ub-003",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":5,\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"cccccccccccccccccccccccccccccccccccccccc\"],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "tudo cacheado → vazio"
+    },
+    {
+      "id": "ub-004",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":0,\"cached\":[],\"streams\":[{\"id\":\"a\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "limit 0 → vazio"
+    },
+    {
+      "id": "ub-005",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":2,\"cached\":[],\"streams\":[{\"id\":\"claim\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"quality\":\"1080p\",\"br\":true,\"dubClaim\":true},{\"id\":\"proof\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"quality\":\"720p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "prova antes da promessa (sort estável por _dubbed)"
+    },
+    {
+      "id": "ub-006",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":1,\"cached\":[],\"streams\":[{\"id\":\"leg\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Prometheus LEGENDADO\",\"br\":true},{\"id\":\"dub\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Prometheus Dublado\",\"br\":true,\"dubbed\":true}]}",
+      "note": "LEGENDADO não ocupa vaga P2P"
+    },
+    {
+      "id": "ub-007",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":1,\"cached\":[],\"streams\":[{\"id\":\"a\",\"infoHash\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true}]}",
+      "note": "saída na casca original do hash"
+    },
+    {
+      "id": "ub-008",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":1,\"cached\":[],\"streams\":[{\"id\":\"g\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Prometheus 1080p\",\"br\":false},{\"id\":\"br1\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Prometheus Dublado\",\"br\":true,\"dubbed\":true},{\"id\":\"br2\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"title\":\"Prometheus Dual\",\"br\":true,\"dubbed\":true}]}",
+      "note": "global fora; primeira vaga BR"
+    },
+    {
+      "id": "ub-009",
+      "input": "{\"op\":\"uncachedBr\",\"limit\":2,\"cached\":[\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"streams\":[{\"id\":\"g\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Prometheus 1080p\",\"br\":false},{\"id\":\"br1\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Prometheus Dublado\",\"br\":true,\"dubbed\":true},{\"id\":\"br2\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"title\":\"Prometheus Dual\",\"br\":true,\"dubbed\":true}]}",
+      "note": "BR cacheado pula; segunda vaga vai ao próximo"
+    },
+    {
+      "id": "caf-001",
+      "input": "{\"op\":\"canAutoFetch\",\"autoFetchBr\":true,\"cacheCheck\":true,\"autofetchSource\":false}",
+      "note": "toggle + cacheCheck → true"
+    },
+    {
+      "id": "caf-002",
+      "input": "{\"op\":\"canAutoFetch\",\"autoFetchBr\":true,\"cacheCheck\":false,\"autofetchSource\":true}",
+      "note": "toggle + fonte de inventário → true"
+    },
+    {
+      "id": "caf-003",
+      "input": "{\"op\":\"canAutoFetch\",\"autoFetchBr\":true,\"cacheCheck\":false,\"autofetchSource\":false}",
+      "note": "toggle sem trava confiável → false"
+    },
+    {
+      "id": "caf-004",
+      "input": "{\"op\":\"canAutoFetch\",\"autoFetchBr\":false,\"cacheCheck\":true,\"autofetchSource\":true}",
+      "note": "toggle desligado → false"
+    },
+    {
+      "id": "caf-005",
+      "input": "{\"op\":\"canAutoFetch\",\"autoFetchBr\":false,\"cacheCheck\":false,\"autofetchSource\":false}",
+      "note": "tudo desligado → false"
+    },
+    {
+      "id": "fk-001",
+      "input": "{\"op\":\"filterKnown\",\"cachedOnly\":true,\"showUncachedBr\":true,\"brReservedSlots\":1,\"streams\":[{\"id\":\"leg\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Prometheus LEGENDADO\",\"br\":true},{\"id\":\"dub\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"name\":\"Prometheus Dublado\",\"br\":true,\"dubbed\":true}]}",
+      "note": "vaga P2P prefere dublado e ignora LEGENDADO"
+    },
+    {
+      "id": "fk-002",
+      "input": "{\"op\":\"filterKnown\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"cachedOnly\":true,\"showUncachedBr\":true,\"brReservedSlots\":1,\"streams\":[{\"id\":\"gc\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"br\":false},{\"id\":\"gu\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"br\":false},{\"id\":\"bru\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"br\":true,\"dubbed\":true}]}",
+      "note": "mantém cacheado + cota BR fora do cache"
+    },
+    {
+      "id": "fk-003",
+      "input": "{\"op\":\"filterKnown\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"cachedOnly\":true,\"showUncachedBr\":false,\"brReservedSlots\":1,\"streams\":[{\"id\":\"gc\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"br\":false},{\"id\":\"bru\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"br\":true,\"dubbed\":true}]}",
+      "note": "showUncachedBr=false: só o cacheado"
+    },
+    {
+      "id": "fk-004",
+      "input": "{\"op\":\"filterKnown\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"cachedOnly\":true,\"showUncachedBr\":true,\"brReservedSlots\":1,\"streams\":[{\"id\":\"brc\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"br\":true,\"dubbed\":true},{\"id\":\"bru\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"br\":true,\"dubbed\":true}]}",
+      "note": "BR já cacheado desconta a vaga P2P"
+    },
+    {
+      "id": "fk-005",
+      "input": "{\"op\":\"filterKnown\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"cachedOnly\":true,\"known\":true,\"streams\":[{\"id\":\"c\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"br\":false},{\"id\":\"u\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"br\":false},{\"id\":\"m\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"br\":false}]}",
+      "note": "known=true remove não-cacheados"
+    },
+    {
+      "id": "fk-006",
+      "input": "{\"op\":\"filterKnown\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"cachedOnly\":true,\"known\":false,\"missHashes\":[\"cccccccccccccccccccccccccccccccccccccccc\"],\"streams\":[{\"id\":\"c\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"br\":false},{\"id\":\"u\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"br\":false},{\"id\":\"m\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"br\":false}]}",
+      "note": "known=false + miss: só o miss confirmado cai"
+    },
+    {
+      "id": "fk-007",
+      "input": "{\"op\":\"filterKnown\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"cachedOnly\":true,\"known\":false,\"streams\":[{\"id\":\"c\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"br\":false},{\"id\":\"u\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"br\":false},{\"id\":\"m\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"br\":false}]}",
+      "note": "known=false sem miss: nada cai"
+    },
+    {
+      "id": "fk-008",
+      "input": "{\"op\":\"filterKnown\",\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"cachedOnly\":false,\"known\":false,\"missHashes\":[\"cccccccccccccccccccccccccccccccccccccccc\"],\"streams\":[{\"id\":\"c\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"br\":false},{\"id\":\"u\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"br\":false},{\"id\":\"m\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"br\":false}]}",
+      "note": "cachedOnly=false: nada cai"
+    },
+    {
+      "id": "fk-009",
+      "input": "{\"op\":\"filterKnown\",\"cachedOnly\":true,\"showUncachedBr\":true,\"brReservedSlots\":1,\"known\":false,\"missHashes\":[\"cccccccccccccccccccccccccccccccccccccccc\"],\"streams\":[{\"id\":\"brm\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"br\":true,\"dubbed\":true}]}",
+      "note": "vaga BR visível sobrevive mesmo constando em missHashes"
+    }
+  ]
+}

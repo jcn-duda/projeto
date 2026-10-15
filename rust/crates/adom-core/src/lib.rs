@@ -79,6 +79,13 @@ pub use magnet_uri::{default_magnet, sanitize_magnet};
 
 // ── br_origin ─────────────────────────────────────────────────────────
 pub use br_origin::{br_origin_mark, has_pt_signs};
+pub use br_pool_selection::picks::{
+    br_listable_dub_pool, cached_br_dubbed_target_qualities, can_auto_fetch_br, filter_known_cache,
+    has_cached_any_dubbed, has_cached_br_dubbed, hash_set, pick_any_dubbed_candidates,
+    pick_br_dubbed_candidate, pick_br_dubbed_candidates, pick_from_pool,
+    pick_top_seeded_candidates, uncached_br_hashes, FilterKnownOptions, FilterKnownResult,
+    StreamDrop,
+};
 pub use br_pool_selection::{
     any_dubbed_pool, br_dubbed_pool, fallback_blocked, is_autofetch_target_quality,
     pick_br_dubbed_by_target_qualities, top_seeded_pool, PoolOptions, PoolStream,

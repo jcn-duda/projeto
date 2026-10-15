@@ -47,6 +47,10 @@ use crate::stream_quotas_extra::{quality_from_title, UNKNOWN_QUALITY};
 mod target;
 pub use target::pick_br_dubbed_by_target_qualities;
 
+/// Picks do autofetch (`pub mod`, não `pub use`, para caber na catraca de 400
+/// linhas: o crate root reexporta os itens direto de `br_pool_selection::picks`).
+pub mod picks;
+
 /// Faixas que o Chupim cobre com 1 download cada (mesmo balde canônico).
 pub const AUTOFETCH_TARGET_QUALITIES: [&str; 3] = ["1080p", "720p", "2160p"];
 

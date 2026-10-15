@@ -1,0 +1,36 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-picks/pickBrDubbedCandidates"
+  ],
+  "function": {
+    "name": "autofetchPicks"
+  },
+  "functions": [
+    {
+      "name": "autofetchPicks",
+      "sourcePath": "src/utils/autofetch-picks.ts",
+      "sourceSha256": "c1eabaffb7b7dad6251fd28b0c068c78114d8f1c3c2d5ff57b285395998f408f",
+      "artifactPath": "dist/src/utils/autofetch-picks.js",
+      "artifactSha256": "242d06a3e194449ec39580b5d6829d45a36cc4dd41c28c6767b3a52a5e090175"
+    }
+  ],
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-picks.json",
+    "sha256": "ce39a99534a554c797a070c5e57cc318f75e1364647a04d0d5bf56ddf628f9b4",
+    "cases": 62
+  },
+  "output": {
+    "path": "rust/golden/autofetch-picks.jsonl",
+    "sha256": "b6fac991a1bc8ab92567b83f9377b5ff8a952d1da58e8d687dbd2bef46b3c043",
+    "lines": 62
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "fc9bd5612279abebef0f22b031c2c674e8166028"
+  }
+}

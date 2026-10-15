@@ -4,52 +4,11 @@
 
 use std::collections::{HashMap, HashSet};
 
+use super::picks::{hash_set, pick_from_pool};
 use super::{
     br_dubbed_pool, is_autofetch_target_quality, PoolOptions, PoolStream,
     AUTOFETCH_TARGET_QUALITIES,
 };
-
-/// `hashSet`: minúsculas e sem vazios, para o dedupe/cache.
-fn lower_set(hashes: &HashSet<String>) -> HashSet<String> {
-    hashes
-        .iter()
-        .map(|h| h.to_lowercase())
-        .filter(|h| !h.is_empty())
-        .collect()
-}
-
-/// `pickFromPool`: até `limit` do pool JÁ ordenado, dedupe por hash
-/// (case-insensitive) e pulando o que está em cache. Devolve índices do
-/// `streams` original.
-fn pick_from_pool(
-    streams: &[PoolStream],
-    pool: &[usize],
-    cached: &HashSet<String>,
-    limit: i64,
-) -> Vec<usize> {
-    let max = limit.max(0);
-    if max == 0 {
-        return Vec::new();
-    }
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut out: Vec<usize> = Vec::new();
-    for &i in pool {
-        let s = &streams[i];
-        if !s.has_hash() {
-            continue;
-        }
-        let key = s.hash_key();
-        if seen.contains(&key) || cached.contains(&key) {
-            continue;
-        }
-        seen.insert(key);
-        out.push(i);
-        if out.len() as i64 >= max {
-            break;
-        }
-    }
-    out
-}
 
 /// `pickBrDubbedByTargetQualities`: uncached por faixa-alvo (1080 → 720 → 4K),
 /// primários primeiro e depois backups. Sem NENHUMA faixa-alvo no pool, cai no
@@ -65,7 +24,7 @@ pub fn pick_br_dubbed_by_target_qualities(
         return Vec::new();
     }
     let pool = br_dubbed_pool(streams, opts);
-    let cached = lower_set(cached_hashes);
+    let cached = hash_set(cached_hashes);
     let has_target = pool
         .iter()
         .any(|&i| is_autofetch_target_quality(&streams[i].quality_text()));
