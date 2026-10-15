@@ -73,6 +73,8 @@ mod stream_display;
 mod stream_quotas;
 mod stream_quotas_candidate;
 pub mod stream_quotas_extra;
+mod stream_ranking_dedupe;
+mod stream_ranking_types;
 mod stream_relabel;
 mod stream_trace;
 mod strip_diacritics;
@@ -288,6 +290,8 @@ pub use stream_display::{
     compact_tracker, stream_display_name, StreamDisplayConfig, StreamDisplayOptions,
     StreamNameStyle, UserDisplayOptions,
 };
+pub use stream_ranking_dedupe::{dedupe_by_hash, is_generic_dub_token, DedupeInput, DedupeOutput};
+pub use stream_ranking_types::{RankingStream, TraceDrop};
 pub use stream_relabel::{relabel, RelabelOptions, RelabelStream};
 pub use stream_trace::{
     clone_stream_trace, create_stream_trace, drop_trace, finalize_trace, sanitize_chupim_note,

@@ -1,0 +1,164 @@
+{
+  "cases": [
+    {
+      "id": "d-01",
+      "input": "{\"streams\":[],\"indexerPriority\":[]}"
+    },
+    {
+      "id": "d-02",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"2222222222222222222222222222222222222222\",\"name\":\"Filme.2024.1080p.BluRay\\n👤 42\",\"title\":\"Filme 1080p\",\"url\":\"https://tracker/dl/x\",\"behaviorHints\":{\"openVideo\":true},\"_quality\":\"1080p\",\"_seeders\":42,\"_size\":2147483648,\"_bytes\":2147483648,\"_br\":false,\"_dubClaim\":false,\"_dubbed\":false,\"_tracker\":\"BLUDV\",\"_magnetDn\":\"Filme.2024.1080p.BluRay\",\"_multiWork\":false,\"_multiWorkAdmitted\":false,\"_lied\":false,\"source\":\"bludv\"}]}"
+    },
+    {
+      "id": "d-03",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"3333333333333333333333333333333333333333\",\"name\":\"A\\n👤 1\",\"_seeders\":1},{\"infoHash\":\"4444444444444444444444444444444444444444\",\"name\":\"B\\n👤 2\",\"_seeders\":2}]}"
+    },
+    {
+      "id": "d-04",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Fraco\\n👤 5\",\"_seeders\":5},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Forte\\n👤 50\",\"_seeders\":50}]}"
+    },
+    {
+      "id": "d-05",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"EN\\n👤 10\",\"_seeders\":10,\"_dubbed\":false},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Dub\\n👤 10\",\"_seeders\":10,\"_dubbed\":true}]}"
+    },
+    {
+      "id": "d-06",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Sem claim\",\"_seeders\":10,\"_dubbed\":false,\"_dubClaim\":false},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Com claim\",\"_seeders\":10,\"_dubbed\":false,\"_dubClaim\":true}]}"
+    },
+    {
+      "id": "d-07",
+      "input": "{\"indexerPriority\":[\"bludv\"],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"YTS\",\"_seeders\":10,\"_indexer\":\"yts\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"BLUDV\",\"_seeders\":10,\"_indexer\":\"bludv\"}]}"
+    },
+    {
+      "id": "d-08",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Lied DUAL\\n👤 80\",\"_seeders\":80,\"title\":\"Filme DUAL 1080p\",\"_lied\":true,\"_dubbed\":true,\"_dubClaim\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Clean EN\\n👤 20\",\"_seeders\":20,\"title\":\"Filme EN 1080p\",\"_lied\":false,\"_dubbed\":false,\"_dubClaim\":false,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-09",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Clean EN\\n👤 20\",\"_seeders\":20,\"title\":\"Filme EN 1080p\",\"_lied\":false,\"_dubbed\":false,\"_dubClaim\":false,\"_quality\":\"1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Lied DUAL\\n👤 80\",\"_seeders\":80,\"title\":\"Filme DUAL 1080p\",\"_lied\":true,\"_dubbed\":true,\"_dubClaim\":true,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-10",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Honest YTS EN\\n👤 50\",\"_seeders\":50,\"title\":\"Honest YTS EN\",\"_lied\":false,\"_dubbed\":false,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake BluDV DUAL\\n👤 500\",\"_seeders\":500,\"title\":\"Fake BluDV DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake Comando DUAL\\n👤 200\",\"_seeders\":200,\"title\":\"Fake Comando DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-11",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Honest YTS EN\\n👤 50\",\"_seeders\":50,\"title\":\"Honest YTS EN\",\"_lied\":false,\"_dubbed\":false,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake Comando DUAL\\n👤 200\",\"_seeders\":200,\"title\":\"Fake Comando DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake BluDV DUAL\\n👤 500\",\"_seeders\":500,\"title\":\"Fake BluDV DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-12",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake BluDV DUAL\\n👤 500\",\"_seeders\":500,\"title\":\"Fake BluDV DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Honest YTS EN\\n👤 50\",\"_seeders\":50,\"title\":\"Honest YTS EN\",\"_lied\":false,\"_dubbed\":false,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake Comando DUAL\\n👤 200\",\"_seeders\":200,\"title\":\"Fake Comando DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-13",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake Comando DUAL\\n👤 200\",\"_seeders\":200,\"title\":\"Fake Comando DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Honest YTS EN\\n👤 50\",\"_seeders\":50,\"title\":\"Honest YTS EN\",\"_lied\":false,\"_dubbed\":false,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake BluDV DUAL\\n👤 500\",\"_seeders\":500,\"title\":\"Fake BluDV DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-14",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake BluDV DUAL\\n👤 500\",\"_seeders\":500,\"title\":\"Fake BluDV DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake Comando DUAL\\n👤 200\",\"_seeders\":200,\"title\":\"Fake Comando DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Honest YTS EN\\n👤 50\",\"_seeders\":50,\"title\":\"Honest YTS EN\",\"_lied\":false,\"_dubbed\":false,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-15",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake Comando DUAL\\n👤 200\",\"_seeders\":200,\"title\":\"Fake Comando DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Fake BluDV DUAL\\n👤 500\",\"_seeders\":500,\"title\":\"Fake BluDV DUAL\",\"_lied\":true,\"_dubbed\":true,\"_quality\":\"1080p\"},{\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"Honest YTS EN\\n👤 50\",\"_seeders\":50,\"title\":\"Honest YTS EN\",\"_lied\":false,\"_dubbed\":false,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-16",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Pobre\",\"_seeders\":9,\"_quality\":\"sem resolução\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Rico\",\"_seeders\":1,\"_quality\":\"1080p\",\"_size\":2147483648,\"_bytes\":2147483648,\"behaviorHints\":{\"openVideo\":true},\"_magnetDn\":\"Rico.1080p\"}]}"
+    },
+    {
+      "id": "d-17",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Primeiro\",\"_seeders\":10,\"_quality\":\"sem resolução\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Segundo\",\"_seeders\":10,\"_quality\":\"sem resolução\"}]}"
+    },
+    {
+      "id": "d-18",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Primeiro SR\",\"_seeders\":9,\"_quality\":\"sem resolução\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Segundo 1080p\",\"_seeders\":1,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-19",
+      "input": "{\"indexerPriority\":[\"bludv\",\"yts\"],\"streams\":[{\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"name\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\\n👤 12\",\"_seeders\":12,\"title\":\"A.Rocha.1996.BluRay.1080p.x264.DUAL.2.0-STARCKFILMES\",\"_quality\":\"1080p\",\"_indexer\":\"yts\"},{\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"name\":\"[1080p DUAL 2.80 GB]\\n👤 3\",\"_seeders\":3,\"title\":\"[1080p DUAL 2.80 GB]\",\"_quality\":\"1080p\",\"_br\":true,\"_dubClaim\":true,\"_dubbed\":false,\"_indexer\":\"bludv\",\"_tracker\":\"BLUDV\"}]}"
+    },
+    {
+      "id": "d-20",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"name\":\"Coyote_Vs_Acme_2026_1080p_WEBRip_Dub\\n👤 160\",\"_seeders\":160,\"title\":\"Coyote_Vs_Acme_2026_1080p_WEBRip_Dub\",\"_quality\":\"1080p\"},{\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"name\":\"[1080p DUBLADO 4.26 GB]\\n👤 2\",\"_seeders\":2,\"title\":\"[1080p DUBLADO 4.26 GB]\",\"_quality\":\"1080p\",\"_br\":true,\"_dubClaim\":true,\"_dubbed\":false}]}"
+    },
+    {
+      "id": "d-21",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Movie.2026.1080p.Latino.Dub\\n👤 30\",\"_seeders\":30,\"title\":\"Movie.2026.1080p.Latino.Dub\",\"_quality\":\"1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"[1080p DUBLADO]\\n👤 1\",\"_seeders\":1,\"_quality\":\"1080p\",\"_br\":true,\"_dubbed\":true,\"_dubClaim\":true}]}"
+    },
+    {
+      "id": "d-22",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"A.Rocha.1996.BluRay.DUAL.VF\\n👤 20\",\"_seeders\":20,\"title\":\"A.Rocha.1996.BluRay.DUAL.VF\",\"_quality\":\"1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"[1080p DUAL]\\n👤 5\",\"_seeders\":5,\"_quality\":\"1080p\",\"_br\":true,\"_dubClaim\":true,\"_dubbed\":false}]}"
+    },
+    {
+      "id": "d-23",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Show.2026.Dual.Audio.PT-BR.ENG.1080p\\n👤 15\",\"_seeders\":15,\"title\":\"Show.2026.Dual.Audio.PT-BR.ENG.1080p\",\"_quality\":\"1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"[1080p DUAL]\\n👤 4\",\"_seeders\":4,\"_quality\":\"1080p\",\"_br\":true,\"_dubClaim\":true,\"_dubbed\":false}]}"
+    },
+    {
+      "id": "d-24",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Movie.2026.1080p.DUAL\\n👤 20\",\"_seeders\":20,\"title\":\"Movie.2026.1080p.DUAL\",\"_quality\":\"1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"[1080p DUB]\\n👤 2\",\"_seeders\":2,\"_quality\":\"1080p\",\"_br\":true,\"_dubbed\":true,\"_dubClaim\":true,\"_lied\":true}]}"
+    },
+    {
+      "id": "d-25",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Movie.2026.1080p.DUAL\\n👤 20\",\"_seeders\":20,\"title\":\"Movie.2026.1080p.DUAL\",\"_quality\":\"1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"[1080p]\\n👤 2\",\"_seeders\":2,\"_quality\":\"1080p\",\"_br\":true}]}"
+    },
+    {
+      "id": "d-26",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Post.BR.DUAL.1080p\\n👤 20\",\"_seeders\":20,\"title\":\"Post.BR.DUAL.1080p\",\"_quality\":\"1080p\",\"_br\":true,\"_dubClaim\":true},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Mirror.1080p.DUAL\\n👤 5\",\"_seeders\":5,\"_quality\":\"1080p\"}]}"
+    },
+    {
+      "id": "d-27",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Vencedor\\n👤 30\",\"_seeders\":30},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Pack\\n👤 1\",\"_seeders\":1,\"_multiWork\":true,\"_multiWorkAdmitted\":true}]}"
+    },
+    {
+      "id": "d-28",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Admitido\\n👤 30\",\"_seeders\":30,\"_multiWork\":true,\"_multiWorkAdmitted\":true},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Simples\\n👤 1\",\"_seeders\":1}]}"
+    },
+    {
+      "id": "d-29",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Post BR\",\"_seeders\":1,\"isBr\":true,\"_dubClaim\":true},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Global Dual\",\"_seeders\":9}]}"
+    },
+    {
+      "id": "d-30",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Perdedor Nome\",\"_seeders\":1,\"title\":\"Perdedor Titulo\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Vencedor Nome\",\"_seeders\":9,\"title\":\"Vencedor Titulo\"}]}"
+    },
+    {
+      "id": "d-31",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"name\":\"Sem hash A\",\"_seeders\":1},{\"name\":\"Sem hash B\",\"_seeders\":2}]}"
+    },
+    {
+      "id": "d-32",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD\",\"name\":\"Maiuscula\",\"_seeders\":10},{\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"name\":\"Minuscula\",\"_seeders\":10}]}"
+    },
+    {
+      "id": "d-33",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Sem tamanho\",\"_seeders\":100,\"_size\":0,\"_bytes\":0},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Com tamanho\",\"_seeders\":1,\"_size\":5000000,\"_bytes\":7000000}]}"
+    },
+    {
+      "id": "d-34",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Primeiro\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Segundo\"}]}"
+    },
+    {
+      "id": "d-35",
+      "input": "{\"indexerPriority\":[\"aaa\"],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"ZZZ\\n👤 30\",\"_seeders\":30,\"_indexer\":\"zzz\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"AAA\\n👤 30\",\"_seeders\":30,\"_indexer\":\"aaa\",\"_quality\":\"1080p\",\"_magnetDn\":\"AAA.1080p\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"LIER\\n👤 100\",\"_seeders\":100,\"_lied\":true}]}"
+    },
+    {
+      "id": "d-36",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Vencedor\",\"_seeders\":10,\"_tracker\":\"YTS\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Perdedor\",\"_seeders\":9,\"_tracker\":\"BLUDV\"}]}"
+    },
+    {
+      "id": "d-37",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Vencedor\",\"_seeders\":10,\"url\":\"https://dl/win\",\"source\":\"torrentio\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Perdedor\",\"_seeders\":9,\"url\":\"https://dl/lose\",\"externalUrl\":\"https://ext/x\"}]}"
+    },
+    {
+      "id": "d-38",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Movie.2026.1080p.DUAL\\n👤 80\",\"_seeders\":80,\"title\":\"Movie.2026.1080p.DUAL\",\"_quality\":\"sem resolução\"},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"[1080p DUAL]\\n👤 3\",\"_seeders\":3,\"_quality\":\"1080p\",\"_br\":true,\"_dubClaim\":true}]}"
+    },
+    {
+      "id": "d-39",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Com claim\",\"_seeders\":10,\"_dubClaim\":true},{\"infoHash\":\"1111111111111111111111111111111111111111\",\"name\":\"Sem claim\",\"_seeders\":10,\"_dubClaim\":false}]}"
+    },
+    {
+      "id": "d-40",
+      "input": "{\"indexerPriority\":[],\"streams\":[{\"infoHash\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"name\":\"Lanternas.S01E04.WEB-DL.1080p.x264.DUAL.5.1-STARCKFILMES\\n👤 8\",\"_seeders\":8,\"title\":\"Lanternas.S01E04.WEB-DL.1080p.x264.DUAL.5.1-STARCKFILMES\",\"_quality\":\"1080p\"},{\"infoHash\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"name\":\"Lanternas S01E04 [1080p DUAL]\\n👤 2\",\"_seeders\":2,\"_quality\":\"1080p\",\"_br\":true,\"_dubClaim\":true,\"_dubbed\":false}]}"
+    }
+  ]
+}

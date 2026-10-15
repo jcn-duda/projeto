@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "stream-ranking/dedupeByHash"
+  ],
+  "function": {
+    "name": "dedupeByHash",
+    "sourcePath": "src/utils/stream-ranking.ts",
+    "sourceSha256": "0aca9486e71196c57e00545f0c7524e8392118ade10372f89311a305e666c77c",
+    "artifactPath": "dist/src/utils/stream-ranking.js",
+    "artifactSha256": "aed845a09dacd3fdcffdc39a862d00df404dd023c68dd10b6952b930e35c9f52"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-dedupe-by-hash.json",
+    "sha256": "ab58053c693b22b7cc7d09766406b1d36c5f24a825d78225ee2df995591df350",
+    "cases": 40
+  },
+  "output": {
+    "path": "rust/golden/stream-ranking-dedupe.jsonl",
+    "sha256": "7e8c469b7f8735c24a5583ac38fe0323f00f23c60bb37cc6ce6a0295677dddea",
+    "lines": 40
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "d12baea088d60bd6991dfb1f5e30ea7dda2f691a"
+  }
+}
