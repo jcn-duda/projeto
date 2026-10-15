@@ -36,6 +36,9 @@ net = []
 # Núcleo com as funções portadas (normalize_title, etc.).
 adom-core = { path = "../adom-core" }
 adom-crawl = { path = "../adom-crawl" }
+# Dump JSON das cotas do cache (`cache.rs`): preserve_order para a ordem de
+# inserção ser contrato, igual ao `config_encoding` do core.
+serde_json = { version = "1", features = ["preserve_order"] }
 
 # NAPI-RS: runtime + macro de export.
 # "napi8" = API estável do Node 20+; "napi9" exigiria Node 22.

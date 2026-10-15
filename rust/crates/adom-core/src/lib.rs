@@ -86,9 +86,11 @@ pub use catalog_year::{catalog_alt_year_of, catalog_year_of};
 // ── cache ─────────────────────────────────────────────────────────────
 pub use cache_keys::{
     cache_key, is_versioned, mag_meta_counts_key, namespace_version, prefix, LEGACY_PREFIXES,
+    NAMESPACE_VERSIONS,
 };
 pub use cache_quotas::{
-    headroom, namespace_for, quota_for, universe_len, universe_total, validate_quotas, MAX_ENTRIES,
+    headroom, namespace_for, namespaces_without_explicit_quota, quota_for, universe, universe_len,
+    universe_total, validate_quotas, MAX_ENTRIES, QUOTAS,
 };
 
 // ── config encoding / dk seal ─────────────────────────────────────────

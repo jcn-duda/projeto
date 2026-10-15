@@ -25,6 +25,9 @@
 //! | `debridCacheCheckHonest`  | `debrid_cache_check_honest`| Flag cacheCheck do adaptador        |
 //! | `debridRdNextHit`         | `debrid_rd_next_hit`       | Próximo estado do ledger RD         |
 //! | `debridMayDelete`         | `may_delete`               | Pode apagar este hash da conta      |
+//! | `cacheQuotaFor`           | `cache_quotas::quota_for`  | Cota de um namespace do cache       |
+//! | `cacheNamespaceFor`       | `cache_quotas::namespace_for`| Namespace de uma chave            |
+//! | `cacheQuotasDump`         | `cache_quotas` (tabela)    | Contrato inteiro das cotas em JSON  |
 //!
 //! ## Responsabilidade
 //!
@@ -37,12 +40,14 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 
 mod batch;
+mod cache;
 mod crawl;
 mod debrid;
 mod debrid_cache;
 mod debrid_clean;
 mod debrid_rd;
 
+pub use cache::*;
 pub use crawl::*;
 // Reexporta o seletor: sem isto o clippy marca `#[napi]` do módulo privado como morto.
 pub use debrid::*;
