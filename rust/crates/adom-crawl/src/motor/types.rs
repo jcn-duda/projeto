@@ -16,6 +16,11 @@ use crate::store::ops::{MarkResult, UrlRow};
 pub enum CrawlResultStatus {
     Done,
     NoTorrent,
+    /// Pendência de portão (BLUDV): a página anuncia torrent SÓ atrás do
+    /// portão de anúncio, cujo pagamento (~30s de FlareSolverr) nunca cabe no
+    /// passo de raspagem. O motor grava a pendência no store e o executor de
+    /// fundo paga FORA do passo; o Node não recebe resultado neste status.
+    GatePending,
     NoWork,
     Error,
     Simulated,
@@ -39,6 +44,11 @@ pub struct CrawlWorkResult {
     pub progress: Option<String>, // JSON SeriesWorkProgress
     pub request_cost: u32,
     pub error: String,
+    /// Href do portão quando o status é `GatePending`. NÃO faz parte do
+    /// contrato com o Node (que não recebe este status): fica no crate e vai
+    /// para a `crawl_gate` do store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate: Option<String>,
 }
 
 impl CrawlWorkResult {
@@ -64,6 +74,7 @@ impl CrawlWorkResult {
             progress: None,
             request_cost: 0,
             error: "parser integration pending".to_string(),
+            gate: None,
         }
     }
 }
@@ -117,6 +128,10 @@ pub struct MotorConfig {
     /// `error` (o `mark_result` incrementa `tries` a cada escrita). É fuga para
     /// banco de teste e para ver o loop andando de ponta a ponta.
     pub degraded_write: bool,
+    /// Teto de PAGAMENTOS de portão por hora (o custo é ~30s de FlareSolverr
+    /// por post, num solver que atende um pedido por vez e é o mesmo da busca
+    /// ao vivo). Default baixo de propósito; porta de `CRAWL_GATE_HOURLY`.
+    pub gate_hourly: u32,
 }
 
 impl Default for MotorConfig {
@@ -137,6 +152,7 @@ impl Default for MotorConfig {
             error_backoff_cap_ms: 6 * 3_600_000,
             hour_window_ms: 3_600_000,
             degraded_write: false,
+            gate_hourly: 4,
         }
     }
 }
@@ -217,6 +233,7 @@ fn status_label(status: &CrawlResultStatus) -> &'static str {
     match status {
         S::Done => "done",
         S::NoTorrent => "no-torrent",
+        S::GatePending => "gate-pending",
         S::NoWork => "no-work",
         S::Error => "error",
         S::Simulated => "simulated",
@@ -328,4 +345,8 @@ pub struct SiteStatus {
     pub error: u32,
     pub inflight: u32,
     pub releases: u32,
+    /// Pendências de portão (BLUDV): não é falha nem `no-torrent` — o
+    /// executor de fundo paga fora do passo e a linha vira `done`. O painel
+    /// precisa vê-las para não parecer acúmulo de erro.
+    pub gate_pending: u32,
 }

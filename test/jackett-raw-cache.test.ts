@@ -113,9 +113,9 @@ test('raw cache: segunda busca da mesma query reusa o bruto sem novo fetch', asy
 });
 
 test('raw cache: E01 e E02 da mesma temporada compartilham a entrada em indexer BR', async () => {
-  // shapeSearchQuery remove SxxEyy nos indexers BR: a chave é por temporada,
-  // e é isso que faz a busca tardia de pack ("Nome S01") pagar uma varredura
-  // só por temporada em vez de uma por episódio.
+  // shapeSearchQuery reduz o episódio à temporada (S01E01/S01E02 -> S01): a
+  // chave é por temporada, e é isso que faz a busca tardia de pack ("Nome
+  // S01") pagar uma varredura só por temporada em vez de uma por episódio.
   const fetchImpl = makeFetch();
   fetchImpl.handler = (call) => {
     if (call.url.includes('/results')) {
@@ -136,8 +136,8 @@ test('raw cache: E01 e E02 da mesma temporada compartilham a entrada em indexer 
     });
     assert.equal(e1.length, 1);
     assert.equal(e2.length, 1);
-    // As duas queries moldam para "Fallout": UMA consulta Torznab só.
-    assert.deepEqual(fetchImpl.searchCalls(), ['Fallout']);
+    // As duas queries moldam para "Fallout S01": UMA consulta Torznab só.
+    assert.deepEqual(fetchImpl.searchCalls(), ['Fallout S01']);
   });
 });
 

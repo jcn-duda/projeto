@@ -68,4 +68,38 @@ pub struct StatusCounters {
     pub error: u32,
     pub inflight: u32,
     pub simulated: u32,
+    /// Post que só publica o botão do portão (BLUDV): aguarda o executor de
+    /// fundo pagar o portão. Não é falha nem `no-torrent` — é pendência de
+    /// custo, resolvida fora do passo de raspagem.
+    pub gate_pending: u32,
+}
+
+/// Registro de pendência de portão que o motor grava quando o parser devolve
+/// um post só-gate (`mark_gate_pending`). Os metadados vêm do que a leitura da
+/// página já colheu — o executor de fundo nunca volta ao site.
+#[derive(Debug, Clone)]
+pub struct GatePendingRecord {
+    pub gate: String,
+    pub title: String,
+    pub year: i64,
+    pub imdb: String,
+    pub kind: String,
+}
+
+/// O que o executor de fundo precisa de UM post pendente de portão: a linha da
+/// fila + os metadados gravados na `crawl_gate` quando o post foi marcado.
+#[derive(Debug, Clone)]
+pub struct GateRow {
+    /// Linha do post na `crawl_url` (status `gate-pending`).
+    pub row: UrlRow,
+    /// Href do botão do portão (input do resolver local).
+    pub gate: String,
+    /// Título de obra do `<h1>` (vazio = a leitura não colheu).
+    pub title: String,
+    /// Ano do post (0 = desconhecido).
+    pub year: i64,
+    /// IMDb da ficha (vazio = desconhecido; o Node identifica por título/ano).
+    pub imdb: String,
+    /// "movie" | "tv_show" — o vocabulário da fila.
+    pub kind: String,
 }

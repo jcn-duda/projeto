@@ -369,3 +369,8 @@ async fn modo_degradado_entrega_placeholder_sem_parser() {
     assert_eq!(status, "pending");
     assert!(next_at > now_ms());
 }
+
+// Testes do caminho de pendência de portão: arquivo próprio (catraca de
+// 400 linhas); como módulo filho, enxergam os helpers daqui via `super::*`.
+#[path = "loop_gate_tests.rs"]
+mod gate_pending_tests;

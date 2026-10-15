@@ -14,6 +14,8 @@
 //!   [`PageEngine`] e as regras puras de decisão do tick
 //!   ([`MarkResult::from_work`](crate::store::ops::MarkResult)).
 //! - [`loop`] — loop principal: freios, seleção, despacho, prazo duro, entrega.
+//! - [`gate_pending`] — o fluxo do resultado `GatePending` (post só-com-portão
+//!   do BLUDV): gravação da pendência e fallback de erro retentável.
 //! - [`loop_tests`] — o tick real contra um `crawl.db` temporário e um Node falso.
 //!
 //! # Integração com o parser (C5)
@@ -28,6 +30,7 @@
 //! dormiria páginas boas por conta de um elo não implementado.
 
 pub mod r#loop;
+mod gate_pending;
 pub mod types;
 
 #[cfg(test)]

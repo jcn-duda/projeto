@@ -29,5 +29,7 @@ test('global recebe a sigla sem pontos; BR, com pontos (o WordPress casa o liter
   assert.equal(shapeSearchQuery('yts', gora, false), 'GORA 2004');
   assert.equal(shapeSearchQuery('thepiratebay', 'A.I. Artificial Intelligence 2001', false), 'AI Artificial Intelligence 2001');
   // BLUDV, 2026-10-04: "S.W.A.T." → 127 itens, "SWAT" → 0.
-  assert.equal(shapeSearchQuery('bludv-cardigann', 'S.W.A.T. S01E02', true), 'S.W.A.T.');
+  // O episódio vira temporada (S01E02 -> S01): a temporada fica na query BR
+  // para o resolver Rust filtrar antes do corte.
+  assert.equal(shapeSearchQuery('bludv-cardigann', 'S.W.A.T. S01E02', true), 'S.W.A.T. S01');
 });

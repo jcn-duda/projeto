@@ -11,6 +11,7 @@
 
 use std::sync::Arc;
 
+use adom_resolvers::flare_warm;
 use adom_resolvers::profile::ResolverProfile;
 use adom_resolvers::server::{run_resolver, ResolverConfig};
 
@@ -42,6 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     let mut handles = Vec::new();
+    // Sites Flare do spec: o laço de fundo (flare_warm) mantém a sessão
+    // Cloudflare da LISTAGEM deles viva, com porte para nunca atrasar busca.
+    let mut flare_profiles: Vec<Arc<ResolverProfile>> = Vec::new();
 
     for entry in spec.split(',') {
         let entry = entry.trim();
@@ -57,9 +61,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok()
             .filter(|h| !h.trim().is_empty())
             .unwrap_or_else(|| "127.0.0.1".to_string());
-        let profile =
+        let profile = Arc::new(
             ResolverProfile::with_mirrors(&name, &site_url, &mirrors, extra_protectors.clone())
-                .with_self_url(&format!("http://{host}:{port}"));
+                .with_self_url(&format!("http://{host}:{port}")),
+        );
+        if profile.network.uses_flare {
+            flare_profiles.push(profile.clone());
+        }
         // O HDR busca no catálogo raspado: aquece no boot, como o `warm()` do
         // TS, para a primeira busca não pagar a varredura.
         if name == "hdrtorrents" {
@@ -68,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let config = ResolverConfig {
             port,
             site_name: name.clone(),
-            callbacks: Arc::new(profile),
+            callbacks: profile,
         };
         eprintln!("[resolver] {} → porta {port} (site: {site_url})", name);
         handles.push(tokio::spawn(async move {
@@ -82,6 +90,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("[resolver] nenhuma entrada válida em BR_RESOLVER_RUST");
         return Ok(());
     }
+
+    // Warm da sessão Cloudflare da listagem: fundo puro, com porte para
+    // pular a vez — nunca entra no orçamento de nenhuma resposta.
+    flare_warm::spawn(flare_profiles);
 
     // Aguarda todos; um cair não derruba os outros.
     for h in handles {

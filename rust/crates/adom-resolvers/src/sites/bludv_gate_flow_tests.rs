@@ -24,7 +24,7 @@ struct MockTransport {
 }
 
 impl MockTransport {
-    fn new(scenario: Scenario) -> (Arc<dyn GateTransport>, Arc<AtomicUsize>, Arc<AtomicBool>) {
+    fn build(scenario: Scenario) -> (Arc<dyn GateTransport>, Arc<AtomicUsize>, Arc<AtomicBool>) {
         let runs = Arc::new(AtomicUsize::new(0));
         let destroyed = Arc::new(AtomicBool::new(false));
         let t: Arc<dyn GateTransport> = Arc::new(MockTransport {
@@ -148,7 +148,7 @@ fn gate(p: &str) -> Url {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cadeia_completa_devolve_magnet() {
-    let (t, runs, destroyed) = MockTransport::new(Scenario::Ok);
+    let (t, runs, destroyed) = MockTransport::build(Scenario::Ok);
     let magnet = run_chain(t.as_ref(), &gate("60001"), &cfg(0))
         .await
         .unwrap();
@@ -160,7 +160,7 @@ async fn cadeia_completa_devolve_magnet() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn espera_minima_contada_do_inicio() {
-    let (t, _, _) = MockTransport::new(Scenario::Ok);
+    let (t, _, _) = MockTransport::build(Scenario::Ok);
     let started = Instant::now();
     let r = run_chain(t.as_ref(), &gate("60002"), &cfg(250)).await;
     r.unwrap();
@@ -185,7 +185,7 @@ async fn rejeita_cada_destino_inseguro() {
         (Scenario::MultiRef, "60007"),
         (Scenario::NoMagnet, "60008"),
     ] {
-        let (t, _, destroyed) = MockTransport::new(scenario);
+        let (t, _, destroyed) = MockTransport::build(scenario);
         let err = run_chain(t.as_ref(), &gate(p), &cfg(0)).await.unwrap_err();
         assert!(matches!(err, GateError::Refused(_)), "{scenario:?}: {err}");
         assert!(
@@ -197,7 +197,7 @@ async fn rejeita_cada_destino_inseguro() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cache_so_sucesso_e_coalesce_por_url() {
-    let (t, runs, _d) = MockTransport::new(Scenario::Ok);
+    let (t, runs, _d) = MockTransport::build(Scenario::Ok);
     let url = gate_url("60010");
     let post = post_url();
     let c = cfg(0);
@@ -216,7 +216,7 @@ async fn cache_so_sucesso_e_coalesce_por_url() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn falha_nao_entra_em_cache() {
-    let (t, runs, _d) = MockTransport::new(Scenario::BadCallback);
+    let (t, runs, _d) = MockTransport::build(Scenario::BadCallback);
     let url = gate_url("60011");
     let post = post_url();
     let first = resolve_gate_magnet(&url, &post, Arc::clone(&t), &cfg(0)).await;

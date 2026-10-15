@@ -19,7 +19,7 @@ use tokio::time::{interval, Duration};
 
 use super::types::{
     error_work, now_ms, MotorConfig, MotorStatus, PageEngine, PageOutcome, SiteStatus,
-    UnwiredPageEngine,
+    UnwiredPageEngine, CrawlResultStatus,
 };
 use crate::sidecar::activity::recent_user_traffic;
 use crate::sidecar::http_client::SidecarHttpClient;
@@ -54,21 +54,21 @@ pub enum TickOutcome {
 
 /// Store compartilhado entre o tick e as tasks: `rusqlite::Connection` é `Send`
 /// (não `Sync`), então o `Mutex` padrão é o que permite o `spawn_blocking`.
-type StoreHandle = Arc<StdMutex<Option<CrawlStore>>>;
+pub(super) type StoreHandle = Arc<StdMutex<Option<CrawlStore>>>;
 
 /// O que cada task precisa: tudo `Arc`/`Clone` para ir dentro do `spawn`.
 #[derive(Clone)]
-struct BatchCtx {
+pub(super) struct BatchCtx {
     engine: Arc<dyn PageEngine>,
     http: Arc<SidecarHttpClient>,
-    store: StoreHandle,
-    cfg: MotorConfig,
+    pub(super) store: StoreHandle,
+    pub(super) cfg: MotorConfig,
 }
 
 /// Custo e entrega de UMA linha trabalhada.
-struct TaskReport {
-    cost: u32,
-    delivered: bool,
+pub(super) struct TaskReport {
+    pub(super) cost: u32,
+    pub(super) delivered: bool,
 }
 
 /// Uma task = uma URL: engine com prazo duro → POST → `mark_result`.
@@ -91,6 +91,15 @@ async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
         }
     };
 
+    // Post pendente de portão (BLUDV): NADA a entregar ao Node ainda — a
+    // gravação no acervo acontece quando o executor de fundo pagar o portão
+    // (fora do passo, fora deste prazo). O fluxo inteiro (gravação sem
+    // queimar tentativa + fallback de erro retentável sem href) vive em
+    // `gate_pending.rs` (catraca de 400 linhas).
+    if matches!(work.status, CrawlResultStatus::GatePending) {
+        return super::gate_pending::handle_gate_pending(&ctx, &row, &work).await;
+    }
+
     let delivered = match ctx.http.post_crawl_result(&work).await {
         Ok(()) => true,
         // Fail-open: o Node fora do ar não apaga o trabalho da página.
@@ -110,7 +119,7 @@ async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
 }
 
 /// Roda uma operação de SQLite fora da thread do runtime async.
-async fn with_store<T, F>(store: StoreHandle, f: F) -> Result<T, MotorError>
+pub(super) async fn with_store<T, F>(store: StoreHandle, f: F) -> Result<T, MotorError>
 where
     T: Send + 'static,
     F: FnOnce(&CrawlStore) -> Result<T, StoreError> + Send + 'static,
@@ -368,6 +377,7 @@ impl CrawlMotor {
                         error: c.error,
                         inflight: c.inflight,
                         releases: db.sum_releases(id).unwrap_or(0),
+                        gate_pending: c.gate_pending,
                     })
                 })
                 .collect())

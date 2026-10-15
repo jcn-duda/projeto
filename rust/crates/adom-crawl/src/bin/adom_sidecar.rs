@@ -17,8 +17,9 @@
 
 use std::env;
 use std::process;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 
+use adom_crawl::gate::{FlareProbe, GateExecutor, GateExecutorConfig, GateResolver, HttpGateResolver};
 use adom_crawl::motor::types::MotorConfig;
 use adom_crawl::motor::CrawlMotor;
 use adom_crawl::page_engine::CrawlPageEngine;
@@ -72,11 +73,14 @@ async fn main() {
     let idle_window_ms = env_u64("CRAWL_IDLE_WINDOW_MS", 60_000);
     let max_concurrent = env_u64("CRAWL_MAX_CONCURRENT", 4);
     let delay_ms = env_u64("CRAWL_DELAY_MS", 1_000);
+    // Teto de pagamentos de portão por hora (custo ~30s de FlareSolverr cada;
+    // 0 desliga o executor de fundo).
+    let gate_hourly = env_u64("CRAWL_GATE_HOURLY", 4) as u32;
 
     eprintln!(
         "[adom-sidecar] iniciando — db={}, node={}, port={}, idle_window={}ms, \
-         max_concurrent={}, delay={}ms",
-        db_path, node_url, sidecar_port, idle_window_ms, max_concurrent, delay_ms
+         max_concurrent={}, delay={}ms, gate_hourly={}",
+        db_path, node_url, sidecar_port, idle_window_ms, max_concurrent, delay_ms, gate_hourly
     );
 
     // ── 3. Abre o CrawlStore (Agente 2) ──────────────────────────────
@@ -104,6 +108,7 @@ async fn main() {
         idle_window_ms,
         max_parallel: max_concurrent as usize,
         delay_ms,
+        gate_hourly,
         ..Default::default()
     };
     // Conecta o PageEngine real (C5): fetch + parser. Sem isto o motor usa
@@ -119,18 +124,58 @@ async fn main() {
         });
     let mut page_engine = CrawlPageEngine::default();
     page_engine.protector = protector;
-    let motor = Arc::new(CrawlMotor::new(config).with_page_engine(Arc::new(page_engine)));
+    // Arc compartilhado: o motor o usa como `PageEngine` e o executor de
+    // portões como `FlareProbe` (mesma faixa única do solver).
+    let engine: Arc<CrawlPageEngine> = Arc::new(page_engine);
+    let motor = Arc::new(CrawlMotor::new(config.clone()).with_page_engine(engine.clone()));
 
     // ── 6. Inicia o servidor HTTP do sidecar ─────────────────────────
     // O servidor roda em background, em loopback, para o painel e entrypoint.
     let server_state = Arc::new(AppState {
         motor: motor.clone(),
         store: Arc::new(tokio::sync::Mutex::new(store)),
-        auth_token,
+        // Clone: o executor de portões (6b) também precisa do token.
+        auth_token: auth_token.clone(),
     });
     let _server_handle = tokio::spawn(async move {
         adom_crawl::sidecar::server::run(sidecar_port, server_state).await;
     });
+
+    // ── 6b. Executor de fundo dos pendentes de portão (BLUDV) ───────────
+    // Paga os posts `gate-pending` FORA do passo de raspagem, só com o app
+    // ocioso e até o teto por hora. `CRAWL_GATE_HOURLY=0` desliga.
+    if gate_hourly > 0 {
+        let offset = env_u64("BR_RESOLVERS_PORT_OFFSET", 0) as u16;
+        let mut gate_cfg = GateExecutorConfig::from_motor(&config);
+        gate_cfg.resolver_host = env_or("BR_RESOLVERS_HOST", "127.0.0.1");
+        gate_cfg.resolver_port = 8700u16.saturating_add(offset); // bludv
+        // Segunda conexão WAL no mesmo crawl.db: o motor tem a sua e o
+        // executor não briga por lock na régua `spawn_blocking` de cada um.
+        let gate_store = match CrawlStore::open(&db_path) {
+            Ok(s) => Arc::new(StdMutex::new(s)),
+            Err(e) => {
+                eprintln!("[adom-sidecar] erro ao abrir banco do executor: {}", e);
+                process::exit(1);
+            }
+        };
+        let resolver: Arc<dyn GateResolver> = Arc::new(HttpGateResolver::new(
+            &gate_cfg.resolver_host,
+            gate_cfg.resolver_port,
+            gate_cfg.resolver_timeout_ms,
+        ));
+        let flare: Arc<dyn FlareProbe> = engine.clone();
+        let executor = Arc::new(GateExecutor::new(
+            gate_cfg,
+            config,
+            gate_store,
+            Arc::new(SidecarHttpClient::new(node_url, auth_token)),
+            resolver,
+            flare,
+        ));
+        tokio::spawn(executor.run());
+    } else {
+        eprintln!("[adom-sidecar] executor de portão desligado (CRAWL_GATE_HOURLY=0)");
+    }
 
     // ── 7. Roda com graceful shutdown ────────────────────────────────
     tokio::select! {

@@ -65,3 +65,77 @@ fn filtra_antes_do_corte() {
     );
     assert_eq!(all, vec!["Batman Begins", "Batman Ninja"]);
 }
+
+#[test]
+fn ano_da_query_corta_outra_obra_antes_do_corte() {
+    // (a) "Duna 2021": o post da Parte 2 (2024) sai ANTES do corte — sem o
+    // filtro ele seria o 1º do WordPress e comeria a vaga do filme.
+    let posts = vec![
+        "Duna: Parte 2 (2024) DUBLADO",
+        "Planeta Duna (2021) DUBLADO",
+        "Duna (2021) DUBLADO",
+    ];
+    let year = requested_year("Duna 2021");
+    assert_eq!(year, Some(2021));
+    assert_eq!(
+        select_posts(posts.clone(), |p| p, "Duna 2021", None, 2),
+        vec!["Duna: Parte 2 (2024) DUBLADO", "Planeta Duna (2021) DUBLADO"],
+        "comportamento de hoje: o post de outra obra ocupa a vaga",
+    );
+    let posts = filter_year(posts, |p| p, year);
+    assert_eq!(
+        select_posts(posts, |p| p, "Duna 2021", None, 2),
+        vec!["Planeta Duna (2021) DUBLADO", "Duna (2021) DUBLADO"],
+    );
+}
+
+#[test]
+fn post_sem_ano_no_titulo_passa() {
+    // (b) A listagem do site pode não declarar ano: título sem ano nunca sai
+    // por ano; a tolerância do padrão do projeto é ±2.
+    assert!(matches_year("Duna DUBLADO", Some(2021)));
+    assert!(matches_year("Duna (2021) DUBLADO", Some(2021)));
+    assert!(matches_year("Duna (2023) DUBLADO", Some(2021)));
+    assert!(!matches_year("Duna: Parte 2 (2024)", Some(2021)));
+}
+
+#[test]
+fn serie_nao_e_condenada_pelo_ano_da_temporada() {
+    // (c) O ano do post de série BR é o da TEMPORADA, não o da obra: com
+    // query de filme "The Boys 2019", "4ª Temporada (2024)" é a obra certa.
+    assert!(matches_year(
+        "The Boys 4ª Temporada (2024) DUBLADO",
+        Some(2019)
+    ));
+    assert!(matches_year("The Boys S04 2024 DUBLADO", Some(2019)));
+    // Contraprova: SEM marca de temporada, o mesmo ano condena (outra obra).
+    assert!(!matches_year("The Boys 2 (2024) DUBLADO", Some(2019)));
+}
+
+#[test]
+fn query_sem_ano_preserva_o_comportamento() {
+    // (d) Sem ano na query nenhum post sai: o filtro de ano é aditivo.
+    assert_eq!(requested_year("The Boys S02E03"), None);
+    assert_eq!(requested_year("Duna"), None);
+    let posts = vec!["Duna: Parte 2 (2024)", "Duna (2021)"];
+    assert_eq!(
+        filter_year(posts, |p| p, None),
+        vec!["Duna: Parte 2 (2024)", "Duna (2021)"]
+    );
+}
+
+#[test]
+fn temporada_na_query_corta_antes_do_corte() {
+    // (e) "S.W.A.T. S02": a 6ª e a 5ª temporadas saem ANTES do corte (corte
+    // de 2 não as alcança) e o episódio da temporada pedida entra; post sem
+    // temporada no título continua passando (matchesSeason — pack sem marca
+    // nunca é condenado).
+    let posts = vec![
+        "S.W.A.T. 6ª Temporada",
+        "S.W.A.T. 5ª Temporada",
+        "S.W.A.T. S02E05 DUBLADO",
+        "S.W.A.T. Completa",
+    ];
+    let got = select_posts(posts, |p| p, "S.W.A.T.", Some(2), 2);
+    assert_eq!(got, vec!["S.W.A.T. S02E05 DUBLADO", "S.W.A.T. Completa"]);
+}

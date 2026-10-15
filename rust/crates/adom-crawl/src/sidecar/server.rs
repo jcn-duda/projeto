@@ -223,8 +223,19 @@ async fn handle_reset(state: &AppState, site: &str) -> axum::response::Response 
     let store = state.store.lock().await;
 
     // Conta URLs antes de apagar (para o campo `urls` na resposta).
+    // `gate_pending` conta: são URLs vivas do site (pendência de custo,
+    // não erro) e o reset destrói a `crawl_gate` junto.
     let url_count = match store.counters(site) {
-        Ok(c) => c.pending + c.done + c.no_torrent + c.no_work + c.error + c.inflight + c.simulated,
+        Ok(c) => {
+            c.pending
+                + c.done
+                + c.no_torrent
+                + c.no_work
+                + c.error
+                + c.inflight
+                + c.simulated
+                + c.gate_pending
+        }
         Err(_) => 0,
     };
 

@@ -105,6 +105,7 @@ fn crawl_work_result_roundtrip_json() {
         progress: None,
         request_cost: 1,
         error: String::new(),
+        gate: None,
     };
 
     // Serializa
@@ -159,6 +160,7 @@ fn crawl_work_result_com_grupos_series() {
         progress: Some(r#"{"season":1,"episode":3}"#.to_string()),
         request_cost: 2,
         error: String::new(),
+        gate: None,
     };
 
     let json = serde_json::to_string(&result).expect("serializa com grupos");
@@ -184,6 +186,7 @@ fn motor_status_serializa_json_valido() {
                 error: 2,
                 inflight: 3,
                 releases: 120,
+                gate_pending: 2,
             },
             SiteStatus {
                 site_id: "mega".to_string(),
@@ -193,6 +196,7 @@ fn motor_status_serializa_json_valido() {
                 error: 0,
                 inflight: 0,
                 releases: 250,
+                gate_pending: 0,
             },
         ],
         pages_this_hour: 150,

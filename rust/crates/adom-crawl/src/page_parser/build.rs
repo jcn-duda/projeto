@@ -125,6 +125,7 @@ fn outcome_from_releases(
             groups: Vec::new(),
             unlocated: Vec::new(),
             error: None,
+            gate: None,
         };
     }
 
@@ -157,6 +158,7 @@ fn outcome_from_releases(
         groups: parsed_groups,
         unlocated: Vec::new(),
         error: None,
+        gate: None,
     }
 }
 
@@ -312,6 +314,7 @@ pub(super) fn parse_mico_content(url: &str, is_series: bool, json_text: &str) ->
             groups: Vec::new(),
             unlocated: Vec::new(),
             error: None,
+            gate: None,
         };
     }
 

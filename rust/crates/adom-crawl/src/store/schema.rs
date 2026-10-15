@@ -58,6 +58,24 @@ CREATE TABLE IF NOT EXISTS crawl_state (
     PRIMARY KEY (site, key)
 )";
 
+/// Posts pendentes de portão (BLUDV). A linha do post fica `gate-pending` na
+/// `crawl_url` (fora da fila normal do motor) e ESTA tabela guarda o que o
+/// executor de fundo precisa para pagar o portão sem re-raspar a página: o
+/// href do portão e os metadados de obra que a leitura do <h1>/ficha já
+/// colheu (o executor nunca volta ao site — só ao resolver local).
+pub const CRAWL_GATE_DDL: &str = "\
+CREATE TABLE IF NOT EXISTS crawl_gate (
+    site      TEXT NOT NULL,
+    url_key   TEXT NOT NULL,
+    gate      TEXT NOT NULL,
+    title     TEXT NOT NULL DEFAULT '',
+    year      INTEGER NOT NULL DEFAULT 0,
+    imdb      TEXT NOT NULL DEFAULT '',
+    kind      TEXT NOT NULL DEFAULT 'movie',
+    added_at  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (site, url_key)
+)";
+
 /// Executa todas as migrações (cria tabelas e índices se não existem).
 /// Idempotente: pode ser chamado múltiplas vezes sem efeito colateral.
 pub fn migrate(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
@@ -69,6 +87,7 @@ pub fn migrate(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(CRAWL_RUN_DDL)?;
     conn.execute_batch(CRAWL_RUN_SITE_INDEX)?;
     conn.execute_batch(CRAWL_STATE_DDL)?;
+    conn.execute_batch(CRAWL_GATE_DDL)?;
     Ok(())
 }
 

@@ -31,7 +31,7 @@ use crate::vaca_series::{group_series_releases, GroupSeriesOptions, SeriesReleas
 use crate::work_name::read_work_title;
 
 use build::{build_parsed_outcome, build_release_from_link, parse_mico_content};
-use sites::{bludv_has_gate_button, parse_bludv_links, parse_nerdfilmes_links, parse_tdf_links};
+use sites::{bludv_gate_buttons, parse_bludv_links, parse_nerdfilmes_links, parse_tdf_links};
 
 /// Normaliza o identificador do site para a chave padrão.
 pub fn canonical_site_id(site: &str) -> &'static str {
@@ -216,6 +216,7 @@ pub fn parse_crawl_page_with(
                     groups: parsed_groups,
                     unlocated,
                     error: None,
+                    gate: None,
                 }
             } else {
                 build_parsed_outcome(
@@ -282,6 +283,7 @@ pub fn parse_crawl_page_with(
                     groups: parsed_groups,
                     unlocated: Vec::new(),
                     error: None,
+                    gate: None,
                 }
             } else {
                 build_parsed_outcome(
@@ -302,14 +304,25 @@ pub fn parse_crawl_page_with(
                 }
             }
             if links.is_empty() {
-                // BLUDV: portao de anuncio nao resolvido NUNCA e "sem torrent"
-                // nem "done"; e erro retentavel honesto. A espera do anuncio
-                // so roda em /resolve//dl (resolver), nunca no indice.
-                if site_id == "bludv-cardigann" && bludv_has_gate_button(content) {
-                    return CrawlPageParsed::error(
-                        url,
-                        "bludv: portao de anuncio sem link resolvivel",
-                    );
+                // BLUDV: post que SÓ publica o portão de anúncio não é "sem
+                // torrent" nem erro queimando tentativa — vira PENDÊNCIA de
+                // portão (`gate-pending`): a página anuncia torrent, o magnet
+                // só sai após pagar o portão (~30s de FlareSolverr), custo
+                // que nunca cabe no passo de raspagem. O executor de fundo
+                // paga pelo resolver local e grava a release no acervo
+                // depois. "no-torrent" fica para a página que não colhe
+                // magnet NEM portão (o caso do Nerd, commit f69fe0a).
+                if site_id == "bludv-cardigann" {
+                    if let Some(gate) = bludv_gate_buttons(content).into_iter().next() {
+                        return CrawlPageParsed::gate_pending(
+                            url,
+                            Some(title),
+                            year,
+                            imdb,
+                            Some(work_type.to_string()),
+                            &gate,
+                        );
+                    }
                 }
                 return CrawlPageParsed::no_torrent(
                     url,

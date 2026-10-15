@@ -231,6 +231,7 @@ fn status_from(label: &str) -> CrawlResultStatus {
     match label {
         "done" => CrawlResultStatus::Done,
         "no-torrent" => CrawlResultStatus::NoTorrent,
+        "gate-pending" => CrawlResultStatus::GatePending,
         _ => CrawlResultStatus::Error,
     }
 }
@@ -257,7 +258,9 @@ fn group_from(g: &CrawlParsedGroup) -> CrawlReleaseGroup {
 }
 
 /// `kind` da fila (`movie`/`tv_show`) → vocabulário do Node (`movie`/`series`).
-fn kind_from(kind: &str) -> String {
+/// `pub(crate)`: o executor de portão também grava no acervo e precisa da
+/// MESMA tradução (uma só régua, zero divergência).
+pub(crate) fn kind_from(kind: &str) -> String {
     if kind == "tv_show" || kind == "series" {
         "series".to_string()
     } else {
@@ -287,6 +290,26 @@ fn to_work(row: &UrlRow, parsed: CrawlPageParsed, cost: u32) -> CrawlWorkResult 
         progress: None,            // o parser Rust ainda não emite progresso de série
         request_cost: cost.max(1), // a página em si sempre saiu (crawl-types.ts:284)
         error: parsed.error.clone().unwrap_or_default(),
+        // O href do portão fica no crate: o motor o grava na `crawl_gate` e o
+        // executor de fundo paga depois — o Node não recebe este status.
+        gate: parsed.gate,
+    }
+}
+
+impl crate::gate::FlareProbe for CrawlPageEngine {
+    /// Há raspagem FlareSolverr em curso no motor? O solver atende UM pedido
+    /// por vez e é o MESMO da busca ao vivo — o pagamento de portão do executor
+    /// de fundo não pode enfileirar atrás (nem na frente) de uma raspagem.
+    /// `try_lock`: a faixa única (`flare_gate`) está livre só quando ninguém
+    /// está escalando ao solver.
+    fn flare_busy(&self) -> bool {
+        match self.flare_gate.try_lock() {
+            Ok(guard) => {
+                drop(guard);
+                false
+            }
+            Err(_) => true,
+        }
     }
 }
 

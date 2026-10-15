@@ -50,6 +50,13 @@ impl ResolverCallbacks for ResolverProfile {
         self.resolve_button_of(url, index, hash, count).await
     }
 
+    /// Portão direto (executor do raspador): botão e post de contexto já
+    /// chegam prontos; a validação do botão e o cache do gate ficam no
+    /// `resolve_gate` do profile (sites/bludv/gate_flow.rs).
+    async fn resolve_gate_direct(&self, gate_url: &str, post_url: &str) -> Result<String, String> {
+        self.resolve_gate(gate_url, post_url).await
+    }
+
     /// `unwrapResolverUrl` do site-profile: o Cardigann pode embrulhar o
     /// `/resolve` no próprio `/resolve` (até 3 saltos); os campos do nível mais
     /// interno vencem. Índice presente e não inteiro ≥ 0 é `invalid_index`.

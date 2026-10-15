@@ -3,6 +3,7 @@
 
 pub mod br_core;
 pub mod flare;
+pub mod gate;
 pub mod http_session;
 pub mod listing;
 pub mod mico;

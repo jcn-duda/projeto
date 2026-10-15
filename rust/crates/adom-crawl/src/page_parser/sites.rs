@@ -188,16 +188,19 @@ pub fn bludv_is_gate_button(href: &str) -> bool {
         && pairs[0].1.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// A pagina tem ao menos um botao do portao? Usado para nao marcar post com
-/// portao nao resolvido como `no-torrent`/`done` no raspador.
-pub fn bludv_has_gate_button(html: &str) -> bool {
+/// Hrefs dos botoes do portao, na ordem da pagina. O post so-gate vira
+/// `gate-pending` com o PRIMEIRO deles (o post publica um portao por botao de
+/// download, todos apontando para o mesmo pagamento — um basta para colher).
+pub fn bludv_gate_buttons(html: &str) -> Vec<String> {
+    let mut out = Vec::new();
     for tag in anchor_tags(html) {
         let Some(raw) = href_of(&tag) else { continue };
-        if bludv_is_gate_button(&decode_entities(raw.trim())) {
-            return true;
+        let href = decode_entities(raw.trim());
+        if bludv_is_gate_button(&href) {
+            out.push(href);
         }
     }
-    false
+    out
 }
 
 #[cfg(test)]
@@ -232,7 +235,7 @@ mod gate_tests {
         let html = r#"<div class="downloads">
             <a href="https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609" class="customButton">Baixar</a>
         </div>"#;
-        assert!(bludv_has_gate_button(html));
+        assert!(!bludv_gate_buttons(html).is_empty(), "pagina so-portao tem o botao");
         assert!(
             parse_bludv_links(html).is_empty(),
             "portao nao e link coletavel"

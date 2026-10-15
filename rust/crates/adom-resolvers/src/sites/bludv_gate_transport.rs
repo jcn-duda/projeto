@@ -41,7 +41,7 @@ static AD_HOSTS: LazyLock<Vec<&'static str>> =
     LazyLock::new(|| vec!["promobr.online", "x.gd", "valedesconto.shop"]);
 
 pub fn is_ad_host(host: &str) -> bool {
-    AD_HOSTS.iter().any(|h| *h == host)
+    AD_HOSTS.contains(&host)
 }
 
 pub const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;

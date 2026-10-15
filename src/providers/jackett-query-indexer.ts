@@ -126,9 +126,11 @@ export async function queryIndexer(indexer: string, query: string, type: string,
   const source: { error: string | null } = { error: null };
   const fetchQuery = async (candidateQuery: string, isCascadeStep = false) => {
     const searchQuery = shapeSearchQuery(indexer, candidateQuery, isBr);
-    // A shaped query já remove SxxEyy nos indexers BR, então episódios da
-    // mesma temporada compartilham a entrada por construção — é o que faz a
-    // busca tardia de pack ("Nome S03") custar uma varredura por temporada.
+    // A shaped query reduz o episódio à temporada (S02E05 -> S02): episódios
+    // da mesma temporada compartilham a entrada por construção — é o que faz
+    // a busca tardia de pack ("Nome S03") custar uma varredura por temporada.
+    // A temporada em si FICA na query: o resolver Rust a extrai
+    // (`requested_season`) e filtra os posts antes do corte.
     const rawKey = `${prefix('raw')}jackett:${indexer}:${type}:${searchQuery}`;
     if (rawTtl > 0) {
       const hit = cache.get(rawKey);

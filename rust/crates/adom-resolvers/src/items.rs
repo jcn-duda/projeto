@@ -41,10 +41,18 @@ impl ResolverProfile {
             _ => {
                 let rules = search_select::rules_for(&self.site_name);
                 let season = search_select::requested_season(query);
+                let year = search_select::requested_year(query);
                 let normalized = search_select::normalize_query(query, rules);
                 let html = self.search_html(&normalized).await?;
                 let site = self.site()?;
                 let posts = site.search_posts(&html, &self.selector.url());
+                // Ano de OUTRA obra sai ANTES do corte ("Duna 2021" × "Duna:
+                // Parte 2 (2024)"): o ano vem da query crua — ao lado da
+                // temporada — porque Rede tira o ano da moldagem (drop_year)
+                // e o filtro continua valendo lá. Filtro é na lista de posts:
+                // a consulta ao site segue com o ano quando ele ajuda a
+                // relevância (bludv), como sempre foi.
+                let posts = search_select::filter_year(posts, |p| p.title.as_str(), year);
                 let posts = site.select_posts(posts, &normalized, season, rules.max_posts);
                 self.items_for_posts(posts, season).await
             }

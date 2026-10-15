@@ -5,9 +5,11 @@
 //!   migração idempotente.
 //! - **ops**: `CrawlStore` com todas as operações (upsert, take_next,
 //!   mark_result, counters, state, runs, etc.).
+//! - **gate_ops**: operações de portão (`crawl_gate` + status `gate-pending`).
 //!
 //! Port Rust do TypeScript `utils/crawl-store-migrate.ts` + `utils/crawl-store.ts`.
 
+mod gate_ops;
 pub mod ops;
 pub mod schema;
 pub mod types;

@@ -63,6 +63,14 @@ pub trait ResolverCallbacks: Send + Sync + 'static {
         count: Option<&str>,
     ) -> Result<String, String>;
 
+    /// Resolve o portão DIRETO: `gate_url` é o botão do portão e `post_url` o
+    /// post que o nomeia — contrato do executor do raspador no /resolve
+    /// (`url=<botão>&p=<post>`). Default é erro: só perfil com portão
+    /// sobrescreve (hoje, o bludv); a validação e o cache ficam no perfil.
+    async fn resolve_gate_direct(&self, _gate_url: &str, _post_url: &str) -> Result<String, String> {
+        Err("gate indisponivel neste perfil".to_string())
+    }
+
     /// Desenrola URL aninhada (extrai i/h/n).
     fn unwrap_resolver_url(&self, value: &str, seed: UnwrapSeed) -> Result<UnwrappedUrl, String>;
 
@@ -153,68 +161,15 @@ async fn search_handler(
     }
 }
 
-/// Query params de /resolve.
-#[derive(Deserialize)]
-struct ResolveQuery {
-    url: Option<String>,
-    i: Option<String>,
-    h: Option<String>,
-    n: Option<String>,
-}
+// ── Rota /resolve (portão) ──────────────────────────────────────────────────
 
-/// GET /resolve?url=&i=&h=&n= → magnet (text/plain 200).
-///
-/// url ausente ou >4096: 400 "invalid_url".
-/// validateIndex (tdf/nerd): índice inválido → 502 "invalid_index".
-/// Erro: 502 com mensagem.
-async fn resolve_handler(
-    State(callbacks): State<Arc<dyn ResolverCallbacks>>,
-    Query(params): Query<ResolveQuery>,
-) -> Response {
-    let url_value = match params.url {
-        Some(u) if !u.is_empty() && u.len() <= 4096 => u,
-        _ => return (StatusCode::BAD_REQUEST, "invalid_url").into_response(),
-    };
-
-    let seed = UnwrapSeed {
-        index: params.i,
-        hash: params.h,
-        count: params.n,
-    };
-
-    let unwrapped = match callbacks.unwrap_resolver_url(&url_value, seed) {
-        Ok(u) => u,
-        Err(msg) => return (StatusCode::BAD_GATEWAY, msg).into_response(),
-    };
-
-    // Validação de índice (tdf/nerd): índice presente e inválido é erro explícito.
-    if callbacks.validate_index() {
-        if let Some(idx) = unwrapped.index {
-            // Índice já vem como usize do unwrap; se o unwrap aceitou, é válido.
-            // (A validação de "integer >= 0" já foi feita no unwrap.)
-            let _ = idx;
-        }
-    }
-
-    let result = match unwrapped.index {
-        None => callbacks.resolve_best(&unwrapped.url).await,
-        Some(idx) => {
-            callbacks
-                .resolve_button(
-                    &unwrapped.url,
-                    idx,
-                    unwrapped.hash.as_deref(),
-                    unwrapped.count.as_deref(),
-                )
-                .await
-        }
-    };
-
-    match result {
-        Ok(magnet) => (StatusCode::OK, magnet).into_response(),
-        Err(msg) => (StatusCode::BAD_GATEWAY, msg).into_response(),
-    }
-}
+/// Rota /resolve extraída para arquivo próprio (catraca de 400 linhas). Os
+/// símbolos do contrato do portão são reexportados: `gate_resolve.rs` e o
+/// prefetch consomem por `crate::server::*`, como sempre. `#[path]` explícito:
+/// o arquivo vive no nível de `src/`, não sob `src/server/`.
+#[path = "gate_route.rs"]
+mod gate_route;
+pub use gate_route::{GATE_PENDING, gate_wait_block_requested, with_gate_wait_block};
 
 /// Query params de /dl.
 #[derive(Deserialize)]
@@ -335,7 +290,7 @@ pub fn build_router(callbacks: Arc<dyn ResolverCallbacks>) -> Router {
         .route("/search", get(search_handler));
     // Rota que o profile TS não tem responde 404, não um 200 genérico.
     if routes.resolve {
-        router = router.route("/resolve", get(resolve_handler));
+        router = router.route("/resolve", get(gate_route::resolve_handler));
     }
     if routes.dl {
         router = router.route("/dl", get(dl_handler));
@@ -343,7 +298,13 @@ pub fn build_router(callbacks: Arc<dyn ResolverCallbacks>) -> Router {
     if routes.api {
         router = router.route("/api", get(api_handler));
     }
-    router.fallback(get(fallback_handler)).with_state(callbacks)
+    router
+        .fallback(get(fallback_handler))
+        // Única linha de registro: toda rota de tráfego (search/resolve/dl/api)
+        // marca atividade de usuário para o warm do FlareSolverr pular a vez
+        // (flare_warm.rs). /health é tratado lá dentro (healthcheck ≠ usuário).
+        .layer(axum::middleware::from_fn(crate::flare_warm::note_user_middleware))
+        .with_state(callbacks)
 }
 
 /// Executa o servidor resolver na porta configurada.

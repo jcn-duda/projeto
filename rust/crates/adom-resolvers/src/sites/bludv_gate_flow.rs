@@ -232,7 +232,7 @@ pub async fn resolve_gate_magnet(
             let rx = existing.tx.subscribe();
             (Arc::clone(existing), rx)
         } else {
-            if map.len() >= MAX_QUEUED + 1 {
+            if map.len() > MAX_QUEUED {
                 return Err(GateError::refused("fila cheia"));
             }
             let (tx, _rx) = watch::channel(None);
@@ -327,6 +327,19 @@ fn cache_set(key: &str, magnet: &str) {
             now + Duration::from_secs(CACHE_TTL_SECS),
         ),
     );
+}
+
+/// Leitura do cache com a MESMA chave do `resolve_gate_magnet` (validacao +
+/// sanitizacao identicas, sem rede): `Err` e o mesmo erro de botao invalido
+/// do modo bloqueante; `Ok(None)` e "sem magnet pronto". O gate decide entre
+/// responder o magnet ou disparar o aquecimento sem duplicar regra de chave.
+pub fn gate_cache_lookup(gate_url: &str, post_url: &str) -> Result<Option<String>, GateError> {
+    if !is_gate_url(gate_url, Some(post_url)) {
+        return Err(GateError::refused("botao invalido"));
+    }
+    let gate = safe_gate_url(gate_url, Some(post_url))
+        .ok_or_else(|| GateError::refused("botao invalido"))?;
+    Ok(cache_get(&gate.to_string()))
 }
 
 /// Prefetch fire-and-forget (mesma admissao do play).

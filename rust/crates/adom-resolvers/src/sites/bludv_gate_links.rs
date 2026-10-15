@@ -25,7 +25,7 @@ static GATE_HOSTS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
 });
 
 pub fn in_gate_hosts(host: &str) -> bool {
-    GATE_HOSTS.iter().any(|h| *h == host)
+    GATE_HOSTS.contains(&host)
 }
 
 /// Valida e parseia uma URL como gate (HTTPS, sem credenciais, porta, hash, espaco).

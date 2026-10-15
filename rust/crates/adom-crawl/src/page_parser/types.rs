@@ -40,7 +40,7 @@ pub struct CrawlParsedGroup {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrawlPageParsed {
     pub url: String,
-    pub status: String, // "done" | "no-torrent" | "error"
+    pub status: String, // "done" | "no-torrent" | "error" | "gate-pending"
     pub imdb: Option<String>,
     pub title: Option<String>,
     pub year: Option<i64>,
@@ -51,6 +51,10 @@ pub struct CrawlPageParsed {
     pub groups: Vec<CrawlParsedGroup>,
     pub unlocated: Vec<CrawlParsedRelease>,
     pub error: Option<String>,
+    /// Href do portão de anúncio quando o status é `gate-pending` (BLUDV);
+    /// `None` nos demais. Vai para a `crawl_gate`, não para o Node.
+    #[serde(default)]
+    pub gate: Option<String>,
 }
 
 impl CrawlPageParsed {
@@ -68,6 +72,7 @@ impl CrawlPageParsed {
             groups: Vec::new(),
             unlocated: Vec::new(),
             error: Some(msg.to_string()),
+            gate: None,
         }
     }
 
@@ -91,6 +96,38 @@ impl CrawlPageParsed {
             groups: Vec::new(),
             unlocated: Vec::new(),
             error: None,
+            gate: None,
+        }
+    }
+
+    /// Post que SÓ publica o botão do portão de anúncio (BLUDV): pendência de
+    /// portão, não "sem torrent" — a página anuncia torrent, o magnet só sai
+    /// depois de pagar o portão (~30s de FlareSolverr), o que nunca cabe no
+    /// passo de raspagem. O executor de fundo paga pelo resolver local e grava
+    /// a release no acervo depois. `no-torrent` fica sendo o caso do Nerd:
+    /// página que não colhe magnet NEM portão (commit f69fe0a).
+    pub fn gate_pending(
+        url: &str,
+        title: Option<String>,
+        year: Option<i64>,
+        imdb: Option<String>,
+        work_type: Option<String>,
+        gate: &str,
+    ) -> Self {
+        Self {
+            url: url.to_string(),
+            status: "gate-pending".to_string(),
+            imdb,
+            title,
+            year,
+            original_title: None,
+            season: None,
+            work_type,
+            releases: Vec::new(),
+            groups: Vec::new(),
+            unlocated: Vec::new(),
+            error: None,
+            gate: Some(gate.to_string()),
         }
     }
 }

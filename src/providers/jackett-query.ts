@@ -6,10 +6,12 @@ import { collapseAcronyms } from '../utils/title-normalization.js';
 import { prefix } from '../utils/cache-keys.js';
 
 /**
- * O que o Jackett recebe como Query. Buscador WordPress engasga com "SxxEyy":
- * os resolvers locais já removem no servidor, mas indexer BR com definição
- * stock (redetorrent) recebe a query crua e devolve 0. Remover aqui também faz
- * episódios da mesma temporada compartilharem o cache do Jackett. Nos
+ * O que o Jackett recebe como Query. A TEMPORADA fica na query BR: os oito
+ * cards BR são servidos pelo resolver Rust (127.0.0.1:870x), que extrai a
+ * temporada da própria query (`requested_season`) e aplica o filtro ANTES do
+ * corte de posts — sem o Sxx, "S.W.A.T. S02" buscava sem temporada e o corte
+ * levava as temporadas 6–3 do WordPress. O EPISÓDIO sai do token (S02E05 ->
+ * S02) para episódios da mesma temporada compartilharem o cache bruto. Nos
  * `bareTitleIndexers` o ANO no fim também sai ("Coringa 2019" → 0 lá) — só o
  * do fim, senão o filme "1917" perderia o próprio título. A query original
  * segue intacta para os pré-filtros de temporada/episódio da resolução.
@@ -23,7 +25,10 @@ import { prefix } from '../utils/cache-keys.js';
 export function shapeSearchQuery(indexer: string, query: string, isBr?: boolean) {
   let shaped = String(query || '');
   if (isBr) {
-    shaped = shaped.replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi, ' ');
+    // A temporada FICA (o resolver Rust precisa dela — ver o doc acima); o
+    // episódio sai do token. O site em si nunca vê o token: o normalize_query
+    // do resolver remove o Sxx antes de buscar (defesa dupla viva nos BR-Rust).
+    shaped = shaped.replace(/\bS(\d{1,2})E\d{1,3}\b/gi, 'S$1');
     shaped = stripDiacritics(shaped);
   } else {
     // Sigla com ponto, SÓ nos globais: "G.O.R.A. 2004" voltava vazio nos
@@ -35,6 +40,10 @@ export function shapeSearchQuery(indexer: string, query: string, isBr?: boolean)
     shaped = shaped.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
   }
   shaped = shaped.replace(/\s+/g, ' ').trim();
+  // A moldagem nunca devolve SÓ o token de temporada: sem título a busca não
+  // tem o que casar no site (o resolver normalizaria "S01" para vazio), então
+  // vale a query original — mesma proteção do fallback de vazio abaixo.
+  if (/^S\d{1,2}$/i.test(shaped)) return query;
   return shaped || query;
 }
 

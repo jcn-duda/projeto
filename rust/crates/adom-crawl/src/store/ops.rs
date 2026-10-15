@@ -4,7 +4,9 @@
 use super::schema;
 use rusqlite::{params, Connection};
 
-pub use super::types::{MarkResult, StatusCounters, StoreError, UrlRow};
+pub use super::types::{
+    GatePendingRecord, GateRow, MarkResult, StatusCounters, StoreError, UrlRow,
+};
 
 /// Acesso ao `crawl.db` (wraps `rusqlite::Connection`).
 pub struct CrawlStore {
@@ -229,6 +231,9 @@ impl CrawlStore {
         Ok(())
     }
 
+    // Operações de portão (`mark_gate_pending`, `take_gate_batch`, `clear_gate`)
+    // vivem em `gate_ops.rs` — catraca de 400 linhas.
+
     /// Crash recovery: URLs inflight voltam para pending.
     /// Retorna a quantidade de URLs reenfileiradas.
     pub fn requeue_inflight(&self, site: &str) -> Result<u32, StoreError> {
@@ -271,6 +276,7 @@ impl CrawlStore {
                 "error" => c.error = count,
                 "inflight" => c.inflight = count,
                 "simulated" => c.simulated = count,
+                "gate-pending" => c.gate_pending = count,
                 _ => {} // status desconhecido, ignora
             }
         }
@@ -287,12 +293,14 @@ impl CrawlStore {
         Ok(total as u32)
     }
 
-    /// Zera site (destrutivo): apaga todas as URLs, estado e rodadas do site.
+    /// Zera site (destrutivo): apaga todas as URLs, estado, rodadas e pendências
+    /// de portão do site.
     pub fn clear_site(&self, site: &str) -> Result<(), StoreError> {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute("DELETE FROM crawl_url WHERE site = ?1", params![site])?;
         tx.execute("DELETE FROM crawl_state WHERE site = ?1", params![site])?;
         tx.execute("DELETE FROM crawl_run WHERE site = ?1", params![site])?;
+        tx.execute("DELETE FROM crawl_gate WHERE site = ?1", params![site])?;
         tx.commit()?;
         Ok(())
     }
@@ -350,7 +358,7 @@ impl CrawlStore {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /// Epoch ms atual.
-fn now_ms() -> i64 {
+pub(super) fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -358,7 +366,7 @@ fn now_ms() -> i64 {
 }
 
 /// Extrai uma `UrlRow` de uma linha SQLite (mesma ordem do SELECT).
-fn row_from_sqlite(row: &rusqlite::Row<'_>) -> rusqlite::Result<UrlRow> {
+pub(super) fn row_from_sqlite(row: &rusqlite::Row<'_>) -> rusqlite::Result<UrlRow> {
     Ok(UrlRow {
         site: row.get(0)?,
         url: row.get(1)?,

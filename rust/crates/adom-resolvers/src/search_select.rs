@@ -98,6 +98,58 @@ pub fn requested_season(query: &str) -> Option<u32> {
     caps[1].parse::<u32>().ok().filter(|n| *n > 0)
 }
 
+/// Tolerância do ano do título contra o ano pedido: ±2 é o padrão do projeto
+/// (dois catálogos com anos a até 2 de distância são aceitos — mesma régua do
+/// altYear do filtro de título do addon).
+const YEAR_TOLERANCE: i32 = 2;
+
+/// Ano pedido na query CRUA (`YEAR` — "Duna 2021"). A fonte é a bruta, não a
+/// moldada: Rede e Vaca tiram o ano da busca no site (`drop_year`) e mesmo
+/// assim um post de outra obra tem que sair antes do corte.
+pub fn requested_year(query: &str) -> Option<i32> {
+    let caps = YEAR.captures(query)?;
+    caps[0].parse::<i32>().ok()
+}
+
+/// Post cujo TÍTULO declara um ano a mais de 2 do pedido sai antes do corte
+/// ("Duna 2021" × "Duna: Parte 2 (2024)"). Regras:
+/// - título SEM ano passa (a listagem do site pode não declarar ano);
+/// - título de SÉRIE (`POST_SEASON`) nunca sai por ano: o ano do post de série
+///   BR é o da TEMPORADA, não o da obra ("The Boys 4ª Temporada 2024" com
+///   query de filme "The Boys 2019" é a obra certa);
+/// - com VÁRIOS anos no título ("1917 (2019)"), basta um dentro da tolerância
+///   — o filme "1917" não pode ser condenado pelo próprio ano no nome.
+pub fn matches_year(title: &str, year: Option<i32>) -> bool {
+    let Some(wanted) = year else {
+        return true;
+    };
+    if POST_SEASON.is_match(title) {
+        return true;
+    }
+    let mut declares_any = false;
+    for found in YEAR.find_iter(title) {
+        let Ok(found_year) = found.as_str().parse::<i32>() else {
+            continue;
+        };
+        declares_any = true;
+        if (found_year - wanted).abs() <= YEAR_TOLERANCE {
+            return true;
+        }
+    }
+    !declares_any
+}
+
+/// Aplica `matches_year` na lista inteira ANTES do corte: quem chama extrai o
+/// ano da query bruta (`requested_year`) e devolve só os posts que não
+/// declaram outra obra. O filtro é na lista de posts — a consulta ao site
+/// segue com o ano quando o site o aceita (bludv), como sempre foi.
+pub fn filter_year<T>(posts: Vec<T>, title_of: impl Fn(&T) -> &str, year: Option<i32>) -> Vec<T> {
+    posts
+        .into_iter()
+        .filter(|p| matches_year(title_of(p), year))
+        .collect()
+}
+
 /// `matchesSeasonSeason`: post sem temporada no título passa.
 pub fn matches_season(title: &str, season: Option<u32>) -> bool {
     let Some(wanted) = season else {

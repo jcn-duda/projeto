@@ -8,14 +8,23 @@ use adom_crawl::flare::{fetch_text_crawl_accept, CrawlFetchDeps};
 use crate::profile::ResolverProfile;
 
 /// FlareSolverr do container, em loopback: o `flare.solverUrl` dos profiles TS.
-const SOLVER_URL: &str = "http://127.0.0.1:8191";
+/// `pub(crate)` porque o warm da sessão (flare_warm.rs) usa a MESMA mecânica.
+pub(crate) const SOLVER_URL: &str = "http://127.0.0.1:8191";
 /// Prazo do solve: o `flare.timeoutMs` dos profiles TS.
-const FLARE_TIMEOUT_MS: u64 = 55_000;
-const HTML_ACCEPT: &str = "text/html,application/xhtml+xml";
+pub(crate) const FLARE_TIMEOUT_MS: u64 = 55_000;
+pub(crate) const HTML_ACCEPT: &str = "text/html,application/xhtml+xml";
 const JSON_ACCEPT: &str = "application/json, text/html, */*";
 
 impl ResolverProfile {
     pub(crate) async fn fetch_with_flare(&self, url: &str) -> Result<String, String> {
+        // Porte do warm (flare_warm.rs): um fetch de usuário em andamento faz
+        // o laço de fundo pular o ciclo — o FlareSolverr atende um por vez. O
+        // guard RAII garante o decremento se o future for cancelado (drop).
+        let _fetch_guard = crate::flare_warm::GLOBAL_WARM.fetch_guard();
+        self.fetch_with_flare_inner(url).await
+    }
+
+    async fn fetch_with_flare_inner(&self, url: &str) -> Result<String, String> {
         let deps = CrawlFetchDeps {
             allowlist: self.allowlist.clone(),
             sessions: self.flare_sessions.clone(),

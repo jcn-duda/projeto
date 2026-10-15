@@ -6,6 +6,7 @@
 pub mod callbacks;
 pub mod common;
 mod flare_fetch;
+pub mod flare_warm;
 pub mod flows;
 mod gate_resolve;
 mod items;

@@ -47,15 +47,28 @@ test('indexer lento não-BR vira tarefa sozinha e mantém a query em inglês', (
   ]);
 });
 
-// A query que o Jackett recebe é moldada por indexer: BR perde o SxxEyy (os
-// resolvers locais já fazem isso no servidor; definição stock como o
-// redetorrent zerava com ele) e bare-title perde também o ano do fim.
-test('shapeSearchQuery remove SxxEyy para indexer BR e preserva para global', () => {
-  assert.equal(shapeSearchQuery('bludv-cardigann', 'A Casa do Dragão S01E01', true), 'A Casa do Dragao');
-  assert.equal(shapeSearchQuery('apachetorrent-cardigann', 'A Casa do Dragão S01E01', true), 'A Casa do Dragao');
+// A query que o Jackett recebe é moldada por indexer: o episódio sai do token
+// BR (S01E01 -> S01, cache por temporada) e a TEMPORADA fica — o resolver Rust
+// a extrai da query e filtra os posts antes do corte (as definições stock que
+// zeravam com SxxEyy no WordPress foram aposentadas: os oito BR são o resolver
+// local, que normaliza antes de buscar). Bare-title perde também o ano do fim.
+test('shapeSearchQuery preserva a temporada no BR e intoca o global', () => {
+  assert.equal(shapeSearchQuery('bludv-cardigann', 'A Casa do Dragão S01E01', true), 'A Casa do Dragao S01');
+  assert.equal(shapeSearchQuery('apachetorrent-cardigann', 'A Casa do Dragão S01E01', true), 'A Casa do Dragao S01');
   assert.equal(shapeSearchQuery('therarbg', 'House of the Dragon S01E01', false), 'House of the Dragon S01E01');
-  // Pack de temporada idem.
-  assert.equal(shapeSearchQuery('comandotorrents', 'Fallout S01', true), 'Fallout');
+  // Pack de temporada idem: o Sxx já é a forma final.
+  assert.equal(shapeSearchQuery('comandotorrents', 'Fallout S01', true), 'Fallout S01');
+});
+
+// Item 4 (S.W.A.T. S02): a temporada PRECISA chegar ao resolver Rust — é ele
+// quem extrai a temporada da própria query (requested_season) e aplica o
+// filtro ANTES do corte de posts; sem o Sxx, o corte levava as temporadas
+// 6–3 do WordPress e a S02 nem era buscada. O episódio sai do token (cache
+// por temporada) e o global não é tocado (query crua é dele).
+test('shapeSearchQuery preserva o Sxx da temporada no BR-Rust e o episódio vira temporada', () => {
+  assert.equal(shapeSearchQuery('bludv-cardigann', 'S.W.A.T. S02', true), 'S.W.A.T. S02');
+  assert.equal(shapeSearchQuery('bludv-cardigann', 'S.W.A.T. S02E05', true), 'S.W.A.T. S02');
+  assert.equal(shapeSearchQuery('therarbg', 'S.W.A.T. S02E05', false), 'SWAT S02E05');
 });
 
 // O acento zera a busca nos 7 indexers BR (cards locais E stock): o problema
@@ -85,7 +98,8 @@ test('shapeSearchQuery: strip de acento combina com os strips existentes', () =>
 
 test('shapeSearchQuery nunca devolve string vazia', () => {
   // Query que a moldagem esvazia cai no fallback `|| query`: o Jackett nunca
-  // recebe consulta em branco.
+  // recebe consulta em branco. Só-token vira a query original: sem título o
+  // resolver normalizaria "S01" para vazio.
   assert.equal(shapeSearchQuery('comandotorrents', 'S01E01', true), 'S01E01');
   assert.equal(shapeSearchQuery('redetorrent', '  ', true), '  ');
 });
