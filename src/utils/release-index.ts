@@ -27,6 +27,8 @@ import { routeWorkLocation } from './release-work.js';
 import { markMissing, markMissingSeason, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
 import { markFileEvidence, fileEvidence } from './release-index-file.js';
+import { bankRowsNapi, captureEnabled, observeMediaSource, recordProbe } from './rust-release-index.js';
+import type { MediaSourceProbe } from './rust-release-index.js';
 import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
 export type { IndexedRelease } from './release-index-types.js';
 export { forgetAutofetchHash } from './release-index-maintenance.js';
@@ -100,6 +102,11 @@ function record(
     candidatos.push({ item, hash, title: String(item.title || item.Title || '').trim() });
   }
   const bankByHash = bankRowsForMediaSource(candidatos);
+  // Sombra Rust (`RUST_RELEASE_INDEX`): sondas de strings puras, comparadas fora
+  // da resposta (setImmediate); o valor gravado é sempre o do TS.
+  const shadowOn = captureEnabled();
+  const shadowBank = shadowOn ? bankRowsNapi(bankByHash) : [];
+  const shadowProbes: MediaSourceProbe[] = [];
   const porChave = new Map<string, typeof candidatos>();
   for (const cand of candidatos) {
     const dn = dnForRecord(cand.item, cand.hash, bankByHash);
@@ -137,6 +144,7 @@ function record(
         ? 'autofetch' as const
         : undefined;
       const mediaSource = mergeMediaSource(item, title, hash, prior, bankByHash);
+      if (shadowOn) shadowProbes.push(recordProbe(item, title, hash, prior?.mediaSource, shadowBank, mediaSource));
       existing.set(hash, {
         hash,
         title: title || prior?.title || '',
@@ -165,6 +173,7 @@ function record(
   }
   metrics.count('search.idx.recorded', added);
   if (added > 0) metrics.count('search.idx.grown');
+  observeMediaSource(shadowProbes);
   return added;
 }
 /**

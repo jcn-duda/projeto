@@ -26,6 +26,11 @@ export const server = () => ({
     // Teto de releases por busca no shadow em lote (`rust-shadow.ts`).
     shadowMaxPerSearch: num(process.env.RUST_CORE_SHADOW_MAX, 300),
   },
+  // Índice de releases: sombra da fonte de mídia do record
+  // (`rust-release-index.ts`). A decisão (o valor gravado) segue no TS.
+  rustReleaseIndex: {
+    mode: rustMode(process.env.RUST_RELEASE_INDEX, 'off'),
+  },
   // Debrid: as decisões são do Rust por padrão (on; TS de reserva se o Rust
   // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
   // explícitos voltam ao TS; valor desconhecido = off.
