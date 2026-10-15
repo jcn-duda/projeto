@@ -42,6 +42,7 @@ dependencies = [
 name = "adom-debrid"
 version = "0.0.0"
 dependencies = [
+ "adom-core",
  "axum",
  "http-body-util",
  "regex",

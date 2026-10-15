@@ -7,6 +7,7 @@ description = "Cliente HTTP, estado e API interna do debrid (fase D0)."
 license = "UNLICENSED"
 
 [dependencies]
+adom-core = { path = "../adom-core" }
 regex = "=1.13.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

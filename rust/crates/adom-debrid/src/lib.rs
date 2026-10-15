@@ -1,15 +1,14 @@
-//! Fundação do debrid em Rust (fase D0).
+//! Fundação do debrid em Rust.
 //!
-//! Os cinco adaptadores ainda não moram aqui. Este crate entrega o cliente
-//! HTTP, a taxonomia de erro, o `debrid.db` e a API interna que o `adom-server`
-//! escuta em loopback. Enquanto `DEBRID_RUST_SERVICES` estiver vazio, o Node
-//! não chama esta API.
+//! Premiumize já tem adaptador. A API interna ainda responde 501 até o fio
+//! do `adom-server`. Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
 
 pub mod api;
 pub mod error;
 pub mod http;
 pub mod import;
 pub mod metrics;
+pub mod premiumize;
 pub mod store;
 
 pub use error::DebridError;
