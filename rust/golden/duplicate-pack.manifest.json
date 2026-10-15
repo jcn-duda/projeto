@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "duplicate-pack/dropDuplicatePackFiles"
+  ],
+  "function": {
+    "name": "dropDuplicatePackFiles",
+    "sourcePath": "src/providers/duplicate-pack.ts",
+    "sourceSha256": "066e1fda42f3192ef4138e6b2b9a9fc58bd1dc995900870e64d5324ff1cd5ad3",
+    "artifactPath": "dist/src/providers/duplicate-pack.js",
+    "artifactSha256": "7b6036fc5ebd10f151b9d8c65dcd0d3497a53901f7b4a03b578f798ebd091d33"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-duplicate-pack.json",
+    "sha256": "94dec6b018ae674222a3d456af2329d6f27a355d42ea19489c2f75e4c800f7b1",
+    "cases": 14
+  },
+  "output": {
+    "path": "rust/golden/duplicate-pack.jsonl",
+    "sha256": "24d0c311eac982a61ad854ad5737b9b001c631088219bd37a812fc4fa14885c6",
+    "lines": 14
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "0937a55e8bc7d0300d97153d0d2fd53d1c8fde05"
+  }
+}

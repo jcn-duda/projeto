@@ -35,6 +35,7 @@ mod debrid_rd_ledger;
 mod decode_entities;
 mod dedupe_names;
 mod dk_seal;
+mod duplicate_pack;
 mod episode_annotate;
 mod episode_matching;
 mod episode_parse;
@@ -57,6 +58,7 @@ mod metric_id;
 mod multiwork_pack;
 mod net_safety;
 mod non_feature_release;
+mod pack_text_totals;
 mod pt_audio_guards;
 mod release_filters;
 mod release_guards;
@@ -124,7 +126,8 @@ pub use debrid::{
     base_name, is_sample, is_site_ad, is_video, looks_multi_work_files, looks_pack_by_files,
     pick_code_label, pick_file, pick_work_file, work_coverage, DebridFile, EpisodeContext,
     EpisodeEvidence, PickCode, PickOutcome, PlayHint, WorkHint,
-};pub use debrid_cache_verdict::{
+};
+pub use debrid_cache_verdict::{
     cache_check_honest, failure_reason, failure_verdict, normalize_cache_result, unusable_reason,
     unusable_verdict, CacheAnswer, CacheVerdict, Unusable, UnusableReason,
 };
@@ -135,6 +138,7 @@ pub use debrid_rd_gate::{
 pub use debrid_rd_ledger::{
     ledger_key, next_on_blocked, next_on_hit, next_on_miss, normalize_hash, peek_state, LedgerWrite,
 };
+pub use duplicate_pack::{drop_duplicate_pack_files, DuplicatePackInput, DuplicatePackOutput};
 
 // ── episode ───────────────────────────────────────────────────────────
 pub use episode_annotate::{
@@ -277,6 +281,10 @@ pub use magnet_display_name::magnet_display_name;
 pub use metric_id::{indexer_fallback_metric_key, safe_metric_id};
 pub use net_safety::is_safe_download_url;
 pub use non_feature_release::{is_home_source, is_non_feature, pre_home_release_contradicts};
+pub use pack_text_totals::{
+    drop_pack_text_totals, files_prove_pack, names_multiple_episodes, PackTextTotalsInput,
+    PackTextTotalsOutput,
+};
 pub use pt_audio_guards::{explicit_pt_audio, has_explicit_foreign_audio};
 pub use release_filters::{
     filter_relevant_raw, filter_relevant_raw_for_year, RelevanceItem, RelevanceOutcome,

@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "pack-text-totals/dropPackTextTotals"
+  ],
+  "function": {
+    "name": "dropPackTextTotals",
+    "sourcePath": "src/providers/pack-text-totals.ts",
+    "sourceSha256": "fe7918d3b7a6c37d06fda952e5ee56370aaee1ea87066e450a3162d0314ed8fd",
+    "artifactPath": "dist/src/providers/pack-text-totals.js",
+    "artifactSha256": "89b6d7d17dbbbdf4ede54d6cf66955f6816406107a18d954158b65dd3e6a3770"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-pack-text-totals.json",
+    "sha256": "9c17e94a82088c185fb14ff097b38c37bb3667a749fee7eeaf531238b0eeff15",
+    "cases": 35
+  },
+  "output": {
+    "path": "rust/golden/pack-text-totals.jsonl",
+    "sha256": "428e925132a69305c37fd49c1e33202b18beb381f2fe01eb7cd19f76c57421a8",
+    "lines": 35
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "0937a55e8bc7d0300d97153d0d2fd53d1c8fde05"
+  }
+}

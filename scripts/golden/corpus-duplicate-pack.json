@@ -1,0 +1,60 @@
+{
+  "cases": [
+    {
+      "id": "dup-filme-exato",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448021}]}"
+    },
+    {
+      "id": "dup-um-byte-de-diferenca",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448022}]}"
+    },
+    {
+      "id": "dup-pack-cached-solo-nao",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448021}]}"
+    },
+    {
+      "id": "dup-ninguem-cached",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448021}]}"
+    },
+    {
+      "id": "dup-solo-cached-pack-nao",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448021}]}"
+    },
+    {
+      "id": "dup-pack-sem-lista",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"_bytes\":4000000000},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448021}]}"
+    },
+    {
+      "id": "dup-serie-episodio-exato",
+      "input": "{\"season\":1,\"episode\":2,\"work\":null,\"cached\":[\"cccccccccccccccccccccccccccccccccccccccc\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"files\":[{\"path\":\"Show.S01/Show.S01E01.720p.x265-T0PAZ.mkv\",\"size\":335896617},{\"path\":\"Show.S01/Show.S01E02.720p.x265-T0PAZ.mkv\",\"size\":289782300},{\"path\":\"Show.S01/Show.S01E03.720p.x265-T0PAZ.mkv\",\"size\":349345771}]}],\"streams\":[{\"name\":\"season\",\"title\":\"Show S01 720p\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\"},{\"name\":\"ep\",\"title\":\"Show S01E02 720p x265 T0PAZ\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":289782300}]}"
+    },
+    {
+      "id": "dup-serie-outro-episodio",
+      "input": "{\"season\":1,\"episode\":3,\"work\":null,\"cached\":[\"cccccccccccccccccccccccccccccccccccccccc\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"files\":[{\"path\":\"Show.S01/Show.S01E01.720p.x265-T0PAZ.mkv\",\"size\":335896617},{\"path\":\"Show.S01/Show.S01E02.720p.x265-T0PAZ.mkv\",\"size\":289782300},{\"path\":\"Show.S01/Show.S01E03.720p.x265-T0PAZ.mkv\",\"size\":349345771}]}],\"streams\":[{\"name\":\"season\",\"title\":\"Show S01 720p\",\"infoHash\":\"cccccccccccccccccccccccccccccccccccccccc\"},{\"name\":\"ep\",\"title\":\"Show S01E02 720p x265 T0PAZ\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":289782300}]}"
+    },
+    {
+      "id": "dup-solo-sem-medida",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}]}"
+    },
+    {
+      "id": "dup-lista-vazia-no-pack",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"_bytes\":4000000000},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448021}]}"
+    },
+    {
+      "id": "dup-sem-dica-maior-arquivo",
+      "input": "{\"season\":null,\"episode\":null,\"work\":null,\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Outro Filme 2013 1080p\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":1658013619}]}"
+    },
+    {
+      "id": "dup-work-empata-com-avulso-de-video-unico",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]},{\"hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"files\":[{\"path\":\"Filme Teste Sem Fronteiras 2016.mkv\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}]}"
+    },
+    {
+      "id": "dup-videos-fora-do-video-re-local",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste\"],\"y\":2020},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"a.nfo\",\"size\":10},{\"path\":\"COLECAO/Filme Teste - 2020.wmv\",\"size\":123},{\"path\":\"COLECAO/Outro - 2019.mpg\",\"size\":456}]},{\"hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"files\":[{\"path\":\"Filme Teste 2020.wmv\",\"size\":123}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"COLECAO COMPLETA\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},{\"name\":\"solo\",\"title\":\"Filme Teste 2020\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}]}"
+    },
+    {
+      "id": "dup-hash-maiusculo-no-stream",
+      "input": "{\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Filme Teste Sem Fronteiras\"],\"y\":2016},\"cached\":[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"],\"files\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"files\":[{\"path\":\"COLECAO/12 - Filme Teste Outro - 2013.mp4\",\"size\":1658013619},{\"path\":\"COLECAO/13 - Filme Teste Sem Fronteiras - 2016.mp4\",\"size\":2389448021}]}],\"streams\":[{\"name\":\"pack\",\"title\":\"FILMOGRAFIA COMPLETA\",\"infoHash\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},{\"name\":\"solo\",\"title\":\"Filme Teste Sem Fronteiras 2016 1080p Dublado\",\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"_bytes\":2389448021}]}"
+    }
+  ]
+}
