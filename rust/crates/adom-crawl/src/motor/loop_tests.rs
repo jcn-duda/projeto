@@ -225,8 +225,7 @@ async fn tick_nao_reivindica_own_pace() {
     // Semeia a fila do Mico com o id real (o critério é o perfil de rede).
     let mut mico = linha("tt0000001");
     mico.site = "mico".to_string();
-    mico.url =
-        "https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0000001/".to_string();
+    mico.url = "https://mico-leao-dublado-apiv-2.vercel.app/crawl/movie/tt0000001/".to_string();
     {
         let db_semente = CrawlStore::open(caminho).expect("abrir para semear");
         db_semente.migrate().expect("migrar");
@@ -235,8 +234,7 @@ async fn tick_nao_reivindica_own_pace() {
 
     let posts = Arc::new(AtomicUsize::new(0));
     let node = node_falso(posts.clone()).await;
-    let motor =
-        CrawlMotor::new(config(caminho, &node)).with_page_engine(EngineFake::pronta());
+    let motor = CrawlMotor::new(config(caminho, &node)).with_page_engine(EngineFake::pronta());
 
     let outcome = motor.tick_once().await.expect("tick");
     assert_eq!(outcome, TickOutcome::Skipped("sem-fila"));

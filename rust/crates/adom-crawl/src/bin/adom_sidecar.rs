@@ -22,6 +22,7 @@ use std::sync::Arc;
 use adom_crawl::motor::types::MotorConfig;
 use adom_crawl::motor::CrawlMotor;
 use adom_crawl::page_engine::CrawlPageEngine;
+use adom_crawl::protector_follow::ProtectorFollow;
 use adom_crawl::sidecar::server::AppState;
 use adom_crawl::sidecar::SidecarHttpClient;
 use adom_crawl::store::CrawlStore;
@@ -107,8 +108,18 @@ async fn main() {
     };
     // Conecta o PageEngine real (C5): fetch + parser. Sem isto o motor usa
     // UnwiredPageEngine (is_ready=false) e nenhuma URL é processada.
-    let motor =
-        Arc::new(CrawlMotor::new(config).with_page_engine(Arc::new(CrawlPageEngine::default())));
+    // Botões de protetor (Nerd, Comando, TDF) seguidos pelo resolver local, como
+    // o motor TS faz; `CRAWL_FOLLOW_PROTECTOR=false` desliga.
+    let protector =
+        (env_or("CRAWL_FOLLOW_PROTECTOR", "true") != "false").then(|| ProtectorFollow {
+            host: env_or("BR_RESOLVERS_HOST", "127.0.0.1"),
+            port_offset: env_u64("BR_RESOLVERS_PORT_OFFSET", 0) as u16,
+            timeout_ms: env_u64("CRAWL_PROTECTOR_TIMEOUT_MS", 45_000),
+            ..ProtectorFollow::default()
+        });
+    let mut page_engine = CrawlPageEngine::default();
+    page_engine.protector = protector;
+    let motor = Arc::new(CrawlMotor::new(config).with_page_engine(Arc::new(page_engine)));
 
     // ── 6. Inicia o servidor HTTP do sidecar ─────────────────────────
     // O servidor roda em background, em loopback, para o painel e entrypoint.

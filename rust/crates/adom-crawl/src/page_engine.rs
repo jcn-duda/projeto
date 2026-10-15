@@ -22,6 +22,7 @@ use crate::motor::types::{
 };
 use crate::net::{fetch_follow_redirects, FetchRedirectsOptions, FetchResponse};
 use crate::page_parser::{self, CrawlPageParsed, CrawlParsedGroup, CrawlParsedRelease};
+use crate::protector_follow::ProtectorFollow;
 use crate::site_profiles::{self, SiteNetworkConfig};
 use crate::store::ops::UrlRow;
 
@@ -43,6 +44,9 @@ pub struct CrawlPageEngine {
     /// O solver atende um pedido por vez e é o MESMO da busca ao vivo.
     flare_gate: Arc<AsyncMutex<()>>,
     solver_off_until: Arc<AtomicI64>,
+    /// Resolver local que segue os botões de protetor (Nerd, Comando, TDF).
+    /// `None` fecha a página só-protetor como `no-torrent` (testes, kill-switch).
+    pub protector: Option<ProtectorFollow>,
 }
 
 impl Default for CrawlPageEngine {
@@ -55,6 +59,7 @@ impl Default for CrawlPageEngine {
             sessions: Arc::new(StdMutex::new(FlareSessions::new(d::SESSION_TTL_MS))),
             flare_gate: Arc::new(AsyncMutex::new(())),
             solver_off_until: Arc::new(AtomicI64::new(0)),
+            protector: None,
         }
     }
 }
@@ -185,8 +190,25 @@ impl PageEngine for CrawlPageEngine {
                 Ok(h) => h,
                 Err(msg) => return PageOutcome::Failed(msg),
             };
-            // 4. Parser unificado e conversão para o contrato do Node.
-            let parsed = page_parser::parse_crawl_page(&row.site, &row.kind, &row.url, &html);
+            // 4. Botões de protetor seguidos pelo resolver local ANTES do
+            //    veredito: sem isto a página só-protetor sairia `no-torrent`.
+            let mut resolved = HashMap::new();
+            if let Some(follow) = &self.protector {
+                let buttons = page_parser::protector_buttons(&row.site, &row.url, &html);
+                if !buttons.is_empty() {
+                    match follow
+                        .resolve_buttons(&row.site, &row.url, &buttons, &cost)
+                        .await
+                    {
+                        Ok(map) => resolved = map,
+                        Err(msg) => return PageOutcome::Failed(msg),
+                    }
+                }
+            }
+            // 5. Parser unificado e conversão para o contrato do Node.
+            let parsed = page_parser::parse_crawl_page_with(
+                &row.site, &row.kind, &row.url, &html, &resolved,
+            );
             PageOutcome::Work(Box::new(to_work(row, parsed, cost.load(Ordering::SeqCst))))
         })
     }

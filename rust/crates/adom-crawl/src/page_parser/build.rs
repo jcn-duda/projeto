@@ -165,10 +165,9 @@ fn outcome_from_releases(
 /// Zero magnet colhido NUNCA é `done`, nos dois ramos: o TS do motor só fecha
 /// `done` COM releases (bludv/comandotorrents/nerdfilmes/torrentdosfilmes
 /// seguem o protetor ANTES do veredito e, sem magnet, devolvem `no-torrent`
-/// nos botões terminais — 400 do `/link.php` medido 2026-10-14 — ou erro). O
-/// sidecar não segue protetor, então a página só-protetor é `no-torrent` aqui:
-/// é a fronteira que o shadow do crawl já explica em
-/// `rust.crawl.status.protector` (rust-crawl-shadow.ts: explainedByProtector).
+/// nos botões terminais ou erro). O sidecar segue o protetor pelo resolver
+/// local (`protector_follow`) antes do parser; o botão que não virou magnet
+/// chega aqui como URL de protetor e não conta como release.
 /// Um `done` vazio chegaria ao Node como veredito de página e gravaria a linha
 /// com releases=0 — foi exatamente o acervo fantasma do nerd em 2026-10.
 #[allow(clippy::too_many_arguments)]

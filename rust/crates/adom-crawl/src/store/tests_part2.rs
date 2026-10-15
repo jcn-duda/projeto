@@ -167,7 +167,10 @@ fn take_next_recusa_own_pace() {
         .expect("upsert mico");
 
     let none = store.take_next(OWN_PACE).expect("take mico");
-    assert!(none.is_none(), "own_pace não pode ser reivindicado pelo Rust");
+    assert!(
+        none.is_none(),
+        "own_pace não pode ser reivindicado pelo Rust"
+    );
 
     // A fila fica intacta (pending, sem tentativa queimada) para o TS processar.
     let c = store.counters(OWN_PACE).expect("counters mico");
@@ -197,11 +200,7 @@ fn take_next_batch_exclui_own_pace_sem_gastar_vaga() {
         !sites.contains(&OWN_PACE),
         "own_pace nunca entra no lote do sidecar"
     );
-    assert_eq!(
-        batch.len(),
-        2,
-        "o limite é preenchido com os sites normais"
-    );
+    assert_eq!(batch.len(), 2, "o limite é preenchido com os sites normais");
 }
 
 // ─── requeue_errors ────────────────────────────────────────────────────────

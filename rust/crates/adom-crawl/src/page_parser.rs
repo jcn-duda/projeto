@@ -18,9 +18,12 @@ mod types;
 
 pub use types::{CrawlPageParsed, CrawlParsedGroup, CrawlParsedRelease};
 
+use std::collections::HashMap;
+
 use crate::listing::{apache_parse_imdb_id, hdr_parse_imdb_id};
 use crate::profile_parsers::{
-    parse_content_magnets, parse_download_links, parse_post_links, parse_post_magnets,
+    is_valid_magnet_uri, parse_content_magnets, parse_download_links, parse_post_links,
+    parse_post_magnets, ResolverLink,
 };
 use crate::season_page::{page_season_of, series_row_groups, unlocated_releases, SeriesRow};
 use crate::sitemap::{parse_bludv_imdb_id, parse_imdb_id, parse_vaca_imdb_id};
@@ -48,6 +51,47 @@ pub fn canonical_site_id(site: &str) -> &'static str {
 
 /// Parser unificado de página para todos os sites suportados.
 pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> CrawlPageParsed {
+    parse_crawl_page_with(site, kind, url, content, &HashMap::new())
+}
+
+/// Botões de protetor (URL sem magnet) que o resolver local sabe seguir, na
+/// ordem da página. BLUDV fica de fora de propósito: o botão dele é o portão de
+/// anúncio, que o índice nunca atravessa.
+pub fn protector_buttons(site: &str, url: &str, content: &str) -> Vec<String> {
+    let site_id = canonical_site_id(site);
+    if !matches!(
+        site_id,
+        "comandotorrents" | "nerdfilmes" | "torrentdosfilmesv2"
+    ) {
+        return Vec::new();
+    }
+    button_links(site_id, url, content)
+        .into_iter()
+        .map(|l| l.url)
+        .filter(|u| !is_valid_magnet_uri(u))
+        .collect()
+}
+
+/// Botões do ramo genérico: cada site resolve o href pela régua do PRÓPRIO
+/// profile; o Comando compartilha o resolvedor de protetor da vaca.
+fn button_links(site_id: &str, url: &str, content: &str) -> Vec<ResolverLink> {
+    match site_id {
+        "bludv-cardigann" => parse_bludv_links(content),
+        "nerdfilmes" => parse_nerdfilmes_links(content, Some(url)),
+        "torrentdosfilmesv2" => parse_tdf_links(content),
+        _ => parse_download_links(content, Some(url), None, None),
+    }
+}
+
+/// [`parse_crawl_page`] com os magnets dos botões de protetor já seguidos
+/// (`href do botão → magnet`), vindos do resolver local.
+pub fn parse_crawl_page_with(
+    site: &str,
+    kind: &str,
+    url: &str,
+    content: &str,
+    resolved: &HashMap<String, String>,
+) -> CrawlPageParsed {
     let site_id = canonical_site_id(site);
     let is_series = kind == "tv_show" || kind == "series";
     let work_type = if is_series { "series" } else { "movie" };
@@ -249,12 +293,14 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
             // Bludv, ComandoTorrents, NerdFilmes, TDF. Cada site resolve o href
             // pela régua do PRÓPRIO profile; o Comando compartilha o resolvedor
             // de protetor da vaca (`parse_download_links`).
-            let links = match site_id {
-                "bludv-cardigann" => parse_bludv_links(content),
-                "nerdfilmes" => parse_nerdfilmes_links(content, Some(url)),
-                "torrentdosfilmesv2" => parse_tdf_links(content),
-                _ => parse_download_links(content, Some(url), None, None),
-            };
+            let mut links = button_links(site_id, url, content);
+            // Botão de protetor que o resolver local já seguiu vira o magnet
+            // dele; o resto da régua (áudio, qualidade, episódio) não muda.
+            for link in &mut links {
+                if let Some(magnet) = resolved.get(&link.url) {
+                    link.url = magnet.clone();
+                }
+            }
             if links.is_empty() {
                 // BLUDV: portao de anuncio nao resolvido NUNCA e "sem torrent"
                 // nem "done"; e erro retentavel honesto. A espera do anuncio
@@ -275,9 +321,9 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
             }
 
             // Botão de protetor (URL sem magnet) prova que a página ANUNCIA
-            // torrent, mas o sidecar não o segue: sem magnet colhido o veredito
-            // é `no-torrent`, nunca `done` vazio (o TS do motor só fecha `done`
-            // com releases).
+            // torrent; o sidecar o segue pelo resolver local (`resolved`). O
+            // que sobra sem magnet colhido é `no-torrent`, nunca `done` vazio
+            // (o TS do motor só fecha `done` com releases).
             build_parsed_outcome(
                 url, title, year, imdb, work_type, indexer, tracker, &links, is_series,
             )

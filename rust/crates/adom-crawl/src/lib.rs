@@ -15,6 +15,7 @@ pub mod page_parser;
 pub mod policy;
 pub mod profile_parsers;
 pub mod protector;
+pub mod protector_follow;
 pub mod resolver_cache;
 pub mod resolver_concurrency;
 pub mod resolver_matching;
