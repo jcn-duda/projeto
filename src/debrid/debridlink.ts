@@ -2,6 +2,7 @@ import { magnetForPlay, json, pickFile, wait } from './common.js';
 import * as log from '../utils/logger.js';
 import { assertDubbedFiles, recordFileEvidence } from './audio-audit.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import { apiBaseFromEnv } from './api-base.js';
 
 const API = 'https://debrid-link.com/api/v2';
 
@@ -14,7 +15,7 @@ const API = 'https://debrid-link.com/api/v2';
  * @param {Object} [options.params]
  */
 async function call(apiKey: string, path: string, { method = 'GET', body, params = {} }: { method?: string; body?: BodyInit | null; params?: Record<string, string> } = {}) {
-  const url = new URL(`${API}${path}`);
+  const url = new URL(`${apiBaseFromEnv('DEBRIDLINK_API_BASE', API)}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
   const data = await json(url, {

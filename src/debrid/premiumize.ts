@@ -12,6 +12,7 @@ import { recordTorrentTotal } from './file-sizes.js';
 import { scheduleFileLists, freshFileLink } from './premiumize-files.js';
 import { markerIdIndex } from '../providers/autofetch-marker.js';
 import type { PlayHint, TorrentStatusEntry } from '../../types/domain.js';
+import { apiBaseFromEnv } from './api-base.js';
 
 const API = 'https://www.premiumize.me/api';
 
@@ -25,7 +26,7 @@ const API = 'https://www.premiumize.me/api';
  * @param {number} [options.timeout]
  */
 async function call(apiKey: string, path: string, { method = 'GET', params = {}, body, timeout }: { method?: string; params?: Record<string, string | string[]>; body?: BodyInit | null; timeout?: number } = {}) {
-  const url = new URL(`${API}${path}`);
+  const url = new URL(`${apiBaseFromEnv('PREMIUMIZE_API_BASE', API)}${path}`);
   url.searchParams.set('apikey', apiKey);
   for (const [k, v] of Object.entries(params)) {
     if (Array.isArray(v)) v.forEach((item) => url.searchParams.append(k, item));
