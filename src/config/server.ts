@@ -37,6 +37,18 @@ export const server = () => ({
   rustAutofetch: {
     mode: rustMode(process.env.RUST_AUTOFETCH, 'off'),
   },
+  // Ranking de streams (dedupe + sortAndLimit): lote do `rust-stream-ranking.ts`.
+  // off = só TS; shadow = TS responde e o Rust compara em `setImmediate`
+  // (rust.ranking.*); on = o Rust responde, TS de reserva se ele lançar.
+  rustStreamRanking: {
+    mode: rustMode(process.env.RUST_STREAM_RANKING, 'off'),
+  },
+  // Anotação de tamanho de episódio/filme (`rust-episode-size.ts`). O Node lê
+  // os caches fsz/tsz e manda o lote; off/shadow/on como acima
+  // (rust.episodeSize.*).
+  rustEpisodeSize: {
+    mode: rustMode(process.env.RUST_EPISODE_SIZE, 'off'),
+  },
   // Debrid: as decisões são do Rust por padrão (on; TS de reserva se o Rust
   // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
   // explícitos voltam ao TS; valor desconhecido = off.

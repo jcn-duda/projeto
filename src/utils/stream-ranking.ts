@@ -26,6 +26,12 @@ import {
 } from './autofetch-pools.js';
 import type { PoolsOptions, AutofetchTargetQuality } from './autofetch-pools.js';
 import {
+  buildRankingInput,
+  rankingMode,
+  rustSortAndLimit,
+  shadowSortAndLimit,
+} from './rust-stream-ranking.js';
+import {
   hashSet,
   pickFromPool,
   pickBrDubbedCandidates,
@@ -171,7 +177,7 @@ function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: St
   return [...best.values()];
 }
 
-function sortAndLimit(
+function sortAndLimitTs(
   streams: (Stream | null)[],
   {
     minSeeders = 0,
@@ -340,6 +346,25 @@ function sortAndLimit(
       // sim. A marca é interna e morre no limitReservingBr, junto das outras.
       return waived.has(s) ? { ...rest, _seedFloorWaived: true } : rest;
     });
+}
+
+/**
+ * Dispatcher do sortAndLimit (Parte 7 da ponte Rust). `on` = o Rust responde
+ * (dedupe + sort numa travessia) e cai no TS de reserva se lançar; `shadow` =
+ * o TS responde e o Rust repete em `setImmediate`, fora do caminho da resposta
+ * (divergência → `rust.ranking.divergence`). Com os envs default (`off`) o
+ * comportamento é bit-a-bit o de antes: só o TS roda.
+ */
+function sortAndLimit(streams: (Stream | null)[], options: SortOptions = {}) {
+  if (rankingMode() === 'on') {
+    const viaRust = rustSortAndLimit(streams, options);
+    if (viaRust) return viaRust as Stream[];
+  }
+  const out = sortAndLimitTs(streams, options);
+  if (rankingMode() === 'shadow') {
+    shadowSortAndLimit(buildRankingInput(streams, options), out);
+  }
+  return out;
 }
 
 export {

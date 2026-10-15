@@ -5,6 +5,9 @@ import { peekFileSizes, hasFileSizes, peekTorrentTotal } from '../debrid/file-si
 import { stageTrace } from '../utils/stream-trace.js';
 import { dropDuplicatePackFiles } from './duplicate-pack.js';
 import { dropPackTextTotals, namesMultipleEpisodes, looksPackByFiles } from './pack-text-totals.js';
+import {
+  buildAnnotateInput, episodeSizeMode, rustAnnotateEpisodeSizes, shadowAnnotateEpisodeSizes,
+} from '../utils/rust-episode-size.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 
 // Tamanho do EPISÓDIO numa release que é pack da temporada. O tracker publica
@@ -335,8 +338,8 @@ function fillTorrentTotals<T extends Stream | null>(streams: T[], trace?: Stream
   }) as T[];
 }
 
-/** Tamanho do episódio/filme em pack, e o 💾 de quem veio sem tamanho. */
-function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: AnnotateOptions = {}): T[] {
+/** Tamanho do episódio/filme em pack, e o 💾 de quem veio sem tamanho (TS). */
+function annotateEpisodeSizesTs<T extends Stream | null>(streams: T[], options: AnnotateOptions = {}): T[] {
   const { season, episode } = options;
   const filled = fillTorrentTotals(streams, options.trace);
   const annotated = annotatePackSizes(filled, options);
@@ -365,6 +368,25 @@ function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: An
   return options.cached
     ? dropDuplicatePackFiles(sized, { season, episode, work: options.work, trace: options.trace, cached: options.cached })
     : sized;
+}
+
+/**
+ * Dispatcher da anotação (Parte 7 da ponte Rust). `on` = o Node lê os caches
+ * fsz/tsz e o Rust decide numa travessia (cai no TS se lançar); `shadow` = o
+ * TS anota e o Rust repete em `setImmediate`, fora do caminho da resposta
+ * (divergência → `rust.episodeSize.divergence`). Com os envs default (`off`) o
+ * comportamento é bit-a-bit o de antes.
+ */
+function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: AnnotateOptions = {}): T[] {
+  if (episodeSizeMode() === 'on') {
+    const viaRust = rustAnnotateEpisodeSizes(streams, options);
+    if (viaRust) return viaRust as T[];
+  }
+  const out = annotateEpisodeSizesTs(streams, options);
+  if (episodeSizeMode() === 'shadow') {
+    shadowAnnotateEpisodeSizes(buildAnnotateInput(streams, options), out);
+  }
+  return out;
 }
 
 // As funções internas são exportadas para o oráculo do golden

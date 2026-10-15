@@ -49,6 +49,8 @@ mod debrid;
 mod debrid_cache;
 mod debrid_clean;
 mod debrid_rd;
+mod episode_size;
+mod ranking;
 mod release_index_media;
 
 // Lote do autofetch (Chupim): reexporta para o `#[napi]` não ser marcado morto.
@@ -60,6 +62,9 @@ pub use debrid::*;
 pub use debrid_cache::*;
 pub use debrid_clean::*;
 pub use debrid_rd::*;
+// Ranking de streams e anotação de tamanho: lote da Parte 7 da migração.
+pub use episode_size::*;
+pub use ranking::*;
 pub use release_index_media::*;
 
 // ---------------------------------------------------------------------------

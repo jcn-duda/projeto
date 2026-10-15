@@ -42,7 +42,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 
 # NAPI-RS: runtime + macro de export.
 # "napi8" = API estável do Node 20+; "napi9" exigiria Node 22.
-napi = { version = "2", default-features = false, features = ["napi8"] }
+# "serde-json": streams/drops do ranking cruzam como serde_json::Value.
+napi = { version = "2", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "2"
 
 [build-dependencies]
