@@ -188,12 +188,12 @@ describe('crawl catálogo: status e motor', () => {
       { inEnv: nerd?.inEnv, enabled: nerd?.enabled, over: nerd?.enabledOverridden, configured: nerd?.configured },
       { inEnv: false, enabled: true, over: true, configured: true },
     );
-    assert.equal(bludv?.adapter, true, 'o BLUDV ganhou adaptador no COMMIT 1 da Fase 8');
+    assert.equal(bludv?.adapter, true, 'o BLUDV tem adaptador (no sidecar Rust)');
     assert.equal(bludv?.enabled, false, 'mas continua desligado: fora do CRAWL_SITES, só entra pelo painel');
     assert.equal(crawler.status().catalog.length, registry.SITE_TABLE.length, 'o status do painel carrega o catálogo');
   });
 
-  test('site ligado pelo painel ganha card e entra na rotação', async () => {
+  test('site Rust ligado pelo painel ganha card, mas o motor TS não o raspa', async () => {
     crawler._setSitesForTest((id) => fakeSite(id));
     Object.assign(config.crawl, { sites: [] });
     crawler.start();
@@ -202,7 +202,8 @@ describe('crawl catálogo: status e motor', () => {
     assert.deepEqual(crawler.status().sites.map((s) => s.id), ['nerdfilmes']);
     crawler._forceDiscoveryForTest();
     for (let i = 0; i < 4; i += 1) await crawler.tick();
-    assert.ok(store.engine().counters('nerdfilmes').total > 0, 'o motor raspou o site ligado pelo painel');
+    // Os oito cards do Jackett são do sidecar Rust: o motor TS nunca os toca.
+    assert.equal(store.engine().counters('nerdfilmes').total, 0, 'o motor TS não raspa site do sidecar');
   });
 
   test('ações por site aceitam o site ligado pelo painel (fora do CRAWL_SITES)', () => {

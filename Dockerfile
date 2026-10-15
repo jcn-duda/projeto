@@ -60,13 +60,6 @@ COPY src ./src
 COPY types ./types
 COPY scripts ./scripts
 COPY resolvers ./resolvers
-COPY bludv-resolver ./bludv-resolver
-COPY comandotorrents-resolver ./comandotorrents-resolver
-COPY nerdfilmes-resolver ./nerdfilmes-resolver
-COPY torrentdosfilmes-resolver ./torrentdosfilmes-resolver
-COPY vacatorrent-resolver ./vacatorrent-resolver
-COPY redetorrent-resolver ./redetorrent-resolver
-COPY apachetorrent-resolver ./apachetorrent-resolver
 # `test/` fica de fora de propósito: está no .dockerignore e a imagem de runtime
 # não roda a suíte. O `include` do tsconfig cobre test/**, mas glob que não casa
 # nada é no-op para o tsc — o build sai com dist/src, dist/scripts e os assets.
@@ -116,14 +109,9 @@ RUN cp /usr/bin/chromedriver /app/chromedriver \
  && python3 -m pip install --break-system-packages --no-cache-dir \
       -r /app/flaresolverr/requirements.txt
 
-# --- Addon compilado + resolvedores BR embutidos (8700-8706, chamados pelo Jackett).
-# O br-resolvers importa estaticamente os PROFILES por caminho relativo ao
-# próprio módulo ("../resolvers/profiles/<nome>.js", ESM nativo), que a partir
-# de dist/src/ resolve em dist/resolvers/. É o tsc que compila/emite resolvers/
-# para dentro de dist/ (include `resolvers/**` no tsconfig; o build-assets não
-# copia mais resolvers/), então o layout da imagem é o mesmo do `npm run build`.
-# Os shims dist/*-resolver/ são ESM (export default lazy) e existem para testes
-# e modo processo-separado; o caminho de produção não os usa.
+# --- Addon compilado. Os resolvedores BR (8700-8707, chamados pelo Jackett)
+# são o binário Rust adom-resolvers, copiado abaixo; o que sobrou em resolvers/
+# (helpers do provider do BLUDV e tipos) o tsc emite em dist/resolvers/.
 COPY package.json package-lock.json ./
 # O FlareSolverr procura package.json no diretório PAI (/app/package.json),
 # que é o do addon — escrito no Windows com BOM. Python 3.14+ rejeita BOM

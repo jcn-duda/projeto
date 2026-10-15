@@ -28,6 +28,8 @@ export interface SiteEntry {
   exportName: string | null;
   /** Observação para o status (por que não há adaptador, por exemplo). */
   note?: string;
+  /** Adaptador no sidecar Rust (`adom-crawl`): o motor TS nunca o processa. */
+  rust?: boolean;
   /**
    * Ritmo PRÓPRIO: o adaptador tem limitador interno e não usa Jackett nem
    * FlareSolverr (os recursos da busca ao vivo que o teto horário e a janela de
@@ -37,35 +39,18 @@ export interface SiteEntry {
 }
 
 /** Módulos resolvidos por import dinâmico (lazy: o módulo só entra em quem
- *  realmente precisa dele). */
+ *  realmente precisa dele). Os oito cards do Jackett são raspados pelo sidecar
+ *  Rust (`adom-crawl`); em TS ficou só o Mico, de ritmo próprio. */
 const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
-  vacatorrent: () => import('./vaca.js') as unknown as Promise<SiteModule>,
-  nerdfilmes: () => import('./nerdfilmes.js') as unknown as Promise<SiteModule>,
-  // O id do card (`torrentdosfilmesv2`) e o nome do profile
-  // (`torrentdosfilmes`) divergem; a ponte é o próprio adaptador, que pergunta
-  // a instância pelo NOME do profile. Ver `torrentdosfilmes.ts`.
-  torrentdosfilmesv2: () => import('./torrentdosfilmes.js') as unknown as Promise<SiteModule>,
-  comandotorrents: () => import('./comandotorrents.js') as unknown as Promise<SiteModule>,
-  // O id do card (`redetorrent-cardigann`) e o nome do profile
-  // (`redetorrent`) divergem; a ponte é o próprio adaptador, que pergunta a
-  // instância pelo NOME do profile. Ver `redetorrent.ts`.
-  'redetorrent-cardigann': () => import('./redetorrent.js') as unknown as Promise<SiteModule>,
-  // Mesma divergência de nome: card `apachetorrent-cardigann`, profile
-  // `apachetorrent`. A ponte é o próprio adaptador, que pergunta a instância
-  // pelo NOME do profile. Ver `apachetorrent.ts`.
-  'apachetorrent-cardigann': () => import('./apachetorrent.js') as unknown as Promise<SiteModule>,
-  // Mesma divergência de nome: card `bludv-cardigann`, profile `bludv`.
-  'bludv-cardigann': () => import('./bludv.js') as unknown as Promise<SiteModule>,
-  // Mesma divergência de nome: card `hdrtorrent-cardigann`, profile
-  // `hdrtorrents`. A ponte é o próprio adaptador, que pergunta a instância pelo
-  // NOME do profile. Ver `hdrtorrents.ts`.
-  'hdrtorrent-cardigann': () => import('./hdrtorrents.js') as unknown as Promise<SiteModule>,
   // NONO site: o Mico NÃO é card do Jackett — é um addon Stremio público (id
   // virtual `mico`, consultado por IMDb). O adaptador é `crawl-sites/mico.ts`
   // (o homônimo `../mico.ts` é a busca ao vivo). A entrada só existe com
   // `config.mico.enabled`: desligado, a fábrica lança e `ensureSite` devolve null.
   mico: () => import('./mico.js') as unknown as Promise<SiteModule>,
 };
+
+/** Site raspado pelo sidecar Rust: sem módulo TS, mas com adaptador (lá). */
+const RUST = { module: null, exportName: null, rust: true, note: 'raspado pelo sidecar Rust' } as const;
 
 /**
  * TABELA DOS SITES BR. O `id` é o do CARD do Jackett — é ele que amarra o item
@@ -76,14 +61,14 @@ const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
  * de CARDS, não a de rollout.
  */
 export const SITE_TABLE: SiteEntry[] = [
-  { id: 'vacatorrent', label: 'Vaca Torrent', module: BUILTIN_MODULES.vacatorrent, exportName: 'vacaCrawlSite' },
-  { id: 'nerdfilmes', label: 'NerdFilmes', module: BUILTIN_MODULES.nerdfilmes, exportName: 'nerdfilmesCrawlSite' },
-  { id: 'torrentdosfilmesv2', label: 'TorrentDosFilmes', module: BUILTIN_MODULES.torrentdosfilmesv2, exportName: 'torrentdosfilmesCrawlSite' },
-  { id: 'comandotorrents', label: 'ComandoTorrents', module: BUILTIN_MODULES.comandotorrents, exportName: 'comandotorrentsCrawlSite' },
-  { id: 'redetorrent-cardigann', label: 'RedeTorrent', module: BUILTIN_MODULES['redetorrent-cardigann'], exportName: 'redetorrentCrawlSite' },
-  { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', module: BUILTIN_MODULES['apachetorrent-cardigann'], exportName: 'apachetorrentCrawlSite' },
-  { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', module: BUILTIN_MODULES['hdrtorrent-cardigann'], exportName: 'hdrtorrentsCrawlSite' },
-  { id: 'bludv-cardigann', label: 'BLUDV', module: BUILTIN_MODULES['bludv-cardigann'], exportName: 'bludvCrawlSite' },
+  { id: 'vacatorrent', label: 'Vaca Torrent', ...RUST },
+  { id: 'nerdfilmes', label: 'NerdFilmes', ...RUST },
+  { id: 'torrentdosfilmesv2', label: 'TorrentDosFilmes', ...RUST },
+  { id: 'comandotorrents', label: 'ComandoTorrents', ...RUST },
+  { id: 'redetorrent-cardigann', label: 'RedeTorrent', ...RUST },
+  { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', ...RUST },
+  { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', ...RUST },
+  { id: 'bludv-cardigann', label: 'BLUDV', ...RUST },
   // Ritmo próprio: `MICO_CRAWL_MIN_GAP_MS` (API JSON, sem Jackett/FlareSolverr).
   { id: 'mico', label: 'Mico Leão Dublado', module: BUILTIN_MODULES.mico, exportName: 'micoCrawlSite', ownPace: true },
 ];
@@ -95,6 +80,16 @@ const memo = new Map<string, CrawlSite>();
 const warned = new Set<string>();
 let activeSite: CrawlSite | null = null;
 let activeSiteId = '';
+
+/** Há adaptador, em TS (módulo) ou no sidecar Rust. */
+function hasAdapter(entry: SiteEntry): boolean {
+  return Boolean((entry.module && entry.exportName) || entry.rust);
+}
+
+/** O site é raspado pelo sidecar Rust (ver `SiteEntry.rust`)? */
+export function isRustSite(id: string): boolean {
+  return SITE_TABLE.some((entry) => entry.id === id && entry.rust === true);
+}
 
 /** O site tem ritmo próprio (ver `SiteEntry.ownPace`)? */
 export function isOwnPace(id: string): boolean {
@@ -112,7 +107,7 @@ export function tableIds(): string[] {
  * motor só o marcaria `sem-adaptador` a cada volta.
  */
 export function adapterIds(): string[] {
-  return SITE_TABLE.filter((entry) => entry.module && entry.exportName).map((entry) => entry.id);
+  return SITE_TABLE.filter(hasAdapter).map((entry) => entry.id);
 }
 
 /** Entrada da tabela de um id; `null` quando o id nem existe na tabela. */
@@ -131,7 +126,7 @@ export function siteInfo(siteId: string): {
   const id = String(siteId || '');
   const entry = TABLE.get(id);
   if (!entry) return { id, label: id, known: false, adapter: false, note: 'site fora da tabela BR' };
-  const has = Boolean(entry.module && entry.exportName);
+  const has = hasAdapter(entry);
   return { id, label: entry.label, known: true, adapter: has, note: has ? null : (entry.note ?? 'sem adaptador') };
 }
 

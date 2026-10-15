@@ -85,7 +85,23 @@ jobs:
         env:
           RUST_CORE: 'off'
           DOTENV_CONFIG_PATH: test/fixtures/env-empty
-        run: npm run golden:crawl-parsers:check && npm run golden:crawl-policy:check
+        run: npm run golden:crawl-policy:check
+
+      # Os parsers TS dos oito sites saíram deste branch (o Rust os substitui);
+      # o oráculo deles é o TypeScript do branch `esm`, num worktree ao lado.
+      - name: Oráculo dos parsers (TypeScript do branch esm)
+        working-directory: .
+        run: |
+          git fetch --depth=1 origin esm
+          git worktree add ../adom-esm FETCH_HEAD
+          cd ../adom-esm && npm ci && npm run build
+
+      - name: Goldens dos parsers contra o TypeScript do esm
+        working-directory: ../adom-esm
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: npm run golden:crawl-parsers:check
 
       # 16 testes, 76 comparações (23 goldens + 45 vetores Unicode 17 + 8 do
       # glue UTF-16 da sigla) contra o `expected` commitado — nunca input == expected.
@@ -104,10 +120,10 @@ jobs:
 
       - name: Preparar artefato NAPI
         working-directory: .
-        run: mkdir -p dist/rust && cp rust/target/debug/libadom_napi.so dist/rust/adom_napi.node
+        run: mkdir -p ../adom-esm/dist/rust && cp rust/target/debug/libadom_napi.so ../adom-esm/dist/rust/adom_napi.node
 
-      - name: Paridade real dos parsers TS × Rust (NAPI)
-        working-directory: .
+      - name: Paridade real dos parsers TS (esm) × Rust (NAPI)
+        working-directory: ../adom-esm
         env:
           RUST_CORE: 'off'
           DOTENV_CONFIG_PATH: test/fixtures/env-empty

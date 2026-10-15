@@ -6,7 +6,7 @@
 //
 // Leitura pura sobre a tabela estática do registro, a config ao vivo e as
 // medições que já existem: não resolve adaptador, não abre store, não sonda.
-import { SITE_TABLE } from './crawl-sites/registry.js';
+import { SITE_TABLE, siteInfo } from './crawl-sites/registry.js';
 import * as indexerStatus from './indexer-status.js';
 import { knownSites, siteConfigOf, type CrawlerEffectiveConfig } from '../utils/crawler-live-schema.js';
 
@@ -89,7 +89,8 @@ export function siteCatalog(
   const configured = new Set(knownSites(live));
   const inEnv = new Set(live.sites.map((s) => String(s || '').trim()));
   return SITE_TABLE.map((entry) => {
-    const adapter = Boolean(entry.module && entry.exportName);
+    // Adaptador em TS ou no sidecar Rust: a régua é a do registro.
+    const adapter = siteInfo(entry.id).adapter;
     const cfg = siteConfigOf(live, entry.id);
     const { health, detail } = siteHealth(entry.id, evidence.get(entry.id), now);
     return {

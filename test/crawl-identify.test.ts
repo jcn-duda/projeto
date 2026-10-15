@@ -336,40 +336,6 @@ describe('identifyWork: segurança do casamento', () => {
   }));
 });
 
-describe('entrada da identificação: título da página do Vaca', () => {
-  test('parseTitleYear decodifica entidade HTML do h1 e a query do TMDB encontra a obra', withTmdbKey(async () => {
-    // Medido ao vivo (sonda da Fase 2): "A Gangster&#8217;s Life" e
-    // "Mike &#038; Nick" voltavam 0 no TMDB com a entidade crua na query.
-    const { parseTitleYear } = await import('../src/providers/crawl-sites/vaca.js');
-    const parsed = parseTitleYear(
-      '<h1>A Gangster&#8217;s Life (2026)</h1>'
-      + '<div>Avaliação da IMDb: <a href="https://www.imdb.com/title/tt0000000/">IMDb</a></div>',
-    );
-    assert.equal(parsed.title, 'A Gangster’s Life');
-    assert.equal(parsed.year, 2026);
-
-    // Integração: o título DECODIFICADO é o que vai para a busca (a obra no
-    // TMDB se chama com o apóstrofo tipográfico real, não com a entidade).
-    const title = parsed.title;
-    const stub = stubFetch((url) => {
-      if (url.includes('/search/movie')) {
-        assert.equal(new URL(url).searchParams.get('query'), 'A Gangster’s Life');
-        return searchResp([movieHit(111, title, title, '2026-01-15')]);
-      }
-      if (url.includes('/movie/111/external_ids')) return ok({ imdb_id: 'tt33372326' });
-      throw new Error(`fetch fora do mapa: ${url}`);
-    });
-    try {
-      const result = await identifyWork({ type: 'movie', title, year: parsed.year });
-      assert.equal(result.outcome, 'identified');
-      assert.equal(result.imdb, 'tt33372326');
-    } finally {
-      stub.restore();
-      forgetKeys('movie', title, [111]);
-    }
-  }));
-});
-
 describe('helpers puros do casamento', () => {
   test('strictNameMatches normaliza acento, caixa e pontuação; não casa substring', async () => {
     assert.equal(normalizeTitle('Expresso do Amanhã'), normalizeTitle('expresso do amanha'));

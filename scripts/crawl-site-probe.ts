@@ -91,17 +91,8 @@ if (flagGate.unknown.length) {
 const [
 
   { default: config },
-  { vacaSurface, nerdSurface, tdfSurface, comandoSurface, redetorrentSurface, bludvSurface, hdrSurface },
-  { createVacaCrawlSite },
-  { createNerdfilmesCrawlSite },
-  { createTorrentdosfilmesCrawlSite },
-  { createComandotorrentsCrawlSite },
-  { createRedetorrentCrawlSite },
-  { createBludvCrawlSite },
-  { createHdrtorrentsCrawlSite },
   { createMicoCrawlSite },
   { processCrawlPage },
-  { instance },
   store,
   {
     PROBE_STATE_KEY, PROBE_VERDICT_VERSION,
@@ -110,17 +101,8 @@ const [
   { pageSlug, parseProbeArgv, probeWriteDrifts, scrub },
 ] = await Promise.all([
   import('../src/config.js'),
-  import('./crawl-probe-surfaces.js'),
-  import('../src/providers/crawl-sites/vaca.js'),
-  import('../src/providers/crawl-sites/nerdfilmes.js'),
-  import('../src/providers/crawl-sites/torrentdosfilmes.js'),
-  import('../src/providers/crawl-sites/comandotorrents.js'),
-  import('../src/providers/crawl-sites/redetorrent.js'),
-  import('../src/providers/crawl-sites/bludv.js'),
-  import('../src/providers/crawl-sites/hdrtorrents.js'),
   import('../src/providers/crawl-sites/mico.js'),
   import('../src/providers/crawl-page.js'),
-  import('../src/br-resolvers.js'),
   import('../src/utils/crawl-store.js'),
   import('../src/providers/crawl-site-probe.js'),
   import('../src/providers/crawl-site-probe-report.js'),
@@ -133,42 +115,12 @@ import type { CrawlSite, CrawlUrlRow, DiscoveredUrl } from '../src/providers/cra
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Adaptador do site da rodada. Primeiro a instância EMBUTIDA (é o caminho de
- * produção: seletor de domínio vivo, sessão quente) — alcançada só se o
- * processo já a carregou. Fora dela, a superfície é construída direto do
- * profile; é aqui que entra o site NOVO (uma linha por site, sem `listen`).
- *
- * `seriesProbe` é o portão da AMOSTRA de série: os sites BR publicam série por
- * post de temporada, e o `discover` só emite `tv_show` quando a rodada pede
- * série. A produção NUNCA liga isso (a fábrica do registry não passa a opção);
- * aqui é o que permite medir ≥10 páginas de série sem ligar as séries do site.
+ * Adaptador do site da rodada. Só o Mico tem adaptador TS: os oito cards do
+ * Jackett são raspados pelo sidecar Rust (a sonda deles é a do `adom-crawl`,
+ * binário `probe`). O Mico entra sem o portão de MICO_ENABLED — a sonda mede
+ * antes de ligar.
  */
-async function resolveSite(siteId: string, series: boolean): Promise<CrawlSite | null> {
-  if (instance(siteId)) {
-    const { ensureActiveSite } = await import('../src/providers/crawl-sites/registry.js');
-    const embedded = await ensureActiveSite(siteId);
-    if (embedded) return embedded;
-  }
-  if (siteId === 'vacatorrent') return createVacaCrawlSite(vacaSurface());
-  if (siteId === 'nerdfilmes') return createNerdfilmesCrawlSite(nerdSurface(), { seriesProbe: series });
-  if (siteId === 'torrentdosfilmesv2') return createTorrentdosfilmesCrawlSite(tdfSurface(), { seriesProbe: series });
-  if (siteId === 'comandotorrents') return createComandotorrentsCrawlSite(comandoSurface(), { seriesProbe: series });
-  // Card `redetorrent-cardigann`, profile `redetorrent`: `instance()` é
-  // indexado pelo NOME do profile, então a instância embutida acima não casa
-  // com o id do card e a superfície direto é o caminho da sonda.
-  if (siteId === 'redetorrent-cardigann') {
-    return createRedetorrentCrawlSite(redetorrentSurface(), { seriesProbe: series });
-  }
-  // Os demais entram pelo MESMO caminho direto: Fase 8 pela ponte por NOME
-  // (`instance()` é indexado pelo nome do profile, o id do card nunca casa) e o
-  // Mico por ser API do addon, não HTML — fábrica SEM surface/argumento e sem o
-  // portão de MICO_ENABLED (a sonda mede antes de ligar, como nos outros).
-  if (siteId === 'bludv-cardigann') {
-    return createBludvCrawlSite(bludvSurface(), { seriesProbe: series });
-  }
-  if (siteId === 'hdrtorrent-cardigann') {
-    return createHdrtorrentsCrawlSite(hdrSurface(), { seriesProbe: series });
-  }
+async function resolveSite(siteId: string, _series: boolean): Promise<CrawlSite | null> {
   if (siteId === 'mico') return createMicoCrawlSite();
   return null;
 }

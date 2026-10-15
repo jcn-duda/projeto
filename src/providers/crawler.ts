@@ -130,7 +130,8 @@ async function tick(): Promise<void> {
   // raspado (o sidecar o recusa no claim). Um só `tick()`, clock certo.
   const rust = config.crawl.crawlEngine === 'rust';
   const clock = rust ? ownPaceScheduler : scheduler;
-  const ids = rust ? configuredSites(live).filter(registry.isOwnPace) : configuredSites(live);
+  // Modo ts: o motor fica com o que não é do sidecar Rust (o Mico).
+  const ids = configuredSites(live).filter(rust ? registry.isOwnPace : (id) => !registry.isRustSite(id));
   // Rearma antes de retorno precoce (cadência não fica presa a freio/pausa).
   clock.rearm(withCadence(live));
   if (!live.enabled || paused) return;

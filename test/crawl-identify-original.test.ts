@@ -16,7 +16,6 @@ const { identifyWork, selectCandidate } = await import('../src/providers/crawl-i
 const { parseOriginalTitle } = await import('../src/providers/crawl-sites/shared.js');
 const { stubFetch } = await import('./helpers/stub.js');
 const { normalizeTitle } = await import('../src/utils/title-normalization.js');
-const { MOVIE, fixture, pageRoutes, site, withStub } = await import('./helpers/crawl-nerdfilmes-fixtures.js');
 
 function withTmdbKey(fn: () => Promise<void>): () => Promise<void> {
   return async () => {
@@ -91,17 +90,6 @@ describe('parseOriginalTitle: o span do NerdFilmes', () => {
     assert.equal(parseOriginalTitle('<span class="movie-original">Título original: </span>'), null);
     assert.equal(parseOriginalTitle('<!-- <span class="movie-original">Título original: X</span> -->'), null);
   });
-
-  test('o adaptador do NerdFilmes devolve o original no `done`', () => withStub(pageRoutes({
-    [MOVIE]: () => fixture('post-movie.html').replace(
-      /<\/h1>/i,
-      '</h1><span class="movie-original"> Título original: Bancários </span>',
-    ),
-  }), async () => {
-    const result = await site().fetchWork(MOVIE);
-    assert.equal(result.status, 'done');
-    assert.equal(result.originalTitle, 'Bancários');
-  }));
 });
 
 describe('selectCandidate: desempate pelo original declarado', () => {

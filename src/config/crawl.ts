@@ -137,10 +137,10 @@ export const crawl = () => ({
   // afirmar que cobriu. Dimensionado contra o teto por hora acima: 20 páginas
   // × 20 cards = 400 URLs por rodada, e o acervo inteiro leva ~5 rodadas.
   listingMaxPagesPerRound: Math.max(1, Math.trunc(num(process.env.CRAWL_LISTING_MAX_PAGES_PER_ROUND, 20))),
-  // Motor do raspador: 'ts' (default) ou 'rust' (sidecar). Quando 'rust', o
-  // loop de descoberta/páginas é delegado ao sidecar Rust via HTTP; o TS só
-  // faz recovery de inflight e o painel lê o status do sidecar.
-  crawlEngine: process.env.CRAWL_ENGINE === 'rust' ? 'rust' as const : 'ts' as const,
+  // Motor do raspador: 'rust' (default, sidecar) ou 'ts'. Os oito cards do
+  // Jackett só têm adaptador no sidecar Rust; o TS raspa o Mico nos dois
+  // modos. 'ts' existe para desligar o sidecar (só o Mico continua).
+  crawlEngine: process.env.CRAWL_ENGINE === 'ts' ? 'ts' as const : 'rust' as const,
   // Porta do sidecar Rust (quando CRAWL_ENGINE=rust). O sidecar escuta em
   // 127.0.0.1:<porta> e responde /status e /action.
   sidecarPort: Math.max(1, Math.trunc(num(process.env.CRAWL_SIDECAR_PORT, 7077))),

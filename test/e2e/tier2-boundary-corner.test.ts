@@ -19,10 +19,6 @@ import * as protectedHashes from '../../src/debrid/protected.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import prowlarr from '../../src/providers/prowlarr.js';
 import * as brResolvers from '../../src/br-resolvers.js';
-import bludvResolver from '../../bludv-resolver/server.js';
-import nerdfilmesResolver from '../../nerdfilmes-resolver/server.js';
-import torrentdosfilmesResolver from '../../torrentdosfilmes-resolver/server.js';
-import comandotorrentsResolver from '../../comandotorrents-resolver/server.js';
 import { collectWithinWindow } from '../../src/providers/collection-window.js';
 import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
@@ -45,52 +41,8 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
   // Feature 1: Dynamic Domain Validation
   // =========================================================================
   describe('Feature 1: Dynamic Domain Validation', () => {
-    it('F01-BND-01: Rejects domain spoofing attacks and sub-path injection', () => {
-      const evilUrls = [
-        'https://bludvfilmes.xyz.evil.com/post/123',
-        'https://fake-bludvfilmes.xyz/post/123',
-        'https://evil.com?target=https://bludvfilmes.xyz',
-        'https://bludvfilmes.xyz@evil.com/post',
-      ];
-      for (const url of evilUrls) {
-        assert.throws(() => bludvResolver.assertAllowedUrl(url), /blocked_host/);
-        assert.throws(() => nerdfilmesResolver.assertAllowedUrl(url), /blocked_host/);
-        assert.throws(() => torrentdosfilmesResolver.assertAllowedUrl(url), /blocked_host/);
-        assert.throws(() => comandotorrentsResolver.assertAllowedUrl(url), /blocked_host/);
-      }
-    });
 
-    it('F01-BND-02: Accepts valid dynamic hostnames, allowed subdomains and protectors', () => {
-      const validUrls = [
-        'https://bludvfilmes.xyz/filme-exemplo-2024/',
-        'https://www.bludvfilmes.xyz/download/',
-        'https://systemads1.com/link/abc123',
-      ];
-      for (const url of validUrls) {
-        const parsed = bludvResolver.assertAllowedUrl(url);
-        assert.ok(parsed instanceof URL);
-        assert.ok(bludvResolver.isDetailHost(parsed.hostname) || bludvResolver.isProtectorHost(parsed.hostname));
-      }
-    });
 
-    it('F01-BND-03: Rejects non-HTTP protocols, javascript, and file schemes', () => {
-      const dangerousUrls = [
-        'javascript:alert(1)',
-        'file:///etc/passwd',
-        'ftp://bludvfilmes.xyz/movie.torrent',
-        'data:text/html,<script>alert(1)</script>',
-      ];
-      for (const url of dangerousUrls) {
-        assert.throws(() => bludvResolver.assertAllowedUrl(url), /(blocked_host|unsupported_protocol)/);
-      }
-    });
-
-    it('F01-BND-04: Handles unparseable and empty URL inputs gracefully', () => {
-      const invalidInputs = ['', null, undefined, 'not-a-url', 'http://[invalid-ipv6]'];
-      for (const input of invalidInputs) {
-        assert.throws(() => bludvResolver.assertAllowedUrl(input));
-      }
-    });
 
     it('F01-BND-05: Correctly parses dynamic EXTRA_ALLOWED_PROTECTORS env string', () => {
       function parseProtectors(val: any) {
@@ -106,14 +58,6 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.deepEqual(parseProtectors('   , ,  '), []);
     });
 
-    it('F01-BND-06: Verifies isDetailHost and isProtectorHost boundary behavior', () => {
-      assert.equal(bludvResolver.isDetailHost('BLUDVFILMES.XYZ'), true);
-      assert.equal(bludvResolver.isDetailHost('sub.bludv.net'), true);
-      assert.equal(bludvResolver.isDetailHost(''), false);
-      assert.equal(bludvResolver.isDetailHost('unknown-domain.org'), false);
-      assert.equal(bludvResolver.isProtectorHost('SYSTEMADS1.COM'), true);
-      assert.equal(bludvResolver.isProtectorHost('unknown-protector.com'), false);
-    });
   });
 
   // =========================================================================
@@ -206,20 +150,6 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.equal(testCache.has(url), false);
     });
 
-    it('F02-BND-05: Empty or malformed HTML in resolver parser returns empty array without throwing', () => {
-      assert.deepEqual(bludvResolver.parseDownloadLinks(''), []);
-      assert.deepEqual(bludvResolver.parseDownloadLinks('<div>No download links here</div>'), []);
-      assert.deepEqual(bludvResolver.parseDownloadLinks(null), []);
-      assert.deepEqual(bludvResolver.parsePosts(''), []);
-      assert.deepEqual(bludvResolver.parsePosts('<html><body>No posts</body></html>'), []);
-    });
-
-    it('F02-BND-06: Non-detail page URL passed to resolver throws not_detail_page or blocked_host', () => {
-      assert.throws(
-        () => bludvResolver.assertAllowedUrl('https://evil.com/post'),
-        /blocked_host/,
-      );
-    });
   });
 
   // =========================================================================
@@ -237,27 +167,9 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.deepEqual(siteEnvs, ['BLUDV_URL', 'COMANDOTORRENTS_URL', 'NERDFILMES_URL', 'TORRENTDOSFILMES_URL', 'VACATORRENT_URL', 'REDETORRENT_URL', 'APACHETORRENT_URL', 'HDRTORRENTS_URL']);
     });
 
-    it('F03-BND-03: Missing siteEnv variables fallback safely without errors', () => {
-      for (const res of brResolvers.RESOLVERS) {
-        assert.ok(res.siteEnv);
-        // A conversão ESM trocou o caminho string (`profile`) pela factory
-        // importada estaticamente; o contrato do entry agora é createResolver.
-        assert.ok(typeof res.createResolver === 'function');
-        assert.ok(typeof res.port === 'number');
-      }
-    });
-
-    it('F03-BND-04: config.resolvers.embedded=false turns off local resolver loading', () => {
-      assert.doesNotThrow(() => brResolvers.load({ ...config.resolvers, embedded: false }));
-    });
-
-    it('F03-BND-05: Resolver createServer methods can be instantiated safely', () => {
-      for (const resolver of [bludvResolver, comandotorrentsResolver, nerdfilmesResolver, torrentdosfilmesResolver]) {
-        assert.equal(typeof resolver.createServer, 'function');
-        const srv = resolver.createServer();
-        assert.ok(srv);
-        assert.equal(typeof srv.listen, 'function');
-      }
+    it('F03-BND-04: load() só registra os resolvedores do binário Rust, sem lançar', () => {
+      assert.doesNotThrow(() => brResolvers.load());
+      assert.equal(brResolvers.instance('bludv'), null, 'não há instância TS no processo');
     });
 
     it('F03-BND-06: Custom site URLs with trailing slashes are trimmed cleanly in resolvers', () => {
@@ -270,72 +182,9 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
   // Feature 4: Enhanced Protector & JavaScript Extraction
   // =========================================================================
   describe('Feature 4: Enhanced Protector & JavaScript Extraction', () => {
-    it('F04-BND-01: extractMagnet extracts from JavaScript variable assignments', () => {
-      const hash = '0123456789abcdef0123456789abcdef01234567';
-      const cases = [
-        `<script>var DEST_URL = "magnet:?xt=urn:btih:${hash}&dn=Movie";</script>`,
-        `<script>const download_url = 'magnet:?xt=urn:btih:${hash}';</script>`,
-        `<script>let MAGNET_URL = "magnet:?xt=urn:btih:${hash}";</script>`,
-        `<script>window.target_url = "magnet:?xt=urn:btih:${hash}";</script>`,
-      ];
-      for (const html of cases) {
-        const extracted = bludvResolver.extractMagnet(html);
-        assert.ok(extracted, `Failed on: ${html}`);
-        assert.ok(extracted.includes(hash));
-      }
-    });
 
-    it('F04-BND-02: extractMagnet extracts from JavaScript navigation calls', () => {
-      const hash = '0123456789abcdef0123456789abcdef01234567';
-      const cases = [
-        `<script>window.location.href = "magnet:?xt=urn:btih:${hash}";</script>`,
-        `<script>location.replace('magnet:?xt=urn:btih:${hash}');</script>`,
-        `<script>window.open("magnet:?xt=urn:btih:${hash}");</script>`,
-      ];
-      for (const html of cases) {
-        const extracted = bludvResolver.extractMagnet(html);
-        assert.ok(extracted);
-        assert.ok(extracted.includes(hash));
-      }
-    });
 
-    it('F04-BND-03: extractMagnet extracts URL-encoded magnets and data attributes', () => {
-      const hash = '0123456789abcdef0123456789abcdef01234567';
-      const cases = [
-        `<a data-magnet="magnet:?xt=urn:btih:${hash}">Download</a>`,
-        `<div data-href="magnet:?xt=urn:btih:${hash}">Click</div>`,
-        `<a href="magnet%3A%3Fxt%3Durn%3Abtih%3A${hash}%26dn%3DMovie">Link</a>`,
-      ];
-      for (const html of cases) {
-        const extracted = bludvResolver.extractMagnet(html);
-        assert.ok(extracted);
-        assert.ok(extracted.includes(hash));
-      }
-    });
 
-    it('F04-BND-04: nextProtectedUrl extracts redirect URLs and resolves relative paths', () => {
-      const baseUrl = 'https://systemads1.com/step1';
-      const html1 = '<script>var DEST_URL = "https://systemads1.com/step2";</script>';
-      const html2 = '<script>window.location.href = "https://videosad.net/download";</script>';
-      const html3 = '<a href="https://canalfutebol.com/next">Next</a>';
-
-      assert.equal(bludvResolver.nextProtectedUrl(html1, baseUrl), 'https://systemads1.com/step2');
-      assert.equal(bludvResolver.nextProtectedUrl(html2, baseUrl), 'https://videosad.net/download');
-      assert.equal(bludvResolver.nextProtectedUrl(html3, baseUrl), 'https://canalfutebol.com/next');
-    });
-
-    it('F04-BND-05: Truncated / malformed HTML returns null without throwing errors', () => {
-      assert.equal(bludvResolver.extractMagnet(''), null);
-      assert.equal(bludvResolver.extractMagnet(null), null);
-      assert.equal(bludvResolver.extractMagnet('<script>var DEST_URL = "not-a-magnet";</script>'), null);
-      assert.equal(bludvResolver.nextProtectedUrl('', 'https://systemads1.com/'), null);
-      assert.equal(bludvResolver.nextProtectedUrl(null, 'https://systemads1.com/'), null);
-    });
-
-    it('F04-BND-06: nextProtectedUrl rejects external untrusted redirect domains', () => {
-      const html = '<script>var DEST_URL = "https://evil-hacker-site.com/steal";</script>';
-      assert.equal(bludvResolver.nextProtectedUrl(html, 'https://systemads1.com/'), null);
-    });
   });
 
   // =========================================================================

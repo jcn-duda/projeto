@@ -19,8 +19,8 @@ trabalho de código é em `src/`.
 
 ## Stack
 
-- **Node ≥ 20, TypeScript + ESM**. `tsc` compila `src/`, `test/`, `resolvers/` e
-  os `*-resolver/` para `dist/`, e **é `dist/` que roda** (`npm start` =
+- **Node ≥ 20, TypeScript + ESM**. `tsc` compila `src/`, `test/` e `resolvers/`
+  para `dist/`, e **é `dist/` que roda** (`npm start` =
   `node dist/src/addon.js`). Produção: `node:22-alpine` (tem `node:sqlite`;
   Node 20 cai em memória — mantenha o `require` lazy).
 - `noEmitOnError`: build com erro de tipo não gera `dist/`. `strictNullChecks` e
@@ -47,8 +47,12 @@ trabalho de código é em `src/`.
   velocidade só existe com API em lote. Mudou
   `title-normalization.ts`? regenere o golden (`dump-title-normalization.mjs
   --force`). Código Rust quebrado no working tree quebra a imagem.
-- Os oito `*-resolver` são **profiles importados no processo do addon**
-  (portas 8700–8707, `src/br-resolvers.ts`), não containers.
+- **Onde o Rust já substituiu o TS, o TS saiu** (a versão TS segue no branch
+  `esm`, que é o oráculo dos goldens): os oito **resolvers BR** são o binário
+  `adom-resolvers` (portas 8700–8707, supervisionado pelo entrypoint; o
+  `src/br-resolvers.ts` só lista e testa) e o **raspador dos oito cards** é o
+  sidecar `adom-sidecar` (`CRAWL_ENGINE=rust`, default). Em `resolvers/` ficou
+  só o que o provider do BLUDV e o Mico usam.
 - `ServerConfig.json` do Jackett vive no volume `./docker-data/jackett`;
   `FlareSolverrUrl` tem que ser `http://127.0.0.1:8191`. Definitions Cardigann
   vêm da imagem; nunca monte volume sobre elas. Cache do addon persiste em
@@ -203,7 +207,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 única), cada site no seu ritmo, só com o app ocioso.
 
 - Registro fechado (`crawl-sites/registry.ts`): 8 cards do Jackett + Mico.
-  Site novo = adaptador + linha no registro; `module:null` é estado legítimo.
+  **Os 8 cards são do sidecar Rust** (`rust/crates/adom-crawl`, `rust: true` no
+  registro; o motor TS nunca os toca); em TS só o Mico. As regras abaixo sobre
+  descoberta, réguas e séries valem para o Rust (porte fiel do TS do `esm`).
 - Duas formas de descoberta: **sitemap** (Vaca, Nerd, TDF, Comando, Rede, BLUDV)
   e **listagem paginada** (HDR, Apache; fim por contagem, âncora só no
   incremental, `lastmod` vazio de propósito). Mico: paginação simples (filtro de
@@ -232,8 +238,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - Identidade da página = `(site, url_key)` (caminho, sem host). Estado é por
   site; seleção pura em `crawl-site-select.ts` (com limite de fome para a
   descoberta). Fila serve novidade primeiro.
-- `work-name.ts` (régua do `<h1>`) é **compartilhada** por 7 sites — mexer nela
-  mexe em todos. TorrentDosFilmes (ano no meio, IMDb armadilha) tem régua própria.
+- A régua do `<h1>` (`adom-crawl::work_name`) é **compartilhada** por 7 sites —
+  mexer nela mexe em todos. TorrentDosFilmes (ano no meio, IMDb armadilha) tem
+  régua própria.
 - Séries: portão `CRAWL_SERIES_ENABLED` (default ligado, só global); página que
   declara uma temporada → `seasonPageGroups`; página que agrega (RedeTorrent, HDR
   sem temporada no slug) → `seriesRowGroups`. Release leva o magnet inteiro
@@ -303,7 +310,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`) |
 | Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts`, `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
-| Resolvers BR | `resolvers/` (núcleo + `profiles/*.ts`), `*-resolver/server.ts` (shims) |
+| Resolvers BR | `rust/crates/adom-resolvers` (Rust); `resolvers/` só helpers do BLUDV e tipos |
 | Tipos / testes | `types/domain.d.ts`; `test/` (`helpers/stub.ts`, `e2e/e2e-harness.ts`) |
 | Infra | `Dockerfile`, `docker-compose.yml`, `scripts/entrypoint.sh`, `jackett-bludv/*.yml` |
 
@@ -331,8 +338,9 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - Importar `src/addon.ts` abre a porta — testes usam `createApp()`.
 - Caminhos relativos mudaram com o `dist/` (`dist/src/...`); só o `docker run`
   revela. `src/public/` não passa por build.
-- Domínio de site BR que muda: allowlist do profile **+** `src/config/resolvers.ts`
-  **+** `.env.example` (a env vence o default); protetor de link também troca de
+- Domínio de site BR que muda: registro do Rust (`adom-resolvers/src/main.rs`,
+  `adom-crawl::site_profiles`) **+** `src/config/resolvers.ts` **+**
+  `.env.example` (a env vence o default); protetor de link também troca de
   host. Site que responde 200 com "Novo Endereço" não aciona failover.
 - Pack pode mentir na descrição; `pickFile` lança `EpisodePickError` quando há
   vários vídeos e nenhum casa o episódio, e mede o **nome do arquivo** antes do

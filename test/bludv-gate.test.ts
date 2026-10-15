@@ -99,7 +99,6 @@ test('bludv: nenhum consumidor carrega a regex do portão no próprio corpo', ()
   // não tenha cópias — duas regex divergem em silêncio quando o site mudar.
   const consumidores = [
     'src/providers/bludv.ts',
-    'resolvers/profiles/bludv.ts',
     'resolvers/profiles/bludv-parsers.ts',
   ];
   for (const rel of consumidores) {

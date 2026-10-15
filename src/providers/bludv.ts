@@ -1,8 +1,6 @@
 import config from '../config.js';
 import { opts, capture, run } from '../runtime.js';
-import { instance } from '../br-resolvers.js';
 import { raceWithDeadline } from '../utils/deadline.js';
-import type { BludvResolverSurface } from './crawl-sites/bludv.js';
 import { extractMagnet, isValidMagnetUri, releaseTitle } from '../../resolvers/profiles/bludv-parsers.js';
 import { parseGateAndLegacyLinks, isGateUrl } from '../../resolvers/profiles/bludv-gate-links.js';
 import { prefetchGateMagnet, resolveGateMagnet } from '../../resolvers/profiles/bludv-gate-flow.js';
@@ -41,14 +39,6 @@ function parseSize(text: string) {
 async function get(url: string, referer = '', deadlineAt = Date.now() + config.bludv.timeout) {
   const remaining = deadlineAt - Date.now();
   if (remaining <= 0) throw new Error('bludv: orçamento esgotado');
-  // Sem criar servidor ou outra sessão: o perfil carregado já sabe vencer o 403.
-  const surface = instance('bludv') as BludvResolverSurface | null;
-  if (surface?.isDetailHost(new URL(url).hostname)) {
-    const allowed = surface.assertAllowedUrl(url);
-    return raceWithDeadline(surface.fetchText(allowed, referer), remaining, () => {
-      throw new Error('bludv: prazo da página esgotado');
-    });
-  }
   const task = (async () => {
   const res = await fetch(url, {
     redirect: 'follow',

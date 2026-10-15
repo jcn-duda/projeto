@@ -231,7 +231,7 @@ describe('sonda: o entry-point responde antes de abrir store ou raspar', () => {
     const resolverImport = src.indexOf("import('../src/br-resolvers.js')");
     assert.ok(gate > 0, 'o portão de flags precisa existir no entry-point');
     assert.ok(storeImport > gate, 'o crawl-store só pode ser importado DEPOIS do portão');
-    assert.ok(resolverImport > gate, 'os resolvers só podem ser importados DEPOIS do portão');
+    assert.equal(resolverImport, -1, 'a sonda (só Mico) não carrega resolvedor nenhum');
     assert.match(src, /process\.exit\(0\)/, '--help sai 0');
   });
 });

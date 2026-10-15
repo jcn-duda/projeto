@@ -287,13 +287,14 @@ if [ "${GATEWAY:-}" = "on" ] && [ -z "${CRAWL_NODE_URL:-}" ]; then
   export CRAWL_NODE_URL=http://127.0.0.1:7100
 fi
 
-# Sidecar do raspador Rust (só quando CRAWL_ENGINE=rust).
+# Sidecar do raspador Rust (default; CRAWL_ENGINE=ts desliga — aí só o Mico,
+# que é do motor TS, continua sendo raspado).
 # O sidecar NÃO entra no `wait -n` abaixo: ele tem reinício próprio ou fica
 # fora do supervisionamento. O `wait -n` continua supervisionando só
 # caddy+jackett+flaresolverr+addon.
-if [ "${CRAWL_ENGINE:-ts}" = "rust" ]; then
+if [ "${CRAWL_ENGINE:-rust}" = "rust" ]; then
     echo "[entrypoint] iniciando sidecar adom-crawl (CRAWL_ENGINE=rust)"
-    /app/dist/rust/adom-sidecar &
+    CRAWL_ENGINE=rust /app/dist/rust/adom-sidecar &
     SIDECAR_PID=$!
     # Aguarda sidecar ficar pronto (healthcheck)
     for i in $(seq 1 10); do
@@ -354,15 +355,13 @@ supervise_resolvers() {
   done
 }
 
-# Resolvers BR em Rust (só quando BR_RESOLVER_RUST está preenchido).
-# O binário lê a env e sobe um servidor HTTP por site delegado. Com a env vazia
-# (produção TS de hoje) este bloco inteiro é pulado: nenhum processo novo,
-# nenhum log novo — o caminho do addon em `wait -n` fica exatamente o que era.
-if [ -n "${BR_RESOLVER_RUST:-}" ]; then
-    echo "[entrypoint] iniciando adom-resolvers supervisionado (BR_RESOLVER_RUST=${BR_RESOLVER_RUST})"
-    supervise_resolvers &
-    RESOLVERS_SUPERVISOR_PID=$!
-fi
+# Resolvers BR em Rust: os oito por padrão (o addon não tem mais resolvedor
+# TS). `BR_RESOLVER_RUST` restringe a lista; sem o binário, os cards BR do
+# Jackett ficam sem resposta.
+export BR_RESOLVER_RUST="${BR_RESOLVER_RUST:-bludv,comandotorrents,nerdfilmes,torrentdosfilmes,vacatorrent,redetorrent,apachetorrent,hdrtorrents}"
+echo "[entrypoint] iniciando adom-resolvers supervisionado (BR_RESOLVER_RUST=${BR_RESOLVER_RUST})"
+supervise_resolvers &
+RESOLVERS_SUPERVISOR_PID=$!
 
 # Mesmo laço dos resolvers: a 1ª queda do gateway não pode derrubar Caddy,
 # Jackett e Flare. A 5ª morte seguidas mata o pai. Fora do wait -n de propósito.
