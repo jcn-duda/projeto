@@ -1,12 +1,24 @@
 /**
  * Adaptador que fala com a API interna do adom-debrid (127.0.0.1:8710).
  *
- * Leitura que o Rust ainda não faz cai no adaptador TypeScript. Escrita que
- * falha — inclusive 501, rede e token — não é refeita aqui: a conta não pode
- * receber o mesmo upload duas vezes.
+ * A checagem só cai no TypeScript quando o Rust responde 501 (ainda não
+ * portado). Prazo vencido, rede e 5xx devolvem cache incompleto: o tempo da
+ * resposta já foi gasto, e na AllDebrid a checagem é um upload de verdade.
+ * Chave recusada, cota e rate limit sobem como o erro do TypeScript, sem
+ * segunda pergunta. O play nunca chama o adaptador TypeScript.
  */
 import config from '../config.js';
 import type { DebridAdapter } from '../../types/domain.js';
+import {
+  AuthError,
+  BlockedError,
+  DubLieError,
+  EpisodePickError,
+  NoVideoError,
+  QuotaError,
+  RateLimitError,
+  WorkPickError,
+} from './common.js';
 
 class RustWriteError extends Error {
   isRustWriteError = true;
@@ -23,9 +35,32 @@ interface RemoteOptions {
   timeoutMs: number;
 }
 
+type RemoteFailure = {
+  ok: false;
+  message: string;
+  status?: number;
+  kind?: string;
+  error?: string;
+  jsonMessage?: string;
+};
+
 type RemoteResult =
   | { ok: true; json: unknown }
-  | { ok: false; message: string };
+  | RemoteFailure;
+
+/** Status de play_status → kind. 401 do token interno fica de fora. */
+const PLAY_KIND_BY_STATUS: Record<number, string> = {
+  422: 'no_video',
+  409: 'episode_pick',
+  412: 'work_pick',
+  406: 'dub_lie',
+  451: 'blocked',
+  403: 'auth',
+  402: 'quota',
+  429: 'rate_limit',
+};
+
+const PLAY_KINDS = new Set(Object.values(PLAY_KIND_BY_STATUS));
 
 function remoteOptions(overrides: Partial<RemoteOptions> = {}): RemoteOptions {
   const base = process.env.DEBRID_INTERNAL_URL || 'http://127.0.0.1:8710';
@@ -37,6 +72,25 @@ function remoteOptions(overrides: Partial<RemoteOptions> = {}): RemoteOptions {
     timeoutMs: config.debrid.timeout,
     ...overrides,
   };
+}
+
+function textField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+async function readErrorFields(res: Response): Promise<Pick<RemoteFailure, 'kind' | 'error' | 'jsonMessage'>> {
+  try {
+    const json: unknown = await res.json();
+    if (!json || typeof json !== 'object') return {};
+    const body = json as { error?: unknown; kind?: unknown; message?: unknown };
+    return {
+      kind: textField(body.kind),
+      error: textField(body.error),
+      jsonMessage: textField(body.message),
+    };
+  } catch {
+    return {};
+  }
 }
 
 async function post(
@@ -56,10 +110,66 @@ async function post(
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(opts.timeoutMs),
     });
-    if (!res.ok) return { ok: false, message: `HTTP ${res.status}` };
+    if (!res.ok) {
+      const fields = await readErrorFields(res);
+      return { ok: false, status: res.status, message: `HTTP ${res.status}`, ...fields };
+    }
     return { ok: true, json: await res.json() };
   } catch {
     return { ok: false, message: 'rede' };
+  }
+}
+
+/** A mensagem do JSON entra no erro; a chave da conta não. */
+function redact(message: string, secrets: readonly string[]): string {
+  let text = message;
+  for (const secret of secrets) {
+    if (secret.length < 8 || !text.includes(secret)) continue;
+    text = text.split(secret).join('[redacted]');
+  }
+  return text.replace(/((?:apiKey|apikey|token)=)[^&\s"'<>]+/gi, '$1[redacted]');
+}
+
+function withMessage(error: Error, message: string | undefined): Error {
+  if (message) error.message = message;
+  return error;
+}
+
+function namedKind(kind: string | undefined, error: string | undefined): string | undefined {
+  if (kind && PLAY_KINDS.has(kind)) return kind;
+  if (error && PLAY_KINDS.has(error)) return error;
+  return undefined;
+}
+
+function playKind(remote: RemoteFailure): string | undefined {
+  const named = namedKind(remote.kind, remote.error);
+  if (named) return named;
+  if (remote.kind || remote.error || remote.status == null) return undefined;
+  return PLAY_KIND_BY_STATUS[remote.status];
+}
+
+function playError(remote: RemoteFailure, secrets: readonly string[]): Error {
+  const jsonMessage = remote.jsonMessage ? redact(remote.jsonMessage, secrets) : undefined;
+  const fallback = redact(remote.message, secrets);
+  switch (playKind(remote)) {
+    case 'no_video':
+      return withMessage(new NoVideoError(), jsonMessage);
+    case 'episode_pick':
+      return withMessage(new EpisodePickError(), jsonMessage);
+    case 'work_pick':
+      return withMessage(new WorkPickError(), jsonMessage);
+    case 'dub_lie':
+      return withMessage(new DubLieError({ videoCount: 0 }), jsonMessage);
+    case 'blocked':
+      return new BlockedError(jsonMessage || fallback);
+    case 'auth':
+      return new AuthError(jsonMessage || fallback);
+    case 'quota':
+      return new QuotaError(jsonMessage || fallback);
+    case 'rate_limit':
+      return new RateLimitError(jsonMessage || fallback);
+    default:
+      return new RustWriteError(`debrid rust não resolveu o link (${jsonMessage || fallback})`);
   }
 }
 
@@ -69,11 +179,27 @@ function asCheck(json: unknown): { cached: Set<string>; complete: boolean } {
   return { cached: new Set(hashes), complete: body.complete !== false };
 }
 
+function unchecked(): { cached: Set<string>; complete: false } {
+  return { cached: new Set(), complete: false };
+}
+
+/**
+ * Prazo da resposta no fetch. Sem timeoutMs fica o DEBRID_TIMEOUT_MS.
+ * Prazo já vencido não abre HTTP.
+ */
+function checkFetchOptions(opts: RemoteOptions, timeoutMs: number | undefined): RemoteOptions | null {
+  if (timeoutMs == null) return opts;
+  if (timeoutMs <= 0) return null;
+  return { ...opts, timeoutMs };
+}
+
 function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): DebridAdapter {
   const opts = remoteOptions(overrides);
   const out: DebridAdapter = { ...adapter };
   out.checkCached = async (apiKey, hashes, checkOpts) => {
-    const remote = await post(opts, '/debrid/check', {
+    const fetchOpts = checkFetchOptions(opts, checkOpts?.timeoutMs);
+    if (!fetchOpts) return unchecked();
+    const remote = await post(fetchOpts, '/debrid/check', {
       service: adapter.id,
       apiKey,
       hashes,
@@ -81,8 +207,14 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
       fileHashes: checkOpts?.fileHashes,
       fileWaitTimeoutMs: checkOpts?.fileWaitTimeoutMs,
     });
-    if (!remote.ok) return adapter.checkCached(apiKey, hashes, checkOpts);
-    return asCheck(remote.json);
+    if (remote.ok) return asCheck(remote.json);
+    // 501 = ainda não portado: o TS é a implementação, não uma segunda pergunta.
+    if (remote.status === 501) return adapter.checkCached(apiKey, hashes, checkOpts);
+    const kind = playKind(remote);
+    if (kind === 'auth' || kind === 'quota' || kind === 'rate_limit') {
+      throw playError(remote, [apiKey, fetchOpts.token]);
+    }
+    return unchecked();
   };
   if (typeof adapter.accountStatus === 'function') {
     const accountStatus = adapter.accountStatus.bind(adapter);
@@ -109,9 +241,7 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
       hash,
       episode: episode ?? null,
     });
-    if (!remote.ok) {
-      throw new RustWriteError(`debrid rust não resolveu o link (${remote.message})`);
-    }
+    if (!remote.ok) throw playError(remote, [apiKey, opts.token]);
     const body = remote.json as { url?: unknown } | null;
     return body && typeof body.url === 'string' ? body.url : null;
   };

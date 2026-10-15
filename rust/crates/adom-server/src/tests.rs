@@ -169,3 +169,11 @@ fn config_rejeita_upstream_sem_host() {
     let ok = Config::parse("127.0.0.1:9", "http://127.0.0.1:7100", "health").unwrap();
     assert!(ok.native_health);
 }
+
+#[test]
+fn gateway_on_so_com_valor_exato() {
+    assert!(crate::gateway_on("on"));
+    assert!(!crate::gateway_on(""));
+    assert!(!crate::gateway_on("off"));
+    assert!(!crate::gateway_on("ON"));
+}
