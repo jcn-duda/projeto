@@ -135,7 +135,7 @@ impl PoolStream {
     }
 
     /// `seedersOf` (SÓ `top`): `_seeders` quando presente, senão `👤 <n>` do `name`.
-    fn seeders_number(&self) -> i64 {
+    pub(crate) fn seeders_number(&self) -> i64 {
         if let Some(v) = self.seeders {
             return v;
         }

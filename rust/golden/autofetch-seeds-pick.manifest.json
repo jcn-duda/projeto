@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-seeds-pick/pickSeedsPool"
+  ],
+  "function": {
+    "name": "pickSeedsPool",
+    "sourcePath": "src/providers/autofetch-seeds-pool.ts",
+    "sourceSha256": "89bd8e88835385e9b41aa567630f712d645d6652e046a052eb0f97bae0844bec",
+    "artifactPath": "dist/src/providers/autofetch-seeds-pool.js",
+    "artifactSha256": "c2bee247ddde918b6faeadf9da612023c8752dd5949b763401d192fc382c4844"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-seeds-pick.json",
+    "sha256": "4af08813e7c6a7e4f80589ffcb633878d9968af71fceeb50afcf180dd3034490",
+    "cases": 20
+  },
+  "output": {
+    "path": "rust/golden/autofetch-seeds-pick.jsonl",
+    "sha256": "091274fafd80dc715c5779f25c72bc4e09ac7cd3c8d70976fc3a02c8f6197644",
+    "lines": 20
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "daaa9d28be89611935ac3e21c83669106fd11176"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-fallback/composeQueueEntries"
+  ],
+  "function": {
+    "name": "composeQueueEntries",
+    "sourcePath": "src/providers/autofetch-fallback.ts",
+    "sourceSha256": "036405d1c6b4bc39820a9971e2dcdd4ecc069716c7897bfd8182b69521fc6d4f",
+    "artifactPath": "dist/src/providers/autofetch-fallback.js",
+    "artifactSha256": "4c5b7932ca3acd2f632a8cbb38664917054ad2922f6f8f7b9059d75dc8ab5028"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-fallback.json",
+    "sha256": "f712876ac67b9e9b9b98d5f9e8e1ecae69d0c7eafe015bfa4409c876ccc63327",
+    "cases": 12
+  },
+  "output": {
+    "path": "rust/golden/autofetch-fallback.jsonl",
+    "sha256": "32abdc1013fd7f105def5680667589028952115cc0babdb2bb7f6a69fe56fd9e",
+    "lines": 12
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "daaa9d28be89611935ac3e21c83669106fd11176"
+  }
+}

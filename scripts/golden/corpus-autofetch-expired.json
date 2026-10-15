@@ -1,0 +1,23 @@
+{
+  "config": {
+    "source": "src/providers/autofetch-expired.ts",
+    "description": "Guarda de posse do expired-unready (P1.2): expiredRemovalAllowed com fatos injetados"
+  },
+  "cases": [
+    {"id":"exp-001","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-002","input":"{\"hashEmpty\":true,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-003","input":"{\"hashEmpty\":false,\"isCleanupProtected\":true,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-004","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":false}"},
+    {"id":"exp-005","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-006","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":false,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-007","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-008","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":false,\"inSnapshot\":false}"},
+    {"id":"exp-009","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":true}"},
+    {"id":"exp-010","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":true}"},
+    {"id":"exp-011","input":"{\"hashEmpty\":false,\"isCleanupProtected\":true,\"adapterIsAlldebrid\":false,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-012","input":"{\"hashEmpty\":true,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}"},
+    {"id":"exp-013","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":true}"},
+    {"id":"exp-014","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":false}"},
+    {"id":"exp-015","input":"{\"hashEmpty\":false,\"isCleanupProtected\":true,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":false}"}
+  ]
+}

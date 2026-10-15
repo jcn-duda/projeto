@@ -6,6 +6,8 @@
 mod audio_cleanup_verdicts;
 mod audio_lang;
 mod audio_presentation;
+mod autofetch_expired;
+mod autofetch_fallback;
 mod autofetch_gates;
 mod autofetch_keys;
 mod autofetch_marker;
@@ -13,6 +15,7 @@ mod autofetch_obra;
 mod autofetch_obra_overflow;
 mod autofetch_policy;
 mod autofetch_progress;
+mod autofetch_seeds_pick;
 mod br_origin;
 mod br_pool_selection;
 mod bytes_to_size;
@@ -213,6 +216,11 @@ pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
 pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_blob};
+pub use autofetch_expired::{expired_removal_allowed, ExpiredFacts};
+pub use autofetch_fallback::{
+    compose_queue_entries, pick_lower_pool_fallbacks, to_queue_candidate, FallbackLive,
+    FallbackOpts, FallbackPick, FallbackPool, QueueCandidate, QueueCandidateOpts, QueueEntry,
+};
 pub use autofetch_gates::{
     classify_enqueue, rollback_for, skip_reason_label, EnqueueGates, RollbackAction, SkipReason,
 };
@@ -237,6 +245,9 @@ pub use autofetch_policy::{
 pub use autofetch_progress::{
     derive_stall, forget_lot_progress, forget_progress, progress_memory_size, ProgressDerivation,
     ProgressEntry, ProgressLot, ProgressMemory, TorrentProgress, TorrentStatus,
+};
+pub use autofetch_seeds_pick::{
+    pick_seeds_pool, RareConfig, SeedsPickLive, SeedsPickOpts, SeedsPickResult,
 };
 pub use bytes_to_size::bytes_to_size;
 pub use catalog_classify::{classify_by_title, classify_with_evidence, foreign_proof_label, Proof};

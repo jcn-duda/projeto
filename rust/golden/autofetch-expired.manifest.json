@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-expired/expiredRemovalAllowed"
+  ],
+  "function": {
+    "name": "expiredRemovalAllowed",
+    "sourcePath": "src/providers/autofetch-expired.ts",
+    "sourceSha256": "13bbe721db54a54ad6f69b8298119ba3814b31e5ba3934a94022f4a312cfe022",
+    "artifactPath": "dist/src/providers/autofetch-expired.js",
+    "artifactSha256": "d5b7b851ca842d79551f49f843553c6adc1d58f71bac47c424a65f94262caef6"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-expired.json",
+    "sha256": "2d632611fb6636a3be653307f754e79b80ab344d2883eb091847944d7cddc37a",
+    "cases": 15
+  },
+  "output": {
+    "path": "rust/golden/autofetch-expired.jsonl",
+    "sha256": "7ceb46c2259dac915b179a0a0f8ceeaec489bf4343ad5b24fa0ebc9135a35f31",
+    "lines": 15
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "daaa9d28be89611935ac3e21c83669106fd11176"
+  }
+}

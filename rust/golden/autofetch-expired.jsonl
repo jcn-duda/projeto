@@ -1,0 +1,15 @@
+{"id":"exp-001","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"1"}
+{"id":"exp-002","input":"{\"hashEmpty\":true,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"0"}
+{"id":"exp-003","input":"{\"hashEmpty\":false,\"isCleanupProtected\":true,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"0"}
+{"id":"exp-004","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":false}","expected":"1"}
+{"id":"exp-005","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"0"}
+{"id":"exp-006","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":false,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"1"}
+{"id":"exp-007","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"1"}
+{"id":"exp-008","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":false,\"inSnapshot\":false}","expected":"0"}
+{"id":"exp-009","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":true}","expected":"0"}
+{"id":"exp-010","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":true}","expected":"1"}
+{"id":"exp-011","input":"{\"hashEmpty\":false,\"isCleanupProtected\":true,\"adapterIsAlldebrid\":false,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"0"}
+{"id":"exp-012","input":"{\"hashEmpty\":true,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":true,\"hasAdsub\":true,\"hasSnapshot\":true,\"inSnapshot\":false}","expected":"0"}
+{"id":"exp-013","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":true}","expected":"0"}
+{"id":"exp-014","input":"{\"hashEmpty\":false,\"isCleanupProtected\":false,\"adapterIsAlldebrid\":false,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":false}","expected":"1"}
+{"id":"exp-015","input":"{\"hashEmpty\":false,\"isCleanupProtected\":true,\"adapterIsAlldebrid\":true,\"hasMarker\":false,\"hasAdsub\":false,\"hasSnapshot\":false,\"inSnapshot\":false}","expected":"0"}

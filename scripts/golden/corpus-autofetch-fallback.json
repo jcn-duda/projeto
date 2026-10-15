@@ -1,0 +1,20 @@
+{
+  "config": {
+    "source": "src/providers/autofetch-fallback.ts",
+    "description": "Fallback dos pools inferiores: composeQueueEntries, toQueueCandidate"
+  },
+  "cases": [
+    {"id":"fb-001","input":"{\"op\":\"composeQueueEntries\",\"primary\":[{\"infoHash\":\"aaa\",\"pool\":\"br\"},{\"infoHash\":\"bbb\",\"pool\":\"br\"}],\"fallbacks\":[{\"infoHash\":\"ccc\",\"pool\":\"seeds\"}],\"depth\":2}"},
+    {"id":"fb-002","input":"{\"op\":\"composeQueueEntries\",\"primary\":[{\"infoHash\":\"aaa\",\"pool\":\"br\"}],\"fallbacks\":[{\"infoHash\":\"ccc\",\"pool\":\"seeds\"},{\"infoHash\":\"ddd\",\"pool\":\"any\"}],\"depth\":3}"},
+    {"id":"fb-003","input":"{\"op\":\"composeQueueEntries\",\"primary\":[],\"fallbacks\":[{\"infoHash\":\"ccc\",\"pool\":\"seeds\"}],\"depth\":0}"},
+    {"id":"fb-004","input":"{\"op\":\"composeQueueEntries\",\"primary\":[{\"infoHash\":\"aaa\",\"pool\":\"br\"}],\"fallbacks\":[],\"depth\":5}"},
+    {"id":"fb-005","input":"{\"op\":\"toQueueCandidate\",\"stream\":{\"infoHash\":\"ABC123\",\"name\":\"Movie 1988 1080p\",\"title\":\"Movie 1988 1080p\",\"_quality\":\"1080p\",\"_seeders\":50,\"_br\":false,\"_dubbed\":true,\"_bankDub\":false,\"_lied\":false,\"_size\":2147483648},\"pool\":\"seeds\",\"opts\":{\"imdbId\":\"tt1234567\",\"season\":null,\"episode\":null,\"seasonFill\":false,\"rare\":true,\"slotLimit\":4}}"},
+    {"id":"fb-006","input":"{\"op\":\"toQueueCandidate\",\"stream\":{\"infoHash\":\"def456\",\"name\":\"Serie S01E02 720p\",\"title\":\"Serie S01E02 720p\",\"_quality\":\"720p\",\"_seeders\":10,\"_br\":true,\"_dubbed\":true,\"_bankDub\":true,\"_lied\":false,\"_size\":1073741824},\"pool\":\"br\",\"opts\":{\"imdbId\":\"tt7654321\",\"season\":1,\"episode\":2,\"seasonFill\":false,\"rare\":false}}"},
+    {"id":"fb-007","input":"{\"op\":\"toQueueCandidate\",\"stream\":{\"infoHash\":\"ghi789\",\"name\":\"Serie S01 Completa\",\"title\":\"Serie S01 Completa\",\"_quality\":\"1080p\",\"_seeders\":5,\"_br\":true,\"_dubbed\":true,\"_bankDub\":false,\"_lied\":false,\"_size\":4294967296},\"pool\":\"br\",\"opts\":{\"imdbId\":\"tt7654321\",\"season\":1,\"episode\":3,\"seasonFill\":true,\"rare\":false}}"},
+    {"id":"fb-008","input":"{\"op\":\"toQueueCandidate\",\"stream\":{\"infoHash\":\"jkl012\",\"name\":\"Movie 2000\",\"title\":\"Movie 2000\",\"_seeders\":3,\"_br\":false,\"_dubbed\":false,\"_lied\":true},\"pool\":\"seeds\",\"opts\":{\"season\":null,\"episode\":null,\"seasonFill\":false,\"rare\":false}}"},
+    {"id":"fb-009","input":"{\"op\":\"composeQueueEntries\",\"primary\":[{\"infoHash\":\"a\",\"pool\":\"br\"},{\"infoHash\":\"b\",\"pool\":\"br\"},{\"infoHash\":\"c\",\"pool\":\"any\"}],\"fallbacks\":[{\"infoHash\":\"d\",\"pool\":\"seeds\"},{\"infoHash\":\"e\",\"pool\":\"seeds\"}],\"depth\":4}"},
+    {"id":"fb-010","input":"{\"op\":\"composeQueueEntries\",\"primary\":[],\"fallbacks\":[],\"depth\":10}"},
+    {"id":"fb-011","input":"{\"op\":\"toQueueCandidate\",\"stream\":{\"infoHash\":\"UPPER\",\"name\":\"Test\",\"title\":\"Test\",\"_quality\":\"2160p\",\"_seeders\":100,\"_br\":false,\"_dubbed\":false,\"_bankDub\":false,\"_lied\":false},\"pool\":\"any\",\"opts\":{\"imdbId\":null,\"season\":2,\"episode\":5,\"seasonFill\":false,\"rare\":true,\"slotLimit\":3}}"},
+    {"id":"fb-012","input":"{\"op\":\"toQueueCandidate\",\"stream\":{\"infoHash\":\"mno345\",\"name\":\"Serie S02E01\",\"title\":\"Serie S02E01\",\"_quality\":\"1080p\",\"_seeders\":20,\"_br\":false,\"_dubbed\":true,\"_bankDub\":false,\"_lied\":false,\"_size\":3221225472},\"pool\":\"any\",\"opts\":{\"imdbId\":\"tt9999999\",\"season\":2,\"episode\":1,\"seasonFill\":true,\"rare\":false}}"}
+  ]
+}
