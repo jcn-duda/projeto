@@ -19,7 +19,9 @@ use std::env;
 use std::process;
 use std::sync::{Arc, Mutex as StdMutex};
 
-use adom_crawl::gate::{FlareProbe, GateExecutor, GateExecutorConfig, GateResolver, HttpGateResolver};
+use adom_crawl::gate::{
+    FlareProbe, GateExecutor, GateExecutorConfig, GateResolver, HttpGateResolver,
+};
 use adom_crawl::motor::types::MotorConfig;
 use adom_crawl::motor::CrawlMotor;
 use adom_crawl::page_engine::CrawlPageEngine;
@@ -149,8 +151,8 @@ async fn main() {
         let mut gate_cfg = GateExecutorConfig::from_motor(&config);
         gate_cfg.resolver_host = env_or("BR_RESOLVERS_HOST", "127.0.0.1");
         gate_cfg.resolver_port = 8700u16.saturating_add(offset); // bludv
-        // Segunda conexão WAL no mesmo crawl.db: o motor tem a sua e o
-        // executor não briga por lock na régua `spawn_blocking` de cada um.
+                                                                 // Segunda conexão WAL no mesmo crawl.db: o motor tem a sua e o
+                                                                 // executor não briga por lock na régua `spawn_blocking` de cada um.
         let gate_store = match CrawlStore::open(&db_path) {
             Ok(s) => Arc::new(StdMutex::new(s)),
             Err(e) => {

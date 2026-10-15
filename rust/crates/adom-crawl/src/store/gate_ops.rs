@@ -1,4 +1,4 @@
-﻿//! OperaÃ§Ãµes de portÃ£o do `crawl.db` (status `gate-pending` + tabela
+//! OperaÃ§Ãµes de portÃ£o do `crawl.db` (status `gate-pending` + tabela
 //! `crawl_gate`). Separado do `ops.rs` pela catraca de 400 linhas; o
 //! `impl CrawlStore` continua o mesmo tipo â€” sÃ³ a fonte Ã© outra.
 
@@ -32,16 +32,7 @@ impl CrawlStore {
             "INSERT OR REPLACE INTO crawl_gate \
              (site, url_key, gate, title, year, imdb, kind, added_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![
-                site,
-                url_key,
-                rec.gate,
-                rec.title,
-                rec.year,
-                rec.imdb,
-                rec.kind,
-                now,
-            ],
+            params![site, url_key, rec.gate, rec.title, rec.year, rec.imdb, rec.kind, now,],
         )?;
         Ok(())
     }

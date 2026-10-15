@@ -8,8 +8,15 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::Arc;
 
-use super::{counts_as_user, cycle_tick, order_by_priority, parse_knobs, FlareWarm, WarmDecision, WarmPerformer};
+use super::{
+    counts_as_user, cycle_tick, order_by_priority, parse_knobs, FlareWarm, WarmDecision,
+    WarmPerformer,
+};
 use crate::profile::ResolverProfile;
+
+/// Futuro boxado do performer: alias só para aplacar `clippy::type_complexity`
+/// nas assinaturas dos fakes (a expansão HRTB é grande, mas é sempre este tipo).
+type WarmBox<'site> = Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'site>>;
 
 /// Profile fake: montagem é toda local (registry estático), zero rede.
 fn profile(name: &str) -> Arc<ResolverProfile> {
@@ -25,10 +32,7 @@ fn profile(name: &str) -> Arc<ResolverProfile> {
 fn counting_performer(
     calls: Arc<AtomicIsize>,
     fail: Arc<AtomicBool>,
-) -> impl for<'site, 'warm> Fn(
-    &'site ResolverProfile,
-    &'warm FlareWarm,
-) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'site>> {
+) -> impl for<'site, 'warm> Fn(&'site ResolverProfile, &'warm FlareWarm) -> WarmBox<'site> {
     move |_profile: &ResolverProfile, _warm: &FlareWarm| {
         calls.fetch_add(1, Ordering::SeqCst);
         let fail = fail.clone();
@@ -46,10 +50,7 @@ fn counting_performer(
 /// ciclo (o porte de meio de ciclo tem que pular o site seguinte).
 fn user_arrival_performer(
     calls: Arc<AtomicIsize>,
-) -> impl for<'site, 'warm> Fn(
-    &'site ResolverProfile,
-    &'warm FlareWarm,
-) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'site>> {
+) -> impl for<'site, 'warm> Fn(&'site ResolverProfile, &'warm FlareWarm) -> WarmBox<'site> {
     move |_profile: &ResolverProfile, warm: &FlareWarm| {
         if calls.fetch_add(1, Ordering::SeqCst) == 0 {
             warm.begin_fetch();
@@ -71,10 +72,7 @@ async fn ocioso_dispara_uma_requisicao_por_site() {
     let performer: WarmPerformer<'_> = &owner;
 
     // Requisição há 1h, janela de 5min → ocioso.
-    assert!(matches!(
-        warm.decide(3_600_000, 300_000),
-        WarmDecision::Run
-    ));
+    assert!(matches!(warm.decide(3_600_000, 300_000), WarmDecision::Run));
     let fired = cycle_tick(&profiles, &warm, 3_600_000, 300_000, performer).await;
     assert_eq!(fired, 2, "uma requisição por site, nunca mais");
     assert_eq!(calls.load(Ordering::SeqCst), 2);
@@ -144,7 +142,11 @@ async fn fetch_em_andamento_pula_sem_enfileirar() {
     ));
     let fired = cycle_tick(&profiles, &warm, 3_600_000, 300_000, performer).await;
     assert_eq!(fired, 0);
-    assert_eq!(calls.load(Ordering::SeqCst), 0, "nada enfileirado no solver");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "nada enfileirado no solver"
+    );
     warm.end_fetch();
 
     // Warm anterior não concluído: mesmo porte, pula também.
@@ -255,8 +257,14 @@ fn prioridade_bludv_primeiro_e_estavel_para_os_demais() {
     ];
     order_by_priority(&mut profiles);
     assert_eq!(profiles[0].site_name, "bludv");
-    assert_eq!(profiles[1].site_name, "vacatorrent", "ordem do spec mantida");
-    assert_eq!(profiles[2].site_name, "redetorrent", "ordem do spec mantida");
+    assert_eq!(
+        profiles[1].site_name, "vacatorrent",
+        "ordem do spec mantida"
+    );
+    assert_eq!(
+        profiles[2].site_name, "redetorrent",
+        "ordem do spec mantida"
+    );
 }
 
 #[test]

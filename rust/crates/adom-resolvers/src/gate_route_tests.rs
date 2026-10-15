@@ -109,7 +109,12 @@ async fn call(url: &str, index: Option<&str>, wait: Option<&str>) -> Response {
 }
 
 /// Fluxo do executor do raspador: `url` é o BOTÃO do gate, `p` o post.
-async fn call_p(url: &str, post: &str, wait: Option<&str>, index: Option<&str>) -> (Response, Arc<GateStub>) {
+async fn call_p(
+    url: &str,
+    post: &str,
+    wait: Option<&str>,
+    index: Option<&str>,
+) -> (Response, Arc<GateStub>) {
     let stub = Arc::new(GateStub::new());
     let callbacks: Arc<dyn ResolverCallbacks> = stub.clone();
     let resp = resolve_handler(

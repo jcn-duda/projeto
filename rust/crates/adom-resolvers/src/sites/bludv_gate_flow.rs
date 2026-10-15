@@ -339,7 +339,7 @@ pub fn gate_cache_lookup(gate_url: &str, post_url: &str) -> Result<Option<String
     }
     let gate = safe_gate_url(gate_url, Some(post_url))
         .ok_or_else(|| GateError::refused("botao invalido"))?;
-    Ok(cache_get(&gate.to_string()))
+    Ok(cache_get(gate.as_ref()))
 }
 
 /// Prefetch fire-and-forget (mesma admissao do play).

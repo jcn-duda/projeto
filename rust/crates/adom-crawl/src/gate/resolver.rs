@@ -27,7 +27,10 @@ pub struct HttpGateResolver {
 
 impl HttpGateResolver {
     pub fn new(host: &str, port: u16, timeout_ms: u64) -> Self {
-        Self { base_url: format!("http://{host}:{port}"), timeout_ms }
+        Self {
+            base_url: format!("http://{host}:{port}"),
+            timeout_ms,
+        }
     }
 }
 

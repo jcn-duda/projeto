@@ -115,7 +115,10 @@ impl FlareProbe for FlareFake {
 pub(super) type Entregues = Arc<StdMutex<Vec<serde_json::Value>>>;
 
 /// Handler do POST /internal/crawl-result: captura e responde ok.
-async fn entrega(State(entregues): State<Entregues>, Json(v): Json<serde_json::Value>) -> Json<serde_json::Value> {
+async fn entrega(
+    State(entregues): State<Entregues>,
+    Json(v): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
     entregues.lock().unwrap().push(v);
     Json(serde_json::json!({ "ok": true }))
 }
@@ -136,9 +139,10 @@ async fn entrega_falha_primeira(
 /// Node falso: freio de tráfego (`recent`) + captura de entregas.
 pub(super) async fn node_falso(entregues: Entregues, recent: bool) -> String {
     let app = Router::new()
-        .route("/internal/activity", get(move || async move {
-            Json(serde_json::json!({ "recent": recent }))
-        }))
+        .route(
+            "/internal/activity",
+            get(move || async move { Json(serde_json::json!({ "recent": recent })) }),
+        )
         .route("/internal/crawl-result", post(entrega))
         .with_state(entregues);
     bind_node(app).await
@@ -147,9 +151,10 @@ pub(super) async fn node_falso(entregues: Entregues, recent: bool) -> String {
 /// Node falso que recusa a primeira entrega (dedupe durável).
 pub(super) async fn node_recusa_primeira(entregues: Entregues) -> String {
     let app = Router::new()
-        .route("/internal/activity", get(|| async {
-            Json(serde_json::json!({ "recent": false }))
-        }))
+        .route(
+            "/internal/activity",
+            get(|| async { Json(serde_json::json!({ "recent": false })) }),
+        )
         .route(
             "/internal/crawl-result",
             post(entrega_falha_primeira).get(|| async { "nao-usado" }),
@@ -194,7 +199,10 @@ pub(super) fn executor(
         cfg,
         tuning,
         store,
-        Arc::new(SidecarHttpClient::new(node.to_string(), "token-de-teste".to_string())),
+        Arc::new(SidecarHttpClient::new(
+            node.to_string(),
+            "token-de-teste".to_string(),
+        )),
         resolver,
         flare,
     )

@@ -18,8 +18,8 @@ use tokio::sync::Mutex;
 use tokio::time::{interval, Duration};
 
 use super::types::{
-    error_work, now_ms, MotorConfig, MotorStatus, PageEngine, PageOutcome, SiteStatus,
-    UnwiredPageEngine, CrawlResultStatus,
+    error_work, now_ms, CrawlResultStatus, MotorConfig, MotorStatus, PageEngine, PageOutcome,
+    SiteStatus, UnwiredPageEngine,
 };
 use crate::sidecar::activity::recent_user_traffic;
 use crate::sidecar::http_client::SidecarHttpClient;

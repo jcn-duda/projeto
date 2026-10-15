@@ -29,8 +29,8 @@
 //! cada `mark_result` consome `tries`, e escrever placeholder na fila real
 //! dormiria páginas boas por conta de um elo não implementado.
 
-pub mod r#loop;
 mod gate_pending;
+pub mod r#loop;
 pub mod types;
 
 #[cfg(test)]

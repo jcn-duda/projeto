@@ -23,19 +23,29 @@ pub(super) async fn handle_gate_pending(
 ) -> TaskReport {
     debug_assert!(matches!(work.status, CrawlResultStatus::GatePending));
     match gate_pending_report(ctx, row, work).await {
-        Ok(cost) => TaskReport { cost, delivered: true },
+        Ok(cost) => TaskReport {
+            cost,
+            delivered: true,
+        },
         Err(e) => {
-            eprintln!("[motor] {} {}: portão pendente sem href: {e}", row.site, row.url_key);
+            eprintln!(
+                "[motor] {} {}: portão pendente sem href: {e}",
+                row.site, row.url_key
+            );
             let erro = error_work(row, &format!("portão pendente sem href: {e}"));
             let mark = MarkResult::from_work(row, &erro, false, &ctx.cfg, now_ms());
             let (site, url_key) = (row.site.clone(), row.url_key.clone());
-            if let Err(e2) =
-                with_store(ctx.store.clone(), move |db| db.mark_result(&site, &url_key, &mark))
-                    .await
+            if let Err(e2) = with_store(ctx.store.clone(), move |db| {
+                db.mark_result(&site, &url_key, &mark)
+            })
+            .await
             {
                 eprintln!("[motor] falha ao marcar {} {}: {e2}", row.site, row.url_key);
             }
-            TaskReport { cost: work.request_cost, delivered: false }
+            TaskReport {
+                cost: work.request_cost,
+                delivered: false,
+            }
         }
     }
 }

@@ -67,7 +67,11 @@ pub trait ResolverCallbacks: Send + Sync + 'static {
     /// post que o nomeia — contrato do executor do raspador no /resolve
     /// (`url=<botão>&p=<post>`). Default é erro: só perfil com portão
     /// sobrescreve (hoje, o bludv); a validação e o cache ficam no perfil.
-    async fn resolve_gate_direct(&self, _gate_url: &str, _post_url: &str) -> Result<String, String> {
+    async fn resolve_gate_direct(
+        &self,
+        _gate_url: &str,
+        _post_url: &str,
+    ) -> Result<String, String> {
         Err("gate indisponivel neste perfil".to_string())
     }
 
@@ -169,7 +173,7 @@ async fn search_handler(
 /// o arquivo vive no nível de `src/`, não sob `src/server/`.
 #[path = "gate_route.rs"]
 mod gate_route;
-pub use gate_route::{GATE_PENDING, gate_wait_block_requested, with_gate_wait_block};
+pub use gate_route::{gate_wait_block_requested, with_gate_wait_block, GATE_PENDING};
 
 /// Query params de /dl.
 #[derive(Deserialize)]
@@ -303,7 +307,9 @@ pub fn build_router(callbacks: Arc<dyn ResolverCallbacks>) -> Router {
         // Única linha de registro: toda rota de tráfego (search/resolve/dl/api)
         // marca atividade de usuário para o warm do FlareSolverr pular a vez
         // (flare_warm.rs). /health é tratado lá dentro (healthcheck ≠ usuário).
-        .layer(axum::middleware::from_fn(crate::flare_warm::note_user_middleware))
+        .layer(axum::middleware::from_fn(
+            crate::flare_warm::note_user_middleware,
+        ))
         .with_state(callbacks)
 }
 

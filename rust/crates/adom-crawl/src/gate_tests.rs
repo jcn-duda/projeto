@@ -9,8 +9,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 
-use super::*;
 use super::support::*;
+use super::*;
 use crate::store::ops::CrawlStore;
 
 /// (b) Post pendente de portão: o executor paga pelo resolver e a release é
@@ -33,7 +33,14 @@ async fn executor_paga_e_grava_no_acervo() {
     );
 
     let report = ex.run_round().await.expect("rodada");
-    assert_eq!(report, GateRoundReport { claimed: 1, paid: 1, skipped: None });
+    assert_eq!(
+        report,
+        GateRoundReport {
+            claimed: 1,
+            paid: 1,
+            skipped: None
+        }
+    );
     assert_eq!(chamadas.load(Ordering::SeqCst), 1, "um pagamento");
 
     // Acervo: um resultado `done` com o magnet do resolver.
@@ -41,7 +48,9 @@ async fn executor_paga_e_grava_no_acervo() {
     assert_eq!(posts.len(), 1, "release gravada no acervo");
     assert_eq!(posts[0]["status"], "done");
     assert_eq!(posts[0]["url_key"], "post-1");
-    let magnet = posts[0]["releases"][0]["magnet"].as_str().expect("magnet no item");
+    let magnet = posts[0]["releases"][0]["magnet"]
+        .as_str()
+        .expect("magnet no item");
     assert!(magnet.starts_with("magnet:"), "release com o magnet pago");
     assert!(posts[0]["releases"][0]["is_br"].as_bool().unwrap());
     drop(posts);
@@ -54,8 +63,13 @@ async fn executor_paga_e_grava_no_acervo() {
 
     // A pendência saiu da fila de portões e o pagamento ficou provado.
     let db = CrawlStore::open(&caminho).expect("reabrir");
-    assert!(db.take_gate_batch(10).expect("lote").is_empty(), "crawl_gate esvaziada");
-    let pago = db.get_state(SITE, &format!("gate-magnet:{GATE}")).expect("state");
+    assert!(
+        db.take_gate_batch(10).expect("lote").is_empty(),
+        "crawl_gate esvaziada"
+    );
+    let pago = db
+        .get_state(SITE, &format!("gate-magnet:{GATE}"))
+        .expect("state");
     assert!(pago.is_some(), "pagamento durável gravado");
 }
 
@@ -79,7 +93,14 @@ async fn teto_esgotado_nao_chama_o_resolver() {
     );
 
     let report = ex.run_round().await.expect("rodada");
-    assert_eq!(report, GateRoundReport { claimed: 0, paid: 0, skipped: Some("teto-horario") });
+    assert_eq!(
+        report,
+        GateRoundReport {
+            claimed: 0,
+            paid: 0,
+            skipped: Some("teto-horario")
+        }
+    );
     assert_eq!(chamadas.load(Ordering::SeqCst), 0, "nenhum pagamento");
     let (status, tries, _) = ler_linha(&caminho, "post-1");
     assert_eq!(status, "gate-pending", "pendente para a rodada seguinte");
@@ -111,10 +132,20 @@ async fn teto_estourado_no_meio_da_rodada() {
     assert_eq!(report.paid, 1);
 
     let report2 = ex.run_round().await.expect("segunda rodada");
-    assert_eq!(report2, GateRoundReport { claimed: 0, paid: 0, skipped: Some("teto-horario") });
+    assert_eq!(
+        report2,
+        GateRoundReport {
+            claimed: 0,
+            paid: 0,
+            skipped: Some("teto-horario")
+        }
+    );
     assert_eq!(chamadas.load(Ordering::SeqCst), 1, "não paga além do teto");
     let (status, _, _) = ler_linha(&caminho, "post-2");
-    assert_eq!(status, "gate-pending", "o segundo fica para a rodada seguinte");
+    assert_eq!(
+        status, "gate-pending",
+        "o segundo fica para a rodada seguinte"
+    );
 }
 
 /// (e) Falha do resolver: pendente, SEM VENENO (tries intacta, pendência na
@@ -137,20 +168,38 @@ async fn falha_do_resolver_mantem_pendente_sem_veneno() {
     );
 
     let report = ex.run_round().await.expect("rodada");
-    assert_eq!(report, GateRoundReport { claimed: 1, paid: 0, skipped: None });
-    assert!(entregues.lock().unwrap().is_empty(), "nada entregue ao acervo");
+    assert_eq!(
+        report,
+        GateRoundReport {
+            claimed: 1,
+            paid: 0,
+            skipped: None
+        }
+    );
+    assert!(
+        entregues.lock().unwrap().is_empty(),
+        "nada entregue ao acervo"
+    );
 
     // Pendente, sem veneno e com o registro do portão intacto.
     let (status, tries, _) = ler_linha(&caminho, "post-1");
     assert_eq!(status, "gate-pending");
     assert_eq!(tries, 0, "falha do resolver não queima tentativa");
     let db = CrawlStore::open(&caminho).expect("reabrir");
-    assert_eq!(db.take_gate_batch(10).expect("lote").len(), 1, "pendência na fila");
+    assert_eq!(
+        db.take_gate_batch(10).expect("lote").len(),
+        1,
+        "pendência na fila"
+    );
 
     // A próxima rodada tenta de novo (não há dedupe de falha).
     let report2 = ex.run_round().await.expect("segunda rodada");
     assert_eq!(report2.claimed, 1);
-    assert_eq!(chamadas.load(Ordering::SeqCst), 2, "re-tenta na rodada seguinte");
+    assert_eq!(
+        chamadas.load(Ordering::SeqCst),
+        2,
+        "re-tenta na rodada seguinte"
+    );
 }
 
 /// Dedupe: pagamento NÃO se repete quando a entrega falha — a rodada seguinte
@@ -180,7 +229,11 @@ async fn pagamento_nao_se_repete_quando_a_entrega_falha() {
     // 2ª rodada: re-entrega do magnet durável — SEM novo pagamento.
     let report2 = ex.run_round().await.expect("segunda rodada");
     assert_eq!(report2.paid, 1);
-    assert_eq!(chamadas.load(Ordering::SeqCst), 1, "portão nunca pago duas vezes");
+    assert_eq!(
+        chamadas.load(Ordering::SeqCst),
+        1,
+        "portão nunca pago duas vezes"
+    );
 
     let (status, _, _) = ler_linha(&caminho, "post-1");
     assert_eq!(status, "done", "fechada pela re-entrega");
@@ -204,7 +257,14 @@ async fn flare_ocupado_pula_a_rodada() {
     );
 
     let report = ex.run_round().await.expect("rodada");
-    assert_eq!(report, GateRoundReport { claimed: 0, paid: 0, skipped: Some("flare-ocupado") });
+    assert_eq!(
+        report,
+        GateRoundReport {
+            claimed: 0,
+            paid: 0,
+            skipped: Some("flare-ocupado")
+        }
+    );
     assert_eq!(chamadas.load(Ordering::SeqCst), 0);
     let (status, _, _) = ler_linha(&caminho, "post-1");
     assert_eq!(status, "gate-pending");
@@ -230,8 +290,19 @@ async fn usuario_ativo_pula_a_rodada() {
     );
 
     let report = ex.run_round().await.expect("rodada");
-    assert_eq!(report, GateRoundReport { claimed: 0, paid: 0, skipped: Some("usuario-ativo") });
-    assert_eq!(chamadas.load(Ordering::SeqCst), 0, "usuário na frente: nada pago");
+    assert_eq!(
+        report,
+        GateRoundReport {
+            claimed: 0,
+            paid: 0,
+            skipped: Some("usuario-ativo")
+        }
+    );
+    assert_eq!(
+        chamadas.load(Ordering::SeqCst),
+        0,
+        "usuário na frente: nada pago"
+    );
     let (status, _, _) = ler_linha(&caminho, "post-1");
     assert_eq!(status, "gate-pending");
 }

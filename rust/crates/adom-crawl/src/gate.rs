@@ -159,7 +159,11 @@ impl GateExecutor {
         self.roll_window(now).await;
         // 1. Faixa Flare ocupada: nem consulta o Node. O solver é um por vez.
         if self.flare.flare_busy() {
-            return Ok(GateRoundReport { claimed: 0, paid: 0, skipped: Some("flare-ocupado") });
+            return Ok(GateRoundReport {
+                claimed: 0,
+                paid: 0,
+                skipped: Some("flare-ocupado"),
+            });
         }
         // 2. Teto por hora: pendentes ficam para a rodada seguinte.
         let restante = {
@@ -167,12 +171,20 @@ impl GateExecutor {
             self.cfg.hourly_cap.saturating_sub(rt.spent_this_hour)
         };
         if restante == 0 {
-            return Ok(GateRoundReport { claimed: 0, paid: 0, skipped: Some("teto-horario") });
+            return Ok(GateRoundReport {
+                claimed: 0,
+                paid: 0,
+                skipped: Some("teto-horario"),
+            });
         }
         // 3. Freio de tráfego: MESMO critério do raspador (fail-closed já
         //    embutido no `recent_user_traffic`).
         if recent_user_traffic(&self.http, self.cfg.idle_window_ms).await {
-            return Ok(GateRoundReport { claimed: 0, paid: 0, skipped: Some("usuario-ativo") });
+            return Ok(GateRoundReport {
+                claimed: 0,
+                paid: 0,
+                skipped: Some("usuario-ativo"),
+            });
         }
 
         let limite = restante as usize;
@@ -180,7 +192,11 @@ impl GateExecutor {
             .await
             .map_err(|e| format!("store: {e}"))?;
         if batch.is_empty() {
-            return Ok(GateRoundReport { claimed: 0, paid: 0, skipped: None });
+            return Ok(GateRoundReport {
+                claimed: 0,
+                paid: 0,
+                skipped: None,
+            });
         }
 
         let mut paid = 0usize;
@@ -190,7 +206,11 @@ impl GateExecutor {
                 paid += 1;
             }
         }
-        Ok(GateRoundReport { claimed: batch.len(), paid, skipped: None })
+        Ok(GateRoundReport {
+            claimed: batch.len(),
+            paid,
+            skipped: None,
+        })
     }
 
     /// Fecha a janela do teto e esquece o dedupe em memória quando ela vence.
@@ -225,7 +245,10 @@ impl GateExecutor {
             return match self.deliver(g, &magnet).await {
                 Ok(()) => RowOutcome::Paid,
                 Err(e) => {
-                    eprintln!("[gate] {} {}: re-entrega falhou: {e}", g.row.site, g.row.url_key);
+                    eprintln!(
+                        "[gate] {} {}: re-entrega falhou: {e}",
+                        g.row.site, g.row.url_key
+                    );
                     RowOutcome::Pending
                 }
             };
@@ -238,7 +261,10 @@ impl GateExecutor {
             Err(e) => {
                 // Falha do resolver: pendente, sem veneno. O custo é real
                 // (a tentativa de pagamento acontece): cobrado no teto.
-                eprintln!("[gate] {} {}: pagamento não saiu: {e}", g.row.site, g.row.url_key);
+                eprintln!(
+                    "[gate] {} {}: pagamento não saiu: {e}",
+                    g.row.site, g.row.url_key
+                );
                 let mut rt = self.state.lock().await;
                 rt.spent_this_hour = rt.spent_this_hour.saturating_add(1);
                 return RowOutcome::Pending;
@@ -250,8 +276,10 @@ impl GateExecutor {
         let site = g.row.site.clone();
         let chave = paid_state_key(&g.gate);
         let gravado = magnet.clone();
-        if let Err(e) =
-            with_store(self.store.clone(), move |db| db.set_state(&site, &chave, &gravado)).await
+        if let Err(e) = with_store(self.store.clone(), move |db| {
+            db.set_state(&site, &chave, &gravado)
+        })
+        .await
         {
             eprintln!(
                 "[gate] {} {}: estado do pagamento não gravado: {e}",
@@ -304,9 +332,16 @@ impl GateExecutor {
     /// régua do raspador (`release_title`: post dá nome/ano, magnet completa).
     fn work_of(&self, g: &GateRow, magnet: &str) -> CrawlWorkResult {
         // Post sem `<h1>` colhido: o magnet (dn=) é a matéria-prima honesta.
-        let bruto = if g.title.trim().is_empty() { magnet.to_string() } else { g.title.clone() };
+        let bruto = if g.title.trim().is_empty() {
+            magnet.to_string()
+        } else {
+            g.title.clone()
+        };
         let post_year = (g.year > 0).then_some(g.year as u32);
-        let link = ResolverLink { url: magnet.to_string(), ..Default::default() };
+        let link = ResolverLink {
+            url: magnet.to_string(),
+            ..Default::default()
+        };
         let titulo = release_title(&bruto, post_year, &link, None);
         CrawlWorkResult {
             url: g.row.url.clone(),

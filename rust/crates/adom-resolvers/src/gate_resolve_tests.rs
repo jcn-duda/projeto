@@ -61,10 +61,7 @@ impl GateTransport for ModeTransport {
         } else {
             String::new()
         };
-        Ok(FlareGetResult {
-            url: out_url,
-            html,
-        })
+        Ok(FlareGetResult { url: out_url, html })
     }
     async fn direct_get(&self, value: &str) -> GateResult<GetResult> {
         let url = Url::parse(value).map_err(|_| GateError::refused("url invalida"))?;

@@ -151,9 +151,7 @@ async fn resolve_handler_inner(
         // Pendência do portão não é site fora do ar: 503 diz "volte em
         // instantes" (o aquecimento em fundo resolve para a próxima chamada);
         // 502 fica reservado ao erro real do site/da cadeia.
-        Err(msg) if msg == GATE_PENDING => {
-            (StatusCode::SERVICE_UNAVAILABLE, msg).into_response()
-        }
+        Err(msg) if msg == GATE_PENDING => (StatusCode::SERVICE_UNAVAILABLE, msg).into_response(),
         Err(msg) => (StatusCode::BAD_GATEWAY, msg).into_response(),
     }
 }

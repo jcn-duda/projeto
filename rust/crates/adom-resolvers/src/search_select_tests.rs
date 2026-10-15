@@ -79,7 +79,10 @@ fn ano_da_query_corta_outra_obra_antes_do_corte() {
     assert_eq!(year, Some(2021));
     assert_eq!(
         select_posts(posts.clone(), |p| p, "Duna 2021", None, 2),
-        vec!["Duna: Parte 2 (2024) DUBLADO", "Planeta Duna (2021) DUBLADO"],
+        vec![
+            "Duna: Parte 2 (2024) DUBLADO",
+            "Planeta Duna (2021) DUBLADO"
+        ],
         "comportamento de hoje: o post de outra obra ocupa a vaga",
     );
     let posts = filter_year(posts, |p| p, year);

@@ -148,6 +148,14 @@ impl FlareWarm {
     }
 }
 
+/// Clippy `new_without_default`: tipo público com `new()` sem args precisa
+/// oferecer `Default`; o `static GLOBAL_WARM` segue usando o `new()` const.
+impl Default for FlareWarm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// RAII do contador de fetches (ver [`FlareWarm::fetch_guard`]).
 pub struct FetchInFlightGuard<'a>(&'a FlareWarm);
 
@@ -184,8 +192,8 @@ pub type WarmPerformer<'a> = &'a (dyn for<'site, 'warm> Fn(
     &'site ResolverProfile,
     &'warm FlareWarm,
 ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'site>>
-    + Send
-    + Sync);
+         + Send
+         + Sync);
 
 /// UMA requisição leve à HOME do domínio ativo, pela MESMA sessão/cookies da
 /// listagem. Sessão quente → direto (200 barato, cf_clearance segue vivo);

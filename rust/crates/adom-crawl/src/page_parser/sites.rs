@@ -235,7 +235,10 @@ mod gate_tests {
         let html = r#"<div class="downloads">
             <a href="https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609" class="customButton">Baixar</a>
         </div>"#;
-        assert!(!bludv_gate_buttons(html).is_empty(), "pagina so-portao tem o botao");
+        assert!(
+            !bludv_gate_buttons(html).is_empty(),
+            "pagina so-portao tem o botao"
+        );
         assert!(
             parse_bludv_links(html).is_empty(),
             "portao nao e link coletavel"

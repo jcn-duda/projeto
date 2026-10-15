@@ -43,16 +43,23 @@ async fn post_so_gate_vira_pendencia_sem_entrega_ao_node() {
 
     let posts = Arc::new(AtomicUsize::new(0));
     let node = node_falso(posts.clone()).await;
-    let motor =
-        CrawlMotor::new(config(caminho, &node)).with_page_engine(Arc::new(EngineGateFake { sem_href: true }));
+    let motor = CrawlMotor::new(config(caminho, &node))
+        .with_page_engine(Arc::new(EngineGateFake { sem_href: true }));
 
     let outcome = motor.tick_once().await.expect("tick");
     assert_eq!(
         outcome,
-        TickOutcome::Processed { claimed: 1, delivered: 1 },
+        TickOutcome::Processed {
+            claimed: 1,
+            delivered: 1
+        },
         "a pendência foi gravada: a rodada considera a linha cuidada"
     );
-    assert_eq!(posts.load(Ordering::SeqCst), 0, "Node não recebe resultado de pendência");
+    assert_eq!(
+        posts.load(Ordering::SeqCst),
+        0,
+        "Node não recebe resultado de pendência"
+    );
 
     let (status, tries, next_at) = ler_linha(caminho, "filme-gate");
     assert_eq!(status, "gate-pending");
@@ -63,7 +70,10 @@ async fn post_so_gate_vira_pendencia_sem_entrega_ao_node() {
     let db = CrawlStore::open(caminho).expect("reabrir");
     let fila = db.take_gate_batch(10).expect("lote");
     assert_eq!(fila.len(), 1);
-    assert_eq!(fila[0].gate, "https://bludvfilmes1.xyz/gate/go/abc123?p=60609");
+    assert_eq!(
+        fila[0].gate,
+        "https://bludvfilmes1.xyz/gate/go/abc123?p=60609"
+    );
     assert_eq!(fila[0].title, "Filme X");
     assert_eq!(fila[0].year, 2024);
 }
@@ -88,5 +98,8 @@ async fn gate_pendente_sem_href_vira_erro_retentavel() {
     assert_eq!(tries, 1);
     assert!(next_at > now_ms(), "backoff empurra a próxima tentativa");
     let db = CrawlStore::open(caminho).expect("reabrir");
-    assert!(db.take_gate_batch(10).expect("lote").is_empty(), "nenhuma órfã na fila");
+    assert!(
+        db.take_gate_batch(10).expect("lote").is_empty(),
+        "nenhuma órfã na fila"
+    );
 }
