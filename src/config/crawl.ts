@@ -144,4 +144,7 @@ export const crawl = () => ({
   // Porta do sidecar Rust (quando CRAWL_ENGINE=rust). O sidecar escuta em
   // 127.0.0.1:<porta> e responde /status e /action.
   sidecarPort: Math.max(1, Math.trunc(num(process.env.CRAWL_SIDECAR_PORT, 7077))),
+  // Prazo da foto do sidecar no /dashboard-status.json (ms): sidecar travado
+  // não pode segurar o painel.
+  sidecarStatusTimeoutMs: Math.max(100, Math.trunc(num(process.env.CRAWL_SIDECAR_STATUS_TIMEOUT_MS, 3000))),
 });

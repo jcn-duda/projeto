@@ -8,7 +8,7 @@ async function sidecarStatus(services: AppServices): Promise<Record<string, unkn
   const url = `http://127.0.0.1:${services.config.crawl.sidecarPort}/status`;
   try {
     const resp = await fetch(url, {
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(services.config.crawl.sidecarStatusTimeoutMs),
       headers: services.config.jackett.testToken
         ? { 'X-Indexer-Test-Token': services.config.jackett.testToken }
         : {},
