@@ -50,6 +50,8 @@
     "golden:release-index-media:check": "node scripts/golden/dump-release-index-media.mjs --check",
     "golden:release-filters": "node scripts/golden/dump-release-filters.mjs",
     "golden:release-filters:check": "node scripts/golden/dump-release-filters.mjs --check",
+    "golden:cache-quotas": "node scripts/golden/gen-cache.mjs",
+    "golden:cache-quotas:check": "node scripts/golden/gen-cache.mjs --check",
     "bench:local": "node scripts/bench/local-baseline.mjs",
     "smoke": "node dist/scripts/smoke.js",
     "probe:crawl-site": "node dist/scripts/crawl-site-probe.js",
@@ -466,6 +468,7 @@
     "test/cam-label-indexonly.test.js",
     "test/idx-media-source.test.js",
     "test/stream-builder-idx-episode.test.js",
+    "test/rust-release-index.test.js",
     "test/rust-shadow.test.js"
   ]
 }
