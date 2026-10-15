@@ -161,3 +161,25 @@ test('crawl-reset exige confirm e apaga só o site informado', async () => {
   assert.equal(store.engine().counters('fake').total, 0);
   assert.equal(store.engine().counters('outro').total, 1);
 });
+
+test('motor Rust: o painel recebe o formato do crawler.status() com a foto do sidecar ao lado', async () => {
+  // Sidecar fora do ar (porta fechada): o bloco não pode virar "DESLIGADO"
+  // e "nenhum site" — o crawl.db e a config continuam valendo.
+  const saved = { engine: config.crawl.crawlEngine, port: config.crawl.sidecarPort };
+  Object.assign(config.crawl, { crawlEngine: 'rust', sidecarPort: 1 });
+  try {
+    store.engine().upsertUrls('fake', [movie('/a')], 1);
+    const res = await server.request('GET', '/dashboard-status.json?blocos=crawl', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+    });
+    assert.equal(res.status, 200);
+    const crawl = res.json.crawl;
+    assert.equal(crawl.engine, 'rust');
+    assert.equal(typeof crawl.enabled, 'boolean', 'campo que o badge do motor lê');
+    assert.deepEqual(crawl.sites.map((s: { id: string }) => s.id), ['fake'], 'cards dos sites configurados');
+    assert.equal(crawl.sidecar.active, false);
+    assert.equal(crawl.error, 'sidecar não acessível');
+  } finally {
+    Object.assign(config.crawl, { crawlEngine: saved.engine, sidecarPort: saved.port });
+  }
+});

@@ -3,44 +3,42 @@
 // Rust (sidecar HTTP na porta do CRAWL_SIDECAR_PORT).
 import type { AppServices } from './types.js';
 
+/** Foto do sidecar Rust (`GET /status`); `error` quando não respondeu. */
+async function sidecarStatus(services: AppServices): Promise<Record<string, unknown>> {
+  const url = `http://127.0.0.1:${services.config.crawl.sidecarPort}/status`;
+  try {
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(3000),
+      headers: services.config.jackett.testToken
+        ? { 'X-Indexer-Test-Token': services.config.jackett.testToken }
+        : {},
+    });
+    if (resp.ok) return (await resp.json()) as Record<string, unknown>;
+    return { active: false, error: `sidecar respondeu HTTP ${resp.status}` };
+  } catch {
+    return { active: false, error: 'sidecar não acessível' };
+  }
+}
+
 /**
- * Bloco crawl: status do motor TS OU do sidecar Rust.
- *
- * Fase C4: quando `CRAWL_ENGINE=rust`, o status vem do sidecar via HTTP;
- * falha aberta (sidecar não acessível → { active: false, error }).
+ * Bloco crawl. O painel lê SEMPRE o formato do `crawler.status()` (cards,
+ * catálogo, contadores do `crawl.db`, config ao vivo) — é o mesmo banco que o
+ * sidecar Rust escreve. Com `CRAWL_ENGINE=rust` a foto do sidecar vai junto em
+ * `sidecar`; devolver só ela deixava o painel "DESLIGADO" e "Nenhum site em
+ * CRAWL_SITES" com o raspador rodando (formato diferente: `site_id`, sem
+ * `enabled`). Falha do sidecar é aberta: o resto do bloco segue.
  */
 export async function crawlBlock(
   services: AppServices,
   configSnapshot: unknown,
 ): Promise<Record<string, unknown>> {
-  if (services.config.crawl.crawlEngine === 'rust') {
-    const sidecarUrl = `http://127.0.0.1:${services.config.crawl.sidecarPort}/status`;
-    try {
-      const resp = await fetch(sidecarUrl, {
-        signal: AbortSignal.timeout(3000),
-        headers: {
-          ...(services.config.jackett.testToken
-            ? { 'X-Indexer-Test-Token': services.config.jackett.testToken }
-            : {}),
-        },
-      });
-      if (resp.ok) {
-        const sidecarStatus = (await resp.json()) as Record<string, unknown>;
-        return { ...sidecarStatus, engine: 'rust', config: configSnapshot };
-      }
-      return {
-        active: false,
-        engine: 'rust',
-        error: `sidecar respondeu HTTP ${resp.status}`,
-        config: configSnapshot,
-      };
-    } catch {
-      return { active: false, engine: 'rust', error: 'sidecar não acessível', config: configSnapshot };
-    }
-  }
+  const base = { ...services.crawler.status(), config: configSnapshot };
+  if (services.config.crawl.crawlEngine !== 'rust') return { ...base, engine: 'ts' };
+  const sidecar = await sidecarStatus(services);
   return {
-    ...services.crawler.status(),
-    engine: 'ts',
-    config: configSnapshot,
+    ...base,
+    engine: 'rust',
+    sidecar,
+    ...(typeof sidecar.error === 'string' ? { error: sidecar.error } : {}),
   };
 }
