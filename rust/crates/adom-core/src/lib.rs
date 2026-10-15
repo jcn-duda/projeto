@@ -6,6 +6,7 @@
 mod audio_cleanup_verdicts;
 mod audio_lang;
 mod audio_presentation;
+mod autofetch_policy;
 mod br_origin;
 mod br_pool_selection;
 mod bytes_to_size;
@@ -199,6 +200,14 @@ pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
 pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_blob};
+pub use autofetch_policy::{
+    decide_seeds_stop, effective_seeds_max_bytes, filter_seeds_universe, has_playable_stream,
+    normalize_seeds_max_quality, seeds_download_bytes, seeds_drain_rejection,
+    seeds_intrinsic_rejection, seeds_quality_reject, seeds_selection_block, seeds_size_reject,
+    stream_title_bytes, DecideSeedsStopInput, DecideSeedsStopOutput, FilterSeedsResult,
+    PlayableStream, SeedsCandidate, SeedsDrainReason, SeedsPolicyConfig, SeedsRejectReason,
+    SeedsSelectionBlockReason, SeedsStopReason,
+};
 pub use bytes_to_size::bytes_to_size;
 pub use catalog_classify::{classify_by_title, classify_with_evidence, foreign_proof_label, Proof};
 pub use collapse_acronyms::collapse_acronyms;

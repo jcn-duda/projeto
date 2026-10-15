@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-policy/autofetchPolicy"
+  ],
+  "function": {
+    "name": "autofetchPolicy",
+    "sourcePath": "src/providers/autofetch-policy.ts",
+    "sourceSha256": "545d9ad3df2ad06b79f2db06ada194743b21ab9399a0cd76a4558b3319e13f33",
+    "artifactPath": "dist/src/providers/autofetch-policy.js",
+    "artifactSha256": "f08a9a42fad6a85826e176bdf4b5c187f571f09a402b1e04b3adc581363e2bd3"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-policy.json",
+    "sha256": "467a5fd8b2144fa6066ac48d138c61ba5e3a72d688f9e4e2d91a4deaa8016155",
+    "cases": 72
+  },
+  "output": {
+    "path": "rust/golden/autofetch-policy.jsonl",
+    "sha256": "b7092c880e0621c31e7a7d501f0561e589614e975faa1f312af2f6eb1a268e61",
+    "lines": 72
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "36fde80b7ed7e46c24865f8c010d04be8e7db665"
+  }
+}
