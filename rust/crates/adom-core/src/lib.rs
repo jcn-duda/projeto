@@ -38,6 +38,7 @@ mod dk_seal;
 mod episode_matching;
 mod episode_parse;
 mod episode_series_matching;
+mod episode_size;
 mod franchise;
 mod indexer_priority;
 mod info_hash;
@@ -138,6 +139,9 @@ pub use episode_parse::{
     parse_title_season_episode, season_coverage_excludes, ParsedSeasonEpisode,
 };
 pub use episode_series_matching::{matches_episode_work_identity, matches_global_series_no_marker};
+pub use episode_size::{
+    has_bogus_size_mark, parse_size_label, stream_size_label, stream_title_bytes,
+};
 
 // ── franchise ─────────────────────────────────────────────────────────
 pub use franchise::{
@@ -238,9 +242,9 @@ pub use autofetch_policy::{
     decide_seeds_stop, effective_seeds_max_bytes, filter_seeds_universe, has_playable_stream,
     normalize_seeds_max_quality, seeds_download_bytes, seeds_drain_rejection,
     seeds_intrinsic_rejection, seeds_quality_reject, seeds_selection_block, seeds_size_reject,
-    stream_title_bytes, DecideSeedsStopInput, DecideSeedsStopOutput, FilterSeedsResult,
-    PlayableStream, SeedsCandidate, SeedsDrainReason, SeedsPolicyConfig, SeedsRejectReason,
-    SeedsSelectionBlockReason, SeedsStopReason,
+    DecideSeedsStopInput, DecideSeedsStopOutput, FilterSeedsResult, PlayableStream, SeedsCandidate,
+    SeedsDrainReason, SeedsPolicyConfig, SeedsRejectReason, SeedsSelectionBlockReason,
+    SeedsStopReason,
 };
 pub use autofetch_progress::{
     derive_stall, forget_lot_progress, forget_progress, progress_memory_size, ProgressDerivation,

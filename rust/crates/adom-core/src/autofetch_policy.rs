@@ -6,6 +6,7 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
+use crate::episode_size::stream_title_bytes;
 use crate::stream_quotas_extra::{quality_from_title, UNKNOWN_QUALITY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -150,57 +151,6 @@ fn quality_rank(q: &str) -> Option<i64> {
 
 fn is_valid_seeds_quality(q: &str) -> bool {
     matches!(q, "2160p" | "1080p" | "720p" | "480p" | "SD")
-}
-
-fn size_mark_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new("\u{1F4BE} (\\d+(?:\\.\\d+)? (?:B|KB|MB|GB|TB))").expect("regex SIZE_MARK")
-    })
-}
-
-fn pack_total_mark_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new("\u{1F4E6} pack (\\d+(?:\\.\\d+)? (?:B|KB|MB|GB|TB))")
-            .expect("regex PACK_TOTAL_MARK")
-    })
-}
-
-fn parse_size_label(label: &str) -> f64 {
-    let Some((value_str, unit)) = label.split_once(' ') else {
-        return 0.0;
-    };
-    let Ok(value) = value_str.parse::<f64>() else {
-        return 0.0;
-    };
-    if !value.is_finite() {
-        return 0.0;
-    }
-    let power: u32 = match unit {
-        "B" => 0,
-        "KB" => 1,
-        "MB" => 2,
-        "GB" => 3,
-        "TB" => 4,
-        _ => return 0.0,
-    };
-    (value * 1024f64.powi(power as i32)).round()
-}
-
-/// Tamanho do DOWNLOAD que o título do stream anuncia (💾 ou 📦 pack).
-pub fn stream_title_bytes(title: Option<&str>) -> f64 {
-    let text = title.unwrap_or("");
-    if text.is_empty() {
-        return 0.0;
-    }
-    if let Some(caps) = pack_total_mark_re().captures(text) {
-        return parse_size_label(&caps[1]);
-    }
-    if let Some(caps) = size_mark_re().captures(text) {
-        return parse_size_label(&caps[1]);
-    }
-    0.0
 }
 
 pub fn normalize_seeds_max_quality(value: &str) -> &str {
