@@ -1,9 +1,10 @@
 //! Fundação do debrid em Rust.
 //!
-//! Premiumize, Debrid-Link, Real-Debrid e TorBox já têm adaptador. A API
-//! interna ainda responde 501 até o fio do `adom-server`. Com
+//! Premiumize, Debrid-Link, Real-Debrid, TorBox e AllDebrid já têm adaptador.
+//! A API interna ainda responde 501 até o fio do `adom-server`. Com
 //! `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
 
+pub mod alldebrid;
 pub mod api;
 pub mod debridlink;
 pub mod error;
