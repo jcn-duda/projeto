@@ -74,6 +74,7 @@ mod stream_quotas;
 mod stream_quotas_candidate;
 pub mod stream_quotas_extra;
 mod stream_ranking_dedupe;
+mod stream_ranking_sort;
 mod stream_ranking_types;
 mod stream_relabel;
 mod stream_trace;
@@ -291,6 +292,9 @@ pub use stream_display::{
     StreamNameStyle, UserDisplayOptions,
 };
 pub use stream_ranking_dedupe::{dedupe_by_hash, is_generic_dub_token, DedupeInput, DedupeOutput};
+pub use stream_ranking_sort::{
+    passes_quality_filter, sort_and_limit, SortInput, SortOptions, SortOutput,
+};
 pub use stream_ranking_types::{RankingStream, TraceDrop};
 pub use stream_relabel::{relabel, RelabelOptions, RelabelStream};
 pub use stream_trace::{

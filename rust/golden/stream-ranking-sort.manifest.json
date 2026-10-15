@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "stream-ranking/sortAndLimit"
+  ],
+  "function": {
+    "name": "sortAndLimit",
+    "sourcePath": "src/utils/stream-ranking.ts",
+    "sourceSha256": "0aca9486e71196c57e00545f0c7524e8392118ade10372f89311a305e666c77c",
+    "artifactPath": "dist/src/utils/stream-ranking.js",
+    "artifactSha256": "aed845a09dacd3fdcffdc39a862d00df404dd023c68dd10b6952b930e35c9f52"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-sort-and-limit.json",
+    "sha256": "6d20d8f5428555ae467cf792b7c3f62438feedd70a6ad67ebb16b103e7ec63fa",
+    "cases": 79
+  },
+  "output": {
+    "path": "rust/golden/stream-ranking-sort.jsonl",
+    "sha256": "1c16bef775e743d04a305888fc621ada5838b94364c852b41c5cc347d96690b8",
+    "lines": 79
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "f5cc12fdb2e4b3957d86bb2ff7eee2d57e9a0416"
+  }
+}

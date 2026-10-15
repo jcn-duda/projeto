@@ -32,6 +32,9 @@ subtle = "2"
 # serde_json: usado por js_text (config encoding).
 # preserve_order: o encode_config depende da ordem de inserção do JSON (paridade com JS).
 serde_json = { version = "1", features = ["preserve_order"] }
+# serde (traits) para os tipos do ranking (stream_ranking_types); derive fica
+# disponível para as partes seguintes do porte de stream-ranking.
+serde = { version = "1", features = ["derive"] }
 # ── config_encoding / dk_seal (selo AES da dk) ──────────────────────
 # AES-256-GCM para o selo da dk (paridade com crypto.createCipheriv do Node).
 aes-gcm = "0.10"
