@@ -8,6 +8,7 @@
  * segunda pergunta. O play nunca chama o adaptador TypeScript.
  */
 import config from '../config.js';
+import * as metrics from '../utils/metrics.js';
 import type { DebridAdapter } from '../../types/domain.js';
 import {
   AuthError,
@@ -19,6 +20,9 @@ import {
   RateLimitError,
   WorkPickError,
 } from './common.js';
+import { alldebridLinkFacts } from './rust-link-facts.js';
+import { takeResolveEffect, type RustResolveEffect } from './rust-resolve-apply.js';
+import { applyPlayEffects } from './rust-play-effects.js';
 
 class RustWriteError extends Error {
   isRustWriteError = true;
@@ -42,6 +46,10 @@ type RemoteFailure = {
   kind?: string;
   error?: string;
   jsonMessage?: string;
+  evidence?: unknown;
+  context?: unknown;
+  effect?: unknown;
+  files?: unknown;
 };
 
 type RemoteResult =
@@ -78,15 +86,27 @@ function textField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
-async function readErrorFields(res: Response): Promise<Pick<RemoteFailure, 'kind' | 'error' | 'jsonMessage'>> {
+async function readErrorFields(res: Response): Promise<Pick<RemoteFailure, 'kind' | 'error' | 'jsonMessage' | 'evidence' | 'context' | 'effect' | 'files'>> {
   try {
     const json: unknown = await res.json();
     if (!json || typeof json !== 'object') return {};
-    const body = json as { error?: unknown; kind?: unknown; message?: unknown };
+    const body = json as {
+      error?: unknown;
+      kind?: unknown;
+      message?: unknown;
+      evidence?: unknown;
+      context?: unknown;
+      effect?: unknown;
+      files?: unknown;
+    };
     return {
       kind: textField(body.kind),
       error: textField(body.error),
       jsonMessage: textField(body.message),
+      evidence: body.evidence,
+      context: body.context,
+      effect: body.effect,
+      files: body.files,
     };
   } catch {
     return {};
@@ -148,29 +168,110 @@ function playKind(remote: RemoteFailure): string | undefined {
   return PLAY_KIND_BY_STATUS[remote.status];
 }
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function numberList(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const out: number[] = [];
+  for (const item of value) {
+    const n = finiteNumber(item);
+    if (n != null) out.push(n);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+/** Nome de arquivo para o log do episódio. Magnet e chave não entram. */
+function clipSample(value: unknown, secrets: readonly string[], max: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || /magnet:\?|urn:btih:/i.test(trimmed)) return undefined;
+  return redact(trimmed, secrets).slice(0, max);
+}
+
+function episodeEvidence(value: unknown, secrets: readonly string[]) {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const wantedSeason = finiteNumber(raw.wantedSeason);
+  const wantedEpisode = finiteNumber(raw.wantedEpisode);
+  if (wantedSeason == null || wantedEpisode == null) return undefined;
+  const sample = clipSample(raw.sample, secrets, 60);
+  return {
+    wantedSeason,
+    wantedEpisode,
+    declaredSeasons: numberList(raw.declaredSeasons),
+    declaredEpisodes: numberList(raw.declaredEpisodes),
+    ...(sample ? { sample } : {}),
+  };
+}
+
+function episodeContext(value: unknown, secrets: readonly string[]) {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const videoCount = finiteNumber(raw.videoCount);
+  if (videoCount == null) return undefined;
+  const samples = Array.isArray(raw.samples)
+    ? raw.samples.flatMap((item) => {
+      const sample = clipSample(item, secrets, 70);
+      return sample ? [sample] : [];
+    }).slice(0, 3)
+    : [];
+  return { videoCount, samples };
+}
+
+function dubEvidence(evidence: unknown, context: unknown, secrets: readonly string[]) {
+  const raw = evidence && typeof evidence === 'object' ? evidence as Record<string, unknown> : {};
+  const ctx = episodeContext(context, secrets);
+  const matchedGroup = textField(raw.matchedGroup) || ctx?.samples?.[0];
+  const sample = clipSample(raw.sample, secrets, 120);
+  const group = matchedGroup ? redact(matchedGroup, secrets) : undefined;
+  return {
+    videoCount: finiteNumber(raw.videoCount) ?? ctx?.videoCount ?? 0,
+    ...(group ? { matchedGroup: group } : {}),
+    ...(sample ? { sample } : {}),
+  };
+}
+
 function playError(remote: RemoteFailure, secrets: readonly string[]): Error {
   const jsonMessage = remote.jsonMessage ? redact(remote.jsonMessage, secrets) : undefined;
   const fallback = redact(remote.message, secrets);
+  let error: Error;
   switch (playKind(remote)) {
     case 'no_video':
-      return withMessage(new NoVideoError(), jsonMessage);
+      error = withMessage(new NoVideoError(), jsonMessage);
+      break;
     case 'episode_pick':
-      return withMessage(new EpisodePickError(), jsonMessage);
+      error = withMessage(new EpisodePickError(
+        episodeEvidence(remote.evidence, secrets),
+        episodeContext(remote.context, secrets),
+      ), jsonMessage);
+      break;
     case 'work_pick':
-      return withMessage(new WorkPickError(), jsonMessage);
+      error = withMessage(new WorkPickError(), jsonMessage);
+      break;
     case 'dub_lie':
-      return withMessage(new DubLieError({ videoCount: 0 }), jsonMessage);
+      error = withMessage(new DubLieError(dubEvidence(remote.evidence, remote.context, secrets)), jsonMessage);
+      break;
     case 'blocked':
-      return new BlockedError(jsonMessage || fallback);
+      error = new BlockedError(jsonMessage || fallback);
+      break;
     case 'auth':
-      return new AuthError(jsonMessage || fallback);
+      error = new AuthError(jsonMessage || fallback);
+      break;
     case 'quota':
-      return new QuotaError(jsonMessage || fallback);
+      error = new QuotaError(jsonMessage || fallback);
+      break;
     case 'rate_limit':
-      return new RateLimitError(jsonMessage || fallback);
+      error = new RateLimitError(jsonMessage || fallback);
+      break;
     default:
-      return new RustWriteError(`debrid rust não resolveu o link (${jsonMessage || fallback})`);
+      error = new RustWriteError(`debrid rust não resolveu o link (${jsonMessage || fallback})`);
   }
+  const effect = takeResolveEffect(remote.effect);
+  if (effect) (error as Error & { effect?: RustResolveEffect }).effect = effect;
+  return error;
 }
 
 function asCheck(json: unknown): { cached: Set<string>; complete: boolean } {
@@ -214,6 +315,8 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
     if (kind === 'auth' || kind === 'quota' || kind === 'rate_limit') {
       throw playError(remote, [apiKey, fetchOpts.token]);
     }
+    // Uma vez por checagem: a 8710 não respondeu e o TS não repete o upload.
+    metrics.count('rust.debrid.check.unreachable');
     return unchecked();
   };
   if (typeof adapter.accountStatus === 'function') {
@@ -234,15 +337,24 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
       return { url: body.url, size: Number(body.size) || 0 };
     };
   }
+  // HMAC (infoHash + S/E + dica w) fica na rota, antes deste POST.
   out.resolveLink = async (apiKey, hash, episode) => {
+    // held true = não apagar. Ausente no Rust protege; aqui o Node diz a verdade.
+    const held = adapter.id === 'alldebrid' ? alldebridLinkFacts(apiKey, hash).held : undefined;
     const remote = await post(opts, '/debrid/link', {
       service: adapter.id,
       apiKey,
       hash,
       episode: episode ?? null,
+      ...(held === undefined ? {} : { held }),
     });
-    if (!remote.ok) throw playError(remote, [apiKey, opts.token]);
+    if (!remote.ok) {
+      // Mentira de dublagem: o TS grava a prova antes de lançar.
+      if (remote.files !== undefined) await applyPlayEffects(adapter.id, apiKey, hash, { files: remote.files });
+      throw playError(remote, [apiKey, opts.token]);
+    }
     const body = remote.json as { url?: unknown } | null;
+    await applyPlayEffects(adapter.id, apiKey, hash, body);
     return body && typeof body.url === 'string' ? body.url : null;
   };
   return out;

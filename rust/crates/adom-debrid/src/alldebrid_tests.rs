@@ -85,6 +85,15 @@ pub(super) fn mock(upload: &str, status_body: &str, unlock: &str) -> Arc<Mock> {
     })
 }
 
+/// `/magnet/delete` responde 500; o resto como em `mock`.
+pub(super) fn mock_delete_fails(upload: &str, status_body: &str) -> Arc<Mock> {
+    let mut scene = Arc::try_unwrap(mock(upload, status_body, &empty_ok()))
+        .ok()
+        .unwrap();
+    scene.delete_status = 500;
+    Arc::new(scene)
+}
+
 pub(super) fn envelope(data: Value) -> String {
     json!({"status": "success", "data": data}).to_string()
 }

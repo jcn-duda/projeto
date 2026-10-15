@@ -72,6 +72,7 @@ fn hint_of(hint: Option<DebridPlayHintIn>) -> adom_core::PlayHint {
         season: hint.season.and_then(js_i64),
         episode: hint.episode.and_then(js_i64),
         work,
+        dubbed: false,
     }
 }
 

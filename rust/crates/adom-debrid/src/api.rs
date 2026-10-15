@@ -1,8 +1,10 @@
 //! API interna em `127.0.0.1:8710`. O token vai só no header
 //! `X-Indexer-Test-Token`. A chave do debrid chega no corpo e não é logada.
 //! premiumize, debridlink e realdebrid respondem nas rotas que o adaptador
-//! já tem. torbox e alldebrid seguem 501. O check do Real-Debrid também:
+//! já tem. O link da AllDebrid também. Checagem, conta e arquivos da
+//! AllDebrid, e o TorBox inteiro, seguem 501. O check do Real-Debrid também:
 //! o POST não traz o peek, e esta API não lê o ledger `rdc`.
+//! `/debrid/resolve` devolve o efeito e não grava estado.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -25,6 +27,9 @@ use crate::store::Store;
 
 #[path = "api_dispatch.rs"]
 mod dispatch;
+
+#[path = "api_resolve.rs"]
+mod api_resolve;
 
 pub struct InternalConfig {
     pub listen: SocketAddr,
@@ -107,6 +112,7 @@ pub fn router(cfg: &InternalConfig) -> Router {
         .route("/metrics", get(metrics))
         .route("/debrid/check", post(dispatch::check))
         .route("/debrid/link", post(dispatch::link))
+        .route("/debrid/resolve", post(api_resolve::post))
         .route("/debrid/account", post(dispatch::account))
         .route("/debrid/files", post(dispatch::files))
         .layer(middleware::from_fn_with_state(state.clone(), auth))

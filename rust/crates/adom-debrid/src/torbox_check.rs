@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
-use adom_core::PickCode;
+use adom_core::{EpisodeContext, EpisodeEvidence, PickCode};
 use reqwest::Method;
 use serde_json::Value;
 
@@ -386,15 +386,10 @@ pub(super) fn base_rejected() -> DebridError {
     DebridError::other("TORBOX_API_BASE só aceita https ou http em 127.0.0.1/localhost")
 }
 
-pub(super) fn pick_error(code: PickCode) -> DebridError {
-    match code {
-        PickCode::NoVideo => DebridError::NoVideo(NO_VIDEO.into()),
-        PickCode::EpisodePick => DebridError::EpisodePick(EPISODE.into()),
-        PickCode::WorkPick => DebridError::WorkPick(WORK.into()),
-        PickCode::DubLie => DebridError::DubLie(DUB.into()),
-    }
+pub(super) fn pick_error(
+    code: PickCode,
+    evidence: Option<EpisodeEvidence>,
+    context: Option<EpisodeContext>,
+) -> DebridError {
+    DebridError::from_pick(code, evidence, context)
 }
-const NO_VIDEO: &str = "o torrent não contém nenhum arquivo de vídeo";
-const EPISODE: &str = "não foi possível identificar o episódio dentro do pack";
-const WORK: &str = "não foi possível identificar a obra dentro do pack";
-const DUB: &str = "o torrent anunciado como dublado contém release em inglês";

@@ -1,7 +1,7 @@
 //! JSON da conta, do upload e da árvore de arquivos.
 //! Fora da fundação HTTP para caber na catraca de linhas.
 
-use adom_core::{DebridFile, PickCode};
+use adom_core::{DebridFile, EpisodeContext, EpisodeEvidence, PickCode};
 use serde_json::Value;
 
 use super::{AccountStatus, Leaf};
@@ -194,19 +194,10 @@ pub(super) fn nonempty(value: Option<&Value>) -> Option<String> {
         .map(str::to_string)
 }
 
-pub(super) fn pick_error(code: PickCode) -> DebridError {
-    match code {
-        PickCode::NoVideo => {
-            DebridError::NoVideo("o torrent não contém nenhum arquivo de vídeo".into())
-        }
-        PickCode::EpisodePick => DebridError::EpisodePick(
-            "não foi possível identificar o episódio dentro do pack".into(),
-        ),
-        PickCode::WorkPick => {
-            DebridError::WorkPick("não foi possível identificar a obra dentro do pack".into())
-        }
-        PickCode::DubLie => {
-            DebridError::DubLie("o torrent anunciado como dublado contém release em inglês".into())
-        }
-    }
+pub(super) fn pick_error(
+    code: PickCode,
+    evidence: Option<EpisodeEvidence>,
+    context: Option<EpisodeContext>,
+) -> DebridError {
+    DebridError::from_pick(code, evidence, context)
 }

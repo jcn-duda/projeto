@@ -45,6 +45,7 @@ async fn episodio_s01e02_usa_o_stream_link() {
         season: Some(1),
         episode: Some(2),
         work: None,
+        dubbed: false,
     };
     let url = pm.resolve_link(KEY, &hash, &hint, None).await.unwrap();
     assert_eq!(url.as_deref(), Some("https://cdn.test/e2"));

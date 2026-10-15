@@ -4,8 +4,9 @@ import { spawnSync } from 'node:child_process';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
-import { isBlockedError, isNoVideoError } from '../src/debrid/common.js';
+import { EpisodePickError, isBlockedError, isNoVideoError } from '../src/debrid/common.js';
 import { RustWriteError } from '../src/debrid/rust-remote.js';
+import * as metrics from '../src/utils/metrics.js';
 
 const TEST_KEY = 'chave-de-teste-rust';
 
@@ -21,6 +22,11 @@ function errorMessage(error: unknown): string {
 
 function hasHash(result: Set<string> | { cached: Set<string> }, hash: string): boolean {
   return result instanceof Set ? result.has(hash) : result.cached.has(hash);
+}
+
+/** Delta, não reset: o contador é global e outros testes do processo acumulam. */
+function unreachableCount(): number {
+  return metrics.snapshot().counters['rust.debrid.check.unreachable'] || 0;
 }
 
 /**
@@ -139,18 +145,22 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
       fetches += 1;
       return new Response(JSON.stringify({ cached: ['h-zero'], complete: true }), { status: 200 });
     }) as typeof fetch);
+    const unreachableBeforeSkip = unreachableCount();
     const skipped = await skippedAdapter.checkCached(TEST_KEY, ['h-zero'], { timeoutMs: 0 });
     assert.equal(fetches, 0, 'timeoutMs 0 não pode abrir fetch');
     assert.equal(checks, 0, 'timeoutMs 0 não pode chamar o checkCached do TS');
     assert.equal(hasHash(skipped, 'h-zero'), false);
+    assert.equal(unreachableCount(), unreachableBeforeSkip, 'timeoutMs 0 não é a API caída');
 
     checks = 0;
     const portedAdapter = useFetch((async () => new Response(JSON.stringify({ error: 'service_not_ported' }), {
       status: 501,
     })) as typeof fetch);
+    const unreachableBefore501 = unreachableCount();
     const ported = await portedAdapter.checkCached(TEST_KEY, ['h-501']);
     assert.equal(checks, 1, 'HTTP 501 da checagem ainda cai no TS');
     assert.equal(hasHash(ported, 'h-501'), true);
+    assert.equal(unreachableCount(), unreachableBefore501, 'HTTP 501 não conta a checagem como inacessível');
 
     const playCases: { status: number; body: { kind: string; message: string }; check: (err: unknown) => void }[] = [
       {
@@ -196,6 +206,39 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
       assert.equal(links, 0, `resolveLink do TS chamado no HTTP ${spec.status}`);
     }
 
+    links = 0;
+    const episodePlay = useFetch((async () => new Response(JSON.stringify({
+      error: 'episode_pick',
+      kind: 'episode_pick',
+      message: `episódio ausente ${TEST_KEY}`,
+      evidence: {
+        wantedSeason: 2,
+        wantedEpisode: 5,
+        declaredSeasons: [2],
+        declaredEpisodes: [4, 6],
+        sample: 'Serie.S02E04.mkv',
+      },
+      context: {
+        videoCount: 3,
+        samples: ['Serie.S02E04.mkv', 'Serie.S02E06.mkv'],
+      },
+    }), {
+      status: 409,
+      headers: { 'content-type': 'application/json' },
+    })) as typeof fetch);
+    await assert.rejects(() => episodePlay.resolveLink(TEST_KEY, 'abc'), (err: unknown) => {
+      assert.ok(err instanceof EpisodePickError);
+      if (!(err instanceof EpisodePickError)) return false;
+      assert.deepEqual(err.evidence?.declaredSeasons, [2]);
+      assert.deepEqual(err.evidence?.declaredEpisodes, [4, 6]);
+      assert.equal(err.evidence?.sample, 'Serie.S02E04.mkv');
+      assert.equal(err.context?.videoCount, 3);
+      assert.deepEqual(err.context?.samples, ['Serie.S02E04.mkv', 'Serie.S02E06.mkv']);
+      assert.equal(errorMessage(err).includes(TEST_KEY), false, errorMessage(err));
+      return true;
+    });
+    assert.equal(links, 0, 'resolveLink do TS chamado no episode_pick com prova');
+
     const remoteMisses: string[] = [];
     const missCases: { label: string; hash: string; respond: () => Promise<Response> }[] = [
       {
@@ -215,14 +258,19 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
     for (const spec of missCases) {
       checks = 0;
       fetches = 0;
+      const beforeUnreachable = unreachableCount();
       const miss = useFetch((async () => {
         fetches += 1;
         return spec.respond();
       }) as typeof fetch);
-      const result = await miss.checkCached(TEST_KEY, [spec.hash]);
+      // Dois hashes na rede: o contador é da checagem, não de cada hash.
+      const hashes = spec.label === 'rede' ? [spec.hash, 'h-net-extra'] : [spec.hash];
+      const result = await miss.checkCached(TEST_KEY, hashes);
+      const gained = unreachableCount() - beforeUnreachable;
       if (fetches !== 1) remoteMisses.push(`${spec.label}: fetch=${fetches}`);
       if (checks !== 0) remoteMisses.push(`${spec.label}: TS=${checks}`);
       if (hasHash(result, spec.hash)) remoteMisses.push(`${spec.label}: hash presente`);
+      if (gained !== 1) remoteMisses.push(`${spec.label}: unreachable=${gained}`);
     }
     assert.equal(remoteMisses.length, 0, remoteMisses.join('; '));
   } finally {
@@ -239,4 +287,51 @@ test('harness não finge paridade de serviço ainda não portado', () => {
   const pending = spawnSync(process.execPath, ['scripts/rust/debrid-diff.mjs', '--service=premiumize'], { encoding: 'utf8' });
   assert.equal(pending.status, 2);
   assert.match(pending.stderr, /ainda não portado/);
+});
+
+test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', async () => {
+  const { wrap } = await import('../src/debrid/rust-remote.js');
+  const { peekDavail } = await import('../src/debrid/cache-check.js');
+  const { peekFileSizes } = await import('../src/debrid/file-sizes.js');
+  const adapter = debrid.BY_ID.get('alldebrid');
+  if (!adapter) throw new Error('alldebrid ausente');
+  const savedTtl = config.debrid.availNegTtl;
+  config.debrid.availNegTtl = 3600;
+  const reply = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), {
+    status, headers: { 'content-type': 'application/json' },
+  })) as unknown as typeof fetch;
+  const remote = (impl: typeof fetch) => wrap(adapter, { token: 'tok', fetchImpl: impl });
+  try {
+    // Frio que a guarda do delete liberou: a busca seguinte não pinta ⚡ nele.
+    const cold = 'c'.repeat(40);
+    const link = await remote(reply(200, { url: null, unavailable: true })).resolveLink(TEST_KEY, cold);
+    assert.equal(link, null);
+    assert.equal(peekDavail('alldebrid', TEST_KEY, cold), 0);
+
+    // Frio protegido (unavailable false): nada de negativo.
+    const held = 'd'.repeat(40);
+    await remote(reply(200, { url: null, unavailable: false })).resolveLink(TEST_KEY, held);
+    assert.equal(peekDavail('alldebrid', TEST_KEY, held), null);
+
+    // Pronto: devolve o link e grava os tamanhos que a listagem lê.
+    const ready = 'e'.repeat(40);
+    const url = await remote(reply(200, {
+      url: 'https://cdn.example/ep2', unavailable: false,
+      files: [{ path: 'Show/Show.S01E01.1080p.mkv', size: 111 }, { path: 'Show/Show.S01E02.1080p.mkv', size: 222 }],
+    })).resolveLink(TEST_KEY, ready, { season: 1, episode: 2 });
+    assert.equal(url, 'https://cdn.example/ep2');
+    const sizes = peekFileSizes(ready) as Array<{ path?: string; size?: number }> | null;
+    assert.ok(sizes && sizes.some((f) => f.size === 222), 'prova de tamanho gravada');
+
+    // Mentira de dublagem: a prova entra antes do erro, como no TS.
+    const lie = 'f'.repeat(40);
+    await assert.rejects(() => remote(reply(406, {
+      error: 'dub_lie', kind: 'dub_lie', message: 'mentira',
+      files: [{ path: 'Movie.2024.ENG.1080p.mkv', size: 333 }],
+    })).resolveLink(TEST_KEY, lie));
+    const lieSizes = peekFileSizes(lie) as Array<{ size?: number }> | null;
+    assert.ok(lieSizes && lieSizes.some((f) => f.size === 333));
+  } finally {
+    config.debrid.availNegTtl = savedTtl;
+  }
 });

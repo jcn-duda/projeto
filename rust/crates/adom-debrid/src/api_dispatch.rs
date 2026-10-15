@@ -4,7 +4,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use adom_core::{PlayHint, WorkHint};
+use adom_core::PlayHint;
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -19,6 +19,13 @@ use crate::error::DebridError;
 use crate::http::HttpClient;
 use crate::premiumize::Premiumize;
 use crate::realdebrid::RealDebrid;
+
+#[path = "api_alldebrid.rs"]
+mod api_alldebrid;
+
+#[path = "api_hint.rs"]
+mod api_hint;
+use api_hint::play_hint;
 
 fn known(service: &str) -> bool {
     matches!(
@@ -48,6 +55,9 @@ struct RequestBody {
     path: String,
     #[serde(default)]
     episode: Option<Value>,
+    /// Ausente ou true não apaga: o hold mora no Node.
+    #[serde(default)]
+    held: Option<bool>,
 }
 
 pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Response {
@@ -88,6 +98,9 @@ pub(super) async fn link(State(state): State<Arc<AppState>>, raw: Bytes) -> Resp
         Ok(client) => client,
         Err(response) => return *response,
     };
+    if body.service == "alldebrid" {
+        return api_alldebrid::link(&state, &body, client, &hint).await;
+    }
     let result = resolve(&body, client, &hint).await;
     finish(&state, &body, result, |url| match url {
         Some(url) => json!({ "url": url }),
@@ -166,7 +179,10 @@ async fn debridlink_check(state: &AppState, body: &RequestBody) -> Response {
 }
 
 fn link_service(service: &str) -> bool {
-    matches!(service, "premiumize" | "debridlink" | "realdebrid")
+    matches!(
+        service,
+        "premiumize" | "debridlink" | "realdebrid" | "alldebrid"
+    )
 }
 
 async fn resolve(
@@ -240,47 +256,14 @@ fn finish<T>(
 }
 
 fn http(state: &AppState) -> Result<HttpClient, Box<Response>> {
-    state.http.clone().ok_or_else(|| Box::new(client_missing(state)))
+    state
+        .http
+        .clone()
+        .ok_or_else(|| Box::new(client_missing(state)))
 }
 
 fn parse_body(raw: &[u8]) -> Option<RequestBody> {
     serde_json::from_slice(raw).ok()
-}
-
-fn play_hint(raw: &Option<Value>) -> PlayHint {
-    let Some(Value::Object(map)) = raw else {
-        return PlayHint::default();
-    };
-    PlayHint {
-        season: json_i64(map.get("season")),
-        episode: json_i64(map.get("episode")),
-        work: map.get("work").and_then(work_hint),
-    }
-}
-
-fn work_hint(value: &Value) -> Option<WorkHint> {
-    let map = value.as_object()?;
-    let names = map.get("names").and_then(Value::as_array).map(|list| {
-        list.iter()
-            .filter_map(|item| item.as_str().map(str::to_string))
-            .collect()
-    });
-    Some(WorkHint {
-        names: names.unwrap_or_default(),
-        year: json_i64(map.get("year")),
-        pack: map.get("pack").and_then(Value::as_bool).unwrap_or(false),
-    })
-}
-
-fn json_i64(value: Option<&Value>) -> Option<i64> {
-    let value = value?;
-    match value {
-        Value::Number(number) => number
-            .as_i64()
-            .or_else(|| number.as_f64().filter(|n| n.is_finite()).map(|n| n as i64)),
-        Value::String(text) => text.trim().parse().ok(),
-        _ => None,
-    }
 }
 
 fn reject_unknown(state: &AppState, service: &str) -> Option<Response> {
@@ -327,11 +310,7 @@ fn adapter_error(state: &AppState, service: &str, secret: &str, err: DebridError
     };
     json_status(
         play_status(&err),
-        json!({
-            "error": err.kind(),
-            "kind": err.kind(),
-            "message": message,
-        }),
+        crate::resolve_effects::link_error_json(&err, &message),
     )
 }
 

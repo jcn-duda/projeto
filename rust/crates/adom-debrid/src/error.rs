@@ -6,7 +6,13 @@
 use std::sync::LazyLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use adom_core::{EpisodeContext, EpisodeEvidence, PickCode};
 use regex::Regex;
+
+const NO_VIDEO: &str = "o torrent não contém nenhum arquivo de vídeo";
+const EPISODE: &str = "não foi possível identificar o episódio dentro do pack";
+const WORK: &str = "não foi possível identificar a obra dentro do pack";
+const DUB: &str = "o torrent anunciado como dublado contém release em inglês";
 
 static AUTH_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)AUTH_(?:BAD_APIKEY|MISSING_APIKEY|BLOCKED|USER_BANNED)|authentication_failed|apikey is invalid|invalid (?:api )?(?:key|token)|unauthor[iz]|forbidden|bad token")
@@ -33,8 +39,19 @@ pub enum DebridError {
     },
     Blocked(String),
     NoVideo(String),
-    EpisodePick(String),
-    DubLie(String),
+    /// Prova do `PickOutcome`: o `/debrid/link` antigo ignora os campos novos.
+    // Prova em Box: sem ela o `Err` de todo `Result` do crate ficava enorme
+    // (clippy::result_large_err) por causa de um caminho raro.
+    EpisodePick {
+        message: String,
+        evidence: Option<Box<EpisodeEvidence>>,
+        context: Option<Box<EpisodeContext>>,
+    },
+    DubLie {
+        message: String,
+        evidence: Option<Box<EpisodeEvidence>>,
+        context: Option<Box<EpisodeContext>>,
+    },
     WorkPick(String),
     Other(String),
 }
@@ -44,17 +61,52 @@ impl DebridError {
         Self::Other(message.into())
     }
 
+    /// Mensagem do construtor TS. O texto que o usuário vê no `/resolve`
+    /// é outro: fica em `resolve_effects`.
+    pub fn from_pick(
+        code: PickCode,
+        evidence: Option<EpisodeEvidence>,
+        context: Option<EpisodeContext>,
+    ) -> Self {
+        match code {
+            PickCode::NoVideo => Self::NoVideo(NO_VIDEO.into()),
+            PickCode::WorkPick => Self::WorkPick(WORK.into()),
+            PickCode::EpisodePick => Self::EpisodePick {
+                message: EPISODE.into(),
+                evidence: evidence.map(Box::new),
+                context: context.map(Box::new),
+            },
+            PickCode::DubLie => Self::DubLie {
+                message: DUB.into(),
+                evidence: evidence.map(Box::new),
+                context: context.map(Box::new),
+            },
+        }
+    }
+
+    pub fn pick_parts(&self) -> (Option<&EpisodeEvidence>, Option<&EpisodeContext>) {
+        match self {
+            Self::EpisodePick {
+                evidence, context, ..
+            }
+            | Self::DubLie {
+                evidence, context, ..
+            } => (evidence.as_deref(), context.as_deref()),
+            _ => (None, None),
+        }
+    }
+
     pub fn message(&self) -> &str {
         match self {
             Self::Auth(m)
             | Self::Quota(m)
             | Self::Blocked(m)
             | Self::NoVideo(m)
-            | Self::EpisodePick(m)
-            | Self::DubLie(m)
             | Self::WorkPick(m)
             | Self::Other(m) => m,
             Self::RateLimit { message, .. } => message,
+            Self::EpisodePick { message, .. } => message,
+            Self::DubLie { message, .. } => message,
         }
     }
 
@@ -65,8 +117,8 @@ impl DebridError {
             Self::RateLimit { .. } => "rate_limit",
             Self::Blocked(_) => "blocked",
             Self::NoVideo(_) => "no_video",
-            Self::EpisodePick(_) => "episode_pick",
-            Self::DubLie(_) => "dub_lie",
+            Self::EpisodePick { .. } => "episode_pick",
+            Self::DubLie { .. } => "dub_lie",
             Self::WorkPick(_) => "work_pick",
             Self::Other(_) => "other",
         }
@@ -192,6 +244,8 @@ fn civil_to_unix_ms(year: i32, month: u64, day: u64, hour: u64, min: u64, sec: u
 
 #[cfg(test)]
 mod tests {
+    use adom_core::PickCode;
+
     use super::*;
 
     #[test]
@@ -226,8 +280,14 @@ mod tests {
     #[test]
     fn kinds_de_play() {
         assert_eq!(DebridError::NoVideo("n".into()).kind(), "no_video");
-        assert_eq!(DebridError::EpisodePick("e".into()).kind(), "episode_pick");
-        assert_eq!(DebridError::DubLie("d".into()).kind(), "dub_lie");
+        assert_eq!(
+            DebridError::from_pick(PickCode::EpisodePick, None, None).kind(),
+            "episode_pick"
+        );
+        assert_eq!(
+            DebridError::from_pick(PickCode::DubLie, None, None).message(),
+            "o torrent anunciado como dublado contém release em inglês"
+        );
         assert_eq!(DebridError::WorkPick("w".into()).kind(), "work_pick");
     }
 }

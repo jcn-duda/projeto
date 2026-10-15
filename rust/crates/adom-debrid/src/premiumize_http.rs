@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
-use adom_core::{default_magnet, DebridFile, PickCode};
+use adom_core::{default_magnet, DebridFile, EpisodeContext, EpisodeEvidence, PickCode};
 use reqwest::Method;
 use serde_json::Value;
 
@@ -317,20 +317,11 @@ pub(super) fn base_rejected() -> DebridError {
     DebridError::other("PREMIUMIZE_API_BASE só aceita https ou http em 127.0.0.1/localhost")
 }
 
-/// Mensagem curta do construtor TS, sem a prova do seletor.
-pub(super) fn pick_error(code: PickCode) -> DebridError {
-    match code {
-        PickCode::NoVideo => {
-            DebridError::NoVideo("o torrent não contém nenhum arquivo de vídeo".into())
-        }
-        PickCode::EpisodePick => DebridError::EpisodePick(
-            "não foi possível identificar o episódio dentro do pack".into(),
-        ),
-        PickCode::WorkPick => {
-            DebridError::WorkPick("não foi possível identificar a obra dentro do pack".into())
-        }
-        PickCode::DubLie => {
-            DebridError::DubLie("o torrent anunciado como dublado contém release em inglês".into())
-        }
-    }
+/// Mensagem do construtor TS; a prova do seletor segue no erro.
+pub(super) fn pick_error(
+    code: PickCode,
+    evidence: Option<EpisodeEvidence>,
+    context: Option<EpisodeContext>,
+) -> DebridError {
+    DebridError::from_pick(code, evidence, context)
 }

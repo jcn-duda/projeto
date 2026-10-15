@@ -7,7 +7,9 @@ use std::time::Duration;
 use reqwest::Method;
 use serde_json::Value;
 
-use adom_core::{pick_file, DebridFile, PickCode, PickOutcome, PlayHint};
+use adom_core::{
+    pick_file, DebridFile, EpisodeContext, EpisodeEvidence, PickCode, PickOutcome, PlayHint,
+};
 
 use crate::error::DebridError;
 use crate::http::{Call, HttpClient};
@@ -347,7 +349,11 @@ fn link_for_entry(entry: &Value, hint: &PlayHint) -> Result<Option<String>, Debr
     match pick_file(&files, hint) {
         PickOutcome::Empty => Ok(None),
         PickOutcome::File { path, size } => Ok(download_link(&remote, &path, size)),
-        PickOutcome::Error { code, .. } => Err(pick_error(code)),
+        PickOutcome::Error {
+            code,
+            evidence,
+            context,
+        } => Err(pick_error(code, evidence, context)),
     }
 }
 
@@ -367,19 +373,13 @@ fn download_link(files: &[RemoteFile], path: &str, size: f64) -> Option<String> 
     fallback
 }
 
-fn pick_error(code: PickCode) -> DebridError {
-    match code {
-        PickCode::NoVideo => DebridError::NoVideo(NO_VIDEO.into()),
-        PickCode::EpisodePick => DebridError::EpisodePick(EPISODE.into()),
-        PickCode::WorkPick => DebridError::WorkPick(WORK.into()),
-        PickCode::DubLie => DebridError::DubLie(DUB.into()),
-    }
+fn pick_error(
+    code: PickCode,
+    evidence: Option<EpisodeEvidence>,
+    context: Option<EpisodeContext>,
+) -> DebridError {
+    DebridError::from_pick(code, evidence, context)
 }
-
-const NO_VIDEO: &str = "o torrent não contém nenhum arquivo de vídeo";
-const EPISODE: &str = "não foi possível identificar o episódio dentro do pack";
-const WORK: &str = "não foi possível identificar a obra dentro do pack";
-const DUB: &str = "o torrent anunciado como dublado contém release em inglês";
 
 #[cfg(test)]
 #[path = "debridlink_tests.rs"]

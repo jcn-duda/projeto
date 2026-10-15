@@ -32,6 +32,9 @@ mod alldebrid_tests;
 #[path = "alldebrid_play_tests.rs"]
 mod alldebrid_play_tests;
 
+#[path = "alldebrid_dub.rs"]
+mod dub;
+
 pub use check::{CacheReport, CheckOpts};
 
 /// O `ready` do upload substitui o `/magnet/instant`, que a AllDebrid tirou.
@@ -77,6 +80,49 @@ struct Leaf {
     link: String,
 }
 
+/// Arquivo do torrent que o Node grava como prova (`recordFileEvidence`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayFile {
+    pub path: String,
+    pub size: f64,
+}
+
+/// Play do AllDebrid com os efeitos que o TS grava e o Node aplica: o L1
+/// (`davail`, prova de áudio/resolução/tamanho) mora no processo do Node.
+#[derive(Debug, Default, PartialEq)]
+pub struct PlayResult {
+    pub url: Option<String>,
+    /// Frio e removível pela mesma guarda do delete: o Node grava `davail=0`.
+    /// Magnet protegido continua baixando e não vira negativo.
+    pub unavailable: bool,
+    /// Lista do torrent pronto (`recordFileEvidence`), quando o TS a gravaria.
+    pub files: Option<Vec<PlayFile>>,
+}
+
+/// Erro do play. A mentira de dublagem leva a lista: no TS a prova é gravada
+/// antes do `assertDubbedFiles` que lança.
+#[derive(Debug)]
+pub struct PlayError {
+    pub error: DebridError,
+    pub files: Option<Vec<PlayFile>>,
+}
+
+impl From<DebridError> for PlayError {
+    fn from(error: DebridError) -> Self {
+        Self { error, files: None }
+    }
+}
+
+fn play_files(leaves: &[Leaf]) -> Vec<PlayFile> {
+    leaves
+        .iter()
+        .map(|leaf| PlayFile {
+            path: leaf.path.clone(),
+            size: leaf.size,
+        })
+        .collect()
+}
+
 impl AllDebrid {
     /// Base recusada fica vazia: a chamada erra sem pedir nada à rede.
     pub fn new(client: HttpClient) -> Self {
@@ -112,7 +158,7 @@ impl AllDebrid {
         info_hash: &str,
         hint: &PlayHint,
         opts: &ResolveOpts,
-    ) -> Result<Option<String>, DebridError> {
+    ) -> Result<PlayResult, PlayError> {
         self.usable_base()?;
         let uploaded = self
             .call(
@@ -124,7 +170,7 @@ impl AllDebrid {
             )
             .await?;
         let Some(id) = first_magnet(&uploaded).and_then(magnet_id) else {
-            return Ok(None);
+            return Ok(PlayResult::default());
         };
         let mut info = self.magnet_status(api_key, &id).await?;
         let mut waits = 0;
@@ -133,14 +179,13 @@ impl AllDebrid {
             waits += 1;
             info = self.magnet_status(api_key, &id).await?;
         }
-        let Some(magnet) = info else {
-            self.delete_cold(api_key, &id, opts).await?;
-            return Ok(None);
+        let Some(magnet) = info.filter(status_ready) else {
+            let unavailable = self.delete_cold(api_key, &id, opts).await;
+            return Ok(PlayResult {
+                unavailable,
+                ..PlayResult::default()
+            });
         };
-        if !status_ready(&magnet) {
-            self.delete_cold(api_key, &id, opts).await?;
-            return Ok(None);
-        }
         self.unlock_picked(api_key, &magnet, hint).await
     }
 
@@ -212,22 +257,26 @@ impl AllDebrid {
     }
 
     /// O play passa `inventoryLoaded: true` e `knownBefore: false`. Hold é argumento.
-    async fn delete_cold(
-        &self,
-        api_key: &str,
-        id: &str,
-        opts: &ResolveOpts,
-    ) -> Result<(), DebridError> {
+    /// Devolve se o frio vira negativo (`davail=0`): a MESMA guarda do delete,
+    /// como no TS — magnet protegido segue baixando na conta e não é negativo.
+    /// Falha do delete só avisa (o TS também não derruba o play por ela).
+    async fn delete_cold(&self, api_key: &str, id: &str, opts: &ResolveOpts) -> bool {
         let allowed = may_delete(DeleteFacts {
             inventory_loaded: true,
             known_before: false,
             protected: opts.held,
         });
-        if opts.drop_uncached && allowed {
-            let ids = [id.to_string()];
-            self.delete_ids(api_key, &ids).await?;
+        if !(opts.drop_uncached && allowed) {
+            return false;
         }
-        Ok(())
+        let ids = [id.to_string()];
+        if let Err(err) = self.delete_ids(api_key, &ids).await {
+            eprintln!(
+                "[alldebrid] não consegui remover o magnet frio ({})",
+                err.kind()
+            );
+        }
+        true
     }
 
     async fn unlock_picked(
@@ -235,18 +284,36 @@ impl AllDebrid {
         api_key: &str,
         magnet: &Value,
         hint: &PlayHint,
-    ) -> Result<Option<String>, DebridError> {
+    ) -> Result<PlayResult, PlayError> {
         let mut leaves = Vec::new();
         if let Some(files) = magnet.get("files").and_then(Value::as_array) {
             flatten(files, "", &mut leaves);
         }
         let picked = pick_file(&as_debrid(&leaves), hint);
+        // Ordem do TS: `pickFile` lança antes da prova (sem vídeo, episódio);
+        // depois dele a lista é gravada mesmo se a dublagem mentir.
+        let files = Some(play_files(&leaves));
         match picked {
-            PickOutcome::Empty => Ok(None),
-            PickOutcome::Error { code, .. } => Err(pick_error(code)),
+            PickOutcome::Empty => Ok(PlayResult {
+                files,
+                ..PlayResult::default()
+            }),
+            PickOutcome::Error {
+                code,
+                evidence,
+                context,
+            } => Err(pick_error(code, evidence, context).into()),
             PickOutcome::File { path, size } => {
+                // A prova é o caminho do arquivo. Mentira sai antes do
+                // unlock: não abre o link, não apaga o torrent, não marca.
+                if let Err(error) = dub::reject_before_unlock(&leaves, hint) {
+                    return Err(PlayError { error, files });
+                }
                 let Some(link) = leaf_link(&leaves, &path, size) else {
-                    return Ok(None);
+                    return Ok(PlayResult {
+                        files,
+                        ..PlayResult::default()
+                    });
                 };
                 let unlocked = self
                     .call(
@@ -257,7 +324,11 @@ impl AllDebrid {
                         false,
                     )
                     .await?;
-                Ok(nonempty(unlocked.get("link")))
+                Ok(PlayResult {
+                    url: nonempty(unlocked.get("link")),
+                    unavailable: false,
+                    files,
+                })
             }
         }
     }

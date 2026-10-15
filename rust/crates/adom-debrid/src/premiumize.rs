@@ -177,7 +177,11 @@ impl Premiumize {
                 .into_iter()
                 .find(|file| file.path == path)
                 .and_then(|file| (!file.link.is_empty()).then_some(file.link))),
-            PickOutcome::Error { code, .. } => Err(pick_error(code)),
+            PickOutcome::Error {
+                code,
+                evidence,
+                context,
+            } => Err(pick_error(code, evidence, context)),
         }
     }
 

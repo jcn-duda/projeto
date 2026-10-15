@@ -6,6 +6,7 @@ import { errorMessage } from '../utils/logger.js';
 import { accountScope } from '../utils/request-key.js';
 import { invalidateStreamsForObra } from '../utils/br-gap.js';
 import * as protectedApi from '../debrid/protected.js';
+import { applyResolveEffects } from '../debrid/rust-resolve-apply.js';
 
 // O 451 só aparece no play: a lista pronta foi construída quando o ledger
 // ainda não sabia do bloqueio e segue oferecendo [RD⚡] morto até o fim do
@@ -30,6 +31,53 @@ function invalidateStreamsOnBlocked(services: AppServices) {
   } catch (err) {
     services.log.warn('[resolve] falhou ao invalidar streams após 451:', errorMessage(err));
   }
+}
+
+/**
+ * Serviço em `rustServices`: os efeitos já foram para apply. Aqui ficam
+ * só o log e o mesmo status/texto de hoje — sem markBad, índice ou ledger.
+ */
+function respondWhenRustApplied(
+  services: AppServices,
+  res: express.Response,
+  err: any,
+  infoHash: string,
+  query: express.Request['query'],
+) {
+  if (services.debridCommon.isNoVideoError(err)) {
+    return res.status(404).send('nenhum arquivo de vídeo no torrent');
+  }
+  if (services.debridCommon.isRateLimitError(err)) {
+    services.log.warn('[resolve] ' + infoHash.slice(0, 8) + ': debrid pediu para desacelerar (429)');
+    return res.status(429).send('o debrid está limitando as requisições; espere um pouco e tente de novo');
+  }
+  if (services.debridCommon.isBlockedError(err)) {
+    services.log.warn('[resolve] torrent ' + infoHash.slice(0, 8) + ' bloqueado pelo debrid (451)');
+    return res.status(451).send('o debrid bloqueou este conteúdo por motivo legal');
+  }
+  if (services.debridCommon.isDubLieError(err)) {
+    services.metrics.count('debrid.audit.lie');
+    services.log.warn(
+      `[resolve] torrent ${infoHash.slice(0, 8)} anunciado como dublado provou release EN` +
+      `${err.evidence?.matchedGroup ? ` (${err.evidence.matchedGroup})` : ''}`,
+    );
+    return res.status(404).send('o torrent anunciado como dublado contém conteúdo em inglês');
+  }
+  if (services.debridCommon.isWorkPickError(err)) {
+    services.log.warn(`[resolve] torrent ${infoHash.slice(0, 8)} não identificou a obra dentro do pack`);
+    return res.status(404).send('não foi possível identificar este filme dentro do pack');
+  }
+  if (services.debridCommon.isEpisodePickError(err)) {
+    services.log.warn(
+      `[resolve] torrent ${infoHash.slice(0, 8)} não contém o episódio pedido` +
+      `${query.s != null && query.e != null ? ` (S${query.s}E${query.e})` : ''}` +
+      `${err.evidence ? ` — arquivo declara S${err.evidence.declaredSeasons.join(',') || '?'}E${err.evidence.declaredEpisodes.join(',') || '?'}${err.evidence.sample ? ` (${err.evidence.sample})` : ''}` : ''}` +
+      `${err.context ? ` — ${err.context.videoCount} vídeo(s)${err.evidence ? '' : ', nenhum identificável'}: ${err.context.samples.join(' | ')}` : ''}`,
+    );
+    return res.status(404).send('este episódio não foi encontrado no pack');
+  }
+  services.log.error('[resolve]', errorMessage(err));
+  return res.status(502).send('falha ao resolver no debrid');
 }
 
 function makeResolveHandler(services: AppServices) {
@@ -73,6 +121,19 @@ function makeResolveHandler(services: AppServices) {
       if (adapter) services.magnetdb.markAlive(adapter.id, services.runtime.opts().debridApiKey, [infoHash]);
       return res.redirect(302, link);
     } catch (err: any) {
+      const rustAdapter = services.debrid.current();
+      if (rustAdapter && config.debrid.rustServices.includes(rustAdapter.id)) {
+        applyResolveEffects(err, {
+          adapterId: rustAdapter.id,
+          apiKey: services.runtime.opts().debridApiKey,
+          infoHash,
+          imdbId: hintedImdbId,
+          season: req.query.s ? Number(req.query.s) : null,
+          episode: req.query.e ? Number(req.query.e) : null,
+          services,
+        });
+        return respondWhenRustApplied(services, res, err, infoHash, req.query);
+      }
       if (services.debridCommon.isNoVideoError(err)) {
         const adapter = services.debrid.current();
         if (adapter) services.magnetdb.markBad(adapter.id, services.runtime.opts().debridApiKey, infoHash);

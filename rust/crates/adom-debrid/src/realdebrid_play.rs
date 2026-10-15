@@ -4,7 +4,10 @@
 
 use std::time::Duration;
 
-use adom_core::{default_magnet, pick_file, DebridFile, PickCode, PickOutcome, PlayHint};
+use adom_core::{
+    default_magnet, pick_file, DebridFile, EpisodeContext, EpisodeEvidence, PickCode, PickOutcome,
+    PlayHint,
+};
 use reqwest::Method;
 use serde_json::Value;
 
@@ -114,7 +117,11 @@ async fn select_waiting(
             .and_then(|file| file.id.clone())
             .unwrap_or_else(|| "all".to_string()),
         PickOutcome::Empty => "all".to_string(),
-        PickOutcome::Error { code, .. } => return Err(pick_error(code)),
+        PickOutcome::Error {
+            code,
+            evidence,
+            context,
+        } => return Err(pick_error(code, evidence, context)),
     };
     let body = format!("files={}", form_encode(&files_param)).into_bytes();
     let path = format!("/torrents/selectFiles/{id}");
@@ -156,7 +163,11 @@ fn chosen_link(info: &Value, hint: &PlayHint) -> Result<Option<String>, DebridEr
 fn pick_index(selected: &[&RdFile], hint: &PlayHint) -> Result<usize, DebridError> {
     match pick_file(&as_debrid_ref(selected), hint) {
         PickOutcome::Empty => Ok(0),
-        PickOutcome::Error { code, .. } => Err(pick_error(code)),
+        PickOutcome::Error {
+            code,
+            evidence,
+            context,
+        } => Err(pick_error(code, evidence, context)),
         PickOutcome::File { path, size } => Ok(selected
             .iter()
             .position(|file| file.path == path && (file.size - size).abs() < 0.5)
@@ -262,19 +273,13 @@ fn js_truthy(value: Option<&Value>) -> bool {
     }
 }
 
-fn pick_error(code: PickCode) -> DebridError {
-    match code {
-        PickCode::NoVideo => DebridError::NoVideo(NO_VIDEO.into()),
-        PickCode::EpisodePick => DebridError::EpisodePick(EPISODE.into()),
-        PickCode::WorkPick => DebridError::WorkPick(WORK.into()),
-        PickCode::DubLie => DebridError::DubLie(DUB.into()),
-    }
+fn pick_error(
+    code: PickCode,
+    evidence: Option<EpisodeEvidence>,
+    context: Option<EpisodeContext>,
+) -> DebridError {
+    DebridError::from_pick(code, evidence, context)
 }
-
-const NO_VIDEO: &str = "o torrent não contém nenhum arquivo de vídeo";
-const EPISODE: &str = "não foi possível identificar o episódio dentro do pack";
-const WORK: &str = "não foi possível identificar a obra dentro do pack";
-const DUB: &str = "o torrent anunciado como dublado contém release em inglês";
 
 /// `new Date(expiration).getTime()`. Sem fuso, UTC: a data do RD vem com `Z`.
 pub(super) fn parse_iso_ms(text: &str) -> Option<i64> {

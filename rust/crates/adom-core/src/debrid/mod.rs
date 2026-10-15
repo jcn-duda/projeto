@@ -34,12 +34,14 @@ pub struct WorkHint {
     pub pack: bool,
 }
 
-/// Pedido do play. `dubbed` não muda a escolha — o Node nem o repassa.
+/// Pedido do play. `dubbed` não muda a escolha do arquivo: é a promessa
+/// que o auditor de áudio desmente depois, no unlock.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayHint {
     pub season: Option<i64>,
     pub episode: Option<i64>,
     pub work: Option<WorkHint>,
+    pub dubbed: bool,
 }
 
 /// Códigos dos erros do seletor. `DubLie` não é produzido por `pick_file`.

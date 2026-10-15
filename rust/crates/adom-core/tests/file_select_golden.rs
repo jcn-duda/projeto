@@ -78,6 +78,7 @@ fn hint_of(entry: &Value) -> PlayHint {
         season: opt_i64(hint, "season"),
         episode: opt_i64(hint, "episode"),
         work,
+        dubbed: false,
     }
 }
 

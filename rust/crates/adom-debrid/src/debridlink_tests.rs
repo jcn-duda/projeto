@@ -243,6 +243,7 @@ pub(super) fn episode(episode: i64) -> PlayHint {
         season: Some(1),
         episode: Some(episode),
         work: None,
+        dubbed: false,
     }
 }
 

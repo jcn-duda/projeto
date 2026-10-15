@@ -6,7 +6,7 @@ use adom_core::PlayHint;
 use serde_json::json;
 
 use super::alldebrid_tests::{
-    empty_ok, envelope, hash_of, hits, listen, mock, open, values, Hit, API_KEY,
+    empty_ok, envelope, hash_of, hits, listen, mock, mock_delete_fails, open, values, Hit, API_KEY,
 };
 use super::ResolveOpts;
 
@@ -45,7 +45,13 @@ async fn resolve_ready_devolve_o_link_do_episodio() {
     .await
     .expect("poll")
     .unwrap();
-    assert_eq!(link.as_deref(), Some("https://cdn.test/s01e02"));
+    assert_eq!(link.url.as_deref(), Some("https://cdn.test/s01e02"));
+    assert!(!link.unavailable);
+    // Prova do play: a lista inteira do torrent, como o recordFileEvidence do TS.
+    let files = link.files.expect("lista do torrent pronto");
+    assert_eq!(files.len(), 2);
+    assert_eq!(files[1].path, "Season 1/Show.S01E02.mkv");
+    assert_eq!(files[1].size, 20.0);
     let seen = hits(&scene);
     assert!(seen
         .iter()
@@ -84,7 +90,9 @@ async fn resolve_que_nao_fica_ready_devolve_none_e_apaga_uma_vez() {
     .await
     .expect("poll")
     .unwrap();
-    assert!(link.is_none());
+    assert!(link.url.is_none());
+    assert!(link.unavailable, "frio apagado vira davail=0 no Node");
+    assert!(link.files.is_none());
     let seen = hits(&scene);
     assert_eq!(
         seen.iter()
@@ -117,7 +125,11 @@ async fn resolve_held_nao_apaga_e_sem_video_sobe_erro() {
         )
         .await
         .unwrap();
-    assert!(link.is_none());
+    assert!(link.url.is_none());
+    assert!(
+        !link.unavailable,
+        "protegido segue baixando na conta: não é negativo"
+    );
     assert!(hits(&cold).iter().all(|hit| hit.path != "/magnet/delete"));
 
     let text = mock(
@@ -137,6 +149,51 @@ async fn resolve_held_nao_apaga_e_sem_video_sobe_erro() {
         )
         .await
         .unwrap_err();
-    assert_eq!(err.kind(), "no_video");
+    assert_eq!(err.error.kind(), "no_video");
+    assert!(
+        err.files.is_none(),
+        "sem vídeo lança antes da prova, como no TS"
+    );
     assert!(hits(&text).iter().all(|hit| hit.path != "/link/unlock"));
+}
+
+#[tokio::test]
+async fn resolve_frio_com_delete_que_falha_ainda_e_negativo_e_nao_derruba() {
+    // O delete falha: o TS só avisa e ainda grava davail=0.
+    let scene = mock_delete_fails(
+        &envelope(json!({"magnets": [{"id": 9}]})),
+        &envelope(json!({"magnets": [{"id": 9, "status": "Downloading"}]})),
+    );
+    let ad = open(listen(scene.clone()).await);
+    let played = ad
+        .resolve_link(
+            API_KEY,
+            &hash_of('d'),
+            &PlayHint::default(),
+            &play_opts(true, false),
+        )
+        .await
+        .expect("falha do delete não derruba o play");
+    assert!(played.url.is_none());
+    assert!(played.unavailable);
+}
+
+#[tokio::test]
+async fn resolve_frio_com_drop_uncached_desligado_nao_e_negativo() {
+    let scene = mock(
+        &envelope(json!({"magnets": [{"id": 9}]})),
+        &envelope(json!({"magnets": [{"id": 9, "status": "Downloading"}]})),
+        &empty_ok(),
+    );
+    let ad = open(listen(scene.clone()).await);
+    let played = ad
+        .resolve_link(
+            API_KEY,
+            &hash_of('e'),
+            &PlayHint::default(),
+            &play_opts(false, false),
+        )
+        .await
+        .unwrap();
+    assert!(!played.unavailable, "sem delete não há prova de frio");
 }

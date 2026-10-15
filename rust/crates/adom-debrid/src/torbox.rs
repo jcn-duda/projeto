@@ -229,7 +229,11 @@ impl TorBox {
             .collect();
         let (path, size) = match pick_file(&files, hint) {
             PickOutcome::Empty => return Ok(None),
-            PickOutcome::Error { code, .. } => return Err(torbox_check::pick_error(code)),
+            PickOutcome::Error {
+                code,
+                evidence,
+                context,
+            } => return Err(torbox_check::pick_error(code, evidence, context)),
             PickOutcome::File { path, size } => (path, size),
         };
         let file_id = torbox_check::chosen_id(&remote, &path, size);
