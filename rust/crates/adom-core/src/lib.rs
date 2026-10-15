@@ -12,6 +12,7 @@ mod autofetch_marker;
 mod autofetch_obra;
 mod autofetch_obra_overflow;
 mod autofetch_policy;
+mod autofetch_progress;
 mod br_origin;
 mod br_pool_selection;
 mod bytes_to_size;
@@ -232,6 +233,10 @@ pub use autofetch_policy::{
     stream_title_bytes, DecideSeedsStopInput, DecideSeedsStopOutput, FilterSeedsResult,
     PlayableStream, SeedsCandidate, SeedsDrainReason, SeedsPolicyConfig, SeedsRejectReason,
     SeedsSelectionBlockReason, SeedsStopReason,
+};
+pub use autofetch_progress::{
+    derive_stall, forget_lot_progress, forget_progress, progress_memory_size, ProgressDerivation,
+    ProgressEntry, ProgressLot, ProgressMemory, TorrentProgress, TorrentStatus,
 };
 pub use bytes_to_size::bytes_to_size;
 pub use catalog_classify::{classify_by_title, classify_with_evidence, foreign_proof_label, Proof};

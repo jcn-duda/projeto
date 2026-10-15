@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "autofetch-progress/autofetchProgress"
+  ],
+  "function": {
+    "name": "autofetchProgress",
+    "sourcePath": "src/providers/autofetch-progress.ts",
+    "sourceSha256": "42b23b5b4013f6d7b4a7ecc18b4c98020d21f63150337295b43d2c5b37ac3913",
+    "artifactPath": "dist/src/providers/autofetch-progress.js",
+    "artifactSha256": "ae4df5379c17d0c3321a876f50ab0f99add2a3dc94e288d5bd78755d21a61b69"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-autofetch-progress.json",
+    "sha256": "fe8ae989e220572c85b5dd73c89d1e18b58dbe3673a0cc054008d292d3346b72",
+    "cases": 16
+  },
+  "output": {
+    "path": "rust/golden/autofetch-progress.jsonl",
+    "sha256": "76aa3cc05ede6924ef7254a747783c0e80f10db61083ee63bb1a48ded225e0d0",
+    "lines": 16
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "ceb3f83fc2d49f529042cb6502f136886839a04e"
+  }
+}
