@@ -152,6 +152,47 @@ fn take_next_batch_multiplos_sites() {
     }
 }
 
+/// Rodízio: o site atendido há mais tempo ganha a vaga. Antes, com a fila de
+/// todos em `next_at = 0`, o desempate fixo (alfabético) servia sempre os
+/// mesmos e o `site-c` (o TDF, ao vivo) nunca entrava.
+#[test]
+fn take_next_batch_serve_quem_esperou_mais() {
+    let (store, _dir) = temp_store();
+    for site in ["site-a", "site-b", "site-c"] {
+        store
+            .upsert_urls(site, &[sample_url("/1"), sample_url("/2")])
+            .expect("upsert");
+    }
+    let mut served = Vec::new();
+    for _ in 0..3 {
+        let batch = store.take_next_batch(1).expect("batch");
+        let row = &batch[0];
+        served.push(row.site.clone());
+        let done = MarkResult {
+            status: "done".to_string(),
+            imdb: None,
+            title: None,
+            year: None,
+            releases: 1,
+            error: String::new(),
+            progress: String::new(),
+            next_at: 0,
+            request_cost: 1,
+        };
+        store
+            .mark_result(&row.site, &row.url_key, &done)
+            .expect("mark");
+        // Relógio de milissegundo: garante checked_at distinto entre voltas.
+        std::thread::sleep(std::time::Duration::from_millis(3));
+    }
+    served.sort();
+    assert_eq!(
+        served,
+        ["site-a", "site-b", "site-c"],
+        "cada site teve a vez"
+    );
+}
+
 // ─── roteamento own_pace (dono único: motor TS) ─────────────────────────
 
 /// Site real com ritmo próprio (o critério vem do perfil de rede, não do id).

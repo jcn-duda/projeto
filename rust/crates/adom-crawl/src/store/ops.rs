@@ -117,16 +117,21 @@ impl CrawlStore {
         let now = now_ms();
         let tx = self.conn.unchecked_transaction()?;
 
-        // Encontra sites com trabalho due, ordenados pelo next_at mais antigo.
+        // Sites com trabalho due, o atendido há MAIS tempo primeiro (última
+        // página marcada do site). Pela fila sozinha (`MIN(next_at)`) todo site
+        // empata em 0 e o desempate fixo deixava os mesmos quatro sempre na
+        // frente: o TDF, com ~26 mil páginas na fila, nunca ganhava vaga.
         // SEM `LIMIT` aqui: own_pace é excluído logo abaixo e o teto real
         // (`limit`) é aplicado em Rust — se o Mico (fila antiga) estivesse no
         // recorte do SQL, ele consumiria uma vaga sem trabalhar.
         let sites: Vec<String> = {
             let mut stmt = tx.prepare(
-                "SELECT site FROM crawl_url \
-                 WHERE status = 'pending' AND next_at <= ?1 \
-                 GROUP BY site \
-                 ORDER BY MIN(next_at)",
+                "SELECT d.site FROM crawl_url d \
+                 WHERE d.status = 'pending' AND d.next_at <= ?1 \
+                 GROUP BY d.site \
+                 ORDER BY (SELECT COALESCE(MAX(c.checked_at), 0) FROM crawl_url c \
+                           WHERE c.site = d.site), \
+                          MIN(d.next_at), d.site",
             )?;
             let rows = stmt.query_map(params![now], |row| row.get(0))?;
             let collected: Result<Vec<_>, _> = rows.collect();
