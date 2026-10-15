@@ -367,4 +367,11 @@ function annotateEpisodeSizes<T extends Stream | null>(streams: T[], options: An
     : sized;
 }
 
-export { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel };
+// As funções internas são exportadas para o oráculo do golden
+// (`episode-annotate-oracle.mjs`) medir o dist vivo caso a caso; o consumo de
+// produção continua sendo só `annotateEpisodeSizes`.
+export {
+  annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamSizeLabel,
+  episodesCovered, exactEpisodeBytes, annotatePackSizes, annotateMovieSizes,
+  fillMissingSizes, fillTorrentTotals,
+};

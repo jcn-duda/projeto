@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "episode-annotate/episodeAnnotate"
+  ],
+  "function": {
+    "name": "episodeAnnotate",
+    "sourcePath": "src/providers/episode-size.ts",
+    "sourceSha256": "5450bc44bdbd44d0e9d07bfd47abb71bc991fae69c42d9c83f838f96975c31e5",
+    "artifactPath": "dist/src/providers/episode-size.js",
+    "artifactSha256": "bff51cd78dcd9593bc28d552a0ea7ed3d2aa72fa40011cc629d639ea7fe7598d"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-episode-annotate.json",
+    "sha256": "f9bedd293adda18e1708ddc9e15ec5d44a3c277dec42941b12a00b7746f4ef43",
+    "cases": 61
+  },
+  "output": {
+    "path": "rust/golden/episode-annotate.jsonl",
+    "sha256": "bdebd602f0c1106c6cc7621658289b2e7aeb62613a1d264f94d58d7619ca8b51",
+    "lines": 61
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "0937a55e8bc7d0300d97153d0d2fd53d1c8fde05"
+  }
+}

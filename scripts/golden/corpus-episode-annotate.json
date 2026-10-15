@@ -1,0 +1,259 @@
+{
+  "cases": [
+    {
+      "id": "covered-pack-multi-temporada",
+      "input": "{\"op\":\"covered\",\"title\":\"My Name Is Earl (2005) Season 1 4 S01 S04 (1080p Mixed x265) REPACK\\n👤 80 💾 70.36 GB ⚙️ LimeTorrents\",\"season\":1,\"meta\":{\"1\":24,\"2\":23,\"3\":22,\"4\":27}}"
+    },
+    {
+      "id": "covered-multi-temporada-sem-contagem",
+      "input": "{\"op\":\"covered\",\"title\":\"My Name Is Earl (2005) Season 1 4 S01 S04 (1080p Mixed x265) REPACK\\n👤 80 💾 70.36 GB ⚙️ LimeTorrents\",\"season\":1,\"meta\":{\"1\":24}}"
+    },
+    {
+      "id": "covered-temporada-unica",
+      "input": "{\"op\":\"covered\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"season\":3,\"meta\":{\"3\":8}}"
+    },
+    {
+      "id": "covered-serie-completa",
+      "input": "{\"op\":\"covered\",\"title\":\"A Serie Completa Todas as Temporadas 1080p\\n👤 5 💾 70 GB\",\"season\":2,\"meta\":{\"1\":8,\"3\":3}}"
+    },
+    {
+      "id": "covered-serie-completa-vazia",
+      "input": "{\"op\":\"covered\",\"title\":\"A Serie Completa Todas as Temporadas 1080p\\n👤 5 💾 70 GB\",\"season\":2,\"meta\":{}}"
+    },
+    {
+      "id": "covered-meta-zero",
+      "input": "{\"op\":\"covered\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"season\":3,\"meta\":{\"3\":0}}"
+    },
+    {
+      "id": "covered-faixa-de-capitulos",
+      "input": "{\"op\":\"covered\",\"title\":\"Novela Capítulo 001 ao 010 720p\\n👤 2 💾 3.30 GB\",\"season\":1,\"meta\":{\"1\":154}}"
+    },
+    {
+      "id": "covered-episodio-avulso",
+      "input": "{\"op\":\"covered\",\"title\":\"Goliath S03E03 Good Morning Central Valley 1080p\\n👤 43 💾 2.19 GB\",\"season\":3,\"meta\":{\"3\":8}}"
+    },
+    {
+      "id": "exact-pack-episodio-e-sample",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\",\"season\":3,\"episode\":3,\"files\":[{\"path\":\"Goliath.S03/Goliath.S03E01.2160p.mkv\",\"size\":5476083302.4},{\"path\":\"Goliath.S03/Goliath.S03E03.2160p.mkv\",\"size\":5261334937.6},{\"path\":\"Goliath.S03/Sample/goliath.s03e03.sample.mkv\",\"size\":62914560}]}"
+    },
+    {
+      "id": "exact-episodio-ausente",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\",\"season\":1,\"episode\":3,\"files\":[{\"path\":\"Serie.S01E01.mkv\",\"size\":1073741824},{\"path\":\"Serie.S01E02.mkv\",\"size\":1610612736}]}"
+    },
+    {
+      "id": "exact-avulso-unica",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\",\"season\":1,\"episode\":2,\"files\":[{\"path\":\"Serie.S01E02.mkv\",\"size\":1610612736}]}"
+    },
+    {
+      "id": "exact-arquivo-ambiguo",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\",\"season\":1,\"episode\":2,\"files\":[{\"path\":\"Serie.S01E02.CD1.mkv\",\"size\":734003200},{\"path\":\"Serie.S01E02.CD2.mkv\",\"size\":723517440}]}"
+    },
+    {
+      "id": "exact-lista-vazia",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\",\"season\":1,\"episode\":1,\"files\":[]}"
+    },
+    {
+      "id": "exact-sem-video",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\",\"season\":1,\"episode\":1,\"files\":[{\"path\":\"leia.txt\",\"size\":10}]}"
+    },
+    {
+      "id": "exact-nome-sem-sxxeyy",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7\",\"season\":1,\"episode\":1,\"files\":[{\"path\":\"01 Adim Farah.avi\",\"size\":1460288880.64}]}"
+    },
+    {
+      "id": "exact-weak-ep-marcador",
+      "input": "{\"op\":\"exact\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\",\"season\":2,\"episode\":7,\"files\":[{\"path\":\"Serie.S02.EP 7 1080p.mkv\",\"size\":964689920}]}"
+    },
+    {
+      "id": "pack-exato",
+      "input": "{\"op\":\"pack\",\"season\":3,\"episode\":3,\"meta\":{\"3\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"infoHash\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\",\"_size\":44742821806}],\"files\":{\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\":[{\"path\":\"Goliath.S03/Goliath.S03E01.2160p.mkv\",\"size\":5476083302.4},{\"path\":\"Goliath.S03/Goliath.S03E03.2160p.mkv\",\"size\":5261334937.6},{\"path\":\"Goliath.S03/Sample/goliath.s03e03.sample.mkv\",\"size\":62914560}]}}"
+    },
+    {
+      "id": "pack-media",
+      "input": "{\"op\":\"pack\",\"season\":3,\"episode\":3,\"meta\":{\"3\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"infoHash\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\",\"_size\":44742821806}]}"
+    },
+    {
+      "id": "pack-media-sem-_size",
+      "input": "{\"op\":\"pack\",\"season\":3,\"episode\":3,\"meta\":{\"3\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"infoHash\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\"}]}"
+    },
+    {
+      "id": "pack-media-varias-temporadas",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":24,\"2\":23,\"3\":22,\"4\":27},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"My Name Is Earl (2005) Season 1 4 S01 S04 (1080p Mixed x265) REPACK\\n👤 80 💾 70.36 GB ⚙️ LimeTorrents\",\"infoHash\":\"e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5\",\"_size\":75548474737}]}"
+    },
+    {
+      "id": "pack-multitemporada-sem-contagem",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":24},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"My Name Is Earl (2005) Season 1 4 S01 S04 (1080p Mixed x265) REPACK\\n👤 80 💾 70.36 GB ⚙️ LimeTorrents\",\"infoHash\":\"e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5\",\"_size\":75548474737}]}"
+    },
+    {
+      "id": "pack-torrentio-por-arquivo",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":24},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Adim Farah Season 1 720p HDTV\\n01 Adim Farah.avi\\n👤 1 💾 1.36 GB ⚙️ Rutracker\",\"infoHash\":\"a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7\",\"_indexer\":\"torrentio\"}],\"files\":{\"a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7\":[{\"path\":\"01 Adim Farah.avi\",\"size\":1460288880.64}]}}"
+    },
+    {
+      "id": "pack-sem-marcador-de-tamanho",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective [720p BLU-RAY DUAL]\\n👤 1 ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"_size\":3543348019}]}"
+    },
+    {
+      "id": "pack-avulso-fica",
+      "input": "{\"op\":\"pack\",\"season\":3,\"episode\":3,\"meta\":{\"3\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Goliath S03E03 Good Morning Central Valley 1080p AMZN WEB-DL\\n👤 43 💾 2.19 GB ⚙️ kickass\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\",\"_size\":2351494595}]}"
+    },
+    {
+      "id": "pack-silencioso-medido-pelos-arquivos",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective [720p BLU-RAY DUAL]\\n👤 1 💾 3.30 GB ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"_size\":3543348019}],\"files\":{\"dddddddddddddddddddddddddddddddddddddddd\":[{\"path\":\"True Detective 1ª Temporada/T01E01 - A Longa Escuridão.mkv\",\"size\":462422016},{\"path\":\"True Detective 1ª Temporada/T01E02 - Vendo Coisas.mkv\",\"size\":450887680}]}}"
+    },
+    {
+      "id": "pack-silencioso-sem-arquivos",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective [720p BLU-RAY DUAL]\\n👤 1 💾 3.30 GB ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"_size\":3543348019}]}"
+    },
+    {
+      "id": "pack-faixa-nomeada-com-medida",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":154},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Novela Capítulo 001 ao 010 720p\\n👤 2 💾 3.30 GB ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"_size\":3543348019}],\"files\":{\"dddddddddddddddddddddddddddddddddddddddd\":[{\"path\":\"Novela/Cap.001-010.mkv\",\"size\":462422016}]}}"
+    },
+    {
+      "id": "pack-faixa-nomeada-sem-medida",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":154},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Novela Capítulo 001 ao 010 720p\\n👤 2 💾 3.30 GB ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"_size\":3543348019}]}"
+    },
+    {
+      "id": "pack-exato-nao-menor",
+      "input": "{\"op\":\"pack\",\"season\":3,\"episode\":3,\"meta\":{\"3\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"infoHash\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\",\"_size\":44742821806}],\"files\":{\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\":[{\"path\":\"Goliath.S03E03.2160p.mkv\",\"size\":44742821806}]}}"
+    },
+    {
+      "id": "pack-contagem-um",
+      "input": "{\"op\":\"pack\",\"season\":3,\"episode\":3,\"meta\":{\"3\":1},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"infoHash\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\",\"_size\":44742821806}]}"
+    },
+    {
+      "id": "pack-ja-anotado",
+      "input": "{\"op\":\"pack\",\"season\":1,\"episode\":1,\"meta\":{\"1\":8},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True.Detective.2014.S01.1080p.BDRip.x265-ToVaR\\n👤 1 💾 1.55 GB 📦 pack 12.41 GB (média) ⚙️ nerdfilmes\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\"}]}"
+    },
+    {
+      "id": "pack-titulo-sem-hash",
+      "input": "{\"op\":\"pack\",\"season\":3,\"episode\":3,\"meta\":{\"3\":8},\"streams\":[{\"name\":\"[AD⚡] 4K WEB-DL\",\"title\":\"Goliath.S03.2160p.AMZN.WEB-DL.x265.10bit.HDR.DDP5.1-SKGTV\\n👤 10 💾 41.67 GB ⚙️ thepiratebay\",\"_size\":44742821806}]}"
+    },
+    {
+      "id": "movie-exato",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 💾 22.45 GB ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true,\"_multiWorkAdmitted\":true}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4},{\"path\":\"Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv\",\"size\":2576980377.6},{\"path\":\"Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv\",\"size\":2469606195.2}]}}"
+    },
+    {
+      "id": "movie-sem-arquivos",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 💾 22.45 GB ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true}]}"
+    },
+    {
+      "id": "movie-nao-menor",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 💾 22.45 GB ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true,\"_size\":2254857830}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4}]}}"
+    },
+    {
+      "id": "movie-sem-obra",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[],\"y\":null},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 💾 22.45 GB ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4},{\"path\":\"Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv\",\"size\":2576980377.6},{\"path\":\"Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv\",\"size\":2469606195.2}]}}"
+    },
+    {
+      "id": "movie-avulso-fica",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 💾 22.45 GB ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":false}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4},{\"path\":\"Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv\",\"size\":2576980377.6},{\"path\":\"Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv\",\"size\":2469606195.2}]}}"
+    },
+    {
+      "id": "movie-sem-marcador",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-PTBR\\n👤 1 ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4},{\"path\":\"Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv\",\"size\":2576980377.6},{\"path\":\"Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv\",\"size\":2469606195.2}]}}"
+    },
+    {
+      "id": "movie-ja-anotado",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] DUB BR\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 💾 22.45 GB ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true,\"_packBytes\":24105503949}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4},{\"path\":\"Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv\",\"size\":2576980377.6},{\"path\":\"Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv\",\"size\":2469606195.2}]}}"
+    },
+    {
+      "id": "movie-torrentio-fica",
+      "input": "{\"op\":\"movie\",\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 💾 22.45 GB ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true,\"_indexer\":\"torrentio\"}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4},{\"path\":\"Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv\",\"size\":2576980377.6},{\"path\":\"Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv\",\"size\":2469606195.2}]}}"
+    },
+    {
+      "id": "fill-filme-com-arquivos",
+      "input": "{\"op\":\"fill\",\"season\":null,\"episode\":null,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Tira da Pesada (1984) BluRay 5.1 [1080p BLURAY DUBLADO opção 2]\\n👤 1 ⚙️ torrentdosfilmesv2\",\"infoHash\":\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\"}],\"files\":{\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\":[{\"path\":\"Tira.da.Pesada.1984.1080p.mkv\",\"size\":2512555868.16},{\"path\":\"Sample/sample.mkv\",\"size\":52428800}]}}"
+    },
+    {
+      "id": "fill-episodio-com-arquivos",
+      "input": "{\"op\":\"fill\",\"season\":1,\"episode\":2,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Serie S01E02 1080p DUBLADO\\n👤 ~ ⚙️ comandotorrents\",\"infoHash\":\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\"}],\"files\":{\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\":[{\"path\":\"Serie.S01E01.mkv\",\"size\":1073741824},{\"path\":\"Serie.S01E02.mkv\",\"size\":1610612736}]}}"
+    },
+    {
+      "id": "fill-sem-arquivos",
+      "input": "{\"op\":\"fill\",\"season\":null,\"episode\":null,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Tira da Pesada (1984) BluRay 5.1 [1080p BLURAY DUBLADO opção 2]\\n👤 1 ⚙️ torrentdosfilmesv2\",\"infoHash\":\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\"}]}"
+    },
+    {
+      "id": "fill-episodio-null-maior-video",
+      "input": "{\"op\":\"fill\",\"season\":1,\"episode\":null,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Serie S01 1080p DUBLADO\\n👤 ~ ⚙️ comandotorrents\",\"infoHash\":\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\"}],\"files\":{\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\":[{\"path\":\"Serie.S01E01.mkv\",\"size\":1073741824},{\"path\":\"Serie.S01E02.mkv\",\"size\":1610612736}]}}"
+    },
+    {
+      "id": "fill-colecao-sem-obra",
+      "input": "{\"op\":\"fill\",\"season\":null,\"episode\":null,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Tira da Pesada (1984) BluRay 5.1 [1080p BLURAY DUBLADO opção 2]\\n👤 1 ⚙️ torrentdosfilmesv2\",\"infoHash\":\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\",\"_multiWork\":true}],\"files\":{\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\":[{\"path\":\"Filme.1.mkv\",\"size\":3221225472},{\"path\":\"Filme.2.mkv\",\"size\":4294967296}]}}"
+    },
+    {
+      "id": "fill-colecao-com-obra",
+      "input": "{\"op\":\"fill\",\"season\":null,\"episode\":null,\"work\":{\"n\":[\"Star Trek\",\"Jornada nas Estrelas\"],\"y\":2009},\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"FILMOGRAFIA COMPLETA JORNADA NAS ESTRELAS-STAR TREK-PTBR\\n👤 1 ⚙️ AllDebrid\",\"infoHash\":\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\",\"_multiWork\":true}],\"files\":{\"b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8\":[{\"path\":\"Star Trek/Star.Trek.2009.1080p.BluRay.DUAL.mkv\",\"size\":2254857830.4},{\"path\":\"Star Trek/Star.Trek.Into.Darkness.2013.1080p.BluRay.DUAL.mkv\",\"size\":2576980377.6},{\"path\":\"Star Trek/Star.Trek.Beyond.2016.1080p.BluRay.DUAL.mkv\",\"size\":2469606195.2}]}}"
+    },
+    {
+      "id": "fill-ja-tem-tamanho",
+      "input": "{\"op\":\"fill\",\"season\":null,\"episode\":null,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Goliath S03E03 1080p\\n👤 43 💾 2.19 GB ⚙️ kickass\",\"infoHash\":\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\"}],\"files\":{\"b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\":[{\"path\":\"Goliath.S03E03.mkv\",\"size\":5368709120}]}}"
+    },
+    {
+      "id": "fill-sem-seeder",
+      "input": "{\"op\":\"fill\",\"season\":null,\"episode\":null,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Tira da Pesada (1984) [1080p BLURAY DUBLADO opção 2]\",\"infoHash\":\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\"}],\"files\":{\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\":[{\"path\":\"Tira.da.Pesada.1984.1080p.mkv\",\"size\":2512555868.16}]}}"
+    },
+    {
+      "id": "fill-sem-hash",
+      "input": "{\"op\":\"fill\",\"season\":null,\"episode\":null,\"work\":null,\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Tira da Pesada (1984) BluRay 5.1 [1080p BLURAY DUBLADO opção 2]\\n👤 1 ⚙️ torrentdosfilmesv2\"}],\"files\":{\"c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3\":[{\"path\":\"Tira.da.Pesada.1984.1080p.mkv\",\"size\":2512555868.16}]}}"
+    },
+    {
+      "id": "totals-sem-tamanho-ganha-total",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective S01E01 The Long Bright Dark 1080p AMZN WEB-DL\\n👤 65 ⚙️ TheRARBG\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"totals\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":4531190497}}"
+    },
+    {
+      "id": "totals-kb-trocado",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True.Detective.S01E01.The.Long.Bright.Dark.1080p.HEVC.x265-MeGusta\\n👤 87 💾 65.95 KB ⚙️ TheRARBG\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"totals\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":647765771}}"
+    },
+    {
+      "id": "totals-pack-total-vira-entrada-da-media",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True.Detective.2014.S01.1080p.BDRip.x265-ToVaR\\n👤 1 ⚙️ nerdfilmes\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\"}],\"totals\":{\"dddddddddddddddddddddddddddddddddddddddd\":13325136036}}"
+    },
+    {
+      "id": "totals-real-nao-tocado",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective S01E01 720p AMZN WEB DL\\n👤 27 💾 1.86 GB ⚙️ LimeTorrents\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"totals\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":943718400}}"
+    },
+    {
+      "id": "totals-com-fsz-kb-sai",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True.Detective.S01E01.The.Long.Bright.Dark.1080p.HEVC.x265-MeGusta\\n👤 87 💾 65.95 KB ⚙️ TheRARBG\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"files\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":[{\"path\":\"True.Detective.S01E01.mkv\",\"size\":629145600}]},\"totals\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":647765771}}"
+    },
+    {
+      "id": "totals-com-fsz-sem-tamanho-fica",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective [720p BLU-RAY DUAL]\\n👤 1 ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\"}],\"files\":{\"dddddddddddddddddddddddddddddddddddddddd\":[{\"path\":\"True Detective 1ª Temporada/T01E01.mkv\",\"size\":462422016},{\"path\":\"True Detective 1ª Temporada/T01E02.mkv\",\"size\":450887680}]},\"totals\":{\"dddddddddddddddddddddddddddddddddddddddd\":3543348019}}"
+    },
+    {
+      "id": "totals-sem-total",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective S01E01 1080p\\n👤 65 ⚙️ TheRARBG\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}"
+    },
+    {
+      "id": "totals-post-silencioso",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective [720p BLU-RAY DUAL]\\n👤 1 ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\"}],\"totals\":{\"dddddddddddddddddddddddddddddddddddddddd\":3543348019}}"
+    },
+    {
+      "id": "totals-faixa-de-capitulos",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Novela Capítulo 001 ao 010 720p\\n👤 2 ⚙️ Apache Torrent\",\"infoHash\":\"dddddddddddddddddddddddddddddddddddddddd\"}],\"totals\":{\"dddddddddddddddddddddddddddddddddddddddd\":3543348019}}"
+    },
+    {
+      "id": "totals-sem-hash",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective S01E01\\n👤 65 ⚙️ TheRARBG\"}],\"totals\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":4531190497}}"
+    },
+    {
+      "id": "totals-kb-no-fim-do-titulo",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"Release 1080p\\n👤 87 💾 65.95 KB\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"totals\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":647765771}}"
+    },
+    {
+      "id": "totals-zero",
+      "input": "{\"op\":\"totals\",\"streams\":[{\"name\":\"[AD⚡] 1080p\",\"title\":\"True Detective S01E01 1080p\\n👤 65 ⚙️ TheRARBG\",\"infoHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"totals\":{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":0}}"
+    }
+  ],
+  "config": {
+    "note": "Parte 5 da migração Rust — núcleos puros de src/providers/episode-size.ts.",
+    "ops": [
+      "covered",
+      "exact",
+      "pack",
+      "movie",
+      "fill",
+      "totals"
+    ]
+  }
+}

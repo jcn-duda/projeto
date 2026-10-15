@@ -7,9 +7,9 @@
   "function": {
     "name": "episodeSize",
     "sourcePath": "src/providers/episode-size.ts",
-    "sourceSha256": "df0a393f7ecf69b00265bc2904dbf4d3067d332e5d57f974e63af325e99ce723",
+    "sourceSha256": "5450bc44bdbd44d0e9d07bfd47abb71bc991fae69c42d9c83f838f96975c31e5",
     "artifactPath": "dist/src/providers/episode-size.js",
-    "artifactSha256": "c56e78d9bee36c55eaead5a98807bc01e60680993cff70bd3fc7af72e693f5c3"
+    "artifactSha256": "bff51cd78dcd9593bc28d552a0ea7ed3d2aa72fa40011cc629d639ea7fe7598d"
   },
   "corpus": {
     "path": "scripts/golden/corpus-episode-size.json",
@@ -25,6 +25,6 @@
     "major": 22
   },
   "git": {
-    "revision": "70e03bd2007604037165e27f4cd700e8afa964df"
+    "revision": "0937a55e8bc7d0300d97153d0d2fd53d1c8fde05"
   }
 }

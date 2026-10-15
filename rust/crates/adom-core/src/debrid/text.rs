@@ -197,11 +197,14 @@ fn leading_ordinal_re() -> &'static Regex {
     CELL.get_or_init(|| compile(r"^([0-9]{1,3})(?=$|[__SP__._-])"))
 }
 
-pub(super) fn is_video(path: &str) -> bool {
+// pub: o porte de pack-text-totals (e o golden dele) reusa o mesmo
+// VIDEO_EXT/SAMPLE do seletor em vez de duplicar os padrões — o TS exporta os
+// dois do módulo.
+pub fn is_video(path: &str) -> bool {
     matched_i(video_re(), path)
 }
 
-pub(super) fn is_sample(path: &str) -> bool {
+pub fn is_sample(path: &str) -> bool {
     matched_i(sample_re(), path)
 }
 

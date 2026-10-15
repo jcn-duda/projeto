@@ -35,6 +35,7 @@ mod debrid_rd_ledger;
 mod decode_entities;
 mod dedupe_names;
 mod dk_seal;
+mod episode_annotate;
 mod episode_matching;
 mod episode_parse;
 mod episode_series_matching;
@@ -120,11 +121,10 @@ pub use dk_seal::{derive_dk_key, is_sealed, seal_dk, unseal_dk};
 
 // ── debrid file select ────────────────────────────────────────────────
 pub use debrid::{
-    base_name, is_site_ad, looks_multi_work_files, pick_code_label, pick_file, pick_work_file,
-    work_coverage, DebridFile, EpisodeContext, EpisodeEvidence, PickCode, PickOutcome, PlayHint,
-    WorkHint,
-};
-pub use debrid_cache_verdict::{
+    base_name, is_sample, is_site_ad, is_video, looks_multi_work_files, looks_pack_by_files,
+    pick_code_label, pick_file, pick_work_file, work_coverage, DebridFile, EpisodeContext,
+    EpisodeEvidence, PickCode, PickOutcome, PlayHint, WorkHint,
+};pub use debrid_cache_verdict::{
     cache_check_honest, failure_reason, failure_verdict, normalize_cache_result, unusable_reason,
     unusable_verdict, CacheAnswer, CacheVerdict, Unusable, UnusableReason,
 };
@@ -137,6 +137,11 @@ pub use debrid_rd_ledger::{
 };
 
 // ── episode ───────────────────────────────────────────────────────────
+pub use episode_annotate::{
+    annotate_movie_sizes_core, annotate_pack_sizes_core, episodes_covered, episodes_covered_wanted,
+    exact_episode_bytes, fill_missing_sizes_core, fill_torrent_totals_core, EpisodeCounts,
+    FillOpts, PackOpts,
+};
 pub use episode_matching::{is_season_pack_fill_eligible, is_season_pack_release, matches_episode};
 pub use episode_parse::{
     parse_title_season_episode, season_coverage_excludes, ParsedSeasonEpisode,

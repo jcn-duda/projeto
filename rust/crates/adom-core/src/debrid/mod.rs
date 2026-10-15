@@ -9,11 +9,11 @@ mod episode;
 mod text;
 mod work;
 
-pub use text::{base_name, is_site_ad};
+pub use text::{base_name, is_sample, is_site_ad, is_video};
 pub use work::{looks_multi_work_files, pick_work_file, work_coverage};
 
 use episode::pick_episode;
-use text::{is_sample, is_video, js_size};
+use text::js_size;
 use work::pick_by_work;
 
 /// Arquivo dentro de um torrent, como cada serviço o reporta.
@@ -164,6 +164,19 @@ pub fn pick_file(files: &[DebridFile], hint: &PlayHint) -> PickOutcome {
         }
     }
     outcome_file(largest(&videos))
+}
+
+/// Pack provado pela LISTA de arquivos, não pelo título (`looksPackByFiles` de
+/// `pack-text-totals.ts`): o post BR silencioso não declara temporada nem
+/// episódio. 2+ vídeos no hash = pack de fato (mesmo critério do dedupe).
+/// A lista que chega já vem filtrada pelo `fsz` (só vídeo, sem sample/anúncio);
+/// o re-teste aqui é o mesmo do TS e custa nada.
+pub fn looks_pack_by_files(files: &[DebridFile]) -> bool {
+    files
+        .iter()
+        .filter(|file| is_video(&file.path) && !is_sample(&file.path))
+        .count()
+        >= 2
 }
 
 pub(super) fn largest<'a>(files: &[&'a DebridFile]) -> &'a DebridFile {
