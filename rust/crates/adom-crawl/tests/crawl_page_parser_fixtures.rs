@@ -3,7 +3,8 @@
 //!
 //! Prova o contrato do ramo genérico — BLUDV, ComandoTorrents, NerdFilmes e
 //! TorrentDosFilmes —, onde cada site resolve o `href` pela régua do PRÓPRIO
-//! profile e o status segue a contagem de LINK ACEITO (não só a de magnet):
+//! profile e o status segue o magnet COLHIDO (zero magnet nunca é `done`: é
+//! a semântica do motor TS, que só fecha `done` com releases):
 //!
 //! - NerdFilmes: magnet estrito | protetor externo | gate same-origin
 //!   `/link.php`. Era o caso quebrado: a porta-vaca devolvia `no-torrent` para
@@ -35,17 +36,18 @@ fn hashes_of(p: &CrawlPageParsed) -> BTreeSet<String> {
 }
 
 #[test]
-fn nerdfilmes_botao_link_php_do_proprio_origin_e_done() {
+fn nerdfilmes_botao_link_php_sem_magnet_e_no_torrent() {
     // post-movie: UM botão `/link.php` (protetor de MESMO ORIGIN). O parser do
-    // nerd o aceita → `done`. A saída de releases segue só-magnet (0 aqui): a
-    // fronteira que o shadow conta em `page_link.protector`.
+    // nerd o aceita, mas o sidecar não segue o protetor — e o TS do motor só
+    // fecha `done` com releases. Zero magnet colhido é `no-torrent`; um `done`
+    // vazio aqui gravava o acervo fantasma do nerd (done com releases=0).
     let res = parse_crawl_page(
         "nerdfilmes",
         "movie",
         "https://nerdfilmes.com/x/",
         &fx("crawl/nerdfilmes/post-movie.html"),
     );
-    assert_eq!(res.status, "done");
+    assert_eq!(res.status, "no-torrent");
     assert_eq!(res.title.as_deref(), Some("Bancários"));
     assert_eq!(res.year, Some(2020));
     assert!(res.releases.is_empty(), "botão de protetor não é release");
@@ -53,14 +55,14 @@ fn nerdfilmes_botao_link_php_do_proprio_origin_e_done() {
 }
 
 #[test]
-fn nerdfilmes_serie_com_botoes_e_done() {
+fn nerdfilmes_serie_somente_protetor_e_no_torrent() {
     let res = parse_crawl_page(
         "nerdfilmes",
         "tv_show",
         "https://nerdfilmes.com/y/",
         &fx("crawl/nerdfilmes/post-series.html"),
     );
-    assert_eq!(res.status, "done");
+    assert_eq!(res.status, "no-torrent");
     assert_eq!(res.title.as_deref(), Some("Lanternas"));
     assert_eq!(res.year, Some(2026));
     assert_eq!(res.work_type.as_deref(), Some("series"));
@@ -84,6 +86,32 @@ fn nerdfilmes_magnet_mutilado_nao_vira_release() {
         Some("O Assassinato de Rachel Nickell")
     );
     assert_eq!(res.year, Some(2026));
+    assert!(res.releases.is_empty());
+    assert!(hashes_of(&res).is_empty());
+}
+
+#[test]
+fn nerdfilmes_pagina_real_2026_gate_morto_e_no_torrent() {
+    // Página REAL da fila em produção (2026-10-14): a base é a URL ENFILEIRADA
+    // (host morto que hoje só redireciona); a página viva (xfilmeshd.org) tem
+    // H1, texto SEO, scripts de UI e UM botão relativo `/link.php?id=<blob>` —
+    // sem NENHUM magnet no HTML estático. O blob do protetor responde 400
+    // "Payload inválido." (terminal, mesmo gate do TS), então o veredito
+    // honesto do sidecar é `no-torrent` — nunca `done` vazio, que era o que
+    // enchia o banco de done com releases=0 (299 linhas, todas tries=1,
+    // medidas no crawl.db em 2026-10-14).
+    let res = parse_crawl_page(
+        "nerdfilmes",
+        "movie",
+        "https://www.filmesviatorrenthd.net/anjo-negro-2025/",
+        &fx("crawl/nerdfilmes/post-anjo-negro-2025.html"),
+    );
+    assert_eq!(res.status, "no-torrent");
+    assert_eq!(res.title.as_deref(), Some("Anjo Negro"));
+    assert_eq!(res.year, Some(2024));
+    // O theme do nerd não publica ficha técnica (medido 2026-09-28): IMDb nulo
+    // é a leitura correta, e a identificação fica por título+ano no TMDB.
+    assert_eq!(res.imdb, None);
     assert!(res.releases.is_empty());
     assert!(hashes_of(&res).is_empty());
 }

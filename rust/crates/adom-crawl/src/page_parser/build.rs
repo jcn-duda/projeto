@@ -162,14 +162,15 @@ fn outcome_from_releases(
 
 /// Monta o resultado a partir dos links do parser do site.
 ///
-/// `magnet_required` distingue as duas famílias de branch:
-/// - `true` (Apache/HDR/RedeTorrent/Vaca): o parser só devolve magnet; sem
-///   release, `no-torrent` é o honesto (comportamento histórico).
-/// - `false` (BLUDV/Comando/NerdFilmes/TDF): o parser também aceita BOTÃO de
-///   protetor (URL sem magnet). A página TEM torrent mesmo quando este parser
-///   puro ainda não resolveu o magnet → `done` com a lista de releases só de
-///   magnet. Sem isso, todo post com protetor virava `no-torrent` no Rust
-///   enquanto o TS dizia `done` (divergência sistemática de paridade/shadow).
+/// Zero magnet colhido NUNCA é `done`, nos dois ramos: o TS do motor só fecha
+/// `done` COM releases (bludv/comandotorrents/nerdfilmes/torrentdosfilmes
+/// seguem o protetor ANTES do veredito e, sem magnet, devolvem `no-torrent`
+/// nos botões terminais — 400 do `/link.php` medido 2026-10-14 — ou erro). O
+/// sidecar não segue protetor, então a página só-protetor é `no-torrent` aqui:
+/// é a fronteira que o shadow do crawl já explica em
+/// `rust.crawl.status.protector` (rust-crawl-shadow.ts: explainedByProtector).
+/// Um `done` vazio chegaria ao Node como veredito de página e gravaria a linha
+/// com releases=0 — foi exatamente o acervo fantasma do nerd em 2026-10.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_parsed_outcome(
     url: &str,
@@ -181,11 +182,10 @@ pub(super) fn build_parsed_outcome(
     tracker: &str,
     links: &[ResolverLink],
     is_series: bool,
-    magnet_required: bool,
 ) -> CrawlPageParsed {
     let releases = releases_from_links(&title, year, indexer, tracker, links);
 
-    if releases.is_empty() && magnet_required {
+    if releases.is_empty() {
         return CrawlPageParsed::no_torrent(
             url,
             Some(title),

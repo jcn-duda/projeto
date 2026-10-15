@@ -105,7 +105,7 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
                 );
             }
             build_parsed_outcome(
-                url, title, year, imdb, work_type, indexer, tracker, &links, is_series, true,
+                url, title, year, imdb, work_type, indexer, tracker, &links, is_series,
             )
         }
         "hdrtorrent-cardigann" => {
@@ -120,7 +120,7 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
                 );
             }
             build_parsed_outcome(
-                url, title, year, imdb, work_type, indexer, tracker, &links, is_series, true,
+                url, title, year, imdb, work_type, indexer, tracker, &links, is_series,
             )
         }
         "redetorrent-cardigann" => {
@@ -175,7 +175,7 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
                 }
             } else {
                 build_parsed_outcome(
-                    url, title, year, imdb, work_type, indexer, tracker, &links, false, true,
+                    url, title, year, imdb, work_type, indexer, tracker, &links, false,
                 )
             }
         }
@@ -241,7 +241,7 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
                 }
             } else {
                 build_parsed_outcome(
-                    url, title, year, imdb, work_type, indexer, tracker, &links, false, true,
+                    url, title, year, imdb, work_type, indexer, tracker, &links, false,
                 )
             }
         }
@@ -274,11 +274,12 @@ pub fn parse_crawl_page(site: &str, kind: &str, url: &str, content: &str) -> Cra
                 );
             }
 
-            // `magnet_required = false`: botão de protetor (URL sem magnet) já
-            // prova que a página TEM torrent; o status `done` é o honesto mesmo
-            // quando este parser puro ainda não resolveu o magnet.
+            // Botão de protetor (URL sem magnet) prova que a página ANUNCIA
+            // torrent, mas o sidecar não o segue: sem magnet colhido o veredito
+            // é `no-torrent`, nunca `done` vazio (o TS do motor só fecha `done`
+            // com releases).
             build_parsed_outcome(
-                url, title, year, imdb, work_type, indexer, tracker, &links, is_series, false,
+                url, title, year, imdb, work_type, indexer, tracker, &links, is_series,
             )
         }
     }
