@@ -1,7 +1,8 @@
 //! API interna em `127.0.0.1:8710`. O token vai só no header
 //! `X-Indexer-Test-Token`. A chave do debrid chega no corpo e não é logada.
-//! Serviço ainda sem adaptador responde 501 — o Node pode repetir a leitura
-//! no TypeScript e não repete a escrita.
+//! premiumize, debridlink e realdebrid respondem nas rotas que o adaptador
+//! já tem. torbox e alldebrid seguem 501. O check do Real-Debrid também:
+//! o POST não traz o peek, e esta API não lê o ledger `rdc`.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -13,22 +14,17 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
+use crate::http::HttpClient;
 use crate::import::{self, ImportReport};
 use crate::metrics::Metrics;
 use crate::store::Store;
 
-const KNOWN_SERVICES: &[&str] = &[
-    "premiumize",
-    "realdebrid",
-    "alldebrid",
-    "torbox",
-    "debridlink",
-];
+#[path = "api_dispatch.rs"]
+mod dispatch;
 
 pub struct InternalConfig {
     pub listen: SocketAddr,
@@ -43,6 +39,7 @@ struct AppState {
     metrics: Metrics,
     #[allow(dead_code)]
     store: Option<Store>,
+    http: Option<HttpClient>,
 }
 
 pub fn parse_listen(listen: &str) -> Result<SocketAddr, String> {
@@ -92,17 +89,26 @@ pub fn router(cfg: &InternalConfig) -> Router {
     if cfg.token.is_empty() {
         eprintln!("[debrid] sem token; API interna responde 503");
     }
+    // Falha de `new` não carrega chave: o cliente ainda não viu o corpo.
+    let http = match HttpClient::new() {
+        Ok(client) => Some(client),
+        Err(_) => {
+            eprintln!("[debrid] cliente http indisponivel");
+            None
+        }
+    };
     let state = Arc::new(AppState {
         token: cfg.token.clone(),
         metrics: Metrics::new(),
         store,
+        http,
     });
     Router::new()
         .route("/metrics", get(metrics))
-        .route("/debrid/check", post(check))
-        .route("/debrid/link", post(link))
-        .route("/debrid/account", post(account))
-        .route("/debrid/files", post(files))
+        .route("/debrid/check", post(dispatch::check))
+        .route("/debrid/link", post(dispatch::link))
+        .route("/debrid/account", post(dispatch::account))
+        .route("/debrid/files", post(dispatch::files))
         .layer(middleware::from_fn_with_state(state.clone(), auth))
         .with_state(state)
 }
@@ -136,11 +142,7 @@ async fn auth(
     next: Next,
 ) -> Response {
     if state.token.is_empty() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({ "error": "debrid_internal_disabled" })),
-        )
-            .into_response();
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(json_disabled())).into_response();
     }
     let got = req
         .headers()
@@ -151,11 +153,15 @@ async fn auth(
     if !tokens_match(&state.token, &got) {
         return (
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "unauthorized" })),
+            Json(serde_json::json!({ "error": "unauthorized" })),
         )
             .into_response();
     }
     next.run(req).await
+}
+
+fn json_disabled() -> Value {
+    serde_json::json!({ "error": "debrid_internal_disabled" })
 }
 
 fn tokens_match(expected: &str, got: &str) -> bool {
@@ -164,69 +170,12 @@ fn tokens_match(expected: &str, got: &str) -> bool {
     bool::from(left.as_slice().ct_eq(right.as_slice()))
 }
 
-#[derive(Deserialize)]
-struct ServiceBody {
-    service: String,
-    #[serde(default)]
-    hashes: Vec<String>,
-}
-
-async fn check(State(state): State<Arc<AppState>>, Json(body): Json<ServiceBody>) -> Response {
-    // Só o nome do serviço e a contagem: a chave viaja no JSON e fica fora do log.
-    eprintln!(
-        "[debrid] check service={} hashes={}",
-        plain(&body.service),
-        body.hashes.len()
-    );
-    not_ported(&state, &body.service)
-}
-
-async fn link(State(state): State<Arc<AppState>>, Json(body): Json<ServiceBody>) -> Response {
-    eprintln!("[debrid] link service={}", plain(&body.service));
-    not_ported(&state, &body.service)
-}
-
-async fn account(State(state): State<Arc<AppState>>, Json(body): Json<ServiceBody>) -> Response {
-    eprintln!("[debrid] account service={}", plain(&body.service));
-    not_ported(&state, &body.service)
-}
-
-async fn files(State(state): State<Arc<AppState>>, Json(body): Json<ServiceBody>) -> Response {
-    eprintln!("[debrid] files service={}", plain(&body.service));
-    not_ported(&state, &body.service)
-}
-
 async fn metrics(State(state): State<Arc<AppState>>) -> Json<serde_json::Map<String, Value>> {
     let mut map = serde_json::Map::new();
     for (key, value) in state.metrics.snapshot() {
         map.insert(key, Value::from(value));
     }
     Json(map)
-}
-
-fn plain(service: &str) -> String {
-    service
-        .chars()
-        .filter(|c| !c.is_control())
-        .take(40)
-        .collect()
-}
-
-fn not_ported(state: &AppState, service: &str) -> Response {
-    if !KNOWN_SERVICES.contains(&service) {
-        state.metrics.inc("rust.debrid.api.unknown_service");
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "unknown_service" })),
-        )
-            .into_response();
-    }
-    state.metrics.inc("rust.debrid.api.not_ported");
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({ "error": "service_not_ported", "service": service })),
-    )
-        .into_response()
 }
 
 #[cfg(test)]
