@@ -1,6 +1,10 @@
+mod acervo;
 mod config;
+mod internal;
 mod proxy;
 
+#[cfg(test)]
+mod internal_tests;
 #[cfg(test)]
 mod tests;
 

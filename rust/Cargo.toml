@@ -1,17 +1,18 @@
-# Workspace Rust da migração TS→Rust.
-# `adom-core`: núcleo com lógica pura portada (18+ módulos) + golden.
-# `adom-napi`: bindings NAPI-RS para o addon Node (cdylib).
-# `adom-resolvers`: servidor HTTP dos resolvers BR (axum).
+# Workspace do Adom em Rust (branch `rust`: só Rust; a versão TypeScript vive
+# no branch `esm` e serve de oráculo dos goldens).
+# `adom-core`: núcleo com a lógica pura portada + golden.
+# `adom-crawl`: raspador dos sites BR (sidecar `adom-sidecar`).
+# `adom-resolvers`: servidor HTTP dos resolvers BR (axum, portas 8700–8707).
+# `adom-server`: servidor do addon na 7000 (hoje gateway; vira o addon).
 [workspace]
 members = [
     "crates/adom-core",
-    "crates/adom-napi",
     "crates/adom-crawl",
     "crates/adom-resolvers",
     "crates/adom-server",
 ]
 resolver = "2"
 
-# A ponte NAPI captura panic; abort desligaria essa proteção do processo Node.
+# `unwind`: um panic numa requisição derruba só a task do tokio, não o processo.
 [profile.release]
 panic = "unwind"

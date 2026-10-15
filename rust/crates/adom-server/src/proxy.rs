@@ -1,10 +1,11 @@
-//! Proxy reverso. O Host original segue intacto: o Node monta URL pública a
-//! partir dele. Sem retry e sem prazo curto — o play e o portão passam de 30s.
+//! Servidor da 7000: rotas portadas respondem aqui; o resto vai ao Node quando
+//! há `GATEWAY_UPSTREAM` (proxy reverso, Host intacto, sem retry nem prazo
+//! curto — o play passa de 30s) e, sem Node, responde 501.
 
 use axum::body::Body;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::routing::any;
+use axum::routing::{any, get, post};
 use axum::Router;
 use http::header::{CONNECTION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderName, Method, Request, Response, StatusCode, Uri};
@@ -13,19 +14,30 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::Arc;
+
+use crate::acervo::Acervo;
 use crate::config::Config;
+use crate::internal::{self, Internal, InternalState};
 
 pub type ProxyClient = Client<HttpConnector, Body>;
 
 #[derive(Clone)]
 pub struct AppState {
     pub client: ProxyClient,
-    pub upstream: Uri,
+    pub upstream: Option<Uri>,
     pub native_health: bool,
+    pub internal: InternalState,
 }
 
 pub fn router(state: AppState) -> Router {
-    Router::new().fallback(any(dispatch)).with_state(state)
+    let internal = Router::new()
+        .route("/internal/activity", get(internal::activity))
+        .route("/internal/crawl-result", post(internal::crawl_result))
+        .route("/acervo.json", get(internal::acervo))
+        .with_state(state.internal.clone());
+    internal.merge(Router::new().fallback(any(dispatch)).with_state(state))
 }
 
 pub fn client() -> ProxyClient {
@@ -35,11 +47,20 @@ pub fn client() -> ProxyClient {
 pub async fn run(config: Config) -> Result<(), String> {
     let listen = config.listen;
     let native = config.native_health;
-    let upstream = config.upstream.clone();
+    let upstream = config
+        .upstream
+        .as_ref()
+        .map_or("nenhum (só Rust)".to_string(), Uri::to_string);
+    let acervo = Acervo::open(&config.acervo_path)?;
     let state = AppState {
         client: client(),
         upstream: config.upstream,
         native_health: config.native_health,
+        internal: Arc::new(Internal {
+            token: config.token,
+            acervo,
+            last_user_ms: AtomicI64::new(0),
+        }),
     };
     let listener = tokio::net::TcpListener::bind(listen)
         .await
@@ -54,10 +75,24 @@ pub async fn run(config: Config) -> Result<(), String> {
 }
 
 async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response<Body> {
+    if internal::is_user_path(req.uri().path()) {
+        state
+            .internal
+            .last_user_ms
+            .store(internal::now_ms(), Ordering::Relaxed);
+    }
     if state.native_health && is_native_health(&req) {
         return health_response(req.method());
     }
-    match forward(&state, req).await {
+    let Some(upstream) = state.upstream.clone() else {
+        return (
+            StatusCode::NOT_IMPLEMENTED,
+            [(CONTENT_TYPE, "application/json; charset=utf-8")],
+            r#"{"error":"rota ainda nao portada para Rust"}"#,
+        )
+            .into_response();
+    };
+    match forward(&state, &upstream, req).await {
         Ok(response) => response,
         Err(()) => (
             StatusCode::BAD_GATEWAY,
@@ -85,14 +120,18 @@ fn health_response(method: &Method) -> Response<Body> {
     response
 }
 
-async fn forward(state: &AppState, req: Request<Body>) -> Result<Response<Body>, ()> {
+async fn forward(
+    state: &AppState,
+    upstream: &Uri,
+    req: Request<Body>,
+) -> Result<Response<Body>, ()> {
     let (parts, body) = req.into_parts();
     let path = parts
         .uri
         .path_and_query()
         .map(|item| item.as_str())
         .unwrap_or("/");
-    let uri = upstream_uri(&state.upstream, path)?;
+    let uri = upstream_uri(upstream, path)?;
     let headers = forward_headers(&parts.headers);
     let mut upstream_req = Request::builder()
         .method(parts.method)
