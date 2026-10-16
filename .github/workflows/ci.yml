@@ -33,6 +33,17 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # Onde o Rust decide, o TS saiu: a suíte carrega o núcleo napi de verdade.
+      # A toolchain vem do rust/rust-toolchain.toml; o build abaixo copia o
+      # binário de rust/target para dist/rust/adom_napi.node.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Núcleo Rust (napi)
+        working-directory: rust
+        run: rustup show && cargo build -p adom-napi --release --locked
+
       # Compila .ts → .js em dist/ e copia assets estáticos (src/public/).
       - name: Build
         run: npm run build

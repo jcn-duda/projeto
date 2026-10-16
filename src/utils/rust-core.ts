@@ -101,6 +101,25 @@ function getCore(): NapiCore | null {
   return loadedCore;
 }
 
+/**
+ * Núcleo para quem o Rust decide SEM reserva TS (o TS daquela área saiu do
+ * branch; o oráculo é o `esm`). Carrega o `.node` na primeira chamada — testes
+ * e scripts que não passam pelo boot também o usam — e lança com instrução
+ * quando o binário falta: sem ele a área não tem implementação.
+ */
+function requireCore(): NapiCore {
+  if (loadedCore) return loadedCore;
+  const file = config.rustCore.path || DEFAULT_PATH;
+  try {
+    loadedCore = _require(file) as NapiCore;
+  } catch (err) {
+    throw new Error(
+      `[rust] núcleo obrigatório ausente (${file}): rode \`cargo build -p adom-napi --release\` em rust/ e o build (${log.errorMessage(err)})`,
+    );
+  }
+  return loadedCore;
+}
+
 function getMode(): 'off' | 'shadow' | 'on' {
   return config.rustCore.mode;
 }
@@ -194,4 +213,4 @@ function setCoreForTest(core: NapiCore | null): void {
   loadedCore = core;
 }
 
-export { install, getCore, getMode, setCoreForTest };
+export { install, getCore, requireCore, getMode, setCoreForTest };

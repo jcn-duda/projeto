@@ -67,6 +67,28 @@ function copyAndVerify(relativeSrc: string, relativeDst?: string) {
   }
 }
 
+/**
+ * Núcleo Rust (napi): onde o Rust decide, o TS saiu, então `dist/rust/adom_napi.node`
+ * é obrigatório para a suíte e para o `npm start`. O `clean` apaga o `dist/`; aqui
+ * o binário volta de `rust/target` (release; debug só se não houver release). Sem
+ * binário compilado o build segue: no Docker o estágio `rustcore` o põe depois.
+ */
+function copyNativeCore() {
+  const libName = process.platform === 'win32'
+    ? 'adom_napi.dll'
+    : process.platform === 'darwin' ? 'libadom_napi.dylib' : 'libadom_napi.so';
+  const candidates = ['release', 'debug']
+    .map((profile) => path.join(root, 'rust', 'target', profile, libName))
+    .filter((file) => fs.existsSync(file));
+  if (!candidates.length) {
+    console.warn(`[build-assets] Aviso: ${libName} não compilado; rode \`cargo build -p adom-napi --release\` em rust/.`);
+    return;
+  }
+  const dst = path.join(distRoot, 'rust', 'adom_napi.node');
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.copyFileSync(candidates[0], dst);
+}
+
 try {
   for (const asset of assetsToCopy) {
     if (fs.existsSync(path.join(root, asset))) {
@@ -82,6 +104,8 @@ try {
     fs.mkdirSync(path.dirname(vendorNodeDst), { recursive: true });
     fs.copyFileSync(vendorSrc, vendorNodeDst);
   }
+
+  copyNativeCore();
 
   console.log('[build-assets] Assets não-compiláveis copiados para dist/ com sucesso.');
 } catch (err: any) {
