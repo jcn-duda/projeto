@@ -22,6 +22,7 @@ import type { AutofetchCore } from './rust-autofetch.js';
 import type { RankingCore } from './rust-stream-ranking.js';
 import type { EpisodeSizeCore } from './rust-episode-size.js';
 import type { RelevanceCore } from './rust-relevance.js';
+import type { EpisodeFilterCore } from './rust-episode-filter.js';
 
 export type CrawlPageParsedNapi = {
   url: string;
@@ -70,7 +71,7 @@ export type CrawlCore = {
   parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
 };
 
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore>;
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore> & Partial<EpisodeFilterCore>;
 
 /** Núcleo já carregado (boot ou primeira chamada); null antes disso. */
 function getCore(): NapiCore | null {

@@ -1,18 +1,13 @@
 import type { RawItem } from '../../types/domain.js';
-import {
-  matchesEpisode,
-  matchesGlobalSeriesNoMarker,
-  magnetSeasonContradicts,
-  normalizeTitle,
-  extractInfoHash,
-} from '../utils/format.js';
+import { extractInfoHash } from '../utils/format.js';
 import { magnetDisplayName } from '../utils/title-normalization.js';
 import { bankRowsForMediaSource } from '../utils/release-index-media.js';
 import { firstSeenMany } from '../utils/magnet-bank-query.js';
-import { parseTitleSeasonEpisode } from '../utils/episode-matching.js';
+import { rustFilterSeriesEpisode } from '../utils/rust-episode-filter.js';
 import config from '../config.js';
 
-const ARTICLES = new Set(['a', 'o', 'as', 'os', 'the']);
+const hashOfRaw = (r: RawItem): string =>
+  String(extractInfoHash(r.infoHash || r.magnet || '') || '').toLowerCase();
 
 /**
  * Item sem marcador de série (título e `dn`) que ABRE com artigo ausente de
@@ -21,24 +16,8 @@ const ARTICLES = new Set(['a', 'o', 'as', 'os', 'the']);
  * S01E02 (2026-09-30) — conta e BR pulam a guarda de precisão, e o artigo é
  * descartado na comparação de nome. "O Urso" (The Bear) passa: o nome pt tem o
  * artigo. Com marcador de série, o marcador decide e isto se cala.
+ * (Portado para `adom_core::series_episode_filter::foreign_article`.)
  */
-function foreignArticle(r: RawItem, title: string, names: string[]): boolean {
-  if (!names.length) return false;
-  for (const t of [title, magnetDisplayName(r) || '']) {
-    const p = parseTitleSeasonEpisode(t);
-    if (p.seasons.length || p.episodes.length || p.complete || p.seasonPack) return false;
-  }
-  const first = normalizeTitle(title).split(' ').filter(Boolean)[0] || '';
-  if (!ARTICLES.has(first)) return false;
-  return !names.some((n) => normalizeTitle(n).split(' ').filter(Boolean)[0] === first);
-}
-
-function namesEpisode(r: RawItem, title: string, episode: number): boolean {
-  return [title, magnetDisplayName(r) || ''].some((t) => parseTitleSeasonEpisode(t).episodes.includes(episode));
-}
-
-const hashOfRaw = (r: RawItem): string =>
-  String(extractInfoHash(r.infoHash || r.magnet || '') || '').toLowerCase();
 
 // Antes disto a data do indexer é lixo (epoch, ano zero), não evidência.
 const SANE_DATE_MS = Date.parse('2000-01-01T00:00:00Z');
@@ -109,36 +88,21 @@ export function filterSeriesEpisodeRaw(
       return uri ? { ...r, magnet: uri } : r;
     });
   }
-  const kept: RawItem[] = [];
-  const dropped: RawItem[] = [];
-  for (const r of raw) {
-    const title = r.title || r.Title || '';
-    if (preAir.has(hashOfRaw(r))) {
-      dropped.push(r);
-      continue;
-    }
-    if (!matchesEpisode(title, { season, episode })) {
-      dropped.push(r);
-      continue;
-    }
-    if (magnetSeasonContradicts(r, season, episode)) {
-      dropped.push(r);
-      continue;
-    }
-    if (unaired && !namesEpisode(r, title, episode)) {
-      dropped.push(r);
-      continue;
-    }
-    if (r.fromAccount || r.isBr) {
-      if (foreignArticle(r, title, names)) dropped.push(r);
-      else kept.push(r);
-      continue;
-    }
-    if (matchesGlobalSeriesNoMarker(title, normalizeTitle(title).split(' ').filter(Boolean), seriesUniverse)) {
-      kept.push(r);
-    } else {
-      dropped.push(r);
-    }
-  }
-  return { kept, dropped };
+  // Laço de decisão por item, em lote no núcleo (uma chamada por busca):
+  // matchesEpisode → magnetSeasonContradicts → unaired → artigo estrangeiro
+  // (conta/BR) → matchesGlobalSeriesNoMarker. Só índices voltam; os rótulos
+  // de motivo ficam em `outcome.labels` se algum caminho precisar deles.
+  const outcome = rustFilterSeriesEpisode(
+    raw,
+    season,
+    episode,
+    seriesUniverse,
+    names,
+    unaired,
+    [...preAir],
+  );
+  return {
+    kept: outcome.kept.map((i) => raw[i]),
+    dropped: outcome.rejected.map(({ index }) => raw[index]),
+  };
 }

@@ -74,6 +74,7 @@ mod reply_budget;
 mod request_key;
 mod resolve_sign;
 mod search_name_helpers;
+mod series_episode_filter;
 mod short_name_tail;
 mod stream_display;
 mod stream_quotas;
@@ -181,6 +182,9 @@ pub use release_title_rules::{
 pub use release_work::{
     choose_episode_parse, episode_parse_specificity, release_fits_request, release_work_targets,
     route_work_location, WorkTarget,
+};
+pub use series_episode_filter::{
+    filter_series_episode, EpisodeFilterItem, SeriesEpisodeOutcome, SeriesEpisodeRejectReason,
 };
 pub use short_name_tail::short_name_tail_contradicts;
 
