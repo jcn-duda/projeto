@@ -132,6 +132,15 @@ function stageOracle(graphFiles, stagingDir) {
   fs.cpSync(dotenvSrc, path.join(stagingDir, 'node_modules', 'dotenv'), { recursive: true });
   // O oráculo entra no staging: a medição não lê nada do repo vivo.
   fs.copyFileSync(path.join(REPO, OWN_ORACLE), path.join(stagingDir, 'oracle.mjs'));
+  // O grafo carrega o núcleo Rust em runtime (requireCore, via
+  // rust-relevance.ts): o binário entra no staging na MESMA posição relativa
+  // do dist — o default de native-core.js resolve ao lado de si mesmo. O
+  // caminho do binário não entra na saída medida.
+  const coreSrc = path.join(REPO, 'dist', 'rust', 'adom_napi.node');
+  if (fs.existsSync(coreSrc)) {
+    fs.mkdirSync(path.join(stagingDir, 'dist', 'rust'), { recursive: true });
+    fs.copyFileSync(coreSrc, path.join(stagingDir, 'dist', 'rust', 'adom_napi.node'));
+  }
 }
 function oracleEnv(dotenvPath) {
   const env = {};

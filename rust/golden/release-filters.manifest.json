@@ -7,9 +7,9 @@
   "function": {
     "name": "releaseFilters",
     "sourcePath": "src/utils/release-filters.ts",
-    "sourceSha256": "4ef0dd606f6edd732721fcc9706565c98eaa58261a4ff93ad9300c53f90ca09e",
+    "sourceSha256": "e3793e8095a5cd3dfa8c5ff72571b81777be5de3c404cac88a4c5df367d643c9",
     "artifactPath": "dist/src/utils/release-filters.js",
-    "artifactSha256": "f149c30473e2c7b01de6f56c9c6ed6badee9937a5c46b2992a6cf96d54eca3a9"
+    "artifactSha256": "c1e6d1c7e7328418bf38f9fa93f6ba68c5a27ccdd9b1631e93594f4edc81b24e"
   },
   "corpus": {
     "path": "scripts/golden/corpus-release-filters.json",
@@ -25,6 +25,6 @@
     "major": 22
   },
   "git": {
-    "revision": "f10c59f7d7d0a2f32a4625fc009ef9b3667d40c5"
+    "revision": "14b097e0149785219b3f4c98be5aac9bc8acc7a7"
   }
 }
