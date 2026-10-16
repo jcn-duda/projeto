@@ -314,6 +314,10 @@ export function autoFetchCandidates(
       policy,
       autoFetchBr,
       adapter,
+      // O lote Rust não vê a lista tocável nem o estado da sonda: o mesmo
+      // bloqueio de SELEÇÃO do TS (dubbed-only / seeds-playable / br-probe)
+      // viaja como fato — sem isso o Rust enfileirava seeds que o TS não pôs.
+      seedsBlocked: Boolean(seedsSelectionBlock(policy, liveStreams, { brProbePending: probeBlocked })),
     });
   }
 

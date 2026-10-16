@@ -60,6 +60,10 @@ pub struct PoolOptionsIn {
     pub adapter_autofetch_source: bool,
     pub any_dubbed: bool,
     pub top_seeds: bool,
+    /// `seedsSelectionBlock(...) != null` pré-computado no Node (dubbed-only /
+    /// lista P2P tocável / br-probe-pending): bloqueia o pool seeds PRIMÁRIO e
+    /// o fallback seeds.
+    pub seeds_blocked: bool,
 }
 
 /// Política do pool seeds (dubbedOnly / teto de tamanho / faixa máxima).

@@ -59,6 +59,10 @@ export type PoolOptionsIn = {
   adapterAutofetchSource: boolean;
   anyDubbed: boolean;
   topSeeds: boolean;
+  /** `seedsSelectionBlock(...) != null` pré-computado no TS (o lote não vê a
+   *  lista tocável nem o estado da sonda): bloqueia o seeds primário e o
+   *  fallback seeds, como no oráculo. */
+  seedsBlocked: boolean;
 };
 
 export type SeedsPolicyIn = {
@@ -152,6 +156,8 @@ export type AutofetchCapture = {
   policy: { dubbedOnly: boolean; cachedOnly: boolean; maxSizeGb: number; seedsMaxGb: number; seedsMaxQuality: string };
   autoFetchBr: boolean;
   adapter: { cacheCheck?: boolean; autofetchSource?: boolean } | null;
+  /** Fato do oráculo: o `seedsSelectionBlock` da busca (bloqueia seeds). */
+  seedsBlocked?: boolean;
 };
 
 type GetCore = () => AutofetchCore | null;
@@ -222,6 +228,7 @@ function buildInput(c: AutofetchCapture): AutofetchInputNapi {
       adapterAutofetchSource: Boolean(c.adapter?.autofetchSource),
       anyDubbed: Boolean(c.live.autoFetchAnyDubbed),
       topSeeds: Boolean(c.live.autoFetchTopSeeds),
+      seedsBlocked: Boolean(c.seedsBlocked),
     },
     seedsPolicy: {
       dubbedOnly: Boolean(c.policy.dubbedOnly),

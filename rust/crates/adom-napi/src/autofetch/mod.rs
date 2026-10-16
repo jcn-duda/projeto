@@ -24,14 +24,15 @@
 //!   LISTAGEM; a seleção do autofetch passa cache VAZIO aos picks (o corte de
 //!   já-cacheado acontece no portão `already-cached`, avaliado no Node).
 //! - `seeds_selection_block` (dubbedOnly/lista tocável/br-probe-pending) depende
-//!   de estado de sonda e da lista P2P tocável, que não viajam neste lote; o
-//!   fallback seeds roda sem esse bloqueio (`seeds_blocked = false`).
+//!   de estado de sonda e da lista P2P tocável, que não viajam como streams
+//!   neste lote; entra como FATO pré-computado (`options.seeds_blocked`) e
+//!   bloqueia o pool seeds PRIMÁRIO e o fallback seeds, como no TS.
 
 use std::collections::HashSet;
 
 use adom_core::{
     can_auto_fetch_br, classify_enqueue, combined_view, compose_queue_entries, counts_from,
-    pick_any_dubbed_candidates, pick_br_dubbed_candidates, pick_lower_pool_fallbacks,
+    pick_any_dubbed_candidates, pick_br_dubbed_by_target_qualities, pick_lower_pool_fallbacks,
     pick_seeds_pool, rollback_for, seeds_intrinsic_rejection, FallbackLive, FallbackOpts,
     ObraRecordEntry, PendingReservation, PoolOptions, PoolStream, QueueEntry, RareConfig,
     SeedsCandidate, SeedsPickLive, SeedsPickOpts, SeedsPickResult, SeedsPolicyConfig,
@@ -137,9 +138,13 @@ pub(crate) fn decide(input: &AutofetchInput) -> AutofetchDecision {
     let viable_at = |i: usize| input.streams.get(i).is_some_and(|s| s.viable);
 
     // 3. Pool BR (cache vazio: o corte de já-cacheado é o portão, no Node).
+    // O oráculo usa `pickBrDubbedByTargetQualities` (1º uncached de CADA faixa
+    // 1080/720/4K antes dos alternates) — o pick simples ordenava só por
+    // qualidade/seeders e trocava o 2º imediato por um alternate (divergência
+    // medida no shadow: Shawshank, Breaking Bad S01).
     let mut pool = "br";
     let mut candidates: Vec<usize> =
-        pick_br_dubbed_candidates(&streams, &no_cache, total_max, &pool_opts)
+        pick_br_dubbed_by_target_qualities(&streams, &no_cache, total_max, &pool_opts)
             .into_iter()
             .filter(|&i| viable_at(i))
             .collect();
@@ -172,8 +177,11 @@ pub(crate) fn decide(input: &AutofetchInput) -> AutofetchDecision {
         immediate_limit: 0,
         rare_used: false,
     };
+    // 4. Pool seeds: só com br/any vazios, o toggle ligado e SEM bloqueio de
+    // seleção (`seedsSelectionBlock` do TS: dubbed-only / lista tocável /
+    // br-probe-pending — fato pré-computado que chega em `seeds_blocked`).
     let mut seeds_evaluated = false;
-    if candidates.is_empty() && o.top_seeds {
+    if candidates.is_empty() && o.top_seeds && !o.seeds_blocked {
         seeds_evaluated = true;
         let eligible_streams: Vec<PoolStream> =
             eligible_idx.iter().map(|&i| streams[i].clone()).collect();
@@ -261,7 +269,7 @@ pub(crate) fn decide(input: &AutofetchInput) -> AutofetchDecision {
             primary_pool: pool.to_string(),
             exclude_hashes: exclude,
             season,
-            seeds_blocked: false,
+            seeds_blocked: o.seeds_blocked,
             eligible_seeds: eligible_idx.clone(),
         };
         let fallbacks = pick_lower_pool_fallbacks(&streams, &fb_live, &fb_opts, &viable_hashes);

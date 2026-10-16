@@ -120,19 +120,35 @@ pub fn pick_lower_pool_fallbacks(
 
     // Pool `any`: só abaixo de `br` e se o toggle permitir.
     if opts.primary_pool == "br" && live.any_dubbed {
+        // Pré-filtra por `!_br` e viabilidade ANTES do corte (o TS filtra o
+        // universo primeiro): sem isso o melhor dublado BR entrava como "any"
+        // — rótulo que decide a proteção durável no AllDebrid no dreno.
+        let any_streams: Vec<PoolStream> = streams
+            .iter()
+            .filter(|s| {
+                let h = s.info_hash.as_deref().unwrap_or("").to_lowercase();
+                !h.is_empty() && !s.is_br && viable_hashes.contains(&h)
+            })
+            .cloned()
+            .collect();
         let pool_opts = PoolOptions {
             season: opts.season,
             ..Default::default()
         };
-        let picks = pick_any_dubbed_candidates(streams, &exclude, 1, &pool_opts);
-        if let Some(&idx) = picks.first() {
-            let h = streams[idx]
+        let picks = pick_any_dubbed_candidates(&any_streams, &exclude, 1, &pool_opts);
+        if let Some(&local) = picks.first() {
+            let h = any_streams[local]
                 .info_hash
                 .as_deref()
                 .unwrap_or("")
                 .to_lowercase();
-            if viable_hashes.contains(&h) {
-                exclude.insert(h);
+            // Índice global: o stream filtrado preserva a ordem relativa, então
+            // buscamos a posição original pelo hash.
+            let global = streams
+                .iter()
+                .position(|s| s.info_hash.as_deref().unwrap_or("").to_lowercase() == h);
+            exclude.insert(h);
+            if let Some(idx) = global {
                 out.push(FallbackPick {
                     index: idx,
                     pool: FallbackPool::Any,
@@ -315,6 +331,43 @@ mod tests {
         };
         let viable: HashSet<String> = vec!["aaa".to_string()].into_iter().collect();
         assert!(pick_lower_pool_fallbacks(&streams, &live, &opts, &viable).is_empty());
+    }
+
+    /// O fallback `any` pré-filtra `!_br` antes do corte (o TS filtra o
+    /// universo primeiro): o melhor dublado BR não pode entrar rotulado de
+    /// "any" — o rótulo decide a proteção durável no AllDebrid no dreno.
+    #[test]
+    fn fallback_any_pula_br_e_inviavel() {
+        let mut br = stream("br1", 10, true);
+        br.is_dubbed = true;
+        let global = stream("gl1", 2, false);
+        let streams = vec![br, global];
+        let live = FallbackLive {
+            any_dubbed: true,
+            top_seeds: false,
+            min_seeders: 1,
+            top_seeds_max: 2,
+            pt_first: false,
+            rare_max: 0,
+            rare_threshold: 0,
+            rare_max_seeders: 0,
+        };
+        let opts = FallbackOpts {
+            primary_pool: "br".to_string(),
+            exclude_hashes: HashSet::new(),
+            season: None,
+            seeds_blocked: false,
+            eligible_seeds: Vec::new(),
+        };
+        let viable: HashSet<String> = ["br1", "gl1"].iter().map(|h| h.to_string()).collect();
+        let out = pick_lower_pool_fallbacks(&streams, &live, &opts, &viable);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].index, 1);
+        assert_eq!(out[0].pool, FallbackPool::Any);
+
+        // Global INVIÁVEL não esconde... não há outro: fallback `any` vazio.
+        let viable_sozinho: HashSet<String> = ["br1".to_string()].into_iter().collect();
+        assert!(pick_lower_pool_fallbacks(&streams, &live, &opts, &viable_sozinho).is_empty());
     }
 
     #[test]
