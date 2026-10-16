@@ -51,7 +51,7 @@ interface CrawlWorkResultRust {
   error: string;
 }
 
-/** Extrai o infoHash de um magnet ou hash cru (mesma lógica do rust-shadow). */
+/** Extrai o infoHash de um magnet ou hash cru (mesma lógica do title-normalization). */
 function extractHash(magnetOrHash: string | null): string | null {
   if (!magnetOrHash) return null;
   const raw = magnetOrHash.trim();

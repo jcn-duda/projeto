@@ -3,8 +3,6 @@
 // certo do erro: falso positivo destrói acervo BR que custou horas de
 // download (a cicatriz das 812 magnets registrada em alldebrid-cleanup.ts).
 
-import { titleVerdict } from './rust-verdict-memo.js';
-
 // ---------------------------------------------------------------------------
 // Sinais de português (movidos de audio-quality.ts SEM mudança de
 // comportamento). A busca consome hasPtSigns na rede de segurança do ranking
@@ -47,8 +45,6 @@ const BR_MARK = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolverdon|an
 
 /** Sem marca de áudio, mas o título denuncia português (post BR sem marcação é o padrão). */
 function hasPtSigns(title = ''): boolean {
-  const rust = titleVerdict(String(title)); // RUST_CORE=on: veredito do lote Rust
-  if (rust) return rust.hasPtSigns;
   // Acentos case-insensitive: título TODO EM CAIXA ALTA ("OPERAÇÃO INVASÃO")
   // tem Ã/Ç maiúsculos e perdia o sinal — caía no balde 'lixo' e a varredura
   // destrutiva sweepUndubbed o apagava.
@@ -85,8 +81,6 @@ const BR_SITE_MARKS = /(comandotorrents|bludv|nerdfilmes|torrentdosfilmes|wolver
  */
 function brOriginMark(title = ''): boolean {
   const t = String(title || '');
-  const rust = titleVerdict(t); // RUST_CORE=on: veredito do lote Rust
-  if (rust) return rust.brOriginMark;
   if (BR_SITE_MARKS.test(t)) return true;
   if (/\bfilmes?\b/i.test(t)) return true;
   return hasPtSigns(t);

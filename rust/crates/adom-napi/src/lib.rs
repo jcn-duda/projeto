@@ -42,7 +42,6 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 
 mod autofetch;
-mod batch;
 mod cache;
 mod crawl;
 mod debrid;

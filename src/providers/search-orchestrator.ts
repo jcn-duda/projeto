@@ -15,7 +15,6 @@ import * as harvester from './harvester.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import * as rustShadow from '../utils/rust-shadow.js';
 import { buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { debridRefreshSatisfied, hasPlayableStream } from './search-cache.js';
@@ -138,7 +137,6 @@ export async function doSearch({
       // await/build, via helper puro: só uma busca síncrona real com prazo de
       // resposta presente reclama; recaches sem `inputDeadline` nunca.
       const { observeFirstPass, observeLatePass } = firstObserverClaim(firstObserver, inputDeadline != null);
-      if (inputDeadline != null) rustShadow.observe(items, { names: searchMeta.names, year: searchMeta.year, isSeries: season != null }); // shadow Rust em lote: só no passo de resposta
       let needsDebridRefresh = false, autofetchCount = 0, debridKnown: boolean | undefined = undefined;
       // P5 — um ledger POR build. Kill-switch desligado => null (no-op).
       const trace: StreamTraceState | null = cloneStreamTrace(collectionTrace);

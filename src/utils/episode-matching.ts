@@ -1,6 +1,5 @@
 import type { ParsedSeasonEpisode, StreamCandidate } from '../../types/domain.js';
 import { normalizeTitle } from './title-normalization.js';
-import { titleVerdict } from './rust-verdict-memo.js';
 
 const MAX_SEASON_SPAN = 30;
 /** Pack de novela medido: até 43 capítulos; 200 barra faixa lida de ruído. */
@@ -29,8 +28,6 @@ function addSeasonSpan(seasons: Set<number>, lo: number, hi: number) {
  * `deepEqual` de uma vez — o teste só acusou depois de rodar a suíte inteira.
  */
 function parseTitleSeasonEpisode(title = ''): ParsedSeasonEpisode {
-  const rust = titleVerdict(String(title)); // RUST_CORE=on: veredito do lote Rust (cópia: quem chama pode mutar)
-  if (rust) return { seasons: [...rust.seasons], episodes: [...rust.episodes], complete: rust.complete, seasonPack: rust.seasonPack };
   const raw = String(title);
   const t = normalizeTitle(title);
   const seasons = new Set<number>();

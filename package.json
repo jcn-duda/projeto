@@ -463,8 +463,6 @@
     "test/cam-label-indexonly.test.js",
     "test/idx-media-source.test.js",
     "test/stream-builder-idx-episode.test.js",
-    "test/rust-verdict-memo.test.js",
-    "test/rust-on-decisions.test.js",
-    "test/rust-shadow.test.js"
+    "test/rust-on-decisions.test.js"
   ]
 }

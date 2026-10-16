@@ -6,13 +6,12 @@
  * `esm`. O boot do processo (`addon.ts`) o carrega; testes e scripts o
  * carregam sob demanda (`requireCore`, em `native-core.ts`).
  *
- * `RUST_CORE` (`off|shadow|on`) sobra só para os vereditos de release em lote
- * (`rust-shadow.ts`): `on` faz o filtro de relevância ler o lote Rust, `shadow`
- * compara fora da resposta.
+ * `RUST_CORE` (`off|shadow|on`) sobra só para o shadow do crawl
+ * (`rust-crawl-shadow.ts`): `shadow`/`on` comparam o `parseCrawlPage` fora da
+ * resposta.
  */
 import config from '../config.js';
 import * as log from './logger.js';
-import * as metrics from './metrics.js';
 import { nativeCore, loadedNativeCore, setNativeCore, setNativeCorePath, nativeCorePath } from './native-core.js';
 import type { PickCore } from '../debrid/file-selector.js';
 import type { CacheCore } from './rust-debrid-cache.js';
@@ -22,11 +21,7 @@ import type { ReleaseIndexCore } from './rust-release-index.js';
 import type { AutofetchCore } from './rust-autofetch.js';
 import type { RankingCore } from './rust-stream-ranking.js';
 import type { EpisodeSizeCore } from './rust-episode-size.js';
-import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
 import type { RelevanceCore } from './rust-relevance.js';
-
-/** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
-export type BatchCore = { evaluateReleases(probes: ReleaseProbe[]): ReleaseVerdict[] };
 
 export type CrawlPageParsedNapi = {
   url: string;
@@ -75,7 +70,7 @@ export type CrawlCore = {
   parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
 };
 
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore>;
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore>;
 
 /** Núcleo já carregado (boot ou primeira chamada); null antes disso. */
 function getCore(): NapiCore | null {
