@@ -442,7 +442,7 @@
     "test/multiwork-pack-apply.test.js",
     "test/debrid-pick-episodes.test.js",
     "test/debrid-pick-season-evidence.test.js",
-    "test/debrid-clean-rust-shadow.test.js",
+    "test/debrid-may-delete.test.js",
     "test/debrid-rd-oracle-sources.test.js",
     "test/observability-first.test.js",
     "test/painel-esm.test.js",

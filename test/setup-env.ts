@@ -97,6 +97,3 @@ process.env.RESOLVE_SECRET = '';
 // no próprio caso.
 process.env.CRAWL_ENGINE = 'ts';
 
-// Debrid em Rust é `on` por padrão na produção; a suíte mede o TS puro (o
-// .node nem é carregado aqui). Os casos da ponte ligam o modo no próprio teste.
-process.env.RUST_DEBRID_CLEAN = 'off';

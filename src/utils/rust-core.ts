@@ -20,7 +20,6 @@ import { installNormalizeTitle } from './title-normalization.js';
 import type { PickCore } from '../debrid/file-selector.js';
 import type { CacheCore } from './rust-debrid-cache.js';
 import type { RdCore } from './rust-debrid-rd.js';
-import { installDebridCleanHook } from './rust-debrid-clean.js';
 import type { CleanCore } from './rust-debrid-clean.js';
 import { installReleaseIndexHook } from './rust-release-index.js';
 import type { ReleaseIndexCore } from './rust-release-index.js';
@@ -174,20 +173,18 @@ function installTitle(core: NapiCore, mode: 'shadow' | 'on') {
 
 function install() {
   const titleMode = config.rustCore.mode;
-  const cleanMode = config.rustDebrid.clean;
   const releaseIndexMode = config.rustReleaseIndex.mode;
   const autofetchMode = config.rustAutofetch.mode;
   // Tudo off: não carrega o .node, como antes.
-  if (titleMode === 'off' && cleanMode === 'off' && releaseIndexMode === 'off' && autofetchMode === 'off') return;
+  if (titleMode === 'off' && releaseIndexMode === 'off' && autofetchMode === 'off') return;
   const file = config.rustCore.path || DEFAULT_PATH;
   const core = load(file);
   if (!core) return;
   loadedCore = core;
   if (titleMode !== 'off') installTitle(core, titleMode);
-  if (cleanMode !== 'off') installDebridCleanHook(() => loadedCore);
   if (releaseIndexMode !== 'off') installReleaseIndexHook(() => loadedCore);
   if (autofetchMode !== 'off') installAutofetchHook(() => loadedCore);
-  log.info(`[rust] núcleo carregado (${file}); clean=${cleanMode} releaseIndex=${releaseIndexMode} autofetch=${autofetchMode}`);
+  log.info(`[rust] núcleo carregado (${file}); releaseIndex=${releaseIndexMode} autofetch=${autofetchMode}`);
 }
 
 /**

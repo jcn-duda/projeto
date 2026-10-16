@@ -37,14 +37,6 @@ export const server = () => ({
   rustAutofetch: {
     mode: rustMode(process.env.RUST_AUTOFETCH, 'off'),
   },
-  // Debrid: as decisões são do Rust por padrão (on; TS de reserva se o Rust
-  // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
-  // explícitos voltam ao TS; valor desconhecido = off.
-  rustDebrid: {
-    // Decisão de apagar. on só pode recusar um apagamento: a recusa do Node
-    // sempre vence, nada sai da conta por causa do Rust.
-    clean: rustMode(process.env.RUST_DEBRID_CLEAN, 'on'),
-  },
 });
 
 /** Ausente usa `fallback`; presente e desconhecido vira off. */
