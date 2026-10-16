@@ -176,7 +176,9 @@ function openGates(): EnqueueGatesIn {
 }
 
 function toStreamIn(s: AutofetchRawStream): AutofetchStreamIn {
-  return {
+  // O napi-rs só aceita `undefined` (campo omitido) para `Option`; `null`
+  // explícito falha a conversão — por isso a entrada é montada sem nulos.
+  const out: AutofetchStreamIn = {
     infoHash: s.infoHash || null,
     title: s.title || null,
     name: s.name || null,
@@ -195,13 +197,18 @@ function toStreamIn(s: AutofetchRawStream): AutofetchStreamIn {
     // Espelho do waiver do piso SEM emitir métrica (o runner já contou).
     viable: !Boolean(s._seedFloorWaived),
   };
+  for (const k of Object.keys(out) as (keyof AutofetchStreamIn)[]) {
+    if (out[k] === null) delete out[k];
+  }
+  return out;
 }
 
 function buildInput(c: AutofetchCapture): AutofetchInputNapi {
   return {
     streams: c.streams.map(toStreamIn),
     options: {
-      season: c.season ?? null,
+      // Omitido quando null: o napi-rs rejeita `null` explícito em `Option`.
+      ...(c.season == null ? {} : { season: c.season }),
       minSeeders: Number(c.live.autoFetchMinSeeders) || 0,
       ptFirst: Boolean(c.live.autoFetchSeedsPtFirst),
       autoFetchMax: Number(c.live.autoFetchMax) || 0,

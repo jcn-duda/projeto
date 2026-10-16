@@ -91,7 +91,7 @@ export function buildAnnotateInput(
   const episodesMeta = Object.keys(meta)
     .map((season) => ({ season: Number(season), episodes: Number(meta[season]) || 0 }))
     .filter((row) => row.season > 0 && row.episodes > 0);
-  return {
+  return dropNulls({
     streams: streams.map((s) => (s ? { ...(s as Record<string, unknown>) } : null)),
     filesByHash,
     totalsByHash,
@@ -101,7 +101,19 @@ export function buildAnnotateInput(
     workNames: options.work?.n || [],
     workYear: options.work?.y ?? null,
     cachedHashes: options.cached ? [...options.cached] : null,
-  };
+  });
+}
+
+/**
+ * O napi-rs só aceita `undefined` (campo omitido) para `Option<f64>`; `null`
+ * explícito falha a conversão. Campos nulos são removidos antes da chamada.
+ */
+function dropNulls<T extends Record<string, unknown>>(input: T): T {
+  const out = { ...input };
+  for (const k of Object.keys(out)) {
+    if (out[k] === null) delete out[k];
+  }
+  return out;
 }
 
 /** JSON canônico (chaves ordenadas) para comparar TS × Rust sem ruído de ordem. */
