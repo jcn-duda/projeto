@@ -113,6 +113,20 @@ jobs:
           DOTENV_CONFIG_PATH: test/fixtures/env-empty
         run: npm run golden:titles:check
 
+      # O filtro de relevância e o de inventário também saíram deste branch (o
+      # núcleo Rust decide; o release-filters.ts daqui é shim). O oráculo deles
+      # é o TypeScript do esm: os dumps são idênticos nos dois branches e os
+      # .jsonl commitados também — o cargo test confere o Rust contra o mesmo
+      # arquivo, então a paridade só fecha se os checks rodarem no worktree.
+      - name: Golden dos filtros contra o TypeScript do esm
+        working-directory: ../adom-esm
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: |
+          npm run golden:release-filters:check
+          npm run golden:inventory-filter:check
+
       # 16 testes, 76 comparações (23 goldens + 45 vetores Unicode 17 + 8 do
       # glue UTF-16 da sigla) contra o `expected` commitado — nunca input == expected.
       - name: Testes
