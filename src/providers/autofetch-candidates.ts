@@ -17,7 +17,7 @@ import { requestBrProbe, probeBlocksSeeds } from './br-probe.js';
 import { hasBrEvidence, hasBrDubbed } from '../utils/br-gap.js';
 import { bankHasBrRow } from '../utils/magnet-bank-query.js';
 import * as releaseIndex from '../utils/release-index.js';
-import { pickLowerPoolFallbacks, composeQueueEntries, toQueueCandidate } from './autofetch-fallback.js';
+import { toQueueCandidate } from './autofetch-fallback.js';
 import { obraTargets } from './magnet-bank-fallback.js';
 import {
   filterSeedsUniverse,
@@ -27,7 +27,9 @@ import {
 import { writeChupimTrace, chupimProbeLabel, type ChupimSeeds } from './autofetch-chupim-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import * as metrics from '../utils/metrics.js';
-import { observeAutofetch, autofetchShadowEnabled, decideAutofetch } from '../utils/rust-autofetch.js';
+import * as log from '../utils/logger.js';
+import { decideAutofetch } from '../utils/rust-autofetch.js';
+import type { AutofetchPick } from '../utils/rust-autofetch.js';
 
 // Seleção do Chupim extraída do runner para a catraca de linhas. Continua sendo
 // o passe SÍNCRONO, sem rede: escolhe os candidatos e segura os hashes; quem
@@ -130,9 +132,6 @@ export function autoFetchCandidates(
 
   const queueDepth = live.autoFetchQueue ? live.autoFetchQueueDepth : 0;
   const totalMax = live.autoFetchMax + queueDepth;
-  // Sombra Rust (`RUST_AUTOFETCH`): fila capturada só quando o hook está ligado.
-  let queueEntriesForShadow: Array<{ hash: string; pool: string }> = [];
-
   // Cascata br → any → seeds: no pool BR pega 1 por qualidade-alvo
   // (720/1080/4K); recusar o nível `any` não pode abortar a busca inteira —
   // o corte antigo (`return []`) matava o terceiro nível justamente quando
@@ -241,16 +240,21 @@ export function autoFetchCandidates(
     noteSkip('no-candidate', liveStreams[0] || null, adapter?.id || '', pool);
   }
 
-  const immediateLimit = pool === 'seeds' ? seedsImmediateLimit : live.autoFetchMax;
-  // Rust (`RUST_AUTOFETCH`): o lote não vê a lista tocável nem a sonda, então o
-  // mesmo bloqueio de SELEÇÃO do TS (dubbed-only / seeds-playable / br-probe)
-  // viaja como fato. Em `on` o Rust decide imediatos e fila ANTES das travas;
-  // null (off/shadow/erro) mantém a cascata do TS.
-  const rustSeedsBlocked = autofetchShadowEnabled()
-    && Boolean(seedsSelectionBlock(policy, liveStreams, { brProbePending: probeBlocked }));
-  const rustPick = decideAutofetch({ streams: liveStreams, season, queueDepth, live, policy, autoFetchBr, adapter, seedsBlocked: rustSeedsBlocked });
-  const rustImmediate = rustPick ? onlyAutoFetch(rustPick.immediate) : null;
-  const immediate = rustImmediate ? rustImmediate.map((c) => c.stream) : candidates.slice(0, immediateLimit);
+  // Imediatos e fila são do Rust. A cascata acima segue só pelos efeitos que o
+  // lote não faz (sonda BR, purga do seeds, skips, métricas, trace). O lote não
+  // vê a lista tocável nem a sonda: o bloqueio de SELEÇÃO do seeds viaja como fato.
+  const rustSeedsBlocked = Boolean(seedsSelectionBlock(policy, liveStreams, { brProbePending: probeBlocked }));
+  let rustPick: AutofetchPick<Stream>;
+  try {
+    rustPick = decideAutofetch({ streams: liveStreams, season, queueDepth, live, policy, autoFetchBr, adapter, seedsBlocked: rustSeedsBlocked });
+  } catch (err) {
+    // Sem decisão não há download: fecha sem candidato e a resposta segue.
+    metrics.count('rust.autofetch.error');
+    log.warn('[autofetch] seleção do Rust falhou; nenhum download nesta busca:', log.errorMessage(err));
+    rustPick = { immediate: [], queue: [] };
+  }
+  const rustImmediate = onlyAutoFetch(rustPick.immediate);
+  const immediate = rustImmediate.map((c) => c.stream);
 
   // Hold apenas nos candidatos imediatos que serão disparados
   for (const candidate of immediate) {
@@ -264,32 +268,9 @@ export function autoFetchCandidates(
   // Ready antes disso descarta a fila inteira; cada entrada
   // carrega o próprio pool.
   if (live.autoFetchQueue && searchKey) {
-    // Profundidade zero não executa seletores nem emite métricas de fallback inexistente.
-    const fallbacks = queueDepth > 0
-      ? pickLowerPoolFallbacks(liveStreams, live, {
-        primaryPool: pool,
-        excludeHashes: candidates.map((s) => String(s.infoHash || '')),
-        season,
-        viable: isViableForEnqueue,
-        policy,
-        // A fila persistida herda o bloqueio da sonda: sem isto, o fallback
-        // seeds reposto driblaria a política que a seleção primária respeitou.
-        brProbePending: probeBlocked,
-      })
-      : [];
-    const entries = rustPick ? onlyAutoFetch(rustPick.queue) : composeQueueEntries(
-      candidates.slice(immediateLimit).map((stream) => ({
-        stream,
-        pool,
-        ...(pool === 'seeds' ? { rare: seedsRare, slotLimit: seedsImmediateLimit } : {}),
-      })),
-      fallbacks,
-      queueDepth,
-    );
-    // Sombra Rust: captura a fila já calculada (hash+pool) sem tocar na escrita.
-    if (autofetchShadowEnabled()) {
-      queueEntriesForShadow = entries.map((e) => ({ hash: String(e.stream.infoHash || ''), pool: e.pool }));
-    }
+    // A fila (excedente do primário + fallback dos pools inferiores, com o
+    // bloqueio da sonda herdado) vem do mesmo lote do Rust.
+    const entries = onlyAutoFetch(rustPick.queue);
     autofetch.writeQueue(
       searchKey,
       entries.map(({ stream, pool: entryPool, rare, slotLimit }) => toQueueCandidate(stream, entryPool, {
@@ -313,28 +294,7 @@ export function autoFetchCandidates(
   const seedsOut: ChupimSeeds = seedsEvaluated ? (seedsReason ? `blocked:${seedsReason}` : 'allowed') : 'n/a';
   writeChupimTrace(trace, { pool: poolOut, seeds: seedsOut, probe: chupimProbeLabel(probeWork) });
 
-  // Sombra Rust: agenda (fora da resposta) a repetição determinística da cascata
-  // e compara com o que o TS acabou de decidir. off = no-op; nunca muda o retorno.
-  if (autofetchShadowEnabled()) {
-    observeAutofetch({
-      streams: liveStreams,
-      pool,
-      immediateHashes: immediate.map((s) => String(s.infoHash || '')),
-      queueEntries: queueEntriesForShadow,
-      season,
-      queueDepth,
-      live,
-      policy,
-      autoFetchBr,
-      adapter,
-      seedsBlocked: rustSeedsBlocked,
-    });
-  }
-
-  if (rustImmediate) {
-    return rustImmediate.map(({ stream, pool: p, rare, slotLimit }) => ({
-      stream, account, pool: p, ...(p === 'seeds' ? { slotLimit: slotLimit ?? seedsImmediateLimit, rare } : {}),
-    }));
-  }
-  return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit, rare: seedsRare } : {}) }));
+  return rustImmediate.map(({ stream, pool: p, rare, slotLimit }) => ({
+    stream, account, pool: p, ...(p === 'seeds' ? { slotLimit: slotLimit ?? seedsImmediateLimit, rare } : {}),
+  }));
 }

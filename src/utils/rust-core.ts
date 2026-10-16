@@ -22,7 +22,6 @@ import type { CacheCore } from './rust-debrid-cache.js';
 import type { RdCore } from './rust-debrid-rd.js';
 import type { CleanCore } from './rust-debrid-clean.js';
 import type { ReleaseIndexCore } from './rust-release-index.js';
-import { installAutofetchHook } from './rust-autofetch.js';
 import type { AutofetchCore } from './rust-autofetch.js';
 import type { RankingCore } from './rust-stream-ranking.js';
 import type { EpisodeSizeCore } from './rust-episode-size.js';
@@ -171,17 +170,19 @@ function installTitle(core: NapiCore, mode: 'shadow' | 'on') {
 }
 
 function install() {
-  const titleMode = config.rustCore.mode;
-  const autofetchMode = config.rustAutofetch.mode;
-  // Tudo off: não carrega o .node, como antes.
-  if (titleMode === 'off' && autofetchMode === 'off') return;
+  // O núcleo é obrigatório (onde o Rust decide, o TS saiu): o boot o carrega
+  // sempre, para o binário ausente aparecer aqui e não na primeira busca, e
+  // para o custo do primeiro carregamento não cair numa resposta.
   const file = config.rustCore.path || DEFAULT_PATH;
   const core = load(file);
-  if (!core) return;
+  if (!core) {
+    log.error(`[rust] núcleo obrigatório não carregou (${file}); ranking, debrid e autofetch vão falhar`);
+    return;
+  }
   loadedCore = core;
+  log.info(`[rust] núcleo carregado (${file})`);
+  const titleMode = config.rustCore.mode;
   if (titleMode !== 'off') installTitle(core, titleMode);
-  if (autofetchMode !== 'off') installAutofetchHook(() => loadedCore);
-  log.info(`[rust] núcleo carregado (${file}); autofetch=${autofetchMode}`);
 }
 
 /**

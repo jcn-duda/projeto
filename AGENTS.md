@@ -45,8 +45,9 @@ trabalho de código é em `src/`.
   `on`, `filterRelevantRaw` manda o lote ao Rust e `hasPtSigns`, `brOriginMark`,
   `parseTitleSeasonEpisode`, `matchesBrTitle`, `extractInfoHash`, `magnetDisplayName`
   e `isSafeDownloadUrl` leem de `rust-verdict-memo.ts` (chave = entrada exata;
-  falta cai no TS). `RUST_AUTOFETCH` segue o mesmo `off|shadow|on`
-  (on = Rust decide, TS de reserva). A **fonte de mídia do índice** é só Rust.
+  falta cai no TS). A **fonte de mídia do índice** e a **seleção do autofetch**
+  (imediatos e fila; a cascata TS fica só pelos efeitos: sonda, purga, skips,
+  trace) são só Rust.
   O **ranking** (dedupe + sortAndLimit), o **💾 de episódio** (`annotateEpisodeSizes`)
   e as decisões de debrid (**`pickFile`**, **veredito de cache**, **ledger/gate do RD**,
   **limpeza**) são só Rust: o `.node` é obrigatório

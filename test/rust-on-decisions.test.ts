@@ -1,5 +1,5 @@
-// Índice de releases (só Rust) e modo `on` da seleção do autofetch: o valor do
-// Rust é o que vale. Núcleo stub; não carrega .node nem sobe o runner.
+// Índice de releases e seleção do autofetch, só em Rust: o valor do núcleo é o
+// que vale. Núcleo stub (ou o real); não sobe o runner.
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -9,36 +9,26 @@ const config = (await import('../src/config.js')).default;
 const metrics = await import('../src/utils/metrics.js');
 const rustCore = await import('../src/utils/rust-core.js');
 const { record, lookup } = await import('../src/utils/release-index.js');
-const {
-  decideAutofetch, observeAutofetch, installAutofetchHook, resetAutofetchHook,
-} = await import('../src/utils/rust-autofetch.js');
+const { decideAutofetch } = await import('../src/utils/rust-autofetch.js');
 import type { AutofetchCapture, AutofetchDecisionNapi } from '../src/utils/rust-autofetch.js';
 
-const saved = {
-  releaseIndex: config.releaseIndex.enabled,
-  autofetchMode: config.rustAutofetch.mode,
-};
+const saved = { releaseIndex: config.releaseIndex.enabled };
 
 function counter(name: string): number {
   return Number(metrics.snapshot().counters[name] || 0);
 }
 
-const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const titles = () => ({ normalizeTitle: (title: string) => title });
 
 beforeEach(() => {
   metrics.reset();
   rustCore.setCoreForTest(null);
   config.releaseIndex.enabled = true;
-  config.rustAutofetch.mode = 'off';
-  resetAutofetchHook();
 });
 
 after(() => {
   config.releaseIndex.enabled = saved.releaseIndex;
-  config.rustAutofetch.mode = saved.autofetchMode;
   rustCore.setCoreForTest(null);
-  resetAutofetchHook();
 });
 
 // ---------------------------------------------------------------------------
@@ -65,7 +55,7 @@ test('índice: núcleo real lê BluRay do título', () => {
 // Seleção do autofetch
 // ---------------------------------------------------------------------------
 
-function capture(): Omit<AutofetchCapture, 'pool' | 'immediateHashes' | 'queueEntries'> {
+function capture(): AutofetchCapture {
   return {
     streams: [
       { infoHash: 'aaa', title: 'Filme 1988 1080p DUBLADO', _br: true, _dubbed: true, _seeders: 10 },
@@ -95,17 +85,7 @@ function autofetchStub(decision: AutofetchDecisionNapi | (() => AutofetchDecisio
   return { ...titles(), evaluateAutofetchCandidates: typeof decision === 'function' ? decision : () => decision };
 }
 
-test('autofetch off/shadow: decideAutofetch não decide', () => {
-  installAutofetchHook(() => rustCore.getCore());
-  rustCore.setCoreForTest(autofetchStub({ immediates: [], queue: [], skips: [] }));
-  assert.equal(decideAutofetch(capture()), null);
-  config.rustAutofetch.mode = 'shadow';
-  assert.equal(decideAutofetch(capture()), null);
-});
-
-test('autofetch on: imediatos e fila vêm do Rust, casados com os streams vivos', () => {
-  config.rustAutofetch.mode = 'on';
-  installAutofetchHook(() => rustCore.getCore());
+test('autofetch: imediatos e fila vêm do Rust, casados com os streams vivos', () => {
   rustCore.setCoreForTest(autofetchStub({
     immediates: [{ infoHash: 'BBB', pool: 'br', rare: false }],
     queue: [{ infoHash: 'aaa', pool: 'seeds', rare: true, slotLimit: 2 }],
@@ -113,7 +93,6 @@ test('autofetch on: imediatos e fila vêm do Rust, casados com os streams vivos'
   }));
   const c = capture();
   const pick = decideAutofetch(c);
-  assert.ok(pick);
   assert.equal(pick.immediate.length, 1);
   assert.equal(pick.immediate[0].stream, c.streams[1], 'o mesmo objeto do runner');
   assert.equal(pick.immediate[0].pool, 'br');
@@ -124,28 +103,12 @@ test('autofetch on: imediatos e fila vêm do Rust, casados com os streams vivos'
   assert.equal(counter('rust.autofetch.calls'), 1);
 });
 
-test('autofetch on: hash fora da lista viva devolve o controle ao TS', () => {
-  config.rustAutofetch.mode = 'on';
-  installAutofetchHook(() => rustCore.getCore());
+test('autofetch: hash fora da lista viva lança (nunca dispara stream desconhecido)', () => {
   rustCore.setCoreForTest(autofetchStub({ immediates: [{ infoHash: 'zzz', pool: 'br', rare: false }], queue: [], skips: [] }));
-  assert.equal(decideAutofetch(capture()), null);
-  assert.equal(counter('rust.autofetch.error'), 1);
+  assert.throws(() => decideAutofetch(capture()), /fora da lista viva/);
 });
 
-test('autofetch on: napi que lança devolve o controle ao TS', () => {
-  config.rustAutofetch.mode = 'on';
-  installAutofetchHook(() => rustCore.getCore());
+test('autofetch: napi que lança propaga o erro', () => {
   rustCore.setCoreForTest(autofetchStub(() => { throw new Error('boom'); }));
-  assert.equal(decideAutofetch(capture()), null);
-  assert.equal(counter('rust.autofetch.error'), 1);
-});
-
-test('autofetch on: observeAutofetch não compara (o Rust já decidiu)', async () => {
-  config.rustAutofetch.mode = 'on';
-  installAutofetchHook(() => rustCore.getCore());
-  rustCore.setCoreForTest(autofetchStub({ immediates: [], queue: [], skips: [] }));
-  observeAutofetch({ ...capture(), pool: 'br', immediateHashes: ['aaa'], queueEntries: [] });
-  await flush();
-  assert.equal(counter('rust.autofetch.calls'), 0);
-  assert.equal(counter('rust.autofetch.divergence'), 0);
+  assert.throws(() => decideAutofetch(capture()), /boom/);
 });

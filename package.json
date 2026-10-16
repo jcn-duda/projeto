@@ -466,7 +466,6 @@
     "test/stream-builder-idx-episode.test.js",
     "test/rust-verdict-memo.test.js",
     "test/rust-on-decisions.test.js",
-    "test/rust-shadow.test.js",
-    "test/rust-autofetch.test.js"
+    "test/rust-shadow.test.js"
   ]
 }

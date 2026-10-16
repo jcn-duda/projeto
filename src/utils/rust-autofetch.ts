@@ -1,24 +1,12 @@
 /**
- * Sombra do lote de seleção do autofetch (Chupim) em Rust
- * (`evaluateAutofetchCandidates`, composição dos módulos `autofetch_*`).
- *
- * A seleção real continua no TS (`autofetch-candidates.ts`): o runner é dono
- * dos portões, das travas (holds), da sonda BR, da fila persistida e do waiver
- * do piso. Aqui só REPETIMOS a parte determinística da cascata `br → any →
- * seeds` numa ÚNICA chamada napi, AGENDADA com `setImmediate` — o napi por
- * chamada é mais lento que o TS, então nada roda no caminho da resposta.
- *
- * O TS já calculou `immediate`/`queue` antes de chamar `observeAutofetch`; a
- * sombra copia esses fatos (strings puras, sem referência aos itens vivos do
- * pipeline) e compara com o Rust depois. Divergência vira métrica
- * (`rust.autofetch.*`) e log com teto — nunca muda a resposta.
- *
- * `off` (default) ou núcleo ausente = no-op. `shadow` compara fora da resposta;
- * `on` faz o Rust DECIDIR a seleção (`decideAutofetch`, TS de reserva). Os
- * portões, travas, sonda e a escrita da fila continuam no Node nos dois modos.
+ * Seleção do autofetch (Chupim) em Rust (`evaluateAutofetchCandidates`,
+ * composição dos módulos `autofetch_*`): a cascata `br → any → seeds` decide
+ * os imediatos e a fila numa chamada SÍNCRONA, antes das travas e da escrita
+ * da fila. O runner (`autofetch-candidates.ts`) segue dono dos portões, das
+ * travas (holds), da sonda BR, da fila persistida e do waiver do piso; a
+ * seleção TS de imediatos/fila saiu do branch (oráculo no `esm`).
  */
-import config from '../config.js';
-import * as log from './logger.js';
+import { requireCore } from './rust-core.js';
 import * as metrics from './metrics.js';
 
 // ---------------------------------------------------------------------------
@@ -105,7 +93,7 @@ export type AutofetchDecisionNapi = {
 };
 
 export type AutofetchCore = {
-  evaluateAutofetchCandidates?(input: AutofetchInputNapi): AutofetchDecisionNapi;
+  evaluateAutofetchCandidates(input: AutofetchInputNapi): AutofetchDecisionNapi;
 };
 
 // ---------------------------------------------------------------------------
@@ -144,12 +132,9 @@ export type AutofetchLiveSubset = {
   autoFetchTopSeeds: boolean;
 };
 
-/** Snapshot sincrônico da decisão do TS + fatos para reconstruir a entrada. */
+/** Fatos da busca que a seleção lê (nada aqui consulta rede ou estado). */
 export type AutofetchCapture = {
   streams: AutofetchRawStream[];
-  pool: string;
-  immediateHashes: string[];
-  queueEntries: Array<{ hash: string; pool: string }>;
   season?: number | null;
   queueDepth: number;
   live: AutofetchLiveSubset;
@@ -159,12 +144,6 @@ export type AutofetchCapture = {
   /** Fato do oráculo: o `seedsSelectionBlock` da busca (bloqueia seeds). */
   seedsBlocked?: boolean;
 };
-
-type GetCore = () => AutofetchCore | null;
-
-let getCore: GetCore | null = null;
-let loggedDiffs = 0;
-let warnedNoFn = false;
 
 /** Portões abertos: na seleção o TS ainda não avaliou lock/slot/obra/budget. */
 function openGates(): EnqueueGatesIn {
@@ -243,37 +222,6 @@ function buildInput(c: AutofetchCapture): AutofetchInputNapi {
   };
 }
 
-function noteMissing() {
-  if (warnedNoFn) return;
-  warnedNoFn = true;
-  log.info('[rust] núcleo sem evaluateAutofetchCandidates (binário antigo); sombra do autofetch desligada');
-}
-
-function sameList(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((v, i) => v === b[i]);
-}
-
-function logDiff(c: AutofetchCapture, part: string, ts: string, rust: string) {
-  metrics.count('rust.autofetch.divergence');
-  if (loggedDiffs >= config.rustCore.maxLoggedDiffs) return;
-  loggedDiffs += 1;
-  log.warn(`[rust] autofetch divergiu (${part}): pool=${c.pool} ts=${ts} rust=${rust}`);
-}
-
-function compare(c: AutofetchCapture, d: AutofetchDecisionNapi) {
-  const rustImm = (d.immediates || []).map((x) => String(x.infoHash || '').toLowerCase());
-  const tsImm = c.immediateHashes.map((h) => h.toLowerCase());
-  if (!sameList(tsImm, rustImm)) logDiff(c, 'immediates', tsImm.join(','), rustImm.join(','));
-
-  const rustQueue = (d.queue || []).map((x) => `${String(x.infoHash || '').toLowerCase()}:${x.pool}`);
-  const tsQueue = c.queueEntries.map((e) => `${e.hash.toLowerCase()}:${e.pool}`);
-  if (!sameList(tsQueue, rustQueue)) logDiff(c, 'queue', tsQueue.join(','), rustQueue.join(','));
-
-  // Na seleção os portões estão abertos: nenhum lado deve produzir skip.
-  const rustSkips = (d.skips || []).map((s) => s.reason);
-  if (rustSkips.length > 0) logDiff(c, 'skips', '', rustSkips.join(','));
-}
-
 /** Escolha do Rust já casada com os streams vivos do runner. */
 export type AutofetchPick<S> = {
   immediate: Array<{ stream: S; pool: string; rare: boolean; slotLimit?: number }>;
@@ -281,93 +229,29 @@ export type AutofetchPick<S> = {
 };
 
 /**
- * Caminho `on`: o Rust decide imediatos e fila numa chamada SÍNCRONA, antes das
- * travas e da escrita da fila. Devolve null (o TS decide) fora do `on`, sem o
- * núcleo, se o napi lançar ou se citar um hash que não está na lista viva —
- * nunca dispara um stream que o runner não conhece.
+ * O Rust decide imediatos e fila. Lança se o napi lançar ou citar um hash que
+ * não está na lista viva — nunca dispara um stream que o runner não conhece;
+ * quem chama decide o que fazer com o erro (o runner fecha sem candidato).
  */
 export function decideAutofetch<S extends AutofetchRawStream>(
-  capture: Omit<AutofetchCapture, 'pool' | 'immediateHashes' | 'queueEntries'> & { streams: S[] },
-): AutofetchPick<S> | null {
-  if (config.rustAutofetch.mode !== 'on' || !getCore) return null;
-  try {
-    const fn = getCore()?.evaluateAutofetchCandidates;
-    if (typeof fn !== 'function') {
-      noteMissing();
-      return null;
-    }
-    const byHash = new Map<string, S>();
-    for (const s of capture.streams) {
-      const h = String(s.infoHash || '').toLowerCase();
-      if (h && !byHash.has(h)) byHash.set(h, s);
-    }
-    metrics.count('rust.autofetch.calls');
-    const d = fn(buildInput({ ...capture, pool: '', immediateHashes: [], queueEntries: [] }));
-    const find = (hash: string): S => {
-      const s = byHash.get(String(hash || '').toLowerCase());
-      if (!s) throw new Error(`hash fora da lista viva: ${hash}`);
-      return s;
-    };
-    const slot = (n: number | null | undefined) => (n == null ? {} : { slotLimit: n });
-    return {
-      immediate: (d.immediates || []).map((c) => ({ stream: find(c.infoHash), pool: c.pool, rare: Boolean(c.rare), ...slot(c.slotLimit) })),
-      queue: (d.queue || []).map((c) => ({ stream: find(c.infoHash), pool: c.pool, rare: Boolean(c.rare), ...slot(c.slotLimit) })),
-    };
-  } catch (err) {
-    metrics.count('rust.autofetch.error');
-    log.debug('[rust] autofetch lançou; seleção do TS:', log.errorMessage(err));
-    return null;
+  capture: AutofetchCapture & { streams: S[] },
+): AutofetchPick<S> {
+  const byHash = new Map<string, S>();
+  for (const s of capture.streams) {
+    const h = String(s.infoHash || '').toLowerCase();
+    if (h && !byHash.has(h)) byHash.set(h, s);
   }
+  metrics.count('rust.autofetch.calls');
+  const core = requireCore() as unknown as AutofetchCore;
+  const d = core.evaluateAutofetchCandidates(buildInput(capture));
+  const find = (hash: string): S => {
+    const s = byHash.get(String(hash || '').toLowerCase());
+    if (!s) throw new Error(`hash fora da lista viva: ${hash}`);
+    return s;
+  };
+  const slot = (n: number | null | undefined) => (n == null ? {} : { slotLimit: n });
+  return {
+    immediate: (d.immediates || []).map((c) => ({ stream: find(c.infoHash), pool: c.pool, rare: Boolean(c.rare), ...slot(c.slotLimit) })),
+    queue: (d.queue || []).map((c) => ({ stream: find(c.infoHash), pool: c.pool, rare: Boolean(c.rare), ...slot(c.slotLimit) })),
+  };
 }
-
-/**
- * Agenda a comparação do lote. Copia os fatos (strings puras) de forma
- * síncrona — o pipeline muta os itens depois — e chama o napi no `setImmediate`.
- * Em `on` o Rust já decidiu (`decideAutofetch`): não há o que comparar.
- */
-export function observeAutofetch(capture: AutofetchCapture): void {
-  try {
-    if (config.rustAutofetch.mode !== 'shadow' || !getCore) return;
-    const core = getCore();
-    const fn = core?.evaluateAutofetchCandidates;
-    if (typeof fn !== 'function') {
-      noteMissing();
-      return;
-    }
-    const input = buildInput(capture);
-    const snapshot: AutofetchCapture = {
-      ...capture,
-      immediateHashes: capture.immediateHashes.slice(),
-      queueEntries: capture.queueEntries.slice(),
-    };
-    metrics.count('rust.autofetch.calls');
-    setImmediate(() => {
-      try {
-        compare(snapshot, fn(input));
-      } catch (err) {
-        metrics.count('rust.autofetch.error');
-        log.debug('[rust] autofetch lançou no lote:', log.errorMessage(err));
-      }
-    });
-  } catch (err) {
-    metrics.count('rust.autofetch.error');
-    log.debug('[rust] autofetch não agendou:', log.errorMessage(err));
-  }
-}
-
-/** A sombra está ligada? O runner usa para nem montar o snapshot no off. */
-export function autofetchShadowEnabled(): boolean {
-  return config.rustAutofetch.mode !== 'off';
-}
-
-function installAutofetchHook(get: GetCore) {
-  getCore = get;
-}
-
-function resetAutofetchHook() {
-  getCore = null;
-  loggedDiffs = 0;
-  warnedNoFn = false;
-}
-
-export { installAutofetchHook, resetAutofetchHook };

@@ -1,5 +1,5 @@
 // Fase 4 (B2): o pending da sonda precisa barrar também o fallback PERSISTIDO
-// e os packs que a fila do Chupim guarda. Cobre pickLowerPoolFallbacks, o dreno
+// e os packs que a fila do Chupim guarda. Cobre o dreno
 // por EPISÓDIO (probeEpisode separado da identidade de obra-cap) e os call
 // sites reais (autoFetchCandidates e o despacho autoFetchBrDubbed).
 import { test } from 'node:test';
@@ -15,7 +15,6 @@ import * as autofetch from '../src/providers/autofetch.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as harvestQueue from '../src/providers/harvest-queue.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
-import { pickLowerPoolFallbacks } from '../src/providers/autofetch-fallback.js';
 import { takeDrainCandidate } from '../src/providers/autofetch-drain.js';
 import { autoFetchCandidates } from '../src/providers/autofetch-candidates.js';
 import { autoFetchBrDubbed } from '../src/providers/autofetch-runner.js';
@@ -85,20 +84,6 @@ const seedsStream = (hex = H) => ({
   _br: false,
   _dubbed: false,
 }) as any;
-
-test('fallback persistido de seeds é barrado pelo pending da sonda', () => {
-  const saved = setup();
-  try {
-    const base = { primaryPool: 'br', excludeHashes: new Set<string>(), viable: () => true, policy };
-    const semSonda = pickLowerPoolFallbacks([seedsStream()], live, base);
-    assert.ok(semSonda.some((f) => f.pool === 'seeds'), 'sanidade: sem sonda o seeds é reposto');
-
-    const comSonda = pickLowerPoolFallbacks([seedsStream()], live, { ...base, brProbePending: true });
-    assert.equal(comSonda.some((f) => f.pool === 'seeds'), false, 'com pending o fallback seeds não entra');
-  } finally {
-    restore(saved);
-  }
-});
 
 test('dreno defere o pack pela identidade do EPISÓDIO solicitado (probeEpisode)', () => {
   const saved = setup();

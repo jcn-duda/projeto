@@ -16,6 +16,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 
 // Precisa vir antes do primeiro import de produção: `dotenv/config` resolve o
 // path no load. Assim `npm test` é hermético também fora do CI.
@@ -96,4 +97,16 @@ process.env.RESOLVE_SECRET = '';
 // (crawler-rust-own-pace.test.ts), que sobrescreve `config.crawl.crawlEngine`
 // no próprio caso.
 process.env.CRAWL_ENGINE = 'ts';
+
+// Núcleo Rust: onde ele decide o TS saiu, e o boot do processo o carrega antes
+// da primeira busca. Aqui o `.node` é aquecido do mesmo jeito (sem importar
+// `config`, que precisa ler o env que cada teste ajusta): o `requireCore` cai
+// no cache de módulos do Node, e o primeiro carregamento do binário não entra
+// em nenhuma medição de tempo da suíte. Binário ausente fica para o
+// `requireCore`, que lança com a instrução.
+try {
+  createRequire(import.meta.url)(path.resolve('dist/rust/adom_napi.node'));
+} catch {
+  // sem binário: o primeiro teste que precisar dele falha com a mensagem certa
+}
 
