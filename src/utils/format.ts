@@ -27,7 +27,6 @@ export {
   matchesGlobalSeriesNoMarker,
   isMultiWorkCollection,
   franchiseRoot,
-  franchiseRoots,
   endsWithSequenceMarker,
   containsTokenRun,
   filterInventoryRelevant,

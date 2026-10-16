@@ -126,16 +126,6 @@ function endsWithSequenceMarker(title: string) {
   return SEQUENCE_TAIL.test(String(title || '').trim());
 }
 
-/** Raízes de franquia normalizadas de todos os nomes conhecidos da obra. */
-function franchiseRoots(names: string[] = []): string[] {
-  const roots = new Set<string>();
-  for (const name of names) {
-    const normalized = titleTokens(franchiseRoot(name)).join(' ');
-    if (normalized) roots.add(normalized);
-  }
-  return [...roots];
-}
-
 /** O título contém a raiz como sequência contígua de palavras normalizadas. */
 function containsTokenRun(title: string, normalizedRoot: string) {
   const haystack = titleTokens(title);
@@ -152,7 +142,6 @@ export {
   nameCoverageTokens,
   isMultiWorkCollection,
   franchiseRoot,
-  franchiseRoots,
   endsWithSequenceMarker,
   containsTokenRun,
 };

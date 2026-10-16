@@ -30,7 +30,6 @@ import {
   nameCoverageTokens,
   isMultiWorkCollection,
   franchiseRoot,
-  franchiseRoots,
   endsWithSequenceMarker,
   containsTokenRun,
 } from './release-name-matching.js';
@@ -63,7 +62,6 @@ export {
   yearContradicts,
   isMultiWorkCollection,
   franchiseRoot,
-  franchiseRoots,
   endsWithSequenceMarker,
   containsTokenRun,
   filterInventoryRelevant,
