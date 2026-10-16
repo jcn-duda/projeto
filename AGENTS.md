@@ -48,7 +48,7 @@ trabalho de código é em `src/`.
   falta cai no TS). `RUST_RELEASE_INDEX`/`RUST_AUTOFETCH`
   seguem o mesmo `off|shadow|on` (on = Rust decide, TS de reserva).
   O **ranking** (dedupe + sortAndLimit), o **💾 de episódio** (`annotateEpisodeSizes`)
-  e o **`pickFile`** do debrid são só Rust: o `.node` é obrigatório
+  e o **`pickFile`** e o **veredito de cache** do debrid são só Rust: o `.node` é obrigatório
   (`requireCore`; o `build` o copia de `rust/target`, o CI o compila).
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
   velocidade só existe com API em lote. Mudou `title-normalization.ts` ou
