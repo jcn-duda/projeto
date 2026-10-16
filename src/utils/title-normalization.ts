@@ -1,3 +1,4 @@
+import { nativeCore } from './native-core.js';
 import { magnetVerdict } from './rust-verdict-memo.js';
 
 function bytesToSize(bytes: unknown) {
@@ -113,39 +114,14 @@ function collapseAcronyms(s = '') {
   });
 }
 
-// Implementação alternativa instalada no boot do processo (ponte Rust, modo
-// shadow/on — `rust-core.ts`). Fica num gancho, e não num import de config,
-// para este módulo continuar puro: os oráculos de golden importam o dist/ dele
-// e precisam medir SEMPRE o TS.
-type TitleImpl = (input: string, ts: (input: string) => string) => string;
-let titleImpl: TitleImpl | null = null;
-
-function installNormalizeTitle(impl: TitleImpl | null) {
-  titleImpl = impl;
-}
-
+/**
+ * Normaliza um título para comparação, no Rust (`normalize_title` do
+ * adom-core: sigla pontuada, caixa, fold latino, NFD, marcas e compat do
+ * Latin-1, não-palavra → espaço). O TS da regra saiu do branch (oráculo no
+ * `esm`; goldens `title-normalization` e `unicode_parity` no Rust).
+ */
 function normalizeTitle(s = '') {
-  return titleImpl ? titleImpl(String(s), normalizeTitleTs) : normalizeTitleTs(s);
-}
-
-function normalizeTitleTs(s = '') {
-  // \p{M} é obrigatório, não opcional: o .normalize('NFD') da linha anterior
-  // separa dakuten/vogais-marca (japonês, hindi, tailandês) como combining
-  // marks fora de ̀-ͯ; sem \p{M} elas viram espaço e "すずめの戸締まり" sairia
-  // "すす めの戸締まり". CJK/cirílico sem espaço vira UM token — casa só com
-  // release que escreve o título igual (restritivo, nunca permissivo); todo
-  // caso latino sai byte-idêntico ao filtro antigo.
-  //
-  // Além das combining marks, o segundo replace remove os compat chars do
-  // Latin-1 que o filtro antigo ([^a-z0-9]) também descartava: ordinais
-  // (ª º — "2ª Temporada" tem que virar "2"), superscritos numéricos
-  // (¹²³⁰⁴⁵⁶⁷⁸⁹), micro (µ) e fracções (¼½¾). Sem isso o ordinal viraria
-  // token e o parse de temporada perderia o número.
-  return foldLatinLetters(collapseAcronyms(s).toLowerCase())
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f\u00aa\u00ba\u00b2\u00b3\u00b9\u00b5\u00bc\u00bd\u00be\u2070\u2074-\u2079]/g, '')
-    .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
-    .trim();
+  return nativeCore<{ normalizeTitle(input: string): string }>().normalizeTitle(String(s));
 }
 
 /**
@@ -210,4 +186,4 @@ function magnetDisplayName(item: { magnet?: string; MagnetUri?: string; Guid?: s
   return source;
 }
 
-export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, normalizeTitleTs, installNormalizeTitle, collapseAcronyms, stripDiacritics, dedupeNames, magnetDisplayName };
+export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, collapseAcronyms, stripDiacritics, dedupeNames, magnetDisplayName };

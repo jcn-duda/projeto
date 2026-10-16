@@ -16,7 +16,7 @@ import * as log from './logger.js';
 import * as metrics from './metrics.js';
 import { getCore, getMode } from './rust-core.js';
 import type { BatchCore } from './rust-core.js';
-import { extractInfoHash, magnetDisplayName, normalizeTitleTs } from './title-normalization.js';
+import { extractInfoHash, magnetDisplayName, normalizeTitle } from './title-normalization.js';
 import { hasPtSigns, brOriginMark } from './br-origin.js';
 import { parseTitleSeasonEpisode } from './episode-matching.js';
 import { matchesBrTitle as matchesBrTitleRule } from './release-title-rules.js';
@@ -98,11 +98,11 @@ export function buildProbes(items: RawItem[], ctx: ShadowContext, max: number): 
   return out;
 }
 
-/** Veredito calculado pelo TS puro (sem o gancho Rust de normalizeTitle). */
+/** Veredito calculado pelo TS (o `normalized` já vem do Rust: normalizeTitle é só Rust). */
 export function tsVerdict(p: ReleaseProbe): ReleaseVerdict {
   const parsed = parseTitleSeasonEpisode(p.title);
   return {
-    normalized: normalizeTitleTs(p.title),
+    normalized: normalizeTitle(p.title),
     hasPtSigns: hasPtSigns(p.title),
     brOriginMark: brOriginMark(p.title),
     infoHash: extractInfoHash(p.magnet) ?? null,

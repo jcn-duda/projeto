@@ -103,6 +103,16 @@ jobs:
           DOTENV_CONFIG_PATH: test/fixtures/env-empty
         run: npm run golden:crawl-parsers:check
 
+      # O normalizeTitle TS também saiu deste branch: o golden de títulos é
+      # conferido contra o oráculo do esm (o cargo test confere o Rust contra
+      # o mesmo .jsonl commitado).
+      - name: Golden de títulos contra o TypeScript do esm
+        working-directory: ../adom-esm
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: npm run golden:titles:check
+
       # 16 testes, 76 comparações (23 goldens + 45 vetores Unicode 17 + 8 do
       # glue UTF-16 da sigla) contra o `expected` commitado — nunca input == expected.
       - name: Testes

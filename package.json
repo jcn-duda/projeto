@@ -96,7 +96,6 @@
   },
   "testFiles": [
     "test/rust-crawl-shadow.test.js",
-    "test/golden-title-normalization.test.js",
     "test/app-routes.test.js",
     "test/app-routes-resolve.test.js",
     "test/app-routes-admin.test.js",

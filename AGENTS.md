@@ -37,10 +37,10 @@ trabalho de código é em `src/`.
   `Origin` explícito**).
 - **Ponte Rust** (`rust/crates/adom-napi`, napi-rs): o Dockerfile compila o
   `.node` para musl (estágio `rustcore`, `-crt-static`) em `dist/rust/`; o
-  `npm run build` NÃO o gera e limpa `dist/`. `RUST_CORE=off|shadow|on`
-  (default off) liga via `src/utils/rust-core.ts`, só no boot do processo
-  (gancho `installNormalizeTitle`; testes e oráculos de golden medem o TS puro).
-  Cobre `normalizeTitle` e os **vereditos de release em lote** (`evaluateReleases`):
+  `npm run build` o copia de `rust/target` depois de limpar `dist/`. O núcleo é
+  **obrigatório** (`native-core.ts`; o boot o carrega, testes sob demanda).
+  `RUST_CORE=off|shadow|on` (default off) sobra só para os **vereditos de release
+  em lote** (`evaluateReleases`):
   em `shadow`, `rust-shadow.ts` compara com `setImmediate` (`rust.batch.diff`); em
   `on`, `filterRelevantRaw` manda o lote ao Rust e `hasPtSigns`, `brOriginMark`,
   `parseTitleSeasonEpisode`, `matchesBrTitle`, `extractInfoHash`, `magnetDisplayName`
@@ -50,12 +50,12 @@ trabalho de código é em `src/`.
   trace) são só Rust.
   O **ranking** (dedupe + sortAndLimit), o **💾 de episódio** (`annotateEpisodeSizes`)
   e as decisões de debrid (**`pickFile`**, **veredito de cache**, **ledger/gate do RD**,
-  **limpeza**) são só Rust: o `.node` é obrigatório
-  (`requireCore`; o `build` o copia de `rust/target`, o CI o compila).
+  **limpeza**) e o **`normalizeTitle`** são só Rust (o CI compila o napi antes da
+  suíte). O golden de títulos e os dos parsers se conferem contra o TS do `esm`.
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
-  velocidade só existe com API em lote. Mudou `title-normalization.ts` ou
-  `release-filters.ts`? regenere os goldens (`golden:titles`, `golden:release-filters`,
-  `golden:inventory-filter` com `--force`). Código Rust quebrado no working tree quebra a imagem.
+  velocidade só existe com API em lote. Mudou `release-filters.ts`? regenere os
+  goldens (`golden:release-filters`, `golden:inventory-filter` com `--force`).
+  Código Rust quebrado no working tree quebra a imagem.
 - **Onde o Rust já substituiu o TS, o TS saiu** (a versão TS segue no branch
   `esm`, que é o oráculo dos goldens): os oito **resolvers BR** são o binário
   `adom-resolvers` (portas 8700–8707, supervisionado pelo entrypoint; o

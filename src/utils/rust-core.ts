@@ -1,22 +1,19 @@
 /**
  * Ponte para o núcleo Rust (`rust/crates/adom-napi`, addon nativo napi-rs).
  *
- * Instalado só no boot do PROCESSO (`addon.ts`), nunca no `createApp`: os
- * testes e os oráculos de golden seguem medindo o TS puro. Falha ao carregar
- * o `.node` (binário ausente, libc errada, ABI) vira log + TS — a ponte nunca
- * derruba o addon.
+ * O núcleo é obrigatório: onde o Rust decide (ranking, 💾 de episódio, debrid,
+ * índice, autofetch, `normalizeTitle`), o TS saiu do branch e o oráculo é o
+ * `esm`. O boot do processo (`addon.ts`) o carrega; testes e scripts o
+ * carregam sob demanda (`requireCore`, em `native-core.ts`).
  *
- * Modos (`RUST_CORE`): `shadow` roda os dois e loga quando o Rust diverge,
- * respondendo SEMPRE com o TS; `on` responde com o Rust e cai no TS se ele
- * lançar. Só promova para `on` depois de dias de shadow sem divergência.
+ * `RUST_CORE` (`off|shadow|on`) sobra só para os vereditos de release em lote
+ * (`rust-shadow.ts`): `on` faz o filtro de relevância ler o lote Rust, `shadow`
+ * compara fora da resposta.
  */
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 import config from '../config.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
-import { installNormalizeTitle } from './title-normalization.js';
+import { nativeCore, loadedNativeCore, setNativeCore, setNativeCorePath, nativeCorePath } from './native-core.js';
 import type { PickCore } from '../debrid/file-selector.js';
 import type { CacheCore } from './rust-debrid-cache.js';
 import type { RdCore } from './rust-debrid-rd.js';
@@ -79,110 +76,31 @@ export type CrawlCore = {
 
 export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore>;
 
-const _require = createRequire(import.meta.url);
-
-// dist/src/utils/rust-core.js → dist/rust/adom_napi.node
-const DEFAULT_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../rust/adom_napi.node');
-
-let loggedDiffs = 0;
-// Núcleo carregado no boot: fica disponível para o shadow em lote (`rust-shadow.ts`).
-let loadedCore: NapiCore | null = null;
-
-/** Núcleo carregado no boot; null com RUST_CORE=off ou se não carregou. */
+/** Núcleo já carregado (boot ou primeira chamada); null antes disso. */
 function getCore(): NapiCore | null {
-  return loadedCore;
+  return loadedNativeCore<NapiCore>();
 }
 
-/**
- * Núcleo para quem o Rust decide SEM reserva TS (o TS daquela área saiu do
- * branch; o oráculo é o `esm`). Carrega o `.node` na primeira chamada — testes
- * e scripts que não passam pelo boot também o usam — e lança com instrução
- * quando o binário falta: sem ele a área não tem implementação.
- */
+/** Núcleo para as áreas só-Rust: carrega se preciso e lança se faltar. */
 function requireCore(): NapiCore {
-  if (loadedCore) return loadedCore;
-  const file = config.rustCore.path || DEFAULT_PATH;
-  try {
-    loadedCore = _require(file) as NapiCore;
-  } catch (err) {
-    throw new Error(
-      `[rust] núcleo obrigatório ausente (${file}): rode \`cargo build -p adom-napi --release\` em rust/ e o build (${log.errorMessage(err)})`,
-    );
-  }
-  return loadedCore;
+  return nativeCore<NapiCore>();
 }
 
 function getMode(): 'off' | 'shadow' | 'on' {
   return config.rustCore.mode;
 }
 
-function load(file: string): NapiCore | null {
-  try {
-    const mod = _require(file) as Partial<NapiCore>;
-    const hasTitle = typeof mod.normalizeTitle === 'function';
-    const hasPick = typeof mod.pickFile === 'function';
-    if (!hasTitle && !hasPick) throw new Error('normalizeTitle e pickFile ausentes no módulo');
-    return mod as NapiCore;
-  } catch (err) {
-    log.warn(`[rust] núcleo não carregou (${file}); seguindo só com TS:`, log.errorMessage(err));
-    return null;
-  }
-}
-
-function logDiff(input: string, ts: string, rust: string) {
-  metrics.count('rust.normalizeTitle.diff');
-  if (loggedDiffs >= config.rustCore.maxLoggedDiffs) return;
-  loggedDiffs += 1;
-  log.warn(`[rust] normalizeTitle divergiu: entrada=${JSON.stringify(input)} ts=${JSON.stringify(ts)} rust=${JSON.stringify(rust)}`);
-}
-
-function installTitle(core: NapiCore, mode: 'shadow' | 'on') {
-  if (typeof core.normalizeTitle !== 'function') {
-    log.warn('[rust] normalizeTitle ausente no núcleo; seguindo só com TS');
-    return;
-  }
-  if (mode === 'shadow') {
-    installNormalizeTitle((input, ts) => {
-      const expected = ts(input);
-      metrics.count('rust.normalizeTitle.calls');
-      try {
-        const got = core.normalizeTitle(input);
-        if (got !== expected) logDiff(input, expected, got);
-      } catch (err) {
-        metrics.count('rust.normalizeTitle.error');
-        log.debug('[rust] normalizeTitle lançou:', log.errorMessage(err));
-      }
-      return expected;
-    });
-  } else {
-    installNormalizeTitle((input, ts) => {
-      metrics.count('rust.normalizeTitle.calls');
-      try {
-        return core.normalizeTitle(input);
-      } catch (err) {
-        metrics.count('rust.normalizeTitle.error');
-        log.debug('[rust] normalizeTitle lançou; usando TS:', log.errorMessage(err));
-        return ts(input);
-      }
-    });
-  }
-  log.info(`[rust] normalizeTitle em modo ${mode}`);
-}
-
 function install() {
-  // O núcleo é obrigatório (onde o Rust decide, o TS saiu): o boot o carrega
-  // sempre, para o binário ausente aparecer aqui e não na primeira busca, e
-  // para o custo do primeiro carregamento não cair numa resposta.
-  const file = config.rustCore.path || DEFAULT_PATH;
-  const core = load(file);
-  if (!core) {
-    log.error(`[rust] núcleo obrigatório não carregou (${file}); ranking, debrid e autofetch vão falhar`);
-    return;
+  // O núcleo é obrigatório: o boot o carrega sempre, para o binário ausente
+  // aparecer aqui e não na primeira busca, e para o custo do primeiro
+  // carregamento não cair numa resposta.
+  setNativeCorePath(config.rustCore.path);
+  try {
+    nativeCore<NapiCore>();
+    log.info(`[rust] núcleo carregado (${nativeCorePath()})`);
+  } catch (err) {
+    log.error(`[rust] ${log.errorMessage(err)}; busca, debrid e autofetch vão falhar`);
   }
-  loadedCore = core;
-  log.info(`[rust] núcleo carregado (${file})`);
-  const titleMode = config.rustCore.mode;
-  if (titleMode !== 'off') installTitle(core, titleMode);
 }
 
 /**
@@ -190,7 +108,7 @@ function install() {
  * usa `install()`; nenhum caminho de produção chama isto.
  */
 function setCoreForTest(core: NapiCore | null): void {
-  loadedCore = core;
+  setNativeCore(core);
 }
 
 export { install, getCore, requireCore, getMode, setCoreForTest };
