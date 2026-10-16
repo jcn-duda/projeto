@@ -1,4 +1,6 @@
-import { normalizeTitle, parseTitleSeasonEpisode } from '../utils/format.js';
+import { normalizeTitle } from '../utils/format.js';
+import { requireCore } from '../utils/rust-core.js';
+import * as metrics from '../utils/metrics.js';
 import type { MaybeError } from './common.js';
 import type { PlayHint } from '../../types/domain.js';
 
@@ -38,9 +40,6 @@ function isDubLieError(error: MaybeError) { return error?.code === 'DUB_LIE'; }
 
 const VIDEO_EXT = /\.(mkv|mp4|avi|mov|m4v|ts|webm)$/i;
 const SAMPLE = /(^|[^a-z])sample([^a-z]|$)/i;
-// Nome típico de disco de bônus que não passa no EXTRA ("Episode 3, Scene #29",
-// "A Conversation with ..."): só pesa quando nenhum arquivo declara temporada.
-const EXTRAS_DISC = /(\bscene[\s._-]*#?\s*\d|\bconversation[\s._-]+with\b|\bcommentary\b|\bcoment[aá]rios?\b|\binside[\s._-]+the[\s._-]+episode\b)/i;
 const EXTRA = /(^|[^a-z])(extras?|b[oô]nus|bonus|featurettes?|interviews?|entrevistas?|behind[ ._-]?the[ ._-]?scenes|trailers?|deleted[ ._-]?scenes?|cenas[ ._-]?deletadas|bloopers?|gags?|making[ ._-]?of)([^a-z]|$)/i;
 function baseName(p: string) { return String(p || '').split(/[/\\]/).pop() || ''; }
 const SITE_AD_DOMAIN = '[a-z0-9][a-z0-9-]*\\.(?:com|net|org|tv|to|me|cc|info|xyz|biz|br|io|se|ws)(?:\\.[a-z]{2})?';
@@ -59,121 +58,12 @@ function isSiteAd(path: string) {
 }
 
 const WORK_COVERAGE_MIN = 0.7;
-// Tolerância de ano catálogo ↔ arquivo: lançamento em DVD/BR/streaming pode
-// diferir 1-2 anos do de cinema. Fora desta janela o ano declarado é prova de
-// OUTRA obra, não uma diferença normal de lançamento.
-const WORK_YEAR_TOLERANCE = 2;
-
 // Ano que o NOME do arquivo declara. Só basename: um ano na pasta costuma ser
 // da coleção ("Trilogia (2009-2011)/…"), não da release individual.
 function declaredYears(filePath: string) {
   // 1920x1080/2048x1080 são dimensões, não anos declarados.
   const matches = String(baseName(filePath) || '').matchAll(/(?:^|[^0-9])((?:19|20)\d{2})(?![xX×]\d)(?=$|[^0-9])/g);
   return [...matches].map((match) => Number(match[1]));
-}
-
-// Contradição de ano entre a dica de obra e TODOS os vídeos principais. Caso
-// real The Locals (tt0387357, 2003): release listada como 2003 com um único
-// vídeo no Premiumize de OUTRO filme ("Zlodej.iz.glubinki.2007.P.DVDRip_
-// INTERFILM.avi") — tocar outro filme em silêncio era o sintoma. Nunca condena na
-// dúvida: sem dica de ano (séries não levam ano) não decide nada; vídeo sem
-// ano declarado deixa o caso ambíguo (preserva encodes sem ano); basta UM
-// vídeo com ano compatível (±2) para não ser "só incompatíveis" — o pack pode
-// conter a obra ao lado de outros filmes. Não é blacklist: decide por play,
-// contra os arquivos reais, sem persistir nada.
-function workYearContradicts(pool: DebridFile[], year: number | null | undefined, names: string[] = []) {
-  const cleanYear = Number(String(year || '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  if (!cleanYear || pool.length === 0) return false;
-  const declared = pool.map((file) => declaredYears(file.path || ''));
-  // Zero anos é ausência de prova; dois ou mais no mesmo basename é ambíguo
-  // (faixa de coleção, comparação ou edição) e também não autoriza condenar.
-  if (declared.some((years) => years.length !== 1)) return false;
-  // Em "1917" e "Blade Runner 2049" o token parecido com ano pertence ao
-  // nome da obra; não pode contradizer o ano real de lançamento do catálogo.
-  const nameTokens = new Set(names.flatMap((name) => normalizeTitle(name).split(' ')));
-  if (declared.some(([declaredYear]) => nameTokens.has(String(declaredYear)))) return false;
-  return declared.every(([declaredYear]) => Math.abs(declaredYear - cleanYear) > WORK_YEAR_TOLERANCE);
-}
-
-function declaredFromFileName(path: string) {
-  const clean = baseName(path)
-    .replace(/(?<![\dst])[125678]\.[012](?!\d)/gi, ' ')
-    .replace(/\b\d{3,4}x\d{3,4}\b/g, ' ')
-    .replace(/[a-z]s\d{1,2}(?![\de])/gi, ' ');
-  return parseTitleSeasonEpisode(clean);
-}
-
-const UPLOADER_OR_PROMO = /(?:^|[^a-z])(?:uploader|promo|trailer)(?:[^a-z]|$)/i;
-const VIGNETTE_MAX_SIZE = 15 * 1024 * 1024;
-
-// "5.1" de áudio não é episódio nu; a limpeza vale para caminho E basename.
-const cleanAudioTokens = (path: string) => String(path || '').replace(/(?<![\dst])[125678]\.[012](?!\d)/gi, ' ');
-
-// Episódios que o PRÓPRIO ARQUIVO declara no basename: marcador explícito
-// ("Capitulo 030", "EP 30", "E30"), parser de título ("S01E30", "T01E030",
-// faixas) ou número NU na frente do nome ("030 - Capitulo.mp4", "01 Adim
-// Farah.avi") — 1-3 dígitos para não ler ano. Nome sem declaração nenhuma
-// devolve [] — é o caso "video.mkv" que só a pasta identifica. O número
-// inicial só vale quando inequívoco (ver bareLeadingOrdinal abaixo).
-const EPISODE_DECLARED = /(?:epis[oó]dio|cap[ií]tulo|ep|cap)[\s._-]*(\d{1,4})\b|(?:^|[^a-z0-9])e[\s._-]*(\d{1,3})\b/gi;
-
-// Número de abertura é ordinal de episódio SÓ quando é inequívoco: nome que é
-// só o número + extensão ("01.mkv") ou zero-padding ("01"/"001"/"030"). Um
-// número solto à frente é NOME DE OBRA — "24", "3 Body Problem", "9-1-1",
-// "11.22.63" — nunca E24/E3/E9/E11. Ambíguo devolve null (decide a pasta).
-function bareLeadingOrdinal(name: string): number | null {
-  const only = name.match(/^(\d{1,3})\.[a-z0-9]{2,4}$/i);
-  if (only) return Number(only[1]) || null;
-  const m = name.match(/^(\d{1,3})(?=$|[\s._-])/);
-  if (!m) return null;
-  const token = m[1];
-  if (token.length >= 2 && token[0] === '0') {
-    const n = Number(token);
-    return n >= 1 ? n : null;
-  }
-  return null;
-}
-
-function declaredEpisodesIn(name: string): number[] {
-  const clean = cleanAudioTokens(name);
-  const out = new Set<number>();
-  for (const match of clean.matchAll(EPISODE_DECLARED)) {
-    const n = Number(match[1] ?? match[2]);
-    if (Number.isFinite(n)) out.add(n);
-  }
-  for (const episode of parseTitleSeasonEpisode(clean).episodes) out.add(episode);
-  // Só com NENHUM marcador explícito o número nu decide: o "3" de
-  // "3.Body.Problem.S01E02" não pode mascarar o E2 explícito do parser.
-  if (out.size === 0) {
-    const bare = bareLeadingOrdinal(clean);
-    if (bare != null) out.add(bare);
-  }
-  return [...out];
-}
-
-function unanimousWrongSeason(videos: DebridFile[], wantedSeason: number): { season: number; sample: string } | null {
-  const semExtra = videos.filter((file) => !EXTRA.test(file.path || ''));
-  const pool = semExtra.length > 0 ? semExtra : videos;
-  const isVignette = (file: DebridFile) => {
-    const sz = Number(file.size || 0);
-    const p = file.path || '';
-    return (sz > 0 && sz < VIGNETTE_MAX_SIZE) || UPLOADER_OR_PROMO.test(p) || isSiteAd(p);
-  };
-  const semVignette = pool.filter((file) => !isVignette(file));
-  const candidatePool = semVignette.length > 0 ? semVignette : pool;
-  const seasons = new Set<number>();
-  let firstSample = '';
-  for (const file of candidatePool) {
-    const bName = baseName(file.path || '');
-    const declared = declaredFromFileName(bName);
-    if (declared.seasons.length === 0) return null;
-    for (const s of declared.seasons) seasons.add(s);
-    if (!firstSample) firstSample = bName;
-  }
-  if (seasons.size !== 1) return null;
-  const [s0] = seasons;
-  if (s0 === wantedSeason) return null;
-  return { season: s0, sample: firstSample };
 }
 
 function workCoverage(fileName: string, name: string) {
@@ -217,126 +107,91 @@ function pickWorkFile(files: DebridFile[], { names, year }: { names?: string[]; 
   }
   return null;
 }
-// Gancho do núcleo Rust (`rust-debrid-pick.ts`), instalado só no boot do
-// processo. Sem ele, `pickFile` é o TS puro: teste e oráculo medem esta função.
-type PickFileFn = (files: DebridFile[], hint?: PlayHint) => DebridFile | null;
-type PickFileHook = (files: DebridFile[], hint: PlayHint | undefined, ts: PickFileFn) => DebridFile | null;
-let pickFileHook: PickFileHook | null = null;
-function installPickFile(hook: PickFileHook | null) { pickFileHook = hook; }
-function pickFile(files: DebridFile[], hint?: PlayHint): DebridFile | null {
-  return pickFileHook ? pickFileHook(files, hint, pickFilePure) : pickFilePure(files, hint);
-}
-function pickFilePure(files: DebridFile[], hint: PlayHint = {}) {
-  const { season, episode, work } = hint;
-  let videos = files.filter((file) => VIDEO_EXT.test(file.path || '') && !SAMPLE.test(file.path || ''));
-  if (videos.length === 0) {
-    if (files.length > 0) throw new NoVideoError();
-    return null;
+// ── Escolha do arquivo: decidida no Rust (`pickFile` do adom-napi) ─────────
+// O TS da regra saiu do branch (oráculo no `esm`). Aqui só se traduz a lista e
+// a dica, e a resposta volta para o objeto ORIGINAL da lista (o play precisa
+// de `id`/`link`) ou para o erro de domínio que os plays já tratam.
+
+type PickHintNapi = {
+  season?: number;
+  episode?: number;
+  work?: { names?: string[]; year?: number; pack?: boolean };
+};
+
+type PickEvidenceNapi = {
+  wantedSeason: number;
+  wantedEpisode: number;
+  declaredSeasons?: number[];
+  declaredEpisodes?: number[];
+  sample?: string | null;
+};
+
+type PickResultNapi = {
+  kind?: string;
+  path?: string | null;
+  size?: number | null;
+  code?: string | null;
+  evidence?: PickEvidenceNapi | null;
+  context?: { videoCount: number; samples?: string[] } | null;
+};
+
+export type PickCore = {
+  pickFile(files: Array<{ path: string; size: number }>, hint?: PickHintNapi): PickResultNapi;
+};
+
+// O napi-rs só aceita campo omitido em `Option`: nulos ficam de fora.
+function toHint(hint: PlayHint | undefined): PickHintNapi {
+  const out: PickHintNapi = {};
+  if (hint?.season != null) out.season = hint.season;
+  if (hint?.episode != null) out.episode = hint.episode;
+  if (hint?.work) {
+    out.work = {};
+    if (hint.work.names) out.work.names = hint.work.names;
+    if (hint.work.year != null) out.work.year = Number(hint.work.year);
+    if (hint.work.pack != null) out.work.pack = hint.work.pack;
   }
-  const semPropaganda = videos.filter((file) => !isSiteAd(file.path || ''));
-  if (semPropaganda.length > 0 && semPropaganda.length < videos.length) videos = semPropaganda;
-  if (season != null && episode != null) {
-    const s = String(season).padStart(2, '0');
-    const e = String(episode).padStart(2, '0');
-    const seasonForms = `(?:${s}|${season})`;
-    const episodeForms = `(?:0{0,2}${episode})`;
-    const pathHasSeason = (path: string) => new RegExp(`(?:\\bs${seasonForms}(?!\\d)|\\bt${seasonForms}(?!\\d)|\\bseason[\\s._-]*${seasonForms}(?!\\d)|\\b${seasonForms}x|\\b(?:temp|temporada)[\\s._-]*${seasonForms}(?!\\d)|\\b${seasonForms}ª?[\\s._-]*(?:temp|temporada)\\b)`, 'i').test(path);
-    const pathHasAnySeason = /(?:\b[st]\d{1,2}(?!\d)|\bseason[\s._-]*\d|\b\d{1,2}x\d{1,2}\b|\b(?:temp|temporada)[\s._-]*\d|\b\d{1,2}ª?[\s._-]*(?:temp|temporada)\b)/i;
-    const strongPatterns = [new RegExp(`\\bs${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'), new RegExp(`\\bt${seasonForms}[\\s._-]*e${episodeForms}\\b`, 'i'), new RegExp(`\\b${seasonForms}x${episodeForms}\\b`, 'i'), new RegExp(`\\b${s}${e}\\b`)];
-    const weakPatterns = [new RegExp(`\\b(?:epis[oó]dio|cap[ií]tulo|ep|cap)[\\s._-]*0{0,2}${episode}\\b`, 'i'), new RegExp(`\\be[\\s._-]*0{0,2}${episode}\\b`, 'i')];
-    const bareEpisode = new RegExp(`(?:^|[\\s._-])0{0,2}${episode}(?:[\\s._-]|$|\\.[a-z0-9]+$)`, 'i');
-    const epPath = cleanAudioTokens;
-    const matchesEpisodeIn = (path: string) => {
-      const clean = epPath(path);
-      return strongPatterns.some((pattern) => pattern.test(path))
-        || (pathHasSeason(path) && (weakPatterns.some((pattern) => pattern.test(clean)) || bareEpisode.test(clean)));
-    };
-    // A pasta do torrent costuma carregar o SxxEyy ("House.of.the.Dragon.S01E01.
-    // 1080p.FULL.WEB-DL.DUAL.5.1/"), e aí TODO arquivo dentro dela casa o
-    // episódio pelo caminho — inclusive a propaganda. Medir primeiro pelo NOME
-    // do arquivo desempata com a informação que realmente distingue; só quando
-    // nenhum nome traz o marcador (pasta "S01E01" com "video.mkv" dentro) o
-    // caminho inteiro volta a valer.
-    // Contradição do basename (medido no pack real de Jesus, 2026-10-07): a
-    // PASTA de faixa "Cap 001 ao 042" casa o marcador fraco do E1 em TODAS as
-    // linhas e o maior do pack (Cap 030) vencia o Cap 001. Quem o próprio nome
-    // declara OUTRO episódio não é elegível por marcador de pasta; nome
-    // genérico sem declaração nenhuma ("video.mkv" sob "S01E01/") continua
-    // resolvido pela pasta. Vale também pelo NOME: o "3" de
-    // "3.Body.Problem.S01E02" não pode mascarar o E2 explícito.
-    const contradictsEpisode = (file: DebridFile) => {
-      const declared = declaredEpisodesIn(baseName(file.path || ''));
-      return declared.length > 0 && !declared.includes(episode);
-    };
-    const byName = videos.filter((file) => matchesEpisodeIn(baseName(file.path || '')) && !contradictsEpisode(file));
-    const strong = byName.length > 0
-      ? byName
-      : videos.filter((file) => matchesEpisodeIn(file.path || '') && !contradictsEpisode(file));
-    // Empate real (vários arquivos do MESMO episódio: a propaganda de 23 MB, um
-    // .mp4 de 65 MB e o episódio de 4,6 GB no pack medido) era decidido pela
-    // ORDEM do torrent, que não diz nada sobre o conteúdo — e a propaganda vinha
-    // primeiro. O maior é o episódio; extra e propaganda são sempre menores.
-    if (strong.length === 1) return strong[0];
-    if (strong.length > 1) {
-      const semExtra = strong.filter((file) => !EXTRA.test(file.path || ''));
-      const pool = semExtra.length > 0 ? semExtra : strong;
-      return pool.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
-    }
-    const ambiguousSeason = videos.some((file) => { const path = file.path || ''; return pathHasAnySeason.test(path) && !pathHasSeason(path); });
-    if (!ambiguousSeason) {
-      const weak = videos.find((file) => !contradictsEpisode(file) && weakPatterns.some((pattern) => pattern.test(epPath(file.path || ''))));
-      if (weak) return weak;
-    }
-    if (videos.length > 1) {
-      const wrong = unanimousWrongSeason(videos, season);
-      const context = { videoCount: videos.length, samples: videos.slice(0, 3).map((video) => baseName(video.path || '').slice(0, 70)) };
-      if (wrong) {
-        throw new EpisodePickError({
-          wantedSeason: season,
-          wantedEpisode: episode,
-          declaredSeasons: [wrong.season],
-          declaredEpisodes: [],
-          sample: wrong.sample.slice(0, 60),
-        }, context);
-      }
-      // Disco de extras (entrevistas, "Episode 3, Scene #29" comentadas): nenhum
-      // arquivo declara temporada e a maioria tem cara de bônus. É prova de que
-      // a temporada pedida não está aqui — sem ela o play falhava para sempre e
-      // a lista seguia oferecendo o hash (medido: True Detective S4, NerdFilmes).
-      const noSeason = videos.every((file) => !pathHasAnySeason.test(file.path || ''));
-      const extrasLike = videos.filter((file) => EXTRA.test(file.path || '') || EXTRAS_DISC.test(baseName(file.path || ''))).length;
-      if (noSeason && extrasLike * 2 >= videos.length) {
-        throw new EpisodePickError({
-          wantedSeason: season,
-          wantedEpisode: episode,
-          declaredSeasons: [],
-          declaredEpisodes: [],
-          sample: baseName(videos[0].path || '').slice(0, 60),
-        }, context);
-      }
-      throw new EpisodePickError(undefined, context);
-    }
-    const declared = declaredFromFileName(videos[0].path || '');
-    if (!declared.complete || declared.seasons.length > 0) {
-      const wrongEpisode = declared.episodes.length > 0 && !declared.episodes.includes(episode);
-      const wrongSeason = declared.seasons.length > 0 && !declared.seasons.includes(season);
-      if (wrongEpisode || wrongSeason) throw new EpisodePickError({ wantedSeason: season, wantedEpisode: episode, declaredSeasons: [...declared.seasons], declaredEpisodes: [...declared.episodes], sample: baseName(videos[0].path || '').slice(0, 60) });
-    }
-  }
-  if (work?.names?.length) {
-    const mains = videos.filter((file) => !EXTRA.test(file.path || ''));
-    const pool = mains.length > 0 ? mains : videos;
-    // Guarda contra release que promete uma obra e entrega outra: quando TODOS
-    // os vídeos principais declaram só anos incompatíveis com a dica, o play
-    // falha explícito (WorkPickError → 404) em vez de tocar o filme errado.
-    if (workYearContradicts(pool, work.year, work.names)) throw new WorkPickError();
-    if (pool.length === 1) return pool[0];
-    if (!work.pack && !looksMultiWorkFiles(pool)) return pool.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
-    const picked = pickWorkFile(pool, work);
-    if (picked) return picked;
-    throw new WorkPickError();
-  }
-  return videos.reduce((a, b) => (Number(b.size || 0) > Number(a.size || 0) ? b : a));
+  return out;
 }
 
-export { WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError, NoVideoError, isNoVideoError, DubLieError, isDubLieError, VIDEO_EXT, SAMPLE, EXTRA, isSiteAd, baseName, workCoverage, looksMultiWorkFiles, pickWorkFile, pickFile, installPickFile };
+function episodeErrorOf(raw: PickResultNapi): EpisodePickError {
+  const ev = raw.evidence;
+  const ctx = raw.context;
+  return new EpisodePickError(
+    ev == null ? undefined : {
+      wantedSeason: ev.wantedSeason,
+      wantedEpisode: ev.wantedEpisode,
+      declaredSeasons: ev.declaredSeasons ?? [],
+      declaredEpisodes: ev.declaredEpisodes ?? [],
+      ...(ev.sample != null ? { sample: ev.sample } : {}),
+    },
+    ctx == null ? undefined : { videoCount: ctx.videoCount, samples: ctx.samples ?? [] },
+  );
+}
+
+/**
+ * Arquivo que o play toca. `null` = lista vazia; lança `NoVideoError`,
+ * `WorkPickError` ou `EpisodePickError` como antes.
+ */
+function pickFile(files: DebridFile[], hint?: PlayHint): DebridFile | null {
+  const core = requireCore() as unknown as PickCore;
+  metrics.count('rust.debrid.pick.calls');
+  const list = files.map((file) => ({ path: String(file?.path || ''), size: Number(file?.size || 0) }));
+  const raw = core.pickFile(list, toHint(hint));
+  if (raw?.kind === 'null') return null;
+  if (raw?.kind === 'file') {
+    // Path+tamanho identificam o vencedor; empate fica com o primeiro da lista.
+    const path = String(raw.path || '');
+    const size = Number(raw.size || 0);
+    const found = files.find((file) => String(file?.path || '') === path && Number(file?.size || 0) === size);
+    if (!found) throw new Error('pickFile do Rust não casa com a lista');
+    return found;
+  }
+  if (raw?.kind === 'error') {
+    if (raw.code === 'NO_VIDEO') throw new NoVideoError();
+    if (raw.code === 'WORK_PICK') throw new WorkPickError();
+    if (raw.code === 'EPISODE_PICK') throw episodeErrorOf(raw);
+  }
+  throw new Error(`pickFile do Rust devolveu resposta inválida (${String(raw?.kind)}:${String(raw?.code)})`);
+}
+
+export { WorkPickError, isWorkPickError, EpisodePickError, isEpisodePickError, NoVideoError, isNoVideoError, DubLieError, isDubLieError, VIDEO_EXT, SAMPLE, EXTRA, isSiteAd, baseName, workCoverage, looksMultiWorkFiles, pickWorkFile, pickFile };

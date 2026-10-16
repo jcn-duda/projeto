@@ -41,8 +41,6 @@ export const server = () => ({
   // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
   // explícitos voltam ao TS; valor desconhecido = off.
   rustDebrid: {
-    // Seletor de arquivo (pickFile).
-    file: rustMode(process.env.RUST_DEBRID_FILE, 'on'),
     // Veredito known/unusable a partir da resposta já obtida. Não refaz a API.
     cache: rustMode(process.env.RUST_DEBRID_CACHE, 'on'),
     // Ledger e AIMD do Real-Debrid. O estado continua no Node.

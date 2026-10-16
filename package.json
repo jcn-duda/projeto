@@ -442,7 +442,6 @@
     "test/multiwork-pack-apply.test.js",
     "test/debrid-pick-episodes.test.js",
     "test/debrid-pick-season-evidence.test.js",
-    "test/debrid-pick-rust-shadow.test.js",
     "test/debrid-cache-rust-shadow.test.js",
     "test/debrid-rd-rust-shadow.test.js",
     "test/debrid-clean-rust-shadow.test.js",

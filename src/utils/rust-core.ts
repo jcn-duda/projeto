@@ -17,8 +17,7 @@ import config from '../config.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
 import { installNormalizeTitle } from './title-normalization.js';
-import { installDebridPickHook } from './rust-debrid-pick.js';
-import type { PickCore } from './rust-debrid-pick.js';
+import type { PickCore } from '../debrid/file-selector.js';
 import { installDebridCacheHook } from './rust-debrid-cache.js';
 import type { CacheCore } from './rust-debrid-cache.js';
 import { installDebridRdHook } from './rust-debrid-rd.js';
@@ -177,26 +176,24 @@ function installTitle(core: NapiCore, mode: 'shadow' | 'on') {
 
 function install() {
   const titleMode = config.rustCore.mode;
-  const fileMode = config.rustDebrid.file;
   const cacheMode = config.rustDebrid.cache;
   const rdMode = config.rustDebrid.rd;
   const cleanMode = config.rustDebrid.clean;
   const releaseIndexMode = config.rustReleaseIndex.mode;
   const autofetchMode = config.rustAutofetch.mode;
   // Tudo off: não carrega o .node, como antes.
-  if (titleMode === 'off' && fileMode === 'off' && cacheMode === 'off' && rdMode === 'off' && cleanMode === 'off' && releaseIndexMode === 'off' && autofetchMode === 'off') return;
+  if (titleMode === 'off' && cacheMode === 'off' && rdMode === 'off' && cleanMode === 'off' && releaseIndexMode === 'off' && autofetchMode === 'off') return;
   const file = config.rustCore.path || DEFAULT_PATH;
   const core = load(file);
   if (!core) return;
   loadedCore = core;
   if (titleMode !== 'off') installTitle(core, titleMode);
-  if (fileMode !== 'off') installDebridPickHook(() => loadedCore);
   if (cacheMode !== 'off') installDebridCacheHook(() => loadedCore);
   if (rdMode !== 'off') installDebridRdHook(() => loadedCore);
   if (cleanMode !== 'off') installDebridCleanHook(() => loadedCore);
   if (releaseIndexMode !== 'off') installReleaseIndexHook(() => loadedCore);
   if (autofetchMode !== 'off') installAutofetchHook(() => loadedCore);
-  log.info(`[rust] núcleo carregado (${file}); pickFile=${fileMode} cache=${cacheMode} rd=${rdMode} clean=${cleanMode} releaseIndex=${releaseIndexMode} autofetch=${autofetchMode}`);
+  log.info(`[rust] núcleo carregado (${file}); cache=${cacheMode} rd=${rdMode} clean=${cleanMode} releaseIndex=${releaseIndexMode} autofetch=${autofetchMode}`);
 }
 
 /**
