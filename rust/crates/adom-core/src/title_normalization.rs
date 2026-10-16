@@ -33,6 +33,11 @@ use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 /// troca todo não-(letra/número/marca) por um único espaço, com `trim` final.
 pub fn normalize_title(input: &str) -> String {
     let collapsed = collapse_dotted_acronyms(input);
+    // Atalho ASCII (o grosso das releases): fold, NFD e o descarte de compat só
+    // tocam chars não-ASCII, então são identidade aqui.
+    if collapsed.is_ascii() {
+        return replace_non_word_runs(&collapsed.to_ascii_lowercase());
+    }
     let lowered = collapsed.to_lowercase();
     let folded = fold_latin_letters(&lowered);
     let decomposed: String = folded.nfd().collect();
@@ -167,11 +172,17 @@ fn is_removed_compat(c: char) -> bool {
 /// letras circuladas U+24B6… — General_Category=So, não-letra). O `Node` casa
 /// `\p{L}`, então a régua é a categoria, não `Alphabetic`.
 fn is_letter(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphabetic();
+    }
     c.general_category_group() == GeneralCategoryGroup::Letter
 }
 
 /// `[\p{L}\p{N}]` sobre um único code point (fronteira da sigla).
 fn is_letter_or_number(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric();
+    }
     matches!(
         c.general_category_group(),
         GeneralCategoryGroup::Letter | GeneralCategoryGroup::Number
@@ -180,6 +191,10 @@ fn is_letter_or_number(c: char) -> bool {
 
 /// Complemento de `[^\p{L}\p{N}\p{M}]+` — o que o replace final preserva.
 fn is_word_char(c: char) -> bool {
+    // No ASCII só há L (A-Z, a-z) e N (0-9); nenhuma marca.
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric();
+    }
     matches!(
         c.general_category_group(),
         GeneralCategoryGroup::Letter | GeneralCategoryGroup::Number | GeneralCategoryGroup::Mark

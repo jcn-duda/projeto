@@ -13,6 +13,10 @@ use regex::Regex;
 
 /// `Canonicalize` do JS sem a flag `u`, aplicado caractere a caractere.
 pub(crate) fn js_canon(text: &str) -> String {
+    // ASCII sobe para ASCII de um char só: a guarda abaixo nunca se aplica.
+    if text.is_ascii() {
+        return text.to_ascii_uppercase();
+    }
     text.chars()
         .map(|c| {
             let mut up = c.to_uppercase();
@@ -77,16 +81,25 @@ fn filmes_word_re() -> &'static Regex {
 
 /// `hasPtSigns`: sinal de português no título, sem marca de áudio.
 pub fn has_pt_signs(title: &str) -> bool {
-    let t = js_canon(title);
-    accent_re().is_match(&t)
-        || pt_vocab_re().is_match(&t)
-        || pt_stop_re().find_iter(&t).count() >= 2
-        || br_mark_re().is_match(&t)
+    has_pt_signs_canon(&js_canon(title))
+}
+
+/// `has_pt_signs` sobre o `js_canon` do título, já calculado.
+pub(crate) fn has_pt_signs_canon(t: &str) -> bool {
+    accent_re().is_match(t)
+        || pt_vocab_re().is_match(t)
+        || pt_stop_re().find_iter(t).count() >= 2
+        || br_mark_re().is_match(t)
 }
 
 /// `brOriginMark`: origem BR pelo nome, para NÃO apagar. Marca de site, a
 /// palavra "filme(s)" ou qualquer sinal de `hasPtSigns`.
 pub fn br_origin_mark(title: &str) -> bool {
     let t = js_canon(title);
-    br_site_marks_re().is_match(&t) || filmes_word_re().is_match(&t) || has_pt_signs(title)
+    br_origin_mark_canon(&t, has_pt_signs_canon(&t))
+}
+
+/// `br_origin_mark` sobre o `js_canon` do título, com o `has_pt_signs` dele.
+pub(crate) fn br_origin_mark_canon(t: &str, has_pt_signs: bool) -> bool {
+    br_site_marks_re().is_match(t) || filmes_word_re().is_match(t) || has_pt_signs
 }

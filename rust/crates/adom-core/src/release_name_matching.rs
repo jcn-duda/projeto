@@ -133,11 +133,25 @@ pub fn matches_name(title: &str, name: &str, tokens: Option<&[String]>) -> bool 
     if wanted.is_empty() {
         return false;
     }
-    let got: HashSet<String> = match tokens {
-        Some(list) => list.iter().cloned().collect(),
-        None => title_tokens(title).into_iter().collect(),
+    let computed;
+    let list = match tokens {
+        Some(list) => list,
+        None => {
+            computed = title_tokens(title);
+            computed.as_slice()
+        }
     };
-    let hits = wanted.iter().filter(|w| got.contains(*w)).count();
+    matches_name_coverage(&wanted, list)
+}
+
+/// Corte de 0.6 do `matches_name` com `name_coverage_tokens(name)` (`wanted`)
+/// e os tokens do título (`list`) já calculados.
+pub(crate) fn matches_name_coverage(wanted: &[String], list: &[String]) -> bool {
+    if wanted.is_empty() {
+        return false;
+    }
+    let got: HashSet<&str> = list.iter().map(String::as_str).collect();
+    let hits = wanted.iter().filter(|w| got.contains(w.as_str())).count();
     hits as f64 / wanted.len() as f64 >= 0.6
 }
 

@@ -12,9 +12,9 @@
 
 use std::sync::OnceLock;
 
-use fancy_regex::Regex;
-
 use crate::br_origin::js_canon;
+use crate::episode_parse_gate::GatedRegex;
+use crate::episode_parse_scan::{letter_number, season_episodes};
 use crate::title_normalization::normalize_title;
 
 const MAX_SEASON_SPAN: i64 = 30;
@@ -29,12 +29,11 @@ const WRITTEN_ORDINALS: [&str; 10] = [
 const SP: &str = r"\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}";
 
 /// Compila (uma vez por padrão) com o `__SP__` trocado pela classe de espaços.
+/// Cada padrão leva o portão relaxado (`episode_parse_gate`).
 macro_rules! re {
     ($pat:expr) => {{
-        static CELL: OnceLock<Regex> = OnceLock::new();
-        CELL.get_or_init(|| {
-            Regex::new(&$pat.replace("__SP__", SP)).expect("padrão de episódio compila")
-        })
+        static CELL: OnceLock<GatedRegex> = OnceLock::new();
+        CELL.get_or_init(|| GatedRegex::new(&$pat.replace("__SP__", SP)))
     }};
 }
 
@@ -74,14 +73,22 @@ fn caps_of(c: &fancy_regex::Captures<'_, str>) -> Caps {
     }
 }
 
-fn all(re: &Regex, text: &str) -> Vec<Caps> {
-    re.captures_iter(text)
+fn all(re: &GatedRegex, text: &str) -> Vec<Caps> {
+    if !re.may_match(text) {
+        return Vec::new();
+    }
+    re.fancy
+        .captures_iter(text)
         .map(|c| caps_of(&c.expect("regex de episódio executa")))
         .collect()
 }
 
-fn first(re: &Regex, text: &str) -> Option<Caps> {
-    re.captures(text)
+fn first(re: &GatedRegex, text: &str) -> Option<Caps> {
+    if !re.may_match(text) {
+        return None;
+    }
+    re.fancy
+        .captures(text)
         .expect("regex de episódio executa")
         .map(|c| caps_of(&c))
 }
@@ -113,19 +120,21 @@ fn add_range(episodes: &mut Vec<i64>, lo: i64, hi: i64) {
 
 /// Extrai temporada/episódio do título da release.
 pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
-    let raw = title;
-    let t = normalize_title(title);
-    let raw_c = js_canon(raw);
+    parse_title_season_episode_prepared(&normalize_title(title), &js_canon(title))
+}
+
+/// `parse_title_season_episode` com o `normalize_title` (`t`) e o `js_canon`
+/// (`raw_c`) do título já calculados (`release_title_facts` os reusa).
+pub(crate) fn parse_title_season_episode_prepared(t: &str, raw_c: &str) -> ParsedSeasonEpisode {
     let mut seasons: Vec<i64> = Vec::new();
     let mut episodes: Vec<i64> = Vec::new();
 
     // (1) "s01e04", "s01 e04", "s01e01 e10" (intervalo), "s01e01e02" — no título normalizado.
-    for c in all(
-        re!(r"(?<![a-z0-9])s([0-9]{1,2})((?:[__SP__]?e[__SP__]?[0-9]{1,4})+)"),
-        &t,
-    ) {
-        push_unique(&mut seasons, num(c.g(1)));
-        let eps: Vec<i64> = all(re!(r"e[__SP__]?([0-9]{1,4})"), c.g(2))
+    // Regex de referência (`episode_parse_scan`):
+    // `(?<![a-z0-9])s([0-9]{1,2})((?:[__SP__]?e[__SP__]?[0-9]{1,4})+)`.
+    for (season, eps_text) in season_episodes(t) {
+        push_unique(&mut seasons, num(season));
+        let eps: Vec<i64> = all(re!(r"e[__SP__]?([0-9]{1,4})"), eps_text)
             .iter()
             .map(|x| num(x.g(1)))
             .collect();
@@ -145,7 +154,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
     // conta — medido no banco de magnets, onde a âncora zerava o pack.
     for c in all(
         re!(r"S([0-9]{1,2})[__SP__]?E([0-9]{1,4})[__SP__]*[-–][__SP__]*([0-9]{1,4})(?![0-9P])"),
-        &raw_c,
+        raw_c,
     ) {
         let lo = num(c.g(2));
         let hi = num(c.g(3));
@@ -161,7 +170,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
         re!(
             r"(?<![A-Z0-9])S([0-9]{1,2})[__SP__._-]*EP\.?[__SP__._-]*\(?([0-9]{1,3})(?:[__SP__]*[-–][__SP__]*([0-9]{1,3}))?\)?(?![0-9P])"
         ),
-        &raw_c,
+        raw_c,
     ) {
         let lo = num(c.g(2));
         let hi = c.opt(3).map_or(lo, num);
@@ -177,7 +186,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
     let tail_re = re!(
         r"^(?:[__SP__]*([-–—])[__SP__]*|[__SP__]*(?:E|AND)[__SP__]+|[__SP__]*,[__SP__]*|[__SP__]+)E[__SP__]?([0-9]{1,3})"
     );
-    for c in all(t_re, &raw_c) {
+    for c in all(t_re, raw_c) {
         push_unique(&mut seasons, num(c.g(1)));
         let mut eps = vec![num(c.g(2))];
         let mut cursor = c.end;
@@ -206,7 +215,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
         re!(
             r"(?<![A-Z0-9])(?:CAP[IÍ]TULOS?|EPIS[OÓ]DIOS?|EPS?)\.?[__SP__]*([0-9]{1,3})[__SP__]*(?:[-–]|(?<![A-Z0-9_])(?:AO|A|AT[EÉ])(?![A-Z]))[__SP__]*([0-9]{1,3})(?![0-9P])"
         ),
-        &raw_c,
+        raw_c,
     ) {
         let lo = num(c.g(1));
         let hi = num(c.g(2));
@@ -217,7 +226,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
     }
 
     // (6) "1x04" no normalizado; lookbehind barra "1280x720".
-    for c in all(re!(r"(?<![a-z0-9])([0-9]{1,2})x([0-9]{1,3})"), &t) {
+    for c in all(re!(r"(?<![a-z0-9])([0-9]{1,2})x([0-9]{1,3})"), t) {
         push_unique(&mut seasons, num(c.g(1)));
         push_unique(&mut episodes, num(c.g(2)));
     }
@@ -227,7 +236,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
         re!(
             r"(?<![a-z0-9])(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava|nona|decima)(?:[__SP__]+(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava|nona))?[__SP__]+temporada(?![a-z])"
         ),
-        &t,
+        t,
     ) {
         let idx = |w: &str| {
             WRITTEN_ORDINALS
@@ -253,7 +262,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
         re!(
             r"(?<![0-9])([0-9]{1,2})(?:[__SP__]*a)?[__SP__]*(?:ate|a)[__SP__]*([0-9]{1,2})(?![0-9])(?:[__SP__]*a)?[__SP__]*temporadas?"
         ),
-        &t,
+        t,
     ) {
         let a = num(c.g(1));
         let b = num(c.g(2));
@@ -268,7 +277,7 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
         re!(
             r"((?:(?<![a-z0-9])[0-9]{1,2}[__SP__]+){2,}(?:e[__SP__]+)?(?<![a-z0-9])[0-9]{1,2}[__SP__]+)temporadas"
         ),
-        &t,
+        t,
     ) {
         for num_text in all(re!(r"[0-9]{1,2}"), c.g(1)) {
             let season = num(num_text.g(0));
@@ -281,14 +290,14 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
     // (10) Faixa de cena no cru: "S01-S04", "S01 - S04".
     for c in all(
         re!(r"(?<![A-Z0-9])S([0-9]{1,2})[__SP__]*[-–—][__SP__]*S([0-9]{1,2})(?![0-9E])"),
-        &raw_c,
+        raw_c,
     ) {
         add_season_span(&mut seasons, num(c.g(1)), num(c.g(2)));
     }
     // "S01-03" (teto 10 só nesta forma: "Anime S02-13" seria episódio).
     for c in all(
         re!(r"(?<![A-Z0-9])S([0-9]{2})-([0-9]{2})(?![A-Z0-9])"),
-        &raw_c,
+        raw_c,
     ) {
         let lo = num(c.g(1));
         let hi = num(c.g(2));
@@ -299,45 +308,46 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
     // "S1-3E1".
     for c in all(
         re!(r"(?<![A-Z0-9])S([0-9]{1,2})-([0-9]{1,2})E[0-9]"),
-        &raw_c,
+        raw_c,
     ) {
         add_season_span(&mut seasons, num(c.g(1)), num(c.g(2)));
     }
 
     // Pack: "s01", "season 1", "temporada 1", "1 temporada".
-    for c in all(re!(r"(?<![a-z0-9])s([0-9]{1,2})(?![a-z0-9])"), &t) {
-        push_unique(&mut seasons, num(c.g(1)));
+    // `(?<![a-z0-9])s([0-9]{1,2})(?![a-z0-9])`, por scanner.
+    for season in letter_number(t, b's', 2) {
+        push_unique(&mut seasons, num(season));
     }
     for c in all(
         re!(r"(?:season|temporada)[__SP__]?([0-9]{1,2})(?![0-9])"),
-        &t,
+        t,
     ) {
         push_unique(&mut seasons, num(c.g(1)));
     }
     for c in all(
         re!(r"(?<![0-9])([0-9]{1,2})(?![0-9])[__SP__]?a?[__SP__]?temporada"),
-        &t,
+        t,
     ) {
         push_unique(&mut seasons, num(c.g(1)));
     }
 
     // Série inteira e pack de temporada nomeada.
     let complete = re!(r"(?:todas?[__SP__]+(?:as[__SP__]+)?temporadas|serie[__SP__]+completa|temporadas[__SP__]+completas)")
-        .is_match(&t)
+        .fancy
+        .is_match(t)
         .expect("regex de episódio executa");
     let season_pack = re!(r"temporada[__SP__]+completa")
-        .is_match(&t)
+        .fancy
+        .is_match(t)
         .expect("regex de episódio executa");
 
     // Episódio solto só conta quando a temporada já apareceu.
     if !seasons.is_empty() && episodes.is_empty() {
-        for c in all(re!(r"epis[oó]dio[__SP__]?([0-9]{1,3})"), &t) {
+        for c in all(re!(r"epis[oó]dio[__SP__]?([0-9]{1,3})"), t) {
             push_unique(&mut episodes, num(c.g(1)));
         }
-        let loose: Vec<i64> = all(re!(r"(?<![a-z0-9])e([0-9]{1,3})(?![a-z0-9])"), &t)
-            .iter()
-            .map(|c| num(c.g(1)))
-            .collect();
+        // `(?<![a-z0-9])e([0-9]{1,3})(?![a-z0-9])`, por scanner.
+        let loose: Vec<i64> = letter_number(t, b'e', 3).into_iter().map(num).collect();
         if loose.len() >= 2 {
             let lo = *loose.iter().min().expect("dois ou mais");
             let hi = *loose.iter().max().expect("dois ou mais");
@@ -361,3 +371,4 @@ pub fn parse_title_season_episode(title: &str) -> ParsedSeasonEpisode {
 pub fn season_coverage_excludes(parsed: &ParsedSeasonEpisode, season: Option<i64>) -> bool {
     season.is_some_and(|s| !parsed.seasons.is_empty() && !parsed.seasons.contains(&s))
 }
+

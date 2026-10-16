@@ -25,7 +25,12 @@ const EDITION_AFTER_V: [&str; 4] = ["exten", "extended", "estendida", "extendida
 /// Como no TS, a regra do `v` consulta o token ORIGINAL seguinte (antes de
 /// qualquer filtragem), por isso o `v` é avaliado contra a lista completa.
 pub fn title_tokens(text: &str) -> Vec<String> {
-    let tokens: Vec<String> = normalize_title(text)
+    normalized_title_tokens(&normalize_title(text))
+}
+
+/// `title_tokens` sobre um texto já passado por `normalize_title`.
+pub fn normalized_title_tokens(normalized: &str) -> Vec<String> {
+    let tokens: Vec<String> = normalized
         .split(' ')
         .filter(|t| !t.is_empty())
         .map(str::to_owned)
@@ -160,6 +165,8 @@ fn year_range_pattern() -> String {
 }
 
 /// `EPISODE_TOKEN` (sem flag `i`: "S01E01" em maiúscula NÃO casa, como no JS).
+/// Referência do scanner `episode_token_test`.
+#[cfg(test)]
 const EPISODE_TOKEN_PATTERN: &str = r"^(?:s[0-9]{1,2}(?:e[0-9]{1,3})?|t[0-9]{1,2}(?:e[0-9]{1,3})?|e[0-9]{1,3}|[0-9]{1,2}x[0-9]{1,3}|[0-9]{1,2}a)$";
 
 fn year_range_re() -> &'static Regex {
@@ -167,9 +174,15 @@ fn year_range_re() -> &'static Regex {
     RE.get_or_init(|| Regex::new(&year_range_pattern()).expect("YEAR_RANGE compila"))
 }
 
+#[cfg(test)]
 fn episode_token_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(EPISODE_TOKEN_PATTERN).expect("EPISODE_TOKEN compila"))
+}
+
+/// Quantos dígitos ASCII seguidos há a partir de `from`.
+fn digit_run(b: &[u8], from: usize) -> usize {
+    b.get(from..).map_or(0, |rest| rest.iter().take_while(|c| c.is_ascii_digit()).count())
 }
 
 /// Equivalente a `YEAR_RANGE.test(input)` no JS.
@@ -178,8 +191,50 @@ pub fn year_range_test(input: &str) -> bool {
 }
 
 /// Equivalente a `EPISODE_TOKEN.test(input)` no JS.
+///
+/// Roda por token em todo título: varredura de bytes no lugar do regex
+/// (`EPISODE_TOKEN_PATTERN`, comparado no teste `episode_token_igual_ao_regex`).
+/// Nenhum ramo ganha com retrocesso: corte menor de dígitos deixa um dígito
+/// onde o padrão pede `e`, `x`, `a` ou o fim.
 pub fn episode_token_test(input: &str) -> bool {
-    episode_token_re().is_match(input)
+    let b = input.as_bytes();
+    let Some(&head) = b.first() else {
+        return false;
+    };
+    match head {
+        // `s\d{1,2}(?:e\d{1,3})?` e `t\d{1,2}(?:e\d{1,3})?`.
+        b's' | b't' => {
+            let n = digit_run(b, 1);
+            let at = 1 + n;
+            (1..=2).contains(&n)
+                && (at == b.len()
+                    || (b[at] == b'e' && {
+                        let m = digit_run(b, at + 1);
+                        (1..=3).contains(&m) && at + 1 + m == b.len()
+                    }))
+        }
+        // `e\d{1,3}`.
+        b'e' => {
+            let n = digit_run(b, 1);
+            (1..=3).contains(&n) && 1 + n == b.len()
+        }
+        // `\d{1,2}x\d{1,3}` e `\d{1,2}a`.
+        b'0'..=b'9' => {
+            let n = digit_run(b, 0);
+            if !(1..=2).contains(&n) || n == b.len() {
+                return false;
+            }
+            match b[n] {
+                b'x' => {
+                    let m = digit_run(b, n + 1);
+                    (1..=3).contains(&m) && n + 1 + m == b.len()
+                }
+                b'a' => n + 1 == b.len(),
+                _ => false,
+            }
+        }
+        _ => false,
+    }
 }
 
 /// Monta um conjunto de palavras a partir das listas de vocabulário, uma vez.
@@ -250,4 +305,30 @@ pub(crate) fn structure_token_test(token: &str) -> bool {
 /// o crate `regex` aqui.
 pub(crate) fn latin_letter_test(token: &str) -> bool {
     token.chars().any(|c| is_latin_or_mark(u32::from(c)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn episode_token_igual_ao_regex() {
+        for case in [
+            "s01", "s1", "s123", "s01e01", "s01e1234", "s01e", "t1e5", "e5", "e1234", "e", "1x04",
+            "123x4", "12x", "1a", "12a", "123a", "S01E01", "s01x", "", "1", "x1", "s١", "1٢a",
+        ] {
+            assert_eq!(episode_token_test(case), episode_token_re().is_match(case), "{case:?}");
+        }
+        let alphabet = ['s', 't', 'e', 'x', 'a', '0', '1', '9', 'b', 'é', '\n'];
+        let mut seed: u64 = 0xe915;
+        let mut next = || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (seed >> 33) as usize
+        };
+        for _ in 0..50_000 {
+            let len = next() % 9;
+            let text: String = (0..len).map(|_| alphabet[next() % alphabet.len()]).collect();
+            assert_eq!(episode_token_test(&text), episode_token_re().is_match(&text), "{text:?}");
+        }
+    }
 }

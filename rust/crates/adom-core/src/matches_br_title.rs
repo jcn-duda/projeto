@@ -18,9 +18,10 @@
 
 use crate::matching_decisions::title_precision;
 use crate::matching_tokens::episode_work_tokens;
+use crate::franchise::name_coverage_tokens;
 use crate::matching_vocabulary::title_tokens;
-use crate::release_name_matching::matches_name;
-use crate::release_title_rules::matches_title_structure;
+use crate::release_name_matching::matches_name_coverage;
+use crate::release_title_rules::matches_title_structure_with;
 
 /// Piso de precisão para filme com `cut_tail=true` (default).
 /// No TS: `config.search.titlePrecisionTailCut !== false ? 0.70 : 0.65`.
@@ -63,15 +64,55 @@ pub fn matches_br_title(
     universe_tokens: Option<&[String]>,
     cut_tail: bool,
 ) -> bool {
+    let computed;
+    let own: &[String] = match tokens {
+        Some(t) => t,
+        None => {
+            computed = title_tokens(title);
+            &computed
+        }
+    };
+    let prepared = BrTitleName::new(name);
+    matches_br_title_prepared(title, &prepared, year, is_series, all_names, own, universe_tokens, cut_tail)
+}
+
+/// O que o `matches_br_title` deriva só do nome procurado. O lote napi julga
+/// centenas de releases contra os mesmos um ou dois nomes: calcula uma vez.
+pub struct BrTitleName<'a> {
+    name: &'a str,
+    /// `name_coverage_tokens(name)`.
+    coverage: Vec<String>,
+    /// `title_tokens(name)`.
+    tokens: Vec<String>,
+}
+
+impl<'a> BrTitleName<'a> {
+    pub fn new(name: &'a str) -> Self {
+        BrTitleName {
+            name,
+            coverage: name_coverage_tokens(name),
+            tokens: title_tokens(name),
+        }
+    }
+}
+
+/// `matches_br_title` com o nome preparado e os tokens do título (`own` =
+/// `title_tokens(title)`) já calculados; `universe_tokens` como no original.
+#[allow(clippy::too_many_arguments)]
+pub fn matches_br_title_prepared(
+    title: &str,
+    name: &BrTitleName<'_>,
+    year: &str,
+    is_series: bool,
+    all_names: Option<&[String]>,
+    own: &[String],
+    universe_tokens: Option<&[String]>,
+    cut_tail: bool,
+) -> bool {
     // Portão 1: cobertura do nome (60% dos tokens do nome no título).
-    if !matches_name(title, name, tokens) {
+    if !matches_name_coverage(&name.coverage, own) {
         return false;
     }
-
-    let own: Vec<String> = match tokens {
-        Some(t) => t.to_vec(),
-        None => title_tokens(title),
-    };
 
     // Portão 2: precisão de título. Só roda com `allNames` não vazio — a
     // release legítima carrega os DOIS nomes ("Coleção Guerra nas Estrelas
@@ -83,15 +124,20 @@ pub fn matches_br_title(
     // pode contar como conteúdo estranho.
     if let Some(names) = all_names {
         if !names.is_empty() {
-            let universe: Vec<String> = match universe_tokens {
-                Some(u) => u.to_vec(),
-                None => names
-                    .iter()
-                    .flat_map(|n| title_tokens(n))
-                    .filter(|t| !t.is_empty())
-                    .collect(),
+            let computed_universe: Vec<String>;
+            let universe: &[String] = match universe_tokens {
+                Some(u) => u,
+                None => {
+                    computed_universe = names
+                        .iter()
+                        .flat_map(|n| title_tokens(n))
+                        .filter(|t| !t.is_empty())
+                        .collect();
+                    &computed_universe
+                }
             };
-            let measured = episode_work_tokens(&own).unwrap_or(own.clone());
+            let work = episode_work_tokens(own);
+            let measured = work.as_deref().unwrap_or(own);
             let precision_min = if is_series {
                 SERIES_TITLE_PRECISION_MIN
             } else if cut_tail {
@@ -99,12 +145,12 @@ pub fn matches_br_title(
             } else {
                 TITLE_PRECISION_MIN_NO_CUT
             };
-            if title_precision(&measured, &universe, cut_tail) < precision_min {
+            if title_precision(measured, universe, cut_tail) < precision_min {
                 return false;
             }
         }
     }
 
     // Portão 3: estrutura (prefixo, sequência, ano).
-    matches_title_structure(title, name, year, is_series, Some(&own))
+    matches_title_structure_with(title, name.name, year, is_series, own, &name.tokens)
 }

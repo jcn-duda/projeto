@@ -12,9 +12,11 @@
 //! (magnet, link, name, year) ou como lista vazia (`allNames`). Cada campo
 //! vazio vira o equivalente falso ou `None` do lado Rust, sem inventar valor.
 
+use std::collections::HashMap;
+
 use adom_core::{
-    br_origin_mark, extract_info_hash, has_pt_signs, is_safe_download_url, magnet_display_name,
-    matches_br_title, normalize_title, parse_title_season_episode,
+    extract_info_hash, is_safe_download_url, magnet_display_name, matches_br_title_prepared,
+    release_title_facts, BrTitleName, ReleaseTitleFacts,
 };
 use napi_derive::napi;
 
@@ -66,10 +68,36 @@ pub struct ReleaseVerdict {
     pub safe_link: bool,
 }
 
+/// `universe_tokens` que o `matches_br_title` derivaria de `all_names`
+/// (`title_tokens` de cada nome, sem token vazio); `None` para lista vazia.
+fn universe_of(all_names: &[String]) -> Option<Vec<String>> {
+    (!all_names.is_empty()).then(|| {
+        all_names
+            .iter()
+            .flat_map(|n| adom_core::title_tokens(n))
+            .filter(|t| !t.is_empty())
+            .collect()
+    })
+}
+
 /// Calcula os veredictos de uma release. Função pura: sem I/O e sem estado.
+#[cfg(test)]
 pub(crate) fn evaluate_one(probe: &ReleaseProbe) -> ReleaseVerdict {
+    let facts = release_title_facts(&probe.title);
+    let name = BrTitleName::new(&probe.name);
+    evaluate_with(probe, &facts, &name, universe_of(&probe.all_names).as_deref())
+}
+
+/// Veredictos de uma release com os fatos do título, o nome preparado e o
+/// universo de nomes já calculados: `matches_br_title_prepared` com eles dá o
+/// mesmo que `matches_br_title`, que os recalcularia com as mesmas funções.
+fn evaluate_with(
+    probe: &ReleaseProbe,
+    facts: &ReleaseTitleFacts,
+    name: &BrTitleName<'_>,
+    universe: Option<&[String]>,
+) -> ReleaseVerdict {
     let title = probe.title.as_str();
-    let parsed = parse_title_season_episode(title);
 
     // `extract_info_hash("")` já devolve `None`; o ramo explícito deixa claro
     // que magnet vazio nunca chega ao parser.
@@ -90,14 +118,14 @@ pub(crate) fn evaluate_one(probe: &ReleaseProbe) -> ReleaseVerdict {
         false
     } else {
         let all_names = (!probe.all_names.is_empty()).then_some(probe.all_names.as_slice());
-        matches_br_title(
+        matches_br_title_prepared(
             title,
-            &probe.name,
+            name,
             &probe.year,
             probe.is_series,
             all_names,
-            None,
-            None,
+            &facts.tokens,
+            universe,
             probe.cut_tail,
         )
     };
@@ -105,15 +133,15 @@ pub(crate) fn evaluate_one(probe: &ReleaseProbe) -> ReleaseVerdict {
     let safe_link = !probe.link.is_empty() && is_safe_download_url(&probe.link, false);
 
     ReleaseVerdict {
-        normalized: normalize_title(title),
-        has_pt_signs: has_pt_signs(title),
-        br_origin_mark: br_origin_mark(title),
+        normalized: facts.normalized.clone(),
+        has_pt_signs: facts.has_pt_signs,
+        br_origin_mark: facts.br_origin_mark,
         info_hash,
         display_name,
-        seasons: parsed.seasons,
-        episodes: parsed.episodes,
-        complete: parsed.complete,
-        season_pack: parsed.season_pack,
+        seasons: facts.parsed.seasons.clone(),
+        episodes: facts.parsed.episodes.clone(),
+        complete: facts.parsed.complete,
+        season_pack: facts.parsed.season_pack,
         matches_br_title: matches,
         safe_link,
     }
@@ -122,7 +150,26 @@ pub(crate) fn evaluate_one(probe: &ReleaseProbe) -> ReleaseVerdict {
 /// Avalia um lote de releases. Devolve um veredicto por entrada, na mesma ordem.
 #[napi(catch_unwind)]
 pub fn evaluate_releases(probes: Vec<ReleaseProbe>) -> Vec<ReleaseVerdict> {
-    probes.iter().map(evaluate_one).collect()
+    let mut facts: HashMap<&str, ReleaseTitleFacts> = HashMap::new();
+    let mut prepared: HashMap<&str, BrTitleName<'_>> = HashMap::new();
+    // O lote quase sempre traz a mesma lista de nomes: guarda a última.
+    let mut universe: Option<(&[String], Option<Vec<String>>)> = None;
+    let mut out = Vec::with_capacity(probes.len());
+    for probe in &probes {
+        let title_facts = facts
+            .entry(probe.title.as_str())
+            .or_insert_with(|| release_title_facts(&probe.title));
+        let names = probe.all_names.as_slice();
+        if universe.as_ref().is_none_or(|(seen, _)| *seen != names) {
+            universe = Some((names, universe_of(names)));
+        }
+        let names_universe = universe.as_ref().and_then(|(_, u)| u.as_deref());
+        let name = prepared
+            .entry(probe.name.as_str())
+            .or_insert_with(|| BrTitleName::new(&probe.name));
+        out.push(evaluate_with(probe, title_facts, name, names_universe));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -170,7 +217,7 @@ mod tests {
         assert!(v.season_pack);
         assert_eq!(
             v.normalized,
-            normalize_title("Show Temporada Completa 1080p")
+            adom_core::normalize_title("Show Temporada Completa 1080p")
         );
     }
 
@@ -255,3 +302,4 @@ mod tests {
         assert!(evaluate_releases(Vec::new()).is_empty());
     }
 }
+

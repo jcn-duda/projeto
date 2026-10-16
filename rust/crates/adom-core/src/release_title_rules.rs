@@ -80,11 +80,27 @@ pub fn matches_title_structure(
     is_series: bool,
     tokens: Option<&[String]>,
 ) -> bool {
-    let own: Vec<String> = match tokens {
-        Some(t) => t.to_vec(),
-        None => title_tokens(title),
+    let computed;
+    let own: &[String] = match tokens {
+        Some(t) => t,
+        None => {
+            computed = title_tokens(title);
+            &computed
+        }
     };
-    let wanted = title_tokens(name);
+    matches_title_structure_with(title, name, year, is_series, own, &title_tokens(name))
+}
+
+/// `matches_title_structure` com os tokens do título (`own`) e os do nome
+/// (`wanted` = `title_tokens(name)`) já calculados.
+pub(crate) fn matches_title_structure_with(
+    title: &str,
+    name: &str,
+    year: &str,
+    is_series: bool,
+    own: &[String],
+    wanted: &[String],
+) -> bool {
     // Sem token procurado não há o que casar: passar adiante deixaria a
     // release sobreviver na dúvida.
     if wanted.is_empty() {

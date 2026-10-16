@@ -38,7 +38,7 @@ pub(crate) fn first_year_in(text: &str) -> i64 {
 }
 
 /// `rawPrecision`: fração dos tokens significativos que estão na busca.
-fn raw_precision(tokens: &[String], want: &HashSet<String>) -> f64 {
+fn raw_precision(tokens: &[String], want: &HashSet<&str>) -> f64 {
     let significant: Vec<&str> = tokens
         .iter()
         .map(String::as_str)
@@ -60,7 +60,7 @@ fn raw_precision(tokens: &[String], want: &HashSet<String>) -> f64 {
 /// `titlePrecision`. Com `cut_tail`, mede a cabeça da obra (até o primeiro ano
 /// ou `STOP_AT`) e devolve o máximo entre a cabeça e a lista inteira.
 pub fn title_precision(tokens: &[String], wanted: &[String], cut_tail: bool) -> f64 {
-    let want: HashSet<String> = wanted.iter().cloned().collect();
+    let want: HashSet<&str> = wanted.iter().map(String::as_str).collect();
     let full = raw_precision(tokens, &want);
     if !cut_tail {
         return full;

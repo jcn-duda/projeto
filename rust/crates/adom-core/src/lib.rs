@@ -39,6 +39,8 @@ mod duplicate_pack;
 mod episode_annotate;
 mod episode_matching;
 mod episode_parse;
+mod episode_parse_gate;
+mod episode_parse_scan;
 mod episode_series_matching;
 mod episode_size;
 mod franchise;
@@ -65,6 +67,7 @@ mod release_guards;
 mod release_index_media;
 mod release_labels;
 mod release_name_matching;
+mod release_title_facts;
 mod release_title_rules;
 mod release_work;
 mod reply_budget;
@@ -167,13 +170,14 @@ pub use multiwork_pack::{
 };
 
 // ── matching ──────────────────────────────────────────────────────────
-pub use matches_br_title::matches_br_title;
+pub use matches_br_title::{matches_br_title, matches_br_title_prepared, BrTitleName};
 pub use release_name_matching::{
     contains_token_run, ends_with_sequence_marker, franchise_root, franchise_roots, matches_name,
 };
 pub use release_title_rules::{
     matches_short_name_identity, matches_title_structure, short_name_identity, ShortNameIdentity,
 };
+pub use release_title_facts::{release_title_facts, ReleaseTitleFacts};
 pub use release_work::{
     choose_episode_parse, episode_parse_specificity, release_fits_request, release_work_targets,
     route_work_location, WorkTarget,
@@ -194,7 +198,8 @@ pub use matching_tokens::{
 
 // ── matching_vocabulary ───────────────────────────────────────────────
 pub use matching_vocabulary::{
-    episode_token_test, title_tokens, vocabulary_contents, year_range_test,
+    episode_token_test, normalized_title_tokens, title_tokens, vocabulary_contents,
+    year_range_test,
 };
 
 // ── indexer_priority ──────────────────────────────────────────────────
