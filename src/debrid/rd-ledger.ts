@@ -11,7 +11,7 @@ import config from '../config.js';
 import * as cache from '../utils/cache.js';
 import * as metrics from '../utils/metrics.js';
 import { prefix } from '../utils/cache-keys.js';
-import { shadowBlocked, shadowHit, shadowMiss } from '../utils/rust-debrid-rd.js';
+import { rdNextBlocked, rdNextHit, rdNextMiss } from '../utils/rust-debrid-rd.js';
 
 export type LedgerState = 'hit' | 'miss' | 'blocked' | 'unknown';
 type LedgerValue = { s: Exclude<LedgerState, 'unknown'>; at: number; n: number };
@@ -59,8 +59,7 @@ export function nextOnHit(input: {
   now: number;
   current: LedgerState;
 }): RdLedgerWrite | null {
-  if (!input.enabled || input.hitTtl <= 0 || input.current === 'blocked') return shadowHit(input, null);
-  return shadowHit(input, { s: 'hit', at: input.now, n: 0, ttlSeconds: input.hitTtl });
+  return rdNextHit(input);
 }
 
 /**
@@ -76,19 +75,7 @@ export function nextOnMiss(input: {
   current: LedgerState;
   prior: { s?: unknown; n?: number } | null;
 }): RdLedgerWrite | null {
-  const normalized = normalizeRdHash(input.hash);
-  if (!input.enabled || !normalized || input.backoffMs.length === 0 || input.current === 'blocked') {
-    return shadowMiss(input, null);
-  }
-  let attempts = 1;
-  if (input.prior?.s === 'miss') {
-    const n = input.prior.n;
-    attempts = (typeof n === 'number' ? n : Number.NaN) + 1;
-  }
-  const ttlMs = input.backoffMs[Math.min(attempts - 1, input.backoffMs.length - 1)];
-  if (!ttlMs) return shadowMiss(input, null);
-  const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
-  return shadowMiss(input, { s: 'miss', at: input.now, n: attempts, ttlSeconds, hash: normalized });
+  return rdNextMiss(input);
 }
 
 /** Bloqueio cobre hit e miss. TTL não positivo ou hash inválido não escreve. */
@@ -98,9 +85,7 @@ export function nextOnBlocked(input: {
   blockedTtl: number;
   now: number;
 }): RdLedgerWrite | null {
-  const normalized = normalizeRdHash(input.hash);
-  if (!input.enabled || input.blockedTtl <= 0 || !normalized) return shadowBlocked(input, null);
-  return shadowBlocked(input, { s: 'blocked', at: input.now, n: 0, ttlSeconds: input.blockedTtl, hash: normalized });
+  return rdNextBlocked(input);
 }
 
 function key(hash: string) {

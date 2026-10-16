@@ -1,7 +1,7 @@
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
 import { isRateLimitError, RateLimitError, retryAfterMsOf } from './common.js';
-import { shadowFinished, shadowRate, shadowSuccess } from '../utils/rust-debrid-rd.js';
+import { rdOnFinished, rdOnRateLimit, rdOnSuccess } from '../utils/rust-debrid-rd.js';
 
 export type RdGatePriority = 'play' | 'cleanup' | 'autofetch' | 'probe';
 
@@ -61,20 +61,11 @@ export function rdGateInitialState(minGapMs: number, maxGapMs: number): RdGateSn
 }
 
 export function rdGateOnRateLimit(state: Pick<RdGateSnap, 'gapMs' | 'nextAllowedAt' | 'cooldownUntil' | 'rateLimits'>, input: AimdInput) {
-  const { min, max } = rdGateLimits(input.minGapMs, input.maxGapMs);
+  // Retry-After válido (≥ 0) vai como está; sem ele o Rust usa o cooldown.
   const supplied = Number(input.retryAfterMs);
   const honoredRetryAfter = Number.isFinite(supplied) && supplied >= 0;
-  const waitMs = honoredRetryAfter ? supplied : Math.max(0, input.cooldownMs);
-  const cooldownUntil = Math.max(state.cooldownUntil, input.now + waitMs);
-  const hourAgo = input.now - 3_600_000;
-  const rateLimits = state.rateLimits.filter((at) => at >= hourAgo);
-  rateLimits.push(input.now);
-  const step = {
-    gapMs: Math.min(max, Math.max(min, state.gapMs * 2)), successes: 0,
-    nextAllowedAt: Math.max(state.nextAllowedAt, cooldownUntil), cooldownUntil, rateLimits, honoredRetryAfter,
-  };
   const suppliedRetry = honoredRetryAfter ? supplied : null;
-  return shadowRate(step, {
+  return rdOnRateLimit({
     gapMs: state.gapMs,
     nextAllowedAt: state.nextAllowedAt,
     cooldownUntil: state.cooldownUntil,
@@ -88,15 +79,11 @@ export function rdGateOnRateLimit(state: Pick<RdGateSnap, 'gapMs' | 'nextAllowed
 }
 
 export function rdGateOnSuccess(gapMs: number, successes: number, successThreshold: number, minGapMs: number, maxGapMs: number) {
-  const next = successes + 1;
-  const ts = next < successThreshold
-    ? { gapMs, successes: next }
-    : { gapMs: Math.max(rdGateLimits(minGapMs, maxGapMs).min, Math.floor(gapMs * 0.9)), successes: 0 };
-  return shadowSuccess(ts, gapMs, successes, successThreshold, minGapMs, maxGapMs);
+  return rdOnSuccess(gapMs, successes, successThreshold, minGapMs, maxGapMs);
 }
 
 export function rdGateOnFinished(nextAllowedAt: number, gapMs: number, now: number) {
-  return shadowFinished(Math.max(nextAllowedAt, now + gapMs), nextAllowedAt, gapMs, now);
+  return rdOnFinished(nextAllowedAt, gapMs, now);
 }
 
 export function rdGateBypassAt(now: number, playMaxWaitMs: number) {

@@ -41,8 +41,6 @@ export const server = () => ({
   // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
   // explícitos voltam ao TS; valor desconhecido = off.
   rustDebrid: {
-    // Ledger e AIMD do Real-Debrid. O estado continua no Node.
-    rd: rustMode(process.env.RUST_DEBRID_RD, 'on'),
     // Decisão de apagar. on só pode recusar um apagamento: a recusa do Node
     // sempre vence, nada sai da conta por causa do Rust.
     clean: rustMode(process.env.RUST_DEBRID_CLEAN, 'on'),

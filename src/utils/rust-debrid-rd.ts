@@ -1,25 +1,25 @@
 /**
- * Sombra do ledger e do AIMD (`RUST_DEBRID_RD`). O Node continua dono do
- * cache.db e da fila. O Rust só recalcula o próximo estado com os mesmos
- * números. Kill-switch fica no Node: `enabled` já vem resolvido.
+ * Ledger e AIMD do Real-Debrid em Rust: o próximo estado (`rdc:v2` de hit,
+ * miss e bloqueio; gap, cooldown e retry-after do gate) é decidido no núcleo.
+ * O Node continua dono do cache.db e da fila; o kill-switch fica nele
+ * (`enabled` já vem resolvido). O TS da regra saiu do branch (oráculo no `esm`).
  */
-import config from '../config.js';
-import * as log from './logger.js';
+import { requireCore } from './rust-core.js';
 import * as metrics from './metrics.js';
 
 export type RdCore = {
-  debridRdNextHit?(enabled: boolean, hitTtl: number, now: number, current: string): RdWriteNapi;
-  debridRdNextMiss?(
+  debridRdNextHit(enabled: boolean, hitTtl: number, now: number, current: string): RdWriteNapi;
+  debridRdNextMiss(
     enabled: boolean, hash: string, backoffMs: number[], now: number, current: string,
     priorS: string | null, priorN: number | null,
   ): RdWriteNapi;
-  debridRdNextBlocked?(enabled: boolean, hash: string, blockedTtl: number, now: number): RdWriteNapi;
-  debridRdOnRateLimit?(
+  debridRdNextBlocked(enabled: boolean, hash: string, blockedTtl: number, now: number): RdWriteNapi;
+  debridRdOnRateLimit(
     gapMs: number, nextAllowedAt: number, cooldownUntil: number, rateLimits: number[],
     now: number, minGapMs: number, maxGapMs: number, cooldownMs: number, retryAfterMs: number | null,
   ): RdRateNapi;
-  debridRdOnSuccess?(gapMs: number, successes: number, successThreshold: number, minGapMs: number, maxGapMs: number): RdSuccessNapi;
-  debridRdOnFinished?(nextAllowedAt: number, gapMs: number, now: number): number;
+  debridRdOnSuccess(gapMs: number, successes: number, successThreshold: number, minGapMs: number, maxGapMs: number): RdSuccessNapi;
+  debridRdOnFinished(nextAllowedAt: number, gapMs: number, now: number): number;
 };
 
 type RdWriteNapi = { present: boolean; s: string; at: number; n: number; ttlSeconds?: number; ttl_seconds?: number; hash?: string | null };
@@ -34,49 +34,13 @@ type RdSuccessNapi = { gapMs?: number; gap_ms?: number; successes: number };
 
 export type RdWrite = { s: 'hit' | 'miss' | 'blocked'; at: number; n: number; ttlSeconds: number; hash?: string } | null;
 
-type GetCore = () => RdCore | null;
-let getCore: GetCore | null = null;
-let loggedDiffs = 0;
-let loggedMissing = false;
+export type RdRateStep = {
+  gapMs: number; successes: number; nextAllowedAt: number; cooldownUntil: number; rateLimits: number[]; honoredRetryAfter: boolean;
+};
 
-function mode() {
-  return config.rustDebrid.rd;
-}
-
-function noteMissing(name: string) {
-  if (loggedMissing) return;
-  loggedMissing = true;
-  log.info(`[rust] núcleo sem ${name} (binário antigo); sombra RD desligada`);
-}
-
-function sameNum(a: number, b: number): boolean {
-  if (Number.isNaN(a) && Number.isNaN(b)) return true;
-  return a === b;
-}
-
-function logDiff(op: string) {
-  metrics.count('rust.debrid.rd.diff');
-  if (loggedDiffs >= config.rustCore.maxLoggedDiffs) return;
-  loggedDiffs += 1;
-  log.warn(`[rust] RD divergiu: op=${op}`);
-}
-
-function pick<T>(op: string, ts: T, load: () => T, same: (ts: T, rust: T) => boolean): T {
-  if (mode() === 'off' || !getCore) return ts;
+function core(): RdCore {
   metrics.count('rust.debrid.rd.calls');
-  let rust: T;
-  try {
-    rust = load();
-  } catch (err) {
-    metrics.count('rust.debrid.rd.error');
-    log.debug('[rust] RD lançou:', log.errorMessage(err));
-    return ts;
-  }
-  if (mode() === 'shadow') {
-    if (!same(ts, rust)) logDiff(op);
-    return ts;
-  }
-  return rust;
+  return requireCore() as unknown as RdCore;
 }
 
 function writeFrom(raw: RdWriteNapi | null | undefined): RdWrite {
@@ -91,121 +55,54 @@ function writeFrom(raw: RdWriteNapi | null | undefined): RdWrite {
   };
 }
 
-function sameWrite(ts: RdWrite, rust: RdWrite): boolean {
-  if (ts == null || rust == null) return ts == null && rust == null;
-  return ts.s === rust.s && sameNum(ts.at, rust.at) && sameNum(ts.n, rust.n)
-    && sameNum(ts.ttlSeconds, rust.ttlSeconds) && (ts.hash ?? '') === (rust.hash ?? '');
+function rdNextHit(input: { enabled: boolean; hitTtl: number; now: number; current: string }): RdWrite {
+  return writeFrom(core().debridRdNextHit(input.enabled, input.hitTtl, input.now, input.current));
 }
 
-function shadowHit(input: { enabled: boolean; hitTtl: number; now: number; current: string }, ts: RdWrite): RdWrite {
-  const fn = getCore?.()?.debridRdNextHit;
-  if (typeof fn !== 'function') {
-    if (mode() !== 'off' && getCore) noteMissing('debridRdNextHit');
-    return ts;
-  }
-  return pick('next-hit', ts, () => writeFrom(fn(input.enabled, input.hitTtl, input.now, input.current)), sameWrite);
-}
-
-function shadowMiss(input: {
+function rdNextMiss(input: {
   enabled: boolean; hash: string; backoffMs: readonly number[]; now: number; current: string;
   prior: { s?: unknown; n?: number } | null;
-}, ts: RdWrite): RdWrite {
-  const fn = getCore?.()?.debridRdNextMiss;
-  if (typeof fn !== 'function') {
-    if (mode() !== 'off' && getCore) noteMissing('debridRdNextMiss');
-    return ts;
-  }
+}): RdWrite {
   const priorS = typeof input.prior?.s === 'string' ? input.prior.s : null;
   const priorN = typeof input.prior?.n === 'number' ? input.prior.n : null;
-  return pick('next-miss', ts, () => writeFrom(fn(
+  return writeFrom(core().debridRdNextMiss(
     input.enabled, input.hash, [...input.backoffMs], input.now, input.current, priorS, priorN,
-  )), sameWrite);
+  ));
 }
 
-function shadowBlocked(input: { enabled: boolean; hash: string; blockedTtl: number; now: number }, ts: RdWrite): RdWrite {
-  const fn = getCore?.()?.debridRdNextBlocked;
-  if (typeof fn !== 'function') {
-    if (mode() !== 'off' && getCore) noteMissing('debridRdNextBlocked');
-    return ts;
-  }
-  return pick('next-blocked', ts, () => writeFrom(fn(input.enabled, input.hash, input.blockedTtl, input.now)), sameWrite);
+function rdNextBlocked(input: { enabled: boolean; hash: string; blockedTtl: number; now: number }): RdWrite {
+  return writeFrom(core().debridRdNextBlocked(input.enabled, input.hash, input.blockedTtl, input.now));
 }
 
 function field(raw: RdRateNapi, camel: 'gapMs' | 'nextAllowedAt' | 'cooldownUntil', snake: 'gap_ms' | 'next_allowed_at' | 'cooldown_until'): number {
-  const value = raw[camel] ?? raw[snake];
-  return Number(value);
+  return Number(raw[camel] ?? raw[snake]);
 }
 
-function shadowRate(ts: {
-  gapMs: number; successes: number; nextAllowedAt: number; cooldownUntil: number; rateLimits: number[]; honoredRetryAfter: boolean;
-}, args: {
+function rdOnRateLimit(args: {
   gapMs: number; nextAllowedAt: number; cooldownUntil: number; rateLimits: number[];
   now: number; minGapMs: number; maxGapMs: number; cooldownMs: number; retryAfterMs: number | null;
-}): typeof ts {
-  if (mode() === 'off' || !getCore) return ts;
-  const fn = getCore()?.debridRdOnRateLimit;
-  if (typeof fn !== 'function') {
-    noteMissing('debridRdOnRateLimit');
-    return ts;
-  }
-  return pick('rate-limit', ts, () => {
-    const raw = fn(
-      args.gapMs, args.nextAllowedAt, args.cooldownUntil, args.rateLimits,
-      args.now, args.minGapMs, args.maxGapMs, args.cooldownMs, args.retryAfterMs,
-    );
-    return {
-      gapMs: field(raw, 'gapMs', 'gap_ms'),
-      successes: Number(raw.successes),
-      nextAllowedAt: field(raw, 'nextAllowedAt', 'next_allowed_at'),
-      cooldownUntil: field(raw, 'cooldownUntil', 'cooldown_until'),
-      rateLimits: [...(raw.rateLimits ?? raw.rate_limits ?? [])],
-      honoredRetryAfter: Boolean(raw.honoredRetryAfter ?? raw.honored_retry_after),
-    };
-  }, (left, right) => left.honoredRetryAfter === right.honoredRetryAfter
-    && sameNum(left.gapMs, right.gapMs)
-    && left.successes === right.successes
-    && sameNum(left.nextAllowedAt, right.nextAllowedAt)
-    && sameNum(left.cooldownUntil, right.cooldownUntil)
-    && left.rateLimits.length === right.rateLimits.length
-    && left.rateLimits.every((item, index) => sameNum(item, right.rateLimits[index])));
+}): RdRateStep {
+  const raw = core().debridRdOnRateLimit(
+    args.gapMs, args.nextAllowedAt, args.cooldownUntil, args.rateLimits,
+    args.now, args.minGapMs, args.maxGapMs, args.cooldownMs, args.retryAfterMs,
+  );
+  return {
+    gapMs: field(raw, 'gapMs', 'gap_ms'),
+    successes: Number(raw.successes),
+    nextAllowedAt: field(raw, 'nextAllowedAt', 'next_allowed_at'),
+    cooldownUntil: field(raw, 'cooldownUntil', 'cooldown_until'),
+    rateLimits: [...(raw.rateLimits ?? raw.rate_limits ?? [])],
+    honoredRetryAfter: Boolean(raw.honoredRetryAfter ?? raw.honored_retry_after),
+  };
 }
 
-function shadowSuccess(
-  ts: { gapMs: number; successes: number },
-  gapMs: number, successes: number, successThreshold: number, minGapMs: number, maxGapMs: number,
-): { gapMs: number; successes: number } {
-  if (mode() === 'off' || !getCore) return ts;
-  const fn = getCore()?.debridRdOnSuccess;
-  if (typeof fn !== 'function') {
-    noteMissing('debridRdOnSuccess');
-    return ts;
-  }
-  return pick('success', ts, () => {
-    const raw = fn(gapMs, successes, successThreshold, minGapMs, maxGapMs);
-    return { gapMs: Number(raw.gapMs ?? raw.gap_ms), successes: Number(raw.successes) };
-  }, (left, right) => sameNum(left.gapMs, right.gapMs) && left.successes === right.successes);
+function rdOnSuccess(gapMs: number, successes: number, successThreshold: number, minGapMs: number, maxGapMs: number) {
+  const raw = core().debridRdOnSuccess(gapMs, successes, successThreshold, minGapMs, maxGapMs);
+  return { gapMs: Number(raw.gapMs ?? raw.gap_ms), successes: Number(raw.successes) };
 }
 
-function shadowFinished(ts: number, nextAllowedAt: number, gapMs: number, now: number): number {
-  if (mode() === 'off' || !getCore) return ts;
-  const fn = getCore()?.debridRdOnFinished;
-  if (typeof fn !== 'function') {
-    noteMissing('debridRdOnFinished');
-    return ts;
-  }
-  return pick('finished', ts, () => Number(fn(nextAllowedAt, gapMs, now)), sameNum);
+function rdOnFinished(nextAllowedAt: number, gapMs: number, now: number): number {
+  return Number(core().debridRdOnFinished(nextAllowedAt, gapMs, now));
 }
 
-function installDebridRdHook(get: GetCore) {
-  getCore = get;
-}
-
-function resetDebridRdHook() {
-  getCore = null;
-  loggedDiffs = 0;
-  loggedMissing = false;
-}
-
-export {
-  shadowHit, shadowMiss, shadowBlocked, shadowRate, shadowSuccess, shadowFinished, installDebridRdHook, resetDebridRdHook,
-};
+export { rdNextHit, rdNextMiss, rdNextBlocked, rdOnRateLimit, rdOnSuccess, rdOnFinished };
