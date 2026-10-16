@@ -16,9 +16,9 @@
 //! deriva `TITLE_PRECISION_MIN` de `config.search.titlePrecisionTailCut`; o
 //! Rust recebe `cut_tail` do chamador e aplica a mesma regra.
 
+use crate::franchise::name_coverage_tokens;
 use crate::matching_decisions::title_precision;
 use crate::matching_tokens::episode_work_tokens;
-use crate::franchise::name_coverage_tokens;
 use crate::matching_vocabulary::title_tokens;
 use crate::release_name_matching::matches_name_coverage;
 use crate::release_title_rules::matches_title_structure_with;
@@ -73,7 +73,16 @@ pub fn matches_br_title(
         }
     };
     let prepared = BrTitleName::new(name);
-    matches_br_title_prepared(title, &prepared, year, is_series, all_names, own, universe_tokens, cut_tail)
+    matches_br_title_prepared(
+        title,
+        &prepared,
+        year,
+        is_series,
+        all_names,
+        own,
+        universe_tokens,
+        cut_tail,
+    )
 }
 
 /// O que o `matches_br_title` deriva só do nome procurado. O lote napi julga

@@ -26,11 +26,15 @@ struct Row {
 /// teria pedido), mais um segundo nome para simular o alias pt-BR.
 fn names_for(title: &str) -> Vec<String> {
     let head: Vec<&str> = title
-        .split(|c: char| c == ' ' || c == '.')
+        .split([' ', '.'])
         .take_while(|w| !w.is_empty() && !w.chars().any(|c| c.is_ascii_digit()))
         .take(4)
         .collect();
-    let name = if head.is_empty() { "Show".to_string() } else { head.join(" ") };
+    let name = if head.is_empty() {
+        "Show".to_string()
+    } else {
+        head.join(" ")
+    };
     vec![name, "O Escritório".to_string()]
 }
 
@@ -49,7 +53,10 @@ fn corpus() -> Vec<Row> {
                 .collect()
         }
         Err(_) => {
-            let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../golden/title-normalization.jsonl");
+            let path = concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../golden/title-normalization.jsonl"
+            );
             std::fs::read_to_string(path)
                 .expect("golden")
                 .lines()
@@ -109,7 +116,16 @@ fn bench_release_batch() {
     });
     time("matches_br_title", &rows, 2, |r| {
         for name in &r.names {
-            std::hint::black_box(matches_br_title(&r.title, name, "2022", true, Some(r.names.as_slice()), None, None, true));
+            std::hint::black_box(matches_br_title(
+                &r.title,
+                name,
+                "2022",
+                true,
+                Some(r.names.as_slice()),
+                None,
+                None,
+                true,
+            ));
         }
     });
     let universe: Vec<String> = rows[0].names.iter().flat_map(|n| title_tokens(n)).collect();
@@ -134,11 +150,33 @@ fn bench_release_batch() {
         let n0 = rows[0].names[0].clone();
         let toks: Vec<Vec<String>> = rows.iter().map(|r| title_tokens(&r.title)).collect();
         let mut k = 0;
-        time("  name_coverage_tokens", &rows, 1, |_| { std::hint::black_box(name_coverage_tokens(&n0)); });
-        time("  title_tokens(name)", &rows, 1, |_| { std::hint::black_box(title_tokens(&n0)); });
-        time("  matches_name(tok)", &rows, 1, |r| { k = (k + 1) % rows.len(); std::hint::black_box(matches_name(&r.title, &n0, Some(&toks[k]))); });
-        time("  episode_work_tokens", &rows, 1, |_| { k = (k + 1) % rows.len(); std::hint::black_box(episode_work_tokens(&toks[k])); });
-        time("  title_precision", &rows, 1, |_| { k = (k + 1) % rows.len(); std::hint::black_box(title_precision(&toks[k], &uni, true)); });
-        time("  matches_title_structure", &rows, 1, |r| { k = (k + 1) % rows.len(); std::hint::black_box(matches_title_structure(&r.title, &n0, "2011", true, Some(&toks[k]))); });
+        time("  name_coverage_tokens", &rows, 1, |_| {
+            std::hint::black_box(name_coverage_tokens(&n0));
+        });
+        time("  title_tokens(name)", &rows, 1, |_| {
+            std::hint::black_box(title_tokens(&n0));
+        });
+        time("  matches_name(tok)", &rows, 1, |r| {
+            k = (k + 1) % rows.len();
+            std::hint::black_box(matches_name(&r.title, &n0, Some(&toks[k])));
+        });
+        time("  episode_work_tokens", &rows, 1, |_| {
+            k = (k + 1) % rows.len();
+            std::hint::black_box(episode_work_tokens(&toks[k]));
+        });
+        time("  title_precision", &rows, 1, |_| {
+            k = (k + 1) % rows.len();
+            std::hint::black_box(title_precision(&toks[k], &uni, true));
+        });
+        time("  matches_title_structure", &rows, 1, |r| {
+            k = (k + 1) % rows.len();
+            std::hint::black_box(matches_title_structure(
+                &r.title,
+                &n0,
+                "2011",
+                true,
+                Some(&toks[k]),
+            ));
+        });
     }
 }

@@ -306,10 +306,7 @@ pub(crate) fn parse_title_season_episode_prepared(t: &str, raw_c: &str) -> Parse
         }
     }
     // "S1-3E1".
-    for c in all(
-        re!(r"(?<![A-Z0-9])S([0-9]{1,2})-([0-9]{1,2})E[0-9]"),
-        raw_c,
-    ) {
+    for c in all(re!(r"(?<![A-Z0-9])S([0-9]{1,2})-([0-9]{1,2})E[0-9]"), raw_c) {
         add_season_span(&mut seasons, num(c.g(1)), num(c.g(2)));
     }
 
@@ -371,4 +368,3 @@ pub(crate) fn parse_title_season_episode_prepared(t: &str, raw_c: &str) -> Parse
 pub fn season_coverage_excludes(parsed: &ParsedSeasonEpisode, season: Option<i64>) -> bool {
     season.is_some_and(|s| !parsed.seasons.is_empty() && !parsed.seasons.contains(&s))
 }
-

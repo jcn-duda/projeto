@@ -85,7 +85,12 @@ fn universe_of(all_names: &[String]) -> Option<Vec<String>> {
 pub(crate) fn evaluate_one(probe: &ReleaseProbe) -> ReleaseVerdict {
     let facts = release_title_facts(&probe.title);
     let name = BrTitleName::new(&probe.name);
-    evaluate_with(probe, &facts, &name, universe_of(&probe.all_names).as_deref())
+    evaluate_with(
+        probe,
+        &facts,
+        &name,
+        universe_of(&probe.all_names).as_deref(),
+    )
 }
 
 /// Veredictos de uma release com os fatos do título, o nome preparado e o
@@ -302,4 +307,3 @@ mod tests {
         assert!(evaluate_releases(Vec::new()).is_empty());
     }
 }
-

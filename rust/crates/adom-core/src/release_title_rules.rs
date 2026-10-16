@@ -106,8 +106,8 @@ pub(crate) fn matches_title_structure_with(
     if wanted.is_empty() {
         return false;
     }
-    if let Some(want) = first_significant_token(&wanted).filter(|w| !w.is_empty()) {
-        if first_significant_token(&own) != Some(want) {
+    if let Some(want) = first_significant_token(wanted).filter(|w| !w.is_empty()) {
+        if first_significant_token(own) != Some(want) {
             return false;
         }
     }
@@ -133,12 +133,12 @@ pub(crate) fn matches_title_structure_with(
                 return false;
             }
         }
-        if franchise_base_contradicts(title, Some(&own), name, year) {
+        if franchise_base_contradicts(title, Some(own), name, year) {
             return false;
         }
     }
 
-    !year_contradicts(&own, year, is_series)
+    !year_contradicts(own, year, is_series)
 }
 
 /// Decisão de identidade de nome curto, com os três estados separados.

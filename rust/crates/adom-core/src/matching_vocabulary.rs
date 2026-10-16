@@ -182,7 +182,9 @@ fn episode_token_re() -> &'static Regex {
 
 /// Quantos dígitos ASCII seguidos há a partir de `from`.
 fn digit_run(b: &[u8], from: usize) -> usize {
-    b.get(from..).map_or(0, |rest| rest.iter().take_while(|c| c.is_ascii_digit()).count())
+    b.get(from..).map_or(0, |rest| {
+        rest.iter().take_while(|c| c.is_ascii_digit()).count()
+    })
 }
 
 /// Equivalente a `YEAR_RANGE.test(input)` no JS.
@@ -317,18 +319,30 @@ mod tests {
             "s01", "s1", "s123", "s01e01", "s01e1234", "s01e", "t1e5", "e5", "e1234", "e", "1x04",
             "123x4", "12x", "1a", "12a", "123a", "S01E01", "s01x", "", "1", "x1", "s١", "1٢a",
         ] {
-            assert_eq!(episode_token_test(case), episode_token_re().is_match(case), "{case:?}");
+            assert_eq!(
+                episode_token_test(case),
+                episode_token_re().is_match(case),
+                "{case:?}"
+            );
         }
         let alphabet = ['s', 't', 'e', 'x', 'a', '0', '1', '9', 'b', 'é', '\n'];
         let mut seed: u64 = 0xe915;
         let mut next = || {
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (seed >> 33) as usize
         };
         for _ in 0..50_000 {
             let len = next() % 9;
-            let text: String = (0..len).map(|_| alphabet[next() % alphabet.len()]).collect();
-            assert_eq!(episode_token_test(&text), episode_token_re().is_match(&text), "{text:?}");
+            let text: String = (0..len)
+                .map(|_| alphabet[next() % alphabet.len()])
+                .collect();
+            assert_eq!(
+                episode_token_test(&text),
+                episode_token_re().is_match(&text),
+                "{text:?}"
+            );
         }
     }
 }

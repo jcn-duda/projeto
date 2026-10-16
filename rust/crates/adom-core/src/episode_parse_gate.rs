@@ -111,7 +111,10 @@ mod tests {
 
     #[test]
     fn preserva_grupos_comuns_e_classes() {
-        assert_eq!(strip_lookarounds(r"(?:a|b)([(?!x)])\(?!"), r"(?:a|b)([(?!x)])\(?!");
+        assert_eq!(
+            strip_lookarounds(r"(?:a|b)([(?!x)])\(?!"),
+            r"(?:a|b)([(?!x)])\(?!"
+        );
     }
 
     #[test]
