@@ -26,11 +26,6 @@ export const server = () => ({
     // Teto de releases por busca no shadow em lote (`rust-shadow.ts`).
     shadowMaxPerSearch: num(process.env.RUST_CORE_SHADOW_MAX, 300),
   },
-  // Índice de releases: fonte de mídia do record (`rust-release-index.ts`).
-  // shadow compara fora da resposta; on grava o valor do Rust (TS de reserva).
-  rustReleaseIndex: {
-    mode: rustMode(process.env.RUST_RELEASE_INDEX, 'off'),
-  },
   // Autofetch (Chupim): seleção de candidatos (`rust-autofetch.ts`). shadow
   // compara fora da resposta; on = o Rust escolhe imediatos e fila (TS de
   // reserva). Portões/travas/sonda/escrita da fila seguem no Node.

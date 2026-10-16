@@ -27,8 +27,7 @@ import { routeWorkLocation } from './release-work.js';
 import { markMissing, markMissingSeason, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
 import { markFileEvidence, fileEvidence } from './release-index-file.js';
-import { bankRowsNapi, captureEnabled, decideMediaSource, observeMediaSource, recordProbe } from './rust-release-index.js';
-import type { MediaSourceProbe } from './rust-release-index.js';
+import { bankRowsNapi, mediaSourceOf } from './rust-release-index.js';
 import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
 export type { IndexedRelease } from './release-index-types.js';
 export { forgetAutofetchHash } from './release-index-maintenance.js';
@@ -102,11 +101,8 @@ function record(
     candidatos.push({ item, hash, title: String(item.title || item.Title || '').trim() });
   }
   const bankByHash = bankRowsForMediaSource(candidatos);
-  // Rust (`RUST_RELEASE_INDEX`): em on decide a fonte; em shadow compara fora
-  // da resposta (setImmediate) e o valor gravado é o do TS.
-  const shadowOn = captureEnabled();
-  const shadowBank = shadowOn ? bankRowsNapi(bankByHash) : [];
-  const shadowProbes: MediaSourceProbe[] = [];
+  // A fonte de mídia é decidida no Rust com as linhas do acervo já lidas aqui.
+  const bankRows = bankRowsNapi(bankByHash);
   const porChave = new Map<string, typeof candidatos>();
   for (const cand of candidatos) {
     const dn = dnForRecord(cand.item, cand.hash, bankByHash);
@@ -143,8 +139,7 @@ function record(
       const source = itemSource === 'autofetch' && (!prior || prior.source === 'autofetch')
         ? 'autofetch' as const
         : undefined;
-      const mediaSource = decideMediaSource(item, title, hash, prior, bankByHash, shadowBank);
-      if (shadowOn) shadowProbes.push(recordProbe(item, title, hash, prior?.mediaSource, shadowBank, mediaSource));
+      const mediaSource = mediaSourceOf(item, title, hash, prior, bankRows);
       existing.set(hash, {
         hash,
         title: title || prior?.title || '',
@@ -173,7 +168,6 @@ function record(
   }
   metrics.count('search.idx.recorded', added);
   if (added > 0) metrics.count('search.idx.grown');
-  observeMediaSource(shadowProbes);
   return added;
 }
 /**

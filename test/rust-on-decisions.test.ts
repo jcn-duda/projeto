@@ -1,6 +1,5 @@
-// Modo `on` do índice de releases e da seleção do autofetch: o valor do Rust
-// é o que vale, o TS é reserva quando o napi lança. Núcleo stub; não carrega
-// .node nem sobe o runner (mesmo molde de rust-release-index/rust-autofetch).
+// Índice de releases (só Rust) e modo `on` da seleção do autofetch: o valor do
+// Rust é o que vale. Núcleo stub; não carrega .node nem sobe o runner.
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -10,7 +9,6 @@ const config = (await import('../src/config.js')).default;
 const metrics = await import('../src/utils/metrics.js');
 const rustCore = await import('../src/utils/rust-core.js');
 const { record, lookup } = await import('../src/utils/release-index.js');
-const { installReleaseIndexHook, resetReleaseIndexHook } = await import('../src/utils/rust-release-index.js');
 const {
   decideAutofetch, observeAutofetch, installAutofetchHook, resetAutofetchHook,
 } = await import('../src/utils/rust-autofetch.js');
@@ -18,7 +16,6 @@ import type { AutofetchCapture, AutofetchDecisionNapi } from '../src/utils/rust-
 
 const saved = {
   releaseIndex: config.releaseIndex.enabled,
-  indexMode: config.rustReleaseIndex.mode,
   autofetchMode: config.rustAutofetch.mode,
 };
 
@@ -33,18 +30,14 @@ beforeEach(() => {
   metrics.reset();
   rustCore.setCoreForTest(null);
   config.releaseIndex.enabled = true;
-  config.rustReleaseIndex.mode = 'off';
   config.rustAutofetch.mode = 'off';
-  resetReleaseIndexHook();
   resetAutofetchHook();
 });
 
 after(() => {
   config.releaseIndex.enabled = saved.releaseIndex;
-  config.rustReleaseIndex.mode = saved.indexMode;
   config.rustAutofetch.mode = saved.autofetchMode;
   rustCore.setCoreForTest(null);
-  resetReleaseIndexHook();
   resetAutofetchHook();
 });
 
@@ -56,29 +49,14 @@ function indexItem(hash: string) {
   return { title: 'Filme Teste BluRay 1080p DUBLADO', infoHash: hash, seeders: 12, indexer: 'testindexer', isBr: true };
 }
 
-test('índice on: grava a fonte do Rust e não agenda comparação', async () => {
-  config.rustReleaseIndex.mode = 'on';
-  installReleaseIndexHook(() => rustCore.getCore());
+test('índice: grava a fonte de mídia que o Rust decide', () => {
   rustCore.setCoreForTest({ ...titles(), releaseIndexMediaMerge: () => 'webdl' });
   record('tt9200001', {}, [indexItem('4'.repeat(40))]);
-  await flush();
   assert.equal((lookup('tt9200001')[0] as any).mediaSource, 'webdl');
   assert.equal(counter('rust.release_index.calls'), 1);
-  assert.equal(counter('rust.release_index.divergence'), 0);
 });
 
-test('índice on: napi que lança grava o valor do TS', async () => {
-  config.rustReleaseIndex.mode = 'on';
-  installReleaseIndexHook(() => rustCore.getCore());
-  rustCore.setCoreForTest({ ...titles(), releaseIndexMediaMerge: () => { throw new Error('boom'); } });
-  record('tt9200002', {}, [indexItem('5'.repeat(40))]);
-  assert.equal((lookup('tt9200002')[0] as any).mediaSource, 'BluRay');
-  assert.equal(counter('rust.release_index.error'), 1);
-});
-
-test('índice on sem núcleo: TS grava como antes', () => {
-  config.rustReleaseIndex.mode = 'on';
-  installReleaseIndexHook(() => rustCore.getCore());
+test('índice: núcleo real lê BluRay do título', () => {
   record('tt9200003', {}, [indexItem('6'.repeat(40))]);
   assert.equal((lookup('tt9200003')[0] as any).mediaSource, 'BluRay');
 });
