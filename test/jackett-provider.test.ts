@@ -101,7 +101,7 @@ test('primary PT 200 com zero relevante dispara fallback original e entrega a fo
   fetchImpl.handler = (call) => {
     if (call.url.includes('/results')) {
       const query = new URL(call.url).searchParams.get('Query');
-      if (query === 'Coringa') {
+      if (query === 'Coringa S01') {
         // 200 válido, mas tudo lixo: o filtro estrito descarta e o fallback corre.
         return fakeResponse({ Results: [
           { Title: 'Missão: Impossível – Efeito Coringa 1080p', Seeders: 1, Link: 'http://protector.test/lixo' },
@@ -119,7 +119,9 @@ test('primary PT 200 com zero relevante dispara fallback original e entrega a fo
       fallbackQuery: 'Joker S01E01',
       matchContext: SERIES_CTX,
     });
-    assert.deepEqual(fetchImpl.searchCalls(), ['Coringa', 'Joker']);
+    // A moldagem BR mantém a temporada (S01E01 → S01: o resolver Rust extrai
+    // da query); o fallback original EN corre com o Sxx do mesmo jeito.
+    assert.deepEqual(fetchImpl.searchCalls(), ['Coringa S01', 'Joker S01']);
     assert.equal(items.length, 1);
     assert.equal(items[0].title, 'Joker 2019 1080p WEB-DL');
     // O lixo da primária nem chegou a pagar protetor de link.
@@ -140,7 +142,7 @@ test('HTTP erro na primary NÃO dispara o fallback', async () => {
       matchContext: SERIES_CTX,
     });
     // Erro de servidor sobe como falha do indexer; nada de segunda tentativa.
-    assert.deepEqual(fetchImpl.searchCalls(), ['Coringa']);
+    assert.deepEqual(fetchImpl.searchCalls(), ['Coringa S01']);
     assert.deepEqual(items, []);
   });
 });
@@ -158,7 +160,7 @@ test('fallback é sequencial e cabe no orçamento restante, sem duas tentativas 
     if (call.url.includes('/results')) {
       const query = new URL(call.url).searchParams.get('Query');
       seen.push(query);
-      if (query === 'Coringa') return primaryGate.then(() => fakeResponse({ Results: [] }));
+      if (query === 'Coringa S01') return primaryGate.then(() => fakeResponse({ Results: [] }));
       return fakeResponse({ Results: [{ Title: 'Joker 2019 1080p', Seeders: 5, MagnetUri: MAGNET }] });
     }
     return fakeResponse(null, { status: 404 });
@@ -173,10 +175,10 @@ test('fallback é sequencial e cabe no orçamento restante, sem duas tentativas 
       // Primary ainda em voo: o fallback não pode ter começado (nada de Promise
       // paralela dentro do deadline).
       await new Promise((resolve) => setTimeout(resolve, 25));
-      assert.deepEqual(seen, ['Coringa']);
+      assert.deepEqual(seen, ['Coringa S01']);
       releasePrimary();
       const items = await search;
-      assert.deepEqual(seen, ['Coringa', 'Joker']);
+      assert.deepEqual(seen, ['Coringa S01', 'Joker S01']);
       assert.equal(items.length, 1);
     });
   } finally {

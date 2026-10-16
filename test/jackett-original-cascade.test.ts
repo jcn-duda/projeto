@@ -176,7 +176,7 @@ test('BR com fallback pt-BR ativo NÃO executa o degrau original (cascata pt nã
   fetchImpl.handler = (call) => {
     if (call.url.includes('/results')) {
       const query = new URL(call.url).searchParams.get('Query');
-      if (query === 'Joker') {
+      if (query === 'Joker S01') {
         return fakeResponse({ Results: [
           { Title: 'Coringa 2019 DUBLADO 1080p', Seeders: 8, MagnetUri: MAGNET },
         ] });
@@ -194,7 +194,9 @@ test('BR com fallback pt-BR ativo NÃO executa o degrau original (cascata pt nã
     });
     // O fallback original EN rodou; o degrau "Adım Farah" foi portado de fora
     // (erro de uso) e o gate o descarta — BR com pt-BR útil não se alonga.
-    assert.deepEqual(fetchImpl.searchCalls(), ['Coringa', 'Joker']);
+    // A moldagem BR mantém a temporada no token (S01E01 → S01: o resolver
+    // Rust a extrai da própria query).
+    assert.deepEqual(fetchImpl.searchCalls(), ['Coringa S01', 'Joker S01']);
     assert.equal(items.length, 1);
   });
 });
@@ -219,10 +221,11 @@ test('BR sem ptQuery útil usa o título original como último degrau', async ()
       originalQuery: FARAH_ORIGINAL,
       matchContext: FARAH_CTX,
     });
-    // A moldagem BR tira o SxxEyy da primária; o original entra como último
+    // A moldagem BR reduz SxxEyy a Sxx (a temporada fica — o resolver Rust
+    // precisa dela); o original entra como último
     // degrau já sem acento — o stripDiacritics dobra também o ı turco, e o
     // buscador WordPress BR devolve 0 para query acentuada.
-    assert.deepEqual(fetchImpl.searchCalls(), ['My Name Is Farah', 'Adim Farah']);
+    assert.deepEqual(fetchImpl.searchCalls(), ['My Name Is Farah S01', 'Adim Farah']);
     assert.equal(items.length, 1);
   });
 });
@@ -388,7 +391,7 @@ test('BR: fallback pt idêntico à primária não suprime o degrau original', as
     // Fallback dedupado (nem vira chamada — a moldagem BR tira o diacrítico e
     // reduz fallback e primária ao mesmo texto); o degrau original roda.
     // O original sai sem acento pela moldagem BR, e a grafia ASCII dedupa nele.
-    assert.deepEqual(fetchImpl.searchCalls(), ['Meu Nome e Farah', 'Adim Farah']);
+    assert.deepEqual(fetchImpl.searchCalls(), ['Meu Nome e Farah S01', 'Adim Farah']);
     assert.equal(items.length, 1);
   });
 });
