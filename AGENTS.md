@@ -39,15 +39,15 @@ trabalho de código é em `src/`.
   `.node` para musl (estágio `rustcore`, `-crt-static`) em `dist/rust/`; o
   `npm run build` o copia de `rust/target` depois de limpar `dist/`. O núcleo é
   **obrigatório** (`native-core.ts`; o boot o carrega, testes sob demanda).
-  `RUST_CORE=off|shadow|on` (default off) sobra só para os **vereditos de release
-  em lote** (`evaluateReleases`):
-  em `shadow`, `rust-shadow.ts` compara com `setImmediate` (`rust.batch.diff`); em
-  `on`, `filterRelevantRaw` manda o lote ao Rust e `hasPtSigns`, `brOriginMark`,
-  `parseTitleSeasonEpisode`, `matchesBrTitle`, `extractInfoHash`, `magnetDisplayName`
-  e `isSafeDownloadUrl` leem de `rust-verdict-memo.ts` (chave = entrada exata;
-  falta cai no TS). A **fonte de mídia do índice** e a **seleção do autofetch**
-  (imediatos e fila; a cascata TS fica só pelos efeitos: sonda, purga, skips,
-  trace) são só Rust.
+  `RUST_CORE=off|shadow|on` (default off) sobra só para o **shadow do crawl**
+  (`rust-crawl-shadow.ts`).
+  O **filtro de relevância** (`filterRelevantRaw`/`filterInventoryRelevant`) e o
+  **filtro de episódio** (`filterSeriesEpisodeRaw`; pre-air e o enriquecimento
+  pelo banco de magnets continuam no TS) decidem INTEIROS no núcleo, em lote,
+  devolvendo só índices e o motivo do corte (`rust-relevance.ts`,
+  `rust-episode-filter.ts`). A **fonte de mídia do índice** e a **seleção do
+  autofetch** (imediatos e fila; a cascata TS fica só pelos efeitos: sonda,
+  purga, skips, trace) são só Rust.
   O **ranking** (dedupe + sortAndLimit), o **💾 de episódio** (`annotateEpisodeSizes`)
   e as decisões de debrid (**`pickFile`**, **veredito de cache**, **ledger/gate do RD**,
   **limpeza**) e o **`normalizeTitle`** são só Rust (o CI compila o napi antes da
@@ -358,11 +358,13 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 - Cinemeta e TMDB com anos a mais de 2 de distância: o filtro aceita os DOIS
   (`altYear`, `catalog-year.ts`) — Monster: global "2018", BR "2021". Filme de
   nome de um token com palavra que nomeia entre o nome e o ano é outra obra
-  (`short-name-tail.ts`: "Monster Hunter 2021").
+  (a regra do short-name-tail vive no núcleo, `adom-core::short_name_tail`;
+  "Monster Hunter 2021").
 - Filme antes do 1º lançamento doméstico no TMDB (`tmdb-home-release.ts`):
   release WEB/BluRay/HDTV/DVD não é ele (The Odyssey do Nolan × o "The Odyssey
-  (2026)" da Tubi); CAM/TS passa. Trailer/teaser/trilha saem sempre
-  (`non-feature-release.ts`). O build lê a data por `peekHomeReleaseAt`.
+  (2026)" da Tubi); CAM/TS passa. Trailer/teaser/trilha saiam sempre
+  (regra do non-feature no núcleo, `adom-core::non_feature_release`). O build
+  lê a data por `peekHomeReleaseAt`.
 - Sigla com ponto ("G.O.R.A.", "S.W.A.T.") vira uma palavra (`collapseAcronyms`)
   no `normalizeTitle` e na consulta dos **globais** (`shapeSearchQuery`); os BR
   ficam com os pontos (BLUDV: "S.W.A.T." 127, "SWAT" 0).
