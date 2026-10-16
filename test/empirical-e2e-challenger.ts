@@ -79,12 +79,12 @@ const mutations = [
     testFile: 'dist/test/e2e/tier1-title-cache.test.js'
   },
   {
-    // PLANO_MELHORIAS 5.3: dedupeByHash saiu de utils/format.js para
-    // utils/stream-ranking.js no split de format.ts.
-    name: 'MUT-02: Break dedupeByHash seeders preservation (stream-ranking.js)',
-    file: 'dist/src/utils/stream-ranking.js',
-    target: 'const seedDiff = (s._seeders || 0) - (prev._seeders || 0);',
-    replacement: 'const seedDiff = (prev._seeders || 0) - (s._seeders || 0); // MUTATED',
+    // A regra do dedupe é do Rust (o TS saiu do branch): o mutante desliga a
+    // chamada ao núcleo na ponte, e a lista volta sem fundir o mesmo hash.
+    name: 'MUT-02: Skip Rust dedupeByHash (rust-stream-ranking.js)',
+    file: 'dist/src/utils/rust-stream-ranking.js',
+    target: 'const out = rankingCore().dedupeByHashNapi({ streams, indexerPriority });',
+    replacement: 'const out = { streams: streams.slice().reverse(), drops: [] }; // MUTATED',
     // Capturado pelo tier1-title-cache (5.5): o dedupe do mesmo hash exige o ganhador de 100 seeders.
     testFile: 'dist/test/e2e/tier1-title-cache.test.js'
   },

@@ -210,6 +210,27 @@ function dropTrace(t: StreamTraceState | null | undefined, item: unknown, reason
   if (isAccount) t.accountItems += 1;
 }
 
+/**
+ * Cortes que o Rust devolveu já no formato do item (`{reason, label, br,
+ * dubbed?, quality?}`, mesmo `labelOf`): entram como o `dropTrace` os poria,
+ * com o mesmo teto.
+ */
+function pushTraceDrops(t: StreamTraceState | null | undefined, drops: unknown[]): void {
+  if (!t) return;
+  for (const drop of drops) {
+    if (t.items.length >= STREAM_TRACE_MAX_ITEMS) return;
+    const d = drop as { reason: TraceReason; label: string; br: boolean; dubbed?: boolean; quality?: string };
+    t.items.push({
+      id: `s${t.items.length + 1}`,
+      reason: d.reason,
+      label: d.label,
+      br: Boolean(d.br),
+      ...(d.dubbed !== undefined ? { dubbed: Boolean(d.dubbed) } : {}),
+      ...(d.quality ? { quality: String(d.quality) } : {}),
+    });
+  }
+}
+
 /** Fecha o trace: fixa o tamanho final da lista e o instante de término. */
 function finalizeTrace(t: StreamTraceState | null | undefined, finalCount: number): void {
   if (!t) return;
@@ -279,6 +300,7 @@ export {
   setTraceStage,
   setTraceChupim,
   dropTrace,
+  pushTraceDrops,
   finalizeTrace,
   sanitizeTraceLabel,
   serializeTrace,

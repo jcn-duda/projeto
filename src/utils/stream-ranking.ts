@@ -1,21 +1,6 @@
-import { priorityMap, compareIndexerPriority } from './indexer-priority.js';
 import type { Stream } from '../../types/domain.js';
-import {
-  UNKNOWN_QUALITY,
-  audioFromTitle,
-  sourceFromTitle,
-  editionFromTitle,
-  hasExplicitForeignAudio,
-  explicitPtAudio,
-} from './audio-quality.js';
-import { namesForeignDubLanguage } from './audio-cleanup.js';
-import { parseTitleSeasonEpisode } from './episode-matching.js';
-import { selectQualityCandidates, streamQuality } from './stream-quotas.js';
-import { passesQualityFilter } from './search-names.js';
 import { relabel } from './stream-relabel.js';
-import { dropTrace } from './stream-trace.js';
-import type { StreamTraceState, TraceReason } from './stream-trace.js';
-import * as metrics from './metrics.js';
+import type { StreamTraceState } from './stream-trace.js';
 import {
   DUBBED_QUALITY_WEIGHT,
   AUTOFETCH_TARGET_QUALITIES,
@@ -25,12 +10,7 @@ import {
   topSeededPool,
 } from './autofetch-pools.js';
 import type { PoolsOptions, AutofetchTargetQuality } from './autofetch-pools.js';
-import {
-  buildRankingInput,
-  rankingMode,
-  rustSortAndLimit,
-  shadowSortAndLimit,
-} from './rust-stream-ranking.js';
+import { rustDedupeByHash, rustSortAndLimit } from './rust-stream-ranking.js';
 import {
   hashSet,
   pickFromPool,
@@ -69,302 +49,22 @@ interface SortOptions {
   trace?: StreamTraceState | null;
 }
 
-// Token de dublagem sem idioma. Separadores explícitos: `\b` não separa `_Dub`.
-const GENERIC_DUB = /(?:^|[\s._\-[(])(?:dub|dubbed)(?=$|[\s._\-\])])/i;
-
-/** Mesma release aparece em vários indexers; fica a de maior seeders. */
+/**
+ * Mesma release aparece em vários indexers; fica a de maior seeders. A regra
+ * (idoneidade, seeders, dublado, prioridade, herança BR de espelho) é do Rust.
+ */
 function dedupeByHash(streams: any[], indexerPriority: string[] = [], trace?: StreamTraceState | null) {
-  const best = new Map();
-  const hasCleanWinner = new Map<string, boolean>();
-  const ranks = priorityMap(indexerPriority);
-  for (const s of streams) {
-    if (!s) continue;
-    const prev = best.get(s.infoHash);
-    if (!prev) {
-      best.set(s.infoHash, s);
-      hasCleanWinner.set(s.infoHash, !s._lied);
-      continue;
-    }
-    // Agregadores BR espelham magnets públicos: mesma hash não prova, sozinha,
-    // que o arquivo global tenha áudio PT. Origem e áudio ficam com o post
-    // vencedor — salvo quando o título do vencedor CORROBORA o post BR (ver
-    // `inheritsBr` abaixo).
-    const sClean = !s._lied;
-    const prevClean = Boolean(hasCleanWinner.get(s.infoHash));
-    const seedDiff = (s._seeders || 0) - (prev._seeders || 0);
-    // Hash idêntico é a mesma release. Release sem mentira deve ser preferida
-    // como winner para preservar título e metadados íntegros contra clones mentirosos.
-    // Seeders continuam sendo a evidência principal entre releases com mesma idoneidade;
-    // no empate, a listagem com áudio PT declarado vence.
-    let winner;
-    if (sClean !== prevClean) winner = sClean ? s : prev;
-    else if (seedDiff > 0) winner = s;
-    else if (seedDiff < 0) winner = prev;
-    else if (Boolean(s._dubbed) !== Boolean(prev._dubbed)) winner = s._dubbed ? s : prev;
-    else if (Boolean(s._dubClaim) !== Boolean(prev._dubClaim)) winner = s._dubClaim ? s : prev;
-    else winner = compareIndexerPriority(s, prev, ranks) < 0 ? s : prev;
-    hasCleanWinner.set(s.infoHash, sClean || prevClean);
-    const loser = winner === s ? prev : s;
-    // P5 — o perdedor do merge some da lista em silêncio; no ledger fica o
-    // título dele e de quem venceu não precisa: o item é o mesmo hash.
-    dropTrace(trace, loser, 'dedupe');
-    // O indexer BR priorizado pode omitir resolução/tamanho enquanto o global
-    // traz metadados completos para o mesmo hash. A prioridade escolhe o rótulo
-    // e a origem, mas não deve degradar cota, bingeGroup ou tamanho conhecido.
-    const richerQuality = winner._quality === UNKNOWN_QUALITY && loser._quality !== UNKNOWN_QUALITY
-      ? loser
-      : winner;
-    const isLied = Boolean(winner._lied || loser._lied);
-    // Espelho global de post BR vencendo por seeders: a varredura pt-BR nos
-    // globais traz exatamente essas cópias, e a marca BR sumia no merge. Medido
-    // em A Rocha (tt0117500, 2026-09-14): "A.Rocha.1996.BluRay.1080p.x264.DUAL.
-    // 2.0-STARCKFILMES" (global, mais seeders) vencia o post da BLUDV "[1080p
-    // DUAL 2.80 GB]" e o dublado perdia a vaga reservada. O vencedor herda
-    // origem e áudio do post BR só quando o PRÓPRIO título declara DUAL e nenhum
-    // áudio estrangeiro, e nenhum lado tem prova de mentira.
-    const winnerTitle = String(winner.title || winner.name || '').split('\n')[0];
-    const loserTitle = String(loser.title || loser.name || '').split('\n')[0];
-    // Guarda = mínima OR ampla: a decisão só NEGA BR (não apaga da conta),
-    // mas não pode ficar mais frouxa que `hasExplicitForeignAudio` — DUAL.VF
-    // / SUBITA / NL já eram barrados no a81de23. A ampla fecha LAT/ESP/MULTI/
-    // cirílico/VFF. PT explícito absolve (`foreignDub`): post "Dual Áudio
-    // PT-BR ENG" continua emprestando BR ao espelho STARCKFILMES.
-    const foreignDub = (t: string) =>
-      hasExplicitForeignAudio(t) || (!explicitPtAudio(t) && namesForeignDubLanguage(t));
-    // Dublagem GENÉRICA ("WEBRip_Dub", sem idioma) também corrobora: o post BR
-    // diz DUBLADO do MESMO hash e o espelho diz que há dublagem. Medido em Coyote
-    // vs. Acme (tt1756855, 2026-09-18): "Coyote_Vs_Acme_2026_1080p_WEBRip_Dub"
-    // (kickass, 160 seeders) vencia "[1080p DUBLADO 4.26 GB]" da vacatorrent e o
-    // único dublado da obra sumia nas cotas. Idioma estrangeiro nomeado segue
-    // barrando pelo `foreignDub` ("Latino Dub" não herda).
-    const winnerAudio = audioFromTitle(winnerTitle);
-    const corroborates = winnerAudio === 'Dual' || (winnerAudio === '' && GENERIC_DUB.test(winnerTitle));
-    const inheritsBr = !isLied && !winner._br && Boolean(loser._br) && Boolean(loser._dubClaim || loser._dubbed)
-      && corroborates && !foreignDub(winnerTitle)
-      && !foreignDub(loserTitle);
-    const merged = {
-      ...winner,
-      _quality: richerQuality._quality,
-      _seeders: Math.max(Number(winner._seeders) || 0, Number(loser._seeders) || 0),
-      _size: winner._size || loser._size || 0,
-      _bytes: winner._bytes || loser._bytes || 0,
-      behaviorHints: richerQuality.behaviorHints || winner.behaviorHints,
-      _br: Boolean(winner._br || inheritsBr),
-      // Herança de espelho é PROMESSA do post BR, não prova de arquivo.
-      _dubClaim: isLied ? false : Boolean(winner._dubClaim || inheritsBr),
-      _dubbed: isLied ? false : Boolean(winner._dubbed),
-      _tracker: winner._tracker,
-      // dn= do magnet: o rótulo CAM depende dele no relabel — não perder no merge.
-      _magnetDn: winner._magnetDn || loser._magnetDn || '',
-      // Hash idêntico tem o mesmo conteúdo: se QUALQUER listagem marcou como
-      // pack, a marca precisa sobreviver ao merge — senão o perdedor BR com
-      // título de coleção perderia o estrito para o vencedor EN sem marca.
-      _multiWork: Boolean(winner._multiWork || loser._multiWork),
-      // Só o admitido (opt-in TMDB) aciona nunca-P2P/fora-do-autofetch; se
-      // QUALQUER lado foi admitido, o vencedor mantém a marca — perdê-la no
-      // merge devolveria o pack ao caminho P2P.
-      _multiWorkAdmitted: Boolean(winner._multiWorkAdmitted || loser._multiWorkAdmitted),
-      _lied: isLied,
-    };
-    if (merged._quality !== winner._quality || inheritsBr) {
-      merged.name = relabel(merged, {
-        isBr: merged._br,
-        dubbedFrom: merged._br ? String(loser.name || '').split('\n')[0] : '',
-      });
-    }
-    best.set(s.infoHash, merged);
-  }
-  return [...best.values()];
-}
-
-function sortAndLimitTs(
-  streams: (Stream | null)[],
-  {
-    minSeeders = 0,
-    maxResults = 40,
-    qualityFilter = [],
-    season = null,
-    episode = null,
-    preferDubbed = false,
-    dubbedOnly = false,
-    excludeCam = false,
-    maxSizeGb = 0,
-    qualityLimits = {},
-    brReservedSlots = 0,
-    brReservedPerQuality = 0,
-    candidateFactor = 1,
-    brFirst = true,
-    indexerPriority = [],
-    instant = null as null | ((hash: string) => boolean),
-    trace,
-  }: SortOptions = {},
-) {
-  // Release que nomeia o episódio pedido vem antes do pack da temporada: o pack
-  // serve, mas quem pediu o E01 quer ver o E01 no topo da lista.
-  // O marcador é estático por stream; o comparador o lia via
-  // parseTitleSeasonEpisode a cada comparação (~n·log n parses do mesmo
-  // título), então ele é pré-computado uma vez antes do sort.
-  const dubbed = (s: any) => (s._dubbed ? 1 : 0);
-  const maxSizeBytes = maxSizeGb > 0 ? maxSizeGb * 1024 ** 3 : 0;
-  const indexerRanks = priorityMap(indexerPriority);
-
-  // P5 — aplica UM predicado e registra quem caiu com o motivo exato. Com o
-  // trace desligado é um filter comum (o diff só roda quando há queda).
-  const filtrar = (entrada: any[], motivo: TraceReason, predicado: (s: any) => boolean) => {
-    const saida = entrada.filter(predicado);
-    if (trace && saida.length !== entrada.length) {
-      const vivos = new Set(saida);
-      for (const s of entrada) if (!vivos.has(s)) dropTrace(trace, s, motivo);
-    }
-    return saida;
-  };
-
-  let candidates = dedupeByHash(streams, indexerPriority, trace);
-  // Mentiroso NUNCA entra na lista (applyDebrid também corta; aqui é cedo).
-  // d:1 (dubbedOnly) NÃO corta global/EN: o usuário ainda precisa ver Lime/
-  // EZTV/kickass em cache. O que d:1 muda é privilégio (preferDubbed já
-  // sobe prova; Chupim seeds bloqueia; chip DUB só com _dubbed) — não a
-  // presença do swarm global na lista. Cortar EN aqui esvaziava a UI.
-  candidates = filtrar(candidates, 'lie', (s) => !s._lied);
-  void dubbedOnly;
-  // Piso de seeders: BR com promessa ou prova de dublado sobrevive ao piso
-  // quando não há `_lied` nem idioma estrangeiro explícito. O piso existe para
-  // não oferecer torrent morto em P2P; no debrid a release em CACHE toca sem
-  // swarm — e se o item morresse aqui, a checagem nunca mediria o hash.
-  // Medido: Event Horizon (tt0119081) "…DUBLADO.PT.BR" com 0 seeders. O
-  // waiver NÃO afrouxa para Dual ambíguo sem claim, nem para global sem `_br`,
-  // nem para o condenado. Não promove na ordenação. BAIXAR continua exigindo
-  // o piso — espelho do corte em autofetch-runner (isSeedFloorWaived).
-  const isProvenBrDubbed = (s: any) =>
-    Boolean(s?._br) && Boolean(s?._dubbed || s?._dubClaim) && !s?._lied &&
-    !hasExplicitForeignAudio(String(s?.title || s?.name || ''));
-  const waived = new Set<any>();
-  candidates = filtrar(candidates, 'min-seeders', (s) => {
-    if ((s._seeders || 0) >= minSeeders) return true;
-    if (!isProvenBrDubbed(s)) return false;
-    waived.add(s);
-    metrics.count('search.brDubbed.seedFloorWaived');
-    return true;
-  });
-  // Whitelist de qualidade: título obscuro (The Locals / tt0387357) onde o HD
-  // permitido já morreu no piso de seeders e sobrou só DVDRip/sem resolução —
-  // com cachedOnly a UI ficaria vazia para sempre. Se o conjunto permitido
-  // está VAZIO, reabre SD/480p/sem resolução como último recurso. O gatilho é
-  // "vazio", não "fraco": `_seeders` é sintético em agregador BR (bludv grava
-  // 1 fixo), então qualquer piso de saúde afrouxaria o filtro do usuário em
-  // busca BR normal. O último recurso também escapa das cotas de
-  // `qualityLimits` — é o preço de não devolver lista vazia.
-  const notCam = (s: any) => !excludeCam || (sourceFromTitle(s.title) !== 'CAM' && sourceFromTitle(s._magnetDn || '') !== 'CAM');
-  // Tamanho ausente não é tratado como zero real: sem dado confiável, o
-  // stream continua visível em vez de ser descartado silenciosamente.
-  const fitsSize = (s: any) => !maxSizeBytes || !s._size || s._size <= maxSizeBytes;
-  const qualityOk = (s: any) => passesQualityFilter(s, qualityFilter, qualityLimits);
-  let qualityKeep: Set<any> | null = null;
-  if (qualityFilter.length > 0 && !candidates.some(qualityOk)) {
-    // O fallback já respeita CAM e tamanho: reabrir um SD que morreria no
-    // filtro seguinte não salva a lista, só faria a métrica mentir sobre
-    // quantas buscas o último recurso realmente resgatou.
-    const fallback = candidates.filter((s) => {
-      const q = streamQuality(s);
-      return (q === 'SD' || q === '480p' || q === UNKNOWN_QUALITY) && notCam(s) && fitsSize(s);
-    });
-    if (fallback.length > 0) {
-      qualityKeep = new Set(fallback);
-      metrics.count('search.qualityFilter.relaxed');
-    }
-  }
-  candidates = filtrar(
-    candidates,
-    'quality-filter',
-    (s) => (qualityKeep ? qualityKeep.has(s) : qualityOk(s)),
-  );
-  candidates = filtrar(candidates, 'cam-excluded', notCam);
-  candidates = filtrar(candidates, 'size-limit', fitsSize);
-
-  const exactFlag = new Map();
-  if (season != null && episode != null) {
-    for (const s of candidates) {
-      exactFlag.set(s, parseTitleSeasonEpisode(s.title).episodes.includes(episode) ? 1 : 0);
-    }
-  }
-
-  const ordered = candidates
-    .sort((a, b) => {
-      const ed = (exactFlag.get(b) || 0) - (exactFlag.get(a) || 0);
-      if (ed !== 0) return ed;
-      // Sem resolução fica acima do SD e abaixo do 720p: é quase sempre um
-      // WEB-DL BR que não anuncia resolução, não uma cópia ruim.
-      const qOrder: Record<string, number> = { '2160p': 5, '1080p': 4, '720p': 3, [UNKNOWN_QUALITY]: 2, '480p': 1, SD: 0 };
-      const qd = (qOrder[b._quality] || 0) - (qOrder[a._quality] || 0);
-      if (qd !== 0) return qd;
-      // Release comprovadamente mentirosa de áudio fica abaixo de opções limpas
-      // da mesma qualidade, antes de preferDubbed, prioridade de indexador e instant.
-      const ld = (a._lied ? 1 : 0) - (b._lied ? 1 : 0);
-      if (ld !== 0) return ld;
-      if (preferDubbed) {
-        const ad = dubbed(b) - dubbed(a);
-        if (ad !== 0) return ad;
-      }
-      // "Priorizar dublado" é uma escolha explícita mais específica que a
-      // fonte preferida. Depois dela, o indexador desempata sem vencer qualidade.
-      const pd = compareIndexerPriority(a, b, indexerRanks);
-      if (pd !== 0) return pd;
-      // Histórico durável do banco de magnets: hash que o debrid comprovou
-      // como play instantâneo vence a aposta de seeders — evidência medida
-      // contra probabilidade.
-      if (instant) {
-        const hd = (instant(b.infoHash) ? 1 : 0) - (instant(a.infoHash) ? 1 : 0);
-        if (hd !== 0) return hd;
-      }
-      return (b._seeders || 0) - (a._seeders || 0);
-    });
-
-  const selecionados = selectQualityCandidates(ordered, {
-    maxResults,
-    qualityLimits,
-    brReservedSlots,
-    brReservedPerQuality,
-    candidateFactor,
-    brFirst,
-  });
-  // P5 — o pool pré-debrid é maior que o que segue adiante (candidateFactor):
-  // quem caiu aqui não é ruim, é excedente da ampliação.
-  if (trace && selecionados.length !== ordered.length) {
-    const vivos = new Set(selecionados);
-    for (const s of ordered) if (!vivos.has(s)) dropTrace(trace, s, 'pool-cut');
-  }
-  return selecionados
-    // `_quality` e `_br` precisam sobreviver ao debrid: as cotas e a reserva
-    // são aplicadas só depois que cachedOnly remove os streams indisponíveis.
-    // `_dubbed`/`_dubClaim` também: autofetch e dubbedOnly leem os dois.
-    // `_indexer` idem, para a cota por indexador do corte final; quem apaga
-    // todos os campos internos é `limitReservingBr`.
-    .map((s: any) => {
-      const { _seeders, _size, ...rest } = s;
-      // O waiver viaja MARCADO (`_seedFloorWaived`) para o enqueue do autofetch
-      // não baixar o que o piso dispensou: cache não precisa de swarm, download
-      // sim. A marca é interna e morre no limitReservingBr, junto das outras.
-      return waived.has(s) ? { ...rest, _seedFloorWaived: true } : rest;
-    });
+  return rustDedupeByHash(streams, indexerPriority, trace) as any[];
 }
 
 /**
- * Dispatcher do sortAndLimit (Parte 7 da ponte Rust). `on` = o Rust responde
- * (dedupe + sort numa travessia) e cai no TS de reserva se lançar; `shadow` =
- * o TS responde e o Rust repete em `setImmediate`, fora do caminho da resposta
- * (divergência → `rust.ranking.divergence`). Com os envs default (`off`) o
- * comportamento é bit-a-bit o de antes: só o TS roda.
+ * Dedupe + piso de seeders (com waiver BR dublado) + filtros + pool com vagas
+ * BR, no Rust (`rust-stream-ranking.ts`). Os cortes entram no `trace`.
  */
 function sortAndLimit(streams: (Stream | null)[], options: SortOptions = {}) {
-  if (rankingMode() === 'on') {
-    const viaRust = rustSortAndLimit(streams, options);
-    if (viaRust) return viaRust as Stream[];
-  }
-  const out = sortAndLimitTs(streams, options);
-  if (rankingMode() === 'shadow') {
-    shadowSortAndLimit(buildRankingInput(streams, options), out);
-  }
-  return out;
+  // Mesmo contrato de antes (`any[]`): a saída carrega os campos internos `_*`
+  // que o limitReservingBr ainda lê e apaga.
+  return rustSortAndLimit(streams, options) as any[];
 }
 
 export {

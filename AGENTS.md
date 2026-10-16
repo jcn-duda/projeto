@@ -45,8 +45,10 @@ trabalho de código é em `src/`.
   `on`, `filterRelevantRaw` manda o lote ao Rust e `hasPtSigns`, `brOriginMark`,
   `parseTitleSeasonEpisode`, `matchesBrTitle`, `extractInfoHash`, `magnetDisplayName`
   e `isSafeDownloadUrl` leem de `rust-verdict-memo.ts` (chave = entrada exata;
-  falta cai no TS). `RUST_RELEASE_INDEX`/`RUST_AUTOFETCH`/`RUST_STREAM_RANKING`/
+  falta cai no TS). `RUST_RELEASE_INDEX`/`RUST_AUTOFETCH`/
   `RUST_EPISODE_SIZE` seguem o mesmo `off|shadow|on` (on = Rust decide, TS de reserva).
+  O **ranking** (dedupe + sortAndLimit) é só Rust: o `.node` é obrigatório
+  (`requireCore`; o `build` o copia de `rust/target`, o CI o compila).
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
   velocidade só existe com API em lote. Mudou `title-normalization.ts` ou
   `release-filters.ts`? regenere os goldens (`golden:titles`, `golden:release-filters`,
