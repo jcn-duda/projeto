@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
@@ -14,13 +15,22 @@ const E2E_FILES = [
   'dist/test/e2e/tier4-application-scenarios.test.js'
 ];
 
+// Mesmo ambiente da suíte (`dist/scripts/run-tests.js`): os e2e exigem o
+// `setup-env` via `--import` (pins de env têm que chegar ANTES dos imports
+// içados dos módulos de produção) e um MAGNET_BANK_TEST_DIR temporário — sem
+// eles o baseline abre o SQLite real (`data/cache.db`/`data/magnets.db`) e os
+// Tier 3/4 falham por estado da máquina, não por bug.
+const SETUP_ENV = './dist/test/setup-env.js';
+const bankBase = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-bank-challenger-'));
+
 function runTest(files: any, extraArgs = []) {
-  const args = ['--test', '--test-concurrency=1', ...(Array.isArray(files) ? files : [files]), ...extraArgs];
+  const args = ['--test', '--test-concurrency=1', '--import', SETUP_ENV,
+    ...(Array.isArray(files) ? files : [files]), ...extraArgs];
   const start = Date.now();
   const res = spawnSync(process.execPath, args, {
     cwd: process.cwd(),
     encoding: 'utf8',
-    env: { ...process.env, CACHE_PERSIST: 'false' }
+    env: { ...process.env, CACHE_PERSIST: 'false', MAGNET_BANK_TEST_DIR: bankBase }
   });
   const duration = Date.now() - start;
   return {
@@ -113,9 +123,11 @@ const mutations = [
     testFile: 'dist/test/e2e/tier2-providers-debrid.test.js'
   },
   {
-    // O entrypoint histórico agora é apenas um shim; a guarda executável mora
-    // no núcleo compartilhado carregado pelos profiles. Mutar o shim fazia o
-    // desafio passar sem exercer a defesa.
+    // A guarda executável da allowlist segue em resolvers/protector.js — NÃO
+    // migrou para o Rust (o sidecar é que faz o crawl dos 8 cards; o protetor
+    // de link em processo fica no TS). O escape antigo era vácuo de teste: o
+    // tier2-boundary-corner não alcançava assertAllowedUrl. A cobertura agora
+    // existe (F01-BND-06), e o mutante é capturado pelo mesmo arquivo.
     name: 'MUT-06: Break resolver host security allowlist (protector.js)',
     file: 'dist/resolvers/protector.js',
     target: 'if (!hasAllowedHost(url.hostname, suffixes)) {',
@@ -203,6 +215,7 @@ const safeExitHandler = (reason: string) => {
   if (cleanedUp) return;
   cleanedUp = true;
   restoreAllSnapshots();
+  try { fs.rmSync(bankBase, { recursive: true, force: true }); } catch { /* best-effort */ }
 };
 
 process.on('SIGINT', () => { safeExitHandler('SIGINT'); process.exit(130); });
@@ -271,9 +284,9 @@ const PARALLEL_WORKERS = 6;
 async function runParallelWorker(workerId: number) {
   return new Promise<{ workerId: number; code: number | null; pass: boolean; duration: number; output: string }>((resolve) => {
     const start = Date.now();
-    const child = spawn(process.execPath, ['--test', '--test-concurrency=1', ...E2E_FILES], {
+    const child = spawn(process.execPath, ['--test', '--test-concurrency=1', '--import', SETUP_ENV, ...E2E_FILES], {
       cwd: process.cwd(),
-      env: { ...process.env, CACHE_PERSIST: 'false' }
+      env: { ...process.env, CACHE_PERSIST: 'false', MAGNET_BANK_TEST_DIR: bankBase }
     });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
