@@ -131,14 +131,6 @@ test('on: item global vai uma vez só; repetido no lote também', () => {
   assert.equal(c.calls[0].length, 3, 'global 1× (dedupe) + BR 2× (um por nome)');
 });
 
-test('on: lote que lança vira métrica e o filtro segue no TS', () => {
-  memo.installVerdictPrimer(primerFor(core(() => { throw new Error('boom'); })));
-  const item = { title: TITLE, isBr: true };
-  const out = filterRelevantRaw([item], { names: ['Filme Teste'], year: 2020 });
-  assert.equal(out.length, 1);
-  assert.equal(counter('rust.batch.error'), 1);
-});
-
 test('on: lote de tamanho errado é erro, nada é gravado', () => {
   memo.installVerdictPrimer(primerFor(core(() => [])));
   memo.primeVerdicts([{ title: TITLE }], ['Filme Teste'], 2020, false);
@@ -146,11 +138,24 @@ test('on: lote de tamanho errado é erro, nada é gravado', () => {
   assert.equal(hasPtSigns(TITLE), true);
 });
 
-test('on: o filtro de relevância decide pelo matchesBrTitle do Rust', () => {
+test('filtro: o corte inteiro vai ao núcleo (só índices voltam)', () => {
   const item = { title: TITLE, isBr: true };
-  assert.equal(filterRelevantRaw([item], { names: ['Filme Teste'], year: 2020 }).length, 1, 'TS aceita');
-  memo.installVerdictPrimer(primerFor(core((probes) => probes.map(opposite))));
-  assert.equal(filterRelevantRaw([item], { names: ['Filme Teste'], year: 2020 }).length, 0, 'Rust recusa');
+  const calls: unknown[][] = [];
+  // Stub com resposta oposta ao TS: se o veredito do stub aparece, quem
+  // decidiu foi o núcleo — o filtro não recalcula nada no TS.
+  rustCore.setCoreForTest({
+    normalizeTitle: (t: string) => t,
+    filterRelevantRawNapi: (items: unknown[]) => {
+      calls.push(items);
+      return { kept: [], rejected: [{ index: 0, reason: 0 }] };
+    },
+  });
+  const rejeitados: string[] = [];
+  const out = filterRelevantRaw([item], { names: ['Filme Teste'], year: 2020 }, (_i, r) => rejeitados.push(r));
+  assert.equal(out.length, 0, 'Rust recusa');
+  assert.deepEqual(rejeitados, ['title']);
+  assert.equal(calls.length, 1, 'uma chamada por lote');
+  assert.equal((calls[0] as unknown[]).length, 1);
 });
 
 test('installBatchDecisions: só liga com RUST_CORE=on e núcleo com evaluateReleases', () => {

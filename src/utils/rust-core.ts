@@ -23,6 +23,7 @@ import type { AutofetchCore } from './rust-autofetch.js';
 import type { RankingCore } from './rust-stream-ranking.js';
 import type { EpisodeSizeCore } from './rust-episode-size.js';
 import type { ReleaseProbe, ReleaseVerdict } from './rust-shadow.js';
+import type { RelevanceCore } from './rust-relevance.js';
 
 /** Contrato do lote (`evaluateReleases`); opcional porque binário antigo não o tem. */
 export type BatchCore = { evaluateReleases(probes: ReleaseProbe[]): ReleaseVerdict[] };
@@ -74,7 +75,7 @@ export type CrawlCore = {
   parseCrawlPage(site: string, kind: string, url: string, html: string): CrawlPageParsedNapi;
 };
 
-export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore>;
+export type NapiCore = { normalizeTitle(title: string): string } & Partial<BatchCore> & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore>;
 
 /** Núcleo já carregado (boot ou primeira chamada); null antes disso. */
 function getCore(): NapiCore | null {
