@@ -228,7 +228,7 @@ function toStremioStream(item: RawItem): Stream | null {
     // 0 = desconhecido, e o filtro de tamanho máximo já trata 0 como "passa".
     _size: knownSize,
     // Total EXATO do torrent: o `_size` morre no sortAndLimit, e o dedupe de
-    // pack × avulso (duplicate-pack.ts) compara bytes depois da checagem.
+    // pack × avulso (dedupe de pack do Rust, `annotateEpisodeSizes`) compara bytes depois da checagem.
     _bytes: knownSize,
     // Agregadores BR espelham magnets globais: DUAL sem PT explícito não pode
     // ganhar vaga, prioridade ou autofetch só porque o post foi marcado BR.

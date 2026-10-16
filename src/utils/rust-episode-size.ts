@@ -1,20 +1,15 @@
 /**
- * Ponte do lote de anotação de tamanho em Rust (`annotateEpisodeSizes`,
+ * Anotação de tamanho de episódio/filme em Rust (`annotateEpisodeSizes`,
  * `rust/crates/adom-napi/src/episode_size.rs`): fill do total do torrent
  * (`tsz`), anotação do episódio/filme pela lista de arquivos (`fsz`), guarda de
  * pack, corte do total em texto, fill de quem veio sem 💾 e dedupe de pack
- * repetido — UMA chamada napi. O IO continua aqui: o Node lê os caches
- * `fsz`/`tsz` (`file-sizes.ts`) e manda o lote pronto.
- *
- * Modos (`RUST_EPISODE_SIZE`): `off` (default) = só TS; `on` = o Rust decide e
- * cai no TS se ele lançar; `shadow` = o TS anota e a comparação roda em
- * `setImmediate` (divergência → `rust.episodeSize.divergence` no /metrics.json).
- * No `on` os eventos `episodeSize.*` do stageTrace não são emitidos (o Rust não
- * traca) — em `shadow` o TS continua tracando normalmente.
+ * repetido — UMA chamada napi. O TS dessa decisão saiu do branch (o oráculo é
+ * o `esm`); o IO continua aqui: o Node lê os caches `fsz`/`tsz`
+ * (`file-sizes.ts`) e manda o lote pronto. O Rust não emite os eventos
+ * `episodeSize.*` do stageTrace.
  */
-import config from '../config.js';
 import { peekFileSizes, peekTorrentTotal } from '../debrid/file-sizes.js';
-import * as log from './logger.js';
+import { requireCore } from './rust-core.js';
 import * as metrics from './metrics.js';
 
 export type NapiDebridFileT = { path: string; size: number };
@@ -32,10 +27,8 @@ export type AnnotateInputNapi = {
 };
 
 export type EpisodeSizeCore = {
-  annotateEpisodeSizes?(input: AnnotateInputNapi): { streams: unknown[] };
+  annotateEpisodeSizes(input: AnnotateInputNapi): { streams: unknown[] };
 };
-
-type GetCore = () => EpisodeSizeCore | null;
 
 type AnnotateOptionsLike = {
   season?: number | null;
@@ -45,31 +38,7 @@ type AnnotateOptionsLike = {
   cached?: ReadonlySet<string> | null;
 };
 
-let getCore: GetCore | null = null;
-let warnedNoFn = false;
-let loggedDiffs = 0;
-
-function installEpisodeSizeHook(get: GetCore) {
-  getCore = get;
-}
-
-function resetEpisodeSizeHook() {
-  getCore = null;
-  warnedNoFn = false;
-  loggedDiffs = 0;
-}
-
-export { installEpisodeSizeHook, resetEpisodeSizeHook };
-
-export function episodeSizeMode(): 'off' | 'shadow' | 'on' {
-  return config.rustEpisodeSize.mode;
-}
-
-/**
- * Monta a entrada do napi: lê os caches `fsz`/`tsz` dos hashes presentes e
- * faz cópia RASA dos streams (o shadow roda depois do `setImmediate`; o que se
- * compara é o estado da hora do agendamento).
- */
+/** Monta a entrada do napi: lê os caches `fsz`/`tsz` dos hashes presentes. */
 export function buildAnnotateInput(
   streams: unknown[],
   options: AnnotateOptionsLike,
@@ -92,7 +61,7 @@ export function buildAnnotateInput(
     .map((season) => ({ season: Number(season), episodes: Number(meta[season]) || 0 }))
     .filter((row) => row.season > 0 && row.episodes > 0);
   return dropNulls({
-    streams: streams.map((s) => (s ? { ...(s as Record<string, unknown>) } : null)),
+    streams,
     filesByHash,
     totalsByHash,
     season: options.season ?? null,
@@ -116,90 +85,11 @@ function dropNulls<T extends Record<string, unknown>>(input: T): T {
   return out;
 }
 
-/** JSON canônico (chaves ordenadas) para comparar TS × Rust sem ruído de ordem. */
-function canonJson(value: unknown): string {
-  return JSON.stringify(value, (_key, v) => {
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      const out: Record<string, unknown> = {};
-      for (const k of Object.keys(v).sort()) out[k] = (v as Record<string, unknown>)[k];
-      return out;
-    }
-    return v;
-  });
-}
-
-function logDiff(ts: unknown[], rust: unknown[]) {
-  metrics.count('rust.episodeSize.divergence');
-  if (loggedDiffs >= config.rustCore.maxLoggedDiffs) return;
-  loggedDiffs += 1;
-  log.warn(
-    `[rust] episode-size divergiu: ts=${ts.length} streams rust=${rust.length} streams, `
-      + `primeiro ts=${JSON.stringify(ts[0] ?? null)} rust=${JSON.stringify(rust[0] ?? null)}`,
-  );
-}
-
-/**
- * Caminho `on`: o Rust anota. `null` = off, núcleo ausente ou erro — o
- * chamador segue com o TS (o rust nunca derruba a busca).
- */
-export function rustAnnotateEpisodeSizes(
-  streams: unknown[],
-  options: AnnotateOptionsLike,
-): unknown[] | null {
-  try {
-    if (config.rustEpisodeSize.mode !== 'on' || !getCore) return null;
-    const core = getCore();
-    if (!core) return null;
-    if (typeof core.annotateEpisodeSizes !== 'function') {
-      if (!warnedNoFn) {
-        warnedNoFn = true;
-        log.info('[rust] núcleo sem annotateEpisodeSizes (binário antigo); episode-size segue no TS');
-      }
-      return null;
-    }
-    const input = buildAnnotateInput(streams, options);
-    metrics.count('rust.episodeSize.calls');
-    const out = core.annotateEpisodeSizes(input);
-    if (!out || !Array.isArray(out.streams)) throw new Error('annotateEpisodeSizes não devolveu streams');
-    return out.streams;
-  } catch (err) {
-    metrics.count('rust.episodeSize.error');
-    log.debug('[rust] episode-size lançou; usando TS:', log.errorMessage(err));
-    return null;
-  }
-}
-
-/** Caminho `shadow`: agenda a comparação FORA do caminho da resposta. */
-export function shadowAnnotateEpisodeSizes(
-  input: AnnotateInputNapi,
-  tsStreams: unknown[],
-): void {
-  try {
-    if (config.rustEpisodeSize.mode !== 'shadow') return;
-    const core = getCore?.();
-    if (!core) return;
-    if (typeof core.annotateEpisodeSizes !== 'function') {
-      if (!warnedNoFn) {
-        warnedNoFn = true;
-        log.info('[rust] núcleo sem annotateEpisodeSizes (binário antigo); sombra do episode-size desligada');
-      }
-      return;
-    }
-    const tsFrozen = tsStreams.map((s) => (s ? { ...(s as Record<string, unknown>) } : null));
-    const bound = core.annotateEpisodeSizes.bind(core);
-    setImmediate(() => {
-      try {
-        metrics.count('rust.episodeSize.calls');
-        const out = bound(input);
-        if (!out || !Array.isArray(out.streams)) throw new Error('annotateEpisodeSizes não devolveu streams');
-        if (canonJson(tsFrozen) !== canonJson(out.streams)) logDiff(tsFrozen, out.streams);
-      } catch (err) {
-        metrics.count('rust.episodeSize.error');
-        log.debug('[rust] sombra do episode-size lançou:', log.errorMessage(err));
-      }
-    });
-  } catch (err) {
-    metrics.count('rust.episodeSize.error');
-    log.debug('[rust] sombra do episode-size não agendou:', log.errorMessage(err));
-  }
+/** Anota no Rust; erro do núcleo sobe (não há implementação TS de reserva). */
+export function rustAnnotateEpisodeSizes(streams: unknown[], options: AnnotateOptionsLike): unknown[] {
+  metrics.count('rust.episodeSize.calls');
+  const core = requireCore() as unknown as EpisodeSizeCore;
+  const out = core.annotateEpisodeSizes(buildAnnotateInput(streams, options));
+  if (!out || !Array.isArray(out.streams)) throw new Error('annotateEpisodeSizes não devolveu streams');
+  return out.streams;
 }

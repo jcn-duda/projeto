@@ -33,7 +33,7 @@ export type TraceReason =
   | 'fake-release'
   | 'pre-home-release'
   | 'non-feature'
-  // Pack que repete, byte a byte, o arquivo de um avulso da lista (duplicate-pack.ts).
+  // Pack que repete, byte a byte, o arquivo de um avulso da lista (dedupe de pack do Rust).
   | 'duplicate-file'
   | 'named-sequel'
   // Contaminação de identidade por adaptação (Live Action de outra obra).

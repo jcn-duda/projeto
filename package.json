@@ -346,7 +346,6 @@
     "test/fallback-chupim-bank-dub.test.js",
     "test/franchise-extension.test.js",
     "test/fake-release.test.js",
-    "test/duplicate-pack.test.js",
     "test/memory-fallback-cache.test.js",
     "test/memory-fallback-suppress.test.js",
     "test/magnet-db-empirical-challenge.test.js",

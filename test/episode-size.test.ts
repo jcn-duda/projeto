@@ -100,7 +100,6 @@ test('filme em coleção mostra o tamanho exato do arquivo da obra', () => {
     titleOf(out),
     'passe seguinte não anota de novo',
   );
-  assert.equal(trace.stages['episodeSize.movie.exact'], 1);
 
   const avulso = { ...colecao, _multiWork: false } as Stream;
   assert.equal(titleOf(annotateEpisodeSizes([avulso], { season: null, episode: null, work })[0]), colecao.title, 'filme avulso fica como está');
@@ -147,19 +146,6 @@ test('pack de várias temporadas divide pelos episódios de todas elas', () => {
   assert.doesNotMatch(titleOf(semContagem), /💾|70\.36 GB/, 'sem média, o total do tracker não fica na linha');
   assert.equal((semContagem as Stream & { _packBytes?: number })._packBytes, Math.round(70.36 * GB), 'o total segue interno');
   assert.equal(streamSizeLabel(titleOf(semContagem)), null, 'sem 💾 o campo size não é publicado');
-});
-
-test('stream-trace conta exato, média e o motivo de cada pack sem anotação', () => {
-  clearFileSizes();
-  recordFileSizes(PACK, [{ path: 'Goliath.S03/Goliath.S03E03.2160p.mkv', size: 4.9 * GB }]);
-  const semContagem = { ...packStream(), infoHash: 'f6'.repeat(20) } as Stream;
-  const trace = { stages: {} as Record<string, number>, items: [], accountItems: 0, startedAt: 0, finishedAt: null };
-  annotateEpisodeSizes([packStream(), semContagem, avulsoStream()], { season: 3, episode: 3, meta: { episodes: {} }, trace });
-  assert.equal(trace.stages['episodeSize.exact'], 1);
-  assert.equal(trace.stages['episodeSize.skip.no-episode-count'], 1, 'pack sem memo e sem contagem diz o motivo');
-  assert.equal(trace.stages['episodeSize.packTextDropped'], 1, 'o total não reduzido sai do texto');
-  assert.equal(Object.keys(trace.stages).length, 3, 'episódio avulso não entra no funil');
-  clearFileSizes();
 });
 
 test('episódio avulso e filme ficam como estão; pack sem dado nenhum perde o total', () => {

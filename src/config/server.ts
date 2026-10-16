@@ -37,12 +37,6 @@ export const server = () => ({
   rustAutofetch: {
     mode: rustMode(process.env.RUST_AUTOFETCH, 'off'),
   },
-  // Anotação de tamanho de episódio/filme (`rust-episode-size.ts`). O Node lê
-  // os caches fsz/tsz e manda o lote; off/shadow/on como acima
-  // (rust.episodeSize.*).
-  rustEpisodeSize: {
-    mode: rustMode(process.env.RUST_EPISODE_SIZE, 'off'),
-  },
   // Debrid: as decisões são do Rust por padrão (on; TS de reserva se o Rust
   // lançar). A rede e a escrita na conta continuam no Node. `off`/`shadow`
   // explícitos voltam ao TS; valor desconhecido = off.

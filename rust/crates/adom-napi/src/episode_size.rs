@@ -166,7 +166,9 @@ pub(crate) fn annotate(input: &AnnotateInput) -> Vec<RankingStream> {
             let filled_stream = &filled[idx];
             let some_original = original.get(idx);
             let unchanged_by_fill = some_original.is_some_and(|o| *o == *filled_stream);
-            if *filled_stream == stream || unchanged_by_fill {
+            // TS: `stream !== filled[idx] || filled[idx] === original` — a
+            // anotação mudou o item (reduziu ao episódio) ou o fill não mexeu.
+            if *filled_stream != stream || unchanged_by_fill {
                 return stream;
             }
             let Some(orig) = some_original else {
@@ -295,6 +297,29 @@ mod tests {
             "esperava anotação de pack: {title}"
         );
         assert!(title.contains("(média)"), "esperava média: {title}");
+    }
+
+    /// Pack sem 💾 no tracker: o fill põe o total do `tsz` e a anotação o
+    /// reduz ao episódio — a guarda mantém o anotado (torrent-total-size do TS).
+    #[test]
+    fn pack_sem_tamanho_ganha_total_e_media_do_episodio() {
+        let mut inp = input(vec![json!({
+            "infoHash": HASH, "title": "True.Detective.2014.S01.1080p.BDRip.x265-ToVaR\n👤 1 ⚙️ nerdfilmes",
+        })]);
+        inp.totals_by_hash
+            .insert(HASH.to_string(), (12.41f64 * 1024f64.powi(3)).round());
+        inp.season = Some(1.0);
+        inp.episode = Some(1.0);
+        inp.episodes_meta = vec![SeasonCount {
+            season: 1.0,
+            episodes: 8.0,
+        }];
+        let out = annotate(&inp);
+        let title = out[0].title.as_deref().unwrap_or_default();
+        assert!(
+            title.contains("💾 1.55 GB 📦 pack 12.41 GB (média)"),
+            "esperava a média do episódio: {title}"
+        );
     }
 
     #[test]
