@@ -52,6 +52,7 @@ mod debrid_rd;
 mod episode_size;
 mod ranking;
 mod release_index_media;
+mod relevance;
 
 // Lote do autofetch (Chupim): reexporta para o `#[napi]` não ser marcado morto.
 pub use autofetch::*;
@@ -65,7 +66,9 @@ pub use debrid_rd::*;
 // Ranking de streams e anotação de tamanho: lote da Parte 7 da migração.
 pub use episode_size::*;
 pub use ranking::*;
+// Filtro de relevância inteiro no núcleo: só índices saem pela fronteira.
 pub use release_index_media::*;
+pub use relevance::*;
 
 // ---------------------------------------------------------------------------
 // Structs de saída (espelham os tipos do adom-core com campos NAPI-compatible)
