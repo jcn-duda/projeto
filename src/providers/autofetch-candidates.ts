@@ -27,7 +27,7 @@ import {
 import { writeChupimTrace, chupimProbeLabel, type ChupimSeeds } from './autofetch-chupim-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import * as metrics from '../utils/metrics.js';
-import { observeAutofetch, autofetchShadowEnabled } from '../utils/rust-autofetch.js';
+import { observeAutofetch, autofetchShadowEnabled, decideAutofetch } from '../utils/rust-autofetch.js';
 
 // Seleção do Chupim extraída do runner para a catraca de linhas. Continua sendo
 // o passe SÍNCRONO, sem rede: escolhe os candidatos e segura os hashes; quem
@@ -50,6 +50,11 @@ export type AutoFetchRequest = {
 
 function isAutoFetchStream(stream: Stream): stream is AutoFetchStream {
   return typeof stream.infoHash === 'string' && stream.infoHash.length > 0;
+}
+
+/** A escolha do Rust só cita hashes da lista viva; o guard estreita o tipo. */
+function onlyAutoFetch<T extends { stream: Stream }>(rows: T[]): Array<T & { stream: AutoFetchStream }> {
+  return rows.filter((row) => isAutoFetchStream(row.stream)) as Array<T & { stream: AutoFetchStream }>;
 }
 
 /** Config de política seeds a partir do runtime do usuário + operador. */
@@ -237,7 +242,15 @@ export function autoFetchCandidates(
   }
 
   const immediateLimit = pool === 'seeds' ? seedsImmediateLimit : live.autoFetchMax;
-  const immediate = candidates.slice(0, immediateLimit);
+  // Rust (`RUST_AUTOFETCH`): o lote não vê a lista tocável nem a sonda, então o
+  // mesmo bloqueio de SELEÇÃO do TS (dubbed-only / seeds-playable / br-probe)
+  // viaja como fato. Em `on` o Rust decide imediatos e fila ANTES das travas;
+  // null (off/shadow/erro) mantém a cascata do TS.
+  const rustSeedsBlocked = autofetchShadowEnabled()
+    && Boolean(seedsSelectionBlock(policy, liveStreams, { brProbePending: probeBlocked }));
+  const rustPick = decideAutofetch({ streams: liveStreams, season, queueDepth, live, policy, autoFetchBr, adapter, seedsBlocked: rustSeedsBlocked });
+  const rustImmediate = rustPick ? onlyAutoFetch(rustPick.immediate) : null;
+  const immediate = rustImmediate ? rustImmediate.map((c) => c.stream) : candidates.slice(0, immediateLimit);
 
   // Hold apenas nos candidatos imediatos que serão disparados
   for (const candidate of immediate) {
@@ -264,7 +277,7 @@ export function autoFetchCandidates(
         brProbePending: probeBlocked,
       })
       : [];
-    const entries = composeQueueEntries(
+    const entries = rustPick ? onlyAutoFetch(rustPick.queue) : composeQueueEntries(
       candidates.slice(immediateLimit).map((stream) => ({
         stream,
         pool,
@@ -314,12 +327,14 @@ export function autoFetchCandidates(
       policy,
       autoFetchBr,
       adapter,
-      // O lote Rust não vê a lista tocável nem o estado da sonda: o mesmo
-      // bloqueio de SELEÇÃO do TS (dubbed-only / seeds-playable / br-probe)
-      // viaja como fato — sem isso o Rust enfileirava seeds que o TS não pôs.
-      seedsBlocked: Boolean(seedsSelectionBlock(policy, liveStreams, { brProbePending: probeBlocked })),
+      seedsBlocked: rustSeedsBlocked,
     });
   }
 
+  if (rustImmediate) {
+    return rustImmediate.map(({ stream, pool: p, rare, slotLimit }) => ({
+      stream, account, pool: p, ...(p === 'seeds' ? { slotLimit: slotLimit ?? seedsImmediateLimit, rare } : {}),
+    }));
+  }
   return immediate.map((stream) => ({ stream, account, pool, ...(pool === 'seeds' ? { slotLimit: seedsImmediateLimit, rare: seedsRare } : {}) }));
 }

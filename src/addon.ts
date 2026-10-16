@@ -17,12 +17,14 @@ import { backfillClassification } from './utils/magnet-bank-backfill.js';
 import * as crawlStore from './utils/crawl-store.js';
 import crawler from './providers/crawler.js';
 import * as rustCore from './utils/rust-core.js';
+import * as rustShadow from './utils/rust-shadow.js';
 
 const services = { magnetdb, magnetBank };
 
 // Ponte Rust (RUST_CORE=shadow|on): antes de qualquer busca, para o modo valer
 // desde a primeira requisição. Off por padrão; falha ao carregar só loga.
 rustCore.install();
+rustShadow.installBatchDecisions();
 
 // Banco de magnets vivo: abre o SQLite próprio no BOOT DO PROCESSO — só quando
 // LIGADO (`MAGNET_BANK=false` não cria arquivo/WAL). O `createApp` (./app,

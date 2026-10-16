@@ -21,13 +21,13 @@ import * as metrics from './metrics.js';
 import { prefix } from './cache-keys.js';
 import { extractInfoHash, qualityFromTitle, audioFromTitle, explicitPtAudio } from './format.js';
 import { magnetDisplayName } from './title-normalization.js';
-import { bankRowsForMediaSource, mergeMediaSource } from './release-index-media.js';
+import { bankRowsForMediaSource } from './release-index-media.js';
 import { routeWorkLocation } from './release-work.js';
 // Prova de miss por episódio mora no irmão (extraído pela catraca); o pai reexporta.
 import { markMissing, markMissingSeason, isMissing, isMissingQuiet } from './release-index-miss.js';
 import { cutProtected } from './release-index-cut.js';
 import { markFileEvidence, fileEvidence } from './release-index-file.js';
-import { bankRowsNapi, captureEnabled, observeMediaSource, recordProbe } from './rust-release-index.js';
+import { bankRowsNapi, captureEnabled, decideMediaSource, observeMediaSource, recordProbe } from './rust-release-index.js';
 import type { MediaSourceProbe } from './rust-release-index.js';
 import type { IndexEntry, IndexedRelease, ObraLocation } from './release-index-types.js';
 export type { IndexedRelease } from './release-index-types.js';
@@ -102,8 +102,8 @@ function record(
     candidatos.push({ item, hash, title: String(item.title || item.Title || '').trim() });
   }
   const bankByHash = bankRowsForMediaSource(candidatos);
-  // Sombra Rust (`RUST_RELEASE_INDEX`): sondas de strings puras, comparadas fora
-  // da resposta (setImmediate); o valor gravado é sempre o do TS.
+  // Rust (`RUST_RELEASE_INDEX`): em on decide a fonte; em shadow compara fora
+  // da resposta (setImmediate) e o valor gravado é o do TS.
   const shadowOn = captureEnabled();
   const shadowBank = shadowOn ? bankRowsNapi(bankByHash) : [];
   const shadowProbes: MediaSourceProbe[] = [];
@@ -143,7 +143,7 @@ function record(
       const source = itemSource === 'autofetch' && (!prior || prior.source === 'autofetch')
         ? 'autofetch' as const
         : undefined;
-      const mediaSource = mergeMediaSource(item, title, hash, prior, bankByHash);
+      const mediaSource = decideMediaSource(item, title, hash, prior, bankByHash, shadowBank);
       if (shadowOn) shadowProbes.push(recordProbe(item, title, hash, prior?.mediaSource, shadowBank, mediaSource));
       existing.set(hash, {
         hash,

@@ -8,12 +8,17 @@
  * do TS; divergência vira métrica (`rust.release_index.*`) e log com teto.
  *
  * Em `RUST_RELEASE_INDEX=off` (default), ou sem o núcleo carregado, é no-op.
- * `shadow` e `on` fazem a mesma comparação — a promoção não muda o código, só
- * um dia trocar o valor gravado.
+ * `shadow` compara fora da resposta; `on` grava o valor do Rust
+ * (`decideMediaSource`), com o TS de reserva se o napi lançar.
  */
 import config from '../config.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
+import { mergeMediaSource } from './release-index-media.js';
+import type { MagnetRow } from './magnet-bank.js';
+import type { IndexedRelease } from './release-index-types.js';
+
+type MagnetLike = { magnet?: string; MagnetUri?: string; Guid?: string } | null | undefined;
 
 /** Linha do acervo já lida pelo TS (`bankByHash` achatada); sem SQLite no Rust. */
 export type BankRowNapi = { hash: string; uri: string; title: string };
@@ -91,7 +96,8 @@ function runBatch(core: ReleaseIndexCore, probes: MediaSourceProbe[]) {
  */
 export function observeMediaSource(probes: MediaSourceProbe[]): void {
   try {
-    if (config.rustReleaseIndex.mode === 'off' || !getCore || probes.length === 0) return;
+    // Em `on` o Rust já gravou (`decideMediaSource`): não há o que comparar.
+    if (config.rustReleaseIndex.mode !== 'shadow' || !getCore || probes.length === 0) return;
     const core = getCore();
     if (!core) return;
     const batch = probes.slice();
@@ -109,7 +115,34 @@ export function observeMediaSource(probes: MediaSourceProbe[]): void {
   }
 }
 
-/** A sombra está ligada? O `record` usa para nem montar sondas no off. */
+/**
+ * Fonte de mídia gravada pelo `record`. Em `on` quem decide é o Rust (uma
+ * chamada napi por release, síncrona — custo de microssegundos); off/shadow,
+ * núcleo ausente ou erro do napi gravam o valor do TS.
+ */
+export function decideMediaSource(
+  item: MagnetLike,
+  title: string,
+  hash: string,
+  prior: IndexedRelease | undefined,
+  bankByHash: Map<string, MagnetRow>,
+  bank: BankRowNapi[],
+): string | undefined {
+  const fn = config.rustReleaseIndex.mode === 'on' && getCore ? getCore()?.releaseIndexMediaMerge : undefined;
+  if (typeof fn === 'function') {
+    try {
+      metrics.count('rust.release_index.calls');
+      const p = recordProbe(item, title, hash, prior?.mediaSource, bank, undefined);
+      return fn(p.magnet || null, p.magnetUri || null, p.guid || null, title, hash, p.priorMediaSource, bank) ?? undefined;
+    } catch (err) {
+      metrics.count('rust.release_index.error');
+      log.debug('[rust] release-index lançou; valor do TS:', log.errorMessage(err));
+    }
+  }
+  return mergeMediaSource(item, title, hash, prior, bankByHash);
+}
+
+/** Rust ligado (shadow ou on)? O `record` usa para nem montar linhas no off. */
 export function captureEnabled(): boolean {
   return config.rustReleaseIndex.mode !== 'off';
 }

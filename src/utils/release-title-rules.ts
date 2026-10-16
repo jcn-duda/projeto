@@ -14,6 +14,7 @@ import {
 } from './matching-tokens.js';
 import { matchesName, nameCoverageTokens, isMultiWorkCollection } from './release-name-matching.js';
 import { franchiseBaseContradicts } from './franchise-base.js';
+import { brTitleKey, brTitleVerdict } from './rust-verdict-memo.js';
 
 // Os portões de título: o que decide se uma release É a obra procurada. Três
 // níveis de estricção, cada um calibrado contra casos reais medidos neste repo
@@ -119,18 +120,12 @@ function matchesBrTitle(
   title: string,
   name: string,
   year: number | string | null = null,
-  {
-    isSeries = false,
-    allNames = null,
-    tokens = null,
-    universeTokens = null,
-  }: {
-    isSeries?: boolean;
-    allNames?: string[] | null;
-    tokens?: string[] | null;
-    universeTokens?: string[] | null;
-  } = {},
+  { isSeries = false, allNames = null, tokens = null, universeTokens = null }:
+  { isSeries?: boolean; allNames?: string[] | null; tokens?: string[] | null; universeTokens?: string[] | null } = {},
 ) {
+  // RUST_CORE=on: veredito do lote Rust para esta mesma entrada (tokens são derivados).
+  const rust = brTitleVerdict(brTitleKey(title, name, year, isSeries, allNames));
+  if (rust !== undefined) return rust;
   if (!matchesName(title, name, tokens)) return false;
   const own = tokens || titleTokens(title);
 

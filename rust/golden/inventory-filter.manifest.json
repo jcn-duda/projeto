@@ -7,9 +7,9 @@
   "function": {
     "name": "inventoryFilter",
     "sourcePath": "src/utils/release-filters.ts",
-    "sourceSha256": "12aca2be02a3b18521d0be849081d9890b06aa8fd1faaf89f0f2b8617e4f61fb",
+    "sourceSha256": "4ef0dd606f6edd732721fcc9706565c98eaa58261a4ff93ad9300c53f90ca09e",
     "artifactPath": "dist/src/utils/release-filters.js",
-    "artifactSha256": "caa356d3387f36d2ccfa9d76c41a09bd8804a03ef49333a121f3777ef071b439"
+    "artifactSha256": "f149c30473e2c7b01de6f56c9c6ed6badee9937a5c46b2992a6cf96d54eca3a9"
   },
   "corpus": {
     "path": "scripts/golden/corpus-inventory-filter.json",
@@ -25,6 +25,6 @@
     "major": 22
   },
   "git": {
-    "revision": "96316cefdeaaead28701498b8c1bfe422ed1b5f0"
+    "revision": "f10c59f7d7d0a2f32a4625fc009ef9b3667d40c5"
   }
 }

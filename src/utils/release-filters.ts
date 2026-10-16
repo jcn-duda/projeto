@@ -22,6 +22,7 @@ import { admitsMultiWorkPack } from './multiwork-pack.js';
 import { franchiseExtensionContradicts } from './franchise-base.js';
 import { shortNameTailContradicts } from './short-name-tail.js';
 import { preHomeReleaseContradicts, isNonFeature } from './non-feature-release.js';
+import { primeVerdicts } from './rust-verdict-memo.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 interface MatchOptions {
@@ -86,6 +87,7 @@ function filterRelevantRawForYear(
   onRejected?: (item: RawItem, reason: RelevanceRejectReason) => void,
 ) {
   if (!names.length) return items;
+  primeVerdicts(items, names, year, isSeries); // RUST_CORE=on: o lote Rust decide os vereditos deste filtro
   // Hot path: os tokens do título e o universo de allNames dependem só de
   // strings que se repetem entre itens. Cada item renormalizava o MESMO texto
   // 3-5 vezes (matchesName, matchesBrTitle, matchesTitleStructure,

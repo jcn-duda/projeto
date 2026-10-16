@@ -40,13 +40,17 @@ trabalho de código é em `src/`.
   `npm run build` NÃO o gera e limpa `dist/`. `RUST_CORE=off|shadow|on`
   (default off) liga via `src/utils/rust-core.ts`, só no boot do processo
   (gancho `installNormalizeTitle`; testes e oráculos de golden medem o TS puro).
-  Cobre `normalizeTitle` e o **shadow em lote** por busca (`src/utils/rust-shadow.ts`:
-  `evaluateReleases` roda com `setImmediate`, até `RUST_CORE_SHADOW_MAX` releases; a
-  divergência vai para `rust.batch.*` no `/metrics.json`; a resposta segue TS).
+  Cobre `normalizeTitle` e os **vereditos de release em lote** (`evaluateReleases`):
+  em `shadow`, `rust-shadow.ts` compara com `setImmediate` (`rust.batch.diff`); em
+  `on`, `filterRelevantRaw` manda o lote ao Rust e `hasPtSigns`, `brOriginMark`,
+  `parseTitleSeasonEpisode`, `matchesBrTitle`, `extractInfoHash`, `magnetDisplayName`
+  e `isSafeDownloadUrl` leem de `rust-verdict-memo.ts` (chave = entrada exata;
+  falta cai no TS). `RUST_RELEASE_INDEX`/`RUST_AUTOFETCH`/`RUST_STREAM_RANKING`/
+  `RUST_EPISODE_SIZE` seguem o mesmo `off|shadow|on` (on = Rust decide, TS de reserva).
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
-  velocidade só existe com API em lote. Mudou
-  `title-normalization.ts`? regenere o golden (`dump-title-normalization.mjs
-  --force`). Código Rust quebrado no working tree quebra a imagem.
+  velocidade só existe com API em lote. Mudou `title-normalization.ts` ou
+  `release-filters.ts`? regenere os goldens (`golden:titles`, `golden:release-filters`,
+  `golden:inventory-filter` com `--force`). Código Rust quebrado no working tree quebra a imagem.
 - **Onde o Rust já substituiu o TS, o TS saiu** (a versão TS segue no branch
   `esm`, que é o oráculo dos goldens): os oito **resolvers BR** são o binário
   `adom-resolvers` (portas 8700–8707, supervisionado pelo entrypoint; o

@@ -1,3 +1,5 @@
+import { magnetVerdict } from './rust-verdict-memo.js';
+
 function bytesToSize(bytes: unknown) {
   const n = Number(bytes);
   if (!Number.isFinite(n) || n <= 0) return null;
@@ -33,6 +35,8 @@ function base32ToHex(input: string) {
 
 function extractInfoHash(magnetOrHash: unknown) {
   if (!magnetOrHash) return null;
+  const rust = typeof magnetOrHash === 'string' ? magnetVerdict(magnetOrHash) : undefined; // RUST_CORE=on: lote Rust
+  if (rust) return rust.infoHash;
   const raw = String(magnetOrHash).trim();
 
   if (/^[a-fA-F0-9]{40}$/.test(raw)) return raw.toLowerCase();
@@ -192,6 +196,8 @@ function dedupeNames(names: Array<string | null | undefined>): string[] {
  */
 function magnetDisplayName(item: { magnet?: string; MagnetUri?: string; Guid?: string } | null | undefined): string {
   const raw = String(item?.magnet || item?.MagnetUri || item?.Guid || '');
+  const rust = magnetVerdict(raw); // RUST_CORE=on: o dn= depende só desta string
+  if (rust) return rust.displayName;
   if (!raw || !/^magnet:/i.test(raw.trim())) return '';
   const dnMatch = raw.match(/[&?]dn=([^&]+)/i);
   if (!dnMatch) return '';

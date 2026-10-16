@@ -1,4 +1,5 @@
 import net from 'node:net';
+import { linkVerdict } from './rust-verdict-memo.js';
 
 /**
  * Checks whether the 4 IPv4 octets fall within any private, loopback,
@@ -153,6 +154,9 @@ function privateIpv6(host: string): boolean {
  * normal para não transformar indisponibilidade de DNS em falso bloqueio.
  */
 function isSafeDownloadUrl(raw: string, allowPrivate = false): boolean {
+  // RUST_CORE=on: o lote Rust mede só o modo padrão (sem rede privada).
+  const rust = allowPrivate ? undefined : linkVerdict(raw);
+  if (rust !== undefined) return rust;
   try {
     const url = new URL(raw);
     if (!['http:', 'https:'].includes(url.protocol)) return false;
