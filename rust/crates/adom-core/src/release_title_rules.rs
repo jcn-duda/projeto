@@ -12,7 +12,8 @@
 //! com o `\s` do crate `regex`, que é Unicode White_Space e não é o mesmo
 //! conjunto (inclui U+0085 e não inclui U+FEFF).
 
-use std::sync::OnceLock;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
@@ -195,14 +196,31 @@ fn named_after_separator(text: &str, run: &[String]) -> bool {
 
 /// `possessiveBeforeName`: posse explícita ("Marvel's Daredevil") com o
 /// apóstrofo no texto cru.
+/// Cache da regex de posse: compilar `FancyRegex` por item custava mais que
+/// todo o resto do filtro; o padrão só depende do nome desejado (`want`),
+/// constante dentro de um lote de busca.
+fn possessive_cache() -> std::sync::MutexGuard<'static, HashMap<String, FancyRegex>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, FancyRegex>>> = OnceLock::new();
+    CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("cache de posse")
+}
+
 fn possessive_before_name(text: &str, want: &str) -> bool {
+    let mut cache = possessive_cache();
+    if let Some(re) = cache.get(want) {
+        return re.is_match(text).expect("regex de posse avalia");
+    }
     let pattern = format!(
         "(?i)\\p{{L}}['\u{2019}]s[{}]+{}(?![\\p{{L}}\\p{{N}}])",
         JS_WS,
         js_regex_escape(want)
     );
-    let re = FancyRegex::new(&pattern).expect("regex de posse escapada");
-    re.is_match(text).expect("regex de posse avalia")
+    let compiled = FancyRegex::new(&pattern).expect("regex de posse escapada");
+    let verdict = compiled.is_match(text).expect("regex de posse avalia");
+    cache.insert(want.to_owned(), compiled);
+    verdict
 }
 
 /// `namesTheWork`: o texto nomeia a obra? Só nega quando o primeiro token

@@ -1,6 +1,9 @@
 //! Escolha por obra dentro de pack multi-filme. Sem casamento confiável a
 //! escolha falha (`WorkPick`): o maior arquivo seria outro filme.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
 use fancy_regex::Regex;
 
 use crate::normalize_title;
@@ -157,7 +160,20 @@ fn pick_work_refs<'a>(
     }
     let clean = clean_year(year);
     if clean != 0 {
-        let re = Regex::new(&format!(r"(?<![0-9]){clean}(?![0-9])")).expect("ano do arquivo");
+        // Regex de ano memoizada: o padrão só depende de `clean`, e compilar
+        // `Regex` por chamada dominava o custo do `pick_work_file`.
+        static YEAR_RE: OnceLock<Mutex<HashMap<i64, Regex>>> = OnceLock::new();
+        let mut cache = YEAR_RE
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .expect("cache de ano");
+        let re = cache
+            .entry(clean)
+            .or_insert_with(|| {
+                Regex::new(&format!(r"(?<![0-9]){clean}(?![0-9])")).expect("ano do arquivo")
+            })
+            .clone();
+        drop(cache);
         let with_year: Vec<&DebridFile> = scored
             .iter()
             .copied()
