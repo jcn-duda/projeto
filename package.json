@@ -54,6 +54,8 @@
     "golden:release-index-media:check": "node scripts/golden/dump-release-index-media.mjs --check",
     "golden:release-filters": "node scripts/golden/dump-release-filters.mjs",
     "golden:release-filters:check": "node scripts/golden/dump-release-filters.mjs --check",
+    "golden:series-episode-filter": "node scripts/golden/dump-series-episode-filter.mjs",
+    "golden:series-episode-filter:check": "node scripts/golden/dump-series-episode-filter.mjs --check",
     "bench:local": "node scripts/bench/local-baseline.mjs",
     "smoke": "node dist/scripts/smoke.js",
     "probe:crawl-identify": "node dist/scripts/crawl-identify-probe.js",

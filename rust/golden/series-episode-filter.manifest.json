@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "series-episode-filter/filterSeriesEpisodeRaw"
+  ],
+  "function": {
+    "name": "seriesEpisodeFilter",
+    "sourcePath": "src/providers/stream-builder-episode-filter.ts",
+    "sourceSha256": "d3a31168f60a4afa8d8988b7f07cb855a95faca3e1611788e86ac8c04e352dcf",
+    "artifactPath": "dist/src/providers/stream-builder-episode-filter.js",
+    "artifactSha256": "db9132a9484db4c94410548f065b7c4b242fdb9ff28d79a46e30844058d1b29d"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-series-episode-filter.json",
+    "sha256": "1a3d800caafaf01d0900b5c8ab60d8e2824578f3d75c109e4dad9141b7d40e68",
+    "cases": 13
+  },
+  "output": {
+    "path": "rust/golden/series-episode-filter.jsonl",
+    "sha256": "e7638d4c29de329759b077de509e2dfce776deb2135a0ab40a70cf12c706255e",
+    "lines": 13
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "da94dad0907966c38f7a8a45cecfd34d1be0c09c"
+  }
+}
