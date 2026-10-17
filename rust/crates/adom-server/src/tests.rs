@@ -120,6 +120,50 @@ async fn proxy_repassa_corpo_query_e_host() {
 }
 
 #[tokio::test]
+async fn gateway_recusa_internal_sem_tocar_o_upstream() {
+    let (upstream, hits) = spawn_upstream().await;
+    let gateway = spawn_gateway(upstream, false).await;
+    for path in [
+        "/internal",
+        "/internal/",
+        "/internal/search/meta",
+        "/internal/search/state?x=1",
+    ] {
+        let req = Request::builder()
+            .method("POST")
+            .uri(path)
+            .body(Body::from("{}"))
+            .unwrap();
+        let (status, body) = call(gateway, req).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "caminho {path}");
+        assert!(body.contains("rota interna"), "corpo: {body}");
+    }
+    assert_eq!(
+        hits.0.load(Ordering::SeqCst),
+        0,
+        "nenhum /internal chega ao Node"
+    );
+    // Um caminho que só COMEÇA com a palavra não é a superfície interna.
+    let req = Request::builder()
+        .uri("/internalfoo")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(hits.0.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn internal_path_reconhece_exato_e_subcaminho() {
+    assert!(proxy::is_internal_path("/internal"));
+    assert!(proxy::is_internal_path("/internal/"));
+    assert!(proxy::is_internal_path("/internal/search/meta"));
+    assert!(!proxy::is_internal_path("/internalfoo"));
+    assert!(!proxy::is_internal_path("/internal-search"));
+    assert!(!proxy::is_internal_path("/health"));
+}
+
+#[tokio::test]
 async fn health_nativo_nao_toca_o_upstream() {
     let (upstream, hits) = spawn_upstream().await;
     let gateway = spawn_gateway(upstream, true).await;

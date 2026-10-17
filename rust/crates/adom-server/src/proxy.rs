@@ -54,6 +54,21 @@ pub async fn run(config: Config) -> Result<(), String> {
 }
 
 async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response<Body> {
+    // O gateway é a FACHADA pública: `/internal/*` é a superfície que o Node
+    // expõe só em loopback para o orquestrador Rust. Se a 7000 for exposta
+    // direto, o socket do Node continua 127.0.0.1 (o proxy é local) e a guarda
+    // de loopback não vê o cliente real — por isso a recusa tem que ser aqui,
+    // antes do encaminhamento. O Caddy também barra `/internal/*`, mas essa é a
+    // segunda linha, não a única. Qualquer peer, inclusive loopback, é recusado:
+    // o orquestrador fala com o Node direto, nunca através desta porta.
+    if is_internal_path(req.uri().path()) {
+        return (
+            StatusCode::FORBIDDEN,
+            [(CONTENT_TYPE, "application/json; charset=utf-8")],
+            r#"{"ok":false,"error":"rota interna nao servida pelo gateway"}"#,
+        )
+            .into_response();
+    }
     if state.native_health && is_native_health(&req) {
         return health_response(req.method());
     }
@@ -66,6 +81,12 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
         )
             .into_response(),
     }
+}
+
+/// `/internal` exato ou qualquer subcaminho: prefixo com barra para não
+/// confundir `/internalfoo` com a superfície interna.
+pub fn is_internal_path(path: &str) -> bool {
+    path == "/internal" || path.starts_with("/internal/")
 }
 
 fn is_native_health(req: &Request<Body>) -> bool {

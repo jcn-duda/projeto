@@ -1,6 +1,7 @@
-# OVERRIDE de validação local (não comitar): liga o gateway Rust na 7000 com o
-# Node na 7100 atrás. A F1 ainda não tem /stream nativo, então ROUTES_RUST fica
-# vazio de propósito — tudo é proxy, que é exatamente o caminho a validar.
+# OVERRIDE opt-in de validação local (commitado de propósito; o compose padrão
+# não o carrega): liga o gateway Rust na 7000 com o Node na 7100 atrás. A F1
+# ainda não tem /stream nativo, então ROUTES_RUST fica vazio de propósito — tudo
+# é proxy, que é exatamente o caminho a validar.
 services:
   adom:
     environment:

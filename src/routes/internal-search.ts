@@ -12,7 +12,9 @@
 // máquina) + `X-Indexer-Test-Token` (mesmo token do painel). Observação de
 // borda: se um proxy NA FRENTE do addon encaminhar `/internal/*`, o socket
 // local continua 127.0.0.1 e a guarda de loopback não vê o cliente real — quem
-// barra nesse cenário é o token; não expor `/internal/` no proxy.
+// barra nesse cenário é o token. O gateway Rust (`GATEWAY=on`) recusa
+// `/internal/*` antes do proxy; o Caddy também bloqueia. Ainda assim, não
+// exponha `/internal/` em proxy de terceiro.
 import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
