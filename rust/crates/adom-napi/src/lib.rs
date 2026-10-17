@@ -55,7 +55,10 @@ mod debrid_cache;
 mod debrid_clean;
 mod debrid_rd;
 mod episode_filter;
+mod episode_matching;
 mod episode_size;
+// Pré-resolve do protetor BR em lote: fronteira de `jackett-resolve.ts`.
+mod pre_resolve;
 mod ranking;
 mod release_index_media;
 mod relevance;
@@ -72,8 +75,12 @@ pub use debrid_clean::*;
 pub use debrid_rd::*;
 // Filtro de episódio/temporada em lote: só índices saem pela fronteira.
 pub use episode_filter::*;
+// Matching de episódio/pack: fronteira fina de `episode-matching.ts`.
+pub use episode_matching::*;
 // Ranking de streams e anotação de tamanho: lote da Parte 7 da migração.
 pub use episode_size::*;
+// Pré-resolve do protetor BR em lote: só índices aprovados saem pela fronteira.
+pub use pre_resolve::*;
 pub use ranking::*;
 // Filtro de relevância inteiro no núcleo: só índices saem pela fronteira.
 pub use release_index_media::*;
