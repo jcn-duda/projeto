@@ -25,19 +25,19 @@
   ],
   "corpus": {
     "path": "scripts/golden/corpus-br-pool-selection.json",
-    "sha256": "dd995ee5c2a7087a1585b082fc22821275b00f9b2f9e2e4cca12eb69f7ae02a9",
-    "cases": 94
+    "sha256": "cde0efbbfb53cb17dd9bffc14a670b299c696db63d0aba288ac2f78ce1690f3f",
+    "cases": 96
   },
   "output": {
     "path": "rust/golden/br-pool-selection.jsonl",
-    "sha256": "eef1fcb4b5d98ce42e68f457482e6b5a7c7d76c0fc2999a0c069cc9d64a9c7d9",
-    "lines": 94
+    "sha256": "16b1875b72b04f0c08f3f20731c27555b84670247a02e68f6fb3fd60d66060a7",
+    "lines": 96
   },
   "node": {
     "major": 22,
     "version": "v22.23.2"
   },
   "git": {
-    "revision": "a2ad061885c94f3fb4a5df105597b74ef3489e7f"
+    "revision": "8b38c81ae06a01123de6dfd5a58a978dd0d29231"
   }
 }

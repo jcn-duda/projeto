@@ -471,6 +471,16 @@
       "id": "top-094",
       "input": "{\"op\":\"top\",\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"name\":\"Release A 👤 99\"},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"seeders\":5}]}",
       "note": "controle: o top É o único que lê o 👤 do name"
+    },
+    {
+      "id": "target-095",
+      "input": "{\"op\":\"target\",\"limit\":6,\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"br\":true,\"dubClaim\":true}]}",
+      "note": "vivo Shawshank: primário 720p entra ANTES dos alternates 1080 (pick por faixa-alvo, seeders ausentes)"
+    },
+    {
+      "id": "target-096",
+      "input": "{\"op\":\"target\",\"limit\":9,\"season\":1,\"streams\":[{\"id\":\"a\",\"infoHash\":\"hash-a\",\"quality\":\"2160p\",\"br\":true,\"dubbed\":true,\"title\":\"Serie 2008 - 1a Temporada Completa [4k]\"},{\"id\":\"b\",\"infoHash\":\"hash-b\",\"quality\":\"1080p\",\"br\":true,\"dubbed\":true,\"title\":\"Serie 2008 - 1a Temporada Completa [1080p]\"},{\"id\":\"c\",\"infoHash\":\"hash-c\",\"quality\":\"720p\",\"br\":true,\"dubClaim\":true,\"title\":\"Serie 1a Temporada (2008) 720p Dual\"},{\"id\":\"d\",\"infoHash\":\"hash-d\",\"quality\":\"720p\",\"br\":true,\"dubClaim\":true,\"title\":\"Serie 1a Temporada [720p BLU-RAY DUBLADO]\"},{\"id\":\"e\",\"infoHash\":\"hash-e\",\"quality\":\"\",\"br\":true,\"dubClaim\":true,\"title\":\"1a Temporada - Serie - Dublado - T3GP\"}]}",
+      "note": "vivo Breaking Bad S01: 3 faixas viram primários; pack de temporada e unknown não viram imediato"
     }
   ]
 }
