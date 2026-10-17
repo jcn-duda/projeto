@@ -1,0 +1,60 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "search-commit/commitDecision",
+    "search-commit/latePromotionDecision",
+    "search-commit/debridRefreshSatisfied",
+    "search-commit/staleRefreshEligible"
+  ],
+  "functions": [
+    {
+      "id": "search-commit/commitDecision",
+      "name": "commitDecision",
+      "sourcePath": "src/providers/search-commit.ts",
+      "sourceSha256": "0e0f99734a1085c3d95ed6bb6b5e031d88762c536024037912cc18013b561280",
+      "artifactPath": "dist/src/providers/search-commit.js",
+      "artifactSha256": "73803a110aa3e7774918446658409252e860ed34f4af5895d94597fd2ea195ba"
+    },
+    {
+      "id": "search-commit/latePromotionDecision",
+      "name": "latePromotionDecision",
+      "sourcePath": "src/providers/search-commit.ts",
+      "sourceSha256": "0e0f99734a1085c3d95ed6bb6b5e031d88762c536024037912cc18013b561280",
+      "artifactPath": "dist/src/providers/search-commit.js",
+      "artifactSha256": "73803a110aa3e7774918446658409252e860ed34f4af5895d94597fd2ea195ba"
+    },
+    {
+      "id": "search-commit/debridRefreshSatisfied",
+      "name": "debridRefreshSatisfied",
+      "sourcePath": "src/providers/search-commit.ts",
+      "sourceSha256": "0e0f99734a1085c3d95ed6bb6b5e031d88762c536024037912cc18013b561280",
+      "artifactPath": "dist/src/providers/search-commit.js",
+      "artifactSha256": "73803a110aa3e7774918446658409252e860ed34f4af5895d94597fd2ea195ba"
+    },
+    {
+      "id": "search-commit/staleRefreshEligible",
+      "name": "staleRefreshEligible",
+      "sourcePath": "src/providers/search-commit.ts",
+      "sourceSha256": "0e0f99734a1085c3d95ed6bb6b5e031d88762c536024037912cc18013b561280",
+      "artifactPath": "dist/src/providers/search-commit.js",
+      "artifactSha256": "73803a110aa3e7774918446658409252e860ed34f4af5895d94597fd2ea195ba"
+    }
+  ],
+  "corpus": {
+    "path": "scripts/golden/corpus-search-commit.json",
+    "sha256": "61deb65f1f920f6219e67eaf5bce1f64d9008178652aee605fe7acd0b9823014",
+    "cases": 40
+  },
+  "output": {
+    "path": "rust/golden/search-commit.jsonl",
+    "sha256": "6a1a8ed6c2f4e4cb4ebef5673d6e6d9480cb236b60181da2cd6e2853cd0cc0ef",
+    "lines": 40
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "fb4d52f784271f7e470c24998646edcea42561db"
+  }
+}
