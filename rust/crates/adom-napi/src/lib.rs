@@ -67,6 +67,7 @@ mod play;
 mod stream_final;
 // Pré-resolve do protetor BR em lote: fronteira de `jackett-resolve.ts`.
 mod pre_resolve;
+mod quotas;
 mod ranking;
 mod release_index_media;
 mod relevance;

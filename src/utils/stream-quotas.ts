@@ -4,6 +4,7 @@ import type { StreamTraceState, TraceReason } from './stream-trace.js';
 import {
   QUALITY_KEYS,
   streamQuality,
+  quotaStreamInput,
   selectQualityCandidates,
 } from './stream-quotas-candidate.js';
 import type { QualityLimits } from './stream-quotas-candidate.js';
@@ -18,6 +19,9 @@ import { coreJson } from './native-json.js';
  */
 type StreamQuotasCore = {
   limitReservingBr(input: string): string;
+  limitByQualityNapi(input: string): string;
+  limitByQualityAndIndexerNapi(input: string): string;
+  limitByIndexer(indexers: Array<string | null>, maxPerIndexer: number, exempt: number[], indexerLimits: QualityLimits): number[];
 };
 
 const quotasCore = () => nativeCore<StreamQuotasCore>();
@@ -44,31 +48,15 @@ interface LimitBrResult {
  * seguintes da mesma fonte.
  */
 function limitByIndexer(streams: StreamCandidate[], maxPerIndexer = 0, exempt: Set<StreamCandidate> = new Set(), indexerLimits: QualityLimits = {}) {
-  const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
-  const hasOverrides = indexerLimits && typeof indexerLimits === 'object' &&
-    Object.keys(indexerLimits).length > 0;
-  if (!globalLimit && !hasOverrides) return streams;
-  const counts = new Map();
-  return streams.filter((stream) => {
-    // Stream sem indexador conhecido não vira um balde comum com os outros:
-    // eles se limitariam entre si por acidente de metadado ausente.
-    const source = String(stream?._indexer || '').trim().toLowerCase();
-    if (!source) return true;
-    const ownLimit = Object.prototype.hasOwnProperty.call(indexerLimits, source)
-      ? Math.max(0, Math.trunc(Number(indexerLimits[source]) || 0))
-      : globalLimit;
-    const count = counts.get(source) || 0;
-    // A vaga reservada ESTOURA o teto, mas continua contando: se ela não
-    // contasse, uma reserva de 2 com cota 1 deixaria passar um terceiro stream
-    // da mesma fonte — a reserva ampliaria a cota em vez de só furá-la.
-    if (exempt.has(stream)) {
-      counts.set(source, count + 1);
-      return true;
-    }
-    if (ownLimit && count >= ownLimit) return false;
-    counts.set(source, count + 1);
-    return true;
-  });
+  // Regra no núcleo (`adom_core::limit_by_indexer`); entram só os indexadores
+  // e os índices das vagas reservadas.
+  const kept = quotasCore().limitByIndexer(
+    streams.map((stream) => (stream?._indexer == null ? null : String(stream._indexer))),
+    Number(maxPerIndexer) || 0,
+    streams.flatMap((stream, index) => (exempt.has(stream) ? [index] : [])),
+    indexerLimits || {},
+  );
+  return kept.map((index) => streams[index]);
 }
 
 /**
@@ -84,60 +72,33 @@ function limitByQualityAndIndexer(
   indexerLimits: QualityLimits,
   // Vagas reservadas para BR. Elas atravessam a cota do balde de qualidade E
   // não a consomem: "reservada" precisa significar vaga A MAIS, senão vira
-  // apenas ordem de chegada dentro do mesmo teto -- que é o que era antes, e
-  // fazia `brReservedSlots: 4` render 2 BR quando a cota de 1080p era 2.
+  // apenas ordem de chegada dentro do mesmo teto.
   reservedBr: Set<StreamCandidate> = new Set(),
   // P5 — ledger observacional das cotas finais (null => sem efeito).
   trace?: StreamTraceState | null,
 ) {
-  const qualityCounts = new Map();
-  const indexerCounts = new Map();
-  const globalLimit = Math.max(0, Math.trunc(Number(maxPerIndexer) || 0));
-
-  return streams.filter((stream) => {
-    const quality = streamQuality(stream);
-    const rawQualityLimit = qualityLimits[quality];
-    const qualityLimit = rawQualityLimit == null || rawQualityLimit >= 100
-      ? Infinity
-      : Math.max(0, Math.trunc(rawQualityLimit));
-    const qualityCount = qualityCounts.get(quality) || 0;
-    const reserved = reservedBr.has(stream);
-    if (!reserved && qualityCount >= qualityLimit) {
-      dropTrace(trace, stream, 'quality-quota');
-      return false;
-    }
-
-    const source = String(stream?._indexer || '').trim().toLowerCase();
-    const sourceCount = source ? indexerCounts.get(source) || 0 : 0;
-    const sourceLimit = source && Object.prototype.hasOwnProperty.call(indexerLimits, source)
-      ? Math.max(0, Math.trunc(Number(indexerLimits[source]) || 0))
-      : globalLimit;
-    if (source && !exempt.has(stream) && sourceLimit && sourceCount >= sourceLimit) {
-      dropTrace(trace, stream, 'indexer-limit');
-      return false;
-    }
-
-    // A reservada não entra na conta do balde: as globais mantêm a cota inteira
-    // delas e a lista cresce, no máximo, o tamanho da reserva. O teto real
-    // continua sendo maxResults, aplicado no fim de limitReservingBr.
-    if (!reserved) qualityCounts.set(quality, qualityCount + 1);
-    if (source) indexerCounts.set(source, sourceCount + 1);
-    return true;
-  });
+  const indexesOf = (set: Set<StreamCandidate>) =>
+    streams.flatMap((stream, index) => (set.has(stream) ? [index] : []));
+  const result = JSON.parse(quotasCore().limitByQualityAndIndexerNapi(coreJson({
+    streams: streams.map(quotaStreamInput),
+    qualityLimits: qualityLimits || {},
+    maxPerIndexer: Number(maxPerIndexer) || 0,
+    exempt: indexesOf(exempt),
+    indexerLimits: indexerLimits || {},
+    reservedBr: indexesOf(reservedBr),
+  }))) as { kept: number[]; dropped: { index: number; reason: string }[] };
+  // Os cortes já vêm na ordem de visita, que é a ordem do ledger.
+  for (const drop of result.dropped) dropTrace(trace, streams[drop.index], drop.reason as TraceReason);
+  return result.kept.map((index) => streams[index]);
 }
 
 /** Aplica as cotas na lista pós-debrid, quando só os streams reais são contados. */
 function limitByQuality(streams: StreamCandidate[], qualityLimits: QualityLimits = {}) {
-  const counts = new Map();
-  return streams.filter((stream) => {
-    const quality = streamQuality(stream);
-    const rawLimit = qualityLimits[quality];
-    const limit = rawLimit == null || rawLimit >= 100 ? Infinity : Math.max(0, Math.trunc(rawLimit));
-    const count = counts.get(quality) || 0;
-    if (count >= limit) return false;
-    counts.set(quality, count + 1);
-    return true;
-  });
+  const kept = JSON.parse(quotasCore().limitByQualityNapi(coreJson({
+    streams: streams.map(quotaStreamInput),
+    qualityLimits: qualityLimits || {},
+  }))) as number[];
+  return kept.map((index) => streams[index]);
 }
 
 interface LimitBrOptions {
@@ -188,16 +149,7 @@ function limitReservingBr(
   // por vaga garantida. Aqui só se monta a entrada — `Stream` → campos que o
   // porte lê — e se traduzem os índices de volta.
   const result = JSON.parse(quotasCore().limitReservingBr(coreJson({
-    streams: streams.map((stream) => ({
-      // `qualityFromTitle` do núcleo lê o título; `name` é o fallback do TS.
-      title: stream.title || stream.name || '',
-      quality: stream._quality,
-      indexer: stream._indexer,
-      isBr: Boolean(stream._br),
-      isDubbed: Boolean(stream._dubbed),
-      isDubClaim: Boolean(stream._dubClaim),
-      isLied: Boolean(stream._lied),
-    })),
+    streams: streams.map(quotaStreamInput),
     opts: {
       maxResults,
       qualityLimits,

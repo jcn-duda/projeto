@@ -18,12 +18,12 @@ use serde::{Deserialize, Serialize};
 // Helpers de fronteira
 // ---------------------------------------------------------------------------
 
-fn parse_json<T: for<'de> Deserialize<'de>>(input: &str) -> napi::Result<T> {
+pub(crate) fn parse_json<T: for<'de> Deserialize<'de>>(input: &str) -> napi::Result<T> {
     serde_json::from_str(input)
         .map_err(|e| napi::Error::from_reason(format!("entrada JSON inválida: {e}")))
 }
 
-fn to_json<T: serde::Serialize>(value: &T) -> napi::Result<String> {
+pub(crate) fn to_json<T: serde::Serialize>(value: &T) -> napi::Result<String> {
     serde_json::to_string(value)
         .map_err(|e| napi::Error::from_reason(format!("saída JSON inválida: {e}")))
 }
