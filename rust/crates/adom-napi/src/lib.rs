@@ -17,7 +17,13 @@
 //! | `sanitizeMagnet`          | `sanitize_magnet`          | Valida/limpa URI magnet             |
 //! | `defaultMagnet`           | `default_magnet`           | Magnet padrão com trackers do piso  |
 //! | `extractInfoHash`         | `extract_info_hash`        | Extrai infoHash (hex/base32/btih)   |
+//! | `magnetDisplayName`       | `magnet_display_name`      | Nome da release no dn= do magnet    |
 //! | `brOriginMark`            | `br_origin_mark`           | Origem BR (site/PT/filme)           |
+//! | `decodeEntities`          | `decode_entities`          | Entidades HTML                      |
+//! | `bytesToSize`             | `bytes_to_size`            | Tamanho legível                     |
+//! | `stripDiacritics`         | `strip_diacritics`         | Diacríticos fora, caixa preservada  |
+//! | `collapseAcronyms`        | `collapse_acronyms`        | Sigla pontuada vira palavra         |
+//! | `dedupeNames`             | `dedupe_names`             | Dedupe de nomes por forma normal    |
 //! | `hasPtSigns`              | `has_pt_signs`             | Sinais de português no título       |
 //! | `limitByIndexer`          | `limit_by_indexer`         | Cota por indexador                  |
 //! | `pickFile`                | `pick_file`                | Seletor de arquivo do debrid        |
@@ -53,6 +59,7 @@ mod episode_size;
 mod ranking;
 mod release_index_media;
 mod relevance;
+mod text;
 
 // Lote do autofetch (Chupim): reexporta para o `#[napi]` não ser marcado morto.
 pub use autofetch::*;
@@ -71,6 +78,8 @@ pub use ranking::*;
 // Filtro de relevância inteiro no núcleo: só índices saem pela fronteira.
 pub use release_index_media::*;
 pub use relevance::*;
+// Texto de magnet e título: fronteira fina de `title-normalization.ts`.
+pub use text::*;
 
 // ---------------------------------------------------------------------------
 // Structs de saída (espelham os tipos do adom-core com campos NAPI-compatible)

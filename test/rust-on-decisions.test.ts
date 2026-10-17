@@ -18,7 +18,17 @@ function counter(name: string): number {
   return Number(metrics.snapshot().counters[name] || 0);
 }
 
-const titles = () => ({ normalizeTitle: (title: string) => title });
+// O stub agora precisa do parse de magnet inteiro no núcleo (G1): o
+// `extractInfoHash` real é puro, então o stub o espelha em vez de
+// representar uma decisão.
+const titles = () => ({
+  normalizeTitle: (title: string) => title,
+  extractInfoHash: (input: string) => {
+    const raw = String(input).trim();
+    return /^[a-f0-9]{40}$/.test(raw) ? raw : null;
+  },
+  magnetDisplayName: () => '',
+});
 
 beforeEach(() => {
   metrics.reset();

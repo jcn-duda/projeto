@@ -1,184 +1,99 @@
+/**
+ * Parse de magnet e texto de título — decisão INTEIRA no núcleo Rust
+ * (`rust/crates/adom-napi/src/text.rs`; lógica em `adom-core`, golden contra
+ * o TS do `esm`). O corpo TS saiu do branch: aqui só se monta a entrada e se
+ * traduz o `Option` do Rust de volta para `null`.
+ *
+ * Módulo-folha: chama `nativeCore` direto (como `normalizeTitle` já fazia) —
+ * `requireCore`/`rust-core` importa `config`, e quem nos alimenta
+ * (`search-names`, `format`) não pode fechar ciclo com ele.
+ *
+ * Regra de ouro: NUNCA há reserva TS. Por chamada avulsa o napi é ~2× o TS
+ * (travessia de string) e lote parece a resposta — mas medido em
+ * `tmp/g1-measure.mjs` (450 magnets reais do `magnets.db`) o laço por item
+ * custa <0,3 ms e a variante em lote é MAIS LENTA (a montagem do array no
+ * lado JS domina: extractInfoHashes 0,29 ms vs 0,26 ms por item;
+ * magnetDisplayNames 0,52 ms vs 0,27 ms). Então: chamada direta, SEM lote.
+ */
 import { nativeCore } from './native-core.js';
 
-function bytesToSize(bytes: unknown) {
+/** Funções de magnet/texto no `.node` (camelCase do napi-rs). */
+type TextCore = {
+  extractInfoHash(input: string): string | null;
+  magnetDisplayName(magnet: string | null, magnetUri: string | null, guid: string | null): string;
+  decodeEntities(text: string): string;
+  bytesToSize(bytes: number): string | null;
+  stripDiacritics(text: string): string;
+  collapseAcronyms(text: string): string;
+  dedupeNames(names: Array<string | null>): string[];
+  normalizeTitle(text: string): string;
+};
+
+const textCore = () => nativeCore<TextCore>();
+
+function bytesToSize(bytes: unknown): string | null {
   const n = Number(bytes);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i += 1;
-  }
-  return `${v.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+  // O `Number()` do JS na borda: "1 KB" vira NaN e o núcleo devolve None.
+  if (!Number.isFinite(n)) return null;
+  return textCore().bytesToSize(n) ?? null;
 }
-
-const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 /**
- * btih em base32 (32 chars) para os 40 hex que o Stremio exige.
- * Magnet de indexer BR às vezes vem nesse formato; repassado cru, o item
- * aparece na lista mas o cliente não monta o magnet e o play morre.
+ * btih hex (40) ou base32 (32), puro ou via `btih:` — a normalização e o
+ * trim rodam no núcleo. Hash de indexer BR em base32 repassado cru mata o
+ * play: o cliente não monta o magnet.
  */
-function base32ToHex(input: string) {
-  const s = String(input).toUpperCase();
-  let bits = '';
-  for (const ch of s) {
-    const idx = BASE32_ALPHABET.indexOf(ch);
-    if (idx < 0) return null;
-    bits += idx.toString(2).padStart(5, '0');
-  }
-  let hex = '';
-  for (let i = 0; i + 4 <= 160; i += 4) hex += parseInt(bits.slice(i, i + 4), 2).toString(16);
-  return hex;
-}
-
-function extractInfoHash(magnetOrHash: unknown) {
+function extractInfoHash(magnetOrHash: unknown): string | null {
   if (!magnetOrHash) return null;
-  const raw = String(magnetOrHash).trim();
-
-  if (/^[a-fA-F0-9]{40}$/.test(raw)) return raw.toLowerCase();
-  if (/^[a-zA-Z2-7]{32}$/.test(raw)) return base32ToHex(raw);
-
-  const m = raw.match(/btih:([a-zA-Z0-9]{32,40})/i);
-  if (!m) return null;
-  const hash = m[1];
-  if (/^[a-fA-F0-9]{40}$/.test(hash)) return hash.toLowerCase();
-  if (hash.length === 32) return base32ToHex(hash);
-  return null;
+  return textCore().extractInfoHash(String(magnetOrHash)) ?? null;
 }
 
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
-  hellip: '…', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘',
-  ldquo: '“', rdquo: '”', laquo: '«', raquo: '»',
-  // Ordinais: as que mais mudam DECISÃO aqui. Todo pack BR se anuncia como
-  // "4ª Temporada", e o Pirate Bay publica isso como "4&ordf; Temporada" —
-  // sem decodificar, o parser não lê temporada nenhuma e o pack da 4ª entra
-  // na lista do S01E01 como se cobrisse qualquer episódio.
-  ordf: 'ª', ordm: 'º', deg: '°',
-  // Acentuadas: aparecem no mesmo corpus ("Dual &Aacute;udio").
-  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú',
-  acirc: 'â', ecirc: 'ê', ocirc: 'ô', atilde: 'ã', otilde: 'õ',
-  ccedil: 'ç', agrave: 'à', uuml: 'ü', ntilde: 'ñ',
-};
+/** Nome da release no `dn=` do magnet; URL de protetor devolve vazio. */
+function magnetDisplayName(item: { magnet?: string; MagnetUri?: string; Guid?: string } | null | undefined): string {
+  return textCore().magnetDisplayName(item?.magnet ?? null, item?.MagnetUri ?? null, item?.Guid ?? null);
+}
 
 /**
- * Indexers que raspam WordPress devolvem o título com entidade crua — o BLUDV
- * e o Comando mandam "Episódio II &#8211; Ataque dos Clones". Sem decodificar,
- * a entidade aparece literal na lista do cliente.
+ * Entidades HTML cruas de indexer que raspa WordPress (BLUDV/Comando):
+ * "Episódio II &#8211; Ataque dos Clones" saía literal na lista sem isto.
+ * A tabela de ordinais ("4&ordf;") é a que mais muda DECISÃO de pack.
  */
-function decodeEntities(text = '') {
-  return String(text)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (whole: string, name: string) => {
-      const letra = NAMED_ENTITIES[name.toLowerCase()];
-      if (letra === undefined) return whole;
-      // A tabela é consultada em minúsculas, então "&Aacute;" caía em "á" e
-      // "Dual Áudio" virava "Dual áudio" na tela. Só letra única herda a
-      // caixa do nome da entidade; "&Amp;" continua "&".
-      return letra.length === 1 && /^[A-Z]/.test(name) ? letra.toUpperCase() : letra;
-    });
+function decodeEntities(text = ''): string {
+  return textCore().decodeEntities(String(text));
 }
 
-// Letras latinas que são letra própria no Unicode, não base + acento: o NFD não
-// as separa e o replace das combining marks não as alcança. Medido em My Name
-// Is Farah (2026-09-13): o original "Adım Farah" tem o ı turco sem ponto, as
-// releases escrevem "Adim Farah", e o filtro de título recusava todas elas.
-const LATIN_FOLD: Record<string, string> = {
-  ı: 'i', ł: 'l', Ł: 'L', đ: 'd', Đ: 'D', ø: 'o', Ø: 'O',
-  ß: 'ss', ẞ: 'SS', æ: 'ae', Æ: 'AE', œ: 'oe', Œ: 'OE',
-};
-const LATIN_FOLD_RE = /[ıłŁđĐøØßẞæÆœŒ]/g;
-
-function foldLatinLetters(s: string) {
-  return s.replace(LATIN_FOLD_RE, (letter) => LATIN_FOLD[letter] ?? letter);
-}
-
-// Sigla com ponto ("G.O.R.A.", "S.W.A.T.", "M.A.S.H") vira UMA palavra. Medido
-// em G.O.R.A. (2004), 2026-10-04: a consulta "G.O.R.A. 2004" não achava nada e
-// "GORA 2004" achava 8 releases (YTS, TPB, kickass); e o filtro lia o título
-// como "g o r a", que nunca casa com a release "GORA 2004 1080p". Exige duas
-// ou mais letras-ponto seguidas: "H.264", "Once.Upon.a.Time" e "V.for" não são
-// sigla. O espaço no fim separa a sigla da palavra colada ("U.S.Marshals").
-const DOTTED_ACRONYM_RE = /(?<![\p{L}\p{N}])(?:\p{L}\.){2,}(?:\p{L}(?![\p{L}\p{N}]))?/gu;
-
-function collapseAcronyms(s = '') {
-  return String(s).replace(DOTTED_ACRONYM_RE, (m: string, at: number, all: string) => {
-    const glued = /[\p{L}\p{N}]/u.test(all.charAt(at + m.length));
-    return `${m.replace(/\./g, '')}${glued ? ' ' : ''}`;
-  });
+/** Sigla com ponto ("G.O.R.A.") vira UMA palavra; consulta dos globais. */
+function collapseAcronyms(s = ''): string {
+  return textCore().collapseAcronyms(String(s));
 }
 
 /**
- * Normaliza um título para comparação, no Rust (`normalize_title` do
- * adom-core: sigla pontuada, caixa, fold latino, NFD, marcas e compat do
- * Latin-1, não-palavra → espaço). O TS da regra saiu do branch (oráculo no
- * `esm`; goldens `title-normalization` e `unicode_parity` no Rust).
+ * Normaliza um título para comparação no núcleo (sigla, caixa, fold latino,
+ * NFD, marcas e compat do Latin-1). Oráculo no `esm`; goldens
+ * `title-normalization` e `unicode_parity` no Rust.
  */
-function normalizeTitle(s = '') {
-  return nativeCore<{ normalizeTitle(input: string): string }>().normalizeTitle(String(s));
+function normalizeTitle(s = ''): string {
+  return textCore().normalizeTitle(String(s));
 }
 
 /**
- * Tira só o diacrítico, preservando caixa, pontuação e espaços.
- * Diferente de normalizeTitle, que também faz lowercase e troca todo
- * não-alfanumérico por espaço — usar aquela numa QUERY a destruiria.
- * Medido ao vivo: o buscador WordPress dos sites BR devolve 0 para
- * QUALQUER query acentuada ("Extermínio" → 0, "Exterminio" → 8–16 nos
- * 5 indexers BR); os globais lidam bem com acento e não passam por aqui.
+ * Tira só o diacrítico, preservando caixa e pontuação — diferente de
+ * normalizeTitle, que destruiria uma QUERY. Medido ao vivo: o buscador
+ * WordPress dos sites BR devolve 0 para QUALQUER query acentuada; os globais
+ * lidam bem com acento e não passam por aqui.
  */
-function stripDiacritics(s = '') {
-  return foldLatinLetters(String(s)).normalize('NFD').replace(/[̀-ͯ]/g, '');
+function stripDiacritics(s = ''): string {
+  return textCore().stripDiacritics(String(s));
 }
 
 /**
- * Deduplica nomes de obra por forma NORMALIZADA, preservando a ordem e a
- * primeira grafia de cada um. O Cinemeta repete o `original` no `title` e o
- * canônico inglês coincide com o original em obra anglófona: sem isto o filtro
- * e a dica `w` carregavam duplicatas.
- *
- * Nome que normaliza para vazio (título só de pontuação/CJK degenerado) NÃO
- * entra no dedupe: removê-lo poderia esvaziar `names` e desligar o filtro de
- * título — o gate tem que decidir "sem nome", não a deduplicação.
+ * Deduplica nomes de obra por forma NORMALIZADA em UMA chamada de núcleo
+ * (o dedupe roda inteiro lá, incluindo o normalizeTitle de cada nome —
+ * chamada por item aqui dobraria o custo). Nome que normaliza para vazio
+ * não entra no dedupe: o gate decide "sem nome", não a deduplicação.
  */
 function dedupeNames(names: Array<string | null | undefined>): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const name of names) {
-    if (typeof name !== 'string' || !name) continue;
-    const norm = normalizeTitle(name);
-    if (norm && seen.has(norm)) continue;
-    if (norm) seen.add(norm);
-    out.push(name);
-  }
-  return out;
-}
-
-/**
- * Nome da release escondido no dn= do magnet. Sites BR publicam o post sem
- * ano/tag no título mapeado, mas o dn= do magnet preserva o nome real
- * ("Resident.Evil.2026.1080p.TELESYNC…"). URL de protetor (http/https) não
- * carrega dn= — sem evidência, devolve vazio.
- *
- * Extrai APENAS o dn=: o slug do post pode citar qualquer ano da franquia
- * (medido no nerdviatorrents: slug "exterminio-2025" mata o filme correto
- * de 2002). '+' é espaço na forma magnet; % malformado segue com o texto
- * que decodificou até aqui.
- */
-function magnetDisplayName(item: { magnet?: string; MagnetUri?: string; Guid?: string } | null | undefined): string {
-  const raw = String(item?.magnet || item?.MagnetUri || item?.Guid || '');
-  if (!raw || !/^magnet:/i.test(raw.trim())) return '';
-  const dnMatch = raw.match(/[&?]dn=([^&]+)/i);
-  if (!dnMatch) return '';
-  let source = dnMatch[1].replace(/\+/g, ' ');
-  try {
-    source = decodeURIComponent(source);
-  } catch {
-    /* sequência % malformada: segue com o texto que decodificou até aqui */
-  }
-  return source;
+  return textCore().dedupeNames(names.map((name) => (typeof name === 'string' ? name : null)));
 }
 
 export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, collapseAcronyms, stripDiacritics, dedupeNames, magnetDisplayName };
