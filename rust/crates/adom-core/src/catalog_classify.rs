@@ -73,10 +73,12 @@ pub fn foreign_proof_label(
     "sim"
 }
 
-/// `audioBucket` (helper privado que faltava no porte): `dub`/`dual`/`pt`/
-/// `lixo`. `Dual` sem PT ao lado sobe para `dub` via `looks_pt_br`; com idioma
-/// estrangeiro nomeado cai em `lixo`.
-fn audio_bucket(title: &str) -> &'static str {
+/// `audioBucket`: `dub`/`dual`/`pt`/`lixo`. `Dual` sem PT ao lado sobe para
+/// `dub` via `looks_pt_br`; com idioma estrangeiro nomeado cai em `lixo`.
+///
+/// Era privado quando só `classify*` chamava; a ponte napi expõe o MESMO
+/// predicado para `audio-quality.ts` (o TS sai), então é público — sem cópia.
+pub fn audio_bucket(title: &str) -> &'static str {
     if looks_pt_br(title) {
         return "dub";
     }
@@ -93,10 +95,13 @@ fn audio_bucket(title: &str) -> &'static str {
     "lixo"
 }
 
-/// `foreignVerdict` (helper privado que faltava no porte): `absolve`/`condena`/
-/// `unknown`. Ausência de PT nunca condena — condenar exige prova positiva de
-/// idioma estrangeiro. Um único sinal PT em qualquer candidato absolve.
-fn foreign_verdict(
+/// `foreignVerdict`: `absolve`/`condena`/`unknown`. Ausência de PT nunca
+/// condena — condenar exige prova positiva de idioma estrangeiro. Um único
+/// sinal PT em qualquer candidato absolve.
+///
+/// Público pelo mesmo motivo de `audio_bucket`: a ponte napi o expõe para
+/// `audio-quality.ts` (o TS sai) reusando esta implementação, não uma cópia.
+pub fn foreign_verdict(
     filename: &str,
     video_paths: &[&str],
     pt_markers: &[&str],

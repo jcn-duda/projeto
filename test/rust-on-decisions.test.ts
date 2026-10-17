@@ -8,6 +8,7 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const metrics = await import('../src/utils/metrics.js');
 const rustCore = await import('../src/utils/rust-core.js');
+const { nativeCore } = await import('../src/utils/native-core.js');
 const { record, lookup } = await import('../src/utils/release-index.js');
 const { decideAutofetch } = await import('../src/utils/rust-autofetch.js');
 import type { AutofetchCapture, AutofetchDecisionNapi } from '../src/utils/rust-autofetch.js';
@@ -20,7 +21,15 @@ function counter(name: string): number {
 
 // O stub agora precisa do parse de magnet inteiro no núcleo (G1): o
 // `extractInfoHash` real é puro, então o stub o espelha em vez de
-// representar uma decisão.
+// representar uma decisão. O áudio do título saiu do TS no G3 e o `record` do
+// índice o consulta: aqui vem do núcleo REAL (não é a decisão sob teste),
+// carregado ANTES de o stub entrar no slot, em vez de uma segunda régua.
+type AudioNapi = {
+  audioFromTitle(title: string): string;
+  qualityFromTitle(title: string): string;
+  explicitPtAudio(title: string): boolean;
+};
+const realAudio = nativeCore<AudioNapi>();
 const titles = () => ({
   normalizeTitle: (title: string) => title,
   extractInfoHash: (input: string) => {
@@ -28,6 +37,9 @@ const titles = () => ({
     return /^[a-f0-9]{40}$/.test(raw) ? raw : null;
   },
   magnetDisplayName: () => '',
+  audioFromTitle: (title: string) => realAudio.audioFromTitle(title),
+  qualityFromTitle: (title: string) => realAudio.qualityFromTitle(title),
+  explicitPtAudio: (title: string) => realAudio.explicitPtAudio(title),
 });
 
 beforeEach(() => {

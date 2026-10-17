@@ -47,6 +47,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
+mod audio;
 mod autofetch;
 mod cache;
 mod crawl;
@@ -63,9 +64,14 @@ mod ranking;
 mod release_index_media;
 mod relevance;
 mod text;
+// Casamento de títulos: fronteira fina de release-title-rules/name-matching/
+// matching-tokens/matching-vocabulary/multiwork-pack/franchise-base/tmdb-br-aliases.
+mod title_matching;
 
 // Lote do autofetch (Chupim): reexporta para o `#[napi]` não ser marcado morto.
 pub use autofetch::*;
+// Áudio e origem BR pelo título: fronteira de `audio-quality`/`audio-cleanup`.
+pub use audio::*;
 pub use cache::*;
 pub use crawl::*;
 // Reexporta o seletor: sem isto o clippy marca `#[napi]` do módulo privado como morto.
@@ -87,6 +93,8 @@ pub use release_index_media::*;
 pub use relevance::*;
 // Texto de magnet e título: fronteira fina de `title-normalization.ts`.
 pub use text::*;
+// Casamento de títulos: fronteira fina do `src/utils/release-*matching|title-rules`.
+pub use title_matching::*;
 
 // ---------------------------------------------------------------------------
 // Structs de saída (espelham os tipos do adom-core com campos NAPI-compatible)

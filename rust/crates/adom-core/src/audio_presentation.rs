@@ -250,13 +250,64 @@ pub fn audio_from_title(title: &str) -> &'static str {
     ""
 }
 
-/// `looksPtBr`: dublado PT-BR visível no TÍTULO, independente do indexer.
-/// `Dual` sozinho segue ambíguo: só conta com PT explícito ao lado ou sinal de
-/// português — `has_pt_signs` entra em CONJUNÇÃO, nunca no lugar da marca.
-pub fn looks_pt_br(title: &str) -> bool {
-    let audio = audio_from_title(title);
+/// `looks_pt_br` sobre um rótulo de áudio JÁ calculado: mesma composição, sem
+/// recalcular `audio_from_title` (é a parte caríssima da função).
+fn looks_pt_br_with_audio(title: &str, audio: &str) -> bool {
     if audio == "Dublado" || audio == "Nacional" {
         return true;
     }
     audio == "Dual" && (explicit_pt_audio(title) || has_pt_signs(title))
+}
+
+/// `looksPtBr`: dublado PT-BR visível no TÍTULO, independente do indexer.
+/// `Dual` sozinho segue ambíguo: só conta com PT explícito ao lado ou sinal de
+/// português — `has_pt_signs` entra em CONJUNÇÃO, nunca no lugar da marca.
+pub fn looks_pt_br(title: &str) -> bool {
+    looks_pt_br_with_audio(title, audio_from_title(title))
+}
+
+/// Sondas de áudio de UM título, para a ponte classificar LISTAS (o inventário
+/// da conta tem 1203 itens medidos): o rótulo e o `looksPtBr` saem da MESMA
+/// passada. Chamar `audio_from_title` e `looks_pt_br` separados recalcularia o
+/// rótulo inteiro (duas passadas) dentro do laço.
+pub struct AudioSignals {
+    pub audio: &'static str,
+    pub looks_pt_br: bool,
+}
+
+/// `audioFromTitle` + `looksPtBr` numa passada só — sem regra nova: a
+/// composição é a de `looks_pt_br`, sobre o rótulo que ele mesmo usaria.
+pub fn audio_signals(title: &str) -> AudioSignals {
+    let audio = audio_from_title(title);
+    AudioSignals {
+        audio,
+        looks_pt_br: looks_pt_br_with_audio(title, audio),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// O lote não pode divergir das funções avulsas: é a MESMA composição.
+    #[test]
+    fn audio_signals_espelha_as_funcoes_avulsas() {
+        for titulo in [
+            "Filme Dublado 1080p",
+            "Filme Dual Áudio",
+            "Filme DUAL",
+            "Filme DUAL_Misso 1080p",
+            "Filme Legendado",
+            "Filme NACIONAL",
+            "Movie 1080p WEB-DL",
+            "Filme Dublada e Dual LEGENDADA 1080P",
+            "Filme 1080p, 2160p, 720p, HD, WEB-DL",
+            "Dual",
+            "",
+        ] {
+            let sinais = audio_signals(titulo);
+            assert_eq!(sinais.audio, audio_from_title(titulo), "{titulo}");
+            assert_eq!(sinais.looks_pt_br, looks_pt_br(titulo), "{titulo}");
+        }
+    }
 }

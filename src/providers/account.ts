@@ -1,7 +1,8 @@
 import config from '../config.js';
 import debrid from '../debrid/index.js';
-import { audioFromTitle, filterInventoryRelevant, hasExplicitForeignAudio, looksPtBr } from '../utils/format.js';
-import { brOriginMark } from '../utils/br-origin.js';
+import { audioSignalsMany } from '../utils/audio-quality.js';
+import type { AudioSignals } from '../utils/audio-quality.js';
+import { filterInventoryRelevant } from '../utils/format.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
@@ -27,12 +28,16 @@ import type { RelevanceRejectReason } from '../utils/release-filters.js';
  *   desmente a origem;
  * - `audioFromTitle === 'Legendado'`: LEGENDADA/LEG de site BR é conteúdo BR
  *   legendado — também não prova áudio dublado e não ocupa vaga de reserva.
+ *
+ * As sondas vêm do LOTE `audioSignalsMany` (uma travessia para o inventário
+ * inteiro, 1203 itens medidos): a composição da regra fica aqui, o núcleo só
+ * responde os quatro predicados já portados.
  */
-function origemBrSemProvaDeAudio(title: string, ptAudio: boolean): boolean {
-  if (ptAudio) return false;
-  if (hasExplicitForeignAudio(title)) return false;
-  if (audioFromTitle(title) === 'Legendado') return false;
-  return brOriginMark(title);
+function origemBrSemProvaDeAudio(signals: AudioSignals): boolean {
+  if (signals.ptAudio) return false;
+  if (signals.explicitForeign) return false;
+  if (signals.legendado) return false;
+  return signals.brOrigin;
 }
 
 /**
@@ -72,8 +77,11 @@ async function search(matchContext: any, trace?: StreamTraceState | null) {
       config.debrid.inventoryTimeoutMs,
       () => [],
     );
-    const raw = items.map((item: any) => {
-      const title = String(item.title || '');
+    // Uma travessia do núcleo para o inventário inteiro: as quatro sondas de
+    // áudio/origem por título, em vez de 1 a 4 chamadas por item (medido em
+    // `tmp/g3-account-lote.mjs`).
+    const signals = audioSignalsMany(items.map((item: any) => String(item.title || '')));
+    const raw = items.map((item: any, index: number) => {
       // Origem BR pelo título: garante que itens em português passem por
       // `matchesBrTitle` (invariante 5) durante o `filterInventoryRelevant`,
       // em vez de usarem o caminho mais permissivo de trackers globais.
@@ -83,11 +91,10 @@ async function search(matchContext: any, trace?: StreamTraceState | null) {
       // conta como conteúdo estranho (0.5 < 0.65). A marca nova
       // (`brOriginOnly`) existe para o corte final (`_br`), que roda DEPOIS
       // do filtro — por isso entra só no objeto devolvido, mais abaixo.
-      const ptAudio = looksPtBr(title);
       return {
         ...item,
-        isBr: ptAudio,
-        brOriginOnly: origemBrSemProvaDeAudio(title, ptAudio),
+        isBr: signals[index].ptAudio,
+        brOriginOnly: origemBrSemProvaDeAudio(signals[index]),
       };
     });
     metrics.count('search.account.read');

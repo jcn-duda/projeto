@@ -23,7 +23,6 @@
 
 use std::sync::OnceLock;
 
-use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 
 use crate::audio_lang::generic_dub_proves_pt;
@@ -59,11 +58,37 @@ fn leg_re() -> &'static Regex {
 }
 
 /// `(?<![A-Z])DUBLAD[OA]S?(?![A-Z])`: dígito colado passa, letra A-Z colada veta.
-fn dublado_re() -> &'static FancyRegex {
-    static RE: OnceLock<FancyRegex> = OnceLock::new();
-    RE.get_or_init(|| {
-        FancyRegex::new(r"(?<![A-Z])DUBLAD[OA]S?(?![A-Z])").expect("DUBLAD[OA]S compila")
-    })
+///
+/// Scan manual em vez de `fancy_regex`: o lookaround do `fancy_regex` custa
+/// ~1,3 µs por chamada (medido em `tmp/g3-decomp.mjs`, 1203 títulos) e esta é a
+/// sonda mais quente do áudio — `explicit_pt_audio` é chamada 2–3× por título
+/// (`audio_from_title` e `has_explicit_foreign_audio`). O scan percorre bytes
+/// ASCII e trata qualquer byte ≥ 0x80 como "não é A-Z", que é exatamente o que
+/// o lookbehind/lookahead do JS vê num code point não-ASCII.
+fn dublado_hit(t: &str) -> bool {
+    const NEEDLE: &[u8] = b"DUBLAD";
+    let bytes = t.as_bytes();
+    let mut from = 0usize;
+    while let Some(found) = bytes[from..]
+        .windows(NEEDLE.len())
+        .position(|w| w == NEEDLE)
+    {
+        let start = from + found;
+        let before_ok = start == 0 || !bytes[start - 1].is_ascii_uppercase();
+        let mut end = start + NEEDLE.len();
+        if matches!(bytes.get(end), Some(b'O') | Some(b'A')) {
+            end += 1;
+            if bytes.get(end) == Some(&b'S') {
+                end += 1;
+            }
+            let after_ok = bytes.get(end).is_none_or(|b| !b.is_ascii_uppercase());
+            if before_ok && after_ok {
+                return true;
+            }
+        }
+        from = start + 1;
+    }
+    false
 }
 
 /// `\b(DUBLAGEM|DUB[-.]?BR|AUDIO[- ]?PT[-.]?BR)\b`.
@@ -107,7 +132,7 @@ pub fn explicit_pt_audio(title: &str) -> bool {
     let is_explicit_sub = sub_mark_re().is_match(&t) || leg_re().is_match(&t);
     let is_generic_dub = generic_dub_proves_pt(&t);
 
-    dublado_re().is_match(&t).expect("DUBLAD[OA]S executa")
+    dublado_hit(&t)
         || dubagem_re().is_match(&t)
         || is_generic_dub
         // `PT-BR` ao lado de uma marca de legenda NÃO é áudio PT: o botão é

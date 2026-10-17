@@ -239,7 +239,9 @@ pub use audio_cleanup_verdicts::{
 pub use audio_lang::{
     foreign_lang_named_for_bucket, generic_dub_proves_pt, names_foreign_dub_language,
 };
-pub use audio_presentation::{audio_from_title, looks_pt_br, strip_quality_tag_blob};
+pub use audio_presentation::{
+    audio_from_title, audio_signals, looks_pt_br, strip_quality_tag_blob, AudioSignals,
+};
 pub use autofetch_expired::{expired_removal_allowed, ExpiredFacts};
 pub use autofetch_fallback::{
     compose_queue_entries, pick_lower_pool_fallbacks, to_queue_candidate, FallbackLive,
@@ -274,7 +276,10 @@ pub use autofetch_seeds_pick::{
     pick_seeds_pool, RareConfig, SeedsPickLive, SeedsPickOpts, SeedsPickResult,
 };
 pub use bytes_to_size::bytes_to_size;
-pub use catalog_classify::{classify_by_title, classify_with_evidence, foreign_proof_label, Proof};
+pub use catalog_classify::{
+    audio_bucket, classify_by_title, classify_with_evidence, foreign_proof_label, foreign_verdict,
+    Proof,
+};
 pub use collapse_acronyms::collapse_acronyms;
 pub use crawl_store_rules::{
     apply_result, decide_upsert, empty_counters, error_backoff_ms, parse_progress, parse_status,
