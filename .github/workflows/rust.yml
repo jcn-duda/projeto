@@ -126,6 +126,7 @@ jobs:
         run: |
           npm run golden:release-filters:check
           npm run golden:inventory-filter:check
+          npm run golden:series-episode-filter:check
 
       # 16 testes, 76 comparações (23 goldens + 45 vetores Unicode 17 + 8 do
       # glue UTF-16 da sigla) contra o `expected` commitado — nunca input == expected.

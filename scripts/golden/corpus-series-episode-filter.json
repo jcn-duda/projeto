@@ -1,0 +1,56 @@
+{
+	"cases": [
+		{
+			"id": "global-casa-o-episodio",
+			"input": "{\"items\":[{\"title\":\"Lanterns S01E08 1080p WEB-DL\",\"isBr\":false,\"fromAccount\":false,\"infoHash\":\"1111111111111111111111111111111111111111\"}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "titulo-sem-marcador-de-episodio",
+			"input": "{\"items\":[{\"title\":\"Lanterns 1080p WEB-DL\",\"isBr\":false,\"fromAccount\":false,\"infoHash\":\"1111111111111111111111111111111111111111\"}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "pack-de-temporada-casa-a-cobertura",
+			"input": "{\"items\":[{\"title\":\"Lanterns S01 2160p WEB-DL\",\"isBr\":false,\"fromAccount\":false},{\"title\":\"Lanterns Temporada 1 Completa 1080p\",\"isBr\":false,\"fromAccount\":false,\"magnet\":\"magnet:?xt=urn:btih:3333333333333333333333333333333333333333&dn=Lanterns+S01+2160p\"}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "dn-do-magnet-contradiz-o-episodio",
+			"input": "{\"items\":[{\"title\":\"Lanterns S01E08 1080p\",\"isBr\":false,\"fromAccount\":false,\"magnet\":\"magnet:?xt=urn:btih:4444444444444444444444444444444444444444&dn=Lanterns+S01E05+1080p\",\"infoHash\":\"4444444444444444444444444444444444444444\"},{\"title\":\"Lanterns S01E08 720p\",\"isBr\":false,\"fromAccount\":false,\"Guid\":\"magnet:?xt=urn:btih:5555555555555555555555555555555555555555&dn=Lanterns+S01E06\"}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "dn-de-outra-temporada",
+			"input": "{\"items\":[{\"title\":\"Lanterns S01E08 1080p\",\"isBr\":false,\"fromAccount\":false,\"magnet\":\"magnet:?xt=urn:btih:6666666666666666666666666666666666666666&dn=Lanterns+S02+Completa+2160p\",\"infoHash\":\"6666666666666666666666666666666666666666\"}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "pre-air-hash-na-lista-de-excluidos",
+			"input": "{\"items\":[{\"title\":\"Lanterns S01 2160p\",\"isBr\":false,\"fromAccount\":false,\"infoHash\":\"7777777777777777777777777777777777777777\",\"publishedAt\":1790596800000},{\"title\":\"Lanterns S01E08 Dublado\",\"isBr\":true,\"fromAccount\":false,\"infoHash\":\"8888888888888888888888888888888888888888\",\"publishedAt\":1790596800000},{\"title\":\"Lanterns S01E08 1080p\",\"isBr\":false,\"fromAccount\":false,\"infoHash\":\"9999999999999999999999999999999999999999\"}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":\"2026-10-05T05:00:00.000Z\",\"now\":1790726400000,\"unaired\":true,\"preAirHashes\":[\"7777777777777777777777777777777777777777\"]}"
+		},
+		{
+			"id": "unaired-pack-que-nao-nomeia-x-release-que-nomeia",
+			"input": "{\"items\":[{\"title\":\"Lanterns S01 2160p WEB-DL\",\"isBr\":false,\"fromAccount\":false},{\"title\":\"Lanterns Temporada 1\",\"isBr\":false,\"fromAccount\":false,\"magnet\":\"magnet:?xt=urn:btih:1111111111111111111111111111111111111111&dn=Lanterns+S01E08\"},{\"title\":\"Lanterns S01 1080p\",\"isBr\":false,\"fromAccount\":false,\"infoHash\":\"1212121212121212121212121212121212121212\",\"publishedAt\":1791115200000}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":\"2026-10-05T05:00:00.000Z\",\"now\":1790726400000,\"unaired\":true,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "artigo-estrangeiro-no-item-da-conta",
+			"input": "{\"items\":[{\"title\":\"A Origem 4k 2160p Dual Audio\",\"isBr\":false,\"fromAccount\":true},{\"title\":\"From S01E08 1080p\",\"isBr\":false,\"fromAccount\":true,\"infoHash\":\"1313131313131313131313131313131313131313\"}],\"season\":1,\"episode\":8,\"universe\":[\"from\"],\"names\":[\"From\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "artigo-estrangeiro-no-item-br",
+			"input": "{\"items\":[{\"title\":\"A Origem 4k 2160p Dual Audio\",\"isBr\":true,\"fromAccount\":false}],\"season\":1,\"episode\":8,\"universe\":[\"from\"],\"names\":[\"From\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "artigo-do-nome-pt-passa",
+			"input": "{\"items\":[{\"title\":\"O Urso S01E08 Dual Audio\",\"isBr\":true,\"fromAccount\":false}],\"season\":1,\"episode\":8,\"universe\":[\"bear\",\"urso\"],\"names\":[\"The Bear\",\"O Urso\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "item-br-passa-sem-portao-global",
+			"input": "{\"items\":[{\"title\":\"From Temporada 1 Dublado 1080p\",\"isBr\":true,\"fromAccount\":false}],\"season\":1,\"episode\":8,\"universe\":[\"from\"],\"names\":[\"From\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "global-sem-marcador-de-serie",
+			"input": "{\"items\":[{\"title\":\"Filme Qualquer 2020 1080p\",\"isBr\":false,\"fromAccount\":false,\"infoHash\":\"1414141414141414141414141414141414141414\"}],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		},
+		{
+			"id": "lote-vazio",
+			"input": "{\"items\":[],\"season\":1,\"episode\":8,\"universe\":[\"lanterns\",\"lanterna\"],\"names\":[\"Lanterns\"],\"airDate\":null,\"now\":1790726400000,\"unaired\":false,\"preAirHashes\":[]}"
+		}
+	]
+}
