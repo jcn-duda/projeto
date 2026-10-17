@@ -144,12 +144,13 @@ const mutations = [
     testFile: 'dist/test/e2e/tier3-pipeline.test.js'
   },
   {
-    // PLANO_MELHORIAS 5.3: limitReservingBr saiu de utils/format.js para
-    // utils/stream-quotas.js no split de format.ts.
-    name: 'MUT-08: Invert Tier 3 brFirst ranking logic in limitReservingBr (stream-quotas.js)',
+    // F-1: a seleção de limitReservingBr saiu para o núcleo; a casca só monta
+    // o payload. O mutante inverte o `brFirst` que CRUZA para a ponte — o
+    // efeito continua observável no tier3.
+    name: 'MUT-08: Invert brFirst no payload do limitReservingBr (stream-quotas.js)',
     file: 'dist/src/utils/stream-quotas.js',
-    target: 'if (brFirst) {',
-    replacement: 'if (!brFirst) { // MUTATED',
+    target: 'brFirst,\n',
+    replacement: 'brFirst: !brFirst, // MUTATED\n',
     // Capturado pelo tier3-pipeline (8B): compara brFirst=false vs true no mesmo pool e exige o BR no índice 0.
     testFile: 'dist/test/e2e/tier3-pipeline.test.js'
   },
@@ -180,8 +181,10 @@ const mutations = [
     // vácua. `test/search-late-promoter.test.ts` fixa o contrato no símbolo.
     name: 'MUT-10: Break Late-Pass Cache Promotion (providers/search-late-promoter.js)',
     file: 'dist/src/providers/search-late-promoter.js',
-    target: '{ streams: hit.streams, partial: false, debridKnown',
-    replacement: '{ streams: hit.streams, partial: true /* MUTATED */, debridKnown',
+    // O emit do tsc quebra o objeto em várias linhas; `partial: false,` é
+    // único no arquivo e é o campo que a promoção sem novidade grava.
+    target: 'partial: false,',
+    replacement: 'partial: true, // MUTATED',
     testFile: 'dist/test/search-late-promoter.test.js'
   }
 ];
