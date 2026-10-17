@@ -55,20 +55,24 @@ completa; TTL de reserva respeita `min(CACHE_TTL, FALLBACK_STREAMS_TTL)` e
 
 | Alvo | Onde está hoje | Observação |
 |---|---|---|
-| `instant_window` | `src/providers/magnet-bank-instant.ts:139` | **falta** — puro sobre `now`, mas depende de `Date.parse` do JS |
-| `pick_source` | `src/providers/magnet-bank-fallback.ts:116` | **falta** — reserva do banco; `allFailed` × `failedIndexers` |
-| `is_recent_release` | `src/providers/magnet-bank-instant.ts:123` | **falta** — precisa de paridade com `Date.parse` |
+| `instant_window` | `src/providers/magnet-bank-instant.ts:139` | **feito**: `adom-core::search_bank`, golden de 27 casos. O TS lê `config.magnetBank.*` DENTRO da função — o golden prende o comportamento sob os defaults (min=max=7d, freshMax=2h) e o teste Rust passa esses valores |
+| `pick_source` | `src/providers/magnet-bank-fallback.ts:116` | **feito**: golden de 12 casos; pegou que o conjunto `failed` do TS NÃO é normalizado (só o `source.indexer` é) |
+| `is_recent_release` | `src/providers/magnet-bank-instant.ts:123` | **feito**: sobe com o `instant_window`, sobre o subconjunto UTC de `Date.parse` |
 | `play_disposition` | `src/providers/debrid-play-guard.ts:25` | **feito**: `adom-core::play_disposition`, golden de 18 casos, 4 testes unitários. Sem napi de propósito (uma chamada por stream: a travessia custaria mais que a regra) |
 | `limit_reserving_br` | já portado (`stream_quotas_extra`) | só cabe trocar o chamador TS |
 | `filter_known_cache` | já portado (`br_pool_selection::picks`) | idem |
 | `stream_display`, `stream_relabel`, `catalog_classify` | já portados | idem |
 
-O que sobra da F-1.3 tropeça no mesmo ponto: as duas funções do banco de magnets
-dependem de `Date.parse`/`Date` do JS (`isRecentRelease` compara datas e
-`instantWindow` usa `stability`). Portar exige decidir o subconjunto de formatos
-aceitos — ISO-8601 é o que Cinemeta/TMDB mandam, mas `Date.parse` aceita muito
-mais, e um formato não coberto diverge **em silêncio** (encurta ou estica a
-janela da via instantânea). É a próxima fatia, com corpus de datas explícito.
+**Decisão de `Date.parse`** (em `adom-core::search_bank`): o porte aceita o
+subconjunto determinístico — `YYYY`, `YYYY-MM`, `YYYY-MM-DD` (UTC) e
+`YYYY-MM-DDTHH:MM[:SS[.fff]]` COM offset (`Z`/`±HH:MM`/`±HHMM`). Formato fora
+disso, datetime sem offset (que no JS é interpretado no FUSO do processo) e dia
+impossível viram `0` (o `NaN` do TS). Cinemeta/TMDB mandam ISO com `Z`; quem
+precisar de mais formatos regenera o golden com o corpus novo.
+
+**F-1 COMPLETA.** Como em `play_disposition`, as três funções novas ficam SEM
+napi: rodam uma vez por busca sobre linhas que já vieram do SQLite, e o
+consumidor delas é o orquestrador Rust (F1).
 
 Ao fim de F-1 o Node não decide mais nada da busca: fica rede, estado e tempo.
 

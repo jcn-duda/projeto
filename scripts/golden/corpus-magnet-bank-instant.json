@@ -1,0 +1,34 @@
+{
+  "format": "adom-golden-corpus/1",
+  "about": "isRecentRelease e instantWindow (magnet-bank-instant). Datas SÃƒâ€œ em formas UTC do JS (com Z, date-only ou ano/mÃƒÂªs): forma com 'T' sem offset ÃƒÂ© dependente de FUSO no JS e fica FORA do corpus por decisÃƒÂ£o (ver o mÃƒÂ³dulo Rust). ATENÃƒâ€¡ÃƒÆ’O: o instantWindow do TS lÃƒÂª config.magnetBank.* INTERNAMENTE Ã¢â‚¬â€ o orÃƒÂ¡culo roda com dotenv vazio, entÃƒÂ£o o golden prende o comportamento sob os DEFAULTS (min=max=7d, freshMax=2h, ver src/config/cache.ts:76-78); os params do teste Rust tÃƒÂªm que ser esses. `expected` do instantWindow ÃƒÂ© o JSON do {windowMs,lastCollection,newest,stability,fresh}.",
+  "cases": [
+    { "id": "recent/meta-nula", "input": "{\"op\":\"isRecentRelease\",\"meta\":null,\"now\":1799971200000}" },
+    { "id": "recent/released-dentro-de-30d", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2027-01-01T00:00:00Z\"},\"now\":1799971200000}" },
+    { "id": "recent/released-velho", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2026-01-01T00:00:00Z\"},\"now\":1799971200000}" },
+    { "id": "recent/released-futuro-nao-conta", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2027-02-01T00:00:00Z\"},\"now\":1799971200000}" },
+    { "id": "recent/released-date-only", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2027-01-10\"},\"now\":1799971200000}" },
+    { "id": "recent/released-ano-nu", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2027\"},\"now\":1799971200000}" },
+    { "id": "recent/released-ano-mes", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2027-01\"},\"now\":1799971200000}" },
+    { "id": "recent/released-lixo-cai-adiante", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"nÃƒÂ£o ÃƒÂ© data\"},\"now\":1799971200000}" },
+    { "id": "recent/released-borda-exata-30d", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2026-12-16T00:00:00Z\"},\"now\":1799971200000}" },
+    { "id": "recent/firstaired-dentro-de-14d", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"firstAired\":\"2027-01-05T00:00:00Z\"},\"now\":1799971200000}" },
+    { "id": "recent/firstaired-borda-exata-14d", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"firstAired\":\"2027-01-01T00:00:00Z\"},\"now\":1799971200000}" },
+    { "id": "recent/firstaired-velho-e-ano-pastado", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"firstAired\":\"2026-06-01T00:00:00Z\",\"year\":\"2026\"},\"now\":1799971200000}" },
+    { "id": "recent/year-atual-string", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"year\":\"2027\"},\"now\":1799971200000}" },
+    { "id": "recent/year-passado-com-sufixo", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"year\":\"2026Ã¢â‚¬â€œ\"},\"now\":1799971200000}" },
+    { "id": "recent/year-atual-numero", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"year\":2027},\"now\":1799971200000}" },
+    { "id": "recent/year-vazio", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"year\":\"\"},\"now\":1799971200000}" },
+    { "id": "recent/velho-em-tudo", "input": "{\"op\":\"isRecentRelease\",\"meta\":{\"released\":\"2020-05-05T00:00:00Z\",\"firstAired\":\"2020-05-06T00:00:00Z\",\"year\":\"1999\"},\"now\":1799971200000}" },
+
+    { "id": "window/sem-works-piso", "input": "{\"op\":\"instantWindow\",\"works\":[],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/estabilidade-baixa-clampa-no-piso", "input": "{\"op\":\"instantWindow\",\"works\":[{\"passedFilter\":1,\"lastSeen\":1799971000000,\"firstSeen\":1799970000000}],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/estabilidade-media", "input": "{\"op\":\"instantWindow\",\"works\":[{\"passedFilter\":1,\"lastSeen\":200000000,\"firstSeen\":0}],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/estabilidade-alta-clampa-no-teto", "input": "{\"op\":\"instantWindow\",\"works\":[{\"passedFilter\":1,\"lastSeen\":1000000000000,\"firstSeen\":0}],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/fresh-encurta-a-janela", "input": "{\"op\":\"instantWindow\",\"works\":[{\"passedFilter\":1,\"lastSeen\":1000000000000,\"firstSeen\":0}],\"meta\":{\"year\":\"2027\"},\"now\":1799971200000}" },
+    { "id": "window/passadofilter-zero-nao-coleta", "input": "{\"op\":\"instantWindow\",\"works\":[{\"passedFilter\":0,\"lastSeen\":99999999999,\"firstSeen\":100}],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/firstseen-a-frente-da-coleta", "input": "{\"op\":\"instantWindow\",\"works\":[{\"passedFilter\":1,\"lastSeen\":100,\"firstSeen\":500}],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/maximos-por-campo-isolado", "input": "{\"op\":\"instantWindow\",\"works\":[{\"passedFilter\":1,\"lastSeen\":1000,\"firstSeen\":5},{\"passedFilter\":1,\"lastSeen\":2000,\"firstSeen\":900}],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/work-nulo-no-meio", "input": "{\"op\":\"instantWindow\",\"works\":[null,{\"passedFilter\":1,\"lastSeen\":1000,\"firstSeen\":5},null],\"meta\":null,\"now\":1799971200000}" },
+    { "id": "window/redundante-com-o-piso-sob-default", "input": "{\"op\":\"instantWindow\",\"works\":[],\"meta\":null,\"now\":1799971200000}" }
+  ]
+}

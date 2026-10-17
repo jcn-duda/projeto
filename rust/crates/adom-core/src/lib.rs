@@ -75,6 +75,7 @@ mod release_work;
 mod reply_budget;
 mod request_key;
 mod resolve_sign;
+mod search_bank;
 mod search_finish;
 mod search_name_helpers;
 mod search_plan;
@@ -320,6 +321,11 @@ pub use release_labels::{compact_audio, edition_from_title, source_from_title};
 pub use play_disposition::{play_disposition, PlayDisposition, PlayFacts};
 pub use reply_budget::remaining_check_budget;
 pub use request_key::{account_scope, streams_cache_key, streams_cache_scope};
+// Via do banco de magnets (porte de `magnet-bank-fallback.ts` e
+// `magnet-bank-instant.ts`): a reserva e a janela da via instantânea.
+pub use search_bank::{
+    instant_window, is_recent_release, pick_source, InstantMeta, InstantWindow, SourceRow, WorkRow,
+};
 pub use search_finish::{
     commit_decision, debrid_refresh_satisfied, late_promotion_decision, stale_refresh_eligible,
     CommitDecision, CommitFacts, LateAction, LateDecision, LateFacts, LateReason, LiveState,
