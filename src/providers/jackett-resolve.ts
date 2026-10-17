@@ -2,16 +2,7 @@ import config from '../config.js';
 import type { MatchContext } from '../../types/domain.js';
 import * as cache from '../utils/cache.js';
 import { isSafeDownloadUrl } from '../utils/net-safety.js';
-import {
-  matchesBrTitle,
-  matchesEpisode,
-  filterRelevantRaw,
-  parseTitleSeasonEpisode,
-  audioFromTitle,
-  qualityFromTitle,
-  sourceFromTitle,
-  UNKNOWN_QUALITY,
-} from '../utils/format.js';
+import { requireCore } from '../utils/rust-core.js';
 import { mapLimit } from '../utils/concurrency.js';
 import * as log from '../utils/logger.js';
 
@@ -22,6 +13,47 @@ export const MIN_RESOLVE_BUDGET = 400;
 // TTL do cache de magnet resolvido (7 dias em segundos). Protetor de link não
 // altera o hash de uma release já publicada.
 const RESOLVED_MAGNET_TTL = 7 * 24 * 3600;
+
+/**
+ * Lote do pré-resolve no núcleo (`rust/crates/adom-napi/src/pre_resolve.rs`):
+ * relevância, temporada/episódio, dedupe, score de escolha, corte pelo teto e
+ * guarda de URL do link decidem INTEIROS numa chamada — saem só os índices
+ * aprovados (na ordem final) e o motivo de cada rejeição. O motivo fica
+ * numérico na fronteira; o rótulo fica aqui.
+ */
+const PRE_RESOLVE_REJECT_LABELS = [
+  'title',
+  'season',
+  'episode',
+  'duplicate',
+  'unsafe-url',
+] as const;
+
+type PreResolvePostNapi = {
+  title?: string;
+  titlePascal?: string;
+  magnet?: string;
+  magnetUri?: string;
+  guid?: string;
+  isBr: boolean;
+  infoHash?: string;
+  downloadUrl?: string;
+  linkTrusted: boolean;
+};
+
+type PreResolveOutcomeNapi = {
+  approved: number[];
+  rejected: Array<{ index: number; reason: number }>;
+};
+
+type PreResolveCore = {
+  preResolveBrNapi(
+    posts: PreResolvePostNapi[],
+    query: Record<string, unknown>,
+    settings: Record<string, unknown>,
+  ): PreResolveOutcomeNapi;
+  resolveCandidateScoreNapi(title: string, season?: number, episode?: number): number;
+};
 
 /**
  * Exceção ao guard de download (criada no 0c22158 para desbloquear o magnet
@@ -87,61 +119,25 @@ export function remaining(deadline: number | null | undefined): number {
   return Math.max(0, deadline - Date.now());
 }
 
-function dedupeResolveCandidates(items: any[]) {
-  const seen = new Set();
-  return items.filter((item: any) => {
-    const identity = item.infoHash || item.magnet || item.downloadUrl;
-    if (!identity) return true;
-    const key = String(identity).trim().toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 /**
  * Pontuação de candidatos a download antes de despachar a resolução no `/dl`.
  *
  * Na cena BR, posts de WordPress frequentemente agregam 4 a 6 botões de download
  * por post (ex: Opção 1 [720p Dublado], Opção 2 [1080p Dual Áudio], 4K UHD Bluray,
- * Versão CAM/TS etc.).
- *
- * Como o Adom limita as resoluções por indexer (`config.jackett.maxDownloadResolves`,
- * padrão 20) e cada resolução consome requisições HTTP e orçamento de tempo
- * contra protetores de links (/dl), ordenar antes de cortar pelo teto garante que
- * botões dublados e de qualidades superiores (2160p, 1080p, Dual Áudio, Bluray/WEB-DL) não
- * fiquem de fora da cota consumida por itens inferiores ou legendados
- * no topo do HTML do site.
+ * Versão CAM/TS etc.) — dublado e qualidades superiores não podem ficar de fora
+ * da cota de resoluções. A regra INTEIRA decide no núcleo
+ * (`adom-napi::pre_resolve::resolve_candidate_score`); aqui é só a ponte.
  *
  * @param {{ title?: string }} item
  * @param {{ season?: (number|null), episode?: (number|null) }} [options]
  */
 export function resolveCandidateScore(item: { title?: string }, { season = null, episode = null }: { season?: number | null; episode?: number | null } = {}) {
-  const title = item.title || '';
-  const parsed = parseTitleSeasonEpisode(title);
-  let score = 0;
-  if (season != null && episode != null) {
-    if (parsed.seasons.includes(season) && parsed.episodes.includes(episode)) score += 100;
-    else if (!parsed.episodes.length && parsed.seasons.length === 1 && parsed.seasons[0] === season) score += 70;
-    else if (!parsed.episodes.length && parsed.seasons.includes(season)) score += 50;
-    else if (!parsed.episodes.length && (parsed.complete || (parsed.seasonPack && !parsed.seasons.length))) score += 30;
-  }
-  const audio = audioFromTitle(title);
-  if (audio === 'Dual') score += 110;
-  else if (audio === 'Dublado') score += 100;
-  else if (audio === 'Nacional') score += 95;
-  else if (audio === 'Legendado') score -= 50;
-
-  const quality = qualityFromTitle(title);
-  score += { '2160p': 15, '1080p': 12, '720p': 6, '480p': 3, SD: 1, [UNKNOWN_QUALITY]: 4 }[quality] || 0;
-
-  const source = sourceFromTitle(title);
-  if (source === 'BluRay') score += 8;
-  else if (source === 'WEB-DL') score += 6;
-  else if (source === 'WEBRip' || source === 'HDTV') score += 4;
-  else if (source === 'CAM') score -= 200;
-
-  return score;
+  const core = requireCore() as unknown as PreResolveCore;
+  return core.resolveCandidateScoreNapi(
+    String(item.title || ''),
+    season == null ? undefined : Number(season),
+    episode == null ? undefined : Number(episode),
+  );
 }
 
 export async function resolveCardigannDownloads(indexer: string, items: any[], query: string, deadline: number | null, matchContext: MatchContext | null = null) {
@@ -163,44 +159,80 @@ export async function resolveCardigannDownloads(indexer: string, items: any[], q
   // outro filme antes mesmo de pagar o protetor: "Coringa: Delírio a Dois
   // (2024)" resolve magnet sem nunca entrar na lista.
   const queryYear = Number(String(query || '').match(/\b(?:19|20)\d{2}\b/)?.[0] || 0);
-  let candidates = items
-    // Filtro BR estrito antes de pagar o protetor de link: post "parecido"
-    // ("Missão: Impossível – Efeito Fallout" numa busca por "Fallout") não
-    // merece orçamento de resolução de magnet.
-    .filter((item: any) => {
-      if (matchContext?.names?.length) {
-        return filterRelevantRaw([item], matchContext).length > 0;
-      }
-      return !wanted || matchesBrTitle(item.title || '', wanted, queryYear || null, { isSeries: Boolean(requestedSeason) });
-    })
-    .filter((item: any) => {
-      if (!requestedSeason) return true;
-      const titleSeason = String(item.title || '').match(/(?:\bS(\d{1,2})\b|(\d{1,2})\s*[ªº]\s*Temporada)/i);
-      return !titleSeason || Number(titleSeason[1] || titleSeason[2]) === Number(requestedSeason[1]);
-    })
-    // Release de outro episódio morre em buildStreams de qualquer jeito —
-    // resolvê-la gastava os slots (maxDownloadResolves) e 2-4s de protetor com
-    // E02..E10 enquanto o E01 pedido ficava de fora. Pack continua passando.
-    .filter((item: any) => matchContext?.season != null || !requestedEp || matchesEpisode(item.title || '', {
-      season: Number(requestedEp[1]),
-      episode: Number(requestedEp[2]),
-    }));
-  candidates = dedupeResolveCandidates(candidates)
-    .map((item: any, order: number) => ({ item, order, score: resolveCandidateScore(item, matchContext || {}) }))
-    .sort((a: any, b: any) => b.score - a.score || a.order - b.order)
-    .slice(0, config.jackett.maxDownloadResolves)
-    .map(({ item }: any) => item);
-  const resolved = await mapLimit(candidates, config.jackett.resolveConcurrency, async (item) => {
+  // Filtro BR estrito antes de pagar o protetor de link: post "parecido"
+  // ("Missão: Impossível – Efeito Fallout" numa busca por "Fallout") não
+  // merece orçamento de resolução de magnet. Toda a decisão por post —
+  // relevância, temporada/episódio, dedupe, score, teto e guarda de URL —
+  // acontece no núcleo, em UM lote; o fetch do protetor segue aqui.
+  const core = requireCore() as unknown as PreResolveCore;
+  const outcome = core.preResolveBrNapi(
+    items.map((item: any): PreResolvePostNapi => ({
+      // Forma fixa com `undefined` = ausente (o `||` do JS): sem spreads
+      // condicionais, a montagem do lote é O(1) por campo e não vira o gargalo.
+      title: item.title ? String(item.title) : undefined,
+      titlePascal: item.Title ? String(item.Title) : undefined,
+      magnet: item.magnet ? String(item.magnet) : undefined,
+      magnetUri: item.MagnetUri ? String(item.MagnetUri) : undefined,
+      guid: item.Guid ? String(item.Guid) : undefined,
+      isBr: Boolean(item.isBr),
+      infoHash: item.infoHash ? String(item.infoHash) : undefined,
+      downloadUrl: item.downloadUrl ? String(item.downloadUrl) : undefined,
+      // A exceção do download do próprio Jackett depende de config.jackett.url
+      // (I/O de config, não de texto do post) — decidida aqui, entra no lote.
+      linkTrusted: Boolean(item.downloadUrl && isJackettDownloadLink(String(item.downloadUrl))),
+    })),
+    {
+      names: matchContext?.names?.length ? matchContext.names.map(String) : [],
+      ...(wanted ? { wanted } : {}),
+      // O ano da relevância é o de catálogo (sujo, como veio do metadata);
+      // o da query ("Coringa 2019") só alimenta o caminho `matchesBrTitle`.
+      ...(matchContext?.year != null && matchContext.year !== '' ? { year: String(matchContext.year) } : {}),
+      ...(matchContext?.altYear != null ? { altYear: String(matchContext.altYear) } : {}),
+      isSeries: Boolean(matchContext?.isSeries),
+      ...(matchContext?.season != null ? { season: Number(matchContext.season) } : {}),
+      ...(matchContext?.episode != null ? { episode: Number(matchContext.episode) } : {}),
+      ...(matchContext?.multiWork?.root ? { multiWorkRoot: String(matchContext.multiWork.root) } : {}),
+      ...(matchContext?.homeReleaseAt != null ? { homeReleaseAt: Number(matchContext.homeReleaseAt) } : {}),
+      brIsSeries: Boolean(requestedSeason),
+      ...(queryYear ? { queryYear: String(queryYear) } : {}),
+      ...(requestedSeason ? { requestedSeason: Number(requestedSeason[1]) } : {}),
+      ...(requestedEp
+        ? { requestedEpSeason: Number(requestedEp[1]), requestedEp: Number(requestedEp[2]) }
+        : {}),
+      maxResolves: config.jackett.maxDownloadResolves,
+      allowPrivateUrls: config.jackett.allowPrivateDownloadIps === true,
+    },
+    {
+      nowMs: Date.now(),
+      preHomeReleaseCut: config.search.preHomeReleaseCut,
+      preHomeReleaseMarginMs: config.search.preHomeReleaseMarginMs,
+      titlePrecisionTailCut: config.search.titlePrecisionTailCut,
+    },
+  );
+  // Links bloqueados pelo lote: o item FICA na lista (sem magnet, exatamente
+  // como no `resolveDownloadMagnet` antigo), só não abre o fetch — e o aviso é
+  // o mesmo de antes, agora decidido antes da fila de resolução.
+  const bloqueados = new Set(
+    outcome.rejected
+      .filter(({ reason }) => PRE_RESOLVE_REJECT_LABELS[reason] === 'unsafe-url')
+      .map(({ index }) => index),
+  );
+  const candidates = outcome.approved.map((i) => ({ item: items[i], bloqueado: bloqueados.has(i) }));
+  const resolved = await mapLimit(candidates, config.jackett.resolveConcurrency, async ({ item, bloqueado }) => {
     // Índice grava mediaSource (CAM do dn/bank); protetor em hash pronto não vale.
     if (item.infoHash || /^magnet:\?/i.test(item.magnet || '')) return item;
     // Cada salto cabe no que sobrou do orçamento: um protetor de link lento não
     // pode empurrar o indexer inteiro além do REPLY_DEADLINE.
     const budget = remaining(deadline);
     if (budget <= MIN_RESOLVE_BUDGET) return item;
+    if (bloqueado) {
+      log.warn(`[jackett] URL de download bloqueada por segurança: ${String(item.downloadUrl).slice(0, 160)}`);
+      return item;
+    }
     const magnet = await resolveDownloadMagnet(item.downloadUrl, budget);
     return magnet ? { ...item, magnet } : item;
   });
-  const count = resolved.filter((item) => /^magnet:\?/i.test(item.magnet || '')).length;
+  const count = resolved.filter((r) => /^magnet:\?/i.test(r.magnet || '')).length;
   log.info(`[jackett] ${indexer}: ${count}/${candidates.length} magnet(s) resolvido(s)`);
   return resolved;
 }
