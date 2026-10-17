@@ -1,0 +1,22 @@
+{"id":"score-4k-dual-bluray","input":"{\"op\":\"score\",\"title\":\"Filme (2024) 2160p Dual Áudio BluRay\",\"season\":null,\"episode\":null}","expected":"133"}
+{"id":"score-1080-dublado-webdl","input":"{\"op\":\"score\",\"title\":\"Filme (2024) 1080p Dublado WEB-DL\",\"season\":null,\"episode\":null}","expected":"118"}
+{"id":"score-720-nacional-hdtv","input":"{\"op\":\"score\",\"title\":\"Filme (2024) 720p Nacional HDTV\",\"season\":null,\"episode\":null}","expected":"105"}
+{"id":"score-legendado-webrip","input":"{\"op\":\"score\",\"title\":\"Filme (2024) 1080p Legendado WEBRip\",\"season\":null,\"episode\":null}","expected":"-34"}
+{"id":"score-cam-dual","input":"{\"op\":\"score\",\"title\":\"Filme (2024) CAM Dual Áudio\",\"season\":null,\"episode\":null}","expected":"-89"}
+{"id":"score-sd-mudo","input":"{\"op\":\"score\",\"title\":\"Filme (2024) SD\",\"season\":null,\"episode\":null}","expected":"4"}
+{"id":"score-audio-sem-qualidade","input":"{\"op\":\"score\",\"title\":\"Filme (2024) Dublado\",\"season\":null,\"episode\":null}","expected":"104"}
+{"id":"score-episodio-exato","input":"{\"op\":\"score\",\"title\":\"Serie S01E05 1080p Dublado\",\"season\":1,\"episode\":5}","expected":"212"}
+{"id":"score-temporada-unica-sem-ep","input":"{\"op\":\"score\",\"title\":\"Serie S01 COMPLETA 1080p Dual Áudio\",\"season\":1,\"episode\":5}","expected":"192"}
+{"id":"score-outra-temporada","input":"{\"op\":\"score\",\"title\":\"Serie S03 1080p Dublado\",\"season\":1,\"episode\":5}","expected":"112"}
+{"id":"score-completa-sem-temporada","input":"{\"op\":\"score\",\"title\":\"Serie Coleção Completa 1080p Dual Áudio\",\"season\":1,\"episode\":5}","expected":"122"}
+{"id":"rank-qualidade-e-audio","input":"{\"op\":\"rank\",\"titles\":[\"Filme (2024) CAM Dual Áudio\",\"Filme (2024) 1080p Dublado WEB-DL\",\"Filme (2024) 2160p Dual Áudio BluRay\",\"Filme (2024) 720p Legendado\",\"Filme (2024) 2160p Dublado BluRay\"]}","expected":"[2,4,1,3,0]"}
+{"id":"rank-empate-preserva-ordem","input":"{\"op\":\"rank\",\"titles\":[\"Filme A (2024) 1080p Dublado\",\"Filme B (2024) 1080p Dublado\",\"Filme C (2024) 1080p Dublado\"]}","expected":"[0,1,2]"}
+{"id":"season-s01","input":"{\"op\":\"season\",\"title\":\"Serie S01 1080p Dublado\",\"requested\":1}","expected":"{\"marker\":1,\"keep\":true}"}
+{"id":"season-s02-pedindo-s01","input":"{\"op\":\"season\",\"title\":\"Serie S02 1080p Dublado\",\"requested\":1}","expected":"{\"marker\":2,\"keep\":false}"}
+{"id":"season-episodio-nao-e-marcador","input":"{\"op\":\"season\",\"title\":\"Serie S01E05 1080p\",\"requested\":1}","expected":"{\"marker\":null,\"keep\":true}"}
+{"id":"season-ordinal-feminino","input":"{\"op\":\"season\",\"title\":\"Serie 2ª Temporada 720p\",\"requested\":2}","expected":"{\"marker\":2,\"keep\":true}"}
+{"id":"season-ordinal-masculino-caixa-alta","input":"{\"op\":\"season\",\"title\":\"Serie 3º TEMPORADA COMPLETA\",\"requested\":1}","expected":"{\"marker\":3,\"keep\":false}"}
+{"id":"season-ordinal-com-espaco","input":"{\"op\":\"season\",\"title\":\"Serie 3 ª Temporada\",\"requested\":3}","expected":"{\"marker\":3,\"keep\":true}"}
+{"id":"season-sem-borda-antes","input":"{\"op\":\"season\",\"title\":\"AbS01 resto\",\"requested\":1}","expected":"{\"marker\":null,\"keep\":true}"}
+{"id":"season-tres-digitos-nao-casa","input":"{\"op\":\"season\",\"title\":\"S012 x\",\"requested\":1}","expected":"{\"marker\":null,\"keep\":true}"}
+{"id":"season-s04-minusculo","input":"{\"op\":\"season\",\"title\":\"serie s04 1080p\",\"requested\":4}","expected":"{\"marker\":4,\"keep\":true}"}
