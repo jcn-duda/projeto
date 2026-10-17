@@ -11,11 +11,10 @@
 //!   servir a entrada velha.
 //!
 //! Golden: `rust/golden/search-commit.jsonl` (40 casos), gerado por
-//! `node scripts/golden/dump-search-commit.mjs` contra o TypeScript REAL do
-//! `dist`, comparado pelo teste `tests/search_commit_golden.rs`. O manifest
-//! prende o sha256 da fonte que produziu o golden — quando o TS deste branch
-//! virar casca do napi, a geração passa a rodar no worktree `../adom-esm`
-//! (mesmo contrato dos outros goldens cujo corpo saiu daqui).
+//! `node scripts/golden/dump-search-commit.mjs` contra o TypeScript do worktree
+//! `../adom-esm` (o TS deste branch virou casca do napi), comparado pelo teste
+//! `tests/search_commit_golden.rs`. O manifest prende o sha256 da fonte que
+//! produziu o golden.
 //!
 //! Um cuidado que o TS tinha e este porte mantém: `live` é `Option`. O TS só
 //! perguntava `needsFallback()` no ramo da reserva e só `hasAnyFailure()` no

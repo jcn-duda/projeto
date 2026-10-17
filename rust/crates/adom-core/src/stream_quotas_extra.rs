@@ -4,6 +4,7 @@
 //! `limit_reserving_br`.
 
 use regex::Regex;
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
@@ -14,7 +15,9 @@ use crate::stream_quotas::clamp_limit;
 
 // Seleção de candidatos e reserva BR vivem num submódulo para caber na catraca
 // de 400 linhas por arquivo; o rustfmt expandiria o arquivo único para ~611.
+mod limit_br_trace;
 mod selection;
+pub use limit_br_trace::{limit_reserving_br_trace, LimitReservingBrTrace};
 pub use selection::{
     limit_reserving_br, select_quality_candidates, LimitBrOpts, SelectCandidatesOpts,
 };
@@ -144,18 +147,37 @@ pub fn limit_by_quality(qualities: &[&str], quality_limits: &QualityLimits) -> V
     kept
 }
 
-pub fn limit_by_quality_and_indexer(
+/// Um corte do corte final: a posição na lista visitada e o motivo fechado
+/// (o mesmo literal que o `dropTrace` do TS registra).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct QuotaDrop {
+    pub index: usize,
+    pub reason: &'static str,
+}
+
+/// Resultado observacional de [`limit_by_quality_and_indexer`]: os índices
+/// mantidos e os descartados com motivo, na ORDEM em que a lista reordenada foi
+/// visitada (o ledger do TS depende dessa ordem).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct QualityIndexerTrace {
+    pub kept: Vec<usize>,
+    pub dropped: Vec<QuotaDrop>,
+}
+
+/// Aplica as cotas e devolve também os cortes com motivo.
+pub fn limit_by_quality_and_indexer_trace(
     streams: &[&StreamRef],
     quality_limits: &QualityLimits,
     max_per_indexer: f64,
     exempt: &HashSet<usize>,
     indexer_limits: &QualityLimits,
     reserved_br: &HashSet<usize>,
-) -> Vec<usize> {
+) -> QualityIndexerTrace {
     let mut qc: HashMap<String, usize> = HashMap::new();
     let mut ic: HashMap<String, usize> = HashMap::new();
     let gl = clamp_limit(max_per_indexer);
     let mut kept = Vec::with_capacity(streams.len());
+    let mut dropped = Vec::new();
     for (i, s) in streams.iter().enumerate() {
         let quality = stream_quality(s);
         let ql = match quality_limits.get(&quality).copied() {
@@ -166,6 +188,10 @@ pub fn limit_by_quality_and_indexer(
         let qn = qc.get(&quality).copied().unwrap_or(0);
         let reserved = reserved_br.contains(&i);
         if !reserved && qn >= ql {
+            dropped.push(QuotaDrop {
+                index: i,
+                reason: "quality-quota",
+            });
             continue;
         }
         let source = s
@@ -186,6 +212,10 @@ pub fn limit_by_quality_and_indexer(
             gl
         };
         if !source.is_empty() && !exempt.contains(&i) && sl != 0.0 && sn >= sl as usize {
+            dropped.push(QuotaDrop {
+                index: i,
+                reason: "indexer-limit",
+            });
             continue;
         }
         if !reserved {
@@ -196,5 +226,24 @@ pub fn limit_by_quality_and_indexer(
         }
         kept.push(i);
     }
-    kept
+    QualityIndexerTrace { kept, dropped }
+}
+
+pub fn limit_by_quality_and_indexer(
+    streams: &[&StreamRef],
+    quality_limits: &QualityLimits,
+    max_per_indexer: f64,
+    exempt: &HashSet<usize>,
+    indexer_limits: &QualityLimits,
+    reserved_br: &HashSet<usize>,
+) -> Vec<usize> {
+    limit_by_quality_and_indexer_trace(
+        streams,
+        quality_limits,
+        max_per_indexer,
+        exempt,
+        indexer_limits,
+        reserved_br,
+    )
+    .kept
 }

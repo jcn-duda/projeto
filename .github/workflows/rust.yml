@@ -143,7 +143,9 @@ jobs:
         run: |
           for s in golden:audio-presentation:check golden:pt-audio-guards:check \
                    golden:release-labels:check golden:audio-cleanup-verdicts:check \
-                   golden:search-name-helpers:check golden:catalog-classify:check \
+                   golden:search-name-helpers:check golden:search-commit:check \
+                   golden:play-disposition:check golden:magnet-bank-instant:check \
+                   golden:magnet-bank-source:check golden:catalog-classify:check \
                    golden:stream-display:check golden:stream-quotas-candidate:check \
                    golden:release-index-media:check golden:stream-trace:check \
                    golden:stream-relabel:check golden:pre-resolve:check; do

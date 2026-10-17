@@ -22,10 +22,9 @@
 //! teste em `tests/play_disposition_golden.rs`. O TS testava as duas marcas por
 //! VERDADE do JS, então string vazia e `0` são falsos: o golden cobre os três.
 //!
-//! SEM napi, de propósito: o consumidor de hoje (`debrid-pipeline`) chama a
-//! função **uma vez por stream**, e a travessia de string do napi custa ~2× o
-//! TS — ligar a ponte aqui deixaria a busca mais lenta sem tirar decisão do
-//! Node. Quem consome este porte é o orquestrador Rust (F1), no mesmo processo.
+//! Ligado na ponte: `playDispositions` recebe o LOTE de fatos (uma travessia
+//! para N streams) e o `debrid-pipeline` usa o lote no laço principal. O
+//! `materialize` do ramo degradado segue na chamada avulsa (lote de 1).
 
 /// Decisão de SAÍDA de um stream depois da checagem de cache.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

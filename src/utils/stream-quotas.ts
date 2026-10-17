@@ -1,14 +1,34 @@
 import type { Stream, StreamCandidate } from '../../types/domain.js';
-import { isSeasonPackRelease } from './episode-matching.js';
 import { dropTrace } from './stream-trace.js';
-import type { StreamTraceState } from './stream-trace.js';
+import type { StreamTraceState, TraceReason } from './stream-trace.js';
 import {
   QUALITY_KEYS,
   streamQuality,
   selectQualityCandidates,
 } from './stream-quotas-candidate.js';
 import type { QualityLimits } from './stream-quotas-candidate.js';
+import { nativeCore } from './native-core.js';
+import { coreJson } from './native-json.js';
 
+/**
+ * Funções do CORTE FINAL no `.node` (camelCase do napi-rs). A decisão inteira
+ * (reserva BR, cotas, troca do global por vaga garantida) é do núcleo; aqui só
+ * se monta a entrada e se traduzem os índices — e o trace, que é I/O, fica
+ * nesta casca.
+ */
+type StreamQuotasCore = {
+  limitReservingBr(input: string): string;
+};
+
+const quotasCore = () => nativeCore<StreamQuotasCore>();
+
+/** Saída da ponte `limitReservingBr` (índices na lista ORIGINAL). */
+interface LimitBrResult {
+  selected: number[];
+  eligible: number[];
+  replaced: number[];
+  dropped: { index: number; reason: string }[];
+}
 
 /**
  * Cota por indexador: teto de quantos streams cada fonte (YTS, BluDV, TheRARBG…)
@@ -163,167 +183,49 @@ function limitReservingBr(
     trace,
   }: LimitBrOptions = {},
 ) {
-  const pool = brOnly ? streams.filter((stream) => stream._br) : streams;
-
-  // As cotas por qualidade contam as fontes BR ANTES das globais. Elas publicam
-  // seeders=1, então chegam aqui no fim do próprio balde; com cota apertada
-  // (max1080p=3) as três globais mais semeadas levavam as vagas e a fonte BR
-  // era cortada AQUI — antes de `brFirst`/`brReservedSlots` terem chance de
-  // agir. `selectQualityCandidates` já faz essa passada BR no pool pré-debrid;
-  // sem o mesmo cuidado no corte final, a reserva não valia nada.
-  const reserved = brFirst ? Infinity : Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
-  // Prova primeiro, claim depois (LEGENDADO por último no pool BR).
-  const dubRank = (s: { _dubbed?: boolean; _dubClaim?: boolean }) =>
-    (s._dubbed ? 2 : 0) + (s._dubClaim ? 1 : 0);
-  const priority = pool
-    .filter((stream) => stream._br && !stream._lied)
-    .sort((a, b) => dubRank(b) - dubRank(a))
-    .slice(0, reserved);
-  const prioritized = new Set(priority);
-  // A reserva é o TAMANHO DE brReservedSlots, não todo o pool BR: com brFirst
-  // (default) `priority` é o BR inteiro (sem `_lied`), e isentá-lo por completo
-  // deixaria o indexador BR sem teto nenhum — o oposto do que a cota faz. Mesmo
-  // critério da reserva mais abaixo (`brStreams.slice`): `_br && !_lied`. O pool
-  // dublado exige infoHash, que um stream já resolvido no debrid não tem —
-  // usá-lo aqui esvaziaria a isenção justamente na lista com play instantâneo.
-  //
-  // As MESMAS N streams atravessam os DOIS tetos: o por indexador e o por
-  // qualidade. Enquanto só o primeiro existia, a página prometia "vagas
-  // garantidas" e o balde de qualidade cortava em silêncio -- medido em Fallout
-  // S02E04, com quatro BR dubladas disponíveis, cota 1080p em 2 e reserva em 4:
-  // saíam 2. O teto real continua sendo maxResults, no fim desta função.
-  const brSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0));
-  const reservedBr = new Set(
-    pool
-      .filter((stream) => stream._br && !stream._lied)
-      .sort((a, b) => dubRank(b) - dubRank(a))
-      .slice(0, brSlots),
-  );
-  const kept = new Set(
-    limitByQualityAndIndexer(
-      [...priority, ...pool.filter((stream) => !prioritized.has(stream))],
+  // A decisão inteira é do núcleo (`adom_core::stream_quotas_extra`): reserva
+  // BR (global e por faixa), cotas de qualidade/indexador e a troca do global
+  // por vaga garantida. Aqui só se monta a entrada — `Stream` → campos que o
+  // porte lê — e se traduzem os índices de volta.
+  const result = JSON.parse(quotasCore().limitReservingBr(coreJson({
+    streams: streams.map((stream) => ({
+      // `qualityFromTitle` do núcleo lê o título; `name` é o fallback do TS.
+      title: stream.title || stream.name || '',
+      quality: stream._quality,
+      indexer: stream._indexer,
+      isBr: Boolean(stream._br),
+      isDubbed: Boolean(stream._dubbed),
+      isDubClaim: Boolean(stream._dubClaim),
+      isLied: Boolean(stream._lied),
+    })),
+    opts: {
+      maxResults,
       qualityLimits,
+      brReservedSlots,
+      brReservedPerQuality,
+      brFirst,
       maxPerIndexer,
-      reservedBr,
       indexerLimits,
-      reservedBr,
-      trace,
-    ),
-  );
-  // Volta à ordem original: sem `brFirst` o corte final depende dela.
-  const eligible = pool.filter((stream) => kept.has(stream));
-  const brStreams = eligible
-    .filter((stream) => stream._br && !stream._lied)
-    .sort((a, b) => dubRank(b) - dubRank(a));
+      brOnly,
+      season: season == null ? null : season,
+    },
+  }))) as LimitBrResult;
 
-  // Reserva por faixa: até `brReservedPerQuality` BR por balde de qualidade,
-  // escolhidos dubbed-first. É o seguro contra a abundância de 1080p BR
-  // empurrar a única BR 4K/720p para fora — na reserva global e no teto de
-  // maxResults. Faixa sem candidato BR simplesmente não ganha vaga fantasma.
-  //
-  // Cobertura por pack (Causa D): quando a faixa não tem release dublada
-  // PRÓPRIA, o pack dublado da temporada pedida preenche a vaga dela — o áudio
-  // PT existe de verdade dentro do arquivo e o pickFile extrai o episódio.
-  // Usa os mesmos primitivos do poolCovered/brDubbedPool (_br + _dubbed +
-  // isSeasonPackRelease), então "cobertura" significa a mesma coisa nos dois
-  // caminhos. O pack NÃO desloca dublado próprio: só entra em faixa que ficou
-  // devendo, uma vez por faixa descoberta (o mesmo hash nunca ocupa duas
-  // vagas), e na prioridade QUALITY_KEYS — 4K antes de 720p.
-  const perFaixa = Math.max(0, Math.trunc(Number(brReservedPerQuality) || 0));
-  const garantidas: Stream[] = [];
-  if (perFaixa > 0) {
-    const faixaCounts = new Map<string, number>();
-    const comPropria = new Set<string>();
-    for (const stream of brStreams) {
-      const quality = streamQuality(stream);
-      if ((faixaCounts.get(quality) || 0) >= perFaixa) continue;
-      // Passada 1: só dublado próprio (não-pack). Packs são adiados para
-      // cobrir exatamente as faixas que ficarem sem candidato próprio.
-      if (season != null && isSeasonPackRelease(stream, season)) continue;
-      comPropria.add(quality);
-      faixaCounts.set(quality, (faixaCounts.get(quality) || 0) + 1);
-      garantidas.push(stream);
-    }
-    if (season != null) {
-      const usados = new Set(garantidas);
-      for (const quality of QUALITY_KEYS) {
-        if (comPropria.has(quality)) continue;
-        const pack = brStreams.find(
-          (stream) =>
-            !usados.has(stream) &&
-            streamQuality(stream) === quality &&
-            isSeasonPackRelease(stream, season),
-        );
-        if (!pack) continue;
-        usados.add(pack);
-        comPropria.add(quality);
-        garantidas.push(pack);
-      }
-    }
+  const selected = result.selected.map((index) => streams[index]);
+
+  // P5 — ledger NA ORDEM do TS: os cortes de cota (`quality-quota`/
+  // `indexer-limit`) na visita à lista reordenada e as trocas
+  // (`br-guarantee-replaced`) na ordem do encaixa já vêm ordenados do núcleo.
+  for (const drop of result.dropped) {
+    dropTrace(trace, streams[drop.index], drop.reason as TraceReason);
   }
-  // P5 — globals trocados por vaga garantida BR: ficam com o motivo próprio no
-  // ledger (o diff final de max-results os exclui, para não registrar duas vez).
-  const trocadas = new Set<Stream>();
-  const encaixaGarantida = (selected: Stream[]) => {
-    const dentro = new Set(selected);
-    for (const stream of garantidas) {
-      if (dentro.has(stream)) continue;
-      if (selected.length < maxResults) {
-        selected.push(stream);
-        dentro.add(stream);
-        continue;
-      }
-      // Troca o último global da lista: a garantia fura a ordem, não o teto.
-      const posGlobal = selected.map((s) => !s._br).lastIndexOf(true);
-      if (posGlobal === -1) break;
-      dentro.delete(selected[posGlobal]);
-      if (trace) {
-        trocadas.add(selected[posGlobal]);
-        dropTrace(trace, selected[posGlobal], 'br-guarantee-replaced');
-      }
-      selected[posGlobal] = stream;
-      dentro.add(stream);
-    }
-  };
-
-  let selected: Stream[];
-
-  if (brFirst) {
-    selected = [...brStreams, ...eligible.filter((stream) => !stream._br)].slice(0, maxResults);
-    if (garantidas.length) encaixaGarantida(selected);
-  } else {
-    // Sem prioridade visual, as vagas continuam garantidas: entram no lugar
-    // dos últimos globais e preservam sua posição natural na ordem original.
-    // As garantias por faixa vêm ANTES do resto da reserva, senão a abundância
-    // de uma faixa consumia as vagas e elas não valiam nada.
-    const garantidasSet = new Set(garantidas);
-    const reserved = [...garantidas, ...brStreams.filter((stream) => !garantidasSet.has(stream))]
-      .slice(0, Math.max(brReservedSlots, garantidas.length));
-    const chosen = new Set(eligible.slice(0, maxResults));
-    for (const stream of reserved) {
-      if (chosen.has(stream)) continue;
-      const replace = [...chosen].reverse().find((item) => !item._br);
-      if (replace) {
-        chosen.delete(replace);
-        if (trace) {
-          trocadas.add(replace);
-          dropTrace(trace, replace, 'br-guarantee-replaced');
-        }
-      }
-      if (chosen.size < maxResults) chosen.add(stream);
-    }
-    selected = eligible.filter((stream) => chosen.has(stream)).slice(0, maxResults);
-    if (garantidas.length) encaixaGarantida(selected);
-  }
-
-  // P5 — o que estava elegível e não sobreviveu ao teto: max-results. Trocadas
-  // por garantia BR já têm o motivo mais específico e não são re-registradas.
-  if (trace) {
-    const finais = new Set(selected);
-    for (const stream of eligible) {
-      if (finais.has(stream) || trocadas.has(stream)) continue;
-      dropTrace(trace, stream, 'max-results');
-    }
+  // `max-results` é o diff `eligible − selected − replaced`, na ordem original;
+  // os trocados já têm o motivo mais específico e não são re-registrados.
+  const finais = new Set(result.selected);
+  const trocadas = new Set(result.replaced);
+  for (const index of result.eligible) {
+    if (finais.has(index) || trocadas.has(index)) continue;
+    dropTrace(trace, streams[index], 'max-results');
   }
 
   // Observa os selecionados ANTES da limpeza: é aqui que o `_br` ainda existe e

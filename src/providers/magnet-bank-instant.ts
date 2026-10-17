@@ -28,6 +28,8 @@
 //   vivo — nunca derruba a resposta.
 import config from '../config.js';
 import type { RawItem } from '../../types/domain.js';
+import { nativeCore } from '../utils/native-core.js';
+import { coreJson } from '../utils/native-json.js';
 import { worksForObraMany, sourcesForMany } from '../utils/magnet-bank-query.js';
 import { hashOf, isOpen as bankIsOpen } from '../utils/magnet-bank.js';
 import type { MagnetRow, WorkRow } from '../utils/magnet-bank.js';
@@ -97,16 +99,22 @@ export interface InstantResult {
   reason?: InstantSkipReason;
 }
 
-const DAY_MS = 86400000;
-const FRESH_MOVIE_MS = 30 * DAY_MS;
-const FRESH_EPISODE_MS = 14 * DAY_MS;
+/** Superfície do núcleo que esta casca consome: a regra vive em `adom-core::search_bank`. */
+interface BankCore {
+  isRecentRelease(inputJson: string): boolean;
+  instantWindow(inputJson: string): string;
+}
 
-const asTime = (value: unknown): number => {
-  const text = String(value || '');
-  if (!text) return 0;
-  const ms = Date.parse(text);
-  return Number.isFinite(ms) ? ms : 0;
-};
+function core(): BankCore {
+  return nativeCore<BankCore>();
+}
+
+/** `String(meta.year ?? '')` etc.: a coerção frouxa do TS fica deste lado. */
+const metaJson = (meta: InstantMeta) => ({
+  year: String(meta.year ?? ''),
+  released: String(meta.released ?? ''),
+  firstAired: String(meta.firstAired ?? ''),
+});
 
 /**
  * Lançamento recente → teto de 2h na janela. Usa `released`/`firstAired` quando
@@ -122,12 +130,7 @@ const asTime = (value: unknown): number => {
  */
 export function isRecentRelease(meta: InstantMeta | null | undefined, now = Date.now()): boolean {
   if (!meta) return false;
-  const released = asTime(meta.released);
-  if (released && now >= released && now - released <= FRESH_MOVIE_MS) return true;
-  const firstAired = asTime(meta.firstAired);
-  if (firstAired && now >= firstAired && now - firstAired <= FRESH_EPISODE_MS) return true;
-  const year = Number(String(meta.year ?? '').slice(0, 4));
-  return Number.isFinite(year) && year >= new Date(now).getUTCFullYear();
+  return core().isRecentRelease(coreJson({ meta: metaJson(meta), now }));
 }
 
 /**
@@ -135,26 +138,27 @@ export function isRecentRelease(meta: InstantMeta | null | undefined, now = Date
  * `ultimaColeta − ultimaNovidade`. Quanto mais tempo as coletas não trazem
  * torrent novo, mais tempo a foto do acervo vale. O lançamento recente sofre o
  * teto curto porque uma estreia pode ainda ganhar release a qualquer hora.
+ *
+ * A config (`config.magnetBank.*`) é lida AQUI, como antes: o núcleo não lê
+ * `.env`, recebe os números por parâmetro.
  */
 export function instantWindow(
   works: readonly WorkRow[],
   meta: InstantMeta | null | undefined,
   now = Date.now(),
 ): InstantWindow {
-  let lastCollection = 0;
-  let newest = 0;
-  for (const work of works || []) {
-    if (!work) continue;
-    if (work.passedFilter === 1 && work.lastSeen > lastCollection) lastCollection = work.lastSeen;
-    if (work.firstSeen > newest) newest = work.firstSeen;
-  }
-  const stability = Math.max(0, lastCollection - newest);
-  const minMs = Math.max(1, config.magnetBank.instantMinMs);
-  const maxMs = Math.max(minMs, config.magnetBank.instantMaxMs);
-  let windowMs = Math.min(maxMs, Math.max(minMs, Math.floor(stability / 2)));
-  const fresh = isRecentRelease(meta, now);
-  if (fresh) windowMs = Math.min(windowMs, Math.max(1, config.magnetBank.instantFreshMaxMs));
-  return { windowMs, lastCollection, newest, stability, fresh };
+  return JSON.parse(core().instantWindow(coreJson({
+    works: (works || []).map((work) => (work ? {
+      passedFilter: work.passedFilter,
+      lastSeen: work.lastSeen,
+      firstSeen: work.firstSeen,
+    } : null)),
+    meta: meta ? metaJson(meta) : null,
+    now,
+    minMs: config.magnetBank.instantMinMs,
+    maxMs: config.magnetBank.instantMaxMs,
+    freshMaxMs: config.magnetBank.instantFreshMaxMs,
+  }))) as InstantWindow;
 }
 
 /**

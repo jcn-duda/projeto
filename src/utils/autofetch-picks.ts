@@ -1,7 +1,7 @@
 import type { Stream, DebridAdapter } from '../../types/domain.js';
 import { sourceFromTitle } from './audio-quality.js';
 import { dropTrace } from './stream-trace.js';
-import type { StreamTraceState } from './stream-trace.js';
+import type { StreamTraceState, TraceReason } from './stream-trace.js';
 import {
   AUTOFETCH_TARGET_QUALITIES,
   isAutofetchTargetQuality,
@@ -12,9 +12,26 @@ import {
 } from './autofetch-pools.js';
 import type { PoolsOptions, AutofetchTargetQuality } from './autofetch-pools.js';
 import { streamQuality } from './stream-quotas.js';
+import { nativeCore } from './native-core.js';
+import { coreJson } from './native-json.js';
 
 interface AutofetchOptions {
   autoFetchBr?: boolean;
+}
+
+/** Funções do cachedOnly no `.node` (camelCase do napi-rs). */
+type PicksCore = {
+  filterKnownCache(input: string): string;
+};
+
+const picksCore = () => nativeCore<PicksCore>();
+
+/** Saída da ponte `filterKnownCache` (índices na lista ORIGINAL). */
+interface FilterKnownResult {
+  kept: number[];
+  /** Hashes na caixa ORIGINAL (o TS compara com `String(stream.infoHash)`). */
+  visibleBr: string[];
+  dropped: { index: number; reason: string }[];
 }
 
 /**
@@ -244,39 +261,45 @@ function filterKnownCache(
     trace?: StreamTraceState | null;
   } = {},
 ) {
-  const cached = hashSet(cachedHashes);
-  const miss = missHashes ? hashSet(missHashes) : null;
-  // Conta prova+claim já em cache: a vaga P2P é o que falta listar, não o
-  // que o Chupim ainda vai baixar (só prova).
-  const cachedBr = brListableDubPool(streams).filter((stream) =>
-    cached.has(String(stream.infoHash || '').toLowerCase()),
-  ).length;
-  const uncachedSlots = Math.max(0, Math.trunc(Number(brReservedSlots) || 0) - cachedBr);
-  const visibleBr = cachedOnly && showUncachedBr
-    ? uncachedBrHashes(streams, cached, uncachedSlots)
-    : new Set();
+  // A decisão é do núcleo (`adom_core::br_pool_selection::picks`): cachedOnly,
+  // vaga P2P do showUncachedBr e recusa ternária do RD. Aqui só se montam as
+  // entradas, se mapeiam os índices de volta e se escreve o trace (I/O).
+  const result = JSON.parse(picksCore().filterKnownCache(coreJson({
+    streams: streams.map((stream) => ({
+      infoHash: stream.infoHash,
+      title: stream.title,
+      name: stream.name,
+      quality: stream._quality,
+      seeders: stream._seeders,
+      isBr: Boolean(stream._br),
+      isDubbed: Boolean(stream._dubbed),
+      isDubClaim: Boolean(stream._dubClaim),
+      isBankDub: Boolean(stream._bankDub),
+      isLied: Boolean(stream._lied),
+      fromFallback: Boolean(stream._fromFallback),
+      fallbackFetchable: Boolean(stream._fallbackFetchable),
+    })),
+    // O núcleo normaliza o cache (`hashSet`: minúsculas, sem vazios).
+    cached: [...cachedHashes],
+    opts: {
+      cachedOnly,
+      showUncachedBr,
+      brReservedSlots,
+      known,
+      missHashes: missHashes ? [...missHashes] : null,
+    },
+  }))) as FilterKnownResult;
+
+  // P5 — cortes na ordem do TS: `cached-only` (conta completa) ou `rd-miss`
+  // (ledger do RD confirmou MISS/blocked).
+  for (const drop of result.dropped) {
+    dropTrace(trace, streams[drop.index], drop.reason as TraceReason);
+  }
   return {
-    visibleBr,
-    streams: streams.filter((stream) => {
-      if (!cachedOnly) return true;
-      const h = String(stream.infoHash || '').toLowerCase();
-      if (cached.has(h) || visibleBr.has(String(stream.infoHash))) return true;
-      if (known) {
-        // P5 — corte do cachedOnly: o hash não está em cache e a conta
-        // respondeu completa. É o corte mais comum de "sumiu o dublado".
-        dropTrace(trace, stream, 'cached-only');
-        return false;
-      }
-      if (miss) {
-        // P5 — recusa ternária do RD: o ledger confirmou MISS (ou blocked)
-        // para o hash. É um corte por evidência, não por falta de resposta.
-        if (miss.has(h)) {
-          dropTrace(trace, stream, 'rd-miss');
-          return false;
-        }
-      }
-      return true;
-    }),
+    // Hash na caixa ORIGINAL, como o filtro do TS compara com `String(infoHash)`
+    // inteiro (não com a chave minúscula do cache).
+    visibleBr: new Set(result.visibleBr),
+    streams: result.kept.map((index) => streams[index]),
   };
 }
 

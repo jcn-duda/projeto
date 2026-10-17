@@ -49,7 +49,11 @@ use napi_derive::napi;
 
 mod audio;
 mod autofetch;
+// Fim da busca, via do banco, saída do play e corte final: decisões puras que
+// o TS deixou de decidir (as cascas chamam estas pontes).
+mod bank;
 mod cache;
+mod catalog;
 mod crawl;
 mod debrid;
 mod debrid_cache;
@@ -58,6 +62,9 @@ mod debrid_rd;
 mod episode_filter;
 mod episode_matching;
 mod episode_size;
+mod finish;
+mod play;
+mod stream_final;
 // Pré-resolve do protetor BR em lote: fronteira de `jackett-resolve.ts`.
 mod pre_resolve;
 mod ranking;
@@ -73,6 +80,12 @@ mod title_matching;
 
 // Lote do autofetch (Chupim): reexporta para o `#[napi]` não ser marcado morto.
 pub use autofetch::*;
+// Decisões que o TS só transporta: fim da busca, via do banco, play e corte final.
+pub use bank::*;
+pub use catalog::*;
+pub use finish::*;
+pub use play::*;
+pub use stream_final::*;
 // Áudio e origem BR pelo título: fronteira de `audio-quality`/`audio-cleanup`.
 pub use audio::*;
 pub use cache::*;

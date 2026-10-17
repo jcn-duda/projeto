@@ -265,8 +265,10 @@ pub struct StreamDrop {
 /// índices mantidos (na ordem) e os cortes com o motivo (para o trace).
 #[derive(Debug, Clone)]
 pub struct FilterKnownResult {
-    /// Hashes BR na casca original que ocupam vaga P2P mesmo fora do cache.
-    pub visible_br: HashSet<String>,
+    /// Hashes BR na casca original que ocupam vaga P2P mesmo fora do cache, na
+    /// ordem de seleção de [`uncached_br_hashes`] (o TS monta um `Set`, então
+    /// a ordem não muda a regra — mas determinística é melhor para a ponte).
+    pub visible_br: Vec<String>,
     pub kept: Vec<usize>,
     pub dropped: Vec<StreamDrop>,
 }
@@ -290,12 +292,12 @@ pub fn filter_known_cache(
         .filter(|&&i| cached.contains(&streams[i].hash_key()))
         .count() as i64;
     let uncached_slots = (opts.br_reserved_slots - cached_br).max(0);
-    let visible_br: HashSet<String> = if opts.cached_only && opts.show_uncached_br {
+    // `Vec` (não `HashSet`): `uncached_br_hashes` já deduplica na casca
+    // original e a ponte devolve a lista na ordem de seleção.
+    let visible_br: Vec<String> = if opts.cached_only && opts.show_uncached_br {
         uncached_br_hashes(streams, &cached, uncached_slots)
-            .into_iter()
-            .collect()
     } else {
-        HashSet::new()
+        Vec::new()
     };
 
     let mut kept: Vec<usize> = Vec::new();

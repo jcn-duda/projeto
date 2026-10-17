@@ -5,10 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::stream_quotas::clamp_limit;
 
-use super::{
-    is_season_pack_release, limit_by_quality_and_indexer, stream_quality, QualityLimits, StreamRef,
-    QUALITY_KEYS,
-};
+use super::{stream_quality, QualityLimits, StreamRef, QUALITY_KEYS};
 
 // ─── Seleção de candidatos ───────────────────────────────────────────────────
 
@@ -192,170 +189,11 @@ impl Default for LimitBrOpts {
     }
 }
 
-fn dub_rank(s: &StreamRef) -> u8 {
-    (if s.is_dubbed { 2 } else { 0 }) + (if s.is_dub_claim { 1 } else { 0 })
-}
-
 /// Reserva origem BR, aplica cotas finais, devolve índices selecionados.
+///
+/// A lógica (e o ledger dos cortes) vive em
+/// [`super::limit_reserving_br_trace`], noutro submódulo pela catraca de linhas;
+/// esta fachada mantém o contrato antigo devolvendo só a seleção.
 pub fn limit_reserving_br(streams: &[StreamRef], opts: &LimitBrOpts) -> Vec<usize> {
-    let max_results = clamp_limit(opts.max_results) as usize;
-    let pool: Vec<usize> = if opts.br_only {
-        streams
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.is_br)
-            .map(|(i, _)| i)
-            .collect()
-    } else {
-        (0..streams.len()).collect()
-    };
-    let reserved = if opts.br_first {
-        usize::MAX
-    } else {
-        clamp_limit(opts.br_reserved_slots) as usize
-    };
-    let mut priority: Vec<usize> = pool
-        .iter()
-        .copied()
-        .filter(|&i| streams[i].is_br && !streams[i].is_lied)
-        .collect();
-    priority.sort_by(|&a, &b| dub_rank(&streams[b]).cmp(&dub_rank(&streams[a])));
-    let priority: Vec<usize> = priority.into_iter().take(reserved).collect();
-    let prioritized: HashSet<usize> = priority.iter().copied().collect();
-    let br_slots = clamp_limit(opts.br_reserved_slots) as usize;
-    let mut rbv: Vec<usize> = pool
-        .iter()
-        .copied()
-        .filter(|&i| streams[i].is_br && !streams[i].is_lied)
-        .collect();
-    rbv.sort_by(|&a, &b| dub_rank(&streams[b]).cmp(&dub_rank(&streams[a])));
-    let reserved_br: HashSet<usize> = rbv.into_iter().take(br_slots).collect();
-    let qai_order: Vec<usize> = {
-        let mut v = priority.clone();
-        for &i in &pool {
-            if !prioritized.contains(&i) {
-                v.push(i);
-            }
-        }
-        v
-    };
-    let refs: Vec<&StreamRef> = qai_order.iter().map(|&i| &streams[i]).collect();
-    let kept_idx = limit_by_quality_and_indexer(
-        &refs,
-        &opts.quality_limits,
-        opts.max_per_indexer,
-        &reserved_br,
-        &opts.indexer_limits,
-        &reserved_br,
-    );
-    let kept: HashSet<usize> = kept_idx.iter().map(|&qi| qai_order[qi]).collect();
-    let eligible: Vec<usize> = pool.iter().copied().filter(|i| kept.contains(i)).collect();
-    let mut br_streams: Vec<usize> = eligible
-        .iter()
-        .copied()
-        .filter(|&i| streams[i].is_br && !streams[i].is_lied)
-        .collect();
-    br_streams.sort_by(|&a, &b| dub_rank(&streams[b]).cmp(&dub_rank(&streams[a])));
-    let per_faixa = clamp_limit(opts.br_reserved_per_quality) as usize;
-    let mut garantidas: Vec<usize> = Vec::new();
-    if per_faixa > 0 {
-        let mut fc: HashMap<String, usize> = HashMap::new();
-        let mut cp: HashSet<String> = HashSet::new();
-        for &si in &br_streams {
-            let q = stream_quality(&streams[si]);
-            let c = fc.get(&q).copied().unwrap_or(0);
-            if c >= per_faixa {
-                continue;
-            }
-            if opts.season.is_some() && is_season_pack_release(&streams[si], opts.season) {
-                continue;
-            }
-            cp.insert(q.clone());
-            fc.insert(q, c + 1);
-            garantidas.push(si);
-        }
-        if let Some(season) = opts.season {
-            let usados: HashSet<usize> = garantidas.iter().copied().collect();
-            for q in &QUALITY_KEYS {
-                if cp.contains(*q) {
-                    continue;
-                }
-                if let Some(p) = br_streams.iter().copied().find(|&si| {
-                    !usados.contains(&si)
-                        && stream_quality(&streams[si]) == *q
-                        && is_season_pack_release(&streams[si], Some(season))
-                }) {
-                    garantidas.push(p);
-                    cp.insert(q.to_string());
-                }
-            }
-        }
-    }
-    let encaixa = |sel: &mut Vec<usize>, gar: &[usize]| {
-        let mut dentro: HashSet<usize> = sel.iter().copied().collect();
-        for &g in gar {
-            if dentro.contains(&g) {
-                continue;
-            }
-            if sel.len() < max_results {
-                sel.push(g);
-                dentro.insert(g);
-                continue;
-            }
-            let Some(pos) = sel.iter().rposition(|&s| !streams[s].is_br) else {
-                break;
-            };
-            dentro.remove(&sel[pos]);
-            sel[pos] = g;
-            dentro.insert(g);
-        }
-    };
-    if opts.br_first {
-        let mut sel: Vec<usize> = br_streams
-            .iter()
-            .copied()
-            .chain(eligible.iter().copied().filter(|i| !streams[*i].is_br))
-            .take(max_results)
-            .collect();
-        if !garantidas.is_empty() {
-            encaixa(&mut sel, &garantidas);
-        }
-        return sel;
-    }
-    let gs: HashSet<usize> = garantidas.iter().copied().collect();
-    let rl = clamp_limit(opts.br_reserved_slots) as usize;
-    let mut reserved: Vec<usize> = garantidas.clone();
-    reserved.extend(br_streams.iter().copied().filter(|i| !gs.contains(i)));
-    let reserved: Vec<usize> = reserved
-        .into_iter()
-        .take(rl.max(garantidas.len()))
-        .collect();
-    let cp: Vec<usize> = eligible.iter().copied().take(max_results).collect();
-    let mut chosen: HashSet<usize> = cp.iter().copied().collect();
-    for &r in &reserved {
-        if chosen.contains(&r) {
-            continue;
-        }
-        if let Some(rep) = cp
-            .iter()
-            .rev()
-            .copied()
-            .find(|c| chosen.contains(c) && !streams[*c].is_br)
-        {
-            chosen.remove(&rep);
-        }
-        if chosen.len() < max_results {
-            chosen.insert(r);
-        }
-    }
-    let mut sel: Vec<usize> = eligible
-        .iter()
-        .copied()
-        .filter(|i| chosen.contains(i))
-        .take(max_results)
-        .collect();
-    if !garantidas.is_empty() {
-        encaixa(&mut sel, &garantidas);
-    }
-    sel
+    super::limit_reserving_br_trace(streams, opts).selected
 }

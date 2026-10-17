@@ -17,9 +17,9 @@
 //! (falsy), como o `NaN` do TS. O corpus não contém caso que dependa do fuso —
 //! o limite está aqui documentado, não escondido.
 //!
-//! SEM napi, pelo mesmo motivo do `play_disposition`: roda uma vez por busca
-//! sobre linhas que já vieram do SQLite; a travessia de string custaria mais
-//! que a regra. Quem consome é o orquestrador Rust (F1).
+//! Ligado na ponte (`instantWindow`/`isRecentRelease`/`pickSource`): a casca TS
+//! lê `config.magnetBank.*`, as linhas do SQLite e o relógio e passa os valores;
+//! o núcleo continua puro.
 
 use std::collections::HashSet;
 
@@ -180,7 +180,8 @@ fn parse_datetime_with_time(text: &str) -> Option<i64> {
             {
                 return None;
             }
-            // JS trunca para milissegundos: ".5" → 500, ".1234" → 123.
+            // Subconjunto documentado: até 3 dígitos. ".5" → 500; ".1234" fica
+            // FORA do porte (o JS truncaria para 123) e vira `0`/None.
             let scaled: i64 = frac.parse().unwrap_or(0);
             let milli = scaled * 10_i64.pow(3 - frac.len() as u32);
             (num2(h), num2(m), num2(s), milli)

@@ -1,20 +1,20 @@
 /**
- * Decisões PURAS do fim da busca: o que gravar no cache (`commitDecision`), o
- * que fazer quando a coleta tardia termina (`latePromotionDecision`) e quando a
- * entrada cacheada pode ser servida velha (`staleRefreshEligible`).
+ * Casca fina das decisões PURAS do fim da busca — a regra vive em
+ * `adom_core::search_finish` (napi `commitDecision`, `latePromotionDecision`,
+ * `debridRefreshSatisfied`, `staleRefreshEligible`). Nada de fallback: o núcleo
+ * é obrigatório.
  *
- * Extraído de `search-orchestrator.ts` (`finish`) e `search-late-promoter.ts`
- * sem mudar comportamento: até aqui essas regras eram closures sobre `config`,
- * `cache` e o writer, e por isso não tinham oráculo possível — nem golden. Com
- * elas em funções sem efeito, o TS vira oráculo (`dist`, golden) e o núcleo
- * Rust assume a decisão (`adom-core::search_finish`).
+ * O módulo DEIXOU de ser folha quando a decisão saiu daqui: o oráculo do golden
+ * é o TypeScript autoritativo do worktree `../adom-esm`
+ * (`npm run golden:search-commit:check`), e este arquivo só transporta fatos.
+ * Igual às outras cascas, o núcleo não lê `config`, cache nem relógio.
  *
- * O módulo é folha de propósito: NENHUM import. Quem lê o cache, a config e o
- * relógio é o chamador, que passa os fatos prontos. `undefined` em
- * `debridKnown` é um estado REAL (a checagem no debrid nunca respondeu) e vale
- * "desconhecido", não "falso": o `finish` o lê para decidir se a lista pode ser
- * promovida a completa.
+ * `debridKnown: undefined` é um estado REAL (a checagem no debrid nunca
+ * respondeu) e vale "desconhecido", não "falso": cruza como `null` e o núcleo
+ * lê o campo para decidir se a lista pode ser promovida a completa.
  */
+import { nativeCore } from '../utils/native-core.js';
+import { coreJson } from '../utils/native-json.js';
 
 /** Fatos do `finish` que decidem a gravação. */
 interface CommitFacts {
@@ -41,30 +41,6 @@ interface CommitDecision {
   partial: boolean;
   /** `debridKnown` a gravar (o mesmo que entra em `complete`). */
   debridKnown: boolean;
-}
-
-/**
- * Lista completa = tocável + coleta encerrada + debrid conferido + sem reserva.
- * Só a lista completa ganha o TTL cheio; o resto fica no TTL curto de 60 s para
- * a próxima abertura ter chance de reconsultar o vivo.
- */
-function commitDecision(facts: CommitFacts): CommitDecision {
-  const debridKnown = facts.debridKnown !== undefined
-    ? Boolean(facts.debridKnown && !facts.needsDebridRefresh)
-    : !facts.needsDebridRefresh;
-  const complete = facts.playable && !facts.partial && debridKnown && !facts.hasFallback;
-  // TTL da reserva RESPEITA o CACHE_TTL: cache desligado (<=0) não grava, e o
-  // teto nunca passa do TTL normal (o menor dos dois vence).
-  const fallbackTtl = Math.min(facts.cacheTtl, facts.fallbackStreamsTtl);
-  if (facts.hasFallback && fallbackTtl <= 0) {
-    return { write: false, ttl: 0, partial: true, debridKnown };
-  }
-  const ttl = facts.hasFallback
-    ? fallbackTtl
-    : complete
-      ? facts.cacheTtl
-      : Math.min(facts.cacheTtl, 60);
-  return { write: true, ttl, partial: facts.hasFallback ? true : facts.partial, debridKnown };
 }
 
 /** O que fazer com a entrada quando a coleta tardia termina sem novidade. */
@@ -109,38 +85,75 @@ interface LateDecision {
   debridKnown: boolean;
 }
 
+/** Superfície do núcleo que esta casca consome. */
+interface FinishCore {
+  commitDecision(inputJson: string): string;
+  latePromotionDecision(inputJson: string): string;
+  debridRefreshSatisfied(entryJson: string | null): boolean;
+  staleRefreshEligible(entryJson: string | null, playable: boolean): boolean;
+}
+
+function core(): FinishCore {
+  return nativeCore<FinishCore>();
+}
+
+/**
+ * Entry do cache → JSON do núcleo; `null` é "sem entrada". Só os DOIS campos
+ * que a régua lê (`partial`, `debridKnown`) cruzam: o entry inteiro carrega a
+ * lista de streams e custaria a travessia de KBs no hit stale do SWR.
+ */
+function entryJson(entry: any): string | null {
+  if (entry == null) return null;
+  return coreJson({ partial: entry.partial, debridKnown: entry.debridKnown });
+}
+
+/**
+ * Lista completa = tocável + coleta encerrada + debrid conferido + sem reserva.
+ * Só a lista completa ganha o TTL cheio; o resto fica no TTL curto de 60 s para
+ * a próxima abertura ter chance de reconsultar o vivo.
+ */
+function commitDecision(facts: CommitFacts): CommitDecision {
+  return JSON.parse(core().commitDecision(coreJson({
+    playable: facts.playable,
+    partial: facts.partial,
+    // `undefined` é estado REAL: cruza como `null`, o mesmo par do `None` Rust.
+    debridKnown: facts.debridKnown === undefined ? null : facts.debridKnown,
+    needsDebridRefresh: facts.needsDebridRefresh,
+    hasFallback: facts.hasFallback,
+    cacheTtl: facts.cacheTtl,
+    fallbackStreamsTtl: facts.fallbackStreamsTtl,
+  }))) as CommitDecision;
+}
+
 /**
  * Os degraus anteriores (`grew` → reconstruir; `partial` → nada; fase
  * divergente → nada) ficam no chamador porque ele só pode LER o cache depois
  * deles: `cache.get` apaga entrada expirada, e apagar num caso em que o TS
  * antigo nem consultava mudaria o comportamento.
- *
- * Aqui ficam os ramos que dependem do que foi lido:
- * - reserva sem falha viva → invalidar (`forget`), a próxima abertura reconstrói;
- * - reserva com falha viva → manter o TTL curto (`none`);
- * - lista vazia com indexer falho → `none` (vazio não é "sem resultado", é "sem
- *   resposta"; promover congelaria o vazio por CACHE_TTL);
- * - resto → `promote`, sem refazer a checagem do debrid: `debridKnown` é
- *   copiado como está, porque promessa de completude da COLETA não é promessa
- *   de ⚡.
  */
 function latePromotionDecision(facts: LateFacts): LateDecision {
-  const none = (reason: LateDecision['reason']): LateDecision => ({
-    action: 'none', reason, ttl: 0, debridKnown: facts.hitDebridKnown,
-  });
-  if (!facts.hitPartial) return none('entrada_nao_parcial');
-  if (facts.hitFallback) {
-    return facts.live && !facts.live.needsFallback()
-      ? { action: 'forget', reason: 'reserva_invalida', ttl: 0, debridKnown: facts.hitDebridKnown }
-      : none('reserva_viva');
+  // Curto-circuito PRESERVADO: o estado vivo só é perguntado no ramo que o
+  // núcleo vai ler (`needsFallback` na reserva, `hasAnyFailure` na lista
+  // vazia). O outro lado vai `false`; um stub sem uma das perguntas segue
+  // válido, como no TS antigo (e o Rust nem lê o campo do outro ramo).
+  let live: { needsFallback: boolean; hasAnyFailure: boolean } | null = null;
+  if (facts.live && facts.hitPartial) {
+    if (facts.hitFallback) {
+      live = { needsFallback: facts.live.needsFallback(), hasAnyFailure: false };
+    } else if (!facts.hitHasStreams) {
+      live = { needsFallback: false, hasAnyFailure: facts.live.hasAnyFailure() };
+    } else {
+      live = { needsFallback: false, hasAnyFailure: false };
+    }
   }
-  if (!facts.hitHasStreams && facts.live?.hasAnyFailure()) return none('sem_resposta_dos_indexers');
-  return {
-    action: 'promote',
-    reason: 'promover',
-    ttl: facts.hitDebridKnown ? facts.cacheTtl : Math.min(facts.cacheTtl, 60),
-    debridKnown: facts.hitDebridKnown,
-  };
+  return JSON.parse(core().latePromotionDecision(coreJson({
+    hitPartial: facts.hitPartial,
+    hitFallback: facts.hitFallback,
+    hitHasStreams: facts.hitHasStreams,
+    hitDebridKnown: facts.hitDebridKnown,
+    live,
+    cacheTtl: facts.cacheTtl,
+  }))) as LateDecision;
 }
 
 /**
@@ -152,17 +165,17 @@ function latePromotionDecision(facts: LateFacts): LateDecision {
  * em `false` de propósito: paga UMA checagem tardia e se corrige sozinha.
  */
 function debridRefreshSatisfied(entry: any): boolean {
-  return Boolean(entry && entry.partial === false && entry.debridKnown === true);
+  return core().debridRefreshSatisfied(entryJson(entry));
 }
 
 /**
  * O SWR só serve o que o `finish` promoveria a completa **e** que tem play de
  * verdade: aviso e parcial estenderiam o estado ruim em vez de consertá-lo.
- * `playable` vem do chamador (`hasPlayableStream`) para este módulo continuar
- * sem import e para o teste ser o MESMO dos dois lados.
+ * `playable` vem do chamador (`hasPlayableStream`) para o teste ser o MESMO dos
+ * dois lados.
  */
 function staleRefreshEligible(entry: any, playable: boolean): boolean {
-  return debridRefreshSatisfied(entry) && playable;
+  return core().staleRefreshEligible(entryJson(entry), playable);
 }
 
 export { commitDecision, latePromotionDecision, debridRefreshSatisfied, staleRefreshEligible };

@@ -23,6 +23,8 @@
 //    site que mudou de domínio/layout e responde vazio sem erro.
 import config from '../config.js';
 import type { RawItem } from '../../types/domain.js';
+import { nativeCore } from '../utils/native-core.js';
+import { coreJson } from '../utils/native-json.js';
 import * as bank from '../utils/magnet-bank.js';
 import { worksForObraMany, sourcesForMany } from '../utils/magnet-bank-query.js';
 import type { MagnetRow, SourceRow, WorkRow } from '../utils/magnet-bank.js';
@@ -112,14 +114,29 @@ function fallbackIsBr(candidate: Candidate): boolean {
   return candidate.brSource || looksPtBr(candidate.magnet.title || '');
 }
 
-/** Fonte elegível: indexer falho; com `allFailed`, qualquer source do banco. */
+/** Superfície do núcleo que esta casca consome: a regra vive em `adom-core::search_bank`. */
+interface BankCore {
+  pickSource(inputJson: string): number | null;
+}
+
+function core(): BankCore {
+  return nativeCore<BankCore>();
+}
+
+/**
+ * Fonte elegível: indexer falho; com `allFailed`, qualquer source do banco.
+ *
+ * O núcleo normaliza SÓ o `indexer` da fonte (o conjunto `failed` do TS não é
+ * normalizado — é o comportamento do golden) e devolve o ÍNDICE da mais
+ * recente; o empate fica com a PRIMEIRA, como o `reduce` antigo.
+ */
 export function pickSource(sources: readonly SourceRow[], failedIndexers: ReadonlySet<string>, allFailed: boolean): SourceRow | null {
-  const eligible = allFailed
-    ? sources
-    : sources.filter((source) => failedIndexers.has(nIndexer(source.indexer)));
-  if (eligible.length === 0) return null;
-  // Mais recente primeiro (fonte com a última observação viva).
-  return eligible.reduce((best, current) => (current.lastSeen > best.lastSeen ? current : best));
+  const index = core().pickSource(coreJson({
+    sources: sources.map((source) => ({ indexer: source.indexer, lastSeen: source.lastSeen })),
+    failed: [...failedIndexers],
+    allFailed,
+  }));
+  return index == null ? null : sources[index] ?? null;
 }
 
 /**

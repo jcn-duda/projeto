@@ -24,7 +24,7 @@ import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCach
 import type { FirstObserverState } from './stream-builder.js';
 import { dropTrace, type StreamTraceState } from '../utils/stream-trace.js';
 import { annotateEpisodeSizes, packHashesMissingFiles } from './episode-size.js';
-import { playDisposition } from './debrid-play-guard.js';
+import { playDisposition, playDispositions } from './debrid-play-guard.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -381,18 +381,18 @@ export async function applyDebrid(input: Array<Stream | null>, {
   // de `filtered.streams` é a do sort — o topo é o que o usuário toca, então
   // é ele que a auditoria prova primeiro.
   queueDubAudit(adapter.id, trustApiKey, collectAuditCandidates(filtered.streams, cached, { season, episode, imdbId, workHint }), searchKey);
+  // Lote (uma travessia): uma disposição por stream, na mesma ordem.
+  const dispositions = playDispositions(filtered.streams, cached, { resolveUncached: config.debrid.resolveUncached });
   const out: Stream[] = [];
-  for (const s of filtered.streams) {
-    // Recusa legal do debrid: multiobra sai da lista (sem play), o resto volta
-    // como P2P puro — comportamento antigo.
+  for (let i = 0; i < filtered.streams.length; i += 1) {
+    const s = filtered.streams[i];
+    // Recusa legal do debrid: multiobra sai da lista, o resto volta P2P puro.
     if (isBlocked(s)) {
       if (!s._multiWorkAdmitted) out.push(s);
       continue;
     }
-    // Pack multiobra nunca vira torrent P2P inteiro: cached sai pelo /resolve;
-    // fora do cache só sai com `resolveUncached`, senão nem é oferecido.
     const instant = Boolean(s.infoHash && cached.has(s.infoHash));
-    const disposition = playDisposition(s, { cached: instant, resolveUncached: config.debrid.resolveUncached });
+    const disposition = dispositions[i];
     if (disposition === 'resolve') out.push(viaDebrid(s, instant));
     else if (disposition === 'p2p') out.push(s);
   }
