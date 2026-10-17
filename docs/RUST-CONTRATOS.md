@@ -181,7 +181,7 @@ leva 4 commitada somou `catalog-classify` (50), `metric-id` (71), `request-key`
 (65) e `crawl-store-rules` (169), e `audio-cleanup-verdicts` foi a 130 casos.
 
 Contrato comum a todos os oráculos, no padrão de
-[`scripts/golden/dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs):
+`scripts/golden/dump-title-normalization.mjs` (o gerador vive no branch `esm`):
 manifest `adom-golden-manifest/1`; corpus com `id` estável (**nunca renomear ou
 reciclar**; caso novo entra no fim com id novo); `.jsonl` com o comportamento do
 `dist` vivo; `sha256` de fonte, artifact, corpus e saída; `--check` só leitura.
@@ -225,7 +225,7 @@ já eram LF (hash bruto == hash LF), logo dispensam o rótulo.
 
 | Ferramenta | Cobre | Como rodar |
 | --- | --- | --- |
-| [`dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs) — **18 chaves de `--fn`** (13 no registro `FUNCTIONS` + 5 entradas vindas dos `registry-*.mjs`) | 18 goldens: `title-normalization`, `matching-vocabulary`, `matching-vocabulary-sets`, `matching-vocabulary-regex`, `matching-tokens-text`, `matching-tokens-decisions`, `matching-latin-ranges`, `short-name-tail`, `catalog-year`, `br-origin`, `magnet-uri`, `franchise`, `episode-parse`, `multiwork-pack`, `stream-quotas`, `release-work`, `release-title-rules`, `release-name-matching` | `npm run golden:titles:check` (padrão `title-normalization`) ou `node scripts/golden/dump-title-normalization.mjs --check --fn <chave>` |
+| [`dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs) — **18 chaves de `--fn`** (no branch `esm`; aqui só o `package.json` delega) | 18 goldens: `title-normalization`, `matching-vocabulary`, `matching-vocabulary-sets`, `matching-vocabulary-regex`, `matching-tokens-text`, `matching-tokens-decisions`, `matching-latin-ranges`, `short-name-tail`, `catalog-year`, `br-origin`, `magnet-uri`, `franchise`, `episode-parse`, `multiwork-pack`, `stream-quotas`, `release-work`, `release-title-rules`, `release-name-matching` | `npm run golden:titles:check` (delega a `../adom-esm`). Para `--fn`, rode `node scripts/golden/dump-title-normalization.mjs --check --fn <chave>` **dentro de `../adom-esm`** |
 | 7 `gen-*.mjs` + 8 `registry-*.mjs` (`--check`, `--force`) | as 5 fatias do fim da lista acima, por fora do gerador unificado (`gen-multiwork-pack`, `gen-stream-quotas`, `gen-release-work`, `gen-release-title-rules`, `gen-release-name-matching`), mais `gen-cache` (cache) e `gen-latin-table` (tabela interna) | `node scripts/golden/gen-<nome>.mjs --check` |
 | [`dump-resolve-sign.mjs`](../scripts/golden/dump-resolve-sign.mjs) + `resolve-sign-oracle.mjs` | `resolve-sign` | `npm run golden:resolve-sign:check` |
 | [`dump-release-labels.mjs`](../scripts/golden/dump-release-labels.mjs) + `release-labels-oracle.mjs` | `release-labels` | `npm run golden:release-labels:check` |
