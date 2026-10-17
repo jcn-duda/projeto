@@ -4,11 +4,18 @@
  * de verdade contra a 7000 (gateway → Node, ou Node direto sem GATEWAY) e
  * confere forma e conteúdo mínimo.
  *
- * Uso: node scripts/validate-docker.mjs [--base http://127.0.0.1:7000]
+ * Uso: node scripts/validate-docker.mjs [--base http://127.0.0.1:7000] [--container stremio-adom]
  * Token de diagnóstico vem de JACKETT_TEST_TOKEN no .env (nunca impresso).
+ *
+ * Rotas internas (`/internal/search/*`): DE FORA elas têm que ser recusadas nos
+ * dois modos — 403 de loopback (Node direto) ou 403 do gateway, que nem
+ * encaminha `/internal/*`. O caminho que precisa dar 200 é o do orquestrador:
+ * de dentro do container, direto no Node (7100 com gateway, 7000 sem), testado
+ * via `docker exec` com o token lido lá dentro.
  * Saída: uma linha por checagem + contagem; exit 1 se algo falhar.
  */
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,6 +23,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const baseIdx = args.indexOf('--base');
 const BASE = baseIdx >= 0 ? args[baseIdx + 1] : 'http://127.0.0.1:7000';
+const containerIdx = args.indexOf('--container');
+const CONTAINER = containerIdx >= 0 ? args[containerIdx + 1] : 'stremio-adom';
 
 // Lê só o token do .env, sem imprimir nada dele.
 const envText = fs.existsSync(path.join(REPO, '.env'))
@@ -69,13 +78,31 @@ function jsonOf(res) {
   }
 }
 
-/** Sem o gateway, a conexão do host chega pela ponte do Docker e NÃO é
- * loopback: a guarda das rotas internas recusa com 403 — defesa correta, não
- * defeito. Este helper aceita esse desfecho com uma nota. */
-function loopbackSemGateway(res) {
-  return res.status === 403 && res.text.includes('loopback')
-    ? '403 loopback sem gateway (defesa correta; rode com GATEWAY=on para o 200)'
-    : null;
+/** De fora, rota interna recusada é a defesa funcionando: 403 da guarda de
+ * loopback (Node direto) ou do gateway (que nem encaminha `/internal/*`). */
+function refusedOutside(res) {
+  if (res.status !== 403) return null;
+  if (res.text.includes('loopback')) return '403 da guarda de loopback (Node direto)';
+  if (res.text.includes('gateway')) return '403 do gateway (não encaminha /internal/*)';
+  return null;
+}
+
+/**
+ * Chama uma rota interna DE DENTRO do container, direto no Node, como o
+ * orquestrador fará. O token é lido no ambiente do container e nunca sai dele.
+ */
+function insideContainer(pathname, body) {
+  const script = `
+    const port = process.env.GATEWAY === 'on' ? 7100 : (process.env.PORT || 7000);
+    fetch('http://127.0.0.1:' + port + ${JSON.stringify(pathname)}, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'X-Indexer-Test-Token': process.env.JACKETT_TEST_TOKEN || '' },
+      body: ${JSON.stringify(JSON.stringify(body))},
+    }).then(async (r) => console.log(JSON.stringify({ status: r.status, text: await r.text() })))
+      .catch((e) => console.log(JSON.stringify({ status: 0, text: String(e && e.message) })));`;
+  const run = spawnSync('docker', ['exec', CONTAINER, 'node', '-e', script], { encoding: 'utf8', timeout: 60_000 });
+  if (run.status !== 0) throw new Error(`docker exec falhou: ${(run.stderr || '').trim().slice(0, 160)}`);
+  return JSON.parse(run.stdout.trim().split('\n').pop());
 }
 
 /** Forma da lista: tocável = tem url/infoHash/externalUrl. */
@@ -162,36 +189,35 @@ await check('POST /internal/search/meta sem token → recusado (401/403/503)', a
 });
 
 if (TOKEN) {
-  await check('POST /internal/search/meta com token → 200 ok com titles', async () => {
+  await check('POST /internal/search/meta com token, de fora → recusado (403)', async () => {
     const res = await req('/internal/search/meta', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-Indexer-Test-Token': TOKEN },
       body: JSON.stringify({ encoded: VALID_ENCODED, type: 'movie', id: 'tt0117731' }),
     });
-    const tolerado = loopbackSemGateway(res);
-    if (tolerado) return tolerado;
-    expect(res.status === 200, `status ${res.status} :: ${res.text.slice(0, 120)}`);
-    const body = jsonOf(res);
-    expect(body.ok === true, `ok != true :: ${JSON.stringify(body).slice(0, 120)}`);
-    return 'meta/titles lidos';
-  });
-
-  await check('POST /internal/search/state com token → 200 ok (lote vazio)', async () => {
-    const res = await req('/internal/search/state', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-Indexer-Test-Token': TOKEN },
-      body: JSON.stringify({ encoded: VALID_ENCODED, obra_keys: [], hashes: [] }),
-    });
-    const tolerado = loopbackSemGateway(res);
-    if (tolerado) return tolerado;
-    expect(res.status === 200, `status ${res.status} :: ${res.text.slice(0, 120)}`);
-    const body = jsonOf(res);
-    expect(body.ok === true && typeof body.obras === 'object', 'resposta sem obras{}');
-    return 'acervo lido em lote';
+    const recusa = refusedOutside(res);
+    expect(recusa, `rota interna aberta de fora: status ${res.status} :: ${res.text.slice(0, 120)}`);
+    return recusa;
   });
 } else {
-  console.log('pula rotas internas autenticadas: JACKETT_TEST_TOKEN ausente no .env');
+  console.log('pula a checagem de fora com token: JACKETT_TEST_TOKEN ausente no .env');
 }
+
+await check('POST /internal/search/meta de dentro (orquestrador) → 200 ok', async () => {
+  const res = insideContainer('/internal/search/meta', { encoded: VALID_ENCODED, type: 'movie', id: 'tt0117731' });
+  expect(res.status === 200, `status ${res.status} :: ${res.text.slice(0, 120)}`);
+  const body = jsonOf(res);
+  expect(body.ok === true, `ok != true :: ${JSON.stringify(body).slice(0, 120)}`);
+  return 'meta/titles lidos';
+});
+
+await check('POST /internal/search/state de dentro (orquestrador) → 200 ok (lote vazio)', async () => {
+  const res = insideContainer('/internal/search/state', { encoded: VALID_ENCODED, obra_keys: [], hashes: [] });
+  expect(res.status === 200, `status ${res.status} :: ${res.text.slice(0, 120)}`);
+  const body = jsonOf(res);
+  expect(body.ok === true && typeof body.obras === 'object', 'resposta sem obras{}');
+  return 'acervo lido em lote';
+});
 
 // 8. Caminho inexistente segue para o Node (404 do addon, não 502 do proxy).
 await check('GET /rota-que-nao-existe → 404 (proxy vivo, não 502)', async () => {
