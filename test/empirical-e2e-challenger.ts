@@ -78,13 +78,14 @@ const mutations = [
     // PLANO_MELHORIAS 5.3: matchesBrTitle saiu de utils/format.js para
     // utils/release-matching.js no split de format.ts. Depois o próprio
     // release-matching.ts virou fachada (split de limite de linhas): o portão
-    // composto vive agora em release-title-rules.js, e é lá que a linha
-    // canônica existe. O alvo segue o arquivo que herda a lógica — atualização
-    // de alvo, não enfraquecimento.
+    // composto vive agora em release-title-rules.js. Em G5 o corpo TS saiu do
+    // branch — o portão decide no núcleo —, então a linha canônica é a da
+    // PONTE: o mutante inverte o retorno da chamada ao núcleo. O alvo segue o
+    // arquivo que herda a lógica — atualização de alvo, não enfraquecimento.
     name: 'MUT-01: Invert matchesBrTitle (release-title-rules.js)',
     file: 'dist/src/utils/release-title-rules.js',
-    target: 'return matchesTitleStructure(title, name, year, { isSeries, tokens: own });',
-    replacement: 'return false; // MUTATED',
+    target: 'return core().matchesBrTitle(',
+    replacement: 'return !core().matchesBrTitle(',
     // Capturado pelo tier1-title-cache (5.1/5.3): o alvo é a única saída positiva de matchesBrTitle.
     testFile: 'dist/test/e2e/tier1-title-cache.test.js'
   },

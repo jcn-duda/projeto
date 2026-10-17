@@ -1,10 +1,14 @@
-import { normalizeTitle } from './title-normalization.js';
+import { nativeCore } from './native-core.js';
 
-// Vocabulário fechado de tokens e marcas usados pelo matching de releases. É a
-// base que `release-matching.ts` (precisão/estrutura) e os filtros em lote
-// compartilham; `audio-quality.ts` e `search-names.ts` consomem partes daqui
-// exatamente como consumiam do antigo release-matching — o vocabulário é um só,
-// não uma cópia por módulo.
+// Vocabulário fechado de tokens e marcas usados pelo matching de releases — e
+// só ele. A DECISÃO mora no núcleo (`adom-core::matching_vocabulary`, com
+// golden contra o TS do `esm`); aqui ficou o vocabulário como DADO exportado
+// porque ainda há consumidores fora do casamento de título: `pt-title-dual.ts`
+// (LEADING_ARTICLES), `release-matching.ts` (barrel: TECH_NOISE e
+// LEADING_ARTICLES) e `audio-quality.ts` (TECH_NOISE). Enquanto esses
+// existirem, o conjunto não pode sair daqui — o `vocabularyContents` do core
+// devolve exatamente estes conteúdos e é assim que os dois lados se conferem.
+// `titleTokens`, a única função do módulo, é chamada do núcleo.
 
 // Palavras que descrevem o EMPACOTAMENTO, não a obra. Um pack legítimo é
 // "Coleção Guerra nas Estrelas" ou "Game of Thrones Todas as Temporadas": elas
@@ -143,15 +147,21 @@ const STRONG_PACK_WORDS = new Set(
   'trilogia duologia quadrilogia pentalogia colecao coletanea antologia filmografia filmography trilogy quadrilogy duology tetralogy anthology boxset'.split(' '),
 );
 
-/** Tokens normalizados e não vazios de um texto de título. */
-// "V." abreviando "Versão" ("V.Exten", "V. Estendida"): o `v` sozinho seria
-// conteúdo estranho na precisão, mas não pode virar ruído geral — "V" e
-// "V de Vingança" são obras. Só cai colado numa palavra de edição.
-const EDITION_AFTER_V = new Set(['exten', 'extended', 'estendida', 'extendida']);
+/** Funções de vocabulário no `.node` (camelCase do napi-rs). */
+type VocabularyCore = {
+  titleTokensNapi(text: string): string[];
+  normalizedTitleTokensNapi(normalized: string): string[];
+};
 
+const core = () => nativeCore<VocabularyCore>();
+
+/**
+ * Tokens normalizados e não vazios de um texto de título. Normalização
+ * (`normalizeTitle`), corte do "V." de "V.Exten" e filtragem rodam no núcleo
+ * (`title_tokens`), numa chamada só.
+ */
 function titleTokens(text: string): string[] {
-  const tokens = normalizeTitle(text).split(' ').filter(Boolean);
-  return tokens.filter((token, i) => !(token === 'v' && EDITION_AFTER_V.has(tokens[i + 1])));
+  return core().titleTokensNapi(String(text));
 }
 
 export {

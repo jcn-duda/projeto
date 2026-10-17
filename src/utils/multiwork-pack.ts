@@ -1,6 +1,5 @@
 import type { MultiWorkCollection, RawItem } from '../../types/domain.js';
-import { titleTokens, LEADING_ARTICLES } from './matching-vocabulary.js';
-import { franchiseRoot, isMultiWorkCollection, containsTokenRun } from './release-name-matching.js';
+import { nativeCore } from './native-core.js';
 
 // Admissão de packs multiobra BR (BR_MULTIWORK_PACKS, nativo por padrão; `false`
 // é o kill-switch). O pack de coleção
@@ -19,8 +18,12 @@ import { franchiseRoot, isMultiWorkCollection, containsTokenRun } from './releas
 //
 // Sem todas, o pack não é admitido. Tudo é puro; o contexto (`multiWork`) só
 // existe quando a feature está ativa (default true; `false` é o kill-switch),
-// há debrid ativo, é filme e o ano é
-// conhecido — as demais condições de admissão vivem aqui.
+// há debrid ativo, é filme e o ano é conhecido — as demais condições de
+// admissão vivem aqui.
+//
+// Decisão INTEIRA no núcleo (`adom-core::multiwork_pack`, golden contra o TS
+// do `esm`): aqui se resolvem os campos `RawItem` (`title || Title`,
+// `magnet || MagnetUri`) e a raiz da coleção. Módulo-folha via `nativeCore`.
 
 // Palavras que descrevem o EMPACOTAMENTO no NOME da coleção do TMDB, não a
 // franquia: "Indiana Jones (Coleção)" / "Trilogia Indiana Jones" precisam virar
@@ -28,7 +31,8 @@ import { franchiseRoot, isMultiWorkCollection, containsTokenRun } from './releas
 // são PRESERVADOS (a raiz precisa ser contígua ao título, e o pack publica o
 // nome inteiro — "o senhor dos aneis"). "saga" entra porque, sozinha, só
 // aparece como wrapper de coleção; se a remoção esvaziar a raiz, a admissão
-// falha fechada.
+// falha fechada. Espelhada em `adom_core::multiwork_pack::COLLECTION_NOISE`
+// (golden); exportada aqui porque é o contrato antigo do módulo.
 const COLLECTION_NOISE = new Set(
   (
     'colecao coletanea trilogia duologia quadrilogia pentalogia antologia ' +
@@ -37,71 +41,57 @@ const COLLECTION_NOISE = new Set(
   ).split(' '),
 );
 
+/** Funções de pack multiobra no `.node` (camelCase do napi-rs). */
+type MultiWorkCore = {
+  collectionRootTokensNapi(name: string): string[];
+  collectionRootNapi(name: string): string;
+  coversYearNapi(text: string, catalogYear: string): boolean;
+  packYearSourceNapi(title: string, magnet: string): string;
+  admitsMultiWorkPackNapi(
+    title: string,
+    magnet: string,
+    multiWorkRoot: string | null,
+    year: string,
+    isSeries: boolean,
+    names: string[],
+  ): boolean;
+};
+
+const core = () => nativeCore<MultiWorkCore>();
+
 /**
  * Tokens normalizados da RAÍZ da coleção. Corta subtítulo/marcador de sequência
  * com o mesmo `franchiseRoot` do resto do pipeline e remove só as palavras de
- * empacotamento. O(s) artigo(s) inicial(is) saem porque o pack publica o nome
- * com ou sem ele ("O Senhor dos Anéis" × "Senhor dos Anéis"). Menos de dois
- * tokens significativos = sem evidência de franquia ('' — admissão negada).
+ * empacotamento. Menos de dois tokens significativos = sem evidência de
+ * franquia (`[]` — admissão negada).
  */
 function collectionRootTokens(name: string): string[] {
-  const head = franchiseRoot(String(name || ''));
-  const tokens = titleTokens(head).filter((token) => !COLLECTION_NOISE.has(token));
-  while (tokens.length && LEADING_ARTICLES.has(tokens[0])) tokens.shift();
-  return tokens.length >= 2 ? tokens : [];
+  return core().collectionRootTokensNapi(String(name ?? ''));
 }
 
 /** Raiz da coleção como string normalizada (tokens contíguos), ou ''. */
 function collectionRoot(name: string): string {
-  return collectionRootTokens(name).join(' ');
+  return core().collectionRootNapi(String(name ?? ''));
 }
 
 /**
  * O texto DECLARA cobertura do ano? A FAIXA exige conter o ano de verdade
- * ("1981-2008" cobre 1981; "2000-2008" NÃO cobre) — sem folga nas bordas, é
- * evidência de cobertura e não de proximidade. O ANO AVULSO mantém a tolerância
- * de ±2 do `yearContradicts`: lançamento BR pode escorregar um ano, e o ano do
- * post costuma ser o da edição. Resolução (1920x1080) não é ano.
+ * ("1981-2008" cobre 1981; "2000-2008" NÃO cobre); o ANO AVULSO mantém a
+ * tolerância de ±2. Resolução (1920x1080) não é ano.
  */
 function coversYear(text: string, catalogYear: number | string | null | undefined): boolean {
-  const year = Number(String(catalogYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  if (!year) return false;
-  let rest = String(text || '').replace(/\d{3,4}x\d{3,4}/gi, ' ');
-  const ranges: Array<[number, number]> = [];
-  rest = rest.replace(
-    /(?<!\d)((?:19|20)\d{2})\s*(?:[-–—~]|\b(?:de|a|até|ate|to)\b)\s*((?:19|20)\d{2})(?!\d)/gi,
-    (_match, a, b) => {
-      ranges.push([Number(a), Number(b)]);
-      return ' ';
-    },
-  );
-  for (const [a, b] of ranges) {
-    const lo = Math.min(a, b);
-    const hi = Math.max(a, b);
-    if (year >= lo && year <= hi) return true;
-  }
-  const singles = [...rest.matchAll(/(?<!\d)((?:19|20)\d{2})(?!\d)/g)].map((m) => Number(m[1]));
-  return singles.some((single) => Math.abs(single - year) <= 2);
+  return core().coversYearNapi(String(text ?? ''), String(catalogYear ?? ''));
 }
 
 /**
  * Texto onde a cobertura de ano pode ser declarada: o título do post e, quando
- * há magnet real, o `dn=` decodificado (o nome verdadeiro da release). URL de
- * protetor de link não tem `dn=` e não carrega evidência de release.
+ * há magnet real, o `dn=` decodificado. URL de protetor de link não tem `dn=`
+ * e não carrega evidência de release.
  */
 function packYearSource(item: RawItem | null | undefined): string {
   const title = String(item?.title || item?.Title || '');
-  const raw = String(item?.magnet || item?.MagnetUri || '');
-  if (!/^magnet:/i.test(raw.trim())) return title;
-  const dn = raw.match(/[&?]dn=([^&]+)/i);
-  if (!dn) return title;
-  let decoded = dn[1].replace(/\+/g, ' ');
-  try {
-    decoded = decodeURIComponent(decoded);
-  } catch {
-    /* sequência % malformada: segue com o texto já decodificado */
-  }
-  return `${title} ${decoded}`;
+  const magnet = String(item?.magnet || item?.MagnetUri || '');
+  return core().packYearSourceNapi(title, magnet);
 }
 
 export interface MultiWorkAdmissionContext {
@@ -119,27 +109,21 @@ export interface MultiWorkAdmissionContext {
  * presente); aqui ficam as condições que não dependem de rede: filme, nomes
  * válidos, coleção reconhecida, raiz contígua (2+ tokens) e cobertura
  * explícita do ano.
- *
- * O reconhecimento de coleção e a raiz contígua usam o MESMO `packYearSource`
- * da cobertura de ano (título + `dn=` do magnet quando há magnet real): um post
- * com título de filme isolado pode carregar no magnet o pack da franquia, e a
- * palavra de empacotamento/faixa de anos mora justamente ali. Root, ano, filme
- * e debrid continuam exigidos — o texto de evidência é que é um só.
  */
 function admitsMultiWorkPack(
   item: RawItem | null | undefined,
   { multiWork, year, isSeries = false, names = [] }: MultiWorkAdmissionContext = {},
 ): boolean {
-  if (!multiWork || !multiWork.root || isSeries) return false;
-  // Sem nomes não há dica de obra: o /resolve não teria como escolher o filme
-  // dentro da coleção e cairia no maior arquivo (o filme errado).
-  if (!names.length) return false;
-  const catalogYear = Number(String(year ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  if (!catalogYear) return false;
-  const evidence = packYearSource(item);
-  if (!isMultiWorkCollection(evidence)) return false;
-  if (!containsTokenRun(evidence, multiWork.root)) return false;
-  return coversYear(evidence, catalogYear);
+  const title = String(item?.title || item?.Title || '');
+  const magnet = String(item?.magnet || item?.MagnetUri || '');
+  return core().admitsMultiWorkPackNapi(
+    title,
+    magnet,
+    multiWork?.root || null,
+    String(year ?? ''),
+    isSeries,
+    names,
+  );
 }
 
 export {

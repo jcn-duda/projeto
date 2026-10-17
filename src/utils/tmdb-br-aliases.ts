@@ -1,6 +1,6 @@
 import config from '../config.js';
 import * as log from './logger.js';
-import { LEADING_ARTICLES, titleTokens } from './matching-vocabulary.js';
+import { nativeCore } from './native-core.js';
 import { fetchJsonWithin } from './deadline.js';
 
 const API = 'https://api.themoviedb.org/3';
@@ -15,36 +15,29 @@ interface BrAliasesResult {
   ok: boolean;
 }
 
-function significantTokens(text: string): string[] {
-  return titleTokens(text).filter((t) => t.length > 2 && !LEADING_ARTICLES.has(t) && !/^\d+$/.test(t));
-}
+/** Funções de alias no `.node` (camelCase do napi-rs). */
+type AliasesCore = {
+  filterBrAliasesNapi(candidates: Array<string | null>, canonical: Array<string | null>): string[];
+};
+
+const core = () => nativeCore<AliasesCore>();
 
 /**
- * Filtro PURO dos aliases BR. Só entra alias que CONTÉM todas as palavras
- * significativas de algum nome canônico (pt/original/en): "Operação: Lioness"
- * é o nome "Lioness" acrescido do marketing BR. Palavra em comum não basta —
- * "Kill" divide "kill" com "Django Kill… If You Live, Shoot!" e é justamente o
- * alias solto que derrubou os `alternative_titles` em b223ffd (abriria release
- * de outra obra). Alias idêntico a um canônico também sai (não acrescenta).
+ * Filtro PURO dos aliases BR — decisão INTEIRA no núcleo
+ * (`adom-core::tmdb_br_aliases`, golden contra o TS do `esm`). Só entra alias
+ * que CONTÉM todas as palavras significativas de algum nome canônico:
+ * "Operação: Lioness" é o nome "Lioness" acrescido do marketing BR. Palavra em
+ * comum não basta — "Kill" divide "kill" com "Django Kill… If You Live,
+ * Shoot!" e é justamente o alias solto que derrubou os `alternative_titles` em
+ * b223ffd (abriria release de outra obra). Alias idêntico a um canônico também
+ * sai (não acrescenta). `fetchBrAliases` FICA em TS: é rede + config, e efeito
+ * de I/O não pertence ao núcleo.
  */
 function filterBrAliases(candidates: string[], canonical: Array<string | null | undefined>): string[] {
-  const canonSets = canonical
-    .filter(Boolean)
-    .map((n) => significantTokens(String(n)))
-    .filter((toks) => toks.length > 0);
-  const canonNorm = new Set(canonical.filter(Boolean).map((n) => titleTokens(String(n)).join(' ')));
-  const out: string[] = [];
-  for (const raw of candidates) {
-    const title = String(raw || '').trim();
-    if (!title) continue;
-    const norm = titleTokens(title).join(' ');
-    if (!norm || canonNorm.has(norm) || out.some((o) => titleTokens(o).join(' ') === norm)) continue;
-    const own = new Set(significantTokens(title));
-    if (!canonSets.some((toks) => toks.every((t) => own.has(t)))) continue;
-    out.push(title);
-    if (out.length >= MAX_BR_ALIASES) break;
-  }
-  return out;
+  return core().filterBrAliasesNapi(
+    candidates.map((raw) => (typeof raw === 'string' ? raw : null)),
+    canonical.map((name) => (typeof name === 'string' ? name : null)),
+  );
 }
 
 /**
