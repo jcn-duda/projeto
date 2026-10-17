@@ -5,6 +5,7 @@ import { makeResolveHandler } from './resolve.js';
 import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalCrawlResult } from './internal-crawl-result.js';
 import { registerInternalActivity } from './internal-activity.js';
+import { registerInternalSearch } from './internal-search.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
@@ -60,6 +61,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // Rotas internas do sidecar Rust (C4): antes do /:userConfig, sem config.
   registerInternalCrawlResult(app, services);
   registerInternalActivity(app, services);
+  // Leituras internas de busca (F1.1): o orquestrador Rust consome metadados e
+  // acervo por aqui antes de assumir o /stream. Igual às anteriores, sem config.
+  registerInternalSearch(app, services);
   app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({

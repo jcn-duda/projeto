@@ -1,0 +1,189 @@
+{
+  "_doc": "Corpus do golden `search-pool-coverage` (F-1). Cada input é uma STRING JSON com `op` ∈ {pool, idx}. `minSeeders` é o piso do melhor-swarm: o oráculo o aplica na config VIVA do autofetch (é o que o TS lê dentro de `poolCovered`) e o teste Rust usa o mesmo número por parâmetro. Para `idx`, o oráculo devolve {covered, packOnly} com `packOnly` medido pela métrica `search.idx.packOnly`.",
+  "cases": [
+    {
+      "id": "pool-lista-vazia",
+      "input": "{\"op\":\"pool\",\"items\":[],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-br-dublado",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-br-dual-inferido",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Filme (2024) 720p Dual Áudio\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-br-national-inferido",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"title\":\"Filme Nacional (2024) 1080p\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-br-legendado-cai-no-swarm",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"title\":\"Filme (2024) 1080p Legendado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-swarm-com-seeders",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":42}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-swarm-abaixo-do-minimo",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"ffffffffffffffffffffffffffffffffffffffff\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":2}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-swarm-minimo-zero",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"0000000000000000000000000000000000000000\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":2}],\"minSeeders\":0}"
+    },
+    {
+      "id": "pool-swarm-exatamente-no-minimo",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"1111111111111111111111111111111111111111\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":3}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-swarm-um-abaixo-do-minimo",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"2222222222222222222222222222222222222222\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":3}],\"minSeeders\":4}"
+    },
+    {
+      "id": "pool-sem-hash",
+      "input": "{\"op\":\"pool\",\"items\":[{\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":99,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-dubbed-false-manda-sobre-titulo",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"3333333333333333333333333333333333333333\",\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":0,\"isBr\":true,\"dubbed\":false}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-dubbed-ausente-infere-do-titulo",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"3333333333333333333333333333333333333333\",\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3,\"requireDubbed\":true}"
+    },
+    {
+      "id": "pool-dubbed-true-em-global",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"4444444444444444444444444444444444444444\",\"title\":\"Movie (2024) 1080p\",\"seeders\":0,\"dubbed\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-require-dubbed-so-swarm",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"5555555555555555555555555555555555555555\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":50}],\"minSeeders\":3,\"requireDubbed\":true}"
+    },
+    {
+      "id": "pool-require-dubbed-com-br",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"6666666666666666666666666666666666666666\",\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3,\"requireDubbed\":true}"
+    },
+    {
+      "id": "pool-cam-br-dublado-fora",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"7777777777777777777777777777777777777777\",\"title\":\"Filme (2024) CAM Dublado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-cam-global-fora-ate-do-swarm",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"8888888888888888888888888888888888888888\",\"title\":\"Movie (2024) CAM\",\"seeders\":999}],\"minSeeders\":0}"
+    },
+    {
+      "id": "pool-titulo-pelo-name",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"9999999999999999999999999999999999999999\",\"name\":\"Filme (2024) Dublado 1080p\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-titulo-pelo-Title",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"Title\":\"Filme (2024) Dublado 1080p\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-hash-pelo-infohash",
+      "input": "{\"op\":\"pool\",\"items\":[{\"infoHash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Filme (2024) Dublado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-hash-pelo-magnet",
+      "input": "{\"op\":\"pool\",\"items\":[{\"magnet\":\"magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc&dn=Filme\",\"title\":\"Filme (2024) Dublado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-seeders-como-string",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"title\":\"Movie (2024) 1080p\",\"seeders\":\"5\"}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-seeders-pascal-case",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"title\":\"Movie (2024) 1080p\",\"Seeders\":7}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-seeders-underscore",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"ffffffffffffffffffffffffffffffffffffffff\",\"title\":\"Movie (2024) 1080p\",\"_seeders\":8}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-dubbed-null-presente-nao-cai-no-titulo",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":5,\"isBr\":true,\"dubbed\":null}],\"minSeeders\":3,\"requireDubbed\":true}"
+    },
+    {
+      "id": "pool-dubbed-ausente-cai-no-titulo",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":5,\"isBr\":true}],\"minSeeders\":3,\"requireDubbed\":true}"
+    },
+    {
+      "id": "pool-dubbed-null-presente-sem-seeders",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"Filme (2024) 1080p Dublado\",\"seeders\":0,\"isBr\":true,\"dubbed\":null}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-global-evidencia-pt",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"title\":\"Movie (2024) DUBLADO 1080p\",\"seeders\":0}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-global-dual-audio",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"title\":\"Movie (2024) 1080p Dual Áudio\",\"seeders\":0}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-titulo-vazio-com-hash",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"title\":\"   \",\"seeders\":99}],\"minSeeders\":3}"
+    },
+    {
+      "id": "pool-mistura-pools-vence-br",
+      "input": "{\"op\":\"pool\",\"items\":[{\"hash\":\"ffffffffffffffffffffffffffffffffffffffff\",\"title\":\"Movie (2024) 1080p\",\"seeders\":100},{\"hash\":\"0000000000000000000000000000000000000000\",\"title\":\"Filme (2024) 720p Dublado\",\"seeders\":0,\"isBr\":true}],\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-lista-vazia",
+      "input": "{\"op\":\"idx\",\"releases\":[],\"season\":null,\"episode\":null,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-so-pack-em-episodio",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"title\":\"True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]\",\"seeders\":40,\"quality\":\"1080p\",\"isBr\":true,\"dubbed\":true}],\"season\":2,\"episode\":1,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-pack-mais-episodio",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"title\":\"True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]\",\"seeders\":40,\"quality\":\"1080p\",\"isBr\":true,\"dubbed\":true},{\"hash\":\"cccccccccccccccccccccccccccccccccccccccc\",\"title\":\"True Detective 2ª Temporada – (2015) E01 [720p DUBLADO opção 2]\",\"seeders\":1,\"quality\":\"720p\",\"isBr\":true,\"dubbed\":true}],\"season\":2,\"episode\":1,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-episodio-errado",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"dddddddddddddddddddddddddddddddddddddddd\",\"title\":\"True Detective 2ª Temporada – (2015) E01 [720p DUBLADO opção 2]\",\"seeders\":1,\"quality\":\"720p\",\"isBr\":true,\"dubbed\":true}],\"season\":2,\"episode\":7,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-filme-so-pack",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"title\":\"True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]\",\"seeders\":40,\"quality\":\"1080p\",\"isBr\":true,\"dubbed\":true}],\"season\":null,\"episode\":null,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-temporada-sem-episodio",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"ffffffffffffffffffffffffffffffffffffffff\",\"title\":\"True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]\",\"seeders\":40,\"quality\":\"1080p\",\"isBr\":true,\"dubbed\":true}],\"season\":2,\"episode\":null,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-so-autofetch-vira-vazio",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"0000000000000000000000000000000000000000\",\"title\":\"True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]\",\"seeders\":40,\"quality\":\"1080p\",\"isBr\":true,\"dubbed\":true,\"source\":\"autofetch\"}],\"season\":2,\"episode\":1,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-autofetch-e-release-real",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"1111111111111111111111111111111111111111\",\"title\":\"True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]\",\"seeders\":40,\"quality\":\"1080p\",\"isBr\":true,\"dubbed\":true,\"source\":\"autofetch\"},{\"hash\":\"2222222222222222222222222222222222222222\",\"title\":\"True Detective 2ª Temporada – (2015) E01 [720p DUBLADO opção 2]\",\"seeders\":1,\"quality\":\"720p\",\"isBr\":true,\"dubbed\":true}],\"season\":2,\"episode\":1,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-global-saudavel-no-minimo",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"3333333333333333333333333333333333333333\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":5,\"source\":\"jackett\"}],\"season\":null,\"episode\":null,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-global-fraco-no-piso-zero",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"4444444444444444444444444444444444444444\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":1,\"source\":\"jackett\"}],\"season\":null,\"episode\":null,\"minSeeders\":0}"
+    },
+    {
+      "id": "idx-global-fraco-no-piso-tres",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"5555555555555555555555555555555555555555\",\"title\":\"Movie (2024) 1080p BluRay\",\"seeders\":1,\"source\":\"jackett\"}],\"season\":null,\"episode\":null,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-br-dublado-sempre-cobre",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"6666666666666666666666666666666666666666\",\"title\":\"Filme (2024) 720p Dublado\",\"seeders\":0,\"isBr\":true,\"dubbed\":true}],\"season\":null,\"episode\":null,\"minSeeders\":9}"
+    },
+    {
+      "id": "idx-episodio-nomeado-em-pack-gigante",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"7777777777777777777777777777777777777777\",\"title\":\"Serie S02E01 1080p Dublado\",\"seeders\":0,\"isBr\":true,\"dubbed\":true}],\"season\":2,\"episode\":1,\"minSeeders\":3}"
+    },
+    {
+      "id": "idx-episodio-de-outra-temporada",
+      "input": "{\"op\":\"idx\",\"releases\":[{\"hash\":\"8888888888888888888888888888888888888888\",\"title\":\"Serie S03E01 1080p Dublado\",\"seeders\":0,\"isBr\":true,\"dubbed\":true}],\"season\":2,\"episode\":1,\"minSeeders\":3}"
+    }
+  ]
+}

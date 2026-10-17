@@ -10,6 +10,10 @@ members = [
     "crates/adom-resolvers",
     "crates/adom-debrid",
     "crates/adom-server",
+    # Embrião do orquestrador nativo do /stream (fatia F1.1 do lado Rust):
+    # parsing de requisição + chave de cache + contrato da resposta. AINDA não
+    # é consumido por ninguém; o /stream continua 100% Node.
+    "crates/adom-search",
 ]
 resolver = "2"
 

@@ -1,0 +1,12 @@
+[package]
+name = "adom-search"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Embrião do orquestrador nativo do /stream: parsing de requisição, chave de cache e contrato da resposta."
+license = "UNLICENSED"
+
+[dependencies]
+adom-core = { path = "../adom-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

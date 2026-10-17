@@ -1,0 +1,205 @@
+{
+  "_doc": "Corpus do golden `search-plan` (F-1). Cada input é uma STRING JSON com `op` (`plan`, `ptSweepIndexers`, `liveIndexers`, `ptSweepQuery`, `ptSweepQueryFor`, `dubbedSweepQueryFor`). O oráculo é o TS do branch `esm` (`dist/src/providers/search-plan.js`), nunca uma reimplementação.",
+  "cases": [
+    {
+      "id": "plan-br-isolado-fallback",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Coringa 2019\",\"selectedIndexers\":[\"thepiratebay\",\"bludv-cardigann\",\"nerdfilmes\"],\"ptBrIndexers\":[\"bludv-cardigann\",\"nerdfilmes\"]}"
+    },
+    {
+      "id": "plan-br-sem-ptquery",
+      "input": "{\"op\":\"plan\",\"query\":\"Prometheus 2012\",\"ptQuery\":null,\"selectedIndexers\":[\"thepiratebay\",\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-ptquery-vazia-cai-na-query",
+      "input": "{\"op\":\"plan\",\"query\":\"Prometheus 2012\",\"ptQuery\":\"\",\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-ptquery-igual-a-query-sem-fallback",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Joker 2019\",\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-isolado-global-lento",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Coringa 2019\",\"selectedIndexers\":[\"thepiratebay\",\"redetorrent\",\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"],\"isolateIndexers\":[\"redetorrent\",\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-sweep-diferente",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Coringa 2019\",\"selectedIndexers\":[\"thepiratebay\",\"1337x\",\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"],\"sweepQuery\":\"Coringa\"}"
+    },
+    {
+      "id": "plan-sweep-igual-nao-duplica",
+      "input": "{\"op\":\"plan\",\"query\":\"Jornada nas Estrelas\",\"ptQuery\":\"Jornada nas Estrelas\",\"selectedIndexers\":[\"thepiratebay\",\"1337x\"],\"ptBrIndexers\":[],\"sweepQuery\":\"Jornada nas Estrelas\"}"
+    },
+    {
+      "id": "plan-sweep-vazia-nao-cria-task",
+      "input": "{\"op\":\"plan\",\"query\":\"Star Trek\",\"selectedIndexers\":[\"thepiratebay\"],\"ptQuery\":null,\"sweepQuery\":\"\"}"
+    },
+    {
+      "id": "plan-grouped-vazio-sem-sweep",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Coringa 2019\",\"selectedIndexers\":[\"bludv-cardigann\",\"redetorrent\"],\"ptBrIndexers\":[\"bludv-cardigann\"],\"isolateIndexers\":[\"redetorrent\",\"bludv-cardigann\"],\"sweepQuery\":\"Coringa\"}"
+    },
+    {
+      "id": "plan-original-query-global-e-br",
+      "input": "{\"op\":\"plan\",\"query\":\"My Name Is Farah S01E01\",\"ptQuery\":\"Meu Nome é Farah S01E01\",\"selectedIndexers\":[\"therarbg\",\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"],\"originalQuery\":\"Adım Farah\"}"
+    },
+    {
+      "id": "plan-original-vazia-omitida",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Coringa 2019\",\"selectedIndexers\":[\"therarbg\",\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"],\"originalQuery\":\"\"}"
+    },
+    {
+      "id": "plan-original-nao-vai-na-sweep",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Coringa 2019\",\"selectedIndexers\":[\"therarbg\"],\"ptBrIndexers\":[],\"sweepQuery\":\"Coringa\",\"originalQuery\":\"Joker\"}"
+    },
+    {
+      "id": "plan-multiwork-so-no-br",
+      "input": "{\"op\":\"plan\",\"query\":\"Star Trek 2009\",\"ptQuery\":\"Jornada nas Estrelas 2009\",\"selectedIndexers\":[\"therarbg\",\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"],\"multiWorkQuery\":\"Jornada nas Estrelas Coleção\"}"
+    },
+    {
+      "id": "plan-multiwork-vazia-omitida",
+      "input": "{\"op\":\"plan\",\"query\":\"Star Trek 2009\",\"ptQuery\":\"Jornada nas Estrelas 2009\",\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"],\"multiWorkQuery\":\"\"}"
+    },
+    {
+      "id": "plan-variant-romano",
+      "input": "{\"op\":\"plan\",\"query\":\"Star Trek II: The Wrath of Khan 1982\",\"ptQuery\":\"Jornada nas Estrelas II: A Ira de Khan 1982\",\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-variant-sem-romano",
+      "input": "{\"op\":\"plan\",\"query\":\"Apollo 13 1995\",\"ptQuery\":null,\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-franchise-parte-ii-com-ano",
+      "input": "{\"op\":\"plan\",\"query\":\"The Hangover Part II 2011\",\"ptQuery\":\"Se Beber, Não Case! Parte II 2011\",\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-franchise-sem-marcador",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker: Folie à Deux 2024\",\"ptQuery\":\"Coringa: Delírio a Dois 2024\",\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-franchise-numeral-sozinho",
+      "input": "{\"op\":\"plan\",\"query\":\"Back to the Future Part III 1990\",\"ptQuery\":\"De Volta para o Futuro Parte III 1990\",\"selectedIndexers\":[\"bludv-cardigann\"],\"ptBrIndexers\":[\"bludv-cardigann\"]}"
+    },
+    {
+      "id": "plan-selecao-vazia",
+      "input": "{\"op\":\"plan\",\"query\":\"Joker 2019\",\"ptQuery\":\"Coringa 2019\",\"selectedIndexers\":[],\"ptBrIndexers\":[\"bludv-cardigann\"],\"sweepQuery\":\"Coringa\"}"
+    },
+    {
+      "id": "ptSweep-misto",
+      "input": "{\"op\":\"ptSweepIndexers\",\"selectedIndexers\":[\"thepiratebay\",\"1337x\",\"bludv-cardigann\",\"nerdfilmes\"],\"ptBrIndexers\":[\"bludv-cardigann\",\"nerdfilmes\",\"comandotorrents\"]}"
+    },
+    {
+      "id": "ptSweep-tudo-br",
+      "input": "{\"op\":\"ptSweepIndexers\",\"selectedIndexers\":[\"bludv-cardigann\",\"nerdfilmes\"],\"ptBrIndexers\":[\"bludv-cardigann\",\"nerdfilmes\"]}"
+    },
+    {
+      "id": "ptSweep-index-only-fora",
+      "input": "{\"op\":\"ptSweepIndexers\",\"selectedIndexers\":[\"thepiratebay\",\"redetorrent\",\"hdrtorrent\"],\"ptBrIndexers\":[],\"indexOnlyIndexers\":[\"redetorrent\",\"hdrtorrent\"]}"
+    },
+    {
+      "id": "ptSweep-selecao-vazia",
+      "input": "{\"op\":\"ptSweepIndexers\",\"selectedIndexers\":[],\"ptBrIndexers\":[\"bludv-cardigann\"],\"indexOnlyIndexers\":[\"redetorrent\"]}"
+    },
+    {
+      "id": "live-tira-index-only",
+      "input": "{\"op\":\"liveIndexers\",\"selectedIndexers\":[\"thepiratebay\",\"redetorrent\",\"apachetorrent\",\"hdrtorrent\",\"bludv-cardigann\"],\"indexOnlyIndexers\":[\"redetorrent\",\"apachetorrent\",\"hdrtorrent\"]}"
+    },
+    {
+      "id": "live-exempt-1337x-fica",
+      "input": "{\"op\":\"liveIndexers\",\"selectedIndexers\":[\"thepiratebay\",\"1337x\"],\"indexOnlyIndexers\":[\"1337x\"],\"exemptIndexers\":[\"1337x\"]}"
+    },
+    {
+      "id": "live-sem-lista-index-only",
+      "input": "{\"op\":\"liveIndexers\",\"selectedIndexers\":[\"thepiratebay\",\"redetorrent\"]}"
+    },
+    {
+      "id": "live-esvazia-tudo",
+      "input": "{\"op\":\"liveIndexers\",\"selectedIndexers\":[\"redetorrent\",\"hdrtorrent\"],\"indexOnlyIndexers\":[\"redetorrent\",\"hdrtorrent\"]}"
+    },
+    {
+      "id": "ptSweepQuery-subtitulo-2-palavras",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":\"Jornada nas Estrelas: O Filme\"}"
+    },
+    {
+      "id": "ptSweepQuery-en-dash",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":\"Alice no País das Maravilhas – O Filme\"}"
+    },
+    {
+      "id": "ptSweepQuery-em-dash",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":\"O Senhor dos Anéis — A Sociedade do Anel\"}"
+    },
+    {
+      "id": "ptSweepQuery-prefixo-1-palavra",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":\"Missão: Impossível\"}"
+    },
+    {
+      "id": "ptSweepQuery-null",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":null}"
+    },
+    {
+      "id": "ptSweepQuery-so-espacos",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":\"   \"}"
+    },
+    {
+      "id": "ptSweepQuery-marcador-sequencia",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":\"Jornada nas Estrelas II: A Ira de Khan\"}"
+    },
+    {
+      "id": "ptSweepQuery-numero-nome-da-obra",
+      "input": "{\"op\":\"ptSweepQuery\",\"titlePt\":\"Blade Runner 2049\"}"
+    },
+    {
+      "id": "ptSweepQueryFor-pt-diferente",
+      "input": "{\"op\":\"ptSweepQueryFor\",\"titles\":{\"pt\":\"Jornada nas Estrelas: O Filme\",\"original\":\"Star Trek: The Motion Picture\"}}"
+    },
+    {
+      "id": "ptSweepQueryFor-pt-igual-original",
+      "input": "{\"op\":\"ptSweepQueryFor\",\"titles\":{\"pt\":\"Joker\",\"original\":\"Joker\"}}"
+    },
+    {
+      "id": "ptSweepQueryFor-pt-null",
+      "input": "{\"op\":\"ptSweepQueryFor\",\"titles\":{\"pt\":null,\"original\":\"Joker\"}}"
+    },
+    {
+      "id": "ptSweepQueryFor-titles-null",
+      "input": "{\"op\":\"ptSweepQueryFor\",\"titles\":null}"
+    },
+    {
+      "id": "ptSweepQueryFor-pt-so-espacos",
+      "input": "{\"op\":\"ptSweepQueryFor\",\"titles\":{\"pt\":\"  \",\"original\":\"X\"}}"
+    },
+    {
+      "id": "ptSweepQueryFor-serie-raiz-pt",
+      "input": "{\"op\":\"ptSweepQueryFor\",\"titles\":{\"pt\":\"Jornada nas Estrelas: A Nova Geração\",\"original\":\"Star Trek: The Next Generation\"}}"
+    },
+    {
+      "id": "dubbed-pt-igual-sem-acento",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":\"Apocalypse Now\",\"en\":\"Apocalypse Now\",\"original\":\"Apocalypse Now\"}}"
+    },
+    {
+      "id": "dubbed-acento-maiusculas",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":\"CORAÇÃO\",\"en\":\"coracao\",\"original\":null}}"
+    },
+    {
+      "id": "dubbed-cedilha-til",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":\"Ação e Reação\",\"en\":\"Acao e Reacao\",\"original\":\"Acao e Reacao\"}}"
+    },
+    {
+      "id": "dubbed-i-pontuado-turco",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":\"İSTANBUL ÇIĞLIK\",\"en\":\"istanbul ciglik\",\"original\":null}}"
+    },
+    {
+      "id": "dubbed-usa-original-sem-en",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":\"Ação\",\"original\":\"Acao\"}}"
+    },
+    {
+      "id": "dubbed-diferente-nao-varre",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":\"Coração\",\"en\":\"Heart\",\"original\":\"Heart\"}}"
+    },
+    {
+      "id": "dubbed-pt-null",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":null,\"en\":\"Joker\",\"original\":\"Joker\"}}"
+    },
+    {
+      "id": "dubbed-sem-original",
+      "input": "{\"op\":\"dubbedSweepQueryFor\",\"titles\":{\"pt\":\"Joker\",\"en\":null,\"original\":null}}"
+    }
+  ]
+}

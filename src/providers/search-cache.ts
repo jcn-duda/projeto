@@ -12,6 +12,7 @@ import { registerSeasonSearchKey } from './autofetch-runner.js';
 import { onlyNotice, createFirstObserver, promoteFirstObserverEligible } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { doSearch } from './search-orchestrator.js';
+import { debridRefreshSatisfied, staleRefreshEligible } from './search-commit.js';
 
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
@@ -96,7 +97,7 @@ export async function findStreams({ type, id, background }: { type: string; id: 
     // Expirada DENTRO da janela de graça: responde na hora e revalida em
     // fundo. Só entra lista completa com debrid conferido e stream tocável —
     // aviso e parcial estenderiam o estado ruim em vez de consertá-lo.
-    if (staleRefreshEligible(cached)) {
+    if (staleRefreshEligible(cached, hasPlayableStream(cached?.streams))) {
       metrics.count('search.swr.served');
       scheduleStaleRefresh(cacheKey, { type, id }, capture());
       if (background && (!cached?.streams?.length || onlyNotice(cached?.streams))) {
@@ -183,28 +184,12 @@ export async function findStreams({ type, id, background }: { type: string; id: 
 }
 
 /**
- * O refresh sem teto só pode ser dispensado quando a entrada cacheada nasceu de
- * uma checagem de cache CONFIÁVEL. `partial:false` sozinho não prova isso: ele
- * diz que a coleta acabou, não que alguém perguntou ao debrid.
- *
- * A diferença aparecia inteira na AllDebrid, cuja consulta disputa o prazo sem
- * poder ser abortada (o /magnet/instant morreu; checar é dar upload). Quando a
- * corrida perdia, a busca respondia sem ⚡ e o passe tardio promovia essa mesma
- * lista a completa; o refresh — que existe justamente pra
- * recuperar o ⚡ — desistia ao ver `partial:false`. Resultado: raio nenhum, e a
- * lista sem raio cacheada como boa por CACHE_TTL.
- *
- * Entrada antiga (gravada antes deste campo existir) não tem `debridKnown`:
- * cai em `false` de propósito, paga UMA checagem tardia e se corrige sozinha.
+ * A régua do refresh sem teto e da elegibilidade do SWR vive em
+ * `search-commit.ts` (`debridRefreshSatisfied`/`staleRefreshEligible`): o núcleo
+ * Rust porta a MESMA função e o golden mede as duas. Reexportado porque
+ * `providers/index.ts` publica `debridRefreshSatisfied`.
  */
-export function debridRefreshSatisfied(entry: any) {
-  return Boolean(entry && entry.partial === false && entry.debridKnown === true);
-}
-
-/** SWR só serve o que o finish promoveria a completa + checagem confiável. */
-function staleRefreshEligible(entry: any) {
-  return debridRefreshSatisfied(entry) && hasPlayableStream(entry?.streams);
-}
+export { debridRefreshSatisfied };
 
 /**
  * Resposta já saiu; a revalidação roda em fundo sem prazo de cliente. Erro

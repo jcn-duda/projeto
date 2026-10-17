@@ -24,6 +24,7 @@ mod cache_quotas;
 mod catalog_classify;
 mod catalog_year;
 mod collapse_acronyms;
+mod collection_budget;
 pub mod config_encoding;
 mod crawl_store_rules;
 mod crawl_url_key;
@@ -73,7 +74,10 @@ mod release_work;
 mod reply_budget;
 mod request_key;
 mod resolve_sign;
+mod search_finish;
 mod search_name_helpers;
+mod search_plan;
+mod search_pool_coverage;
 mod series_episode_filter;
 mod short_name_tail;
 mod stream_display;
@@ -281,6 +285,9 @@ pub use catalog_classify::{
     Proof,
 };
 pub use collapse_acronyms::collapse_acronyms;
+pub use collection_budget::{compute_collection_budget, compute_priority_grace};
+// Decisões do FIM da busca (porte de `src/providers/search-commit.ts`): o que
+// gravar no cache, o que a promoção tardia faz e quando o SWR pode servir.
 pub use crawl_store_rules::{
     apply_result, decide_upsert, empty_counters, error_backoff_ms, parse_progress, parse_status,
     parse_url_row, progress_advanced, render_progress, render_url, with_dry_flag, CRAWL_GIVE_UP_MS,
@@ -309,10 +316,19 @@ pub use release_guards::{
 pub use release_labels::{compact_audio, edition_from_title, source_from_title};
 pub use reply_budget::remaining_check_budget;
 pub use request_key::{account_scope, streams_cache_key, streams_cache_scope};
+pub use search_finish::{
+    commit_decision, debrid_refresh_satisfied, late_promotion_decision, stale_refresh_eligible,
+    CommitDecision, CommitFacts, LateAction, LateDecision, LateFacts, LateReason, LiveState,
+};
 pub use search_name_helpers::{
     build_search_query, mark_debrid_name, matches_quality_filter, numeral_search_variant,
     parse_stremio_id, resolve_original_step_name, resolve_search_names,
 };
+pub use search_plan::{
+    dubbed_sweep_query_for, live_indexers, plan_jackett_queries, pt_sweep_indexers, pt_sweep_query,
+    pt_sweep_query_for, SearchPlanTask,
+};
+pub use search_pool_coverage::{idx_pool_covered, pool_covered, PoolCoverage, PoolCoverageItem};
 pub use stream_display::{
     compact_tracker, stream_display_name, StreamDisplayConfig, StreamDisplayOptions,
     StreamNameStyle, UserDisplayOptions,

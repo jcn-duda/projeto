@@ -66,6 +66,7 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "serde",
  "serde_json",
  "sha2",
 ]
@@ -87,6 +88,15 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "adom-search"
+version = "0.0.0"
+dependencies = [
+ "adom-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -63,6 +63,9 @@ mod pre_resolve;
 mod ranking;
 mod release_index_media;
 mod relevance;
+// Orquestração pura de busca: plano do Jackett, orçamento da coleta e cobertura
+// por pool (espelha `search-plan` / `collection-budget` / `search-pool-coverage`).
+mod search;
 mod text;
 // Casamento de títulos: fronteira fina de release-title-rules/name-matching/
 // matching-tokens/matching-vocabulary/multiwork-pack/franchise-base/tmdb-br-aliases.
@@ -91,6 +94,8 @@ pub use ranking::*;
 // Filtro de relevância inteiro no núcleo: só índices saem pela fronteira.
 pub use release_index_media::*;
 pub use relevance::*;
+// Plano/orçamento/cobertura: a casca TS só transporta.
+pub use search::*;
 // Texto de magnet e título: fronteira fina de `title-normalization.ts`.
 pub use text::*;
 // Casamento de títulos: fronteira fina do `src/utils/release-*matching|title-rules`.

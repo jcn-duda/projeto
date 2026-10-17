@@ -1,0 +1,30 @@
+{
+  "format": "adom-stream-e2e-cases/1",
+  "note": "Modelo para o operador editar. NÃO é corpus: os casos reais são capturados ao vivo e ficam em rust/golden/stream-e2e/cases/<id>/.",
+  "cases": [
+    {
+      "id": "movie-tt0133093",
+      "type": "movie",
+      "stream_id": "tt0133093",
+      "label": "Filme global — Matrix (1999): lista comum, com ⚡ do debrid quando houver"
+    },
+    {
+      "id": "series-tt0903747-s05e14",
+      "type": "series",
+      "stream_id": "tt0903747:5:14",
+      "label": "Episódio de série — Breaking Bad S05E14: corte por episódio + pack"
+    },
+    {
+      "id": "pack-tt0903747-s05",
+      "type": "series",
+      "stream_id": "tt0903747:5",
+      "label": "Pack de temporada — Breaking Bad S05 sem episódio: id de temporada, o que a busca de pack usa internamente"
+    },
+    {
+      "id": "br-dubbed-tt6751668",
+      "type": "movie",
+      "stream_id": "tt6751668",
+      "label": "BR dublado — Parasita (2019): vagas reservadas, HMAC com d:1 e aviso quando o cachedOnly esconde tudo"
+    }
+  ]
+}

@@ -39,6 +39,8 @@ adom-crawl = { path = "../adom-crawl" }
 # Dump JSON das cotas do cache (`cache.rs`): preserve_order para a ordem de
 # inserção ser contrato, igual ao `config_encoding` do core.
 serde_json = { version = "1", features = ["preserve_order"] }
+# `Deserialize` das entradas JSON de `search.rs` (plano/cobertura).
+serde = { version = "1", features = ["derive"] }
 
 # NAPI-RS: runtime + macro de export.
 # "napi8" = API estável do Node 20+; "napi9" exigiria Node 22.

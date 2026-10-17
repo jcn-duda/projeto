@@ -53,5 +53,38 @@ if (missingDist) {
   process.exit(1);
 }
 
-const r = spawnSync('npm', ['run', script, ...args], { cwd: ESM, stdio: 'inherit', shell: true });
+// Os goldens novos da F-1 (search-plan, collection-budget,
+// search-pool-coverage) NÃO têm entrada npm no `package.json` do worktree
+// oráculo — ele não é editado por esta fatia. Para esses, o mesmo contrato roda
+// com `node` direto: `golden:<nome>[:check]` → `scripts/golden/dump-<nome>.mjs`.
+// Se o script existir no package.json do esm, o caminho npm continua valendo
+// (é o dos goldens antigos).
+function esmHasScript(name) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ESM, 'package.json'), 'utf8'));
+    return typeof pkg?.scripts?.[name] === 'string';
+  } catch {
+    return false;
+  }
+}
+
+const r = esmHasScript(script)
+  ? spawnSync('npm', ['run', script, ...args], { cwd: ESM, stdio: 'inherit', shell: true })
+  : (() => {
+    const m = /^golden:([a-z0-9-]+)(:check)?$/.exec(script);
+    if (!m) {
+      console.error(`[golden-esm] FALHA: o package.json do oráculo não tem o script "${script}"`);
+      process.exit(1);
+    }
+    const dump = path.join('scripts', 'golden', `dump-${m[1]}.mjs`);
+    if (!fs.existsSync(path.join(ESM, dump))) {
+      console.error(`[golden-esm] FALHA: oráculo sem ${dump} (e sem o script "${script}" no package.json)`);
+      process.exit(1);
+    }
+    return spawnSync(
+      process.execPath,
+      [dump, ...(m[2] ? ['--check'] : []), ...args],
+      { cwd: ESM, stdio: 'inherit' },
+    );
+  })();
 process.exit(r.status ?? 1);

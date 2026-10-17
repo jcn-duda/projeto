@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "collection-budget/computeCollectionBudget"
+  ],
+  "function": {
+    "name": "computeCollectionBudget",
+    "sourcePath": "src/providers/collection-budget.ts",
+    "sourceSha256": "eadbf176295ecd41c163f21d3b0bc30c3c2fdfafa59b9c1f51032247bf9f7f59",
+    "artifactPath": "dist/src/providers/collection-budget.js",
+    "artifactSha256": "d6856fba63ffec779bd0818bbd32f0ae81cf015f5aaea626d5fb09d4035a6984"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-collection-budget.json",
+    "sha256": "938a21843fbeb84f09306432d1d6ad727db989a7e53c95b7bfbdef22bd35a9f7",
+    "cases": 31
+  },
+  "output": {
+    "path": "rust/golden/collection-budget.jsonl",
+    "sha256": "cf4a3dc4bd12589c6b0900ac7f7491d4f143917855d03d834af46405be11b8bc",
+    "lines": 31
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "fb4d52f784271f7e470c24998646edcea42561db"
+  }
+}

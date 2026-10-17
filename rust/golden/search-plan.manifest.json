@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "search-plan/searchPlan"
+  ],
+  "function": {
+    "name": "searchPlan",
+    "sourcePath": "src/providers/search-plan.ts",
+    "sourceSha256": "8c92bbed549f2f07c43f3b95a8223729a749669ebfacb0504e6215795bc5e508",
+    "artifactPath": "dist/src/providers/search-plan.js",
+    "artifactSha256": "7e8dbaf92e7d1a701edd01e27ae2e704f2ab6bddcc2d71f8b67c0f438b29745f"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-search-plan.json",
+    "sha256": "fd152e20699eeea2a6e40f381f14972c901155f4ec79ecdf27fdb0697e600aa1",
+    "cases": 50
+  },
+  "output": {
+    "path": "rust/golden/search-plan.jsonl",
+    "sha256": "47ea2e50f0692426dc8643b9aaa1b3b136d8829beafbf3ed05f12144ccaf1ad6",
+    "lines": 50
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "fb4d52f784271f7e470c24998646edcea42561db"
+  }
+}

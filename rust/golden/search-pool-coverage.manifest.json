@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "search-pool-coverage/poolCovered"
+  ],
+  "function": {
+    "name": "poolCovered",
+    "sourcePath": "src/providers/search-pool-coverage.ts",
+    "sourceSha256": "35d388a2fb48d2f38cbd07b72cf59bdf2779f2a9c765a27d8bbaaef463535427",
+    "artifactPath": "dist/src/providers/search-pool-coverage.js",
+    "artifactSha256": "135a0340564d86ff7aaba2a3ce856dc96f00356d417f294c2e74839a69152dae"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-search-pool-coverage.json",
+    "sha256": "807783f03e521273c97a1ad8b3462707f37d06195ce5761df81af27c6b1a1354",
+    "cases": 46
+  },
+  "output": {
+    "path": "rust/golden/search-pool-coverage.jsonl",
+    "sha256": "5de664e888430cdbe1ab4fec2161468ff8f1a168fe447a109be7fed0e9a8a861",
+    "lines": 46
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "fb4d52f784271f7e470c24998646edcea42561db"
+  }
+}

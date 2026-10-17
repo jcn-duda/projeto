@@ -18,6 +18,7 @@ import * as metrics from '../utils/metrics.js';
 import { buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { debridRefreshSatisfied, hasPlayableStream } from './search-cache.js';
+import { commitDecision } from './search-commit.js';
 import { cloneStreamTrace, createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { collectRaw } from './collect-orchestrator.js';
@@ -163,31 +164,29 @@ export async function doSearch({
       return { streams, partial: partial || fallbackInList, needsDebridRefresh, autofetchCount, debridKnown: isDebridKnown, trace, fallback: fallbackInList };
     },
     ({ streams, partial, needsDebridRefresh, debridKnown, trace, fallback }: any) => {
-      const isDebridKnown = debridKnown !== undefined ? Boolean(debridKnown && !needsDebridRefresh) : !needsDebridRefresh;
       const hasFallback = Boolean(fallback);
-      // Lista com reserva NUNCA é completa: `partial` + TTL curto; promoção sem
-      // novidade não limpa a marca (ver `late`) — só o rebuild com o vivo de volta.
-      const complete = hasPlayableStream(streams) && !partial && isDebridKnown && !hasFallback;
-      // TTL do fallback RESPEITA o CACHE_TTL: cache desligado (<=0) não grava, e
-      // o teto nunca passa do TTL normal (CACHE_TTL menor que o fallback vence).
-      const fallbackTtl = Math.min(config.cacheTtl, config.fallbackStreamsTtl);
-      if (hasFallback && fallbackTtl <= 0) {
+      // A régua da gravação (completa × parcial × reserva, TTL cheio × 60 s,
+      // cache desligado) mora em `search-commit.ts` — o núcleo Rust porta a MESMA.
+      const decision = commitDecision({
+        playable: hasPlayableStream(streams), partial, debridKnown, needsDebridRefresh,
+        hasFallback, cacheTtl: config.cacheTtl, fallbackStreamsTtl: config.fallbackStreamsTtl,
+      });
+      // TTL do fallback RESPEITA o CACHE_TTL: cache desligado (<=0) não grava.
+      if (!decision.write) {
         log.info(`[search] reserva sem cache (CACHE_TTL/FALLBACK_STREAMS_TTL <= 0); ${id}`);
         return;
       }
       // `debridKnown` registra se a lista nasceu de checagem confiável; sem ele
       // o passe tardio promovia sem refazer a checagem e congelava a lista sem ⚡.
-      // P5 — trace serializado (o /stream-trace.json lê offline) com `searchMeta`
-      // (nomes+ano) para o recompute de título sem refazer Cinemeta/TMDB.
-      const ttl = hasFallback ? fallbackTtl : complete ? config.cacheTtl : Math.min(config.cacheTtl, 60);
+      // P5 — `trace` serializado (o /stream-trace.json lê offline) + `searchMeta`.
       cache.set(cacheKey, {
         streams,
-        partial: hasFallback ? true : partial,
-        debridKnown: isDebridKnown,
+        partial: decision.partial,
+        debridKnown: decision.debridKnown,
         trace: serializeTrace(trace),
         searchMeta,
         ...(hasFallback ? { fallback: true } : {}),
-      }, ttl);
+      }, decision.ttl);
       log.info(`[search] ${streams.length} stream(s)${hasFallback ? ' (fallback)' : partial ? ' (parcial)' : ''} para ${id}`);
     },
     (value) => Array.isArray(value?.streams) && value.streams.length > 0,
