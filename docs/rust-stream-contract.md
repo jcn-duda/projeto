@@ -62,6 +62,10 @@ Ordem de leitura sugerida: §1 (rota) → §2 (corpo) → §3 (aviso) → §5 (c
   consultado pelo handler (`src/routes/stream.ts:8-10`).
 - A conta do debrid não vem de header: vem do `dk` dentro do segmento
   (`src/runtime.ts:69`, `src/runtime.ts:127-131`).
+- **`/internal/*` não é superfície pública.** As rotas internas de busca
+  (`meta`/`state`) exigem loopback + `X-Indexer-Test-Token`; com `GATEWAY=on` o
+  gateway Rust recusa `/internal` e `/internal/*` antes do proxy (o Caddy também
+  bloqueia). O orquestrador fala com o Node direto — nunca pela porta pública.
 
 ---
 
@@ -516,7 +520,7 @@ depois do corte: ele vira o alarme permanente do caminho nativo.
 | 13 | mapeamento de erro → status (incl. `/resolve`) | `src/routes/addon-router.ts:127-130`; `src/routes/resolve.ts` |
 | 14 | métricas e trace (`stream.request`, `search.*`, `stream-trace`) | `src/utils/metrics.ts`, `src/utils/stream-trace.ts` |
 | 15 | `staleRevalidate`/`staleError` no tipo `StreamResponse` | este crate (`contract.rs`) modela só `streams`+`cacheMaxAge` (§5.2) |
-| 16 | leitura de `/internal/search/*` (metadados e acervo em lote) | `src/routes/internal-search.ts` (fatia F1.1) |
+| 16 | leitura de `/internal/search/*` (metadados, acervo em lote e o `collect` que falta) | `src/routes/internal-search.ts` (fatia F1.1); o gateway recusa `/internal/*` antes do proxy |
 
 ---
 

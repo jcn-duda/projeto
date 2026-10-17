@@ -38,7 +38,7 @@ artefatos (`.jsonl` + `.manifest.json`) vêm para `rust/golden/` deste branch.
 | `collection_budget.rs` | `src/providers/collection-budget.ts` | `compute_collection_budget`, `compute_priority_grace` |
 | `search_pool_coverage.rs` | `src/providers/search-pool-coverage.ts` | `pool_covered`, `idx_pool_covered` |
 
-### F-1.2 — regras do finish, do late e do cache
+### F-1.2 — regras do finish, do late e do cache (ligadas na ponte)
 
 | Alvo | Onde está hoje | O que vira função pura |
 |---|---|---|
@@ -55,13 +55,14 @@ completa; TTL de reserva respeita `min(CACHE_TTL, FALLBACK_STREAMS_TTL)` e
 
 | Alvo | Onde está hoje | Observação |
 |---|---|---|
-| `instant_window` | `src/providers/magnet-bank-instant.ts:139` | **feito**: `adom-core::search_bank`, golden de 27 casos. O TS lê `config.magnetBank.*` DENTRO da função — o golden prende o comportamento sob os defaults (min=max=7d, freshMax=2h) e o teste Rust passa esses valores |
-| `pick_source` | `src/providers/magnet-bank-fallback.ts:116` | **feito**: golden de 12 casos; pegou que o conjunto `failed` do TS NÃO é normalizado (só o `source.indexer` é) |
-| `is_recent_release` | `src/providers/magnet-bank-instant.ts:123` | **feito**: sobe com o `instant_window`, sobre o subconjunto UTC de `Date.parse` |
-| `play_disposition` | `src/providers/debrid-play-guard.ts:25` | **feito**: `adom-core::play_disposition`, golden de 18 casos, 4 testes unitários. Sem napi de propósito (uma chamada por stream: a travessia custaria mais que a regra) |
-| `limit_reserving_br` | já portado (`stream_quotas_extra`) | só cabe trocar o chamador TS |
-| `filter_known_cache` | já portado (`br_pool_selection::picks`) | idem |
-| `stream_display`, `stream_relabel`, `catalog_classify` | já portados | idem |
+| `instant_window` | `src/providers/magnet-bank-instant.ts:139` | **feito e ligado**: `adom-core::search_bank`, golden de 27 casos, napi `instantWindow`. O TS lê `config.magnetBank.*` DENTRO da casca e passa os números; o núcleo clampa. O golden prende o comportamento sob os defaults (min=max=7d, freshMax=2h) |
+| `pick_source` | `src/providers/magnet-bank-fallback.ts:116` | **feito e ligado**: golden de 12 casos, napi `pickSource` (devolve o ÍNDICE); pegou que o conjunto `failed` do TS NÃO é normalizado (só o `source.indexer` é) |
+| `is_recent_release` | `src/providers/magnet-bank-instant.ts:123` | **feito e ligado**: sobe com o `instant_window`, sobre o subconjunto UTC de `Date.parse`, napi `isRecentRelease` |
+| `play_disposition` | `src/providers/debrid-play-guard.ts:25` | **feito e ligado**: `adom-core::play_disposition`, golden de 18 casos, napi `playDispositions` em LOTE no laço principal; o `materialize` do ramo degradado segue na avulsa (lote de 1) |
+| `limit_reserving_br` | já portado (`stream_quotas_extra`) | **feito e ligado**: napi `limitReservingBr` devolve `{selected, eligible, replaced, dropped}`; o porte congelou também o ledger (`quality-quota`/`indexer-limit`/`br-guarantee-replaced`) e a casca escreve o `max-results` |
+| `filter_known_cache` | já portado (`br_pool_selection::picks`) | **feito e ligado**: napi `filterKnownCache` devolve `{kept, visibleBr, dropped}`; a casca escreve o `dropTrace` |
+| `catalog_classify` | já portado | **feito e ligado**: napi `catalogClassify` (as listas `ptMarkers`/`enGroups` entram por parâmetro) |
+| `stream_display`, `stream_relabel` | já portados | **continuam no TS até o F1**: devolvem `JsText` e a travessia napi é UTF-8 (surrogate órfão viraria U+FFFD). O orquestrador in-process consome o porte sem essa perda |
 
 **Decisão de `Date.parse`** (em `adom-core::search_bank`): o porte aceita o
 subconjunto determinístico — `YYYY`, `YYYY-MM`, `YYYY-MM-DD` (UTC) e
@@ -70,11 +71,17 @@ disso, datetime sem offset (que no JS é interpretado no FUSO do processo) e dia
 impossível viram `0` (o `NaN` do TS). Cinemeta/TMDB mandam ISO com `Z`; quem
 precisar de mais formatos regenera o golden com o corpus novo.
 
-**F-1 COMPLETA.** Como em `play_disposition`, as três funções novas ficam SEM
-napi: rodam uma vez por busca sobre linhas que já vieram do SQLite, e o
-consumidor delas é o orquestrador Rust (F1).
+**F-1 ligada na ponte (exceto display/relabel).** `search-commit`,
+`play-disposition`, `magnet-bank`, `limitReservingBr`, `filterKnownCache` e
+`catalogClassify` têm napi + casca TS; as decisões rodam no núcleo e a travessia
+acontece onde a função já era chamada (o play usa lote). `display`/`relabel`
+ficam de fora de propósito até o F1: o `String` do napi-rs é UTF-8 e não carrega
+unidade surrogate órfã — o `JsText` do núcleo preserva, a fronteira não. O F1 os
+consome in-process.
 
-Ao fim de F-1 o Node não decide mais nada da busca: fica rede, estado e tempo.
+O Node fica com rede, estado, tempo e o trace (I/O); a decisão da busca está no
+núcleo. O `.jsonl` continua sendo o mesmo dos dois lados: o oráculo dos goldens
+novos é o TS do worktree `../adom-esm`.
 
 ---
 
@@ -97,7 +104,10 @@ Ao fim de F-1 o Node não decide mais nada da busca: fica rede, estado e tempo.
    `POST /internal/search/meta`, `POST /internal/search/state`, e ainda
    `collect`, `debrid/check`, `index/write`, `effects`. Todas em loopback +
    `X-Indexer-Test-Token`, com o `encoded` no corpo para o `runtime.run` do Node
-   (invariante 5). Saem em lote por etapa, nunca por item.
+   (invariante 5). Saem em lote por etapa, nunca por item. O gateway Rust
+   (`GATEWAY=on`) **recusa `/internal/*` antes do proxy** (o Caddy também
+   bloqueia): a guarda de loopback do Node não vê o cliente real atrás do proxy,
+   então a fachada é quem fecha a porta.
 2. **`adom-search`**: decode da config, chave de cache, prazo por requisição
    (`Dart/` = app, senão Stremio), SWR e `inFlight`, plano e janela de coleta,
    build no núcleo, `applyDebrid` pelos adaptadores no processo, latest-writer e

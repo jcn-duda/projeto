@@ -55,8 +55,12 @@ trabalho de código é em `src/`.
   episódio** (`annotateEpisodeSizes`), a **fonte de mídia do índice**, a
   **seleção do autofetch** (imediatos e fila; a cascata TS fica só pelos
   efeitos: sonda, purga, skips, trace) e as decisões de debrid (**`pickFile`**,
-  **veredito de cache**, **ledger/gate do RD**, **limpeza**). O CI compila o
-  napi antes da suíte.
+  **veredito de cache**, **ledger/gate do RD**, **limpeza**) e, desde a ponte da
+  F-1, o **fim da busca** (`search_finish`: commit, promoção tardia, SWR), a
+  **saída de cada stream** (`play_disposition`), a **via do banco de magnets**
+  (`search_bank`: janela, recente, fonte), o **corte final**
+  (`limit_reserving_br`/`filter_known_cache`) e a **classificação do catálogo**
+  (`catalog_classify`). O CI compila o napi antes da suíte.
   O TS que sobra é **I/O e rede** (fetch/HTTP, disco, processos) mais o
   **vocabulário exportado** (listas/constantes e os wrappers finos que chamam o
   núcleo) — mexeu numa régua, mexa no `adom-core`; o `src/` só transporta.
@@ -65,6 +69,7 @@ trabalho de código é em `src/`.
   filtros (`release-filters`, `inventory-filter`, `series-episode-filter`) e,
   desde o G6, áudio/rótulos (`audio-presentation`, `pt-audio-guards`,
   `release-labels`, `audio-cleanup-verdicts`), `search-name-helpers`,
+  `search-commit`, `play-disposition`, `magnet-bank-instant`/`source`,
   `catalog-classify`, `stream-display`, `stream-quotas-candidate`,
   `release-index-media`, `stream-trace`/`stream-relabel` e `pre-resolve`.
   Nesses, `npm run golden:<x>:check` roda DENTRO do worktree `../adom-esm`;
@@ -74,7 +79,9 @@ trabalho de código é em `src/`.
   carrega code unit UTF-16 órfã** (surrogate sozinho vira U+FFFD). O `JsText`
   do núcleo preserva o órfão (é o contrato de `stream-relabel`/`stream-trace`);
   quem perde é só a travessia Node↔Rust, e por isso esses checks não rodam no
-  shim local.
+  shim local. É também por isso que `stream_display`/`stream_relabel` **seguem
+  no TS** até o F1: o orquestrador in-process consome o porte sem atravessar a
+  fronteira de string.
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
   velocidade só existe com API em lote.
   Código Rust quebrado no working tree quebra a imagem.
@@ -116,6 +123,10 @@ npm run docker:up / docker:logs
   `/stream-trace.json` exigem `X-Indexer-Test-Token` (só no header; sem
   `JACKETT_TEST_TOKEN` no `.env` ficam 503). Ação destrutiva exige
   `{"confirm": true}`. Painel operacional: `/painel` (10 abas).
+  **`/internal/*`** (meta/state da busca) só existe em loopback + token; com
+  `GATEWAY=on` o gateway Rust recusa `/internal/*` antes do proxy (o Caddy
+  também bloqueia). A guarda de loopback do Node **não** distingue o cliente
+  atrás do proxy — a recusa tem que estar na fachada.
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda
