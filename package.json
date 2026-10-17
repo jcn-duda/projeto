@@ -34,6 +34,8 @@
     "golden:search-name-helpers:check": "node scripts/golden/run-esm-golden.mjs golden:search-name-helpers:check",
     "golden:search-commit": "node scripts/golden/dump-search-commit.mjs",
     "golden:search-commit:check": "node scripts/golden/dump-search-commit.mjs --check",
+    "golden:play-disposition": "node scripts/golden/dump-play-disposition.mjs",
+    "golden:play-disposition:check": "node scripts/golden/dump-play-disposition.mjs --check",
     "golden:indexer-priority": "node scripts/golden/dump-indexer-priority.mjs",
     "golden:indexer-priority:check": "node scripts/golden/dump-indexer-priority.mjs --check",
     "golden:audio-presentation": "node scripts/golden/run-esm-golden.mjs golden:audio-presentation",

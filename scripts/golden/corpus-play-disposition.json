@@ -1,0 +1,24 @@
+{
+  "format": "adom-golden-corpus/1",
+  "about": "Decisão de SAÍDA de um stream depois da checagem de cache (src/providers/debrid-play-guard.ts). `input` é JSON: { infoHash, multiWorkAdmitted, cached, resolveUncached, degraded }. `infoHash: null` é ausência; `multiWorkAdmitted` é testado por VERDADE do JS (string vazia é falsa), não por tipo.",
+  "cases": [
+    { "id": "play/cacheado-com-hash-resolve", "input": "{\"infoHash\":\"a\",\"multiWorkAdmitted\":false,\"cached\":true,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/cacheado-multiobra-resolve-primeiro", "input": "{\"infoHash\":\"a\",\"multiWorkAdmitted\":true,\"cached\":true,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/cacheado-sem-hash-vai-p2p", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":false,\"cached\":true,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/multiobra-frio-e-sem-knob-dropa", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":true,\"cached\":false,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/multiobra-frio-com-knob-resolve", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":true,\"cached\":false,\"resolveUncached\":true,\"degraded\":false}" },
+    { "id": "play/multiobra-degradado-sem-knob-dropa", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":true,\"cached\":false,\"resolveUncached\":false,\"degraded\":true}" },
+    { "id": "play/multiobra-degradado-com-knob-resolve", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":true,\"cached\":false,\"resolveUncached\":true,\"degraded\":true}" },
+    { "id": "play/degradado-sem-multiobra-resolve", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":false,\"cached\":false,\"resolveUncached\":false,\"degraded\":true}" },
+    { "id": "play/frio-sem-knob-vai-p2p", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":false,\"cached\":false,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/frio-com-knob-resolve", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":false,\"cached\":false,\"resolveUncached\":true,\"degraded\":false}" },
+    { "id": "play/hash-frio-sem-multiobra-p2p", "input": "{\"infoHash\":\"b\",\"multiWorkAdmitted\":false,\"cached\":false,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/hash-frio-sem-multiobra-degradado-resolve", "input": "{\"infoHash\":\"b\",\"multiWorkAdmitted\":false,\"cached\":false,\"resolveUncached\":false,\"degraded\":true}" },
+    { "id": "play/hash-frio-com-knob-resolve", "input": "{\"infoHash\":\"b\",\"multiWorkAdmitted\":false,\"cached\":false,\"resolveUncached\":true,\"degraded\":false}" },
+    { "id": "play/hash-frio-multiobra-sem-knob-dropa", "input": "{\"infoHash\":\"b\",\"multiWorkAdmitted\":true,\"cached\":false,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/hash-vazio-e-string-vazia-multiobra", "input": "{\"infoHash\":\"\",\"multiWorkAdmitted\":\"\",\"cached\":true,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/multiobra-string-nao-vazia-e-verdadeira", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":\"sim\",\"cached\":false,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/multiobra-zero-e-falsa", "input": "{\"infoHash\":null,\"multiWorkAdmitted\":0,\"cached\":false,\"resolveUncached\":false,\"degraded\":false}" },
+    { "id": "play/cacheado-com-knob-e-degradado", "input": "{\"infoHash\":\"c\",\"multiWorkAdmitted\":false,\"cached\":true,\"resolveUncached\":true,\"degraded\":true}" }
+  ]
+}

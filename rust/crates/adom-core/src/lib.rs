@@ -62,6 +62,7 @@ mod multiwork_pack;
 mod net_safety;
 mod non_feature_release;
 mod pack_text_totals;
+mod play_disposition;
 mod pt_audio_guards;
 mod release_filters;
 mod release_guards;
@@ -314,6 +315,9 @@ pub use release_guards::{
     magnet_season_contradicts, magnet_year_contradicts, text_years_contradict,
 };
 pub use release_labels::{compact_audio, edition_from_title, source_from_title};
+// Saída do stream depois da checagem de cache (porte de `debrid-play-guard.ts`):
+// é aqui que "pack multiobra admitido nunca vira P2P inteiro" vira código.
+pub use play_disposition::{play_disposition, PlayDisposition, PlayFacts};
 pub use reply_budget::remaining_check_budget;
 pub use request_key::{account_scope, streams_cache_key, streams_cache_scope};
 pub use search_finish::{

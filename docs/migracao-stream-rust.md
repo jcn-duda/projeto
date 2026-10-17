@@ -55,13 +55,20 @@ completa; TTL de reserva respeita `min(CACHE_TTL, FALLBACK_STREAMS_TTL)` e
 
 | Alvo | Onde está hoje | Observação |
 |---|---|---|
-| `instant_window` | `src/providers/magnet-bank-instant.ts` (janela da via instantânea) | puro sobre `now` |
-| `pick_source` | `src/providers/magnet-bank-fallback.ts:116` | reserva do banco; `allFailed` × `failedIndexers` |
-| `is_recent_release` | `src/providers/magnet-bank-instant.ts:123` | `now` injetável |
-| `play_disposition` | `src/providers/debrid-play-guard.ts:25` | `resolve \| p2p \| drop`; pack multiobra admitido **nunca** vira P2P inteiro |
+| `instant_window` | `src/providers/magnet-bank-instant.ts:139` | **falta** — puro sobre `now`, mas depende de `Date.parse` do JS |
+| `pick_source` | `src/providers/magnet-bank-fallback.ts:116` | **falta** — reserva do banco; `allFailed` × `failedIndexers` |
+| `is_recent_release` | `src/providers/magnet-bank-instant.ts:123` | **falta** — precisa de paridade com `Date.parse` |
+| `play_disposition` | `src/providers/debrid-play-guard.ts:25` | **feito**: `adom-core::play_disposition`, golden de 18 casos, 4 testes unitários. Sem napi de propósito (uma chamada por stream: a travessia custaria mais que a regra) |
 | `limit_reserving_br` | já portado (`stream_quotas_extra`) | só cabe trocar o chamador TS |
 | `filter_known_cache` | já portado (`br_pool_selection::picks`) | idem |
 | `stream_display`, `stream_relabel`, `catalog_classify` | já portados | idem |
+
+O que sobra da F-1.3 tropeça no mesmo ponto: as duas funções do banco de magnets
+dependem de `Date.parse`/`Date` do JS (`isRecentRelease` compara datas e
+`instantWindow` usa `stability`). Portar exige decidir o subconjunto de formatos
+aceitos — ISO-8601 é o que Cinemeta/TMDB mandam, mas `Date.parse` aceita muito
+mais, e um formato não coberto diverge **em silêncio** (encurta ou estica a
+janela da via instantânea). É a próxima fatia, com corpus de datas explícito.
 
 Ao fim de F-1 o Node não decide mais nada da busca: fica rede, estado e tempo.
 

@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "registry": [
+    "play-disposition/playDisposition"
+  ],
+  "function": {
+    "name": "playDisposition",
+    "sourcePath": "src/providers/debrid-play-guard.ts",
+    "sourceSha256": "fffc8bf2bb47094a0c78b5a1546da50c926f180e5a474b08a294ba08af465888",
+    "artifactPath": "dist/src/providers/debrid-play-guard.js",
+    "artifactSha256": "feec25d9630d58ec8b752a6176f550646b7f35abc645c6749f70e752d92a85cb"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-play-disposition.json",
+    "sha256": "869ada20c978a01b0e69554de8c6a63c0d9a63739af1b65ea7a2650955fc37cc",
+    "cases": 18
+  },
+  "output": {
+    "path": "rust/golden/play-disposition.jsonl",
+    "sha256": "ee1f4878ef6ac6e856397f4872a920831e2cf7450f38989ffcf3f9fe0b2c9868",
+    "lines": 18
+  },
+  "node": {
+    "major": 22,
+    "version": "v22.23.2"
+  },
+  "git": {
+    "revision": "cd68d6c765197b250e58093d8feb83f1c62391bc"
+  }
+}
