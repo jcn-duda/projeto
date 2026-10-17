@@ -44,9 +44,13 @@ import {
 import {
   filterRelevantRaw,
   filterInventoryRelevant,
+} from './release-filters.js';
+// As guardas de magnet são versão única no branch: moram em `episode-matching.ts`
+// (ponte do núcleo) e o barrel reexporta de lá — a cópia TS do filtro saiu.
+import {
   magnetYearContradicts,
   magnetSeasonContradicts,
-} from './release-filters.js';
+} from './episode-matching.js';
 
 export {
   TECH_NOISE,

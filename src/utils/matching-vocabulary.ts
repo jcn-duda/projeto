@@ -117,21 +117,11 @@ const NUMERAL_CANON: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
 };
 
-// Marcador de episódio/temporada ("s01e01", "e07", "1x04", ordinal "1a"):
-// estrutura, não conteúdo. Contá-lo como palavra estranha derrubava a precisão
-// de release legítima do redetorrent ("S02E01 A Casa do Dragão S02E01 x264
-// DUAL", "1A TEMPORADA COMPLETA House of the Dragon S01").
-const EPISODE_TOKEN = /^(?:s\d{1,2}(?:e\d{1,3})?|t\d{1,2}(?:e\d{1,3})?|e\d{1,3}|\d{1,2}x\d{1,3}|\d{1,2}a)$/;
-
-// Faixa de anos descreve COLEÇÃO multi-obra: "Todos os filmes 1979-2016".
-// Testada no título cru: a normalização transforma o hífen em espaço e
-// separaria os dois anos.
-//
-// O separador aceita hífen/travessão, vírgula, palavra ("de 1979 a 2016") ou
-// só espaço: o MESMO pack aparece como "1979-2016" no thepiratebay e
-// "1979 2016" no 1337x, e sem isso o mesmo hash era pack num tracker e filme
-// comum no outro — com o play caindo no caminho permissivo justamente lá.
-const YEAR_RANGE = /\b(?:19|20)\d{2}(?:\s*[-–—,]\s*|\s+(?:de|a|ate|até)\s+|\s+)(?:19|20)\d{2}\b/i;
+// Marcador de episódio/temporada ("s01e01", "e07", "1x04", ordinal "1a") e a
+// faixa de anos de coleção ("1979-2016") NÃO têm mais cópia TS aqui: a decisão
+// vive no núcleo (`episode_token_test`/`year_range_test` de `adom-core`, com
+// golden `matching-vocabulary-regex` contra o TS do `esm`). Manter uma segunda
+// regex no branch era a forma mais fácil de as duas divergirem sem ninguém ver.
 
 // Palavras que sozinhas já significam "mais de uma obra". Cobre pt-BR E inglês,
 // medido em 2.551 títulos reais: pegam os packs que a faixa de anos não pega,
@@ -175,8 +165,6 @@ export {
   STOP_AT,
   NUMERAL_CANON,
   SEQUENCE_WORDS,
-  EPISODE_TOKEN,
-  YEAR_RANGE,
   STRONG_PACK_WORDS,
   titleTokens,
 };

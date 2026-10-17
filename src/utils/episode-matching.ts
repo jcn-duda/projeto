@@ -85,10 +85,50 @@ function isSeasonPackFillEligible(stream: StreamCandidate, season: number | null
   return core().isSeasonPackFillEligible(streamTitle(stream), season ?? null);
 }
 
+/** Item com os campos de magnet que as guardas leem (`||` do JS). */
+type MagnetLike = {
+  magnet?: string;
+  MagnetUri?: string;
+  Guid?: string;
+};
+
+/**
+ * Temporada e episódio no `dn=` do magnet: o post BR pode ter título genérico,
+ * mas o nome real do arquivo manda. Única versão no branch — a cópia TS saiu.
+ */
+function magnetSeasonContradicts(
+  item: MagnetLike | null | undefined,
+  season: number,
+  episode: number | null | undefined,
+) {
+  return core().magnetSeasonContradicts(
+    item?.magnet || null,
+    item?.MagnetUri || null,
+    item?.Guid || null,
+    season,
+    episode ?? null,
+  );
+}
+
+/**
+ * Ano escondido no `dn=` do magnet: um único ano além de ±2 do catálogo é
+ * outra obra; vários anos em filme viram intervalo. Única versão no branch.
+ */
+function magnetYearContradicts(item: MagnetLike | null | undefined, catalogYear: number) {
+  return core().magnetYearContradicts(
+    item?.magnet || null,
+    item?.MagnetUri || null,
+    item?.Guid || null,
+    catalogYear,
+  );
+}
+
 export {
   parseTitleSeasonEpisode,
   seasonCoverageExcludes,
   matchesEpisode,
   isSeasonPackRelease,
   isSeasonPackFillEligible,
+  magnetSeasonContradicts,
+  magnetYearContradicts,
 };

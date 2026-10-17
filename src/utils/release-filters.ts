@@ -1,6 +1,4 @@
 import type { RawItem, MultiWorkCollection } from '../../types/domain.js';
-import { matchesEpisode, seasonCoverageExcludes, parseTitleSeasonEpisode } from './episode-matching.js';
-import { magnetDisplayName } from './title-normalization.js';
 import {
   buildRelevanceQuery,
   rustFilterInventoryRelevant,
@@ -70,53 +68,9 @@ function filterInventoryRelevant(
 }
 
 /**
- * Ano verdadeiro escondido no magnet: sites BR publicam o post sem ano no
- * título mapeado ("O Corvo The Crow e Dual"), mas o dn= do magnet preserva o
- * nome real da release. Um único ano explícito no magnet contradizendo o
- * catálogo além de ±2 é outra obra; vários anos em FILME viram intervalo.
- * (Consumo direto fora do filtro: `stream-builder-episode-filter.ts`.)
+ * As guardas de magnet (`magnetYearContradicts`/`magnetSeasonContradicts`)
+ * moram em `episode-matching.ts` — versão única, ponte do núcleo. O barrel
+ * (`format.ts`/`release-matching.ts`) reexporta de lá; a cópia TS daqui saiu.
  */
-function magnetYearContradicts(item: RawItem | null | undefined, catalogYear: number) {
-  return textYearsContradict(magnetDisplayName(item), catalogYear);
-}
 
-/** Núcleo do `magnetYearContradicts` sobre um texto qualquer (título, `dn=`). */
-function textYearsContradict(source: string, catalogYear: number) {
-  if (!source || !catalogYear) return false;
-  const cleaned = source.replace(/\d{3,4}x\d{3,4}/gi, ' ');
-  const years = [
-    ...new Set(
-      [...cleaned.matchAll(/(?<!\d)(?:19|20)\d{2}(?!\d)/g)].map((m: any) => Number(m[0])),
-    ),
-  ];
-  if (years.length === 0) return false;
-  if (years.length === 1) return Math.abs(years[0] - catalogYear) > 2;
-  // Vários anos: intervalo [min, max]. Há contradição quando NENHUM ano fica
-  // a ±2 do catálogo E o catálogo está fora do intervalo.
-  const minYear = Math.min(...years);
-  const maxYear = Math.max(...years);
-  const someNear = years.some((y) => Math.abs(y - catalogYear) <= 2);
-  if (someNear) return false;
-  return catalogYear < minYear || catalogYear > maxYear;
-}
-
-/**
- * Temporada e episódio no dn= do magnet: sites BR publicam posts com título
- * genérico, mas o dn= carrega a identificação real do arquivo. Se o dn=
- * excluir a temporada ou apontar para outro episódio, descarta na busca fria.
- */
-function magnetSeasonContradicts(item: RawItem | null | undefined, season: number, episode: number | null | undefined) {
-  const dn = magnetDisplayName(item);
-  if (!dn) return false;
-  const parsed = parseTitleSeasonEpisode(dn);
-  if (seasonCoverageExcludes(parsed, season)) return true;
-  if (episode != null && !matchesEpisode(dn, { season, episode })) return true;
-  return false;
-}
-
-export {
-  filterRelevantRaw,
-  filterInventoryRelevant,
-  magnetYearContradicts,
-  magnetSeasonContradicts,
-};
+export { filterRelevantRaw, filterInventoryRelevant };

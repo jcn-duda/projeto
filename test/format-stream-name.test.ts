@@ -327,3 +327,24 @@ test('streamDisplayName consome opções do runtime quando em contexto assíncro
   });
 });
 
+// O golden de `stream-relabel`/`stream-trace` roda no esm porque o `String` do
+// napi-rs é UTF-8 e não carrega code unit UTF-16 órfã (vira U+FFFD na travessia;
+// o `JsText` do núcleo preserva). Este teste fixa o lado que IMPORTA: o título
+// exibido é concatenado no TS, então o órfão sobrevive no caminho de produção —
+// o desvio é só da comparação do golden. Se um dia a ponte passar a devolver o
+// título do Rust, este teste falha de propósito.
+test('streamDisplayName preserva surrogate UTF-16 órfão no título exibido', () => {
+  const orphan = 'Movie 2024 \ud800 1080p';
+  // `full` inclui o título na saída (o estilo compacto só mostra o resumo
+  // quando há detalhes) — é a única forma de observar o texto atravessando.
+  const name = streamDisplayName({
+    title: orphan,
+    quality: '1080p',
+    tracker: 'bludv',
+    seeders: 3,
+    style: 'full',
+  });
+  assert.equal(name.includes('\ud800'), true, 'o título não atravessa o napi: não pode perder o órfão');
+  assert.equal(name.includes('\ufffd'), false);
+});
+

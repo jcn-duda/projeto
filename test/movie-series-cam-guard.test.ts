@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { filterRelevantRaw as relevantRaw } from '../src/utils/format.js';
 import { sourceFromTitle } from '../src/utils/audio-quality.js';
 import { yearContradicts } from '../src/utils/matching-tokens.js';
-import { magnetYearContradicts } from '../src/utils/release-filters.js';
+import { magnetYearContradicts } from '../src/utils/episode-matching.js';
 import { titleTokens } from '../src/utils/matching-vocabulary.js';
 import { collectInstantItems } from '../src/providers/magnet-bank-instant.js';
 import * as bank from '../src/utils/magnet-bank.js';
