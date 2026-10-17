@@ -21,15 +21,18 @@ use common::{assert_corpus_matches, manifest, parse_cases, sha256_hex};
 
 const JSONL_BYTES: &[u8] = include_bytes!("../../../golden/series-episode-filter.jsonl");
 const MANIFEST_TEXT: &str = include_str!("../../../golden/series-episode-filter.manifest.json");
-const CORPUS_TEXT: &str = include_str!("../../../../scripts/golden/corpus-series-episode-filter.json");
+const CORPUS_TEXT: &str =
+    include_str!("../../../../scripts/golden/corpus-series-episode-filter.json");
 
 const REGISTRY_MATCH: &str = "series-episode-filter/filterSeriesEpisodeRaw";
 
 /// Campos de string opcionais do JSON; qualquer outra coisa vira ausente.
 /// O vazamento é deliberado: os casos vivem até o fim do processo de teste.
 fn opt_str(v: &Value) -> Option<&'static str> {
-    v.as_str()
-        .map(|s| -> &'static str { let b: &'static str = Box::leak(s.to_string().into_boxed_str()); b })
+    v.as_str().map(|s| -> &'static str {
+        let b: &'static str = Box::leak(s.to_string().into_boxed_str());
+        b
+    })
 }
 
 fn item_of(v: &Value) -> EpisodeFilterItem<'static> {
@@ -97,14 +100,7 @@ fn render(input: &str) -> String {
     let names: Vec<String> = o.names.clone();
     let pre_air: Vec<String> = o.pre_air_hashes.clone();
     canonical(&filter_series_episode(
-        &o.items,
-        o.season,
-        o.episode,
-        &universe,
-        &names,
-        o.unaired,
-        &pre_air,
-        true,
+        &o.items, o.season, o.episode, &universe, &names, o.unaired, &pre_air, true,
     ))
 }
 
@@ -174,7 +170,7 @@ fn motivos_tem_a_ordem_do_laco() {
         from_account: false,
         is_br: false,
     };
-    let items = vec![base(Some(&hash))];
+    let items = vec![base(Some(hash))];
     let out = filter_series_episode(&items, 1, 8, &universe, &names, true, &pre_air, true);
     // O hash na lista de pre-air corta ANTES de tudo: é o 1º motivo.
     assert_eq!(out.rejected[0], (0, R::PreAir));
