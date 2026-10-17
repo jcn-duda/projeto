@@ -46,6 +46,11 @@ serde_json = { version = "1", features = ["preserve_order"] }
 napi = { version = "2", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "2"
 
+[dev-dependencies]
+# Hash de integridade do golden (jsonl/corpus contra o manifest), como nos
+# testes de golden do adom-core.
+sha2 = "0.10"
+
 [build-dependencies]
 # Gera os bindings TypeScript e o loader JS durante o build.
 napi-build = "2"

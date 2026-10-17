@@ -1,0 +1,30 @@
+{
+  "format": "adom-golden-manifest/1",
+  "sourceHashLineEndings": "LF",
+  "registry": [
+    "pre-resolve/preResolve"
+  ],
+  "function": {
+    "name": "preResolve",
+    "sourcePath": "src/providers/jackett-resolve.ts",
+    "sourceSha256": "da2f8dd943c20dbbafedf707b66896f5cbb5b7e536c0ff995085a5eec36f9728",
+    "artifactPath": "dist/src/providers/jackett-resolve.js",
+    "artifactSha256": "276d30e8d6ac8ffe325b806b4a4ceebff4a56e26627de7fd57f5fb517e2a9b8a"
+  },
+  "corpus": {
+    "path": "scripts/golden/corpus-pre-resolve.json",
+    "sha256": "89cdc16fbc0fac7dbde8eaf4d4caf54a36e2c94086783b40aeeb5fb0ad8a05c5",
+    "cases": 22
+  },
+  "output": {
+    "path": "rust/golden/pre-resolve.jsonl",
+    "sha256": "bd592e493ae93d307992e303f8b6f1d12562ba93211c89dd62410b03613312e5",
+    "lines": 22
+  },
+  "node": {
+    "major": 22
+  },
+  "git": {
+    "revision": "399597b5d0d1fd0e9942c31587495df0d60421fb"
+  }
+}

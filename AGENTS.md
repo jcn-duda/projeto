@@ -41,20 +41,42 @@ trabalho de código é em `src/`.
   **obrigatório** (`native-core.ts`; o boot o carrega, testes sob demanda).
   `RUST_CORE=off|shadow|on` (default off) sobra só para o **shadow do crawl**
   (`rust-crawl-shadow.ts`).
-  O **filtro de relevância** (`filterRelevantRaw`/`filterInventoryRelevant`) e o
-  **filtro de episódio** (`filterSeriesEpisodeRaw`; pre-air e o enriquecimento
-  pelo banco de magnets continuam no TS) decidem INTEIROS no núcleo, em lote,
-  devolvendo só índices e o motivo do corte (`rust-relevance.ts`,
-  `rust-episode-filter.ts`). A **fonte de mídia do índice** e a **seleção do
-  autofetch** (imediatos e fila; a cascata TS fica só pelos efeitos: sonda,
-  purga, skips, trace) são só Rust.
-  O **ranking** (dedupe + sortAndLimit), o **💾 de episódio** (`annotateEpisodeSizes`)
-  e as decisões de debrid (**`pickFile`**, **veredito de cache**, **ledger/gate do RD**,
-  **limpeza**) e o **`normalizeTitle`** são só Rust (o CI compila o napi antes da
-  suíte). O golden de títulos e os dos parsers se conferem contra o TS do `esm`.
+  O núcleo decide **tudo que é regra**: os **filtros** (`filterRelevantRaw`/
+  `filterInventoryRelevant` e `filterSeriesEpisodeRaw`, em lote, devolvendo só
+  índices e o motivo; pre-air e o enriquecimento pelo banco de magnets
+  continuam no TS), o **parse de magnet e texto** (`title-normalization`:
+  `normalizeTitle`, `extractInfoHash`, `decodeEntities`, `bytesToSize`), o
+  **S/E** (`parseTitleSeasonEpisode`, temporada do título), **áudio e origem**
+  (`audio-quality`, `audio-cleanup`, `looksPtBr`), o **pré-resolve BR do
+  protetor** (`pre_resolve`: relevância → temporada → episódio → dedupe →
+  `resolveCandidateScore` → teto → guarda de URL, numa chamada), o **casamento
+  de títulos** (`matchesBrTitle`, `matchesName`, `short_name_tail`,
+  `non_feature_release`), o **ranking** (dedupe + sortAndLimit), o **💾 de
+  episódio** (`annotateEpisodeSizes`), a **fonte de mídia do índice**, a
+  **seleção do autofetch** (imediatos e fila; a cascata TS fica só pelos
+  efeitos: sonda, purga, skips, trace) e as decisões de debrid (**`pickFile`**,
+  **veredito de cache**, **ledger/gate do RD**, **limpeza**). O CI compila o
+  napi antes da suíte.
+  O TS que sobra é **I/O e rede** (fetch/HTTP, disco, processos) mais o
+  **vocabulário exportado** (listas/constantes e os wrappers finos que chamam o
+  núcleo) — mexeu numa régua, mexa no `adom-core`; o `src/` só transporta.
+  Goldens cujo corpo TS saiu daqui são conferidos contra o TS do `esm`
+  (`scripts/golden/run-esm-golden.mjs`): títulos, parsers do crawl,
+  filtros (`release-filters`, `inventory-filter`, `series-episode-filter`) e,
+  desde o G6, áudio/rótulos (`audio-presentation`, `pt-audio-guards`,
+  `release-labels`, `audio-cleanup-verdicts`), `search-name-helpers`,
+  `catalog-classify`, `stream-display`, `stream-quotas-candidate`,
+  `release-index-media`, `stream-trace`/`stream-relabel` e `pre-resolve`.
+  Nesses, `npm run golden:<x>:check` roda DENTRO do worktree `../adom-esm`;
+  nada de regenerar aqui (o `.jsonl` é o mesmo dos dois lados). Para regenerar,
+  `cd ../adom-esm && npm run golden:<x> -- --force`.
+  Um limite conhecido da fronteira: o `String` do napi-rs é UTF-8 e **não
+  carrega code unit UTF-16 órfã** (surrogate sozinho vira U+FFFD). O `JsText`
+  do núcleo preserva o órfão (é o contrato de `stream-relabel`/`stream-trace`);
+  quem perde é só a travessia Node↔Rust, e por isso esses checks não rodam no
+  shim local.
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
-  velocidade só existe com API em lote. Mudou `release-filters.ts`? regenere os
-  goldens (`golden:release-filters`, `golden:inventory-filter` com `--force`).
+  velocidade só existe com API em lote.
   Código Rust quebrado no working tree quebra a imagem.
 - **Onde o Rust já substituiu o TS, o TS saiu** (a versão TS segue no branch
   `esm`, que é o oráculo dos goldens): os oito **resolvers BR** são o binário
@@ -285,7 +307,10 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
    (precisa de PT/contexto, `ptTitleDual`, herança). Dual + idioma estrangeiro
    nomeado cai em `lixo`. Lista **ampla** (`namesForeignDubLanguage`) só nega BR;
    lista **mínima** (`hasExplicitForeignAudio`) é a única dos caminhos
-   destrutivos — não uniformize. Campos `_*` são internos e não podem vazar.
+   destrutivos — não uniformize. Desde o G3 a **decisão** (áudio, origem,
+   veredito de dublagem falsa) mora no núcleo (`adom-core::audio`); o TS só
+   entrega os campos (`isBr`, `dubbedFrom`) e lê o rótulo. Campos `_*` são
+   internos e não podem vazar.
 3. **Com debrid que checa cache + cachedOnly, o piso de seeders não corta antes
    da checagem** (`seedFloorFor`, `SEARCH_CACHED_ONLY_IGNORES_SEEDS`): o ⚡ decide.
    **Fontes BR não publicam seeders** (`seeders:1` é placeholder): corte em pool
@@ -294,13 +319,18 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
    conjunto **vazio**, não fraco.
 4. **Sites BR indexam por título em português** e zeram com acento/`:`/token
    extra: duas queries (en para globais, pt-BR para `JACKETT_PT_BR_INDEXERS`),
-   `stripDiacritics` só sob `isBr`, todo fallback de pack carrega as duas.
+   `stripDiacritics` só sob `isBr`, todo fallback de pack carrega as duas. O
+   texto da query é moldado no núcleo (`normalizeTitle`/`shapeSearchQuery` e a
+   sigla com ponto); o TS só faz o fetch.
 5. **Release BR passa por filtro de título estrito** (`matchesBrTitle`: prefixo +
    ano por tipo) duas vezes (pré-resolve do protetor e `filterRelevantRaw`).
    `meta.year` vem sujo ("2024–"). Guardas anexas: `magnetYearContradicts`,
    `series-is-movie`, `franchiseExtensionContradicts`, `matchesShortNameIdentity`
-   (nome de 1–2 tokens: identidade vira posição). Prefira corrigir a régua a
-   criar lista de títulos proibidos.
+   (nome de 1–2 tokens: identidade vira posição) — desde o G4/G5 todas essas
+   réguas decidem no núcleo (`pre_resolve`, `matches_br_title_prepared`,
+   `adom-core::short_name_tail`, `non_feature_release`); o TS só transporta o
+   veredito e o motivo. Prefira corrigir a régua a criar lista de títulos
+   proibidos.
 6. **Autofetch e `dropUncached` são forças opostas**; a ponte é `protected.ts`
    (`hold` antes da checagem, liberado só se o download não ocorre).
 

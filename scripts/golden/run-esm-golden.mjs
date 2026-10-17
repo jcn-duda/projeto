@@ -37,8 +37,18 @@ if (!fs.existsSync(path.join(ESM, 'package.json'))) {
   console.error('[golden-esm] Depois rode este comando de novo. No CI (rust.yml) isso é feito sozinho.');
   process.exit(1);
 }
-if (!fs.existsSync(path.join(ESM, 'dist', 'src', 'utils', 'release-filters.js'))) {
-  console.error(`[golden-esm] FALHA: dist do oráculo ausente em ${ESM} (dist/src/utils/release-filters.js).`);
+// Artefatos que os goldens delegados medem no oráculo. O primeiro ausente
+// aponta exatamente o que falta buildar; nenhum deles é opcional.
+const REQUIRED_DIST = [
+  'dist/src/utils/release-filters.js',
+  'dist/src/utils/audio-quality.js',
+  'dist/src/utils/title-normalization.js',
+  'dist/src/utils/stream-trace.js',
+  'dist/src/utils/release-index-media.js',
+];
+const missingDist = REQUIRED_DIST.find((rel) => !fs.existsSync(path.join(ESM, rel)));
+if (missingDist) {
+  console.error(`[golden-esm] FALHA: dist do oráculo ausente em ${ESM} (${missingDist}).`);
   console.error('[golden-esm] Rode: cd ../adom-esm && npm run build');
   process.exit(1);
 }

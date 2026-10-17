@@ -128,6 +128,32 @@ jobs:
           npm run golden:inventory-filter:check
           npm run golden:series-episode-filter:check
 
+      # O mesmo vale para o resto do que virou núcleo no G1..G6: áudio/origem,
+      # rótulos, helpers de nome de busca, classificação de catálogo, display e
+      # cotas, fonte de mídia, trace/relabel e o pré-resolve do protetor. Aqui o
+      # `dist` do esm é TS puro e os `.jsonl` são idênticos aos deste branch; o
+      # cargo test confere o Rust contra o MESMO arquivo. Se o script ainda não
+      # existe no esm (golden novo cujo lado do oráculo não foi commitado lá), o
+      # passo AVISA em vez de falhar — o gate de paridade continua no cargo test.
+      - name: Goldens de áudio/rótulos/pré-resolve contra o TypeScript do esm
+        working-directory: ../adom-esm
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: |
+          for s in golden:audio-presentation:check golden:pt-audio-guards:check \
+                   golden:release-labels:check golden:audio-cleanup-verdicts:check \
+                   golden:search-name-helpers:check golden:catalog-classify:check \
+                   golden:stream-display:check golden:stream-quotas-candidate:check \
+                   golden:release-index-media:check golden:stream-trace:check \
+                   golden:stream-relabel:check golden:pre-resolve:check; do
+            if npm run | grep -q " $s\$"; then
+              npm run "$s"
+            else
+              echo "[golden-esm] AVISO: o branch esm ainda não tem '$s'; commite o dump/oráculo/corpus lá"
+            fi
+          done
+
       # 16 testes, 76 comparações (23 goldens + 45 vetores Unicode 17 + 8 do
       # glue UTF-16 da sigla) contra o `expected` commitado — nunca input == expected.
       - name: Testes

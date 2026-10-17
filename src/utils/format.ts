@@ -1,11 +1,12 @@
 /**
  * PLANO_MELHORIAS 5.3: format.ts virou barrel de reexport depois do split em
  * 7 submódulos (title-normalization, release-matching, episode-matching,
- * audio-quality, stream-ranking, stream-quotas, search-names). Mantém os
- * mesmos 57 nomes exportados de antes, para os ~19 arquivos de teste e os
- * consumidores em src/providers/ e src/debrid/ que importam daqui não
- * precisarem mudar. A remoção do barrel (migrar cada consumidor para o
- * submódulo direto) é decisão posterior, com grep de uso.
+ * audio-quality, stream-quotas, stream-ranking, search-names). É a API pública
+ * de conveniência: 70 nomes, 99 consumidores (src/, test/, resolvers/) — a
+ * remoção (migrar cada consumidor para o submódulo direto) é decisão posterior,
+ * com grep de uso. O barrel NÃO guarda cópia: todo nome reexportado existe no
+ * módulo de origem, muitos deles hoje wrappers finos do núcleo Rust. Reexport
+ * morto (símbolo que saiu) quebra o typecheck, então o gate é o próprio tsc.
  */
 export { bytesToSize, extractInfoHash, decodeEntities, normalizeTitle, stripDiacritics } from './title-normalization.js';
 
