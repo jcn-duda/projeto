@@ -4,8 +4,9 @@ Crate **fora do caminho `/stream`**. Representa a fila persistente
 `harvest:v1:q` que no TypeScript vive em `src/providers/harvest-queue.ts`,
 orquestrada por `harvester.ts` / `harvest-worker.ts`.
 
-Nesta fatia: **tipos + fila em memória + L2 SQLite (WAL) + testes**. Sem tick,
-sem Jackett, sem índice, sem gateway, sem Docker.
+Nesta fatia: **tipos + fila em memória + L2 SQLite (WAL) + ciclo `tick`
+(freio/teto/drain stub) + testes**. Sem Jackett real, sem índice, sem gateway,
+sem Docker.
 
 ## Contrato alinhado ao TS
 
@@ -20,6 +21,26 @@ sem Jackett, sem índice, sem gateway, sem Docker.
 | L2 | `cache.get` / `cache.set(QUEUE_KEY, …)` | `HarvestStore::load` / `save` |
 | Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
 | Prioridade | `prioritizeQueue` + `hasBrDubbed(lookupQuiet)` | `prioritize` + trait `BrEvidence` (stub/callback; índice real ainda não) |
+| Ciclo | `harvester.tick` / `harvestWorker` | `HarvestWorker::tick` + `TrafficSense` + `HarvestDrain` |
+
+### Ciclo tick (embrião)
+
+```rust
+use adom_harvest::{
+    DrainOutcome, HarvestQueue, HarvestQueueConfig, HarvestRequest, HarvestWorker,
+    HarvestWorkerConfig, StubTraffic,
+};
+
+let mut queue = HarvestQueue::new(HarvestQueueConfig::default());
+queue.enqueue(HarvestRequest::movie("tt0111161", "miss"));
+let mut worker = HarvestWorker::new(HarvestWorkerConfig::default());
+let mut drain = |_e| DrainOutcome::ok_with_queries(1);
+let out = worker.tick(&mut queue, &StubTraffic { busy: false }, &mut drain, now_ms);
+```
+
+- Freio: `TrafficSense::is_busy()` ⇒ `SkippedBusy` (sem consumir fila).
+- Teto: `queries_this_hour` / `note_queries` por balde UTC; `>= max_per_hour` ⇒ skip.
+- Drain sync stub — async / Jackett ficam para depois.
 
 Guardrails (iguais ao Arquivista):
 
@@ -63,10 +84,10 @@ Sem evidência (`None`), a ordem do disco é preservada.
 
 - Ponte do `BrEvidence` para o índice real (`lookupQuiet` / `hasBrDubbed`).
 - Dedupe 12h (`harvest:v1:seen:<sha>`).
-- Coalescing in-flight (`harvest-inflight`).
-- Ciclo tick/drain, freio de tráfego, teto horário (`harvester.ts` /
-  `harvest-worker.ts`).
-- Seed IMDb, sonda `brProbe` completa, painel.
+- Coalescing in-flight (`harvest-inflight`) — só flag `in_flight` no worker.
+- `takeProbe` sob tráfego (embrião: busy = skip inteiro).
+- Persistência L2 do balde horário (`harvest:v1:hour`).
+- Seed IMDb, sonda `brProbe` completa, Jackett, painel, gateway.
 
 ## Testes
 
