@@ -7,6 +7,7 @@
 //! via `runtime.run`. Falha de rede/HTTP/parse → `Err` — NUNCA panic; a busca
 //! não pode cair.
 
+use std::net::IpAddr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use adom_debrid::{Call, HttpClient};
@@ -21,8 +22,9 @@ use crate::internal_types::{
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
 pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
-/// Teto HTTP genérico (meta/state/index-write/effects). Collect usa o
-/// `deadline_at` absoluto do pedido.
+/// Teto HTTP de meta/state/index-write/effects. Collect **não** usa este teto:
+/// o timeout HTTP é `remaining + COLLECT_GRACE_MS` até o `deadline_at` absoluto
+/// (espelha o Node; collect longo pode passar de 15s).
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(15_000);
 /// Folga de rede depois do prazo absoluto do collect (o Node já cortou).
 const COLLECT_GRACE_MS: u64 = 250;
@@ -37,9 +39,11 @@ pub struct InternalSearchClient {
 
 impl InternalSearchClient {
     pub fn new(base: &str, token: &str, timeout: Duration) -> Result<Self, String> {
+        let base = base.trim_end_matches('/').to_string();
+        ensure_loopback(&base)?;
         Ok(Self {
             http: HttpClient::new().map_err(|err| err.message().to_string())?,
-            base: base.trim_end_matches('/').to_string(),
+            base,
             token: token.to_string(),
             timeout,
         })
@@ -75,10 +79,10 @@ impl InternalSearchClient {
     }
 
     /// POST `/internal/search/collect` — um `taskScope` com prazo ABSOLUTO.
-    /// O timeout HTTP é o que sobra até `deadline_at` (+ grace); já vencido
-    /// devolve `Err` sem ir à rede (espelha o 400 do Node).
+    /// O timeout HTTP é `remaining + COLLECT_GRACE_MS` (sem teto de 15s);
+    /// já vencido devolve `Err` sem ir à rede (espelha o 400 do Node).
     pub async fn collect(&self, req: &CollectRequest) -> Result<CollectResponse, String> {
-        let timeout = timeout_until(req.deadline_at, self.timeout)?;
+        let timeout = timeout_until(req.deadline_at)?;
         self.post_ok("/internal/search/collect", req, timeout).await
     }
 
@@ -147,14 +151,45 @@ impl InternalSearchClient {
     }
 }
 
-/// Timeout HTTP a partir de `deadline_at` (epoch ms). Já vencido → Err.
-fn timeout_until(deadline_at_ms: i64, cap: Duration) -> Result<Duration, String> {
+/// Timeout HTTP do collect a partir de `deadline_at` (epoch ms).
+/// Sem `min(DEFAULT_TIMEOUT)` — o prazo absoluto manda. Já vencido → Err.
+fn timeout_until(deadline_at_ms: i64) -> Result<Duration, String> {
     let remaining = deadline_at_ms.saturating_sub(now_ms());
     if remaining <= 0 {
         return Err("deadline_at já venceu".into());
     }
     let budget = Duration::from_millis((remaining as u64).saturating_add(COLLECT_GRACE_MS));
-    Ok(budget.min(cap).max(Duration::from_millis(1)))
+    Ok(budget.max(Duration::from_millis(1)))
+}
+
+/// Só loopback: token + encoded não saem para host externo (espelha
+/// `InternalCheckClient` em adom-debrid).
+fn ensure_loopback(base: &str) -> Result<(), String> {
+    let rest = base
+        .strip_prefix("http://")
+        .or_else(|| base.strip_prefix("https://"))
+        .ok_or_else(|| format!("INTERNAL_SEARCH_URL precisa de http(s): {base}"))?;
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = if let Some(inner) = authority.strip_prefix('[') {
+        inner.split(']').next().unwrap_or("")
+    } else if let Some((h, port)) = authority.rsplit_once(':') {
+        if port.chars().all(|c| c.is_ascii_digit()) {
+            h
+        } else {
+            authority
+        }
+    } else {
+        authority
+    };
+    let loopback = matches!(host, "localhost" | "127.0.0.1" | "::1")
+        || host
+            .parse::<IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false);
+    if !loopback {
+        return Err(format!("INTERNAL_SEARCH_URL só aceita loopback: {base}"));
+    }
+    Ok(())
 }
 
 fn now_ms() -> i64 {

@@ -16,7 +16,7 @@ use serde_json::{json, Map, Value};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-use super::InternalSearchClient;
+use super::{InternalSearchClient, DEFAULT_TIMEOUT};
 use crate::internal_types::{
     CollectRequest, EffectEntry, EffectsRequest, IndexWriteRequest, MetaRequest, ReleaseEntry,
     StateRequest, TaskScope,
@@ -350,4 +350,25 @@ fn task_scope_serializa_lowercase() {
     map.insert("task_scope", TaskScope::Nonpriority);
     let v = serde_json::to_value(map).unwrap();
     assert_eq!(v["task_scope"], json!("nonpriority"));
+}
+
+#[test]
+fn new_recusa_host_nao_loopback() {
+    assert!(InternalSearchClient::new("http://example.com:7100", TOKEN, DEFAULT_TIMEOUT).is_err());
+    assert!(InternalSearchClient::new("http://127.0.0.1:7100", TOKEN, DEFAULT_TIMEOUT).is_ok());
+}
+
+#[test]
+fn collect_timeout_nao_capa_em_default() {
+    let deadline = now_ms() + 60_000;
+    let budget = super::timeout_until(deadline).unwrap();
+    assert!(
+        budget > DEFAULT_TIMEOUT,
+        "collect deve respeitar deadline longo sem min(15s): {budget:?}"
+    );
+    // remaining (~60s) + grace; margem larga só contra jitter de relógio
+    assert!(
+        budget >= Duration::from_millis(55_000),
+        "budget ≈ remaining+grace: {budget:?}"
+    );
 }
