@@ -8,6 +8,6 @@ services:
   adom:
     environment:
       GATEWAY: "on"
-      ROUTES_RUST: "stream-shadow"
+      ROUTES_RUST: "stream"
       INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
       INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
