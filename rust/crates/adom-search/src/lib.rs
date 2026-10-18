@@ -29,6 +29,9 @@ pub mod cache;
 pub mod coalesce;
 pub mod collection_window;
 pub mod contract;
+pub mod latest_writer;
+pub mod list_builder;
+pub mod raw_item;
 pub mod request;
 
 pub use cache::{
@@ -36,6 +39,14 @@ pub use cache::{
     StreamsEntry, SwrLookup, SwrStore, MAX_TTL_SECONDS, STREAM_STALE_GRACE_SECONDS,
 };
 pub use coalesce::InFlight;
+// Porte de `src/utils/latest-writer.ts`: parcial na resposta, tardio mescla.
+pub use latest_writer::{CommitKind, LatestWriter};
+// BUILD da lista (`stream-builder*`): dos itens crus à lista final.
+pub use list_builder::{
+    apply_notice_origin, build_stream_list, seed_floor_for, BuildContext, BuildOptions, BuiltList,
+    BuiltStream, DebridAnswer, DebridCheck, WorkHint,
+};
+pub use raw_item::RawItem;
 
 pub use collection_window::{
     jump_deadline, BatchMeta, CollectBudgets, CollectTask, CollectWindow, CollectWindowOptions,

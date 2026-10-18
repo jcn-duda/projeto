@@ -231,8 +231,8 @@ pub use stream_quotas_candidate::{
 pub use stream_quotas::limit_by_indexer;
 pub use stream_quotas_extra::{
     limit_by_quality, limit_by_quality_and_indexer, limit_reserving_br, limit_reserving_br_trace,
-    quality_from_title, select_quality_candidates, stream_quality, LimitReservingBrTrace,
-    QUALITY_KEYS, UNKNOWN_QUALITY,
+    quality_from_title, select_quality_candidates, stream_quality, LimitBrOpts, LimitReservingBrTrace,
+    QualityLimits, StreamRef, QUALITY_KEYS, UNKNOWN_QUALITY,
 };
 
 // ── resolve_sign (HMAC) ──────────────────────────────────────────────
