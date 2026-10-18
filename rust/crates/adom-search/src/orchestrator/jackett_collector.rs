@@ -1,8 +1,9 @@
 //! Collect opt-in via `adom_sources::JackettClient` (`SOURCES_RUST=jackett`).
 //!
 //! Default OFF: produção continua em [`super::NodeCollector`]
-//! (`POST /internal/search/collect`). Esta fatia só pluga o Jackett — sem
-//! BLUDV/Mico/Prowlarr/Torrentio.
+//! (`POST /internal/search/collect`). Prowlarr tem collector irmão
+//! (`SOURCES_RUST=prowlarr`); exclusão mútua em [`super::sources_rust`].
+//! Sem BLUDV/Mico/Torrentio nesta fatia.
 //!
 //! Guardrail do Maestro: varredura **inline** (`sweep:true` no plano) usa
 //! `record_status:false` e **não** `ignore_breaker`; a varredura **tardia**
@@ -17,6 +18,7 @@ use adom_sources::{JackettClient, JackettMediaType, JackettRawItem, SearchOption
 
 use crate::internal_types::TaskScope;
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
+use crate::orchestrator::sources_rust::sources_rust_includes;
 use crate::raw_item::RawItem;
 
 /// Defaults alinhados a `src/config/jackett.ts` (`JACKETT_INDEX_ONLY_INDEXERS`).
@@ -36,13 +38,7 @@ fn split_csv(raw: &str) -> Vec<String> {
 
 /// `SOURCES_RUST` contém o token `jackett` (CSV, case-insensitive).
 pub fn sources_rust_includes_jackett() -> bool {
-    std::env::var("SOURCES_RUST")
-        .ok()
-        .map(|raw| {
-            raw.split(',')
-                .any(|t| t.trim().eq_ignore_ascii_case("jackett"))
-        })
-        .unwrap_or(false)
+    sources_rust_includes("jackett")
 }
 
 /// Monta o collector só quando o env pediu Jackett nativo. Falha de boot do

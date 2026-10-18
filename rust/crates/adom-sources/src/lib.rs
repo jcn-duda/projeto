@@ -34,8 +34,9 @@
 //! só sob `is_br`), breaker só em offline, `Link` com
 //! `is_safe_download_url` + redirect manual, e falha → `[]` / outcome honesto.
 //! Config via `JACKETT_URL` (default loopback `:9117`) e `JACKETT_API_KEY`
-//! (nunca em log). Collect do orquestrador: opt-in `SOURCES_RUST=jackett`
-//! (`adom-search::JackettCollector`); default OFF = `POST /internal/search/collect`.
+//! (nunca em log). Collect do orquestrador: opt-in
+//! `SOURCES_RUST=jackett|prowlarr` (`JackettCollector` / `ProwlarrCollector`;
+//! exclusão mútua); default OFF = `POST /internal/search/collect`.
 //!
 //! ## Fase B — Prowlarr + Torrentio + BLUDV + Mico
 //!

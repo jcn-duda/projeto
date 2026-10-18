@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Item cru devolvido por [`crate::prowlarr::ProwlarrClient::search`].
 ///
 /// Campos batem com o objeto que o TS monta: title, magnet, infoHash, seeders,
-/// size, tracker. O collect Rust ainda não consome isto (próxima fatia).
+/// size, tracker. Consumido por `adom-search::ProwlarrCollector`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProwlarrRawItem {

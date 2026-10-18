@@ -13,9 +13,9 @@ use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
-    try_jackett_collector_from_env, AdapterDebridFactory, NodeMetaSource, NodeRoutes,
-    NodeTailEffects, NoDebridFactory, NoopTailEffects, Orchestrator, OrchestratorConfig,
-    StreamRequest,
+    sources_rust_includes, try_sources_rust_collector_from_env, AdapterDebridFactory,
+    NodeMetaSource, NodeRoutes, NodeTailEffects, NoDebridFactory, NoopTailEffects,
+    Orchestrator, OrchestratorConfig, StreamRequest,
 };
 use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
@@ -67,20 +67,24 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 /// Monta o orquestrador de produção: store SWR compartilhado, coleta via
 /// rotas internas (se `JACKETT_TEST_TOKEN` existir) e debrid com reserva Node.
 ///
-/// Opt-in `SOURCES_RUST=jackett`: collect fala Torznab direto
-/// (`JackettCollector`); meta/tail continuam no Node quando as rotas internas
-/// existem. Default OFF — corte stream segue em `POST /internal/search/collect`.
+/// Opt-in `SOURCES_RUST=jackett|prowlarr` (CSV): collect nativo
+/// (`JackettCollector` / `ProwlarrCollector`); exclusão mútua (jackett vence).
+/// Meta/tail continuam no Node quando as rotas internas existem. Default OFF —
+/// corte stream segue em `POST /internal/search/collect`.
 pub fn build_orchestrator() -> Orchestrator {
     let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
-    let jackett = try_jackett_collector_from_env();
+    let native = try_sources_rust_collector_from_env();
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            if let Some(collector) = jackett {
-                eprintln!("[gateway] collect via adom-sources Jackett (SOURCES_RUST=jackett)");
+            if let Some(collector) = native {
+                eprintln!(
+                    "[gateway] collect via adom-sources ({})",
+                    sources_rust_label()
+                );
                 orch = orch
-                    .with_collector(Arc::new(collector))
+                    .with_collector(collector)
                     .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
                     .with_tail(Arc::new(NodeTailEffects::new(routes)));
             } else {
@@ -88,11 +92,12 @@ pub fn build_orchestrator() -> Orchestrator {
             }
         }
         None => {
-            if let Some(collector) = jackett {
+            if let Some(collector) = native {
                 eprintln!(
-                    "[gateway] SOURCES_RUST=jackett sem rotas Node — collect Jackett; meta/tail indisponíveis"
+                    "[gateway] {} sem rotas Node — collect nativo; meta/tail indisponíveis",
+                    sources_rust_label()
                 );
-                orch = orch.with_collector(Arc::new(collector));
+                orch = orch.with_collector(collector);
             } else {
                 eprintln!(
                     "[gateway] stream nativo sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
@@ -125,14 +130,14 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
         .with_shadow_mode(true)
         .with_debrid(Arc::new(NoDebridFactory));
-    let jackett = try_jackett_collector_from_env();
+    let native = try_sources_rust_collector_from_env();
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            if let Some(collector) = jackett {
-                // Sombra: collect Jackett opt-in; meta Node; tail sempre noop.
+            if let Some(collector) = native {
+                // Sombra: collect nativo opt-in; meta Node; tail sempre noop.
                 orch = orch
-                    .with_collector(Arc::new(collector))
+                    .with_collector(collector)
                     .with_meta(Arc::new(NodeMetaSource::new(routes)))
                     .with_tail(Arc::new(NoopTailEffects));
             } else {
@@ -143,9 +148,9 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
             }
         }
         None => {
-            if let Some(collector) = jackett {
+            if let Some(collector) = native {
                 orch = orch
-                    .with_collector(Arc::new(collector))
+                    .with_collector(collector)
                     .with_tail(Arc::new(NoopTailEffects));
             } else {
                 eprintln!(
@@ -155,6 +160,17 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
         }
     }
     orch
+}
+
+/// Rótulo de log do collector nativo ativo (após exclusão mútua).
+fn sources_rust_label() -> &'static str {
+    if sources_rust_includes("jackett") {
+        "SOURCES_RUST=jackett"
+    } else if sources_rust_includes("prowlarr") {
+        "SOURCES_RUST=prowlarr"
+    } else {
+        "SOURCES_RUST"
+    }
 }
 
 /// Números do operador. Defaults do crate cobrem o boot; envs opcionais

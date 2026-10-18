@@ -30,6 +30,8 @@ mod config;
 mod internal_routes;
 mod jackett_collector;
 mod meta;
+mod prowlarr_collector;
+mod sources_rust;
 mod tail;
 #[cfg(test)]
 #[path = "tests.rs"]
@@ -69,6 +71,12 @@ pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
 pub use jackett_collector::{
     plan_jackett_searches, sources_rust_includes_jackett, try_jackett_collector_from_env,
     JackettCollector, PlannedJackettSearch,
+};
+pub use prowlarr_collector::{
+    sources_rust_includes_prowlarr, try_prowlarr_collector_from_env, ProwlarrCollector,
+};
+pub use sources_rust::{
+    sources_rust_csv_includes, sources_rust_includes, try_sources_rust_collector_from_env,
 };
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
 pub use tail::{

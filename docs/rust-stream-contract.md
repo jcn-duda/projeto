@@ -47,9 +47,10 @@ Docker PASS com chave só no `.env` depende dessa herança.
 
 - Default do corte: collect/meta/tail via `POST /internal/search/*` no Node
   (`NodeRoutes`, precisa `JACKETT_TEST_TOKEN` + `INTERNAL_SEARCH_URL`).
-- Opt-in `SOURCES_RUST=jackett` (CSV, case-insensitive): collect Torznab direto
-  (`adom-sources` / `JackettCollector`); meta/tail seguem no Node quando as
-  rotas internas existem. Default **OFF**.
+- Opt-in `SOURCES_RUST=jackett|prowlarr` (CSV, case-insensitive): collect
+  nativo (`JackettCollector` / `ProwlarrCollector`); **exclusão mútua** nesta
+  fatia (`jackett` vence se ambos). Meta/tail seguem no Node quando as rotas
+  internas existem. Default **OFF**.
 
 ### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
 
@@ -594,7 +595,7 @@ que responde com `ROUTES_RUST=stream`.
 | 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo; `MemorySwrStore` na sombra) |
 | 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | via `POST /internal/search/meta` (Node); porte puro de fontes = F2 |
 | 5 | plano / orçamentos de coleta | decisões no núcleo; janela ainda orquestrada com I/O Node |
-| 6 | coleta Jackett/Prowlarr/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in Jackett Rust = `SOURCES_RUST=jackett` (só Jackett; sem `raw:v1` nessa fatia) |
+| 6 | coleta Jackett/Prowlarr/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr` (exclusão mútua; sem `raw:v1` nessa fatia) |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador / núcleo |
 | 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + reserva Node (`INTERNAL_CHECK_URL`); autofetch/efeitos de cauda ainda no Node |
 | 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play completo ainda no Node |

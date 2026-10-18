@@ -8,7 +8,8 @@
 //!   default — serviço do operador);
 //! - API key nunca em log nem em `Debug`.
 //!
-//! Fora desta fatia: integração no orquestrador/`collectRaw`.
+//! Collect do orquestrador: `adom-search::ProwlarrCollector` com
+//! `SOURCES_RUST=prowlarr` (default OFF; exclusão mútua com `jackett`).
 
 mod client;
 mod config;
