@@ -1,21 +1,30 @@
 //! Proxy reverso. O Host original segue intacto: o Node monta URL pública a
 //! partir dele. Sem retry e sem prazo curto — o play e o portão passam de 30s.
+//!
+//! Com `ROUTES_RUST` contendo `stream`, o `/stream` é cortado no Rust
+//! (orquestrador) e não chega ao upstream — a sombra também fica de fora.
+
+use std::collections::BTreeMap;
 
 use axum::body::Body;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::routing::any;
+use axum::routing::{any, get};
+use axum::Json;
 use axum::Router;
 use bytes::Bytes;
-use http::header::{CONNECTION, CONTENT_TYPE};
+use http::header::{CONNECTION, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, HeaderName, Method, Request, Response, StatusCode, Uri};
 use http_body_util::BodyExt;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 
+use adom_search::orchestrator::Orchestrator;
+
 use crate::config::Config;
-use crate::shadow::{self, ShadowMetrics};
+use crate::shadow::{self, ShadowMetrics, ShadowRemount, ShadowRequest};
+use crate::stream;
 
 pub type ProxyClient = Client<HttpConnector, Body>;
 
@@ -25,11 +34,27 @@ pub struct AppState {
     pub upstream: Uri,
     pub native_health: bool,
     pub stream_shadow: bool,
+    /// Corte nativo: quando true e há orquestrador, `/stream` não vai ao Node.
+    pub stream_native: bool,
     pub shadow_metrics: ShadowMetrics,
+    /// Store SWR + deps compartilhados entre requisições. `None` com a flag
+    /// desligada (ou teste sem corte).
+    pub orchestrator: Option<Orchestrator>,
+    /// Remontador da sombra (`stream-shadow`). `None` sem token/env — observe
+    /// pula sem falso divergence. Independente do `orchestrator` do corte.
+    pub shadow_remount: Option<ShadowRemount>,
 }
 
 pub fn router(state: AppState) -> Router {
-    Router::new().fallback(any(dispatch)).with_state(state)
+    Router::new()
+        .route("/metrics", get(metrics_snapshot))
+        .fallback(any(dispatch))
+        .with_state(state)
+}
+
+/// Snapshot §9 — só contadores, sem token/credencial.
+async fn metrics_snapshot(State(state): State<AppState>) -> Json<BTreeMap<String, u64>> {
+    Json(state.shadow_metrics.snapshot())
 }
 
 pub fn client() -> ProxyClient {
@@ -42,12 +67,26 @@ pub async fn run(config: Config) -> Result<(), String> {
     let shadow = config.stream_shadow;
     let stream_cut = config.stream_native;
     let upstream = config.upstream.clone();
+    let orchestrator = if stream_cut {
+        Some(stream::build_orchestrator())
+    } else {
+        None
+    };
+    // Sombra só quando o corte NÃO engole a rota; sem token → None (pula).
+    let shadow_remount = if shadow && !stream_cut {
+        shadow::remount_from_env()
+    } else {
+        None
+    };
     let state = AppState {
         client: client(),
         upstream: config.upstream,
         native_health: config.native_health,
         stream_shadow: config.stream_shadow,
+        stream_native: stream_cut,
         shadow_metrics: ShadowMetrics::new(),
+        orchestrator,
+        shadow_remount,
     };
     let listener = tokio::net::TcpListener::bind(listen)
         .await
@@ -55,7 +94,6 @@ pub async fn run(config: Config) -> Result<(), String> {
     let bound = listener
         .local_addr()
         .map_err(|err| format!("endereco local: {err}"))?;
-    // `stream_native` ainda não corta a rota — só aparece no boot para o operador.
     eprintln!(
         "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_shadow={shadow} stream_native={stream_cut}"
     );
@@ -83,7 +121,18 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
     if state.native_health && is_native_health(&req) {
         return health_response(req.method());
     }
-    // `stream_native` ainda não corta: o cliente sempre recebe o Node.
+    // Corte nativo TEM prioridade sobre stream-shadow: sem proxy, sem sombra.
+    if state.stream_native && stream::is_native_stream(req.method(), req.uri().path()) {
+        return match &state.orchestrator {
+            Some(orch) => stream::handle(orch, req).await,
+            None => (
+                StatusCode::BAD_GATEWAY,
+                [(CONTENT_TYPE, "text/plain; charset=utf-8")],
+                "bad_gateway",
+            )
+                .into_response(),
+        };
+    }
     let shadow = state.stream_shadow && shadow::is_stream_path(req.uri().path());
     match forward(&state, req, shadow).await {
         Ok(response) => response,
@@ -124,43 +173,71 @@ async fn forward(
     req: Request<Body>,
     capture_for_shadow: bool,
 ) -> Result<Response<Body>, ()> {
-    let (parts, body) = req.into_parts();
-    let path = parts
+    let (req_parts, body) = req.into_parts();
+    let path = req_parts
         .uri
         .path_and_query()
         .map(|item| item.as_str())
         .unwrap_or("/");
+    let shadow_req = if capture_for_shadow {
+        Some(ShadowRequest {
+            path: req_parts.uri.path().to_string(),
+            user_agent: header_text(&req_parts.headers, &USER_AGENT),
+            origin: shadow_origin(&req_parts.headers),
+        })
+    } else {
+        None
+    };
     let uri = upstream_uri(&state.upstream, path)?;
-    let headers = forward_headers(&parts.headers);
+    let headers = forward_headers(&req_parts.headers);
     let mut upstream_req = Request::builder()
-        .method(parts.method)
+        .method(req_parts.method)
         .uri(uri)
         .body(body)
         .map_err(|_| ())?;
     *upstream_req.headers_mut() = headers;
     let response = state.client.request(upstream_req).await.map_err(|_| ())?;
-    let (parts, incoming) = response.into_parts();
-    let headers = forward_headers(&parts.headers);
+    let (res_parts, incoming) = response.into_parts();
+    let headers = forward_headers(&res_parts.headers);
 
-    if capture_for_shadow {
+    if let Some(shadow_req) = shadow_req {
         let bytes: Bytes = incoming.collect().await.map_err(|_| ())?.to_bytes();
-        let status = parts.status;
+        let status = res_parts.status;
         let metrics = state.shadow_metrics.clone();
+        let remount = state.shadow_remount.clone();
         let for_shadow = bytes.clone();
         // Fire-and-forget: falha/atraso da sombra não afeta o cliente.
         tokio::spawn(async move {
-            shadow::observe_node_response(status, for_shadow, metrics);
+            shadow::observe_node_response(status, for_shadow, shadow_req, metrics, remount)
+                .await;
         });
         let mut out = Response::new(Body::from(bytes));
-        *out.status_mut() = parts.status;
+        *out.status_mut() = res_parts.status;
         *out.headers_mut() = headers;
         return Ok(out);
     }
 
     let mut out = Response::new(Body::from_stream(incoming.into_data_stream()));
-    *out.status_mut() = parts.status;
+    *out.status_mut() = res_parts.status;
     *out.headers_mut() = headers;
     Ok(out)
+}
+
+fn header_text(headers: &HeaderMap, name: &HeaderName) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+}
+
+/// Origin aproximado para a sombra (Host → `http://host`). Sem PUBLIC_URL aqui
+/// de propósito: a máscara §9 remove o host da identidade.
+fn shadow_origin(headers: &HeaderMap) -> Option<String> {
+    let host = headers.get(HOST)?.to_str().ok()?;
+    if host.is_empty() {
+        return None;
+    }
+    Some(format!("http://{host}"))
 }
 
 pub fn upstream_uri(base: &Uri, path_and_query: &str) -> Result<Uri, ()> {

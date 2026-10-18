@@ -12,9 +12,12 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use tokio::net::TcpListener;
 
+use adom_search::orchestrator::{Orchestrator, OrchestratorConfig};
+use adom_search::MemorySwrStore;
+
 use crate::config::{native_health, stream_native, stream_shadow, Config};
 use crate::proxy::{self, AppState};
-use crate::shadow::{self, ShadowMetrics, DIVERGENCE, DIVERGENCE_ITEMS};
+use crate::shadow::{self, ShadowMetrics, COMPARED, DIVERGENCE, DIVERGENCE_ITEMS};
 
 #[derive(Clone)]
 struct Hits(Arc<AtomicU32>);
@@ -72,7 +75,34 @@ fn gateway_state(upstream: SocketAddr, native_health: bool, stream_shadow: bool)
         upstream: format!("http://{upstream}").parse().unwrap(),
         native_health,
         stream_shadow,
+        stream_native: false,
         shadow_metrics: ShadowMetrics::new(),
+        orchestrator: None,
+        shadow_remount: None,
+    }
+}
+
+fn stub_orchestrator() -> Orchestrator {
+    // Collector default falha → lista/aviso 200, sem rede. Serve para provar
+    // o corte sem Node no ar.
+    Orchestrator::new(OrchestratorConfig::default(), Arc::new(MemorySwrStore::new()))
+}
+
+fn gateway_state_native(
+    upstream: SocketAddr,
+    stream_shadow: bool,
+    orch: Orchestrator,
+) -> AppState {
+    AppState {
+        client: proxy::client(),
+        upstream: format!("http://{upstream}").parse().unwrap(),
+        native_health: false,
+        stream_shadow,
+        stream_native: true,
+        shadow_metrics: ShadowMetrics::new(),
+        orchestrator: Some(orch),
+        // Com corte nativo a sombra do Node não monta.
+        shadow_remount: None,
     }
 }
 
@@ -119,7 +149,7 @@ fn stream_shadow_e_stream_parseados_sem_confundir() {
     assert!(!stream_native("stream-shadow"));
     assert!(stream_native("stream"));
     assert!(stream_native("health,stream"));
-    // Ambos podem coexistir na CSV; o corte nativo ainda não liga.
+    // Ambos podem coexistir; o dispatch nativo tem prioridade sobre a sombra.
     assert!(stream_shadow("stream,stream-shadow"));
     assert!(stream_native("stream,stream-shadow"));
 }
@@ -221,10 +251,23 @@ async fn stream_shadow_ainda_devolve_o_upstream_e_internal_continua_recusado() {
     assert_eq!(json["host"], "publico.example");
     assert_eq!(hits.0.load(Ordering::SeqCst), 1);
 
-    // Stub sem remontador: divergence* permanece zero (não acusar falso +).
+    // Sem shadow_remount (token/env): observe pula — zero compared/divergence.
     tokio::task::yield_now().await;
+    assert_eq!(metrics.get(COMPARED), 0);
     assert_eq!(metrics.get(DIVERGENCE), 0);
     assert_eq!(metrics.get(DIVERGENCE_ITEMS), 0);
+
+    let metrics_req = Request::builder()
+        .uri("/metrics")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, metrics_req).await;
+    assert_eq!(status, StatusCode::OK);
+    let snap: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(snap[COMPARED], 0);
+    assert_eq!(snap[DIVERGENCE], 0);
+    // Snapshot não vaza token/credencial — só contadores §9.
+    assert!(snap.get("token").is_none());
 
     let forbidden = Request::builder()
         .uri("/internal/search/meta")
@@ -244,6 +287,101 @@ fn internal_path_reconhece_exato_e_subcaminho() {
     assert!(!proxy::is_internal_path("/internalfoo"));
     assert!(!proxy::is_internal_path("/internal-search"));
     assert!(!proxy::is_internal_path("/health"));
+}
+
+#[tokio::test]
+async fn stream_nativo_responde_sem_tocar_o_upstream() {
+    let (upstream, hits) = spawn_upstream().await;
+    let gateway = spawn_gateway_state(gateway_state_native(
+        upstream,
+        false,
+        stub_orchestrator(),
+    ))
+    .await;
+
+    let req = Request::builder()
+        .uri("/stream/movie/tt0133093.json")
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert!(json.get("streams").is_some(), "corpo: {body}");
+    assert!(json.get("cacheMaxAge").is_some(), "corpo: {body}");
+    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
+
+    // Com config na URL também corta.
+    let req = Request::builder()
+        .uri("/e30/stream/movie/tt0133093.json")
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn stream_nativo_path_nao_stream_continua_proxy() {
+    let (upstream, hits) = spawn_upstream().await;
+    let gateway = spawn_gateway_state(gateway_state_native(
+        upstream,
+        false,
+        stub_orchestrator(),
+    ))
+    .await;
+
+    let req = Request::builder()
+        .uri("/manifest.json")
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["pq"], "/manifest.json");
+    assert_eq!(hits.0.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn stream_nativo_tem_prioridade_sobre_shadow() {
+    let (upstream, hits) = spawn_upstream().await;
+    let state = gateway_state_native(upstream, true, stub_orchestrator());
+    let metrics = state.shadow_metrics.clone();
+    let gateway = spawn_gateway_state(state).await;
+
+    let req = Request::builder()
+        .uri("/stream/movie/tt0133093.json")
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert!(json.get("streams").is_some());
+    // Sem proxy → sombra do Node não roda.
+    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
+    tokio::task::yield_now().await;
+    assert_eq!(metrics.get(DIVERGENCE), 0);
+    assert_eq!(metrics.get(DIVERGENCE_ITEMS), 0);
+}
+
+#[tokio::test]
+async fn stream_nativo_false_ainda_proxy() {
+    let (upstream, hits) = spawn_upstream().await;
+    let gateway = spawn_gateway_state(gateway_state(upstream, false, false)).await;
+    let req = Request::builder()
+        .uri("/stream/movie/tt0133093.json")
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["method"], "GET");
+    assert_eq!(json["pq"], "/stream/movie/tt0133093.json");
+    assert_eq!(hits.0.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

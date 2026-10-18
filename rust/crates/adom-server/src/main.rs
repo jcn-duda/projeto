@@ -1,6 +1,7 @@
 mod config;
 mod proxy;
 mod shadow;
+mod stream;
 
 #[cfg(test)]
 mod tests;

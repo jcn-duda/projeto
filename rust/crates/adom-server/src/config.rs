@@ -6,8 +6,8 @@ use std::net::SocketAddr;
 use http::Uri;
 
 /// Tokens de `ROUTES_RUST` (CSV). `health` liga o nativo; `stream-shadow` arma
-/// a observação em paralelo; `stream` é parseado para o corte futuro, mas o
-/// gateway ainda NÃO corta — só proxy (+ sombra quando pedida).
+/// a observação em paralelo; `stream` (token exato) corta `/stream` no Rust
+/// (prioridade sobre a sombra).
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen: SocketAddr,
@@ -15,8 +15,7 @@ pub struct Config {
     pub native_health: bool,
     /// `ROUTES_RUST` contém `stream-shadow`: Node responde; Rust observa.
     pub stream_shadow: bool,
-    /// `ROUTES_RUST` contém `stream`: flag pronta para o corte nativo (ainda
-    /// sem handler — F1).
+    /// `ROUTES_RUST` contém `stream`: corte nativo via `adom-search`.
     pub stream_native: bool,
 }
 

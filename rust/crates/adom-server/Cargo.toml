@@ -8,6 +8,7 @@ license = "UNLICENSED"
 
 [dependencies]
 adom-debrid = { path = "../adom-debrid" }
+adom-search = { path = "../adom-search" }
 axum = { version = "0.8", features = ["json"] }
 bytes = "1"
 http = "1"
