@@ -1,9 +1,15 @@
 //! Sombra de `/stream` (`ROUTES_RUST=stream-shadow`).
 //!
-//! O Node continua respondendo ao cliente; este módulo observa em
-//! `tokio::spawn`. Com remontador (orquestrador + token das rotas internas)
-//! compara identidades determinísticas (§9): `infoHash` / URL relativa
-//! mascarando host+sig+config / `externalUrl`, ordem via `BTreeSet`.
+//! Contrato `docs/rust-stream-contract.md` §9.1: o Node responde ao cliente; o
+//! Rust observa em `tokio::spawn` e **só compara**. Não escreve cache, não
+//! chama debrid, não devolve nada ao cliente. O remontador usa
+//! [`crate::stream::build_shadow_orchestrator`] (`shadow_mode` +
+//! `NoDebridFactory` + `NoopTailEffects`).
+//!
+//! Gate atual: comparação por **identidade** (§9.3 parcial — `infoHash` / URL
+//! relativa mascarando host+sig+config / `externalUrl`, ordem via `BTreeSet`).
+//! Isso **não** autoriza o corte por rota do §9.4 sozinho (faltam cobertura,
+//! janela ≥72 h, distribuição, corpus e2e e revisor humano).
 //!
 //! Sem token/env para remontar: **pula** — não incrementa `compared` nem
 //! acusa `divergence` (falso positivo envenenaria o critério de corte).
@@ -66,14 +72,13 @@ impl ShadowMetrics {
 /// Remontador opcional: só existe com `JACKETT_TEST_TOKEN` (e base loopback).
 pub type ShadowRemount = Orchestrator;
 
-/// Monta o orquestrador ligado às rotas internas do Node. `None` sem token —
-/// a sombra então **não compara** (evita falso `divergence`).
+/// Monta o orquestrador **compare-only** ligado às rotas internas do Node.
+/// `None` sem token — a sombra então **não compara** (evita falso `divergence`).
 ///
-/// Reusa `stream::build_orchestrator` (mesma config de prazo/segredo) depois do
-/// portão do token — sem token a coleta stub geraria falso divergence em massa.
+/// Usa [`crate::stream::build_shadow_orchestrator`] (sem debrid / SWR / tail).
 pub fn remount_from_env() -> Option<ShadowRemount> {
     NodeRoutes::from_env()?;
-    Some(crate::stream::build_orchestrator())
+    Some(crate::stream::build_shadow_orchestrator())
 }
 
 /// `true` para `/stream/<type>/<id>.json` e `/<config>/stream/<type>/<id>.json`.
@@ -107,6 +112,10 @@ pub async fn observe_node_response(
     let Some(orch) = remount else {
         return;
     };
+    debug_assert!(
+        orch.shadow_mode(),
+        "sombra deve usar build_shadow_orchestrator (shadow_mode)"
+    );
     if !status.is_success() {
         // `/stream` quase sempre é 200; não-sucesso não entra no denominador.
         return;
@@ -265,6 +274,10 @@ pub fn divergent_item_count(node: &BTreeSet<String>, rust: &BTreeSet<String>) ->
 #[cfg(test)]
 mod compare_tests {
     use super::*;
+    use std::sync::Arc;
+
+    use adom_search::orchestrator::{NoDebridFactory, OrchestratorConfig};
+    use adom_search::MemorySwrStore;
 
     fn item_ih(hash: &str) -> StreamItem {
         StreamItem {
@@ -334,5 +347,72 @@ mod compare_tests {
         assert_eq!(metrics.get(COMPARED), 1);
         assert_eq!(metrics.get(DIVERGENCE), 0);
         assert_eq!(metrics.get(DIVERGENCE_ITEMS), 0);
+    }
+
+    #[test]
+    fn shadow_orchestrator_e_compare_only_sem_debrid() {
+        let orch = crate::stream::build_shadow_orchestrator();
+        assert!(orch.shadow_mode(), "sombra exige shadow_mode");
+    }
+
+    #[tokio::test]
+    async fn observe_sem_remount_ainda_pula() {
+        let metrics = ShadowMetrics::new();
+        let body = serde_json::to_vec(&StreamResponse {
+            streams: vec![item_ih("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+            cache_max_age: 0,
+        })
+        .unwrap();
+        observe_node_response(
+            StatusCode::OK,
+            Bytes::from(body),
+            ShadowRequest {
+                path: "/stream/movie/tt0133093.json".into(),
+                user_agent: Some("Stremio/1.6".into()),
+                origin: None,
+            },
+            metrics.clone(),
+            None,
+        )
+        .await;
+        assert_eq!(metrics.get(COMPARED), 0);
+        assert_eq!(metrics.get(DIVERGENCE), 0);
+        assert_eq!(metrics.get(ERROR), 0);
+    }
+
+    #[tokio::test]
+    async fn observe_com_remount_shadow_sobe_compared_sem_debrid() {
+        let metrics = ShadowMetrics::new();
+        // Collector default falha → lista/aviso; sem AdapterDebridFactory.
+        let orch = Orchestrator::new(
+            OrchestratorConfig::default(),
+            Arc::new(MemorySwrStore::new()),
+        )
+        .with_shadow_mode(true)
+        .with_debrid(Arc::new(NoDebridFactory));
+        assert!(orch.shadow_mode());
+
+        let body = serde_json::to_vec(&StreamResponse {
+            streams: vec![item_ih("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+            cache_max_age: 0,
+        })
+        .unwrap();
+        observe_node_response(
+            StatusCode::OK,
+            Bytes::from(body),
+            ShadowRequest {
+                path: "/stream/movie/tt0133093.json".into(),
+                user_agent: Some("Stremio/1.6".into()),
+                origin: None,
+            },
+            metrics.clone(),
+            Some(orch),
+        )
+        .await;
+        assert_eq!(metrics.get(COMPARED), 1);
+        // Corpos diferem (Node com ih vs aviso/vazio do stub) → divergence ok;
+        // o que importa: compared sobe e o caminho não panica sem debrid.
+        assert_eq!(metrics.get(TIMEOUT), 0);
+        assert_eq!(metrics.get(ERROR), 0);
     }
 }

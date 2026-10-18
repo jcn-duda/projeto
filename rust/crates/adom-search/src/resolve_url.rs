@@ -162,6 +162,206 @@ pub fn encode_uri_component(text: &str) -> String {
     out
 }
 
+// ── Verificação do play (espelho de `sign.ts` + `routes/resolve.ts`) ────────
+
+/// Play já separado do path + query. Sem host: o HMAC nunca o inclui.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvePlay {
+    /// 40 hex em minúsculas (Node: `toLowerCase` antes de verificar).
+    pub info_hash: String,
+    /// Segmento de config na URL, se houver.
+    pub encoded: Option<String>,
+    /// `""` ou `"?s=<S>&e=<E>"` — o `?` faz parte do payload.
+    pub ep: String,
+    /// Dica `w` já percent-decoded (JSON cru); vazia = sem dica.
+    pub hint: String,
+    /// Query `sig`; `None` se ausente.
+    pub sig: Option<String>,
+}
+
+/// Veredito da guarda HMAC. O handler HTTP traduz em status; este crate não
+/// abre socket nem chama debrid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolveVerify {
+    /// Fora de `[a-f0-9]{40}` (após lowercasing).
+    InvalidHash,
+    /// Sem segredo efetivo — Node também pula o verify quando não há debrid.
+    Unsigned,
+    /// `sig` ausente/errada (tempo constante no núcleo).
+    Forbidden,
+    /// HMAC confere.
+    Ok,
+}
+
+/// Path puro (sem query): `/resolve/<hash>` ou `/<config>/resolve/<hash>`.
+///
+/// Devolve `(encoded, info_hash_cru)`. Hash inválido ainda casa o path — a
+/// validação hex fica em [`verify_resolve_play`] (400 no Node).
+pub fn parse_resolve_path(path: &str) -> Option<(Option<String>, String)> {
+    if path.contains('?') || path.contains('#') || !path.starts_with('/') {
+        return None;
+    }
+    let mut raw: Vec<&str> = Vec::new();
+    for segment in path[1..].split('/') {
+        if segment.is_empty() {
+            return None;
+        }
+        raw.push(segment);
+    }
+    match raw.as_slice() {
+        ["resolve", hash] if !hash.is_empty() => Some((None, (*hash).to_string())),
+        [config, "resolve", hash]
+            if !hash.is_empty() && is_resolve_config_segment(config) =>
+        {
+            Some((Some((*config).to_string()), (*hash).to_string()))
+        }
+        _ => None,
+    }
+}
+
+fn is_resolve_config_segment(segment: &str) -> bool {
+    // Mesmo teto/charset do `parse_stream_path` / `runtime.decode`.
+    const MAX: usize = 8192;
+    !segment.is_empty()
+        && segment.len() <= MAX
+        && segment
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// Monta [`ResolvePlay`] a partir do path + query da requisição.
+pub fn resolve_play_from(path: &str, query: Option<&str>) -> Option<ResolvePlay> {
+    let (encoded, hash_raw) = parse_resolve_path(path)?;
+    let (s, e, hint, sig) = parse_resolve_query(query);
+    let ep = match (&s, &e) {
+        (Some(season), Some(episode)) => format!("?s={season}&e={episode}"),
+        _ => String::new(),
+    };
+    Some(ResolvePlay {
+        info_hash: hash_raw.to_ascii_lowercase(),
+        encoded,
+        ep,
+        hint,
+        sig,
+    })
+}
+
+/// Query `s`/`e`/`w`/`sig`. Valores percent-decoded (como `req.query` no Express).
+fn parse_resolve_query(
+    query: Option<&str>,
+) -> (Option<String>, Option<String>, String, Option<String>) {
+    let mut s = None;
+    let mut e = None;
+    let mut hint = String::new();
+    let mut sig = None;
+    let Some(raw) = query.filter(|q| !q.is_empty()) else {
+        return (s, e, hint, sig);
+    };
+    for pair in raw.split('&') {
+        let (key, value) = match pair.split_once('=') {
+            Some((k, v)) => (k, v),
+            None => (pair, ""),
+        };
+        let key = decode_uri_component(key);
+        let value = decode_uri_component(value);
+        match key.as_str() {
+            "s" => s = Some(value),
+            "e" => e = Some(value),
+            "w" => hint = value,
+            "sig" => sig = Some(value),
+            _ => {}
+        }
+    }
+    (s, e, hint, sig)
+}
+
+/// Inverso de [`encode_uri_component`]: `%XX` (qualquer caixa) → byte; `+` não
+/// vira espaço (query de play não usa form-urlencoded).
+pub fn decode_uri_component(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(hi), Some(lo)) = (from_hex(bytes[i + 1]), from_hex(bytes[i + 2])) {
+                out.push((hi << 4) | lo);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn from_hex(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+/// `resolveSecret || debridApiKey || ''` — mesma precedência de `sign.ts`.
+pub fn effective_resolve_secret(resolve_secret: &str, debrid_api_key: &str) -> String {
+    if !resolve_secret.is_empty() {
+        resolve_secret.to_string()
+    } else {
+        debrid_api_key.to_string()
+    }
+}
+
+/// Chave de debrid do segmento de config (abre `dk` selado com o secret).
+pub fn debrid_api_key_from_encoded(encoded: &str, resolve_secret: &str) -> String {
+    let defaults = serde_json::Value::Object(serde_json::Map::new());
+    let Some(opts) = adom_core::decode_config(encoded, &defaults, resolve_secret) else {
+        return String::new();
+    };
+    opts.get("debridApiKey")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+/// Segredo efetivo para esta requisição: env `RESOLVE_SECRET` ou `dk` da URL.
+pub fn resolve_secret_for(resolve_secret: &str, encoded: Option<&str>) -> String {
+    if !resolve_secret.is_empty() {
+        return resolve_secret.to_string();
+    }
+    match encoded {
+        Some(enc) => debrid_api_key_from_encoded(enc, ""),
+        None => String::new(),
+    }
+}
+
+/// Verifica o HMAC do play. Não toca rede/debrid.
+pub fn verify_resolve_play(play: &ResolvePlay, secret: &str) -> ResolveVerify {
+    if play.info_hash.len() != 40
+        || !play
+            .info_hash
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit())
+    {
+        return ResolveVerify::InvalidHash;
+    }
+    if secret.is_empty() {
+        return ResolveVerify::Unsigned;
+    }
+    if adom_core::verify_resolve(
+        &play.info_hash,
+        &play.ep,
+        play.sig.as_deref(),
+        &play.hint,
+        secret,
+    ) {
+        ResolveVerify::Ok
+    } else {
+        ResolveVerify::Forbidden
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,5 +448,98 @@ mod tests {
             "%7B%22n%22%3A%5B%22A%20B%22%5D%7D"
         );
         assert_eq!(encode_uri_component("ção"), "%C3%A7%C3%A3o");
+    }
+
+    #[test]
+    fn decode_uri_component_inverso() {
+        let raw = "{\"n\":[\"A B\"],\"p\":1}";
+        assert_eq!(decode_uri_component(&encode_uri_component(raw)), raw);
+        assert_eq!(decode_uri_component("%7b%22a%22%3a1%7d"), "{\"a\":1}");
+    }
+
+    #[test]
+    fn parse_resolve_path_com_e_sem_config() {
+        let (enc, hash) = parse_resolve_path(
+            "/resolve/8cc4fdc2c777d1464d9043397309f45859b9297b",
+        )
+        .unwrap();
+        assert!(enc.is_none());
+        assert_eq!(hash, "8cc4fdc2c777d1464d9043397309f45859b9297b");
+
+        let (enc, hash) = parse_resolve_path(
+            "/e30/resolve/0123456789ABCDEF0123456789ABCDEF01234567",
+        )
+        .unwrap();
+        assert_eq!(enc.as_deref(), Some("e30"));
+        assert_eq!(hash, "0123456789ABCDEF0123456789ABCDEF01234567");
+
+        assert!(parse_resolve_path("/stream/movie/tt1.json").is_none());
+        assert!(parse_resolve_path("/resolve/").is_none());
+        assert!(parse_resolve_path("/resolve/aa/extra").is_none());
+    }
+
+    #[test]
+    fn verify_resolve_play_aceita_url_assinada() {
+        let signer = ResolveSigner {
+            season: Some(1),
+            episode: Some(2),
+            ..signer()
+        };
+        let hash = "0123456789abcdef0123456789abcdef01234567";
+        let url = signer.url(hash, true, true);
+        // URL relativa: /e30/resolve/<hash>?s=1&e=2&w=…&sig=…
+        // `split_once('?')` só corta no primeiro `?` (o do ep); o resto é query.
+        let q_start = url.find('?').unwrap();
+        let path = &url[..q_start];
+        let query = &url[q_start + 1..];
+        let play = resolve_play_from(path, Some(query)).unwrap();
+        assert_eq!(play.info_hash, hash);
+        assert_eq!(play.ep, "?s=1&e=2");
+        assert!(play.hint.contains("\"p\":1"), "hint={}", play.hint);
+        let expected_hint = signer.hint_json(true, true);
+        assert_eq!(play.hint, expected_hint, "dica decoded != hint_json");
+        assert_eq!(
+            verify_resolve_play(&play, "segredo-de-teste"),
+            ResolveVerify::Ok
+        );
+    }
+
+    #[test]
+    fn verify_resolve_play_rejeita_sig_errada_e_hash_curto() {
+        let play = ResolvePlay {
+            info_hash: "0123456789abcdef0123456789abcdef01234567".into(),
+            encoded: None,
+            ep: String::new(),
+            hint: String::new(),
+            sig: Some("00".repeat(32)),
+        };
+        assert_eq!(
+            verify_resolve_play(&play, "segredo-de-teste"),
+            ResolveVerify::Forbidden
+        );
+
+        let curto = ResolvePlay {
+            info_hash: "aa".into(),
+            ..play.clone()
+        };
+        assert_eq!(
+            verify_resolve_play(&curto, "segredo-de-teste"),
+            ResolveVerify::InvalidHash
+        );
+
+        assert_eq!(
+            verify_resolve_play(&play, ""),
+            ResolveVerify::Unsigned
+        );
+    }
+
+    #[test]
+    fn effective_secret_precede_resolve_sobre_dk() {
+        assert_eq!(
+            effective_resolve_secret("sec", "dk"),
+            "sec"
+        );
+        assert_eq!(effective_resolve_secret("", "dk"), "dk");
+        assert_eq!(effective_resolve_secret("", ""), "");
     }
 }

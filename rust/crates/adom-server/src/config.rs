@@ -7,7 +7,7 @@ use http::Uri;
 
 /// Tokens de `ROUTES_RUST` (CSV). `health` liga o nativo; `stream-shadow` arma
 /// a observação em paralelo; `stream` (token exato) corta `/stream` no Rust
-/// (prioridade sobre a sombra).
+/// (prioridade sobre a sombra); `resolve` arma a guarda HMAC do play.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen: SocketAddr,
@@ -17,6 +17,12 @@ pub struct Config {
     pub stream_shadow: bool,
     /// `ROUTES_RUST` contém `stream`: corte nativo via `adom-search`.
     pub stream_native: bool,
+    /// `ROUTES_RUST` contém `resolve`: verifica HMAC e (strangler) proxy.
+    pub resolve_native: bool,
+    /// Encaminha o play ao Node após o verify. `false` → 501 (sem debrid).
+    pub resolve_proxy: bool,
+    /// `RESOLVE_SECRET` do operador (precedência sobre `dk` da URL).
+    pub resolve_secret: String,
 }
 
 impl Config {
@@ -25,10 +31,24 @@ impl Config {
         let upstream = std::env::var("GATEWAY_UPSTREAM")
             .unwrap_or_else(|_| "http://127.0.0.1:7100".to_string());
         let routes = std::env::var("ROUTES_RUST").unwrap_or_default();
-        Self::parse(&listen, &upstream, &routes)
+        let resolve_proxy = resolve_proxy_from_env();
+        let resolve_secret = std::env::var("RESOLVE_SECRET").unwrap_or_default();
+        Self::parse(
+            &listen,
+            &upstream,
+            &routes,
+            resolve_proxy,
+            resolve_secret,
+        )
     }
 
-    pub fn parse(listen: &str, upstream: &str, routes: &str) -> Result<Self, String> {
+    pub fn parse(
+        listen: &str,
+        upstream: &str,
+        routes: &str,
+        resolve_proxy: bool,
+        resolve_secret: String,
+    ) -> Result<Self, String> {
         let listen: SocketAddr = listen
             .parse()
             .map_err(|_| format!("GATEWAY_LISTEN invalido: {listen}"))?;
@@ -46,6 +66,9 @@ impl Config {
             native_health: native_health(routes),
             stream_shadow: stream_shadow(routes),
             stream_native: stream_native(routes),
+            resolve_native: resolve_native(routes),
+            resolve_proxy,
+            resolve_secret,
         })
     }
 }
@@ -61,6 +84,22 @@ pub fn stream_shadow(routes: &str) -> bool {
 /// Token exato `stream` — não confunde com `stream-shadow`.
 pub fn stream_native(routes: &str) -> bool {
     has_route_token(routes, "stream")
+}
+
+/// Token exato `resolve`.
+pub fn resolve_native(routes: &str) -> bool {
+    has_route_token(routes, "resolve")
+}
+
+/// `GATEWAY_RESOLVE_PROXY`: default ligado; `off`/`false`/`0` desliga.
+pub fn resolve_proxy_from_env() -> bool {
+    match std::env::var("GATEWAY_RESOLVE_PROXY") {
+        Ok(raw) => {
+            let v = raw.trim().to_ascii_lowercase();
+            !matches!(v.as_str(), "0" | "false" | "off" | "no")
+        }
+        Err(_) => true,
+    }
 }
 
 fn has_route_token(routes: &str, token: &str) -> bool {

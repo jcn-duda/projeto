@@ -8,8 +8,8 @@
 //!
 //! O que este crate **NÃO faz** (de propósito, nesta fatia):
 //!
-//! - **não abre rota `/stream`**: nenhum handler nativo; o `adom-server` não
-//!   depende deste crate e o `/stream` continua 100% Node;
+//! - **não abre o socket HTTP**: o handler mora no `adom-server` (corte
+//!   `ROUTES_RUST=stream`); este crate só orquestra;
 //! - **não fala com Jackett/Cinemeta/TMDB direto**: a coleta e os metadados
 //!   passam pelas rotas `/internal/search/*` do Node;
 //! - **não decide prazo sozinho**: recebe os milissegundos (Stremio × app) e
@@ -73,4 +73,9 @@ pub use orchestrate::{
 pub use raw_item::raw_item_from_value;
 pub use request::{
     decode_user_config, parse_stream_path, reply_deadline_ms, request_cache_key, StreamTarget,
+};
+pub use resolve_url::{
+    debrid_api_key_from_encoded, effective_resolve_secret, encode_uri_component, parse_resolve_path,
+    resolve_play_from, resolve_secret_for, verify_resolve_play, ResolvePlay, ResolveSigner,
+    ResolveVerify,
 };

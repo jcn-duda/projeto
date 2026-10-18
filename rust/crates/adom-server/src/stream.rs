@@ -12,7 +12,8 @@ use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
-    AdapterDebridFactory, NodeRoutes, Orchestrator, OrchestratorConfig, StreamRequest,
+    AdapterDebridFactory, NodeRoutes, NoDebridFactory, NoopTailEffects, Orchestrator,
+    OrchestratorConfig, StreamRequest,
 };
 use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse};
 
@@ -34,6 +35,34 @@ pub fn build_orchestrator() -> Orchestrator {
     let fallback: Option<Arc<dyn FallbackCheck>> =
         NodeInternalFallback::from_env().map(|fb| Arc::new(fb) as Arc<dyn FallbackCheck>);
     orch = orch.with_debrid(Arc::new(AdapterDebridFactory::new(None, fallback)));
+    orch
+}
+
+/// Orquestrador da sombra (§9.1): compare-only.
+///
+/// - `shadow_mode` — não grava SWR, não promove, não revalida/tail em fundo;
+/// - `NoDebridFactory` — sem check de debrid (nem reserva Node);
+/// - `NoopTailEffects` — sem index-write / effects (mesmo com `with_routes`).
+///
+/// Não devolve nada ao cliente; o proxy só observa o corpo.
+pub fn build_shadow_orchestrator() -> Orchestrator {
+    let store = Arc::new(MemorySwrStore::new());
+    let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
+        .with_shadow_mode(true)
+        .with_debrid(Arc::new(NoDebridFactory));
+    match NodeRoutes::from_env() {
+        Some(routes) => {
+            // `with_routes` liga NodeTailEffects — sobrescreve para noop.
+            orch = orch
+                .with_routes(Arc::new(routes))
+                .with_tail(Arc::new(NoopTailEffects));
+        }
+        None => {
+            eprintln!(
+                "[gateway] stream-shadow sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
+            );
+        }
+    }
     orch
 }
 

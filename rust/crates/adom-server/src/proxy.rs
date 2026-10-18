@@ -23,6 +23,7 @@ use hyper_util::rt::TokioExecutor;
 use adom_search::orchestrator::Orchestrator;
 
 use crate::config::Config;
+use crate::resolve::{self, GateDecision};
 use crate::shadow::{self, ShadowMetrics, ShadowRemount, ShadowRequest};
 use crate::stream;
 
@@ -36,6 +37,12 @@ pub struct AppState {
     pub stream_shadow: bool,
     /// Corte nativo: quando true e há orquestrador, `/stream` não vai ao Node.
     pub stream_native: bool,
+    /// Guarda HMAC de `/resolve` (`ROUTES_RUST=resolve`).
+    pub resolve_native: bool,
+    /// Após verify OK: proxy ao Node. `false` → 501 (sem play / sem debrid).
+    pub resolve_proxy: bool,
+    /// `RESOLVE_SECRET` — precedência sobre `dk` da URL no HMAC.
+    pub resolve_secret: String,
     pub shadow_metrics: ShadowMetrics,
     /// Store SWR + deps compartilhados entre requisições. `None` com a flag
     /// desligada (ou teste sem corte).
@@ -66,6 +73,8 @@ pub async fn run(config: Config) -> Result<(), String> {
     let native = config.native_health;
     let shadow = config.stream_shadow;
     let stream_cut = config.stream_native;
+    let resolve_cut = config.resolve_native;
+    let resolve_proxy = config.resolve_proxy;
     let upstream = config.upstream.clone();
     let orchestrator = if stream_cut {
         Some(stream::build_orchestrator())
@@ -84,6 +93,9 @@ pub async fn run(config: Config) -> Result<(), String> {
         native_health: config.native_health,
         stream_shadow: config.stream_shadow,
         stream_native: stream_cut,
+        resolve_native: resolve_cut,
+        resolve_proxy,
+        resolve_secret: config.resolve_secret,
         shadow_metrics: ShadowMetrics::new(),
         orchestrator,
         shadow_remount,
@@ -95,7 +107,7 @@ pub async fn run(config: Config) -> Result<(), String> {
         .local_addr()
         .map_err(|err| format!("endereco local: {err}"))?;
     eprintln!(
-        "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_shadow={shadow} stream_native={stream_cut}"
+        "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_shadow={shadow} stream_native={stream_cut} resolve_native={resolve_cut} resolve_proxy={resolve_proxy}"
     );
     axum::serve(listener, router(state))
         .await
@@ -132,6 +144,17 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
             )
                 .into_response(),
         };
+    }
+    // Guarda HMAC do play: verify no Rust; play real só via proxy (strangler).
+    // Nunca chama debrid aqui — evita segundo upload.
+    if state.resolve_native && resolve::is_native_resolve(req.method(), req.uri().path()) {
+        let (path, query) = resolve::path_and_query(&req);
+        match resolve::decide(path, query, &state.resolve_secret, state.resolve_proxy) {
+            GateDecision::BadHash => return resolve::bad_hash_response(),
+            GateDecision::Forbidden => return resolve::forbidden_response(),
+            GateDecision::NotImplemented => return resolve::not_implemented_response(),
+            GateDecision::Proxy => { /* cai no forward abaixo */ }
+        }
     }
     let shadow = state.stream_shadow && shadow::is_stream_path(req.uri().path());
     match forward(&state, req, shadow).await {

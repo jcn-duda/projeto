@@ -124,6 +124,16 @@ impl DebridCheck for NoDebridCheck {
     }
 }
 
+/// Fábrica que nunca pergunta ao debrid (sombra §9.1 / testes sem rede).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoDebridFactory;
+
+impl DebridFactory for NoDebridFactory {
+    fn make(&self, _ctx: &DebridContext) -> Box<dyn DebridCheck + Send> {
+        Box::new(NoDebridCheck)
+    }
+}
+
 /// Fábrica de produção: os adaptadores do `adom-debrid` + a reserva Node.
 ///
 /// Default = sem store/fallback: a fábrica funciona e responde `Unknown`

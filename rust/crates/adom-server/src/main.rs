@@ -1,5 +1,6 @@
 mod config;
 mod proxy;
+mod resolve;
 mod shadow;
 mod stream;
 

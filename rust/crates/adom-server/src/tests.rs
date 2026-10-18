@@ -15,7 +15,7 @@ use tokio::net::TcpListener;
 use adom_search::orchestrator::{Orchestrator, OrchestratorConfig};
 use adom_search::MemorySwrStore;
 
-use crate::config::{native_health, stream_native, stream_shadow, Config};
+use crate::config::{native_health, resolve_native, stream_native, stream_shadow, Config};
 use crate::proxy::{self, AppState};
 use crate::shadow::{self, ShadowMetrics, COMPARED, DIVERGENCE, DIVERGENCE_ITEMS};
 
@@ -76,6 +76,9 @@ fn gateway_state(upstream: SocketAddr, native_health: bool, stream_shadow: bool)
         native_health,
         stream_shadow,
         stream_native: false,
+        resolve_native: false,
+        resolve_proxy: true,
+        resolve_secret: String::new(),
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: None,
         shadow_remount: None,
@@ -99,9 +102,32 @@ fn gateway_state_native(
         native_health: false,
         stream_shadow,
         stream_native: true,
+        resolve_native: false,
+        resolve_proxy: true,
+        resolve_secret: String::new(),
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: Some(orch),
         // Com corte nativo a sombra do Node não monta.
+        shadow_remount: None,
+    }
+}
+
+fn gateway_state_resolve(
+    upstream: SocketAddr,
+    secret: &str,
+    proxy_enabled: bool,
+) -> AppState {
+    AppState {
+        client: proxy::client(),
+        upstream: format!("http://{upstream}").parse().unwrap(),
+        native_health: false,
+        stream_shadow: false,
+        stream_native: false,
+        resolve_native: true,
+        resolve_proxy: proxy_enabled,
+        resolve_secret: secret.to_string(),
+        shadow_metrics: ShadowMetrics::new(),
+        orchestrator: None,
         shadow_remount: None,
     }
 }
@@ -152,14 +178,28 @@ fn stream_shadow_e_stream_parseados_sem_confundir() {
     // Ambos podem coexistir; o dispatch nativo tem prioridade sobre a sombra.
     assert!(stream_shadow("stream,stream-shadow"));
     assert!(stream_native("stream,stream-shadow"));
+
+    assert!(!resolve_native(""));
+    assert!(!resolve_native("stream"));
+    assert!(resolve_native("resolve"));
+    assert!(resolve_native("health,resolve,stream"));
 }
 
 #[test]
 fn config_default_vazio_nao_liga_stream() {
-    let ok = Config::parse("127.0.0.1:9", "http://127.0.0.1:7100", "").unwrap();
+    let ok = Config::parse(
+        "127.0.0.1:9",
+        "http://127.0.0.1:7100",
+        "",
+        true,
+        String::new(),
+    )
+    .unwrap();
     assert!(!ok.native_health);
     assert!(!ok.stream_shadow);
     assert!(!ok.stream_native);
+    assert!(!ok.resolve_native);
+    assert!(ok.resolve_proxy);
 }
 
 #[test]
@@ -430,8 +470,15 @@ fn upstream_uri_preserva_query() {
 
 #[test]
 fn config_rejeita_upstream_sem_host() {
-    assert!(Config::parse("127.0.0.1:9", "http://", "").is_err());
-    let ok = Config::parse("127.0.0.1:9", "http://127.0.0.1:7100", "health").unwrap();
+    assert!(Config::parse("127.0.0.1:9", "http://", "", true, String::new()).is_err());
+    let ok = Config::parse(
+        "127.0.0.1:9",
+        "http://127.0.0.1:7100",
+        "health",
+        true,
+        String::new(),
+    )
+    .unwrap();
     assert!(ok.native_health);
     assert!(!ok.stream_shadow);
     assert!(!ok.stream_native);
@@ -440,15 +487,36 @@ fn config_rejeita_upstream_sem_host() {
         "127.0.0.1:9",
         "http://127.0.0.1:7100",
         "health,stream-shadow",
+        true,
+        String::new(),
     )
     .unwrap();
     assert!(shadow.native_health);
     assert!(shadow.stream_shadow);
     assert!(!shadow.stream_native);
 
-    let native = Config::parse("127.0.0.1:9", "http://127.0.0.1:7100", "stream").unwrap();
+    let native = Config::parse(
+        "127.0.0.1:9",
+        "http://127.0.0.1:7100",
+        "stream",
+        true,
+        String::new(),
+    )
+    .unwrap();
     assert!(!native.stream_shadow);
     assert!(native.stream_native);
+
+    let resolve = Config::parse(
+        "127.0.0.1:9",
+        "http://127.0.0.1:7100",
+        "resolve",
+        false,
+        "sec".into(),
+    )
+    .unwrap();
+    assert!(resolve.resolve_native);
+    assert!(!resolve.resolve_proxy);
+    assert_eq!(resolve.resolve_secret, "sec");
 }
 
 #[test]
@@ -465,4 +533,69 @@ fn shadow_metrics_snapshot_expoe_chaves_zeradas() {
     assert_eq!(snap.get(DIVERGENCE), Some(&0));
     assert_eq!(snap.get(DIVERGENCE_ITEMS), Some(&0));
     assert_eq!(snap.get(shadow::COMPARED), Some(&0));
+}
+
+#[tokio::test]
+async fn resolve_nativo_403_sem_tocar_upstream() {
+    let (upstream, hits) = spawn_upstream().await;
+    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", true)).await;
+    let hash = "0123456789abcdef0123456789abcdef01234567";
+    let req = Request::builder()
+        .uri(format!("/resolve/{hash}?sig=deadbeef"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body, "assinatura inválida");
+    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn resolve_nativo_501_com_proxy_desligado() {
+    use adom_search::ResolveSigner;
+    let (upstream, hits) = spawn_upstream().await;
+    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", false)).await;
+    let hash = "0123456789abcdef0123456789abcdef01234567";
+    let signer = ResolveSigner {
+        prefix: String::new(),
+        secret: "segredo".into(),
+        ..ResolveSigner::default()
+    };
+    let url = signer.url(hash, false, false);
+    let req = Request::builder()
+        .uri(url)
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
+    assert!(body.contains("proxy desligado"), "corpo: {body}");
+    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn resolve_nativo_proxy_apos_verify_ok() {
+    use adom_search::ResolveSigner;
+    let (upstream, hits) = spawn_upstream().await;
+    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", true)).await;
+    let hash = "0123456789abcdef0123456789abcdef01234567";
+    let signer = ResolveSigner {
+        prefix: String::new(),
+        secret: "segredo".into(),
+        ..ResolveSigner::default()
+    };
+    let url = signer.url(hash, false, false);
+    let req = Request::builder()
+        .uri(url)
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert!(
+        json["pq"].as_str().unwrap().starts_with(&format!("/resolve/{hash}")),
+        "pq: {}",
+        json["pq"]
+    );
+    assert_eq!(hits.0.load(Ordering::SeqCst), 1);
 }

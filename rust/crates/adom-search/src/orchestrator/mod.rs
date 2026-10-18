@@ -60,7 +60,7 @@ use crate::resolve_url::ResolveSigner;
 pub use collect::{plan_jobs, CollectBatch, CollectJob, Collector, NodeCollector};
 pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
-    OrchestratorConfig,
+    NoDebridFactory, OrchestratorConfig,
 };
 pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
@@ -182,6 +182,9 @@ pub struct Orchestrator {
     tail: Arc<dyn TailEffects>,
     in_flight: Arc<InFlight<Arc<SearchOutcome>>>,
     refreshing: Arc<Mutex<HashSet<String>>>,
+    /// `true` = sombra §9.1: sem debrid, sem gravar SWR, sem fila tardia /
+    /// index-write / effects / refresh em fundo. Só produz corpo para comparar.
+    shadow_mode: bool,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -223,6 +226,7 @@ impl Orchestrator {
             tail: Arc::new(NoopTailEffects),
             in_flight: Arc::new(InFlight::new()),
             refreshing: Arc::new(Mutex::new(HashSet::new())),
+            shadow_mode: false,
         }
     }
 
@@ -246,6 +250,12 @@ impl Orchestrator {
         self
     }
 
+    /// Liga o modo sombra (§9.1): compare-only — sem efeitos colaterais.
+    pub fn with_shadow_mode(mut self, enabled: bool) -> Self {
+        self.shadow_mode = enabled;
+        self
+    }
+
     /// Liga coleta/metadados/efeitos no cliente HTTP das rotas internas.
     pub fn with_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
         self.collector = Arc::new(NodeCollector::new(routes.clone()));
@@ -256,6 +266,11 @@ impl Orchestrator {
 
     pub fn config(&self) -> &OrchestratorConfig {
         &self.config
+    }
+
+    /// `true` quando montado para sombra compare-only (§9.1).
+    pub fn shadow_mode(&self) -> bool {
+        self.shadow_mode
     }
 
     /// Quantas buscas estão coalescendo agora (snapshot do painel).
@@ -287,7 +302,8 @@ impl Orchestrator {
             .get_with_stale(&key, self.config.stale_grace_seconds, as_ms(now));
         match swr_lookup(hit) {
             SwrLookup::Serve { entry, revalidate } => {
-                if revalidate {
+                // Sombra não revalida em fundo (não grava cache / não CHAMa debrid).
+                if revalidate && !self.shadow_mode {
                     self.spawn_stale_refresh(key.clone(), req.clone(), options.clone());
                 }
                 return self.respond_entry(&entry, &req);
@@ -396,19 +412,26 @@ impl Orchestrator {
         );
 
         // Fila tardia: o lote COMPLETO chega depois da resposta; o index-write
-        // e o refresh/vassourda vão com ele.
-        let tail_items = items.clone();
-        let plan = self.tail_plan(&input, &meta, &first, partial);
-        if !plan.is_empty() || completion.is_some() {
-            let this = self.clone();
-            let writer = writer.clone();
-            let tail_first = first.clone();
-            tokio::spawn(async move {
-                this.run_tail(
-                    input, meta, tail_first, tail_items, partial, plan, completion, writer,
-                )
-                .await;
-            });
+        // e o refresh/vassourda vão com ele. Sombra §9.1: aborta o completion e
+        // NÃO dispara tail (sem SWR/index/effects/debrid em fundo).
+        if self.shadow_mode {
+            if let Some(handle) = completion {
+                handle.abort();
+            }
+        } else {
+            let tail_items = items.clone();
+            let plan = self.tail_plan(&input, &meta, &first, partial);
+            if !plan.is_empty() || completion.is_some() {
+                let this = self.clone();
+                let writer = writer.clone();
+                let tail_first = first.clone();
+                tokio::spawn(async move {
+                    this.run_tail(
+                        input, meta, tail_first, tail_items, partial, plan, completion, writer,
+                    )
+                    .await;
+                });
+            }
         }
         let cache_max_age = cache_max_age_for_finish(&first, collect_failed, &self.config);
         Arc::new(SearchOutcome {
@@ -550,10 +573,16 @@ impl Orchestrator {
         let store = self.store.clone();
         let key = input.key.clone();
         let now = input.now_ms;
+        let shadow = self.shadow_mode;
         let (value, _commit) = writer.run(
             phase,
             || {
-                let mut check = self.debrid.make(&debrid_ctx);
+                // Sombra: nunca pergunta ao debrid (nem via fábrica injetada).
+                let mut check: Box<dyn crate::list_builder::DebridCheck + Send> = if shadow {
+                    Box::new(NoDebridCheck)
+                } else {
+                    self.debrid.make(&debrid_ctx)
+                };
                 let built =
                     build_stream_list(items, &ctx, &opts, &mut *check, &self.config.display);
                 finish_value(
@@ -569,6 +598,9 @@ impl Orchestrator {
             },
             |value: &FinishValue| !value.entry.streams.is_empty(),
             |value: &FinishValue| {
+                if shadow {
+                    return;
+                }
                 if value.commit_write {
                     let entry = to_cacheable_entry(&value.entry);
                     store.set(&key, &entry, value.commit_ttl.max(0) as u64, as_ms(now));
@@ -754,6 +786,9 @@ impl Orchestrator {
     /// Sem novidade no lote tardio: promove a entrada parcial existente com as
     /// regras do núcleo (`late_promotion_decision`).
     fn promote_late(&self, input: &SearchInput) {
+        if self.shadow_mode {
+            return;
+        }
         let now = input.now_ms;
         // `cache.get` do TS: entrada expirada some (graça 0).
         let Some(hit) = self.store.get_with_stale(&input.key, 0, as_ms(now)) else {
