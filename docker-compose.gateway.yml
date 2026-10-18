@@ -1,9 +1,9 @@
 # OVERRIDE opt-in de validação local (commitado de propósito; o compose padrão
-# não o carrega): liga o gateway Rust na 7000 com o Node na 7100 atrás. A F1
-# ainda não tem /stream nativo, então ROUTES_RUST fica vazio de propósito — tudo
-# é proxy, que é exatamente o caminho a validar.
+# não o carrega): liga o gateway Rust na 7000 com o Node na 7100 atrás.
+# ROUTES_RUST=stream-shadow: Node responde /stream; Rust só observa (sem corte
+# nativo). Token `stream` (corte) fica de fora de propósito.
 services:
   adom:
     environment:
       GATEWAY: "on"
-      ROUTES_RUST: ""
+      ROUTES_RUST: "stream-shadow"
