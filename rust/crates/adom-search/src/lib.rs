@@ -72,7 +72,8 @@ pub use orchestrate::{
 };
 pub use raw_item::raw_item_from_value;
 pub use request::{
-    decode_user_config, parse_stream_path, reply_deadline_ms, request_cache_key, StreamTarget,
+    decode_user_config, encoded_for_internal, parse_stream_path, reply_deadline_ms,
+    request_cache_key, StreamTarget, DEFAULT_CONFIG_SEGMENT,
 };
 pub use resolve_url::{
     debrid_api_key_from_encoded, effective_resolve_secret, encode_uri_component, parse_resolve_path,

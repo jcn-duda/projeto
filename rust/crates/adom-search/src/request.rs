@@ -30,6 +30,22 @@ pub struct StreamTarget {
     pub encoded: Option<String>,
 }
 
+/// Segmento base64url de `{}` — config canônica quando a URL não traz
+/// `/:userConfig`. O Node e o `InternalSearchClient` recusam `encoded` vazio
+/// no corpo de `/internal/search/*`; este valor é o equivalente a defaults.
+pub const DEFAULT_CONFIG_SEGMENT: &str = "e30";
+
+/// Corpo das rotas internas / identidade da busca: nunca string vazia.
+///
+/// - com segmento na URL → passa intacto;
+/// - sem segmento / vazio → [`DEFAULT_CONFIG_SEGMENT`].
+pub fn encoded_for_internal(encoded: Option<&str>) -> String {
+    match encoded.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(segment) => segment.to_string(),
+        None => DEFAULT_CONFIG_SEGMENT.to_string(),
+    }
+}
+
 /// Mesmo teto de `runtime.ts`: acima disso o segmento nem é tentado.
 const MAX_CONFIG_SEGMENT: usize = 8192;
 
@@ -137,7 +153,23 @@ mod tests {
         let target = parse_stream_path("/stream/movie/tt0133093.json").expect("deveria casar");
         assert_eq!(target.kind, "movie");
         assert_eq!(target.id, "tt0133093");
+        // Parser só lê o path: ausência de segmento ≠ omitir no corpo interno.
         assert_eq!(target.encoded, None);
+        assert_eq!(
+            encoded_for_internal(target.encoded.as_deref()),
+            DEFAULT_CONFIG_SEGMENT
+        );
+    }
+
+    #[test]
+    fn encoded_interno_nunca_vazio() {
+        assert_eq!(encoded_for_internal(None), "e30");
+        assert_eq!(encoded_for_internal(Some("")), "e30");
+        assert_eq!(encoded_for_internal(Some("   ")), "e30");
+        assert_eq!(
+            encoded_for_internal(Some("eyJwIjoiamFja2V0dCJ9")),
+            "eyJwIjoiamFja2V0dCJ9"
+        );
     }
 
     #[test]

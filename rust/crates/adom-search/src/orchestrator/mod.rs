@@ -54,7 +54,9 @@ use crate::internal_types::ReleaseEntry;
 use crate::latest_writer::LatestWriter;
 use crate::list_builder::{apply_notice_origin, build_stream_list, BuildContext, BuiltStream};
 use crate::raw_item::RawItem;
-use crate::request::{parse_stream_path, reply_deadline_ms, request_cache_key};
+use crate::request::{
+    encoded_for_internal, parse_stream_path, reply_deadline_ms, request_cache_key,
+};
 use crate::resolve_url::ResolveSigner;
 
 pub use collect::{plan_jobs, CollectBatch, CollectJob, Collector, NodeCollector};
@@ -101,6 +103,9 @@ pub struct StreamRequest {
 
 impl StreamRequest {
     /// Açúcar para o servidor: caminho cru + UA + origin.
+    ///
+    /// Sem `/:userConfig` na URL, o segmento vira o canônico `e30` (`{}`): as
+    /// rotas internas do Node exigem `encoded` não-vazio no corpo.
     pub fn from_path(
         path: &str,
         user_agent: Option<&str>,
@@ -111,19 +116,17 @@ impl StreamRequest {
         Some(StreamRequest {
             kind: target.kind,
             id: target.id,
-            encoded: target.encoded,
+            encoded: Some(encoded_for_internal(target.encoded.as_deref())),
             user_agent: user_agent.map(str::to_string),
             origin: origin.map(|o| o.trim_end_matches('/').to_string()),
             now_ms,
         })
     }
 
-    /// `/<config>` ou `""` — prefixo das URLs de play e do aviso.
+    /// `/<config>` — prefixo das URLs de play e do aviso (sempre com segmento
+    /// após [`Self::from_path`]; fallback canônico se montado à mão sem encoded).
     pub fn prefix(&self) -> String {
-        match &self.encoded {
-            Some(encoded) => format!("/{encoded}"),
-            None => String::new(),
-        }
+        format!("/{}", encoded_for_internal(self.encoded.as_deref()))
     }
 }
 
@@ -314,7 +317,7 @@ impl Orchestrator {
         let input = SearchInput {
             kind: req.kind.clone(),
             id: req.id.clone(),
-            encoded: req.encoded.clone(),
+            encoded: Some(encoded_for_internal(req.encoded.as_deref())),
             prefix: prefix.clone(),
             options,
             key: key.clone(),
@@ -373,7 +376,7 @@ impl Orchestrator {
                 let input = SearchInput {
                     kind: req.kind.clone(),
                     id: req.id.clone(),
-                    encoded: req.encoded.clone(),
+                    encoded: Some(encoded_for_internal(req.encoded.as_deref())),
                     prefix: req.prefix(),
                     options,
                     key: key.clone(),
@@ -445,7 +448,7 @@ impl Orchestrator {
 
     async fn load_meta(&self, input: &SearchInput) -> SearchMeta {
         let query = MetaQuery {
-            encoded: input.encoded.clone().unwrap_or_default(),
+            encoded: encoded_for_internal(input.encoded.as_deref()),
             kind: input.kind.clone(),
             id: input.id.clone(),
             // Coleção/1º lançamento doméstico custam uma ida extra ao TMDB —
@@ -639,7 +642,7 @@ impl Orchestrator {
         DebridContext {
             service: str_of(&input.options, "debridService"),
             api_key: str_of(&input.options, "debridApiKey"),
-            encoded: input.encoded.clone(),
+            encoded: Some(encoded_for_internal(input.encoded.as_deref())),
             deadline_at,
         }
     }
@@ -686,7 +689,7 @@ impl Orchestrator {
             });
         }
         TailPlan {
-            encoded: input.encoded.clone().unwrap_or_default(),
+            encoded: encoded_for_internal(input.encoded.as_deref()),
             meta: meta.clone(),
             jobs,
         }

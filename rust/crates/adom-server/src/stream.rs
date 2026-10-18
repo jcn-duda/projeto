@@ -249,4 +249,21 @@ mod tests {
         assert!(!is_native_stream(&Method::GET, "/manifest.json"));
         assert!(!is_native_stream(&Method::GET, "/health"));
     }
+
+    #[test]
+    fn from_path_sem_config_preenche_encoded_canonico() {
+        let req = StreamRequest::from_path("/stream/movie/tt0133093.json", None, None, None)
+            .expect("path sem config");
+        assert_eq!(req.encoded.as_deref(), Some("e30"));
+        assert_eq!(req.prefix(), "/e30");
+
+        let com = StreamRequest::from_path(
+            "/eyJwIjoiamFja2V0dCJ9/stream/movie/tt0133093.json",
+            None,
+            None,
+            None,
+        )
+        .expect("path com config");
+        assert_eq!(com.encoded.as_deref(), Some("eyJwIjoiamFja2V0dCJ9"));
+    }
 }

@@ -102,6 +102,45 @@ impl MetaSource for StubMeta {
     }
 }
 
+/// Meta + collect que gravam o `encoded` recebido (prova do path sem config).
+#[derive(Default)]
+struct RecordingBackend {
+    meta_encoded: Mutex<Vec<String>>,
+    collect_encoded: Mutex<Vec<String>>,
+}
+
+impl MetaSource for RecordingBackend {
+    fn resolve<'a>(&'a self, req: MetaQuery) -> RouteFuture<'a, SearchMeta> {
+        Box::pin(async move {
+            self.meta_encoded
+                .lock()
+                .expect("meta_encoded")
+                .push(req.encoded.clone());
+            Ok(meta())
+        })
+    }
+}
+
+impl Collector for RecordingBackend {
+    fn collect<'a>(
+        &'a self,
+        job: CollectJob,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<CollectBatch, String>> + Send + 'a>,
+    > {
+        Box::pin(async move {
+            self.collect_encoded
+                .lock()
+                .expect("collect_encoded")
+                .push(job.encoded.clone());
+            Ok(CollectBatch {
+                items: vec![item(HASH)],
+                partial: false,
+            })
+        })
+    }
+}
+
 struct StubCheck {
     cached: Vec<String>,
 }
@@ -615,4 +654,46 @@ async fn shadow_mode_nao_checa_debrid_nem_grava_store_nem_dispara_tail() {
         "shadow_mode não dispara index-write / effects"
     );
     assert_eq!(collector.calls(), 1);
+}
+
+// ── Path sem /:userConfig ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
+    let store = Arc::new(MemorySwrStore::new());
+    let backend = Arc::new(RecordingBackend::default());
+    let orch = Orchestrator::new(config(), store)
+        .with_collector(backend.clone())
+        .with_meta(backend.clone())
+        .with_debrid(Arc::new(StubDebrid { cached: vec![] }));
+
+    let req = StreamRequest::from_path(
+        "/stream/movie/tt0133093.json",
+        Some("Stremio/1.6"),
+        Some(ORIGIN),
+        Some(1_000_000),
+    )
+    .expect("path sem config deve casar");
+    assert_eq!(req.encoded.as_deref(), Some(SEGMENT));
+    assert_eq!(req.prefix(), format!("/{SEGMENT}"));
+
+    let _ = orch.handle(req).await;
+
+    let meta_encoded = backend.meta_encoded.lock().expect("meta").clone();
+    let collect_encoded = backend.collect_encoded.lock().expect("collect").clone();
+    assert!(
+        !meta_encoded.is_empty(),
+        "meta precisa ser chamado"
+    );
+    assert!(
+        !collect_encoded.is_empty(),
+        "collect precisa ser chamado"
+    );
+    for enc in meta_encoded.iter().chain(collect_encoded.iter()) {
+        assert!(
+            !enc.is_empty(),
+            "encoded no corpo nunca pode ser vazio (Node recusa)"
+        );
+        assert_eq!(enc, SEGMENT);
+    }
 }

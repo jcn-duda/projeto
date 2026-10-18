@@ -85,7 +85,7 @@ pub fn plan_jobs(
         None
     };
     let base = CollectJob {
-        encoded: encoded.unwrap_or("").to_string(),
+        encoded: crate::request::encoded_for_internal(encoded),
         scope: TaskScope::All,
         kind: String::new(),
         imdb_id: meta.imdb_id.clone(),
@@ -166,7 +166,7 @@ pub fn sweep_job(
 ) -> Option<CollectJob> {
     let sweep_query = meta.sweep_query.clone().filter(|_| config.sweep_enabled)?;
     Some(CollectJob {
-        encoded: encoded.unwrap_or("").to_string(),
+        encoded: crate::request::encoded_for_internal(encoded),
         scope: TaskScope::All,
         kind: "sweep".into(),
         imdb_id: meta.imdb_id.clone(),
