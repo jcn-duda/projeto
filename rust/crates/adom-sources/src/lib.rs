@@ -1,10 +1,12 @@
-//! `adom-sources` — clientes de metadados da Fase B.1 da migração TS→Rust.
+//! `adom-sources` — clientes de metadados e fontes da migração TS→Rust.
+//!
+//! ## Fase B.1 — Cinemeta / TMDB
 //!
 //! Porte de `src/utils/cinemeta.ts`, `tmdb.ts`, `tmdb-br-aliases.ts`,
 //! `catalog-year.ts` e `tmdb-home-release.ts` (oráculo: branch `esm`), mais a
 //! leitura de coleção que o `search-multiwork.ts` consome.
 //!
-//! O que este crate garante:
+//! O que o lookup garante:
 //!
 //! - **`find` duplo** (pt-BR e en-US) no MESMO prazo absoluto do caller. O
 //!   canônico inglês sai SÓ de `title`/`name` da consulta en-US — nunca
@@ -24,9 +26,22 @@
 //! - **tipos públicos**, sem `serde_json::Value` vazando: o orquestrador
 //!   consome [`MetaLookup`], [`Titles`], [`CinemetaMeta`] e [`CollectionInfo`].
 //!
-//! Fora do escopo desta fatia (de propósito): busca por TÍTULO
-//! (`tmdb-search.ts`), contagem de temporadas e `external_ids` da raspagem —
-//! são background-only e entram com o motor de crawl.
+//! ## Fase B.2 — Jackett Torznab/JSON
+//!
+//! Módulo [`jackett`]: cliente HTTP alinhado a `src/providers/jackett*.ts`.
+//! Globais agrupados / BR-slow isolados são responsabilidade do plano
+//! (`adom-core::plan_jackett_queries`); aqui entram shaping (`strip_diacritics`
+//! só sob `is_br`), breaker só em offline, `Link` com
+//! `is_safe_download_url` + redirect manual, e falha → `[]` / outcome honesto.
+//! Config via `JACKETT_URL` (default loopback `:9117`) e `JACKETT_API_KEY`
+//! (nunca em log). **Ainda não** está ligado ao orquestrador/`collectRaw`.
+//!
+//! Pendências da próxima fatia: integração no collect, cache `raw:v1`,
+//! pt-sweep tardio, pré-resolve BR (já no núcleo) e captura do magnet-bank.
+//!
+//! Fora do escopo B.1 (de propósito): busca por TÍTULO (`tmdb-search.ts`),
+//! contagem de temporadas e `external_ids` da raspagem — são background-only
+//! e entram com o motor de crawl.
 //!
 //! ```no_run
 //! # async fn exemplo() -> Result<(), String> {
@@ -47,6 +62,7 @@ mod cache;
 mod cinemeta;
 mod config;
 mod http;
+pub mod jackett;
 mod sources;
 mod tmdb;
 mod types;
@@ -58,6 +74,10 @@ pub use config::{
     CinemetaConfig, SourcesConfig, TmdbConfig, CINEMETA_BASE, DEFAULT_USER_AGENT, TMDB_BASE,
 };
 pub use http::now_ms;
+pub use jackett::{
+    budget_for, shape_search_query, JackettClient, JackettConfig, JackettMediaType, JackettRawItem,
+    QueryOutcome, SearchOptions, JACKETT_DEFAULT_URL,
+};
 pub use sources::MetaSources;
 pub use tmdb::TmdbClient;
 pub use types::{
