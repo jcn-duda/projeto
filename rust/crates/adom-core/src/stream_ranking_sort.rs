@@ -20,6 +20,8 @@
 //!   campos internos — quem apaga o resto é `limitReservingBr`, depois.
 
 mod quality_filter;
+#[path = "stream_ranking_sort_types.rs"]
+mod stream_ranking_sort_types;
 
 use std::collections::HashSet;
 
@@ -30,80 +32,13 @@ use crate::indexer_priority::{compare_indexer_priority, priority_map};
 use crate::pt_audio_guards::has_explicit_foreign_audio;
 use crate::release_labels::source_from_title;
 use crate::stream_quotas_extra::{
-    select_quality_candidates, QualityLimits, SelectCandidatesOpts, StreamRef, UNKNOWN_QUALITY,
+    select_quality_candidates, SelectCandidatesOpts, StreamRef, UNKNOWN_QUALITY,
 };
 use crate::stream_ranking_dedupe::{dedupe_by_hash, DedupeInput};
 use crate::stream_ranking_types::{RankingStream, TraceDrop};
 
 pub use quality_filter::passes_quality_filter;
-
-/// 2º parâmetro do `sortAndLimit` do TS, com os MESMOS defaults.
-#[derive(Debug, Clone)]
-pub struct SortOptions {
-    pub min_seeders: f64,
-    pub max_results: f64,
-    pub quality_filter: Vec<String>,
-    pub season: Option<i64>,
-    pub episode: Option<i64>,
-    pub prefer_dubbed: bool,
-    /// Lido e descartado no TS (`void dubbedOnly`): presença de global/EN em
-    /// cache não é cortada aqui — mantido só para espelhar o contrato.
-    pub dubbed_only: bool,
-    pub exclude_cam: bool,
-    pub max_size_gb: f64,
-    pub quality_limits: QualityLimits,
-    pub br_reserved_slots: f64,
-    pub br_reserved_per_quality: f64,
-    pub candidate_factor: f64,
-    pub br_first: bool,
-    pub indexer_priority: Vec<String>,
-}
-
-impl Default for SortOptions {
-    fn default() -> Self {
-        Self {
-            min_seeders: 0.0,
-            max_results: 40.0,
-            quality_filter: Vec::new(),
-            season: None,
-            episode: None,
-            prefer_dubbed: false,
-            dubbed_only: false,
-            exclude_cam: false,
-            max_size_gb: 0.0,
-            quality_limits: QualityLimits::default(),
-            br_reserved_slots: 0.0,
-            br_reserved_per_quality: 0.0,
-            candidate_factor: 1.0,
-            br_first: true,
-            indexer_priority: Vec::new(),
-        }
-    }
-}
-
-/// Entrada do `sortAndLimit`. `streams` já aceita `null` no TS; aqui quem
-/// filtra nulos é o dedupe (chave `infoHash` ausente — ver `Parte 2`).
-#[derive(Debug, Clone, Default)]
-pub struct SortInput {
-    pub streams: Vec<RankingStream>,
-    pub options: SortOptions,
-    /// Callback `instant: (hash) => bool` do TS, materializado.
-    pub instant_hashes: HashSet<String>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SortOutput {
-    pub streams: Vec<RankingStream>,
-    /// Streams com waiver do piso (`_seedFloorWaived`): quem chama aplica
-    /// `metrics.count('search.brDubbed.seedFloorWaived')`.
-    pub waived_hashes: Vec<String>,
-    /// Último recurso do qualityFilter acionado
-    /// (`metrics.count('search.qualityFilter.relaxed')` no TS).
-    pub quality_relaxed: bool,
-    /// Cortes na ordem do trace TS (`dedupe`, `lie`, `min-seeders`,
-    /// `quality-filter`, `cam-excluded`, `size-limit`, `pool-cut`).
-    pub drops: Vec<TraceDrop>,
-}
+pub use stream_ranking_sort_types::*;
 
 /// `Boolean(x)` sobre selo tipado: `None` é `undefined`.
 fn bool_of(v: Option<bool>) -> bool {
@@ -431,138 +366,5 @@ pub fn sort_and_limit(input: &SortInput) -> SortOutput {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    fn stream(hash: &str, name: &str, seeders: f64) -> RankingStream {
-        serde_json::from_value(json!({
-            "infoHash": hash, "name": name, "_seeders": seeders,
-        }))
-        .expect("stream de teste")
-    }
-
-    fn run(streams: Vec<RankingStream>, options: SortOptions) -> SortOutput {
-        sort_and_limit(&SortInput {
-            streams,
-            options,
-            instant_hashes: HashSet::new(),
-        })
-    }
-
-    #[test]
-    fn lista_vazia() {
-        let out = run(vec![], SortOptions::default());
-        assert!(out.streams.is_empty());
-        assert!(out.drops.is_empty());
-        assert!(!out.quality_relaxed);
-    }
-
-    #[test]
-    fn piso_de_seeders_corta_e_waiver_br_dublado_salva() {
-        let weak_br = serde_json::from_value::<RankingStream>(json!({
-            "infoHash": "a".repeat(40), "name": "Filme DUBLADO", "_seeders": 0,
-            "_br": true, "_dubbed": true,
-        }))
-        .unwrap();
-        let weak_en = stream(&"b".repeat(40), "EN only", 0.0);
-        let out = run(
-            vec![weak_br, weak_en],
-            SortOptions {
-                min_seeders: 5.0,
-                ..SortOptions::default()
-            },
-        );
-        assert_eq!(out.streams.len(), 1);
-        assert_eq!(out.streams[0].br, Some(true));
-        assert_eq!(
-            out.streams[0].extra.get("_seedFloorWaived"),
-            Some(&Value::Bool(true))
-        );
-        assert_eq!(out.waived_hashes, vec!["a".repeat(40)]);
-        assert_eq!(out.drops.len(), 1);
-        assert_eq!(out.drops[0].reason, "min-seeders");
-        assert_eq!(out.drops[0].label, "EN only");
-    }
-
-    #[test]
-    fn ordena_por_qualidade_e_corta_no_max_results() {
-        let mk = |name: &str, q: &str, seeds: f64| {
-            serde_json::from_value::<RankingStream>(json!({
-                "infoHash": name.repeat(4), "name": name,
-                "_seeders": seeds, "_quality": q,
-            }))
-            .unwrap()
-        };
-        let options = SortOptions {
-            max_results: 2.0,
-            ..SortOptions::default()
-        };
-        let out = run(
-            vec![
-                mk("sd", "SD", 90.0),
-                mk("fhd", "1080p", 1.0),
-                mk("uhd", "2160p", 1.0),
-            ],
-            options,
-        );
-        assert_eq!(out.streams.len(), 2);
-        assert_eq!(out.streams[0].quality.as_deref(), Some("2160p"));
-        assert_eq!(out.streams[1].quality.as_deref(), Some("1080p"));
-        assert_eq!(
-            out.drops.last().map(|d| d.reason.as_str()),
-            Some("pool-cut")
-        );
-        // `_seeders` sai da resposta (o TS o destrutura).
-        assert_eq!(out.streams[0].seeders, None);
-    }
-
-    #[test]
-    fn quality_filter_vazio_reabre_sd_como_ultimo_recurso() {
-        let mk = |name: &str, q: &str, br: bool| {
-            serde_json::from_value::<RankingStream>(json!({
-                "infoHash": name.repeat(4), "name": name,
-                "_seeders": 5, "_quality": q, "_br": br,
-            }))
-            .unwrap()
-        };
-        let options = SortOptions {
-            quality_filter: vec!["1080p".to_string()],
-            ..SortOptions::default()
-        };
-        let out = run(vec![mk("sd", "SD", true)], options);
-        assert_eq!(out.streams.len(), 1);
-        assert!(out.quality_relaxed);
-    }
-
-    #[test]
-    fn prefer_dubbed_e_instant_desempatam_antes_de_seeders() {
-        let mk = |name: &str, hash: String, seeds: f64, dubbed: bool| {
-            serde_json::from_value::<RankingStream>(json!({
-                "infoHash": hash, "name": name, "_seeders": seeds, "_dubbed": dubbed,
-            }))
-            .unwrap()
-        };
-        let mut instant_hashes = HashSet::new();
-        instant_hashes.insert("c".repeat(40));
-        let options = SortOptions {
-            prefer_dubbed: true,
-            ..SortOptions::default()
-        };
-        let out = sort_and_limit(&SortInput {
-            streams: vec![
-                mk("seeds", "d".repeat(40), 500.0, false),
-                mk("dub", "a".repeat(40), 10.0, true),
-                mk("instant", "c".repeat(40), 10.0, false),
-            ],
-            options,
-            instant_hashes,
-        });
-        let names: Vec<_> = out
-            .streams
-            .iter()
-            .map(|s| s.name.clone().unwrap())
-            .collect();
-        assert_eq!(names, vec!["dub", "instant", "seeds"]);
-    }
-}
+#[path = "stream_ranking_sort_tests.rs"]
+mod tests;
