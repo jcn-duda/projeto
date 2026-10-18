@@ -21,8 +21,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use adom_core::{QualityLimits, RankingStream};
-use serde_json::Value;
+use adom_core::{QualityLimits, RankingStream, QUALITY_KEYS};
+use serde_json::{json, Value};
 
 // ── Dependência injetada: a checagem de debrid ──────────────────────────────
 
@@ -101,20 +101,23 @@ pub struct BuildOptions {
 }
 
 impl Default for BuildOptions {
+    /// Defaults do operador (`src/config/search.ts`). Cotas vazias no núcleo =
+    /// ilimitado por faixa → lista ~`maxResults`; espelhar o Node (2/faixa,
+    /// BR 6+1, filtro HD, pool×4) evita o corte nativo devolver ~40 itens.
     fn default() -> Self {
         BuildOptions {
             max_results: 40.0,
-            candidate_pool_factor: 2.0,
-            min_seeders: 0.0,
+            candidate_pool_factor: 4.0,
+            min_seeders: 1.0,
             cached_only_ignores_seeds: true,
-            qualities: Vec::new(),
-            prefer_dubbed: false,
+            qualities: vec!["2160p".into(), "1080p".into(), "720p".into()],
+            prefer_dubbed: true,
             dubbed_only: false,
             exclude_cam: false,
             max_size_gb: 0.0,
-            quality_limits: QualityLimits::default(),
-            br_reserved_slots: 0.0,
-            br_reserved_per_quality: 0.0,
+            quality_limits: default_quality_limits(2.0),
+            br_reserved_slots: 6.0,
+            br_reserved_per_quality: 1.0,
             br_only: false,
             br_first: true,
             max_per_indexer: 0.0,
@@ -127,6 +130,46 @@ impl Default for BuildOptions {
             pre_home_release_margin_ms: 0,
             title_precision_tail_cut: true,
         }
+    }
+}
+
+/// Cotas por faixa (`QUALITY_KEYS`, incl. `"sem resolução"`).
+pub fn default_quality_limits(per_bucket: f64) -> QualityLimits {
+    let mut out = QualityLimits::new();
+    for key in QUALITY_KEYS {
+        out.insert(key.to_string(), per_bucket);
+    }
+    out
+}
+
+impl BuildOptions {
+    /// Fatia de cotas/busca do `defaults()` do Node — chaves longas do SCHEMA
+    /// para o decode da URL herdar teto/vagas quando o segmento omite `q1`/`b`.
+    pub fn to_schema_defaults(&self) -> Value {
+        json!({
+            "qualities": self.qualities,
+            "maxResults": self.max_results,
+            "minSeeders": self.min_seeders,
+            "brReservedSlots": self.br_reserved_slots,
+            "brFirst": self.br_first,
+            "brOnly": self.br_only,
+            "preferDubbed": self.prefer_dubbed,
+            "dubbedOnly": self.dubbed_only,
+            "excludeCam": self.exclude_cam,
+            "maxSizeGb": self.max_size_gb,
+            "max2160p": self.quality_limits.get("2160p").copied().unwrap_or(2.0),
+            "max1080p": self.quality_limits.get("1080p").copied().unwrap_or(2.0),
+            "max720p": self.quality_limits.get("720p").copied().unwrap_or(2.0),
+            "max480p": self.quality_limits.get("480p").copied().unwrap_or(2.0),
+            "maxSd": self.quality_limits.get("SD").copied().unwrap_or(2.0),
+            "maxUnknown": self.quality_limits
+                .get(adom_core::UNKNOWN_QUALITY)
+                .copied()
+                .unwrap_or(2.0),
+            "maxPerIndexer": self.max_per_indexer,
+            "indexerPriority": self.indexer_priority,
+            "indexerLimits": Value::Object(serde_json::Map::new()),
+        })
     }
 }
 
@@ -153,6 +196,8 @@ pub struct BuildContext {
     pub debrid_has_key: bool,
     /// `opts().debridCachedOnly`.
     pub debrid_cached_only: bool,
+    /// `opts().showUncachedBr` — vagas P2P BR fora do cache (exceção ao corte).
+    pub show_uncached_br: bool,
     /// Estreia do episódio (`Date.parse(airDate)`) em ms; `None` = sem data.
     pub episode_aired_at_ms: Option<i64>,
     /// Contagem de episódios por temporada (Cinemeta): `[(temporada, n)]`.

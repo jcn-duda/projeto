@@ -35,16 +35,16 @@ pub use types::{
     DebridAnswer, DebridCheck, WorkHint,
 };
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use adom_core::{
     admits_multi_work_pack, annotate_movie_sizes_core, annotate_pack_sizes_core, audio_from_title,
     bytes_to_size, decode_entities, edition_from_title, filter_relevant_raw, filter_series_episode,
     is_multi_work_collection, is_season_pack_release, limit_reserving_br_trace, looks_pt_br,
     normalize_title, quality_from_title, sort_and_limit, source_from_title, stream_display_name,
-    stream_size_label, DebridFile, JsText, LimitBrOpts, PackOpts, RankingStream, RelevanceQuery,
-    RelevanceSettings, SortInput, SortOptions, StreamDisplayConfig, StreamDisplayOptions,
-    StreamRef, WorkHint as DebridWorkHint,
+    stream_size_label, uncached_br_hashes, DebridFile, JsText, LimitBrOpts, PackOpts, PoolStream,
+    RankingStream, RelevanceQuery, RelevanceSettings, SortInput, SortOptions, StreamDisplayConfig,
+    StreamDisplayOptions, StreamRef, WorkHint as DebridWorkHint,
 };
 
 use crate::raw_item::RawItem;
@@ -288,9 +288,12 @@ pub fn build_stream_list(
     let mut streams = sort.streams;
     // Reserva (banco/foto do índice) sobrevive ao ranking em `extra`; a
     // entrada com reserva nunca é completa (TTL curto + promoção tardia).
-    out.fallback = streams
-        .iter()
-        .any(|s| s.extra.get("_fromFallback").and_then(|v| v.as_bool()).unwrap_or(false));
+    out.fallback = streams.iter().any(|s| {
+        s.extra
+            .get("_fromFallback")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    });
 
     // 7. 💾 de episódio (pack: média; multiobra: só medida exata). Antes do
     //    debrid — o título reescrito sobrevive à materialização.
@@ -325,6 +328,9 @@ pub fn build_stream_list(
 
     // 8. applyDebrid — um lote (prepare) + memo por stream. Sem prepare o
     //    AdapterDebridCheck cai no lazy da 1ª check (ainda 1 upload AD).
+    //    cachedOnly + showUncachedBr: o frio BR ocupa vaga P2P até
+    //    `br_reserved_slots` (mesmo `filterKnownCache` / `uncached_br_hashes`
+    //    do núcleo que o Node usa) — sem isso o dublado some no corte nativo.
     let batch: Vec<String> = streams
         .iter()
         .filter_map(|s| s.info_hash.clone())
@@ -332,6 +338,8 @@ pub fn build_stream_list(
         .collect();
     debrid.prepare(&batch);
     let mut kept = Vec::with_capacity(streams.len());
+    let mut missing: Vec<RankingStream> = Vec::new();
+    let mut cached_hashes: HashSet<String> = HashSet::new();
     for mut stream in streams {
         match debrid.check(&stream) {
             DebridAnswer::Cached { url } => {
@@ -340,12 +348,18 @@ pub fn build_stream_list(
                     stream.extra.insert("url".into(), url.into());
                 }
                 stream.extra.insert("cached".into(), true.into());
+                if let Some(h) = stream.info_hash.as_deref().filter(|h| !h.is_empty()) {
+                    cached_hashes.insert(h.to_string());
+                }
                 kept.push(stream);
             }
             DebridAnswer::Missing => {
                 out.debrid_known = true;
-                // cachedOnly corta o frio; o resto passa como P2P.
-                if !ctx.debrid_cached_only {
+                // cachedOnly: frio vai a `missing` e a exceção BR decide abaixo;
+                // sem cachedOnly tudo passa como P2P.
+                if ctx.debrid_cached_only {
+                    missing.push(stream);
+                } else {
                     kept.push(stream);
                 }
             }
@@ -358,6 +372,39 @@ pub fn build_stream_list(
             DebridAnswer::Unusable => {
                 out.debrid_known = true;
                 out.debrid_unusable = true;
+                kept.push(stream);
+            }
+        }
+    }
+    if ctx.debrid_cached_only && !missing.is_empty() {
+        let visible = if ctx.show_uncached_br {
+            // Universo = ⚡ já mantidos + frios: a conta de BR em cache reduz
+            // as vagas P2P (br_reserved_slots − cached_br), como no TS.
+            let pool: Vec<PoolStream> = kept
+                .iter()
+                .chain(missing.iter())
+                .map(ranking_to_pool)
+                .collect();
+            let slots = (opts.br_reserved_slots as i64)
+                .saturating_sub(
+                    pool.iter()
+                        .filter(|s| {
+                            s.is_br
+                                && (s.is_dubbed || s.is_dub_claim || s.is_bank_dub)
+                                && s.info_hash.as_deref().is_some_and(|h| {
+                                    cached_hashes.iter().any(|c| c.eq_ignore_ascii_case(h))
+                                })
+                        })
+                        .count() as i64,
+                )
+                .max(0);
+            uncached_br_hashes(&pool, &cached_hashes, slots)
+        } else {
+            Vec::new()
+        };
+        for stream in missing {
+            let original = stream.info_hash.clone().unwrap_or_default();
+            if visible.iter().any(|h| h == &original) {
                 kept.push(stream);
             }
         }
@@ -621,6 +668,35 @@ fn stats_line(item: &RawItem) -> String {
         }
     }
     parts.join(" ")
+}
+
+fn ranking_to_pool(stream: &RankingStream) -> PoolStream {
+    PoolStream {
+        info_hash: stream.info_hash.clone(),
+        title: stream.title.clone(),
+        name: stream.name.clone(),
+        quality: stream.quality.clone(),
+        seeders: stream.seeders.map(|n| n as i64),
+        is_br: stream.br.unwrap_or(false),
+        is_dubbed: stream.dubbed.unwrap_or(false),
+        is_dub_claim: stream.dub_claim.unwrap_or(false),
+        is_bank_dub: stream
+            .extra
+            .get("bankDub")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        is_lied: stream.lied.unwrap_or(false),
+        from_fallback: stream
+            .extra
+            .get("fromFallback")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        fallback_fetchable: stream
+            .extra
+            .get("fallbackFetchable")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+    }
 }
 
 fn stream_to_ref(stream: &RankingStream, season: Option<i64>) -> StreamRef {

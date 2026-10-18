@@ -589,6 +589,40 @@ fn cached_only_corta_o_frio_e_deixa_o_aviso_honesto() {
 }
 
 #[test]
+fn show_uncached_br_mantem_frio_br_dublado_no_cached_only() {
+    let mut ctx = base_ctx();
+    ctx.debrid_cached_only = true;
+    ctx.show_uncached_br = true;
+    ctx.debrid_cache_check_honest = true;
+    ctx.debrid_has_key = true;
+    let opts = BuildOptions::default();
+    let mut debrid = StubDebrid {
+        cached: vec![],
+        known: true,
+        unusable: false,
+    };
+    let out = build(
+        vec![RawItem {
+            // Título casa com base_ctx ("Filme Teste" 2024) + claim dublado.
+            title: Some("Filme Teste 2024 [1080p BLU-RAY DUBLADO]".into()),
+            info_hash: Some("aa04000000000000000000000000000000000004".into()),
+            seeders: Some(1.0),
+            is_br: true,
+            indexer: Some("bludv".into()),
+            ..RawItem::default()
+        }],
+        &ctx,
+        &opts,
+        &mut debrid,
+    );
+    assert!(
+        out.streams.iter().any(|s| !s.notice && s.is_br),
+        "BR dublado frio deve sobreviver com showUncachedBr: {:?}",
+        out.streams
+    );
+}
+
+#[test]
 fn debrid_unusavel_volta_como_p2p_sem_mentir() {
     let ctx = base_ctx();
     let opts = BuildOptions::default();
