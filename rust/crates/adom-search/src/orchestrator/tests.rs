@@ -394,8 +394,8 @@ async fn hit_stale_serve_e_revalida_em_fundo() {
 
     let _ = orch.handle(request(1_000_000)).await;
     assert_eq!(collector.calls(), 1);
-    // TTL de 60s (teto do store): 61s depois a entrada está stale mas na graça.
-    let stale = orch.handle(request(1_061_500)).await;
+    // TTL de 900s (decisão da lista completa): 901,5s depois a entrada está stale mas na graça de 300s.
+    let stale = orch.handle(request(1_901_500)).await;
     assert_eq!(stale.streams.len(), 1, "stale serve na hora");
     assert_eq!(stale.cache_max_age, 900);
     // A revalidação roda em fundo: a segunda coleta acontece depois.

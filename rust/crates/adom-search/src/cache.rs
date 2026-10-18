@@ -16,8 +16,9 @@
 //!   `.env.example`) serve e sinaliza revalidação; incompleta NUNCA é servida.
 //!   A régua de elegibilidade é `adom_core::stale_refresh_eligible` (a mesma do
 //!   `search-commit.ts`), consumida aqui para os dois lados não divergirem;
-//! - **TETO de 60s**: o store grampa qualquer TTL acima de
-//!   [`MAX_TTL_SECONDS`], espelhando o "cache ≤ 60s" do fluxo de busca;
+//! - **TTL flexível**: o store grava o TTL que vier da decisão
+//!   (`commit_decision`: 900s para lista completa; min(cache_ttl, 60) para
+//!   parcial ou sem debridKnown; reserva com min(cache_ttl, fallback_ttl));
 //! - **HOST NUNCA VAI PARA O CACHE** (`relative_url` + `to_cacheable_entry`):
 //!   a URL de `/resolve` e o aviso (`externalUrl`) são gravados RELATIVOS — o
 //!   `applyNoticeOrigin` do TS monta o host na resposta com o origin da
@@ -37,9 +38,6 @@ use crate::contract::StreamItem;
 
 /// Graça do stale-while-revalidate, default de `STREAM_STALE_GRACE_SECONDS`.
 pub const STREAM_STALE_GRACE_SECONDS: u64 = 300;
-
-/// Teto do TTL de qualquer entrada da busca ("cache ≤ 60s").
-pub const MAX_TTL_SECONDS: u64 = 60;
 
 /// Valor gravado sob `streams:v21` — o MESMO shape do TS: lista pronta +
 /// `debridKnown` + metadados de completude.
@@ -107,7 +105,7 @@ pub trait SwrStore: Send + Sync {
     /// `TTL + grace` devolve `stale: true` SEM apagar; além disso devolve
     /// `None` (e apaga, como o `forget` do `getWithStale`).
     fn get_with_stale(&self, key: &str, grace_seconds: u64, now_ms: u64) -> Option<StoreHit>;
-    /// Grava com o TTL GRAMPEADO a [`MAX_TTL_SECONDS`].
+    /// Grava a entrada com o TTL decidido pelo chamador (`commit_decision`).
     fn set(&self, key: &str, value: &StreamsEntry, ttl_seconds: u64, now_ms: u64);
     /// Escrita direta da revalidação/fundo (mesma política de TTL).
     fn forget(&self, key: &str);
@@ -159,13 +157,11 @@ impl SwrStore for MemorySwrStore {
     }
 
     fn set(&self, key: &str, value: &StreamsEntry, ttl_seconds: u64, now_ms: u64) {
-        // Cache ≤ 60s: teto estrutural, não política do chamador.
-        let ttl = ttl_seconds.min(MAX_TTL_SECONDS);
         self.inner.lock().expect("store envenenado").insert(
             key.to_string(),
             MemoryRecord {
                 value: value.clone(),
-                expires_at_ms: now_ms.saturating_add(ttl.saturating_mul(1000)),
+                expires_at_ms: now_ms.saturating_add(ttl_seconds.saturating_mul(1000)),
             },
         );
     }
@@ -377,27 +373,24 @@ mod tests {
     }
 
     #[test]
-    fn expiracao_60s_teto_de_ttl() {
+    fn ttl_respeita_decisao_sem_teto_fixo() {
         let store = MemorySwrStore::new();
-        // TTL pedido acima do teto: grampa em 60s.
-        store.set("k", &complete_entry(), 900, 1_000);
-        assert!(
-            store.get_with_stale("k", 300, 1_000 + 61_000).is_some(),
-            "aos 61s ainda está na graça"
-        );
-        let long_lived = StreamItem {
-            url: Some("/resolve/x".to_string()),
-            ..playable_item()
-        };
-        let entry = StreamsEntry {
-            streams: vec![long_lived],
-            ..complete_entry()
-        };
-        store.set("k2", &entry, 900, 1_000);
-        // TTL grampiado em 60s: vence em 61_000. Com graça 0, o último ms
-        // dentro do TTL serve e o primeiro depois não.
-        assert!(store.get_with_stale("k2", 0, 1_000 + 60_000).is_some());
-        assert!(store.get_with_stale("k2", 0, 1_000 + 60_001).is_none());
+        // Lista completa ganha TTL cheio (ex.: 900s), sem grampo artificial em 60s.
+        store.set("k_completa", &complete_entry(), 900, 1_000);
+        // Aos 60s e aos 899s ainda é fresco (stale: false) mesmo com graça 0.
+        let hit = store.get_with_stale("k_completa", 0, 1_000 + 60_000).unwrap();
+        assert!(!hit.stale);
+        let hit = store.get_with_stale("k_completa", 0, 1_000 + 899_000).unwrap();
+        assert!(!hit.stale);
+        // Após 900s, com graça 0 expira.
+        assert!(store.get_with_stale("k_completa", 0, 1_000 + 900_001).is_none());
+
+        // Parcial ganha TTL curto (ex.: 60s) decidido por commit_decision.
+        let mut parcial = complete_entry();
+        parcial.partial = true;
+        store.set("k_parcial", &parcial, 60, 1_000);
+        assert!(store.get_with_stale("k_parcial", 0, 1_000 + 60_000).is_some());
+        assert!(store.get_with_stale("k_parcial", 0, 1_000 + 60_001).is_none());
     }
 
     #[test]

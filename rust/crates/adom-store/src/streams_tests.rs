@@ -2,7 +2,7 @@ use super::{
     default_streams_quota, is_streams_key, streams_prefix, StreamsStore, STREAMS_NAMESPACE,
 };
 use adom_search::{
-    StoreHit, StreamItem, StreamsEntry, SwrStore, MAX_TTL_SECONDS, STREAM_STALE_GRACE_SECONDS,
+    StoreHit, StreamItem, StreamsEntry, SwrStore, STREAM_STALE_GRACE_SECONDS,
 };
 
 fn playable() -> StreamsEntry {
@@ -73,20 +73,36 @@ fn get_with_stale_serve_dentro_da_graca() {
 }
 
 #[test]
-fn ttl_grampeado_em_60s() {
+fn ttl_respeita_decisao_sem_teto_fixo() {
     let store = StreamsStore::open_memory_with_quota(10).unwrap();
-    let k = key("ttl");
-    store.set(&k, &playable(), 900, 1_000).unwrap();
-    const {
-        assert!(MAX_TTL_SECONDS < 900, "pré-condição: pedido acima do teto");
-    }
-    // Com graça 0: no último ms do TTL grampeado serve; 1ms depois não.
+    let k_completa = key("ttl_completa");
+    store.set(&k_completa, &playable(), 900, 1_000).unwrap();
+    // Lista completa sobrevive além de 60s (ex.: aos 61s e aos 899s ainda serve sem stale com graça 0).
     assert!(store
-        .get_with_stale(&k, 0, 1_000 + 60_000)
+        .get_with_stale(&k_completa, 0, 1_000 + 61_000)
         .unwrap()
         .is_some());
     assert!(store
-        .get_with_stale(&k, 0, 1_000 + 60_001)
+        .get_with_stale(&k_completa, 0, 1_000 + 899_000)
+        .unwrap()
+        .is_some());
+    // Após 900s, com graça 0 expira.
+    assert!(store
+        .get_with_stale(&k_completa, 0, 1_000 + 900_001)
+        .unwrap()
+        .is_none());
+
+    // Parcial expira em 60s quando gravada com ttl de 60s.
+    let k_parcial = key("ttl_parcial");
+    let mut parcial = playable();
+    parcial.partial = true;
+    store.set(&k_parcial, &parcial, 60, 1_000).unwrap();
+    assert!(store
+        .get_with_stale(&k_parcial, 0, 1_000 + 60_000)
+        .unwrap()
+        .is_some());
+    assert!(store
+        .get_with_stale(&k_parcial, 0, 1_000 + 60_001)
         .unwrap()
         .is_none());
 }

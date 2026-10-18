@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use adom_core::{prefix, quota_for};
-use adom_search::{StoreHit, StreamsEntry, SwrStore, MAX_TTL_SECONDS, STREAM_STALE_GRACE_SECONDS};
+use adom_search::{StoreHit, StreamsEntry, SwrStore, STREAM_STALE_GRACE_SECONDS};
 use rusqlite::{params, Connection};
 
 const SCHEMA: &str = "
@@ -128,7 +128,7 @@ impl StreamsStore {
         }))
     }
 
-    /// Grava com TTL grampeado a [`MAX_TTL_SECONDS`]. Só aceita chave `streams:v21:`.
+    /// Grava a entrada com o TTL decidido pelo chamador (`commit_decision`). Só aceita chave `streams:v21:`.
     pub fn set(
         &self,
         key: &str,
@@ -142,8 +142,7 @@ impl StreamsStore {
                 streams_prefix()
             ));
         }
-        let ttl = ttl_seconds.min(MAX_TTL_SECONDS);
-        let expires_at = now_ms.saturating_add(ttl.saturating_mul(1000)) as i64;
+        let expires_at = now_ms.saturating_add(ttl_seconds.saturating_mul(1000)) as i64;
         let encoded = serde_json::to_string(value).map_err(|err| err.to_string())?;
         let conn = self.lock();
         conn.execute(

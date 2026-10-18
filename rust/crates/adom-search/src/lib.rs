@@ -46,7 +46,7 @@ pub mod resolve_url;
 
 pub use cache::{
     has_playable_stream, relative_url, swr_lookup, to_cacheable_entry, MemorySwrStore, StoreHit,
-    StreamsEntry, SwrLookup, SwrStore, MAX_TTL_SECONDS, STREAM_STALE_GRACE_SECONDS,
+    StreamsEntry, SwrLookup, SwrStore, STREAM_STALE_GRACE_SECONDS,
 };
 pub use coalesce::InFlight;
 // Porte de `src/utils/latest-writer.ts`: parcial na resposta, tardio mescla.

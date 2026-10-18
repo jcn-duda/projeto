@@ -114,7 +114,7 @@ pub async fn orchestrate(
             let cache_max_age = if revalidate {
                 0
             } else {
-                crate::cache::MAX_TTL_SECONDS as u32
+                input.cache_ttl.max(0) as u32
             };
             // Host nunca no cache: remonta origin+prefix só na resposta
             // (espelha `entry_streams` do orquestrador WIP / `run_live`).
