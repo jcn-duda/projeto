@@ -1,9 +1,9 @@
 //! `adom-search` — embrião do ORQUESTRADOR NATIVO da rota `/stream`.
 //!
-//! Já fixa o que dá sem I/O de fonte (caminho, chave SWR, contrato JSON) e o
-//! **BUILD da lista** (`list_builder`: filtro → ranking → cotas → aviso). O
-//! glue HTTP das rotas internas do Node (`internal_client`) é o próximo
-//! degrau: meta/state/collect/index-write/effects em loopback enquanto a rede
+//! Já fixa o que dá sem I/O de fonte (caminho, chave SWR, contrato JSON), o
+//! **BUILD da lista** (`list_builder`) e a **orquestração** (`orchestrate`:
+//! meta → collect → build, com SWR/`inFlight` opcionais). O glue HTTP das
+//! rotas internas (`internal_client`) alimenta o orquestrador enquanto a rede
 //! ainda mora no TypeScript.
 //!
 //! O que este crate **NÃO faz** (de propósito, nesta fatia):
@@ -31,6 +31,7 @@ pub mod internal_client;
 pub mod internal_types;
 pub mod latest_writer;
 pub mod list_builder;
+pub mod orchestrate;
 pub mod raw_item;
 pub mod request;
 
@@ -60,6 +61,10 @@ pub use internal_types::{
     IndexWriteRequest, IndexWriteResponse, LiveSnapshot, MetaRequest, MetaResponse, ReleaseEntry,
     StateRequest, StateResponse, TaskScope,
 };
+pub use orchestrate::{
+    orchestrate, OrchestrateDeps, OrchestrateInput, OrchestrateResult, SearchBackend,
+};
+pub use raw_item::raw_item_from_value;
 pub use request::{
     decode_user_config, parse_stream_path, reply_deadline_ms, request_cache_key, StreamTarget,
 };

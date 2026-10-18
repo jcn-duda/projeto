@@ -3,7 +3,7 @@ name = "adom-search"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "Embrião do orquestrador nativo do /stream: parsing, cache, list_builder e glue HTTP das rotas internas do Node."
+description = "Orquestrador nativo do /stream (sem handler HTTP): parsing, SWR, list_builder, glue /internal/search/*."
 license = "UNLICENSED"
 
 [dependencies]

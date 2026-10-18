@@ -135,6 +135,7 @@ pub fn build_stream_list(
     }
 
     // 3. Filtro de título (o gate é a existência de ALGUM nome, não do meta).
+    out.entered_raw = raw.clone();
     if !ctx.names.is_empty() && !ctx.is_demo {
         let before = raw.len();
         let from_account: Vec<RawItem> = raw.iter().filter(|r| r.from_account).cloned().collect();
@@ -169,6 +170,9 @@ pub fn build_stream_list(
 
     // 4. Pack multiobra: marca ANTES das guardas (o admitido é exceção às
     //    retenções), depois guarda de coleção sem escolha por arquivo.
+    //    O lote que chega aqui já passou pelo filtro de título: é o que o
+    //    índice de releases grava (`filtered_raw`).
+    out.filtered_raw = raw.clone();
     if let Some(root) = ctx.multi_work_root.as_deref() {
         for item in &mut raw {
             if item.multi_work_admitted {
@@ -282,6 +286,11 @@ pub fn build_stream_list(
     });
     out.count("afterSort", sort.streams.len());
     let mut streams = sort.streams;
+    // Reserva (banco/foto do índice) sobrevive ao ranking em `extra`; a
+    // entrada com reserva nunca é completa (TTL curto + promoção tardia).
+    out.fallback = streams
+        .iter()
+        .any(|s| s.extra.get("_fromFallback").and_then(|v| v.as_bool()).unwrap_or(false));
 
     // 7. 💾 de episódio (pack: média; multiobra: só medida exata). Antes do
     //    debrid — o título reescrito sobrevive à materialização.
@@ -387,6 +396,10 @@ pub fn build_stream_list(
                 .get("cached")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false),
+            info_hash: s.info_hash.clone(),
+            // Prova ou promessa: as duas entram na dica `d` do `/resolve`.
+            dubbed: s.dubbed.unwrap_or(false) || s.dub_claim.unwrap_or(false),
+            multi_work_admitted: s.multi_work_admitted.unwrap_or(false),
         })
         .collect();
     if opts.notice_stream && built.is_empty() {
@@ -400,6 +413,9 @@ pub fn build_stream_list(
                 is_br: false,
                 notice: true,
                 cached: false,
+                info_hash: None,
+                dubbed: false,
+                multi_work_admitted: false,
             });
         }
     }
@@ -575,6 +591,12 @@ fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<RankingSt
         stream
             .extra
             .insert("sources".into(), item.sources.clone().into());
+    }
+    // Marca de reserva do bank/foto do índice: o `finish` lê daqui para o
+    // `hasFallback` (entrada com reserva nunca é completa). Não é campo `_*`
+    // do contrato: `to_stream_item` não a copia.
+    if item.from_fallback {
+        stream.extra.insert("_fromFallback".into(), true.into());
     }
     Some(stream)
 }

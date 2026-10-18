@@ -31,6 +31,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::contract::StreamItem;
 
@@ -42,6 +43,12 @@ pub const MAX_TTL_SECONDS: u64 = 60;
 
 /// Valor gravado sob `streams:v21` — o MESMO shape do TS: lista pronta +
 /// `debridKnown` + metadados de completude.
+///
+/// `trace` e `searchMeta` fazem parte do valor do Node desde a P5: o
+/// `/stream-trace.json` lê o ledger OFFLINE da entrada, e o `searchMeta`
+/// (nomes+ano) é a matéria-prima do recompute de título sem refazer
+/// Cinemeta/TMDB. A promoção tardia copia os dois (substitui a entrada
+/// inteira) — sem os campos, a primeira build perderia o ledger.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct StreamsEntry {
     pub streams: Vec<StreamItem>,
@@ -54,6 +61,20 @@ pub struct StreamsEntry {
     /// A lista carrega reserva (fallback do banco ou foto 📦 do índice).
     #[serde(default)]
     pub fallback: bool,
+    /// A lista é SÓ aviso (`onlyNotice`): o Stremio não pode cacheá-la.
+    /// O TS carrega a marca `notice` em cada item; aqui ela é da ENTRADA —
+    /// o aviso de lista vazia é um estado da lista, não do item. `applyNoticeOrigin`
+    /// devolve a marca por item na resposta.
+    #[serde(default)]
+    pub notice: bool,
+    /// Ledger da busca, já no formato do `/stream-trace.json`
+    /// (`serializeTrace`). `None` = trace desligado/sem trace (o TS grava
+    /// `null`).
+    #[serde(default)]
+    pub trace: Option<Value>,
+    /// `{ names, year }` da obra — injeção do `/stream-trace.json` offline.
+    #[serde(rename = "searchMeta", default)]
+    pub search_meta: Option<Value>,
 }
 
 /// `hasPlayableStream` do TS: a lista tem play de verdade — `url` ou
@@ -248,6 +269,7 @@ mod tests {
             partial: false,
             debrid_known: Some(true),
             fallback: false,
+            ..Default::default()
         }
     }
 

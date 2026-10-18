@@ -108,6 +108,125 @@ pub fn extra_str<'a>(item: &'a RawItem, key: &str) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
+/// `Value` opaco do collect → [`RawItem`] (campos que o build lê).
+pub fn raw_item_from_value(v: &Value) -> RawItem {
+    let str_of = |keys: &[&str]| {
+        keys.iter().find_map(|k| {
+            v.get(*k)
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        })
+    };
+    let f64_of = |keys: &[&str]| {
+        keys.iter().find_map(|k| {
+            v.get(*k).and_then(|x| match x {
+                Value::Number(n) => n.as_f64(),
+                Value::String(s) => s.parse().ok(),
+                _ => None,
+            })
+        })
+    };
+    let bool_of = |key: &str| v.get(key).and_then(Value::as_bool).unwrap_or(false);
+    let sources = v
+        .get("sources")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    RawItem {
+        title: str_of(&["title"]),
+        title_pascal: str_of(&["Title"]),
+        magnet: str_of(&["magnet"]),
+        magnet_uri: str_of(&["magnetUri", "magnet_uri"]),
+        guid: str_of(&["guid"]),
+        info_hash: str_of(&["infoHash", "info_hash"]),
+        published_at: f64_of(&["publishedAt", "PublishDate", "published_at"]),
+        seeders: f64_of(&["seeders"]),
+        size_bytes: f64_of(&["sizeBytes", "size", "size_bytes"]),
+        indexer: str_of(&["indexer"]),
+        sources,
+        is_br: bool_of("isBr") || bool_of("is_br"),
+        from_account: bool_of("fromAccount") || bool_of("from_account"),
+        from_fallback: bool_of("fromFallback") || bool_of("from_fallback"),
+        lied: bool_of("lied"),
+        multi_work_admitted: false,
+        extra: Map::new(),
+    }
+}
+
+// ── Fio (rotas internas do Node) ───────────────────────────────────────────
+
+impl RawItem {
+    /// De volta ao fio, para o `index-write`: os campos originais (preservados
+    /// em `extra`) com os normalizados por cima. Nada de campo interno novo —
+    /// o Node grava o índice com o que a fonte publicou.
+    pub fn to_wire(&self) -> Value {
+        let mut map = self.extra.clone();
+        let mut put = |key: &str, value: Value| {
+            map.insert(key.to_string(), value);
+        };
+        if let Some(title) = &self.title {
+            put("title", Value::String(title.clone()));
+        }
+        if let Some(title) = &self.title_pascal {
+            put("Title", Value::String(title.clone()));
+        }
+        if let Some(magnet) = &self.magnet {
+            put("magnet", Value::String(magnet.clone()));
+        }
+        if let Some(uri) = &self.magnet_uri {
+            put("MagnetUri", Value::String(uri.clone()));
+        }
+        if let Some(guid) = &self.guid {
+            put("Guid", Value::String(guid.clone()));
+        }
+        if let Some(hash) = &self.info_hash {
+            put("infoHash", Value::String(hash.clone()));
+        }
+        if let Some(seeders) = self.seeders.and_then(serde_json::Number::from_f64) {
+            put("seeders", Value::Number(seeders));
+        }
+        if let Some(size) = self.size_bytes.and_then(serde_json::Number::from_f64) {
+            put("size", Value::Number(size));
+        }
+        if let Some(indexer) = &self.indexer {
+            put("indexer", Value::String(indexer.clone()));
+        }
+        if !self.sources.is_empty() {
+            put(
+                "sources",
+                Value::Array(
+                    self.sources
+                        .iter()
+                        .map(|s| Value::String(s.clone()))
+                        .collect(),
+                ),
+            );
+        }
+        if self.is_br {
+            put("isBr", Value::Bool(true));
+        }
+        if self.from_account {
+            put("fromAccount", Value::Bool(true));
+        }
+        if self.from_fallback {
+            put("fromFallback", Value::Bool(true));
+        }
+        if self.lied {
+            put("lied", Value::Bool(true));
+        }
+        if let Some(published) = self.published_at.and_then(serde_json::Number::from_f64) {
+            put("publishedAt", Value::Number(published));
+        }
+        Value::Object(map)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

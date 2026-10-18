@@ -169,6 +169,12 @@ pub struct BuildContext {
 
 /// Um stream da lista final: o item do CONTRATO (`StreamItem`, sem campo `_*`)
 /// mais as marcas internas que a resposta precisa (aviso, origem BR).
+///
+/// As marcas de baixo existem porque a URL de `/resolve` é montada FORA do
+/// build: o HMAC depende de prefixo/segredo/prazo da REQUISIÇÃO (nunca do
+/// build), mas os fatos que entram no payload (`infoHash`, dica `w`/`p`/`d`)
+/// são do stream. Sem elas, o orquestrador teria de reparsear o `StreamItem` —
+/// e o item resolvido já perdeu `infoHash`/`sources` de propósito.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuiltStream {
     pub item: crate::contract::StreamItem,
@@ -177,6 +183,12 @@ pub struct BuiltStream {
     pub notice: bool,
     /// ⚡ — o debrid respondeu "pronto" para este item.
     pub cached: bool,
+    /// Hash de origem (o `/resolve` precisa dele; some do contrato se resolvido).
+    pub info_hash: Option<String>,
+    /// Prova/promessa de dublado: dica `d:1` do HMAC.
+    pub dubbed: bool,
+    /// Pack multiobra ADMITIDO: dica `p:1` do HMAC.
+    pub multi_work_admitted: bool,
 }
 
 /// Resultado do build: a lista, o estado do debrid e o funil observacional.
@@ -185,6 +197,16 @@ pub struct BuiltList {
     pub streams: Vec<BuiltStream>,
     /// Dica de obra para o pickFile no play (só filme): `n`/`y`.
     pub work_hint: Option<WorkHint>,
+    /// Lote cru que SOBREVIVEU ao filtro de título (antes de episódio/ranking).
+    /// É a matéria-prima do `releaseIndex.record` (`/internal/search/index-write`):
+    /// gravar o lote pré-filtro encheria o índice de release irrelevante.
+    pub filtered_raw: Vec<crate::raw_item::RawItem>,
+    /// Lote cru ANTES do filtro de título — o `entered` do banco de magnets
+    /// (antes/depois do filtro, para a marca de veredito).
+    pub entered_raw: Vec<crate::raw_item::RawItem>,
+    /// A lista carrega RESERVA do banco/foto do índice (`_fromFallback`):
+    /// entrada com reserva nunca é completa.
+    pub fallback: bool,
     /// Alguma checagem respondeu de verdade (Cached/Missing/Unusable)?
     pub debrid_known: bool,
     /// O debrid sinalizou auth/quota (lista P2P, sem autofetch).
