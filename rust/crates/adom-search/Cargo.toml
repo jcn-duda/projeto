@@ -10,7 +10,7 @@ license = "UNLICENSED"
 adom-core = { path = "../adom-core" }
 # Costura do applyDebrid + reuso do HttpClient (loopback interno).
 adom-debrid = { path = "../adom-debrid" }
-# Collect opt-in (`SOURCES_RUST=jackett|prowlarr`) via clientes nativos.
+# Collect opt-in (`SOURCES_RUST=jackett|prowlarr|torrentio`) via clientes nativos.
 adom-sources = { path = "../adom-sources" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

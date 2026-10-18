@@ -2,8 +2,8 @@
 //!
 //! Default OFF: produção continua em [`super::NodeCollector`]
 //! (`POST /internal/search/collect`). Prowlarr tem collector irmão
-//! (`SOURCES_RUST=prowlarr`); exclusão mútua em [`super::sources_rust`].
-//! Sem BLUDV/Mico/Torrentio nesta fatia.
+//! (`SOURCES_RUST=prowlarr` / `torrentio`); exclusão mútua em
+//! [`super::sources_rust`]. Sem BLUDV/Mico nesta fatia.
 //!
 //! Guardrail do Maestro: varredura **inline** (`sweep:true` no plano) usa
 //! `record_status:false` e **não** `ignore_breaker`; a varredura **tardia**

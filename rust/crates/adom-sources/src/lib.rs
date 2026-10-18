@@ -35,8 +35,9 @@
 //! `is_safe_download_url` + redirect manual, e falha → `[]` / outcome honesto.
 //! Config via `JACKETT_URL` (default loopback `:9117`) e `JACKETT_API_KEY`
 //! (nunca em log). Collect do orquestrador: opt-in
-//! `SOURCES_RUST=jackett|prowlarr` (`JackettCollector` / `ProwlarrCollector`;
-//! exclusão mútua); default OFF = `POST /internal/search/collect`.
+//! `SOURCES_RUST=jackett|prowlarr|torrentio` (`JackettCollector` /
+//! `ProwlarrCollector` / `TorrentioCollector`; exclusão mútua
+//! jackett > prowlarr > torrentio); default OFF = `POST /internal/search/collect`.
 //!
 //! ## Fase B — Prowlarr + Torrentio + BLUDV + Mico
 //!
@@ -44,14 +45,14 @@
 //! `src/providers/prowlarr.ts` e `torrentio.ts`. Prowlarr: `/api/v1/search`,
 //! fail-open, chave fora de log, base loopback com guarda SSRF. Torrentio:
 //! pool público, fail-open, breaker local, `fileIdx` preservado, fora dos
-//! defaults de instalação.
+//! defaults de instalação. Collect opt-in via `SOURCES_RUST` (acima).
 //!
 //! Módulos [`bludv`] e [`mico`]: busca por título (WordPress + protetor) e
 //! busca por IMDb (addon Stremio), respectivamente. Fail-open → `[]`; gate
 //! BLUDV pulado no caminho de busca; Mico com breaker local. **Ainda não**
 //! ligados ao collect/orquestrador.
 //!
-//! Pendências da próxima fatia: Prowlarr/Torrentio/BLUDV/Mico no collect,
+//! Pendências da próxima fatia: BLUDV/Mico no collect, composição de fontes,
 //! cache `raw:v1`, pré-resolve BR (já no núcleo) e captura do magnet-bank.
 //!
 //! Fora do escopo B.1 (de propósito): busca por TÍTULO (`tmdb-search.ts`),

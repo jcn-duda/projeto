@@ -1,14 +1,21 @@
 //! Opt-in de collect nativo via `SOURCES_RUST` (CSV, case-insensitive).
 //!
 //! Default OFF → [`super::NodeCollector`]. Tokens desta fatia: `jackett`,
-//! `prowlarr`. **Exclusão mútua**: se ambos aparecerem, `jackett` vence
-//! (composição fica para fatia futura). Sem BLUDV/Mico aqui.
+//! `prowlarr`, `torrentio`. **Exclusão mútua simples** (menor patch; composição
+//! fica para fatia futura):
+//!
+//! 1. se `jackett` presente → Jackett;
+//! 2. senão se `prowlarr` → Prowlarr;
+//! 3. senão se `torrentio` → Torrentio.
+//!
+//! Sem BLUDV/Mico aqui.
 
 use std::sync::Arc;
 
 use super::collect::Collector;
 use super::jackett_collector::try_jackett_collector_from_env;
 use super::prowlarr_collector::try_prowlarr_collector_from_env;
+use super::torrentio_collector::try_torrentio_collector_from_env;
 
 /// Parse puro do CSV (testável sem mexer no env do processo).
 pub fn sources_rust_csv_includes(raw: &str, token: &str) -> bool {
@@ -24,25 +31,42 @@ pub fn sources_rust_includes(token: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Monta o collector nativo pedido pelo env. Default OFF → `None`
-/// (caller usa NodeCollector). Jackett e Prowlarr não se compõem nesta fatia.
-pub fn try_sources_rust_collector_from_env() -> Option<Arc<dyn Collector>> {
-    let wants_jackett = sources_rust_includes("jackett");
-    let wants_prowlarr = sources_rust_includes("prowlarr");
-    if wants_jackett && wants_prowlarr {
-        eprintln!(
-            "[search] SOURCES_RUST: jackett+prowlarr — exclusão mútua nesta fatia; usando jackett"
-        );
+/// Qual token vence no CSV (puro). `None` = nenhum token conhecido / vazio.
+pub fn sources_rust_csv_winner(raw: &str) -> Option<&'static str> {
+    if sources_rust_csv_includes(raw, "jackett") {
+        return Some("jackett");
     }
-    if wants_jackett {
-        return try_jackett_collector_from_env()
-            .map(|c| Arc::new(c) as Arc<dyn Collector>);
+    if sources_rust_csv_includes(raw, "prowlarr") {
+        return Some("prowlarr");
     }
-    if wants_prowlarr {
-        return try_prowlarr_collector_from_env()
-            .map(|c| Arc::new(c) as Arc<dyn Collector>);
+    if sources_rust_csv_includes(raw, "torrentio") {
+        return Some("torrentio");
     }
     None
+}
+
+/// Monta o collector nativo pedido pelo env. Default OFF → `None`
+/// (caller usa NodeCollector). Jackett / Prowlarr / Torrentio não se compõem
+/// nesta fatia — ver [`sources_rust_csv_winner`].
+pub fn try_sources_rust_collector_from_env() -> Option<Arc<dyn Collector>> {
+    let raw = std::env::var("SOURCES_RUST").unwrap_or_default();
+    let winner = sources_rust_csv_winner(&raw)?;
+    let asked: Vec<&str> = ["jackett", "prowlarr", "torrentio"]
+        .into_iter()
+        .filter(|t| sources_rust_csv_includes(&raw, t))
+        .collect();
+    if asked.len() > 1 {
+        eprintln!(
+            "[search] SOURCES_RUST: {} — exclusão mútua nesta fatia; usando {winner}",
+            asked.join("+")
+        );
+    }
+    match winner {
+        "jackett" => try_jackett_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
+        "prowlarr" => try_prowlarr_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
+        "torrentio" => try_torrentio_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -53,8 +77,9 @@ mod tests {
     fn csv_aceita_token_e_lista() {
         assert!(sources_rust_csv_includes("jackett", "jackett"));
         assert!(sources_rust_csv_includes("prowlarr", "prowlarr"));
+        assert!(sources_rust_csv_includes("torrentio", "torrentio"));
         assert!(sources_rust_csv_includes("jackett,prowlarr", "prowlarr"));
-        assert!(sources_rust_csv_includes(" JACKETT , prowlarr ", "jackett"));
+        assert!(sources_rust_csv_includes(" JACKETT , torrentio ", "torrentio"));
         assert!(!sources_rust_csv_includes("", "jackett"));
         assert!(!sources_rust_csv_includes("torrentio", "prowlarr"));
     }
@@ -64,5 +89,27 @@ mod tests {
         // Função pura: string vazia / ausente = OFF.
         assert!(!sources_rust_csv_includes("", "jackett"));
         assert!(!sources_rust_csv_includes("", "prowlarr"));
+        assert!(!sources_rust_csv_includes("", "torrentio"));
+        assert_eq!(sources_rust_csv_winner(""), None);
+    }
+
+    #[test]
+    fn exclusao_mutua_jackett_vence_depois_prowlarr_depois_torrentio() {
+        assert_eq!(sources_rust_csv_winner("jackett"), Some("jackett"));
+        assert_eq!(sources_rust_csv_winner("prowlarr"), Some("prowlarr"));
+        assert_eq!(sources_rust_csv_winner("torrentio"), Some("torrentio"));
+        assert_eq!(
+            sources_rust_csv_winner("jackett,prowlarr,torrentio"),
+            Some("jackett")
+        );
+        assert_eq!(
+            sources_rust_csv_winner("torrentio,prowlarr"),
+            Some("prowlarr")
+        );
+        assert_eq!(
+            sources_rust_csv_winner(" TORRENTIO , JACKETT "),
+            Some("jackett")
+        );
+        assert_eq!(sources_rust_csv_winner("bludv,mico"), None);
     }
 }

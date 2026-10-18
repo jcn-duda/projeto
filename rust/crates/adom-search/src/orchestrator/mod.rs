@@ -33,6 +33,7 @@ mod meta;
 mod prowlarr_collector;
 mod sources_rust;
 mod tail;
+mod torrentio_collector;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
@@ -76,7 +77,11 @@ pub use prowlarr_collector::{
     sources_rust_includes_prowlarr, try_prowlarr_collector_from_env, ProwlarrCollector,
 };
 pub use sources_rust::{
-    sources_rust_csv_includes, sources_rust_includes, try_sources_rust_collector_from_env,
+    sources_rust_csv_includes, sources_rust_csv_winner, sources_rust_includes,
+    try_sources_rust_collector_from_env,
+};
+pub use torrentio_collector::{
+    sources_rust_includes_torrentio, try_torrentio_collector_from_env, TorrentioCollector,
 };
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
 pub use tail::{

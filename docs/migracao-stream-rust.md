@@ -117,9 +117,9 @@ novos é o TS do worktree `../adom-esm`.
    debrid do `.env` no gateway — `dd9330c4`), latest-writer e late promoter,
    fila tardia serial, corte externo com `partial:true` e busca em
    `tokio::spawn`, via do índice e via instantânea, trace gravado junto.
-   Store nativo: `STREAMS_DB` (`data/streams.db`). Collect Jackett/Prowlarr
-   in-process com opt-in `SOURCES_RUST=jackett|prowlarr` (exclusão mútua;
-   jackett vence).
+   Store nativo: `STREAMS_DB` (`data/streams.db`). Collect Jackett/Prowlarr/
+   Torrentio in-process com opt-in `SOURCES_RUST=jackett|prowlarr|torrentio`
+   (exclusão mútua: jackett > prowlarr > torrentio).
 3. **Paridade** com o golden da F0 e sombra sem divergência (critério formal
    §9.4 do contrato; CI ainda não exercita o HTTP do corte — ver contrato §0.6).
 4. **Corte local** `ROUTES_RUST=stream` no
