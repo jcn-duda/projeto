@@ -47,14 +47,17 @@ async fn call(token: &str, header: Option<&str>, path: &str, body: &str) -> (Sta
 
 struct EnvBase {
     prev: Option<String>,
+    // Trava ÚNICA do crate: outros módulos de teste também mexem na env.
+    _lock: std::sync::MutexGuard<'static, ()>,
 }
 
 impl EnvBase {
     fn set(value: &str) -> Self {
+        let lock = crate::test_env::lock();
         let prev = std::env::var("PREMIUMIZE_API_BASE").ok();
-        // SAFETY: o teste restaura no Drop. A base só aponta o adaptador ao loopback.
+        // SAFETY: a trava única serializa os testes de env do crate.
         unsafe { std::env::set_var("PREMIUMIZE_API_BASE", value) }
-        Self { prev }
+        Self { prev, _lock: lock }
     }
 }
 
@@ -187,13 +190,46 @@ async fn premiumize_no_loopback_nao_devolve_501() {
 }
 
 #[tokio::test]
-async fn torbox_e_alldebrid_check_continuam_501() {
+async fn torbox_e_alldebrid_check_saem_do_501() {
+    // Mock em loopback (NUNCA a base real): upstream 500 → veredito honesto
+    // known:false (Unknown), sem "service_not_ported" e sem usar a chave.
+    let app = Router::new().fallback(any(async |_req: Request<Body>| {
+        (StatusCode::INTERNAL_SERVER_ERROR, "fora do ar").into_response()
+    }));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let base = format!("http://{addr}");
+    let _lock = crate::test_env::lock();
+    let prev_torbox = std::env::var("TORBOX_API_BASE").ok();
+    let prev_ad = std::env::var("ALLDEBRID_API_BASE").ok();
+    // SAFETY: teste único apontando os adaptadores ao loopback.
+    unsafe {
+        std::env::set_var("TORBOX_API_BASE", &base);
+        std::env::set_var("ALLDEBRID_API_BASE", &base);
+    }
     for service in ["torbox", "alldebrid"] {
         let payload = format!(r#"{{"service":"{service}","apiKey":"{KEY}","hashes":["abc"]}}"#);
         let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &payload).await;
-        assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
-        assert!(body.contains("service_not_ported"));
-        assert!(!body.contains(KEY));
+        assert_eq!(status, StatusCode::OK, "{service}: {body}");
+        assert!(!body.contains("service_not_ported"), "{service}");
+        assert!(!body.contains(KEY), "{service}");
+        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(json["known"].as_bool(), Some(false), "{service}");
+        assert_eq!(json["unusable"], serde_json::Value::Null, "{service}");
+    }
+    // SAFETY: restauração.
+    unsafe {
+        match prev_torbox {
+            Some(value) => std::env::set_var("TORBOX_API_BASE", value),
+            None => std::env::remove_var("TORBOX_API_BASE"),
+        }
+        match prev_ad {
+            Some(value) => std::env::set_var("ALLDEBRID_API_BASE", value),
+            None => std::env::remove_var("ALLDEBRID_API_BASE"),
+        }
     }
 }
 
@@ -207,16 +243,19 @@ async fn debridlink_check_vazio_e_rotas_sem_metodo_ficam_501() {
     assert_eq!(json["cached"].as_array().map(|rows| rows.len()), Some(0));
     assert_eq!(json["complete"].as_bool(), Some(true));
 
+    // Real-Debrid: sem entrada no ledger → known:false, nunca "nada em cache".
     let (status, raw) = call(
         "segredo",
         Some("segredo"),
         "/debrid/check",
-        r#"{"service":"realdebrid","apiKey":"nao-logar"}"#,
+        r#"{"service":"realdebrid","apiKey":"nao-logar","hashes":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}"#,
     )
     .await;
-    assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
-    assert!(raw.contains("service_not_ported"));
+    assert_eq!(status, StatusCode::OK);
+    assert!(!raw.contains("service_not_ported"));
     assert!(!raw.contains(KEY));
+    let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(json["known"].as_bool(), Some(false));
 
     for path in ["/debrid/account", "/debrid/files"] {
         let (status, raw) = call("segredo", Some("segredo"), path, &body).await;

@@ -1,10 +1,13 @@
 //! Fundação do debrid em Rust.
 //!
-//! Premiumize, Debrid-Link, Real-Debrid, TorBox e AllDebrid já têm adaptador.
-//! A API interna liga check, link, resolve, conta e arquivos de Premiumize,
-//! Debrid-Link e Real-Debrid. O check do Real-Debrid, TorBox e AllDebrid
-//! seguem em 501. O `/debrid/resolve` não grava magnetdb, cache nem ledger.
+//! Premiumize, Debrid-Link, Real-Debrid, TorBox e AllDebrid têm adaptador e a
+//! API interna responde `/debrid/check` para os cinco (`verdict.rs` é a
+//! costura: réguas do núcleo, ledger do RD, AllDebrid SEM limpeza — a limpeza
+//! completa é Fase C). `account` e `files` seguem limitados; o link da
+//! AllDebrid existe. `/debrid/resolve` não grava magnetdb, cache nem ledger.
 //! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
+//! `internal_check.rs` é o cliente de RESERVA da rota `/internal/debrid/check`
+//! do Node.
 
 pub mod alldebrid;
 pub mod alldebrid_clean_shadow;
@@ -13,15 +16,31 @@ pub mod debridlink;
 pub mod error;
 pub mod http;
 pub mod import;
+pub mod internal_check;
 pub mod metrics;
 pub mod premiumize;
 pub mod realdebrid;
 pub mod resolve_effects;
 pub mod store;
 pub mod torbox;
+pub mod verdict;
 
 pub use error::DebridError;
 pub use http::{Call, HttpClient};
 pub use import::{export_owned, import_once, OWNED_PREFIXES};
 pub use metrics::Metrics;
 pub use store::Store;
+
+/// Trava ÚNICA dos testes que tocam env (bases de API em loopback). Cada
+/// módulo de teste tinha a sua — e testes paralelos de módulos diferentes
+/// sujavam a env uns dos outros.
+#[cfg(test)]
+pub(crate) mod test_env {
+    use std::sync::{Mutex, MutexGuard, OnceLock};
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    pub fn lock() -> MutexGuard<'static, ()> {
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+    }
+}

@@ -29,6 +29,8 @@ pub mod cache;
 pub mod coalesce;
 pub mod collection_window;
 pub mod contract;
+// O applyDebrid REAL: `DebridCheck` sobre os adaptadores do `adom-debrid`.
+pub mod debrid_seam;
 pub mod latest_writer;
 pub mod list_builder;
 pub mod raw_item;
@@ -46,6 +48,8 @@ pub use list_builder::{
     apply_notice_origin, build_stream_list, seed_floor_for, BuildContext, BuildOptions, BuiltList,
     BuiltStream, DebridAnswer, DebridCheck, WorkHint,
 };
+// Costura real com os adaptadores de debrid + reserva interna do Node.
+pub use debrid_seam::{answer_of, AdapterDebridCheck, FallbackCheck, NodeInternalFallback};
 pub use raw_item::RawItem;
 
 pub use collection_window::{

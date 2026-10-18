@@ -18,8 +18,6 @@ use crate::http::HttpClient;
 
 pub(super) const KEY: &str = "test-key";
 
-static ENV: Mutex<()> = Mutex::new(());
-
 fn restore(name: &str, prev: &Option<String>) {
     // SAFETY: o mutex de `with_env` serializa estes testes. A variável só aponta
     // o adaptador para o servidor local e é restaurada antes do lock soltar.
@@ -32,7 +30,7 @@ fn restore(name: &str, prev: &Option<String>) {
 }
 
 fn with_env<T>(base: Option<&str>, batch: Option<&str>, body: impl FnOnce() -> T) -> T {
-    let _lock = ENV.lock().unwrap_or_else(|err| err.into_inner());
+    let _lock = crate::test_env::lock();
     let _restore = EnvRestore {
         base: std::env::var("PREMIUMIZE_API_BASE").ok(),
         batch: std::env::var("DEBRID_BATCH_SIZE").ok(),

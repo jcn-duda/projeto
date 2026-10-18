@@ -1,9 +1,8 @@
 //! API interna em `127.0.0.1:8710`. O token vai só no header
 //! `X-Indexer-Test-Token`. A chave do debrid chega no corpo e não é logada.
-//! premiumize, debridlink e realdebrid respondem nas rotas que o adaptador
-//! já tem. O link da AllDebrid também. Checagem, conta e arquivos da
-//! AllDebrid, e o TorBox inteiro, seguem 501. O check do Real-Debrid também:
-//! o POST não traz o peek, e esta API não lê o ledger `rdc`.
+//! `/debrid/check` responde para os cinco serviços via `verdict.rs`
+//! (Real-Debrid via ledger, AllDebrid SEM limpeza — Fase C). Conta e arquivos
+//! da AllDebrid, e o TorBox inteiro fora do check, seguem 501.
 //! `/debrid/resolve` devolve o efeito e não grava estado.
 
 use std::net::SocketAddr;

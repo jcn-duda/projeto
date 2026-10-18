@@ -95,8 +95,10 @@ name = "adom-search"
 version = "0.0.0"
 dependencies = [
  "adom-core",
+ "adom-debrid",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
 ]
 

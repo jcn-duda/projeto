@@ -41,10 +41,15 @@ pub enum DebridAnswer {
     Unusable,
 }
 
-/// O applyDebrid real (rede, ledger, RD) fica para a fatia de integração; quem
-/// constrói a lista recebe a checagem AQUI, injetada. Testes usam stub.
+/// Quem constrói a lista recebe a checagem AQUI, injetada. A implementação
+/// real (`AdapterDebridCheck`) faz UM lote por busca via [`Self::prepare`];
+/// testes usam stub.
 pub trait DebridCheck {
     fn check(&mut self, stream: &RankingStream) -> DebridAnswer;
+
+    /// Pré-aquece o lote de hashes (default: no-op). Chamar UMA vez antes do
+    /// laço de streams evita N uploads no AllDebrid.
+    fn prepare(&mut self, _hashes: &[String]) {}
 }
 
 // ── Config (do usuário, via URL; nunca do `.env` no caminho de busca) ───────

@@ -19,8 +19,6 @@ use crate::http::HttpClient;
 
 pub(super) const API_KEY: &str = "ad-test-key";
 
-static ENV: Mutex<()> = Mutex::new(());
-
 struct EnvRestore {
     prev: Option<String>,
 }
@@ -39,7 +37,7 @@ impl Drop for EnvRestore {
 }
 
 fn with_env<T>(base: Option<&str>, body: impl FnOnce() -> T) -> T {
-    let _lock = ENV.lock().unwrap_or_else(|err| err.into_inner());
+    let _lock = crate::test_env::lock();
     let _restore = EnvRestore {
         prev: std::env::var("ALLDEBRID_API_BASE").ok(),
     };

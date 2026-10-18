@@ -74,12 +74,21 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
     if let Some(response) = reject_unknown(&state, &body.service) {
         return response;
     }
-    match body.service.as_str() {
-        "premiumize" => premiumize_check(&state, &body).await,
-        "debridlink" => debridlink_check(&state, &body).await,
-        // realdebrid: sem known(hash) no POST e sem leitura do ledger rdc.
-        _ => not_ported(&state, &body.service),
-    }
+    // Um só caminho para os cinco: réguas do núcleo (`debrid_cache_verdict`),
+    // ledger do RD e AllDebrid SEM limpeza (`verdict.rs` documenta a lacuna).
+    let outcome = match crate::verdict::check_service(
+        &body.service,
+        &body.api_key,
+        &body.hashes,
+        body.timeout_ms.map(Duration::from_millis),
+        state.store.as_ref(),
+    )
+    .await
+    {
+        Ok(outcome) => outcome,
+        Err(_) => return not_ported(&state, &body.service),
+    };
+    json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
 }
 
 pub(super) async fn link(State(state): State<Arc<AppState>>, raw: Bytes) -> Response {
@@ -144,38 +153,6 @@ pub(super) async fn files(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
         Some(link) => json!({ "url": link.url, "size": link.size }),
         None => Value::Null,
     })
-}
-
-async fn premiumize_check(state: &AppState, body: &RequestBody) -> Response {
-    let client = match http(state) {
-        Ok(client) => client,
-        Err(response) => return *response,
-    };
-    let timeout = body.timeout_ms.map(Duration::from_millis);
-    let result = Premiumize::new(client)
-        .check_cached(&body.api_key, &body.hashes, timeout)
-        .await;
-    finish(
-        state,
-        body,
-        result,
-        |report| json!({ "cached": report.cached, "complete": report.complete }),
-    )
-}
-
-async fn debridlink_check(state: &AppState, body: &RequestBody) -> Response {
-    let client = match http(state) {
-        Ok(client) => client,
-        Err(response) => return *response,
-    };
-    // Não faz HTTP: lista vazia é a resposta completa, não um peek faltando.
-    let result = DebridLink::new(client).check_cached().await;
-    finish(
-        state,
-        body,
-        result,
-        |cached| json!({ "cached": cached, "complete": true }),
-    )
 }
 
 fn link_service(service: &str) -> bool {

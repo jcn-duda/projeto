@@ -17,13 +17,12 @@
 //!    com piso de seeders sob `seedFloorFor` (invariante 3);
 //! 7. **💾 de episódio** (`annotate_pack_sizes_core`/`annotate_movie_sizes_core`)
 //!    — antes do debrid, como no TS;
-//! 8. **applyDebrid** — aqui só a dependência injetada [`DebridCheck`];
+//! 8. **applyDebrid** — [`DebridCheck`] (lote via `prepare`, depois por stream);
 //! 9. **limitReservingBr** (corte final DEPOIS do pool ampliado, vagas BR por
 //!    faixa);
 //! 10. **aviso se vazia** (relativo, sem host) e conversão para o contrato.
 //!
-//! Fica para as próximas fatias: o applyDebrid REAL (rede/ledger/RD — a trait
-//! [`DebridCheck`] é a costura), o index de releases (`releaseIndex.record`,
+//! Fica para as próximas fatias: o index de releases (`releaseIndex.record`,
 //! I/O) e o enriquecimento do magnet pelo banco (o caller injeta `dn=` via
 //! `magnet`).
 
@@ -315,7 +314,14 @@ pub fn build_stream_list(
         })
         .count();
 
-    // 8. applyDebrid — dependência injetada (o real é fatia de integração).
+    // 8. applyDebrid — um lote (prepare) + memo por stream. Sem prepare o
+    //    AdapterDebridCheck cai no lazy da 1ª check (ainda 1 upload AD).
+    let batch: Vec<String> = streams
+        .iter()
+        .filter_map(|s| s.info_hash.clone())
+        .filter(|h| !h.is_empty())
+        .collect();
+    debrid.prepare(&batch);
     let mut kept = Vec::with_capacity(streams.len());
     for mut stream in streams {
         match debrid.check(&stream) {

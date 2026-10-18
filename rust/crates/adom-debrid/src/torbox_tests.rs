@@ -22,8 +22,6 @@ pub(super) const H1: &str = "abcdeabcdeabcdeabcdeabcdeabcdeabcdeabcde";
 const H2: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba";
 const H3: &str = "abc3333333333333333333333333333333333333";
 
-static ENV: Mutex<()> = Mutex::new(());
-
 fn restore(name: &str, prev: &Option<String>) {
     // SAFETY: o mutex serializa o teste; a env só aponta o servidor local.
     unsafe {
@@ -35,7 +33,7 @@ fn restore(name: &str, prev: &Option<String>) {
 }
 
 fn with_env<T>(base: Option<&str>, batch: Option<&str>, body: impl FnOnce() -> T) -> T {
-    let _lock = ENV.lock().unwrap_or_else(|err| err.into_inner());
+    let _lock = crate::test_env::lock();
     let prev_base = std::env::var("TORBOX_API_BASE").ok();
     let prev_batch = std::env::var("DEBRID_BATCH_SIZE").ok();
     unsafe {

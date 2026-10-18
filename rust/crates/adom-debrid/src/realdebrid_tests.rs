@@ -25,10 +25,8 @@ const HASH_UP: &str = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD";
 const DOWNLOAD: &str = "https://cdn.test/movie.mkv";
 const TOKEN: &str = "RDTOKEN";
 
-static ENV: Mutex<()> = Mutex::new(());
-
 fn with_env<T>(base: Option<&str>, body: impl FnOnce() -> T) -> T {
-    let _lock = ENV.lock().unwrap_or_else(|err| err.into_inner());
+    let _lock = crate::test_env::lock();
     let prev = std::env::var("REALDEBRID_API_BASE").ok();
     // SAFETY: o mutex serializa o acesso. A variável só aponta o adaptador
     // para o servidor local e é restaurada antes do lock soltar.
