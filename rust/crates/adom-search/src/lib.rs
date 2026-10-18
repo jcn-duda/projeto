@@ -25,9 +25,17 @@
 //!
 //! Invariante que vale desde já: a config do usuário vem da URL (segmento
 //! base64url) e NUNCA do `.env`; e o HOST nunca entra na chave de cache.
+pub mod cache;
+pub mod coalesce;
 pub mod collection_window;
 pub mod contract;
 pub mod request;
+
+pub use cache::{
+    has_playable_stream, relative_url, swr_lookup, to_cacheable_entry, MemorySwrStore, StoreHit,
+    StreamsEntry, SwrLookup, SwrStore, MAX_TTL_SECONDS, STREAM_STALE_GRACE_SECONDS,
+};
+pub use coalesce::InFlight;
 
 pub use collection_window::{
     jump_deadline, BatchMeta, CollectBudgets, CollectTask, CollectWindow, CollectWindowOptions,
