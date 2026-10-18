@@ -216,20 +216,16 @@ fn stream_sem_hash_e_unknown_sem_gastar_rede() {
     assert_eq!(debrid.local_checks(), 0);
 }
 
-/// O blo_on do seam funciona com runtime tokio em volta (a build da lista é
-/// síncrona e pode rodar dentro de um worker real).
+/// O `block_on` do seam NÃO pode usar `Handle::block_on` cru: `finish` roda
+/// síncrono dentro de `run_search` (async). `block_in_place` é o contrato.
 #[test]
 fn check_dentro_de_runtime_tokio_nao_panica() {
     let runtime = Runtime::new().unwrap();
     runtime.block_on(async move {
-        let handle = tokio::task::spawn_blocking(|| {
-            let mut debrid = AdapterDebridCheck::new("servico-que-ficou-501", "chave");
-            debrid.timeout = Some(Duration::from_millis(100));
-            debrid.check(&stream(HIT))
-        })
-        .await
-        .unwrap();
-        assert_eq!(handle, DebridAnswer::Unknown);
+        // Direto no worker async — espelha `Orchestrator::finish` no gateway.
+        let mut debrid = AdapterDebridCheck::new("servico-que-ficou-501", "chave");
+        debrid.timeout = Some(Duration::from_millis(100));
+        assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
         let _ = Handle::try_current();
     });
 }
