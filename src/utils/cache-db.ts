@@ -270,18 +270,25 @@ export function createPersistence() {
     }
   }
 
+  let lastMaintainAt = 0;
+  const MAINTAIN_MIN_INTERVAL_MS = 15 * 60 * 1000;
+
   /**
    * Rotina periódica de manutenção do SQLite, chamada em momentos ociosos
    * (ex: tick do colhedor):
    * 1. PRAGMA wal_checkpoint(PASSIVE): transfere páginas do WAL para o DB sem travar leitores/escritores.
    * 2. PRAGMA optimize: atualiza estatísticas do query planner do SQLite.
-   * 3. PRAGMA freelist_count: se houver páginas livres acumuladas (> 500 páginas, ~2 MB), executa VACUUM.
+   * 3. PRAGMA freelist_count: mede páginas livres que serão reutilizadas pelo SQLite.
    */
-  function maintain(): { checkpointed: boolean; optimized: boolean; vacuumed: boolean; freelistCount: number } {
+  function maintain(force = false): { checkpointed: boolean; optimized: boolean; vacuumed: boolean; freelistCount: number } {
     if (!db) return { checkpointed: false, optimized: false, vacuumed: false, freelistCount: 0 };
+    const now = Date.now();
+    if (!force && lastMaintainAt > 0 && now - lastMaintainAt < MAINTAIN_MIN_INTERVAL_MS) {
+      return { checkpointed: false, optimized: false, vacuumed: false, freelistCount: 0 };
+    }
+    lastMaintainAt = now;
     let checkpointed = false;
     let optimized = false;
-    let vacuumed = false;
     let freelistCount = 0;
 
     try {
@@ -291,21 +298,14 @@ export function createPersistence() {
       db.exec('PRAGMA optimize');
       optimized = true;
 
-      // Freelist: páginas liberadas após deletes/expirações que ainda não foram reutilizadas
+      // Freelist: páginas liberadas após deletes/expirações reutilizadas nas próximas inserções
       const row = db.prepare('PRAGMA freelist_count').get() as any;
       freelistCount = Number(row?.freelist_count ?? row?.[0] ?? 0) || 0;
-
-      // Limiar: 500 páginas (tamanho padrão de página 4096 = ~2 MB de espaço ocioso)
-      if (freelistCount > 500) {
-        log.info(`[cache] freelist_count atingiu ${freelistCount} páginas; executando VACUUM`);
-        db.exec('VACUUM');
-        vacuumed = true;
-      }
     } catch (err: unknown) {
       log.warn('[cache] manutenção do SQLite falhou:', log.errorMessage(err));
     }
 
-    return { checkpointed, optimized, vacuumed, freelistCount };
+    return { checkpointed, optimized, vacuumed: false, freelistCount };
   }
 
   /** Libera o L2 no encerramento; o L1 continua utilizável até o processo sair. */

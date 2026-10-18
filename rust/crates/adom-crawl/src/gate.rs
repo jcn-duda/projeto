@@ -135,17 +135,23 @@ impl GateExecutor {
     /// é log, nunca derruba o executor.
     pub async fn run(self: Arc<Self>) {
         let mut ticker = interval(Duration::from_millis(self.cfg.interval_ms.max(1_000)));
+        let mut last_skip: Option<&'static str> = None;
         loop {
             ticker.tick().await;
             match self.run_round().await {
                 Ok(report) => {
-                    if report.skipped.is_some() || report.claimed > 0 {
+                    let changed_skip = report.skipped != last_skip;
+                    last_skip = report.skipped;
+                    if report.claimed > 0 || (report.skipped.is_some() && changed_skip) {
                         eprintln!(
                             "[gate] rodada: pagos={} tomados={} {}",
                             report.paid,
                             report.claimed,
                             report.skipped.unwrap_or("")
                         );
+                    }
+                    if report.skipped == Some("teto-horario") {
+                        tokio::time::sleep(Duration::from_secs(30)).await;
                     }
                 }
                 Err(e) => eprintln!("[gate] rodada falhou (continuando): {e}"),

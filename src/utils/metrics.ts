@@ -1,3 +1,5 @@
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+
 /**
  * Contadores e latências em memória, para responder as perguntas que hoje só
  * dá pra responder relendo log: o cache está pegando? qual indexador está
@@ -8,6 +10,14 @@
  * aqui cresce com o volume de buscas.
  */
 const SAMPLES = 256;
+
+let eldMonitor: ReturnType<typeof monitorEventLoopDelay> | null = null;
+try {
+  eldMonitor = monitorEventLoopDelay({ resolution: 20 });
+  eldMonitor.enable();
+} catch {
+  // Ambiente sem perf_hooks ou restrito
+}
 
 const counters: Map<string, number> = new Map();
 /** Janela deslizante por métrica: `ring` é o buffer circular das últimas SAMPLES. */
@@ -92,6 +102,14 @@ function snapshot() {
     // Gauges ordenados pelo nome para o painel não depender da ordem de escrita.
     gauges: Object.fromEntries([...gauges.entries()].sort(([a], [b]) => a.localeCompare(b))),
     timers: timings,
+    eventLoop: eldMonitor ? {
+      minMs: Math.round((eldMonitor.min / 1e6) * 10) / 10,
+      maxMs: Math.round((eldMonitor.max / 1e6) * 10) / 10,
+      meanMs: Math.round((eldMonitor.mean / 1e6) * 10) / 10,
+      p50Ms: Math.round((eldMonitor.percentile(50) / 1e6) * 10) / 10,
+      p95Ms: Math.round((eldMonitor.percentile(95) / 1e6) * 10) / 10,
+      p99Ms: Math.round((eldMonitor.percentile(99) / 1e6) * 10) / 10,
+    } : null,
   };
 }
 
@@ -100,6 +118,9 @@ function reset() {
   counters.clear();
   gauges.clear();
   timers.clear();
+  try {
+    eldMonitor?.reset();
+  } catch {}
 }
 
 export { count, gauge, clearGauge, observe, timed, snapshot, reset };

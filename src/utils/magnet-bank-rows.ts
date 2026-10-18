@@ -100,6 +100,7 @@ function sqliteEngine(dbPath: string): Engine | null {
     const db = new DatabaseSync(dbPath);
     db.exec(`
       PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
       PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS magnet (
         hash TEXT PRIMARY KEY,

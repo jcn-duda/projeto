@@ -139,7 +139,7 @@ function rebuildCrawlUrl(db: CrawlSchemaDb): void {
 export function openCrawlDatabase(dbPath: string, DatabaseSync: new (path: string) => unknown): unknown {
   const db = new DatabaseSync(dbPath) as CrawlSchemaDb;
   try {
-    db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+    db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;');
     ensureCrawlSchema(db);
   } catch (err: unknown) {
     try { (db as unknown as { close?: () => void }).close?.(); } catch { /* best-effort */ }

@@ -16,6 +16,7 @@ function initDb(DatabaseSync: any, dbPath: string) {
   try {
     database.exec(`
       PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
       PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS cache (
         key TEXT PRIMARY KEY,
