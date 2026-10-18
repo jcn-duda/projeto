@@ -213,6 +213,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   **Banco VIVO** (`magnet-bank*`, `data/magnets.db`): acervo permanente por hash
   do que o Jackett devolveu; alimenta a URI rica do play e o fallback 📦 quando
   um indexer falha. Captura é assíncrona e a busca nunca espera o disco.
+  Os índices `magnet_last_seen` / `magnet_source_last_seen` seguram o `MAX` do
+  status do painel: sem eles o poll travava o event loop por ~7 s. A via rápida
+  do `/stream` nativo segue a ordem do `search-index-path.ts` (instantânea antes
+  do índice coberto); o `/internal/search/collect` aceita `skip_sources`.
 - **Real-Debrid**: `rd-gate` (escrita serial, AIMD), `rd-ledger` (`rdc:v2`,
   global, miss nunca condena), `rd-oracle` (StremThru/Torrentio opt-in). Três
   kill-switches `DEBRID_RD_GATE/LEDGER/ORACLE`.

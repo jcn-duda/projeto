@@ -24,6 +24,7 @@ import { getTitles } from '../utils/tmdb.js';
 import { worksForObraMany, sourcesForMany, firstSeenMany } from '../utils/magnet-bank-query.js';
 import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/search-multiwork.js';
 import { collectRaw } from '../providers/collect-orchestrator.js';
+import { parseSkipSources } from './internal-search-skip.js';
 import { breakerSnapshot } from '../providers/jackett-breaker.js';
 import { parseStremioId } from '../utils/format.js';
 import * as log from '../utils/logger.js';
@@ -243,6 +244,7 @@ async function handleCollect(
     task_scope?: unknown; query?: unknown; pt_query?: unknown; type?: unknown; imdb?: unknown;
     season?: unknown; episode?: unknown; year?: unknown; names?: unknown;
     sweep_query?: unknown; original_query?: unknown; multi_work_query?: unknown; deadline_at?: unknown;
+    skip_sources?: unknown;
   } | undefined;
   const target = decodeTarget(services, body);
   if (!target) return res.status(400).json({ ok: false, error: 'encoded ausente ou inválido' });
@@ -290,6 +292,12 @@ async function handleCollect(
     released: null,
     firstAired: null,
   };
+  // Fontes que o coletor nativo do Rust já cobre: o Node não as repete. Lista
+  // fechada (ver `internal-search-skip.ts`) — token desconhecido é 400.
+  const skipSet = parseSkipSources(body?.skip_sources);
+  if (skipSet === null) {
+    return res.status(400).json({ ok: false, error: 'skip_sources deve ser subconjunto de jackett, prowlarr, torrentio, bludv, mico' });
+  }
   const ctx = { opts: target.opts, encoded: target.encoded, replyDeadlineMs: budget };
 
   try {
@@ -299,7 +307,7 @@ async function handleCollect(
         null, sweepQuery, deadlineAt, scope,
         // Sem observador nem trace: a rota é o OLHO do orquestrador, não um
         // /stream — nada aqui estagia timing nem escreve índice.
-        null, null, originalQuery, multiWorkQuery,
+        null, null, originalQuery, multiWorkQuery, skipSet ?? new Set<string>(),
       ), budget));
 
     if (value === DEADLINE) {

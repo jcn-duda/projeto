@@ -128,6 +128,9 @@ pub struct CollectRequest {
     pub original_query: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub multi_work_query: Option<String>,
+    /// Fontes que o Node pula (já coletadas nativamente). Vazio = nada a pular.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skip_sources: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

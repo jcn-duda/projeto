@@ -43,39 +43,49 @@ pub fn sources_rust_csv_winner(raw: &str) -> Option<&'static str> {
     None
 }
 
-/// Monta a lista de coletores nativos pedidos pelo env (`SOURCES_RUST`).
-/// Cada token conhecido presente no CSV gera seu collector nativo.
-pub fn try_sources_rust_collectors_from_env() -> Vec<Arc<dyn Collector>> {
+/// Coletores nativos pedidos pelo env, COM o token de cada um. O token é o
+/// que o Node precisa para pular a mesma fonte (`skip_sources`): sem ele a
+/// fonte entraria duas vezes, uma no Rust e outra no `NodeCollector`.
+pub fn try_sources_rust_native_from_env() -> Vec<(&'static str, Arc<dyn Collector>)> {
     let raw = std::env::var("SOURCES_RUST").unwrap_or_default();
-    let mut collectors: Vec<Arc<dyn Collector>> = Vec::new();
+    let mut native: Vec<(&'static str, Arc<dyn Collector>)> = Vec::new();
 
     if sources_rust_csv_includes(&raw, "jackett") {
         if let Some(c) = try_jackett_collector_from_env() {
-            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+            native.push(("jackett", Arc::new(c) as Arc<dyn Collector>));
         }
     }
     if sources_rust_csv_includes(&raw, "prowlarr") {
         if let Some(c) = try_prowlarr_collector_from_env() {
-            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+            native.push(("prowlarr", Arc::new(c) as Arc<dyn Collector>));
         }
     }
     if sources_rust_csv_includes(&raw, "torrentio") {
         if let Some(c) = try_torrentio_collector_from_env() {
-            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+            native.push(("torrentio", Arc::new(c) as Arc<dyn Collector>));
         }
     }
     if sources_rust_csv_includes(&raw, "bludv") {
         if let Some(c) = try_bludv_collector_from_env() {
-            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+            native.push(("bludv", Arc::new(c) as Arc<dyn Collector>));
         }
     }
     if sources_rust_csv_includes(&raw, "mico") {
         if let Some(c) = try_mico_collector_from_env() {
-            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+            native.push(("mico", Arc::new(c) as Arc<dyn Collector>));
         }
     }
 
-    collectors
+    native
+}
+
+/// Monta a lista de coletores nativos pedidos pelo env (`SOURCES_RUST`).
+/// Cada token conhecido presente no CSV gera seu collector nativo.
+pub fn try_sources_rust_collectors_from_env() -> Vec<Arc<dyn Collector>> {
+    try_sources_rust_native_from_env()
+        .into_iter()
+        .map(|(_, c)| c)
+        .collect()
 }
 
 /// Monta o collector nativo pedido pelo env. Default OFF → `None` (caller usa NodeCollector).

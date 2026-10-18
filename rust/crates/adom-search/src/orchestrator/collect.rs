@@ -199,11 +199,23 @@ pub fn sweep_job(
 /// Produção: `POST /internal/search/collect` (loopback + token + `encoded`).
 pub struct NodeCollector {
     routes: Arc<dyn InternalRoutes>,
+    /// Fontes que o Node deve PULAR porque o coletor nativo já as cobre
+    /// (`SOURCES_RUST`). Vai no corpo como `skip_sources`.
+    skip_sources: Vec<String>,
 }
 
 impl NodeCollector {
     pub fn new(routes: Arc<dyn InternalRoutes>) -> Self {
-        NodeCollector { routes }
+        NodeCollector {
+            routes,
+            skip_sources: Vec::new(),
+        }
+    }
+
+    /// Fontes migradas para Rust: o Node não as consulta de novo.
+    pub fn with_skip_sources(mut self, sources: Vec<String>) -> Self {
+        self.skip_sources = sources;
+        self
     }
 }
 
@@ -213,7 +225,9 @@ impl Collector for NodeCollector {
         job: CollectJob,
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
         Box::pin(async move {
-            let response = self.routes.collect(collect_request_from_job(job)).await?;
+            let mut request = collect_request_from_job(job);
+            request.skip_sources = self.skip_sources.clone();
+            let response = self.routes.collect(request).await?;
             Ok(CollectBatch {
                 items: response
                     .items
@@ -246,6 +260,7 @@ pub fn collect_request_from_job(job: CollectJob) -> CollectRequest {
         sweep_query: job.sweep_query,
         original_query: job.original_query,
         multi_work_query: job.multi_work_query,
+        skip_sources: Vec::new(),
     }
 }
 
@@ -314,5 +329,33 @@ mod tests {
         let config = OrchestratorConfig::default();
         let jobs = plan_jobs(&config, &meta_movie(), "movie", None, 1_700_000_000_000);
         assert!(jobs.iter().all(|j| !j.late_sweep));
+    }
+
+    /// `skip_sources` sai no corpo só quando há fonte migrada: sem ela o
+    /// contrato antigo (sem a chave) fica intacto para o Node.
+    #[test]
+    fn corpo_do_collect_carrega_skip_sources_so_quando_ha() {
+        let mut request = CollectRequest {
+            encoded: "e30".into(),
+            query: "Filme".into(),
+            media_type: "movie".into(),
+            imdb: "tt0000001".into(),
+            deadline_at: 1,
+            task_scope: None,
+            pt_query: None,
+            season: None,
+            episode: None,
+            year: None,
+            names: None,
+            sweep_query: None,
+            original_query: None,
+            multi_work_query: None,
+            skip_sources: Vec::new(),
+        };
+        let sem = serde_json::to_value(&request).expect("json");
+        assert!(sem.get("skip_sources").is_none());
+        request.skip_sources = vec!["jackett".into(), "mico".into()];
+        let com = serde_json::to_value(&request).expect("json");
+        assert_eq!(com["skip_sources"], json!(["jackett", "mico"]));
     }
 }

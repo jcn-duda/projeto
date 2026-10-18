@@ -305,3 +305,55 @@ async fn resposta_instantanea_do_banco_responde_com_itens_do_acervo() {
         "stream instantâneo do banco deve estar presente: {title}"
     );
 }
+
+/// Índice coberto E instantânea elegível ao mesmo tempo: a instantânea vence
+/// (mesma ordem do `search-index-path.ts`) e a foto do índice sai marcada como
+/// `fromSnapshot`, não como reserva bloqueada.
+#[tokio::test]
+async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
+    let routes = Arc::new(StubInternalRoutes {
+        index_response: Mutex::new(Some(SearchIndexResponse {
+            ok: true,
+            is_partial: false,
+            index_covered: true,
+            instant_eligible: true,
+            index_items: vec![
+                json!({"title": "Filme Teste 2024 Foto", "infoHash": HASH, "indexer": "bludv"}),
+            ],
+            instant_items: vec![
+                json!({"title": "Filme Teste 2024 Acervo", "infoHash": HASH, "indexer": "mico", "fromFallback": true}),
+            ],
+            account_items: vec![],
+        })),
+    });
+    let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
+        .with_collector(StubCollector::empty())
+        .with_meta(Arc::new(StubMeta(meta())))
+        .with_internal_routes(routes);
+    let input = crate::orchestrator::finish::SearchInput {
+        kind: "movie".into(),
+        id: "tt0133093".into(),
+        encoded: Some("e30".into()),
+        prefix: "p".into(),
+        options: json!({}),
+        key: "k".into(),
+        now_ms: 1_000,
+        deadline_at: Some(1_000_000),
+    };
+
+    let fast = orch
+        .fast_path_items(&input, &meta())
+        .await
+        .expect("via rápida");
+    assert!(fast.instant, "instantânea tem precedência sobre o índice");
+    let foto = fast
+        .items
+        .iter()
+        .find(|i| i.title.as_deref().unwrap_or("").contains("Foto"));
+    let acervo = fast
+        .items
+        .iter()
+        .find(|i| i.title.as_deref().unwrap_or("").contains("Acervo"));
+    assert!(foto.is_some_and(|i| i.from_snapshot && !i.from_fallback));
+    assert!(acervo.is_some_and(|i| i.from_fallback && !i.from_snapshot));
+}

@@ -15,7 +15,6 @@ use super::finish::{cache_max_age_for_finish, is_demo, SearchInput};
 use super::meta::{MetaQuery, SearchMeta};
 use super::respond::{as_ms, now_ms, SearchOutcome, StreamRequest};
 use super::Orchestrator;
-use crate::internal_types::SearchIndexRequest;
 
 impl Orchestrator {
     /// Revalidação em fundo de um hit stale. Mapa PRÓPRIO (`refreshing`): não
@@ -67,124 +66,94 @@ impl Orchestrator {
         let phase = writer.phase();
         let meta = self.load_meta(&input).await;
 
-        // Via do índice / Via instantânea do banco vivo:
-        let mut served_from_index = false;
-        let mut fast_path_items: Option<Vec<RawItem>> = None;
-
-        if !is_demo(&input.options) {
-            if let Some(routes) = &self.routes {
-                let req = SearchIndexRequest {
-                    encoded: encoded_for_internal(input.encoded.as_deref()),
-                    media_type: input.kind.clone(),
-                    imdb: meta.imdb_id.clone(),
-                    season: meta.season,
-                    episode: meta.episode,
-                    names: Some(meta.names.clone()),
-                    year: Some(meta.year.clone()),
-                    released: None,
-                    first_aired: None,
-                };
-                if let Ok(resp) = routes.search_index(req).await {
-                    if resp.index_covered {
-                        served_from_index = true;
-                        let mut items: Vec<RawItem> = Vec::new();
-                        items.extend(resp.index_items.into_iter().map(|v| {
-                            let mut item = crate::raw_item::raw_item_from_value(&v);
-                            item.from_fallback = true;
-                            item
-                        }));
-                        items.extend(resp.account_items.into_iter().map(|v| {
-                            let mut item = crate::raw_item::raw_item_from_value(&v);
-                            item.from_account = true;
-                            item
-                        }));
-                        fast_path_items = Some(items);
-                    } else if resp.instant_eligible {
-                        served_from_index = true;
-                        let mut items: Vec<RawItem> = Vec::new();
-                        items.extend(resp.instant_items.into_iter().map(|v| {
-                            let mut item = crate::raw_item::raw_item_from_value(&v);
-                            item.from_fallback = true;
-                            item
-                        }));
-                        items.extend(resp.index_items.into_iter().map(|v| {
-                            let mut item = crate::raw_item::raw_item_from_value(&v);
-                            item.from_fallback = true;
-                            item
-                        }));
-                        items.extend(resp.account_items.into_iter().map(|v| {
-                            let mut item = crate::raw_item::raw_item_from_value(&v);
-                            item.from_account = true;
-                            item
-                        }));
-                        fast_path_items = Some(items);
-                    }
+        // Via instantânea do banco e via do índice, na MESMA ordem do
+        // `search-index-path.ts`: a instantânea vem primeiro (o route já diz
+        // quando ela é elegível, mesmo com o índice coberto).
+        let (items, partial, completion, collect_failed) =
+            match self.fast_path_items(&input, &meta).await {
+                Some(fast) if fast.instant => {
+                    // A resposta sai do acervo; a coleta ao vivo inteira roda
+                    // no tail e entra por promoção tardia.
+                    let fast_items = fast.items;
+                    let this = self.clone();
+                    let input_tail = input.clone();
+                    let meta_tail = meta.clone();
+                    let fast_for_tail = fast_items.clone();
+                    let completion_handle = tokio::spawn(async move {
+                        let (live_items, _, completion, _) =
+                            this.collect(&input_tail, &meta_tail).await;
+                        let mut all_live = fast_for_tail;
+                        all_live.extend(live_items);
+                        if let Some(h) = completion {
+                            if let Ok(more) = h.await {
+                                all_live.extend(more);
+                            }
+                        }
+                        all_live
+                    });
+                    (fast_items, true, Some(completion_handle), false)
                 }
-            }
-        }
-
-        let (items, partial, completion, collect_failed) = if let Some(fast_items) = fast_path_items
-        {
-            let prelim = self.finish(
-                &input,
-                &meta,
-                &writer,
-                phase,
-                &fast_items,
-                true,
-                input.deadline_at,
-            );
-
-            let remaining_ms = input.deadline_at.unwrap_or(0) - now_ms();
-            let needs_rescue = served_from_index
-                && self.config.search_index_rescue_min_ms > 0
-                && !crate::cache::has_playable_stream(&prelim.entry.streams)
-                && remaining_ms >= self.config.search_index_rescue_min_ms;
-
-            if needs_rescue {
-                // Resgate: resposta do índice sem nenhum stream tocável; coleta ao vivo agora
-                let (live_items, live_partial, live_completion, live_failed) =
-                    self.collect(&input, &meta).await;
-                let mut merged = fast_items.clone();
-                merged.extend(live_items);
-                let completion = match live_completion {
-                    Some(handle) => {
-                        let fast_for_rescue = fast_items;
-                        Some(tokio::spawn(async move {
-                            let mut all = fast_for_rescue;
-                            if let Ok(more) = handle.await {
-                                all.extend(more);
+                Some(fast) => {
+                    let prelim = self.finish(
+                        &input,
+                        &meta,
+                        &writer,
+                        phase,
+                        &fast.items,
+                        true,
+                        input.deadline_at,
+                    );
+                    let remaining_ms = input.deadline_at.unwrap_or(0) - now_ms();
+                    let needs_rescue = self.config.search_index_rescue_min_ms > 0
+                        && !crate::cache::has_playable_stream(&prelim.entry.streams)
+                        && remaining_ms >= self.config.search_index_rescue_min_ms;
+                    if needs_rescue {
+                        // Resgate: o índice respondeu sem nenhum stream tocável;
+                        // a coleta ao vivo roda agora, na própria resposta.
+                        let (live_items, live_partial, live_completion, live_failed) =
+                            self.collect(&input, &meta).await;
+                        let mut merged = fast.items.clone();
+                        merged.extend(live_items);
+                        let fast_for_rescue = fast.items;
+                        let completion = live_completion.map(|handle| {
+                            tokio::spawn(async move {
+                                let mut all = fast_for_rescue;
+                                if let Ok(more) = handle.await {
+                                    all.extend(more);
+                                }
+                                all
+                            })
+                        });
+                        (merged, live_partial, completion, live_failed)
+                    } else {
+                        // O TS espera as fontes BR prioritárias ANTES de responder;
+                        // globais e passe tardio ficam no tail.
+                        let (br_items, _, br_completion, _) =
+                            self.collect_scoped(&input, &meta, Some(true)).await;
+                        let mut head = fast.items;
+                        head.extend(br_items);
+                        let this = self.clone();
+                        let input_tail = input.clone();
+                        let meta_tail = meta.clone();
+                        let head_for_tail = head.clone();
+                        let completion_handle = tokio::spawn(async move {
+                            let (global_items, _, global_completion, _) = this
+                                .collect_scoped(&input_tail, &meta_tail, Some(false))
+                                .await;
+                            let mut all = head_for_tail;
+                            all.extend(global_items);
+                            for handle in [global_completion, br_completion].into_iter().flatten() {
+                                if let Ok(more) = handle.await {
+                                    all.extend(more);
+                                }
                             }
                             all
-                        }))
+                        });
+                        (head, true, Some(completion_handle), false)
                     }
-                    None => None,
-                };
-                (merged, live_partial, completion, live_failed)
-            } else {
-                // Responde imediatamente com os itens do índice / banco instantâneo!
-                // Dispara a coleta ao vivo completa para enriquecimento / promoção tardia.
-                let this = self.clone();
-                let input_tail = input.clone();
-                let meta_tail = meta.clone();
-                let fast_for_tail = fast_items.clone();
-                let completion_handle = tokio::spawn(async move {
-                    let (live_items, _, completion, _) =
-                        this.collect(&input_tail, &meta_tail).await;
-                    let mut all_live = fast_for_tail;
-                    all_live.extend(live_items);
-                    if let Some(h) = completion {
-                        if let Ok(more) = h.await {
-                            all_live.extend(more);
-                        }
-                    }
-                    all_live
-                });
-                (fast_items, true, Some(completion_handle), false)
-            }
-        } else {
-            self.collect(&input, &meta).await
-        };
+                }
+                None => self.collect(&input, &meta).await,
+            };
 
         let first = self.finish(
             &input,
@@ -269,6 +238,23 @@ impl Orchestrator {
         Option<tokio::task::JoinHandle<Vec<RawItem>>>,
         bool,
     ) {
+        self.collect_scoped(input, meta, None).await
+    }
+
+    /// Mesma janela, restrita a um grupo: `Some(true)` só as tarefas BR
+    /// prioritárias, `Some(false)` só as globais, `None` todas. É o `taskScope`
+    /// do `collectRaw` no TS (o índice coberto espera o BR antes de responder).
+    async fn collect_scoped(
+        &self,
+        input: &SearchInput,
+        meta: &SearchMeta,
+        scope: Option<bool>,
+    ) -> (
+        Vec<RawItem>,
+        bool,
+        Option<tokio::task::JoinHandle<Vec<RawItem>>>,
+        bool,
+    ) {
         // Relógio de parede (como o `Date.now()` do Node em
         // `computeCollectionBudget`): metadados já consumiram parte do prazo —
         // orçar com `input.now_ms` (início) inflava a coleta e comia a reserva
@@ -284,6 +270,10 @@ impl Orchestrator {
             input.encoded.as_deref(),
             input.deadline_at.unwrap_or(input.now_ms),
         );
+        let jobs: Vec<_> = jobs
+            .into_iter()
+            .filter(|job| scope.is_none_or(|priority| job.priority == priority))
+            .collect();
         let total = jobs.len();
         let failures = Arc::new(AtomicUsize::new(0));
         let batch_partial = Arc::new(AtomicBool::new(false));

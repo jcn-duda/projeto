@@ -43,9 +43,13 @@ export async function collectRaw(
   /** Raiz da coleção multiobra (TMDB), degrau SEQUENCIAL só nos indexers BR;
    * null/ausente = feature desligada (kill-switch) ou sem evidência de coleção. */
   multiWorkQuery: string | null = null,
+  /** Fontes que o coletor nativo do Rust já cobre (`SOURCES_RUST`): o Node não
+   * as consulta, senão a mesma fonte entra duas vezes na lista. */
+  skipSources: ReadonlySet<string> = new Set(),
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
+  const jackettMode = mode === 'both' || providers.includes('jackett');
   // I0 — relógio comum de UMA invocação de coleta. Cada grupo (BR/global) mede
   // o envelope do início até os SEUS tasks assentarem (limitado ao momento em
   // que o `collectWithinWindow` devolve): mede quanto da JANELA DA RESPOSTA o
@@ -93,7 +97,7 @@ export async function collectRaw(
     };
   }
 
-  const wants = (name: string) => mode === 'both' || providers.includes(name);
+  const wants = (name: string) => !skipSources.has(name) && (mode === 'both' || providers.includes(name));
   const rawSelected: string[] = [...new Set((opts().jackettIndexers || []).filter((id: any) =>
     SAFE_INDEXER_ID.test(String(id)),
   ))].map(String);
@@ -207,7 +211,7 @@ export async function collectRaw(
   // Se misconfigurou PROVIDER, tenta jackett
   const validProvider = providers.some((name: string) =>
     ['jackett', 'prowlarr', 'torrentio', 'demo', 'both'].includes(name));
-  if (tasks.length === 0 && providers.length > 0 && !validProvider) {
+  if (tasks.length === 0 && providers.length > 0 && !validProvider && !skipSources.has('jackett')) {
     // Mesma semântica dos branches acima: com `config.jackett.indexers`
     // povoada, as options (cascata) valem normalmente; o agregado puro `/all` —
     // só atingido com a config vazia — é que não as consome. Seja por-indexer
@@ -227,7 +231,8 @@ export async function collectRaw(
   // como a do bludv — acervo dublado, pode chegar depois do prazo e entrar no
   // passe tardio. Sem `ji` na instalação, vale o padrão do operador.
   const wantsMico = rawSelected.length > 0 ? rawSelected.includes(mico.MICO_ID) : config.mico.default;
-  if (wants('jackett') && wantsMico && config.mico.enabled) {
+  // O Mico não é do Jackett: pular o Jackett (nativo) não pode derrubá-lo.
+  if (jackettMode && wantsMico && config.mico.enabled && !skipSources.has('mico')) {
     // Entra no estado vivo como um indexer: se o Mico cair ou não responder no
     // prazo, a reserva do acervo (📦) cobre os hashes que ele já trouxe.
     live.noteStart([mico.MICO_ID]);
@@ -246,7 +251,7 @@ export async function collectRaw(
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,
   // então se o site cair ou demorar, o resto da busca sai normalmente.
-  if (config.bludv.enabled) {
+  if (config.bludv.enabled && !skipSources.has('bludv')) {
     // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
     addTask(() => bludv.search(ptQuery || query), true);
   }

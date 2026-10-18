@@ -71,13 +71,17 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 pub fn build_orchestrator() -> Orchestrator {
     let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
-    let native_collectors = adom_search::orchestrator::try_sources_rust_collectors_from_env();
+    let native = adom_search::orchestrator::try_sources_rust_native_from_env();
+    let skip_sources: Vec<String> = native.iter().map(|(t, _)| t.to_string()).collect();
+    let native_collectors: Vec<Arc<dyn adom_search::orchestrator::Collector>> =
+        native.into_iter().map(|(_, c)| c).collect();
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            let node_collector = Arc::new(adom_search::orchestrator::NodeCollector::new(
-                routes.clone(),
-            ));
+            let node_collector = Arc::new(
+                adom_search::orchestrator::NodeCollector::new(routes.clone())
+                    .with_skip_sources(skip_sources.clone()),
+            );
             let collector: Arc<dyn adom_search::orchestrator::Collector> =
                 if native_collectors.is_empty() {
                     node_collector
@@ -143,13 +147,17 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
         .with_shadow_mode(true)
         .with_debrid(Arc::new(NoDebridFactory));
-    let native_collectors = adom_search::orchestrator::try_sources_rust_collectors_from_env();
+    let native = adom_search::orchestrator::try_sources_rust_native_from_env();
+    let skip_sources: Vec<String> = native.iter().map(|(t, _)| t.to_string()).collect();
+    let native_collectors: Vec<Arc<dyn adom_search::orchestrator::Collector>> =
+        native.into_iter().map(|(_, c)| c).collect();
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            let node_collector = Arc::new(adom_search::orchestrator::NodeCollector::new(
-                routes.clone(),
-            ));
+            let node_collector = Arc::new(
+                adom_search::orchestrator::NodeCollector::new(routes.clone())
+                    .with_skip_sources(skip_sources.clone()),
+            );
             let collector: Arc<dyn adom_search::orchestrator::Collector> =
                 if native_collectors.is_empty() {
                     node_collector

@@ -36,8 +36,11 @@ pub struct RawItem {
     pub is_br: bool,
     /// Item do inventário da conta do debrid.
     pub from_account: bool,
-    /// Veio de reserva (fallback do banco / foto do índice).
+    /// Veio de reserva (fallback do banco): entra no 📦 e no `fallbackBlocked`.
     pub from_fallback: bool,
+    /// Foto do índice (`fromSnapshot`): exibe 📦 até a promoção tardia, mas NÃO
+    /// é reserva bloqueada (no TS, `_fromSnapshot` não entra no `fallbackBlocked`).
+    pub from_snapshot: bool,
     /// Mentira comprovada de áudio (`DubLieError`).
     pub lied: bool,
     /// Pack multiobra ADMITIDO (opt-in TMDB) — refeito a cada build.
@@ -153,6 +156,7 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         is_br: bool_of("isBr") || bool_of("is_br"),
         from_account: bool_of("fromAccount") || bool_of("from_account"),
         from_fallback: bool_of("fromFallback") || bool_of("from_fallback"),
+        from_snapshot: bool_of("fromSnapshot") || bool_of("from_snapshot"),
         lied: bool_of("lied"),
         multi_work_admitted: false,
         extra: Map::new(),
@@ -216,6 +220,9 @@ impl RawItem {
         }
         if self.from_fallback {
             put("fromFallback", Value::Bool(true));
+        }
+        if self.from_snapshot {
+            put("fromSnapshot", Value::Bool(true));
         }
         if self.lied {
             put("lied", Value::Bool(true));

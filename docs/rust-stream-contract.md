@@ -57,9 +57,10 @@ com aceite de paridade BR).
 - Opt-in `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV,
   case-insensitive): collect nativo (`JackettCollector` /
   `ProwlarrCollector` / `TorrentioCollector` / `BludvCollector` /
-  `MicoCollector`); **exclusão mútua** nesta fatia (`jackett` > `prowlarr` >
-  `torrentio` > `bludv` > `mico`; sem composição multi-fonte). Meta/tail
-  seguem no Node quando as rotas internas existem. Default **OFF**.
+  `MicoCollector`); **composição**: cada fonte listada coleta no Rust e o
+  `NodeCollector` roda o resto com `skip_sources` (as fontes já migradas, que o
+  Node pula no `/internal/search/collect`). Meta/tail seguem no Node quando as
+  rotas internas existem. Default **OFF**.
 
 ### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
 
@@ -629,7 +630,7 @@ já responde no caminho nativo quando o token `stream` está ligado — mas isso
 | 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo; `MemorySwrStore` na sombra) |
 | 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | via `POST /internal/search/meta` (Node); porte puro de fontes = F2 |
 | 5 | plano / orçamentos de coleta | decisões no núcleo; janela ainda orquestrada com I/O Node |
-| 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio\|bludv\|mico` (exclusão mútua jackett>prowlarr>torrentio>bludv>mico; sem composição/raw:v1 nessa fatia) |
+| 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio\|bludv\|mico` (composição: fontes nativas + `NodeCollector` com `skip_sources`; sem `raw:v1` nessa fatia) |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | orquestrador/núcleo; **paridade BR+cotas ainda aberta** (bloqueia default do corte) |
 | 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + reserva Node (`INTERNAL_CHECK_URL`); autofetch/efeitos de cauda ainda no Node |
 | 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play completo ainda no Node |

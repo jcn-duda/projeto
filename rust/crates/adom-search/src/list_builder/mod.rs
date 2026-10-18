@@ -248,10 +248,9 @@ pub fn build_stream_list(
     // Reserva (banco/foto do índice) sobrevive ao ranking em `extra`; a
     // entrada com reserva nunca é completa (TTL curto + promoção tardia).
     out.fallback = streams.iter().any(|s| {
-        s.extra
-            .get("_fromFallback")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
+        ["_fromFallback", "_fromSnapshot"]
+            .iter()
+            .any(|key| s.extra.get(*key).and_then(|v| v.as_bool()).unwrap_or(false))
     });
 
     // 7. 💾 de episódio (pack: média; multiobra: só medida exata). Antes do

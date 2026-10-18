@@ -29,6 +29,7 @@ mod bludv_collector;
 mod collect;
 mod composite_collector;
 mod config;
+mod fast_path;
 mod finish;
 mod internal_routes;
 mod jackett_collector;
@@ -83,6 +84,7 @@ pub use respond::{SearchOutcome, StreamRequest, NOTICE_SEARCHING};
 pub use sources_rust::{
     sources_rust_csv_includes, sources_rust_csv_winner, sources_rust_includes,
     try_sources_rust_collector_from_env, try_sources_rust_collectors_from_env,
+    try_sources_rust_native_from_env,
 };
 pub use tail::{
     EffectsBatch, IndexBatch, NodeTailEffects, NoopTailEffects, TailEffects, TailJob, TailPlan,

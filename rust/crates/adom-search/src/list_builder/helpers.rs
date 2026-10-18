@@ -222,6 +222,11 @@ pub fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<Ranki
     if item.from_fallback {
         stream.extra.insert("_fromFallback".into(), true.into());
     }
+    // Foto do índice: o `finish` também a conta como reserva na lista (TTL
+    // curto), igual ao `fallbackInList` do TS.
+    if item.from_snapshot {
+        stream.extra.insert("_fromSnapshot".into(), true.into());
+    }
     Some(stream)
 }
 
