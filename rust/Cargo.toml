@@ -20,6 +20,9 @@ members = [
     # Store SQLite de streams:v21 (SWR + cotas). Embrião Fase D — ainda não
     # pluga no Orchestrator/gateway.
     "crates/adom-store",
+    # Fila harvest:v1:q (tipos + stub em memória). Embrião Fase E — fora do
+    # caminho /stream; ainda não pluga no gateway nem no worker Jackett.
+    "crates/adom-harvest",
 ]
 resolver = "2"
 

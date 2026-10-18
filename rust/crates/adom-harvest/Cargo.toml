@@ -1,0 +1,13 @@
+[package]
+name = "adom-harvest"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Fila harvest:v1:q — embrião Fase E (tipos + stub em memória). Fora do caminho /stream."
+license = "UNLICENSED"
+
+[dependencies]
+adom-core = { path = "../adom-core" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]

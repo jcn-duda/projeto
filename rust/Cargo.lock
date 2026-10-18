@@ -58,6 +58,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-harvest"
+version = "0.0.0"
+dependencies = [
+ "adom-core",
+ "serde",
+]
+
+[[package]]
 name = "adom-napi"
 version = "0.1.0"
 dependencies = [
