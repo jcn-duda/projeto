@@ -3,12 +3,27 @@
 Corpus **medido**, não inventado: cada caso é uma requisição REAL ao addon
 rodando, e a pasta só é preenchida pela ferramenta
 [`scripts/golden/capture-stream-e2e.mjs`](../../../scripts/golden/capture-stream-e2e.mjs).
-É o material com que o orquestrador Rust (fatia futura) vai ser comparado em
-modo sombra — ver `docs/rust-stream-contract.md` §9.
+É o material com que o orquestrador Rust é comparado — ver
+`docs/rust-stream-contract.md` §9.
 
-O diretório `cases/` fica **vazio** no repositório (só `.gitkeep`): o corpus é
-regenerado contra uma instância real e revisado antes de entrar. Não há caso
-"de exemplo" aqui de propósito — caso inventado não mede contrato nenhum.
+O diretório `cases/` traz a captura revisada (`request.json` + `response.json`
+por caso, mais `manifest.json` na raiz). Não há caso "de exemplo" inventado —
+só o que a ferramenta mediu. Regenerar sobrescreve; revise o diff antes de
+commitar.
+
+### Consumidor Rust (Fase A.5)
+
+Harness em `rust/crates/adom-search/tests/stream_e2e_parity.rs`:
+
+```bash
+cd rust && cargo test -p adom-search --test stream_e2e_parity
+```
+
+Hoje o corpus **não** traz `meta.json` / `raw.json` / `debrid.json`, então o
+teste de remontagem por `build_stream_list` fica `#[ignore]`. O que roda de
+verdade: carga + sha256 do manifest, `parse_stream_path` / `reply_deadline_ms`
+contra `type`+`stream_id`, e deserialização/`round-trip` do `contract`
+(`StreamResponse`), mascarando relógio e ordem da lista.
 
 ## Como gerar
 
