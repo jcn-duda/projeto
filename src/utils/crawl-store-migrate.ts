@@ -172,6 +172,9 @@ export function ensureCrawlSchema(db: CrawlSchemaDb): void {
       PRIMARY KEY (site, url_key)
     );
     CREATE INDEX IF NOT EXISTS crawl_url_due ON crawl_url (site, status, next_at);
+    -- SUM(releases) do status do painel: o índice cobre a consulta e evita ler
+    -- a linha inteira de cada URL (~0,9 s por poll com a tabela cheia).
+    CREATE INDEX IF NOT EXISTS crawl_url_site_releases ON crawl_url (site, releases);
     CREATE TABLE IF NOT EXISTS crawl_run (
       id INTEGER PRIMARY KEY,
       site TEXT NOT NULL,

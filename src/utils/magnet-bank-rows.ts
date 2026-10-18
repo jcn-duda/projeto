@@ -137,6 +137,10 @@ function sqliteEngine(dbPath: string): Engine | null {
       );
       CREATE INDEX IF NOT EXISTS magnet_work_obra ON magnet_work (imdb, season, episode);
       CREATE INDEX IF NOT EXISTS magnet_source_indexer ON magnet_source (indexer, last_seen);
+      -- MAX(last_seen) do status e a ordem "mais recente" da busca: sem índice
+      -- era varredura completa (~7 s com 287 mil magnets), bloqueando o event loop.
+      CREATE INDEX IF NOT EXISTS magnet_last_seen ON magnet (last_seen);
+      CREATE INDEX IF NOT EXISTS magnet_source_last_seen ON magnet_source (last_seen);
     `);
     const magnetStmt = db.prepare(`INSERT OR REPLACE INTO magnet (${MAGNET_COLUMNS.join(', ')}) VALUES (${MAGNET_COLUMNS.map(() => '?').join(', ')})`);
     const sourceStmt = db.prepare(`INSERT OR REPLACE INTO magnet_source (${SOURCE_COLUMNS.join(', ')}) VALUES (${SOURCE_COLUMNS.map(() => '?').join(', ')})`);
