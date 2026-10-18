@@ -3,11 +3,12 @@
 //! Mutação (enqueue / take_head / head / tail) vive aqui; L2 é
 //! [`crate::store::HarvestStore`] via [`HarvestQueue::load_from`] /
 //! [`HarvestQueue::save_to`] (espelho de `load`/`persist` + `cache.set` no TS).
-//! Sem evidência BR, sem coalescing in-flight, sem dedupe 12h. Ordem = FIFO
-//! com promoção de motivo (priorização BR completa fica na Fase E real).
+//! Priorização BR: [`HarvestQueue::prioritize`] / [`crate::prioritize`].
+//! Sem coalescing in-flight, sem dedupe 12h.
 
 use adom_core::prefix;
 
+use crate::prioritize::{prioritize, BrEvidence, PrioritizeConfig};
 use crate::reason::{entry_identity, is_promotion, is_valid_imdb_id};
 use crate::store::HarvestStore;
 use crate::types::{EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestRequest};
@@ -32,6 +33,10 @@ pub struct HarvestQueueConfig {
     pub enabled: bool,
     /// Teto `HARVEST_QUEUE_MAX` (default TS: 200).
     pub queue_max: usize,
+    /// `HARVEST_BR_FIRST` — prioriza evidência BR no tier regular.
+    pub br_first: bool,
+    /// `HARVEST_BR_MAX_WAIT_MS` — anti-fome no tier regular (`0` = off).
+    pub br_max_wait_ms: i64,
 }
 
 impl Default for HarvestQueueConfig {
@@ -39,6 +44,18 @@ impl Default for HarvestQueueConfig {
         Self {
             enabled: true,
             queue_max: 200,
+            br_first: true,
+            br_max_wait_ms: 6 * 3600 * 1000,
+        }
+    }
+}
+
+impl HarvestQueueConfig {
+    /// Fatia usada por [`crate::prioritize`].
+    pub fn prioritize_config(&self) -> PrioritizeConfig {
+        PrioritizeConfig {
+            br_first: self.br_first,
+            br_max_wait_ms: self.br_max_wait_ms,
         }
     }
 }
@@ -109,10 +126,28 @@ impl HarvestQueue {
         self.entries = entries;
     }
 
-    /// `load()` do TS: lê L2 e coloca na memória. Sem `prioritizeQueue` ainda.
-    pub fn load_from(&mut self, store: &HarvestStore, now_ms: i64) -> Result<(), String> {
+    /// `load()` do TS: lê L2 e coloca na memória.
+    ///
+    /// Se `evidence` for fornecida, aplica [`prioritize`] (espelho do
+    /// `prioritizeQueue` pós-load). Sem evidência, mantém a ordem do L2 —
+    /// índice real ainda não é plugado.
+    pub fn load_from(
+        &mut self,
+        store: &HarvestStore,
+        now_ms: i64,
+        evidence: Option<&dyn BrEvidence>,
+    ) -> Result<(), String> {
         self.replace(store.load(now_ms)?);
+        if let Some(ev) = evidence {
+            self.prioritize(ev, now_ms);
+        }
         Ok(())
+    }
+
+    /// Reordena a fila in-place com evidência BR injetável.
+    pub fn prioritize(&mut self, evidence: &dyn BrEvidence, now_ms: i64) {
+        let cfg = self.config.prioritize_config();
+        self.entries = prioritize(&self.entries, &cfg, evidence, now_ms);
     }
 
     /// `persist()` do TS: grava fatia até `queue_max` (ou apaga se vazia).
@@ -273,8 +308,8 @@ mod tests {
     fn q(max: usize) -> HarvestQueue {
         HarvestQueue::with_clock(
             HarvestQueueConfig {
-                enabled: true,
                 queue_max: max,
+                ..HarvestQueueConfig::default()
             },
             clock_fixed,
         )
@@ -396,5 +431,32 @@ mod tests {
         // HarvestQueue no hot path.
         assert_eq!(HARVEST_NAMESPACE, "harvest");
         assert!(!QUEUE_KEY.contains("stream"));
+    }
+
+    #[test]
+    fn load_from_prioriza_quando_evidence_fornecida() {
+        use crate::prioritize::StubBrEvidence;
+        use crate::store::HarvestStore;
+
+        let store = HarvestStore::open_memory().unwrap();
+        let mut writer = q(10);
+        writer.enqueue(HarvestRequest::movie("tt5000001", "miss"));
+        writer.enqueue(HarvestRequest::movie("tt5000002", "miss"));
+        writer
+            .save_to(&store, crate::store::DEFAULT_ENTRY_TTL_SECONDS, clock_fixed())
+            .unwrap();
+
+        let mut ev = StubBrEvidence::new();
+        ev.insert("tt5000002", None, None);
+
+        let mut reader = q(10);
+        reader
+            .load_from(&store, clock_fixed(), Some(&ev))
+            .unwrap();
+        assert_eq!(reader.preview(2)[0].imdb_id, "tt5000002");
+
+        let mut plain = q(10);
+        plain.load_from(&store, clock_fixed(), None).unwrap();
+        assert_eq!(plain.preview(2)[0].imdb_id, "tt5000001");
     }
 }

@@ -19,6 +19,7 @@ sem Jackett, sem índice, sem gateway, sem Docker.
 | Consumo | `takeHead` / `takeProbe` | `take_head` / `take_probe` |
 | L2 | `cache.get` / `cache.set(QUEUE_KEY, …)` | `HarvestStore::load` / `save` |
 | Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
+| Prioridade | `prioritizeQueue` + `hasBrDubbed(lookupQuiet)` | `prioritize` + trait `BrEvidence` (stub/callback; índice real ainda não) |
 
 Guardrails (iguais ao Arquivista):
 
@@ -38,14 +39,29 @@ em `HarvestQueue` (memória); `save_to` é o `cache.set` periódico.
 ```rust
 let store = HarvestStore::open_memory()?; // ou open(path)
 let mut queue = HarvestQueue::new(HarvestQueueConfig::default());
-queue.load_from(&store, now_ms)?;
+let evidence = StubBrEvidence::with_dubbed(["tt0111161::"]);
+queue.load_from(&store, now_ms, Some(&evidence))?;
 queue.enqueue(HarvestRequest::movie("tt0111161", "miss"));
 queue.save_to(&store, DEFAULT_ENTRY_TTL_SECONDS, now_ms)?;
 ```
 
+### Priorização BR
+
+```rust
+use adom_harvest::{prioritize, PrioritizeConfig, StubBrEvidence};
+
+let mut ev = StubBrEvidence::new();
+ev.insert("tt3000002", None, None);
+let ordered = prioritize(&entries, &PrioritizeConfig::default(), &ev, now_ms);
+// ou callback: prioritize(&entries, &cfg, &|id, s, e| id == "tt3000002", now_ms);
+```
+
+`load_from(..., Some(&evidence))` aplica a mesma ordem após ler o L2.
+Sem evidência (`None`), a ordem do disco é preservada.
+
 ## O que NÃO está aqui (Fase E real)
 
-- `prioritizeQueue` com evidência BR (`hasBrDubbed` + `lookupQuiet`).
+- Ponte do `BrEvidence` para o índice real (`lookupQuiet` / `hasBrDubbed`).
 - Dedupe 12h (`harvest:v1:seen:<sha>`).
 - Coalescing in-flight (`harvest-inflight`).
 - Ciclo tick/drain, freio de tráfego, teto horário (`harvester.ts` /

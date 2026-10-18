@@ -22,17 +22,22 @@
 //! | [`HarvestEntry`] / [`HarvestRequest`] | Entrada da fila |
 //! | [`EnqueueOutcome`] | Aceite / motivo (`queued`, `promoted`, …) |
 //! | [`obra_identity`] / [`reason_priority`] | Identidade e promoção |
-//! | [`HarvestQueue`] | Memória: enqueue / take_head / head / tail + load_from / save_to |
+//! | [`prioritize`] / [`BrEvidence`] | Reordenação com evidência BR injetável |
+//! | [`HarvestQueue`] | Memória: enqueue / take_head / prioritize / load_from |
 //! | [`HarvestStore`] | L2 SQLite (WAL): `open` / `open_memory` / `load` / `save` |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
-//! Priorização BR, dedupe 12h, inflight e tick: **ainda não** — ver `README.md`.
+//! Dedupe 12h, inflight e tick: **ainda não** — ver `README.md`.
 
+mod prioritize;
 mod queue;
 mod reason;
 mod store;
 mod types;
 
+pub use prioritize::{
+    br_evidence_rank, prioritize, priority_tier, BrEvidence, PrioritizeConfig, StubBrEvidence,
+};
 pub use queue::{
     queue_key, HarvestQueue, HarvestQueueConfig, HARVEST_NAMESPACE, QUEUE_KEY, QUEUE_SUFFIX,
 };

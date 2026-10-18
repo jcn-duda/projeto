@@ -229,8 +229,8 @@ mod tests {
         let store = HarvestStore::open_memory().unwrap();
         let mut queue = HarvestQueue::with_clock(
             HarvestQueueConfig {
-                enabled: true,
                 queue_max: 10,
+                ..HarvestQueueConfig::default()
             },
             clock_fixed,
         );
@@ -241,12 +241,12 @@ mod tests {
 
         let mut other = HarvestQueue::with_clock(
             HarvestQueueConfig {
-                enabled: true,
                 queue_max: 10,
+                ..HarvestQueueConfig::default()
             },
             clock_fixed,
         );
-        other.load_from(&store, clock_fixed()).unwrap();
+        other.load_from(&store, clock_fixed(), None).unwrap();
         assert_eq!(other.depth(), 2);
         let head = other.take_head().expect("cabeça");
         assert_eq!(head.imdb_id, "tt0111161");
