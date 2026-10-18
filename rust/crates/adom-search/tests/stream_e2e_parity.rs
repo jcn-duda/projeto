@@ -262,16 +262,11 @@ fn request_parse_bate_com_type_e_stream_id() {
             case.meta.id
         );
 
-        // UA do capturador não é Dart/ — prazo Stremio (números arbitrários,
-        // só a escolha do ramo importa).
-        let ua = case.request["headers"]["user-agent"].as_str();
-        assert_eq!(
-            reply_deadline_ms(ua, 9200, 15000),
-            9200,
-            "prazo no caso {}",
-            case.meta.id
-        );
     }
+    // UA do corpus é sempre o capturador (não Dart/) — um assert basta.
+    // Ramo app: UA sintético fora do corpus.
+    assert_eq!(reply_deadline_ms(Some("adom-stream-e2e/1"), 9200, 15000), 9200);
+    assert_eq!(reply_deadline_ms(Some("Dart/3.0 (powermovie)"), 9200, 15000), 15000);
 }
 
 #[test]
@@ -332,7 +327,7 @@ fn contract_deserializa_round_trip_e_identidades_estaveis() {
         let again: StreamResponse = serde_json::from_str(&json).expect("round-trip");
         assert_eq!(again, parsed, "round-trip no caso {}", case.meta.id);
 
-        // Conjunto de identidades — ordem da lista fica de fora do assert.
+        // Unicidade no JSON capturado (não é paridade Rust×Node).
         let set = stream_identity_set(&parsed.streams);
         assert_eq!(
             set.len(),
@@ -340,21 +335,14 @@ fn contract_deserializa_round_trip_e_identidades_estaveis() {
             "identidade duplicada na lista do caso {} (corpus capturado)",
             case.meta.id
         );
-        let _ = set; // fingerprint pronto para diff futuro Rust×Node
     }
 }
 
 /// Remontagem completa exige raw/meta/debrid — o corpus ainda não os grava
-/// (`notCaptured` do manifest). Não falha a suíte.
+/// (`notCaptured` do manifest). `todo!` evita falso-verde se o `#[ignore]` sair
+/// antes do diff real contra `build_stream_list`.
 #[test]
 #[ignore = "corpus ainda sem meta.json/raw.json/debrid.json — build_stream_list não remonta a lista"]
 fn build_stream_list_parity_completa() {
-    let (_root, _manifest, cases) = load_corpus();
-    assert!(
-        cases.iter().any(|c| {
-            let dir = corpus_root().join(&c.meta.dir);
-            dir.join("raw.json").is_file() || dir.join("meta.json").is_file()
-        }),
-        "nenhum caso tem entradas para build_stream_list"
-    );
+    todo!("parity build_stream_list × response.json ainda não implementada");
 }
