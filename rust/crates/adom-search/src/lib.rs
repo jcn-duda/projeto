@@ -1,36 +1,34 @@
 //! `adom-search` — embrião do ORQUESTRADOR NATIVO da rota `/stream`.
 //!
-//! Nesta fatia (F1.1) o crate guarda **só o que dá para fixar sem I/O**: como a
-//! requisição do Stremio é lida (caminho e config na URL), qual é a chave de
-//! cache da busca e qual é a forma EXATA do corpo JSON da resposta. O contrato
-//! que ele antecipa está em `docs/rust-stream-contract.md`.
+//! Já fixa o que dá sem I/O de fonte (caminho, chave SWR, contrato JSON) e o
+//! **BUILD da lista** (`list_builder`: filtro → ranking → cotas → aviso). O
+//! glue HTTP das rotas internas do Node (`internal_client`) é o próximo
+//! degrau: meta/state/collect/index-write/effects em loopback enquanto a rede
+//! ainda mora no TypeScript.
 //!
 //! O que este crate **NÃO faz** (de propósito, nesta fatia):
 //!
-//! - **não monta lista**: filtro de título/episódio, ranking, cotas, debrid
-//!   (`applyDebrid`), aviso de lista vazia e `applyNoticeOrigin` continuam no
-//!   TypeScript;
-//! - **não faz I/O**: Cinemeta, TMDB, Jackett, Prowlarr, Torrentio, BLUDV,
-//!   Mico, debrid, banco de magnets e cache não são tocados aqui;
-//! - **não abre rota**: nenhum handler `/stream` nativo existe, o
-//!   `adom-server` não depende deste crate e o `/stream` continua 100% Node;
-//! - **não decide prazo nem cache sozinho**: recebe os dois milissegundos
-//!   (Stremio × app Power Movie) e devolve a escolha; `cacheMaxAge` só carrega
-//!   o número que o Node calculou;
+//! - **não abre rota `/stream`**: nenhum handler nativo; o `adom-server` não
+//!   depende deste crate e o `/stream` continua 100% Node;
+//! - **não fala com Jackett/Cinemeta/TMDB direto**: a coleta e os metadados
+//!   passam pelas rotas `/internal/search/*` do Node;
+//! - **não decide prazo sozinho**: recebe os milissegundos (Stremio × app) e
+//!   no collect manda `deadline_at` absoluto;
 //! - **não reproduz os defaults do operador**: `decode_user_config` aplica o
 //!   overlay do segmento sobre um objeto VAZIO (sem `defaults()` do `.env`) e
-//!   não abre a chave de debrid selada (o `RESOLVE_SECRET` não existe aqui).
-//!   Quem chamar precisa passar os defaults reais para `adom_core::decode_config`
-//!   quando a integração chegar.
+//!   não abre a chave de debrid selada.
 //!
 //! Invariante que vale desde já: a config do usuário vem da URL (segmento
-//! base64url) e NUNCA do `.env`; e o HOST nunca entra na chave de cache.
+//! base64url) / do `encoded` no corpo das rotas internas — NUNCA do `.env`; e
+//! o HOST nunca entra na chave de cache.
 pub mod cache;
 pub mod coalesce;
 pub mod collection_window;
 pub mod contract;
 // O applyDebrid REAL: `DebridCheck` sobre os adaptadores do `adom-debrid`.
 pub mod debrid_seam;
+pub mod internal_client;
+pub mod internal_types;
 pub mod latest_writer;
 pub mod list_builder;
 pub mod raw_item;
@@ -56,6 +54,12 @@ pub use collection_window::{
     jump_deadline, BatchMeta, CollectBudgets, CollectTask, CollectWindow, CollectWindowOptions,
 };
 pub use contract::{BehaviorHints, StreamItem, StreamResponse};
+pub use internal_client::{InternalSearchClient, DEFAULT_BASE, DEFAULT_TIMEOUT};
+pub use internal_types::{
+    BreakerSnapshot, CollectRequest, CollectResponse, EffectEntry, EffectsRequest, EffectsResponse,
+    IndexWriteRequest, IndexWriteResponse, LiveSnapshot, MetaRequest, MetaResponse, ReleaseEntry,
+    StateRequest, StateResponse, TaskScope,
+};
 pub use request::{
     decode_user_config, parse_stream_path, reply_deadline_ms, request_cache_key, StreamTarget,
 };

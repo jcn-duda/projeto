@@ -3,17 +3,20 @@ name = "adom-search"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "Embrião do orquestrador nativo do /stream: parsing de requisição, chave de cache e contrato da resposta."
+description = "Embrião do orquestrador nativo do /stream: parsing, cache, list_builder e glue HTTP das rotas internas do Node."
 license = "UNLICENSED"
 
 [dependencies]
 adom-core = { path = "../adom-core" }
-# Costura do applyDebrid: os adaptadores + o ledger do RD moram no debrid.
+# Costura do applyDebrid + reuso do HttpClient (loopback interno).
 adom-debrid = { path = "../adom-debrid" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "net"] }
 
 [dev-dependencies]
 # Integridade do corpus e2e (sha256 dos arquivos no manifest).
 sha2 = "0.10"
+# Servidor falso dos testes do cliente HTTP interno.
+axum = { version = "0.8", features = ["json"] }

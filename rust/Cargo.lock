@@ -72,6 +72,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-parity"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "adom-resolvers"
 version = "0.0.0"
 dependencies = [
@@ -96,6 +105,8 @@ version = "0.0.0"
 dependencies = [
  "adom-core",
  "adom-debrid",
+ "axum",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",

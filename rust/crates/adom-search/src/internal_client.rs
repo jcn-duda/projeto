@@ -27,7 +27,7 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(15_000);
 /// Folga de rede depois do prazo absoluto do collect (o Node já cortou).
 const COLLECT_GRACE_MS: u64 = 250;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct InternalSearchClient {
     http: HttpClient,
     base: String,
@@ -153,8 +153,8 @@ fn timeout_until(deadline_at_ms: i64, cap: Duration) -> Result<Duration, String>
     if remaining <= 0 {
         return Err("deadline_at já venceu".into());
     }
-    let with_grace = (remaining as u64).saturating_add(COLLECT_GRACE_MS);
-    Ok(Duration::from_millis(with_grace).min(cap.max(Duration::from_millis(with_grace))))
+    let budget = Duration::from_millis((remaining as u64).saturating_add(COLLECT_GRACE_MS));
+    Ok(budget.min(cap).max(Duration::from_millis(1)))
 }
 
 fn now_ms() -> i64 {
