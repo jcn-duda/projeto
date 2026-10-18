@@ -86,14 +86,15 @@ pub fn build_orchestrator() -> Orchestrator {
 
 /// Orquestrador da sombra (§9.1): compare-only.
 ///
+/// - store **isolado em memória** — nunca abre `STREAMS_DB` (SWR hit / DELETE
+///   de `get_with_stale` no SQLite do nativo furaria o compare-only);
 /// - `shadow_mode` — não grava SWR, não promove, não revalida/tail em fundo;
 /// - `NoDebridFactory` — sem check de debrid (nem reserva Node);
 /// - `NoopTailEffects` — sem index-write / effects (mesmo com `with_routes`).
 ///
 /// Não devolve nada ao cliente; o proxy só observa o corpo.
 pub fn build_shadow_orchestrator() -> Orchestrator {
-    // Mesmo path do corte nativo; `shadow_mode` impede gravação/SWR/tail.
-    let store = open_swr_store();
+    let store: Arc<dyn SwrStore> = Arc::new(MemorySwrStore::new());
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
         .with_shadow_mode(true)
         .with_debrid(Arc::new(NoDebridFactory));
