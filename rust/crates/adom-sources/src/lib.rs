@@ -36,6 +36,14 @@
 //! Config via `JACKETT_URL` (default loopback `:9117`) e `JACKETT_API_KEY`
 //! (nunca em log). **Ainda não** está ligado ao orquestrador/`collectRaw`.
 //!
+//! ## Fase B — Prowlarr + Torrentio
+//!
+//! Módulos [`prowlarr`] e [`torrentio`]: clientes HTTP alinhados a
+//! `src/providers/prowlarr.ts` e `torrentio.ts`. Prowlarr: `/api/v1/search`,
+//! fail-open, chave fora de log, base loopback com guarda SSRF. Torrentio:
+//! pool público, fail-open, breaker local, `fileIdx` preservado, fora dos
+//! defaults de instalação. **Ainda não** ligados ao collect/orquestrador.
+//!
 //! Pendências da próxima fatia: integração no collect, cache `raw:v1`,
 //! pt-sweep tardio, pré-resolve BR (já no núcleo) e captura do magnet-bank.
 //!
@@ -63,7 +71,9 @@ mod cinemeta;
 mod config;
 mod http;
 pub mod jackett;
+pub mod prowlarr;
 mod sources;
+pub mod torrentio;
 mod tmdb;
 mod types;
 mod wire;
@@ -78,7 +88,14 @@ pub use jackett::{
     budget_for, shape_search_query, JackettClient, JackettConfig, JackettMediaType, JackettRawItem,
     QueryOutcome, SearchOptions, JACKETT_DEFAULT_URL,
 };
+pub use prowlarr::{
+    ProwlarrClient, ProwlarrConfig, ProwlarrRawItem, PROWLARR_DEFAULT_URL, PROWLARR_USER_AGENT,
+};
 pub use sources::MetaSources;
+pub use torrentio::{
+    TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs,
+    TORRENTIO_DEFAULT_URL,
+};
 pub use tmdb::TmdbClient;
 pub use types::{
     CinemetaMeta, CollectionInfo, EpisodeAired, LookupOptions, MediaType, MetaLookup, Titles,

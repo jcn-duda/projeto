@@ -3,7 +3,7 @@ name = "adom-sources"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "Clientes Cinemeta/TMDB (B.1) e Jackett Torznab/JSON (B.2) do Adom."
+description = "Clientes Cinemeta/TMDB (B.1), Jackett (B.2), Prowlarr e Torrentio do Adom."
 license = "UNLICENSED"
 
 # Só deps que o workspace já usa: reqwest com rustls (sem OpenSSL), tokio e
