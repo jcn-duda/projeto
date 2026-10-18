@@ -1,0 +1,297 @@
+//! Configuração e dependências do orquestrador do `/stream`.
+//!
+//! Dois blocos, de propósito separados: [`OrchestratorConfig`] carrega NÚMEROS
+//! e defaults do operador (o `.env` do Node, injetado pelo caller — nunca lido
+//! aqui), e as TRAITS de borda ([`DebridFactory`], `Collector`, `MetaSource`,
+//! `TailEffects`) são as linhas de I/O que ainda moram no Node.
+//!
+//! Invariante que atravessa o arquivo: a preferência do usuário chega no
+//! `encoded`/`options` da requisição; nada daqui vem de `config.*` no caminho
+//! de busca. [`OrchestratorConfig::default`] só existe para testes — produção
+//! passa os valores do operador.
+
+use std::sync::Arc;
+
+use adom_core::{QualityLimits, StreamDisplayConfig, QUALITY_KEYS, UNKNOWN_QUALITY};
+use serde_json::Value;
+
+use crate::collection_window::CollectBudgets;
+use crate::debrid_seam::{AdapterDebridCheck, FallbackCheck};
+use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
+use adom_core::RankingStream;
+
+/// Defaults do operador (`src/config/*.ts`) que governam a resposta.
+#[derive(Debug, Clone)]
+pub struct OrchestratorConfig {
+    /// Orçamentos da coleta (prazo, reserva de debrid, graça BR, total BR).
+    pub budgets: CollectBudgets,
+    /// `REPLY_DEADLINE_MS` (Stremio aborta em 10 s).
+    pub stremio_reply_ms: u64,
+    /// `APP_REPLY_DEADLINE_MS` (app Power Movie, UA `Dart/`).
+    pub app_reply_ms: u64,
+    /// `CACHE_TTL` — `cacheMaxAge` da resposta completa e TTL da entrada.
+    pub cache_ttl: i64,
+    /// `FALLBACK_STREAMS_TTL` — TTL da entrada com reserva.
+    pub fallback_streams_ttl: i64,
+    /// `STREAM_STALE_GRACE_SECONDS` — graça do SWR.
+    pub stale_grace_seconds: u64,
+    /// `defaults()` do operador: base do decode da config e da chave de cache.
+    /// A ORDEM das chaves importa (`JSON.stringify`), por isso é um `Value` e
+    /// não um struct.
+    pub defaults: Value,
+    /// `RESOLVE_SECRET` — precedência sobre a chave de debrid no HMAC.
+    pub resolve_secret: String,
+    /// `DEBRID_RESOLVE_UNCACHED` — entra na chave (muda a `url` de cada stream).
+    pub resolve_uncached: bool,
+    /// Números do build que vêm do OPERADOR (o resto vem das opções do usuário).
+    pub build: BuildOptions,
+    /// `STREAM_NAME_STYLE`/`STREAM_NAME_SHOW_SOURCE`.
+    pub display: StreamDisplayConfig,
+    /// Indexers selecionados (`opts().jackettIndexers` ?? config do operador).
+    pub selected_indexers: Vec<String>,
+    /// Indexers que indexam por título pt-BR (`JACKETT_PT_BR_INDEXERS`).
+    pub pt_br_indexers: Vec<String>,
+    /// Indexers lentos isolados em tarefa própria (`JACKETT_SLOW_INDEXERS`).
+    pub isolate_indexers: Vec<String>,
+    /// Index-only: fora do caminho da resposta (`JACKETT_INDEX_ONLY_INDEXERS`).
+    pub index_only_indexers: Vec<String>,
+    /// `JACKETT_PT_SWEEP_GLOBAL`: varredura pt-BR nos globais ligada.
+    pub sweep_enabled: bool,
+    /// `SEARCH_STREAM_TRACE`: captura/serialização do ledger.
+    pub trace_enabled: bool,
+}
+
+impl Default for OrchestratorConfig {
+    fn default() -> Self {
+        OrchestratorConfig {
+            budgets: CollectBudgets::default(),
+            stremio_reply_ms: 9200,
+            app_reply_ms: 15_000,
+            cache_ttl: 900,
+            fallback_streams_ttl: 120,
+            stale_grace_seconds: 300,
+            defaults: Value::Object(serde_json::Map::new()),
+            resolve_secret: String::new(),
+            resolve_uncached: false,
+            build: BuildOptions::default(),
+            display: StreamDisplayConfig::default(),
+            selected_indexers: Vec::new(),
+            pt_br_indexers: Vec::new(),
+            isolate_indexers: Vec::new(),
+            index_only_indexers: Vec::new(),
+            sweep_enabled: true,
+            trace_enabled: true,
+        }
+    }
+}
+
+/// Fatos da requisição que a checagem de debrid precisa (nunca credencial em
+/// log: `api_key` fica só no adaptador).
+#[derive(Debug, Clone, Default)]
+pub struct DebridContext {
+    pub service: String,
+    pub api_key: String,
+    /// Segmento de config do usuário — corpo da reserva Node.
+    pub encoded: Option<String>,
+    /// Prazo absoluto da busca; `None` no passe tardio (orçamento completo).
+    pub deadline_at: Option<i64>,
+}
+
+impl DebridContext {
+    /// Há debrid utilizável? Serviço **e** chave (sem um dos dois o Node não
+    /// tem adaptador — `debrid.current()` é nulo).
+    pub fn is_active(&self) -> bool {
+        !self.service.is_empty() && !self.api_key.is_empty()
+    }
+}
+
+/// Constrói o `DebridCheck` de UMA busca (o memo do lote é por busca, nunca
+/// global). A implementação de produção é `AdapterDebridFactory`; testes
+/// injetam stub.
+pub trait DebridFactory: Send + Sync {
+    fn make(&self, ctx: &DebridContext) -> Box<dyn DebridCheck + Send>;
+}
+
+/// `DebridCheck` sem debrid: tudo `Unknown` (ninguém perguntou). O orquestrador
+/// trata a entrada como `debridKnown: true` quando o debrid não está ativo —
+/// é o mesmo que o TS faz ao nem chamar o `applyDebrid` (`known` fica
+/// `undefined` → `!needsDebridRefresh`).
+pub struct NoDebridCheck;
+
+impl DebridCheck for NoDebridCheck {
+    fn check(&mut self, _stream: &RankingStream) -> DebridAnswer {
+        DebridAnswer::Unknown
+    }
+}
+
+/// Fábrica de produção: os adaptadores do `adom-debrid` + a reserva Node.
+///
+/// Default = sem store/fallback: a fábrica funciona e responde `Unknown`
+/// quando o serviço não tem despacho local — degradação honesta. A produção
+/// liga os dois com [`AdapterDebridFactory::new`].
+#[derive(Default)]
+pub struct AdapterDebridFactory {
+    /// Ledger do RD (`rdc:v2`); `None` deixa todo hash `Unknown`.
+    pub store: Option<Arc<adom_debrid::Store>>,
+    /// Reserva interna para serviço fora do despacho local.
+    pub fallback: Option<Arc<dyn FallbackCheck>>,
+}
+
+impl AdapterDebridFactory {
+    pub fn new(
+        store: Option<Arc<adom_debrid::Store>>,
+        fallback: Option<Arc<dyn FallbackCheck>>,
+    ) -> Self {
+        AdapterDebridFactory { store, fallback }
+    }
+}
+
+impl DebridFactory for AdapterDebridFactory {
+    fn make(&self, ctx: &DebridContext) -> Box<dyn DebridCheck + Send> {
+        if !ctx.is_active() {
+            return Box::new(NoDebridCheck);
+        }
+        let mut check = AdapterDebridCheck::new(ctx.service.clone(), ctx.api_key.clone());
+        check.encoded = ctx.encoded.clone();
+        check.deadline_at = ctx.deadline_at;
+        check.store = self.store.clone();
+        check.fallback = self.fallback.clone();
+        Box::new(check)
+    }
+}
+
+// ── Opções do build: usuário (URL) sobre defaults do operador ───────────────
+
+/// Lê o `BuildOptions` das opções JÁ normalizadas pelo runtime (nomes longos do
+/// SCHEMA). Campo ausente ou de tipo errado cai no default do operador — o
+/// mesmo `clampInt`/`normalize` do Node já rodou antes, então aqui é só
+/// transporte.
+pub fn build_options_from(options: &Value, fallback: &BuildOptions) -> BuildOptions {
+    let mut out = fallback.clone();
+    let get = |key: &str| options.get(key);
+    if let Some(n) = get("maxResults").and_then(Value::as_f64) {
+        out.max_results = n;
+    }
+    if let Some(n) = get("minSeeders").and_then(Value::as_f64) {
+        out.min_seeders = n;
+    }
+    if let Some(Value::Array(list)) = get("qualities") {
+        out.qualities = list
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect();
+    }
+    if let Some(b) = get("preferDubbed").and_then(Value::as_bool) {
+        out.prefer_dubbed = b;
+    }
+    if let Some(b) = get("dubbedOnly").and_then(Value::as_bool) {
+        out.dubbed_only = b;
+    }
+    if let Some(b) = get("excludeCam").and_then(Value::as_bool) {
+        out.exclude_cam = b;
+    }
+    if let Some(n) = get("maxSizeGb").and_then(Value::as_f64) {
+        out.max_size_gb = n;
+    }
+    if let Some(n) = get("brReservedSlots").and_then(Value::as_f64) {
+        out.br_reserved_slots = n;
+    }
+    if let Some(b) = get("brFirst").and_then(Value::as_bool) {
+        out.br_first = b;
+    }
+    if let Some(b) = get("brOnly").and_then(Value::as_bool) {
+        out.br_only = b;
+    }
+    if let Some(n) = get("maxPerIndexer").and_then(Value::as_f64) {
+        out.max_per_indexer = n;
+    }
+    if let Some(Value::Array(list)) = get("indexerPriority") {
+        out.indexer_priority = list
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect();
+    }
+    out.quality_limits = quality_limits_from(options, "max", &out.quality_limits);
+    out.indexer_limits = indexer_limits_from(options);
+    out
+}
+
+/// `max2160p`…`maxUnknown` → mapa por chave de qualidade (`QUALITY_KEYS`).
+fn quality_limits_from(options: &Value, prefix: &str, fallback: &QualityLimits) -> QualityLimits {
+    const FIELDS: [&str; 6] = ["2160p", "1080p", "720p", "480p", "SD", "Unknown"];
+    let mut out = fallback.clone();
+    for (field, quality) in FIELDS.iter().zip(QUALITY_KEYS.iter()) {
+        if let Some(n) = options
+            .get(format!("{prefix}{field}"))
+            .and_then(Value::as_f64)
+        {
+            out.insert((*quality).to_string(), n);
+        }
+    }
+    // `maxUnknown` cobre o balde sem resolução (o TS usa a chave `UNKNOWN_QUALITY`).
+    debug_assert_eq!(QUALITY_KEYS[5], UNKNOWN_QUALITY);
+    out
+}
+
+/// `indexerLimits`: mapa `id → limite` (o `normalizeIntMap` do runtime já
+/// descartou id inválido e grampeou o teto).
+fn indexer_limits_from(options: &Value) -> QualityLimits {
+    let mut out = QualityLimits::new();
+    let Some(map) = options.get("indexerLimits").and_then(Value::as_object) else {
+        return out;
+    };
+    for (id, value) in map {
+        if let Some(n) = value.as_f64() {
+            out.insert(id.clone(), n);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn opcoes_do_usuario_sobrepoem_o_default() {
+        let fallback = BuildOptions::default();
+        let opts = json!({
+            "maxResults": 12,
+            "qualities": ["1080p"],
+            "preferDubbed": true,
+            "max1080p": 5,
+            "indexerLimits": { "bludv": 3 },
+            "indexerPriority": ["bludv"],
+        });
+        let out = build_options_from(&opts, &fallback);
+        assert_eq!(out.max_results, 12.0);
+        assert_eq!(out.qualities, vec!["1080p".to_string()]);
+        assert!(out.prefer_dubbed);
+        assert_eq!(out.quality_limits.get("1080p"), Some(&5.0));
+        assert_eq!(out.indexer_limits.get("bludv"), Some(&3.0));
+        assert_eq!(out.indexer_priority, vec!["bludv".to_string()]);
+        // Campo ausente mantém o default do operador.
+        assert_eq!(out.br_first, fallback.br_first);
+    }
+
+    #[test]
+    fn fabrica_sem_chave_nao_liga_debrid() {
+        let factory = AdapterDebridFactory::default();
+        let ctx = DebridContext {
+            service: "alldebrid".into(),
+            api_key: String::new(),
+            ..DebridContext::default()
+        };
+        assert!(!ctx.is_active());
+        // Sem debrid ativo o check é no-op (Unknown): a entrada conta como
+        // `debridKnown` no orquestrador.
+        let mut check = factory.make(&ctx);
+        assert_eq!(
+            check.check(&RankingStream::default()),
+            DebridAnswer::Unknown
+        );
+    }
+}

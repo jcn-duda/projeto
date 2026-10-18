@@ -32,8 +32,14 @@ pub mod internal_types;
 pub mod latest_writer;
 pub mod list_builder;
 pub mod orchestrate;
+// MONTAGEM do orquestrador do `/stream` (janela+build+SWR+fim+trace+fila
+// tardia), separada do `orchestrate`: aqui a coleta é injetada, o prazo corta
+// a RESPOSTA e a busca continua em fundo.
+pub mod orchestrator;
 pub mod raw_item;
 pub mod request;
+// HMAC do `/resolve` (`debrid-pipeline-core.ts`): URL relativa de play.
+pub mod resolve_url;
 
 pub use cache::{
     has_playable_stream, relative_url, swr_lookup, to_cacheable_entry, MemorySwrStore, StoreHit,
