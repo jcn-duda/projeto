@@ -25,9 +25,13 @@
 //!
 //! Invariante que vale desde já: a config do usuário vem da URL (segmento
 //! base64url) e NUNCA do `.env`; e o HOST nunca entra na chave de cache.
+pub mod collection_window;
 pub mod contract;
 pub mod request;
 
+pub use collection_window::{
+    jump_deadline, BatchMeta, CollectBudgets, CollectTask, CollectWindow, CollectWindowOptions,
+};
 pub use contract::{BehaviorHints, StreamItem, StreamResponse};
 pub use request::{
     decode_user_config, parse_stream_path, reply_deadline_ms, request_cache_key, StreamTarget,
