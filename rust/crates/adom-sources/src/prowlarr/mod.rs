@@ -9,7 +9,8 @@
 //! - API key nunca em log nem em `Debug`.
 //!
 //! Collect do orquestrador: `adom-search::ProwlarrCollector` com
-//! `SOURCES_RUST=prowlarr` (default OFF; exclusão mútua jackett > prowlarr > torrentio).
+//! `SOURCES_RUST=prowlarr` (default OFF; exclusão mútua jackett > prowlarr >
+//! torrentio > bludv > mico).
 
 mod client;
 mod config;
