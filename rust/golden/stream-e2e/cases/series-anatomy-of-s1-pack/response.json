@@ -8,7 +8,16 @@
   "body": {
     "streams": [
       {
-        "name": "Nada pronto ainda — procurando a temporada; reabra em instantes",
+        "title": "Brooklyn Nine-Nine 1ª 2ª 3ª 4ª 5ª 6ª 7ª 8ª Temporada Completa [720p]\n📦 👤 ~1 💾 3.99 GB ⚙️ RedeTorrent",
+        "name": "[AD⚡] 📦 · 720p BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/3ad24e63837371177bb65ce0b5a7b419edf27fa9?w=%7B%22d%22%3A1%2C%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "3.99 GB"
+      },
+      {
+        "name": "Fontes BR dubladas existem, mas ainda fora do cache do debrid",
         "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],

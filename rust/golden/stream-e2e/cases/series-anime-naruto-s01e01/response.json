@@ -8,8 +8,30 @@
   "body": {
     "streams": [
       {
-        "name": "Procurando fontes — reabra em instantes",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "title": "Naruto.Clássico.1º.Temporada.Completa.2002.720p.Dual-BAIXARFILMESVIATORRENTS.COM\n👤 1 💾 226.45 MB 📦 pack 7.74 GB (média) ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/873c2988081ea49d730e9df87075eca8c144ee28?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0409591%22%7D&sig={{sig}}",
+        "size": "226.45 MB"
+      },
+      {
+        "title": "Naruto (Complete Series) [BD 1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] - Judas\n📦 👤 ~82 💾 253.37 MB 📦 pack 55.50 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 1080p BluRay · TheRARBG · 👤 ~82",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/b5958b477fea5223e33109fa094754294ed49b04?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig={{sig}}",
+        "size": "253.37 MB"
+      },
+      {
+        "title": "Naruto 2002 Stagione 03 COMPLETA 1080p H265 ITA AC3 EAC3 JPN EAC3 Sub Ita AMZN WEB DL\n📦 👤 ~6 ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · TheRARBG · 👤 ~6",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/b2075eee90768b6fa36766c88eb567e43c94aad6?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig={{sig}}"
       }
     ],
     "cacheMaxAge": 0

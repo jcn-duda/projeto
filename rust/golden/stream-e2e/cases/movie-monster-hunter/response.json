@@ -2,11 +2,68 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=0, public"
+    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
   },
-  "cacheMaxAge": 0,
+  "cacheMaxAge": 900,
   "body": {
-    "streams": [],
-    "cacheMaxAge": 0
+    "streams": [
+      {
+        "title": "Monster.Hunter.2020.WEB-DL.1080p.x264.DUAL.5.1-STARCKFILMES\n👤 1 💾 2.71 GB ⚙️ mico",
+        "name": "[AD⚡] 1080p WEB-DL BR · mico · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/3b34d27d707f008b1ee861eb6d266d9c9b208915?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "2.71 GB"
+      },
+      {
+        "title": "Monster Hunter (2020) 2160p BRRip 5.1 10Bit x265 -YTS\n👤 15 💾 4.63 GB ⚙️ YTS",
+        "name": "[AD⚡] 4K · YTS · 👤 15",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/87a62ec5829c8e03f2d7a35cdcb1ed203e2af4d1?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "4.63 GB"
+      },
+      {
+        "title": "Monster Hunter 2020 2160p UHD BluRay REMUX DV HDR10 PLUS MULTi TrueHD Atmos 7 1 HYBRID H265 BEN THE MEN\n👤 9 💾 48.97 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 4K BluRay · LimeTorrents · 👤 9",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/363c7ab2a747f13316097d2bdbc66b0ce9380a29?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "48.97 GB"
+      },
+      {
+        "title": "Monster Hunter (2020) 1080p BRRip 5.1 x264 -YTS\n👤 53 💾 1.90 GB ⚙️ YTS",
+        "name": "[AD⚡] 1080p · YTS · 👤 53",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/6edbc8cad1164f8efb06cc80c588451437eabbc3?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "1.90 GB"
+      },
+      {
+        "title": "Monster Hunter 2020 1080p BluRay 10Bit X265 DD 5 1-Chivaman\n👤 9 💾 3.42 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 1080p BluRay · TheRARBG · 👤 9",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/1a3ca6fb21cf8099929eb6df46f416f8c32d3a66?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "3.42 GB"
+      },
+      {
+        "title": "Monster Hunter (2020) 720p BRRip x264 -YTS\n👤 22 💾 946.82 MB ⚙️ YTS",
+        "name": "[AD⚡] 720p · YTS · 👤 22",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/4050ab795f013c8032fbd5056609a9df4d5dd446?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "946.82 MB"
+      }
+    ],
+    "cacheMaxAge": 900,
+    "staleRevalidate": 3600,
+    "staleError": 86400
   }
 }

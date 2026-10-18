@@ -8,8 +8,40 @@
   "body": {
     "streams": [
       {
-        "name": "Procurando fontes — reabra em instantes",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "title": "Bacurau [720p DUBLADO]\n👤 1 💾 4.05 GB ⚙️ Apache Torrent",
+        "name": "[AD⚡] 720p BR · Apache Torrent · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/2679c48fc03d83538b681c860cfbc3ad862a995d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "size": "4.05 GB"
+      },
+      {
+        "title": "Bacurau.2019.PORTUGUESE.1080p.BluRay.H264.AAC-VXT\n👤 3 💾 2.50 GB ⚙️ mico",
+        "name": "[AD⚡] 1080p BluRay BR · mico · 👤 3",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/80e367ee5db90eef6fe77cb69642e8be9679f75d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "size": "2.50 GB"
+      },
+      {
+        "title": "Bacurau (2019) (1080p) [BluRay] [5 1] [YTS MX]\n👤 68 💾 2.42 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 68",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/6656e191533d3fcfc7546de83923c73746fbddbd?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "size": "2.42 GB"
+      },
+      {
+        "title": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5 1 Portuguese Tigole)\n👤 4 💾 5.91 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 4",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/f1ed353368f75500c05ac097b75229f87bfcc9dc?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "size": "5.91 GB"
       }
     ],
     "cacheMaxAge": 0

@@ -8,67 +8,204 @@
   "body": {
     "streams": [
       {
-        "title": "La Casa de Papel 3ª Temporada E01 [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 14.20 GB ⚙️ Apache Torrent",
-        "name": "[AD download] 📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
+        "infoHash": "b2cf0f0415de0a3187e72025af6a38a3e80914ac",
+        "title": "La Casa de Papel - O Fenômeno [1080p WEB-DL DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/ccff33f36b58a663608d90d402555670b8295298?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
-        "size": "14.20 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
       },
       {
-        "title": "La Casa de Papel 3ª Temporada E01 [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 9.22 GB ⚙️ Rede Torrent",
-        "name": "[AD download] 📦 · 720p WEB-DL BR · Rede Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/ac42c26432f1915326f6a7394ca3174697600fc7?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
-        "size": "9.22 GB"
-      },
-      {
-        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [1080p DUBLADO 9 GB]\n📦 👤 ~1 💾 1.13 GB 📦 pack 9.00 GB (média) ⚙️ BLUDV",
-        "name": "[AD download] 📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+        "infoHash": "ccff33f36b58a663608d90d402555670b8295298",
+        "title": "La Casa de Papel - 3ª Temporada Netflix [1080p WEB-DL DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/cc9259121bba7b83f8a4206672964c21233b5deb?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "cc9259121bba7b83f8a4206672964c21233b5deb",
+        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [1080p DUBLADO 9 GB]\n📦 👤 ~1 💾 1.13 GB 📦 pack 9.00 GB (média) ⚙️ TorrentDosFilmes V2",
+        "name": "📦 · 1080p WEB-DL BR · TorrentDos · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.13 GB"
       },
       {
-        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [720p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.00 GB 📦 pack 8.00 GB (média) ⚙️ BLUDV",
-        "name": "[AD download] 📦 · 720p WEB-DL BR · BLUDV · 👤 ~1",
+        "infoHash": "ce6a68ca2f591eda93817178555e512da6bd9dab",
+        "title": "Money Heist S03 COMPLETE DUBBED 720p NF WEBRip x264-GalaxyTV\n📦 👤 ~8 💾 410.88 MB 📦 pack 2.57 GB ⚙️ kickasstorrents.to",
+        "name": "📦 · 720p WEBRip BR · kickass · 👤 ~8",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "410.88 MB"
+      },
+      {
+        "infoHash": "ac42c26432f1915326f6a7394ca3174697600fc7",
+        "title": "La Casa de Papel - 3ª Temporada Netflix [720p DUAL]\n📦 👤 ~1 💾 1.57 GB ⚙️ Apache Torrent",
+        "name": "📦 · 720p BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.57 GB"
+      },
+      {
+        "infoHash": "a2a8433a4d267b4a6f412b10a95e6391ab64c1aa",
+        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [720p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.00 GB 📦 pack 8.00 GB (média) ⚙️ TorrentDosFilmes V2",
+        "name": "📦 · 720p WEB-DL BR · TorrentDos · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/a2a8433a4d267b4a6f412b10a95e6391ab64c1aa?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.00 GB"
       },
       {
-        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [1080p LEGENDADO 12 GB]\n📦 👤 ~1 💾 1.50 GB 📦 pack 12.00 GB (média) ⚙️ TorrentDosFilmes",
-        "name": "[AD download] 📦 · 1080p WEB-DL LEG BR · TorrentDos · 👤 ~1",
+        "infoHash": "25ebea69738365718a2003ea87da3c127858b960",
+        "title": "Money Heist S03 COMPLETE DUBBED 720p NF WEBRip x264-ExtremlymTorrents\n📦 👤 ~1 💾 328.96 MB 📦 pack 2.57 GB (média) ⚙️ kickasstorrents.to",
+        "name": "📦 · 720p WEBRip BR · kickass · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "328.96 MB"
+      },
+      {
+        "infoHash": "0d6de17f5cd6835cd56e1b6660e1cc7d2a4fcc59",
+        "title": "La Casa de Papel - O Fenômeno [1080p LEGENDADO]\n📦 👤 ~1 💾 2.48 GB ⚙️ Apache Torrent",
+        "name": "📦 · 1080p WEB-DL LEG BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/139895ac2694cc37d2eac42c5662be1bade3ec17?s=3&e=1&w=%7B%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
-        "size": "1.50 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.48 GB"
       },
       {
-        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [720p LEGENDADO 7.4 GB]\n📦 👤 ~1 💾 947.20 MB 📦 pack 7.40 GB (média) ⚙️ TorrentDosFilmes",
-        "name": "[AD download] 📦 · 720p WEB-DL LEG BR · TorrentDos · 👤 ~1",
+        "infoHash": "c396665ab9a95aab9d1789379ee0840c6c78812d",
+        "title": "La Casa de Papel - O Fenômeno [720p LEGENDADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 720p WEB-DL LEG BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/d48ba8cecca284411a3e21e84467813944b306ab?s=3&e=1&w=%7B%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
-        "size": "947.20 MB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
       },
       {
-        "title": "Money.Heist.La.casa.de.papel.S03.ITA.SPA.1080p.NF.WEB-DLMux.DD5.1.x264-Morpheus\n📦 👤 ~334 💾 1.70 GB 📦 pack 13.63 GB (média) ⚙️ 1337x",
-        "name": "[AD⚡] 📦 · 1080p · 1337x · 👤 ~334",
+        "infoHash": "de48a40e7709ebdcf0819f719ac1077a9b646e6e",
+        "title": "Money Heist S03e01-08 [1080p Ita Eng Spa 5.1 h265 10bit SubS] byMe7alh [MIRCrew]\n📦 👤 ~7 ⚙️ thepiratebay",
+        "name": "📦 · 1080p · thepiratebay · 👤 ~7",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/e11571043811c190ebf673645c02297581ee5e16?s=3&e=1&w=%7B%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
-        "size": "1.70 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "4c5b32ec7539135aa4d3082ebf803beda35d3eb4",
+        "title": "Money Heist S01-S03 Part 1-5 (La Casa de Papel) 1080i / 2160p BluRay REMUX AVC NF WEBRip x265 HDR-MiXED [RiCK]\n📦 👤 ~25 💾 6.39 GB 📦 pack 319.20 GB ⚙️ kickasstorrents.to",
+        "name": "📦 · 4K BluRay · kickass · 👤 ~25",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "6.39 GB"
+      },
+      {
+        "infoHash": "21ed5512ac32041ad0136ca8d730227a76195cc9",
+        "title": "Money.Heist.S03.SPANISH.2160p.NF.WEB-DL.x265.10bit.HDR.DDP5.1-ABBiE[rartv]\n📦 👤 ~2 💾 5.83 GB 📦 pack 44.64 GB ⚙️ kickasstorrents.to",
+        "name": "📦 · 4K WEB-DL · kickass · 👤 ~2",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "5.83 GB"
       }
     ],
     "cacheMaxAge": 0

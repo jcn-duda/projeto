@@ -8,8 +8,22 @@
   "body": {
     "streams": [
       {
-        "name": "Nada pronto ainda — procurando a temporada; reabra em instantes",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "title": "[ZeroReverse] False Memory - S01E01v2 (WEBRip 1080p x265 10-bit EAC-3)\n👤 22 💾 5.60 GB ⚙️ Nyaa.si",
+        "name": "[AD⚡] 1080p WEBRip · Nyaa · 👤 22",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/8c7990a06d32c8c4f31bd3673004ed0ba2706ecc?s=1&e=1&w=%7B%22i%22%3A%22tt4922804%22%7D&sig={{sig}}",
+        "size": "5.60 GB"
+      },
+      {
+        "title": "[BlackRose] The Ghost in the Shell (2026) - S01E01v2 (WEB 1080p HEVC 10-bit EAC-3) [Dual Audio] | Koukaku Kidoutai\n👤 9 💾 4.48 GB ⚙️ nekoBT",
+        "name": "[AD⚡] 1080p · nekoBT · 👤 9",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/6f6a18c318c20765f77b6e1c34c6d552700c5ef6?s=1&e=1&w=%7B%22i%22%3A%22tt4922804%22%7D&sig={{sig}}",
+        "size": "4.48 GB"
       }
     ],
     "cacheMaxAge": 0

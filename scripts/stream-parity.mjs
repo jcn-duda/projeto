@@ -27,20 +27,20 @@ const ENCODED = getArg('--encoded', 'e30');
 // Casos representativos: BR nacionais, dublados globais, franquias/multiobra, animação, séries e anime.
 const TEST_CASES = [
   { id: 'cidade-de-deus', type: 'movie', streamId: 'tt0317248', label: 'Cidade de Deus (BR Nacional)' },
-  { id: 'tropa-de-elite', type: 'movie', streamId: 'tt0862716', label: 'Tropa de Elite (BR Nacional)' },
-  { id: 'central-do-brasil', type: 'movie', streamId: 'tt0140889', label: 'Central do Brasil (BR Nacional)' },
-  { id: 'auto-compadecida', type: 'movie', streamId: 'tt0261009', label: 'O Auto da Compadecida (BR Nacional)' },
-  { id: 'carandiru', type: 'movie', streamId: 'tt0293005', label: 'Carandiru (BR Nacional)' },
-  { id: 'bacurau', type: 'movie', streamId: 'tt9044788', label: 'Bacurau (BR Nacional)' },
+  { id: 'tropa-de-elite', type: 'movie', streamId: 'tt0861739', label: 'Tropa de Elite (BR Nacional)' },
+  { id: 'central-do-brasil', type: 'movie', streamId: 'tt0140888', label: 'Central do Brasil (BR Nacional)' },
+  { id: 'auto-compadecida', type: 'movie', streamId: 'tt0271383', label: 'O Auto da Compadecida (BR Nacional)' },
+  { id: 'carandiru', type: 'movie', streamId: 'tt0293007', label: 'Carandiru (BR Nacional)' },
+  { id: 'bacurau', type: 'movie', streamId: 'tt2762506', label: 'Bacurau (BR Nacional)' },
   { id: 'inception', type: 'movie', streamId: 'tt1375666', label: 'Inception (Dublado Global)' },
   { id: 'matrix', type: 'movie', streamId: 'tt0133093', label: 'Matrix (Global EN)' },
   { id: 'interstellar', type: 'movie', streamId: 'tt0816692', label: 'Interstellar (Global)' },
   { id: 'parasita', type: 'movie', streamId: 'tt6751668', label: 'Parasita (Dublado BR)' },
   { id: 'harry-potter-1', type: 'movie', streamId: 'tt0241527', label: 'Harry Potter 1 (Multiobra/Pack)' },
-  { id: 'kung-fu-panda-4', type: 'movie', streamId: 'tt1016148', label: 'Kung Fu Panda 4 (Animação/Pack)' },
+  { id: 'kung-fu-panda-4', type: 'movie', streamId: 'tt21692408', label: 'Kung Fu Panda 4 (Animação/Pack)' },
   { id: 'breaking-bad-s01e01', type: 'series', streamId: 'tt0903747:1:1', label: 'Breaking Bad S01E01 (Série)' },
   { id: 'got-s08e03', type: 'series', streamId: 'tt0944947:8:3', label: 'Game of Thrones S08E03 (Série)' },
-  { id: '3-percent-s01e01', type: 'series', streamId: 'tt5655606:1:1', label: '3% S01E01 (Série BR Nacional)' },
+  { id: '3-percent-s01e01', type: 'series', streamId: 'tt4922804:1:1', label: '3% S01E01 (Série BR Nacional)' },
   { id: 'naruto-s01e01', type: 'series', streamId: 'tt0409591:1:1', label: 'Naruto S01E01 (Anime Dublado)' },
 ];
 

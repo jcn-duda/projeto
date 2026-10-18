@@ -8,17 +8,17 @@
   "body": {
     "streams": [
       {
-        "title": "A Origem 4k 2160p Dual Audio\n📦 👤 ~ 💾 24.62 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K BR · LimeTorrents · 👤 ~",
+        "title": "A Origem (2010) – BluRay FullHD Dual Audio 5.1 [1080p BLURAY DUBLADO 11 GB]\n📦 👤 ~2 💾 11.00 GB ⚙️ torrentdosfilmesv2",
+        "name": "[AD⚡] 📦 · 1080p BluRay DUAL BR · torrentdosfilm · 👤 ~2",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-any"
+          "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/b8d2b6a12a152de91d32119c38e81a53918d7d35?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "24.62 GB"
+        "url": "{{base}}/{{config}}/resolve/b9b055311fc31fa5e44b0035fe4ea80a12a206c2?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "size": "11.00 GB"
       },
       {
         "title": "A.Origem.2010.1080p.DUAL.5.1.BluRay.x265.HDR-SF\n👤 1 💾 5.45 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BluRay BR · AllDebrid · 👤 1",
+        "name": "[AD⚡] 1080p BluRay DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -26,17 +26,26 @@
         "size": "5.45 GB"
       },
       {
-        "title": "Inception (2010) UHD BDRemux 2160p | 4K | HDR10, HDR10+| Dolby Vision Profile 8 | Hybrid | D, P2, A\n📦 👤 ~21 💾 77.38 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 4K BluRay · TheRARBG · 👤 ~21",
+        "title": "A Origem (2010) – BluRay Dual – [1080p BLURAY DUBLADO 2.15 GB]\n📦 👤 ~10 💾 2.15 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay BR · The Pirate Bay · 👤 ~10",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
+          "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/9625c8f0e88a8c120dd137b3e37357389f0fc4f3?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "77.38 GB"
+        "url": "{{base}}/{{config}}/resolve/c301b175cae6ae4870076bd478680b6e3fc13743?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "size": "2.15 GB"
       },
       {
-        "title": "Inception.2010.PROPER.Bluray.2160p.AV1.HDR10.OPUS.5.1-UH.mkv\n👤 1 💾 8.91 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 4K BluRay · AllDebrid · 👤 1",
+        "title": "A.Origem.(Inception).2010.720p.HD.Dublado.PT-BR.210GJI\n📦 👤 ~9 💾 861.85 MB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 720p BR · The Pirate Bay · 👤 ~9",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/a7d717f9fb5b34162db85aeb95423213bc71679f?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "size": "861.85 MB"
+      },
+      {
+        "title": "Inception 2010 PROPER Bluray 2160p AV1 HDR10 EN ITA FR ES DE OPUS 5 1 UH [UserHEVC]\n📦 👤 ~326 💾 8.91 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 4K BluRay · TheRARBG · 👤 ~326",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
@@ -44,37 +53,46 @@
         "size": "8.91 GB"
       },
       {
-        "title": "Inception 2010 REPACK 1080p BluRay x265-YAWNTiC\n📦 👤 ~64 💾 7.60 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~64",
+        "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, detective, UHD BDRip 1080p, HDR10, Dolby Vision] [Hybrid] Dub + 2x DVO + 2x AVO + 2x Ukr + Original (Eng) + Sub (Rus, Ukr, Eng)\n📦 👤 ~180 💾 24.25 GB ⚙️ kickasstorrents-to",
+        "name": "[AD⚡] 📦 · 4K · kickasstorrent · 👤 ~180",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/343d7045b5434e8949472595b3f10718c8bb2f5b?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "size": "24.25 GB"
+      },
+      {
+        "title": "Inception (2010) 1080p BrRip x264 - 1.85GB -YIFY\n📦 👤 ~962 💾 1.85 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p · The Pirate Bay · 👤 ~962",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/224bf45881252643dfc2e71abc7b2660a21c68c4?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "size": "1.85 GB"
+      },
+      {
+        "title": "Inception.2010.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265\n📦 👤 ~254 💾 2.90 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~254",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/9b14e6bd490e2e0c1a8d4db45a31a2bff92c421d?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "7.60 GB"
+        "url": "{{base}}/{{config}}/resolve/1c6b2179bcd73efd07fb8018268598c062cf95af?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "size": "2.90 GB"
       },
       {
-        "title": "Inception 2010 BluRay 1080p DDP 5 1 x264-hallowed\n📦 👤 ~30 💾 11.09 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~30",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/8e1bbf74d8311760008136bc6eceb09d14eb5f8b?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "11.09 GB"
-      },
-      {
-        "title": "Inception.2010.720p.BluRay.999MB.HQ.x265.10bit-GalaxyRG[TGx]\n👤 1 💾 991.48 MB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BluRay · AllDebrid · 👤 1",
+        "title": "Inception (2010) 720p - mkv - 1.0GB -YIFY\n📦 👤 ~91 💾 1.07 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 720p BluRay · The Pirate Bay · 👤 ~91",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/00a781baf81af07c73b96faceb3182eb260098f6?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "991.48 MB"
+        "url": "{{base}}/{{config}}/resolve/ce9156eb497762f8b7577b71c0647a4b0c3423e1?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "size": "1.07 GB"
       },
       {
-        "title": "Inception.2010.720p.BluRay.x264.5xRus.Eng-HiDt.mkv\n👤 1 💾 14.86 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BluRay · AllDebrid · 👤 1",
+        "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, BDRip 720p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng\n📦 👤 ~70 💾 14.86 GB ⚙️ kickasstorrents-to",
+        "name": "[AD⚡] 📦 · 720p · kickasstorrent · 👤 ~70",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
+          "bingeGroup": "powerm-720p-any"
         },
         "url": "{{base}}/{{config}}/resolve/2b33af03de0ea1ceb6d9d2a4317a23348dd809bc?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
         "size": "14.86 GB"

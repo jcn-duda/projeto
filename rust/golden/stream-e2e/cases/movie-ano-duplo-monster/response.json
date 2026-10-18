@@ -8,67 +8,58 @@
   "body": {
     "streams": [
       {
-        "title": "Garota Exemplar (2014) [1080p BLU-RAY DUAL 2.3 GB]\n📦 👤 ~1 💾 2.30 GB ⚙️ RedeTorrent",
-        "name": "[AD download] 📦 · 1080p BluRay BR · RedeTorrent · 👤 ~1",
+        "title": "Godzilla (2014) [1080p BluRay DUBLADO 1.88 GB]\n📦 👤 ~1 💾 1.88 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
+        "name": "[AD⚡] 📦 · 1080p BluRay DUB BR · NerdFilmes · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/695f10afdaaa0c2469f8a8ddd6ef106222694a85?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
-        "size": "2.30 GB"
+        "url": "{{base}}/{{config}}/resolve/ee272888d8ed2e0c04ef60ae82f8203964647892?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "size": "1.88 GB"
       },
       {
-        "title": "Garota Exemplar (2014) [1080p BLU-RAY DUBLADO 2.2 GB]\n📦 👤 ~1 💾 2.28 GB ⚙️ RedeTorrent",
-        "name": "[AD download] 📦 · 1080p BluRay BR · RedeTorrent · 👤 ~1",
+        "title": "Godzilla (2014) [2160p] [4K] [BluRay] [5 1] [YTS MX]\n📦 👤 ~53 💾 6.10 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~53",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/7307e9378445d1e5f685b3d393eb0b2a5a05aaaf?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "size": "6.10 GB"
+      },
+      {
+        "title": "Godzilla 2014 2160p UHD BDRip HEVC 10bit DV HDR TrueHD.7.1 Atmos MUSHR00M\n📦 👤 ~16 💾 21.60 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 4K · TheRARBG · 👤 ~16",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/5cc37314a9f99dd48eaa13d5c74c8683ad0da77f?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "size": "21.60 GB"
+      },
+      {
+        "title": "Godzilla (2014) 1080p BrRip x264 -YIFY\n📦 👤 ~151 💾 1.84 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p · The Pirate Bay · 👤 ~151",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/70f05da4f10dfc028d1ff455d520c0a2d7121b57?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "size": "1.84 GB"
+      },
+      {
+        "title": "Godzilla 2014 Hybrid 1080p BluRay REMUX AVC Atmos EPSiLON\n📦 👤 ~15 💾 24.24 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~15",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/a6615086c835a3681a4be692bac738407c5683ea?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
-        "size": "2.28 GB"
+        "url": "{{base}}/{{config}}/resolve/20e6af6d95d4ea44b95caa7c05ea53e07eee804a?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "size": "24.24 GB"
       },
       {
-        "title": "Garota Exemplar [1080p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 2.48 GB ⚙️ apachetorrent-cardigann",
-        "name": "[AD download] 📦 · 1080p BluRay BR · apachetorrent · 👤 ~1",
+        "title": "Godzilla (2014) 720p BrRip x264 -YIFY\n📦 👤 ~19 💾 868.40 MB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 720p · The Pirate Bay · 👤 ~19",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/056e536dc0df1cda52124424f192abb97e31479f?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
-        "size": "2.48 GB"
-      },
-      {
-        "title": "Garota Exemplar (2014) [720p BLU-RAY DUAL 1 GB]\n📦 👤 ~1 💾 1.09 GB ⚙️ RedeTorrent",
-        "name": "[AD download] 📦 · 720p BluRay BR · RedeTorrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/65c836046b56662231d7c1787436af1bb0f4f876?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
-        "size": "1.09 GB"
-      },
-      {
-        "title": "Garota Exemplar (2014) [720p BLU-RAY DUBLADO 1.2 GB]\n📦 👤 ~1 💾 1.28 GB ⚙️ RedeTorrent",
-        "name": "[AD download] 📦 · 720p BluRay BR · RedeTorrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/5a7d77d8256fbc37e46ccb144f3745565f5e2ae2?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
-        "size": "1.28 GB"
-      },
-      {
-        "title": "Garota Exemplar (2014) [1080p BLU-RAY LEGENDADO 2.1 GB]\n📦 👤 ~1 💾 2.10 GB ⚙️ RedeTorrent",
-        "name": "[AD⚡] 📦 · 1080p BluRay LEG BR · RedeTorrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/d2310f718eb02f98665266786f7d00b42a20f055?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
-        "size": "2.10 GB"
-      },
-      {
-        "title": "Garota Exemplar [Gone Girl]\n📦 👤 ~1 💾 4.46 GB ⚙️ ComandoTorrents",
-        "name": "[AD⚡] 📦 · WEB-DL BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-na-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/5e75b9e56ef8cd2ae9215db0c97970b1b1f3e2e4?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
-        "size": "4.46 GB"
+        "url": "{{base}}/{{config}}/resolve/fa5a27f936bb504860a1ac8238f91034a81ce71c?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "size": "868.40 MB"
       }
     ],
     "cacheMaxAge": 0

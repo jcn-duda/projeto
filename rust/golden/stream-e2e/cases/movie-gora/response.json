@@ -8,84 +8,31 @@
   "body": {
     "streams": [
       {
-        "title": "Idiocracia (2006) BlurayRip 720p x264 Dublado\n👤 45 💾 588.74 MB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 720p BluRay BR · The Pirate Bay · 👤 45",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/0c655e41d413a8ef71324e06c99c7d8ae1ebccb7?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22d%22%3A1%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "588.74 MB"
-      },
-      {
-        "title": "Idiocracia (2006) BDRip 720p x264 Dublado\n👤 0 💾 588.74 MB ⚙️ The Pirate Bay",
-        "name": "[AD download] 720p BR · The Pirate Bay",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/d3971021b0479b0f3c953aec893d2f0776c05407?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22d%22%3A1%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "588.74 MB"
-      },
-      {
-        "title": "Idiocracia [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
-        "name": "[AD download] 1080p LEG BR · Apache Torrent · 👤 1",
+        "title": "G.O.R.A. (2004) 1080p BRRip x264 -YTS\n👤 15 💾 1.96 GB ⚙️ YTS",
+        "name": "[AD⚡] 1080p · YTS · 👤 15",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/e369a14bb822ab4a7c71a00e4fe8697a1be9ea0a?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}"
+        "url": "{{base}}/{{config}}/resolve/b1d885209a921cb846f87160e4b8ac4d13fadc1e?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
+        "size": "1.96 GB"
       },
       {
-        "title": "Idiocracy (2006) 2160p HDR Ai Upscale -Mesc\n👤 90 💾 10.57 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 4K · The Pirate Bay · 👤 90",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/ea5e67c2d299f25ac8fcff66ec40ac0803a416ca?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "10.57 GB"
-      },
-      {
-        "title": "Idiocracy (2006) 2160p HDR Ai Upscale 5.1 MultiSub MKV ver2 -Mesc\n👤 58 💾 11.46 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 4K · TheRARBG · 👤 58",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/d93a8a6eacf2fab56aec2fc4d58791dfda642d40?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "11.46 GB"
-      },
-      {
-        "title": "Idiocracy 2006 1080p WEB-DL HEVC x265 5.1 BONE\n👤 635 💾 1003.22 MB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 1080p WEB-DL · The Pirate Bay · 👤 635",
+        "title": "G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\n📦 👤 ~3 💾 5.16 GB ⚙️ kickasstorrents.to",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · kickass · 👤 ~3",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/cf44a6a6a73cc4abda89376894245f390929ca8a?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "1003.22 MB"
+        "url": "{{base}}/{{config}}/resolve/08593f3dc6eeb99ab50d2775383bd9bf84bbb3a1?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
+        "size": "5.16 GB"
       },
       {
-        "title": "Idiocracy 2006 1080p DSNP WEB-DL DDP5 1 H 264-FLUX\n👤 129 💾 4.90 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 1080p WEB-DL · TheRARBG · 👤 129",
+        "title": "G.O.R.A. (2004) 720p BRRip x264 -YTS\n👤 5 💾 1.01 GB ⚙️ YTS",
+        "name": "[AD⚡] 720p · YTS · 👤 5",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
+          "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/c07baf52e692a60e8e6d06a70e4b5278f5dd48c8?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "4.90 GB"
-      },
-      {
-        "title": "Idiocracy (2006) 720p HDTV x264 - 550MB -YIFY\n👤 125 💾 551.50 MB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 720p HDTV · The Pirate Bay · 👤 125",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-HDTV"
-        },
-        "url": "{{base}}/{{config}}/resolve/32cf1ef2a9fc38d0557b94651b866659ba7db311?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "551.50 MB"
-      },
-      {
-        "title": "Idiocracy 2006 720p HDTV x264-x0r\n👤 14 💾 1.37 GB ⚙️ The Pirate Bay",
-        "name": "[AD download] 720p HDTV · The Pirate Bay · 👤 14",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-HDTV"
-        },
-        "url": "{{base}}/{{config}}/resolve/195b715f9bb6b050132e95a2bbc05846215c0f1f?w=%7B%22n%22%3A%5B%22Idiocracy%22%2C%22Idiocracia%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0387808%22%7D&sig={{sig}}",
-        "size": "1.37 GB"
+        "url": "{{base}}/{{config}}/resolve/80342987cb6258ae7aa083a18a8c002a147eb9b7?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
+        "size": "1.01 GB"
       }
     ],
     "cacheMaxAge": 0

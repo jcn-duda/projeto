@@ -3,7 +3,7 @@
   "note": "Corpus e2e do /stream contra a instância viva do Docker (~50 casos). Captura: node scripts/golden/capture-stream-e2e.mjs --base http://127.0.0.1:7000 --cases scripts/golden/casos-stream-e2e.json [--token ... --user-config ...]. Falha de indexer não aborta: a resposta parcial é gravada como veio.",
   "cases": [
     { "id": "movie-matrix", "type": "movie", "stream_id": "tt0133093", "label": "Filme global — Matrix (1999): lista comum EN" },
-    { "id": "movie-trainspotting", "type": "movie", "stream_id": "tt0117731", "label": "Filme global — Trainspotting (1996): mesmo id do validate-docker" },
+    { "id": "movie-trainspotting", "type": "movie", "stream_id": "tt0117951", "label": "Filme global — Trainspotting (1996)" },
     { "id": "movie-inception", "type": "movie", "stream_id": "tt1375666", "label": "Filme global — Inception (2010)" },
     { "id": "movie-interstellar", "type": "movie", "stream_id": "tt0816692", "label": "Filme global — Interstellar (2014)" },
     { "id": "movie-the-dark-knight", "type": "movie", "stream_id": "tt0468569", "label": "Filme global — The Dark Knight (2008): franquia, multiobra candidata" },

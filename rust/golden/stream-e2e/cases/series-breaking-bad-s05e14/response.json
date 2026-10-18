@@ -8,47 +8,37 @@
   "body": {
     "streams": [
       {
-        "title": "Breaking Bad S05E14 Dublado\n📦 👤 ~ 💾 432.40 MB ⚙️ kickasstorrents.to",
-        "name": "[AD download] 📦 · BR · kickass · 👤 ~",
-        "behaviorHints": {
-          "bingeGroup": "powerm-na-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/f945addc776106cc76cbfec2728f319e7219f65a?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "432.40 MB"
-      },
-      {
-        "title": "Breaking Bad - 5ª Temporada (2012) 720p Dual Áudio - Douglasvip\n👤 1 💾 343.04 MB 📦 pack 5.36 GB (média) ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/bd9656978969b71c2ac79ca2e4ed13307c799af6?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "343.04 MB"
-      },
-      {
-        "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~1",
+        "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~10 ⚙️ Apache Torrent",
+        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~10",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
         "url": "{{base}}/{{config}}/resolve/525f80c8c7a73e48a914ee57eabac597aea1e5d9?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}"
       },
       {
-        "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~1",
+        "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~9 ⚙️ Apache Torrent",
+        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~9",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
         "url": "{{base}}/{{config}}/resolve/76beedd3910b6f59d96a6f2365bcf45f657aa644?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}"
       },
       {
-        "title": "Breaking Bad 5ª Temporada [720p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 716.80 MB 📦 pack 11.20 GB (média) ⚙️ BLUDV",
-        "name": "[AD download] 📦 · 720p BluRay BR · BLUDV · 👤 ~1",
+        "title": "Breaking Bad - 5ª Temporada (2012) 720p Dual Áudio - Douglasvip\n👤 1 💾 337.82 MB 📦 pack 5.36 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
+          "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/549bfcc4b07bd8fa2aa92b475dbd35682b13f56f?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "716.80 MB"
+        "url": "{{base}}/{{config}}/resolve/bd9656978969b71c2ac79ca2e4ed13307c799af6?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "337.82 MB"
+      },
+      {
+        "title": "Breaking Bad 1ª até 5ª Temporada [720p DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/e9876a1688fc774068fecc94a991f300f45cf2b7?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}"
       },
       {
         "title": "Breaking Bad S05E14 Ozymandias 2160p NF WEB-DL DDP5 1 H 265-XEBEC\n📦 👤 ~22 💾 5.52 GB ⚙️ TheRARBG",
@@ -60,7 +50,7 @@
         "size": "5.52 GB"
       },
       {
-        "title": "Breaking.Bad.S05E01-16.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66\n📦 👤 ~98 💾 1.27 GB ⚙️ TheRARBG",
+        "title": "Breaking.Bad.S05E01-16.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66\n📦 👤 ~98 💾 1.27 GB 📦 pack 20.10 GB ⚙️ TheRARBG",
         "name": "[AD⚡] 📦 · 1080p WEB-DL · TheRARBG · 👤 ~98",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
@@ -69,13 +59,22 @@
         "size": "1.27 GB"
       },
       {
-        "title": "Breaking Bad (2008) Season 05 S05 (2160p WEBRip x265 HEVC 10bit AAC 5 1 Joy) [UTR]\n📦 👤 ~25 💾 1.77 GB 📦 pack 25.35 GB ⚙️ kickasstorrents.to",
-        "name": "[AD⚡] 📦 · 4K WEBRip · kickass · 👤 ~25",
+        "title": "Breaking Bad S05E14 720p HDTV x264-IMMERSE [eztv]\n📦 👤 ~1 💾 1.19 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 720p HDTV · The Pirate Bay · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEBRip"
+          "bingeGroup": "powerm-720p-HDTV"
         },
-        "url": "{{base}}/{{config}}/resolve/a5d5d31d5fbb1a2e876b66ab9dd9436db643a110?s=5&e=14&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "1.77 GB"
+        "url": "{{base}}/{{config}}/resolve/d52b94470976d63e5c830c887bc1ec13eb8543b0?s=5&e=14&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "1.19 GB"
+      },
+      {
+        "title": "Breaking.Bad.S05.2160p.AMZN.WEB-DL.DDP5.1.H.265-XEBEC\n📦 👤 ~100 💾 5.07 GB 📦 pack 82.63 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 4K WEB-DL · The Pirate Bay · 👤 ~100",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/bf4b2eb7ac9605c2fd480d5061645ab9cf8756fb?s=5&e=14&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "5.07 GB"
       },
       {
         "title": "Breaking Bad (2008) Season 1-5 S01-S05 (1080p BluRay x265 HEVC 10bit AAC 5 1 Silence) [QxR]\n📦 👤 ~542 💾 2.02 GB 📦 pack 140.10 GB ⚙️ kickasstorrents.to",

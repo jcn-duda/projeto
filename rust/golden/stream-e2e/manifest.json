@@ -1,87 +1,87 @@
 {
   "format": "adom-stream-e2e/1",
-  "capturedAt": "2026-10-18T01:58:21.378Z",
+  "capturedAt": "2026-10-18T23:55:36.469Z",
   "node": "v22.23.2",
   "base": "{{base}}",
-  "user_config_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8",
+  "user_config_sha256": "fb6190eff9c1412b58c7dbcb50dd85deaf748817102ca464fb9985d17b023a19",
   "cases_file": "scripts/golden/casos-stream-e2e.json",
   "cases": [
     {
       "id": "movie-ainda-estou-aqui",
       "label": "BR recente — Ainda Estou Aqui (2024)",
       "type": "movie",
-      "stream_id": "tt33015317",
+      "stream_id": "tt14961016",
       "dir": "cases/movie-ainda-estou-aqui",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "15dc61d840ba0a072a66424ea107041a29f1c4aeedf15592e9b7c3dc2611354d",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "a3b197c9cc24e09e751a39029aa90173fdf61e9c3a75c68bc66b711e2d0f3238",
+        "response.json": "e9cde270de0ddb158c97231782d8aaf936fedd67a3a23b2e4e14773326138d32"
       }
     },
     {
       "id": "movie-ano-duplo-monster",
       "label": "Ano duplo — Godzilla (2014) vs BR: altYear do catálogo",
       "type": "movie",
-      "stream_id": "tt2267998",
+      "stream_id": "tt0831387",
       "dir": "cases/movie-ano-duplo-monster",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "1a337eb91a61ba696bf2dec173abb9198d323194f0742aa2a45502ae0e24d298",
-        "response.json": "3b065ccded446bc145563c6748a28e67b9405a65eef93fab9cfa60c45fd3826b"
+        "request.json": "c9486c4f049f59048ef16df88a48a06be2b7103eaefce4cb6edcf78455fa4266",
+        "response.json": "5c7c6e5382b709c7633f006148273d13963a04a13fe20d6584041e99088d363b"
       }
     },
     {
       "id": "movie-auto-da-compadecida",
       "label": "BR nacional — O Auto da Compadecida (2000)",
       "type": "movie",
-      "stream_id": "tt0261009",
+      "stream_id": "tt0271383",
       "dir": "cases/movie-auto-da-compadecida",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "1c1a7e533aadeabf20f0cf631c2151852cb49f6ef77c7b7b121c82ea4697b152",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "cbddc961928fc2e97a2384e2b4af626d2fe8dd82488219ee1d18c49a86ed02b4",
+        "response.json": "69c32bcdcbf7f5208d7ac175369fcbada16142ac34490f04e12167494c2344df"
       }
     },
     {
       "id": "movie-bacurau",
       "label": "BR nacional — Bacurau (2019)",
       "type": "movie",
-      "stream_id": "tt9044788",
+      "stream_id": "tt2762506",
       "dir": "cases/movie-bacurau",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "ea404ef906e3dbb9bbd29298faeafc12d87c099c47838112639c1cd58498cfe5",
-        "response.json": "077624e995077e66e65700bba2574ca908ba42b74cee2bbcf629ce07629f635b"
+        "request.json": "4d8d3db82cf3a8bbee4d15cb3c7991a202702b313c8455d95826c8c3dd17d002",
+        "response.json": "6206df044226b3661758cf53a7411bff6095b62a8f394350d786630d07e24113"
       }
     },
     {
       "id": "movie-carandiru",
       "label": "BR nacional — Carandiru (2003)",
       "type": "movie",
-      "stream_id": "tt0293005",
+      "stream_id": "tt0293007",
       "dir": "cases/movie-carandiru",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "d5d29b0bb3c2cbeaa93612e361f43e03b4f2e11f341a234809ebcf0301d27132",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "8ae78319cbec078c707646621ab118e8bdc292a50fc677be7a74dfc0b7aa4ba9",
+        "response.json": "179c821e8ca4b45fbbe700f938d96d887044bd220703de1b696f216f61366ae5"
       }
     },
     {
       "id": "movie-central-do-brasil",
       "label": "BR nacional — Central do Brasil (1998)",
       "type": "movie",
-      "stream_id": "tt0140889",
+      "stream_id": "tt0140888",
       "dir": "cases/movie-central-do-brasil",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "1407e41eaaa662352765829dc49cd411fa8ca1fe8388ee59e9de75a0d8527a70",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "742150950c117726d8af6f083951792ea5f4685ed58b4e61967bf404cc8dce8a",
+        "response.json": "d465aa72ea66d5c29d11faf4ec4ab5f9ed21d279d69cf072145980ca3c00889c"
       }
     },
     {
@@ -93,21 +93,21 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "4eaa3e58cbfe4a5571b786731cee754ace8276d0713b73a8ed78be4631501fc8",
-        "response.json": "90ad9cdda750f14bd9860cdbf524e66542a843607506487bb1052ea2dfd8bbf5"
+        "request.json": "f2acd8a4c39d4214a9bea27ba97770bb9895a4fc68d60dc3921b31eb7c7c69c8",
+        "response.json": "f79dcab33923e1a851b95d5be97fb0510db22f3a71fa8fea0d1afa3d39fc5e0b"
       }
     },
     {
       "id": "movie-cidade-invisivel",
-      "label": "BR nacional — Cidade Invisível (filme, se existir): nome com acento",
-      "type": "movie",
-      "stream_id": "tt10545296",
+      "label": "BR nacional — Cidade Invisível S01E01: nome com acento",
+      "type": "series",
+      "stream_id": "tt8878862:1:1",
       "dir": "cases/movie-cidade-invisivel",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "6cc57744c36eb1f85c0e6276066f51ecdbf123dd21883c3edb2fad9a32661bc7",
-        "response.json": "1af944a865500b363747186e8a75b3e8101336e464108cdebf817b90bd53b28e"
+        "request.json": "e7dcd1f623ed58eb567420bacdb9b53c98acbec8aa65a79a2621c8fb7005cfda",
+        "response.json": "eb98ee426534ea43520a0157c98a54850d18b79d3cbf7de8ccda9320afbc6f21"
       }
     },
     {
@@ -117,10 +117,10 @@
       "stream_id": "tt22022452",
       "dir": "cases/movie-divertidamente-2",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "99724871e44782e8eef40295c98bf778c0a3c83f9d88a6fca139fe44c0896071",
-        "response.json": "a5983373ae02afb668d399729e3d6bde390bb59e6c2b7d70805d927843dbcaf1"
+        "request.json": "9e06cba8ac56039f2ce4e0c84a84249b72407260603c51efb60f9e6d6d5880ec",
+        "response.json": "83f4c63251a76abf162aaca7c3aea032717076ee67862fbfb975388bc7e6297b"
       }
     },
     {
@@ -130,10 +130,10 @@
       "stream_id": "tt15239678",
       "dir": "cases/movie-duna-parte-2",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "eb0d73dacb41a7c1294a61f8226e7f004976ebbb08b660f78ccbd320b97d38fc",
-        "response.json": "67660c0779cad2d3d56b6dbe8b75337c9a57cd8d8a7c98b70b4455b0e1127090"
+        "request.json": "5c734b97e4f8c7de7f9c569d2df89d589141c0e4e476d87e7b7c4f99af80b1ca",
+        "response.json": "d0744bbf768a62d9d0ec2f27de5fa80fc54e65c5bbd7fa27f754d075e103aa7d"
       }
     },
     {
@@ -145,7 +145,7 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "ee6d3d66edbc53ae45b8f229902c977e48760651e6a677c0c4a805c75bb08359",
+        "request.json": "53129c9846691311f417a77041a495293e33c645179528d75f2fba53a304b6f7",
         "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
       }
     },
@@ -158,21 +158,21 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "a4778b60c8742553f17f44ef67e03207fe7de08dbbb9083e78245d887e5787ae",
-        "response.json": "cf4abddcf66ed5987c48f464e4fa4c95a1ebf2cbdcf311cbfea03690bdbdf2af"
+        "request.json": "6b6271603c37fe3bdb113faf4a2c334dcfb34a3be89ae018a7c57001db26ff49",
+        "response.json": "78d74277868d8e46d27ab499c13bd50e7e937711b5279cf1b5da3e296c4cc76a"
       }
     },
     {
       "id": "movie-gora",
       "label": "Sigla com ponto na consulta — G.O.R.A. (2004): collapseAcronyms nos globais",
       "type": "movie",
-      "stream_id": "tt0387808",
+      "stream_id": "tt0384116",
       "dir": "cases/movie-gora",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "dfe5efc88a2ff8608ef38710ad57069a1500d7e10823b2bed85970482d952751",
-        "response.json": "a1c492006c0c10fd509e9575e2786d9802e40e269c18a1b554995b91718a6132"
+        "request.json": "58653cfea521cb271394d62b76ba39f67a035e00f389b25911c50443e7013f55",
+        "response.json": "ef5ce725f4de1b4a5a59404c0e40c3b05e98f92d8528b3a62b7ade7bb0d274cd"
       }
     },
     {
@@ -184,8 +184,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "a7a2ba5785e16324acc903da1ba097221fc79a7b123b7a0290c0dc3f3cf401ff",
-        "response.json": "42c1b8e1091da53bd7050485a6d81e8c250b49a763a5976940c04526c80b63fa"
+        "request.json": "841b8a5badb6d2750faf9c5a7f13a564c775f89df9431553e0e3b62602f718f2",
+        "response.json": "b8366d14bd42cc5c7c196c2e2d7e2492bfc88d82ee6608b47a3c1e1c760cab6f"
       }
     },
     {
@@ -197,8 +197,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "c9bb0d96bfafab0ce9c6ae208ac74e665546b318997103c165404d35adc37c11",
-        "response.json": "54d01f4773fa7b9c1547a24643afed8385b51dc5a0d497625a8dac868981b13d"
+        "request.json": "200760541253161f3fb666d473dd9d0535cbe4f7c9a116edf5af5309fdf2e1c9",
+        "response.json": "fe774f6172faa9cec5173747718a34d69fdd451e876f89154795bf0d061012ad"
       }
     },
     {
@@ -210,8 +210,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "c5700d6f5b2e2b11bf8b0c1195c2e827777252baec60c5123c6fd810d166efac",
-        "response.json": "fde9d5681fd0b8b8d88409268a16f9d80da46925f08ac5c8c56e995d9884d6ab"
+        "request.json": "a89387207d3ad82215be92570656a323759eea3e703e1dc2ecbc71c25617b320",
+        "response.json": "23960770571e9849d234a7d8ee2028ef73b8b7aa74876ba0453145f736e90fec"
       }
     },
     {
@@ -223,21 +223,21 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "14126084896dc846d292d7408592caae24540ab1ecf5181a28703cccb3a3e2ab",
-        "response.json": "e8533e67f240526bc9861de282b35bf93852f9a23dc94713bef870a4b902ae1d"
+        "request.json": "57f0aef6a835eaf2be38893ecae262b421cee64756b665b777579ae2af70fc32",
+        "response.json": "deae7e73171c7b362ecf877950e1438f3564a2229f86e34d470f0e2fd919529e"
       }
     },
     {
       "id": "movie-kung-fu-panda-4",
       "label": "Animação recente — Kung Fu Panda 4 (2024): dublado BR em pack",
       "type": "movie",
-      "stream_id": "tt1016148",
+      "stream_id": "tt21692408",
       "dir": "cases/movie-kung-fu-panda-4",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "b0334b18a6bfb2348da35995b9f6831e9997588420171b844727f33c2c98aef5",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "9c5ef4c57dbf1a20802041cb3e23cd27bd8bc778a03417f5b90038827b5ec33f",
+        "response.json": "72846e08d248d009dac1daeffd7b80d15bd884af7b6f1496059bd81202f0535d"
       }
     },
     {
@@ -247,36 +247,36 @@
       "stream_id": "tt0133093",
       "dir": "cases/movie-matrix",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "c5d36a5579f9e2b51b4a1353f48a8a2ab66003d921fb74542668d6f6a118ad4b",
-        "response.json": "fb9416d9a88aa853d699562bbbff4f3c63c87935786ab5be50bfcadf853b302f"
+        "request.json": "b3fafbeb6cd3c085afa0dbe81b2b6198cea148521517b55f2deadcdd057a33bf",
+        "response.json": "638cd6b9ad835d7cc952f8017132d989a582d23fb960f803f9741654d1fcf911"
       }
     },
     {
       "id": "movie-monster-hunter",
       "label": "Nome curto + ano — Monster Hunter (2020): régua do short-name-tail",
       "type": "movie",
-      "stream_id": "tt6380824",
+      "stream_id": "tt6475714",
       "dir": "cases/movie-monster-hunter",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "bcd146e75224419531aac121385bf4be334667a63517834adfd426e4c90bccf8",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "42808907037c73f85d41ff00d04df749493cd45b14ef022b564db97e9b887950",
+        "response.json": "9594ea7b0f6f32c47cb72a1871b8a473cdb78871d85508f5251d0483fcfcbdf8"
       }
     },
     {
       "id": "movie-obscuro-sem-release",
       "label": "Obra rara — lista vazia ou quase: aviso de lista vazia",
       "type": "movie",
-      "stream_id": "tt10648342",
+      "stream_id": "tt0073582",
       "dir": "cases/movie-obscuro-sem-release",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "9b4c6167a88e9696ee38a65174b292cfc0e3c5e43573f58dea36812e9d08f09a",
-        "response.json": "ca1412f74d1476bfeda0797fbf6f043930ce1f33bb2aecbe7c8e46b6d6bcc207"
+        "request.json": "618d7616f688e3f36f044a849a86c68a6549dc9945031948ddbad989f9abcfb0",
+        "response.json": "8f60f08e82a12d7b1c8805ccacb8578521a4b9b301924b65cb307d8b096c2344"
       }
     },
     {
@@ -286,23 +286,23 @@
       "stream_id": "tt6751668",
       "dir": "cases/movie-parasite",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "fc037c8f661c35f72bb226eb18b44bc2c9d4807b4b0777ed00921ace0b444da5",
-        "response.json": "a472b33e769cb98919e7d0804b520c08d4449303aaefbd3fa38456b58f4c67a4"
+        "request.json": "f2c3b7a0a1d0121992bc1eaa9a779b76124f8a4ad01be385374b487ba1053bf5",
+        "response.json": "40423c126f687c0deed92be59b0c1fb0cc5fd8926e7c84f411d5beb1d0974c63"
       }
     },
     {
       "id": "movie-swat-fogo-cruzado",
       "label": "S.W.A.T. filme (2003): sigla com ponto nos BR",
       "type": "movie",
-      "stream_id": "tt0343819",
+      "stream_id": "tt0257076",
       "dir": "cases/movie-swat-fogo-cruzado",
       "status": 200,
-      "cacheMaxAge": 0,
+      "cacheMaxAge": 900,
       "files": {
-        "request.json": "c005fbf84679997141949ca42e66a1f0762374009dde84f76a89dab15b5ea400",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "ae8da7ced4ff08d0ddc5a2966bcdc6a7afa9b47e4ac3cd862a9dcc2aef7e1879",
+        "response.json": "3aafc0ac83288c0d6fc8a3e81905f66964c5d8cb0950725c8ee07c741ef0e9e1"
       }
     },
     {
@@ -314,86 +314,86 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "6d6abffe65cb5242c361cde5ff76a55f238ecc080d5f1c9c10f43ecbc751dc24",
-        "response.json": "f0951bf8e50f4436a4e27193712f1864b354fd849e3de5c067f6791ff3f7db76"
+        "request.json": "8260f91c00ae6d1e1654a75281f5e5652d5db8acf361d05060f24e01237e700d",
+        "response.json": "e9f9998146fa098aa3fe88087a0b25d44bbbb058252a03c2fe3f89a2c9f18dbd"
       }
     },
     {
       "id": "movie-the-odyssey-nolan",
       "label": "Filme antes do 1º lançamento doméstico — The Odyssey (2026): non-feature",
       "type": "movie",
-      "stream_id": "tt1517268",
+      "stream_id": "tt33764258",
       "dir": "cases/movie-the-odyssey-nolan",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "48fd7a8968acaf26cd39e773ebf6f67b0f5b9edb6be040eea4a8327d9625f54c",
-        "response.json": "32997f52391443f63a2a0c17b51bea6764a4c7871f7df29de48e2bbe42629c3a"
+        "request.json": "40d6bf9ae917453b7c53cc94607fc9d2f9672336b186944f1b4696f4110c1edc",
+        "response.json": "59f67e6aa4a7f89107efcdfde554feed92b5105983af5c20254f12b917cf5d20"
       }
     },
     {
       "id": "movie-trainspotting",
-      "label": "Filme global — Trainspotting (1996): mesmo id do validate-docker",
+      "label": "Filme global — Trainspotting (1996)",
       "type": "movie",
-      "stream_id": "tt0117731",
+      "stream_id": "tt0117951",
       "dir": "cases/movie-trainspotting",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "41a28dad96fd92a7ecc989e0fd58c4afa204e035093c0799d06a62ee8de59b21",
-        "response.json": "a0a65af8183f9e610fbb31076fe3cf9724dd72c010aa32dcfebe2eb60d1afb44"
+        "request.json": "f6c52f4d3338c5020af10699e323bba362b538ba23bd8bb108ce791009b54a16",
+        "response.json": "631c0716f479461c9f99084161d87d60ff35b5dcf3e894c85042d0a459eedd8d"
       }
     },
     {
       "id": "movie-tropa-de-elite",
       "label": "BR nacional — Tropa de Elite (2007)",
       "type": "movie",
-      "stream_id": "tt0862716",
+      "stream_id": "tt0861739",
       "dir": "cases/movie-tropa-de-elite",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "eaa453e3581e10797d40b9a370428133e66e602da25512fe251ae008990e449c",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "e85b4514d0372960ff2d24738b26a330179af67835ada4bc19abfe4e2da28f76",
+        "response.json": "91320076f3a5e7628d633fa035ff9b7b3eedf83a44ec9225dfb7aaaea0287cc4"
       }
     },
     {
       "id": "series-3-percent-s01e01",
       "label": "Série BR — 3% (3 Por Cento) S01E01",
       "type": "series",
-      "stream_id": "tt5655606:1:1",
+      "stream_id": "tt4922804:1:1",
       "dir": "cases/series-3-percent-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "0af3add8a114d8c8b73d28fb6e37c32c8a122c72727749feff5965a62d1a9218",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "b603e91a16c537989265df7172efd32b4443b1bb8e8e704f4ce9a9b485fdc21b",
+        "response.json": "53bbef7ece19829a43f0ac6308f54c1b76ed59da299bb9f57e6803c77be873fe"
       }
     },
     {
       "id": "series-anatomy-of-s1-pack",
       "label": "Pack de temporada — Brooklyn S02 (temporada sem episódio)",
       "type": "series",
-      "stream_id": "tt2429882:2",
+      "stream_id": "tt2467372:2",
       "dir": "cases/series-anatomy-of-s1-pack",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "9917871d5ba62852098ea933008635847bab544eee84db08a7f8a6eed609a697",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "475538d3442dac27ec2a744feee1e5ec05500df8735f8ba696f7901cc44ae9d8",
+        "response.json": "3fe4c5f4c427de1c8f3faa583cd713647e264d4197f110a9f7bc7f4c1ff2c9dc"
       }
     },
     {
       "id": "series-anime-dragon-ball-z-frieza",
       "label": "Anime — Dragon Ball Z S04E10: pack antigo, multiobra de anime",
       "type": "series",
-      "stream_id": "tt0280249:4:10",
+      "stream_id": "tt0214341:4:10",
       "dir": "cases/series-anime-dragon-ball-z-frieza",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "bdc8d3f1622549019aeb17a2c9c7131a058b3b7880162cd8adaa697571d95444",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "7cc4adeea2421398fc35ba0a9957c324841ea4b129537fecdc26398705c2a747",
+        "response.json": "d625b732a5147f3231ccbe05d9f3d819368d6b0cbe1aa84dc9c26aa8702835b7"
       }
     },
     {
@@ -405,8 +405,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "2cba6db5614e55eb1c0547bbb00decf6673050e4bb324021a8ea0fd942615b6e",
-        "response.json": "077624e995077e66e65700bba2574ca908ba42b74cee2bbcf629ce07629f635b"
+        "request.json": "12636f279216df14c76cdd0637ae35209ac188c56793ca2eae43ac9272dc8d59",
+        "response.json": "60ae21ce7abf548d03bbd0bbcf824ed876d4eef7556c9a6d5baa4014f7d5ac36"
       }
     },
     {
@@ -418,8 +418,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "b90e921ea250abce2686ee07dd6031a019d961e66d520036ace6a20931d54895",
-        "response.json": "73bd2bb1dedee565f4587197c8b5b54eb19dc49f24fc2142ec91b7a012df42b3"
+        "request.json": "d767e670a46ea4933735bc484b09d516e6b30dac8b02d8fbb37dc88de5a1f9ee",
+        "response.json": "380e4ffd52c984f7f32dcbe9a70fb420bfff2b4480251460fa77f8d9474d6a40"
       }
     },
     {
@@ -431,8 +431,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "5607ce0975087afaf0e279ed055dd05fd297164adf0ddd626daa0e08e5319bc5",
-        "response.json": "2e66a8d4964aaa04d11efa74deda5c1c1bc6a1bd7479368ed8f5c97a24130e82"
+        "request.json": "42aa0f5925035f018439bf48ff654088a52c03e56b959e8a967bc54098e9ed00",
+        "response.json": "1d4ba4829e475bd08f88b0a5cb381b86f9888dc93af8f5e7853c95a422c4f1af"
       }
     },
     {
@@ -444,8 +444,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "4a5d85fe69440070f8cf112b07cac7cb21d4fa25c9624cd20a85a3e6f6c87ba1",
-        "response.json": "80c386ae30e8eccd7c304546310cb8e1af3e1516d0ade78ddfb071e960d7832b"
+        "request.json": "c54438aebf39a5941d088cd5813ae9c9f528f85f59b40013d934fe9bc1b2320c",
+        "response.json": "962091037c2fd44c7e31c2f8df4ec8c2b4a7354f27bbee765acd1cbcb440d24b"
       }
     },
     {
@@ -457,34 +457,34 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "9ffc81341d88611ccc1480e65df62215764045492e2b974be0f1d72a65403079",
-        "response.json": "40dc18de03c2bb29c49acabae84d5ca28a2b646fa7574848341de379db5e6c29"
+        "request.json": "81434ac63cf4c467f977a215d4f7246b0423bf44325eb2a25c3f0ddc2fcfd8e2",
+        "response.json": "4348d22365d5b1d24a57d0cb084e308b623f54c89c63668d648dae786f028f07"
       }
     },
     {
       "id": "series-brooklyn-nine-nine-s05e04",
       "label": "Série — Brooklyn Nine-Nine S05E04: hífen no título",
       "type": "series",
-      "stream_id": "tt3107288:5:4",
+      "stream_id": "tt2467372:5:4",
       "dir": "cases/series-brooklyn-nine-nine-s05e04",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "d1b7c6daf6c14e0acc2158d415657e6dda16cbd56595e3204079fc1c2b91308f",
-        "response.json": "8eb552d1bf8c1ea2370612d9d20f292174007977001a71d503a378498b49408c"
+        "request.json": "4241c6ba8a4997bf03de4f3af9298ce5a131bef98e4d846516fa20783fd5467e",
+        "response.json": "41831a19da543bf516e86b01311907485f3abfa689c9cff8ffcb621fd48d341d"
       }
     },
     {
       "id": "series-cidade-invisivel-s01e01",
       "label": "Série BR — Cidade Invisível S01E01: acento na consulta pt-BR",
       "type": "series",
-      "stream_id": "tt10545290:1:1",
+      "stream_id": "tt8878862:1:1",
       "dir": "cases/series-cidade-invisivel-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "b2d664e8f92efe6b4e1344abedfea430335e74d7cdc25be1d1fafacf625746d8",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "e7dcd1f623ed58eb567420bacdb9b53c98acbec8aa65a79a2621c8fb7005cfda",
+        "response.json": "eb98ee426534ea43520a0157c98a54850d18b79d3cbf7de8ccda9320afbc6f21"
       }
     },
     {
@@ -496,8 +496,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "630897c8e2648e0a39d547c53999bce9fdfc0c658a9b50eb932f22292986843a",
-        "response.json": "6fdea370c0dfedfeeb35a5d73b92e6c77f12f0767e4b413bbb5c26ba91fbb418"
+        "request.json": "bc320c30b24d1560798c9114f9218179aa3b01c5aad7e150d78db950f492b381",
+        "response.json": "4889ca197bddab03002075cb959c0cfaad1fdf30b4b10fc6dda89f302d4f9fb3"
       }
     },
     {
@@ -509,7 +509,7 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "b2a12c57a6b7b1ca8a373f58afaf536bea78b2f5a8bf1b599222d666c1fed962",
+        "request.json": "387c72590385c8a695a2223dea2f2413508e9f4d01e8b56891c0c67c8a7e445c",
         "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
       }
     },
@@ -522,8 +522,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "a073c0783923da31ee2ce2ade66080e3bdb978e5c7f2f16ab1da169067fbd31d",
-        "response.json": "dbd60b9dcf735bb8071c3893ce7763b53bb14b2b63b00e5f1176c3fd5486938c"
+        "request.json": "6efa401a7c16f5c8bcaaf74e0071e6a2190b1a0eb00fb3c7df1e86ff11006940",
+        "response.json": "077624e995077e66e65700bba2574ca908ba42b74cee2bbcf629ce07629f635b"
       }
     },
     {
@@ -535,8 +535,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "1c1bc68201a1d03ef33988d279abbf862a8385aacba5e1bf654958f669ef7e0e",
-        "response.json": "11d684e5a78c1309a178268c0709d11debeb09351b2b0062baa2822d0f1664f0"
+        "request.json": "da2b883483da76317b758a0e150f322e652b7cbe280e1d55d567865b322e6360",
+        "response.json": "5a95a0a9b3926c24a87da4f2826b78c9d029d449fc5d44b79fde9ec5bc26c48b"
       }
     },
     {
@@ -548,21 +548,21 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "f1200516c5ea4de658e363f6a17cb0d7a88c14a4eebf2d50e96621831d5e12d4",
-        "response.json": "0867fdb3f6cfc46bf33c2e7093506c00e4d29680bb38d6d3d8770b4d7805ecf9"
+        "request.json": "3dcf573addb00a1e6f94e1b08d0b7285a75bc5e7c5f0ab391f1af2e6973b6382",
+        "response.json": "e09b3b5e996ca9fdc6ee4d1a289ba9e252b24e8df7ea209d2f154ca99ad8c355"
       }
     },
     {
       "id": "series-monster-dahmer-e01",
       "label": "Série Monster (2022) E01: ano duplo global/BR no matching",
       "type": "series",
-      "stream_id": "tt13220896:1:1",
+      "stream_id": "tt13207736:1:1",
       "dir": "cases/series-monster-dahmer-e01",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "a2daa1b5930ce38b883e87fd4e7768060243662aa19a29c4a9fc42e1650187ae",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "e72b2be091407927cb0401b7064f933df8ebdaa151200f8ce664830905f7d01f",
+        "response.json": "0978637999de203a3efc4ca0c08ee59a30debfefc2a89cecde2cf06e637791d3"
       }
     },
     {
@@ -574,21 +574,21 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "b3e5a3adcce08627570ab72d69a3fded92518dab9e9acaf6745865f65ea85c9b",
-        "response.json": "c46eea794655f74f762e2b6d23e570c86a3e04c37782e477cc61bbfa7a73e625"
+        "request.json": "0a427caac22d04bb24fe079d64024568b6770a60a368d815bb07d115031c9b3d",
+        "response.json": "ce9ad1e5178c759ce1cd0d2bef70e7c45a0e7a11e20fd070306addaf43e50167"
       }
     },
     {
       "id": "series-obscure-empty-tv",
-      "label": "Série rara — lista vazia: aviso de nenhum stream",
+      "label": "Série com poucos torrents — Family Guy S01E01",
       "type": "series",
-      "stream_id": "tt1837526:1:1",
+      "stream_id": "tt0182576:1:1",
       "dir": "cases/series-obscure-empty-tv",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "8cd4a22e4db509e08b45b2f4c1bd2e8d92163ba7cf9a90d50a3074b7c219977e",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "30e557637fd45a6c0aff5c6d20b59da754e8b1e6115d1c4271f3bfc6804d9bdc",
+        "response.json": "4ff090ad2682ad3b51be814ceab0515e4d6e2431eb64bb81e754ba0ec5f93b4e"
       }
     },
     {
@@ -600,8 +600,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "66f4e5d84254da2c730a0837eb388a6bdcd832d99aa7fb5a7443eeb80a3566bc",
-        "response.json": "b19f26a28529c3a4e678ae0a976eeff7f178b28f600cc434aad163f88f03cf8f"
+        "request.json": "fbc8225d3fdae6e8b14c6bf50f9195381797076daeb30efbf90f89d916f4ddb8",
+        "response.json": "2a8ec1d117f8668054aaf063fb21b214a46795b4791a51564d576bbeb5855e14"
       }
     },
     {
@@ -613,8 +613,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "ee0999b3b51f6147e2edee4b2fb9df15d6bfced90a6fb785992517b90b0c9376",
-        "response.json": "4227ba209016b436af63467bd429a82badef6db0634180ebf7d5a3e11b98c45a"
+        "request.json": "3a7ed64015cd072103d702648adc7c5fe4384d612d3bb4907b150d712a49a2c3",
+        "response.json": "7117d5106f1efdab401fad2c8c6c008fe8ed37412c65179e8c06262671055aee"
       }
     },
     {
@@ -626,21 +626,21 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "e1dc3c7f0856dca2606e9c2cc8c6d89696123a6d4bcf6a920b0ea44766ee43d7",
-        "response.json": "4b816badcc79642e8a91ce9d6ebbfdc7806980eedecda04d653ab4b659cbd910"
+        "request.json": "2bb9936000e590d63b09838ea4e84783948d6846679312f47bd57f391b2ba464",
+        "response.json": "a3bcc0665f79cfffb6f06cd699ddb13f62070b7c38230accd1bb4065dfc61e70"
       }
     },
     {
       "id": "series-swat-serie-s06e01",
       "label": "S.W.A.T. série S06E01: sigla com pontos no título BR",
       "type": "series",
-      "stream_id": "tt6203426:6:1",
+      "stream_id": "tt6111130:6:1",
       "dir": "cases/series-swat-serie-s06e01",
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "be3013328a81b66a96d1a3958faf5af493778c7b61fdde916585a65307e32a77",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "04f1d564fb8152ae6150b2f307a158490e83328e484f5d1e1ccdff89ef088115",
+        "response.json": "eca2874623d3aa521b92d9c6a2af0e1e4dc9101043f82223595c6b9c4a908275"
       }
     },
     {
@@ -652,8 +652,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "8ccad9ce6cf86f40400e7e72e7233e6ab0dd6bf1b2dcf5af9473fb2e66fc82ca",
-        "response.json": "71bd6f9ddc4558fcab9ee4c74e669181477347b846053e7d9de407c4f90ff067"
+        "request.json": "9cb346a916543bc71b417d01f8ec283f2750f8031c4ce6b03377a828ce7c2869",
+        "response.json": "1b61c59f2f95ad4ad6c7faad44dcc4072837711e5e6b4010cb909e061953eebb"
       }
     },
     {
@@ -665,8 +665,8 @@
       "status": 200,
       "cacheMaxAge": 0,
       "files": {
-        "request.json": "697e0604fddc1a305bad6a6c292f3ec6a3f37e4da1e191b3b03cca2da3588545",
-        "response.json": "2c081755978edd7c7a6f1bd032f006c29b767f49b5151465701e0464ee6321fd"
+        "request.json": "76a47911f9398a6fd0b6c54ba235d15d9be5208065eb5ba44e13532fe1411783",
+        "response.json": "232c34ae22a866932356692713724926496136e090484a1d5b170379c9ca8fcf"
       }
     }
   ],

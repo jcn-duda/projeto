@@ -8,26 +8,8 @@
   "body": {
     "streams": [
       {
-        "title": "Dark 1ª Temporada (2017) e WEB-DL | – [720p DUBLADO 7 GB]\n📦 👤 ~1 💾 716.80 MB 📦 pack 7.00 GB (média) ⚙️ ComandoTorrents",
-        "name": "[AD⚡] 📦 · 720p WEB-DL BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/d5140faa5fbb0a27be3c7bdc5354674f2eea510f?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
-        "size": "716.80 MB"
-      },
-      {
-        "title": "Dark 1ª Temporada [720p WEB-DL DUBLADO]\n📦 👤 ~ 💾 894.98 MB 📦 pack 8.74 GB (média) ⚙️ apachetorrent-cardigann",
-        "name": "[AD⚡] 📦 · 720p WEB-DL BR · apachetorrent · 👤 ~",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/8b9c90c97d4781b07767c331a687196a1cd1a17b?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
-        "size": "894.98 MB"
-      },
-      {
-        "title": "Dark S01E01 Secrets 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-Kitsune\n📦 👤 ~24 💾 2.28 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · TheRARBG · 👤 ~24",
+        "title": "Dark S01E01 Secrets 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-Kitsune\n📦 👤 ~23 💾 2.28 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~23",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -35,40 +17,26 @@
         "size": "2.28 GB"
       },
       {
-        "title": "Dark Web S01E01 720p WEBRip x264-SKGTV [eztv]\n📦 👤 ~34 💾 383.78 MB ⚙️ kickasstorrents.to",
-        "name": "[AD download] 📦 · 720p WEBRip · kickass · 👤 ~34",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEBRip"
-        },
-        "url": "{{base}}/{{config}}/resolve/598e972a4930f7719103297ad9bb378df06fbb9d?s=1&e=1&w=%7B%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
-        "size": "383.78 MB"
-      },
-      {
-        "title": "Dark.S01.GERMAN.2160p.NF.WEBRip.DDP5.1.Atmos.x264-NTb\n📦 👤 ~64 💾 9.71 GB 📦 pack 97.11 GB (média) ⚙️ kickasstorrents.to",
+        "title": "Dark.S01.GERMAN.2160p.NF.WEBRip.DDP5.1.Atmos.x264-NTb\n📦 👤 ~64 💾 10.42 GB 📦 pack 97.11 GB ⚙️ kickasstorrents.to",
         "name": "[AD⚡] 📦 · 4K WEBRip · kickass · 👤 ~64",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEBRip"
         },
         "url": "{{base}}/{{config}}/resolve/de8cee841722efa99e29350d1c13e796fc939d38?s=1&e=1&w=%7B%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
-        "size": "9.71 GB"
+        "size": "10.42 GB"
       },
       {
-        "title": "Dark.S01.COMPLETE.DUAL-AUDIO.GER-ENG.1080p.10bit.WEBRip.6CH.x265\n📦 👤 ~414 💾 611.33 MB 📦 pack 5.97 GB (média) ⚙️ The Pirate Bay",
+        "title": "Dark.S01.COMPLETE.DUAL-AUDIO.GER-ENG.1080p.10bit.WEBRip.6CH.x265\n📦 👤 ~414 💾 715.10 MB 📦 pack 5.97 GB ⚙️ The Pirate Bay",
         "name": "[AD⚡] 📦 · 1080p WEBRip · The Pirate Bay · 👤 ~414",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
         "url": "{{base}}/{{config}}/resolve/219c284787cc22a1eeb129c3857eb26fb4ac0e1c?s=1&e=1&w=%7B%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
-        "size": "611.33 MB"
+        "size": "715.10 MB"
       },
       {
-        "title": "Dark.Matter.2024.S01.COMPLETE.720p.ATVP.WEBRip.x264-GalaxyTV\n📦 👤 ~258 💾 204.80 MB 📦 pack 2.00 GB (média) ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 720p WEBRip · The Pirate Bay · 👤 ~258",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEBRip"
-        },
-        "url": "{{base}}/{{config}}/resolve/e353238adb0388100f890f45bf7ed0b26b95fdb6?s=1&e=1&w=%7B%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
-        "size": "204.80 MB"
+        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
+        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
     "cacheMaxAge": 0

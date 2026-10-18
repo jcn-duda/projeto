@@ -1,8 +1,8 @@
 {
   "method": "GET",
-  "path": "/{{config}}/stream/movie/tt0140889.json",
+  "path": "/{{config}}/stream/movie/tt0140888.json",
   "headers": {
     "user-agent": "adom-stream-e2e/1"
   },
-  "user_config_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8"
+  "user_config_sha256": "fb6190eff9c1412b58c7dbcb50dd85deaf748817102ca464fb9985d17b023a19"
 }

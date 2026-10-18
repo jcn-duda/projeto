@@ -8,8 +8,104 @@
   "body": {
     "streams": [
       {
-        "name": "Nada pronto ainda — procurando a temporada; reabra em instantes",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "infoHash": "95a8a74789c14e43857213324d1027d77afad802",
+        "title": "S.W.A.T. 6ª Temporada (2022) E01 [1080p LEGENDADO]\n📦 👤 ~1 💾 1.80 GB ⚙️ apachetorrent-cardigann",
+        "name": "📦 · 1080p WEBRip LEG BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.80 GB"
+      },
+      {
+        "infoHash": "2b6c4c391e6a5d1a6f2b29022e1c2d59a80d3bd0",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [1080p LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · 1080p WEB-DL LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "f2ec28ad4f330fbc433258b9ce294764a761570f",
+        "title": "S.W.A.T. 6ª Temporada (2022) E01 [720p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 1.80 GB ⚙️ apachetorrent-cardigann",
+        "name": "📦 · 720p WEB-DL LEG BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.80 GB"
+      },
+      {
+        "infoHash": "ed425fff239f22636d2bb9b260675a1ab8570370",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [720p LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · 720p WEB-DL LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "4786811e0fcbd25a5576c4aba69457da264582e3",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL [1080p LEGENDADO]\n📦 👤 ~1 💾 83.78 MB 📦 pack 1.80 GB (média) ⚙️ apachetorrent-cardigann",
+        "name": "📦 · 1080p WEB-DL LEG BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "83.78 MB"
+      },
+      {
+        "infoHash": "7377fce98f2d272bf0ef31cd4d7133215668be36",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL [720p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 83.78 MB 📦 pack 1.80 GB (média) ⚙️ apachetorrent-cardigann",
+        "name": "📦 · 720p WEB-DL LEG BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "83.78 MB"
       }
     ],
     "cacheMaxAge": 0

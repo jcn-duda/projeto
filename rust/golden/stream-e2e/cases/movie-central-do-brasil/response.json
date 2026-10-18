@@ -2,11 +2,50 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=0, public"
+    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
   },
-  "cacheMaxAge": 0,
+  "cacheMaxAge": 900,
   "body": {
-    "streams": [],
-    "cacheMaxAge": 0
+    "streams": [
+      {
+        "title": "Central do Brasil 1998 4K SDR 2160p BDRemux Ita Por x265 NAHOM\n👤 2 💾 65.70 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 4K BluRay · TheRARBG · 👤 2",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/5780081eb753e0a0811dd37ba072b7b85b9f0c9e?w=%7B%22n%22%3A%5B%22Central%20Station%22%2C%22Central%20do%20Brasil%22%5D%2C%22y%22%3A1998%2C%22i%22%3A%22tt0140888%22%7D&sig={{sig}}",
+        "size": "65.70 GB"
+      },
+      {
+        "title": "Central Station 1998 PORTUGUESE 1080p BluRay x264 HANDJOB\n👤 57 💾 6.94 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 57",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/4a2c750fa5ab28dfe8e2caebf299cb5ab6425fd6?w=%7B%22n%22%3A%5B%22Central%20Station%22%2C%22Central%20do%20Brasil%22%5D%2C%22y%22%3A1998%2C%22i%22%3A%22tt0140888%22%7D&sig={{sig}}",
+        "size": "6.94 GB"
+      },
+      {
+        "title": "Central Station 1998 1080p BluRay FLAC2 0 x264 WMING\n👤 14 💾 17.79 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 14",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/cfa5eda914d1e8f2d9dcb05b6fb529a2e771490e?w=%7B%22n%22%3A%5B%22Central%20Station%22%2C%22Central%20do%20Brasil%22%5D%2C%22y%22%3A1998%2C%22i%22%3A%22tt0140888%22%7D&sig={{sig}}",
+        "size": "17.79 GB"
+      },
+      {
+        "title": "Central do Brasil / Central Station [1998, Brazil, France, drama, BDRip 720p] MVO (R5) + AVO (P. Kartsev) + Sub Rus, Eng, Fra + Original Por\n👤 6 💾 5.33 GB ⚙️ kickasstorrents.to",
+        "name": "[AD⚡] 720p · kickass · 👤 6",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/bb9de70673a5d94e93efdd7fb81fc26bd35e13c4?w=%7B%22n%22%3A%5B%22Central%20Station%22%2C%22Central%20do%20Brasil%22%5D%2C%22y%22%3A1998%2C%22i%22%3A%22tt0140888%22%7D&sig={{sig}}",
+        "size": "5.33 GB"
+      }
+    ],
+    "cacheMaxAge": 900,
+    "staleRevalidate": 3600,
+    "staleError": 86400
   }
 }

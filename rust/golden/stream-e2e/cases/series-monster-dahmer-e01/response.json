@@ -8,8 +8,70 @@
   "body": {
     "streams": [
       {
-        "name": "Nada pronto ainda — procurando a temporada; reabra em instantes",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "infoHash": "e77b8b3fac02fdcd52e437b8d2afefd263bb8eff",
+        "title": "Monster (2022) S01  The Jeffrey Dahmer Story (1080p NF WEB DL x26   \n📦 👤 ~40 💾 1.90 GB 📦 pack 19.03 GB (média) ⚙️ LimeTorrents",
+        "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~40",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.90 GB"
+      },
+      {
+        "infoHash": "e1d6ba31c95c54b9d33af609f82e978699baef90",
+        "title": "Monster 2022 Seasons 1 to 4 Complete 1080p WEB x264 [i c]\n📦 👤 ~15 ⚙️ LimeTorrents",
+        "name": "📦 · 1080p · LimeTorrents · 👤 ~15",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "2436ba32823ced149f336f31c07910d27f6c0a2f",
+        "title": "Monster 2022 Seasons 1 and 2 Complete 720p WEB-DL x264 [i_c]\n📦 👤 ~11 ⚙️ LimeTorrents",
+        "name": "📦 · 720p WEB-DL · LimeTorrents · 👤 ~11",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "397136b261a459c387ea9d16ff87fc75054e6e25",
+        "title": "Monster High 2022 Season 1 Complete 720p AMZN WEB-DL x264 [i_c]\n📦 👤 ~7 💾 880.64 MB 📦 pack 8.60 GB (média) ⚙️ LimeTorrents",
+        "name": "📦 · 720p WEB-DL · LimeTorrents · 👤 ~7",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "880.64 MB"
       }
     ],
     "cacheMaxAge": 0

@@ -6,7 +6,62 @@
   },
   "cacheMaxAge": 0,
   "body": {
-    "streams": [],
+    "streams": [
+      {
+        "title": "O Auto da Compadecida [720p DUBLADO]\n📦 👤 ~1 💾 6.85 GB ⚙️ BLUDV",
+        "name": "[AD⚡] 📦 · 720p BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/438ad83956a3c44a26bdda4aee228c4aa14a1764?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+        "size": "6.85 GB"
+      },
+      {
+        "title": "O Auto da Compadecida 2000 (720p) WWW.LAPUMiAFiLMES.COM\n👤 1 💾 2.05 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/4299faf9cf5e223796c3b23f98e9647538f59acd?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+        "size": "2.05 GB"
+      },
+      {
+        "title": "A Dog s Will (2000) (1080p BluRay x265 10bit EAC3 5 1 Portuguese r00t) [QxR]\n👤 32 💾 6.32 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 32",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/e1f33a5752f85c1817547fbd8fb0fd4b47051c1d?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+        "size": "6.32 GB"
+      },
+      {
+        "title": "A Dog s Will 2000 PORTUGUESE 1080p 10bit BluRay 6CH x265 HEVC\n👤 6 💾 2.10 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 6",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/ab4912ac4783493528e8d629159aad85868ce2c0?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+        "size": "2.10 GB"
+      },
+      {
+        "title": "A Dog's Will (2000) 720p WEBRip [YTS.MX]\n📦 👤 ~13 💾 943.15 MB ⚙️ kickasstorrents.to",
+        "name": "[AD⚡] 📦 · 720p WEBRip · kickass · 👤 ~13",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/d79dd45f3354530852ee754a7bbad31777ee56af?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+        "size": "943.15 MB"
+      },
+      {
+        "title": "A Dog s Will 2000 PORTUGUESE 720p 10bit BluRay 6CH x265 HEVC\n👤 11 💾 1.07 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 720p BluRay · LimeTorrents · 👤 11",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/41be6f40abfb8ecfaf44a21e4c560dacf454fa6e?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+        "size": "1.07 GB"
+      }
+    ],
     "cacheMaxAge": 0
   }
 }

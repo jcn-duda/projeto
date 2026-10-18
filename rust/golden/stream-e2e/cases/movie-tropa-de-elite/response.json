@@ -6,7 +6,71 @@
   },
   "cacheMaxAge": 0,
   "body": {
-    "streams": [],
+    "streams": [
+      {
+        "title": "Coleção Tropa de Elite [1080p DUBLADO]\n📦 👤 ~1 💾 2.15 GB ⚙️ apachetorrent-cardigann",
+        "name": "[AD⚡] 📦 · 1080p DUAL BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/e9396cb419ff6b19d3827b41fca8832fad08e5e4?w=%7B%22n%22%3A%5B%22Elite%20Squad%22%2C%22Tropa%20de%20Elite%22%5D%2C%22y%22%3A2007%2C%22p%22%3A1%2C%22d%22%3A1%2C%22i%22%3A%22tt0861739%22%7D&sig={{sig}}",
+        "size": "2.15 GB"
+      },
+      {
+        "title": "Tropa de Elite (2007) [1080p BLU-RAY DUBLADO 1.9 GB]\n📦 👤 ~1 💾 1.90 GB ⚙️ RedeTorrent",
+        "name": "[AD⚡] 📦 · 1080p BluRay BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/594f43bae0107df0f93bf85da3d3a63daaa4e54d?w=%7B%22n%22%3A%5B%22Elite%20Squad%22%2C%22Tropa%20de%20Elite%22%5D%2C%22y%22%3A2007%2C%22p%22%3A1%2C%22d%22%3A1%2C%22i%22%3A%22tt0861739%22%7D&sig={{sig}}",
+        "size": "1.90 GB"
+      },
+      {
+        "title": "Tropa de elite (2007) Nacional BluRay [720p BLURAY DUBLADO 699 MB]\n📦 👤 ~1 💾 699.00 MB ⚙️ TorrentDosFilmes V2",
+        "name": "[AD⚡] 📦 · 720p BluRay BR · TorrentDos · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/174e148c270f92d9439c67960111891b1eaa3418?w=%7B%22n%22%3A%5B%22Elite%20Squad%22%2C%22Tropa%20de%20Elite%22%5D%2C%22y%22%3A2007%2C%22d%22%3A1%2C%22i%22%3A%22tt0861739%22%7D&sig={{sig}}",
+        "size": "699.00 MB"
+      },
+      {
+        "title": "Tropa de Elite [720p]\n📦 👤 ~32 💾 1.61 GB ⚙️ Apache Torrent",
+        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~32",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/54fbcbc86ec7d5eb1af867b6ebb6742c9869af0f?w=%7B%22n%22%3A%5B%22Elite%20Squad%22%2C%22Tropa%20de%20Elite%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0861739%22%7D&sig={{sig}}",
+        "size": "1.61 GB"
+      },
+      {
+        "title": "Elite Squad 2007 PROPER 1080p BluRay x264 GHOULS\n📦 👤 ~74 💾 8.75 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~74",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/cd3b90051f246015b7ed663373d45c0d1e9dae17?w=%7B%22n%22%3A%5B%22Elite%20Squad%22%2C%22Tropa%20de%20Elite%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0861739%22%7D&sig={{sig}}",
+        "size": "8.75 GB"
+      },
+      {
+        "title": "Elite Squad (2007) (1080p) [BluRay] [5 1] [YTS MX]\n📦 👤 ~59 💾 2.11 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~59",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/d5a5e8002ad3d01f2c43fb729b5f56250f48074e?w=%7B%22n%22%3A%5B%22Elite%20Squad%22%2C%22Tropa%20de%20Elite%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0861739%22%7D&sig={{sig}}",
+        "size": "2.11 GB"
+      },
+      {
+        "title": "Tropa de Elite (2007) 720p BRRip x264 -YTS\n📦 👤 ~24 💾 1.03 GB ⚙️ yts",
+        "name": "[AD⚡] 📦 · 720p BluRay · yts · 👤 ~24",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/6069d35269c8961ad6eee3a39d57097966c55200?w=%7B%22n%22%3A%5B%22Elite%20Squad%22%2C%22Tropa%20de%20Elite%22%5D%2C%22y%22%3A2007%2C%22i%22%3A%22tt0861739%22%7D&sig={{sig}}",
+        "size": "1.03 GB"
+      }
+    ],
     "cacheMaxAge": 0
   }
 }

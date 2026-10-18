@@ -2,11 +2,41 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=0, public"
+    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
   },
-  "cacheMaxAge": 0,
+  "cacheMaxAge": 900,
   "body": {
-    "streams": [],
-    "cacheMaxAge": 0
+    "streams": [
+      {
+        "title": "S.W.A.T. - Comando Especial [1080p BLU-RAY DUBLADO]\n👤 1 💾 1.51 GB ⚙️ Apache Torrent",
+        "name": "[AD⚡] 1080p BluRay BR · Apache Torrent · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/658c8d634fe7423257f15856667861c64804bb91?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
+        "size": "1.51 GB"
+      },
+      {
+        "title": "Swat (2003) [1080p]\n👤 36 💾 1.50 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p · LimeTorrents · 👤 36",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/a352ae91972e617b13098cf7d4bf4c367bbf8a68?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
+        "size": "1.50 GB"
+      },
+      {
+        "title": "Swat 2003 BluRay 1080p DTS dxva LoNeWolf\n👤 3 💾 10.11 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 3",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/c1cdbf98039959d7455b801c0a3218fff96af05f?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
+        "size": "10.11 GB"
+      }
+    ],
+    "cacheMaxAge": 900,
+    "staleRevalidate": 3600,
+    "staleError": 86400
   }
 }

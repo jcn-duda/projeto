@@ -2,14 +2,14 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=0, public"
+    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
   },
-  "cacheMaxAge": 0,
+  "cacheMaxAge": 900,
   "body": {
     "streams": [
       {
         "title": "Divertida Mente 2 2024 WEB-DL 2160p x265 DV HDR DUAL 5.1\n👤 1 💾 16.82 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 4K WEB-DL BR · AllDebrid · 👤 1",
+        "name": "[AD⚡] 4K WEB-DL DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
@@ -17,26 +17,8 @@
         "size": "16.82 GB"
       },
       {
-        "title": "Divertida.Mente.2.2024.1080p.WEB-DL.DUAL.5.1\n👤 1 💾 2.24 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/a3e1943be008338b6146bf916286cb839a40268b?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "2.24 GB"
-      },
-      {
-        "title": "Divertida Mente 2 2024 WEB-DL 1080p x264 DUAL 5.1\n👤 1 💾 1.95 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/e3a4072068b9fc5261a365012f33ba8d94ce2117?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "1.95 GB"
-      },
-      {
         "title": "Inside.Out.2.2024.1080p.WEBRip.Dublado.mkv\n👤 1 💾 1.91 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEBRip BR · AllDebrid · 👤 1",
+        "name": "[AD⚡] 1080p WEBRip DUB BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
@@ -44,35 +26,44 @@
         "size": "1.91 GB"
       },
       {
-        "title": "Inside.Out.2.2024.720p.CAMRip.Dublado.mkv\n👤 1 💾 1.71 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p CAM BR · AllDebrid · 👤 1",
+        "title": "Divertida Mente 2 2024 WEB-DL 1080p x264 DUAL 5.1\n👤 1 💾 1.95 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 1080p WEB-DL DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-CAM"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/e4bd7056f5e32fc76c77b18efbe332cded1e562a?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "1.71 GB"
+        "url": "{{base}}/{{config}}/resolve/e3a4072068b9fc5261a365012f33ba8d94ce2117?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "size": "1.95 GB"
       },
       {
-        "title": "Inside.Out.2.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX[TG\n📦 👤 ~66 💾 16.65 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 4K WEB-DL BR · The Pirate Bay · 👤 ~66",
+        "title": "Divertida.Mente.2.2024.1080p.WEB-DL.DUAL.5.1\n👤 1 💾 2.24 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 1080p WEB-DL DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEB-DL"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/9cccf3e41e9a4772132601610ef4a9b937a627c5?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "16.65 GB"
+        "url": "{{base}}/{{config}}/resolve/a3e1943be008338b6146bf916286cb839a40268b?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "size": "2.24 GB"
       },
       {
-        "title": "Divertida Mente 2 (2024) [2160p WEB-DL LEGENDADO 15.12 GB]\n📦 👤 ~1 💾 15.12 GB ⚙️ Comando",
-        "name": "[AD⚡] 📦 · 4K WEB-DL LEG BR · Comando · 👤 ~1",
+        "title": "Inside Out 2 2024 2160p web YTS\n👤 109 💾 4.30 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 4K · TheRARBG · 👤 109",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEB-DL"
+          "bingeGroup": "powerm-2160p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/877f27a5f1228a938d0e4d9d2c4d244bbf0fdbdb?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "15.12 GB"
+        "url": "{{base}}/{{config}}/resolve/543e5ed11901738294d4376e46040d256d92ed4d?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "size": "4.30 GB"
       },
       {
-        "title": "Inside Out 2 (2024) [1080p] [BluRay] [5 1]\n📦 👤 ~531 💾 1.78 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · The Pirate Bay · 👤 ~531",
+        "title": "Inside Out 2 2024 2160p BluRay HYBRID REMUX DV HDR ENG LATINO ITALIAN FRENCH TrueHD Atmos 7 1 H265 BEN THE MEN\n👤 88 💾 38.64 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 4K BluRay · LimeTorrents · 👤 88",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/d640fb594e8a0651b2b50e6f7ecb37bea8acacc0?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "size": "38.64 GB"
+      },
+      {
+        "title": "Inside Out 2 (2024) [1080p] [BluRay] [5 1]\n👤 518 💾 1.78 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 518",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -80,15 +71,35 @@
         "size": "1.78 GB"
       },
       {
-        "title": "Inside Out 2 (2024) [720p] [BluRay]\n📦 👤 ~105 💾 890.50 MB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 720p BluRay BR · The Pirate Bay · 👤 ~105",
+        "title": "Inside Out 2 2024 BluRay 1080p DDP 5 1 x264 hallowed\n👤 85 💾 5.87 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 85",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/cec98de580faab3414d4069946688aec6385a623?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "size": "5.87 GB"
+      },
+      {
+        "title": "Inside Out 2 (2024) [720p] [BluRay]\n👤 141 💾 890.50 MB ⚙️ TheRARBG",
+        "name": "[AD⚡] 720p BluRay · TheRARBG · 👤 141",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/d4472ad3b2ab98e2b905ef63f4214da6cdaea3b0?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
         "size": "890.50 MB"
+      },
+      {
+        "title": "Inside.Out.2.2024.720p.WEBRip.800MB.x264-GalaxyRG[TGx]\n👤 32 💾 796.95 MB ⚙️ mico",
+        "name": "[AD⚡] 720p WEBRip · mico · 👤 32",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/3d4a1e97bc54f44e8290a5dc0149139ea958d67a?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "size": "796.95 MB"
       }
     ],
-    "cacheMaxAge": 0
+    "cacheMaxAge": 900,
+    "staleRevalidate": 3600,
+    "staleError": 86400
   }
 }

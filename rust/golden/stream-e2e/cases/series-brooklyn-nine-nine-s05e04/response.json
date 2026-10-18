@@ -8,54 +8,26 @@
   "body": {
     "streams": [
       {
-        "title": "The Flash 5ª Temporada E04 [720p DUBLADO]\n📦 👤 ~1 💾 300.00 MB ⚙️ apachetorrent-cardigann",
-        "name": "[AD download] 📦 · 720p BR · apachetorrent · 👤 ~1",
+        "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265\n📦 👤 ~254 💾 701.14 MB 📦 pack 104.76 GB (média) ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~254",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
+          "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/f8fc7d31802d2d36a5c7b42da5bded24fed238a1?s=5&e=4&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt3107288%22%7D&sig={{sig}}",
-        "size": "300.00 MB"
+        "url": "{{base}}/{{config}}/resolve/51a3b1d96b198c8bb6acde8ec357ae7359db2afc?s=5&e=4&w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "701.14 MB"
       },
       {
-        "title": "The Flash E04 [1080p LEGENDADO]\n📦 👤 ~1 ⚙️ BLUDV",
-        "name": "[AD download] 📦 · 1080p WEBRip LEG BR · BLUDV · 👤 ~1",
+        "title": "Brooklyn Nine-Nine (2013) S05 S05 (1080p AMZN WEB-DL x265 H\n📦 👤 ~78 💾 363.99 MB 📦 pack 7.82 GB (média) ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~78",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/b88c7d3fb38c305350d064a83517d18d564a609e?s=5&e=4&w=%7B%22i%22%3A%22tt3107288%22%7D&sig={{sig}}"
+        "url": "{{base}}/{{config}}/resolve/c2f83cbd5f32004a48bd9641d7f6e2e8f52668e6?s=5&e=4&w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "363.99 MB"
       },
       {
-        "title": "The Flash [1080p LEGENDADO]\n📦 👤 ~1 💾 3.26 GB ⚙️ ComandoTorrents",
-        "name": "[AD⚡] 📦 · 1080p WEBRip LEG BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
-        },
-        "url": "{{base}}/{{config}}/resolve/31601ee2eb1192da813cc406f2478d0890a02ced?s=5&e=4&w=%7B%22i%22%3A%22tt3107288%22%7D&sig={{sig}}",
-        "size": "3.26 GB"
-      },
-      {
-        "title": "The Flash E04 [720p LEGENDADO]\n📦 👤 ~1 ⚙️ BLUDV",
-        "name": "[AD download] 📦 · 720p HDTV LEG BR · BLUDV · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-HDTV"
-        },
-        "url": "{{base}}/{{config}}/resolve/eff18bc1e11290560232309133a3fdd8648f46ed?s=5&e=4&w=%7B%22i%22%3A%22tt3107288%22%7D&sig={{sig}}"
-      },
-      {
-        "title": "The Flash [720p LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
-        "name": "[AD download] 📦 · 720p WEBRip LEG BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEBRip"
-        },
-        "url": "{{base}}/{{config}}/resolve/3de2002b917ac23f65ecc257ed708fb0428184a8?s=5&e=4&w=%7B%22i%22%3A%22tt3107288%22%7D&sig={{sig}}"
-      },
-      {
-        "title": "The Flash E04 [HDTV LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
-        "name": "[AD download] 📦 · HDTV LEG BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-na-HDTV"
-        },
-        "url": "{{base}}/{{config}}/resolve/9f474386b20d2023ab0b56ea4f155857e3acf79c?s=5&e=4&w=%7B%22i%22%3A%22tt3107288%22%7D&sig={{sig}}"
+        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
+        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
     "cacheMaxAge": 0

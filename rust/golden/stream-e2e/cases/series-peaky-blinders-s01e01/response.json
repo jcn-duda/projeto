@@ -9,8 +9,8 @@
     "streams": [
       {
         "infoHash": "31b22b7c470821bbb8ed8d857e7e28c61875a8a2",
-        "title": "Peaky Blinders - Sangue, Apostas e Navalhas 1ª Temporada [1080p DUAL]\n👤 1 ⚙️ Apache Torrent",
-        "name": "1080p BR · Apache Torrent · 👤 1",
+        "title": "Peaky Blinders - Sangue, Apostas e Navalhas 1ª Temporada [1080p DUAL]\n📦 👤 ~15 ⚙️ Apache Torrent",
+        "name": "📦 · 1080p BR · Apache Torrent · 👤 ~15",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
@@ -24,9 +24,25 @@
         ]
       },
       {
-        "infoHash": "3b8fdbc099650753e629e69282769e4139ba134b",
-        "title": "Peaky Blinders S01E01 Episode 1 1080p NF WEB DL DDP2 0 H 264 Kitsune\n👤 139 💾 1.72 GB ⚙️ LimeTorrents",
-        "name": "1080p WEB-DL · LimeTorrents · 👤 139",
+        "infoHash": "c0d81901e2dd1618f22a1a4cbc67ec4cf3c5763f",
+        "title": "Peaky Blinders - 1ª Temporada [720p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 720p BluRay BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "2dec3ada37ee4f7a2722f8b0b06bba9f2378feac",
+        "title": "Peaky Blinders S01E01 1080p NF WEB DL AAC2 0 H 264 playWEB\n📦 👤 ~48 💾 2.04 GB ⚙️ kickasstorrents.to",
+        "name": "📦 · 1080p WEB-DL · kickass · 👤 ~48",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -38,46 +54,12 @@
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
-        "size": "1.72 GB"
-      },
-      {
-        "infoHash": "3bf6f6cc4efa1dde48983d8151a540809a993874",
-        "title": "Peaky Blinders S01E01 1080p [Timati]\n👤 56 💾 887.10 MB ⚙️ LimeTorrents",
-        "name": "1080p · LimeTorrents · 👤 56",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "887.10 MB"
-      },
-      {
-        "infoHash": "60a1b8852afdaefcbf4cf6dec136241f994f7908",
-        "title": "Peaky Blinders S01E01 720p NF WEB-DL AAC2 0 H 264-playWEB\n👤 7 💾 760.36 MB ⚙️ TheRARBG",
-        "name": "720p WEB-DL · TheRARBG · 👤 7",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "760.36 MB"
+        "size": "2.04 GB"
       },
       {
         "infoHash": "e763b02049fff45431dca773e903153a85ea42fa",
-        "title": "Peaky Blinders S01E01 720p HDTV x264 TLA\n👤 2 💾 850.98 MB ⚙️ LimeTorrents",
-        "name": "720p HDTV · LimeTorrents · 👤 2",
+        "title": "Peaky Blinders S01E01 720p HDTV x264 TLA\n📦 👤 ~2 💾 850.98 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p HDTV · LimeTorrents · 👤 ~2",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-HDTV"
         },
@@ -90,6 +72,40 @@
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
         "size": "850.98 MB"
+      },
+      {
+        "infoHash": "2774b10f0e80db8f59302c8fddd1facb00fa881b",
+        "title": "Peaky Blinders S01E01 SWESUB 720p hdtv x264 314r\n📦 👤 ~1 💾 902.56 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p HDTV · LimeTorrents · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-HDTV"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "902.56 MB"
+      },
+      {
+        "infoHash": "254d42512f1d599db6ab079dc06bebe6f0c6e245",
+        "title": "Peaky Blinders (2013) Season 1-6 S01-S06 + Extras (1080p BluRay x265 HEVC 10bit EAC3 Mixed Ghost) [QxR]\n📦 👤 ~282 💾 2.92 GB 📦 pack 105.20 GB (média) ⚙️ kickasstorrents.to",
+        "name": "📦 · 1080p BluRay · kickass · 👤 ~282",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.92 GB"
       }
     ],
     "cacheMaxAge": 0

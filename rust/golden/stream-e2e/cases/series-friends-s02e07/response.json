@@ -8,46 +8,8 @@
   "body": {
     "streams": [
       {
-        "title": "Friends [1080p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
-        "name": "[AD download] 📦 · 1080p BluRay BR · apachetorrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/160e6f5f535fd91022372fc63de6add173330476?s=2&e=7&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0108778%22%7D&sig={{sig}}"
-      },
-      {
-        "title": "Friends [720p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
-        "name": "[AD download] 📦 · 720p BluRay BR · apachetorrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/b6cc7f5b2807b9337f3f171663e3f4ef74227df2?s=2&e=7&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0108778%22%7D&sig={{sig}}"
-      },
-      {
-        "title": "Friends [720p BLU-RAY DUBLADO]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
-        "name": "[AD download] 📦 · 720p BluRay BR · apachetorrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/8d0d7e6c2b6b0acaad2c0496dfe48cebe43bdd75?s=2&e=7&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0108778%22%7D&sig={{sig}}"
-      },
-      {
-        "title": "Friends 2ª Temporada – – Bluray (1995) [720p BLURAY DUBLADO 4.10 GB]\n📦 👤 ~ 💾 174.93 MB 📦 pack 4.10 GB (média) ⚙️ ComandoTorrents",
-        "name": "[AD download] 📦 · 720p BluRay BR · Comando · 👤 ~",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/257f07e623590f7fedce7d872cce70163d247377?s=2&e=7&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0108778%22%7D&sig={{sig}}",
-        "size": "174.93 MB"
-      },
-      {
-        "title": "夏目友人帳 Natsume's Book of Friends S01 S02 S03 S04 S05 BluRay 1080p HEVC 10bit FLAC GOA 夏目友人帐\n📦 👤 ~1 💾 239.50 MB 📦 pack 28.30 GB (média) ⚙️ Nyaa.si",
-        "name": "[AD download] 📦 · 1080p BluRay · Nyaa · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/4480a1fb22b9b6d2c6fb4c53b4eb6e83d8cf32dc?s=2&e=7&w=%7B%22i%22%3A%22tt0108778%22%7D&sig={{sig}}",
-        "size": "239.50 MB"
+        "name": "Procurando fontes — reabra em instantes",
+        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
     "cacheMaxAge": 0

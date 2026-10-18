@@ -2,11 +2,77 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=0, public"
+    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
   },
-  "cacheMaxAge": 0,
+  "cacheMaxAge": 900,
   "body": {
-    "streams": [],
-    "cacheMaxAge": 0
+    "streams": [
+      {
+        "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv\n👤 6 💾 1.82 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 1080p WEBRip BR · AllDebrid · 👤 6",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/405e4d8e941131eb99826df196e3be4f53b3a4bb?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "size": "1.82 GB"
+      },
+      {
+        "title": "Kung Fu Panda 4 2024 2160p web YTS\n👤 78 💾 4.18 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 4K · TheRARBG · 👤 78",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/22080ff718c3a97ddd916534b837a11d70e912f9?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "size": "4.18 GB"
+      },
+      {
+        "title": "Kung.Fu.Panda.4.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX\n👤 65 💾 15.90 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 4K WEB-DL · The Pirate Bay · 👤 65",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/b65732031572e4342811e3bd4e1a2361cc48807c?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "size": "15.90 GB"
+      },
+      {
+        "title": "Kung Fu Panda 4 (2024) [1080p] [WEBRip] [5.1]\n👤 338 💾 1.73 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 1080p WEBRip · TheRARBG · 👤 338",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/a8e918ed1ce097fe92cb43a4c05e56b3bf8d4177?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "size": "1.73 GB"
+      },
+      {
+        "title": "Kung Fu Panda 4 2024 1080p bluray YTS\n👤 267 💾 1.73 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 1080p BluRay · TheRARBG · 👤 267",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/337596e5018cf0442b18e4b785d8887035aa6222?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "size": "1.73 GB"
+      },
+      {
+        "title": "Kung Fu Panda 4 2024 720p web YTS\n👤 121 💾 861.33 MB ⚙️ TheRARBG",
+        "name": "[AD⚡] 720p · TheRARBG · 👤 121",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/6c4d2a635e51f3c1e3cd8d32aa15de67ee4c391b?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "size": "861.33 MB"
+      },
+      {
+        "title": "Kung Fu Panda 4 2024 720p bluray YTS\n👤 88 💾 861.64 MB ⚙️ TheRARBG",
+        "name": "[AD⚡] 720p BluRay · TheRARBG · 👤 88",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/b6ac553091161950da391a74790611710e1cd467?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "size": "861.64 MB"
+      }
+    ],
+    "cacheMaxAge": 900,
+    "staleRevalidate": 3600,
+    "staleError": 86400
   }
 }
