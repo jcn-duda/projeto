@@ -16,7 +16,7 @@ use std::sync::Arc;
 use crate::internal_client::InternalSearchClient;
 use crate::internal_types::{
     CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, IndexWriteRequest,
-    IndexWriteResponse, MetaRequest, MetaResponse,
+    IndexWriteResponse, MetaRequest, MetaResponse, SearchIndexRequest, SearchIndexResponse,
 };
 
 /// Futuro das rotas internas (boxed: trait object estável sem `async_trait`).
@@ -28,6 +28,7 @@ pub trait InternalRoutes: Send + Sync {
     fn collect<'a>(&'a self, req: CollectRequest) -> RouteFuture<'a, CollectResponse>;
     fn index_write<'a>(&'a self, req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse>;
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse>;
+    fn search_index<'a>(&'a self, req: SearchIndexRequest) -> RouteFuture<'a, SearchIndexResponse>;
 }
 
 /// Produção: o cliente HTTP já portado (`internal_client`).
@@ -65,5 +66,9 @@ impl InternalRoutes for NodeRoutes {
 
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async move { self.client.effects(&req).await })
+    }
+
+    fn search_index<'a>(&'a self, req: SearchIndexRequest) -> RouteFuture<'a, SearchIndexResponse> {
+        Box::pin(async move { self.client.search_index(&req).await })
     }
 }

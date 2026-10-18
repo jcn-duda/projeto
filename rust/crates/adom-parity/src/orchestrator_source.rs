@@ -276,6 +276,7 @@ fn stub_config() -> OrchestratorConfig {
         index_only_indexers: Vec::new(),
         sweep_enabled: false,
         trace_enabled: false,
+        search_index_rescue_min_ms: 2500,
     }
 }
 

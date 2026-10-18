@@ -236,3 +236,42 @@ pub struct EffectsResponse {
     pub accepted: i64,
     pub rejected: i64,
 }
+
+// ── index (leitura do releaseIndex e via instantânea do banco) ─────────────
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SearchIndexRequest {
+    pub encoded: String,
+    #[serde(rename = "type")]
+    pub media_type: String,
+    pub imdb: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub season: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episode: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub names: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub released: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_aired: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SearchIndexResponse {
+    pub ok: bool,
+    #[serde(default)]
+    pub is_partial: bool,
+    #[serde(default)]
+    pub index_covered: bool,
+    #[serde(default)]
+    pub instant_eligible: bool,
+    #[serde(default)]
+    pub index_items: Vec<Value>,
+    #[serde(default)]
+    pub instant_items: Vec<Value>,
+    #[serde(default)]
+    pub account_items: Vec<Value>,
+}

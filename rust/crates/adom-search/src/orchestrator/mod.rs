@@ -106,6 +106,9 @@ pub struct Orchestrator {
     /// `true` = sombra §9.1: sem debrid, sem gravar SWR, sem fila tardia /
     /// index-write / effects / refresh em fundo. Só produz corpo para comparar.
     shadow_mode: bool,
+    /// Rotas internas do Node (`/internal/search/*`), para leitura de metadados,
+    /// índice de releases e banco instantâneo.
+    routes: Option<Arc<dyn InternalRoutes>>,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -148,6 +151,7 @@ impl Orchestrator {
             in_flight: Arc::new(InFlight::new()),
             refreshing: Arc::new(Mutex::new(HashSet::new())),
             shadow_mode: false,
+            routes: None,
         }
     }
 
@@ -181,7 +185,14 @@ impl Orchestrator {
     pub fn with_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
         self.collector = Arc::new(NodeCollector::new(routes.clone()));
         self.meta = Arc::new(NodeMetaSource::new(routes.clone()));
-        self.tail = Arc::new(NodeTailEffects::new(routes));
+        self.tail = Arc::new(NodeTailEffects::new(routes.clone()));
+        self.routes = Some(routes);
+        self
+    }
+
+    /// Injeta explicitamente as rotas internas (ex.: quando collector é composto).
+    pub fn with_internal_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
+        self.routes = Some(routes);
         self
     }
 

@@ -93,7 +93,8 @@ pub fn build_orchestrator() -> Orchestrator {
             orch = orch
                 .with_collector(collector)
                 .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
-                .with_tail(Arc::new(NodeTailEffects::new(routes)));
+                .with_tail(Arc::new(NodeTailEffects::new(routes.clone())))
+                .with_internal_routes(routes);
         }
         None => {
             if !native_collectors.is_empty() {
@@ -159,8 +160,9 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
                 };
             orch = orch
                 .with_collector(collector)
-                .with_meta(Arc::new(NodeMetaSource::new(routes)))
-                .with_tail(Arc::new(NoopTailEffects));
+                .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
+                .with_tail(Arc::new(NoopTailEffects))
+                .with_internal_routes(routes);
         }
         None => {
             if !native_collectors.is_empty() {
@@ -237,6 +239,9 @@ fn orchestrator_config_from_env() -> OrchestratorConfig {
     }
     if let Some(ttl) = env_i64("FALLBACK_STREAMS_TTL") {
         cfg.fallback_streams_ttl = ttl;
+    }
+    if let Some(ms) = env_i64("SEARCH_INDEX_RESCUE_MIN_MS") {
+        cfg.search_index_rescue_min_ms = ms;
     }
     if let Some(grace) = env_u64("STREAM_STALE_GRACE_SECONDS") {
         cfg.stale_grace_seconds = grace;

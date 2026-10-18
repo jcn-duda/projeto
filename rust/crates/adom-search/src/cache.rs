@@ -378,19 +378,29 @@ mod tests {
         // Lista completa ganha TTL cheio (ex.: 900s), sem grampo artificial em 60s.
         store.set("k_completa", &complete_entry(), 900, 1_000);
         // Aos 60s e aos 899s ainda é fresco (stale: false) mesmo com graça 0.
-        let hit = store.get_with_stale("k_completa", 0, 1_000 + 60_000).unwrap();
+        let hit = store
+            .get_with_stale("k_completa", 0, 1_000 + 60_000)
+            .unwrap();
         assert!(!hit.stale);
-        let hit = store.get_with_stale("k_completa", 0, 1_000 + 899_000).unwrap();
+        let hit = store
+            .get_with_stale("k_completa", 0, 1_000 + 899_000)
+            .unwrap();
         assert!(!hit.stale);
         // Após 900s, com graça 0 expira.
-        assert!(store.get_with_stale("k_completa", 0, 1_000 + 900_001).is_none());
+        assert!(store
+            .get_with_stale("k_completa", 0, 1_000 + 900_001)
+            .is_none());
 
         // Parcial ganha TTL curto (ex.: 60s) decidido por commit_decision.
         let mut parcial = complete_entry();
         parcial.partial = true;
         store.set("k_parcial", &parcial, 60, 1_000);
-        assert!(store.get_with_stale("k_parcial", 0, 1_000 + 60_000).is_some());
-        assert!(store.get_with_stale("k_parcial", 0, 1_000 + 60_001).is_none());
+        assert!(store
+            .get_with_stale("k_parcial", 0, 1_000 + 60_000)
+            .is_some());
+        assert!(store
+            .get_with_stale("k_parcial", 0, 1_000 + 60_001)
+            .is_none());
     }
 
     #[test]

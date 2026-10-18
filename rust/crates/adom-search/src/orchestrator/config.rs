@@ -59,6 +59,8 @@ pub struct OrchestratorConfig {
     pub sweep_enabled: bool,
     /// `SEARCH_STREAM_TRACE`: captura/serialização do ledger.
     pub trace_enabled: bool,
+    /// `SEARCH_INDEX_RESCUE_MIN_MS`: resgate de coleta ao vivo se resposta do índice/acervo não tiver tocável.
+    pub search_index_rescue_min_ms: i64,
 }
 
 impl Default for OrchestratorConfig {
@@ -81,6 +83,7 @@ impl Default for OrchestratorConfig {
             index_only_indexers: Vec::new(),
             sweep_enabled: true,
             trace_enabled: true,
+            search_index_rescue_min_ms: 2500,
         }
     }
 }

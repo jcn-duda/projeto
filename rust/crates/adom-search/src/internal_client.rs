@@ -17,7 +17,8 @@ use serde_json::Value;
 
 use crate::internal_types::{
     CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, IndexWriteRequest,
-    IndexWriteResponse, MetaRequest, MetaResponse, StateRequest, StateResponse,
+    IndexWriteResponse, MetaRequest, MetaResponse, SearchIndexRequest, SearchIndexResponse,
+    StateRequest, StateResponse,
 };
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
@@ -95,6 +96,15 @@ impl InternalSearchClient {
     /// POST `/internal/search/effects` — fire-and-forget; espera **202**.
     pub async fn effects(&self, req: &EffectsRequest) -> Result<EffectsResponse, String> {
         self.post_ok("/internal/search/effects", req, self.timeout)
+            .await
+    }
+
+    /// POST `/internal/search/index` — leitura do índice de releases e banco instantâneo.
+    pub async fn search_index(
+        &self,
+        req: &SearchIndexRequest,
+    ) -> Result<SearchIndexResponse, String> {
+        self.post_ok("/internal/search/index", req, self.timeout)
             .await
     }
 

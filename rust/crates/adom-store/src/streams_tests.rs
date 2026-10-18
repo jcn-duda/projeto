@@ -1,9 +1,7 @@
 use super::{
     default_streams_quota, is_streams_key, streams_prefix, StreamsStore, STREAMS_NAMESPACE,
 };
-use adom_search::{
-    StoreHit, StreamItem, StreamsEntry, SwrStore, STREAM_STALE_GRACE_SECONDS,
-};
+use adom_search::{StoreHit, StreamItem, StreamsEntry, SwrStore, STREAM_STALE_GRACE_SECONDS};
 
 fn playable() -> StreamsEntry {
     StreamsEntry {

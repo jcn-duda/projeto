@@ -15,6 +15,7 @@ use super::finish::{cache_max_age_for_finish, is_demo, SearchInput};
 use super::meta::{MetaQuery, SearchMeta};
 use super::respond::{as_ms, now_ms, SearchOutcome, StreamRequest};
 use super::Orchestrator;
+use crate::internal_types::SearchIndexRequest;
 
 impl Orchestrator {
     /// Revalidação em fundo de um hit stale. Mapa PRÓPRIO (`refreshing`): não
@@ -65,7 +66,126 @@ impl Orchestrator {
         let writer = Arc::new(LatestWriter::new());
         let phase = writer.phase();
         let meta = self.load_meta(&input).await;
-        let (items, partial, completion, collect_failed) = self.collect(&input, &meta).await;
+
+        // Via do índice / Via instantânea do banco vivo:
+        let mut served_from_index = false;
+        let mut fast_path_items: Option<Vec<RawItem>> = None;
+
+        if !is_demo(&input.options) {
+            if let Some(routes) = &self.routes {
+                let req = SearchIndexRequest {
+                    encoded: encoded_for_internal(input.encoded.as_deref()),
+                    media_type: input.kind.clone(),
+                    imdb: meta.imdb_id.clone(),
+                    season: meta.season,
+                    episode: meta.episode,
+                    names: Some(meta.names.clone()),
+                    year: Some(meta.year.clone()),
+                    released: None,
+                    first_aired: None,
+                };
+                if let Ok(resp) = routes.search_index(req).await {
+                    if resp.index_covered {
+                        served_from_index = true;
+                        let mut items: Vec<RawItem> = Vec::new();
+                        items.extend(resp.index_items.into_iter().map(|v| {
+                            let mut item = crate::raw_item::raw_item_from_value(&v);
+                            item.from_fallback = true;
+                            item
+                        }));
+                        items.extend(resp.account_items.into_iter().map(|v| {
+                            let mut item = crate::raw_item::raw_item_from_value(&v);
+                            item.from_account = true;
+                            item
+                        }));
+                        fast_path_items = Some(items);
+                    } else if resp.instant_eligible {
+                        served_from_index = true;
+                        let mut items: Vec<RawItem> = Vec::new();
+                        items.extend(resp.instant_items.into_iter().map(|v| {
+                            let mut item = crate::raw_item::raw_item_from_value(&v);
+                            item.from_fallback = true;
+                            item
+                        }));
+                        items.extend(resp.index_items.into_iter().map(|v| {
+                            let mut item = crate::raw_item::raw_item_from_value(&v);
+                            item.from_fallback = true;
+                            item
+                        }));
+                        items.extend(resp.account_items.into_iter().map(|v| {
+                            let mut item = crate::raw_item::raw_item_from_value(&v);
+                            item.from_account = true;
+                            item
+                        }));
+                        fast_path_items = Some(items);
+                    }
+                }
+            }
+        }
+
+        let (items, partial, completion, collect_failed) = if let Some(fast_items) = fast_path_items
+        {
+            let prelim = self.finish(
+                &input,
+                &meta,
+                &writer,
+                phase,
+                &fast_items,
+                true,
+                input.deadline_at,
+            );
+
+            let remaining_ms = input.deadline_at.unwrap_or(0) - now_ms();
+            let needs_rescue = served_from_index
+                && self.config.search_index_rescue_min_ms > 0
+                && !crate::cache::has_playable_stream(&prelim.entry.streams)
+                && remaining_ms >= self.config.search_index_rescue_min_ms;
+
+            if needs_rescue {
+                // Resgate: resposta do índice sem nenhum stream tocável; coleta ao vivo agora
+                let (live_items, live_partial, live_completion, live_failed) =
+                    self.collect(&input, &meta).await;
+                let mut merged = fast_items.clone();
+                merged.extend(live_items);
+                let completion = match live_completion {
+                    Some(handle) => {
+                        let fast_for_rescue = fast_items;
+                        Some(tokio::spawn(async move {
+                            let mut all = fast_for_rescue;
+                            if let Ok(more) = handle.await {
+                                all.extend(more);
+                            }
+                            all
+                        }))
+                    }
+                    None => None,
+                };
+                (merged, live_partial, completion, live_failed)
+            } else {
+                // Responde imediatamente com os itens do índice / banco instantâneo!
+                // Dispara a coleta ao vivo completa para enriquecimento / promoção tardia.
+                let this = self.clone();
+                let input_tail = input.clone();
+                let meta_tail = meta.clone();
+                let fast_for_tail = fast_items.clone();
+                let completion_handle = tokio::spawn(async move {
+                    let (live_items, _, completion, _) =
+                        this.collect(&input_tail, &meta_tail).await;
+                    let mut all_live = fast_for_tail;
+                    all_live.extend(live_items);
+                    if let Some(h) = completion {
+                        if let Ok(more) = h.await {
+                            all_live.extend(more);
+                        }
+                    }
+                    all_live
+                });
+                (fast_items, true, Some(completion_handle), false)
+            }
+        } else {
+            self.collect(&input, &meta).await
+        };
+
         let first = self.finish(
             &input,
             &meta,

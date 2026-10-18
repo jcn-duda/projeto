@@ -118,7 +118,7 @@ export function noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep
  * responde, mas a obra precisa continuar entrando no índice e no colhedor.
  * `countMetrics:false` mantém o funil `search.idx` fora do caminho do banco.
  */
-function enqueueIndexFollowUp(args: {
+export function enqueueIndexFollowUp(args: {
   indexed: readonly any[];
   partial: boolean;
   covered: boolean;

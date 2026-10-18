@@ -6,6 +6,7 @@ import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalCrawlResult } from './internal-crawl-result.js';
 import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearch } from './internal-search.js';
+import { registerInternalSearchIndex } from './internal-search-index.js';
 import { registerInternalDebridCheck } from './internal-debrid-check.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
@@ -65,6 +66,7 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // Leituras internas de busca (F1.1): o orquestrador Rust consome metadados e
   // acervo por aqui antes de assumir o /stream. Igual às anteriores, sem config.
   registerInternalSearch(app, services);
+  registerInternalSearchIndex(app, services);
   // Reserva do orquestrador Rust (Fase A, passo 2): checagem de cache em lote
   // enquanto o sidecar adom-debrid não cobre (501). Mesma guarda, antes do overlay.
   registerInternalDebridCheck(app, services);
