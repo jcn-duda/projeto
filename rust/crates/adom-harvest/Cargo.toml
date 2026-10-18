@@ -3,11 +3,14 @@ name = "adom-harvest"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "Fila harvest:v1:q — embrião Fase E (tipos + stub em memória). Fora do caminho /stream."
+description = "Fila harvest:v1:q — embrião Fase E (memória + L2 SQLite). Fora do caminho /stream."
 license = "UNLICENSED"
 
 [dependencies]
 adom-core = { path = "../adom-core" }
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
+tempfile = "3"

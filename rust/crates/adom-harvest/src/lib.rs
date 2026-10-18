@@ -22,14 +22,15 @@
 //! | [`HarvestEntry`] / [`HarvestRequest`] | Entrada da fila |
 //! | [`EnqueueOutcome`] | Aceite / motivo (`queued`, `promoted`, …) |
 //! | [`obra_identity`] / [`reason_priority`] | Identidade e promoção |
-//! | [`HarvestQueue`] | Stub em memória: enqueue / take_head / head / tail |
+//! | [`HarvestQueue`] | Memória: enqueue / take_head / head / tail + load_from / save_to |
+//! | [`HarvestStore`] | L2 SQLite (WAL): `open` / `open_memory` / `load` / `save` |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
-//! Persistência SQLite, priorização BR, dedupe 12h, inflight e tick: **Fase E
-//! real** — ver `README.md`.
+//! Priorização BR, dedupe 12h, inflight e tick: **ainda não** — ver `README.md`.
 
 mod queue;
 mod reason;
+mod store;
 mod types;
 
 pub use queue::{
@@ -39,6 +40,7 @@ pub use reason::{
     entry_identity, is_promotion, is_recent_br_gap, is_valid_imdb_id, obra_identity,
     reason_priority, BR_GAP_PRIORITY_WINDOW_MS,
 };
+pub use store::{HarvestStore, DEFAULT_ENTRY_TTL_SECONDS};
 pub use types::{
     EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestMediaType, HarvestRequest,
 };

@@ -4,8 +4,8 @@ Crate **fora do caminho `/stream`**. Representa a fila persistente
 `harvest:v1:q` que no TypeScript vive em `src/providers/harvest-queue.ts`,
 orquestrada por `harvester.ts` / `harvest-worker.ts`.
 
-Nesta fatia: **tipos + fila em memória + testes unitários**. Sem tick, sem
-Jackett, sem índice, sem gateway, sem Docker.
+Nesta fatia: **tipos + fila em memória + L2 SQLite (WAL) + testes**. Sem tick,
+sem Jackett, sem índice, sem gateway, sem Docker.
 
 ## Contrato alinhado ao TS
 
@@ -17,6 +17,8 @@ Jackett, sem índice, sem gateway, sem Docker.
 | Identidade | `obraIdentity` | `obra_identity` |
 | Precedência | `reasonPriority` / `isPromotion` | `reason_priority` / `is_promotion` |
 | Consumo | `takeHead` / `takeProbe` | `take_head` / `take_probe` |
+| L2 | `cache.get` / `cache.set(QUEUE_KEY, …)` | `HarvestStore::load` / `save` |
+| Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
 
 Guardrails (iguais ao Arquivista):
 
@@ -25,10 +27,24 @@ Guardrails (iguais ao Arquivista):
 3. Contagem pura **nunca** decide cobertura do índice (`idxPoolCovered` —
    ainda não portado; mora no release-index).
 4. `fromAccount` **nunca** entra no índice (fora do escopo desta fila).
+5. Gateway **não** pluga este crate.
+
+## Persistência L2
+
+Mesmo schema WAL de `adom-store` / `debrid.db` (`cache` com
+`key`/`value`/`expires_at`). Uma chave só (`harvest:v1:q`); mutação continua
+em `HarvestQueue` (memória); `save_to` é o `cache.set` periódico.
+
+```rust
+let store = HarvestStore::open_memory()?; // ou open(path)
+let mut queue = HarvestQueue::new(HarvestQueueConfig::default());
+queue.load_from(&store, now_ms)?;
+queue.enqueue(HarvestRequest::movie("tt0111161", "miss"));
+queue.save_to(&store, DEFAULT_ENTRY_TTL_SECONDS, now_ms)?;
+```
 
 ## O que NÃO está aqui (Fase E real)
 
-- Persistência L2 (`cache.set(harvest:v1:q, …)`) / SQLite espelhando o cache.
 - `prioritizeQueue` com evidência BR (`hasBrDubbed` + `lookupQuiet`).
 - Dedupe 12h (`harvest:v1:seen:<sha>`).
 - Coalescing in-flight (`harvest-inflight`).

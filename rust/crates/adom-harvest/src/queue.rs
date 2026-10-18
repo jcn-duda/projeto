@@ -1,12 +1,15 @@
 //! Fila em memória de `harvest:v1:q`.
 //!
-//! Stub da Fase E: enqueue / dequeue / promoção por identidade. Sem L2, sem
-//! evidência BR, sem coalescing in-flight, sem dedupe 12h. Ordem = FIFO com
-//! promoção de motivo (a priorização BR completa fica na Fase E real).
+//! Mutação (enqueue / take_head / head / tail) vive aqui; L2 é
+//! [`crate::store::HarvestStore`] via [`HarvestQueue::load_from`] /
+//! [`HarvestQueue::save_to`] (espelho de `load`/`persist` + `cache.set` no TS).
+//! Sem evidência BR, sem coalescing in-flight, sem dedupe 12h. Ordem = FIFO
+//! com promoção de motivo (priorização BR completa fica na Fase E real).
 
 use adom_core::prefix;
 
 use crate::reason::{entry_identity, is_promotion, is_valid_imdb_id};
+use crate::store::HarvestStore;
 use crate::types::{EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestRequest};
 
 /// Namespace nas cotas / `cache-keys` (`harvest` → `v1`).
@@ -91,6 +94,40 @@ impl HarvestQueue {
         let n = self.entries.len();
         self.entries.clear();
         n
+    }
+
+    /// Snapshot do array (para `save` / diagnóstico).
+    pub fn entries(&self) -> &[HarvestEntry] {
+        &self.entries
+    }
+
+    /// Substitui o array em memória (após `HarvestStore::load`).
+    pub fn replace(&mut self, mut entries: Vec<HarvestEntry>) {
+        if entries.len() > self.config.queue_max {
+            entries.truncate(self.config.queue_max);
+        }
+        self.entries = entries;
+    }
+
+    /// `load()` do TS: lê L2 e coloca na memória. Sem `prioritizeQueue` ainda.
+    pub fn load_from(&mut self, store: &HarvestStore, now_ms: i64) -> Result<(), String> {
+        self.replace(store.load(now_ms)?);
+        Ok(())
+    }
+
+    /// `persist()` do TS: grava fatia até `queue_max` (ou apaga se vazia).
+    pub fn save_to(
+        &self,
+        store: &HarvestStore,
+        ttl_seconds: u64,
+        now_ms: i64,
+    ) -> Result<(), String> {
+        let kept = if self.entries.len() > self.config.queue_max {
+            &self.entries[..self.config.queue_max]
+        } else {
+            &self.entries
+        };
+        store.save(kept, ttl_seconds, now_ms)
     }
 
     /// Amostra (cópia) — stub FIFO; priorização BR fica na Fase E real.

@@ -62,7 +62,10 @@ name = "adom-harvest"
 version = "0.0.0"
 dependencies = [
  "adom-core",
+ "rusqlite",
  "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
