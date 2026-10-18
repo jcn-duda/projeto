@@ -47,11 +47,12 @@ Docker PASS com chave só no `.env` depende dessa herança.
 
 - Default do corte: collect/meta/tail via `POST /internal/search/*` no Node
   (`NodeRoutes`, precisa `JACKETT_TEST_TOKEN` + `INTERNAL_SEARCH_URL`).
-- Opt-in `SOURCES_RUST=jackett|prowlarr|torrentio` (CSV, case-insensitive):
-  collect nativo (`JackettCollector` / `ProwlarrCollector` /
-  `TorrentioCollector`); **exclusão mútua** nesta fatia
-  (`jackett` > `prowlarr` > `torrentio`). Meta/tail seguem no Node quando as
-  rotas internas existem. Default **OFF**.
+- Opt-in `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV,
+  case-insensitive): collect nativo (`JackettCollector` /
+  `ProwlarrCollector` / `TorrentioCollector` / `BludvCollector` /
+  `MicoCollector`); **exclusão mútua** nesta fatia (`jackett` > `prowlarr` >
+  `torrentio` > `bludv` > `mico`; sem composição multi-fonte). Meta/tail
+  seguem no Node quando as rotas internas existem. Default **OFF**.
 
 ### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
 
@@ -83,8 +84,20 @@ Nenhum workflow em `.github/workflows/` sobe o override gateway nem fixa
   de `/stream` nativo);
 - `ci.yml` — suíte Node.
 
-Validar o corte é **manual/local** (compose gateway + obra real). O YAML de CI
-não foi alterado nesta fatia docs.
+Validar o corte é **manual/local**. O YAML de CI **não** entra nesta fatia
+docs. Smoke mínimo (PASS local com override §0.1; Matrix `tt0133093`):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gateway.yml \
+  up -d --build --force-recreate adom
+# aguardar container healthy; depois:
+curl -sf http://127.0.0.1:7000/health                    # {"ok":true} (proxy → Node :7100)
+curl -sf -o /dev/null -w '%{http_code}\n' \
+  http://127.0.0.1:7000/manifest.json                    # 200 (mesmo alvo do healthcheck Docker)
+curl -sf http://127.0.0.1:7000/stream/movie/tt0133093.json | head -c 240
+# PASS: HTTP 200 + JSON com "streams"; 1ª hit a frio pode ser só aviso §0.5 —
+# repetir a 2ª; FAIL se 5xx/HTML ou `{"streams":[]}` silencioso sem aviso.
+```
 
 ---
 
@@ -596,7 +609,7 @@ que responde com `ROUTES_RUST=stream`.
 | 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo; `MemorySwrStore` na sombra) |
 | 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | via `POST /internal/search/meta` (Node); porte puro de fontes = F2 |
 | 5 | plano / orçamentos de coleta | decisões no núcleo; janela ainda orquestrada com I/O Node |
-| 6 | coleta Jackett/Prowlarr/Torrentio/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio` (exclusão mútua jackett>prowlarr>torrentio; sem `raw:v1` nessa fatia) |
+| 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio\|bludv\|mico` (exclusão mútua jackett>prowlarr>torrentio>bludv>mico; sem composição/raw:v1 nessa fatia) |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador / núcleo |
 | 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + reserva Node (`INTERNAL_CHECK_URL`); autofetch/efeitos de cauda ainda no Node |
 | 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play completo ainda no Node |

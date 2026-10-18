@@ -11,9 +11,10 @@
 //! - **não abre o socket HTTP**: o handler mora no `adom-server` (corte
 //!   `ROUTES_RUST=stream`); este crate só orquestra;
 //! - **coleta default ainda é Node** (`POST /internal/search/collect`);
-//!   opt-in `SOURCES_RUST=jackett|prowlarr|torrentio` (CSV; exclusão mútua —
-//!   jackett > prowlarr > torrentio) pluga collector nativo; metadados seguem
-//!   nas rotas `/internal/search/*`;
+//!   opt-in `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV; exclusão
+//!   mútua — jackett > prowlarr > torrentio > bludv > mico; sem composição
+//!   multi-fonte nesta fatia) pluga collector nativo; metadados seguem nas
+//!   rotas `/internal/search/*`;
 //! - **não decide prazo sozinho**: recebe os milissegundos (Stremio × app) e
 //!   no collect manda `deadline_at` absoluto;
 //! - **não reproduz os defaults do operador**: `decode_user_config` aplica o

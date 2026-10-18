@@ -25,11 +25,13 @@
 //! (mesmo cache ≤ 60 s e host fora dele). Nunca 500: falha de collector vira
 //! lista vazia + aviso, como o handler do Node (`stream.ts`).
 
+mod bludv_collector;
 mod collect;
 mod config;
 mod internal_routes;
 mod jackett_collector;
 mod meta;
+mod mico_collector;
 mod prowlarr_collector;
 mod sources_rust;
 mod tail;
@@ -69,10 +71,14 @@ pub use config::{
     NoDebridFactory, OrchestratorConfig,
 };
 pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
+pub use bludv_collector::{
+    sources_rust_includes_bludv, try_bludv_collector_from_env, BludvCollector,
+};
 pub use jackett_collector::{
     plan_jackett_searches, sources_rust_includes_jackett, try_jackett_collector_from_env,
     JackettCollector, PlannedJackettSearch,
 };
+pub use mico_collector::{sources_rust_includes_mico, try_mico_collector_from_env, MicoCollector};
 pub use prowlarr_collector::{
     sources_rust_includes_prowlarr, try_prowlarr_collector_from_env, ProwlarrCollector,
 };

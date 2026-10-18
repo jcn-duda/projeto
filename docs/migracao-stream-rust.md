@@ -118,8 +118,9 @@ novos é o TS do worktree `../adom-esm`.
    fila tardia serial, corte externo com `partial:true` e busca em
    `tokio::spawn`, via do índice e via instantânea, trace gravado junto.
    Store nativo: `STREAMS_DB` (`data/streams.db`). Collect Jackett/Prowlarr/
-   Torrentio in-process com opt-in `SOURCES_RUST=jackett|prowlarr|torrentio`
-   (exclusão mútua: jackett > prowlarr > torrentio).
+   Torrentio/BLUDV/Mico in-process com opt-in
+   `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (exclusão mútua:
+   jackett > prowlarr > torrentio > bludv > mico; sem composição multi-fonte).
 3. **Paridade** com o golden da F0 e sombra sem divergência (critério formal
    §9.4 do contrato; CI ainda não exercita o HTTP do corte — ver contrato §0.6).
 4. **Corte local** `ROUTES_RUST=stream` no
@@ -174,11 +175,10 @@ O que trava o quê:
 3. Prazo: `test/search-budget-metadata.test.ts` portado para o Rust; medir p50 e
    p95 do `/stream` com Stremio (10 s) e com o app Power Movie (15 s) antes e
    depois.
-4. Docker: preferir o override commitado
-   `docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --build --force-recreate adom`
-   (`GATEWAY=on`, `ROUTES_RUST=stream`, internals na 7100). Depois `clear-cache`.
-   Checar painel, manifest e configure 200, e `/stream` de série, filme, pack e
-   BR dublado — com o Node desligado **e** ligado. Na 1ª hit a frio, repetir
-   se vier só o aviso “reabra” ou `streams:[]` (contrato §0.5).
+4. Docker / smoke gateway: checklist copy-paste em
+   [`docs/rust-stream-contract.md`](rust-stream-contract.md) §0.6 (`compose`
+   + `curl` health/manifest/stream). Depois, se for revalidar matching:
+   `clear-cache`; cobrir série, filme, pack e BR dublado — Node desligado **e**
+   ligado. 1ª hit a frio: ver §0.5.
 5. Play: `/resolve` de um item de cada debrid pela lista gerada no Rust (o HMAC
    tem que valer).

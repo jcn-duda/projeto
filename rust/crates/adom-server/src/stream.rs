@@ -67,10 +67,10 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 /// Monta o orquestrador de produção: store SWR compartilhado, coleta via
 /// rotas internas (se `JACKETT_TEST_TOKEN` existir) e debrid com reserva Node.
 ///
-/// Opt-in `SOURCES_RUST=jackett|prowlarr|torrentio` (CSV): collect nativo;
-/// exclusão mútua (jackett > prowlarr > torrentio). Meta/tail continuam no
-/// Node quando as rotas internas existem. Default OFF — corte stream segue
-/// em `POST /internal/search/collect`.
+/// Opt-in `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV): collect
+/// nativo; exclusão mútua (jackett > prowlarr > torrentio > bludv > mico).
+/// Meta/tail continuam no Node quando as rotas internas existem. Default OFF
+/// — corte stream segue em `POST /internal/search/collect`.
 pub fn build_orchestrator() -> Orchestrator {
     let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
@@ -170,6 +170,10 @@ fn sources_rust_label() -> &'static str {
         "SOURCES_RUST=prowlarr"
     } else if sources_rust_includes("torrentio") {
         "SOURCES_RUST=torrentio"
+    } else if sources_rust_includes("bludv") {
+        "SOURCES_RUST=bludv"
+    } else if sources_rust_includes("mico") {
+        "SOURCES_RUST=mico"
     } else {
         "SOURCES_RUST"
     }

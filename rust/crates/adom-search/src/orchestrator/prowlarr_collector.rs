@@ -10,7 +10,7 @@
 //!   `ignore_breaker` aqui).
 //! - `All` / `Nonpriority` → `client.search(job.query)`; fail-open.
 //!
-//! Fora desta fatia: BLUDV/Mico, composição com Jackett, cache `raw:v1`.
+//! Fora desta fatia: composição multi-fonte, cache `raw:v1`.
 
 use std::future::Future;
 use std::pin::Pin;

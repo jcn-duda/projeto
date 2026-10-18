@@ -10,7 +10,7 @@
 //! - `fileIdx` preservado em `RawItem.extra` (cliente já trunca; não consumido
 //!   no play/HMAC nesta fase).
 //!
-//! Fora desta fatia: BLUDV/Mico, composição com Jackett/Prowlarr, cache `raw:v1`.
+//! Fora desta fatia: composição multi-fonte, cache `raw:v1`.
 
 use std::future::Future;
 use std::pin::Pin;
