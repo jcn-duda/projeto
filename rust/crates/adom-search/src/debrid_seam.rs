@@ -219,12 +219,15 @@ pub fn answer_of(outcome: &CheckOutcome, hash: &str) -> DebridAnswer {
     DebridAnswer::Missing
 }
 
-/// `block_on` que funciona dentro e fora de runtime tokio. Dentro de worker
-/// async a trait síncrona não deve ser usada; se estiver, o `Handle` é a
-/// melhor tentativa (a build real roda em `spawn_blocking` / fora de async).
+/// `block_on` que funciona dentro e fora de runtime tokio.
+///
+/// `finish` / `DebridCheck` são síncronos e rodam no meio de `run_search`
+/// (async). `Handle::block_on` **panica** nesse contexto — por isso
+/// `block_in_place` (runtime multi-thread do gateway) libera o worker
+/// enquanto o futuro da checagem corre. Fora de runtime, o estático basta.
 fn block_on<F: Future>(fut: F) -> F::Output {
     match Handle::try_current() {
-        Ok(handle) => handle.block_on(fut),
+        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(fut)),
         Err(_) => static_runtime().block_on(fut),
     }
 }

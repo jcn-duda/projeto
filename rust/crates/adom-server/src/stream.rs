@@ -159,8 +159,14 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
 
 /// Números do operador. Defaults do crate cobrem o boot; envs opcionais
 /// ajustam prazo/TTL/segredo sem exigir o `.env` completo do Node.
+///
+/// `defaults` espelha o `defaults()` do `runtime.ts` **na fatia debrid** —
+/// sem isso o decode da URL não herda `DEBRID_SERVICE`/`DEBRID_API_KEY`/
+/// `DEBRID_CACHED_ONLY` e o orquestrador cai em `NoDebridCheck` (lista só
+/// `infoHash`, sem ⚡/`/resolve`), enquanto o Node na :7100 aplica debrid.
 fn orchestrator_config_from_env() -> OrchestratorConfig {
     let mut cfg = OrchestratorConfig::default();
+    cfg.defaults = operator_debrid_defaults_from_env();
     if let Ok(secret) = std::env::var("RESOLVE_SECRET") {
         cfg.resolve_secret = secret;
     }
@@ -170,6 +176,12 @@ fn orchestrator_config_from_env() -> OrchestratorConfig {
     }
     if let Some(ms) = env_u64("APP_REPLY_DEADLINE_MS") {
         cfg.app_reply_ms = ms;
+    }
+    if let Some(ms) = env_i64("DEBRID_RESERVE_MS") {
+        cfg.budgets.debrid_reserve_ms = ms;
+    }
+    if let Some(ms) = env_i64("DEBRID_CHECK_FLOOR_MS") {
+        cfg.budgets.debrid_check_floor_ms = ms;
     }
     if let Some(ttl) = env_i64("CACHE_TTL") {
         cfg.cache_ttl = ttl;
@@ -181,12 +193,53 @@ fn orchestrator_config_from_env() -> OrchestratorConfig {
         cfg.stale_grace_seconds = grace;
     }
     if let Ok(raw) = std::env::var("DEBRID_RESOLVE_UNCACHED") {
-        cfg.resolve_uncached = matches!(
-            raw.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "on" | "yes"
-        );
+        cfg.resolve_uncached = env_flag(&raw);
     }
     cfg
+}
+
+/// Fatia debrid do `defaults()` do Node (`src/runtime.ts` + `config/debrid.ts`).
+///
+/// Gate `DEBRID_ALLOW_ENV_KEY` (default true): única herança da chave do `.env`
+/// para install sem `dk` na URL. `DEBRID_OPERATOR_ENV_ACCOUNT` NÃO entra aqui.
+fn operator_debrid_defaults_from_env() -> serde_json::Value {
+    operator_debrid_defaults(
+        std::env::var("DEBRID_SERVICE").ok().as_deref(),
+        std::env::var("DEBRID_API_KEY").ok().as_deref(),
+        std::env::var("DEBRID_ALLOW_ENV_KEY").ok().as_deref(),
+        std::env::var("DEBRID_CACHED_ONLY").ok().as_deref(),
+        std::env::var("DEBRID_SHOW_UNCACHED_BR").ok().as_deref(),
+    )
+}
+
+fn operator_debrid_defaults(
+    service: Option<&str>,
+    api_key: Option<&str>,
+    allow_env_key: Option<&str>,
+    cached_only: Option<&str>,
+    show_uncached_br: Option<&str>,
+) -> serde_json::Value {
+    let allow = allow_env_key
+        .map(env_flag)
+        .unwrap_or(true);
+    let key = if allow {
+        api_key.unwrap_or("").trim().to_string()
+    } else {
+        String::new()
+    };
+    serde_json::json!({
+        "debridService": service.unwrap_or("").trim().to_ascii_lowercase(),
+        "debridApiKey": key,
+        "debridCachedOnly": cached_only.map(env_flag).unwrap_or(true),
+        "showUncachedBr": show_uncached_br.map(env_flag).unwrap_or(false),
+    })
+}
+
+fn env_flag(raw: &str) -> bool {
+    matches!(
+        raw.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "on" | "yes"
+    )
 }
 
 fn env_u64(key: &str) -> Option<u64> {
@@ -421,5 +474,58 @@ mod tests {
         .expect("path com config");
         assert_eq!(com.encoded.as_deref(), Some("eyJwIjoiamFja2V0dCJ9"));
         assert_eq!(com.prefix(), "/eyJwIjoiamFja2V0dCJ9");
+    }
+
+    #[test]
+    fn defaults_debrid_herdam_env_como_runtime_ts() {
+        let d = operator_debrid_defaults(
+            Some("AllDebrid"),
+            Some(" chave-do-operador "),
+            None, // ALLOW_ENV_KEY ausente → true
+            None, // CACHED_ONLY ausente → true
+            None,
+        );
+        assert_eq!(d["debridService"], serde_json::json!("alldebrid"));
+        assert_eq!(d["debridApiKey"], serde_json::json!("chave-do-operador"));
+        assert_eq!(d["debridCachedOnly"], serde_json::json!(true));
+        assert_eq!(d["showUncachedBr"], serde_json::json!(false));
+    }
+
+    #[test]
+    fn defaults_debrid_sem_allow_env_key_nao_herdam_chave() {
+        let d = operator_debrid_defaults(
+            Some("premiumize"),
+            Some("secreta"),
+            Some("false"),
+            Some("0"),
+            Some("true"),
+        );
+        assert_eq!(d["debridService"], serde_json::json!("premiumize"));
+        assert_eq!(d["debridApiKey"], serde_json::json!(""));
+        assert_eq!(d["debridCachedOnly"], serde_json::json!(false));
+        assert_eq!(d["showUncachedBr"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn fabrica_com_defaults_env_liga_debrid_ativo() {
+        use adom_search::orchestrator::{AdapterDebridFactory, DebridContext, DebridFactory};
+
+        let defaults = operator_debrid_defaults(
+            Some("alldebrid"),
+            Some("chave"),
+            Some("true"),
+            Some("true"),
+            None,
+        );
+        let ctx = DebridContext {
+            service: defaults["debridService"].as_str().unwrap().into(),
+            api_key: defaults["debridApiKey"].as_str().unwrap().into(),
+            ..DebridContext::default()
+        };
+        assert!(ctx.is_active(), "herança env deve ativar DebridContext");
+        // Com chave, a fábrica NÃO devolve NoDebridCheck (prepare/check
+        // fariam rede — aqui só prove que o caminho ativo abre).
+        let factory = AdapterDebridFactory::default();
+        let _check = factory.make(&ctx);
     }
 }

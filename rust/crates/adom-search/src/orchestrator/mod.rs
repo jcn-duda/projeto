@@ -975,6 +975,7 @@ fn finish_value(
         work_hint: built.work_hint.clone(),
         ..signer.clone()
     };
+    let short = debrid_short(&debrid.service);
     for stream in &mut built.streams {
         if !stream.cached {
             continue;
@@ -986,6 +987,10 @@ fn finish_value(
         stream.item.url = Some(url);
         stream.item.info_hash = None;
         stream.item.sources = None;
+        // `[AD⚡]` / `[PM⚡]`… — mesmo `markDebridName` do Node (só no tocável).
+        if let Some(name) = stream.item.name.clone() {
+            stream.item.name = Some(adom_core::mark_debrid_name(&name, short, true));
+        }
     }
 
     // Ledger: o funil do build vira `stages`; `final` fecha o tamanho entregue.
@@ -1082,6 +1087,18 @@ fn cache_max_age_for_finish(
         0
     } else {
         config.cache_ttl.max(0) as u32
+    }
+}
+
+/// Sigla do adaptador no rótulo da lista (`short` do registry TS).
+fn debrid_short(service: &str) -> &'static str {
+    match service {
+        "alldebrid" => "AD",
+        "premiumize" => "PM",
+        "torbox" => "TB",
+        "realdebrid" => "RD",
+        "debridlink" => "DL",
+        _ => "",
     }
 }
 
