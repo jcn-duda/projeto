@@ -497,6 +497,7 @@ impl Orchestrator {
         let jobs = plan_jobs(
             &self.config,
             meta,
+            &input.kind,
             input.encoded.as_deref(),
             input.deadline_at.unwrap_or(input.now_ms),
         );
@@ -746,6 +747,7 @@ impl Orchestrator {
                     let Some(job) = collect::sweep_job(
                         &self.config,
                         &meta,
+                        &input.kind,
                         input.encoded.as_deref(),
                         deadline_at,
                     ) else {

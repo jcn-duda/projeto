@@ -226,6 +226,7 @@ async fn collect_leva_deadline_e_task_scope() {
         .unwrap();
     let body = seen.bodies.lock().await.first().cloned().unwrap();
     assert_eq!(body["encoded"], json!(ENCODED));
+    assert_eq!(body["type"], json!("movie"), "Node valida type=movie|series");
     assert_eq!(body["task_scope"], json!("priority"));
     assert_eq!(body["deadline_at"], json!(deadline));
     assert!(res.partial);

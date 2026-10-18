@@ -33,6 +33,8 @@ use crate::raw_item::RawItem;
 pub struct CollectJob {
     pub encoded: String,
     pub scope: TaskScope,
+    /// Tipo Stremio (`movie` | `series`) — vai no campo JSON `type` da rota.
+    /// NÃO é o rótulo do grupo (priority/global): isso é `scope`/`priority`.
     pub kind: String,
     pub imdb_id: String,
     pub season: Option<i64>,
@@ -71,9 +73,12 @@ pub trait Collector: Send + Sync {
 /// Sem seleção de indexer (instalação sem `ji`), o plano não gera tarefa — mas
 /// o `jackett.search` do Node cai no agregado `/all` com a config do operador.
 /// Nesse caso a janela recebe UMA tarefa `all`, como o TS.
+///
+/// `kind` é o tipo Stremio (`movie`|`series`) — o Node valida `body.type`.
 pub fn plan_jobs(
     config: &crate::orchestrator::config::OrchestratorConfig,
     meta: &SearchMeta,
+    kind: &str,
     encoded: Option<&str>,
     deadline_at: i64,
 ) -> Vec<CollectJob> {
@@ -87,7 +92,7 @@ pub fn plan_jobs(
     let base = CollectJob {
         encoded: crate::request::encoded_for_internal(encoded),
         scope: TaskScope::All,
-        kind: String::new(),
+        kind: kind.to_string(),
         imdb_id: meta.imdb_id.clone(),
         season: meta.season,
         episode: meta.episode,
@@ -131,7 +136,6 @@ pub fn plan_jobs(
     let mut jobs = Vec::new();
     if has_priority {
         jobs.push(CollectJob {
-            kind: "priority".into(),
             scope: TaskScope::Priority,
             priority: true,
             ..base.clone()
@@ -139,7 +143,6 @@ pub fn plan_jobs(
     }
     if has_global || !has_priority {
         jobs.push(CollectJob {
-            kind: "global".into(),
             scope: if has_priority {
                 TaskScope::Nonpriority
             } else {
@@ -158,9 +161,12 @@ pub fn plan_jobs(
 /// A varredura inline já entrou no job de coleta (`sweep_query`); esta só roda
 /// quando a coleta foi PARCIAL — o resto dos globais não estava no balde da
 /// resposta. `priority=false`: a varredura nunca é a fonte BR.
+///
+/// `kind` é o tipo Stremio (`movie`|`series`) — igual ao da coleta principal.
 pub fn sweep_job(
     config: &crate::orchestrator::config::OrchestratorConfig,
     meta: &SearchMeta,
+    kind: &str,
     encoded: Option<&str>,
     deadline_at: i64,
 ) -> Option<CollectJob> {
@@ -168,7 +174,7 @@ pub fn sweep_job(
     Some(CollectJob {
         encoded: crate::request::encoded_for_internal(encoded),
         scope: TaskScope::All,
-        kind: "sweep".into(),
+        kind: kind.to_string(),
         imdb_id: meta.imdb_id.clone(),
         season: meta.season,
         episode: meta.episode,
@@ -203,22 +209,7 @@ impl Collector for NodeCollector {
         Box::pin(async move {
             let response = self
                 .routes
-                .collect(CollectRequest {
-                    encoded: job.encoded,
-                    query: job.query,
-                    media_type: job.kind,
-                    imdb: job.imdb_id,
-                    deadline_at: job.deadline_at,
-                    task_scope: Some(job.scope),
-                    pt_query: job.pt_query,
-                    season: job.season,
-                    episode: job.episode,
-                    year: job.year,
-                    names: Some(job.names).filter(|names| !names.is_empty()),
-                    sweep_query: job.sweep_query,
-                    original_query: job.original_query,
-                    multi_work_query: job.multi_work_query,
-                })
+                .collect(collect_request_from_job(job))
                 .await?;
             Ok(CollectBatch {
                 items: response
@@ -229,5 +220,77 @@ impl Collector for NodeCollector {
                 partial: response.partial,
             })
         })
+    }
+}
+
+/// Corpo de `POST /internal/search/collect` a partir do job.
+///
+/// Isolado para o teste exercer o contrato sem HTTP: `type` = movie|series,
+/// `task_scope` = all|priority|nonpriority (não misturar).
+pub fn collect_request_from_job(job: CollectJob) -> CollectRequest {
+    CollectRequest {
+        encoded: job.encoded,
+        query: job.query,
+        media_type: job.kind,
+        imdb: job.imdb_id,
+        deadline_at: job.deadline_at,
+        task_scope: Some(job.scope),
+        pt_query: job.pt_query,
+        season: job.season,
+        episode: job.episode,
+        year: job.year,
+        names: Some(job.names).filter(|names| !names.is_empty()),
+        sweep_query: job.sweep_query,
+        original_query: job.original_query,
+        multi_work_query: job.multi_work_query,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orchestrator::config::OrchestratorConfig;
+    use serde_json::json;
+
+    fn meta_movie() -> SearchMeta {
+        SearchMeta {
+            imdb_id: "tt0133093".into(),
+            name: "The Matrix".into(),
+            names: vec!["The Matrix".into()],
+            query: "The Matrix 1999".into(),
+            year: json!(1999),
+            ..SearchMeta::default()
+        }
+    }
+
+    #[test]
+    fn plan_jobs_leva_type_stremio_nao_rotulo_do_grupo() {
+        let config = OrchestratorConfig::default();
+        let jobs = plan_jobs(&config, &meta_movie(), "movie", Some("e30"), 1_700_000_000_000);
+        assert!(!jobs.is_empty());
+        for job in &jobs {
+            assert_eq!(job.kind, "movie", "kind do job é movie|series, não priority/global");
+            let body = serde_json::to_value(collect_request_from_job(job.clone())).unwrap();
+            assert_eq!(body["type"], json!("movie"));
+            assert_ne!(body["type"], json!("priority"));
+            assert_ne!(body["type"], json!("global"));
+            assert!(matches!(
+                body["task_scope"].as_str(),
+                Some("all") | Some("priority") | Some("nonpriority") | None
+            ));
+        }
+    }
+
+    #[test]
+    fn sweep_job_tambem_manda_movie_ou_series() {
+        let mut config = OrchestratorConfig::default();
+        config.sweep_enabled = true;
+        let mut meta = meta_movie();
+        meta.sweep_query = Some("Matrix".into());
+        let job = sweep_job(&config, &meta, "series", None, 1_700_000_000_000).expect("sweep");
+        assert_eq!(job.kind, "series");
+        let body = serde_json::to_value(collect_request_from_job(job)).unwrap();
+        assert_eq!(body["type"], json!("series"));
+        assert_eq!(body["task_scope"], json!("all"));
     }
 }
