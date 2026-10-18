@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [],
+    "cacheMaxAge": 0
+  }
+}

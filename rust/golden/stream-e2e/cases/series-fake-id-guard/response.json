@@ -1,0 +1,17 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "name": "Nada pronto ainda — procurando a temporada; reabra em instantes",
+        "externalUrl": "{{base}}/{{config}}/configure"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

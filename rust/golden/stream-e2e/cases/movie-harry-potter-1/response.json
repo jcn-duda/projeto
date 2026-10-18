@@ -1,0 +1,112 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "Harry Potter e a Pedra Filosofal (2001) [2160p BluRay DUBLADO 21.9 GB]\n📦 👤 ~1 💾 21.90 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
+        "name": "[AD⚡] 📦 · 4K BluRay BR · NerdFilmes · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/df7a584072e09105313964314555806c49bd46f7?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22d%22%3A1%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "21.90 GB"
+      },
+      {
+        "title": "Harry Potter e a Pedra Filosofal 1080p HD Dublado pt-BR\n📦 👤 ~1 💾 2.77 GB ⚙️ Rede Torrent",
+        "name": "[AD⚡] 📦 · 1080p BR · Rede Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/0924c2178ddf51194843509f1a23c88869072fe2?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22d%22%3A1%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "2.77 GB"
+      },
+      {
+        "title": "Harry.Potter.e.a.Pedra.Filosofal.2001.BluRay.1080p.Dublado.5.1\n📦 👤 ~1 💾 1.54 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
+        "name": "[AD⚡] 📦 · 1080p BluRay BR · NerdFilmes · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/35e3e1b9172d374e7a63a0f2efdc9002a4a090c9?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22d%22%3A1%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "1.54 GB"
+      },
+      {
+        "title": "Harry Potter e a Pedra Filosofal (2001) 1080p Dublado\n📦 👤 ~1 💾 1.54 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
+        "name": "[AD⚡] 📦 · 1080p BR · NerdFilmes · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/20288b27c8a957b056af012f7283b7433364daa1?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22d%22%3A1%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "1.54 GB"
+      },
+      {
+        "title": "Harry Potter e a Pedra Filosofal -Dublado\n📦 👤 ~1 💾 699.54 MB ⚙️ Apache Torrent",
+        "name": "[AD⚡] 📦 · BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/04a483780ff98df68afb337747ec854081c34c71?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22d%22%3A1%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "699.54 MB"
+      },
+      {
+        "title": "Harry Potter e a Pedra Filosofal - Dublado.rmvb\n📦 👤 ~ 💾 495.88 MB ⚙️ The Pirate Bay",
+        "name": "[AD download] 📦 · BR · The Pirate Bay · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/1d6f37d43258c1a21cbfdb8048c5e538b9fab07a?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22d%22%3A1%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "495.88 MB"
+      },
+      {
+        "title": "Harry Potter and the Philosopher's Stone (2001) 2160p BRRip 5.1 10Bit x265 -YTS\n📦 👤 ~100 💾 7.15 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 4K · YTS · 👤 ~100",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/f6924fb6fb1c323a02386755fe3b88e0ec9f60cf?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "7.15 GB"
+      },
+      {
+        "title": "Harry Potter and the Sorcerers Stone 2001 Theatrical Cut UHD BluR\n📦 👤 ~27 💾 70.10 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 4K Cinema · TheRARBG · 👤 ~27",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/161845f501179d1166ba42c2f7818993961f0dad?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "70.10 GB"
+      },
+      {
+        "title": "Harry Potter and the Philosophers Stone 2001 Extended 1080p BluRay x264-OFT\n📦 👤 ~395 💾 6.89 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 1080p Extended BluRay · TheRARBG · 👤 ~395",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/527d08db6bc02c7cf0409f8de3fb6084af178aab?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "6.89 GB"
+      },
+      {
+        "title": "Harry Potter and the Philosopher's Stone (2001) 720p BRRip x264 -YTS\n📦 👤 ~100 💾 1.43 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 720p · YTS · 👤 ~100",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/bccec1c902aec6176ab7abcc975ec8c505695d4f?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "1.43 GB"
+      },
+      {
+        "title": "Harry Potter and the Sorcerer's Stone 2001 720p -Ozlem\n📦 👤 ~3 💾 1.17 GB ⚙️ The Pirate Bay",
+        "name": "[AD download] 📦 · 720p BluRay · The Pirate Bay · 👤 ~3",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/ab69982c50ceaa3ebfc15b04ceaf7e0762b09a72?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Sorcerer's%20Stone%22%2C%22Harry%20Potter%20and%20the%20Philosopher's%20Stone%22%2C%22Harry%20Potter%20e%20a%20Pedra%20Filosofal%22%5D%2C%22y%22%3A2001%2C%22i%22%3A%22tt0241527%22%7D&sig={{sig}}",
+        "size": "1.17 GB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

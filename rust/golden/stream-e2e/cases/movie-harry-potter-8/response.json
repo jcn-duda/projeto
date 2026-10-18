@@ -1,0 +1,67 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "Harry Potter e as Relíquias da Morte – Parte 2 [2160p WEB-DL DUBLADO 23.3 GB]\n📦 👤 ~1 💾 23.30 GB ⚙️ NerdFilmes",
+        "name": "[AD⚡] 📦 · 4K WEB-DL BR · NerdFilmes · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/e4c1e06e36df779cb839f8cd1a41cd429dbe73b0?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Deathly%20Hallows%3A%20Part%202%22%2C%22Harry%20Potter%20e%20as%20Rel%C3%ADquias%20da%20Morte%20-%20Parte%202%22%5D%2C%22y%22%3A2011%2C%22d%22%3A1%2C%22i%22%3A%22tt1201607%22%7D&sig={{sig}}",
+        "size": "23.30 GB"
+      },
+      {
+        "title": "Harry Potter e as Relíquias da Morte – Parte 2 [1080p WEB-DL DUBLADO 2.31 GB]\n📦 👤 ~1 💾 2.31 GB ⚙️ NerdFilmes",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · NerdFilmes · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/964bfde63f03b1150843c938862a3c1884f0febf?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Deathly%20Hallows%3A%20Part%202%22%2C%22Harry%20Potter%20e%20as%20Rel%C3%ADquias%20da%20Morte%20-%20Parte%202%22%5D%2C%22y%22%3A2011%2C%22d%22%3A1%2C%22i%22%3A%22tt1201607%22%7D&sig={{sig}}",
+        "size": "2.31 GB"
+      },
+      {
+        "title": "Harry Potter e as Relíquias da Morte: Parte 2 [1080p DUBLADO]\n📦 👤 ~1 💾 1.03 GB ⚙️ apachetorrent-cardigann",
+        "name": "[AD download] 📦 · 1080p BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/c513e8c24da2a294b8d65fd184d68b784599ad36?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Deathly%20Hallows%3A%20Part%202%22%2C%22Harry%20Potter%20e%20as%20Rel%C3%ADquias%20da%20Morte%20-%20Parte%202%22%5D%2C%22y%22%3A2011%2C%22d%22%3A1%2C%22i%22%3A%22tt1201607%22%7D&sig={{sig}}",
+        "size": "1.03 GB"
+      },
+      {
+        "title": "Harry Potter e as Relíquias da Morte Parte 2 (2011) [720p BLU-RAY DUAL 6.10 GB]\n📦 👤 ~1 💾 6.10 GB ⚙️ RedeTorrent",
+        "name": "[AD download] 📦 · 720p BluRay BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/5b9e85562e7ee53834da11117e49d36b91ed916d?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Deathly%20Hallows%3A%20Part%202%22%2C%22Harry%20Potter%20e%20as%20Rel%C3%ADquias%20da%20Morte%20-%20Parte%202%22%5D%2C%22y%22%3A2011%2C%22d%22%3A1%2C%22i%22%3A%22tt1201607%22%7D&sig={{sig}}",
+        "size": "6.10 GB"
+      },
+      {
+        "title": "Harry Potter e as Relíquias da Morte Parte 2 (2011) [720p BLU-RAY DUBLADO 1.02 GB]\n📦 👤 ~1 💾 1.03 GB ⚙️ RedeTorrent",
+        "name": "[AD download] 📦 · 720p BluRay BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/aca6b534934acd721b7fbac06960e73abc35c1a9?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Deathly%20Hallows%3A%20Part%202%22%2C%22Harry%20Potter%20e%20as%20Rel%C3%ADquias%20da%20Morte%20-%20Parte%202%22%5D%2C%22y%22%3A2011%2C%22d%22%3A1%2C%22i%22%3A%22tt1201607%22%7D&sig={{sig}}",
+        "size": "1.03 GB"
+      },
+      {
+        "title": "Harry Potter e as Relíquias da Morte – Parte 2 (2011) [1080p 8.71 GB]\n📦 👤 ~1 💾 8.71 GB ⚙️ Vaca Torrent",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · Vaca Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/807f4c06d4c9389f788355ebb4c5fd6b3c927a92?w=%7B%22n%22%3A%5B%22Harry%20Potter%20and%20the%20Deathly%20Hallows%3A%20Part%202%22%2C%22Harry%20Potter%20e%20as%20Rel%C3%ADquias%20da%20Morte%20-%20Parte%202%22%5D%2C%22y%22%3A2011%2C%22i%22%3A%22tt1201607%22%7D&sig={{sig}}",
+        "size": "8.71 GB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

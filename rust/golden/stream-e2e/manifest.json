@@ -1,0 +1,682 @@
+{
+  "format": "adom-stream-e2e/1",
+  "capturedAt": "2026-10-18T01:58:21.378Z",
+  "node": "v22.23.2",
+  "base": "{{base}}",
+  "user_config_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8",
+  "cases_file": "scripts/golden/casos-stream-e2e.json",
+  "cases": [
+    {
+      "id": "movie-ainda-estou-aqui",
+      "label": "BR recente — Ainda Estou Aqui (2024)",
+      "type": "movie",
+      "stream_id": "tt33015317",
+      "dir": "cases/movie-ainda-estou-aqui",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "15dc61d840ba0a072a66424ea107041a29f1c4aeedf15592e9b7c3dc2611354d",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-ano-duplo-monster",
+      "label": "Ano duplo — Godzilla (2014) vs BR: altYear do catálogo",
+      "type": "movie",
+      "stream_id": "tt2267998",
+      "dir": "cases/movie-ano-duplo-monster",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "1a337eb91a61ba696bf2dec173abb9198d323194f0742aa2a45502ae0e24d298",
+        "response.json": "3b065ccded446bc145563c6748a28e67b9405a65eef93fab9cfa60c45fd3826b"
+      }
+    },
+    {
+      "id": "movie-auto-da-compadecida",
+      "label": "BR nacional — O Auto da Compadecida (2000)",
+      "type": "movie",
+      "stream_id": "tt0261009",
+      "dir": "cases/movie-auto-da-compadecida",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "1c1a7e533aadeabf20f0cf631c2151852cb49f6ef77c7b7b121c82ea4697b152",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-bacurau",
+      "label": "BR nacional — Bacurau (2019)",
+      "type": "movie",
+      "stream_id": "tt9044788",
+      "dir": "cases/movie-bacurau",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "ea404ef906e3dbb9bbd29298faeafc12d87c099c47838112639c1cd58498cfe5",
+        "response.json": "077624e995077e66e65700bba2574ca908ba42b74cee2bbcf629ce07629f635b"
+      }
+    },
+    {
+      "id": "movie-carandiru",
+      "label": "BR nacional — Carandiru (2003)",
+      "type": "movie",
+      "stream_id": "tt0293005",
+      "dir": "cases/movie-carandiru",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "d5d29b0bb3c2cbeaa93612e361f43e03b4f2e11f341a234809ebcf0301d27132",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-central-do-brasil",
+      "label": "BR nacional — Central do Brasil (1998)",
+      "type": "movie",
+      "stream_id": "tt0140889",
+      "dir": "cases/movie-central-do-brasil",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "1407e41eaaa662352765829dc49cd411fa8ca1fe8388ee59e9de75a0d8527a70",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-cidade-de-deus",
+      "label": "BR nacional — Cidade de Deus (2002)",
+      "type": "movie",
+      "stream_id": "tt0317248",
+      "dir": "cases/movie-cidade-de-deus",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "4eaa3e58cbfe4a5571b786731cee754ace8276d0713b73a8ed78be4631501fc8",
+        "response.json": "90ad9cdda750f14bd9860cdbf524e66542a843607506487bb1052ea2dfd8bbf5"
+      }
+    },
+    {
+      "id": "movie-cidade-invisivel",
+      "label": "BR nacional — Cidade Invisível (filme, se existir): nome com acento",
+      "type": "movie",
+      "stream_id": "tt10545296",
+      "dir": "cases/movie-cidade-invisivel",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "6cc57744c36eb1f85c0e6276066f51ecdbf123dd21883c3edb2fad9a32661bc7",
+        "response.json": "1af944a865500b363747186e8a75b3e8101336e464108cdebf817b90bd53b28e"
+      }
+    },
+    {
+      "id": "movie-divertidamente-2",
+      "label": "Animação recente — Divertidamente 2 (2024): título BR difere do EN",
+      "type": "movie",
+      "stream_id": "tt22022452",
+      "dir": "cases/movie-divertidamente-2",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "99724871e44782e8eef40295c98bf778c0a3c83f9d88a6fca139fe44c0896071",
+        "response.json": "a5983373ae02afb668d399729e3d6bde390bb59e6c2b7d70805d927843dbcaf1"
+      }
+    },
+    {
+      "id": "movie-duna-parte-2",
+      "label": "Duna: Parte Dois (2024): título com dois-pontos (stripDiacritics/:)",
+      "type": "movie",
+      "stream_id": "tt15239678",
+      "dir": "cases/movie-duna-parte-2",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "eb0d73dacb41a7c1294a61f8226e7f004976ebbb08b660f78ccbd320b97d38fc",
+        "response.json": "67660c0779cad2d3d56b6dbe8b75337c9a57cd8d8a7c98b70b4455b0e1127090"
+      }
+    },
+    {
+      "id": "movie-fake-id-guard",
+      "label": "IMDb inexistente (filme): lista vazia + aviso de origem relativa",
+      "type": "movie",
+      "stream_id": "tt99999992",
+      "dir": "cases/movie-fake-id-guard",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "ee6d3d66edbc53ae45b8f229902c977e48760651e6a677c0c4a805c75bb08359",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-fast-furious-7",
+      "label": "Multiobra — Velozes e Furiosos 7 (2015): franquia longa",
+      "type": "movie",
+      "stream_id": "tt2820852",
+      "dir": "cases/movie-fast-furious-7",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "a4778b60c8742553f17f44ef67e03207fe7de08dbbb9083e78245d887e5787ae",
+        "response.json": "cf4abddcf66ed5987c48f464e4fa4c95a1ebf2cbdcf311cbfea03690bdbdf2af"
+      }
+    },
+    {
+      "id": "movie-gora",
+      "label": "Sigla com ponto na consulta — G.O.R.A. (2004): collapseAcronyms nos globais",
+      "type": "movie",
+      "stream_id": "tt0387808",
+      "dir": "cases/movie-gora",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "dfe5efc88a2ff8608ef38710ad57069a1500d7e10823b2bed85970482d952751",
+        "response.json": "a1c492006c0c10fd509e9575e2786d9802e40e269c18a1b554995b91718a6132"
+      }
+    },
+    {
+      "id": "movie-harry-potter-1",
+      "label": "Multiobra — Harry Potter e a Pedra Filosofal (2001): coleção TMDB",
+      "type": "movie",
+      "stream_id": "tt0241527",
+      "dir": "cases/movie-harry-potter-1",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "a7a2ba5785e16324acc903da1ba097221fc79a7b123b7a0290c0dc3f3cf401ff",
+        "response.json": "42c1b8e1091da53bd7050485a6d81e8c250b49a763a5976940c04526c80b63fa"
+      }
+    },
+    {
+      "id": "movie-harry-potter-8",
+      "label": "Multiobra — Harry Potter e as Relíquias da Morte Pt.2 (2011)",
+      "type": "movie",
+      "stream_id": "tt1201607",
+      "dir": "cases/movie-harry-potter-8",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "c9bb0d96bfafab0ce9c6ae208ac74e665546b318997103c165404d35adc37c11",
+        "response.json": "54d01f4773fa7b9c1547a24643afed8385b51dc5a0d497625a8dac868981b13d"
+      }
+    },
+    {
+      "id": "movie-inception",
+      "label": "Filme global — Inception (2010)",
+      "type": "movie",
+      "stream_id": "tt1375666",
+      "dir": "cases/movie-inception",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "c5700d6f5b2e2b11bf8b0c1195c2e827777252baec60c5123c6fd810d166efac",
+        "response.json": "fde9d5681fd0b8b8d88409268a16f9d80da46925f08ac5c8c56e995d9884d6ab"
+      }
+    },
+    {
+      "id": "movie-interstellar",
+      "label": "Filme global — Interstellar (2014)",
+      "type": "movie",
+      "stream_id": "tt0816692",
+      "dir": "cases/movie-interstellar",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "14126084896dc846d292d7408592caae24540ab1ecf5181a28703cccb3a3e2ab",
+        "response.json": "e8533e67f240526bc9861de282b35bf93852f9a23dc94713bef870a4b902ae1d"
+      }
+    },
+    {
+      "id": "movie-kung-fu-panda-4",
+      "label": "Animação recente — Kung Fu Panda 4 (2024): dublado BR em pack",
+      "type": "movie",
+      "stream_id": "tt1016148",
+      "dir": "cases/movie-kung-fu-panda-4",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "b0334b18a6bfb2348da35995b9f6831e9997588420171b844727f33c2c98aef5",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-matrix",
+      "label": "Filme global — Matrix (1999): lista comum EN",
+      "type": "movie",
+      "stream_id": "tt0133093",
+      "dir": "cases/movie-matrix",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "c5d36a5579f9e2b51b4a1353f48a8a2ab66003d921fb74542668d6f6a118ad4b",
+        "response.json": "fb9416d9a88aa853d699562bbbff4f3c63c87935786ab5be50bfcadf853b302f"
+      }
+    },
+    {
+      "id": "movie-monster-hunter",
+      "label": "Nome curto + ano — Monster Hunter (2020): régua do short-name-tail",
+      "type": "movie",
+      "stream_id": "tt6380824",
+      "dir": "cases/movie-monster-hunter",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "bcd146e75224419531aac121385bf4be334667a63517834adfd426e4c90bccf8",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-obscuro-sem-release",
+      "label": "Obra rara — lista vazia ou quase: aviso de lista vazia",
+      "type": "movie",
+      "stream_id": "tt10648342",
+      "dir": "cases/movie-obscuro-sem-release",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "9b4c6167a88e9696ee38a65174b292cfc0e3c5e43573f58dea36812e9d08f09a",
+        "response.json": "ca1412f74d1476bfeda0797fbf6f043930ce1f33bb2aecbe7c8e46b6d6bcc207"
+      }
+    },
+    {
+      "id": "movie-parasite",
+      "label": "BR dublado — Parasita (2019): vagas reservadas, cachedOnly",
+      "type": "movie",
+      "stream_id": "tt6751668",
+      "dir": "cases/movie-parasite",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "fc037c8f661c35f72bb226eb18b44bc2c9d4807b4b0777ed00921ace0b444da5",
+        "response.json": "a472b33e769cb98919e7d0804b520c08d4449303aaefbd3fa38456b58f4c67a4"
+      }
+    },
+    {
+      "id": "movie-swat-fogo-cruzado",
+      "label": "S.W.A.T. filme (2003): sigla com ponto nos BR",
+      "type": "movie",
+      "stream_id": "tt0343819",
+      "dir": "cases/movie-swat-fogo-cruzado",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "c005fbf84679997141949ca42e66a1f0762374009dde84f76a89dab15b5ea400",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "movie-the-dark-knight",
+      "label": "Filme global — The Dark Knight (2008): franquia, multiobra candidata",
+      "type": "movie",
+      "stream_id": "tt0468569",
+      "dir": "cases/movie-the-dark-knight",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "6d6abffe65cb5242c361cde5ff76a55f238ecc080d5f1c9c10f43ecbc751dc24",
+        "response.json": "f0951bf8e50f4436a4e27193712f1864b354fd849e3de5c067f6791ff3f7db76"
+      }
+    },
+    {
+      "id": "movie-the-odyssey-nolan",
+      "label": "Filme antes do 1º lançamento doméstico — The Odyssey (2026): non-feature",
+      "type": "movie",
+      "stream_id": "tt1517268",
+      "dir": "cases/movie-the-odyssey-nolan",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "48fd7a8968acaf26cd39e773ebf6f67b0f5b9edb6be040eea4a8327d9625f54c",
+        "response.json": "32997f52391443f63a2a0c17b51bea6764a4c7871f7df29de48e2bbe42629c3a"
+      }
+    },
+    {
+      "id": "movie-trainspotting",
+      "label": "Filme global — Trainspotting (1996): mesmo id do validate-docker",
+      "type": "movie",
+      "stream_id": "tt0117731",
+      "dir": "cases/movie-trainspotting",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "41a28dad96fd92a7ecc989e0fd58c4afa204e035093c0799d06a62ee8de59b21",
+        "response.json": "a0a65af8183f9e610fbb31076fe3cf9724dd72c010aa32dcfebe2eb60d1afb44"
+      }
+    },
+    {
+      "id": "movie-tropa-de-elite",
+      "label": "BR nacional — Tropa de Elite (2007)",
+      "type": "movie",
+      "stream_id": "tt0862716",
+      "dir": "cases/movie-tropa-de-elite",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "eaa453e3581e10797d40b9a370428133e66e602da25512fe251ae008990e449c",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+      }
+    },
+    {
+      "id": "series-3-percent-s01e01",
+      "label": "Série BR — 3% (3 Por Cento) S01E01",
+      "type": "series",
+      "stream_id": "tt5655606:1:1",
+      "dir": "cases/series-3-percent-s01e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "0af3add8a114d8c8b73d28fb6e37c32c8a122c72727749feff5965a62d1a9218",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-anatomy-of-s1-pack",
+      "label": "Pack de temporada — Brooklyn S02 (temporada sem episódio)",
+      "type": "series",
+      "stream_id": "tt2429882:2",
+      "dir": "cases/series-anatomy-of-s1-pack",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "9917871d5ba62852098ea933008635847bab544eee84db08a7f8a6eed609a697",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-anime-dragon-ball-z-frieza",
+      "label": "Anime — Dragon Ball Z S04E10: pack antigo, multiobra de anime",
+      "type": "series",
+      "stream_id": "tt0280249:4:10",
+      "dir": "cases/series-anime-dragon-ball-z-frieza",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "bdc8d3f1622549019aeb17a2c9c7131a058b3b7880162cd8adaa697571d95444",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-anime-naruto-s01e01",
+      "label": "Anime — Naruto S01E01: dublado BR clássico",
+      "type": "series",
+      "stream_id": "tt0409591:1:1",
+      "dir": "cases/series-anime-naruto-s01e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "2cba6db5614e55eb1c0547bbb00decf6673050e4bb324021a8ea0fd942615b6e",
+        "response.json": "077624e995077e66e65700bba2574ca908ba42b74cee2bbcf629ce07629f635b"
+      }
+    },
+    {
+      "id": "series-anime-one-piece-wano",
+      "label": "Anime — One Piece S21E01 (Wano): dublado BR de anime",
+      "type": "series",
+      "stream_id": "tt0388629:21:1",
+      "dir": "cases/series-anime-one-piece-wano",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "b90e921ea250abce2686ee07dd6031a019d961e66d520036ace6a20931d54895",
+        "response.json": "73bd2bb1dedee565f4587197c8b5b54eb19dc49f24fc2142ec91b7a012df42b3"
+      }
+    },
+    {
+      "id": "series-breaking-bad-s01e01",
+      "label": "Série — Breaking Bad S01E01: episódio e pack tardio",
+      "type": "series",
+      "stream_id": "tt0903747:1:1",
+      "dir": "cases/series-breaking-bad-s01e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "5607ce0975087afaf0e279ed055dd05fd297164adf0ddd626daa0e08e5319bc5",
+        "response.json": "2e66a8d4964aaa04d11efa74deda5c1c1bc6a1bd7479368ed8f5c97a24130e82"
+      }
+    },
+    {
+      "id": "series-breaking-bad-s05-pack",
+      "label": "Pack de temporada — Breaking Bad S05 (id de temporada)",
+      "type": "series",
+      "stream_id": "tt0903747:5",
+      "dir": "cases/series-breaking-bad-s05-pack",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "4a5d85fe69440070f8cf112b07cac7cb21d4fa25c9624cd20a85a3e6f6c87ba1",
+        "response.json": "80c386ae30e8eccd7c304546310cb8e1af3e1516d0ade78ddfb071e960d7832b"
+      }
+    },
+    {
+      "id": "series-breaking-bad-s05e14",
+      "label": "Série — Breaking Bad S05E14: Ozymandias",
+      "type": "series",
+      "stream_id": "tt0903747:5:14",
+      "dir": "cases/series-breaking-bad-s05e14",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "9ffc81341d88611ccc1480e65df62215764045492e2b974be0f1d72a65403079",
+        "response.json": "40dc18de03c2bb29c49acabae84d5ca28a2b646fa7574848341de379db5e6c29"
+      }
+    },
+    {
+      "id": "series-brooklyn-nine-nine-s05e04",
+      "label": "Série — Brooklyn Nine-Nine S05E04: hífen no título",
+      "type": "series",
+      "stream_id": "tt3107288:5:4",
+      "dir": "cases/series-brooklyn-nine-nine-s05e04",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "d1b7c6daf6c14e0acc2158d415657e6dda16cbd56595e3204079fc1c2b91308f",
+        "response.json": "8eb552d1bf8c1ea2370612d9d20f292174007977001a71d503a378498b49408c"
+      }
+    },
+    {
+      "id": "series-cidade-invisivel-s01e01",
+      "label": "Série BR — Cidade Invisível S01E01: acento na consulta pt-BR",
+      "type": "series",
+      "stream_id": "tt10545290:1:1",
+      "dir": "cases/series-cidade-invisivel-s01e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "b2d664e8f92efe6b4e1344abedfea430335e74d7cdc25be1d1fafacf625746d8",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-dark-s01e01",
+      "label": "Série — Dark S01E01: alemã, dublado no BR",
+      "type": "series",
+      "stream_id": "tt5753856:1:1",
+      "dir": "cases/series-dark-s01e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "630897c8e2648e0a39d547c53999bce9fdfc0c658a9b50eb932f22292986843a",
+        "response.json": "6fdea370c0dfedfeeb35a5d73b92e6c77f12f0767e4b413bbb5c26ba91fbb418"
+      }
+    },
+    {
+      "id": "series-fake-id-guard",
+      "label": "IMDb inexistente — obra fantasma: lista vazia garantida, meta null",
+      "type": "series",
+      "stream_id": "tt99999991:1:1",
+      "dir": "cases/series-fake-id-guard",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "b2a12c57a6b7b1ca8a373f58afaf536bea78b2f5a8bf1b599222d666c1fed962",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-friends-s02e07",
+      "label": "Série clássica — Friends S02E07",
+      "type": "series",
+      "stream_id": "tt0108778:2:7",
+      "dir": "cases/series-friends-s02e07",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "a073c0783923da31ee2ce2ade66080e3bdb978e5c7f2f16ab1da169067fbd31d",
+        "response.json": "dbd60b9dcf735bb8071c3893ce7763b53bb14b2b63b00e5f1176c3fd5486938c"
+      }
+    },
+    {
+      "id": "series-got-s08e03",
+      "label": "Série — Game of Thrones S08E03",
+      "type": "series",
+      "stream_id": "tt0944947:8:3",
+      "dir": "cases/series-got-s08e03",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "1c1bc68201a1d03ef33988d279abbf862a8385aacba5e1bf654958f669ef7e0e",
+        "response.json": "11d684e5a78c1309a178268c0709d11debeb09351b2b0062baa2822d0f1664f0"
+      }
+    },
+    {
+      "id": "series-la-casa-de-papel-s03e01",
+      "label": "Série — La Casa de Papel S03E01: título BR difere",
+      "type": "series",
+      "stream_id": "tt6468322:3:1",
+      "dir": "cases/series-la-casa-de-papel-s03e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "f1200516c5ea4de658e363f6a17cb0d7a88c14a4eebf2d50e96621831d5e12d4",
+        "response.json": "0867fdb3f6cfc46bf33c2e7093506c00e4d29680bb38d6d3d8770b4d7805ecf9"
+      }
+    },
+    {
+      "id": "series-monster-dahmer-e01",
+      "label": "Série Monster (2022) E01: ano duplo global/BR no matching",
+      "type": "series",
+      "stream_id": "tt13220896:1:1",
+      "dir": "cases/series-monster-dahmer-e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "a2daa1b5930ce38b883e87fd4e7768060243662aa19a29c4a9fc42e1650187ae",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-multiwork-marvel-aos",
+      "label": "Série Marvel Agents of SHIELD S05E01: nome compartilhado com filme",
+      "type": "series",
+      "stream_id": "tt2364582:5:1",
+      "dir": "cases/series-multiwork-marvel-aos",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "b3e5a3adcce08627570ab72d69a3fded92518dab9e9acaf6745865f65ea85c9b",
+        "response.json": "c46eea794655f74f762e2b6d23e570c86a3e04c37782e477cc61bbfa7a73e625"
+      }
+    },
+    {
+      "id": "series-obscure-empty-tv",
+      "label": "Série rara — lista vazia: aviso de nenhum stream",
+      "type": "series",
+      "stream_id": "tt1837526:1:1",
+      "dir": "cases/series-obscure-empty-tv",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "8cd4a22e4db509e08b45b2f4c1bd2e8d92163ba7cf9a90d50a3074b7c219977e",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-peaky-blinders-s01e01",
+      "label": "Série — Peaky Blinders S01E01",
+      "type": "series",
+      "stream_id": "tt2442560:1:1",
+      "dir": "cases/series-peaky-blinders-s01e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "66f4e5d84254da2c730a0837eb388a6bdcd832d99aa7fb5a7443eeb80a3566bc",
+        "response.json": "b19f26a28529c3a4e678ae0a976eeff7f178b28f600cc434aad163f88f03cf8f"
+      }
+    },
+    {
+      "id": "series-round-6-s02e01",
+      "label": "Série — Round 6 S02E01: título BR (Round 6 vs Squid Game)",
+      "type": "series",
+      "stream_id": "tt10919420:2:1",
+      "dir": "cases/series-round-6-s02e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "ee0999b3b51f6147e2edee4b2fb9df15d6bfced90a6fb785992517b90b0c9376",
+        "response.json": "4227ba209016b436af63467bd429a82badef6db0634180ebf7d5a3e11b98c45a"
+      }
+    },
+    {
+      "id": "series-stranger-things-s04e01",
+      "label": "Série — Stranger Things S04E01",
+      "type": "series",
+      "stream_id": "tt4574334:4:1",
+      "dir": "cases/series-stranger-things-s04e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "e1dc3c7f0856dca2606e9c2cc8c6d89696123a6d4bcf6a920b0ea44766ee43d7",
+        "response.json": "4b816badcc79642e8a91ce9d6ebbfdc7806980eedecda04d653ab4b659cbd910"
+      }
+    },
+    {
+      "id": "series-swat-serie-s06e01",
+      "label": "S.W.A.T. série S06E01: sigla com pontos no título BR",
+      "type": "series",
+      "stream_id": "tt6203426:6:1",
+      "dir": "cases/series-swat-serie-s06e01",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "be3013328a81b66a96d1a3958faf5af493778c7b61fdde916585a65307e32a77",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+      }
+    },
+    {
+      "id": "series-the-last-of-us-s01e05",
+      "label": "Série — The Last of Us S01E05",
+      "type": "series",
+      "stream_id": "tt3581920:1:5",
+      "dir": "cases/series-the-last-of-us-s01e05",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "8ccad9ce6cf86f40400e7e72e7233e6ab0dd6bf1b2dcf5af9473fb2e66fc82ca",
+        "response.json": "71bd6f9ddc4558fcab9ee4c74e669181477347b846053e7d9de407c4f90ff067"
+      }
+    },
+    {
+      "id": "series-the-office-s03e22",
+      "label": "Série — The Office US S03E22",
+      "type": "series",
+      "stream_id": "tt0386676:3:22",
+      "dir": "cases/series-the-office-s03e22",
+      "status": 200,
+      "cacheMaxAge": 0,
+      "files": {
+        "request.json": "697e0604fddc1a305bad6a6c292f3ec6a3f37e4da1e191b3b03cca2da3588545",
+        "response.json": "2c081755978edd7c7a6f1bd032f006c29b767f49b5151465701e0464ee6321fd"
+      }
+    }
+  ],
+  "notCaptured": [
+    "metadados da obra (Cinemeta/TMDB): o /stream não os devolve; dependem de /internal/search/meta (F1.1)",
+    "itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: dependem das rotas internas de busca",
+    "respostas de cache do debrid (⚡ por hash, arquivos do pack, tamanhos): dependem de rotas internas de debrid",
+    "o segmento de config e a assinatura HMAC nunca são gravados (sig vira {{sig}}); replay exige --user-config e o segredo do operador",
+    "relógio: Date/ETag/age e duração de cada requisição não entram no corpus",
+    "estado do acervo (banco de magnets / índice de releases) no instante da captura não é versionado",
+    "ordem de chaves do JSON e ordem da lista de streams são as do Node naquele instante; a comparação de sombra as mascara"
+  ]
+}

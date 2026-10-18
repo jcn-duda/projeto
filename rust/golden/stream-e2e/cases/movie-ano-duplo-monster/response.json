@@ -1,0 +1,76 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "Garota Exemplar (2014) [1080p BLU-RAY DUAL 2.3 GB]\n📦 👤 ~1 💾 2.30 GB ⚙️ RedeTorrent",
+        "name": "[AD download] 📦 · 1080p BluRay BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/695f10afdaaa0c2469f8a8ddd6ef106222694a85?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
+        "size": "2.30 GB"
+      },
+      {
+        "title": "Garota Exemplar (2014) [1080p BLU-RAY DUBLADO 2.2 GB]\n📦 👤 ~1 💾 2.28 GB ⚙️ RedeTorrent",
+        "name": "[AD download] 📦 · 1080p BluRay BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/a6615086c835a3681a4be692bac738407c5683ea?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
+        "size": "2.28 GB"
+      },
+      {
+        "title": "Garota Exemplar [1080p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 2.48 GB ⚙️ apachetorrent-cardigann",
+        "name": "[AD download] 📦 · 1080p BluRay BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/056e536dc0df1cda52124424f192abb97e31479f?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
+        "size": "2.48 GB"
+      },
+      {
+        "title": "Garota Exemplar (2014) [720p BLU-RAY DUAL 1 GB]\n📦 👤 ~1 💾 1.09 GB ⚙️ RedeTorrent",
+        "name": "[AD download] 📦 · 720p BluRay BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/65c836046b56662231d7c1787436af1bb0f4f876?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
+        "size": "1.09 GB"
+      },
+      {
+        "title": "Garota Exemplar (2014) [720p BLU-RAY DUBLADO 1.2 GB]\n📦 👤 ~1 💾 1.28 GB ⚙️ RedeTorrent",
+        "name": "[AD download] 📦 · 720p BluRay BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/5a7d77d8256fbc37e46ccb144f3745565f5e2ae2?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
+        "size": "1.28 GB"
+      },
+      {
+        "title": "Garota Exemplar (2014) [1080p BLU-RAY LEGENDADO 2.1 GB]\n📦 👤 ~1 💾 2.10 GB ⚙️ RedeTorrent",
+        "name": "[AD⚡] 📦 · 1080p BluRay LEG BR · RedeTorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/d2310f718eb02f98665266786f7d00b42a20f055?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
+        "size": "2.10 GB"
+      },
+      {
+        "title": "Garota Exemplar [Gone Girl]\n📦 👤 ~1 💾 4.46 GB ⚙️ ComandoTorrents",
+        "name": "[AD⚡] 📦 · WEB-DL BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/5e75b9e56ef8cd2ae9215db0c97970b1b1f3e2e4?w=%7B%22n%22%3A%5B%22Gone%20Girl%22%2C%22Garota%20Exemplar%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt2267998%22%7D&sig={{sig}}",
+        "size": "4.46 GB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

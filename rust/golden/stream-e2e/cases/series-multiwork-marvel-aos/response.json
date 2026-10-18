@@ -1,0 +1,55 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "Agents of S.H.I.E.L.D. 5ª Temporada E01 [720p DUBLADO]\n📦 👤 ~1 ⚙️ BLUDV",
+        "name": "[AD download] 📦 · 720p BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/5bf896d2e9d2250ed68b702350c05915bbdbeb48?s=5&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt2364582%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "Agents of S.H.I.E.L.D. 5ª Temporada [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 688.87 MB 📦 pack 14.80 GB (média) ⚙️ BLUDV",
+        "name": "[AD download] 📦 · 720p WEB-DL BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/24f27946ccffead43ecab3af87ad87ccbf9862e1?s=5&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt2364582%22%7D&sig={{sig}}",
+        "size": "688.87 MB"
+      },
+      {
+        "title": "Agents of S.H.I.E.L.D. 5ª Temporada [1080p LEGENDADO]\n📦 👤 ~1 ⚙️ BLUDV",
+        "name": "[AD download] 📦 · 1080p WEBRip LEG BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/600a67a314bce683d7c992321c31ac6086a60207?s=5&e=1&w=%7B%22i%22%3A%22tt2364582%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "Agents of S.H.I.E.L.D. 5ª Temporada [720p LEGENDADO]\n📦 👤 ~1 ⚙️ BLUDV",
+        "name": "[AD download] 📦 · 720p WEBRip LEG BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/415b6ce9e2fb31456f49b15fd294374844bf80c7?s=5&e=1&w=%7B%22i%22%3A%22tt2364582%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "Marvel Agents of SHIELD S05E01 720p AMZN WEB DL x264 AAC\n👤 5 💾 300.01 MB ⚙️ LimeTorrents",
+        "name": "[AD download] 720p WEB-DL · LimeTorrents · 👤 5",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/4b92b8c06b389e15841288f757ed8ca836661c98?s=5&e=1&w=%7B%22i%22%3A%22tt2364582%22%7D&sig={{sig}}",
+        "size": "300.01 MB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "Breaking Bad 2008 - 1ª Temporada Completa [1080p] WWW.BLUDV.COM\n👤 1 💾 1.14 GB 📦 pack 6.80 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 1080p DUAL BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/e597915466c4bbec403804f33e947a23bc9b4b98?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "1.14 GB"
+      },
+      {
+        "title": "Breaking Bad 2008 - 1ª Temporada Completa WWW.BLUDV.COM\n👤 1 💾 751.32 MB 📦 pack 4.38 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p DUAL BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/abde0d9e255eae8ac5758ec9203f91ef612801fa?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "751.32 MB"
+      },
+      {
+        "title": "Breaking Bad - 1ª Temporada (2008) 720p Dual Áudio - Douglasvip\n👤 1 💾 415.63 MB 📦 pack 2.42 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/e9876a1688fc774068fecc94a991f300f45cf2b7?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "415.63 MB"
+      },
+      {
+        "title": "Breaking Bad 1ª Temporada (2008) BluRay 720p Dublado\n📦 👤 ~1 💾 411.06 MB 📦 pack 2.81 GB (média) ⚙️ kickasstorrents.to",
+        "name": "[AD download] 📦 · 720p BluRay BR · kickass · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/12d435140bb63a9f9bd1a0a99537f4e98389b709?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "411.06 MB"
+      },
+      {
+        "title": "Breaking Bad 1ª Temporada (2008) BDRip 720p Dublado\n📦 👤 ~ 💾 411.06 MB 📦 pack 2.81 GB (média) ⚙️ kickasstorrents.to",
+        "name": "[AD download] 📦 · 720p BR · kickass · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/714da393e627fffd6e4d0a42d89815edeb2da16b?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "411.06 MB"
+      },
+      {
+        "title": "1ª Temporada - Breaking Bad - Dublado - T3GP\n📦 👤 ~1 💾 120.92 MB 📦 pack 846.41 MB (média) ⚙️ kickasstorrents.to",
+        "name": "[AD download] 📦 · BR · kickass · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/d13bbcaad8e6e00e78d2afa0101545b8c4e435ab?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "120.92 MB"
+      },
+      {
+        "title": "Breaking Bad S01 2008 BDRip Dublado Pt-BR\n📦 👤 ~1 💾 462.26 MB 📦 pack 3.16 GB (média) ⚙️ The Pirate Bay",
+        "name": "[AD download] 📦 · BR · The Pirate Bay · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/8f5af5cd4ad3c5b6d046dc1aae86e73a09c6adab?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "462.26 MB"
+      },
+      {
+        "title": "Breaking Bad S01E01 Pilot 2160p NF WEB DL DDP5 1 H 265 XEBEC\n📦 👤 ~41 💾 6.82 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 4K WEB-DL · LimeTorrents · 👤 ~41",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/0d9b239b02f5fa8c4cdda71f3ccfde93ae918bd9?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "6.82 GB"
+      },
+      {
+        "title": "Breaking Bad S01E01 Pilot 2160p NF WEBRip DTS x264 iON\n📦 👤 ~1 💾 17.73 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 4K WEBRip · LimeTorrents · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/173787c5415303d73885a07f49cd1fd96de0d5f8?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "17.73 GB"
+      },
+      {
+        "title": "Breaking.Bad.S01E01.Pilot.1080p.HEVC.x265-MeGusta\n📦 👤 ~99 💾 1.11 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 1080p · TheRARBG · 👤 ~99",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/0c9fa2cb87da2d5fccd4af71fb1e0a7e7638b4e9?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "1.11 GB"
+      },
+      {
+        "title": "Breaking Bad S01E01 07 1080p NF WEB DL ITA ENG DDP5 1 AV1 G66\n📦 👤 ~88 💾 2.08 GB 📦 pack 11.91 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · LimeTorrents · 👤 ~88",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/6a12ce77043c07604314f30fa62f2b17ea8d4ab9?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "2.08 GB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

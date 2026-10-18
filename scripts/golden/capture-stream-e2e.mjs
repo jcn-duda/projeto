@@ -139,14 +139,16 @@ function normalizeBase(raw) {
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') fail('--base precisa ser http(s)');
   if (parsed.search || parsed.hash) fail('--base não pode ter query nem fragmento');
-  parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+  // `URL.pathname` não aceita string vazia (atribuir '' devolve '/'): guardo o
+  // prefixo numa propriedade própria para não montar `//stream/...`.
+  parsed.prefix = parsed.pathname.replace(/\/+$/, '');
   return parsed;
 }
 
 /** Contexto de mascaramento: tudo que é segredo/host sai do corpus. */
 function maskingContext({ base, token, userConfig }) {
   return {
-    baseOrigin: base ? base.origin + base.pathname : '',
+    baseOrigin: base ? base.origin + base.prefix : '',
     userConfig: userConfig || '',
     token: token || '',
   };
@@ -221,7 +223,7 @@ function pickHeaders(headers, allow) {
  * pode parecer "corpus vazio".
  */
 async function captureCase({ target, base, token, userAgent, ctx }) {
-  const url = `${base.origin}${base.pathname}${streamPath(ctx.userConfig, target)}`;
+  const url = `${base.origin}${base.prefix}${streamPath(ctx.userConfig, target)}`;
   const headers = { 'user-agent': userAgent };
   if (token) headers['x-indexer-test-token'] = token;
 

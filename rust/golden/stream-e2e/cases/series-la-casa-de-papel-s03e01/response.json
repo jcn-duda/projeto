@@ -1,0 +1,76 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "La Casa de Papel 3ª Temporada E01 [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 14.20 GB ⚙️ Apache Torrent",
+        "name": "[AD download] 📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/ccff33f36b58a663608d90d402555670b8295298?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "size": "14.20 GB"
+      },
+      {
+        "title": "La Casa de Papel 3ª Temporada E01 [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 9.22 GB ⚙️ Rede Torrent",
+        "name": "[AD download] 📦 · 720p WEB-DL BR · Rede Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/ac42c26432f1915326f6a7394ca3174697600fc7?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "size": "9.22 GB"
+      },
+      {
+        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [1080p DUBLADO 9 GB]\n📦 👤 ~1 💾 1.13 GB 📦 pack 9.00 GB (média) ⚙️ BLUDV",
+        "name": "[AD download] 📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/cc9259121bba7b83f8a4206672964c21233b5deb?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "size": "1.13 GB"
+      },
+      {
+        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [720p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.00 GB 📦 pack 8.00 GB (média) ⚙️ BLUDV",
+        "name": "[AD download] 📦 · 720p WEB-DL BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/a2a8433a4d267b4a6f412b10a95e6391ab64c1aa?s=3&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "size": "1.00 GB"
+      },
+      {
+        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [1080p LEGENDADO 12 GB]\n📦 👤 ~1 💾 1.50 GB 📦 pack 12.00 GB (média) ⚙️ TorrentDosFilmes",
+        "name": "[AD download] 📦 · 1080p WEB-DL LEG BR · TorrentDos · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/139895ac2694cc37d2eac42c5662be1bade3ec17?s=3&e=1&w=%7B%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "size": "1.50 GB"
+      },
+      {
+        "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [720p LEGENDADO 7.4 GB]\n📦 👤 ~1 💾 947.20 MB 📦 pack 7.40 GB (média) ⚙️ TorrentDosFilmes",
+        "name": "[AD download] 📦 · 720p WEB-DL LEG BR · TorrentDos · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/d48ba8cecca284411a3e21e84467813944b306ab?s=3&e=1&w=%7B%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "size": "947.20 MB"
+      },
+      {
+        "title": "Money.Heist.La.casa.de.papel.S03.ITA.SPA.1080p.NF.WEB-DLMux.DD5.1.x264-Morpheus\n📦 👤 ~334 💾 1.70 GB 📦 pack 13.63 GB (média) ⚙️ 1337x",
+        "name": "[AD⚡] 📦 · 1080p · 1337x · 👤 ~334",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/e11571043811c190ebf673645c02297581ee5e16?s=3&e=1&w=%7B%22i%22%3A%22tt6468322%22%7D&sig={{sig}}",
+        "size": "1.70 GB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

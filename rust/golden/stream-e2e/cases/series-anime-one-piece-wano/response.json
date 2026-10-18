@@ -1,0 +1,69 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "One Piece - A Série - FAN DUB [1080p WEBRIP DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "[AD download] 📦 · 1080p WEBRip BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/4e3ac1f08036068a0a20855bf1cb7c5a979c69e6?s=21&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "One Piece WEB-DL – E785 [1080p LEGENDADO opção 56]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "[AD download] 📦 · 1080p WEB-DL LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/49e404c1127d8a54ea4b5f2d097b5d891a507bd6?s=21&e=1&w=%7B%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "One Piece E803 [720p]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "[AD download] 📦 · 720p BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/00a3923223a935cd7b1e402da22fcabfb6fd9206?s=21&e=1&w=%7B%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "One Piece E821 [720p]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "[AD download] 📦 · 720p BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/0150c9804911443f63faedda61b11ad6c1d3cbba?s=21&e=1&w=%7B%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "One Piece E796 [720p]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "[AD download] 📦 · 720p BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/03145e1eda5d25586bc78771d00615b6df9818b2?s=21&e=1&w=%7B%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "One Piece\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "[AD download] 📦 · BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/3de0b1b63abb30d1b8754b4fc1c1408ee8f62aae?s=21&e=1&w=%7B%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "One Piece\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "[AD download] 📦 · BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/021e0257bb01d5d441c0eee84200d3695bdfda45?s=21&e=1&w=%7B%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

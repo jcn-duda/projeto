@@ -1,0 +1,47 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "infoHash": "f65075b69b07c2a7e846cc270025cd38e1de3460",
+        "title": "Round 6 2ª Temporada [1080p DUBLADO 18.58 GB]\n📦 👤 ~1 💾 2.65 GB 📦 pack 18.58 GB (média) ⚙️ apachetorrent-cardigann",
+        "name": "📦 · 1080p WEB-DL BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.65 GB"
+      },
+      {
+        "infoHash": "f8e69b75d2baae8d5b2db89b5893361ba6015e96",
+        "title": "Round 6 2ª Temporada (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 2.66 GB 📦 pack 18.60 GB (média) ⚙️ BLUDV",
+        "name": "📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.66 GB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

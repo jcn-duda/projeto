@@ -1,0 +1,89 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "The Last of Us 1ª Temporada E05 [2160p DUBLADO]\n📦 👤 ~1 💾 2.50 GB ⚙️ apachetorrent-cardigann",
+        "name": "[AD download] 📦 · 4K WEB-DL BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/55c496d5ad6e6b2259cee3d6512c98a80e4962d3?s=1&e=5&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "2.50 GB"
+      },
+      {
+        "title": "The Last of Us 1ª Temporada E05 [1080p DUBLADO]\n📦 👤 ~1 💾 2.50 GB ⚙️ apachetorrent-cardigann",
+        "name": "[AD download] 📦 · 1080p WEB-DL BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/6e5ab1aed82fd9bb4d559b65043e2d06f01aa042?s=1&e=5&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "2.50 GB"
+      },
+      {
+        "title": "The Last of Us 1ª Temporada (2023) E05 [1080p DUBLADO]\n📦 👤 ~1 ⚙️ BLUDV",
+        "name": "[AD download] 📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/6f30b90d79f9a9f3a235d39cc89f459ed8be1cba?s=1&e=5&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt3581920%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "The Last of Us 1ª Temporada E05 [720p DUBLADO]\n📦 👤 ~1 💾 2.50 GB ⚙️ apachetorrent-cardigann",
+        "name": "[AD download] 📦 · 720p WEB-DL BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/31d26d534f5a8c677de58a7d8e9d18dc78d93517?s=1&e=5&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "2.50 GB"
+      },
+      {
+        "title": "The Last of Us (2023) S01 [1080p DUAL opção 9]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
+        "name": "[AD download] 📦 · 1080p WEB-DL BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/1335ea9066a6d66fb62d1eed1a3e1424707e6c5a?s=1&e=5&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt3581920%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "The Last of Us 1ª Temporada (2023) [2160p LEGENDADO opção 39]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
+        "name": "[AD download] 📦 · 4K WEB-DL LEG BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/3fa6ca5cd69c52bef5f429a51f727056cb796a80?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "The Last of Us S01e01-09 [1080p Ita Eng Spa h265 10bit SubS] byMe7alh [MIRCrew]\n📦 👤 ~16 ⚙️ The Pirate Bay",
+        "name": "[AD download] 📦 · 1080p · The Pirate Bay · 👤 ~16",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/a09690599bec78db3b07bc82e17a6cead56ca4f2?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "The Last of Us S01e01-09 [720p Ita Eng Spa SubS] byMe7alh [MIRCrew]\n📦 👤 ~3 ⚙️ The Pirate Bay",
+        "name": "[AD download] 📦 · 720p · The Pirate Bay · 👤 ~3",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/f486cf27f1f4dd26b66e40cf714a705ca405c2a9?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}"
+      },
+      {
+        "title": "The Last of Us S01 Complete 2160p WEBRip DDP5.1 DoVi HDR H.265-HODL\n📦 👤 ~42 💾 1.79 GB 📦 pack 16.12 GB (média) ⚙️ The Pirate Bay",
+        "name": "[AD download] 📦 · 4K WEBRip · The Pirate Bay · 👤 ~42",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/e8b14f80421e2f38926e8bb2135c93c7bd344443?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "1.79 GB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

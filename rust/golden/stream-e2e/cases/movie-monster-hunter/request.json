@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/{{config}}/stream/movie/tt6380824.json",
+  "headers": {
+    "user-agent": "adom-stream-e2e/1"
+  },
+  "user_config_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8"
+}
