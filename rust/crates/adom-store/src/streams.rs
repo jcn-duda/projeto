@@ -9,9 +9,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use adom_core::{prefix, quota_for};
-use adom_search::{
-    StoreHit, StreamsEntry, SwrStore, MAX_TTL_SECONDS, STREAM_STALE_GRACE_SECONDS,
-};
+use adom_search::{StoreHit, StreamsEntry, SwrStore, MAX_TTL_SECONDS, STREAM_STALE_GRACE_SECONDS};
 use rusqlite::{params, Connection};
 
 const SCHEMA: &str = "
@@ -175,6 +173,10 @@ impl StreamsStore {
             )
             .map_err(|err| err.to_string())?;
         Ok(n as usize)
+    }
+
+    pub fn is_empty(&self) -> Result<bool, String> {
+        Ok(self.len()? == 0)
     }
 
     pub fn quota(&self) -> u64 {

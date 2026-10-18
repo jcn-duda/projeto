@@ -77,21 +77,24 @@ fn ttl_grampeado_em_60s() {
     let store = StreamsStore::open_memory_with_quota(10).unwrap();
     let k = key("ttl");
     store.set(&k, &playable(), 900, 1_000).unwrap();
-    assert!(
-        MAX_TTL_SECONDS < 900,
-        "pré-condição: pedido acima do teto"
-    );
+    const {
+        assert!(MAX_TTL_SECONDS < 900, "pré-condição: pedido acima do teto");
+    }
     // Com graça 0: no último ms do TTL grampeado serve; 1ms depois não.
-    assert!(store.get_with_stale(&k, 0, 1_000 + 60_000).unwrap().is_some());
-    assert!(store.get_with_stale(&k, 0, 1_000 + 60_001).unwrap().is_none());
+    assert!(store
+        .get_with_stale(&k, 0, 1_000 + 60_000)
+        .unwrap()
+        .is_some());
+    assert!(store
+        .get_with_stale(&k, 0, 1_000 + 60_001)
+        .unwrap()
+        .is_none());
 }
 
 #[test]
 fn recusa_namespace_alheio() {
     let store = StreamsStore::open_memory_with_quota(10).unwrap();
-    let err = store
-        .set("davail:v1:x", &playable(), 60, 0)
-        .unwrap_err();
+    let err = store.set("davail:v1:x", &playable(), 60, 0).unwrap_err();
     assert!(err.contains("fora do namespace"));
 }
 
@@ -132,6 +135,9 @@ fn arquivo_temp_abre_e_persiste() {
         assert_eq!(store.quota(), 10);
     }
     let reopened = StreamsStore::open_with_quota(&path, 10).unwrap();
-    let entry = reopened.get(&key("disk"), 2_000).unwrap().expect("persistiu");
+    let entry = reopened
+        .get(&key("disk"), 2_000)
+        .unwrap()
+        .expect("persistiu");
     assert_eq!(entry.debrid_known, Some(true));
 }

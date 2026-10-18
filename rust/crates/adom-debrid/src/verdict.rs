@@ -89,7 +89,7 @@ pub fn is_known_service(service: &str) -> bool {
 /// devolve os hashes já normalizados).
 pub fn is_cached(outcome: &CheckOutcome, hash: &str) -> bool {
     let lower = hash.to_lowercase();
-    outcome.cached.iter().any(|item| *item == lower)
+    outcome.cached.contains(&lower)
 }
 
 /// Checa UM serviço com a chave do caller. Erro só para serviço desconhecido;

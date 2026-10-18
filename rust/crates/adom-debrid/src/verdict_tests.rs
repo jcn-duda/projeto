@@ -142,7 +142,7 @@ async fn torbox_cached_missing_e_falha() {
             &outcome,
             "AAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
         ));
-        assert!(!is_cached(&outcome, &MISS));
+        assert!(!is_cached(&outcome, MISS));
         assert_eq!(outcome.unusable, None);
         assert!(!up.hits.lock().unwrap().is_empty());
     }
@@ -218,8 +218,8 @@ async fn alldebrid_veredito_sem_limpeza() {
     .await
     .unwrap();
     assert!(outcome.known);
-    assert!(is_cached(&outcome, &HIT));
-    assert!(!is_cached(&outcome, &MISS));
+    assert!(is_cached(&outcome, HIT));
+    assert!(!is_cached(&outcome, MISS));
     // A PROVA: o upload é a consulta; delete NUNCA aconteceu (limpeza é Fase C,
     // o protected.ts ainda não está portado).
     let paths: Vec<String> = up
@@ -241,7 +241,7 @@ async fn alldebrid_veredito_sem_limpeza() {
 
 #[tokio::test]
 async fn realdebrid_ledger_hit_miss_e_blocked() {
-    let store = store_with(&[(&HIT, "hit"), (&MISS, "miss"), (&DARK, "blocked")]);
+    let store = store_with(&[(HIT, "hit"), (MISS, "miss"), (DARK, "blocked")]);
     // Sem rede: o ledger responde sozinho (o adapter do RD não faz HTTP na
     // checagem) e o hit ganha refresh de TTL no store.
     let outcome = check_service(
@@ -253,8 +253,8 @@ async fn realdebrid_ledger_hit_miss_e_blocked() {
     )
     .await
     .unwrap();
-    assert!(is_cached(&outcome, &HIT), "hit do ledger é ⚡");
-    assert!(!is_cached(&outcome, &MISS), "miss medido é Missing");
+    assert!(is_cached(&outcome, HIT), "hit do ledger é ⚡");
+    assert!(!is_cached(&outcome, MISS), "miss medido é Missing");
     assert!(outcome.known, "miss NÃO derruba o known");
     assert_eq!(outcome.cached.len(), 1);
 
@@ -283,7 +283,7 @@ async fn realdebrid_sem_entrada_e_unknown_nunca_missing() {
 #[tokio::test]
 async fn realdebrid_ledger_off_respeita_kill_switch() {
     let _env = EnvGuard::set(&[("DEBRID_RD_LEDGER", Some("off"))]);
-    let store = store_with(&[(&HIT, "hit")]);
+    let store = store_with(&[(HIT, "hit")]);
     let outcome = check_service("realdebrid", KEY, &[HIT.into()], None, Some(&store))
         .await
         .unwrap();
@@ -319,7 +319,7 @@ async fn premiumize_via_verdict_e_servico_desconhecido() {
     .await
     .unwrap();
     assert!(outcome.known);
-    assert!(is_cached(&outcome, &HIT));
+    assert!(is_cached(&outcome, HIT));
 
     let outcome = check_service("qualquer", KEY, &[HIT.into()], None, None)
         .await

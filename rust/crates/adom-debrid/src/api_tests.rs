@@ -46,18 +46,23 @@ async fn call(token: &str, header: Option<&str>, path: &str, body: &str) -> (Sta
 }
 
 struct EnvBase {
+    name: &'static str,
     prev: Option<String>,
     // Trava ÚNICA do crate: outros módulos de teste também mexem na env.
     _lock: std::sync::MutexGuard<'static, ()>,
 }
 
 impl EnvBase {
-    fn set(value: &str) -> Self {
+    fn set(name: &'static str, value: &str) -> Self {
         let lock = crate::test_env::lock();
-        let prev = std::env::var("PREMIUMIZE_API_BASE").ok();
+        let prev = std::env::var(name).ok();
         // SAFETY: a trava única serializa os testes de env do crate.
-        unsafe { std::env::set_var("PREMIUMIZE_API_BASE", value) }
-        Self { prev, _lock: lock }
+        unsafe { std::env::set_var(name, value) }
+        Self {
+            name,
+            prev,
+            _lock: lock,
+        }
     }
 }
 
@@ -65,8 +70,8 @@ impl Drop for EnvBase {
     fn drop(&mut self) {
         unsafe {
             match &self.prev {
-                Some(value) => std::env::set_var("PREMIUMIZE_API_BASE", value),
-                None => std::env::remove_var("PREMIUMIZE_API_BASE"),
+                Some(value) => std::env::set_var(self.name, value),
+                None => std::env::remove_var(self.name),
             }
         }
     }
@@ -150,7 +155,7 @@ async fn query_token_nao_autentica() {
 #[tokio::test]
 async fn premiumize_no_loopback_nao_devolve_501() {
     let base = local_premiumize().await;
-    let _env = EnvBase::set(&base);
+    let _env = EnvBase::set("PREMIUMIZE_API_BASE", &base);
     let check_body =
         format!(r#"{{"service":"premiumize","apiKey":"{KEY}","hashes":["abc"],"timeoutMs":2000}}"#);
     let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &check_body).await;
@@ -203,12 +208,7 @@ async fn torbox_check_sai_do_501_alldebrid_fica() {
         axum::serve(listener, app).await.unwrap();
     });
     let base = format!("http://{addr}");
-    let _lock = crate::test_env::lock();
-    let prev_torbox = std::env::var("TORBOX_API_BASE").ok();
-    // SAFETY: teste único apontando TorBox ao loopback.
-    unsafe {
-        std::env::set_var("TORBOX_API_BASE", &base);
-    }
+    let _env = EnvBase::set("TORBOX_API_BASE", &base);
     let torbox_body = format!(r#"{{"service":"torbox","apiKey":"{KEY}","hashes":["abc"]}}"#);
     let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &torbox_body).await;
     assert_eq!(status, StatusCode::OK, "torbox: {body}");
@@ -223,13 +223,6 @@ async fn torbox_check_sai_do_501_alldebrid_fica() {
     assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "alldebrid: {body}");
     assert!(body.contains("service_not_ported"));
     assert!(!body.contains(KEY));
-    // SAFETY: restauração.
-    unsafe {
-        match prev_torbox {
-            Some(value) => std::env::set_var("TORBOX_API_BASE", value),
-            None => std::env::remove_var("TORBOX_API_BASE"),
-        }
-    }
 }
 
 #[tokio::test]

@@ -273,10 +273,7 @@ fn find_download_anchor(lower_slice: &str) -> Option<usize> {
         let after = &lower_slice[abs..];
         let tag_end = after.find('>').unwrap_or(after.len().min(500));
         let tag = &after[..tag_end];
-        if tag.contains("systemads")
-            || tag.contains("videosad")
-            || tag.contains("/gate/go/")
-        {
+        if tag.contains("systemads") || tag.contains("videosad") || tag.contains("/gate/go/") {
             return Some(abs);
         }
         search = abs + 2;
@@ -309,8 +306,8 @@ fn last_audio_marker(segment: &str) -> Option<&'static str> {
             last = Some("dublado");
             continue;
         }
-        if rest.starts_with("DUAL") {
-            let after = rest[4..].trim_start();
+        if let Some(stripped) = rest.strip_prefix("DUAL") {
+            let after = stripped.trim_start();
             if after.starts_with("ÁUDIO") || after.starts_with("AUDIO") {
                 last = Some("dublado");
             }
