@@ -182,6 +182,27 @@ fn parse_node_response_cached_known_e_unusable() {
     .unwrap();
     assert!(!timeout.known, "timeout NÃO é Missing");
 
+    // Lote parcial: um hit + um timeout. AND do known zera o flag do lote,
+    // mas o hash confirmado permanece em cached (⚡ no seam/Node).
+    let partial_hit = super::parse_node_response(&json!({
+        "ok": true,
+        "configured": true,
+        "partial": true,
+        "results": {
+            HIT: { "cached": true, "known": true },
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+                "cached": false, "known": false, "timeout": true
+            },
+        }
+    }))
+    .unwrap();
+    assert!(!partial_hit.known, "AND do lote: um timeout → known:false");
+    assert_eq!(
+        partial_hit.cached,
+        vec![HIT],
+        "hit parcial NÃO some do cached"
+    );
+
     let unusable = super::parse_node_response(&json!({
         "ok": true,
         "configured": true,

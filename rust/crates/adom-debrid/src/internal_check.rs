@@ -147,8 +147,10 @@ fn now_ms() -> i64 {
 /// - `ok:false` / sem `results` → erro (não inventa Missing);
 /// - `configured:false` → Unknown honesto (P2P, sem chave no encoded);
 /// - `unusable` no topo → Unusable (auth/quota);
-/// - por hash: `cached:true` entra em `cached`; `known` do lote é true só se
-///   TODOS os hashes tiverem `known:true` (timeout/partial → known:false).
+/// - por hash: `cached:true` entra em `cached` (hit parcial sobrevive);
+///   `known` do lote é true só se TODOS tiverem `known:true`
+///   (timeout/partial → known:false). O AND do flag NÃO esvazia `cached` —
+///   quem pinta ⚡ é `answer_of` / o Set no Node, não o flag sozinho.
 pub fn parse_node_response(data: &Value) -> Result<CheckOutcome, String> {
     let ok = data
         .get("ok")

@@ -65,6 +65,16 @@ fn mapeia_cached_missing_unknown_e_unusable() {
         answer_of(&outcome(vec![], false, None), MISS),
         DebridAnswer::Unknown
     );
+    // Hit parcial: known:false do lote NÃO apaga ⚡ do hash já em cached.
+    assert_eq!(
+        answer_of(&outcome(vec![HIT.into()], false, None), HIT),
+        DebridAnswer::Cached { url: None }
+    );
+    assert_eq!(
+        answer_of(&outcome(vec![HIT.into()], false, None), MISS),
+        DebridAnswer::Unknown,
+        "não-cached + !known → Unknown, nunca Missing"
+    );
     assert_eq!(
         answer_of(&outcome(vec![], false, Some(("quota", "limite"))), MISS),
         DebridAnswer::Unusable

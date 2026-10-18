@@ -198,21 +198,25 @@ impl DebridCheck for AdapterDebridCheck {
 }
 
 /// Veredito já obtido → resposta do build (`list_builder::DebridAnswer`).
-/// Unusable vence (a conta não vai responder); `known:false` é Unknown;
-/// o ⚡ NÃO monta url aqui — o play decide o arquivo (a fatia de resposta
-/// monta o `/resolve` relativo com HMAC).
+/// Unusable vence (a conta não vai responder). Hit parcial / timeout de
+/// lote (`known:false` com hashes em `cached`) mantém ⚡ nos confirmados —
+/// espelha o Node (`debrid-pipeline-core`: `materialize` olha o Set, não o
+/// flag). Só o que NÃO está em `cached` vira Unknown quando `!known`
+/// (nunca Missing: falso negativo é pior). O ⚡ NÃO monta url aqui — o play
+/// decide o arquivo (a fatia de resposta monta o `/resolve` relativo com HMAC).
 pub fn answer_of(outcome: &CheckOutcome, hash: &str) -> DebridAnswer {
     if outcome.unusable.is_some() {
         return DebridAnswer::Unusable;
     }
+    // Confirmado em cache vence o flag do lote: hit parcial / timeout
+    // preserva ⚡ nos que o serviço nomeou (núcleo: `debrid_cache_verdict`).
+    if verdict::is_cached(outcome, hash) {
+        return DebridAnswer::Cached { url: None };
+    }
     if !outcome.known {
         return DebridAnswer::Unknown;
     }
-    if verdict::is_cached(outcome, hash) {
-        DebridAnswer::Cached { url: None }
-    } else {
-        DebridAnswer::Missing
-    }
+    DebridAnswer::Missing
 }
 
 /// `block_on` que funciona dentro e fora de runtime tokio. Dentro de worker
