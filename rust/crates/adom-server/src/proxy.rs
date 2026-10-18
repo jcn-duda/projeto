@@ -6,6 +6,7 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::any;
 use axum::Router;
+use bytes::Bytes;
 use http::header::{CONNECTION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderName, Method, Request, Response, StatusCode, Uri};
 use http_body_util::BodyExt;
@@ -14,6 +15,7 @@ use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 
 use crate::config::Config;
+use crate::shadow::{self, ShadowMetrics};
 
 pub type ProxyClient = Client<HttpConnector, Body>;
 
@@ -22,6 +24,8 @@ pub struct AppState {
     pub client: ProxyClient,
     pub upstream: Uri,
     pub native_health: bool,
+    pub stream_shadow: bool,
+    pub shadow_metrics: ShadowMetrics,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -35,11 +39,15 @@ pub fn client() -> ProxyClient {
 pub async fn run(config: Config) -> Result<(), String> {
     let listen = config.listen;
     let native = config.native_health;
+    let shadow = config.stream_shadow;
+    let stream_cut = config.stream_native;
     let upstream = config.upstream.clone();
     let state = AppState {
         client: client(),
         upstream: config.upstream,
         native_health: config.native_health,
+        stream_shadow: config.stream_shadow,
+        shadow_metrics: ShadowMetrics::new(),
     };
     let listener = tokio::net::TcpListener::bind(listen)
         .await
@@ -47,7 +55,10 @@ pub async fn run(config: Config) -> Result<(), String> {
     let bound = listener
         .local_addr()
         .map_err(|err| format!("endereco local: {err}"))?;
-    eprintln!("[gateway] escutando {bound} upstream {upstream} health_nativo={native}");
+    // `stream_native` ainda não corta a rota — só aparece no boot para o operador.
+    eprintln!(
+        "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_shadow={shadow} stream_native={stream_cut}"
+    );
     axum::serve(listener, router(state))
         .await
         .map_err(|err| format!("servidor encerrou: {err}"))
@@ -72,7 +83,9 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
     if state.native_health && is_native_health(&req) {
         return health_response(req.method());
     }
-    match forward(&state, req).await {
+    // `stream_native` ainda não corta: o cliente sempre recebe o Node.
+    let shadow = state.stream_shadow && shadow::is_stream_path(req.uri().path());
+    match forward(&state, req, shadow).await {
         Ok(response) => response,
         Err(()) => (
             StatusCode::BAD_GATEWAY,
@@ -106,7 +119,11 @@ fn health_response(method: &Method) -> Response<Body> {
     response
 }
 
-async fn forward(state: &AppState, req: Request<Body>) -> Result<Response<Body>, ()> {
+async fn forward(
+    state: &AppState,
+    req: Request<Body>,
+    capture_for_shadow: bool,
+) -> Result<Response<Body>, ()> {
     let (parts, body) = req.into_parts();
     let path = parts
         .uri
@@ -124,6 +141,22 @@ async fn forward(state: &AppState, req: Request<Body>) -> Result<Response<Body>,
     let response = state.client.request(upstream_req).await.map_err(|_| ())?;
     let (parts, incoming) = response.into_parts();
     let headers = forward_headers(&parts.headers);
+
+    if capture_for_shadow {
+        let bytes: Bytes = incoming.collect().await.map_err(|_| ())?.to_bytes();
+        let status = parts.status;
+        let metrics = state.shadow_metrics.clone();
+        let for_shadow = bytes.clone();
+        // Fire-and-forget: falha/atraso da sombra não afeta o cliente.
+        tokio::spawn(async move {
+            shadow::observe_node_response(status, for_shadow, metrics);
+        });
+        let mut out = Response::new(Body::from(bytes));
+        *out.status_mut() = parts.status;
+        *out.headers_mut() = headers;
+        return Ok(out);
+    }
+
     let mut out = Response::new(Body::from_stream(incoming.into_data_stream()));
     *out.status_mut() = parts.status;
     *out.headers_mut() = headers;

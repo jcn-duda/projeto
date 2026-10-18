@@ -1,5 +1,6 @@
 mod config;
 mod proxy;
+mod shadow;
 
 #[cfg(test)]
 mod tests;

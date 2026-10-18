@@ -96,7 +96,8 @@ novos é o TS do worktree `../adom-esm`.
    `scripts/golden/capture-stream-e2e.mjs` em `rust/golden/stream-e2e/`.
 3. **Sombra** (`ROUTES_RUST=stream-shadow`): o Node responde, o Rust remonta com
    as mesmas entradas e só a métrica `stream.shadow.divergence` é pública. Corte
-   por rota só com divergência zero sobre tráfego real.
+   por rota só com divergência zero sobre tráfego real. Esqueleto no gateway
+   (`adom-server`): flag + buffer + spawn; contadores §9 zerados até o remontador.
 
 ## F1 — Orquestrador Rust com a rede ainda no Node
 

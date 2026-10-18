@@ -5,12 +5,19 @@ use std::net::SocketAddr;
 
 use http::Uri;
 
-/// `health` na lista liga só `GET`/`HEAD /health`. O resto continua proxy.
+/// Tokens de `ROUTES_RUST` (CSV). `health` liga o nativo; `stream-shadow` arma
+/// a observação em paralelo; `stream` é parseado para o corte futuro, mas o
+/// gateway ainda NÃO corta — só proxy (+ sombra quando pedida).
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen: SocketAddr,
     pub upstream: Uri,
     pub native_health: bool,
+    /// `ROUTES_RUST` contém `stream-shadow`: Node responde; Rust observa.
+    pub stream_shadow: bool,
+    /// `ROUTES_RUST` contém `stream`: flag pronta para o corte nativo (ainda
+    /// sem handler — F1).
+    pub stream_native: bool,
 }
 
 impl Config {
@@ -38,10 +45,25 @@ impl Config {
             listen,
             upstream,
             native_health: native_health(routes),
+            stream_shadow: stream_shadow(routes),
+            stream_native: stream_native(routes),
         })
     }
 }
 
 pub fn native_health(routes: &str) -> bool {
-    routes.split(',').any(|part| part.trim() == "health")
+    has_route_token(routes, "health")
+}
+
+pub fn stream_shadow(routes: &str) -> bool {
+    has_route_token(routes, "stream-shadow")
+}
+
+/// Token exato `stream` — não confunde com `stream-shadow`.
+pub fn stream_native(routes: &str) -> bool {
+    has_route_token(routes, "stream")
+}
+
+fn has_route_token(routes: &str, token: &str) -> bool {
+    routes.split(',').any(|part| part.trim() == token)
 }
