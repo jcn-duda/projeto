@@ -129,6 +129,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-sources"
+version = "0.0.0"
+dependencies = [
+ "adom-core",
+ "axum",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "aead"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

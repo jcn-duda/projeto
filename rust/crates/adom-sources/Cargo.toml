@@ -1,0 +1,21 @@
+[package]
+name = "adom-sources"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Clientes Cinemeta e TMDB do Adom (fase B.1): find duplo, aliases BR, multiobra e data doméstica."
+license = "UNLICENSED"
+
+# Só deps que o workspace já usa: reqwest com rustls (sem OpenSSL), tokio e
+# serde_json para o wire privado. O `adom-core` entra pelo path.
+[dependencies]
+adom-core = { path = "../adom-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt", "time", "macros"] }
+
+[dev-dependencies]
+# Servidor HTTP de teste, o mesmo axum 0.8 dos outros crates.
+axum = { version = "0.8", features = ["json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net"] }
