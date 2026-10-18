@@ -14,17 +14,14 @@
 //! 3. [`diff`] compara duas respostas normalizadas e devolve diferenças
 //!    legíveis (campo, índice, esperado × obtido);
 //! 4. [`runner`] injeta a fonte Rust via [`runner::StreamSource`] e compara com
-//!    o Node gravado. Enquanto o orquestrador não expõe API estável, a fonte é
-//!    [`runner::ReplaySource`] (o corpus contra ele mesmo) e o binário tem
-//!    `--dump` para validar só o corpus.
-//!
-//! O crate **não** depende de `adom-search` de propósito: a API do orquestrador
-//! ainda está sendo montada por outro agente. O ponto de costura está marcado
-//! com TODO em [`runner`].
+//!    o Node gravado. [`runner::ReplaySource`] cobre o `--replay` (corpus × si);
+//!    [`orchestrator_source`] remonta via `Orchestrator::handle` com stubs /
+//!    fixtures. Sem `meta.json`+`raw.json` o caso é pulado (sem falso-verde).
 
 pub mod corpus;
 pub mod diff;
 pub mod normalize;
+pub mod orchestrator_source;
 pub mod runner;
 
 pub use corpus::{
@@ -36,8 +33,13 @@ pub use normalize::{
     canonical_json, mask_url, normalize_body, NormalizeError, NormalizeOptions, NormalizedResponse,
     NormalizedStream,
 };
+pub use orchestrator_source::{
+    CaseFixtures, FixtureOrchestratorSource, OrchestratorSource, SourceOptions,
+    DEFAULT_CONFIG_SEGMENT, DEFAULT_NOW_MS, DEFAULT_ORIGIN,
+};
 pub use runner::{
-    run_corpus, CaseReport, CaseStatus, ParityReport, ReplaySource, SourceError, StreamSource,
+    run_corpus, CaseReport, CaseStatus, ParityReport, ProduceOutcome, ReplaySource, SourceError,
+    StreamSource,
 };
 
 use sha2::{Digest, Sha256};

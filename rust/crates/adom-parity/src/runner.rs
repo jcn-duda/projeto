@@ -2,28 +2,17 @@
 //!
 //! ## Ponto de costura com o orquestrador
 //!
-//! TODO(paridade F1): o `adom_search::orchestrator` **ainda não existe** — hoje
-//! o `adom-search` expõe `request`, `contract`, `list_builder`, `cache`,
-//! `collect_window` e `debrid_seam`, mas não uma API de `/stream` pronta. Quando
-//! o agente do `adom-search` fechar o nome e a assinatura (confirmar
-//! `orchestrator` × outro nome), implementar [`StreamSource`] para ele:
+//! A API pública é `adom_search::orchestrator::Orchestrator::handle`. O adapter
+//! vive em [`crate::orchestrator_source`]:
 //!
-//! 1. decodificar o segmento de config do path do caso (hoje `{{config}}`;
-//!    o replay deve injetar um segmento concreto via
-//!    [`crate::NormalizeOptions::config_segment`]);
-//! 2. chamar a orquestração com o `deadline` derivado do User-Agent do
-//!    `request.headers` e com a origem do addon;
-//! 3. devolver o corpo JSON (`{streams, cacheMaxAge}`) como [`serde_json::Value`].
+//! 1. troca `{{config}}` por um segmento concreto (`NormalizeOptions::config_segment`);
+//! 2. chama `handle` com UA/origin/`now_ms` fixo;
+//! 3. devolve `{streams, cacheMaxAge}` como [`serde_json::Value`].
 //!
-//! **Não** adicione `adom-search` como dependência deste crate antes desse
-//! ponto: a trait é a fronteira que mantém o harness compilando e testável.
-//! Enquanto a API não existe, [`ReplaySource`] devolve a resposta gravada no
-//! próprio corpus — o teste `runner_replay_*` prova o normalizador de ponta a
-//! ponta, e o `--dump` valida só o corpus.
-//!
-//! Uma closure também é uma fonte: `Fn(&Case) -> Result<Value, SourceError>`.
-//! É o caminho para testes fabricados e para adaptar um pipeline em construção
-//! sem tocar no runner.
+//! [`ReplaySource`] continua no `--replay` (corpus contra ele mesmo). Closures
+//! `Fn(&Case) -> Result<Value, SourceError>` também são fonte (testes fabricados).
+//! Casos sem fixture (`meta.json`+`raw.json`) devem devolver
+//! [`ProduceOutcome::Skip`] — nunca inventar lista contra o golden.
 
 use std::fmt;
 
@@ -63,18 +52,24 @@ impl From<NormalizeError> for SourceError {
     }
 }
 
-/// Fonte do corpo do `/stream` no lado Rust. Implementações reais virão do
-/// orquestrador; ver o TODO no topo do módulo.
+/// Resultado da fonte: corpo comparável ou skip honesto (sem dados para remontar).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProduceOutcome {
+    Body(Value),
+    Skip { reason: String },
+}
+
+/// Fonte do corpo do `/stream` no lado Rust.
 pub trait StreamSource {
-    fn produce(&self, case: &Case) -> Result<Value, SourceError>;
+    fn produce(&self, case: &Case) -> Result<ProduceOutcome, SourceError>;
 }
 
 impl<F> StreamSource for F
 where
     F: Fn(&Case) -> Result<Value, SourceError>,
 {
-    fn produce(&self, case: &Case) -> Result<Value, SourceError> {
-        (self)(case)
+    fn produce(&self, case: &Case) -> Result<ProduceOutcome, SourceError> {
+        Ok(ProduceOutcome::Body((self)(case)?))
     }
 }
 
@@ -84,13 +79,14 @@ where
 pub struct ReplaySource;
 
 impl StreamSource for ReplaySource {
-    fn produce(&self, case: &Case) -> Result<Value, SourceError> {
-        case.response.body.clone().ok_or_else(|| {
+    fn produce(&self, case: &Case) -> Result<ProduceOutcome, SourceError> {
+        let body = case.response.body.clone().ok_or_else(|| {
             SourceError::new(format!(
                 "caso {} não tem corpo JSON (body_raw)",
                 case.meta.id
             ))
-        })
+        })?;
+        Ok(ProduceOutcome::Body(body))
     }
 }
 
@@ -278,7 +274,13 @@ fn run_case(case: &Case, source: &dyn StreamSource, options: &NormalizeOptions) 
         }
     };
     let produced = match source.produce(case) {
-        Ok(value) => value,
+        Ok(ProduceOutcome::Body(value)) => value,
+        Ok(ProduceOutcome::Skip { reason }) => {
+            return CaseReport {
+                case_id,
+                status: CaseStatus::Skipped { reason },
+            }
+        }
         Err(error) => {
             return CaseReport {
                 case_id,
