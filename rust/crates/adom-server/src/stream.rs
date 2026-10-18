@@ -621,7 +621,10 @@ mod tests {
         assert_eq!(defaults["max1080p"], serde_json::json!(2.0));
         assert_eq!(defaults["maxResults"], serde_json::json!(40.0));
         assert_eq!(defaults["brReservedSlots"], serde_json::json!(6.0));
-        assert_eq!(defaults["qualities"], serde_json::json!(["2160p", "1080p", "720p"]));
+        assert_eq!(
+            defaults["qualities"],
+            serde_json::json!(["2160p", "1080p", "720p"])
+        );
         assert_eq!(defaults["debridService"], serde_json::json!("alldebrid"));
         assert_eq!(defaults["showUncachedBr"], serde_json::json!(true));
         assert_eq!(build.quality_limits.get("1080p"), Some(&2.0));

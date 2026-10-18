@@ -292,7 +292,11 @@ mod tests {
         assert_eq!(out.qualities, vec!["1080p".to_string()]);
         assert!(out.prefer_dubbed);
         assert_eq!(out.quality_limits.get("1080p"), Some(&5.0));
-        assert_eq!(out.quality_limits.get("SD"), Some(&3.0), "maxSd (SCHEMA), não maxSD");
+        assert_eq!(
+            out.quality_limits.get("SD"),
+            Some(&3.0),
+            "maxSd (SCHEMA), não maxSD"
+        );
         assert_eq!(out.br_reserved_per_quality, 2.0);
         assert_eq!(out.candidate_pool_factor, 3.0);
         assert_eq!(out.indexer_limits.get("bludv"), Some(&3.0));
