@@ -14,6 +14,10 @@ members = [
     # parsing de requisição + chave de cache + contrato da resposta. AINDA não
     # é consumido por ninguém; o /stream continua 100% Node.
     "crates/adom-search",
+    # Harness de paridade do corpus `golden/stream-e2e`: lê o manifest e os
+    # casos, normaliza a resposta do `/stream` e compara Node × Rust. Não
+    # depende de `adom-search`; a costura é a trait `StreamSource`.
+    "crates/adom-parity",
 ]
 resolver = "2"
 

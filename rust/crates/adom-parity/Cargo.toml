@@ -1,0 +1,19 @@
+[package]
+name = "adom-parity"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Harness de paridade do corpus stream-e2e: leitura, normalização determinística e diff legível."
+license = "UNLICENSED"
+
+# O harness é intencionalmente independente de `adom-search`: enquanto o
+# orquestrador não expõe API estável, a costura é a trait `StreamSource`
+# (`src/runner.rs`). Ver o TODO de integração lá.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[[bin]]
+name = "adom-parity"
+path = "src/main.rs"
