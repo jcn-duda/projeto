@@ -13,9 +13,8 @@ use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
-    sources_rust_includes, try_sources_rust_collector_from_env, AdapterDebridFactory,
-    NoDebridFactory, NodeMetaSource, NodeRoutes, NodeTailEffects, NoopTailEffects, Orchestrator,
-    OrchestratorConfig, StreamRequest,
+    sources_rust_includes, AdapterDebridFactory, NoDebridFactory, NodeMetaSource, NodeRoutes,
+    NodeTailEffects, NoopTailEffects, Orchestrator, OrchestratorConfig, StreamRequest,
 };
 use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
@@ -72,29 +71,44 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 pub fn build_orchestrator() -> Orchestrator {
     let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
-    let native = try_sources_rust_collector_from_env();
+    let native_collectors = adom_search::orchestrator::try_sources_rust_collectors_from_env();
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            if let Some(collector) = native {
-                eprintln!(
-                    "[gateway] collect via adom-sources ({})",
-                    sources_rust_label()
-                );
-                orch = orch
-                    .with_collector(collector)
-                    .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
-                    .with_tail(Arc::new(NodeTailEffects::new(routes)));
-            } else {
-                orch = orch.with_routes(routes);
-            }
+            let node_collector = Arc::new(adom_search::orchestrator::NodeCollector::new(
+                routes.clone(),
+            ));
+            let collector: Arc<dyn adom_search::orchestrator::Collector> =
+                if native_collectors.is_empty() {
+                    node_collector
+                } else {
+                    eprintln!(
+                        "[gateway] collect composto via adom-sources ({}) + NodeCollector",
+                        sources_rust_label()
+                    );
+                    let mut all = native_collectors;
+                    all.push(node_collector);
+                    Arc::new(adom_search::orchestrator::CompositeCollector::new(all))
+                };
+            orch = orch
+                .with_collector(collector)
+                .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
+                .with_tail(Arc::new(NodeTailEffects::new(routes)));
         }
         None => {
-            if let Some(collector) = native {
+            if !native_collectors.is_empty() {
                 eprintln!(
                     "[gateway] {} sem rotas Node — collect nativo; meta/tail indisponíveis",
                     sources_rust_label()
                 );
+                let collector: Arc<dyn adom_search::orchestrator::Collector> =
+                    if native_collectors.len() == 1 {
+                        native_collectors[0].clone()
+                    } else {
+                        Arc::new(adom_search::orchestrator::CompositeCollector::new(
+                            native_collectors,
+                        ))
+                    };
                 orch = orch.with_collector(collector);
             } else {
                 eprintln!(
@@ -128,25 +142,36 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
         .with_shadow_mode(true)
         .with_debrid(Arc::new(NoDebridFactory));
-    let native = try_sources_rust_collector_from_env();
+    let native_collectors = adom_search::orchestrator::try_sources_rust_collectors_from_env();
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            if let Some(collector) = native {
-                // Sombra: collect nativo opt-in; meta Node; tail sempre noop.
-                orch = orch
-                    .with_collector(collector)
-                    .with_meta(Arc::new(NodeMetaSource::new(routes)))
-                    .with_tail(Arc::new(NoopTailEffects));
-            } else {
-                // `with_routes` liga NodeTailEffects — sobrescreve para noop.
-                orch = orch
-                    .with_routes(routes)
-                    .with_tail(Arc::new(NoopTailEffects));
-            }
+            let node_collector = Arc::new(adom_search::orchestrator::NodeCollector::new(
+                routes.clone(),
+            ));
+            let collector: Arc<dyn adom_search::orchestrator::Collector> =
+                if native_collectors.is_empty() {
+                    node_collector
+                } else {
+                    let mut all = native_collectors;
+                    all.push(node_collector);
+                    Arc::new(adom_search::orchestrator::CompositeCollector::new(all))
+                };
+            orch = orch
+                .with_collector(collector)
+                .with_meta(Arc::new(NodeMetaSource::new(routes)))
+                .with_tail(Arc::new(NoopTailEffects));
         }
         None => {
-            if let Some(collector) = native {
+            if !native_collectors.is_empty() {
+                let collector: Arc<dyn adom_search::orchestrator::Collector> =
+                    if native_collectors.len() == 1 {
+                        native_collectors[0].clone()
+                    } else {
+                        Arc::new(adom_search::orchestrator::CompositeCollector::new(
+                            native_collectors,
+                        ))
+                    };
                 orch = orch
                     .with_collector(collector)
                     .with_tail(Arc::new(NoopTailEffects));
@@ -160,20 +185,18 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
     orch
 }
 
-/// Rótulo de log do collector nativo ativo (após exclusão mútua).
-fn sources_rust_label() -> &'static str {
-    if sources_rust_includes("jackett") {
-        "SOURCES_RUST=jackett"
-    } else if sources_rust_includes("prowlarr") {
-        "SOURCES_RUST=prowlarr"
-    } else if sources_rust_includes("torrentio") {
-        "SOURCES_RUST=torrentio"
-    } else if sources_rust_includes("bludv") {
-        "SOURCES_RUST=bludv"
-    } else if sources_rust_includes("mico") {
-        "SOURCES_RUST=mico"
+/// Rótulo de log dos collectors nativos ativos.
+fn sources_rust_label() -> String {
+    let mut active = Vec::new();
+    for token in ["jackett", "prowlarr", "torrentio", "bludv", "mico"] {
+        if sources_rust_includes(token) {
+            active.push(token);
+        }
+    }
+    if active.is_empty() {
+        "SOURCES_RUST".to_string()
     } else {
-        "SOURCES_RUST"
+        format!("SOURCES_RUST={}", active.join("+"))
     }
 }
 

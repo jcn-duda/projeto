@@ -22,6 +22,7 @@ const SEGMENT: &str = "e30";
 
 struct StubCollector {
     batches: Mutex<Vec<CollectBatch>>,
+    always: Option<CollectBatch>,
     calls: AtomicUsize,
     delay: Duration,
     fail: bool,
@@ -34,6 +35,20 @@ impl StubCollector {
                 items,
                 partial: false,
             }]),
+            always: None,
+            calls: AtomicUsize::new(0),
+            delay: Duration::ZERO,
+            fail: false,
+        })
+    }
+
+    fn with_always(items: Vec<RawItem>) -> Arc<Self> {
+        Arc::new(StubCollector {
+            batches: Mutex::new(Vec::new()),
+            always: Some(CollectBatch {
+                items,
+                partial: false,
+            }),
             calls: AtomicUsize::new(0),
             delay: Duration::ZERO,
             fail: false,
@@ -52,6 +67,7 @@ impl StubCollector {
                 items: Vec::new(),
                 partial: true,
             }]),
+            always: None,
             calls: AtomicUsize::new(0),
             delay: Duration::ZERO,
             fail: false,
@@ -61,6 +77,7 @@ impl StubCollector {
     fn failing() -> Arc<Self> {
         Arc::new(StubCollector {
             batches: Mutex::new(Vec::new()),
+            always: None,
             calls: AtomicUsize::new(0),
             delay: Duration::ZERO,
             fail: true,
@@ -73,6 +90,7 @@ impl StubCollector {
                 items,
                 partial: false,
             }]),
+            always: None,
             calls: AtomicUsize::new(0),
             delay,
             fail: false,
@@ -98,6 +116,9 @@ impl Collector for StubCollector {
             }
             if self.fail {
                 return Err("coletor fora do ar".into());
+            }
+            if let Some(always) = &self.always {
+                return Ok(always.clone());
             }
             let mut guard = self.batches.lock().expect("batches");
             if guard.is_empty() {
@@ -732,4 +753,95 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
             "path sem config não deve prefixar /e30 nas URLs de play: {url}"
         );
     }
+}
+
+// ── CompositeCollector com SOURCES_RUST ──────────────────────────────────────
+
+#[tokio::test]
+async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
+    let store = Arc::new(MemorySwrStore::new());
+
+    // Simulador da fonte nativa (ex: Jackett em Rust)
+    let native_jackett: Arc<dyn Collector> = StubCollector::with_always(vec![RawItem {
+        indexer: Some("jackett".into()),
+        title: Some("Filme Teste 2024 1080p Dublado Jackett".into()),
+        info_hash: Some(HASH.into()),
+        seeders: Some(10.0),
+        size_bytes: Some(1_000_000.0),
+        is_br: true,
+        ..RawItem::default()
+    }]);
+
+    // Simulador do NodeCollector (traz BLUDV, Mico e conta)
+    let node_collector: Arc<dyn Collector> = StubCollector::with_always(vec![
+        RawItem {
+            indexer: Some("bludv".into()),
+            title: Some("Filme Teste 2024 1080p Dublado BLUDV".into()),
+            info_hash: Some("1111111111111111111111111111111111111111".into()),
+            seeders: Some(1.0),
+            is_br: true,
+            ..RawItem::default()
+        },
+        RawItem {
+            indexer: Some("mico".into()),
+            title: Some("Filme Teste 2024 720p Dublado Mico".into()),
+            info_hash: Some("2222222222222222222222222222222222222222".into()),
+            seeders: Some(1.0),
+            is_br: true,
+            ..RawItem::default()
+        },
+    ]);
+
+    let composite = Arc::new(CompositeCollector::new(vec![
+        native_jackett,
+        node_collector,
+    ]));
+
+    let orch = Orchestrator::new(config(), store)
+        .with_collector(composite)
+        .with_meta(Arc::new(StubMeta(meta())))
+        .with_debrid(Arc::new(StubDebrid {
+            cached: vec![
+                HASH.into(),
+                "1111111111111111111111111111111111111111".into(),
+                "2222222222222222222222222222222222222222".into(),
+            ],
+        }));
+
+    let req = StreamRequest::from_path(
+        &format!("/{SEGMENT}/stream/movie/tt0133093.json"),
+        Some("Stremio/1.6"),
+        Some(ORIGIN),
+        Some(1_000_000),
+    )
+    .expect("path válido");
+
+    let resposta = orch.handle(req).await;
+    let mut all_text = Vec::new();
+    for s in &resposta.streams {
+        let t = format!("name={:?}, title={:?}, url={:?}", s.name, s.title, s.url);
+        all_text.push(t);
+    }
+
+    assert!(
+        all_text
+            .iter()
+            .any(|t| t.contains("BLUDV") || t.contains("bludv")),
+        "BLUDV vindo do Node deve estar presente na resposta: {:?}",
+        all_text
+    );
+    assert!(
+        all_text
+            .iter()
+            .any(|t| t.contains("Mico") || t.contains("mico")),
+        "Mico vindo do Node deve estar presente na resposta: {:?}",
+        all_text
+    );
+    assert!(
+        all_text
+            .iter()
+            .any(|t| t.contains("Jackett") || t.contains("jackett")),
+        "Jackett nativo deve estar presente na resposta: {:?}",
+        all_text
+    );
 }

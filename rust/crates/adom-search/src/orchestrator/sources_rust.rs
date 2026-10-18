@@ -1,17 +1,12 @@
 //! Opt-in de collect nativo via `SOURCES_RUST` (CSV, case-insensitive).
 //!
-//! Default OFF → [`super::NodeCollector`]. Tokens desta fatia: `jackett`,
-//! `prowlarr`, `torrentio`, `bludv`, `mico`. **Exclusão mútua simples** (menor
-//! patch; composição multi-fonte fica para fatia futura):
+//! Default OFF → [`super::NodeCollector`]. Tokens suportados: `jackett`,
+//! `prowlarr`, `torrentio`, `bludv`, `mico`.
 //!
-//! 1. se `jackett` presente → Jackett;
-//! 2. senão se `prowlarr` → Prowlarr;
-//! 3. senão se `torrentio` → Torrentio;
-//! 4. senão se `bludv` → BLUDV;
-//! 5. senão se `mico` → Mico.
-//!
-//! Misturar `bludv,mico` (ou com jackett) **não** compõe: um token vence.
-//! Composição jackett+bludv (como o Node) fica depois.
+//! Múltiplas fontes em `SOURCES_RUST` são compostas via [`super::CompositeCollector`],
+//! que executa todas as fontes nativas em paralelo e combina seus lotes.
+//! Quando executando junto ao Node (`NodeRoutes`), o `NodeCollector` também é
+//! agregado ao coletor composto, preservando fontes não migradas e o inventário da conta.
 
 use std::sync::Arc;
 
@@ -48,33 +43,52 @@ pub fn sources_rust_csv_winner(raw: &str) -> Option<&'static str> {
     None
 }
 
-/// Monta o collector nativo pedido pelo env. Default OFF → `None`
-/// (caller usa NodeCollector). Fontes não se compõem nesta fatia — ver
-/// [`sources_rust_csv_winner`].
-pub fn try_sources_rust_collector_from_env() -> Option<Arc<dyn Collector>> {
+/// Monta a lista de coletores nativos pedidos pelo env (`SOURCES_RUST`).
+/// Cada token conhecido presente no CSV gera seu collector nativo.
+pub fn try_sources_rust_collectors_from_env() -> Vec<Arc<dyn Collector>> {
     let raw = std::env::var("SOURCES_RUST").unwrap_or_default();
-    let winner = sources_rust_csv_winner(&raw)?;
-    let asked: Vec<&str> = KNOWN_TOKENS
-        .iter()
-        .copied()
-        .filter(|t| sources_rust_csv_includes(&raw, t))
-        .collect();
-    if asked.len() > 1 {
-        eprintln!(
-            "[search] SOURCES_RUST: {} — exclusão mútua nesta fatia; usando {winner}",
-            asked.join("+")
-        );
-    }
-    match winner {
-        "jackett" => try_jackett_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
-        "prowlarr" => try_prowlarr_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
-        "torrentio" => {
-            try_torrentio_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>)
+    let mut collectors: Vec<Arc<dyn Collector>> = Vec::new();
+
+    if sources_rust_csv_includes(&raw, "jackett") {
+        if let Some(c) = try_jackett_collector_from_env() {
+            collectors.push(Arc::new(c) as Arc<dyn Collector>);
         }
-        "bludv" => try_bludv_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
-        "mico" => try_mico_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
-        _ => None,
     }
+    if sources_rust_csv_includes(&raw, "prowlarr") {
+        if let Some(c) = try_prowlarr_collector_from_env() {
+            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+        }
+    }
+    if sources_rust_csv_includes(&raw, "torrentio") {
+        if let Some(c) = try_torrentio_collector_from_env() {
+            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+        }
+    }
+    if sources_rust_csv_includes(&raw, "bludv") {
+        if let Some(c) = try_bludv_collector_from_env() {
+            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+        }
+    }
+    if sources_rust_csv_includes(&raw, "mico") {
+        if let Some(c) = try_mico_collector_from_env() {
+            collectors.push(Arc::new(c) as Arc<dyn Collector>);
+        }
+    }
+
+    collectors
+}
+
+/// Monta o collector nativo pedido pelo env. Default OFF → `None` (caller usa NodeCollector).
+/// Se mais de uma fonte nativa for pedida, agrupa via [`super::CompositeCollector`].
+pub fn try_sources_rust_collector_from_env() -> Option<Arc<dyn Collector>> {
+    let mut collectors = try_sources_rust_collectors_from_env();
+    if collectors.is_empty() {
+        return None;
+    }
+    if collectors.len() == 1 {
+        return Some(collectors.remove(0));
+    }
+    Some(Arc::new(super::CompositeCollector::new(collectors)))
 }
 
 #[cfg(test)]

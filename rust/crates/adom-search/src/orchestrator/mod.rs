@@ -27,6 +27,7 @@
 
 mod bludv_collector;
 mod collect;
+mod composite_collector;
 mod config;
 mod finish;
 mod internal_routes;
@@ -63,6 +64,7 @@ pub use bludv_collector::{
     sources_rust_includes_bludv, try_bludv_collector_from_env, BludvCollector,
 };
 pub use collect::{plan_jobs, CollectBatch, CollectJob, Collector, NodeCollector};
+pub use composite_collector::CompositeCollector;
 pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
     NoDebridFactory, OrchestratorConfig,
@@ -80,7 +82,7 @@ pub use prowlarr_collector::{
 pub use respond::{SearchOutcome, StreamRequest, NOTICE_SEARCHING};
 pub use sources_rust::{
     sources_rust_csv_includes, sources_rust_csv_winner, sources_rust_includes,
-    try_sources_rust_collector_from_env,
+    try_sources_rust_collector_from_env, try_sources_rust_collectors_from_env,
 };
 pub use tail::{
     EffectsBatch, IndexBatch, NodeTailEffects, NoopTailEffects, TailEffects, TailJob, TailPlan,
