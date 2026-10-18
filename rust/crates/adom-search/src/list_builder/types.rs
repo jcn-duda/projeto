@@ -151,6 +151,7 @@ impl BuildOptions {
             "maxResults": self.max_results,
             "minSeeders": self.min_seeders,
             "brReservedSlots": self.br_reserved_slots,
+            "brReservedPerQuality": self.br_reserved_per_quality,
             "brFirst": self.br_first,
             "brOnly": self.br_only,
             "preferDubbed": self.prefer_dubbed,

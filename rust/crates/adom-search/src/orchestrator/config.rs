@@ -70,7 +70,7 @@ impl Default for OrchestratorConfig {
             cache_ttl: 900,
             fallback_streams_ttl: 120,
             stale_grace_seconds: 300,
-            defaults: Value::Object(serde_json::Map::new()),
+            defaults: BuildOptions::default().to_schema_defaults(),
             resolve_secret: String::new(),
             resolve_uncached: false,
             build: BuildOptions::default(),
@@ -207,6 +207,13 @@ pub fn build_options_from(options: &Value, fallback: &BuildOptions) -> BuildOpti
     if let Some(n) = get("brReservedSlots").and_then(Value::as_f64) {
         out.br_reserved_slots = n;
     }
+    // Operador-only no Node (fora do SCHEMA); se vier no overlay, aplica.
+    if let Some(n) = get("brReservedPerQuality").and_then(Value::as_f64) {
+        out.br_reserved_per_quality = n;
+    }
+    if let Some(n) = get("candidatePoolFactor").and_then(Value::as_f64) {
+        out.candidate_pool_factor = n;
+    }
     if let Some(b) = get("brFirst").and_then(Value::as_bool) {
         out.br_first = b;
     }
@@ -229,8 +236,9 @@ pub fn build_options_from(options: &Value, fallback: &BuildOptions) -> BuildOpti
 }
 
 /// `max2160p`…`maxUnknown` → mapa por chave de qualidade (`QUALITY_KEYS`).
+/// SCHEMA usa `maxSd` (não `maxSD`) — typo aqui ignorava a cota de SD.
 fn quality_limits_from(options: &Value, prefix: &str, fallback: &QualityLimits) -> QualityLimits {
-    const FIELDS: [&str; 6] = ["2160p", "1080p", "720p", "480p", "SD", "Unknown"];
+    const FIELDS: [&str; 6] = ["2160p", "1080p", "720p", "480p", "Sd", "Unknown"];
     let mut out = fallback.clone();
     for (field, quality) in FIELDS.iter().zip(QUALITY_KEYS.iter()) {
         if let Some(n) = options
@@ -273,6 +281,9 @@ mod tests {
             "qualities": ["1080p"],
             "preferDubbed": true,
             "max1080p": 5,
+            "maxSd": 3,
+            "brReservedPerQuality": 2,
+            "candidatePoolFactor": 3,
             "indexerLimits": { "bludv": 3 },
             "indexerPriority": ["bludv"],
         });
@@ -281,10 +292,33 @@ mod tests {
         assert_eq!(out.qualities, vec!["1080p".to_string()]);
         assert!(out.prefer_dubbed);
         assert_eq!(out.quality_limits.get("1080p"), Some(&5.0));
+        assert_eq!(out.quality_limits.get("SD"), Some(&3.0), "maxSd (SCHEMA), não maxSD");
+        assert_eq!(out.br_reserved_per_quality, 2.0);
+        assert_eq!(out.candidate_pool_factor, 3.0);
         assert_eq!(out.indexer_limits.get("bludv"), Some(&3.0));
         assert_eq!(out.indexer_priority, vec!["bludv".to_string()]);
         // Campo ausente mantém o default do operador.
         assert_eq!(out.br_first, fallback.br_first);
+        assert_eq!(out.br_reserved_slots, 6.0);
+    }
+
+    #[test]
+    fn defaults_do_operador_carregam_cotas_node_like() {
+        let b = BuildOptions::default();
+        assert_eq!(b.quality_limits.get("1080p"), Some(&2.0));
+        assert_eq!(b.br_reserved_slots, 6.0);
+        assert_eq!(b.br_reserved_per_quality, 1.0);
+        assert_eq!(b.candidate_pool_factor, 4.0);
+        assert_eq!(b.qualities, vec!["2160p", "1080p", "720p"]);
+        let schema = b.to_schema_defaults();
+        assert_eq!(schema["max1080p"], json!(2.0));
+        assert_eq!(schema["brReservedSlots"], json!(6.0));
+        assert_eq!(schema["brReservedPerQuality"], json!(1.0));
+        assert_eq!(schema["maxSd"], json!(2.0));
+        let cfg = OrchestratorConfig::default();
+        assert_eq!(cfg.defaults["max1080p"], json!(2.0));
+        assert_eq!(cfg.defaults["brReservedSlots"], json!(6.0));
+        assert_eq!(cfg.defaults["brReservedPerQuality"], json!(1.0));
     }
 
     #[test]

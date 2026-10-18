@@ -14,8 +14,8 @@ use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
     sources_rust_includes, try_sources_rust_collector_from_env, AdapterDebridFactory,
-    NodeMetaSource, NodeRoutes, NodeTailEffects, NoDebridFactory, NoopTailEffects,
-    Orchestrator, OrchestratorConfig, StreamRequest,
+    NoDebridFactory, NodeMetaSource, NodeRoutes, NodeTailEffects, NoopTailEffects, Orchestrator,
+    OrchestratorConfig, StreamRequest,
 };
 use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
@@ -54,9 +54,7 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
             match StreamsStore::open_memory() {
                 Ok(store) => Arc::new(store),
                 Err(mem_err) => {
-                    eprintln!(
-                        "[gateway] streams store memória falhou: {mem_err}; MemorySwrStore"
-                    );
+                    eprintln!("[gateway] streams store memória falhou: {mem_err}; MemorySwrStore");
                     Arc::new(MemorySwrStore::new())
                 }
             }
@@ -182,13 +180,19 @@ fn sources_rust_label() -> &'static str {
 /// Números do operador. Defaults do crate cobrem o boot; envs opcionais
 /// ajustam prazo/TTL/segredo sem exigir o `.env` completo do Node.
 ///
-/// `defaults` espelha o `defaults()` do `runtime.ts` **na fatia debrid** —
-/// sem isso o decode da URL não herda `DEBRID_SERVICE`/`DEBRID_API_KEY`/
-/// `DEBRID_CACHED_ONLY` e o orquestrador cai em `NoDebridCheck` (lista só
-/// `infoHash`, sem ⚡/`/resolve`), enquanto o Node na :7100 aplica debrid.
+/// `defaults` espelha o `defaults()` do `runtime.ts`: fatia **debrid** (sem
+/// isso o decode não herda chave/serviço) **e** fatia **cotas/busca** (sem
+/// isso `quality_limits`/`brReservedSlots` ficam vazios → lista ~40 itens e
+/// BR some no cachedOnly). Merge: cotas da base + debrid por cima.
 fn orchestrator_config_from_env() -> OrchestratorConfig {
-    let mut cfg = OrchestratorConfig::default();
-    cfg.defaults = operator_debrid_defaults_from_env();
+    let build = operator_search_build_from_env();
+    let mut defaults = build.to_schema_defaults();
+    merge_json_object(&mut defaults, &operator_debrid_defaults_from_env());
+    let mut cfg = OrchestratorConfig {
+        defaults,
+        build,
+        ..Default::default()
+    };
     if let Ok(secret) = std::env::var("RESOLVE_SECRET") {
         cfg.resolve_secret = secret;
     }
@@ -220,6 +224,69 @@ fn orchestrator_config_from_env() -> OrchestratorConfig {
     cfg
 }
 
+/// Cotas/busca do operador (`src/config/search.ts`) — mesma base do
+/// `BuildOptions::default`, com override por env quando presente.
+fn operator_search_build_from_env() -> adom_search::BuildOptions {
+    let mut b = adom_search::BuildOptions::default();
+    if let Some(n) = env_f64("MAX_RESULTS") {
+        b.max_results = n;
+    }
+    if let Some(n) = env_f64("MIN_SEEDERS") {
+        b.min_seeders = n;
+    }
+    if let Some(n) = env_f64("CANDIDATE_POOL_FACTOR") {
+        b.candidate_pool_factor = n;
+    }
+    if let Some(n) = env_f64("BR_RESERVED_SLOTS") {
+        b.br_reserved_slots = n;
+    }
+    if let Some(n) = env_f64("BR_RESERVED_PER_QUALITY") {
+        b.br_reserved_per_quality = n;
+    }
+    if let Some(n) = env_f64("MAX_STREAMS_PER_INDEXER") {
+        b.max_per_indexer = n;
+    }
+    if let Ok(raw) = std::env::var("PREFER_DUBBED") {
+        b.prefer_dubbed = env_flag(&raw);
+    }
+    // Ausente → default HD; `QUALITY_FILTER=` vazio de propósito aceita todas.
+    if let Ok(raw) = std::env::var("QUALITY_FILTER") {
+        b.qualities = raw
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+    let mut limits = b.quality_limits.clone();
+    // Chave do balde sem resolução = `UNKNOWN_QUALITY` do núcleo ("sem resolução").
+    for (env_key, quality) in [
+        ("MAX_STREAMS_2160P", "2160p"),
+        ("MAX_STREAMS_1080P", "1080p"),
+        ("MAX_STREAMS_720P", "720p"),
+        ("MAX_STREAMS_480P", "480p"),
+        ("MAX_STREAMS_SD", "SD"),
+        ("MAX_STREAMS_UNKNOWN", "sem resolução"),
+    ] {
+        if let Some(n) = env_f64(env_key) {
+            limits.insert(quality.to_string(), n);
+        }
+    }
+    b.quality_limits = limits;
+    b
+}
+
+fn merge_json_object(base: &mut serde_json::Value, overlay: &serde_json::Value) {
+    let Some(base_map) = base.as_object_mut() else {
+        return;
+    };
+    let Some(overlay_map) = overlay.as_object() else {
+        return;
+    };
+    for (k, v) in overlay_map {
+        base_map.insert(k.clone(), v.clone());
+    }
+}
+
 /// Fatia debrid do `defaults()` do Node (`src/runtime.ts` + `config/debrid.ts`).
 ///
 /// Gate `DEBRID_ALLOW_ENV_KEY` (default true): única herança da chave do `.env`
@@ -231,6 +298,8 @@ fn operator_debrid_defaults_from_env() -> serde_json::Value {
         std::env::var("DEBRID_ALLOW_ENV_KEY").ok().as_deref(),
         std::env::var("DEBRID_CACHED_ONLY").ok().as_deref(),
         std::env::var("DEBRID_SHOW_UNCACHED_BR").ok().as_deref(),
+        std::env::var("BR_RESERVED_SLOTS").ok().as_deref(),
+        std::env::var("BR_RESERVED_PER_QUALITY").ok().as_deref(),
     )
 }
 
@@ -240,20 +309,31 @@ fn operator_debrid_defaults(
     allow_env_key: Option<&str>,
     cached_only: Option<&str>,
     show_uncached_br: Option<&str>,
+    br_reserved_slots: Option<&str>,
+    br_reserved_per_quality: Option<&str>,
 ) -> serde_json::Value {
-    let allow = allow_env_key
-        .map(env_flag)
-        .unwrap_or(true);
+    let allow = allow_env_key.map(env_flag).unwrap_or(true);
     let key = if allow {
         api_key.unwrap_or("").trim().to_string()
     } else {
         String::new()
     };
+    // Reserva BR: mesmos defaults do Node (`config/search.ts` → 6 / 1). Sem
+    // isso o decode da URL deixa `brReservedSlots=0` e o showUncachedBr não
+    // libera vaga P2P no list_builder.
+    let br_slots = br_reserved_slots
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .unwrap_or(6.0);
+    let br_pq = br_reserved_per_quality
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .unwrap_or(1.0);
     serde_json::json!({
         "debridService": service.unwrap_or("").trim().to_ascii_lowercase(),
         "debridApiKey": key,
         "debridCachedOnly": cached_only.map(env_flag).unwrap_or(true),
         "showUncachedBr": show_uncached_br.map(env_flag).unwrap_or(false),
+        "brReservedSlots": br_slots,
+        "brReservedPerQuality": br_pq,
     })
 }
 
@@ -269,6 +349,10 @@ fn env_u64(key: &str) -> Option<u64> {
 }
 
 fn env_i64(key: &str) -> Option<i64> {
+    std::env::var(key).ok()?.trim().parse().ok()
+}
+
+fn env_f64(key: &str) -> Option<f64> {
     std::env::var(key).ok()?.trim().parse().ok()
 }
 
@@ -377,9 +461,9 @@ fn is_safe_host(host: &str) -> bool {
     }
     // hostname[:port] ou [v6]:port — mesma intenção do ORIGIN_*_RE do Node.
     if host.starts_with('[') {
-        return host.bytes().all(|b| {
-            b.is_ascii_hexdigit() || matches!(b, b'[' | b']' | b':' | b'.')
-        });
+        return host
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() || matches!(b, b'[' | b']' | b':' | b'.'));
     }
     host.bytes()
         .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':'))
@@ -506,11 +590,42 @@ mod tests {
             None, // ALLOW_ENV_KEY ausente → true
             None, // CACHED_ONLY ausente → true
             None,
+            None,
+            None,
         );
         assert_eq!(d["debridService"], serde_json::json!("alldebrid"));
         assert_eq!(d["debridApiKey"], serde_json::json!("chave-do-operador"));
         assert_eq!(d["debridCachedOnly"], serde_json::json!(true));
         assert_eq!(d["showUncachedBr"], serde_json::json!(false));
+        assert_eq!(d["brReservedSlots"], serde_json::json!(6.0));
+        assert_eq!(d["brReservedPerQuality"], serde_json::json!(1.0));
+    }
+
+    #[test]
+    fn defaults_merge_cotas_com_debrid_como_runtime_ts() {
+        let build = operator_search_build_from_env();
+        let mut defaults = build.to_schema_defaults();
+        merge_json_object(
+            &mut defaults,
+            &operator_debrid_defaults(
+                Some("alldebrid"),
+                Some("chave"),
+                Some("true"),
+                Some("true"),
+                Some("true"),
+                None,
+                None,
+            ),
+        );
+        // Cotas Node-like sobrevivem ao merge (não só a fatia debrid).
+        assert_eq!(defaults["max1080p"], serde_json::json!(2.0));
+        assert_eq!(defaults["maxResults"], serde_json::json!(40.0));
+        assert_eq!(defaults["brReservedSlots"], serde_json::json!(6.0));
+        assert_eq!(defaults["qualities"], serde_json::json!(["2160p", "1080p", "720p"]));
+        assert_eq!(defaults["debridService"], serde_json::json!("alldebrid"));
+        assert_eq!(defaults["showUncachedBr"], serde_json::json!(true));
+        assert_eq!(build.quality_limits.get("1080p"), Some(&2.0));
+        assert_eq!(build.candidate_pool_factor, 4.0);
     }
 
     #[test]
@@ -521,11 +636,15 @@ mod tests {
             Some("false"),
             Some("0"),
             Some("true"),
+            Some("4"),
+            Some("2"),
         );
         assert_eq!(d["debridService"], serde_json::json!("premiumize"));
         assert_eq!(d["debridApiKey"], serde_json::json!(""));
         assert_eq!(d["debridCachedOnly"], serde_json::json!(false));
         assert_eq!(d["showUncachedBr"], serde_json::json!(true));
+        assert_eq!(d["brReservedSlots"], serde_json::json!(4.0));
+        assert_eq!(d["brReservedPerQuality"], serde_json::json!(2.0));
     }
 
     #[test]
@@ -537,6 +656,8 @@ mod tests {
             Some("chave"),
             Some("true"),
             Some("true"),
+            None,
+            None,
             None,
         );
         let ctx = DebridContext {

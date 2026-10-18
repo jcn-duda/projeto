@@ -555,6 +555,95 @@ fn teto_por_indexer_limita_o_pool_final() {
     assert_eq!(out.streams.len(), 1, "teto por indexer no corte final");
 }
 
+#[test]
+fn lista_ampliada_corta_com_cotas_node_like_e_reserva_br() {
+    // ~20 globais 1080p + 6 BR dublados → Node-like: cota 2/faixa + até 6 BR
+    // reservados (não consomem a cota) → bem abaixo de maxResults=40.
+    let ctx = base_ctx();
+    let opts = BuildOptions::default();
+    let mut debrid = StubDebrid::none();
+    let mut raw: Vec<RawItem> = (0..20)
+        .map(|i| {
+            release(
+                &format!("Filme Teste 2024 1080p WEB-DL x264 G{i}"),
+                &format!("a{:039x}", i),
+            )
+        })
+        .collect();
+    for i in 0..6 {
+        raw.push(RawItem {
+            is_br: true,
+            seeders: Some(30.0),
+            ..release(
+                &format!("Filme Teste 2024 1080p DUBLADO BR {i}"),
+                &format!("b{:039x}", i),
+            )
+        });
+    }
+    let out = build(raw, &ctx, &opts, &mut debrid);
+    let tocaveis: Vec<_> = out.streams.iter().filter(|s| !s.notice).collect();
+    assert!(
+        tocaveis.len() <= 12,
+        "cotas Node-like (2/faixa + reserva BR) ≤ ~12, veio {}",
+        tocaveis.len()
+    );
+    assert!(tocaveis.len() >= 6, "reserva BR entra: {}", tocaveis.len());
+    let br = tocaveis.iter().filter(|s| s.is_br).count();
+    assert!(br >= 6, "6 BR reservados sobrevivem: {br}");
+}
+
+#[test]
+fn show_uncached_br_mantem_vagas_br_sob_cached_only() {
+    let mut ctx = base_ctx();
+    ctx.debrid_cached_only = true;
+    ctx.debrid_cache_check_honest = true;
+    ctx.debrid_has_key = true;
+    ctx.show_uncached_br = true;
+    let opts = BuildOptions::default();
+    let mut debrid = StubDebrid {
+        cached: vec![],
+        known: true,
+        unusable: false,
+    };
+    let mut raw: Vec<RawItem> = (0..4)
+        .map(|i| {
+            release(
+                &format!("Filme Teste 2024 1080p WEB-DL G{i}"),
+                &format!("c{:039x}", i),
+            )
+        })
+        .collect();
+    for i in 0..6 {
+        raw.push(RawItem {
+            is_br: true,
+            seeders: Some(25.0),
+            ..release(
+                &format!("Filme Teste 2024 1080p DUBLADO {i}"),
+                &format!("d{:039x}", i),
+            )
+        });
+    }
+    let out = build(raw, &ctx, &opts, &mut debrid);
+    let tocaveis: Vec<_> = out.streams.iter().filter(|s| !s.notice).collect();
+    assert!(
+        !tocaveis.is_empty(),
+        "com showUncachedBr não pode virar só aviso"
+    );
+    assert!(
+        tocaveis.iter().all(|s| s.is_br && !s.cached),
+        "só BR P2P frio (globais cortados pelo cachedOnly): {:?}",
+        tocaveis
+            .iter()
+            .map(|s| (s.is_br, s.cached))
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        tocaveis.len() <= opts.br_reserved_slots as usize,
+        "no máximo brReservedSlots: {}",
+        tocaveis.len()
+    );
+}
+
 // ── Debrid: estados ──────────────────────────────────────────────────────────
 
 #[test]
