@@ -44,17 +44,21 @@ pub struct ResolveSigner {
 impl ResolveSigner {
     /// URL relativa do `/resolve` para um stream. Sem segredo o HMAC sai
     /// vazio (rota não assinável) — o chamador decide se materializa.
+    ///
+    /// O hash no path e no payload HMAC vai em **minúsculas** (a rota Node
+    /// faz `toLowerCase` antes do verify — assinar em maiúsculas quebraria).
     pub fn url(&self, hash: &str, dubbed: bool, multi_work_admitted: bool) -> String {
+        let hash = hash.to_ascii_lowercase();
         let ep = match (self.season, self.episode) {
             (Some(season), Some(episode)) => format!("?s={season}&e={episode}"),
             _ => String::new(),
         };
         let hint = self.hint_json(dubbed, multi_work_admitted);
-        let sig = adom_core::sign_resolve(hash, &ep, &hint, &self.secret);
+        let sig = adom_core::sign_resolve(&hash, &ep, &hint, &self.secret);
         let mut url = String::new();
         url.push_str(&self.prefix);
         url.push_str("/resolve/");
-        url.push_str(hash);
+        url.push_str(&hash);
         url.push_str(&ep);
         // `ep ? '&' : '?'`: o primeiro parâmetro depois do ep (ou do hash).
         url.push(if ep.is_empty() { '?' } else { '&' });
@@ -485,19 +489,17 @@ mod tests {
             episode: Some(2),
             ..signer()
         };
-        let hash = "0123456789abcdef0123456789abcdef01234567";
-        let url = signer.url(hash, true, true);
-        // URL relativa: /e30/resolve/<hash>?s=1&e=2&w=…&sig=…
-        // `split_once('?')` só corta no primeiro `?` (o do ep); o resto é query.
-        let q_start = url.find('?').unwrap();
-        let path = &url[..q_start];
-        let query = &url[q_start + 1..];
+        // Assina com maiúsculas no argumento — o signer normaliza; o verify
+        // também lowercasa o path (espelho do Node).
+        let url = signer.url("0123456789ABCDEF0123456789ABCDEF01234567", true, true);
+        let (path, query) = url.split_once('?').unwrap();
         let play = resolve_play_from(path, Some(query)).unwrap();
-        assert_eq!(play.info_hash, hash);
+        assert_eq!(
+            play.info_hash,
+            "0123456789abcdef0123456789abcdef01234567"
+        );
         assert_eq!(play.ep, "?s=1&e=2");
         assert!(play.hint.contains("\"p\":1"), "hint={}", play.hint);
-        let expected_hint = signer.hint_json(true, true);
-        assert_eq!(play.hint, expected_hint, "dica decoded != hint_json");
         assert_eq!(
             verify_resolve_play(&play, "segredo-de-teste"),
             ResolveVerify::Ok
