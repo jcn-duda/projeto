@@ -34,10 +34,8 @@ pub mod internal_client;
 pub mod internal_types;
 pub mod latest_writer;
 pub mod list_builder;
-pub mod orchestrate;
 // MONTAGEM do orquestrador do `/stream` (janela+build+SWR+fim+trace+fila
-// tardia), separada do `orchestrate`: aqui a coleta é injetada, o prazo corta
-// a RESPOSTA e a busca continua em fundo.
+// tardia): aqui a coleta é injetada, o prazo corta a RESPOSTA e a busca continua em fundo.
 pub mod orchestrator;
 pub mod raw_item;
 pub mod request;
@@ -70,9 +68,7 @@ pub use internal_types::{
     IndexWriteRequest, IndexWriteResponse, LiveSnapshot, MetaRequest, MetaResponse, ReleaseEntry,
     StateRequest, StateResponse, TaskScope,
 };
-pub use orchestrate::{
-    orchestrate, OrchestrateDeps, OrchestrateInput, OrchestrateResult, SearchBackend,
-};
+pub use orchestrator::{Orchestrator, OrchestratorConfig, StreamRequest};
 pub use raw_item::raw_item_from_value;
 pub use request::{
     decode_user_config, encoded_for_internal, parse_stream_path, reply_deadline_ms,
