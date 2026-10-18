@@ -1,10 +1,12 @@
 # OVERRIDE opt-in de validação local (commitado de propósito; o compose padrão
 # não o carrega): liga o gateway Rust na 7000 com o Node na 7100 atrás.
-# ROUTES_RUST=stream-shadow: Node responde /stream; Rust só observa (sem corte
-# nativo). Corte `stream` ainda NÃO está pronto (paridade BR/cotas) — só use
-# para experimento consciente; validate-docker NÃO prova lista correta.
-# Rotas internas e reserva de debrid falam com o Node na 7100 — NUNCA :7000
-# (a fachada recusa /internal/*). Docs: docs/rust-stream-contract.md §0.
+# Default deste override: ROUTES_RUST=stream-shadow (Node responde; Rust
+# remonta e só compara — sombra). Corte nativo (ROUTES_RUST=stream) é
+# experimental: NÃO está pronto (evidência: BR some) e exige paridade
+# BR+cotas antes de virar default. Não tratar smoke/validate-docker como
+# aceite do corte. Rotas internas e reserva de debrid falam com o Node na
+# 7100 — NUNCA :7000 (a fachada recusa /internal/*).
+# Docs: docs/rust-stream-contract.md §0.
 services:
   adom:
     environment:

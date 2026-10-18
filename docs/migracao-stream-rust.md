@@ -97,8 +97,8 @@ novos é o TS do worktree `../adom-esm`.
    `scripts/golden/capture-stream-e2e.mjs` em `rust/golden/stream-e2e/`.
 3. **Sombra** (`ROUTES_RUST=stream-shadow`): o Node responde, o Rust remonta com
    store `MemorySwrStore` isolado (nunca `STREAMS_DB`) e só a métrica
-   `stream.shadow.divergence` é pública. Continua disponível para comparar;
-   o override local de validação já cortou (F1.4 / contrato §0).
+   `stream.shadow.divergence` é pública. É o **default** do override
+   `docker-compose.gateway.yml` (contrato §0).
 
 ## F1 — Orquestrador Rust com a rede ainda no Node
 
@@ -123,11 +123,13 @@ novos é o TS do worktree `../adom-esm`.
    jackett > prowlarr > torrentio > bludv > mico; sem composição multi-fonte).
 3. **Paridade** com o golden da F0 e sombra sem divergência (critério formal
    §9.4 do contrato; CI ainda não exercita o HTTP do corte — ver contrato §0.6).
-4. **Corte local** `ROUTES_RUST=stream` no
-   [`docker-compose.gateway.yml`](../docker-compose.gateway.yml) (`7eb3ff6a`);
-   o Node na 7100 vira reserva (internal + `/resolve`/painel). Caveat: 1ª hit
-   a frio pode vir só com aviso “reabra” (`49482cc7`); reabrir antes de acusar
-   regressão de matching.
+4. **Corte local experimental** `ROUTES_RUST=stream` (opt-in no override;
+   **não** é o default): o Node na 7100 vira reserva (internal +
+   `/resolve`/painel). Ainda **não** pronto — evidência: BR some; exige
+   paridade BR+cotas antes de qualquer promoção. Caveat: 1ª hit a frio pode
+   vir só com aviso “reabra” (`49482cc7`); reabrir antes de acusar regressão
+   de matching. `scripts/validate-docker.mjs` só exige stream tocável — não
+   mede paridade BR.
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
@@ -147,9 +149,10 @@ interna.
 
 ## F4 — Corte final
 
-`ROUTES_RUST=stream` vira padrão; saem `search-orchestrator`, `search-cache`,
-`stream-builder*`, `debrid-pipeline*` e as rotas internas de coleta. O Node fica
-com configure, painel, `/resolve` (até ser portado) e config.
+Só depois de paridade BR+cotas e critério §9.4: `ROUTES_RUST=stream` vira
+padrão; saem `search-orchestrator`, `search-cache`, `stream-builder*`,
+`debrid-pipeline*` e as rotas internas de coleta. O Node fica com configure,
+painel, `/resolve` (até ser portado) e config.
 
 ---
 
@@ -161,10 +164,11 @@ O que trava o quê:
   (módulo puro + golden + napi + casca TS) e podem andar em paralelo com F0/F1.1.
 - A sombra da F0 **só é honesta depois** que o orquestrador da F1.2 existir: sem
   ele não há "remontar a resposta", só um proxy que finge comparar.
-- O corte por rota local (`ROUTES_RUST=stream` no override gateway) já está
-  ligado para validação; o critério formal de sombra §9.4 e o default de
-  produção (F4) continuam separados — não confundir “compose local” com
-  “F4 no compose principal”.
+- O override gateway fica em **sombra** (`stream-shadow`). Corte
+  `ROUTES_RUST=stream` é experimental e **não** default; critério formal
+  §9.4 + paridade BR+cotas travam a promoção. Não confundir smoke/
+  `validate-docker.mjs` (só tocável) com aceite do corte, nem “compose
+  local” com “F4 no compose principal”.
 - F2 só começa quando a rota `collect` da F1.1 estiver estável: migrar fonte com
   a rota ainda mudando joga trabalho fora.
 
@@ -175,10 +179,9 @@ O que trava o quê:
 3. Prazo: `test/search-budget-metadata.test.ts` portado para o Rust; medir p50 e
    p95 do `/stream` com Stremio (10 s) e com o app Power Movie (15 s) antes e
    depois.
-4. Docker / smoke gateway: checklist copy-paste em
-   [`docs/rust-stream-contract.md`](rust-stream-contract.md) §0.6 (`compose`
-   + `curl` health/manifest/stream). Depois, se for revalidar matching:
-   `clear-cache`; cobrir série, filme, pack e BR dublado — Node desligado **e**
-   ligado. 1ª hit a frio: ver §0.5.
+4. Docker / smoke gateway: checklist §0.6 do contrato (`compose` + `curl`).
+   `validate-docker.mjs` só checa tocável — **não** paridade BR (contrato
+   §0.7). Antes de promover corte: `clear-cache`; cobrir série, filme, pack e
+   BR dublado + cotas — Node desligado **e** ligado. 1ª hit a frio: §0.5.
 5. Play: `/resolve` de um item de cada debrid pela lista gerada no Rust (o HMAC
    tem que valer).

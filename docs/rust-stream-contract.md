@@ -1,9 +1,11 @@
 # Contrato do `/stream` — o que o orquestrador Rust precisa reproduzir
 
-Status: **contrato F0 fixado** a partir do TypeScript; **corte local nativo
-ligado** no override `docker-compose.gateway.yml` (`ROUTES_RUST=stream`,
-commit `7eb3ff6a`). Nada nos §§1–8 é proposta: cada afirmação tem
-`arquivo:linha` do fonte real. O orquestrador vive em
+Status: **contrato F0 fixado** a partir do TypeScript; override gateway em
+**sombra por default** (`ROUTES_RUST=stream-shadow`). Corte nativo
+(`ROUTES_RUST=stream`) é **experimental** — não está pronto como default:
+falta paridade BR + cotas (evidência operacional: BR some no corte). Nada nos
+§§1–8 é proposta: cada afirmação tem `arquivo:linha` do fonte real. O
+orquestrador vive em
 [`rust/crates/adom-search`](../rust/crates/adom-search/src/lib.rs); a fachada
 que corta a rota é [`adom-server`](../rust/crates/adom-server/src/stream.rs).
 
@@ -13,11 +15,13 @@ regras que mais quebram.
 
 ---
 
-## 0. Estado operacional (Fase F — corte gateway → stream nativo)
+## 0. Estado operacional (Fase F — sombra default; corte experimental)
 
-### 0.1 Como ligar o corte local
+### 0.1 Override local (sombra default; corte experimental)
 
-Override opt-in (o compose padrão **não** o carrega):
+Override opt-in (o compose padrão **não** o carrega). Default do YAML:
+`ROUTES_RUST=stream-shadow` — Node responde; Rust remonta e só incrementa
+`stream.shadow.*` (§9).
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --build
@@ -26,11 +30,13 @@ docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --build
 | Env | Valor no override | Papel |
 |---|---|---|
 | `GATEWAY` | `on` | `adom-server` na 7000; Node atrás na 7100 |
-| `ROUTES_RUST` | `stream` | corte nativo de `/stream` (token exato; tem prioridade sobre `stream-shadow`) |
+| `ROUTES_RUST` | `stream-shadow` | sombra (default deste override) |
 | `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | meta/collect/tail e reserva de debrid — **nunca** `:7000` (a fachada recusa `/internal/*`) |
 
-`ROUTES_RUST=stream-shadow` continua válido para observar sem cortar: Node
-responde; Rust remonta e só incrementa `stream.shadow.*` (§9). Com `stream` e
+Corte nativo (`ROUTES_RUST=stream`, token exato) é **experimental**: força o
+handler Rust a responder `/stream`. Ainda **não** está pronto para default —
+evidência de uso: conteúdo BR some da lista. Exige paridade BR+cotas (e o
+critério formal §9.4) antes de qualquer promoção. Com `stream` e
 `stream-shadow` no mesmo CSV, o corte nativo vence (`adom-server/src/proxy.rs`).
 
 ### 0.2 Debrid com herança do `.env`
@@ -41,7 +47,8 @@ Install sem `dk` na URL herda a fatia debrid do operador
 `operator_debrid_defaults_from_env` no gateway (`adom-server/src/stream.rs`,
 commit `dd9330c4`). Sem isso o orquestrador caía em `NoDebridCheck` (lista só
 `infoHash`, sem ⚡/`/resolve`) enquanto o Node na 7100 aplicava debrid — o
-Docker PASS com chave só no `.env` depende dessa herança.
+smoke Docker com chave só no `.env` depende dessa herança (não confundir
+com aceite de paridade BR).
 
 ### 0.3 Collect: Node por padrão; Jackett Rust opt-in
 
@@ -84,8 +91,9 @@ Nenhum workflow em `.github/workflows/` sobe o override gateway nem fixa
   de `/stream` nativo);
 - `ci.yml` — suíte Node.
 
-Validar o corte é **manual/local**. O YAML de CI **não** entra nesta fatia
-docs. Smoke mínimo (PASS local com override §0.1; Matrix `tt0133093`):
+Validar sombra/corte é **manual/local**. O YAML de CI **não** entra nesta fatia
+docs. Smoke mínimo (override §0.1; Matrix `tt0133093`) — só forma HTTP, **não**
+é aceite de paridade:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gateway.yml \
@@ -95,9 +103,18 @@ curl -sf http://127.0.0.1:7000/health                    # {"ok":true} (proxy �
 curl -sf -o /dev/null -w '%{http_code}\n' \
   http://127.0.0.1:7000/manifest.json                    # 200 (mesmo alvo do healthcheck Docker)
 curl -sf http://127.0.0.1:7000/stream/movie/tt0133093.json | head -c 240
-# PASS: HTTP 200 + JSON com "streams"; 1ª hit a frio pode ser só aviso §0.5 —
-# repetir a 2ª; FAIL se 5xx/HTML ou `{"streams":[]}` silencioso sem aviso.
+# Esperado: HTTP 200 + JSON com "streams"; 1ª hit a frio pode ser só aviso §0.5 —
+# repetir a 2ª. Falha se 5xx/HTML ou `{"streams":[]}` silencioso sem aviso.
+# NÃO tratar isto (nem validate-docker.mjs) como paridade BR+cotas — ver §0.7.
 ```
+
+### 0.7 `validate-docker.mjs` ≠ paridade BR
+
+[`scripts/validate-docker.mjs`](../scripts/validate-docker.mjs) confere health,
+manifest e que `/stream` devolve **pelo menos um stream tocável**
+(`url`/`infoHash`/`externalUrl`). Conta `dublado` só como detalhe do log —
+**não falha** se BR sumir nem compara cotas/reserva com o Node. Verde no
+script **não** autoriza `ROUTES_RUST=stream` como default.
 
 ---
 
@@ -519,10 +536,11 @@ decodificada, deadline, origin), e **só compara**. Store isolado em memória
 (§0.4); sem debrid, sem gravação SWR, sem efeitos de cauda. Timeout ou erro do
 Rust não afeta o usuário.
 
-Com `ROUTES_RUST=stream` (override local atual, §0.1) o cliente **não** passa
-pelo Node nem pela sombra: o nativo responde. Os contadores abaixo seguem
-úteis quando a sombra está ligada; no corte puro o alarme operacional é a
-lista/HTTP do próprio caminho nativo.
+Com `ROUTES_RUST=stream` (opt-in experimental, §0.1) o cliente **não** passa
+pelo Node nem pela sombra: o nativo responde. Default do override continua
+sombra. Os contadores abaixo seguem úteis com sombra ligada; no corte puro o
+alarme operacional é a lista/HTTP do próprio caminho nativo — e BR+cotas
+ainda precisam fechar antes de qualquer default.
 
 ### 9.2 Contadores e amostra
 
@@ -599,8 +617,10 @@ depois do corte: ele vira o alarme permanente do caminho nativo.
 
 ## 10. O que ainda falta / o que já entrou no caminho nativo
 
-Estado da Fase F (corte local). Fonte TS continua a régua; o código Rust é o
-que responde com `ROUTES_RUST=stream`.
+Estado da Fase F: **sombra default** no override gateway; corte
+`ROUTES_RUST=stream` só experimental. Fonte TS continua a régua. Código Rust
+já responde no caminho nativo quando o token `stream` está ligado — mas isso
+**não** implica aceite: falta paridade BR+cotas (§0.1 / §0.7).
 
 | # | Item | Estado |
 |---|---|---|
@@ -610,7 +630,7 @@ que responde com `ROUTES_RUST=stream`.
 | 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | via `POST /internal/search/meta` (Node); porte puro de fontes = F2 |
 | 5 | plano / orçamentos de coleta | decisões no núcleo; janela ainda orquestrada com I/O Node |
 | 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio\|bludv\|mico` (exclusão mútua jackett>prowlarr>torrentio>bludv>mico; sem composição/raw:v1 nessa fatia) |
-| 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador / núcleo |
+| 7 | pipeline de build (filtro, ranking, cotas, aviso) | orquestrador/núcleo; **paridade BR+cotas ainda aberta** (bloqueia default do corte) |
 | 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + reserva Node (`INTERNAL_CHECK_URL`); autofetch/efeitos de cauda ainda no Node |
 | 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play completo ainda no Node |
 | 10 | host/origin e `prefix()` no egresso | **feito** no caminho nativo |
@@ -621,8 +641,10 @@ que responde com `ROUTES_RUST=stream`.
 | 15 | `staleRevalidate`/`staleError` no tipo | ainda estreito no contrato do crate |
 | 16 | `/internal/search/*` | **feito** meta/state/collect (e correlatos) no Node; fachada recusa `/internal/*` antes do proxy |
 
-Produção ainda não tem `ROUTES_RUST=stream` como default do compose principal —
-isso é F4 em [`migracao-stream-rust.md`](migracao-stream-rust.md).
+Override gateway: sombra (`stream-shadow`). Produção e o compose principal
+também **não** usam `ROUTES_RUST=stream` — F4 em
+[`migracao-stream-rust.md`](migracao-stream-rust.md) só depois de paridade
+BR+cotas + §9.4.
 
 ---
 
