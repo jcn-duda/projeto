@@ -5,8 +5,9 @@
 //! leitura é a do SWR em `adom-search::cache`: `get` é duro; `get_with_stale`
 //! serve dentro da graça sem apagar.
 //!
-//! Nesta fatia: **só** `streams:v21`. Sem import do `cache.db`, sem magnets,
-//! sem plugar no gateway/Orchestrator.
+//! Nesta fatia: **só** `streams:v21`. Sem import do `cache.db`, sem magnets.
+//! O gateway (`adom-server`) abre este store via `STREAMS_DB` (default
+//! `data/streams.db`) e injeta no Orchestrator.
 
 mod streams;
 

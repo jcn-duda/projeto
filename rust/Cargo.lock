@@ -75,9 +75,12 @@ dependencies = [
 name = "adom-parity"
 version = "0.0.0"
 dependencies = [
+ "adom-core",
+ "adom-search",
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
 ]
 
 [[package]]
@@ -118,6 +121,8 @@ name = "adom-server"
 version = "0.0.0"
 dependencies = [
  "adom-debrid",
+ "adom-search",
+ "adom-store",
  "axum",
  "bytes",
  "http",
@@ -125,6 +130,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -138,6 +144,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "adom-store"
+version = "0.0.0"
+dependencies = [
+ "adom-core",
+ "adom-search",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

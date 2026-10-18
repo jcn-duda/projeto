@@ -4,6 +4,7 @@
 //! Node nem pela sombra. A rede de coleta/metadados ainda mora no Node via
 //! `POST /internal/search/*` (`InternalSearchClient` / `NodeRoutes`).
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -15,12 +16,57 @@ use adom_search::orchestrator::{
     AdapterDebridFactory, NodeRoutes, NoDebridFactory, NoopTailEffects, Orchestrator,
     OrchestratorConfig, StreamRequest,
 };
-use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse};
+use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse, SwrStore};
+use adom_store::StreamsStore;
+
+/// Default relativo ao cwd do processo (volume `docker-data/addon` → `data/`).
+const DEFAULT_STREAMS_DB: &str = "data/streams.db";
+
+/// Path do SQLite `streams:v21`. Env `STREAMS_DB` vence; senão [`DEFAULT_STREAMS_DB`].
+pub fn streams_db_path() -> PathBuf {
+    streams_db_path_from(std::env::var("STREAMS_DB").ok().as_deref())
+}
+
+fn streams_db_path_from(env: Option<&str>) -> PathBuf {
+    match env.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(path) => PathBuf::from(path),
+        None => PathBuf::from(DEFAULT_STREAMS_DB),
+    }
+}
+
+/// Abre `StreamsStore` em disco; se falhar, memória (+ log) — o boot não cai.
+pub fn open_swr_store() -> Arc<dyn SwrStore> {
+    open_swr_store_at(&streams_db_path())
+}
+
+fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
+    match StreamsStore::open(path) {
+        Ok(store) => {
+            eprintln!("[gateway] streams store: {}", path.display());
+            Arc::new(store)
+        }
+        Err(err) => {
+            eprintln!(
+                "[gateway] streams.db indisponível ({}): {err}; usando memória",
+                path.display()
+            );
+            match StreamsStore::open_memory() {
+                Ok(store) => Arc::new(store),
+                Err(mem_err) => {
+                    eprintln!(
+                        "[gateway] streams store memória falhou: {mem_err}; MemorySwrStore"
+                    );
+                    Arc::new(MemorySwrStore::new())
+                }
+            }
+        }
+    }
+}
 
 /// Monta o orquestrador de produção: store SWR compartilhado, coleta via
 /// rotas internas (se `JACKETT_TEST_TOKEN` existir) e debrid com reserva Node.
 pub fn build_orchestrator() -> Orchestrator {
-    let store = Arc::new(MemorySwrStore::new());
+    let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
     match NodeRoutes::from_env() {
         Some(routes) => {
@@ -46,7 +92,8 @@ pub fn build_orchestrator() -> Orchestrator {
 ///
 /// Não devolve nada ao cliente; o proxy só observa o corpo.
 pub fn build_shadow_orchestrator() -> Orchestrator {
-    let store = Arc::new(MemorySwrStore::new());
+    // Mesmo path do corte nativo; `shadow_mode` impede gravação/SWR/tail.
+    let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
         .with_shadow_mode(true)
         .with_debrid(Arc::new(NoDebridFactory));
@@ -224,6 +271,47 @@ mod tests {
     use super::*;
 
     #[test]
+    fn streams_db_path_env_vence_default() {
+        assert_eq!(
+            streams_db_path_from(None),
+            PathBuf::from(DEFAULT_STREAMS_DB)
+        );
+        assert_eq!(
+            streams_db_path_from(Some("")),
+            PathBuf::from(DEFAULT_STREAMS_DB)
+        );
+        assert_eq!(
+            streams_db_path_from(Some("   ")),
+            PathBuf::from(DEFAULT_STREAMS_DB)
+        );
+        assert_eq!(
+            streams_db_path_from(Some("  custom/streams.db  ")),
+            PathBuf::from("custom/streams.db")
+        );
+    }
+
+    #[test]
+    fn open_swr_store_at_tempfile_abre() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("streams.db");
+        let store = open_swr_store_at(&path);
+        assert_eq!(store.len(), 0);
+        assert!(path.is_file(), "open deve criar o arquivo em disco");
+    }
+
+    #[test]
+    fn open_swr_store_at_path_invalido_cai_em_memoria() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // Pai é arquivo → create_dir_all/open falha → fallback memória.
+        let blocker = dir.path().join("nao-e-pasta");
+        std::fs::write(&blocker, b"x").expect("blocker");
+        let path = blocker.join("streams.db");
+        let store = open_swr_store_at(&path);
+        assert_eq!(store.len(), 0);
+        assert!(!path.exists(), "fallback memória não cria o path inválido");
+    }
+
+    #[test]
     fn cache_control_zero_e_positivo() {
         assert_eq!(cache_control(0), "max-age=0, public");
         assert_eq!(
@@ -251,11 +339,13 @@ mod tests {
     }
 
     #[test]
-    fn from_path_sem_config_preenche_encoded_canonico() {
+    fn from_path_sem_config_mantem_encoded_none_e_prefixo_vazio() {
         let req = StreamRequest::from_path("/stream/movie/tt0133093.json", None, None, None)
             .expect("path sem config");
-        assert_eq!(req.encoded.as_deref(), Some("e30"));
-        assert_eq!(req.prefix(), "/e30");
+        // Paridade Node: sem segmento na URL → prefixo ""; o canônico `e30`
+        // só entra no corpo de `/internal/search/*` (orquestrador).
+        assert_eq!(req.encoded, None);
+        assert_eq!(req.prefix(), "");
 
         let com = StreamRequest::from_path(
             "/eyJwIjoiamFja2V0dCJ9/stream/movie/tt0133093.json",
@@ -265,5 +355,6 @@ mod tests {
         )
         .expect("path com config");
         assert_eq!(com.encoded.as_deref(), Some("eyJwIjoiamFja2V0dCJ9"));
+        assert_eq!(com.prefix(), "/eyJwIjoiamFja2V0dCJ9");
     }
 }
