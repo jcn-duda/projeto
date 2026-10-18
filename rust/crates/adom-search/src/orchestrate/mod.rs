@@ -21,9 +21,9 @@ use crate::cache::{
     STREAM_STALE_GRACE_SECONDS,
 };
 use crate::coalesce::InFlight;
-use crate::contract::StreamResponse;
+use crate::contract::{StreamItem, StreamResponse};
 use crate::list_builder::{
-    BuildOptions, BuiltList, DebridAnswer, DebridCheck,
+    apply_notice_origin, BuildOptions, BuiltList, BuiltStream, DebridAnswer, DebridCheck,
 };
 use crate::request::{decode_user_config, request_cache_key, StreamTarget};
 use run::run_live;
@@ -116,17 +116,19 @@ pub async fn orchestrate(
             } else {
                 crate::cache::MAX_TTL_SECONDS as u32
             };
+            // Host nunca no cache: remonta origin+prefix só na resposta
+            // (espelha `entry_streams` do orquestrador WIP / `run_live`).
+            let streams = entry_streams(&entry, input);
             return Ok(OrchestrateResult {
                 built: BuiltList {
-                    streams: entry
-                        .streams
+                    streams: streams
                         .iter()
                         .cloned()
-                        .map(|item| crate::list_builder::BuiltStream {
+                        .map(|item| BuiltStream {
                             info_hash: item.info_hash.clone(),
                             item,
                             is_br: false,
-                            notice: false,
+                            notice: entry.notice,
                             cached: false,
                             dubbed: false,
                             multi_work_admitted: false,
@@ -136,7 +138,7 @@ pub async fn orchestrate(
                     ..BuiltList::default()
                 },
                 response: StreamResponse {
-                    streams: entry.streams,
+                    streams,
                     cache_max_age,
                 },
                 partial: entry.partial,
@@ -232,6 +234,36 @@ fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// Prefixo `/{encoded}` normalizado (mesma regra do live em `run.rs`).
+fn config_prefix(input: &OrchestrateInput) -> String {
+    if input.config_prefix.is_empty() {
+        String::new()
+    } else if input.config_prefix.starts_with('/') {
+        input.config_prefix.clone()
+    } else {
+        format!("/{}", input.config_prefix)
+    }
+}
+
+/// Streams do hit SWR com host da requisição atual — a entrada guarda só path.
+fn entry_streams(entry: &StreamsEntry, input: &OrchestrateInput) -> Vec<StreamItem> {
+    let built: Vec<BuiltStream> = entry
+        .streams
+        .iter()
+        .map(|item| BuiltStream {
+            item: item.clone(),
+            is_br: false,
+            // Marca de aviso é da ENTRADA (cache não guarda `notice` por item).
+            notice: entry.notice,
+            cached: false,
+            info_hash: item.info_hash.clone(),
+            dubbed: false,
+            multi_work_admitted: false,
+        })
+        .collect();
+    apply_notice_origin(&built, input.origin.as_deref(), &config_prefix(input))
 }
 
 #[cfg(test)]

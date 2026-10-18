@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use tokio::sync::Mutex;
 
 use super::*;
-use crate::cache::MemorySwrStore;
+use crate::cache::{MemorySwrStore, STREAM_STALE_GRACE_SECONDS};
 use crate::coalesce::InFlight;
 use crate::internal_types::{
     CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, IndexWriteRequest,
@@ -304,6 +304,66 @@ async fn swr_hit_serve_sem_collect() {
     assert_eq!(stub.collect_calls.load(Ordering::SeqCst), 0);
     assert_eq!(stub.meta_calls.load(Ordering::SeqCst), 0);
     assert_eq!(out.response.streams.len(), 1);
+}
+
+#[tokio::test]
+async fn swr_hit_reaplica_origin_na_url_relativa() {
+    // Host nunca no cache: entrada relativa → resposta absoluta; store intacto.
+    let store = MemorySwrStore::new();
+    let key = request_cache_key("movie", "tt0133093", &json!({}));
+    let relative = "/e30/resolve/aa01000000000000000000000000000000000001?w=1";
+    let entry = StreamsEntry {
+        streams: vec![crate::contract::StreamItem {
+            info_hash: Some("aa01000000000000000000000000000000000001".into()),
+            name: Some("cached".into()),
+            url: Some(relative.into()),
+            ..Default::default()
+        }],
+        partial: false,
+        debrid_known: Some(true),
+        fallback: false,
+        notice: false,
+        trace: None,
+        search_meta: None,
+    };
+    let now = 1_700_000_000_000u64;
+    store.set(&key, &entry, 60, now);
+
+    let stub = Arc::new(StubBackend::ok_movie(vec![]));
+    let input = OrchestrateInput {
+        origin: Some("http://127.0.0.1:7000".into()),
+        config_prefix: "e30".into(),
+        ..input_movie()
+    };
+    let mut deps = OrchestrateDeps {
+        backend: stub,
+        debrid: None,
+        store: Some(&store),
+        in_flight: None,
+        fetch_state: false,
+        side_effects: false,
+        now_ms: Some((now + 1_000) as i64),
+    };
+    let out = orchestrate(&input, &mut deps).await.expect("ok");
+    assert!(out.from_cache);
+    let url = out.response.streams[0]
+        .url
+        .as_deref()
+        .expect("url na resposta");
+    assert_eq!(
+        url,
+        "http://127.0.0.1:7000/e30/resolve/aa01000000000000000000000000000000000001?w=1"
+    );
+
+    // Store continua relativo (sem host).
+    let hit = store
+        .get_with_stale(&key, STREAM_STALE_GRACE_SECONDS, now + 1_000)
+        .expect("entrada ainda no store");
+    assert_eq!(
+        hit.value.streams[0].url.as_deref(),
+        Some(relative),
+        "cache não pode absorver o origin da resposta"
+    );
 }
 
 #[tokio::test]
