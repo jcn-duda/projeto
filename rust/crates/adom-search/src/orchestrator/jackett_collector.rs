@@ -335,10 +335,7 @@ mod tests {
             "varredura inline deve existir quando sweep_query ≠ query"
         );
         for s in sweeps {
-            assert!(
-                !s.options.ignore_breaker,
-                "inline NÃO usa ignore_breaker"
-            );
+            assert!(!s.options.ignore_breaker, "inline NÃO usa ignore_breaker");
             assert!(!s.priority, "varredura é nos globais");
         }
         let mains: Vec<_> = planned
@@ -394,13 +391,7 @@ mod tests {
     #[test]
     fn index_only_sozinho_nao_consulta() {
         let job = base_job();
-        let planned = plan_jackett_searches(
-            &job,
-            &["1337x".into()],
-            &[],
-            &[],
-            &["1337x".into()],
-        );
+        let planned = plan_jackett_searches(&job, &["1337x".into()], &[], &[], &["1337x".into()]);
         assert!(planned.is_empty());
     }
 }

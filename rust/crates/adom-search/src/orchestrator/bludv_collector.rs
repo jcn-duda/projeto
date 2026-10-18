@@ -200,8 +200,11 @@ mod tests {
 
     #[tokio::test]
     async fn nonpriority_e_late_sweep_nao_consultam() {
-        let mut cfg = BludvConfig::default();
-        cfg.enabled = false; // fail-open sem rede se o early-return falhar
+        // fail-open sem rede se o early-return falhar
+        let cfg = BludvConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let client = BludvClient::new(cfg).expect("client");
         let collector = BludvCollector::new(client);
 
@@ -223,8 +226,10 @@ mod tests {
 
     #[tokio::test]
     async fn priority_com_disabled_fail_open_vazio() {
-        let mut cfg = BludvConfig::default();
-        cfg.enabled = false;
+        let cfg = BludvConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let client = BludvClient::new(cfg).expect("client");
         let collector = BludvCollector::new(client);
         let priority = CollectJob {

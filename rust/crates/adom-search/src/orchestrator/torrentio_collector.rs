@@ -15,9 +15,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use adom_sources::{
-    TorrentioClient, TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs,
-};
+use adom_sources::{TorrentioClient, TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs};
 use serde_json::{Map, Number, Value};
 
 use crate::internal_types::TaskScope;
@@ -224,8 +222,11 @@ mod tests {
 
     #[tokio::test]
     async fn priority_e_late_sweep_nao_consultam() {
-        let mut cfg = TorrentioConfig::default();
-        cfg.enabled = false; // fail-open sem rede se o early-return falhar
+        // fail-open sem rede se o early-return falhar
+        let cfg = TorrentioConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let client = TorrentioClient::new(cfg).expect("client");
         let collector = TorrentioCollector::new(client);
 
@@ -247,8 +248,10 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_fail_open_vazio() {
-        let mut cfg = TorrentioConfig::default();
-        cfg.enabled = false;
+        let cfg = TorrentioConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let client = TorrentioClient::new(cfg).expect("client");
         let collector = TorrentioCollector::new(client);
         let batch = collector.collect(base_job()).await.expect("ok");

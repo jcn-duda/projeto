@@ -12,6 +12,7 @@ use super::*;
 use crate::cache::MemorySwrStore;
 use crate::collection_window::CollectBudgets;
 use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
+use crate::raw_item::RawItem;
 
 const HASH: &str = "0123456789abcdef0123456789abcdef01234567";
 const ORIGIN: &str = "http://127.0.0.1:7000";
@@ -711,14 +712,8 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
 
     let meta_encoded = backend.meta_encoded.lock().expect("meta").clone();
     let collect_encoded = backend.collect_encoded.lock().expect("collect").clone();
-    assert!(
-        !meta_encoded.is_empty(),
-        "meta precisa ser chamado"
-    );
-    assert!(
-        !collect_encoded.is_empty(),
-        "collect precisa ser chamado"
-    );
+    assert!(!meta_encoded.is_empty(), "meta precisa ser chamado");
+    assert!(!collect_encoded.is_empty(), "collect precisa ser chamado");
     for enc in meta_encoded.iter().chain(collect_encoded.iter()) {
         assert!(
             !enc.is_empty(),

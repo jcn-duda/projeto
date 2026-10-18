@@ -235,8 +235,10 @@ mod tests {
 
     #[tokio::test]
     async fn nonpriority_e_late_sweep_nao_consultam() {
-        let mut cfg = MicoConfig::default();
-        cfg.enabled = false;
+        let cfg = MicoConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let client = MicoClient::new(cfg).expect("client");
         let collector = MicoCollector::new(client);
 
@@ -258,8 +260,10 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_fail_open_vazio() {
-        let mut cfg = MicoConfig::default();
-        cfg.enabled = false;
+        let cfg = MicoConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let client = MicoClient::new(cfg).expect("client");
         let collector = MicoCollector::new(client);
         let batch = collector.collect(base_job()).await.expect("ok");

@@ -84,10 +84,7 @@ impl SearchBackend for StubBackend {
             self.meta.lock().await.clone()
         })
     }
-    fn state<'a>(
-        &'a self,
-        _req: &'a StateRequest,
-    ) -> BoxFut<'a, Result<StateResponse, String>> {
+    fn state<'a>(&'a self, _req: &'a StateRequest) -> BoxFut<'a, Result<StateResponse, String>> {
         Box::pin(async {
             self.state_calls.fetch_add(1, Ordering::SeqCst);
             Ok(StateResponse {
@@ -268,7 +265,14 @@ async fn collect_falha_lista_parcial_honesta() {
         .expect("collect falha ≠ Err da orquestração");
     assert!(out.partial, "parcial honesto");
     // Filme sem candidatos: sem aviso mentiroso de "reabra".
-    assert!(out.response.streams.is_empty() || out.response.streams.iter().all(|s| s.external_url.is_some() || s.info_hash.is_none()));
+    assert!(
+        out.response.streams.is_empty()
+            || out
+                .response
+                .streams
+                .iter()
+                .all(|s| s.external_url.is_some() || s.info_hash.is_none())
+    );
 }
 
 #[tokio::test]

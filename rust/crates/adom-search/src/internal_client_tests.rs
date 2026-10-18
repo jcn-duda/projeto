@@ -53,11 +53,7 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
 
     let status = StatusCode::from_u16(*seen.status.lock().await).unwrap_or(StatusCode::OK);
     if !status.is_success() {
-        return (
-            status,
-            Json(json!({ "ok": false, "error": "boom" })),
-        )
-            .into_response();
+        return (status, Json(json!({ "ok": false, "error": "boom" }))).into_response();
     }
 
     let payload = match path.as_str() {
@@ -226,7 +222,11 @@ async fn collect_leva_deadline_e_task_scope() {
         .unwrap();
     let body = seen.bodies.lock().await.first().cloned().unwrap();
     assert_eq!(body["encoded"], json!(ENCODED));
-    assert_eq!(body["type"], json!("movie"), "Node valida type=movie|series");
+    assert_eq!(
+        body["type"],
+        json!("movie"),
+        "Node valida type=movie|series"
+    );
     assert_eq!(body["task_scope"], json!("priority"));
     assert_eq!(body["deadline_at"], json!(deadline));
     assert!(res.partial);
@@ -326,7 +326,10 @@ async fn http_erro_nao_vira_sucesso() {
         })
         .await
         .unwrap_err();
-    assert!(err.contains("503") || err.contains("boom") || err.contains("HTTP"), "{err}");
+    assert!(
+        err.contains("503") || err.contains("boom") || err.contains("HTTP"),
+        "{err}"
+    );
 }
 
 #[tokio::test]

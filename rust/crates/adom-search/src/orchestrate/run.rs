@@ -28,8 +28,7 @@ pub(super) async fn run_live(
     side_effects: bool,
     now: i64,
 ) -> Result<OrchestrateResult, String> {
-    let reply_ms =
-        reply_deadline_ms(input.user_agent.as_deref(), input.stremio_ms, input.app_ms);
+    let reply_ms = reply_deadline_ms(input.user_agent.as_deref(), input.stremio_ms, input.app_ms);
     let deadline_at = now.saturating_add(reply_ms as i64);
 
     let parsed = parse_stremio_id(&input.target.id);

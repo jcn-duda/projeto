@@ -9,9 +9,10 @@ use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
 /// Escopo de coleta (`collectRaw` taskScope).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskScope {
+    #[default]
     All,
     Priority,
     Nonpriority,
@@ -24,12 +25,6 @@ impl TaskScope {
             Self::Priority => "priority",
             Self::Nonpriority => "nonpriority",
         }
-    }
-}
-
-impl Default for TaskScope {
-    fn default() -> Self {
-        Self::All
     }
 }
 

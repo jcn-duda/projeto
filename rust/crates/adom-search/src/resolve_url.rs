@@ -214,9 +214,7 @@ pub fn parse_resolve_path(path: &str) -> Option<(Option<String>, String)> {
     }
     match raw.as_slice() {
         ["resolve", hash] if !hash.is_empty() => Some((None, (*hash).to_string())),
-        [config, "resolve", hash]
-            if !hash.is_empty() && is_resolve_config_segment(config) =>
-        {
+        [config, "resolve", hash] if !hash.is_empty() && is_resolve_config_segment(config) => {
             Some((Some((*config).to_string()), (*hash).to_string()))
         }
         _ => None,
@@ -342,12 +340,7 @@ pub fn resolve_secret_for(resolve_secret: &str, encoded: Option<&str>) -> String
 
 /// Verifica o HMAC do play. Não toca rede/debrid.
 pub fn verify_resolve_play(play: &ResolvePlay, secret: &str) -> ResolveVerify {
-    if play.info_hash.len() != 40
-        || !play
-            .info_hash
-            .bytes()
-            .all(|b| b.is_ascii_hexdigit())
-    {
+    if play.info_hash.len() != 40 || !play.info_hash.bytes().all(|b| b.is_ascii_hexdigit()) {
         return ResolveVerify::InvalidHash;
     }
     if secret.is_empty() {
@@ -463,17 +456,13 @@ mod tests {
 
     #[test]
     fn parse_resolve_path_com_e_sem_config() {
-        let (enc, hash) = parse_resolve_path(
-            "/resolve/8cc4fdc2c777d1464d9043397309f45859b9297b",
-        )
-        .unwrap();
+        let (enc, hash) =
+            parse_resolve_path("/resolve/8cc4fdc2c777d1464d9043397309f45859b9297b").unwrap();
         assert!(enc.is_none());
         assert_eq!(hash, "8cc4fdc2c777d1464d9043397309f45859b9297b");
 
-        let (enc, hash) = parse_resolve_path(
-            "/e30/resolve/0123456789ABCDEF0123456789ABCDEF01234567",
-        )
-        .unwrap();
+        let (enc, hash) =
+            parse_resolve_path("/e30/resolve/0123456789ABCDEF0123456789ABCDEF01234567").unwrap();
         assert_eq!(enc.as_deref(), Some("e30"));
         assert_eq!(hash, "0123456789ABCDEF0123456789ABCDEF01234567");
 
@@ -494,10 +483,7 @@ mod tests {
         let url = signer.url("0123456789ABCDEF0123456789ABCDEF01234567", true, true);
         let (path, query) = url.split_once('?').unwrap();
         let play = resolve_play_from(path, Some(query)).unwrap();
-        assert_eq!(
-            play.info_hash,
-            "0123456789abcdef0123456789abcdef01234567"
-        );
+        assert_eq!(play.info_hash, "0123456789abcdef0123456789abcdef01234567");
         assert_eq!(play.ep, "?s=1&e=2");
         assert!(play.hint.contains("\"p\":1"), "hint={}", play.hint);
         assert_eq!(
@@ -529,18 +515,12 @@ mod tests {
             ResolveVerify::InvalidHash
         );
 
-        assert_eq!(
-            verify_resolve_play(&play, ""),
-            ResolveVerify::Unsigned
-        );
+        assert_eq!(verify_resolve_play(&play, ""), ResolveVerify::Unsigned);
     }
 
     #[test]
     fn effective_secret_precede_resolve_sobre_dk() {
-        assert_eq!(
-            effective_resolve_secret("sec", "dk"),
-            "sec"
-        );
+        assert_eq!(effective_resolve_secret("sec", "dk"), "sec");
         assert_eq!(effective_resolve_secret("", "dk"), "dk");
         assert_eq!(effective_resolve_secret("", ""), "");
     }

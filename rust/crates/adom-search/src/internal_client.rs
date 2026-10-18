@@ -87,10 +87,7 @@ impl InternalSearchClient {
     }
 
     /// POST `/internal/search/index-write` — grava índice + marca banco.
-    pub async fn index_write(
-        &self,
-        req: &IndexWriteRequest,
-    ) -> Result<IndexWriteResponse, String> {
+    pub async fn index_write(&self, req: &IndexWriteRequest) -> Result<IndexWriteResponse, String> {
         self.post_ok("/internal/search/index-write", req, self.timeout)
             .await
     }

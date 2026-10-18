@@ -79,7 +79,7 @@ pub use request::{
     request_cache_key, StreamTarget, DEFAULT_CONFIG_SEGMENT,
 };
 pub use resolve_url::{
-    debrid_api_key_from_encoded, effective_resolve_secret, encode_uri_component, parse_resolve_path,
-    resolve_play_from, resolve_secret_for, verify_resolve_play, ResolvePlay, ResolveSigner,
-    ResolveVerify,
+    debrid_api_key_from_encoded, effective_resolve_secret, encode_uri_component,
+    parse_resolve_path, resolve_play_from, resolve_secret_for, verify_resolve_play, ResolvePlay,
+    ResolveSigner, ResolveVerify,
 };

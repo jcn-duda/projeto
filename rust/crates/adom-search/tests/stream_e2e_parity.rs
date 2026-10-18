@@ -261,12 +261,17 @@ fn request_parse_bate_com_type_e_stream_id() {
             "encoded esperado no caso {}",
             case.meta.id
         );
-
     }
     // UA do corpus é sempre o capturador (não Dart/) — um assert basta.
     // Ramo app: UA sintético fora do corpus.
-    assert_eq!(reply_deadline_ms(Some("adom-stream-e2e/1"), 9200, 15000), 9200);
-    assert_eq!(reply_deadline_ms(Some("Dart/3.0 (powermovie)"), 9200, 15000), 15000);
+    assert_eq!(
+        reply_deadline_ms(Some("adom-stream-e2e/1"), 9200, 15000),
+        9200
+    );
+    assert_eq!(
+        reply_deadline_ms(Some("Dart/3.0 (powermovie)"), 9200, 15000),
+        15000
+    );
 }
 
 #[test]

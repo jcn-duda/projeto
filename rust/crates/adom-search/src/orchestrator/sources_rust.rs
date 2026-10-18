@@ -27,8 +27,7 @@ const KNOWN_TOKENS: &[&str] = &["jackett", "prowlarr", "torrentio", "bludv", "mi
 
 /// Parse puro do CSV (testável sem mexer no env do processo).
 pub fn sources_rust_csv_includes(raw: &str, token: &str) -> bool {
-    raw.split(',')
-        .any(|t| t.trim().eq_ignore_ascii_case(token))
+    raw.split(',').any(|t| t.trim().eq_ignore_ascii_case(token))
 }
 
 /// `SOURCES_RUST` contém o token (CSV, case-insensitive). Ausente → false.
@@ -69,7 +68,9 @@ pub fn try_sources_rust_collector_from_env() -> Option<Arc<dyn Collector>> {
     match winner {
         "jackett" => try_jackett_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
         "prowlarr" => try_prowlarr_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
-        "torrentio" => try_torrentio_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
+        "torrentio" => {
+            try_torrentio_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>)
+        }
         "bludv" => try_bludv_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
         "mico" => try_mico_collector_from_env().map(|c| Arc::new(c) as Arc<dyn Collector>),
         _ => None,
@@ -88,7 +89,10 @@ mod tests {
         assert!(sources_rust_csv_includes("bludv", "bludv"));
         assert!(sources_rust_csv_includes("mico", "mico"));
         assert!(sources_rust_csv_includes("jackett,prowlarr", "prowlarr"));
-        assert!(sources_rust_csv_includes(" JACKETT , torrentio ", "torrentio"));
+        assert!(sources_rust_csv_includes(
+            " JACKETT , torrentio ",
+            "torrentio"
+        ));
         assert!(sources_rust_csv_includes("bludv,mico", "mico"));
         assert!(!sources_rust_csv_includes("", "jackett"));
         assert!(!sources_rust_csv_includes("torrentio", "prowlarr"));

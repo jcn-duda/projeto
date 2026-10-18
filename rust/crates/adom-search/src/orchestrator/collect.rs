@@ -213,10 +213,7 @@ impl Collector for NodeCollector {
         job: CollectJob,
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
         Box::pin(async move {
-            let response = self
-                .routes
-                .collect(collect_request_from_job(job))
-                .await?;
+            let response = self.routes.collect(collect_request_from_job(job)).await?;
             Ok(CollectBatch {
                 items: response
                     .items
@@ -272,10 +269,19 @@ mod tests {
     #[test]
     fn plan_jobs_leva_type_stremio_nao_rotulo_do_grupo() {
         let config = OrchestratorConfig::default();
-        let jobs = plan_jobs(&config, &meta_movie(), "movie", Some("e30"), 1_700_000_000_000);
+        let jobs = plan_jobs(
+            &config,
+            &meta_movie(),
+            "movie",
+            Some("e30"),
+            1_700_000_000_000,
+        );
         assert!(!jobs.is_empty());
         for job in &jobs {
-            assert_eq!(job.kind, "movie", "kind do job é movie|series, não priority/global");
+            assert_eq!(
+                job.kind, "movie",
+                "kind do job é movie|series, não priority/global"
+            );
             let body = serde_json::to_value(collect_request_from_job(job.clone())).unwrap();
             assert_eq!(body["type"], json!("movie"));
             assert_ne!(body["type"], json!("priority"));
@@ -289,8 +295,10 @@ mod tests {
 
     #[test]
     fn sweep_job_tambem_manda_movie_ou_series() {
-        let mut config = OrchestratorConfig::default();
-        config.sweep_enabled = true;
+        let config = OrchestratorConfig {
+            sweep_enabled: true,
+            ..Default::default()
+        };
         let mut meta = meta_movie();
         meta.sweep_query = Some("Matrix".into());
         let job = sweep_job(&config, &meta, "series", None, 1_700_000_000_000).expect("sweep");
