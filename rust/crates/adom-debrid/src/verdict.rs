@@ -24,7 +24,9 @@
 //! `protected.ts` (hold persistente, `knownBefore`, inventário durável) ainda
 //! não está portado, e o fail-safe do núcleo (`may_delete` com
 //! `inventory_loaded:false` → ninguém apaga) é respeitado passando os três
-//! vetos fechadas. Veredito sai completo; a limpeza é Fase C.
+//! vetos fechadas. Este caminho serve o adom-search in-process; o HTTP
+//! público `/debrid/check` devolve 501 até Fase C (senão o rust-remote
+//! engole o 200 e magnets ficam na conta sem limpeza).
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

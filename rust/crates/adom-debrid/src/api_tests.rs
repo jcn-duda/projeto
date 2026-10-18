@@ -190,9 +190,10 @@ async fn premiumize_no_loopback_nao_devolve_501() {
 }
 
 #[tokio::test]
-async fn torbox_e_alldebrid_check_saem_do_501() {
-    // Mock em loopback (NUNCA a base real): upstream 500 → veredito honesto
-    // known:false (Unknown), sem "service_not_ported" e sem usar a chave.
+async fn torbox_check_sai_do_501_alldebrid_fica() {
+    // TorBox: mock em loopback (NUNCA a base real) → upstream 500 vira
+    // veredito known:false, sem "service_not_ported".
+    // AllDebrid no HTTP público: 501 até Fase C (upload sem limpeza).
     let app = Router::new().fallback(any(async |_req: Request<Body>| {
         (StatusCode::INTERNAL_SERVER_ERROR, "fora do ar").into_response()
     }));
@@ -204,31 +205,29 @@ async fn torbox_e_alldebrid_check_saem_do_501() {
     let base = format!("http://{addr}");
     let _lock = crate::test_env::lock();
     let prev_torbox = std::env::var("TORBOX_API_BASE").ok();
-    let prev_ad = std::env::var("ALLDEBRID_API_BASE").ok();
-    // SAFETY: teste único apontando os adaptadores ao loopback.
+    // SAFETY: teste único apontando TorBox ao loopback.
     unsafe {
         std::env::set_var("TORBOX_API_BASE", &base);
-        std::env::set_var("ALLDEBRID_API_BASE", &base);
     }
-    for service in ["torbox", "alldebrid"] {
-        let payload = format!(r#"{{"service":"{service}","apiKey":"{KEY}","hashes":["abc"]}}"#);
-        let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &payload).await;
-        assert_eq!(status, StatusCode::OK, "{service}: {body}");
-        assert!(!body.contains("service_not_ported"), "{service}");
-        assert!(!body.contains(KEY), "{service}");
-        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(json["known"].as_bool(), Some(false), "{service}");
-        assert_eq!(json["unusable"], serde_json::Value::Null, "{service}");
-    }
+    let torbox_body = format!(r#"{{"service":"torbox","apiKey":"{KEY}","hashes":["abc"]}}"#);
+    let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &torbox_body).await;
+    assert_eq!(status, StatusCode::OK, "torbox: {body}");
+    assert!(!body.contains("service_not_ported"));
+    assert!(!body.contains(KEY));
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["known"].as_bool(), Some(false));
+    assert_eq!(json["unusable"], serde_json::Value::Null);
+
+    let ad_body = format!(r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["abc"]}}"#);
+    let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &ad_body).await;
+    assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "alldebrid: {body}");
+    assert!(body.contains("service_not_ported"));
+    assert!(!body.contains(KEY));
     // SAFETY: restauração.
     unsafe {
         match prev_torbox {
             Some(value) => std::env::set_var("TORBOX_API_BASE", value),
             None => std::env::remove_var("TORBOX_API_BASE"),
-        }
-        match prev_ad {
-            Some(value) => std::env::set_var("ALLDEBRID_API_BASE", value),
-            None => std::env::remove_var("ALLDEBRID_API_BASE"),
         }
     }
 }

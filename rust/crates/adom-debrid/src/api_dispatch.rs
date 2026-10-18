@@ -74,8 +74,13 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
     if let Some(response) = reject_unknown(&state, &body.service) {
         return response;
     }
-    // Um só caminho para os cinco: réguas do núcleo (`debrid_cache_verdict`),
-    // ledger do RD e AllDebrid SEM limpeza (`verdict.rs` documenta a lacuna).
+    // AllDebrid: upload real suja a conta; sem hold/drop no sidecar o
+    // rust-remote aceitaria 200 e NÃO cairia no TS. Até Fase C fica 501
+    // (fail-safe). `verdict::check_service` segue para o adom-search in-process.
+    if body.service == "alldebrid" {
+        return not_ported(&state, &body.service);
+    }
+    // PM / TorBox / RD / Debrid-Link: réguas do núcleo + ledger do RD.
     let outcome = match crate::verdict::check_service(
         &body.service,
         &body.api_key,

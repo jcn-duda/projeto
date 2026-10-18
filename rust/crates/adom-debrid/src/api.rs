@@ -1,8 +1,9 @@
 //! API interna em `127.0.0.1:8710`. O token vai só no header
 //! `X-Indexer-Test-Token`. A chave do debrid chega no corpo e não é logada.
-//! `/debrid/check` responde para os cinco serviços via `verdict.rs`
-//! (Real-Debrid via ledger, AllDebrid SEM limpeza — Fase C). Conta e arquivos
-//! da AllDebrid, e o TorBox inteiro fora do check, seguem 501.
+//! `/debrid/check` via `verdict.rs` para Premiumize/TorBox/RD/Debrid-Link.
+//! AllDebrid fica 501 no HTTP público até Fase C (upload sem limpeza);
+//! `verdict::check_service` ainda atende AD in-process. Conta/arquivos AD
+//! e rotas TorBox fora do check seguem 501.
 //! `/debrid/resolve` devolve o efeito e não grava estado.
 
 use std::net::SocketAddr;

@@ -1,10 +1,11 @@
 //! Fundação do debrid em Rust.
 //!
-//! Premiumize, Debrid-Link, Real-Debrid, TorBox e AllDebrid têm adaptador e a
-//! API interna responde `/debrid/check` para os cinco (`verdict.rs` é a
-//! costura: réguas do núcleo, ledger do RD, AllDebrid SEM limpeza — a limpeza
-//! completa é Fase C). `account` e `files` seguem limitados; o link da
-//! AllDebrid existe. `/debrid/resolve` não grava magnetdb, cache nem ledger.
+//! Premiumize, Debrid-Link, Real-Debrid, TorBox e AllDebrid têm adaptador.
+//! HTTP `/debrid/check` cobre PM/TB/RD/DL via `verdict.rs`; AllDebrid fica
+//! 501 até Fase C (upload sem limpeza no sidecar — fail-safe pro Node).
+//! A costura AD em `verdict::check_service` segue para o adom-search
+//! in-process. `account`/`files` limitados; link da AllDebrid existe.
+//! `/debrid/resolve` não grava magnetdb, cache nem ledger.
 //! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
 //! `internal_check.rs` é o cliente de RESERVA da rota `/internal/debrid/check`
 //! do Node.
