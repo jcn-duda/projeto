@@ -43,6 +43,20 @@ impl StubCollector {
         Self::with(Vec::new())
     }
 
+    /// Balde vazio mas coleta ainda aberta (`partial:true`) — o Node devolve
+    /// isto quando a janela corta e o completion segue em fundo.
+    fn empty_partial() -> Arc<Self> {
+        Arc::new(StubCollector {
+            batches: Mutex::new(vec![CollectBatch {
+                items: Vec::new(),
+                partial: true,
+            }]),
+            calls: AtomicUsize::new(0),
+            delay: Duration::ZERO,
+            fail: false,
+        })
+    }
+
     fn failing() -> Arc<Self> {
         Arc::new(StubCollector {
             batches: Mutex::new(Vec::new()),
@@ -493,6 +507,21 @@ async fn erro_de_collector_vira_lista_vazia_com_aviso() {
         .get_with_stale(&entry_key(&orch), 300, 1_000_000)
         .map(|hit| hit.value.streams.is_empty())
         .unwrap_or(true));
+}
+
+/// Filme a frio: coleta assenta PARCIAL com balde vazio dentro do reply_ms.
+/// Sem aviso virava `{"streams":[],"cacheMaxAge":0}` (Joker/Inception); o
+/// retry enchía porque o completion já tinha gravado. Paridade com o corte
+/// externo — "ainda procurando", não "não tem".
+#[tokio::test]
+async fn parcial_vazio_filme_devolve_aviso_reabra() {
+    let store = Arc::new(MemorySwrStore::new());
+    let collector = StubCollector::empty_partial();
+    let orch = orchestrator(config(), store, collector, &[]);
+    let resposta = orch.handle(request(1_000_000)).await;
+    assert_eq!(resposta.streams.len(), 1, "aviso no lugar de streams:[]");
+    assert_eq!(resposta.streams[0].name.as_deref(), Some(NOTICE_SEARCHING));
+    assert_eq!(resposta.cache_max_age, 0);
 }
 
 // ── Coalescing ──────────────────────────────────────────────────────────────

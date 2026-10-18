@@ -495,10 +495,14 @@ impl Orchestrator {
         Option<tokio::task::JoinHandle<Vec<RawItem>>>,
         bool,
     ) {
+        // Relógio de parede (como o `Date.now()` do Node em
+        // `computeCollectionBudget`): metadados já consumiram parte do prazo —
+        // orçar com `input.now_ms` (início) inflava a coleta e comia a reserva
+        // de debrid / o corte externo. Piso 500ms continua no núcleo.
         let budget = self
             .config
             .budgets
-            .collection_budget(input.deadline_at, input.now_ms);
+            .collection_budget(input.deadline_at, now_ms());
         let jobs = plan_jobs(
             &self.config,
             meta,
@@ -860,12 +864,14 @@ impl Orchestrator {
 
     fn respond_outcome(&self, outcome: &SearchOutcome, req: &StreamRequest) -> StreamResponse {
         let mut streams = entry_streams(&outcome.entry, req);
+        // Lista vazia + coleta ainda aberta (parcial) OU todas as fontes
+        // falharam = "sem resposta", não "sem resultado". O corte externo
+        // (`timeout`) já devolve NOTICE_SEARCHING; este ramo cobre o caso em
+        // que a busca ASSENTA dentro do reply_ms com balde vazio (filme a
+        // frio: o list_builder NÃO promete "reabra" em filme completo — mas
+        // parcial ainda está procurando). Sem isto: `{"streams":[],"cacheMaxAge":0}`.
         if streams.is_empty() && (outcome.collect_failed || outcome.partial) {
-            // Lista vazia por falha de coleta é "sem resposta", não "sem
-            // resultado": mesmo texto do corte externo.
-            if outcome.collect_failed {
-                streams = notice_streams(req, NOTICE_SEARCHING);
-            }
+            streams = notice_streams(req, NOTICE_SEARCHING);
         }
         StreamResponse {
             streams,
