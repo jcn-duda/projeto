@@ -87,17 +87,18 @@ novos é o TS do worktree `../adom-esm`.
 
 ## F0 — Contrato e medição em sombra
 
-1. **Contrato fixado** em `docs/rust-stream-contract.md`: corpo Stremio, aviso de
-   lista vazia, `applyNoticeOrigin` (URL relativa no cache, host só na resposta),
-   HMAC do `/resolve` (infoHash + S/E + `w` + `p:1`), `cacheMaxAge` (0 quando a
-   lista precisa revalidar; teto 60 s), estado parcial, erros e a identidade da
-   requisição (`streams:v21`, config+conta, nunca host).
+1. **Contrato fixado** em `docs/rust-stream-contract.md` (inclui §0 operacional
+   da Fase F): corpo Stremio, aviso de lista vazia, `applyNoticeOrigin` (URL
+   relativa no cache, host só na resposta), HMAC do `/resolve` (infoHash + S/E +
+   `w` + `p:1`), `cacheMaxAge` (0 quando a lista precisa revalidar; teto 60 s),
+   estado parcial, erros e a identidade da requisição (`streams:v21`,
+   config+conta, nunca host).
 2. **Corpus de ponta a ponta** capturado com
    `scripts/golden/capture-stream-e2e.mjs` em `rust/golden/stream-e2e/`.
 3. **Sombra** (`ROUTES_RUST=stream-shadow`): o Node responde, o Rust remonta com
-   as mesmas entradas e só a métrica `stream.shadow.divergence` é pública. Corte
-   por rota só com divergência zero sobre tráfego real. Esqueleto no gateway
-   (`adom-server`): flag + buffer + spawn; contadores §9 zerados até o remontador.
+   store `MemorySwrStore` isolado (nunca `STREAMS_DB`) e só a métrica
+   `stream.shadow.divergence` é pública. Continua disponível para comparar;
+   o override local de validação já cortou (F1.4 / contrato §0).
 
 ## F1 — Orquestrador Rust com a rede ainda no Node
 
@@ -108,14 +109,23 @@ novos é o TS do worktree `../adom-esm`.
    (invariante 5). Saem em lote por etapa, nunca por item. O gateway Rust
    (`GATEWAY=on`) **recusa `/internal/*` antes do proxy** (o Caddy também
    bloqueia): a guarda de loopback do Node não vê o cliente real atrás do proxy,
-   então a fachada é quem fecha a porta.
+   então a fachada é quem fecha a porta. No compose gateway,
+   `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` apontam a `127.0.0.1:7100`.
 2. **`adom-search`**: decode da config, chave de cache, prazo por requisição
    (`Dart/` = app, senão Stremio), SWR e `inFlight`, plano e janela de coleta,
-   build no núcleo, `applyDebrid` pelos adaptadores no processo, latest-writer e
-   late promoter, fila tardia serial, corte externo com `partial:true` e busca
-   em `tokio::spawn`, via do índice e via instantânea, trace gravado junto.
-3. **Paridade** com o golden da F0 e sombra sem divergência.
-4. **Corte** `ROUTES_RUST=stream` local; o Node vira reserva.
+   build no núcleo, `applyDebrid` pelos adaptadores no processo (herança de
+   debrid do `.env` no gateway — `dd9330c4`), latest-writer e late promoter,
+   fila tardia serial, corte externo com `partial:true` e busca em
+   `tokio::spawn`, via do índice e via instantânea, trace gravado junto.
+   Store nativo: `STREAMS_DB` (`data/streams.db`). Collect Jackett in-process
+   só com opt-in `SOURCES_RUST=jackett`.
+3. **Paridade** com o golden da F0 e sombra sem divergência (critério formal
+   §9.4 do contrato; CI ainda não exercita o HTTP do corte — ver contrato §0.6).
+4. **Corte local** `ROUTES_RUST=stream` no
+   [`docker-compose.gateway.yml`](../docker-compose.gateway.yml) (`7eb3ff6a`);
+   o Node na 7100 vira reserva (internal + `/resolve`/painel). Caveat: 1ª hit
+   a frio pode vir só com aviso “reabra” (`49482cc7`); reabrir antes de acusar
+   regressão de matching.
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
@@ -149,7 +159,10 @@ O que trava o quê:
   (módulo puro + golden + napi + casca TS) e podem andar em paralelo com F0/F1.1.
 - A sombra da F0 **só é honesta depois** que o orquestrador da F1.2 existir: sem
   ele não há "remontar a resposta", só um proxy que finge comparar.
-- O corte por rota (`ROUTES_RUST=stream`) depende de F1.3 (paridade + sombra).
+- O corte por rota local (`ROUTES_RUST=stream` no override gateway) já está
+  ligado para validação; o critério formal de sombra §9.4 e o default de
+  produção (F4) continuam separados — não confundir “compose local” com
+  “F4 no compose principal”.
 - F2 só começa quando a rota `collect` da F1.1 estiver estável: migrar fonte com
   a rota ainda mudando joga trabalho fora.
 
@@ -160,9 +173,11 @@ O que trava o quê:
 3. Prazo: `test/search-budget-metadata.test.ts` portado para o Rust; medir p50 e
    p95 do `/stream` com Stremio (10 s) e com o app Power Movie (15 s) antes e
    depois.
-4. Docker: `docker compose up -d --build --force-recreate adom` com `GATEWAY=on`
-   e `ROUTES_RUST=stream`, depois `clear-cache`. Checar painel, manifest e
-   configure 200, e `/stream` de série, filme, pack e BR dublado — com o Node
-   desligado **e** ligado.
+4. Docker: preferir o override commitado
+   `docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --build --force-recreate adom`
+   (`GATEWAY=on`, `ROUTES_RUST=stream`, internals na 7100). Depois `clear-cache`.
+   Checar painel, manifest e configure 200, e `/stream` de série, filme, pack e
+   BR dublado — com o Node desligado **e** ligado. Na 1ª hit a frio, repetir
+   se vier só o aviso “reabra” ou `streams:[]` (contrato §0.5).
 5. Play: `/resolve` de um item de cada debrid pela lista gerada no Rust (o HMAC
    tem que valer).

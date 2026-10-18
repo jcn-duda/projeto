@@ -1,9 +1,9 @@
 # OVERRIDE opt-in de validação local (commitado de propósito; o compose padrão
 # não o carrega): liga o gateway Rust na 7000 com o Node na 7100 atrás.
-# ROUTES_RUST=stream-shadow: Node responde /stream; Rust só observa (sem corte
-# nativo). Para o corte: ROUTES_RUST=stream (precisa rebuild do binário).
+# ROUTES_RUST=stream = corte nativo de /stream (estado atual deste override).
+# Para só observar: ROUTES_RUST=stream-shadow (Node responde; Rust compara).
 # Rotas internas e reserva de debrid falam com o Node na 7100 — NUNCA :7000
-# (a fachada recusa /internal/*).
+# (a fachada recusa /internal/*). Docs: docs/rust-stream-contract.md §0.
 services:
   adom:
     environment:

@@ -126,7 +126,9 @@ npm run docker:up / docker:logs
   **`/internal/*`** (meta/state da busca) só existe em loopback + token; com
   `GATEWAY=on` o gateway Rust recusa `/internal/*` antes do proxy (o Caddy
   também bloqueia). A guarda de loopback do Node **não** distingue o cliente
-  atrás do proxy — a recusa tem que estar na fachada.
+  atrás do proxy — a recusa tem que estar na fachada. Corte local de `/stream`
+  no Rust: override `docker-compose.gateway.yml` (`ROUTES_RUST=stream`; Node na
+  7100). Detalhe operacional e caveats em `docs/rust-stream-contract.md` §0.
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda

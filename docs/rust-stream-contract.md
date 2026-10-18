@@ -1,13 +1,88 @@
 # Contrato do `/stream` — o que o orquestrador Rust precisa reproduzir
 
-Status: **fixado nesta fatia (F0)** a partir do código TypeScript que roda hoje.
-Nada aqui é proposta: cada afirmação tem `arquivo:linha` do fonte real. O crate
-[`rust/crates/adom-search`](../rust/crates/adom-search/src/lib.rs) já fixa a
-parte sem I/O (caminho, chave, forma do JSON) e **não** responde `/stream`: o
-corte por rota só acontece depois do critério de zero divergência do §9.
+Status: **contrato F0 fixado** a partir do TypeScript; **corte local nativo
+ligado** no override `docker-compose.gateway.yml` (`ROUTES_RUST=stream`,
+commit `7eb3ff6a`). Nada nos §§1–8 é proposta: cada afirmação tem
+`arquivo:linha` do fonte real. O orquestrador vive em
+[`rust/crates/adom-search`](../rust/crates/adom-search/src/lib.rs); a fachada
+que corta a rota é [`adom-server`](../rust/crates/adom-server/src/stream.rs).
 
-Ordem de leitura sugerida: §1 (rota) → §2 (corpo) → §3 (aviso) → §5 (cache) →
-§7 (identidade) → §9 (métrica). Os §§4/6/8 são as regras que mais quebram.
+Ordem de leitura sugerida: §0 (estado operacional) → §1 (rota) → §2 (corpo) →
+§3 (aviso) → §5 (cache) → §7 (identidade) → §9 (métrica). Os §§4/6/8 são as
+regras que mais quebram.
+
+---
+
+## 0. Estado operacional (Fase F — corte gateway → stream nativo)
+
+### 0.1 Como ligar o corte local
+
+Override opt-in (o compose padrão **não** o carrega):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --build
+```
+
+| Env | Valor no override | Papel |
+|---|---|---|
+| `GATEWAY` | `on` | `adom-server` na 7000; Node atrás na 7100 |
+| `ROUTES_RUST` | `stream` | corte nativo de `/stream` (token exato; tem prioridade sobre `stream-shadow`) |
+| `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | meta/collect/tail e reserva de debrid — **nunca** `:7000` (a fachada recusa `/internal/*`) |
+
+`ROUTES_RUST=stream-shadow` continua válido para observar sem cortar: Node
+responde; Rust remonta e só incrementa `stream.shadow.*` (§9). Com `stream` e
+`stream-shadow` no mesmo CSV, o corte nativo vence (`adom-server/src/proxy.rs`).
+
+### 0.2 Debrid com herança do `.env`
+
+Install sem `dk` na URL herda a fatia debrid do operador
+(`DEBRID_SERVICE` / `DEBRID_API_KEY` / `DEBRID_CACHED_ONLY` /
+`DEBRID_SHOW_UNCACHED_BR`, gate `DEBRID_ALLOW_ENV_KEY`) via
+`operator_debrid_defaults_from_env` no gateway (`adom-server/src/stream.rs`,
+commit `dd9330c4`). Sem isso o orquestrador caía em `NoDebridCheck` (lista só
+`infoHash`, sem ⚡/`/resolve`) enquanto o Node na 7100 aplicava debrid — o
+Docker PASS com chave só no `.env` depende dessa herança.
+
+### 0.3 Collect: Node por padrão; Jackett Rust opt-in
+
+- Default do corte: collect/meta/tail via `POST /internal/search/*` no Node
+  (`NodeRoutes`, precisa `JACKETT_TEST_TOKEN` + `INTERNAL_SEARCH_URL`).
+- Opt-in `SOURCES_RUST=jackett` (CSV, case-insensitive): collect Torznab direto
+  (`adom-sources` / `JackettCollector`); meta/tail seguem no Node quando as
+  rotas internas existem. Default **OFF**.
+
+### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
+
+| Modo | Store | Path |
+|---|---|---|
+| `ROUTES_RUST=stream` | `StreamsStore` (SQLite) → fallback memória se abrir falhar → último recurso `MemorySwrStore` | `STREAMS_DB` ou default `data/streams.db` (volume `docker-data/addon`) |
+| `ROUTES_RUST=stream-shadow` | **sempre** `MemorySwrStore` fresco | nunca abre `STREAMS_DB` (hit/DELETE no SQLite do nativo furaria o compare-only) |
+
+Sombra: `shadow_mode` (não grava/promove/tail em fundo) + `NoDebridFactory` +
+`NoopTailEffects` — só observa.
+
+### 0.5 Caveat conhecido: 1ª hit a frio
+
+Na 1ª requisição a frio (store vazio, Jackett/Flare frios, sem SWR) a coleta
+pode assentar **parcial** sem candidatos. Desde `49482cc7`, parcial/collect
+falho com lista vazia devolve o aviso
+`Procurando fontes — reabra em instantes` (não mais `{ "streams": [] }`
+silencioso nesse caso). Filme *completo* sem candidatos ainda pode ser `[]`.
+A 2ª hit / SWR costuma preencher tocáveis — não tratar só o aviso na 1ª batida
+como regressão de matching sem repetir a busca.
+
+### 0.6 Gap de CI
+
+Nenhum workflow em `.github/workflows/` sobe o override gateway nem fixa
+`ROUTES_RUST=stream` / `stream-shadow`:
+
+- `rust.yml` — crates + goldens (sem HTTP do `adom-server` com corte);
+- `docker.yml` — build da imagem (sem `docker-compose.gateway.yml`, sem smoke
+  de `/stream` nativo);
+- `ci.yml` — suíte Node.
+
+Validar o corte é **manual/local** (compose gateway + obra real). O YAML de CI
+não foi alterado nesta fatia docs.
 
 ---
 
@@ -423,10 +498,16 @@ genérica (nada de stack/segredo).
 
 ### 9.1 Modo sombra
 
-Nesta fase o Node responde o `/stream` e o orquestrador Rust roda **em paralelo**,
-com o MESMO contexto de requisição (config decodificada, deadline, origin), e
-**só compara**. O Rust não escreve cache, não chama debrid e não devolve nada ao
-cliente. Timeout ou erro do Rust não afeta o usuário.
+Com `ROUTES_RUST=stream-shadow` o Node responde o `/stream` e o orquestrador
+Rust roda **em paralelo**, com o MESMO contexto de requisição (config
+decodificada, deadline, origin), e **só compara**. Store isolado em memória
+(§0.4); sem debrid, sem gravação SWR, sem efeitos de cauda. Timeout ou erro do
+Rust não afeta o usuário.
+
+Com `ROUTES_RUST=stream` (override local atual, §0.1) o cliente **não** passa
+pelo Node nem pela sombra: o nativo responde. Os contadores abaixo seguem
+úteis quando a sombra está ligada; no corte puro o alarme operacional é a
+lista/HTTP do próprio caminho nativo.
 
 ### 9.2 Contadores e amostra
 
@@ -501,26 +582,32 @@ depois do corte: ele vira o alarme permanente do caminho nativo.
 
 ---
 
-## 10. O que ainda falta no Rust (por item e fonte TS)
+## 10. O que ainda falta / o que já entrou no caminho nativo
 
-| # | Falta | Fonte TS de referência |
+Estado da Fase F (corte local). Fonte TS continua a régua; o código Rust é o
+que responde com `ROUTES_RUST=stream`.
+
+| # | Item | Estado |
 |---|---|---|
-| 1 | `defaults()` do operador + abertura do selo `dk` no decode | `src/runtime.ts:93-138`, `:127-131`; `src/utils/secret-box.ts` |
-| 2 | montagem do objeto de opções para a chave (inclui `resolveUncached`) | `src/providers/search-cache.ts:62-63`; `src/config/debrid.ts:48` |
-| 3 | leitura/gravação do cache SWR + graça + coalescing | `src/providers/search-cache.ts:74-156`, `:200-238` |
-| 4 | metadados Cinemeta/TMDB + coleção multiobra + data doméstica | `src/utils/cinemeta.ts:95-170`, `src/utils/tmdb.ts:103-…`, `src/providers/search-multiwork.ts` |
-| 5 | plano de busca/orçamentos de coleta (`search-plan`, `collection-window`, `collection-budget`) | `src/providers/search-plan.ts`, `src/providers/collection-window.ts` |
-| 6 | coleta (Jackett/Prowlarr/Torrentio/BLUDV/Mico/conta) e cache `raw:v1` | `src/providers/collect-orchestrator.ts`, `src/providers/jackett.ts` |
-| 7 | pipeline de build (filtro, episódio, ranking, cotas, aviso) | `src/providers/stream-builder.ts:90-302`, `stream-builder-pipeline.ts`, `src/utils/stream-quotas.ts:333-334` |
-| 8 | debrid (`applyDebrid`, ⚡, autofetch, HMAC na URL) | `src/providers/debrid-pipeline.ts`, `src/providers/debrid-pipeline-core.ts:225-295` |
-| 9 | assinatura do `/resolve` no crate/servidor | `src/utils/sign.ts:30-44`; porte já existe em `adom_core::resolve_sign` |
-| 10 | montagem de host/origin e `prefix()` no egresso | `src/providers/stream-builder.ts:337-369`; `src/routes/origin.ts:17-26` |
-| 11 | `partial`/deadline e a busca que continua em fundo | `src/providers/search-cache.ts:111-183` |
-| 12 | `cacheMaxAge`/`staleRevalidate`/`staleError` e o `Cache-Control` | `src/routes/stream.ts:46-55`; `src/routes/addon-router.ts:73-83` |
-| 13 | mapeamento de erro → status (incl. `/resolve`) | `src/routes/addon-router.ts:127-130`; `src/routes/resolve.ts` |
-| 14 | métricas e trace (`stream.request`, `search.*`, `stream-trace`) | `src/utils/metrics.ts`, `src/utils/stream-trace.ts` |
-| 15 | `staleRevalidate`/`staleError` no tipo `StreamResponse` | este crate (`contract.rs`) modela só `streams`+`cacheMaxAge` (§5.2) |
-| 16 | leitura de `/internal/search/*` (metadados, acervo em lote e o `collect` que falta) | `src/routes/internal-search.ts` (fatia F1.1); o gateway recusa `/internal/*` antes do proxy |
+| 1 | fatia debrid do `defaults()` do operador no decode | **feito** no gateway (`operator_debrid_defaults_from_env`, `dd9330c4`); selo `dk` / `secret-box` segue no Node no decode completo da URL |
+| 2 | opções na chave (incl. `resolveUncached`) | **feito** no orquestrador (`OrchestratorConfig`) |
+| 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo; `MemorySwrStore` na sombra) |
+| 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | via `POST /internal/search/meta` (Node); porte puro de fontes = F2 |
+| 5 | plano / orçamentos de coleta | decisões no núcleo; janela ainda orquestrada com I/O Node |
+| 6 | coleta Jackett/Prowlarr/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in Jackett Rust = `SOURCES_RUST=jackett` (só Jackett; sem `raw:v1` nessa fatia) |
+| 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador / núcleo |
+| 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + reserva Node (`INTERNAL_CHECK_URL`); autofetch/efeitos de cauda ainda no Node |
+| 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play completo ainda no Node |
+| 10 | host/origin e `prefix()` no egresso | **feito** no caminho nativo |
+| 11 | `partial`/deadline + busca em fundo | **feito** no orquestrador |
+| 12 | `cacheMaxAge` / `stale*` / `Cache-Control` | parcial — ver tipo `StreamResponse` e handler nativo |
+| 13 | mapeamento de erro → status (incl. `/resolve`) | parcial no gateway; `/resolve` play no Node |
+| 14 | métricas e `stream-trace` | sombra §9; painel/`stream-trace` ainda leem o Node |
+| 15 | `staleRevalidate`/`staleError` no tipo | ainda estreito no contrato do crate |
+| 16 | `/internal/search/*` | **feito** meta/state/collect (e correlatos) no Node; fachada recusa `/internal/*` antes do proxy |
+
+Produção ainda não tem `ROUTES_RUST=stream` como default do compose principal —
+isso é F4 em [`migracao-stream-rust.md`](migracao-stream-rust.md).
 
 ---
 
