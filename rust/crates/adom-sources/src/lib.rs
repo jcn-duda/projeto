@@ -34,7 +34,8 @@
 //! só sob `is_br`), breaker só em offline, `Link` com
 //! `is_safe_download_url` + redirect manual, e falha → `[]` / outcome honesto.
 //! Config via `JACKETT_URL` (default loopback `:9117`) e `JACKETT_API_KEY`
-//! (nunca em log). **Ainda não** está ligado ao orquestrador/`collectRaw`.
+//! (nunca em log). Collect do orquestrador: opt-in `SOURCES_RUST=jackett`
+//! (`adom-search::JackettCollector`); default OFF = `POST /internal/search/collect`.
 //!
 //! ## Fase B — Prowlarr + Torrentio + BLUDV + Mico
 //!
@@ -49,8 +50,8 @@
 //! BLUDV pulado no caminho de busca; Mico com breaker local. **Ainda não**
 //! ligados ao collect/orquestrador.
 //!
-//! Pendências da próxima fatia: integração no collect, cache `raw:v1`,
-//! pt-sweep tardio, pré-resolve BR (já no núcleo) e captura do magnet-bank.
+//! Pendências da próxima fatia: Prowlarr/Torrentio/BLUDV/Mico no collect,
+//! cache `raw:v1`, pré-resolve BR (já no núcleo) e captura do magnet-bank.
 //!
 //! Fora do escopo B.1 (de propósito): busca por TÍTULO (`tmdb-search.ts`),
 //! contagem de temporadas e `external_ids` da raspagem — são background-only

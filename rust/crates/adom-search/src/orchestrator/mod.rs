@@ -28,6 +28,7 @@
 mod collect;
 mod config;
 mod internal_routes;
+mod jackett_collector;
 mod meta;
 mod tail;
 #[cfg(test)]
@@ -65,6 +66,10 @@ pub use config::{
     NoDebridFactory, OrchestratorConfig,
 };
 pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
+pub use jackett_collector::{
+    plan_jackett_searches, sources_rust_includes_jackett, try_jackett_collector_from_env,
+    JackettCollector, PlannedJackettSearch,
+};
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
 pub use tail::{
     EffectsBatch, IndexBatch, NodeTailEffects, NoopTailEffects, TailEffects, TailJob, TailPlan,

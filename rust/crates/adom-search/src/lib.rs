@@ -10,8 +10,9 @@
 //!
 //! - **não abre o socket HTTP**: o handler mora no `adom-server` (corte
 //!   `ROUTES_RUST=stream`); este crate só orquestra;
-//! - **não fala com Jackett/Cinemeta/TMDB direto**: a coleta e os metadados
-//!   passam pelas rotas `/internal/search/*` do Node;
+//! - **coleta default ainda é Node** (`POST /internal/search/collect`);
+//!   opt-in `SOURCES_RUST=jackett` pluga `JackettCollector` (só Jackett);
+//!   metadados seguem nas rotas `/internal/search/*`;
 //! - **não decide prazo sozinho**: recebe os milissegundos (Stremio × app) e
 //!   no collect manda `deadline_at` absoluto;
 //! - **não reproduz os defaults do operador**: `decode_user_config` aplica o

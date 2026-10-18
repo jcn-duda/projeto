@@ -13,8 +13,9 @@ use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
-    AdapterDebridFactory, NodeRoutes, NoDebridFactory, NoopTailEffects, Orchestrator,
-    OrchestratorConfig, StreamRequest,
+    try_jackett_collector_from_env, AdapterDebridFactory, NodeMetaSource, NodeRoutes,
+    NodeTailEffects, NoDebridFactory, NoopTailEffects, Orchestrator, OrchestratorConfig,
+    StreamRequest,
 };
 use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
@@ -65,17 +66,38 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 
 /// Monta o orquestrador de produção: store SWR compartilhado, coleta via
 /// rotas internas (se `JACKETT_TEST_TOKEN` existir) e debrid com reserva Node.
+///
+/// Opt-in `SOURCES_RUST=jackett`: collect fala Torznab direto
+/// (`JackettCollector`); meta/tail continuam no Node quando as rotas internas
+/// existem. Default OFF — corte stream segue em `POST /internal/search/collect`.
 pub fn build_orchestrator() -> Orchestrator {
     let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
+    let jackett = try_jackett_collector_from_env();
     match NodeRoutes::from_env() {
         Some(routes) => {
-            orch = orch.with_routes(Arc::new(routes));
+            let routes = Arc::new(routes);
+            if let Some(collector) = jackett {
+                eprintln!("[gateway] collect via adom-sources Jackett (SOURCES_RUST=jackett)");
+                orch = orch
+                    .with_collector(Arc::new(collector))
+                    .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
+                    .with_tail(Arc::new(NodeTailEffects::new(routes)));
+            } else {
+                orch = orch.with_routes(routes);
+            }
         }
         None => {
-            eprintln!(
-                "[gateway] stream nativo sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
-            );
+            if let Some(collector) = jackett {
+                eprintln!(
+                    "[gateway] SOURCES_RUST=jackett sem rotas Node — collect Jackett; meta/tail indisponíveis"
+                );
+                orch = orch.with_collector(Arc::new(collector));
+            } else {
+                eprintln!(
+                    "[gateway] stream nativo sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
+                );
+            }
         }
     }
     let fallback: Option<Arc<dyn FallbackCheck>> =
@@ -103,17 +125,33 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
         .with_shadow_mode(true)
         .with_debrid(Arc::new(NoDebridFactory));
+    let jackett = try_jackett_collector_from_env();
     match NodeRoutes::from_env() {
         Some(routes) => {
-            // `with_routes` liga NodeTailEffects — sobrescreve para noop.
-            orch = orch
-                .with_routes(Arc::new(routes))
-                .with_tail(Arc::new(NoopTailEffects));
+            let routes = Arc::new(routes);
+            if let Some(collector) = jackett {
+                // Sombra: collect Jackett opt-in; meta Node; tail sempre noop.
+                orch = orch
+                    .with_collector(Arc::new(collector))
+                    .with_meta(Arc::new(NodeMetaSource::new(routes)))
+                    .with_tail(Arc::new(NoopTailEffects));
+            } else {
+                // `with_routes` liga NodeTailEffects — sobrescreve para noop.
+                orch = orch
+                    .with_routes(routes)
+                    .with_tail(Arc::new(NoopTailEffects));
+            }
         }
         None => {
-            eprintln!(
-                "[gateway] stream-shadow sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
-            );
+            if let Some(collector) = jackett {
+                orch = orch
+                    .with_collector(Arc::new(collector))
+                    .with_tail(Arc::new(NoopTailEffects));
+            } else {
+                eprintln!(
+                    "[gateway] stream-shadow sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
+                );
+            }
         }
     }
     orch

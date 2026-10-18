@@ -50,6 +50,10 @@ pub struct CollectJob {
     pub priority: bool,
     /// Epoch ms do prazo da RESPOSTA.
     pub deadline_at: i64,
+    /// Passe tardio da varredura pt-BR (`TailJob::PtSweep`): `ignore_breaker`
+    /// liga; a varredura **inline** (task `sweep:true` no plano da coleta
+    /// principal) NÃO — não misturar os dois caminhos.
+    pub late_sweep: bool,
 }
 
 /// Lote devolvido por uma tarefa.
@@ -105,6 +109,7 @@ pub fn plan_jobs(
         multi_work_query: meta.multi_work_query.clone(),
         priority: false,
         deadline_at,
+        late_sweep: false,
     };
     if selected.is_empty() {
         return vec![CollectJob { ..base }];
@@ -187,6 +192,7 @@ pub fn sweep_job(
         multi_work_query: meta.multi_work_query.clone(),
         priority: false,
         deadline_at,
+        late_sweep: true,
     })
 }
 
@@ -289,8 +295,16 @@ mod tests {
         meta.sweep_query = Some("Matrix".into());
         let job = sweep_job(&config, &meta, "series", None, 1_700_000_000_000).expect("sweep");
         assert_eq!(job.kind, "series");
+        assert!(job.late_sweep, "passe tardio marca late_sweep");
         let body = serde_json::to_value(collect_request_from_job(job)).unwrap();
         assert_eq!(body["type"], json!("series"));
         assert_eq!(body["task_scope"], json!("all"));
+    }
+
+    #[test]
+    fn plan_jobs_nao_marca_late_sweep() {
+        let config = OrchestratorConfig::default();
+        let jobs = plan_jobs(&config, &meta_movie(), "movie", None, 1_700_000_000_000);
+        assert!(jobs.iter().all(|j| !j.late_sweep));
     }
 }
