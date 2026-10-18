@@ -26,10 +26,14 @@ import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/se
 import { collectRaw } from '../providers/collect-orchestrator.js';
 import { breakerSnapshot } from '../providers/jackett-breaker.js';
 import { parseStremioId } from '../utils/format.js';
-import { raceWithDeadline } from '../utils/deadline.js';
 import * as log from '../utils/logger.js';
+// Guarda/prazo compartilhados e as rotas de escrita/efeitos vivem nos irmãos
+// (extraídos pela catraca de linhas); este arquivo continua o ponto de montagem.
+import { rejectedByGuard, decodeTarget, withinDeadline, DEADLINE } from './internal-search-shared.js';
+import { registerInternalSearchEffects } from './internal-search-effects.js';
+import type { InternalSearchEffectsCollaborators } from './internal-search-effects.js';
 
-const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+export { isLoopbackAddress } from './internal-search-shared.js';
 
 // Tetos de entrada: a rota recebe LISTAS (obras/hashes), não mídia. Sem teto,
 // um chamador (ou bug) transformaria a leitura em varredura do acervo inteiro.
@@ -42,51 +46,6 @@ const MAX_WORKS_TOTAL = 500;
 // id que o `/stream` monta, sem o `.json`. Formato inválido é 400: adivinhar a
 // obra esconderia erro de integração do lado Rust.
 const OBRA_KEY_RE = /^(tt\d+)(?::(\d{1,4}):(\d{1,4}))?$/;
-
-const DEADLINE = Symbol('internal-search-deadline');
-
-/** Chamadas internas fora do loopback são recusadas (defesa em profundidade). */
-export function isLoopbackAddress(address: string | null | undefined) {
-  return Boolean(address) && LOOPBACK_ADDRESSES.has(String(address));
-}
-
-/**
- * Guarda das rotas internas. Devolve `true` quando a resposta já foi escrita —
- * o handler sai na hora. Ordem: 403 (origem), 503 (operador sem token), 401
- * (token errado); o token é o que classifica o cliente, por isso vem depois.
- */
-function rejectedByGuard(services: AppServices, req: express.Request, res: express.Response) {
-  if (!isLoopbackAddress(req.socket?.remoteAddress)) {
-    res.status(403).json({ ok: false, error: 'rota interna disponível apenas em loopback' });
-    return true;
-  }
-  if (!services.config.jackett.testToken) {
-    res.status(503).json({ ok: false, error: 'diagnóstico desativado pelo operador' });
-    return true;
-  }
-  if (!services.authorized(services.config.jackett.testToken, req.get('X-Indexer-Test-Token'))) {
-    res.status(401).json({ ok: false, error: 'token de diagnóstico inválido' });
-    return true;
-  }
-  return false;
-}
-
-type DecodedUserConfig = NonNullable<ReturnType<AppServices['runtime']['decode']>>;
-
-/** Decodifica o `encoded` do corpo; `null` = config inválida (400 no handler). */
-function decodeTarget(services: AppServices, body: unknown) {
-  const encoded = typeof (body as { encoded?: unknown })?.encoded === 'string'
-    ? String((body as { encoded: string }).encoded)
-    : '';
-  if (!encoded) return null;
-  const opts = services.runtime.decode(encoded);
-  return opts ? { opts, encoded } : null;
-}
-
-/** Corre a tarefa contra o prazo do cliente; `DEADLINE` = estourou (504). */
-async function withinDeadline<T>(task: Promise<T>, budgetMs: number): Promise<T | typeof DEADLINE> {
-  return raceWithDeadline(task, Math.max(1, budgetMs), () => DEADLINE);
-}
 
 /** Colaboradores trocáveis em teste (mesmo padrão de internal-crawl-result). */
 export interface InternalSearchCollaborators {
@@ -396,6 +355,7 @@ export function registerInternalSearch(
   router: Router,
   services: AppServices,
   overrides: Partial<InternalSearchCollaborators> = {},
+  effectsOverrides: Partial<InternalSearchEffectsCollaborators> = {},
 ): void {
   const deps: InternalSearchCollaborators = {
     getMeta: overrides.getMeta ?? getMeta,
@@ -422,4 +382,8 @@ export function registerInternalSearch(
     if (rejectedByGuard(services, req, res)) return;
     await handleCollect(services, deps, req, res);
   }));
+
+  // Escrita e efeitos do orquestrador (index-write/effects) — mesmo guarda,
+  // mesma posição no roteador (antes do overlay /:userConfig).
+  registerInternalSearchEffects(router, services, effectsOverrides);
 }
