@@ -88,14 +88,13 @@ fn gateway_state(upstream: SocketAddr, native_health: bool, stream_shadow: bool)
 fn stub_orchestrator() -> Orchestrator {
     // Collector default falha → lista/aviso 200, sem rede. Serve para provar
     // o corte sem Node no ar.
-    Orchestrator::new(OrchestratorConfig::default(), Arc::new(MemorySwrStore::new()))
+    Orchestrator::new(
+        OrchestratorConfig::default(),
+        Arc::new(MemorySwrStore::new()),
+    )
 }
 
-fn gateway_state_native(
-    upstream: SocketAddr,
-    stream_shadow: bool,
-    orch: Orchestrator,
-) -> AppState {
+fn gateway_state_native(upstream: SocketAddr, stream_shadow: bool, orch: Orchestrator) -> AppState {
     AppState {
         client: proxy::client(),
         upstream: format!("http://{upstream}").parse().unwrap(),
@@ -112,11 +111,7 @@ fn gateway_state_native(
     }
 }
 
-fn gateway_state_resolve(
-    upstream: SocketAddr,
-    secret: &str,
-    proxy_enabled: bool,
-) -> AppState {
+fn gateway_state_resolve(upstream: SocketAddr, secret: &str, proxy_enabled: bool) -> AppState {
     AppState {
         client: proxy::client(),
         upstream: format!("http://{upstream}").parse().unwrap(),
@@ -332,12 +327,8 @@ fn internal_path_reconhece_exato_e_subcaminho() {
 #[tokio::test]
 async fn stream_nativo_responde_sem_tocar_o_upstream() {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state_native(
-        upstream,
-        false,
-        stub_orchestrator(),
-    ))
-    .await;
+    let gateway =
+        spawn_gateway_state(gateway_state_native(upstream, false, stub_orchestrator())).await;
 
     let req = Request::builder()
         .uri("/stream/movie/tt0133093.json")
@@ -365,12 +356,8 @@ async fn stream_nativo_responde_sem_tocar_o_upstream() {
 #[tokio::test]
 async fn stream_nativo_path_nao_stream_continua_proxy() {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state_native(
-        upstream,
-        false,
-        stub_orchestrator(),
-    ))
-    .await;
+    let gateway =
+        spawn_gateway_state(gateway_state_native(upstream, false, stub_orchestrator())).await;
 
     let req = Request::builder()
         .uri("/manifest.json")
@@ -562,10 +549,7 @@ async fn resolve_nativo_501_com_proxy_desligado() {
         ..ResolveSigner::default()
     };
     let url = signer.url(hash, false, false);
-    let req = Request::builder()
-        .uri(url)
-        .body(Body::empty())
-        .unwrap();
+    let req = Request::builder().uri(url).body(Body::empty()).unwrap();
     let (status, body) = call(gateway, req).await;
     assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
     assert!(body.contains("proxy desligado"), "corpo: {body}");
@@ -593,7 +577,10 @@ async fn resolve_nativo_proxy_apos_verify_ok() {
     assert_eq!(status, StatusCode::OK);
     let json: Value = serde_json::from_str(&body).unwrap();
     assert!(
-        json["pq"].as_str().unwrap().starts_with(&format!("/resolve/{hash}")),
+        json["pq"]
+            .as_str()
+            .unwrap()
+            .starts_with(&format!("/resolve/{hash}")),
         "pq: {}",
         json["pq"]
     );

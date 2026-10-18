@@ -157,12 +157,7 @@ pub async fn observe_node_response(
         }
     };
 
-    record_comparison(
-        &node,
-        &rust_body,
-        stream_req.encoded.as_deref(),
-        &metrics,
-    );
+    record_comparison(&node, &rust_body, stream_req.encoded.as_deref(), &metrics);
 }
 
 /// Compara duas respostas já montadas (testes e caminho do observe).

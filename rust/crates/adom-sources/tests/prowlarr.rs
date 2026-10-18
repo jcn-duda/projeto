@@ -69,11 +69,7 @@ impl FakeProwlarr {
     }
 
     fn seen_header_keys(&self) -> Vec<String> {
-        self.inner
-            .seen_header_keys
-            .lock()
-            .expect("hdr")
-            .clone()
+        self.inner.seen_header_keys.lock().expect("hdr").clone()
     }
 }
 
@@ -83,11 +79,7 @@ async fn search(
     headers: HeaderMap,
 ) -> Response {
     if let Some(key) = q.get("apikey") {
-        api.inner
-            .seen_keys
-            .lock()
-            .expect("keys")
-            .push(key.clone());
+        api.inner.seen_keys.lock().expect("keys").push(key.clone());
     }
     if let Some(hdr) = headers.get("X-Api-Key").and_then(|v| v.to_str().ok()) {
         api.inner

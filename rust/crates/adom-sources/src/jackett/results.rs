@@ -30,7 +30,10 @@ pub fn in_category_bucket(categories: &Value, bucket: u32, other_as_unknown: boo
     if !other_as_unknown {
         return false;
     }
-    let torznab: Vec<i64> = ids.into_iter().filter(|&id| id > 0 && id < 10_000).collect();
+    let torznab: Vec<i64> = ids
+        .into_iter()
+        .filter(|&id| id > 0 && id < 10_000)
+        .collect();
     torznab.iter().all(|&id| (8000..9000).contains(&id))
 }
 
@@ -219,8 +222,7 @@ fn civil_to_epoch_ms(y: i64, mo: i64, d: i64, h: i64, mi: i64, sec: i64) -> Opti
 
 pub fn category_policy(indexer: &str) -> (bool, bool, bool) {
     let other_as_unknown = OTHER_AS_UNKNOWN.contains(&indexer);
-    let no_category_in_url =
-        CATEGORY_UNFILTERED.contains(&indexer) || other_as_unknown;
+    let no_category_in_url = CATEGORY_UNFILTERED.contains(&indexer) || other_as_unknown;
     let unreliable = UNRELIABLE_CATEGORY.contains(&indexer);
     let filter_locally = no_category_in_url && !unreliable;
     let send_category = !(no_category_in_url || unreliable);

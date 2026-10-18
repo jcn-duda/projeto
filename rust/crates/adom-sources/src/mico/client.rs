@@ -158,13 +158,11 @@ fn valid_imdb(tt: &str) -> bool {
 
 /// Fetch puro dos streams (sem breaker/banco) — espelha `fetchMicoStreams`.
 pub async fn fetch_streams(url: &str, timeout_ms: u64) -> Result<MicoFetchOutcome, MicoHttpError> {
-    let http = Client::builder()
-        .build()
-        .map_err(|err| MicoHttpError {
-            message: format!("cliente HTTP: {err}"),
-            status: None,
-            retry_after_ms: None,
-        })?;
+    let http = Client::builder().build().map_err(|err| MicoHttpError {
+        message: format!("cliente HTTP: {err}"),
+        status: None,
+        retry_after_ms: None,
+    })?;
     fetch_streams_with(&http, url, timeout_ms).await
 }
 

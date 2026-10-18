@@ -170,7 +170,12 @@ impl HarvestQueue {
         self.entries.iter().take(limit).cloned().collect()
     }
 
-    pub fn find_queued(&self, imdb_id: &str, season: Option<i32>, episode: Option<i32>) -> Option<&HarvestEntry> {
+    pub fn find_queued(
+        &self,
+        imdb_id: &str,
+        season: Option<i32>,
+        episode: Option<i32>,
+    ) -> Option<&HarvestEntry> {
         let id = crate::reason::obra_identity(imdb_id, season, episode);
         self.entries.iter().find(|e| entry_identity(e) == id)
     }
@@ -222,7 +227,11 @@ impl HarvestQueue {
         }
 
         let identity = entry_identity(&full);
-        if let Some(existing) = self.entries.iter_mut().find(|e| entry_identity(e) == identity) {
+        if let Some(existing) = self
+            .entries
+            .iter_mut()
+            .find(|e| entry_identity(e) == identity)
+        {
             let probe_upgrade = full.br_probe && !existing.br_probe;
             if probe_upgrade {
                 existing.br_probe = true;
@@ -253,7 +262,11 @@ impl HarvestQueue {
     /// Volta à frente (teto / preempção). Não duplica identidade.
     pub fn head(&mut self, entry: HarvestEntry) {
         let identity = entry_identity(&entry);
-        if let Some(idx) = self.entries.iter().position(|e| entry_identity(e) == identity) {
+        if let Some(idx) = self
+            .entries
+            .iter()
+            .position(|e| entry_identity(e) == identity)
+        {
             let mut queued = self.entries.remove(idx);
             if entry.br_probe && !queued.br_probe {
                 queued.br_probe = true;
@@ -276,7 +289,11 @@ impl HarvestQueue {
     /// Devolve ao fim (falha transitória). Não duplica identidade.
     pub fn tail(&mut self, entry: HarvestEntry) {
         let identity = entry_identity(&entry);
-        if let Some(idx) = self.entries.iter().position(|e| entry_identity(e) == identity) {
+        if let Some(idx) = self
+            .entries
+            .iter()
+            .position(|e| entry_identity(e) == identity)
+        {
             let queued = &mut self.entries[idx];
             if entry.br_probe && !queued.br_probe {
                 queued.br_probe = true;
@@ -324,12 +341,16 @@ mod tests {
     #[test]
     fn enqueue_e_take_head_fifo() {
         let mut queue = q(10);
-        assert!(queue
-            .enqueue(HarvestRequest::movie("tt0111161", "miss"))
-            .accepted);
-        assert!(queue
-            .enqueue(HarvestRequest::movie("tt0068646", "miss"))
-            .accepted);
+        assert!(
+            queue
+                .enqueue(HarvestRequest::movie("tt0111161", "miss"))
+                .accepted
+        );
+        assert!(
+            queue
+                .enqueue(HarvestRequest::movie("tt0068646", "miss"))
+                .accepted
+        );
         assert_eq!(queue.depth(), 2);
         let head = queue.take_head().expect("cabeça");
         assert_eq!(head.imdb_id, "tt0111161");
@@ -443,16 +464,18 @@ mod tests {
         writer.enqueue(HarvestRequest::movie("tt5000001", "miss"));
         writer.enqueue(HarvestRequest::movie("tt5000002", "miss"));
         writer
-            .save_to(&store, crate::store::DEFAULT_ENTRY_TTL_SECONDS, clock_fixed())
+            .save_to(
+                &store,
+                crate::store::DEFAULT_ENTRY_TTL_SECONDS,
+                clock_fixed(),
+            )
             .unwrap();
 
         let mut ev = StubBrEvidence::new();
         ev.insert("tt5000002", None, None);
 
         let mut reader = q(10);
-        reader
-            .load_from(&store, clock_fixed(), Some(&ev))
-            .unwrap();
+        reader.load_from(&store, clock_fixed(), Some(&ev)).unwrap();
         assert_eq!(reader.preview(2)[0].imdb_id, "tt5000002");
 
         let mut plain = q(10);

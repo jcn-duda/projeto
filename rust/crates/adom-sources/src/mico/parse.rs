@@ -147,7 +147,9 @@ fn is_tracker_url(url: &str) -> bool {
         || lower.starts_with("https://")
         || lower.starts_with("ws://")
         || lower.starts_with("wss://"))
-        && !url.chars().any(|c| c.is_whitespace() || c == '&' || c == '#')
+        && !url
+            .chars()
+            .any(|c| c.is_whitespace() || c == '&' || c == '#')
 }
 
 /// Percent-encode mínimo para `tr=` (o mesmo espírito de `encodeURIComponent`).

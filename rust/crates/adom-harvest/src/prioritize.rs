@@ -78,8 +78,7 @@ impl StubBrEvidence {
     }
 
     pub fn insert(&mut self, imdb_id: &str, season: Option<i32>, episode: Option<i32>) {
-        self.dubbed
-            .insert(obra_identity(imdb_id, season, episode));
+        self.dubbed.insert(obra_identity(imdb_id, season, episode));
     }
 }
 
@@ -193,7 +192,13 @@ mod tests {
         }
     }
 
-    fn series(imdb: &str, season: i32, episode: i32, reason: &str, enqueued_at: i64) -> HarvestEntry {
+    fn series(
+        imdb: &str,
+        season: i32,
+        episode: i32,
+        reason: &str,
+        enqueued_at: i64,
+    ) -> HarvestEntry {
         HarvestEntry {
             imdb_id: imdb.into(),
             media_type: HarvestMediaType::Series,
@@ -230,7 +235,12 @@ mod tests {
         let a = movie("tt3000002", "miss", NOW - 900);
         let b = movie("tt3000003", "popular", NOW - 800);
         let evidence = |imdb: &str, _: Option<i32>, _: Option<i32>| imdb == "tt3000002";
-        let out = prioritize(&[b.clone(), a.clone()], &PrioritizeConfig::default(), &evidence, NOW);
+        let out = prioritize(
+            &[b.clone(), a.clone()],
+            &PrioritizeConfig::default(),
+            &evidence,
+            NOW,
+        );
         assert_eq!(ids(&out), ["tt3000002", "tt3000003"]);
     }
 
@@ -335,7 +345,12 @@ mod tests {
         }
         let a = movie("tt4000001", "miss", NOW - 100);
         let b = movie("tt4000002", "miss", NOW - 50);
-        let out = prioritize(&[b.clone(), a.clone()], &PrioritizeConfig::default(), &SoLookup, NOW);
+        let out = prioritize(
+            &[b.clone(), a.clone()],
+            &PrioritizeConfig::default(),
+            &SoLookup,
+            NOW,
+        );
         // Sem evidência BR: FIFO por enqueued_at (a mais antiga primeiro).
         assert_eq!(ids(&out), ["tt4000001", "tt4000002"]);
         assert_eq!(br_evidence_rank(&a, &SoLookup), 0);

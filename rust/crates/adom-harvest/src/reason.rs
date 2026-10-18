@@ -66,7 +66,10 @@ mod tests {
     #[test]
     fn identidade_filme_e_serie() {
         assert_eq!(obra_identity("tt0111161", None, None), "tt0111161::");
-        assert_eq!(obra_identity("tt0903747", Some(1), Some(2)), "tt0903747:1:2");
+        assert_eq!(
+            obra_identity("tt0903747", Some(1), Some(2)),
+            "tt0903747:1:2"
+        );
     }
 
     #[test]
@@ -83,7 +86,10 @@ mod tests {
             br_probe: false,
             full_base: false,
         };
-        assert!(is_recent_br_gap(&entry, 1_000 + BR_GAP_PRIORITY_WINDOW_MS - 1));
+        assert!(is_recent_br_gap(
+            &entry,
+            1_000 + BR_GAP_PRIORITY_WINDOW_MS - 1
+        ));
         assert!(!is_recent_br_gap(&entry, 1_000 + BR_GAP_PRIORITY_WINDOW_MS));
     }
 

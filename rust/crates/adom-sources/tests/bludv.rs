@@ -197,9 +197,7 @@ async fn enabled_false_sem_rede() {
         ..test_config(&base)
     };
     let client = BludvClient::new(cfg).expect("client");
-    let out = client
-        .search("Coringa", &BludvSearchOpts::default())
-        .await;
+    let out = client.search("Coringa", &BludvSearchOpts::default()).await;
     assert!(out.is_empty());
     assert!(api.calls().is_empty());
 }
@@ -208,9 +206,7 @@ async fn enabled_false_sem_rede() {
 async fn busca_resolve_protetor_e_pula_gate() {
     let (api, base) = FakeBludv::start().await;
     let client = BludvClient::new(test_config(&base)).expect("client");
-    let out = client
-        .search("Coringa", &BludvSearchOpts::default())
-        .await;
+    let out = client.search("Coringa", &BludvSearchOpts::default()).await;
     assert_eq!(out.len(), 2);
     assert!(out[0].magnet.contains(HASH));
     assert!(out[1].magnet.contains(HASH_B));
@@ -234,12 +230,7 @@ async fn dubbed_only_filtra_legendado() {
     let (_api, base) = FakeBludv::start().await;
     let client = BludvClient::new(test_config(&base)).expect("client");
     let out = client
-        .search(
-            "Coringa",
-            &BludvSearchOpts {
-                dubbed_only: true,
-            },
-        )
+        .search("Coringa", &BludvSearchOpts { dubbed_only: true })
         .await;
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].audio, "dublado");
@@ -251,9 +242,7 @@ async fn http_500_fail_open() {
     let (api, base) = FakeBludv::start().await;
     api.set_mode(Mode::Http500);
     let client = BludvClient::new(test_config(&base)).expect("client");
-    let out = client
-        .search("Coringa", &BludvSearchOpts::default())
-        .await;
+    let out = client.search("Coringa", &BludvSearchOpts::default()).await;
     assert!(out.is_empty());
 }
 
@@ -266,9 +255,7 @@ async fn timeout_fail_open() {
         ..test_config(&base)
     };
     let client = BludvClient::new(cfg).expect("client");
-    let out = client
-        .search("Coringa", &BludvSearchOpts::default())
-        .await;
+    let out = client.search("Coringa", &BludvSearchOpts::default()).await;
     assert!(out.is_empty());
 }
 
@@ -280,9 +267,7 @@ async fn ssrf_barra_loopback_sem_allow_private() {
         ..test_config(&base)
     };
     let client = BludvClient::new(cfg).expect("client");
-    let out = client
-        .search("Coringa", &BludvSearchOpts::default())
-        .await;
+    let out = client.search("Coringa", &BludvSearchOpts::default()).await;
     assert!(out.is_empty());
     assert!(api.calls().is_empty());
 }
@@ -311,9 +296,7 @@ async fn hop_inseguro_no_post_skip_sem_get() {
     api.set_extra_link(Some(evil));
     // allow_private libera só a origem da base — o trap (outra porta) cai.
     let client = BludvClient::new(test_config(&base)).expect("client");
-    let out = client
-        .search("Coringa", &BludvSearchOpts::default())
-        .await;
+    let out = client.search("Coringa", &BludvSearchOpts::default()).await;
     assert_eq!(out.len(), 2, "links da mesma origem seguem: {out:?}");
     tokio::time::sleep(Duration::from_millis(50)).await;
     assert_eq!(
@@ -329,9 +312,7 @@ async fn redirect_none_nao_segue_hop() {
     let (api, base) = FakeBludv::start().await;
     api.set_mode(Mode::RedirectHop);
     let client = BludvClient::new(test_config(&base)).expect("client");
-    let out = client
-        .search("Coringa", &BludvSearchOpts::default())
-        .await;
+    let out = client.search("Coringa", &BludvSearchOpts::default()).await;
     assert!(
         out.is_empty(),
         "302 sem follow não deve produzir magnet: {out:?}"

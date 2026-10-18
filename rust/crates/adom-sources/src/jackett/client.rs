@@ -133,14 +133,14 @@ impl JackettClient {
             match handle.await {
                 Ok(outcome) => {
                     if options.record_status() && !outcome.from_cache {
-                        self.breaker.record(
-                            &outcome.indexer,
-                            outcome.source_ok,
-                            now_ms(),
-                        );
+                        self.breaker
+                            .record(&outcome.indexer, outcome.source_ok, now_ms());
                         if !outcome.source_ok {
                             if let Some(err) = &outcome.source_error {
-                                eprintln!("[jackett] {}: fonte fora (HTTP 200): {err}", outcome.indexer);
+                                eprintln!(
+                                    "[jackett] {}: fonte fora (HTTP 200): {err}",
+                                    outcome.indexer
+                                );
                             }
                         }
                     }
@@ -259,7 +259,9 @@ impl JackettClient {
             if shaped.is_empty() || shaped_seen.contains(&shaped) {
                 continue;
             }
-            let left = remaining(deadline_at).map(|d| d.as_millis() as u64).unwrap_or(0);
+            let left = remaining(deadline_at)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
             if left <= 400 {
                 continue;
             }
@@ -292,8 +294,7 @@ impl JackettClient {
         let items = if skip_resolve {
             found_items
         } else {
-            self.resolve_links(indexer, found_items, deadline_at)
-                .await
+            self.resolve_links(indexer, found_items, deadline_at).await
         };
 
         let source_ok = !items.is_empty() || source_error.is_none();
@@ -319,10 +320,7 @@ impl JackettClient {
         _options: &SearchOptions,
     ) -> Vec<JackettRawItem> {
         let deadline = crate::http::now_ms() + self.config.indexer_timeout_ms as i64;
-        match self
-            .get_results_json("all", query, None, deadline)
-            .await
-        {
+        match self.get_results_json("all", query, None, deadline).await {
             Ok(payload) => map_results(
                 &payload,
                 MapOptions {

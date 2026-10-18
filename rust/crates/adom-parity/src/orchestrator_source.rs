@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use adom_core::{RankingStream, StreamDisplayConfig};
 use adom_search::cache::MemorySwrStore;
 use adom_search::collection_window::CollectBudgets;
 use adom_search::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
@@ -18,7 +19,6 @@ use adom_search::orchestrator::{
     NoopTailEffects, Orchestrator, OrchestratorConfig, RouteFuture, SearchMeta, StreamRequest,
 };
 use adom_search::raw_item::{raw_item_from_value, RawItem};
-use adom_core::{RankingStream, StreamDisplayConfig};
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
 
@@ -50,12 +50,10 @@ impl CaseFixtures {
         if !meta_path.is_file() || !raw_path.is_file() {
             return Ok(None);
         }
-        let meta_bytes = fs::read(&meta_path).map_err(|e| {
-            SourceError::new(format!("não li {}: {e}", meta_path.display()))
-        })?;
-        let raw_bytes = fs::read(&raw_path).map_err(|e| {
-            SourceError::new(format!("não li {}: {e}", raw_path.display()))
-        })?;
+        let meta_bytes = fs::read(&meta_path)
+            .map_err(|e| SourceError::new(format!("não li {}: {e}", meta_path.display())))?;
+        let raw_bytes = fs::read(&raw_path)
+            .map_err(|e| SourceError::new(format!("não li {}: {e}", raw_path.display())))?;
         let meta_value: Value = serde_json::from_slice(&meta_bytes)
             .map_err(|e| SourceError::new(format!("meta.json inválido: {e}")))?;
         let raw_value: Value = serde_json::from_slice(&raw_bytes)
@@ -64,9 +62,8 @@ impl CaseFixtures {
         let raw = raw_items_from_fixture(&raw_value)?;
         let cached_hashes = match dir.join("debrid.json") {
             path if path.is_file() => {
-                let bytes = fs::read(&path).map_err(|e| {
-                    SourceError::new(format!("não li {}: {e}", path.display()))
-                })?;
+                let bytes = fs::read(&path)
+                    .map_err(|e| SourceError::new(format!("não li {}: {e}", path.display())))?;
                 let value: Value = serde_json::from_slice(&bytes)
                     .map_err(|e| SourceError::new(format!("debrid.json inválido: {e}")))?;
                 cached_hashes_from_fixture(&value)
@@ -100,8 +97,8 @@ impl OrchestratorSource {
         fixtures: CaseFixtures,
         options: SourceOptions,
     ) -> Result<Self, SourceError> {
-        let runtime = Runtime::new()
-            .map_err(|e| SourceError::new(format!("runtime tokio: {e}")))?;
+        let runtime =
+            Runtime::new().map_err(|e| SourceError::new(format!("runtime tokio: {e}")))?;
         let store = Arc::new(MemorySwrStore::new());
         let collector = StubCollector::with(fixtures.raw);
         let orch = Orchestrator::new(stub_config(), store)
@@ -160,8 +157,8 @@ impl FixtureOrchestratorSource {
         corpus_root: impl Into<PathBuf>,
         options: SourceOptions,
     ) -> Result<Self, SourceError> {
-        let runtime = Runtime::new()
-            .map_err(|e| SourceError::new(format!("runtime tokio: {e}")))?;
+        let runtime =
+            Runtime::new().map_err(|e| SourceError::new(format!("runtime tokio: {e}")))?;
         Ok(FixtureOrchestratorSource {
             corpus_root: corpus_root.into(),
             runtime,
@@ -236,10 +233,7 @@ fn produce_with_orch(
     origin: &str,
     now_ms: i64,
 ) -> Result<Value, SourceError> {
-    let path = case
-        .request
-        .path
-        .replace("{{config}}", config_segment);
+    let path = case.request.path.replace("{{config}}", config_segment);
     let ua = case
         .request
         .headers
@@ -369,9 +363,9 @@ fn search_meta_from_fixture(v: &Value) -> Result<SearchMeta, SourceError> {
 }
 
 fn raw_items_from_fixture(v: &Value) -> Result<Vec<RawItem>, SourceError> {
-    let arr = v.as_array().ok_or_else(|| {
-        SourceError::new("raw.json deve ser um array de itens")
-    })?;
+    let arr = v
+        .as_array()
+        .ok_or_else(|| SourceError::new("raw.json deve ser um array de itens"))?;
     Ok(arr.iter().map(raw_item_from_value).collect())
 }
 

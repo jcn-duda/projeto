@@ -179,17 +179,11 @@ mod tests {
         // Pack multiobra: `p:1` dentro de `w` — trocar a dica invalida o sig.
         let hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let (path, q_ok) = signed_url(hash, "k", true);
-        assert_eq!(
-            decide(&path, Some(&q_ok), "k", true),
-            GateDecision::Proxy
-        );
+        assert_eq!(decide(&path, Some(&q_ok), "k", true), GateDecision::Proxy);
         let (_path, q_sem_p) = signed_url(hash, "k", false);
         // Reusa o sig do pack (`p:1`) com a query sem `p` → Forbidden.
         let sig = q_ok.rsplit("sig=").next().unwrap();
-        let w_sem_p = q_sem_p
-            .split('&')
-            .find(|p| p.starts_with("w="))
-            .unwrap();
+        let w_sem_p = q_sem_p.split('&').find(|p| p.starts_with("w=")).unwrap();
         let q_bad = format!("{w_sem_p}&sig={sig}");
         assert_eq!(
             decide(&path, Some(&q_bad), "k", true),

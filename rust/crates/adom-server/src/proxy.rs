@@ -231,8 +231,7 @@ async fn forward(
         let for_shadow = bytes.clone();
         // Fire-and-forget: falha/atraso da sombra não afeta o cliente.
         tokio::spawn(async move {
-            shadow::observe_node_response(status, for_shadow, shadow_req, metrics, remount)
-                .await;
+            shadow::observe_node_response(status, for_shadow, shadow_req, metrics, remount).await;
         });
         let mut out = Response::new(Body::from(bytes));
         *out.status_mut() = res_parts.status;

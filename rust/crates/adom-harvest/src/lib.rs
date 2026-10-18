@@ -48,9 +48,7 @@ pub use reason::{
     reason_priority, BR_GAP_PRIORITY_WINDOW_MS,
 };
 pub use store::{HarvestStore, DEFAULT_ENTRY_TTL_SECONDS};
-pub use types::{
-    EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestMediaType, HarvestRequest,
-};
+pub use types::{EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestMediaType, HarvestRequest};
 pub use worker::{
     hour_bucket, DrainOutcome, HarvestDrain, HarvestWorker, HarvestWorkerConfig, StubTraffic,
     TickOutcome, TrafficSense, HOUR_MS,

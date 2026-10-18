@@ -33,13 +33,7 @@ impl Config {
         let routes = std::env::var("ROUTES_RUST").unwrap_or_default();
         let resolve_proxy = resolve_proxy_from_env();
         let resolve_secret = std::env::var("RESOLVE_SECRET").unwrap_or_default();
-        Self::parse(
-            &listen,
-            &upstream,
-            &routes,
-            resolve_proxy,
-            resolve_secret,
-        )
+        Self::parse(&listen, &upstream, &routes, resolve_proxy, resolve_secret)
     }
 
     pub fn parse(

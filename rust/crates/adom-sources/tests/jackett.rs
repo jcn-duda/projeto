@@ -39,10 +39,7 @@ impl FakeJackett {
     async fn start() -> (Self, String) {
         let api = Self::default();
         let app = Router::new()
-            .route(
-                "/api/v2.0/indexers/{indexer}/results",
-                get(results),
-            )
+            .route("/api/v2.0/indexers/{indexer}/results", get(results))
             .route("/dl/{indexer}/{file}", get(dl_magnet))
             .route("/evil", get(|| async { StatusCode::OK }))
             .with_state(api.clone());
@@ -71,11 +68,7 @@ async fn results(
     Query(q): Query<HashMap<String, String>>,
 ) -> Response {
     if let Some(key) = q.get("apikey") {
-        api.inner
-            .seen_keys
-            .lock()
-            .expect("keys")
-            .push(key.clone());
+        api.inner.seen_keys.lock().expect("keys").push(key.clone());
     }
     api.inner.calls.lock().expect("calls").push(Call {
         path: format!("/api/v2.0/indexers/{indexer}/results"),
@@ -94,7 +87,11 @@ async fn results(
             .into_response(),
         "slow" => {
             tokio::time::sleep(Duration::from_millis(800)).await;
-            (StatusCode::OK, axum::Json(ok_payload("slow", "Filme Lento"))).into_response()
+            (
+                StatusCode::OK,
+                axum::Json(ok_payload("slow", "Filme Lento")),
+            )
+                .into_response()
         }
         "yts" => {
             let query = q.get("Query").cloned().unwrap_or_default();
@@ -138,9 +135,7 @@ async fn dl_magnet(Path((indexer, _file)): Path<(String, String)>) -> Response {
     let mut headers = HeaderMap::new();
     headers.insert(
         axum::http::header::LOCATION,
-        HeaderValue::from_static(
-            "magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        ),
+        HeaderValue::from_static("magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
     );
     (StatusCode::FOUND, headers).into_response()
 }
@@ -211,7 +206,12 @@ async fn sem_api_key_devolve_vazio() {
     cfg.api_key.clear();
     let client = JackettClient::new(cfg).expect("client");
     let items = client
-        .search("Joker", JackettMediaType::Movie, &["yts".into()], &SearchOptions::default())
+        .search(
+            "Joker",
+            JackettMediaType::Movie,
+            &["yts".into()],
+            &SearchOptions::default(),
+        )
         .await;
     assert!(items.is_empty());
 }

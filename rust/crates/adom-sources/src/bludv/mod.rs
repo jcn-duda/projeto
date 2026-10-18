@@ -24,7 +24,7 @@ mod types;
 pub use client::BludvClient;
 pub use config::{BludvConfig, BLUDV_DEFAULT_TIMEOUT_MS, BLUDV_DEFAULT_URL, BLUDV_USER_AGENT};
 pub use parse::{
-    extract_magnet, is_gate_url, is_valid_magnet_uri, parse_download_links, parse_posts, parse_size,
-    release_title,
+    extract_magnet, is_gate_url, is_valid_magnet_uri, parse_download_links, parse_posts,
+    parse_size, release_title,
 };
 pub use types::{BludvDownloadLink, BludvPost, BludvRawItem, BludvSearchOpts};

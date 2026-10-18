@@ -82,7 +82,10 @@ impl DrainOutcome {
     }
 
     pub fn failed() -> Self {
-        Self { ok: false, queries: 0 }
+        Self {
+            ok: false,
+            queries: 0,
+        }
     }
 }
 

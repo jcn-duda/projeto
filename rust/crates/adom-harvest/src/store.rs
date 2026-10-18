@@ -236,7 +236,8 @@ mod tests {
         );
         queue.enqueue(HarvestRequest::movie("tt0111161", "miss"));
         queue.enqueue(HarvestRequest::movie("tt0068646", "br-gap"));
-        queue.save_to(&store, DEFAULT_ENTRY_TTL_SECONDS, clock_fixed())
+        queue
+            .save_to(&store, DEFAULT_ENTRY_TTL_SECONDS, clock_fixed())
             .unwrap();
 
         let mut other = HarvestQueue::with_clock(

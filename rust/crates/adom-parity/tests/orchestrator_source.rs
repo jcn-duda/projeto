@@ -5,9 +5,9 @@ mod common;
 use std::collections::BTreeMap;
 
 use adom_parity::{
-    run_corpus, Case, CaseFixtures, CaseMeta, CaseRequest, CaseStatus, Corpus, FixtureOrchestratorSource,
-    NormalizeOptions, OrchestratorSource, ProduceOutcome, RecordedResponse, SourceOptions,
-    StreamSource, DEFAULT_CONFIG_SEGMENT, DEFAULT_ORIGIN,
+    run_corpus, Case, CaseFixtures, CaseMeta, CaseRequest, CaseStatus, Corpus,
+    FixtureOrchestratorSource, NormalizeOptions, OrchestratorSource, ProduceOutcome,
+    RecordedResponse, SourceOptions, StreamSource, DEFAULT_CONFIG_SEGMENT, DEFAULT_ORIGIN,
 };
 use adom_search::orchestrator::SearchMeta;
 use adom_search::RawItem;
@@ -133,11 +133,9 @@ fn orchestrator_source_remonta_stubs_e_bate_identidades_mascaradas() {
 #[test]
 fn corpus_sem_fixtures_pula_todos_sem_falso_verde() {
     let corpus = common::corpus();
-    let source = FixtureOrchestratorSource::for_corpus_with(
-        common::corpus_root(),
-        SourceOptions::default(),
-    )
-    .expect("fonte fixture");
+    let source =
+        FixtureOrchestratorSource::for_corpus_with(common::corpus_root(), SourceOptions::default())
+            .expect("fonte fixture");
     let report = run_corpus(corpus, &source as &dyn StreamSource, &normalize_opts());
     assert_eq!(report.skipped(), 51, "{report}");
     assert_eq!(report.matched(), 0, "{report}");
@@ -188,10 +186,9 @@ fn fixture_dir_remonta_e_compara_apos_mascara() {
 
     let case = stub_case(Some(rust_body.clone()));
     // Embaralha ordem de chaves no JSON gravado (normalizador §9 reordena).
-    let scrambled = serde_json::from_str::<Value>(
-        &serde_json::to_string(&rust_body).expect("serialize"),
-    )
-    .expect("reparse");
+    let scrambled =
+        serde_json::from_str::<Value>(&serde_json::to_string(&rust_body).expect("serialize"))
+            .expect("reparse");
     let case = Case {
         response: RecordedResponse {
             body: Some(scrambled),

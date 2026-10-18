@@ -74,8 +74,8 @@
 //! # }
 //! ```
 
-mod cache;
 pub mod bludv;
+mod cache;
 mod cinemeta;
 mod config;
 mod http;
@@ -83,14 +83,12 @@ pub mod jackett;
 pub mod mico;
 pub mod prowlarr;
 mod sources;
-pub mod torrentio;
 mod tmdb;
+pub mod torrentio;
 mod types;
 mod wire;
 
-pub use bludv::{
-    BludvClient, BludvConfig, BludvRawItem, BludvSearchOpts, BLUDV_DEFAULT_URL,
-};
+pub use bludv::{BludvClient, BludvConfig, BludvRawItem, BludvSearchOpts, BLUDV_DEFAULT_URL};
 pub use cache::{CacheValue, CollectionRead, HomeReleaseRead, MemoryMetaStore, MetaStore};
 pub use cinemeta::CinemetaClient;
 pub use config::{
@@ -108,11 +106,11 @@ pub use prowlarr::{
     ProwlarrClient, ProwlarrConfig, ProwlarrRawItem, PROWLARR_DEFAULT_URL, PROWLARR_USER_AGENT,
 };
 pub use sources::MetaSources;
+pub use tmdb::TmdbClient;
 pub use torrentio::{
     TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs,
     TORRENTIO_DEFAULT_URL,
 };
-pub use tmdb::TmdbClient;
 pub use types::{
     CinemetaMeta, CollectionInfo, EpisodeAired, LookupOptions, MediaType, MetaLookup, Titles,
 };

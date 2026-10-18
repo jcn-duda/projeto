@@ -133,10 +133,7 @@ pub fn map_stream(raw: &serde_json::Value) -> Option<TorrentioRawItem> {
     if !is_info_hash(&info_hash) {
         return None;
     }
-    let title_raw = raw
-        .get("title")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let title_raw = raw.get("title").and_then(|v| v.as_str()).unwrap_or("");
     let parsed = parse_metadata(title_raw);
     let fallback = raw
         .get("name")
@@ -202,9 +199,7 @@ mod tests {
 
     #[test]
     fn parse_remove_linha_meta_e_preserva_arquivo() {
-        let meta = format!(
-            "{META_USER} 1,234 {META_DISK} 2.4 GB {META_GEAR}\u{FE0F} Torrentio"
-        );
+        let meta = format!("{META_USER} 1,234 {META_DISK} 2.4 GB {META_GEAR}\u{FE0F} Torrentio");
         let title = format!(
             "{meta}\nGuardiões da Galáxia Vol. 3 (2023) [4K] [Dual] [RD+]\narquivo1.mkv\narquivo2.mkv"
         );

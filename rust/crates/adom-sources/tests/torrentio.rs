@@ -5,9 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use adom_sources::torrentio::endpoint_url;
-use adom_sources::{
-    TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioSearchArgs,
-};
+use adom_sources::{TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioSearchArgs};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -159,7 +157,10 @@ async fn filme_e_serie_montam_url_sem_credencial() {
     let client = TorrentioClient::new(test_config(&base)).expect("client");
 
     let _ = client.search(&movie_args("tt6791350")).await;
-    assert_eq!(api.calls(), vec!["/stream/movie/tt6791350.json".to_string()]);
+    assert_eq!(
+        api.calls(),
+        vec!["/stream/movie/tt6791350.json".to_string()]
+    );
 
     let url = endpoint_url(&base, &movie_args("tt6791350")).expect("url");
     let s = url.as_str();
@@ -197,9 +198,7 @@ async fn args_incompletos_sem_rede() {
 #[tokio::test]
 async fn parse_preserva_file_idx_e_metadados() {
     let (api, base) = FakeTorrentio::start().await;
-    let meta = format!(
-        "{META_USER} 1,234 {META_DISK} 2.4 GB {META_GEAR}\u{FE0F} Torrentio"
-    );
+    let meta = format!("{META_USER} 1,234 {META_DISK} 2.4 GB {META_GEAR}\u{FE0F} Torrentio");
     let title = format!(
         "{meta}\nGuardiões da Galáxia Vol. 3 (2023) [4K] [Dual] [RD+]\narquivo1.mkv\narquivo2.mkv"
     );

@@ -16,8 +16,8 @@ use reqwest::{Client, Url};
 
 use super::config::{BludvConfig, BLUDV_USER_AGENT};
 use super::parse::{
-    extract_magnet, is_gate_url, is_valid_magnet_uri, parse_download_links, parse_posts, parse_size,
-    release_title,
+    extract_magnet, is_gate_url, is_valid_magnet_uri, parse_download_links, parse_posts,
+    parse_size, release_title,
 };
 use super::types::{BludvDownloadLink, BludvPost, BludvRawItem, BludvSearchOpts};
 use crate::http::{now_ms, remaining};
@@ -116,9 +116,7 @@ impl BludvClient {
             .await?;
         let mut links = parse_download_links(&html);
         // Gate: detecta e descarta (sem solve de anúncio no caminho de busca).
-        let had_gate = links
-            .iter()
-            .any(|l| is_gate_url(&l.url, &post.url));
+        let had_gate = links.iter().any(|l| is_gate_url(&l.url, &post.url));
         if had_gate {
             eprintln!("[bludv] portão de anúncio ativo — {}", post.url);
         }
@@ -160,7 +158,10 @@ impl BludvClient {
         if is_valid_magnet_uri(&link.url) {
             return Some(link.url.clone());
         }
-        let html = self.get_text(&link.url, Some(referer), deadline).await.ok()?;
+        let html = self
+            .get_text(&link.url, Some(referer), deadline)
+            .await
+            .ok()?;
         extract_magnet(&html)
     }
 
@@ -225,9 +226,7 @@ fn fetch_url_allowed(url: &str, cfg: &BludvConfig) -> bool {
     if is_safe_download_url(url, false) {
         return true;
     }
-    cfg.allow_private_url
-        && is_safe_download_url(url, true)
-        && same_origin(url, &cfg.base_url)
+    cfg.allow_private_url && is_safe_download_url(url, true) && same_origin(url, &cfg.base_url)
 }
 
 fn same_origin(url: &str, base: &str) -> bool {

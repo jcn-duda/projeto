@@ -126,7 +126,9 @@ impl JackettConfig {
     }
 
     pub fn resolves_download(&self, indexer: &str) -> bool {
-        self.resolve_download_indexers.iter().any(|id| id == indexer)
+        self.resolve_download_indexers
+            .iter()
+            .any(|id| id == indexer)
     }
 }
 
@@ -165,7 +167,10 @@ fn redact_secret(value: &str) -> &'static str {
 }
 
 fn env_trim(key: &str) -> Option<String> {
-    std::env::var(key).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    std::env::var(key)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn env_u64(key: &str) -> Option<u64> {

@@ -105,9 +105,7 @@ impl TorrentioClient {
                     }
                     Err(err) => {
                         self.breaker.note_failure(&self.config, now_ms());
-                        eprintln!(
-                            "[torrentio] falha na consulta de {imdb}: JSON inválido: {err}"
-                        );
+                        eprintln!("[torrentio] falha na consulta de {imdb}: JSON inválido: {err}");
                         Vec::new()
                     }
                 }
