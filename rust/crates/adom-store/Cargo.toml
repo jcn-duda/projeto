@@ -1,0 +1,18 @@
+[package]
+name = "adom-store"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Store SQLite do namespace streams:v21 (SWR + cotas). Embrião Fase D."
+license = "UNLICENSED"
+
+[dependencies]
+adom-core = { path = "../adom-core" }
+# StreamsEntry + SwrStore + teto/graça — o Orchestrator já fala essa lingua.
+adom-search = { path = "../adom-search" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

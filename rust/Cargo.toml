@@ -10,15 +10,16 @@ members = [
     "crates/adom-resolvers",
     "crates/adom-debrid",
     "crates/adom-server",
-    # Embrião do orquestrador nativo do /stream (fatia F1.1 do lado Rust):
-    # parsing de requisição + chave de cache + contrato da resposta. AINDA não
-    # é consumido por ninguém; o /stream continua 100% Node.
+    # Orquestrador nativo do /stream (F1): parsing, SWR, build, glue
+    # /internal/search/*. Consumido pelo adom-server quando ROUTES_RUST=stream.
     "crates/adom-search",
-    # Harness de paridade do corpus `golden/stream-e2e`: lê o manifest e os
-    # casos, normaliza a resposta do `/stream` e compara Node × Rust. Não
-    # depende de `adom-search`; a costura é a trait `StreamSource`.
+    # Harness de paridade do corpus `golden/stream-e2e`: lê o manifest, normaliza
+    # (§9) e compara Node × Rust via `StreamSource` → `adom-search::orchestrator`.
     "crates/adom-parity",
     "crates/adom-sources",
+    # Store SQLite de streams:v21 (SWR + cotas). Embrião Fase D — ainda não
+    # pluga no Orchestrator/gateway.
+    "crates/adom-store",
 ]
 resolver = "2"
 
