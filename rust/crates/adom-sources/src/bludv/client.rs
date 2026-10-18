@@ -4,11 +4,14 @@
 //! - protetor legado (`systemads`/`videosad`) resolvido sob o prazo;
 //! - gate de anúncio detectado e **pulado** no caminho de busca (orçamento
 //!   0 ms no TS; sem cache de gate nesta fatia);
-//! - base configurável sob guarda SSRF.
+//! - **todo** hop (base, post, protetor) passa por `is_safe_download_url`;
+//! - `redirect: none` — alinhado ao Jackett; sem seguir hops cegos.
 
 use std::sync::Arc;
 
+use adom_core::is_safe_download_url;
 use reqwest::header::{ACCEPT, REFERER, USER_AGENT};
+use reqwest::redirect::Policy;
 use reqwest::{Client, Url};
 
 use super::config::{BludvConfig, BLUDV_USER_AGENT};
@@ -28,9 +31,10 @@ pub struct BludvClient {
 
 impl BludvClient {
     pub fn new(config: BludvConfig) -> Result<Self, String> {
+        // Mesma régua do download Jackett: nunca seguir redirect automático.
         let http = Client::builder()
             .user_agent(BLUDV_USER_AGENT)
-            .redirect(reqwest::redirect::Policy::limited(10))
+            .redirect(Policy::none())
             .build()
             .map_err(|err| format!("cliente HTTP BLUDV: {err}"))?;
         Ok(Self {
@@ -166,6 +170,11 @@ impl BludvClient {
         referer: Option<&str>,
         deadline: i64,
     ) -> Result<String, String> {
+        // Guarda SSRF em CADA hop — post/protetor são HTML de terceiro.
+        if !fetch_url_allowed(url, &self.config) {
+            let preview: String = url.chars().take(160).collect();
+            return Err(format!("bludv: URL bloqueada pela guarda SSRF: {preview}"));
+        }
         let Some(budget) = remaining(deadline) else {
             return Err("bludv: orçamento esgotado".into());
         };
@@ -204,9 +213,40 @@ fn collapse_ws(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// URL permitida para fetch BLUDV?
+///
+/// Usa o mesmo `is_safe_download_url` do Jackett. A flag `allow_private_url`
+/// só amplia a **origem da base** (loopback de teste / instalador) — HTML do
+/// post não pode puxar `169.254.169.254` ou outro privado arbitrário.
+fn fetch_url_allowed(url: &str, cfg: &BludvConfig) -> bool {
+    if url.is_empty() {
+        return false;
+    }
+    if is_safe_download_url(url, false) {
+        return true;
+    }
+    cfg.allow_private_url
+        && is_safe_download_url(url, true)
+        && same_origin(url, &cfg.base_url)
+}
+
+fn same_origin(url: &str, base: &str) -> bool {
+    let Ok(target) = Url::parse(url) else {
+        return false;
+    };
+    let Ok(base) = Url::parse(base) else {
+        return false;
+    };
+    target.scheme() == base.scheme()
+        && target.host_str() == base.host_str()
+        && target.port_or_known_default() == base.port_or_known_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn search_url_encode_query() {
@@ -218,5 +258,90 @@ mod tests {
     #[test]
     fn deadline_helper_zero() {
         assert!(remaining(now_ms() - 1).is_none());
+    }
+
+    #[test]
+    fn fetch_url_allowed_publico_e_origem() {
+        let cfg = BludvConfig {
+            allow_private_url: true,
+            base_url: "http://127.0.0.1:9".into(),
+            ..BludvConfig::default()
+        };
+        assert!(fetch_url_allowed("https://cdn.example/systemads/a", &cfg));
+        assert!(fetch_url_allowed("http://127.0.0.1:9/filme/x", &cfg));
+        // Privado fora da origem da base — HTML injetado não passa.
+        assert!(!fetch_url_allowed(
+            "http://169.254.169.254/systemads/meta",
+            &cfg
+        ));
+        assert!(!fetch_url_allowed("http://127.0.0.1:99/systemads/x", &cfg));
+        assert!(!fetch_url_allowed("file:///etc/passwd", &cfg));
+    }
+
+    /// Hop privado fora da origem → Err sem GET (fail-open).
+    #[tokio::test]
+    async fn hop_inseguro_sem_get() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let hits_h = hits.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind trap");
+        let addr = listener.local_addr().expect("addr");
+        let trap_url = format!("http://{addr}/systemads/ssrf-bait");
+        tokio::spawn(async move {
+            loop {
+                let Ok((sock, _)) = listener.accept().await else {
+                    break;
+                };
+                hits_h.fetch_add(1, Ordering::SeqCst);
+                let _ = sock.try_write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+            }
+        });
+
+        let client = BludvClient::new(BludvConfig {
+            enabled: true,
+            base_url: "https://bludv.example".into(),
+            max_posts: 3,
+            max_links_per_post: 12,
+            concurrency: 6,
+            timeout_ms: 500,
+            allow_private_url: false,
+        })
+        .expect("client");
+
+        let err = client
+            .get_text(&trap_url, None, now_ms() + 1_000)
+            .await
+            .expect_err("loopback deve ser barrado");
+        assert!(
+            err.contains("guarda SSRF"),
+            "erro esperado de SSRF, obteve: {err}"
+        );
+        // Pequena folga: se o GET tivesse saído, o accept já teria incrementado.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            0,
+            "GET não pode ter atingido o trap"
+        );
+    }
+
+    #[tokio::test]
+    async fn esquema_nao_http_sem_get() {
+        let client = BludvClient::new(BludvConfig {
+            enabled: true,
+            base_url: "https://bludv.example".into(),
+            max_posts: 3,
+            max_links_per_post: 12,
+            concurrency: 6,
+            timeout_ms: 500,
+            allow_private_url: true, // mesmo com privado liberado, file:// cai
+        })
+        .expect("client");
+        let err = client
+            .get_text("file:///etc/passwd", None, now_ms() + 1_000)
+            .await
+            .expect_err("file:// deve ser barrado");
+        assert!(err.contains("guarda SSRF"), "obteve: {err}");
     }
 }

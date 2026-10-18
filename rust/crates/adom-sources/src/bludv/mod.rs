@@ -6,6 +6,7 @@
 //! - falha de rede → `[]` sem panic;
 //! - gate de anúncio detectado e pulado no caminho de busca (solve longo
 //!   nunca entra na resposta; cache/prefetch de gate fica para fatia futura);
+//! - cada hop HTTP sob `is_safe_download_url` + `redirect: none` (Jackett);
 //! - `is_br: true`, `seeders: 1`, `tracker: "BLUDV"`.
 //!
 //! Não reusa o binário `adom-resolvers` via HTTP nesta fatia (cliente fino

@@ -1,13 +1,13 @@
 //! Cliente BLUDV contra servidor falso (axum) — busca WordPress, protetor,
-//! filtro dubbed_only, gate pulado e fail-open.
+//! filtro dubbed_only, gate pulado, hop SSRF skip e fail-open.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use adom_sources::{BludvClient, BludvConfig, BludvSearchOpts, BLUDV_DEFAULT_URL};
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Response};
+use axum::http::{header, StatusCode};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::Router;
 use serde::Deserialize;
@@ -24,6 +24,8 @@ struct Inner {
     calls: Mutex<Vec<String>>,
     mode: Mutex<Mode>,
     base: Mutex<String>,
+    /// Link extra injetado no HTML do post (hop SSRF / esquema inválido).
+    extra_link: Mutex<Option<String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -32,6 +34,8 @@ enum Mode {
     Ok,
     Http500,
     Hang,
+    /// Protetor responde 302 — `redirect: none` não deve seguir.
+    RedirectHop,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +50,7 @@ impl FakeBludv {
                 calls: Mutex::new(Vec::new()),
                 mode: Mutex::new(Mode::Ok),
                 base: Mutex::new(String::new()),
+                extra_link: Mutex::new(None),
             }),
         };
         let app = Router::new()
@@ -54,6 +59,7 @@ impl FakeBludv {
             .route("/systemads/{id}", get(protector))
             .route("/videosad/{id}", get(protector))
             .route("/gate/go/{token}", get(gate))
+            .route("/redirect-target", get(redirect_target))
             .with_state(api.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -69,6 +75,10 @@ impl FakeBludv {
 
     fn set_mode(&self, mode: Mode) {
         *self.inner.mode.lock().expect("mode") = mode;
+    }
+
+    fn set_extra_link(&self, url: Option<String>) {
+        *self.inner.extra_link.lock().expect("extra") = url;
     }
 
     fn calls(&self) -> Vec<String> {
@@ -93,7 +103,7 @@ async fn search(State(api): State<FakeBludv>, Query(q): Query<SearchQuery>) -> R
             StatusCode::OK.into_response()
         }
         Mode::Http500 => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        Mode::Ok => {
+        Mode::Ok | Mode::RedirectHop => {
             let base = api.base();
             Html(format!(
                 r#"
@@ -110,6 +120,18 @@ async fn search(State(api): State<FakeBludv>, Query(q): Query<SearchQuery>) -> R
 async fn post(State(api): State<FakeBludv>, Path(slug): Path<String>) -> Response {
     api.push(format!("/filme/{slug}"));
     let base = api.base();
+    let extra = api
+        .inner
+        .extra_link
+        .lock()
+        .expect("extra")
+        .clone()
+        .unwrap_or_default();
+    let extra_anchor = if extra.is_empty() {
+        String::new()
+    } else {
+        format!(r#"<a href="{extra}">EVIL</a>"#)
+    };
     // Fixture: dublado (systemads), gate (pulado), legendado (videosad).
     Html(format!(
         r#"
@@ -117,6 +139,7 @@ async fn post(State(api): State<FakeBludv>, Path(slug): Path<String>) -> Respons
         WEB-DL 1080p (3.39 GB - MKV)
         <a href="{base}/systemads/a">DL</a>
         <a href="{base}/gate/go/0646028353024d92?p=60609">GATE</a>
+        {extra_anchor}
         VERSÃO MP4 LEGENDADO
         WEB-DL 720p (1.2 GB - MP4)
         <a href="{base}/videosad/b">DL</a>
@@ -127,11 +150,26 @@ async fn post(State(api): State<FakeBludv>, Path(slug): Path<String>) -> Respons
 
 async fn protector(State(api): State<FakeBludv>, Path(id): Path<String>) -> Response {
     api.push(format!("/protector/{id}"));
+    let mode = *api.inner.mode.lock().expect("mode");
+    if mode == Mode::RedirectHop {
+        let target = format!("{}/redirect-target", api.base());
+        return Redirect::temporary(target.as_str()).into_response();
+    }
     let hash = if id == "b" { HASH_B } else { HASH };
     Html(format!(
         r#"<a href="magnet:?xt=urn:btih:{hash}&amp;dn=x">x</a>"#
     ))
     .into_response()
+}
+
+async fn redirect_target(State(api): State<FakeBludv>) -> Response {
+    api.push("/redirect-target".into());
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/html")],
+        format!(r#"<a href="magnet:?xt=urn:btih:{HASH}&amp;dn=x">x</a>"#),
+    )
+        .into_response()
 }
 
 async fn gate(State(api): State<FakeBludv>) -> Response {
@@ -247,6 +285,62 @@ async fn ssrf_barra_loopback_sem_allow_private() {
         .await;
     assert!(out.is_empty());
     assert!(api.calls().is_empty());
+}
+
+/// Hop privado fora da origem (protetor SSRF no HTML) → skip sem GET no trap.
+#[tokio::test]
+async fn hop_inseguro_no_post_skip_sem_get() {
+    let trap_hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let hits_h = trap_hits.clone();
+    let trap_listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind trap");
+    let trap_addr = trap_listener.local_addr().expect("addr");
+    let evil = format!("http://{trap_addr}/systemads/evil");
+    tokio::spawn(async move {
+        loop {
+            let Ok((sock, _)) = trap_listener.accept().await else {
+                break;
+            };
+            hits_h.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let _ = sock.try_write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        }
+    });
+
+    let (api, base) = FakeBludv::start().await;
+    api.set_extra_link(Some(evil));
+    // allow_private libera só a origem da base — o trap (outra porta) cai.
+    let client = BludvClient::new(test_config(&base)).expect("client");
+    let out = client
+        .search("Coringa", &BludvSearchOpts::default())
+        .await;
+    assert_eq!(out.len(), 2, "links da mesma origem seguem: {out:?}");
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert_eq!(
+        trap_hits.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "hop SSRF não pode ter recebido GET"
+    );
+}
+
+/// `redirect: none` — 302 do protetor não é seguido (sem magnet, sem alvo).
+#[tokio::test]
+async fn redirect_none_nao_segue_hop() {
+    let (api, base) = FakeBludv::start().await;
+    api.set_mode(Mode::RedirectHop);
+    let client = BludvClient::new(test_config(&base)).expect("client");
+    let out = client
+        .search("Coringa", &BludvSearchOpts::default())
+        .await;
+    assert!(
+        out.is_empty(),
+        "302 sem follow não deve produzir magnet: {out:?}"
+    );
+    assert!(
+        !api.calls().iter().any(|c| c.contains("redirect-target")),
+        "redirect não pode ser seguido: {:?}",
+        api.calls()
+    );
 }
 
 #[tokio::test]

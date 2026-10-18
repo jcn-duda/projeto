@@ -24,7 +24,9 @@ pub struct BludvConfig {
     pub max_links_per_post: usize,
     pub concurrency: usize,
     pub timeout_ms: u64,
-    /// SSRF da base: default `false`. Testes loopback = `true`.
+    /// SSRF: default `false`. `true` só amplia a **origem da base**
+    /// (loopback de teste) — hops de post/protetor fora dela continuam
+    /// sob `is_safe_download_url(..., false)`.
     pub allow_private_url: bool,
 }
 
