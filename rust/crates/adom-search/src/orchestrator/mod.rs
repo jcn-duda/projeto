@@ -104,8 +104,8 @@ pub struct StreamRequest {
 impl StreamRequest {
     /// Açúcar para o servidor: caminho cru + UA + origin.
     ///
-    /// Sem `/:userConfig` na URL, o segmento vira o canônico `e30` (`{}`): as
-    /// rotas internas do Node exigem `encoded` não-vazio no corpo.
+    /// `encoded` espelha a URL (`None` sem `/:userConfig`). O corpo das rotas
+    /// internas usa [`encoded_for_internal`] — nunca omitir/`""` lá.
     pub fn from_path(
         path: &str,
         user_agent: Option<&str>,
@@ -116,17 +116,20 @@ impl StreamRequest {
         Some(StreamRequest {
             kind: target.kind,
             id: target.id,
-            encoded: Some(encoded_for_internal(target.encoded.as_deref())),
+            encoded: target.encoded,
             user_agent: user_agent.map(str::to_string),
             origin: origin.map(|o| o.trim_end_matches('/').to_string()),
             now_ms,
         })
     }
 
-    /// `/<config>` — prefixo das URLs de play e do aviso (sempre com segmento
-    /// após [`Self::from_path`]; fallback canônico se montado à mão sem encoded).
+    /// `/<config>` ou `""` — prefixo das URLs de play e do aviso (paridade Node:
+    /// instalação sem segmento na URL não inventa `/e30`).
     pub fn prefix(&self) -> String {
-        format!("/{}", encoded_for_internal(self.encoded.as_deref()))
+        match &self.encoded {
+            Some(encoded) if !encoded.is_empty() => format!("/{encoded}"),
+            _ => String::new(),
+        }
     }
 }
 

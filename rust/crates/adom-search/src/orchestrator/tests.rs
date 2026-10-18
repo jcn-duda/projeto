@@ -674,10 +674,11 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
         Some(1_000_000),
     )
     .expect("path sem config deve casar");
-    assert_eq!(req.encoded.as_deref(), Some(SEGMENT));
-    assert_eq!(req.prefix(), format!("/{SEGMENT}"));
+    // URL truth: sem segmento. Corpo interno (abaixo) recebe o canônico `e30`.
+    assert_eq!(req.encoded, None);
+    assert_eq!(req.prefix(), "");
 
-    let _ = orch.handle(req).await;
+    let resposta = orch.handle(req).await;
 
     let meta_encoded = backend.meta_encoded.lock().expect("meta").clone();
     let collect_encoded = backend.collect_encoded.lock().expect("collect").clone();
@@ -695,5 +696,16 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
             "encoded no corpo nunca pode ser vazio (Node recusa)"
         );
         assert_eq!(enc, SEGMENT);
+    }
+    // Prefixo de play/aviso continua sem `/e30` inventado.
+    if let Some(url) = resposta.streams.iter().find_map(|s| s.url.as_ref()) {
+        assert!(
+            url.starts_with("/resolve/") || url.starts_with(&format!("/{SEGMENT}/resolve/")),
+            "url inesperada: {url}"
+        );
+        assert!(
+            !url.starts_with(&format!("/{SEGMENT}/resolve/")),
+            "path sem config não deve prefixar /e30 nas URLs de play: {url}"
+        );
     }
 }
