@@ -39,7 +39,7 @@ pub use types::{
     DebridAnswer, DebridCheck, WorkHint,
 };
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use adom_core::{
     admits_multi_work_pack, annotate_movie_sizes_core, annotate_pack_sizes_core, decode_entities,
@@ -245,13 +245,6 @@ pub fn build_stream_list(
     });
     out.count("afterSort", sort.streams.len());
     let mut streams = sort.streams;
-    // Reserva (banco/foto do índice) sobrevive ao ranking em `extra`; a
-    // entrada com reserva nunca é completa (TTL curto + promoção tardia).
-    out.fallback = streams.iter().any(|s| {
-        ["_fromFallback", "_fromSnapshot"]
-            .iter()
-            .any(|key| s.extra.get(*key).and_then(|v| v.as_bool()).unwrap_or(false))
-    });
 
     // 7. 💾 de episódio (pack: média; multiobra: só medida exata). Antes do
     //    debrid — o título reescrito sobrevive à materialização.
@@ -286,7 +279,24 @@ pub fn build_stream_list(
 
     // 8. applyDebrid — um lote (prepare) + memo por stream. Sem prepare o
     //    AdapterDebridCheck cai no lazy da 1ª check (ainda 1 upload AD).
+    // `fallbackInList` do TS é lido da lista FINAL, depois do drop do
+    // `playDisposition` e do corte: guarda os hashes das reservas para marcar a
+    // entrada depois do `finalize` (o `BuiltStream` não carrega a marca `_*`).
+    let fallback_hashes: BTreeSet<String> = streams
+        .iter()
+        .filter(|s| {
+            ["_fromFallback", "_fromSnapshot"]
+                .iter()
+                .any(|key| s.extra.get(*key).and_then(|v| v.as_bool()).unwrap_or(false))
+        })
+        .filter_map(|s| s.info_hash.clone().filter(|hash| !hash.is_empty()))
+        .collect();
     let built = finalize_streams(streams, ctx, opts, debrid, &mut out);
+    out.fallback = built
+        .iter()
+        .filter(|stream| !stream.notice)
+        .filter_map(|stream| stream.info_hash.as_deref())
+        .any(|hash| fallback_hashes.contains(hash));
     out.streams = built;
     out.work_hint = work_hint;
     out

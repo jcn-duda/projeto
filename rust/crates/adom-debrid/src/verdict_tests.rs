@@ -327,6 +327,18 @@ async fn premiumize_via_verdict_e_servico_desconhecido() {
     assert_eq!(outcome, super::UNKNOWN_SERVICE);
 }
 
+/// Debrid-Link não publica cache (`cacheCheck = false`): a resposta vazia é
+/// "não sei", igual ao Node — nunca `known:true`/`Missing`.
+#[tokio::test]
+async fn debridlink_sem_endpoint_de_cache_e_unknown() {
+    let outcome = check_service("debridlink", KEY, &[HIT.into()], None, None)
+        .await
+        .unwrap();
+    assert!(!outcome.known, "Debrid-Link não sabe informar o cache");
+    assert!(outcome.cached.is_empty());
+    assert!(outcome.unusable.is_none());
+}
+
 #[test]
 fn outcome_json_carrega_known_e_unusable() {
     let outcome = super::CheckOutcome {

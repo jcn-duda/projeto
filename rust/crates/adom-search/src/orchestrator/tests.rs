@@ -6,3 +6,6 @@ mod tests_pipeline;
 
 #[path = "tests_routes_sources.rs"]
 mod tests_routes_sources;
+
+#[path = "tests/live_state_wiring.rs"]
+mod live_state_wiring;

@@ -4,13 +4,23 @@
 //! enquanto fontes não migradas e o inventário da conta continuam sendo colhidos
 //! via `NodeCollector` (`POST /internal/search/collect`).
 //!
-//! Os lotes são somados em paralelo, preservando os itens por indexer.
+//! Os lotes são somados em paralelo, preservando os itens por indexer. O
+//! estado vivo é fundido por união; falha de subcoletor sem contrato por
+//! indexer entra como agregado `error` (conservador), nunca como sucesso.
+//!
+//! PONTE ATÉ F2: os coletores nativos ainda são fail-open e devolvem
+//! `CollectBatch { live: None }`. Enquanto eles não emitirem estado por indexer,
+//! a simples PRESENÇA de um lote sem contrato no composto também sintetiza
+//! `unknown_failure` (agregado `error`, sem nomes). Sem isso, o estado `ok` do
+//! `NodeCollector` faria os indexers nativos não citados parecerem respondedores
+//! e apagaria 📦/selos que o Node preservaria.
 
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
 use super::collect::{CollectBatch, CollectJob, Collector};
+use super::live_state::LiveBatchState;
 use crate::raw_item::RawItem;
 
 /// Coletor que executa múltiplos collectors em paralelo e funde os lotes.
@@ -32,6 +42,23 @@ impl CompositeCollector {
     }
 }
 
+/// Fusão conservadora do estado vivo: união dos conjuntos (falha de um lote
+/// não é apagada pelo sucesso de outro) e `None` só quando NINGUÉM trouxe
+/// contrato — coletor sem estado não prova sucesso nem falha.
+fn merge_live(acc: &mut Option<LiveBatchState>, next: Option<&LiveBatchState>) {
+    let Some(state) = next else { return };
+    match acc {
+        Some(merged) => merged.merge(state),
+        None => *acc = Some(state.clone()),
+    }
+}
+
+/// Lote bem-sucedido SEM contrato vivo (coletor nativo fail-open até F2).
+/// Não inventa nomes, mas impede que a ausência de estado vire "respondeu".
+fn sem_contrato(acc: &mut Option<LiveBatchState>) {
+    merge_live(acc, Some(&LiveBatchState::unknown_failure()));
+}
+
 impl Collector for CompositeCollector {
     fn collect<'a>(
         &'a self,
@@ -51,6 +78,7 @@ impl Collector for CompositeCollector {
 
             let mut all_items: Vec<RawItem> = Vec::new();
             let mut partial = false;
+            let mut live: Option<LiveBatchState> = None;
             let mut errors = Vec::new();
 
             for handle in handles {
@@ -59,15 +87,27 @@ impl Collector for CompositeCollector {
                         if batch.partial {
                             partial = true;
                         }
+                        match batch.live.as_ref() {
+                            Some(state) => merge_live(&mut live, Some(state)),
+                            // Coletor nativo (ainda sem `live`): a ausência não
+                            // pode apagar a reserva de indexers que ninguém citou.
+                            None => sem_contrato(&mut live),
+                        }
                         all_items.extend(batch.items);
                     }
                     Ok(Err(err)) => {
-                        // Coletor individual falhou: a coleta combinada fica parcial
+                        // Coletor individual falhou: a coleta combinada fica
+                        // parcial e o estado agregado fica conservador. Sem
+                        // nomes (não sabemos quais indexers dele), mas `error`
+                        // impede que o lote composto vire "respondeu" — a
+                        // falha preserva 📦/selos e não é apagada por sucesso.
                         partial = true;
+                        merge_live(&mut live, Some(&LiveBatchState::unknown_failure()));
                         errors.push(err);
                     }
                     Err(join_err) => {
                         partial = true;
+                        merge_live(&mut live, Some(&LiveBatchState::unknown_failure()));
                         errors.push(format!("tarefa de coleta cancelada: {join_err}"));
                     }
                 }
@@ -84,159 +124,12 @@ impl Collector for CompositeCollector {
             Ok(CollectBatch {
                 items: all_items,
                 partial,
+                live,
             })
         })
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::internal_types::TaskScope;
-    use serde_json::json;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    struct TestCollector {
-        items: Vec<RawItem>,
-        partial: bool,
-        fail: bool,
-        calls: Arc<AtomicUsize>,
-    }
-
-    impl Collector for TestCollector {
-        fn collect<'a>(
-            &'a self,
-            _job: CollectJob,
-        ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            let items = self.items.clone();
-            let partial = self.partial;
-            let fail = self.fail;
-            Box::pin(async move {
-                if fail {
-                    Err("falha simulada".into())
-                } else {
-                    Ok(CollectBatch { items, partial })
-                }
-            })
-        }
-    }
-
-    fn test_job() -> CollectJob {
-        CollectJob {
-            encoded: "e30".into(),
-            scope: TaskScope::All,
-            kind: "movie".into(),
-            imdb_id: "tt0133093".into(),
-            season: None,
-            episode: None,
-            year: Some(json!(1999)),
-            names: vec!["The Matrix".into()],
-            query: "The Matrix 1999".into(),
-            pt_query: None,
-            sweep_query: None,
-            original_query: None,
-            multi_work_query: None,
-            priority: false,
-            deadline_at: 1_700_000_000_000,
-            late_sweep: false,
-        }
-    }
-
-    #[tokio::test]
-    async fn composite_combina_itens_de_multiplos_coletores() {
-        let calls1 = Arc::new(AtomicUsize::new(0));
-        let c1 = Arc::new(TestCollector {
-            items: vec![RawItem {
-                indexer: Some("jackett".into()),
-                title: Some("Matrix 1".into()),
-                ..RawItem::default()
-            }],
-            partial: false,
-            fail: false,
-            calls: calls1.clone(),
-        });
-
-        let calls2 = Arc::new(AtomicUsize::new(0));
-        let c2 = Arc::new(TestCollector {
-            items: vec![RawItem {
-                indexer: Some("bludv".into()),
-                title: Some("Matrix Dublado".into()),
-                is_br: true,
-                ..RawItem::default()
-            }],
-            partial: false,
-            fail: false,
-            calls: calls2.clone(),
-        });
-
-        let composite = CompositeCollector::new(vec![c1, c2]);
-        let batch = composite.collect(test_job()).await.expect("ok");
-
-        assert_eq!(batch.items.len(), 2);
-        assert_eq!(calls1.load(Ordering::SeqCst), 1);
-        assert_eq!(calls2.load(Ordering::SeqCst), 1);
-        assert!(!batch.partial);
-        assert!(batch
-            .items
-            .iter()
-            .any(|i| i.indexer.as_deref() == Some("jackett")));
-        assert!(batch
-            .items
-            .iter()
-            .any(|i| i.indexer.as_deref() == Some("bludv")));
-    }
-
-    #[tokio::test]
-    async fn composite_propaga_partial_se_qualquer_um_for_partial() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let c1 = Arc::new(TestCollector {
-            items: vec![],
-            partial: true,
-            fail: false,
-            calls: calls.clone(),
-        });
-        let c2 = Arc::new(TestCollector {
-            items: vec![RawItem {
-                indexer: Some("node".into()),
-                ..RawItem::default()
-            }],
-            partial: false,
-            fail: false,
-            calls: calls.clone(),
-        });
-
-        let composite = CompositeCollector::new(vec![c1, c2]);
-        let batch = composite.collect(test_job()).await.expect("ok");
-        assert!(batch.partial);
-        assert_eq!(batch.items.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn composite_propaga_partial_se_um_coletor_falhar() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let c1 = Arc::new(TestCollector {
-            items: vec![],
-            partial: false,
-            fail: true,
-            calls: calls.clone(),
-        });
-        let c2 = Arc::new(TestCollector {
-            items: vec![RawItem {
-                indexer: Some("jackett".into()),
-                ..RawItem::default()
-            }],
-            partial: false,
-            fail: false,
-            calls: calls.clone(),
-        });
-
-        let composite = CompositeCollector::new(vec![c1, c2]);
-        let batch = composite.collect(test_job()).await.expect("ok");
-        assert!(
-            batch.partial,
-            "falha parcial deve marcar batch.partial = true"
-        );
-        assert_eq!(batch.items.len(), 1);
-    }
-}
+#[path = "composite_collector_tests.rs"]
+mod tests;

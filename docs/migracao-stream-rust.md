@@ -94,17 +94,38 @@ novos é o TS do worktree `../adom-esm`.
    estado parcial, erros e a identidade da requisição (`streams:v21`,
    config+conta, nunca host).
 2. **Corpus de ponta a ponta** capturado com
-   `scripts/golden/capture-stream-e2e.mjs` em `rust/golden/stream-e2e/`.
+   `scripts/golden/capture-stream-e2e.mjs` em `rust/golden/stream-e2e/`:
+   **51 casos** com `request.json` + `response.json` (captura de
+   `2026-10-19T01:11:18.652Z`, a mesma do `manifest.json`). O corpus **não**
+   traz `meta.json`, `raw.json` nem `debrid.json`; por isso o harness de
+   fixtures remonta **0/51** (todos `Skip`) e o replay 51/51 é só Node × Node.
+   Captura com fixtures internas e o critério §9.4.5 seguem **pendentes**.
 3. **Sombra** (`ROUTES_RUST=stream-shadow`): o Node responde, o Rust remonta com
-   store `MemorySwrStore` isolado (nunca `STREAMS_DB`) e só a métrica
-   `stream.shadow.divergence` é pública. É o **default** do override
+   store `MemorySwrStore` isolado (nunca `STREAMS_DB`) e só as métricas
+   `stream.shadow.*` do contrato §9.2 são públicas. É o **default** do override
    `docker-compose.gateway.yml` (contrato §0).
 
-## F1 — Orquestrador Rust com a rede ainda no Node
+## F1 — Orquestrador Rust com a rede no Node por padrão
 
-1. **Rotas internas** (feito o primeiro par: `meta` e `state`):
-   `POST /internal/search/meta`, `POST /internal/search/state`, e ainda
-   `collect`, `debrid/check`, `index/write`, `effects`. Todas em loopback +
+> **Estado no working tree do branch `rust` (sem commit): F1 PARCIAL.** A via
+> viva por indexer foi entregue (contrato `CollectBatch.live`, merge pós-
+> completion e `liveHashes`) e o play offline aplica `play_disposition`; o corte
+> **não** está aceito. Já fecham: `resolveUncached` só com debrid ativo e
+> checagem utilizável (`Unusable` força P2P e dropa multiobra); composição
+> conservadora quando um coletor não traz `live` (`all=Error`/`unknown` até a
+> F2); `from_snapshot` perde o selo quando o hash aparece vivo; `promote_late`
+> lê o estado vivo final; e `fallback` sai da lista final, depois do drop do
+> `playDisposition`. Faltam paridade externa §9.4 medida, p50/p95 reais, corpus
+> com fixtures internas (0/51), play externo real, uma semana em
+> `stream-shadow` e `live` nos coletores nativos (F2). `stream` segue
+> **experimental**; `stream-shadow` segue o default do override.
+
+1. **Rotas internas** (feitas: `meta`, `state`, `collect`, `index`,
+   `index-write`, `effects` e `debrid/check`):
+   `POST /internal/search/meta`, `POST /internal/search/state`,
+   `POST /internal/search/collect`, `POST /internal/search/index`,
+   `POST /internal/search/index-write`, `POST /internal/search/effects` e
+   `POST /internal/debrid/check`. Todas em loopback +
    `X-Indexer-Test-Token`, com o `encoded` no corpo para o `runtime.run` do Node
    (invariante 5). Saem em lote por etapa, nunca por item. O gateway Rust
    (`GATEWAY=on`) **recusa `/internal/*` antes do proxy** (o Caddy também
@@ -119,10 +140,36 @@ novos é o TS do worktree `../adom-esm`.
    `tokio::spawn`, via do índice e via instantânea, trace gravado junto.
    Store nativo: `STREAMS_DB` (`data/streams.db`). Collect Jackett/Prowlarr/
    Torrentio/BLUDV/Mico in-process com opt-in
-   `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (exclusão mútua:
-   jackett > prowlarr > torrentio > bludv > mico; sem composição multi-fonte).
-3. **Paridade** com o golden da F0 e sombra sem divergência (critério formal
-   §9.4 do contrato; CI ainda não exercita o HTTP do corte — ver contrato §0.6).
+   `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV,
+   case-insensitive): **composição**, não exclusão mútua — cada fonte listada
+   coleta no Rust e o `NodeCollector` roda o resto com `skip_sources` (o Node
+   pula as fontes já migradas). Default **OFF** = collect inteiro via
+   `POST /internal/search/collect`.
+
+   **Estado vivo por indexer (entregue).** `CollectBatch.live:
+   Option<LiveBatchState>` transporta o `live.snapshot()` do `NodeCollector`
+   (falhas, `pending`, `empty` e `all`); `live_state.rs` normaliza e funde
+   (união dos conjuntos, `all` por prioridade `error` > `pending` > `ok` >
+   `unknown`) e `merge_fast_with_live` faz o merge pós-`completion` nas três
+   vias (instantânea, resgate e índice coberto). Falha de tarefa/subcoletor
+   sintetiza `all=Error` conservador; na composição, coletor sem `live` também
+   entra como `unknown_failure` (`all=Error`/`unknown`), então a ausência nunca
+   vira "respondeu" até a F2 emitir `live` nativo. A reserva 📦 cujo hash
+   aparece na coleta viva sai (`liveHashes`, por hash); o selo `from_snapshot`
+   cai quando o indexer da marca respondeu **ou** quando o mesmo hash aparece
+   vivo. `promote_late` consome o snapshot vivo FINAL (pós-`completion`), nunca
+   `None` por omissão. Sem contrato vivo (coletor nativo isolado ou Node
+   antigo), vale a régua antiga. Coberto por `live_state_wiring.rs` (em
+   `adom-search`); no working tree, `cargo test --workspace`, `clippy -D
+   warnings` e `fmt` deram exit 0. Os coletores nativos ainda **não** emitem
+   `live` (F2).
+3. **Paridade (pendente)**: o corpus da F0 é só `request/response` e remonta
+   0/51; o critério formal §9.4 continua **não medido**. O gate operacional
+   `scripts/stream-parity.mjs` já cobre 16 casos do corpus (atende aos 15+),
+   compara conjunto EXATO de hashes e de BR, recusa Node×Node/sombra e mede
+   p50/p95 por perfil (Stremio 10 s, Dart 15 s); self-test 14/14. Ele **não**
+   rodou contra o corte nativo real: o container atual está sem
+   `GATEWAY`/`ROUTES_RUST` e atrás do HEAD.
 4. **Corte local experimental** `ROUTES_RUST=stream` (opt-in no override;
    **não** é o default): o Node na 7100 vira reserva (internal +
    `/resolve`/painel). Ainda **não** pronto — evidência: BR some; exige
@@ -130,8 +177,22 @@ novos é o TS do worktree `../adom-esm`.
    vir só com aviso “reabra” (`49482cc7`); reabrir antes de acusar regressão
    de matching. `scripts/validate-docker.mjs` só exige stream tocável — não
    mede paridade BR.
+5. **Play offline (parcial)**: `finish`/`finalize` já aplicam
+   `play_disposition` (degradado/`resolveUncached`/cacheado). O knob
+   `resolveUncached` só atua com debrid ativo e checagem utilizável; `Unusable`
+   (auth/quota) devolve P2P como `known:false` (TTL curto, sem autofetch) e dropa
+   o multiobra. O drop acontece antes de
+   `limit_reserving_br`, e `fallback` é lido da lista FINAL (depois do drop e do
+   corte); `DebridLink` entra como `known:false`; URLs e HMAC foram testadas nos
+   cinco serviços. Mas o `/resolve` nativo ainda é proxy/501: **não** há play
+   externo real validado.
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
+
+**Estado:** os cinco collectors (Jackett, Prowlarr, Torrentio, BLUDV, Mico)
+existem como opt-in da F1 (`SOURCES_RUST`), sem promoção a default, sem
+`raw:v1` e ainda sem estado `live` por indexer. A F2 cobre o que falta: sombra
+por fonte, inventário da conta, metadados e a retirada da rota `collect`.
 
 Jackett (Torznab/JSON, globais agrupados, BR isolados em pt-BR — invariante 4,
 breaker só em `offline`) → Prowlarr → Torrentio (fail-open, breaker local) →
@@ -161,27 +222,36 @@ painel, `/resolve` (até ser portado) e config.
 O que trava o quê:
 
 - F-1.2/F-1.3 não dependem de F0 nem de F1 — são a mesma receita barata
-  (módulo puro + golden + napi + casca TS) e podem andar em paralelo com F0/F1.1.
-- A sombra da F0 **só é honesta depois** que o orquestrador da F1.2 existir: sem
+  (módulo puro + golden + napi + casca TS) e podem andar em paralelo com F0 e
+  com a F1.
+- A sombra da F0 **só é honesta depois** que o orquestrador da F1 existir: sem
   ele não há "remontar a resposta", só um proxy que finge comparar.
 - O override gateway fica em **sombra** (`stream-shadow`). Corte
   `ROUTES_RUST=stream` é experimental e **não** default; critério formal
   §9.4 + paridade BR+cotas travam a promoção. Não confundir smoke/
   `validate-docker.mjs` (só tocável) com aceite do corte, nem “compose
   local” com “F4 no compose principal”.
-- F2 só começa quando a rota `collect` da F1.1 estiver estável: migrar fonte com
+- F2 só começa quando a rota `collect` da F1 estiver estável: migrar fonte com
   a rota ainda mudando joga trabalho fora.
 
 ## Verificação de ponta (por corte, não por fatia)
 
 1. `cargo test`, clippy, fmt na raiz de `rust/`.
 2. `npm run typecheck`, `npm test`, `npm run lint:lines`.
-3. Prazo: `test/search-budget-metadata.test.ts` portado para o Rust; medir p50 e
-   p95 do `/stream` com Stremio (10 s) e com o app Power Movie (15 s) antes e
-   depois.
+3. Prazo: portar `test/search-budget-metadata.test.ts` para o Rust.
+   `adom-search/tests/search_budget_metadata.rs` já tem **7 testes** rodando
+   pelo `Orchestrator` real (orçamento do metadata, piso de 500 ms, perfis
+   Stremio/Dart e graça BR), mas o porte segue **parcial**: atribuição por
+   `search.deadline.*`, timer `search.metadata` e métricas `search.first.*`
+   ainda não têm equivalentes no orquestrador Rust. Medir p50 e p95 reais do
+   `/stream` com Stremio (10 s) e com o app Power Movie (15 s) antes e depois
+   continua pendente; testes offline não substituem essa medição.
 4. Docker / smoke gateway: checklist §0.6 do contrato (`compose` + `curl`).
    `validate-docker.mjs` só checa tocável — **não** paridade BR (contrato
    §0.7). Antes de promover corte: `clear-cache`; cobrir série, filme, pack e
    BR dublado + cotas — Node desligado **e** ligado. 1ª hit a frio: §0.5.
 5. Play: `/resolve` de um item de cada debrid pela lista gerada no Rust (o HMAC
-   tem que valer).
+   tem que valer). No working tree, `finish`/`finalize` já aplicam
+   `play_disposition` e as URLs/HMAC foram testadas offline nos cinco serviços,
+   mas o `/resolve` nativo segue proxy/501 — o play externo real **não** foi
+   validado.

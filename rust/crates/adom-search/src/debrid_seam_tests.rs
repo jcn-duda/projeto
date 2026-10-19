@@ -191,6 +191,31 @@ fn alldebrid_conhecido_nunca_cai_no_fallback() {
     assert_eq!(debrid.fallback_checks(), 0);
 }
 
+/// Debrid-Link é conhecido no despacho, mas `cacheCheck=false`: o veredito é
+/// `known:false` (Unknown), sem reserva Node e sem rede — o Node manda tudo
+/// pelo `/resolve` degradado.
+#[test]
+fn debridlink_local_e_unknown_sem_rede() {
+    let mut debrid = AdapterDebridCheck::new("debridlink", "chave-do-usuario");
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.prepare(&[HIT.into()]);
+    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
+    assert_eq!(debrid.local_checks(), 1);
+    assert_eq!(debrid.fallback_checks(), 0);
+}
+
+/// RD sem store (ledger indisponível) é `Unknown`, não `Missing`: o finish
+/// trata como lote degradado e o `cachedOnly` não pode cortar ninguém.
+#[test]
+fn realdebrid_sem_store_e_unknown_sem_rede() {
+    let mut debrid = AdapterDebridCheck::new("realdebrid", "chave-do-usuario");
+    debrid.prepare(&[HIT.into()]);
+    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
+    assert_eq!(debrid.local_checks(), 1);
+    assert_eq!(debrid.fallback_checks(), 0);
+}
+
 /// prepare + N checks = 1 local_checks (memo).
 #[test]
 fn memo_um_check_para_varios_streams() {

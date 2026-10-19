@@ -85,6 +85,8 @@ impl Collector for MicoCollector {
             Ok(CollectBatch {
                 items,
                 partial: false,
+                // Coletor nativo: sem o contrato vivo por indexer do Node.
+                live: None,
             })
         })
     }

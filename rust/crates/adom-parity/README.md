@@ -27,7 +27,7 @@ Não depende de `adom-server`, nem de rede Jackett/debrid reais.
 
 ## O corpus real (inspecionado, não presumido)
 
-Captura de `2026-10-18T01:58:21.378Z`, Node `v22.23.2`, manifest
+Captura de `2026-10-19T01:11:18.652Z`, Node `v22.23.2`, manifest
 `adom-stream-e2e/1`, 51 casos versionados em `cases/<id>/`.
 
 | Item | Valor medido |
@@ -74,8 +74,10 @@ arquivos por etapa.
 
 1. **Captura de entradas internas** no gerador do corpus: por caso,
    `meta.json` (obra/queries), `raw.json` (lote pré-build) e idealmente
-   `debrid.json` (hashes ⚡ / unusable). Sem isso o golden de resposta não
-   remonta.
+   `debrid.json` (hashes ⚡ / unusable). As rotas internas já existem no HEAD
+   (`/internal/search/*` e `/internal/debrid/check`), mas o corpus atual **não**
+   tem nenhuma dessas fixtures: `FixtureOrchestratorSource` remonta **0/51** e o
+   replay 51/51 não é paridade de pipeline.
 2. **Segredo HMAC / config real** alinhados ao Node da captura (`RESOLVE_SECRET`
    ou chave de debrid da sessão) — hoje o stub usa `chave-teste`; `sig` já é
    mascarado no diff, mas divergência de dica `w=` ainda conta.
@@ -84,10 +86,15 @@ arquivos por etapa.
    `options.json` para a chave SWR / rótulos baterem.
 4. **`--replay --orchestrator`** (ou flag equivalente) no binário: hoje
    `--replay` só usa `ReplaySource`; a remontagem fixture é exercida nos testes.
-5. **Fontes reais** (Jackett / rotas `/internal/search/*`) — outro agente; este
-   crate não toca `adom-sources` / `adom-server` / `adom-debrid`.
+5. **Fontes reais** (Jackett / rotas `/internal/search/*`): os coletores
+   nativos opt-in existem em `adom-search` (`SOURCES_RUST`), mas este crate não
+   os liga no runner e não toca `adom-server` / `adom-debrid`.
 6. **SWR / acervo / passe tardio** no golden: o corpus é uma foto da 1ª
    resposta; estado de cache e fila tardia ficam fora até o gerador os medir.
+7. **Gate operacional** (`scripts/stream-parity.mjs`, fora deste crate): 16
+   casos do corpus, gate exato de hashes+BR e p50/p95 Stremio/Dart; ainda **não**
+   rodou contra o corte nativo real (container sem `GATEWAY`/`ROUTES_RUST` e
+   atrás do HEAD).
 
 ## Uso
 

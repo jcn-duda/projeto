@@ -199,6 +199,15 @@ pub struct BuildContext {
     pub debrid_cached_only: bool,
     /// `opts().showUncachedBr` — vagas P2P BR fora do cache (exceção ao corte).
     pub show_uncached_br: bool,
+    /// `DEBRID_RESOLVE_UNCACHED` do operador — o frio sai pelo `/resolve` em
+    /// vez de P2P. Vem da config da instalação, nunca do segmento do usuário.
+    /// Só vale com debrid ATIVO e veredito utilizável: sem serviço/chave
+    /// (`NoDebridCheck`) ou com `Unusable` (auth/quota) o Node mantém P2P e
+    /// descarta multiobra — o `/resolve` morreria na conta que não responde.
+    pub debrid_resolve_uncached: bool,
+    /// Sombra §9.1: a checagem foi suprimida (`NoDebridCheck`), então
+    /// `Unknown` NÃO significa lote degradado — nada vira `/resolve`.
+    pub debrid_check_disabled: bool,
     /// Estreia do episódio (`Date.parse(airDate)`) em ms; `None` = sem data.
     pub episode_aired_at_ms: Option<i64>,
     /// Contagem de episódios por temporada (Cinemeta): `[(temporada, n)]`.
@@ -253,7 +262,8 @@ pub struct BuiltList {
     /// A lista carrega RESERVA do banco/foto do índice (`_fromFallback`):
     /// entrada com reserva nunca é completa.
     pub fallback: bool,
-    /// Alguma checagem respondeu de verdade (Cached/Missing/Unusable)?
+    /// Alguma checagem respondeu de verdade (Cached/Missing)? `Unusable`
+    /// (auth/quota) não conta: é `known:false`, como no Node.
     pub debrid_known: bool,
     /// O debrid sinalizou auth/quota (lista P2P, sem autofetch).
     pub debrid_unusable: bool,

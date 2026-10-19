@@ -2,9 +2,12 @@
 //! coberto. A DECISÃO (qual via, quais itens) é do Node, em
 //! `POST /internal/search/index`; aqui só se monta a lista da resposta.
 
+use std::collections::BTreeSet;
+
 use serde_json::Value;
 
 use crate::internal_types::SearchIndexRequest;
+use crate::orchestrator::live_state::LiveBatchState;
 use crate::raw_item::{raw_item_from_value, RawItem};
 use crate::request::encoded_for_internal;
 
@@ -20,34 +23,110 @@ pub(super) struct FastPath {
     pub items: Vec<RawItem>,
 }
 
+/// Indexer da marca, normalizado como o Node compara
+/// (`String(item.indexer || '').trim().toLowerCase()`).
+fn indexer_da_marca(item: &RawItem) -> String {
+    item.indexer
+        .as_deref()
+        .map(|s| s.trim().to_lowercase())
+        .unwrap_or_default()
+}
+
+/// Hash canônico do `hashOf` do banco (`src/utils/magnet-bank-merge.ts`):
+/// tenta `infoHash`, `magnet`, `MagnetUri` e `Guid` EM ORDEM até um válido.
+/// `RawItem::hash()` para no `infoHash` não vazio mesmo inválido; aqui não,
+/// porque o `liveHashes` do Node também não para.
+fn bank_hash(item: &RawItem) -> String {
+    [
+        item.info_hash.as_deref(),
+        item.magnet.as_deref(),
+        item.magnet_uri.as_deref(),
+        item.guid.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(|candidate| {
+        adom_core::extract_info_hash(candidate)
+            .map(|hash| hash.trim().to_lowercase())
+            .filter(|hash| !hash.is_empty())
+    })
+    .unwrap_or_default()
+}
+
 /// "Vivo vence sempre" no tail: une a lista da via rápida com a coleta ao vivo
 /// completa e tira as marcas de dado salvo. Espelho de `dropInstantFallbacks` +
-/// `clearInstantSnapshots` do TS, sem o estado vivo POR indexer (o `Collector`
-/// do Rust só devolve itens e "todas falharam"):
-/// - coleta inteira falhou (Jackett parado): nada muda — a reserva segue 📦 e
-///   a foto mantém o selo, senão a foto viraria lista viva completa (TTL cheio);
-/// - senão, a reserva do banco sai (o TS a tira e só reinjeta 📦 de indexer
-///   que falhou) e a foto perde o selo (o TS só o mantém para indexer falho).
+/// `clearInstantSnapshots` do TS, com o estado vivo POR indexer quando ele
+/// chegou no `CollectBatch`:
 ///
-/// O TS mantém o selo do indexer que falhou sozinho; aqui ele sai junto. Isso
-/// espera o estado vivo por indexer chegar ao `CollectBatch`.
+/// - **coleta inteira falhou** (`all_failed` estrutural OU agregado `/all`
+///   error/pending): nada muda — a reserva segue 📦 e a foto mantém o selo,
+///   senão a foto viraria lista viva completa (TTL cheio), EXCETO a reserva
+///   cujo MESMO hash apareceu no lote vivo: aí o vivo já é prova suficiente;
+/// - **com contrato vivo**, sai só o que o indexer da marca PROVOU que
+///   respondeu: falha isolada preserva a 📦/selo do indexer que caiu; pending
+///   não prova sucesso (fica no `failedIndexers()` do Node); vazio suspeito é
+///   o `empty − failed − pending` que o Node já classificou (nunca inferido
+///   aqui). Em QUALQUER caso o vivo vence por hash
+///   (`collectFallbackForBuild.liveHashes` no TS): reserva 📦 cujo `infoHash`
+///   está no lote vivo sai mesmo que o indexer dela esteja não-provado;
+/// - **sem contrato vivo** (`None`: collector nativo, Node antigo), a régua
+///   antiga vale — saem TODAS as reservas e selos, como antes. Ausência nunca
+///   vira "todos responderam".
 ///
-/// Sem isto o dedupe (empate → 1ª ocorrência) mantinha a cópia marcada, a
-/// lista promovida nunca ficava completa e o 📦 aparecia em release viva.
+/// A foto do índice (`from_snapshot`) perde o selo quando o MESMO hash aparece
+/// vivo, mesmo que o indexer dela siga não-provado: o build deduplica pela
+/// primeira ocorrência (fast → live) e, mantendo a marca, a cópia salva
+/// esconderia o item vivo e exibiria 📦 num hash que o vivo entregou. O hash é
+/// evidência suficiente de que aquele dado não é mais reserva.
+///
+/// A ordem fast → live é contrato: o dedupe do build é primeira ocorrência
+/// (`dedupe_by_hash`), e o TS também mantém o item da via na frente.
 pub(super) fn merge_fast_with_live(
     fast: Vec<RawItem>,
     live: Vec<RawItem>,
     all_failed: bool,
+    live_state: Option<&LiveBatchState>,
 ) -> Vec<RawItem> {
+    let live_hashes: BTreeSet<String> = live
+        .iter()
+        .map(bank_hash)
+        .filter(|h| !h.is_empty())
+        .collect();
     let mut out: Vec<RawItem> = Vec::with_capacity(fast.len() + live.len());
-    if all_failed {
-        out.extend(fast);
-    } else {
+    let agregado_falhou = live_state.is_some_and(|state| state.all.failed());
+    if all_failed || agregado_falhou {
+        // Falha agregada preserva as marcas, mas não uma reserva cujo hash o
+        // vivo entregou: `liveHashes` do TS corta a duplicata antes do build.
+        // A foto que o vivo provou não é reserva, mesmo com o indexer não
+        // provado — senão o dedupe mantém a cópia salva marcada.
         for mut item in fast {
-            if item.from_fallback {
+            let hash_vivo = live_hashes.contains(&bank_hash(&item));
+            if item.from_fallback && hash_vivo {
                 continue;
             }
-            item.from_snapshot = false;
+            if item.from_snapshot && hash_vivo {
+                item.from_snapshot = false;
+            }
+            out.push(item);
+        }
+    } else {
+        // `None` = nada provado por indexer: `respondeu` é sempre verdadeiro e a
+        // régua antiga vale (todas as marcas saem). Com contrato, `unproven()` =
+        // falho + pendente + suspeito — exatamente quem mantém 📦/selo no Node.
+        let nao_provado = live_state.map(|state| state.unproven());
+        for mut item in fast {
+            let respondeu = nao_provado
+                .as_ref()
+                .is_none_or(|set| !set.contains(&indexer_da_marca(&item)));
+            let hash_vivo = live_hashes.contains(&bank_hash(&item));
+            if item.from_fallback && (respondeu || hash_vivo) {
+                continue;
+            }
+            // O hash vivo tira o selo mesmo sem prova do indexer: a cópia
+            // salva seria a primeira no dedupe e esconderia o item vivo.
+            if item.from_snapshot && (respondeu || hash_vivo) {
+                item.from_snapshot = false;
+            }
             out.push(item);
         }
     }
@@ -133,61 +212,5 @@ impl Orchestrator {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn item(title: &str, hash: &str, indexer: &str) -> RawItem {
-        RawItem {
-            title: Some(title.into()),
-            info_hash: Some(hash.into()),
-            indexer: Some(indexer.into()),
-            ..RawItem::default()
-        }
-    }
-
-    #[test]
-    fn vivo_supera_reserva_e_foto_quando_a_coleta_respondeu() {
-        let mut banco = item("banco", "AAA", "mico");
-        banco.from_fallback = true;
-        let mut foto = item("foto", "CCC", "bludv");
-        foto.from_snapshot = true;
-        let live = vec![item("ao vivo", "EEE", "bludv")];
-
-        let out = merge_fast_with_live(vec![banco.clone(), foto.clone()], live.clone(), false);
-        let titles: Vec<&str> = out
-            .iter()
-            .map(|i| i.title.as_deref().unwrap_or(""))
-            .collect();
-        assert_eq!(titles, ["foto", "ao vivo"], "a reserva sai; a foto fica");
-        assert!(
-            !out[0].from_snapshot,
-            "coleta respondeu: a foto perde o selo"
-        );
-
-        // Jackett parado: nada muda, senão a foto vira lista viva completa.
-        let out = merge_fast_with_live(vec![banco, foto], live, true);
-        assert!(out[0].from_fallback && out[1].from_snapshot);
-        assert_eq!(out.len(), 3);
-    }
-    #[test]
-    fn tail_input_troca_o_prazo_da_resposta_pelo_do_tail() {
-        use crate::orchestrator::tests::test_support::{config, MemorySwrStore};
-        use std::sync::Arc;
-        let mut cfg = config();
-        cfg.tail_collect_ms = 25_000;
-        let orch = Orchestrator::new(cfg, Arc::new(MemorySwrStore::new()));
-        let input = SearchInput {
-            kind: "movie".into(),
-            id: "tt0133093".into(),
-            encoded: None,
-            prefix: String::new(),
-            options: serde_json::json!({}),
-            key: "k".into(),
-            now_ms: 0,
-            deadline_at: Some(1),
-        };
-        let before = crate::orchestrator::respond::now_ms();
-        let tail = orch.tail_input(&input);
-        assert!(tail.deadline_at.unwrap_or(0) >= before + 25_000);
-    }
-}
+#[path = "fast_path_tests.rs"]
+mod tests;

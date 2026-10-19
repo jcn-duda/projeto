@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use adom_core::{
-    limit_reserving_br_trace, uncached_br_hashes, LimitBrOpts, PoolStream, RankingStream, StreamRef,
+    limit_reserving_br_trace, play_disposition, uncached_br_hashes, LimitBrOpts, PlayDisposition,
+    PlayFacts, PoolStream, RankingStream, StreamRef,
 };
 
 use super::helpers::{notice_text, ranking_to_pool, stream_to_ref, to_stream_item};
@@ -26,6 +27,13 @@ pub fn finalize_streams(
     let mut kept: Vec<RankingStream> = Vec::with_capacity(streams.len());
     let mut missing: Vec<RankingStream> = Vec::new();
     let mut cached_hashes: HashSet<String> = HashSet::new();
+    // Qualquer hash sem veredito derruba o `known` do LOTE (Node: resposta
+    // parcial/degradada manda tudo pelo `/resolve`).
+    let mut unknown_seen = false;
+    // `unusable` (auth/quota) é do LOTE: o Node devolve a lista como P2P e
+    // descarta os packs multiobra num único `return`, antes de qualquer
+    // materialização.
+    let mut unusable_seen = false;
     for mut stream in streams {
         match debrid.check(&stream) {
             DebridAnswer::Cached { url } => {
@@ -53,11 +61,14 @@ pub fn finalize_streams(
                 // known:false NÃO é "nada em cache": passa sem ⚡ e o passe
                 // tardio refaz.
                 out.needs_debrid_refresh = true;
+                unknown_seen = true;
                 kept.push(stream);
             }
             DebridAnswer::Unusable => {
-                out.debrid_known = true;
+                // auth/quota não é resposta sobre o cache: o Node devolve
+                // `known:false` (P2P, TTL curto, sem autofetch).
                 out.debrid_unusable = true;
+                unusable_seen = true;
                 kept.push(stream);
             }
         }
@@ -95,6 +106,20 @@ pub fn finalize_streams(
             }
         }
     }
+    // 8b. `playDisposition` — a MESMA decisão do Node (`adom_core`): multiobra
+    //     admitida fora do cache sem `resolveUncached` sai ANTES do corte final,
+    //     senão ocuparia vaga de quem tocaria. A URL em si nasce no `finish`
+    //     (prefixo/segredo são da requisição); aqui fica só a marca.
+    // O knob só age com debrid ATIVO e veredito utilizável: sem serviço/chave
+    // ninguém perguntou (`NoDebridCheck` responde `Unknown`) e `Unusable`
+    // (auth/quota) é conta que não responde — nos dois casos o Node devolve
+    // P2P e descarta multiobra, em vez de gerar `/resolve` para morrer no play.
+    let check_usable = ctx.debrid_available && !ctx.debrid_check_disabled && !unusable_seen;
+    let degraded = check_usable && unknown_seen;
+    let resolve_uncached = check_usable && ctx.debrid_resolve_uncached;
+    kept.retain(|stream| {
+        disposition_of(stream, degraded, resolve_uncached, unusable_seen) != PlayDisposition::Drop
+    });
     out.count("afterDebrid", kept.len());
 
     // 9. limitReservingBr — o corte final é DEPOIS do pool ampliado; inverter
@@ -153,4 +178,34 @@ pub fn finalize_streams(
         }
     }
     built
+}
+
+/// Fatos do stream para o núcleo. `degraded` é do LOTE (`known:false`), não do
+/// item: o Node manda a lista inteira pelo `/resolve` quando a checagem não
+/// fechou, e o multiobra admitido continua sendo exceção (drop sem o knob).
+/// `resolve_uncached` já chega depurado por disponibilidade/`Unusable` — o
+/// núcleo continua sendo a única régua de P2P × `/resolve` × drop. Em
+/// `Unusable` o ⚡ também é descartado: o Node devolve a lista inteira como
+/// P2P (a conta não responde, nem para o que o memo/`davail` confirmou).
+fn disposition_of(
+    stream: &RankingStream,
+    degraded: bool,
+    resolve_uncached: bool,
+    unusable: bool,
+) -> PlayDisposition {
+    play_disposition(&PlayFacts {
+        has_info_hash: stream
+            .info_hash
+            .as_deref()
+            .is_some_and(|hash| !hash.is_empty()),
+        multi_work_admitted: stream.multi_work_admitted.unwrap_or(false),
+        cached: !unusable
+            && stream
+                .extra
+                .get("cached")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false),
+        resolve_uncached,
+        degraded,
+    })
 }

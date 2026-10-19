@@ -119,6 +119,7 @@ impl StubCollector {
             batches: Mutex::new(vec![CollectBatch {
                 items,
                 partial: false,
+                live: None,
             }]),
             calls: AtomicUsize::new(0),
         })

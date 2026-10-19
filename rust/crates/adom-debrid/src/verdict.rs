@@ -148,9 +148,15 @@ pub async fn check_service(
             rd_renew_hits(store, &verdict.cached);
             verdict
         }
-        // Debrid-Link não publica cache: lista vazia é a resposta completa.
+        // Debrid-Link não publica cache (`cacheCheck = false`): a lista vazia é
+        // "não sei", NUNCA "nada em cache". `Set` aqui viraria `known:true` e
+        // esconderia a lista inteira sob `cachedOnly`; o Node devolve
+        // `known:false` e manda tudo pelo `/resolve` (degradado).
         _ => match DebridLink::new(client).check_cached().await {
-            Ok(cached) => normalize_cache_result(CacheAnswer::Set(cached)),
+            Ok(_) => normalize_cache_result(CacheAnswer::Record {
+                cached: Vec::new(),
+                complete: Some(crate::debridlink::CACHE_CHECK),
+            }),
             Err(err) => err_verdict(&err),
         },
     };

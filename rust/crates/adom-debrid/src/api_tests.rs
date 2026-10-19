@@ -233,7 +233,9 @@ async fn debridlink_check_vazio_e_rotas_sem_metodo_ficam_501() {
     assert!(!raw.contains(KEY));
     let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
     assert_eq!(json["cached"].as_array().map(|rows| rows.len()), Some(0));
-    assert_eq!(json["complete"].as_bool(), Some(true));
+    // `cacheCheck=false` no Node: vazio é "não sei", nunca "nada em cache".
+    assert_eq!(json["complete"].as_bool(), Some(false));
+    assert_eq!(json["known"].as_bool(), Some(false));
 
     // Real-Debrid: sem entrada no ledger → known:false, nunca "nada em cache".
     let (status, raw) = call(

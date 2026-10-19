@@ -11,6 +11,11 @@ por caso, mais `manifest.json` na raiz). Não há caso "de exemplo" inventado �
 só o que a ferramenta mediu. Regenerar sobrescreve; revise o diff antes de
 commitar.
 
+Estado no HEAD: os 51 casos têm só `request.json` + `response.json`; não há
+`meta.json`, `raw.json` nem `debrid.json`, então o harness de fixtures remonta
+**0/51** (todos `Skip`). O replay 51/51 é o Node contra ele mesmo — não é
+paridade de pipeline.
+
 ### Consumidor Rust (Fase A.5)
 
 Harness em `rust/crates/adom-search/tests/stream_e2e_parity.rs`:
@@ -141,15 +146,16 @@ o segredo; para reproduzir o replay é preciso passar `--user-config` de novo.
 ## O que este corpus AINDA NÃO mede (e por quê)
 
 1. **Metadados da obra (Cinemeta/TMDB)** — o `/stream` só devolve a lista
-   pronta. A medição passa a existir com `POST /internal/search/meta` (F1.1):
-   `{ encoded, type, id } → { meta, titles }`.
+   pronta. As rotas internas já existem (`POST /internal/search/meta`, `state`,
+   `collect`, `index`, `index-write`, `effects` e `POST /internal/debrid/check`),
+   mas o corpus ainda **não** foi recapturado com `meta.json`.
 2. **Itens crus por indexer** (antes de filtro de título, ranking e debrid) e o
-   cache `raw:v1` — dependem das rotas internas de busca da F1.1; hoje o corpus
-   só vê o resultado já cortado.
+   cache `raw:v1` — a rota `collect` existe; o corpus ainda só vê o resultado
+   já cortado, sem `raw.json`.
 3. **Respostas de cache do debrid** (⚡ por hash, arquivos de pack, tamanhos
-   medidos) — dependem de rotas internas de debrid; `/debrid-status.json` só
-   publica agregado. Sem isso, o diff de um item `[AD⚡]` cobre a FORMA, não a
-   decisão que o produziu.
+   medidos) — a rota `POST /internal/debrid/check` existe; o corpus ainda não
+   grava `debrid.json`, e `/debrid-status.json` só publica agregado. Sem isso, o
+   diff de um item `[AD⚡]` cobre a FORMA, não a decisão que o produziu.
 4. **HMAC e o segmento de config** — mascarados por segurança. O replay exige o
    segredo do operador; o corpus prova a forma da URL, não a assinatura.
 5. **Relógio** — `Date`/`ETag`/`age` e a duração da requisição não entram: o
@@ -161,9 +167,9 @@ o segredo; para reproduzir o replay é preciso passar `--user-config` de novo.
    comparação de sombra as mascara (o Node não promete ordem estável entre
    variantes de item).
 
-Essas lacunas são a razão de o corpus ser **aditivo**: quando as rotas internas
-existirem, os mesmos casos ganham arquivos novos (`meta.json`, `raw.json`,
-`debrid.json`) sem reescrever o que já foi medido.
+Essas lacunas são a razão de o corpus ser **aditivo**: quando a captura passar a
+gravar as fixtures internas, os mesmos casos ganham arquivos novos (`meta.json`,
+`raw.json`, `debrid.json`) sem reescrever o que já foi medido.
 
 ## Como o orquestrador Rust consome
 

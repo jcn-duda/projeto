@@ -35,6 +35,7 @@ impl StubCollector {
             batches: Mutex::new(vec![CollectBatch {
                 items,
                 partial: false,
+                live: None,
             }]),
             always: None,
             calls: AtomicUsize::new(0),
@@ -49,6 +50,7 @@ impl StubCollector {
             always: Some(CollectBatch {
                 items,
                 partial: false,
+                live: None,
             }),
             calls: AtomicUsize::new(0),
             delay: Duration::ZERO,
@@ -67,6 +69,7 @@ impl StubCollector {
             batches: Mutex::new(vec![CollectBatch {
                 items: Vec::new(),
                 partial: true,
+                live: None,
             }]),
             always: None,
             calls: AtomicUsize::new(0),
@@ -90,6 +93,7 @@ impl StubCollector {
             batches: Mutex::new(vec![CollectBatch {
                 items,
                 partial: false,
+                live: None,
             }]),
             always: None,
             calls: AtomicUsize::new(0),
@@ -173,6 +177,7 @@ impl Collector for RecordingBackend {
             Ok(CollectBatch {
                 items: vec![item(HASH)],
                 partial: false,
+                live: None,
             })
         })
     }

@@ -14,6 +14,7 @@ use crate::request::encoded_for_internal;
 
 use super::collect;
 use super::finish::{release_entry, FinishValue, SearchInput};
+use super::live_state::{live_state_snapshot, LiveBatchState, SharedLiveState};
 use super::meta::SearchMeta;
 use super::respond::as_ms;
 use super::tail::{IndexBatch, TailJob, TailPlan};
@@ -59,6 +60,7 @@ impl Orchestrator {
         _partial: bool,
         plan: TailPlan,
         completion: Option<tokio::task::JoinHandle<Vec<RawItem>>>,
+        live_state: Option<SharedLiveState>,
         writer: Arc<LatestWriter>,
     ) {
         let phase = writer.phase();
@@ -73,6 +75,10 @@ impl Orchestrator {
             }
             None => (partial_items, false),
         };
+        // Estado FINAL pós-completion: as tasks que alimentam o compartilhado
+        // já assentaram (o `completion` acima as aguardou). É o mesmo estado
+        // que o Node passa ao `latePromoter` — nunca `None` por omissão.
+        let live_final = live_state.as_ref().and_then(live_state_snapshot);
         let mut last = first;
         if changed {
             // Fontes lentas chegaram (ou marcas saíram): reconstrói com o lote
@@ -81,7 +87,7 @@ impl Orchestrator {
         } else {
             // Sem novidade: a entrada parcial é PROMOVIDA pelo `search_finish`
             // (mesmas regras do late promoter do TS).
-            self.promote_late(&input);
+            self.promote_late(&input, live_final.as_ref());
         }
 
         for job in plan.jobs {
@@ -148,8 +154,9 @@ impl Orchestrator {
     }
 
     /// Sem novidade no lote tardio: promove a entrada parcial existente com as
-    /// regras do núcleo (`late_promotion_decision`).
-    fn promote_late(&self, input: &SearchInput) {
+    /// regras do núcleo (`late_promotion_decision`). `live` é o estado FINAL da
+    /// coleta; a decisão só lê `has_any_failure`/`needs_fallback`, como o TS.
+    fn promote_late(&self, input: &SearchInput, live: Option<&LiveBatchState>) {
         if self.shadow_mode {
             return;
         }
@@ -158,14 +165,16 @@ impl Orchestrator {
         let Some(hit) = self.store.get_with_stale(&input.key, 0, as_ms(now)) else {
             return;
         };
+        let live = live.map(|state| adom_core::LiveState {
+            needs_fallback: state.needs_fallback(),
+            has_any_failure: state.has_any_failure(),
+        });
         let decision = late_promotion_decision(&LateFacts {
             hit_partial: hit.value.partial,
             hit_fallback: hit.value.fallback,
             hit_has_streams: !hit.value.streams.is_empty(),
             hit_debrid_known: hit.value.debrid_known == Some(true),
-            // Estado vivo dos indexers não é modelado nesta fatia: com `None`
-            // a reserva com falha viva é mantida (o ramo conservador).
-            live: None,
+            live,
             cache_ttl: self.config.cache_ttl,
         });
         match decision.action {
