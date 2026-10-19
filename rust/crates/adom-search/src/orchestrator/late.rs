@@ -53,7 +53,7 @@ impl Orchestrator {
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn run_tail(
         &self,
-        input: SearchInput,
+        mut input: SearchInput,
         meta: SearchMeta,
         first: FinishValue,
         partial_items: Vec<RawItem>,
@@ -63,6 +63,11 @@ impl Orchestrator {
         live_state: Option<SharedLiveState>,
         writer: Arc<LatestWriter>,
     ) {
+        // O cliente já recebeu (ou o prazo da resposta venceu): o deadline do
+        // request NÃO governa mais a build tardia. Sem isto a reserva 📦 veria
+        // o prazo vencido e não consultaria o banco justamente no tail, onde o
+        // estado vivo está completo. O teto curto de `with_fallback` vale.
+        input.deadline_at = None;
         let phase = writer.phase();
         // Mudou = cresceu OU trocou marca: a via rápida tira 📦 sem acrescentar
         // item, e a promoção "sem novidade" gravaria a lista antiga com o selo
@@ -82,8 +87,12 @@ impl Orchestrator {
         let mut last = first;
         if changed {
             // Fontes lentas chegaram (ou marcas saíram): reconstrói com o lote
-            // COMPLETO e regrava (fase atual, revisão mais nova).
-            last = self.finish(&input, &meta, &writer, phase, &full, false, None);
+            // COMPLETO e regrava (fase atual, revisão mais nova). A reserva 📦
+            // é reinjetada com o estado vivo FINAL, como em toda build.
+            let build_items = self
+                .with_fallback(&input, &meta, full.clone(), live_final.as_ref())
+                .await;
+            last = self.finish(&input, &meta, &writer, phase, &build_items, false, None);
         } else {
             // Sem novidade: a entrada parcial é PROMOVIDA pelo `search_finish`
             // (mesmas regras do late promoter do TS).
@@ -103,7 +112,10 @@ impl Orchestrator {
                     if self.debrid_refresh_satisfied(&input) {
                         continue;
                     }
-                    last = self.finish(&input, &meta, &writer, phase, &full, false, None);
+                    let build_items = self
+                        .with_fallback(&input, &meta, full.clone(), live_final.as_ref())
+                        .await;
+                    last = self.finish(&input, &meta, &writer, phase, &build_items, false, None);
                 }
                 TailJob::PtSweep { deadline_at } => {
                     let Some(job) = collect::sweep_job(
@@ -131,7 +143,10 @@ impl Orchestrator {
                         continue;
                     }
                     full.extend(fresh);
-                    last = self.finish(&input, &meta, &writer, phase, &full, false, None);
+                    let build_items = self
+                        .with_fallback(&input, &meta, full.clone(), live_final.as_ref())
+                        .await;
+                    last = self.finish(&input, &meta, &writer, phase, &build_items, false, None);
                 }
             }
         }

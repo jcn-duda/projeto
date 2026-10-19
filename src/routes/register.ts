@@ -7,6 +7,7 @@ import { registerInternalCrawlResult } from './internal-crawl-result.js';
 import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearch } from './internal-search.js';
 import { registerInternalSearchIndex } from './internal-search-index.js';
+import { registerInternalSearchFallback } from './internal-search-fallback.js';
 import { registerInternalDebridCheck } from './internal-debrid-check.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
@@ -67,6 +68,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // acervo por aqui antes de assumir o /stream. Igual às anteriores, sem config.
   registerInternalSearch(app, services);
   registerInternalSearchIndex(app, services);
+  // Reserva 📦 do banco para o orquestrador Rust (F1 fallback): leitura fina
+  // do SQLite; a seleção fica no núcleo.
+  registerInternalSearchFallback(app, services);
   // Reserva do orquestrador Rust (Fase A, passo 2): checagem de cache em lote
   // enquanto o sidecar adom-debrid não cobre (501). Mesma guarda, antes do overlay.
   registerInternalDebridCheck(app, services);

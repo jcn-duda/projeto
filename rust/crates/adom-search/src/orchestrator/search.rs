@@ -3,12 +3,9 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use serde_json::Value;
-
 use crate::collection_window::{collect_within_window, CollectTask, CollectWindowOptions};
 use crate::latest_writer::LatestWriter;
 use crate::raw_item::RawItem;
-use crate::request::encoded_for_internal;
 
 use super::collect::plan_jobs;
 use super::fast_path::{full_window, merge_fast_with_live};
@@ -18,54 +15,10 @@ use super::live_state::{
     SharedLiveState,
 };
 use super::meta::SearchMeta;
-use super::respond::{as_ms, now_ms, SearchOutcome, StreamRequest};
+use super::respond::{now_ms, SearchOutcome};
 use super::Orchestrator;
 
 impl Orchestrator {
-    /// Revalidação em fundo de um hit stale. Mapa PRÓPRIO (`refreshing`): não
-    /// coalesce com a busca síncrona nem a impede de começar.
-    pub(super) fn spawn_stale_refresh(&self, key: String, req: StreamRequest, options: Value) {
-        {
-            let mut refreshing = self.refreshing.lock().expect("refreshing");
-            if !refreshing.insert(key.clone()) {
-                return;
-            }
-        }
-        let this = self.clone();
-        tokio::spawn(async move {
-            let now = now_ms();
-            // Revalida ANTES de pagar a busca: passe tardio, recheck do
-            // autofetch ou outra requisição podem ter reescrito a entrada.
-            let ainda_stale = this
-                .store
-                .get_with_stale(&key, this.config.stale_grace_seconds, as_ms(now))
-                .map(|hit| hit.stale)
-                .unwrap_or(true);
-            if ainda_stale {
-                let input = SearchInput {
-                    kind: req.kind.clone(),
-                    id: req.id.clone(),
-                    encoded: Some(encoded_for_internal(req.encoded.as_deref())),
-                    prefix: req.prefix(),
-                    options,
-                    key: key.clone(),
-                    now_ms: now,
-                    // Passe de fundo tem o orçamento COMPLETO (sem deadlineAt
-                    // encurtado), como no `scheduleStaleRefresh`.
-                    deadline_at: None,
-                };
-                let in_flight = this.in_flight.clone();
-                in_flight
-                    .coalesce(&key, || {
-                        let this = this.clone();
-                        async move { this.run_search(input).await }
-                    })
-                    .await;
-            }
-            this.refreshing.lock().expect("refreshing").remove(&key);
-        });
-    }
-
     pub(super) async fn run_search(&self, input: SearchInput) -> Arc<SearchOutcome> {
         let writer = Arc::new(LatestWriter::new());
         let phase = writer.phase();
@@ -75,7 +28,10 @@ impl Orchestrator {
         // Via instantânea do banco e via do índice, na MESMA ordem do
         // `search-index-path.ts`: a instantânea vem primeiro (o route já diz
         // quando ela é elegível, mesmo com o índice coberto).
-        let (items, partial, completion, collect_failed, tail_live) =
+        // `first_live` é o estado visto pela PRIMEIRA build (a reserva 📦 é
+        // reinjetada antes do build, como o `collectFallbackForBuild` do TS).
+        // O `tail_live` compartilhado segue acumulando para a promoção tardia.
+        let (items, partial, completion, collect_failed, tail_live, first_live) =
             match self.fast_path_items(&input, &meta).await {
                 Some(fast) if fast.instant => {
                     // A resposta sai do acervo; a coleta ao vivo inteira roda
@@ -107,6 +63,7 @@ impl Orchestrator {
                         Some(completion_handle),
                         false,
                         Some(tail_live),
+                        None,
                     )
                 }
                 Some(fast) => {
@@ -132,6 +89,7 @@ impl Orchestrator {
                         merged.extend(live_items.iter().cloned());
                         let fast_for_rescue = fast.items;
                         let tail_live = live_state.clone();
+                        let first_live = live_state_snapshot(&live_state);
                         let completion = Some(tokio::spawn(async move {
                             let live = full_window(live_items, live_completion).await;
                             let state = live_state_snapshot(&live_state);
@@ -143,12 +101,16 @@ impl Orchestrator {
                             completion,
                             live_failed,
                             Some(tail_live),
+                            first_live,
                         )
                     } else {
                         // O TS espera as fontes BR prioritárias ANTES de responder;
                         // globais e passe tardio ficam no tail.
                         let (br_items, _, br_completion, br_failed, br_state) =
                             self.collect_scoped(&input, &meta, Some(true)).await;
+                        // A primeira resposta espera o BR prioritário: o estado
+                        // dessa coleta é o que decide a reserva dos BRs falhos.
+                        let first_live = live_state_snapshot(&br_state);
                         let mut head = fast.items.clone();
                         head.extend(br_items.iter().cloned());
                         let this = self.clone();
@@ -178,7 +140,14 @@ impl Orchestrator {
                             }
                             merge_fast_with_live(fast_for_tail, live, all_failed, state.as_ref())
                         });
-                        (head, true, Some(completion_handle), false, Some(tail_live))
+                        (
+                            head,
+                            true,
+                            Some(completion_handle),
+                            false,
+                            Some(tail_live),
+                            first_live,
+                        )
                     }
                 }
                 None => {
@@ -189,9 +158,27 @@ impl Orchestrator {
                     match self.pack_fallback(&input, &meta, &items, partial).await {
                         Some((items, partial, completion, failed, live_state)) => {
                             used_pack_fallback = true;
-                            (items, partial, completion, failed, Some(live_state))
+                            let first_live = live_state_snapshot(&live_state);
+                            (
+                                items,
+                                partial,
+                                completion,
+                                failed,
+                                Some(live_state),
+                                first_live,
+                            )
                         }
-                        None => (items, partial, completion, failed, Some(live_state)),
+                        None => {
+                            let first_live = live_state_snapshot(&live_state);
+                            (
+                                items,
+                                partial,
+                                completion,
+                                failed,
+                                Some(live_state),
+                                first_live,
+                            )
+                        }
                     }
                 }
             };
@@ -203,12 +190,17 @@ impl Orchestrator {
             self.with_pack_tail(&input, &meta, items.clone(), completion, tail_live.as_ref())
         };
 
+        // Reserva 📦 da PRIMEIRA build: o lote canônico (`items`) continua sem
+        // ela; a cópia é que vai ao build, como o `buildInput` do TS.
+        let first_items = self
+            .with_fallback(&input, &meta, items.clone(), first_live.as_ref())
+            .await;
         let first = self.finish(
             &input,
             &meta,
             &writer,
             phase,
-            &items,
+            &first_items,
             partial,
             input.deadline_at,
         );

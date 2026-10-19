@@ -44,6 +44,7 @@ mod episode_parse_gate;
 mod episode_parse_scan;
 mod episode_series_matching;
 mod episode_size;
+mod fallback_bank;
 mod franchise;
 mod indexer_priority;
 mod info_hash;
@@ -330,6 +331,10 @@ pub use reply_budget::remaining_check_budget;
 pub use request_key::{account_scope, streams_cache_key, streams_cache_scope};
 // Via do banco de magnets (porte de `magnet-bank-fallback.ts` e
 // `magnet-bank-instant.ts`): a reserva e a janela da via instantânea.
+pub use fallback_bank::{
+    collect_fallback, FallbackInput, FallbackItem, FallbackMagnet, FallbackResult, FallbackSource,
+    FallbackWork, GLOBAL_MAX, PER_INDEXER_MAX,
+};
 pub use search_bank::{
     instant_window, is_recent_release, pick_source, InstantMeta, InstantWindow, SourceRow, WorkRow,
 };

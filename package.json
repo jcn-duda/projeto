@@ -170,6 +170,7 @@
     "test/internal-crawl-routes.test.js",
     "test/internal-crawl-result-identify.test.js",
     "test/internal-search-routes.test.js",
+    "test/internal-search-fallback.test.js",
     "test/internal-search-collect.test.js",
     "test/internal-search-effects.test.js",
     "test/internal-debrid-check.test.js",

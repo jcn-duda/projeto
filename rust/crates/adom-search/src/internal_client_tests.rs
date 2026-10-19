@@ -1,9 +1,9 @@
 //! Servidor falso (axum) — prova token no header, `encoded` no body, parse
 //! do shape real e HTTP erro ≠ sucesso. Nunca panic no cliente.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use axum::body::Body;
 use axum::extract::State;
@@ -18,8 +18,8 @@ use tokio::sync::Mutex;
 
 use super::{InternalSearchClient, DEFAULT_TIMEOUT};
 use crate::internal_types::{
-    CollectRequest, EffectEntry, EffectsRequest, IndexWriteRequest, MetaRequest, ReleaseEntry,
-    StateRequest, TaskScope,
+    CollectRequest, EffectEntry, EffectsRequest, FallbackRequest, IndexWriteRequest, MetaRequest,
+    ReleaseEntry, StateRequest, TaskScope,
 };
 
 const TOKEN: &str = "tok-internal-search";
@@ -31,6 +31,8 @@ struct Seen {
     bodies: Mutex<Vec<Value>>,
     paths: Mutex<Vec<String>>,
     status: Mutex<u16>,
+    /// Atraso artificial da rota de fallback (prova do corte por deadline).
+    delay_ms: Mutex<u64>,
 }
 
 async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Response {
@@ -49,6 +51,13 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
         .unwrap_or_default();
     if let Ok(value) = serde_json::from_slice::<Value>(&body) {
         seen.bodies.lock().await.push(value);
+    }
+
+    if path == "/internal/search/fallback" {
+        let delay = *seen.delay_ms.lock().await;
+        if delay > 0 {
+            tokio::time::sleep(Duration::from_millis(delay)).await;
+        }
     }
 
     let status = StatusCode::from_u16(*seen.status.lock().await).unwrap_or(StatusCode::OK);
@@ -113,6 +122,17 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
             )
                 .into_response();
         }
+        "/internal/search/fallback" => json!({
+            "ok": true,
+            "enabled": true,
+            "fallback_enabled": true,
+            "per_indexer_max": 40,
+            "global_max": 40,
+            "br_indexers": ["bludv"],
+            "index_only_indexers": [],
+            "works": [],
+            "sources": {}
+        }),
         _ => json!({ "ok": false, "error": "rota desconhecida" }),
     };
     (status, Json(payload)).into_response()
@@ -125,6 +145,7 @@ async fn serve(seen: Arc<Seen>) -> String {
         .route("/internal/search/collect", post(catch_all))
         .route("/internal/search/index-write", post(catch_all))
         .route("/internal/search/effects", post(catch_all))
+        .route("/internal/search/fallback", post(catch_all))
         .with_state(seen);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -136,6 +157,23 @@ async fn serve(seen: Arc<Seen>) -> String {
 
 fn client(base: &str) -> InternalSearchClient {
     InternalSearchClient::new(base, TOKEN, Duration::from_millis(2_000)).unwrap()
+}
+
+fn fallback_request(deadline_at: Option<i64>) -> FallbackRequest {
+    let mut failed = BTreeSet::new();
+    failed.insert("bludv".to_string());
+    FallbackRequest {
+        encoded: ENCODED.into(),
+        media_type: "movie".into(),
+        imdb: "tt0000001".into(),
+        season: None,
+        episode: None,
+        failed,
+        suspect: BTreeSet::new(),
+        all_failed: false,
+        live_hashes: BTreeSet::new(),
+        deadline_at,
+    }
 }
 
 fn now_ms() -> i64 {
@@ -269,51 +307,6 @@ async fn collect_deadline_vencido_nao_chama_rede() {
 }
 
 #[tokio::test]
-async fn index_write_e_effects_parseiam() {
-    let seen = Arc::new(Seen::default());
-    let base = serve(seen.clone()).await;
-    let c = client(&base);
-
-    let written = c
-        .index_write(&IndexWriteRequest {
-            encoded: ENCODED.into(),
-            releases: vec![ReleaseEntry {
-                imdb: "tt0000001".into(),
-                season: None,
-                episode: None,
-                items: vec![json!({ "title": "x" })],
-                entered: None,
-                survivors: None,
-                source: None,
-            }],
-        })
-        .await
-        .unwrap();
-    assert_eq!(written.recorded, 2);
-    assert_eq!(written.bank_marked, 1);
-
-    let mut payload = Map::new();
-    payload.insert("imdbId".into(), json!("tt0000001"));
-    payload.insert("type".into(), json!("movie"));
-    let effects = c
-        .effects(&EffectsRequest {
-            encoded: ENCODED.into(),
-            effects: vec![EffectEntry {
-                kind: "br_probe".into(),
-                payload,
-            }],
-        })
-        .await
-        .unwrap();
-    assert_eq!(effects.accepted, 1);
-    assert_eq!(effects.rejected, 0);
-
-    let paths = seen.paths.lock().await.clone();
-    assert!(paths.iter().any(|p| p.ends_with("/index-write")));
-    assert!(paths.iter().any(|p| p.ends_with("/effects")));
-}
-
-#[tokio::test]
 async fn http_erro_nao_vira_sucesso() {
     let seen = Arc::new(Seen::default());
     *seen.status.lock().await = 503;
@@ -351,20 +344,6 @@ async fn encoded_vazio_recusado_antes_da_rede() {
 }
 
 #[test]
-fn task_scope_serializa_lowercase() {
-    let mut map = BTreeMap::new();
-    map.insert("task_scope", TaskScope::Nonpriority);
-    let v = serde_json::to_value(map).unwrap();
-    assert_eq!(v["task_scope"], json!("nonpriority"));
-}
-
-#[test]
-fn new_recusa_host_nao_loopback() {
-    assert!(InternalSearchClient::new("http://example.com:7100", TOKEN, DEFAULT_TIMEOUT).is_err());
-    assert!(InternalSearchClient::new("http://127.0.0.1:7100", TOKEN, DEFAULT_TIMEOUT).is_ok());
-}
-
-#[test]
 fn collect_timeout_nao_capa_em_default() {
     let deadline = now_ms() + 60_000;
     let budget = super::timeout_until(deadline).unwrap();
@@ -378,3 +357,6 @@ fn collect_timeout_nao_capa_em_default() {
         "budget ≈ remaining+grace: {budget:?}"
     );
 }
+
+#[path = "internal_client_fallback_tests.rs"]
+mod fallback;

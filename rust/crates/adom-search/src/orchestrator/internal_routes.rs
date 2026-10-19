@@ -15,8 +15,9 @@ use std::sync::Arc;
 
 use crate::internal_client::InternalSearchClient;
 use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, IndexWriteRequest,
-    IndexWriteResponse, MetaRequest, MetaResponse, SearchIndexRequest, SearchIndexResponse,
+    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, FallbackRequest,
+    FallbackResponse, IndexWriteRequest, IndexWriteResponse, MetaRequest, MetaResponse,
+    SearchIndexRequest, SearchIndexResponse,
 };
 
 /// Futuro das rotas internas (boxed: trait object estável sem `async_trait`).
@@ -29,6 +30,12 @@ pub trait InternalRoutes: Send + Sync {
     fn index_write<'a>(&'a self, req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse>;
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse>;
     fn search_index<'a>(&'a self, req: SearchIndexRequest) -> RouteFuture<'a, SearchIndexResponse>;
+
+    /// Linhas do banco vivo para a reserva 📦. Default vazio: um dublê sem a
+    /// rota continua funcionando (a reserva some, nunca a busca inteira).
+    fn fallback<'a>(&'a self, _req: FallbackRequest) -> RouteFuture<'a, FallbackResponse> {
+        Box::pin(async { Ok(FallbackResponse::default()) })
+    }
 }
 
 /// Produção: o cliente HTTP já portado (`internal_client`).
@@ -70,5 +77,9 @@ impl InternalRoutes for NodeRoutes {
 
     fn search_index<'a>(&'a self, req: SearchIndexRequest) -> RouteFuture<'a, SearchIndexResponse> {
         Box::pin(async move { self.client.search_index(&req).await })
+    }
+
+    fn fallback<'a>(&'a self, req: FallbackRequest) -> RouteFuture<'a, FallbackResponse> {
+        Box::pin(async move { self.client.fallback(&req).await })
     }
 }

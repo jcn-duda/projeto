@@ -9,3 +9,12 @@ mod tests_routes_sources;
 
 #[path = "tests/live_state_wiring.rs"]
 mod live_state_wiring;
+
+#[path = "tests_fallback_wiring.rs"]
+mod fallback_wiring;
+
+#[path = "tests_fallback_support.rs"]
+mod fallback_support;
+
+#[path = "tests_fallback_tail.rs"]
+mod fallback_wiring_tail;

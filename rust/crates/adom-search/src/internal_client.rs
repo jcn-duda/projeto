@@ -16,16 +16,17 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, IndexWriteRequest,
-    IndexWriteResponse, MetaRequest, MetaResponse, SearchIndexRequest, SearchIndexResponse,
-    StateRequest, StateResponse,
+    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, FallbackRequest,
+    FallbackResponse, IndexWriteRequest, IndexWriteResponse, MetaRequest, MetaResponse,
+    SearchIndexRequest, SearchIndexResponse, StateRequest, StateResponse,
 };
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
 pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
-/// Teto HTTP de meta/state/index-write/effects. Collect **não** usa este teto:
-/// o timeout HTTP é `remaining + COLLECT_GRACE_MS` até o `deadline_at` absoluto
-/// (espelha o Node; collect longo pode passar de 15s).
+/// Teto HTTP de meta/state/index-write/effects/fallback. Collect **não** usa
+/// este teto: o timeout HTTP é `remaining + COLLECT_GRACE_MS` até o
+/// `deadline_at` absoluto (espelha o Node; collect longo pode passar de 15s).
+/// Fallback segue o mesmo padrão quando o pedido traz `deadline_at`.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(15_000);
 /// Folga de rede depois do prazo absoluto do collect (o Node já cortou).
 const COLLECT_GRACE_MS: u64 = 250;
@@ -105,6 +106,19 @@ impl InternalSearchClient {
         req: &SearchIndexRequest,
     ) -> Result<SearchIndexResponse, String> {
         self.post_ok("/internal/search/index", req, self.timeout)
+            .await
+    }
+
+    /// POST `/internal/search/fallback` — linhas do banco para a reserva 📦.
+    /// A seleção fica no núcleo; a rota só lê o SQLite e a config do pedido.
+    /// Com `deadline_at`, o timeout HTTP é o restante (padrão do collect), nunca
+    /// o teto fixo de 15s: a reserva é acessório e não pode segurar a resposta.
+    pub async fn fallback(&self, req: &FallbackRequest) -> Result<FallbackResponse, String> {
+        let timeout = match req.deadline_at {
+            Some(deadline_at) => timeout_until(deadline_at)?,
+            None => self.timeout,
+        };
+        self.post_ok("/internal/search/fallback", req, timeout)
             .await
     }
 
