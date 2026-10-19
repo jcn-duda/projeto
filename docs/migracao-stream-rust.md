@@ -107,22 +107,24 @@ novos é o TS do worktree `../adom-esm`.
 
 ## F1 — Orquestrador Rust com a rede no Node por padrão
 
-> **Estado no branch `rust`: F1 PARCIAL, sem push.** Quatro commits locais
-> nesta rodada: `79c7521f`, `7c78e0e4`, `70a26a40` e `aa05f6a2`. A via viva por
-> indexer foi entregue (contrato `CollectBatch.live`, merge pós-completion e
-> `liveHashes`) e o play offline aplica `play_disposition`; o corte **não** está
-> aceito. Já fecham: `resolveUncached` só com debrid ativo e checagem utilizável
-> (`Unusable` força P2P e dropa multiobra); composição conservadora quando um
-> coletor não traz `live` (`all=Error`/`unknown` até a F2); `from_snapshot`
-> perde o selo quando o hash aparece vivo; `promote_late` lê o estado vivo
-> final; e `fallback` sai da lista final, depois do drop do
-> `playDisposition`. Faltam paridade externa §9.4 medida (16/16 e ampliada),
-> p50/p95 reais, corpus com fixtures internas (0/51), play externo por debrid,
-> uma semana em `stream-shadow`, `live` nos coletores nativos (F2) e os
-> follow-ups de `promote_late`/observabilidade. `stream` segue
-> **experimental**; `stream-shadow` segue o default do override.
+> **Estado no branch `rust`: F1 PARCIAL, sem push; branch ahead.** Nesta rodada
+> entraram quatro commits locais: `4b50880f` (enriquecimento das rotas internas
+> só com prova de arquivo), `b10df543` (F2.1: Jackett com `live` por indexer e
+> sombra de fonte), `03adaa69` (regressão de `%` no matching) e `2729b9db`
+> (comentário do `bank_hash`). A via viva por indexer do F1 está entregue
+> (`CollectBatch.live`, merge pós-completion e `liveHashes`) e o Jackett nativo
+> passou a emitir `live` na F2.1; o play offline aplica `play_disposition`; o
+> corte **não** está aceito. Já fecham: `resolveUncached` só com debrid ativo e
+> checagem utilizável (`Unusable` força P2P e dropa multiobra); composição
+> conservadora quando um coletor não traz `live` (`all=Error`/`unknown` até a
+> F2); `from_snapshot` perde o selo quando o hash aparece vivo; `promote_late`
+> lê o estado vivo final; e `fallback` sai da lista final, depois do drop do
+> `playDisposition`. Faltam o gate externo §9.4 (16/16 e ampliado **com hashes
+> reais**), p50/p95 reais, corpus com fixtures internas (0/51), play externo
+> por debrid e uma semana em `stream-shadow`; F3/F4 não iniciados. `stream`
+> segue **experimental**; `stream-shadow` segue o default do override.
 
-### Entregas desta rodada
+### Entregas anteriores (F-1/F1)
 
 | Commit | Entrega | Limite/evidência |
 |---|---|---|
@@ -131,13 +133,22 @@ novos é o TS do worktree `../adom-esm`.
 | `70a26a40` | apresentação: 👤0 e blob HDR fora do título, com qualidade/ranking preservados | fixtures de apresentação e fallback |
 | `aa05f6a2` | reserva 📦 reinjetada após falha/pending/suspeito, dedupe por hash vivo, `_bankDub`/`fallbackFetchable`/vaga BR, fetch limitado pelo prazo (piso 100 ms, teto 1,5 s, fail-open) e sem persistir reserva no índice | fixtures de fallback e regressões Node |
 
-**Validação local (não é o gate §9.4).** `cargo test --workspace`, `clippy` e
-`fmt` verdes; na imagem musl, 162 testes de `adom-core`, 257 de `adom-search` e
-as integrações com exit 0; probe da imagem com 129 exports; gateway
-exercitado; 51 regressões Node; fixtures nativas de HDR, `ptTitleDual` e
-fallback aprovadas. `npm test` fechou 3297/3297 **antes** do split dos testes
-Rust, e a catraca de linhas ficou 0 acima. Isso **não** substitui paridade
-real, play externo, p50/p95 nem a semana de sombra.
+### Entregas desta rodada (branch `rust`, sem push)
+
+| Commit | Entrega | Limite/evidência |
+|---|---|---|
+| `4b50880f` | `enrichForRust` **síncrono**, só `applyFileEvidence`; `collect`/`index` não chamam `getTitles`/`ptTitleDual`. O núcleo decide chip/`_dubbed`/origem BR por `SearchMeta.titles` → `BuildContext`, sem espera de TMDB na rota | decisão in-process; o Node não envia o flag |
+| `b10df543` | F2.1: Jackett com `search_outcomes` por indexer (`Ok`/`Empty`/`Failed`; timeout = `Failed`), `CollectBatch.live`, `empty` medido por `filter_relevant_raw` e sombra de fonte fire-and-forget | **PARCIAL/default OFF**; só Jackett; paridade real não medida |
+| `03adaa69` | `%`: equivalência contextual (`percent` no lugar do símbolo) só em nome que carrega `%`; `3 Body Problem`, `24 Percent` e `100 Percent Wolf` seguem barrados | regressão medida no banco real (105 linhas, `tt4922804`); testes ativos |
+| `2729b9db` | comentário do hash canônico do banco (`bank_hash` × `RawItem::hash`) | sem mudança de comportamento |
+
+**Validação local (não é o gate §9.4).** Na imagem musl final `8580b705`,
+`adom-core`, `adom-sources`, `adom-search` e `adom-server` saíram com exit 0;
+os testes NAPI via Node fecharam 51/51; as fixtures nativas de HDR,
+`ptTitleDual` e fallback passaram; e a sombra de fonte cobriu
+equal/missing/extra/live/error/timeout. Isso **não** é o aceite: F1 continua
+**PARCIAL** e faltam o gate 16/16 com hashes reais, o play externo por debrid,
+p50/p95 e a semana em `stream-shadow`.
 
 1. **Rotas internas** (feitas: `meta`, `state`, `collect`, `index`,
    `index-write`, `effects` e `debrid/check`):
@@ -151,6 +162,14 @@ real, play externo, p50/p95 nem a semana de sombra.
    bloqueia): a guarda de loopback do Node não vê o cliente real atrás do proxy,
    então a fachada é quem fecha a porta. No compose gateway,
    `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` apontam a `127.0.0.1:7100`.
+
+   **Enriquecimento (`collect`/`index`) — síncrono.** `enrichForRust` anexa só
+   a prova de ARQUIVO (`applyFileEvidence`); as rotas **não** chamam
+   `getTitles` nem calculam `ptTitleDual`, e a resposta não espera TMDB. O
+   núcleo decide chip, `_dubbed` e origem BR in-process pelos títulos de
+   `SearchMeta.titles` → `BuildContext.titles` → `apply_pt_title_dual`; o Node
+   não precisa mandar o flag. Antes o cálculo era duplicado na rota e prendia
+   a resposta a `getTitles` sem ganho.
 2. **`adom-search`**: decode da config, chave de cache, prazo por requisição
    (`Dart/` = app, senão Stremio), SWR e `inFlight`, plano e janela de coleta,
    build no núcleo, `applyDebrid` pelos adaptadores no processo (herança de
@@ -173,14 +192,16 @@ real, play externo, p50/p95 nem a semana de sombra.
    vias (instantânea, resgate e índice coberto). Falha de tarefa/subcoletor
    sintetiza `all=Error` conservador; na composição, coletor sem `live` também
    entra como `unknown_failure` (`all=Error`/`unknown`), então a ausência nunca
-   vira "respondeu" até a F2 emitir `live` nativo. A reserva 📦 cujo hash
+   vira "respondeu" até a fonte emitir `live` nativo (F2). A reserva 📦 cujo hash
    aparece na coleta viva sai (`liveHashes`, por hash); o selo `from_snapshot`
    cai quando o indexer da marca respondeu **ou** quando o mesmo hash aparece
    vivo. `promote_late` consome o snapshot vivo FINAL (pós-`completion`), nunca
    `None` por omissão. Sem contrato vivo (coletor nativo isolado ou Node
    antigo), vale a régua antiga. Coberto por `live_state_wiring.rs` (em
    `adom-search`); nesta rodada, `cargo test --workspace`, `clippy -D warnings`
-   e `fmt` deram exit 0. Os coletores nativos ainda **não** emitem `live` (F2).
+   e `fmt` deram exit 0. O coletor **Jackett** nativo passou a emitir `live` na
+   F2.1 (`search_outcomes`); Prowlarr/Torrentio/BLUDV/Mico seguem sem `live`
+   nativo até a F2.
 3. **Paridade (pendente)**: o corpus da F0 é só `request/response` e remonta
    0/51; o critério formal §9.4 continua **não medido**. O gate operacional
    `scripts/stream-parity.mjs` cobre 16 casos do corpus (atende aos 15+),
@@ -208,19 +229,43 @@ real, play externo, p50/p95 nem a semana de sombra.
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
-**Estado:** não iniciada nesta rodada; contrato e recorte prontos em
-`docs/rust-stream-contract.md`. Os cinco collectors (Jackett, Prowlarr,
-Torrentio, BLUDV, Mico) existem como opt-in da F1 (`SOURCES_RUST`), sem
-promoção a default, sem `raw:v1` e ainda sem estado `live` por indexer. A F2
-cobre o que falta: sombra por fonte, inventário da conta, metadados e a retirada
-da rota `collect`.
+**Estado: F2.1 PARCIAL, default OFF.** `SOURCES_RUST_SHADOW` (CSV) é vazio por
+default e `SOURCES_RUST` segue OFF; a sombra de fonte compara **só Jackett** e
+**não** é o critério §9.4. O contrato e o recorte estão em
+`docs/rust-stream-contract.md`.
 
-Jackett (Torznab/JSON, globais agrupados, BR isolados em pt-BR — invariante 4,
-breaker só em `offline`) → Prowlarr → Torrentio (fail-open, breaker local) →
-BLUDV/Mico (reusar `adom-resolvers`/`mico_net`) → inventário da conta →
-Cinemeta/TMDB (`/find` duplo no mesmo prazo, travas do `tmdb_br_aliases`) →
-completar no `adom-debrid` o que hoje é 501 (`check` de RD/TorBox/AllDebrid,
-`files`, `account`). Cada fonte migrada sai da rota `collect`.
+**F2.1 — Jackett com `live` e sombra de fonte (`b10df543`).** `search_outcomes`
+devolve um `QueryOutcome` por indexer: `Ok`/`Empty` são resposta válida
+(`Empty` = 200 sem item relevante para a obra, medido por
+`filter_relevant_raw`; itens de outra obra contam como `Empty`); `Failed` cobre
+HTTP/rede/envelope/breaker e **timeout** (= `Failed`, sem engolir o motivo).
+`CollectBatch.live` leva o estado por indexer ao orquestrador;
+`record_status:false` (sweep inline/tardio) não pinta `live`/`partial`, e a
+varredura tardia nem roda sombra (`skipped_late`). No modo sombra o nativo
+ignora o breaker e não o registra; no caminho de resposta breaker/status
+continuam valendo.
+
+A sombra (`SOURCES_RUST_SHADOW=jackett`) roda **fire-and-forget**
+(`tokio::spawn`) e compara, por indexer, o conjunto de hashes normalizados e o
+`live` (`failed`/`pending`/`empty`/`all`); o lado Node roda em `read_only`, sem
+inventário da conta, captura no banco, status/breaker nem cache bruto. Só a
+consulta principal entra na comparação. Métricas: `source.shadow.compared`,
+`divergence`, `items_missing`, `items_extra`, `live_divergence`, `timeout`,
+`error`, `partial_divergence`, `skipped`, `skipped_late`; `partial` diferente
+conta só em `partial_divergence` (informativa), nunca em `divergence`.
+
+**Limitações (F2.2):** o `ji` por requisição ainda usa `JACKETT_INDEXERS` do
+processo na rota read-only; `live` nativo só existe para Jackett; Prowlarr,
+Torrentio, BLUDV e Mico são ignorados pela sombra (sem identidade de indexer
+normalizada) e não têm `live`; **paridade real não foi medida** e a sombra de
+fonte não substitui §9.4.
+
+**Próximas partes:** metadados (Cinemeta/TMDB) e inventário da conta; depois
+Prowlarr → Torrentio (fail-open, breaker local) → BLUDV/Mico (reusar
+`adom-resolvers`/`mico_net`) e o que hoje é 501 no `adom-debrid` (`check` de
+RD/TorBox/AllDebrid, `files`, `account`). Cada fonte migrada sai da rota
+`collect`. O Jackett mantém Torznab/JSON, globais agrupados e BR isolados em
+pt-BR (invariante 4, breaker só em `offline`).
 
 ## F3 — Estado em Rust
 
@@ -254,8 +299,9 @@ O que trava o quê:
   §9.4 + paridade BR+cotas travam a promoção. Não confundir smoke/
   `validate-docker.mjs` (só tocável) com aceite do corte, nem “compose
   local” com “F4 no compose principal”.
-- F2 só começa quando a rota `collect` da F1 estiver estável: migrar fonte com
-  a rota ainda mudando joga trabalho fora.
+- A F2.1 começou sobre a rota `collect` em `read_only`; as próximas fontes só
+  avançam quando esse contrato estabilizar. Migrar fonte com a rota ainda
+  mudando joga trabalho fora.
 
 ## Verificação de ponta (por corte, não por fatia)
 
