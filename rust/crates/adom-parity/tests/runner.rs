@@ -74,7 +74,7 @@ fn binario_dump_valida_o_corpus() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("casos: 51"), "{stdout}");
-    assert!(stdout.contains("itens de stream: 271"), "{stdout}");
+    assert!(stdout.contains("itens de stream: 314"), "{stdout}");
     assert!(stdout.contains("arquivos por etapa: 0"), "{stdout}");
 }
 

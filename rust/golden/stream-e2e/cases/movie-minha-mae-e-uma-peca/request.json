@@ -1,6 +1,6 @@
 {
   "method": "GET",
-  "path": "/{{config}}/stream/series/tt8878862:1:1.json",
+  "path": "/{{config}}/stream/movie/tt2464018.json",
   "headers": {
     "user-agent": "adom-stream-e2e/1"
   },

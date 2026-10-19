@@ -8,25 +8,25 @@
   "body": {
     "streams": [
       {
-        "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265\n📦 👤 ~254 💾 701.14 MB 📦 pack 104.76 GB (média) ⚙️ The Pirate Bay",
+        "title": "Brooklyn Nine Nine S05E04 HalloVeen 1080p BluRay DDP5 1 H 264 NTb\n📦 👤 ~26 💾 2.13 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~26",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/ed4cbf6ef10d71f28aa28d7f59f702d47355388f?s=5&e=4&w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "2.13 GB"
+      },
+      {
+        "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265\n📦 👤 ~254 💾 676.99 MB 📦 pack 104.76 GB ⚙️ The Pirate Bay",
         "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~254",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/51a3b1d96b198c8bb6acde8ec357ae7359db2afc?s=5&e=4&w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
-        "size": "701.14 MB"
+        "size": "676.99 MB"
       },
       {
-        "title": "Brooklyn Nine-Nine (2013) S05 S05 (1080p AMZN WEB-DL x265 H\n📦 👤 ~78 💾 363.99 MB 📦 pack 7.82 GB (média) ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~78",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/c2f83cbd5f32004a48bd9641d7f6e2e8f52668e6?s=5&e=4&w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
-        "size": "363.99 MB"
-      },
-      {
-        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
+        "name": "Fontes BR dubladas existem, mas ainda fora do cache do debrid",
         "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],

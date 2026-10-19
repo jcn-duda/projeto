@@ -8,8 +8,8 @@
   "body": {
     "streams": [
       {
-        "title": "[ZeroReverse] False Memory - S01E01v2 (WEBRip 1080p x265 10-bit EAC-3)\n👤 22 💾 5.60 GB ⚙️ Nyaa.si",
-        "name": "[AD⚡] 1080p WEBRip · Nyaa · 👤 22",
+        "title": "[ZeroReverse] False Memory - S01E01v2 (WEBRip 1080p x265 10-bit EAC-3)\n📦 👤 ~6 💾 5.60 GB ⚙️ nekoBT",
+        "name": "[AD⚡] 📦 · 1080p WEBRip · nekoBT · 👤 ~6",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
@@ -17,13 +17,31 @@
         "size": "5.60 GB"
       },
       {
-        "title": "[BlackRose] The Ghost in the Shell (2026) - S01E01v2 (WEB 1080p HEVC 10-bit EAC-3) [Dual Audio] | Koukaku Kidoutai\n👤 9 💾 4.48 GB ⚙️ nekoBT",
-        "name": "[AD⚡] 1080p · nekoBT · 👤 9",
+        "title": "3 Body Problem S01 1080p x265-AMBER\n📦 👤 ~17 💾 646.50 MB 📦 pack 4.14 GB ⚙️ EZTV",
+        "name": "[AD⚡] 📦 · 1080p · EZTV · 👤 ~17",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/6f6a18c318c20765f77b6e1c34c6d552700c5ef6?s=1&e=1&w=%7B%22i%22%3A%22tt4922804%22%7D&sig={{sig}}",
-        "size": "4.48 GB"
+        "url": "{{base}}/{{config}}/resolve/ccc156cc4fb095d1b860ce38e8fb28d6c5083a33?s=1&e=1&w=%7B%22i%22%3A%22tt4922804%22%7D&sig={{sig}}",
+        "size": "646.50 MB"
+      },
+      {
+        "title": "3 Body Problem S01 COMPLETE 720p NF WEBRip x264\n📦 👤 ~23 💾 287.16 MB 📦 pack 1.75 GB ⚙️ EZTV",
+        "name": "[AD⚡] 📦 · 720p WEBRip · EZTV · 👤 ~23",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/3aaca7e65d2125dba4ef198f9bb2bfd12271f80b?s=1&e=1&w=%7B%22i%22%3A%22tt4922804%22%7D&sig={{sig}}",
+        "size": "287.16 MB"
+      },
+      {
+        "title": "3 Body Problem S01 720p x265-AMBER\n📦 👤 ~3 💾 439.00 MB 📦 pack 2.88 GB ⚙️ EZTV",
+        "name": "[AD⚡] 📦 · 720p · EZTV · 👤 ~3",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/1e4e7d44831879923c687fd1760124c503df613d?s=1&e=1&w=%7B%22i%22%3A%22tt4922804%22%7D&sig={{sig}}",
+        "size": "439.00 MB"
       }
     ],
     "cacheMaxAge": 0

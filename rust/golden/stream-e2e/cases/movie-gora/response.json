@@ -8,28 +8,19 @@
   "body": {
     "streams": [
       {
-        "title": "G.O.R.A. (2004) 1080p BRRip x264 -YTS\n👤 15 💾 1.96 GB ⚙️ YTS",
-        "name": "[AD⚡] 1080p · YTS · 👤 15",
+        "title": "G.O.R.A. (2004) 1080p BRRip x264 -YTS\n📦 👤 ~15 💾 1.96 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 1080p BluRay · YTS · 👤 ~15",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
+          "bingeGroup": "powerm-1080p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/b1d885209a921cb846f87160e4b8ac4d13fadc1e?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
         "size": "1.96 GB"
       },
       {
-        "title": "G.O.R.A.2004.1080p.HMAX.WEB-DL.DDP2.0.H.264-TURG\n📦 👤 ~3 💾 5.16 GB ⚙️ kickasstorrents.to",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · kickass · 👤 ~3",
+        "title": "G.O.R.A. (2004) 720p BRRip x264 -YTS\n📦 👤 ~5 💾 1.01 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 720p BluRay · YTS · 👤 ~5",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/08593f3dc6eeb99ab50d2775383bd9bf84bbb3a1?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
-        "size": "5.16 GB"
-      },
-      {
-        "title": "G.O.R.A. (2004) 720p BRRip x264 -YTS\n👤 5 💾 1.01 GB ⚙️ YTS",
-        "name": "[AD⚡] 720p · YTS · 👤 5",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
+          "bingeGroup": "powerm-720p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/80342987cb6258ae7aa083a18a8c002a147eb9b7?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
         "size": "1.01 GB"

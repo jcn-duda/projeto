@@ -2,14 +2,14 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
+    "cache-control": "max-age=0, public"
   },
-  "cacheMaxAge": 900,
+  "cacheMaxAge": 0,
   "body": {
     "streams": [
       {
-        "title": "Deep Red 1975 aka Profondo Rosso Extended OV 4k Restored Remastered 1080p BluRay x265 HEVC 10bit AAC 5 1 Dual Commentary Dario Argento David Hemm\n👤 17 💾 8.90 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 4K Extended BluRay · TheRARBG · 👤 17",
+        "title": "Deep Red 1975 aka Profondo Rosso Extended OV 4k Restored Remastered 1080p BluRay x265 HEVC 10bit AAC 5 1 Dual Commentary Dario Argento David Hemm\n📦 👤 ~17 💾 8.90 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 4K Extended BluRay · TheRARBG · 👤 ~17",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
@@ -17,8 +17,8 @@
         "size": "8.90 GB"
       },
       {
-        "title": "Deep.Red.1975.4K.HDR.2160p.BDRip Ita Eng x265-NAHOM\n👤 9 💾 39.80 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 4K · TheRARBG · 👤 9",
+        "title": "Deep.Red.1975.4K.HDR.2160p.BDRip Ita Eng x265-NAHOM\n📦 👤 ~9 💾 39.80 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 4K · TheRARBG · 👤 ~9",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-any"
         },
@@ -26,8 +26,8 @@
         "size": "39.80 GB"
       },
       {
-        "title": "Deep Red 1975 1080p bluray YTS\n👤 62 💾 2.02 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 1080p BluRay · TheRARBG · 👤 62",
+        "title": "Deep Red 1975 1080p bluray YTS\n📦 👤 ~62 💾 2.02 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 1080p BluRay · TheRARBG · 👤 ~62",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -35,8 +35,8 @@
         "size": "2.02 GB"
       },
       {
-        "title": "Profondo rosso Deep Red 1975 1080p H265 BluRay Rip ita AC3 5 1 eng AC3 1 0 sub eng Licdom\n👤 18 💾 2.36 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 1080p BluRay · TheRARBG · 👤 18",
+        "title": "Profondo rosso Deep Red 1975 1080p H265 BluRay Rip ita AC3 5 1 eng AC3 1 0 sub eng Licdom\n📦 👤 ~18 💾 2.36 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 1080p BluRay · TheRARBG · 👤 ~18",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -44,8 +44,8 @@
         "size": "2.36 GB"
       },
       {
-        "title": "Deep Red 1975 720p bluray YTS\n👤 4 💾 1.04 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 720p BluRay · TheRARBG · 👤 4",
+        "title": "Deep Red 1975 720p bluray YTS\n📦 👤 ~4 💾 1.04 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 720p BluRay · TheRARBG · 👤 ~4",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
@@ -57,8 +57,6 @@
         "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
-    "cacheMaxAge": 900,
-    "staleRevalidate": 3600,
-    "staleError": 86400
+    "cacheMaxAge": 0
   }
 }

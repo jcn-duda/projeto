@@ -8,16 +8,43 @@
   "body": {
     "streams": [
       {
-        "title": "Brooklyn Nine-Nine 1ª 2ª 3ª 4ª 5ª 6ª 7ª 8ª Temporada Completa [720p]\n📦 👤 ~1 💾 3.99 GB ⚙️ RedeTorrent",
-        "name": "[AD⚡] 📦 · 720p BR · RedeTorrent · 👤 ~1",
+        "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265\n📦 👤 ~254 💾 104.76 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~254",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
+          "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/3ad24e63837371177bb65ce0b5a7b419edf27fa9?w=%7B%22d%22%3A1%2C%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
-        "size": "3.99 GB"
+        "url": "{{base}}/{{config}}/resolve/51a3b1d96b198c8bb6acde8ec357ae7359db2afc?w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "104.76 GB"
       },
       {
-        "name": "Fontes BR dubladas existem, mas ainda fora do cache do debrid",
+        "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p AMZN WEB-DL\n📦 👤 ~50 💾 102.34 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~50",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/86971f0c96e9993dd323ed00da25a4795a42e1ca?w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "102.34 GB"
+      },
+      {
+        "title": "Brooklyn.Nine-Nine.S05.COMPLETE.720p.AMZN.WEBRip.x264-GalaxyTV[TGx]\n👤 1 💾 3.72 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p WEBRip · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/81477f53b38ca4e42c92ae69c72f8f3f83bbf3c6?w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "3.72 GB"
+      },
+      {
+        "title": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 720p BluRay x264\n📦 👤 ~17 💾 45.50 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 720p BluRay · The Pirate Bay · 👤 ~17",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/988c989708d2e7c5c857ab0cf3c0277eb7512e47?w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
+        "size": "45.50 GB"
+      },
+      {
+        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
         "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],

@@ -2,14 +2,14 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
+    "cache-control": "max-age=0, public"
   },
-  "cacheMaxAge": 900,
+  "cacheMaxAge": 0,
   "body": {
     "streams": [
       {
-        "title": "Monster.Hunter.2020.WEB-DL.1080p.x264.DUAL.5.1-STARCKFILMES\n👤 1 💾 2.71 GB ⚙️ mico",
-        "name": "[AD⚡] 1080p WEB-DL BR · mico · 👤 1",
+        "title": "Monster Hunter (2020) [1080p DUBLADO 2.71 GB]\n📦 👤 ~1 💾 2.71 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · NerdFilmes · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -17,35 +17,17 @@
         "size": "2.71 GB"
       },
       {
-        "title": "Monster Hunter (2020) 2160p BRRip 5.1 10Bit x265 -YTS\n👤 15 💾 4.63 GB ⚙️ YTS",
-        "name": "[AD⚡] 4K · YTS · 👤 15",
+        "title": "Monster Hunter (2020) [2160p BLU-RAY LEGENDADO 4.63 GB]\n📦 👤 ~1 💾 4.63 GB ⚙️ Rede Torrent",
+        "name": "[AD⚡] 📦 · 4K BluRay LEG BR · Rede Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-any"
+          "bingeGroup": "powerm-2160p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/87a62ec5829c8e03f2d7a35cdcb1ed203e2af4d1?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
         "size": "4.63 GB"
       },
       {
-        "title": "Monster Hunter 2020 2160p UHD BluRay REMUX DV HDR10 PLUS MULTi TrueHD Atmos 7 1 HYBRID H265 BEN THE MEN\n👤 9 💾 48.97 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 4K BluRay · LimeTorrents · 👤 9",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/363c7ab2a747f13316097d2bdbc66b0ce9380a29?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "48.97 GB"
-      },
-      {
-        "title": "Monster Hunter (2020) 1080p BRRip 5.1 x264 -YTS\n👤 53 💾 1.90 GB ⚙️ YTS",
-        "name": "[AD⚡] 1080p · YTS · 👤 53",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/6edbc8cad1164f8efb06cc80c588451437eabbc3?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "1.90 GB"
-      },
-      {
-        "title": "Monster Hunter 2020 1080p BluRay 10Bit X265 DD 5 1-Chivaman\n👤 9 💾 3.42 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 1080p BluRay · TheRARBG · 👤 9",
+        "title": "Monster Hunter (2020) [1080p BLU-RAY 3.42 GB]\n📦 👤 ~10 💾 3.42 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay BR · The Pirate Bay · 👤 ~10",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -53,17 +35,60 @@
         "size": "3.42 GB"
       },
       {
-        "title": "Monster Hunter (2020) 720p BRRip x264 -YTS\n👤 22 💾 946.82 MB ⚙️ YTS",
-        "name": "[AD⚡] 720p · YTS · 👤 22",
+        "title": "Monster Hunter (2020) [1080p BLU-RAY LEGENDADO 1.9 GB]\n📦 👤 ~1 💾 1.90 GB ⚙️ Rede Torrent",
+        "name": "[AD⚡] 📦 · 1080p BluRay LEG BR · Rede Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/6edbc8cad1164f8efb06cc80c588451437eabbc3?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "1.90 GB"
+      },
+      {
+        "title": "Monster Hunter (2020) [720p BLU-RAY LEGENDADO 946 MB]\n📦 👤 ~1 💾 946.00 MB ⚙️ Rede Torrent",
+        "name": "[AD⚡] 📦 · 720p BluRay LEG BR · Rede Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/4050ab795f013c8032fbd5056609a9df4d5dd446?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "946.82 MB"
+        "size": "946.00 MB"
+      },
+      {
+        "title": "Monster Hunter 2020 2160p UHD BluRay REMUX DV HDR10 PLUS MULTi TrueHD Atmos 7 1 HYBRID H265 BEN THE\n📦 👤 ~8 💾 48.97 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~8",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/363c7ab2a747f13316097d2bdbc66b0ce9380a29?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "48.97 GB"
+      },
+      {
+        "title": "Monster Hunter 2020 MULTI COMPLETE UHD BLURAY\n📦 👤 ~5 💾 54.33 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~5",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/dcbc4866fc5b5287f29c4f728a07fa561adb9acd?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "54.33 GB"
+      },
+      {
+        "title": "Monster.Hunter.2021.BluRay.720p.DUAL.5.1.COMANDO.TO\n👤 1 💾 1.08 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p BluRay · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/86ce2706c05f6ebcb3f8b033a2eac7d5cd74adc6?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "1.08 GB"
+      },
+      {
+        "title": "Monster Hunter (2020) 720p WEBRip x264 -YTS\n📦 👤 ~7 💾 946.50 MB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 720p WEBRip · YTS · 👤 ~7",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/10baccaa2e4427a265465505bb1435381d4a55d2?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "size": "946.50 MB"
       }
     ],
-    "cacheMaxAge": 900,
-    "staleRevalidate": 3600,
-    "staleError": 86400
+    "cacheMaxAge": 0
   }
 }

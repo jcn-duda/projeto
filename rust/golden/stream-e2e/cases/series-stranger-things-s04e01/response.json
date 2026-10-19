@@ -8,201 +8,44 @@
   "body": {
     "streams": [
       {
-        "infoHash": "5716a09dd6cbee22c5a9dc4c5eb0cce1b925571d",
-        "title": "Stranger Things 4ª Temporada 2022 VOLUME 1 1080p WEB-DL DUAL 5.1\n👤 1 💾 2.99 GB 📦 pack 26.90 GB (média) ⚙️ AllDebrid",
-        "name": "1080p WEB-DL BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "2.99 GB"
-      },
-      {
-        "infoHash": "cb6d9e2c5001999427a7d02789197b93d952cbcc",
-        "title": "Stranger Things S04 2022 WEB-DL 1080p x265 DUAL 5.1 (brazilian, eng)\n📦 👤 ~1 ⚙️ mico",
-        "name": "📦 · 1080p WEB-DL BR · mico · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "920d849e5b95e96ee35e01621d80c75dac389a27",
-        "title": "Stranger Things - 4ª Temporada [1080p WEB-DL DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "fa784dc9e10cdfa9866561d9a531ede33e6844ae",
-        "title": "Stranger Things - 4ª Temporada [720p WEB-DL DUAL]\n📦 👤 ~18 ⚙️ Apache Torrent",
-        "name": "📦 · 720p WEB-DL BR · Apache Torrent · 👤 ~18",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "98c9a1ff37c565b145bcfd95211c0564ae81d968",
-        "title": "Stranger Things 4ª Temporada 2022 VOLUME 2 720p WEB-DL DUAL 5.1\n👤 1 💾 486.97 MB 📦 pack 4.28 GB (média) ⚙️ AllDebrid",
-        "name": "720p WEB-DL BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "486.97 MB"
-      },
-      {
-        "infoHash": "269dd23d6cb5578673303d643754b0be89e6970e",
-        "title": "Stranger Things - 4ª Temporada [1080p WEBRIP LEGENDADO]\n📦 👤 ~4 ⚙️ Apache Torrent",
-        "name": "📦 · 1080p WEBRip LEG BR · Apache Torrent · 👤 ~4",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "d2d4b7550ffb87a15eeabd3fb7398f6419e6c33d",
-        "title": "Stranger Things - 4ª Temporada [1080p WEB-DL LEGENDADO]\n📦 👤 ~2 ⚙️ Apache Torrent",
-        "name": "📦 · 1080p WEB-DL LEG BR · Apache Torrent · 👤 ~2",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "0ebd8090584b365cf7c1414e0e4656972180fc34",
-        "title": "Stranger Things - 4ª Temporada [1080p WEB-DL LEGENDADO]\n📦 👤 ~2 ⚙️ Apache Torrent",
-        "name": "📦 · 1080p WEB-DL LEG BR · Apache Torrent · 👤 ~2",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "243d98fcf6e9ecb5d24e14a604fa6febfdcfc52d",
-        "title": "Stranger.Things.S04.COMPLETE.720p.NF.WEBRip.x264-GalaxyTV\n📦 👤 ~126 💾 621.23 MB 📦 pack 5.46 GB (média) ⚙️ The Pirate Bay",
-        "name": "📦 · 720p WEBRip BR · The Pirate Bay · 👤 ~126",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEBRip"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "621.23 MB"
-      },
-      {
-        "infoHash": "abb16aa23cadfa4ba4a82152c216ed0a6c1a25b5",
-        "title": "Stranger Things - 4ª Temporada [720p WEBRIP LEGENDADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "📦 · 720p WEBRip LEG BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEBRip"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "b36824aab45a13a8fdb1195c34ce4ae4d42ed05d",
         "title": "Stranger Things S04E01 Chapter One The 2160p NF WEB DL DDP5 1 Atmos H 265 Kitsune\n📦 👤 ~14 💾 6.75 GB ⚙️ TheRARBG",
-        "name": "📦 · 4K WEB-DL · TheRARBG · 👤 ~14",
+        "name": "[AD⚡] 📦 · 4K WEB-DL · TheRARBG · 👤 ~14",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
+        "url": "{{base}}/{{config}}/resolve/b36824aab45a13a8fdb1195c34ce4ae4d42ed05d?s=4&e=1&w=%7B%22i%22%3A%22tt4574334%22%7D&sig={{sig}}",
         "size": "6.75 GB"
       },
       {
-        "infoHash": "0c8e00170bcd1d68214a9a6fba45a56cc01dee3a",
         "title": "Stranger Things S04E01 Chapter One The Hellfire Club 2160p NF WEB-DL DDP5 1\n📦 👤 ~13 💾 10.50 GB ⚙️ TheRARBG",
-        "name": "📦 · 4K WEB-DL · TheRARBG · 👤 ~13",
+        "name": "[AD⚡] 📦 · 4K WEB-DL · TheRARBG · 👤 ~13",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
+        "url": "{{base}}/{{config}}/resolve/0c8e00170bcd1d68214a9a6fba45a56cc01dee3a?s=4&e=1&w=%7B%22i%22%3A%22tt4574334%22%7D&sig={{sig}}",
         "size": "10.50 GB"
+      },
+      {
+        "title": "Stranger.Things.S04. (E01-09) COMPLETE.1080p.WEBRip.x265-RARBM\n📦 👤 ~134 💾 12.07 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p WEBRip · The Pirate Bay · 👤 ~134",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "url": "{{base}}/{{config}}/resolve/6237cf126e185daadf5320e6d41046635b5c74b2?s=4&e=1&w=%7B%22i%22%3A%22tt4574334%22%7D&sig={{sig}}",
+        "size": "12.07 GB"
+      },
+      {
+        "title": "Stranger Things S04E01 Chapter One The Hellfire Club 1080p NF WEB-DL DDP5 1\n📦 👤 ~45 💾 3.09 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~45",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/d01a1c4575be251df2f48c3bdb2d235c9ba69bab?s=4&e=1&w=%7B%22i%22%3A%22tt4574334%22%7D&sig={{sig}}",
+        "size": "3.09 GB"
+      },
+      {
+        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
+        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
     "cacheMaxAge": 0

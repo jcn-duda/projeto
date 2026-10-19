@@ -25,12 +25,12 @@ fn corpus_real_carrega_51_casos_e_sha256_confere() {
     assert_eq!(corpus.stats.other_types, 0);
     assert_eq!(corpus.stats.json_bodies, 51);
     assert_eq!(corpus.stats.raw_bodies, 0);
-    assert_eq!(corpus.stats.empty_lists, 9);
-    assert_eq!(corpus.stats.notice_cases, 10);
-    assert_eq!(corpus.stats.p2p_cases, 4);
-    assert_eq!(corpus.stats.debrid_cases, 28);
-    assert_eq!(corpus.stats.stream_items, 271);
-    assert_eq!(corpus.stats.max_streams, 11);
+    assert_eq!(corpus.stats.empty_lists, 1);
+    assert_eq!(corpus.stats.notice_cases, 1);
+    assert_eq!(corpus.stats.p2p_cases, 6);
+    assert_eq!(corpus.stats.debrid_cases, 43);
+    assert_eq!(corpus.stats.stream_items, 314);
+    assert_eq!(corpus.stats.max_streams, 13);
     assert_eq!(corpus.stats.labels_missing, 0);
     // O corpus real NÃO tem trace/meta/raw/debrid por etapa. Este assert é o
     // tripwire: quando o gerador passar a gravá-los, atualize a documentação e

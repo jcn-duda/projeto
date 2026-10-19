@@ -8,8 +8,8 @@
   "body": {
     "streams": [
       {
-        "title": "Trainspotting 1996 2160p BluRay x265 10bit AAC5 1 [YTS MX]\n👤 88 💾 4.23 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 4K BluRay · LimeTorrents · 👤 88",
+        "title": "Trainspotting 1996 2160p BluRay x265 10bit AAC5 1 [YTS MX]\n📦 👤 ~88 💾 4.23 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~88",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
@@ -17,8 +17,8 @@
         "size": "4.23 GB"
       },
       {
-        "title": "Trainspotting.1996.2160p.UHD.Bluray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEPHiLES\n👤 50 💾 66.36 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 4K BluRay · The Pirate Bay · 👤 50",
+        "title": "Trainspotting.1996.2160p.UHD.Bluray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEPHiLES\n📦 👤 ~50 💾 66.36 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 4K BluRay · The Pirate Bay · 👤 ~50",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
@@ -26,17 +26,8 @@
         "size": "66.36 GB"
       },
       {
-        "title": "Trainspotting (1996) 1080p BrRip x264 -YIFY\n👤 360 💾 1.30 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 1080p · The Pirate Bay · 👤 360",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/c613170d2eeb5057f4b4a6d0847699761fedf382?w=%7B%22n%22%3A%5B%22Trainspotting%22%2C%22Trainspotting%3A%20Sem%20Limites%22%5D%2C%22y%22%3A1996%2C%22i%22%3A%22tt0117951%22%7D&sig={{sig}}",
-        "size": "1.30 GB"
-      },
-      {
-        "title": "Trainspotting (1996) Criterion (1080p BluRay x265 HEVC 10bit AAC 5.1 Tigole)\n👤 56 💾 6.95 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 1080p BluRay · The Pirate Bay · 👤 56",
+        "title": "Trainspotting (1996) Criterion (1080p BluRay x265 HEVC 10bit AAC 5.1 Tigole)\n📦 👤 ~56 💾 6.95 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~56",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -44,17 +35,22 @@
         "size": "6.95 GB"
       },
       {
-        "title": "Trainspotting (1996) 720p BRRip x264 -YTS\n👤 24 💾 650.41 MB ⚙️ YTS",
-        "name": "[AD⚡] 720p · YTS · 👤 24",
+        "title": "Trainspotting 1996 Criterion 1080p BluRay HEVC x265 5.1 BONE\n📦 👤 ~44 💾 1.70 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~44",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/e14046d792d9419d6f16c3914bf716e6cbb005b2?w=%7B%22n%22%3A%5B%22Trainspotting%22%2C%22Trainspotting%3A%20Sem%20Limites%22%5D%2C%22y%22%3A1996%2C%22i%22%3A%22tt0117951%22%7D&sig={{sig}}",
+        "size": "1.70 GB"
+      },
+      {
+        "title": "Trainspotting (1996) 720p BrRip x264 -YIFY\n📦 👤 ~24 💾 650.63 MB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 720p · The Pirate Bay · 👤 ~24",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
         "url": "{{base}}/{{config}}/resolve/cafffbfbe6b7b09b1b4a60fc08cde76683228d07?w=%7B%22n%22%3A%5B%22Trainspotting%22%2C%22Trainspotting%3A%20Sem%20Limites%22%5D%2C%22y%22%3A1996%2C%22i%22%3A%22tt0117951%22%7D&sig={{sig}}",
-        "size": "650.41 MB"
-      },
-      {
-        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "size": "650.63 MB"
       }
     ],
     "cacheMaxAge": 0

@@ -8,35 +8,140 @@
   "body": {
     "streams": [
       {
-        "title": "Dark S01E01 Secrets 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-Kitsune\n📦 👤 ~23 💾 2.28 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~23",
+        "infoHash": "d5140faa5fbb0a27be3c7bdc5354674f2eea510f",
+        "title": "Dark 1ª Temporada Completa 2017 [720p] [WEBRip] [DUAL] COMANDOTORRENTS.COM\n👤 1 💾 708.61 MB 📦 pack 6.92 GB (média) ⚙️ AllDebrid",
+        "name": "720p WEBRip BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "708.61 MB"
+      },
+      {
+        "infoHash": "8b9c90c97d4781b07767c331a687196a1cd1a17b",
+        "title": "Dark 2017 – 1ª Temporada Completa [WEB-DL] (720p) WWW.BLUDV.COM\n👤 1 💾 896.00 MB 📦 pack 8.75 GB (média) ⚙️ AllDebrid",
+        "name": "720p WEB-DL BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "896.00 MB"
+      },
+      {
+        "infoHash": "29071e5b8ff4b147d6c022e64c159f17af55451d",
+        "title": "www.UIndex.org    -    Dark S01E01 Secrets 2160p NF WEB-DL DUAL DDP5 1 Atmos H 265-Kitsune\n👤 1 💾 5.98 GB ⚙️ AllDebrid",
+        "name": "4K WEB-DL · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "5.98 GB"
+      },
+      {
+        "infoHash": "724b01762f943602f1da9e513f46db89016094fe",
+        "title": "www.UIndex.org    -    Dark S01E01 Secrets 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-Kitsune\n👤 1 💾 2.28 GB ⚙️ AllDebrid",
+        "name": "1080p WEB-DL · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/724b01762f943602f1da9e513f46db89016094fe?s=1&e=1&w=%7B%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "2.28 GB"
       },
       {
-        "title": "Dark.S01.GERMAN.2160p.NF.WEBRip.DDP5.1.Atmos.x264-NTb\n📦 👤 ~64 💾 10.42 GB 📦 pack 97.11 GB ⚙️ kickasstorrents.to",
-        "name": "[AD⚡] 📦 · 4K WEBRip · kickass · 👤 ~64",
+        "infoHash": "598e972a4930f7719103297ad9bb378df06fbb9d",
+        "title": "Dark Web S01E01 720p WEBRip x264-SKGTV [eztv]\n📦 👤 ~34 💾 383.78 MB ⚙️ kickasstorrents.to",
+        "name": "📦 · 720p WEBRip · kickass · 👤 ~34",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "383.78 MB"
+      },
+      {
+        "infoHash": "de8cee841722efa99e29350d1c13e796fc939d38",
+        "title": "Dark.S01.GERMAN.2160p.NF.WEBRip.DDP5.1.Atmos.x264-NTb\n📦 👤 ~41 💾 10.42 GB 📦 pack 97.11 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 4K WEBRip · The Pirate Bay · 👤 ~41",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/de8cee841722efa99e29350d1c13e796fc939d38?s=1&e=1&w=%7B%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "10.42 GB"
       },
       {
-        "title": "Dark.S01.COMPLETE.DUAL-AUDIO.GER-ENG.1080p.10bit.WEBRip.6CH.x265\n📦 👤 ~414 💾 715.10 MB 📦 pack 5.97 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p WEBRip · The Pirate Bay · 👤 ~414",
+        "infoHash": "3af9a386c0512f369a23e652d59d0afab30c823b",
+        "title": "Dark Matter 2024 S01 1080p x265-ELiTE\n📦 👤 ~381 💾 468.82 MB 📦 pack 4.30 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p · The Pirate Bay · 👤 ~381",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
+          "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/219c284787cc22a1eeb129c3857eb26fb4ac0e1c?s=1&e=1&w=%7B%22i%22%3A%22tt5753856%22%7D&sig={{sig}}",
-        "size": "715.10 MB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "468.82 MB"
       },
       {
-        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "infoHash": "6ff6bf98721de380efa440d7572e7cf121893471",
+        "title": "DARK MATTER (2015-2017) - Complete TV Series, Season 1,2,3 S01-S03 - 720p Web-DL x264\n👤 1 💾 379.81 MB 📦 pack 16.44 GB ⚙️ AllDebrid",
+        "name": "720p WEB-DL · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "379.81 MB"
       }
     ],
     "cacheMaxAge": 0

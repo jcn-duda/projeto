@@ -24,9 +24,25 @@
         ]
       },
       {
+        "infoHash": "16fcf6e69c5ea7b994fd52a451b5c38c285c8992",
+        "title": "marvel agentes da shield episodio 12 dublado 1080p\n📦 👤 ~ ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p BR · The Pirate Bay · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
         "infoHash": "24f27946ccffead43ecab3af87ad87ccbf9862e1",
-        "title": "Agents of S.H.I.E.L.D. 5ª Temporada [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 688.87 MB 📦 pack 14.80 GB (média) ⚙️ Bludv",
-        "name": "📦 · 720p WEB-DL BR · Bludv · 👤 ~1",
+        "title": "Agents of S.H.I.E.L.D. 5ª Temporada [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 688.87 MB 📦 pack 14.80 GB (média) ⚙️ BLUDV",
+        "name": "📦 · 720p WEB-DL BR · BLUDV · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-WEB-DL"
         },
@@ -119,23 +135,6 @@
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ]
-      },
-      {
-        "infoHash": "4b92b8c06b389e15841288f757ed8ca836661c98",
-        "title": "Marvel Agents of SHIELD S05E01 720p AMZN WEB DL x264 AAC\n📦 👤 ~5 💾 300.01 MB ⚙️ LimeTorrents",
-        "name": "📦 · 720p WEB-DL · LimeTorrents · 👤 ~5",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "300.01 MB"
       }
     ],
     "cacheMaxAge": 0

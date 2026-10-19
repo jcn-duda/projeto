@@ -8,6 +8,56 @@
   "body": {
     "streams": [
       {
+        "infoHash": "b0a2c1e8dcc4f39336d3148b3f4c1b61e47e1bd5",
+        "title": "Monster (2021) [1080p DUBLADO]\n📦 👤 ~1 ⚙️ NerdFilmesTorrent / XNerdFilmes",
+        "name": "📦 · 1080p WEB-DL BR · NerdFilmes · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "8b036f08b0a045e226259e11f22d9695caa65187",
+        "title": "Monster.The.Ed.Gein.Story.S01.2160p.WEB-DL.HDR.ENG.LATINO.FRENCH.HINDI.MP4-BTM\n📦 👤 ~12 💾 7.05 GB 📦 pack 70.51 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · 4K WEB-DL · The Pirate Bay · 👤 ~12",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "7.05 GB"
+      },
+      {
+        "infoHash": "1f1fc95b6d84eb37bb3d04f66381d373b6f07add",
+        "title": "Monster.The.Lizzie.Borden.Story.S01.1080p.HEVC.X265-MeGusta\n📦 👤 ~137 💾 407.55 MB 📦 pack 3.98 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p · The Pirate Bay · 👤 ~137",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "407.55 MB"
+      },
+      {
         "infoHash": "e77b8b3fac02fdcd52e437b8d2afefd263bb8eff",
         "title": "Monster (2022) S01  The Jeffrey Dahmer Story (1080p NF WEB DL x26   \n📦 👤 ~40 💾 1.90 GB 📦 pack 19.03 GB (média) ⚙️ LimeTorrents",
         "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~40",
@@ -25,43 +75,11 @@
         "size": "1.90 GB"
       },
       {
-        "infoHash": "e1d6ba31c95c54b9d33af609f82e978699baef90",
-        "title": "Monster 2022 Seasons 1 to 4 Complete 1080p WEB x264 [i c]\n📦 👤 ~15 ⚙️ LimeTorrents",
-        "name": "📦 · 1080p · LimeTorrents · 👤 ~15",
+        "infoHash": "7a72e6b7e1f3460d20f73493faf13b2a1b1688d8",
+        "title": "Monster.The.Jeffrey.Dahmer.Story.S01.COMPLETE.720p.NF.WEBRip.x26\n📦 👤 ~111 💾 195.58 MB 📦 pack 1.91 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~111",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "2436ba32823ced149f336f31c07910d27f6c0a2f",
-        "title": "Monster 2022 Seasons 1 and 2 Complete 720p WEB-DL x264 [i_c]\n📦 👤 ~11 ⚙️ LimeTorrents",
-        "name": "📦 · 720p WEB-DL · LimeTorrents · 👤 ~11",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "397136b261a459c387ea9d16ff87fc75054e6e25",
-        "title": "Monster High 2022 Season 1 Complete 720p AMZN WEB-DL x264 [i_c]\n📦 👤 ~7 💾 880.64 MB 📦 pack 8.60 GB (média) ⚙️ LimeTorrents",
-        "name": "📦 · 720p WEB-DL · LimeTorrents · 👤 ~7",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
+          "bingeGroup": "powerm-720p-WEBRip"
         },
         "sources": [
           "tracker:udp://tracker.opentrackr.org:1337/announce",
@@ -71,7 +89,24 @@
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
-        "size": "880.64 MB"
+        "size": "195.58 MB"
+      },
+      {
+        "infoHash": "a65680627d3bcbe7cded883e70e7b10b907906be",
+        "title": "The.Monster.of.Florence.S01.720p.HEVC.x265-MeGusta\n📦 👤 ~16 💾 147.46 MB 📦 pack 1.44 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · 720p · The Pirate Bay · 👤 ~16",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "147.46 MB"
       }
     ],
     "cacheMaxAge": 0

@@ -8,26 +8,35 @@
   "body": {
     "streams": [
       {
-        "title": "Bacurau [720p DUBLADO]\n👤 1 💾 4.05 GB ⚙️ Apache Torrent",
-        "name": "[AD⚡] 720p BR · Apache Torrent · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/2679c48fc03d83538b681c860cfbc3ad862a995d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
-        "size": "4.05 GB"
-      },
-      {
-        "title": "Bacurau.2019.PORTUGUESE.1080p.BluRay.H264.AAC-VXT\n👤 3 💾 2.50 GB ⚙️ mico",
-        "name": "[AD⚡] 1080p BluRay BR · mico · 👤 3",
+        "title": "Bacurau (2019) [1080p BLU-RAY DUBLADO 2.4 GB]\n📦 👤 ~5 💾 2.50 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay BR · LimeTorrents · 👤 ~5",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/80e367ee5db90eef6fe77cb69642e8be9679f75d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "url": "{{base}}/{{config}}/resolve/80e367ee5db90eef6fe77cb69642e8be9679f75d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
         "size": "2.50 GB"
       },
       {
-        "title": "Bacurau (2019) (1080p) [BluRay] [5 1] [YTS MX]\n👤 68 💾 2.42 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 68",
+        "title": "Bacurau [1080p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 35.70 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay BR · LimeTorrents · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/0a23f0fa6eb6c6092101c22973878ffa144912d4?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "size": "35.70 GB"
+      },
+      {
+        "title": "Bacurau (2019) Nacional WEB-DL FULL – [720p WEB-DL DUBLADO 4 GB]\n📦 👤 ~1 💾 4.00 GB ⚙️ mico",
+        "name": "[AD⚡] 📦 · 720p WEB-DL BR · mico · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/2679c48fc03d83538b681c860cfbc3ad862a995d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "size": "4.00 GB"
+      },
+      {
+        "title": "Bacurau (2019) (1080p) [BluRay] [5 1] [YTS MX]\n📦 👤 ~71 💾 2.42 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~71",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -35,13 +44,13 @@
         "size": "2.42 GB"
       },
       {
-        "title": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5 1 Portuguese Tigole)\n👤 4 💾 5.91 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 4",
+        "title": "Bacurau 2019 1080p BluRay x264 CADAVER[TGx]\n📦 👤 ~8 💾 17.89 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~8",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/f1ed353368f75500c05ac097b75229f87bfcc9dc?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
-        "size": "5.91 GB"
+        "url": "{{base}}/{{config}}/resolve/587d175ead93eb46ead3dcab083911909e3f88b0?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig={{sig}}",
+        "size": "17.89 GB"
       }
     ],
     "cacheMaxAge": 0

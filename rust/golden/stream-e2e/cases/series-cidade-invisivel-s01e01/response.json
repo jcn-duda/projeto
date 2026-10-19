@@ -8,10 +8,10 @@
   "body": {
     "streams": [
       {
-        "title": "Cidade Invisível - 1ª Temporada [1080p WEBRIP DUBLADO]\n👤 1 💾 1.26 GB 📦 pack 1.26 GB ⚙️ Apache Torrent",
-        "name": "[AD⚡] 1080p WEBRip BR · Apache Torrent · 👤 1",
+        "title": "Cidade Invisível 1ª Temporada (2021) Nacional 5.1 WEB-DL e – [1080p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.26 GB 📦 pack 8.00 GB ⚙️ mico",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · mico · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
         "url": "{{base}}/{{config}}/resolve/a47bd861a3b4e60b18a0c98f4b7a671767bf68d1?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt8878862%22%7D&sig={{sig}}",
         "size": "1.26 GB"

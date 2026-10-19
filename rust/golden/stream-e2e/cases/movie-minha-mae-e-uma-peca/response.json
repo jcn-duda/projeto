@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "max-age=0, public"
+  },
+  "cacheMaxAge": 0,
+  "body": {
+    "streams": [
+      {
+        "title": "Minha Mãe É Uma Peça - O Filme (2013) BDrip 720p Nacional\n👤 1 💾 1007.68 MB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/5278b53d1db2232581b3635a9353f43b7642841c?w=%7B%22n%22%3A%5B%22My%20Mom%20Is%20a%20Character%22%2C%22Minha%20M%C3%A3e%20%C3%A9%20uma%20Pe%C3%A7a%3A%20O%20Filme%22%5D%2C%22y%22%3A2013%2C%22d%22%3A1%2C%22i%22%3A%22tt2464018%22%7D&sig={{sig}}",
+        "size": "1007.68 MB"
+      }
+    ],
+    "cacheMaxAge": 0
+  }
+}

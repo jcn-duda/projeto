@@ -2,14 +2,23 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
+    "cache-control": "max-age=0, public"
   },
-  "cacheMaxAge": 900,
+  "cacheMaxAge": 0,
   "body": {
     "streams": [
       {
-        "title": "Carandiru (2003) 1080p WEBRip 5.1 x264 -YTS\n👤 15 💾 2.68 GB ⚙️ YTS",
-        "name": "[AD⚡] 1080p WEBRip · YTS · 👤 15",
+        "title": "Carandiru [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 1.36 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 720p WEB-DL BR · LimeTorrents · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/40a3bd5172533f949bf7bf9e91b92f8322171602?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig={{sig}}",
+        "size": "1.36 GB"
+      },
+      {
+        "title": "Carandiru (2003) 1080p WEBRip 5.1 x264 -YTS\n📦 👤 ~15 💾 2.68 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 1080p WEBRip · YTS · 👤 ~15",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
@@ -17,8 +26,8 @@
         "size": "2.68 GB"
       },
       {
-        "title": "Carandiru (2003) (1080p WEB DL x265 HEVC 10bit AC3 5 1 Portuguese afm72\n👤 14 💾 6.12 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 1080p WEB-DL · LimeTorrents · 👤 14",
+        "title": "Carandiru (2003) (1080p WEB DL x265 HEVC 10bit AC3 5 1 Portuguese afm72\n📦 👤 ~14 💾 6.12 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · LimeTorrents · 👤 ~14",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -26,30 +35,15 @@
         "size": "6.12 GB"
       },
       {
-        "title": "Carandiru 2003 720p WEB DL x264 [ExYu Subs]\n👤 1 💾 1.36 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 720p WEB-DL · LimeTorrents · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/40a3bd5172533f949bf7bf9e91b92f8322171602?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig={{sig}}",
-        "size": "1.36 GB"
-      },
-      {
-        "title": "Carandiru (2003) 720p BRRip x264 -YTS\n👤 3 💾 1.31 GB ⚙️ YTS",
-        "name": "[AD⚡] 720p · YTS · 👤 3",
+        "title": "Carandiru (2003) 720p BRRip x264 -YTS\n📦 👤 ~3 💾 1.31 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 720p · YTS · 👤 ~3",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
         "url": "{{base}}/{{config}}/resolve/e44bb30a8263a59b8cadf598252a4270d62df463?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig={{sig}}",
         "size": "1.31 GB"
-      },
-      {
-        "name": "Fontes BR dubladas existem, mas ainda fora do cache do debrid",
-        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
-    "cacheMaxAge": 900,
-    "staleRevalidate": 3600,
-    "staleError": 86400
+    "cacheMaxAge": 0
   }
 }

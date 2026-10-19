@@ -8,24 +8,6 @@
   "body": {
     "streams": [
       {
-        "title": "Ainda.Estou.Aqui.2024.1080p.WEB-DL.EAC3.AAC.NACIONAL.5.1\n👤 1 💾 3.75 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL NAC BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/08f1479b132df5e3c036c55c9c12bd643622c388?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
-        "size": "3.75 GB"
-      },
-      {
-        "title": "Ainda.Estou.Aqui.2024.1080p.FULL.HD.WEB-DL.NACIONAL.5.1\n👤 1 💾 9.63 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL NAC BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/5702ca0796c456112ccc872be30abf53f4bcafcf?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
-        "size": "9.63 GB"
-      },
-      {
         "title": "Ainda Estou Aqui WEB-DL [1080p WEB-DL DUBLADO 2.83 GB]\n📦 👤 ~1 💾 2.83 GB ⚙️ Apache Torrent",
         "name": "[AD⚡] 📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
@@ -35,8 +17,26 @@
         "size": "2.83 GB"
       },
       {
-        "title": "Ainda Estou Aqui (2024) [2160p WEB-DL DUBLADO]\n📦 👤 ~1 💾 6.13 GB ⚙️ BLUDV",
-        "name": "[AD⚡] 📦 · 4K WEB-DL BR · BLUDV · 👤 ~1",
+        "title": "Ainda Estou Aqui [1080p WEB-DL DUBLADO 9.62 GB]\n📦 👤 ~1 💾 9.62 GB ⚙️ Apache Torrent",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/5702ca0796c456112ccc872be30abf53f4bcafcf?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
+        "size": "9.62 GB"
+      },
+      {
+        "title": "Ainda Estou Aqui [1080p WEB-DL DUBLADO 3.73 GB]\n📦 👤 ~1 💾 3.73 GB ⚙️ Apache Torrent",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "url": "{{base}}/{{config}}/resolve/08f1479b132df5e3c036c55c9c12bd643622c388?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
+        "size": "3.73 GB"
+      },
+      {
+        "title": "Ainda Estou Aqui (2024) [2160p WEB-DL DUBLADO]\n📦 👤 ~50 💾 6.13 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 4K WEB-DL BR · YTS · 👤 ~50",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
@@ -44,8 +44,8 @@
         "size": "6.13 GB"
       },
       {
-        "title": "Ainda Estou Aqui (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 2.53 GB ⚙️ BLUDV",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+        "title": "Ainda Estou Aqui (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~70 💾 2.53 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · LimeTorrents · 👤 ~70",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -53,8 +53,8 @@
         "size": "2.53 GB"
       },
       {
-        "title": "Ainda Estou Aqui (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 2.29 GB ⚙️ BLUDV",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+        "title": "Ainda Estou Aqui (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~46 💾 2.29 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · LimeTorrents · 👤 ~46",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -62,8 +62,8 @@
         "size": "2.29 GB"
       },
       {
-        "title": "Ainda Estou Aqui (2024) [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 1.23 GB ⚙️ BLUDV",
-        "name": "[AD⚡] 📦 · 720p WEB-DL BR · BLUDV · 👤 ~1",
+        "title": "Ainda Estou Aqui (2024) [720p WEB-DL DUBLADO]\n📦 👤 ~23 💾 1.23 GB ⚙️ LimeTorrents",
+        "name": "[AD⚡] 📦 · 720p WEB-DL BR · LimeTorrents · 👤 ~23",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-WEB-DL"
         },
@@ -80,22 +80,22 @@
         "size": "6.13 GB"
       },
       {
-        "title": "Im Still Here (2024) 1080p WEBRip 5.1-WORLD\n📦 👤 ~72 💾 2.53 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p WEBRip · The Pirate Bay · 👤 ~72",
+        "title": "I m Still Here 2024 1080p AMZN WEB DL x265 10bit EAC3 5 1 Port\n📦 👤 ~79 💾 5.90 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 1080p WEB-DL · TheRARBG · 👤 ~79",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/f01c362fb9364be3601857c68b00b97e74bd6770?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
-        "size": "2.53 GB"
+        "url": "{{base}}/{{config}}/resolve/90382edd11f8f6ceea14a9a4345819c5aae858a4?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
+        "size": "5.90 GB"
       },
       {
-        "title": "Ainda Estou Aqui [I'm Still Here] 10bit 720p SCREENER\n📦 👤 ~8 💾 1.09 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 720p · TheRARBG · 👤 ~8",
+        "title": "Ainda Estou Aqui (2024) 720p BRRip x264 -YTS\n📦 👤 ~23 💾 1.25 GB ⚙️ YTS",
+        "name": "[AD⚡] 📦 · 720p · YTS · 👤 ~23",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/56aade77a75403e482400ff4d94ecc4e36db75e8?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
-        "size": "1.09 GB"
+        "url": "{{base}}/{{config}}/resolve/a3f6821eaa4c16d2c055c02099f6dad935dda80d?w=%7B%22n%22%3A%5B%22I'm%20Still%20Here%22%2C%22Ainda%20Estou%20Aqui%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt14961016%22%7D&sig={{sig}}",
+        "size": "1.25 GB"
       }
     ],
     "cacheMaxAge": 0

@@ -67,7 +67,14 @@ fn cache_max_age_e_contrato_por_default() {
     let body = body_of("movie-matrix");
     let expected = normalize(&body);
     let mut altered = body.clone();
-    altered["cacheMaxAge"] = json!(900);
+    // Valor SEMPRE diferente do capturado: a lista completa sai com 900, e a
+    // recaptura não pode decidir se o teste enxerga a diferença.
+    let changed = if body["cacheMaxAge"] == json!(900) {
+        60
+    } else {
+        900
+    };
+    altered["cacheMaxAge"] = json!(changed);
     let actual = normalize(&altered);
     let diff = Diff::compare(&expected, &actual);
     assert_eq!(diff.len(), 1, "{diff}");

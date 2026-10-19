@@ -2,14 +2,14 @@
   "status": 200,
   "headers": {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": "max-age=900, stale-while-revalidate=3600, stale-if-error=86400, public"
+    "cache-control": "max-age=0, public"
   },
-  "cacheMaxAge": 900,
+  "cacheMaxAge": 0,
   "body": {
     "streams": [
       {
-        "title": "Central do Brasil 1998 4K SDR 2160p BDRemux Ita Por x265 NAHOM\n👤 2 💾 65.70 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 4K BluRay · TheRARBG · 👤 2",
+        "title": "Central do Brasil 1998 4K SDR 2160p BDRemux Ita Por x265 NAHOM\n👤 2 💾 65.70 GB ⚙️ therarbg",
+        "name": "[AD⚡] 4K BluRay · therarbg · 👤 2",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
@@ -17,8 +17,8 @@
         "size": "65.70 GB"
       },
       {
-        "title": "Central Station 1998 PORTUGUESE 1080p BluRay x264 HANDJOB\n👤 57 💾 6.94 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 57",
+        "title": "Central.Station.1998.1080p.BluRay.x264-HANDJOB Central do Brasil\n👤 57 💾 6.94 GB ⚙️ limetorrents",
+        "name": "[AD⚡] 1080p BluRay · limetorrents · 👤 57",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
@@ -26,17 +26,17 @@
         "size": "6.94 GB"
       },
       {
-        "title": "Central Station 1998 1080p BluRay FLAC2 0 x264 WMING\n👤 14 💾 17.79 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 1080p BluRay · LimeTorrents · 👤 14",
+        "title": "Central.Station.1998.1080p.BluRay.FLAC2.0.x264-WMING\n👤 11 💾 17.80 GB ⚙️ limetorrents",
+        "name": "[AD⚡] 1080p BluRay · limetorrents · 👤 11",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/cfa5eda914d1e8f2d9dcb05b6fb529a2e771490e?w=%7B%22n%22%3A%5B%22Central%20Station%22%2C%22Central%20do%20Brasil%22%5D%2C%22y%22%3A1998%2C%22i%22%3A%22tt0140888%22%7D&sig={{sig}}",
-        "size": "17.79 GB"
+        "size": "17.80 GB"
       },
       {
-        "title": "Central do Brasil / Central Station [1998, Brazil, France, drama, BDRip 720p] MVO (R5) + AVO (P. Kartsev) + Sub Rus, Eng, Fra + Original Por\n👤 6 💾 5.33 GB ⚙️ kickasstorrents.to",
-        "name": "[AD⚡] 720p · kickass · 👤 6",
+        "title": "Central do Brasil / Central Station [1998, Brazil, France, drama, BDRip 720p] MVO (R5) + AVO (P. Kartsev) + Sub Rus, Eng, Fra + Original Por\n👤 6 💾 5.33 GB ⚙️ kickasstorrents-to",
+        "name": "[AD⚡] 720p · kickasstorrent · 👤 6",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
@@ -44,8 +44,6 @@
         "size": "5.33 GB"
       }
     ],
-    "cacheMaxAge": 900,
-    "staleRevalidate": 3600,
-    "staleError": 86400
+    "cacheMaxAge": 0
   }
 }

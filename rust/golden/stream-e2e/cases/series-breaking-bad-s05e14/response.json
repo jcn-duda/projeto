@@ -8,39 +8,6 @@
   "body": {
     "streams": [
       {
-        "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~10 ⚙️ Apache Torrent",
-        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~10",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/525f80c8c7a73e48a914ee57eabac597aea1e5d9?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}"
-      },
-      {
-        "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~9 ⚙️ Apache Torrent",
-        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~9",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/76beedd3910b6f59d96a6f2365bcf45f657aa644?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}"
-      },
-      {
-        "title": "Breaking Bad - 5ª Temporada (2012) 720p Dual Áudio - Douglasvip\n👤 1 💾 337.82 MB 📦 pack 5.36 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/bd9656978969b71c2ac79ca2e4ed13307c799af6?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "337.82 MB"
-      },
-      {
-        "title": "Breaking Bad 1ª até 5ª Temporada [720p DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/e9876a1688fc774068fecc94a991f300f45cf2b7?s=5&e=14&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0903747%22%7D&sig={{sig}}"
-      },
-      {
         "title": "Breaking Bad S05E14 Ozymandias 2160p NF WEB-DL DDP5 1 H 265-XEBEC\n📦 👤 ~22 💾 5.52 GB ⚙️ TheRARBG",
         "name": "[AD⚡] 📦 · 4K WEB-DL · TheRARBG · 👤 ~22",
         "behaviorHints": {
@@ -50,17 +17,8 @@
         "size": "5.52 GB"
       },
       {
-        "title": "Breaking.Bad.S05E01-16.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66\n📦 👤 ~98 💾 1.27 GB 📦 pack 20.10 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · TheRARBG · 👤 ~98",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/0a4fd3e0b8f48264472d3e5f507062f09f5d17be?s=5&e=14&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "1.27 GB"
-      },
-      {
-        "title": "Breaking Bad S05E14 720p HDTV x264-IMMERSE [eztv]\n📦 👤 ~1 💾 1.19 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 720p HDTV · The Pirate Bay · 👤 ~1",
+        "title": "Breaking.Bad.S05E14.720p.HDTV.x264-IMMERSE.mkv\n👤 1 💾 1.19 GB ⚙️ AllDebrid",
+        "name": "[AD⚡] 720p HDTV · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-HDTV"
         },
@@ -77,13 +35,26 @@
         "size": "5.07 GB"
       },
       {
-        "title": "Breaking Bad (2008) Season 1-5 S01-S05 (1080p BluRay x265 HEVC 10bit AAC 5 1 Silence) [QxR]\n📦 👤 ~542 💾 2.02 GB 📦 pack 140.10 GB ⚙️ kickasstorrents.to",
-        "name": "[AD⚡] 📦 · 1080p BluRay · kickass · 👤 ~542",
+        "title": "Breaking Bad (2008) S01-5 S01-S05 (1080p BluRay x265 HEVC 1\n📦 👤 ~499 💾 2.02 GB 📦 pack 140.06 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~499",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
         "url": "{{base}}/{{config}}/resolve/b43df67a93863ea91f2f773f00361072da771dd3?s=5&e=14&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
         "size": "2.02 GB"
+      },
+      {
+        "title": "Breaking.Bad.S01-S02-S03-S04-S05.1080p.BluRay.10bit.HEVC-MkvCage\n📦 👤 ~193 💾 1.00 GB 📦 pack 62.70 GB ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~193",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "url": "{{base}}/{{config}}/resolve/33b1396389a7d76f57215ee618f0ce438126ebe4?s=5&e=14&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "size": "1.00 GB"
+      },
+      {
+        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
+        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
     "cacheMaxAge": 0

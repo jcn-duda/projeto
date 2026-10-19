@@ -8,220 +8,49 @@
   "body": {
     "streams": [
       {
-        "infoHash": "55c496d5ad6e6b2259cee3d6512c98a80e4962d3",
-        "title": "The Last of Us 1ª Temporada E05 [2160p DUBLADO]\n📦 👤 ~1 💾 2.50 GB ⚙️ ComandoTorrents",
-        "name": "📦 · 4K WEB-DL BR · Comando · 👤 ~1",
+        "title": "The Last of Us 1ª Temporada E05 [2160p DUBLADO]\n📦 👤 ~1 💾 2.50 GB ⚙️ NerdFilmes",
+        "name": "[AD⚡] 📦 · 4K WEB-DL BR · NerdFilmes · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
+        "url": "{{base}}/{{config}}/resolve/55c496d5ad6e6b2259cee3d6512c98a80e4962d3?s=1&e=5&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
         "size": "2.50 GB"
       },
       {
-        "infoHash": "6bcbd813d4e7625af5b9aca8161fcb2bfc2b121a",
-        "title": "The Last of Us S01E05 (2023) 1080p WEB-DL [Dublado Portugues] MOSTBET\n📦 👤 ~1 💾 3.36 GB ⚙️ kickasstorrents.to",
-        "name": "📦 · 1080p WEB-DL BR · kickass · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "3.36 GB"
-      },
-      {
-        "infoHash": "6e5ab1aed82fd9bb4d559b65043e2d06f01aa042",
-        "title": "The Last of Us 1ª Temporada E05 [1080p DUBLADO]\n📦 👤 ~1 💾 2.50 GB ⚙️ ComandoTorrents",
-        "name": "📦 · 1080p WEB-DL BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "2.50 GB"
-      },
-      {
-        "infoHash": "1335ea9066a6d66fb62d1eed1a3e1424707e6c5a",
-        "title": "The Last of Us 1ª Temporada (2023) WEB-DL E05 [1080p DUBLADO opção 5]\n📦 👤 ~1 ⚙️ ComandoTorrents",
-        "name": "📦 · 1080p WEB-DL BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "6f30b90d79f9a9f3a235d39cc89f459ed8be1cba",
-        "title": "The Last of Us 1ª Temporada (2023) E05 [1080p DUBLADO]\n📦 👤 ~1 ⚙️ BLUDV",
-        "name": "📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "db134d16608a1a7112b899cd537563998294a2bb",
-        "title": "The Last of Us S01E05 (2023) 720p WEB-DL [Dublado Portugues] MOSTBET\n📦 👤 ~1 💾 963.11 MB ⚙️ kickasstorrents.to",
-        "name": "📦 · 720p WEB-DL BR · kickass · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "963.11 MB"
-      },
-      {
-        "infoHash": "31d26d534f5a8c677de58a7d8e9d18dc78d93517",
-        "title": "The Last of Us 1ª Temporada E05 [720p DUBLADO]\n📦 👤 ~1 💾 2.50 GB ⚙️ ComandoTorrents",
-        "name": "📦 · 720p WEB-DL BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "2.50 GB"
-      },
-      {
-        "infoHash": "62d460919b5ca8128c7825f51f59e3d9c723bc09",
-        "title": "The Last of Us S01E05 (2023) WEB-DL [Dublado Portugues] MOSTBET\n📦 👤 ~1 💾 667.70 MB ⚙️ kickasstorrents.to",
-        "name": "📦 · WEB-DL BR · kickass · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-na-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "667.70 MB"
-      },
-      {
-        "infoHash": "3fa6ca5cd69c52bef5f429a51f727056cb796a80",
-        "title": "The Last of Us 1ª Temporada (2023) WEB-DL [2160p LEGENDADO opção 39]\n📦 👤 ~1 ⚙️ TorrentDosFilmes V2",
-        "name": "📦 · 4K WEB-DL LEG BR · TorrentDos · 👤 ~1",
+        "title": "The Last of Us S01E05 2160p HMAX WEB-DL DDP5 1 HDR x265-NTb\n📦 👤 ~15 💾 7.63 GB ⚙️ EZTV",
+        "name": "[AD⚡] 📦 · 4K WEB-DL · EZTV · 👤 ~15",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
+        "url": "{{base}}/{{config}}/resolve/7d42b5f9b5800f28a59aa83ccf82ba2edc049107?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "7.63 GB"
       },
       {
-        "infoHash": "97b454388eeed06bf8ad20d47ce168ca3c05dfe9",
-        "title": "The Last of Us S01 COMPLETE 1080p AMZN WEB DL EniaHD\n📦 👤 ~98 💾 4.17 GB 📦 pack 37.50 GB (média) ⚙️ TheRARBG",
-        "name": "📦 · 1080p WEB-DL BR · TheRARBG · 👤 ~98",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "4.17 GB"
-      },
-      {
-        "infoHash": "87e75d64d5a1ddcb801b251b6a438aa421c8fdd8",
-        "title": "The Last of Us 1ª Temporada (2023) WEB-DL [1080p LEGENDADO opção 38]\n📦 👤 ~2 ⚙️ TorrentDosFilmes V2",
-        "name": "📦 · 1080p WEB-DL LEG BR · TorrentDos · 👤 ~2",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "e6ba9cdb66ab325d65210b64ada0baaf1ccef3a7",
-        "title": "The Last of Us 1ª Temporada (2023) WEB-DL [720p LEGENDADO opção 37]\n📦 👤 ~1 ⚙️ TorrentDosFilmes V2",
-        "name": "📦 · 720p WEB-DL LEG BR · TorrentDos · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "5ba074c78acb93cf552cdf6b07ce51e6a4ae0619",
-        "title": "The Last Of Us S01E05 SPANiSH 2160p HMAX WEB DL DDP5 1 Atmos HDR HEVC dem3nt3\n📦 👤 ~33 💾 7.79 GB ⚙️ LimeTorrents",
-        "name": "📦 · 4K WEB-DL · LimeTorrents · 👤 ~33",
+        "title": "The Last of Us S01E05 Endure and Survive 2160p MAX WEB-DL TrueHD 7 1 Atmos\n📦 👤 ~6 💾 10.25 GB ⚙️ TheRARBG",
+        "name": "[AD⚡] 📦 · 4K WEB-DL · TheRARBG · 👤 ~6",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "7.79 GB"
+        "url": "{{base}}/{{config}}/resolve/3f50382c435f9c583305a1fea8cff0e0e081163c?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "10.25 GB"
+      },
+      {
+        "title": "The Last of Us S01E05 1080p WEB H264-CAKES\n📦 👤 ~34 💾 3.72 GB ⚙️ EZTV",
+        "name": "[AD⚡] 📦 · 1080p · EZTV · 👤 ~34",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/67744347a347c7d0c304dbe508e14501b873d246?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "3.72 GB"
+      },
+      {
+        "title": "The Last of Us S01E05 1080p HEVC x265-MeGusta\n📦 👤 ~31 💾 601.00 MB ⚙️ EZTV",
+        "name": "[AD⚡] 📦 · 1080p · EZTV · 👤 ~31",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "url": "{{base}}/{{config}}/resolve/02e1c00db872a48fa8c9419128d5a2ae9bcf9cf9?s=1&e=5&w=%7B%22i%22%3A%22tt3581920%22%7D&sig={{sig}}",
+        "size": "601.00 MB"
       }
     ],
     "cacheMaxAge": 0

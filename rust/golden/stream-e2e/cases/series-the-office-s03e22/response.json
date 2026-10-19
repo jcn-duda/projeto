@@ -8,119 +8,26 @@
   "body": {
     "streams": [
       {
-        "infoHash": "f03c13cf31f81e2ce9cbdcb020e6da934da60aa9",
-        "title": "The Office [720p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "📦 · 720p BluRay BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "0c9bac2af47b62cb6c66a571024c53bec765811d",
-        "title": "The Office - Todas as Temporadas [720p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "📦 · 720p BluRay BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "d2505a4be7f22cc095e9af3b21d208b0d87ef765",
-        "title": "The Office [720p LEGENDADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "📦 · 720p LEG BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "ff9fae5f603d6b9a6561265c91d421b035be655d",
-        "title": "The Office\n📦 👤 ~1 ⚙️ Apache Torrent",
-        "name": "📦 · BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-na-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "20a43018fb29c58dd488897cdc899b9ca9d781b2",
         "title": "The Office US S03E22 Beach Games Extended Cut 1080p AMZN WEB DL DDP5 1 H 264 Kitsune\n📦 👤 ~25 💾 2.57 GB ⚙️ TheRARBG",
-        "name": "📦 · 1080p Extended WEB-DL · TheRARBG · 👤 ~25",
+        "name": "[AD⚡] 📦 · 1080p Extended WEB-DL · TheRARBG · 👤 ~25",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
+        "url": "{{base}}/{{config}}/resolve/20a43018fb29c58dd488897cdc899b9ca9d781b2?s=3&e=22&w=%7B%22i%22%3A%22tt0386676%22%7D&sig={{sig}}",
         "size": "2.57 GB"
       },
       {
-        "infoHash": "3560db25326ed76af3c03bfbc083770633ea8ed9",
-        "title": "The Office US S03E22 Beach Games Extended Cut 1080p PCOK WEB DL DDP5 1 H 264 Kitsune\n📦 👤 ~12 💾 2.02 GB ⚙️ TheRARBG",
-        "name": "📦 · 1080p Extended WEB-DL · TheRARBG · 👤 ~12",
+        "title": "The.Office.US.S03.1080p.BluRay.x265\n📦 👤 ~441 💾 398.02 MB 📦 pack 8.94 GB (média) ⚙️ The Pirate Bay",
+        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~441",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
+          "bingeGroup": "powerm-1080p-BluRay"
         },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "2.02 GB"
+        "url": "{{base}}/{{config}}/resolve/36980247dafc2f3e53afd5f838c50cad4050eaa1?s=3&e=22&w=%7B%22i%22%3A%22tt0386676%22%7D&sig={{sig}}",
+        "size": "398.02 MB"
       },
       {
-        "infoHash": "192ff612c1f6203dad1707fd28090981fd80fe68",
-        "title": "The Office US S03E22 Beach Games 720p DSNP WEB DL DD 5 1 H 264 playWEB\n📦 👤 ~16 💾 661.15 MB ⚙️ TheRARBG",
-        "name": "📦 · 720p WEB-DL · TheRARBG · 👤 ~16",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "661.15 MB"
+        "name": "⏳ Baixando BR dublado no debrid — reabra em alguns minutos",
+        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
     "cacheMaxAge": 0
