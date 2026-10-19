@@ -4,7 +4,7 @@
 // é erro de integração, não ignorado em silêncio.
 
 /** Fontes que o Node sabe pular no collect (as que o Rust migrou). */
-export const COLLECT_SKIPPABLE_SOURCES = ['jackett', 'prowlarr', 'torrentio', 'bludv', 'mico'] as const;
+export const COLLECT_SKIPPABLE_SOURCES = ['jackett', 'prowlarr', 'torrentio', 'bludv', 'mico', 'account'] as const;
 
 /** `undefined` = ausente (nada a pular). `null` = inválido. */
 export function parseSkipSources(raw: unknown): Set<string> | null | undefined {

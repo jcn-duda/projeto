@@ -276,7 +276,7 @@ export async function collectRaw(
   // para a primeira leitura não segurar a resposta.
   // Sombra read-only: a conta do debrid é inventário com efeitos (memo/cache
   // davail) e não faz parte da comparação de fonte.
-  const accountSource = !readOnly && config.debrid.inventorySource && Boolean(debrid.current());
+  const accountSource = !readOnly && !skipSources.has('account') && config.debrid.inventorySource && Boolean(debrid.current());
   if (accountSource) {
     addTask(() => account.search(matchContext, trace), false, 'account');
   }

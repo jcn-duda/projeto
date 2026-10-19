@@ -86,7 +86,7 @@ export async function handleCollect(
   // Fontes que o Rust já coleta (lista fechada em internal-search-skip.ts → 400).
   const skipSet = parseSkipSources(body?.skip_sources);
   if (skipSet === null) {
-    return res.status(400).json({ ok: false, error: 'skip_sources deve ser subconjunto de jackett, prowlarr, torrentio, bludv, mico' });
+    return res.status(400).json({ ok: false, error: 'skip_sources deve ser subconjunto de jackett, prowlarr, torrentio, bludv, mico, account' });
   }
   const readOnly = parseReadOnly(body?.read_only);
   if (readOnly === null) {

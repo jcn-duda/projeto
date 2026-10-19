@@ -216,6 +216,10 @@ pub struct NodeCollector {
     /// Lista de indexers do PROCESSO (`JACKETT_INDEXERS`), usada pela sombra
     /// no lugar do `ji` customizado do `encoded`.
     indexers_override: Option<Vec<String>>,
+    /// O orquestrador coleta a conta do debrid numa tarefa PRÓPRIA
+    /// (`account_request_from_job`): o Node pula `account` nas demais, senão o
+    /// inventário (~100 ms) ficaria refém do indexer global mais lento.
+    skip_account: bool,
 }
 
 impl NodeCollector {
@@ -226,7 +230,14 @@ impl NodeCollector {
             read_only: false,
             shadow_source: None,
             indexers_override: None,
+            skip_account: false,
         }
+    }
+
+    /// A conta sai por tarefa separada (ver `skip_account`).
+    pub fn with_skip_account(mut self, skip: bool) -> Self {
+        self.skip_account = skip;
+        self
     }
 
     /// Fontes migradas para Rust: o Node não as consulta de novo.
@@ -264,6 +275,9 @@ impl NodeCollector {
     async fn collect_inner(&self, job: CollectJob) -> Result<(CollectBatch, bool), String> {
         let mut request = collect_request_from_job(job);
         request.skip_sources = self.skip_sources.clone();
+        if self.skip_account {
+            request.skip_sources.push("account".to_string());
+        }
         request.read_only = self.read_only;
         request.shadow_source = self.shadow_source.clone();
         request.indexers = self.indexers_override.clone();
@@ -291,6 +305,19 @@ impl Collector for NodeCollector {
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
         Box::pin(async move { self.collect_inner(job).await.map(|(batch, _)| batch) })
     }
+}
+
+/// Fontes de indexer que o Node pula para coletar SÓ a conta do debrid.
+const NON_ACCOUNT_SOURCES: [&str; 5] = ["jackett", "prowlarr", "torrentio", "bludv", "mico"];
+
+/// Corpo da coleta só-da-conta: o mesmo `collectRaw`, com todas as fontes de
+/// indexer puladas. Sobra apenas a tarefa `account`.
+pub fn account_request_from_job(job: CollectJob) -> CollectRequest {
+    let mut request = collect_request_from_job(job);
+    request.task_scope = Some(TaskScope::All);
+    request.sweep_query = None;
+    request.skip_sources = NON_ACCOUNT_SOURCES.iter().map(|s| s.to_string()).collect();
+    request
 }
 
 /// Corpo de `POST /internal/search/collect` a partir do job.

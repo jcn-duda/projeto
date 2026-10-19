@@ -80,7 +80,8 @@ pub fn build_orchestrator() -> Orchestrator {
             let routes = Arc::new(routes);
             let node_collector = Arc::new(
                 adom_search::orchestrator::NodeCollector::new(routes.clone())
-                    .with_skip_sources(skip_sources.clone()),
+                    .with_skip_sources(skip_sources.clone())
+                    .with_skip_account(true),
             );
             let collector: Arc<dyn adom_search::orchestrator::Collector> =
                 if native_collectors.is_empty() {

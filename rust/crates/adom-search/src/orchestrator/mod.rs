@@ -199,7 +199,7 @@ impl Orchestrator {
 
     /// Liga coleta/metadados/efeitos no cliente HTTP das rotas internas.
     pub fn with_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
-        self.collector = Arc::new(NodeCollector::new(routes.clone()));
+        self.collector = Arc::new(NodeCollector::new(routes.clone()).with_skip_account(!self.shadow_mode));
         self.meta = Arc::new(NodeMetaSource::new(routes.clone()));
         self.tail = Arc::new(NodeTailEffects::new(routes.clone()));
         self.routes = Some(routes);

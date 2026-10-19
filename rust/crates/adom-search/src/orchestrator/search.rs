@@ -7,7 +7,7 @@ use crate::collection_window::{collect_within_window, CollectTask, CollectWindow
 use crate::latest_writer::LatestWriter;
 use crate::raw_item::RawItem;
 
-use super::collect::plan_jobs;
+use super::collect::{account_request_from_job, plan_jobs};
 use super::fast_path::{full_window, merge_fast_with_live};
 use super::finish::{cache_max_age_for_finish, SearchInput};
 use super::live_state::{
@@ -285,6 +285,14 @@ impl Orchestrator {
             input.encoded.as_deref(),
             input.deadline_at.unwrap_or(input.now_ms),
         );
+        // A conta do debrid vira tarefa PRÓPRIA nos grupos não prioritários: a
+        // primeira leitura custa ~100 ms e, dentro do `nonpriority`, esperava o
+        // indexer global mais lento (4 s+) para sair do Node.
+        let account_job = if !self.shadow_mode && scope != Some(true) && self.routes.is_some() {
+            jobs.iter().find(|job| !job.priority).or(jobs.first()).cloned()
+        } else {
+            None
+        };
         let jobs: Vec<_> = jobs
             .into_iter()
             .filter(|job| scope.is_none_or(|priority| job.priority == priority))
@@ -296,7 +304,7 @@ impl Orchestrator {
         // janela devolve `items` parciais, mas o estado continua sendo
         // acumulado até o completion assentar.
         let live_state = shared_live_state();
-        let tasks: Vec<CollectTask<RawItem>> = jobs
+        let mut tasks: Vec<CollectTask<RawItem>> = jobs
             .into_iter()
             .map(|job| {
                 let collector = self.collector.clone();
@@ -333,6 +341,27 @@ impl Orchestrator {
                 }
             })
             .collect();
+        if let (Some(job), Some(routes)) = (account_job, self.routes.clone()) {
+            tasks.push(CollectTask {
+                fut: Box::pin(async move {
+                    // Falha da conta não conta como falha de coleta nem apaga a
+                    // reserva 📦: o Node já a tratava como fonte neutra.
+                    match routes.collect(account_request_from_job(job)).await {
+                        Ok(resp) => Ok(resp
+                            .items
+                            .iter()
+                            .map(crate::raw_item::raw_item_from_value)
+                            .collect()),
+                        Err(err) => {
+                            eprintln!("[search] conta do debrid falhou: {err}");
+                            Ok(Vec::new())
+                        }
+                    }
+                }),
+                priority: false,
+                source: None,
+            });
+        }
         let window = collect_within_window(
             tasks,
             CollectWindowOptions {

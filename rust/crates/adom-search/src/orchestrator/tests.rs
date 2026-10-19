@@ -16,5 +16,8 @@ mod fallback_wiring;
 #[path = "tests_fallback_support.rs"]
 mod fallback_support;
 
+#[path = "tests/account_task.rs"]
+mod account_task;
+
 #[path = "tests_fallback_tail.rs"]
 mod fallback_wiring_tail;

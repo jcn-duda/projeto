@@ -361,3 +361,10 @@ test('collect: erro do collectRaw → 500 curto, processo de pé', async () => {
     await server2.close();
   }
 });
+
+test('skip_sources aceita "account" (conta coletada em tarefa própria pelo Rust)', async () => {
+  const { parseSkipSources } = await import('../src/routes/internal-search-skip.js');
+  const skip = parseSkipSources(['jackett', 'account']);
+  assert.ok(skip && skip.has('account'));
+  assert.equal(parseSkipSources(['desconhecida']), null);
+});
