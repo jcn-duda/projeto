@@ -62,7 +62,10 @@ pub fn stats_line(item: &RawItem) -> String {
         } else {
             "👤 ~".into()
         });
-    } else if n > 0.0 {
+    } else {
+        // O TS publica `👤 ${seeders}` SEMPRE (inclusive `👤 0`): sem esta
+        // linha o título perdia o separador `\n` e o cliente não mostrava o
+        // zero medido.
         parts.push(format!("👤 {count}"));
     }
     if let Some(bytes) = item.size_bytes.filter(|b| *b > 0.0) {

@@ -84,6 +84,27 @@ impl RawItem {
         extract_info_hash(raw.unwrap_or("")).unwrap_or_default()
     }
 
+    /// Hash canônico do `hashOf` do banco (`src/utils/magnet-bank-merge.ts`):
+    /// tenta `infoHash`, `magnet`, `MagnetUri` e `Guid` EM ORDEM até um válido.
+    /// Difere de [`RawItem::hash`]: este para no `infoHash` não vazio mesmo
+    /// inválido, porque aqui o `liveHashes` do Node também não para.
+    pub(crate) fn bank_hash(&self) -> String {
+        [
+            self.info_hash.as_deref(),
+            self.magnet.as_deref(),
+            self.magnet_uri.as_deref(),
+            self.guid.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .find_map(|candidate| {
+            extract_info_hash(candidate)
+                .map(|hash| hash.trim().to_lowercase())
+                .filter(|hash| !hash.is_empty())
+        })
+        .unwrap_or_default()
+    }
+
     /// `magnetDisplayName(r)`: o `dn=` do primeiro campo preenchido.
     pub fn dn(&self) -> String {
         magnet_display_name(

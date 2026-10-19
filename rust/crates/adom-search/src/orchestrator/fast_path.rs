@@ -32,27 +32,6 @@ fn indexer_da_marca(item: &RawItem) -> String {
         .unwrap_or_default()
 }
 
-/// Hash canônico do `hashOf` do banco (`src/utils/magnet-bank-merge.ts`):
-/// tenta `infoHash`, `magnet`, `MagnetUri` e `Guid` EM ORDEM até um válido.
-/// `RawItem::hash()` para no `infoHash` não vazio mesmo inválido; aqui não,
-/// porque o `liveHashes` do Node também não para.
-fn bank_hash(item: &RawItem) -> String {
-    [
-        item.info_hash.as_deref(),
-        item.magnet.as_deref(),
-        item.magnet_uri.as_deref(),
-        item.guid.as_deref(),
-    ]
-    .into_iter()
-    .flatten()
-    .find_map(|candidate| {
-        adom_core::extract_info_hash(candidate)
-            .map(|hash| hash.trim().to_lowercase())
-            .filter(|hash| !hash.is_empty())
-    })
-    .unwrap_or_default()
-}
-
 /// "Vivo vence sempre" no tail: une a lista da via rápida com a coleta ao vivo
 /// completa e tira as marcas de dado salvo. Espelho de `dropInstantFallbacks` +
 /// `clearInstantSnapshots` do TS, com o estado vivo POR indexer quando ele
@@ -89,7 +68,7 @@ pub(super) fn merge_fast_with_live(
 ) -> Vec<RawItem> {
     let live_hashes: BTreeSet<String> = live
         .iter()
-        .map(bank_hash)
+        .map(RawItem::bank_hash)
         .filter(|h| !h.is_empty())
         .collect();
     let mut out: Vec<RawItem> = Vec::with_capacity(fast.len() + live.len());
@@ -100,7 +79,7 @@ pub(super) fn merge_fast_with_live(
         // A foto que o vivo provou não é reserva, mesmo com o indexer não
         // provado — senão o dedupe mantém a cópia salva marcada.
         for mut item in fast {
-            let hash_vivo = live_hashes.contains(&bank_hash(&item));
+            let hash_vivo = live_hashes.contains(&item.bank_hash());
             if item.from_fallback && hash_vivo {
                 continue;
             }
@@ -118,7 +97,7 @@ pub(super) fn merge_fast_with_live(
             let respondeu = nao_provado
                 .as_ref()
                 .is_none_or(|set| !set.contains(&indexer_da_marca(&item)));
-            let hash_vivo = live_hashes.contains(&bank_hash(&item));
+            let hash_vivo = live_hashes.contains(&item.bank_hash());
             if item.from_fallback && (respondeu || hash_vivo) {
                 continue;
             }

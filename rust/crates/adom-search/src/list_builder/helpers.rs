@@ -1,13 +1,12 @@
-use adom_core::{
-    edition_from_title, is_season_pack_release, quality_from_title, stream_display_name,
-    stream_size_label, JsText, PoolStream, RankingStream, StreamDisplayConfig,
-    StreamDisplayOptions, StreamRef,
-};
-
 use super::audio_proof::{audio_proof, origin_is_br, AudioAudit};
 pub use super::stats::{display_source, display_tracker, stats_line};
 use super::types::{self, BuildContext, BuildOptions, WorkHint};
 use crate::raw_item::RawItem;
+use adom_core::{
+    edition_from_title, is_season_pack_release, quality_from_title, stream_display_name,
+    stream_size_label, strip_quality_tag_blob, JsText, PoolStream, RankingStream,
+    StreamDisplayConfig, StreamDisplayOptions, StreamRef,
+};
 
 /// Extensões executáveis do corte de release falsa (corte 1 de
 /// `fake-release.ts`; o corte 2 do irmão depende do acervo — bases injetadas).
@@ -174,6 +173,11 @@ pub fn map_stream(
         return None;
     }
     let title = item.title_text().to_string();
+    // O blob do HDRTorrent descreve TODAS as opções do post, não esta release:
+    // o TS exibe `stripQualityTagBlob(title)` no `title` e no `name`, mas lê a
+    // QUALIDADE do título cru (o classificador já corta o blob por dentro).
+    // Exibir limpo não muda o ranking — `quality_from_title` segue igual.
+    let display_title = strip_quality_tag_blob(&title);
     let br = origin_is_br(item, &title, audit);
     let proof = audio_proof(item, &title, br, audit);
     // O nome do arquivo é fato; o título do post, palpite (`provenQuality`).
@@ -184,13 +188,13 @@ pub fn map_stream(
     let source = display_source(item, &title);
     let stats = stats_line(item);
     let full_title = if stats.is_empty() {
-        title.clone()
+        display_title.to_string()
     } else {
-        format!("{title}\n{stats}")
+        format!("{display_title}\n{stats}")
     };
     let name_text = stream_display_name(
         &StreamDisplayOptions {
-            title: Some(&title),
+            title: Some(display_title),
             quality: Some(&quality),
             audio: Some(&proof.chip_audio),
             source: Some(&source),
@@ -232,6 +236,25 @@ pub fn map_stream(
     // do contrato: `to_stream_item` não a copia.
     if item.from_fallback {
         stream.extra.insert("_fromFallback".into(), true.into());
+        // Ponte com o Chupim: o `toRawItem` do Node põe `fallbackFetchable` e
+        // o pool lê `_fallbackFetchable` (autofetch-pools). Hunk do fallback F1.
+        if item
+            .extra
+            .get("fallbackFetchable")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        {
+            stream
+                .extra
+                .insert("_fallbackFetchable".into(), true.into());
+        }
+        // Dublado que só o banco sabe: o classificador da captura marcou
+        // `dubbed=1` mesmo sem o título citar áudio. `ranking_to_pool` lê
+        // `bankDub` para a vaga BR e o pool do Chupim (card irmão do
+        // `_bankDub` do TS, que sai antes do protocolo).
+        if proof.bank_dub {
+            stream.extra.insert("bankDub".into(), true.into());
+        }
     }
     // Foto do índice: o `finish` também a conta como reserva na lista (TTL
     // curto), igual ao `fallbackInList` do TS.
@@ -242,6 +265,20 @@ pub fn map_stream(
 }
 
 pub fn ranking_to_pool(stream: &RankingStream) -> PoolStream {
+    // `map_stream` grava as chaves CANÔNICAS com underscore (`_fromFallback`,
+    // `_fallbackFetchable`), que são as que o contrato trata como internas. O
+    // sem-underscore fica só como compatibilidade de produtores antigos; sem
+    // ler a canônica, `fallback_blocked`/vagas BR nunca enxergam a reserva 📦.
+    let flag = |canonical: &str, legacy: &str| {
+        stream
+            .extra
+            .get(canonical)
+            .or_else(|| stream.extra.get(legacy))
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    };
+    let from_fallback = flag("_fromFallback", "fromFallback");
+    let fallback_fetchable = flag("_fallbackFetchable", "fallbackFetchable");
     PoolStream {
         info_hash: stream.info_hash.clone(),
         title: stream.title.clone(),
@@ -251,22 +288,10 @@ pub fn ranking_to_pool(stream: &RankingStream) -> PoolStream {
         is_br: stream.br.unwrap_or(false),
         is_dubbed: stream.dubbed.unwrap_or(false),
         is_dub_claim: stream.dub_claim.unwrap_or(false),
-        is_bank_dub: stream
-            .extra
-            .get("bankDub")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
+        is_bank_dub: flag("bankDub", "_bankDub"),
         is_lied: stream.lied.unwrap_or(false),
-        from_fallback: stream
-            .extra
-            .get("fromFallback")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
-        fallback_fetchable: stream
-            .extra
-            .get("fallbackFetchable")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
+        from_fallback,
+        fallback_fetchable,
     }
 }
 

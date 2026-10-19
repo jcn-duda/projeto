@@ -15,3 +15,9 @@ mod tests_play_disposition;
 
 #[path = "tests_fallback_after_drop.rs"]
 mod tests_fallback_after_drop;
+
+#[path = "tests_fallback_pool.rs"]
+mod tests_fallback_pool;
+
+#[path = "tests_presentation.rs"]
+mod tests_presentation;
