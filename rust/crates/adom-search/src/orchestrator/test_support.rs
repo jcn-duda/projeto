@@ -302,6 +302,7 @@ pub fn config() -> OrchestratorConfig {
         sweep_enabled: false,
         trace_enabled: true,
         search_index_rescue_min_ms: 2500,
+        tail_collect_ms: 25_000,
     }
 }
 

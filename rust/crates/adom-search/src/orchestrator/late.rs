@@ -62,15 +62,21 @@ impl Orchestrator {
         writer: Arc<LatestWriter>,
     ) {
         let phase = writer.phase();
-        let before = partial_items.len();
-        let mut full = match completion {
-            Some(handle) => handle.await.unwrap_or_else(|_| partial_items.clone()),
-            None => partial_items,
+        // Mudou = cresceu OU trocou marca: a via rápida tira 📦 sem acrescentar
+        // item, e a promoção "sem novidade" gravaria a lista antiga com o selo
+        // e TTL cheio (o mesmo cuidado do `clearInstantSnapshots` do TS).
+        let (mut full, changed) = match completion {
+            Some(handle) => {
+                let full = handle.await.unwrap_or_else(|_| partial_items.clone());
+                let changed = full != partial_items;
+                (full, changed)
+            }
+            None => (partial_items, false),
         };
         let mut last = first;
-        if full.len() > before {
-            // Fontes lentas chegaram: reconstrói com o lote COMPLETO e regrava
-            // (fase atual, revisão mais nova).
+        if changed {
+            // Fontes lentas chegaram (ou marcas saíram): reconstrói com o lote
+            // COMPLETO e regrava (fase atual, revisão mais nova).
             last = self.finish(&input, &meta, &writer, phase, &full, false, None);
         } else {
             // Sem novidade: a entrada parcial é PROMOVIDA pelo `search_finish`

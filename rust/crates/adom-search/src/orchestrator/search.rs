@@ -77,14 +77,14 @@ impl Orchestrator {
                     // no tail e entra por promoção tardia.
                     let fast_items = fast.items;
                     let this = self.clone();
-                    let input_tail = input.clone();
+                    let input_tail = self.tail_input(&input);
                     let meta_tail = meta.clone();
                     let fast_for_tail = fast_items.clone();
                     let completion_handle = tokio::spawn(async move {
-                        let (live_items, _, completion, _) =
+                        let (live_items, _, completion, failed) =
                             this.collect(&input_tail, &meta_tail).await;
                         let live = full_window(live_items, completion).await;
-                        merge_fast_with_live(fast_for_tail, live)
+                        merge_fast_with_live(fast_for_tail, live, failed)
                     });
                     (fast_items, true, Some(completion_handle), false)
                 }
@@ -112,27 +112,31 @@ impl Orchestrator {
                         let fast_for_rescue = fast.items;
                         let completion = Some(tokio::spawn(async move {
                             let live = full_window(live_items, live_completion).await;
-                            merge_fast_with_live(fast_for_rescue, live)
+                            merge_fast_with_live(fast_for_rescue, live, live_failed)
                         }));
                         (merged, live_partial, completion, live_failed)
                     } else {
                         // O TS espera as fontes BR prioritárias ANTES de responder;
                         // globais e passe tardio ficam no tail.
-                        let (br_items, _, br_completion, _) =
+                        let (br_items, _, br_completion, br_failed) =
                             self.collect_scoped(&input, &meta, Some(true)).await;
                         let mut head = fast.items.clone();
                         head.extend(br_items.iter().cloned());
                         let this = self.clone();
-                        let input_tail = input.clone();
+                        let input_tail = self.tail_input(&input);
                         let meta_tail = meta.clone();
                         let fast_for_tail = fast.items;
                         let completion_handle = tokio::spawn(async move {
-                            let (global_items, _, global_completion, _) = this
+                            let (global_items, _, global_completion, global_failed) = this
                                 .collect_scoped(&input_tail, &meta_tail, Some(false))
                                 .await;
                             let mut live = full_window(br_items, br_completion).await;
                             live.extend(full_window(global_items, global_completion).await);
-                            merge_fast_with_live(fast_for_tail, live)
+                            // Grupo sem tarefa nunca "falha": sem nenhum item ao vivo e
+                            // com um grupo falho, a coleta conta como toda falha.
+                            let all_failed = (br_failed && global_failed)
+                                || ((br_failed || global_failed) && live.is_empty());
+                            merge_fast_with_live(fast_for_tail, live, all_failed)
                         });
                         (head, true, Some(completion_handle), false)
                     }

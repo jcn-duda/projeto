@@ -36,6 +36,9 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Some(ms) = env_i64("SEARCH_INDEX_RESCUE_MIN_MS") {
         cfg.search_index_rescue_min_ms = ms;
     }
+    if let Some(ms) = env_i64("SEARCH_TAIL_COLLECT_MS") {
+        cfg.tail_collect_ms = ms;
+    }
     if let Some(grace) = env_u64("STREAM_STALE_GRACE_SECONDS") {
         cfg.stale_grace_seconds = grace;
     }

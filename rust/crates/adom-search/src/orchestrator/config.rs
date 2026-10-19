@@ -61,6 +61,11 @@ pub struct OrchestratorConfig {
     pub trace_enabled: bool,
     /// `SEARCH_INDEX_RESCUE_MIN_MS`: resgate de coleta ao vivo se resposta do índice/acervo não tiver tocável.
     pub search_index_rescue_min_ms: i64,
+    /// `SEARCH_TAIL_COLLECT_MS`: prazo da coleta ao vivo que roda no tail da
+    /// via rápida. O tail do TS não tem prazo (só o timeout de cada indexer);
+    /// a rota interna exige um, e o da RESPOSTA cortava os globais lentos — a
+    /// foto deles nunca perdia o 📦 na promoção.
+    pub tail_collect_ms: i64,
 }
 
 impl Default for OrchestratorConfig {
@@ -84,6 +89,7 @@ impl Default for OrchestratorConfig {
             sweep_enabled: true,
             trace_enabled: true,
             search_index_rescue_min_ms: 2500,
+            tail_collect_ms: 25_000,
         }
     }
 }
