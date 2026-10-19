@@ -221,6 +221,9 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   tail dela coleta com prazo próprio (`SEARCH_TAIL_COLLECT_MS`) e, na
   promoção, tira o 📦 de reserva/foto que a coleta ao vivo superou
   (`merge_fast_with_live`, espelho de `dropInstantFallbacks`/`clearInstantSnapshots`).
+  As rotas `collect`/`index` anexam a prova de arquivo (`applyFileEvidence`):
+  no Rust, chip DUB/DUAL/NAC e `dubbed` só com ela (`list_builder::audio_proof`,
+  o `audioForChip` do `toStremioStream`); o título sozinho é `dub_claim`.
 - **Real-Debrid**: `rd-gate` (escrita serial, AIMD), `rd-ledger` (`rdc:v2`,
   global, miss nunca condena), `rd-oracle` (StremThru/Torrentio opt-in). Três
   kill-switches `DEBRID_RD_GATE/LEDGER/ORACLE`.

@@ -26,12 +26,15 @@
 //! I/O) e o enriquecimento do magnet pelo banco (o caller injeta `dn=` via
 //! `magnet`).
 
+mod audio_proof;
 mod finalize;
 mod helpers;
+mod stats;
 #[cfg(test)]
 mod tests;
 mod types;
 
+pub use audio_proof::AudioAudit;
 use finalize::finalize_streams;
 
 pub use types::{
@@ -215,7 +218,7 @@ pub fn build_stream_list(
     //    do núcleo) e ordena no POOL AMPLIADO.
     let mapped: Vec<RankingStream> = raw
         .iter()
-        .filter_map(|item| map_stream(item, display))
+        .filter_map(|item| map_stream(item, display, &opts.audio_audit))
         .collect();
     let sem_hash = raw.len() - mapped.len();
     if sem_hash > 0 {

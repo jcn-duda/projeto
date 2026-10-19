@@ -98,6 +98,8 @@ pub struct BuildOptions {
     pub pre_home_release_margin_ms: i64,
     /// `config.search.titlePrecisionTailCut` (default `true`).
     pub title_precision_tail_cut: bool,
+    /// `config.audioAudit`: o `dn=` de cena EN anula a promessa de dublado.
+    pub audio_audit: super::AudioAudit,
 }
 
 impl Default for BuildOptions {
@@ -129,6 +131,7 @@ impl Default for BuildOptions {
             pre_home_release_cut: false,
             pre_home_release_margin_ms: 0,
             title_precision_tail_cut: true,
+            audio_audit: super::AudioAudit::default(),
         }
     }
 }

@@ -25,6 +25,7 @@ import { worksForObraMany, sourcesForMany, firstSeenMany } from '../utils/magnet
 import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/search-multiwork.js';
 import { collectRaw } from '../providers/collect-orchestrator.js';
 import { parseSkipSources } from './internal-search-skip.js';
+import { applyFileEvidence } from '../providers/stream-file-evidence.js';
 import { breakerSnapshot } from '../providers/jackett-breaker.js';
 import { parseStremioId } from '../utils/format.js';
 import * as log from '../utils/logger.js';
@@ -314,6 +315,7 @@ async function handleCollect(
       log.warn(`[internal] collect ${type} ${imdbId}: prazo de ${Math.round(budget)}ms atingido`);
       return res.status(504).json({ ok: false, error: 'prazo interno esgotado' });
     }
+    value.items = applyFileEvidence(value.items); // prova de arquivo: chip/_dubbed do Rust
     // Itens crus agrupados por indexer — mesma unidade do cache `raw:v1`
     // (array de RawItem por fonte). Fonte sem rótulo vira "sem-indexer": o
     // orquestrador decide o que fazer, a rota não descarta item.

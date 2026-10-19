@@ -51,8 +51,8 @@ pub use coalesce::InFlight;
 pub use latest_writer::{CommitKind, LatestWriter};
 // BUILD da lista (`stream-builder*`): dos itens crus à lista final.
 pub use list_builder::{
-    apply_notice_origin, build_stream_list, seed_floor_for, BuildContext, BuildOptions, BuiltList,
-    BuiltStream, DebridAnswer, DebridCheck, WorkHint,
+    apply_notice_origin, build_stream_list, seed_floor_for, AudioAudit, BuildContext, BuildOptions,
+    BuiltList, BuiltStream, DebridAnswer, DebridCheck, WorkHint,
 };
 // Costura real com os adaptadores de debrid + reserva interna do Node.
 pub use debrid_seam::{answer_of, AdapterDebridCheck, FallbackCheck, NodeInternalFallback};

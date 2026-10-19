@@ -43,6 +43,13 @@ pub struct RawItem {
     pub from_snapshot: bool,
     /// Mentira comprovada de áudio (`DubLieError`).
     pub lied: bool,
+    /// Prova de ARQUIVO (`applyFileEvidence` do Node, vinda do índice):
+    /// `Some("")` é prova de release EN, não ausência de prova.
+    pub proven_audio: Option<String>,
+    pub proven_name: Option<String>,
+    pub proven_quality: Option<String>,
+    /// Origem BR só pelo indexer, sem promessa de áudio (`brOriginOnly`).
+    pub br_origin_only: bool,
     /// Pack multiobra ADMITIDO (opt-in TMDB) — refeito a cada build.
     pub multi_work_admitted: bool,
     /// Campos públicos preservados que o build não lê.
@@ -158,6 +165,13 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         from_fallback: bool_of("fromFallback") || bool_of("from_fallback"),
         from_snapshot: bool_of("fromSnapshot") || bool_of("from_snapshot"),
         lied: bool_of("lied"),
+        proven_audio: v
+            .get("provenAudio")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        proven_name: str_of(&["provenName"]),
+        proven_quality: str_of(&["provenQuality"]),
+        br_origin_only: bool_of("brOriginOnly"),
         multi_work_admitted: false,
         extra: Map::new(),
     }

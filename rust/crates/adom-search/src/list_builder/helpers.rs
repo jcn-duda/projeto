@@ -1,9 +1,11 @@
 use adom_core::{
-    audio_from_title, bytes_to_size, edition_from_title, is_season_pack_release, looks_pt_br,
-    quality_from_title, source_from_title, stream_display_name, stream_size_label, JsText,
-    PoolStream, RankingStream, StreamDisplayConfig, StreamDisplayOptions, StreamRef,
+    edition_from_title, is_season_pack_release, looks_pt_br, quality_from_title, source_from_title,
+    stream_display_name, stream_size_label, JsText, PoolStream, RankingStream, StreamDisplayConfig,
+    StreamDisplayOptions, StreamRef,
 };
 
+use super::audio_proof::{audio_proof, AudioAudit};
+pub use super::stats::stats_line;
 use super::types::{self, BuildContext, BuildOptions, WorkHint};
 use crate::raw_item::RawItem;
 
@@ -162,15 +164,23 @@ pub fn pre_air_hashes(raw: &[RawItem], ctx: &BuildContext, opts: &BuildOptions) 
 /// e a coluna estreita via `stream_display_name` do NÚCLEO (`JsText` preserva
 /// surrogate órfão dentro do build; a conversão para o `String` do contrato só
 /// acontece na borda — ver [`js_to_contract_string`]).
-pub fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<RankingStream> {
+pub fn map_stream(
+    item: &RawItem,
+    display: &StreamDisplayConfig,
+    audit: &AudioAudit,
+) -> Option<RankingStream> {
     let hash = item.hash();
     if hash.is_empty() {
         return None;
     }
     let title = item.title_text().to_string();
     let br = item.is_br || looks_pt_br(&title);
-    let audio = audio_from_title(&title);
-    let quality = quality_from_title(&title).to_string();
+    let proof = audio_proof(item, &title, br, audit);
+    // O nome do arquivo é fato; o título do post, palpite (`provenQuality`).
+    let quality = item
+        .proven_quality
+        .clone()
+        .unwrap_or_else(|| quality_from_title(&title).to_string());
     let stats = stats_line(item);
     let full_title = if stats.is_empty() {
         title.clone()
@@ -181,7 +191,7 @@ pub fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<Ranki
         &StreamDisplayOptions {
             title: Some(&title),
             quality: Some(&quality),
-            audio: Some(audio),
+            audio: Some(&proof.chip_audio),
             source: Some(source_from_title(&title)),
             edition: Some(edition_from_title(&title)),
             tracker: item.indexer.as_deref(),
@@ -204,9 +214,8 @@ pub fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<Ranki
         size: item.size_bytes,
         bytes: item.size_bytes,
         br: Some(br),
-        // Prova primeiro; Dual é promessa (o núcleo decide no ranking).
-        dubbed: Some(br && audio == "Dublado"),
-        dub_claim: Some(br && audio == "Dual"),
+        dubbed: Some(proof.dubbed),
+        dub_claim: Some(proof.dub_claim),
         indexer: item.indexer.clone(),
         lied: item.lied.then_some(true),
         multi_work_admitted: item.multi_work_admitted.then_some(true),
@@ -229,38 +238,6 @@ pub fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<Ranki
         stream.extra.insert("_fromSnapshot".into(), true.into());
     }
     Some(stream)
-}
-
-/// Linha de estatísticas do título (`👤 N 💾 X`), como o `toStremioStream`.
-pub fn stats_line(item: &RawItem) -> String {
-    let mut parts: Vec<String> = Vec::new();
-    // Dado salvo (reserva do banco ou foto do índice): 📦 e seeders `~N` — é
-    // foto do acervo, não medição viva (o `stored` do `toStremioStream`).
-    let stored = item.from_fallback || item.from_snapshot;
-    if stored {
-        parts.push("📦".into());
-    }
-    let n = item.seeders.unwrap_or(0.0);
-    let count = if n.fract() == 0.0 {
-        format!("{}", n as i64)
-    } else {
-        format!("{n}")
-    };
-    if stored {
-        parts.push(if n > 0.0 {
-            format!("👤 ~{count}")
-        } else {
-            "👤 ~".into()
-        });
-    } else if n > 0.0 {
-        parts.push(format!("👤 {count}"));
-    }
-    if let Some(bytes) = item.size_bytes.filter(|b| *b > 0.0) {
-        if let Some(label) = bytes_to_size(bytes) {
-            parts.push(format!("💾 {label}"));
-        }
-    }
-    parts.join(" ")
 }
 
 pub fn ranking_to_pool(stream: &RankingStream) -> PoolStream {

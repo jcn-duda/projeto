@@ -17,6 +17,7 @@ import { allowedSourceIndexer } from '../providers/allowed-source-indexer.js';
 import * as account from '../providers/account.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { enqueueIndexFollowUp } from '../providers/search-index-path.js';
+import { applyFileEvidence } from '../providers/stream-file-evidence.js';
 import config from '../config.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
@@ -130,9 +131,11 @@ export function registerInternalSearchIndex(router: Router, services: AppService
           is_partial: isPartial,
           index_covered: indexCovered,
           instant_eligible: instantResult.eligible,
-          index_items: idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true })),
-          instant_items: instantResult.items,
-          account_items: accountItems,
+          // Prova de ARQUIVO do índice (áudio/resolução que o play viu): o Rust
+          // decide chip DUB/DUAL e `_dubbed` por ela, como o `toStremioStream`.
+          index_items: applyFileEvidence(idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true }))),
+          instant_items: applyFileEvidence(instantResult.items),
+          account_items: applyFileEvidence(accountItems),
         });
       } catch (err) {
         log.error('[internal-search-index] falha ao consultar índice/banco:', err);

@@ -71,6 +71,13 @@ pub fn operator_search_build_from_env() -> BuildOptions {
     if let Ok(raw) = std::env::var("PREFER_DUBBED") {
         b.prefer_dubbed = env_flag(&raw);
     }
+    // Mesmas listas do Node (`src/config/audit.ts`): o dn= de cena EN anula a
+    // promessa de dublado do post também no /stream nativo.
+    b.audio_audit = adom_search::AudioAudit::from_env_values(
+        std::env::var("AUDIO_AUDIT").ok().as_deref(),
+        std::env::var("AUDIO_AUDIT_PT_MARKERS").ok().as_deref(),
+        std::env::var("AUDIO_AUDIT_EN_GROUPS").ok().as_deref(),
+    );
     // Ausente → default HD; `QUALITY_FILTER=` vazio de propósito aceita todas.
     if let Ok(raw) = std::env::var("QUALITY_FILTER") {
         b.qualities = raw
