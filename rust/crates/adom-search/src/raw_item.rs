@@ -50,6 +50,9 @@ pub struct RawItem {
     pub proven_quality: Option<String>,
     /// Origem BR só pelo indexer, sem promessa de áudio (`brOriginOnly`).
     pub br_origin_only: bool,
+    /// DUAL global cujo título começa com o nome pt do TMDB (`ptTitleDual`,
+    /// marcado pelo Node): prova de origem BR que o acento não trouxe.
+    pub pt_title_dual: bool,
     /// Pack multiobra ADMITIDO (opt-in TMDB) — refeito a cada build.
     pub multi_work_admitted: bool,
     /// Campos públicos preservados que o build não lê.
@@ -172,6 +175,7 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         proven_name: str_of(&["provenName"]),
         proven_quality: str_of(&["provenQuality"]),
         br_origin_only: bool_of("brOriginOnly"),
+        pt_title_dual: bool_of("ptTitleDual"),
         multi_work_admitted: false,
         extra: Map::new(),
     }

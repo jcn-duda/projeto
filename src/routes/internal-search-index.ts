@@ -17,7 +17,8 @@ import { allowedSourceIndexer } from '../providers/allowed-source-indexer.js';
 import * as account from '../providers/account.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { enqueueIndexFollowUp } from '../providers/search-index-path.js';
-import { applyFileEvidence } from '../providers/stream-file-evidence.js';
+import { enrichForRust } from './internal-search-evidence.js';
+import { getTitles } from '../utils/tmdb.js';
 import config from '../config.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
@@ -61,6 +62,9 @@ export function registerInternalSearchIndex(router: Router, services: AppService
       ? (body.names as string[]).filter((n) => n.trim())
       : [];
 
+    // Títulos do TMDB em paralelo (cache aquecido pela rota `meta`): só para o
+    // ptTitleDual — a resposta não espera além do teto curto da via rápida.
+    const titles = getTitles(imdbId).catch(() => null);
     await services.runtime.run({ opts: target.opts, encoded: target.encoded }, async () => {
       try {
         const indexed = (config.releaseIndex.enabled ? releaseIndex.lookup(imdbId, { season, episode }) : [])
@@ -126,16 +130,22 @@ export function registerInternalSearchIndex(router: Router, services: AppService
           );
         }
 
+        // Prova de ARQUIVO e ptTitleDual (o Rust decide chip, `_dubbed` e a
+        // origem BR por eles, como o `toStremioStream`).
+        const until = Date.now() + config.accountFastPath.waitMs;
+        const [indexItems, instantItems, accountOut] = await Promise.all([
+          enrichForRust(idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true })), titles, until),
+          enrichForRust(instantResult.items, titles, until),
+          enrichForRust(accountItems, titles, until),
+        ]);
         return res.json({
           ok: true,
           is_partial: isPartial,
           index_covered: indexCovered,
           instant_eligible: instantResult.eligible,
-          // Prova de ARQUIVO do índice (áudio/resolução que o play viu): o Rust
-          // decide chip DUB/DUAL e `_dubbed` por ela, como o `toStremioStream`.
-          index_items: applyFileEvidence(idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true }))),
-          instant_items: applyFileEvidence(instantResult.items),
-          account_items: applyFileEvidence(accountItems),
+          index_items: indexItems,
+          instant_items: instantItems,
+          account_items: accountOut,
         });
       } catch (err) {
         log.error('[internal-search-index] falha ao consultar índice/banco:', err);

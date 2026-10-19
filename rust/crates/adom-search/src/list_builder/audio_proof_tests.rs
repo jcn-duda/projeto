@@ -78,3 +78,33 @@ fn env_vazio_mantem_as_listas_do_node() {
     assert!(!audit.enabled);
     assert_eq!(audit.pt_markers, AudioAudit::default().pt_markers);
 }
+
+#[test]
+fn espelho_de_cena_en_perde_a_origem_br_do_indexer() {
+    let audit = AudioAudit::default();
+    let mut espelho = raw("Barbie (2023) 1080p WEBRip [YTS.MX]");
+    espelho.is_br = true;
+    assert!(!origin_is_br(
+        &espelho,
+        "Barbie (2023) 1080p WEBRip [YTS.MX]",
+        &audit
+    ));
+
+    let mut post = raw("Barbie (2023) 1080p Dublado");
+    post.is_br = true;
+    assert!(origin_is_br(&post, "Barbie (2023) 1080p Dublado", &audit));
+
+    let mut dual = raw("A Rocha 1996 1080p DUAL");
+    dual.pt_title_dual = true;
+    assert!(
+        origin_is_br(&dual, "A Rocha 1996 1080p DUAL", &audit),
+        "ptTitleDual prova sozinho"
+    );
+
+    let global = raw("Barbie (2023) 1080p WEBRip [YTS.MX]");
+    assert!(!origin_is_br(
+        &global,
+        "Barbie (2023) 1080p WEBRip [YTS.MX]",
+        &audit
+    ));
+}

@@ -25,7 +25,7 @@ import { worksForObraMany, sourcesForMany, firstSeenMany } from '../utils/magnet
 import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/search-multiwork.js';
 import { collectRaw } from '../providers/collect-orchestrator.js';
 import { parseSkipSources } from './internal-search-skip.js';
-import { applyFileEvidence } from '../providers/stream-file-evidence.js';
+import { enrichForRust } from './internal-search-evidence.js';
 import { breakerSnapshot } from '../providers/jackett-breaker.js';
 import { parseStremioId } from '../utils/format.js';
 import * as log from '../utils/logger.js';
@@ -293,9 +293,9 @@ async function handleCollect(
     released: null,
     firstAired: null,
   };
-  // Fontes que o coletor nativo do Rust já cobre: o Node não as repete. Lista
-  // fechada (ver `internal-search-skip.ts`) — token desconhecido é 400.
+  // Fontes que o Rust já coleta (lista fechada em internal-search-skip.ts → 400).
   const skipSet = parseSkipSources(body?.skip_sources);
+  const titles = deps.getTitles(imdbId).catch(() => null); // em paralelo à coleta (ptTitleDual)
   if (skipSet === null) {
     return res.status(400).json({ ok: false, error: 'skip_sources deve ser subconjunto de jackett, prowlarr, torrentio, bludv, mico' });
   }
@@ -315,7 +315,7 @@ async function handleCollect(
       log.warn(`[internal] collect ${type} ${imdbId}: prazo de ${Math.round(budget)}ms atingido`);
       return res.status(504).json({ ok: false, error: 'prazo interno esgotado' });
     }
-    value.items = applyFileEvidence(value.items); // prova de arquivo: chip/_dubbed do Rust
+    value.items = await enrichForRust(value.items, titles, deadlineAt); // chip/_dubbed/isBr do Rust
     // Itens crus agrupados por indexer — mesma unidade do cache `raw:v1`
     // (array de RawItem por fonte). Fonte sem rótulo vira "sem-indexer": o
     // orquestrador decide o que fazer, a rota não descarta item.

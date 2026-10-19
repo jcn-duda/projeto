@@ -8,10 +8,27 @@
 //! `dn=` de cena EN do próprio torrent ainda pode anular.
 
 use adom_core::{
-    audio_from_title, dn_contradicts_dub_claim, explicit_pt_audio, magnet_display_name,
+    audio_from_title, dn_contradicts_dub_claim, en_scene_mirror_title, explicit_pt_audio,
+    looks_pt_br, magnet_display_name,
 };
 
 use crate::raw_item::RawItem;
+
+/// Origem BR do stream (`isBr` do `toStremioStream`): título PT (acento,
+/// vocabulário ou `ptTitleDual`) prova sozinho; o flag do indexer só vale se o
+/// título não for o nome de cena EN intacto — agregador BR republica magnet
+/// gringo ("Barbie (2023) 1080p WEBRip [YTS.MX]") e o flag dava vaga BR a ele.
+pub fn origin_is_br(item: &RawItem, title: &str, audit: &AudioAudit) -> bool {
+    if item.pt_title_dual || looks_pt_br(title) {
+        return true;
+    }
+    if !item.is_br {
+        return false;
+    }
+    let pt: Vec<&str> = audit.pt_markers.iter().map(String::as_str).collect();
+    let en: Vec<&str> = audit.en_groups.iter().map(String::as_str).collect();
+    !en_scene_mirror_title(title, &pt, &en)
+}
 
 /// `config.audioAudit` do Node (`src/config/audit.ts`): mesmas listas e o
 /// mesmo kill-switch `AUDIO_AUDIT`.

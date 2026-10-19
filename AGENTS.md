@@ -221,7 +221,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   tail dela coleta com prazo próprio (`SEARCH_TAIL_COLLECT_MS`) e, na
   promoção, tira o 📦 de reserva/foto que a coleta ao vivo superou
   (`merge_fast_with_live`, espelho de `dropInstantFallbacks`/`clearInstantSnapshots`).
-  As rotas `collect`/`index` anexam a prova de arquivo (`applyFileEvidence`):
+  As rotas `collect`/`index` anexam a prova de arquivo (`applyFileEvidence`) e
+  o `ptTitleDual` (`internal-search-evidence.ts`); a origem BR no Rust segue o
+  `isBr` do Node (`origin_is_br`: título PT ou flag sem espelho de cena EN).
+  Com a prova:
   no Rust, chip DUB/DUAL/NAC e `dubbed` só com ela (`list_builder::audio_proof`,
   o `audioForChip` do `toStremioStream`); o título sozinho é `dub_claim`.
   Série no Rust tem o fallback de pack e o pack tardio do TS

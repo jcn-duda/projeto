@@ -1,10 +1,10 @@
 use adom_core::{
-    edition_from_title, is_season_pack_release, looks_pt_br, quality_from_title, source_from_title,
+    edition_from_title, is_season_pack_release, quality_from_title, source_from_title,
     stream_display_name, stream_size_label, JsText, PoolStream, RankingStream, StreamDisplayConfig,
     StreamDisplayOptions, StreamRef,
 };
 
-use super::audio_proof::{audio_proof, AudioAudit};
+use super::audio_proof::{audio_proof, origin_is_br, AudioAudit};
 pub use super::stats::stats_line;
 use super::types::{self, BuildContext, BuildOptions, WorkHint};
 use crate::raw_item::RawItem;
@@ -174,7 +174,7 @@ pub fn map_stream(
         return None;
     }
     let title = item.title_text().to_string();
-    let br = item.is_br || looks_pt_br(&title);
+    let br = origin_is_br(item, &title, audit);
     let proof = audio_proof(item, &title, br, audit);
     // O nome do arquivo é fato; o título do post, palpite (`provenQuality`).
     let quality = item
