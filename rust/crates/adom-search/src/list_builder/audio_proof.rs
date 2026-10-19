@@ -9,10 +9,42 @@
 
 use adom_core::{
     audio_from_title, dn_contradicts_dub_claim, en_scene_mirror_title, explicit_pt_audio,
-    looks_pt_br, magnet_display_name,
+    foreign_lang_named_for_bucket, looks_pt_br, pt_title_dual_marks, PtTitleDualItem,
+    PtTitleDualTitles,
 };
 
 use crate::raw_item::RawItem;
+
+/// Marca `pt_title_dual` no lote ANTES do build — a decisão é do núcleo
+/// (`adom_core::pt_title_dual`), com os títulos da obra que o orquestrador
+/// recebeu em `/internal/search/meta`.
+///
+/// É o consumo IN-PROCESS: o build não depende do flag que a rota de coleta
+/// anexou ao item. Mantém uma marca já presente (o TS só adiciona `true`) e não
+/// toca em nada quando não há contexto (`titles` ausente/sem `pt` o núcleo já
+/// recusa).
+pub fn apply_pt_title_dual(items: &mut [RawItem], titles: Option<&PtTitleDualTitles>) {
+    let Some(titles) = titles else {
+        return;
+    };
+    let marks = {
+        let inputs: Vec<PtTitleDualItem<'_>> = items
+            .iter()
+            .map(|item| PtTitleDualItem {
+                title: item.title.as_deref(),
+                title_pascal: item.title_pascal.as_deref(),
+                is_br: item.is_br,
+                lied: item.lied,
+            })
+            .collect();
+        pt_title_dual_marks(&inputs, Some(titles))
+    };
+    for (item, marked) in items.iter_mut().zip(marks) {
+        if marked {
+            item.pt_title_dual = true;
+        }
+    }
+}
 
 /// Origem BR do stream (`isBr` do `toStremioStream`): título PT (acento,
 /// vocabulário ou `ptTitleDual`) prova sozinho; o flag do indexer só vale se o
@@ -87,6 +119,16 @@ pub struct AudioProof {
     pub dubbed: bool,
     /// `_dubClaim`: promessa do post que nenhuma evidência contradiz.
     pub dub_claim: bool,
+    /// Promessa CRUA do título, antes de qualquer contradição. `_bankDub` exige
+    /// que ela NÃO exista: com promessa, o `_dubClaim` já cobre o item.
+    pub title_claim: bool,
+    /// Contradição da promessa por prova de arquivo ou `dn=` de cena EN.
+    pub claim_contradicted: bool,
+    /// `_bankDub`: evidência `dubbed=1` gravada pelo classificador da captura,
+    /// exclusiva da reserva 📦 BR e com as MESMAS guardas do claim (sem
+    /// promessa do título, contradição de áudio, origem-da-conta ou mentira).
+    /// Chip e `_dubbed` (prova de arquivo) não mudam.
+    pub bank_dub: bool,
 }
 
 fn is_dub_label(audio: &str) -> bool {
@@ -116,28 +158,50 @@ pub fn audio_proof(item: &RawItem, title: &str, is_br: bool, audit: &AudioAudit)
         Some(p) => is_dub_label(p),
         None => item.proven_name.as_deref().is_some_and(explicit_pt_audio),
     };
+    // O `dn=` do magnet é lido nos DOIS caminhos de áudio: contradição do claim
+    // e a guarda de texto do `_bankDub` (título/dn dizendo LEGENDADO ou idioma
+    // estrangeiro).
+    let dn = item.dn();
     let claim_contradicted = match proven {
         Some(p) => !is_dub_label(p),
         None => {
-            let dn = magnet_display_name(
-                item.magnet.as_deref(),
-                item.magnet_uri.as_deref(),
-                item.guid.as_deref(),
-            );
             let pt: Vec<&str> = audit.pt_markers.iter().map(String::as_str).collect();
             let en: Vec<&str> = audit.en_groups.iter().map(String::as_str).collect();
             dn_contradicts_dub_claim(&dn, audit.enabled, &pt, &en)
         }
     };
+    // O banco guarda CLASSIFICAÇÃO da captura, não prova medida: LEGENDADO
+    // explícito ou idioma estrangeiro nomeado sem PT explícito veta a marca.
+    // DUAL+LEGENDADO é faixa dupla (`audio_from_title` devolve Dual), não veto.
+    let has_explicit_pt_text = explicit_pt_audio(title) || explicit_pt_audio(&dn);
+    let bank_audio_contradicted = title_audio == "Legendado"
+        || audio_from_title(&dn) == "Legendado"
+        || (!has_explicit_pt_text
+            && (foreign_lang_named_for_bucket(title) || foreign_lang_named_for_bucket(&dn)));
     let chip_audio = if positive_proof || !is_dub_label(&audio) {
         audio
     } else {
         String::new()
     };
+    let bank_dub = item.from_fallback
+        && is_br
+        && item
+            .extra
+            .get("dubbed")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        && !item.br_origin_only
+        && !title_claim
+        && !claim_contradicted
+        && !bank_audio_contradicted
+        && !item.lied;
     AudioProof {
         chip_audio,
         dubbed: positive_proof && !item.lied,
         dub_claim: title_claim && !claim_contradicted && !item.lied,
+        title_claim,
+        claim_contradicted,
+        bank_dub,
     }
 }
 

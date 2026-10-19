@@ -64,6 +64,7 @@ mod non_feature_release;
 mod pack_text_totals;
 mod play_disposition;
 mod pt_audio_guards;
+mod pt_title_dual;
 mod release_filters;
 mod release_guards;
 mod release_index_media;
@@ -309,6 +310,11 @@ pub use pack_text_totals::{
     PackTextTotalsOutput,
 };
 pub use pt_audio_guards::{explicit_pt_audio, has_explicit_foreign_audio};
+// Recuperação de DUAL global pelo título pt do TMDB (`ptTitleDual`): o Node
+// deixou de decidir; a rota e o build in-process chamam esta régua.
+pub use pt_title_dual::{
+    pt_title_dual_marks, should_mark_pt_title_dual, PtTitleDualItem, PtTitleDualTitles,
+};
 pub use release_filters::{
     filter_relevant_raw, filter_relevant_raw_for_year, RelevanceItem, RelevanceOutcome,
     RelevanceQuery, RelevanceRejectReason, RelevanceSettings,

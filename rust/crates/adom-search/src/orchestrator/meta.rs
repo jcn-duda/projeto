@@ -43,6 +43,10 @@ pub struct SearchMeta {
     /// Título pt-BR cru (o `titles.pt` do Node), só quando há `pt_query`: base
     /// do pack pt-BR (`ptPackQuery`).
     pub pt_title: Option<String>,
+    /// Contexto de títulos do TMDB (`pt`/`original`/`en`) para a recuperação de
+    /// DUAL global (`ptTitleDual`). O build decide in-process — não depende da
+    /// flag que a rota de coleta manda no item.
+    pub titles: Option<adom_core::PtTitleDualTitles>,
     /// Query da varredura pt-BR nos globais (sem ano nem SxxEyy).
     pub sweep_query: Option<String>,
     /// Degrau do título original (nome cru).
@@ -85,6 +89,7 @@ impl SearchMeta {
             alt_year: None,
             pt_query: None,
             pt_title: None,
+            titles: None,
             sweep_query: None,
             original_query: None,
             multi_work_root: None,
@@ -221,6 +226,17 @@ pub fn meta_from_response(response: &MetaResponse, req: &MetaQuery) -> SearchMet
     };
     let sweep_query = adom_core::pt_sweep_query_for(pt, original);
     let original_query = adom_core::resolve_original_step_name(original, Some(name.as_str()));
+    // Contexto do `ptTitleDual`: o build in-process decide a origem DUAL pelo
+    // título pt distinto — sem depender do flag que a rota anexa ao item.
+    let titles_ctx = titles.map(|t| adom_core::PtTitleDualTitles {
+        original: original.map(str::to_string),
+        pt: pt.map(str::to_string),
+        en: t
+            .get("en")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
+    });
 
     // `resolveMultiWork`: sem ano de catálogo a dica assinada não seleciona
     // arquivo dentro da coleção — a raiz não vale.
@@ -245,6 +261,7 @@ pub fn meta_from_response(response: &MetaResponse, req: &MetaQuery) -> SearchMet
         alt_year,
         query,
         pt_title: pt_query.as_ref().and(pt).map(str::to_string),
+        titles: titles_ctx,
         pt_query,
         sweep_query,
         original_query,

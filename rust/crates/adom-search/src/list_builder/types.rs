@@ -217,6 +217,10 @@ pub struct BuildContext {
     pub episode_counts: Vec<(i64, i64)>,
     /// `first_seen` do banco de magnets vivo por hash (injetado).
     pub first_seen_ms: HashMap<String, f64>,
+    /// Títulos pt/original/en do TMDB: contexto da recuperação de DUAL global
+    /// (`ptTitleDual`). O build decide in-process — não depende da flag que a
+    /// rota de coleta manda no item.
+    pub titles: Option<adom_core::PtTitleDualTitles>,
     /// Bases normalizadas de executáveis do acervo desta obra (corte 2).
     pub executable_bases: Vec<String>,
     /// Relógio da build (ms desde a época).

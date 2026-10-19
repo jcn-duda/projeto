@@ -324,6 +324,7 @@ pub fn meta() -> SearchMeta {
         query: "Filme Teste 2024".into(),
         pt_query: None,
         pt_title: None,
+        titles: None,
         sweep_query: None,
         original_query: None,
         multi_work_root: None,

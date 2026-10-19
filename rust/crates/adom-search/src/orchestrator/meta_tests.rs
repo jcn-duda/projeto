@@ -56,6 +56,12 @@ fn resolve_a_obra_como_o_do_search() {
         Some("The Matrix Collection")
     );
     assert_eq!(meta.episode_counts, vec![(1, 2), (2, 1)]);
+    // Contexto do ptTitleDual: o build in-process recebe pt/original/en da
+    // MESMA resposta de metadados, sem depender da flag da rota de coleta.
+    let titles = meta.titles.expect("títulos do TMDB viram contexto");
+    assert_eq!(titles.pt.as_deref(), Some("Matrix"));
+    assert_eq!(titles.original.as_deref(), Some("The Matrix"));
+    assert_eq!(titles.en, None);
 }
 
 #[test]
@@ -89,4 +95,5 @@ fn sem_ano_nao_ha_raiz_multiobra() {
     let meta = meta_from_response(&response, &query());
     assert_eq!(meta.query, "Sem Ano");
     assert!(meta.multi_work_root.is_none());
+    assert!(meta.titles.is_none(), "sem titles não há contexto DUAL");
 }

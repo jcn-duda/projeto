@@ -56,6 +56,7 @@ pub fn search_meta_from_fixture(v: &Value) -> Result<SearchMeta, SourceError> {
         query,
         pt_query: str_of(v, &["pt_query", "ptQuery"]),
         pt_title: str_of(v, &["pt_title", "ptTitle"]),
+        titles: None,
         sweep_query: str_of(v, &["sweep_query", "sweepQuery"]),
         original_query: str_of(v, &["original_query", "originalQuery"]),
         multi_work_root: str_of(v, &["multi_work_root", "multiWorkRoot"]),

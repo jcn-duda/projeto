@@ -179,13 +179,34 @@ pub(super) fn release_entry(
     entered: &[RawItem],
     survivors: &[RawItem],
 ) -> ReleaseEntry {
+    // Zero auto-perpetuação (Etapa 4): a reserva 📦 NUNCA alimenta o índice de
+    // releases nem o banco. No TS o `releaseIndex.record` recebe
+    // `raw.filter(item => !item.fromFallback)`; aqui a reserva entra no build
+    // para responder, mas sai antes da escrita.
+    let recordable = |item: &&RawItem| !item.from_fallback;
     ReleaseEntry {
         imdb: meta.imdb_id.clone(),
         season: meta.season,
         episode: meta.episode,
-        items: survivors.iter().map(RawItem::to_wire).collect(),
-        entered: Some(entered.iter().map(RawItem::to_wire).collect()),
-        survivors: Some(survivors.iter().map(RawItem::to_wire).collect()),
+        items: survivors
+            .iter()
+            .filter(recordable)
+            .map(RawItem::to_wire)
+            .collect(),
+        entered: Some(
+            entered
+                .iter()
+                .filter(recordable)
+                .map(RawItem::to_wire)
+                .collect(),
+        ),
+        survivors: Some(
+            survivors
+                .iter()
+                .filter(recordable)
+                .map(RawItem::to_wire)
+                .collect(),
+        ),
         source: None,
     }
 }
@@ -329,6 +350,9 @@ impl Orchestrator {
             episode_counts: meta.episode_counts.clone(),
             first_seen_ms: HashMap::new(),
             executable_bases: Vec::new(),
+            // Contexto do ptTitleDual: o build decide in-process (o Node não
+            // precisa mandar a flag no item).
+            titles: meta.titles.clone(),
             now_ms: input.now_ms,
         }
     }

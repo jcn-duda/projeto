@@ -34,7 +34,7 @@ mod stats;
 mod tests;
 mod types;
 
-pub use audio_proof::AudioAudit;
+pub use audio_proof::{apply_pt_title_dual, AudioAudit};
 use finalize::finalize_streams;
 
 pub use types::{
@@ -125,6 +125,11 @@ pub fn build_stream_list(
             novo
         })
         .collect();
+
+    // ptTitleDual IN-PROCESS: o contexto pt/original/en veio do `SearchMeta`;
+    // a decisão é do núcleo, não da flag que a rota anexou ao item. Marca antes
+    // do filtro de título — o lote filtrado também alimenta o índice de releases.
+    apply_pt_title_dual(&mut raw, ctx.titles.as_ref());
 
     // 2. Release falsa: executável no título/dn, mesmo hash de um executável
     //    e irmão com a base de um executável do lote/acervo (bases injetadas).

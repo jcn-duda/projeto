@@ -67,6 +67,9 @@ mod play;
 mod stream_final;
 // Pré-resolve do protetor BR em lote: fronteira de `jackett-resolve.ts`.
 mod pre_resolve;
+// Recuperação de DUAL global pelo título pt do TMDB (`ptTitleDual`): o TS só
+// transporta; a régua mora no `adom-core`.
+mod pt_title_dual;
 mod quotas;
 mod ranking;
 mod release_index_media;
@@ -104,6 +107,7 @@ pub use episode_matching::*;
 pub use episode_size::*;
 // Pré-resolve do protetor BR em lote: só índices aprovados saem pela fronteira.
 pub use pre_resolve::*;
+pub use pt_title_dual::*;
 pub use ranking::*;
 // Filtro de relevância inteiro no núcleo: só índices saem pela fronteira.
 pub use release_index_media::*;
