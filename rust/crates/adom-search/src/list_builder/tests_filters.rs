@@ -324,3 +324,27 @@ fn pre_air_na_conta_usa_so_o_first_seen_injetado() {
         "first_seen anterior à estreia-margem corta mesmo na conta (só aviso)"
     );
 }
+
+/// Foto do índice e reserva do banco exibem 📦 e seeders `~N` (o `stored` do
+/// `toStremioStream`); item vivo segue com `👤 N` puro.
+#[test]
+fn foto_do_indice_e_reserva_exibem_selo_de_dado_salvo() {
+    use crate::list_builder::helpers::stats_line;
+    use crate::raw_item::RawItem;
+    let vivo = RawItem {
+        seeders: Some(12.0),
+        ..RawItem::default()
+    };
+    let foto = RawItem {
+        seeders: Some(12.0),
+        from_snapshot: true,
+        ..RawItem::default()
+    };
+    let reserva = RawItem {
+        from_fallback: true,
+        ..RawItem::default()
+    };
+    assert_eq!(stats_line(&vivo), "👤 12");
+    assert_eq!(stats_line(&foto), "📦 👤 ~12");
+    assert_eq!(stats_line(&reserva), "📦 👤 ~");
+}

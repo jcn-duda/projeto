@@ -187,7 +187,8 @@ pub fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<Ranki
             tracker: item.indexer.as_deref(),
             is_br: br,
             seeders: Some(&types::seeders_value_of(item.seeders)),
-            from_fallback: item.from_fallback,
+            // `stored` do TS: foto do índice exibe o MESMO selo da reserva.
+            from_fallback: item.from_fallback || item.from_snapshot,
             style: None,
             show_source: None,
         },
@@ -233,16 +234,26 @@ pub fn map_stream(item: &RawItem, display: &StreamDisplayConfig) -> Option<Ranki
 /// Linha de estatísticas do título (`👤 N 💾 X`), como o `toStremioStream`.
 pub fn stats_line(item: &RawItem) -> String {
     let mut parts: Vec<String> = Vec::new();
-    if item.seeders.unwrap_or(0.0) > 0.0 {
-        let n = item.seeders.unwrap_or(0.0);
-        parts.push(format!(
-            "👤 {}",
-            if n.fract() == 0.0 {
-                format!("{}", n as i64)
-            } else {
-                format!("{n}")
-            }
-        ));
+    // Dado salvo (reserva do banco ou foto do índice): 📦 e seeders `~N` — é
+    // foto do acervo, não medição viva (o `stored` do `toStremioStream`).
+    let stored = item.from_fallback || item.from_snapshot;
+    if stored {
+        parts.push("📦".into());
+    }
+    let n = item.seeders.unwrap_or(0.0);
+    let count = if n.fract() == 0.0 {
+        format!("{}", n as i64)
+    } else {
+        format!("{n}")
+    };
+    if stored {
+        parts.push(if n > 0.0 {
+            format!("👤 ~{count}")
+        } else {
+            "👤 ~".into()
+        });
+    } else if n > 0.0 {
+        parts.push(format!("👤 {count}"));
     }
     if let Some(bytes) = item.size_bytes.filter(|b| *b > 0.0) {
         if let Some(label) = bytes_to_size(bytes) {
