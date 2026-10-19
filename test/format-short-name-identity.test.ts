@@ -356,3 +356,29 @@ test('inventário da conta também é protegido (mesmo filtro, sem exceção)', 
   const out = filterInventoryRelevant(itens, { ...BOYS, season: 1 });
   assert.deepEqual(out.map((i: RawItem) => i.title), ['The.Boys.S01.1080p.AMZN.WEB-DL']);
 });
+
+test('nome numérico/pontuado: identidade completa e cauda de tags (3%, 9-1-1, 11.22.63)', () => {
+  // 3%: a cobertura 1/1 aprovaria "3 Body Problem"; o run completo e a cauda
+  // (só S/E, temporada, ano, idioma, qualidade) cortam.
+  assert.deepEqual(shortNameIdentity('3%'), { kind: 'prefix', want: '3', run: ['3'] });
+  assert.equal(matchesShortNameIdentity('3 Body Problem S01 1080p', shortNameIdentity('3%')), false);
+  assert.equal(matchesShortNameIdentity('3 Body Problem S01E01 1080p', shortNameIdentity('3%')), false);
+  assert.equal(matchesShortNameIdentity('3% S01E01 1080p', shortNameIdentity('3%')), true);
+  // A base deduplica; o run preserva a multiplicidade e a ordem.
+  assert.deepEqual(shortNameIdentity('9-1-1'), { kind: 'prefix', want: '9', run: ['9', '1', '1'] });
+  assert.equal(matchesShortNameIdentity('9-1-1 Lone Star S01E01', shortNameIdentity('9-1-1')), false);
+  assert.equal(matchesShortNameIdentity('9 1 S01E01 1080p', shortNameIdentity('9-1-1')), false);
+  assert.deepEqual(shortNameIdentity('11.22.63'), { kind: 'prefix', want: '11', run: ['11', '22', '63'] });
+  assert.equal(matchesShortNameIdentity('11 22 64 S01E01', shortNameIdentity('11.22.63')), false);
+  // Pipeline: o filtro de título roda sem season/episode; o pack e a série
+  // inteira também precisam ser barrados nos três shapes.
+  for (const req of [{ season: 1, episode: 1 }, { season: 1, episode: null }, { season: null, episode: null }]) {
+    assert.equal(relevantRaw([{ title: '3 Body Problem S01 1080p' }], { names: ['3%'], isSeries: true, ...req }).length, 0);
+    assert.equal(relevantRaw([{ title: '3% S01 1080p' }], { names: ['3%'], isSeries: true, ...req }).length, 1);
+  }
+  // V, sigla e alias não latino seguem no caminho antigo.
+  assert.equal(shortNameIdentity('V').kind, 'no-token');
+  for (const [name, title] of [['V', 'V S01E01 1080p'], ['S.W.A.T.', 'S.W.A.T. S01E01 1080p'], ['光環', '光環 S01E01 1080p']]) {
+    assert.equal(relevantRaw([{ title }], { names: [name], isSeries: true, season: 1, episode: 1 }).length, 1, name);
+  }
+});

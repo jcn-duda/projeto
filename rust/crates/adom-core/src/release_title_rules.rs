@@ -21,12 +21,15 @@ use regex::Regex;
 use crate::franchise::{
     franchise_base_contradicts, is_multi_work_collection, name_coverage_tokens,
 };
-use crate::matching_decisions::{first_significant_token, first_year_in, year_contradicts};
+use crate::matching_decisions::{
+    first_significant_token, first_year_in, is_plain_digits, year_contradicts,
+};
 use crate::matching_tokens::{
     extract_sequence_markers, first_unmarked_token, first_work_token, is_non_latin_token,
     is_non_naming_token, is_year_token,
 };
 use crate::matching_vocabulary::title_tokens;
+use crate::short_name_tail::numeric_identity_matches;
 
 /// `\s` do JS (WhiteSpace + LineTerminator), escrito como classe do crate
 /// `regex`. Substitui `{WS}` nos padrões abaixo.
@@ -147,9 +150,11 @@ pub(crate) fn matches_title_structure_with(
 pub enum ShortNameIdentity {
     /// Base efetiva com 3+ tokens ou vazia: o portão não se aplica.
     Skip,
-    /// Base de 1–2 tokens sem token latino que nomeie a obra.
+    /// Base de 1–2 tokens sem token latino que nomeie a obra (It, Up, V,
+    /// alias em outro script).
     NoToken,
-    /// Há token que nomeia a obra: a release precisa começar por ele.
+    /// Há identidade a exigir: o token que nomeia (ou, para nome 100%
+    /// numérico, a sequência completa) precisa abrir a release.
     Prefix { want: String, run: Vec<String> },
 }
 
@@ -157,12 +162,25 @@ pub enum ShortNameIdentity {
 const SHORT_NAME_BASE_MAX: usize = 2;
 
 /// `shortNameIdentity`: decide, por nome, o que o portão vai exigir.
+///
+/// Nome 100% numérico (`3%` → `3`, `24`, `9-1-1`, `11.22.63`) não tem token
+/// latino que "nomeie" a obra, mas o nome INTEIRO é a identidade. Antes, esses
+/// nomes caíam em `NoToken` e o portão se calava: a cobertura de `"3%"` é só
+/// `["3"]`, então "3 Body Problem" passava. O `run` usa `title_tokens` (não a
+/// base deduplicada de `name_coverage_tokens`), preservando a multiplicidade
+/// de `9-1-1` → `9 1 1` e a ordem de `11.22.63` → `11 22 63`.
 pub fn short_name_identity(name: &str) -> ShortNameIdentity {
+    let tokens = title_tokens(name);
+    if is_numeric_identity_name(&tokens) {
+        return ShortNameIdentity::Prefix {
+            want: tokens[0].clone(),
+            run: tokens,
+        };
+    }
     let base = name_coverage_tokens(name);
     if base.is_empty() || base.len() > SHORT_NAME_BASE_MAX {
         return ShortNameIdentity::Skip;
     }
-    let tokens = title_tokens(name);
     let Some(want) = first_work_token(&tokens) else {
         return ShortNameIdentity::NoToken;
     };
@@ -175,6 +193,20 @@ pub fn short_name_identity(name: &str) -> ShortNameIdentity {
         want: want.to_string(),
         run,
     }
+}
+
+/// Nome cujos tokens são TODOS dígitos ASCII: a identidade é a sequência
+/// completa, não um token nomeante. Só ASCII de propósito — nome em outro
+/// script segue em `NoToken` e a cobertura continua decidindo.
+fn is_numeric_identity_name(tokens: &[String]) -> bool {
+    !tokens.is_empty() && tokens.iter().all(|t| is_plain_digits(t))
+}
+
+/// `run` que veio do ramo numérico. O `run` normal nunca contém dígito puro:
+/// `is_non_naming_token` já descarta número de 1–2 dígitos e `STRUCTURE_TOKEN`
+/// descarta os longos, então qualquer run todo-numérico é do ramo novo.
+fn is_numeric_run(run: &[String]) -> bool {
+    !run.is_empty() && run.iter().all(|t| is_plain_digits(t))
 }
 
 /// `namedAfterSeparator`: depois de um separador explícito, o trecho começa
@@ -259,8 +291,32 @@ pub fn matches_short_name_identity(
     let ShortNameIdentity::Prefix { want, run } = check else {
         return true;
     };
+    // Nome numérico/pontuado: a prova é a sequência COMPLETA (`run`), não um
+    // token que "começa" o título — "3" no começo de "3 Body Problem" não é
+    // identidade de "3%".
+    if is_numeric_run(run) {
+        if names_numeric_work(title, tokens, run) {
+            return true;
+        }
+        return !dn.is_empty() && names_numeric_work(dn, None, run);
+    }
     if names_the_work(title, tokens, want, run) {
         return true;
     }
     !dn.is_empty() && names_the_work(dn, None, want, run)
+}
+
+/// Mesma preparação de `names_the_work` (etiqueta de uploader fora, tokens do
+/// título ou já calculados) para a identidade numérica completa.
+fn names_numeric_work(text: &str, tokens: Option<&[String]>, run: &[String]) -> bool {
+    let untagged = leading_release_tag().replace(text, "").into_owned();
+    let own: Vec<String> = if !untagged.is_empty() && untagged != text {
+        title_tokens(&untagged)
+    } else {
+        match tokens {
+            Some(t) => t.to_vec(),
+            None => title_tokens(text),
+        }
+    };
+    numeric_identity_matches(&own, run)
 }
