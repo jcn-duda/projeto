@@ -155,7 +155,14 @@ pub enum ShortNameIdentity {
     NoToken,
     /// Há identidade a exigir: o token que nomeia (ou, para nome 100%
     /// numérico, a sequência completa) precisa abrir a release.
-    Prefix { want: String, run: Vec<String> },
+    Prefix {
+        want: String,
+        run: Vec<String>,
+        /// O nome carrega `%` no ramo numérico ("3%", "100%"): a grafia
+        /// `percent` pode substituir o símbolo naquela posição. Fica falso em
+        /// todo nome sem símbolo — "24" não aceita "24 Percent".
+        percent_spelling: bool,
+    },
 }
 
 /// `SHORT_NAME_BASE_MAX`: acima dela o corte de 0,6 já exige nome quase inteiro.
@@ -175,6 +182,9 @@ pub fn short_name_identity(name: &str) -> ShortNameIdentity {
         return ShortNameIdentity::Prefix {
             want: tokens[0].clone(),
             run: tokens,
+            // Só o símbolo no NOME autoriza a grafia; "3 Percent" como alias
+            // segue o ramo comum e não liga esta equivalência.
+            percent_spelling: name.contains('%'),
         };
     }
     let base = name_coverage_tokens(name);
@@ -192,6 +202,7 @@ pub fn short_name_identity(name: &str) -> ShortNameIdentity {
     ShortNameIdentity::Prefix {
         want: want.to_string(),
         run,
+        percent_spelling: false,
     }
 }
 
@@ -288,17 +299,22 @@ pub fn matches_short_name_identity(
     tokens: Option<&[String]>,
     dn: &str,
 ) -> bool {
-    let ShortNameIdentity::Prefix { want, run } = check else {
+    let ShortNameIdentity::Prefix {
+        want,
+        run,
+        percent_spelling,
+    } = check
+    else {
         return true;
     };
     // Nome numérico/pontuado: a prova é a sequência COMPLETA (`run`), não um
     // token que "começa" o título — "3" no começo de "3 Body Problem" não é
     // identidade de "3%".
     if is_numeric_run(run) {
-        if names_numeric_work(title, tokens, run) {
+        if names_numeric_work(title, tokens, run, *percent_spelling) {
             return true;
         }
-        return !dn.is_empty() && names_numeric_work(dn, None, run);
+        return !dn.is_empty() && names_numeric_work(dn, None, run, *percent_spelling);
     }
     if names_the_work(title, tokens, want, run) {
         return true;
@@ -308,7 +324,12 @@ pub fn matches_short_name_identity(
 
 /// Mesma preparação de `names_the_work` (etiqueta de uploader fora, tokens do
 /// título ou já calculados) para a identidade numérica completa.
-fn names_numeric_work(text: &str, tokens: Option<&[String]>, run: &[String]) -> bool {
+fn names_numeric_work(
+    text: &str,
+    tokens: Option<&[String]>,
+    run: &[String],
+    percent_spelling: bool,
+) -> bool {
     let untagged = leading_release_tag().replace(text, "").into_owned();
     let own: Vec<String> = if !untagged.is_empty() && untagged != text {
         title_tokens(&untagged)
@@ -318,5 +339,5 @@ fn names_numeric_work(text: &str, tokens: Option<&[String]>, run: &[String]) -> 
             None => title_tokens(text),
         }
     };
-    numeric_identity_matches(&own, run)
+    numeric_identity_matches(&own, run, percent_spelling)
 }

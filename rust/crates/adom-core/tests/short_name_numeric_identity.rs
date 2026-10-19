@@ -18,7 +18,15 @@ use adom_core::{
 
 fn prefix(name: &str) -> ShortNameIdentity {
     match short_name_identity(name) {
-        ShortNameIdentity::Prefix { want, run } => ShortNameIdentity::Prefix { want, run },
+        ShortNameIdentity::Prefix {
+            want,
+            run,
+            percent_spelling,
+        } => ShortNameIdentity::Prefix {
+            want,
+            run,
+            percent_spelling,
+        },
         other => panic!("{name:?} deveria ser prefix, veio {other:?}"),
     }
 }
@@ -74,6 +82,7 @@ fn identidade_numerica_carrega_a_sequencia_completa_sem_dedup() {
         ShortNameIdentity::Prefix {
             want: "3".to_string(),
             run: vec!["3".to_string()],
+            percent_spelling: true,
         }
     );
     assert_eq!(run_of("24"), vec!["24".to_string()]);

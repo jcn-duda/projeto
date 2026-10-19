@@ -383,10 +383,16 @@ impl<'a> Decider<'a> {
 }
 
 /// `shortNameTailContradicts` só age com UM token no `run` do nome prefixado:
-/// o TS faz `check.run[0]` nesse caso e devolve `false` nos demais.
+/// o TS faz `check.run[0]` nesse caso e devolve `false` nos demais. Nome com
+/// `%` fica fora: a identidade numérica já exige o run inteiro e trata
+/// `percent` como a grafia do símbolo; a cauda veria a palavra como conteúdo.
 fn short_name_tail_token(check: &ShortNameIdentity) -> Option<&str> {
     match check {
-        ShortNameIdentity::Prefix { run, .. } if run.len() == 1 => Some(run[0].as_str()),
+        ShortNameIdentity::Prefix {
+            run,
+            percent_spelling: false,
+            ..
+        } if run.len() == 1 => Some(run[0].as_str()),
         _ => None,
     }
 }

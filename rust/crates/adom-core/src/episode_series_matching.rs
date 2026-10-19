@@ -114,7 +114,7 @@ pub fn matches_episode_work_identity(
 
     // Universo de nomes: `universeTokens` ou a concatenação dos tokens de
     // todos os aliases da obra.
-    let universe: Vec<String> = match universe_tokens {
+    let mut universe: Vec<String> = match universe_tokens {
         Some(u) => u.to_vec(),
         None => names
             .iter()
@@ -122,6 +122,14 @@ pub fn matches_episode_work_identity(
             .filter(|t| !t.is_empty())
             .collect(),
     };
+    // `%` vira separador na normalização; o release medido escreve
+    // "3.Percent.S01E01". A grafia só entra no universo quando um NOME da obra
+    // carrega o símbolo — é equivalência contextual, não ruído global (sem
+    // isto "24 Percent S01E01" contaria como precisão de "24"). Só aumenta a
+    // precisão: nunca faz um item antes aceito ser rejeitado.
+    if names.iter().any(|n| n.contains('%')) && !universe.iter().any(|t| t == "percent") {
+        universe.push("percent".to_string());
+    }
 
     title_precision(&work, &universe, cut_tail) >= SERIES_TITLE_PRECISION_MIN
 }

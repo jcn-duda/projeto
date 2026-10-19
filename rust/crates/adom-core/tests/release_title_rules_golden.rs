@@ -55,7 +55,9 @@ fn identity_text(check: &ShortNameIdentity) -> String {
     match check {
         ShortNameIdentity::Skip => "skip".to_string(),
         ShortNameIdentity::NoToken => "no-token".to_string(),
-        ShortNameIdentity::Prefix { want, run } => format!("prefix|{want}|{}", run.join(" ")),
+        ShortNameIdentity::Prefix { want, run, .. } => {
+            format!("prefix|{want}|{}", run.join(" "))
+        }
     }
 }
 

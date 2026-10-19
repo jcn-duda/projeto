@@ -95,7 +95,16 @@ fn is_identity_tail_tag(token: &str) -> bool {
 /// o título depois de rótulos de release. Depois dela só passam etiquetas
 /// (S/E, temporada, ano, idioma, qualidade) — o primeiro token de CONTEÚDO
 /// antes do marcador de episódio/temporada nomeia outra obra.
-pub(crate) fn numeric_identity_matches(tokens: &[String], run: &[String]) -> bool {
+///
+/// `percent_spelling` vale só para nome que carrega `%` no ramo numérico:
+/// nesse caso `percent` pode ocupar a posição do símbolo logo após o run
+/// ("3.Percent.S01E01"). É equivalência contextual de grafia, não ruído
+/// global: não entra em `is_non_naming_token` e não vale para "24".
+pub(crate) fn numeric_identity_matches(
+    tokens: &[String],
+    run: &[String],
+    percent_spelling: bool,
+) -> bool {
     if run.is_empty() {
         return false;
     }
@@ -111,7 +120,11 @@ pub(crate) fn numeric_identity_matches(tokens: &[String], run: &[String]) -> boo
     if tokens.get(at..at + run.len()) != Some(run) {
         return false;
     }
-    for token in &tokens[at + run.len()..] {
+    let mut tail_at = at + run.len();
+    if percent_spelling && tokens.get(tail_at).map(String::as_str) == Some("percent") {
+        tail_at += 1;
+    }
+    for token in &tokens[tail_at..] {
         let token = token.as_str();
         if is_identity_tail_boundary(token) {
             return true;

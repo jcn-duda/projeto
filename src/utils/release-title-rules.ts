@@ -48,13 +48,14 @@ const SERIES_TITLE_PRECISION_MIN = 0.70;
 type ShortNameIdentity =
   | { kind: 'skip' }
   | { kind: 'no-token' }
-  | { kind: 'prefix'; want: string; run: string[] };
+  | { kind: 'prefix'; want: string; run: string[]; percentSpelling?: true };
 
 /** Identidade como o `.node` a devolve (`undefined` nos campos ausentes). */
 type ShortNameIdentityNapi = {
   kind: string;
   want?: string;
   run?: string[];
+  percentSpelling?: boolean;
 };
 
 /** Funções dos portões de título no `.node` (camelCase do napi-rs). */
@@ -79,7 +80,7 @@ type TitleRulesCore = {
   shortNameIdentityNapi(name: string): ShortNameIdentityNapi;
   matchesShortNameIdentityNapi(
     title: string,
-    check: { kind: string; want?: string; run?: string[] },
+    check: { kind: string; want?: string; run?: string[]; percentSpelling?: boolean },
     tokens: string[] | null,
     dn: string,
   ): boolean;
@@ -179,7 +180,14 @@ function matchesGlobalSeriesNoMarker(title: string, tokens: string[], universe: 
 function shortNameIdentity(name: string): ShortNameIdentity {
   const value = core().shortNameIdentityNapi(String(name));
   if (value.kind === 'prefix' && value.want != null) {
-    return { kind: 'prefix', want: value.want, run: value.run ?? [] };
+    // A propriedade só existe quando o NOME tem `%`; nomes sem símbolo
+    // preservam a forma `{kind, want, run}` que os chamadores já consomem.
+    return {
+      kind: 'prefix',
+      want: value.want,
+      run: value.run ?? [],
+      ...(value.percentSpelling ? { percentSpelling: true as const } : {}),
+    };
   }
   return value.kind === 'no-token' ? { kind: 'no-token' } : { kind: 'skip' };
 }
@@ -197,7 +205,14 @@ function matchesShortNameIdentity(
   dn = '',
 ): boolean {
   const value =
-    check.kind === 'prefix' ? { kind: check.kind, want: check.want, run: check.run } : { kind: check.kind };
+    check.kind === 'prefix'
+      ? {
+          kind: check.kind,
+          want: check.want,
+          run: check.run,
+          ...(check.percentSpelling ? { percentSpelling: true } : {}),
+        }
+      : { kind: check.kind };
   return core().matchesShortNameIdentityNapi(String(title), value, tokens, String(dn));
 }
 

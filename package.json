@@ -319,6 +319,7 @@
     "test/format-quota-reserve.test.js",
     "test/format-search-names.test.js",
     "test/format-short-name-identity.test.js",
+    "test/format-short-name-percent.test.js",
     "test/format-short-name-prefix.test.js",
     "test/franchise-base-subtitle.test.js",
     "test/format-sort-limit.test.js",

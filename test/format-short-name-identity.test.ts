@@ -360,7 +360,12 @@ test('inventário da conta também é protegido (mesmo filtro, sem exceção)', 
 test('nome numérico/pontuado: identidade completa e cauda de tags (3%, 9-1-1, 11.22.63)', () => {
   // 3%: a cobertura 1/1 aprovaria "3 Body Problem"; o run completo e a cauda
   // (só S/E, temporada, ano, idioma, qualidade) cortam.
-  assert.deepEqual(shortNameIdentity('3%'), { kind: 'prefix', want: '3', run: ['3'] });
+  assert.deepEqual(shortNameIdentity('3%'), {
+    kind: 'prefix',
+    want: '3',
+    run: ['3'],
+    percentSpelling: true,
+  });
   assert.equal(matchesShortNameIdentity('3 Body Problem S01 1080p', shortNameIdentity('3%')), false);
   assert.equal(matchesShortNameIdentity('3 Body Problem S01E01 1080p', shortNameIdentity('3%')), false);
   assert.equal(matchesShortNameIdentity('3% S01E01 1080p', shortNameIdentity('3%')), true);

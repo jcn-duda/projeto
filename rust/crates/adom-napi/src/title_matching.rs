@@ -40,6 +40,9 @@ pub struct ShortNameIdentityNapi {
     pub want: Option<String>,
     /// Sequência dos tokens que NOMEIAM a obra, na ordem do nome (só em `prefix`).
     pub run: Option<Vec<String>>,
+    /// O nome numérico carrega `%` ("3%"): `percent` pode substituir o símbolo
+    /// na posição do run. Ausente em todo nome sem símbolo.
+    pub percent_spelling: Option<bool>,
 }
 
 /// `shortNameIdentity`: a decisão é do NOME e não muda entre itens.
@@ -70,6 +73,7 @@ fn to_identity(value: ShortNameIdentityNapi) -> ShortNameIdentity {
         "prefix" => ShortNameIdentity::Prefix {
             want: value.want.unwrap_or_default(),
             run: value.run.unwrap_or_default(),
+            percent_spelling: value.percent_spelling.unwrap_or(false),
         },
         "no-token" => ShortNameIdentity::NoToken,
         _ => ShortNameIdentity::Skip,
@@ -83,16 +87,23 @@ fn from_identity(value: ShortNameIdentity) -> ShortNameIdentityNapi {
             kind: "skip".to_string(),
             want: None,
             run: None,
+            percent_spelling: None,
         },
         ShortNameIdentity::NoToken => ShortNameIdentityNapi {
             kind: "no-token".to_string(),
             want: None,
             run: None,
+            percent_spelling: None,
         },
-        ShortNameIdentity::Prefix { want, run } => ShortNameIdentityNapi {
+        ShortNameIdentity::Prefix {
+            want,
+            run,
+            percent_spelling,
+        } => ShortNameIdentityNapi {
             kind: "prefix".to_string(),
             want: Some(want),
             run: Some(run),
+            percent_spelling: percent_spelling.then_some(true),
         },
     }
 }

@@ -11,6 +11,7 @@ fn identidade_de_nome_curto_ida_e_volta() {
         kind: boys.kind.clone(),
         want: boys.want.clone(),
         run: boys.run.clone(),
+        percent_spelling: boys.percent_spelling,
     };
     assert!(matches_short_name_identity_napi(
         "The Boys S01 1080p".to_string(),
@@ -23,10 +24,34 @@ fn identidade_de_nome_curto_ida_e_volta() {
         kind: boys.kind,
         want: boys.want,
         run: boys.run,
+        percent_spelling: boys.percent_spelling,
     };
     assert!(!matches_short_name_identity_napi(
         "The Hardy Boys S01 1080p".to_string(),
         check,
+        None,
+        String::new()
+    ));
+}
+
+/// (a2) A grafia `%` -> `percent` atravessa a ponte só quando o nome tem `%`.
+#[test]
+fn identidade_percentual_sobrevive_a_ponte() {
+    let tres = short_name_identity_napi("3%".to_string());
+    assert_eq!(tres.kind, "prefix");
+    assert_eq!(tres.percent_spelling, Some(true));
+    assert!(matches_short_name_identity_napi(
+        "3.Percent.S01E01.1080p".to_string(),
+        tres,
+        None,
+        String::new()
+    ));
+
+    let vinte_e_quatro = short_name_identity_napi("24".to_string());
+    assert_eq!(vinte_e_quatro.percent_spelling, None);
+    assert!(!matches_short_name_identity_napi(
+        "24 Percent S01E01".to_string(),
+        vinte_e_quatro,
         None,
         String::new()
     ));
@@ -55,6 +80,7 @@ fn kind_desconhecido_e_skip() {
         kind: "???".to_string(),
         want: Some("x".to_string()),
         run: None,
+        percent_spelling: None,
     };
     assert!(matches_short_name_identity_napi(
         "Coisa Qualquer".to_string(),
