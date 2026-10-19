@@ -62,6 +62,7 @@ before(async () => {
   collaborators = {
     adapterFor: () => stubAdapter(),
     apiKeyOf: () => 'chave-de-teste',
+    availabilityCheck: () => null,
   };
   registerInternalDebridCheck(app as unknown as express.Router, services, collaborators);
   server = await createTestServer(app);
@@ -163,6 +164,33 @@ test('lote ok: cached/known por hash, parcial falso, chave e hashes em LOTE no a
   // (não "não está em cache").
   assert.deepEqual(res.json.results[HASH_A], { cached: true, known: true });
   assert.deepEqual(res.json.results[HASH_B], { cached: false, known: true });
+});
+
+test('checagem da busca (davail) responde no lugar do adaptador cru, unusable vira estado da conta', async () => {
+  let rawCalls = 0;
+  const asked: Array<{ service: string; hashes: string[] }> = [];
+  collaborators.adapterFor = () => stubAdapter({ checkCached: async () => { rawCalls += 1; return new Set(); } });
+  collaborators.availabilityCheck = (service, hashes) => {
+    asked.push({ service, hashes: [...hashes] });
+    return Promise.resolve({ cached: new Set([HASH_A]), known: true });
+  };
+  try {
+    const res = await post({ encoded, service: 'alldebrid', hashes: [HASH_A, HASH_B], deadline_at: Date.now() + 5_000 });
+    assert.equal(res.status, 200);
+    assert.equal(rawCalls, 0, 'o upload cru da AllDebrid não roda quando a checagem da busca responde');
+    assert.deepEqual(asked, [{ service: 'alldebrid', hashes: [HASH_A, HASH_B] }]);
+    assert.deepEqual(res.json.results[HASH_A], { cached: true, known: true });
+    assert.deepEqual(res.json.results[HASH_B], { cached: false, known: true });
+
+    collaborators.availabilityCheck = () => Promise.resolve({
+      cached: new Set<string>(), known: false, unusable: { reason: 'auth', message: 'chave recusada' },
+    });
+    const bad = await post({ encoded, service: 'alldebrid', hashes: [HASH_A], deadline_at: Date.now() + 5_000 });
+    assert.equal(bad.json.unusable, 'auth');
+    assert.equal(bad.json.results[HASH_A].unusable, 'auth');
+  } finally {
+    collaborators.availabilityCheck = () => null;
+  }
 });
 
 test('adaptador rejeita o lote → 200 com known:false + error isolado por hash', async () => {

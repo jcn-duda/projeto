@@ -155,38 +155,48 @@ fn fallback_falho_e_unknown() {
     assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
 }
 
-/// Serviço conhecido (AllDebrid): Ok(Unknown) local NÃO dispara reserva —
-/// nunca segundo upload / re-consulta Node.
+/// AllDebrid com reserva Node: a checagem é do Node (davail, hold e limpeza),
+/// UM lote, zero upload local (o local não limpa a conta até a Fase C).
 #[test]
-fn alldebrid_conhecido_nunca_cai_no_fallback() {
+fn alldebrid_vai_a_reserva_node_sem_upload_local() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
     debrid.encoded = Some(ENCODED.into());
     debrid.deadline_at = Some(deadline());
-    debrid.timeout = Some(Duration::from_millis(50));
     let stub = std::sync::Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
     debrid.fallback = Some(stub.clone());
     debrid.prepare(&[HIT.into(), MISS.into()]);
-    let a = debrid.check(&stream(HIT));
-    let b = debrid.check(&stream(MISS));
-    assert!(matches!(
-        a,
-        DebridAnswer::Unknown
-            | DebridAnswer::Cached { .. }
-            | DebridAnswer::Missing
-            | DebridAnswer::Unusable
-    ));
-    assert!(matches!(
-        b,
-        DebridAnswer::Unknown
-            | DebridAnswer::Cached { .. }
-            | DebridAnswer::Missing
-            | DebridAnswer::Unusable
-    ));
     assert_eq!(
-        *stub.calls.lock().unwrap(),
-        0,
-        "AD conhecido: zero fallback"
+        debrid.check(&stream(HIT)),
+        DebridAnswer::Cached { url: None }
     );
+    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
+    assert_eq!(*stub.calls.lock().unwrap(), 1, "um lote, não N");
+    assert_eq!(debrid.local_checks(), 0, "nenhum upload local");
+    assert_eq!(debrid.fallback_checks(), 1);
+}
+
+/// Reserva Node falhou: "não sei" (Unknown), nunca o upload local — o Node
+/// pode já ter enviado o lote, e um segundo upload dobraria o lixo na conta.
+#[test]
+fn alldebrid_reserva_falha_e_unknown_sem_upload_local() {
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.fallback = Some(std::sync::Arc::new(StubFallback::err()));
+    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
+    assert_eq!(debrid.local_checks(), 0);
+    assert_eq!(debrid.fallback_checks(), 1);
+}
+
+/// Sem reserva configurada (sem rota interna): o check local continua, em
+/// UM lote.
+#[test]
+fn alldebrid_sem_reserva_usa_o_local_em_lote() {
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.timeout = Some(Duration::from_millis(50));
+    debrid.prepare(&[HIT.into(), MISS.into()]);
+    let _ = debrid.check(&stream(HIT));
+    let _ = debrid.check(&stream(MISS));
     assert_eq!(debrid.local_checks(), 1, "um check local em lote");
     assert_eq!(debrid.fallback_checks(), 0);
 }

@@ -17,8 +17,9 @@ import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
 import type { DebridAdapter } from '../../types/domain.js';
-import { BY_ID } from '../debrid/registry.js';
-import { normalizeCacheResult, unusableReason } from '../debrid/cache-check.js';
+import { BY_ID, current } from '../debrid/registry.js';
+import { checkCached, normalizeCacheResult, unusableReason } from '../debrid/cache-check.js';
+import type { CacheCheckResult } from '../debrid/cache-check.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import { rejectedByGuard, decodeTarget, withinDeadline, DEADLINE } from './internal-search-shared.js';
@@ -35,6 +36,13 @@ export interface InternalDebridCheckCollaborators {
   adapterFor: (service: string) => DebridAdapter | undefined;
   /** Chave do contexto do usuário corrente (lida DENTRO de runtime.run). */
   apiKeyOf: () => string;
+  /**
+   * A MESMA checagem da busca (`cache-check.checkCached`: davail, prazo,
+   * não-abortável), lida DENTRO de runtime.run. `null` = não se aplica (o
+   * adaptador do contexto não é o serviço pedido, ou teste com adaptador
+   * stub) e a rota cai no `adapter.checkCached` cru.
+   */
+  availabilityCheck: (service: string, hashes: string[], timeoutMs: number) => Promise<CacheCheckResult> | null;
 }
 
 type HashResult = { cached: boolean; known: boolean; unusable?: 'auth' | 'quota'; error?: string; timeout?: true };
@@ -94,6 +102,16 @@ async function handleCheck(
       // Adaptador sem cacheCheck (Debrid-Link; RD sem ledger+oráculo): "não sei"
       // honesto por hash — inventar cached:false apagaria ⚡ real.
       if (!adapter.cacheCheck) return { kind: 'no-cache-check' };
+      // Mesmo caminho da busca do Node: sem o davail, o orquestrador Rust
+      // perdia o ⚡ que o Node lembra (e a AllDebrid refazia upload a cada
+      // busca). O resultado já vem normalizado; unusable vira estado da conta.
+      const viaSearch = deps.availabilityCheck(service, hashes, budget);
+      if (viaSearch) {
+        const result = await viaSearch;
+        const reason = result.unusable?.reason;
+        if (reason === 'auth' || reason === 'quota') return { kind: 'unusable', reason };
+        return { kind: 'verdict', verdict: { cached: result.cached, known: result.known } };
+      }
       try {
         return { kind: 'verdict', verdict: normalizeCacheResult(adapter, await adapter.checkCached(apiKey, hashes)) };
       } catch (err) {
@@ -167,6 +185,12 @@ export function registerInternalDebridCheck(
   const deps: InternalDebridCheckCollaborators = {
     adapterFor: (id) => (overrides.adapterFor ?? ((sid) => BY_ID.get(sid)))(id),
     apiKeyOf: () => (overrides.apiKeyOf ?? (() => opts().debridApiKey || ''))(),
+    availabilityCheck: (service, hashes, timeoutMs) => {
+      if (overrides.availabilityCheck) return overrides.availabilityCheck(service, hashes, timeoutMs);
+      // Adaptador trocado (teste) ou contexto de outro serviço: caminho cru.
+      if (overrides.adapterFor || current()?.id !== service) return null;
+      return checkCached(hashes, { timeoutMs });
+    },
   };
   const json = express.json({ limit: '256kb' });
   router.post('/internal/debrid/check', json, asyncRoute(async (req, res) => {

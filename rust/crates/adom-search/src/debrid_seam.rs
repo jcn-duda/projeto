@@ -11,9 +11,11 @@
 //! no máximo um `/magnet/upload` por busca — NUNCA segundo upload no
 //! fallback.
 //!
-//! **Fallback Node:** só quando o serviço ainda não está no despacho local
-//! (`unknown_service`). Serviço conhecido que devolveu `Ok(Unknown)` NÃO
-//! cai na reserva (evita re-upload AD e falso "perguntar de novo").
+//! **Fallback Node:** quando o serviço ainda não está no despacho local
+//! (`unknown_service`) e, com a reserva configurada, SEMPRE para a AllDebrid
+//! (até a Fase C portar hold/limpeza e o davail). Serviço conhecido que
+//! devolveu `Ok(Unknown)` NÃO cai na reserva, e reserva AD que falhou NÃO cai
+//! no local (evita re-upload AD e falso "perguntar de novo").
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -140,6 +142,22 @@ impl AdapterDebridCheck {
         let mut seen = HashSet::new();
         hashes.retain(|h| seen.insert(h.to_lowercase()));
 
+        // AllDebrid vai ao Node enquanto a Fase C não porta hold/limpeza: o
+        // check local é `/magnet/upload` real com `drop_*` desligado (os
+        // magnets ficavam na conta do usuário) e não tem o davail do Node,
+        // então perdia ⚡ que o Node lembra. Um só upload por busca continua
+        // valendo: quem faz é o Node; sem reserva configurada, fica o local.
+        // Reserva que falhou vira "não sei", nunca o local: o Node pode já ter
+        // feito o upload, e um segundo seria dobrar o lixo na conta.
+        if self.service == "alldebrid" && self.fallback_ready() {
+            self.memo = Some(self.run_fallback(&hashes).unwrap_or(CheckOutcome {
+                cached: Vec::new(),
+                known: false,
+                unusable: None,
+            }));
+            return;
+        }
+
         if verdict::is_known_service(&self.service) {
             self.local_checks += 1;
             let outcome = block_on(verdict::check_service(
@@ -168,6 +186,13 @@ impl AdapterDebridCheck {
             known: false,
             unusable: None,
         }));
+    }
+
+    /// A reserva Node tem tudo para ser chamada (cliente, usuário e prazo).
+    fn fallback_ready(&self) -> bool {
+        self.fallback.is_some()
+            && self.encoded.as_deref().is_some_and(|s| !s.is_empty())
+            && self.deadline_at.is_some_and(|d| d > 0)
     }
 
     fn run_fallback(&mut self, hashes: &[String]) -> Option<CheckOutcome> {
