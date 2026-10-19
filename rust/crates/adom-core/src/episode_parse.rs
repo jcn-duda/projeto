@@ -315,8 +315,11 @@ pub(crate) fn parse_title_season_episode_prepared(t: &str, raw_c: &str) -> Parse
     for season in letter_number(t, b's', 2) {
         push_unique(&mut seasons, num(season));
     }
+    // Stagione/Saison/Staffel: tracker global republica pack europeu ("Naruto
+    // 2002 Stagione 03 COMPLETA … ITA", TheRARBG, 2026-10-19). Sem a palavra,
+    // o pack da T3 ficava sem temporada e passava em S01E01.
     for c in all(
-        re!(r"(?:season|temporada)[__SP__]?([0-9]{1,2})(?![0-9])"),
+        re!(r"(?:season|temporada|stagione|saison|staffel)[__SP__]?([0-9]{1,2})(?![0-9])"),
         t,
     ) {
         push_unique(&mut seasons, num(c.g(1)));
