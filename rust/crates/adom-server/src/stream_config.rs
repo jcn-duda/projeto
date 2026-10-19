@@ -39,6 +39,11 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Some(ms) = env_i64("SEARCH_TAIL_COLLECT_MS") {
         cfg.tail_collect_ms = ms;
     }
+    // Mesmo default do Node (`config.search.packTail`): só "true" liga.
+    cfg.pack_tail = std::env::var("SEARCH_PACK_TAIL").map_or(true, |raw| {
+        let raw = raw.trim();
+        raw.is_empty() || raw == "true"
+    });
     if let Some(grace) = env_u64("STREAM_STALE_GRACE_SECONDS") {
         cfg.stale_grace_seconds = grace;
     }

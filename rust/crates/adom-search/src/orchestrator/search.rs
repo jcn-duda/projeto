@@ -12,12 +12,12 @@ use crate::request::encoded_for_internal;
 
 use super::collect::plan_jobs;
 use super::fast_path::{full_window, merge_fast_with_live};
-use super::finish::{cache_max_age_for_finish, is_demo, SearchInput};
+use super::finish::{cache_max_age_for_finish, SearchInput};
 use super::live_state::{
     live_state_snapshot, merge_into_shared, merge_states, shared_live_state, LiveBatchState,
     SharedLiveState,
 };
-use super::meta::{MetaQuery, SearchMeta};
+use super::meta::SearchMeta;
 use super::respond::{as_ms, now_ms, SearchOutcome, StreamRequest};
 use super::Orchestrator;
 
@@ -70,6 +70,7 @@ impl Orchestrator {
         let writer = Arc::new(LatestWriter::new());
         let phase = writer.phase();
         let meta = self.load_meta(&input).await;
+        let mut used_pack_fallback = false;
 
         // Via instantânea do banco e via do índice, na MESMA ordem do
         // `search-index-path.ts`: a instantânea vem primeiro (o route já diz
@@ -183,9 +184,24 @@ impl Orchestrator {
                 None => {
                     let (items, partial, completion, failed, live_state) =
                         self.collect(&input, &meta).await;
-                    (items, partial, completion, failed, Some(live_state))
+                    // Série sem nada útil no episódio: o pack da temporada
+                    // SUBSTITUI a coleta (o `needsPack` do TS).
+                    match self.pack_fallback(&input, &meta, &items, partial).await {
+                        Some((items, partial, completion, failed, live_state)) => {
+                            used_pack_fallback = true;
+                            (items, partial, completion, failed, Some(live_state))
+                        }
+                        None => (items, partial, completion, failed, Some(live_state)),
+                    }
                 }
             };
+        // Pack tardio em toda via (também a do índice), menos quando o
+        // fallback já buscou o pack.
+        let completion = if used_pack_fallback {
+            completion
+        } else {
+            self.with_pack_tail(&input, &meta, items.clone(), completion, tail_live.as_ref())
+        };
 
         let first = self.finish(
             &input,
@@ -230,40 +246,10 @@ impl Orchestrator {
         })
     }
 
-    async fn load_meta(&self, input: &SearchInput) -> SearchMeta {
-        let query = MetaQuery {
-            encoded: encoded_for_internal(input.encoded.as_deref()),
-            kind: input.kind.clone(),
-            id: input.id.clone(),
-            // Coleção/1º lançamento doméstico custam uma ida extra ao TMDB —
-            // opt-in, como no Node. Filme, e só com debrid ativo.
-            include_multiwork: input.kind == "movie",
-            include_home_release: input.kind == "movie",
-        };
-        match self.meta.resolve(query).await {
-            Ok(mut meta) => {
-                meta.is_demo = is_demo(&input.options);
-                if meta.query.is_empty() {
-                    // `resolveSearchNames` cai no IMDb id: nunca query vazia.
-                    let fallback = SearchMeta::from_id(&input.id);
-                    meta.name = fallback.name;
-                    meta.names = fallback.names;
-                    meta.query = fallback.query;
-                }
-                meta
-            }
-            Err(err) => {
-                // Falha de metadados não derruba a busca (o TS cai no id).
-                eprintln!("[search] metadados falharam para {}: {err}", input.id);
-                SearchMeta::from_id(&input.id)
-            }
-        }
-    }
-
     /// Janela de coleta. Devolve (itens, parcial, completion, todas_falharam,
     /// estado vivo compartilhado). O estado é lido APÓS o completion: lotes que
     /// chegam depois da resposta continuam nele.
-    async fn collect(
+    pub(super) async fn collect(
         &self,
         input: &SearchInput,
         meta: &SearchMeta,

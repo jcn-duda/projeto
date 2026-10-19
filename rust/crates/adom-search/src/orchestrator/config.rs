@@ -66,6 +66,9 @@ pub struct OrchestratorConfig {
     /// a rota interna exige um, e o da RESPOSTA cortava os globais lentos — a
     /// foto deles nunca perdia o 📦 na promoção.
     pub tail_collect_ms: i64,
+    /// `SEARCH_PACK_TAIL`: série busca o pack da temporada no tail e mescla
+    /// os hashes novos (o `packTail` do TS).
+    pub pack_tail: bool,
 }
 
 impl Default for OrchestratorConfig {
@@ -90,6 +93,7 @@ impl Default for OrchestratorConfig {
             trace_enabled: true,
             search_index_rescue_min_ms: 2500,
             tail_collect_ms: 25_000,
+            pack_tail: true,
         }
     }
 }

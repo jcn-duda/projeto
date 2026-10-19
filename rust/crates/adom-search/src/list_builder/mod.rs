@@ -54,6 +54,44 @@ use adom_core::{
 use crate::raw_item::RawItem;
 use helpers::*;
 
+fn relevance_query(ctx: &BuildContext) -> RelevanceQuery<'_> {
+    RelevanceQuery {
+        names: &ctx.names,
+        year: &ctx.year,
+        alt_year: ctx.alt_year.as_deref(),
+        is_series: ctx.season.is_some(),
+        season: None,
+        episode: None,
+        multi_work_root: ctx.multi_work_root.as_deref(),
+        home_release_at: None,
+    }
+}
+
+fn relevance_settings(ctx: &BuildContext, opts: &BuildOptions) -> RelevanceSettings {
+    RelevanceSettings {
+        now_ms: ctx.now_ms,
+        pre_home_release_cut: opts.pre_home_release_cut,
+        pre_home_release_margin_ms: opts.pre_home_release_margin_ms,
+        title_precision_tail_cut: opts.title_precision_tail_cut,
+    }
+}
+
+/// Quantos itens passam no filtro de título — o `filterRelevantRaw` do
+/// gatilho de pack do TS. Item da conta conta sempre, como no build.
+pub fn relevant_count(raw: &[RawItem], ctx: &BuildContext, opts: &BuildOptions) -> usize {
+    if ctx.names.is_empty() || ctx.is_demo {
+        return raw.len();
+    }
+    let account = raw.iter().filter(|r| r.from_account).count();
+    let rest: Vec<adom_core::RelevanceItem> = raw
+        .iter()
+        .filter(|r| !r.from_account)
+        .map(RawItem::to_relevance)
+        .collect();
+    let kept = filter_relevant_raw(&rest, &relevance_query(ctx), &relevance_settings(ctx, opts));
+    account + kept.kept.len()
+}
+
 /// Porte de `buildStreams(rawInput, …)` — síncrono porque toda I/O já chegou
 /// como dado (`RawItem`, `BuildContext`) ou mora atrás da trait injetada.
 pub fn build_stream_list(
@@ -102,25 +140,13 @@ pub fn build_stream_list(
         let before = raw.len();
         let from_account: Vec<RawItem> = raw.iter().filter(|r| r.from_account).cloned().collect();
         let restantes: Vec<RawItem> = raw.iter().filter(|r| !r.from_account).cloned().collect();
-        let query = RelevanceQuery {
-            names: &ctx.names,
-            year: &ctx.year,
-            alt_year: ctx.alt_year.as_deref(),
-            is_series: ctx.season.is_some(),
-            season: None,
-            episode: None,
-            multi_work_root: ctx.multi_work_root.as_deref(),
-            home_release_at: None,
-        };
-        let settings = RelevanceSettings {
-            now_ms: ctx.now_ms,
-            pre_home_release_cut: opts.pre_home_release_cut,
-            pre_home_release_margin_ms: opts.pre_home_release_margin_ms,
-            title_precision_tail_cut: opts.title_precision_tail_cut,
-        };
         let relevância: Vec<adom_core::RelevanceItem> =
             restantes.iter().map(RawItem::to_relevance).collect();
-        let outcome = filter_relevant_raw(&relevância, &query, &settings);
+        let outcome = filter_relevant_raw(
+            &relevância,
+            &relevance_query(ctx),
+            &relevance_settings(ctx, opts),
+        );
         raw = from_account
             .into_iter()
             .chain(outcome.kept.iter().map(|&i| restantes[i].clone()))

@@ -303,7 +303,7 @@ impl Orchestrator {
         value
     }
 
-    fn build_context(&self, input: &SearchInput, meta: &SearchMeta) -> BuildContext {
+    pub(super) fn build_context(&self, input: &SearchInput, meta: &SearchMeta) -> BuildContext {
         let service = str_of(&input.options, "debridService");
         let api_key = str_of(&input.options, "debridApiKey");
         BuildContext {

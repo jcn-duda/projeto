@@ -224,6 +224,8 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   As rotas `collect`/`index` anexam a prova de arquivo (`applyFileEvidence`):
   no Rust, chip DUB/DUAL/NAC e `dubbed` só com ela (`list_builder::audio_proof`,
   o `audioForChip` do `toStremioStream`); o título sozinho é `dub_claim`.
+  Série no Rust tem o fallback de pack e o pack tardio do TS
+  (`orchestrator/pack.rs`, `SEARCH_PACK_TAIL`): fonte BR só publica pack.
 - **Real-Debrid**: `rd-gate` (escrita serial, AIMD), `rd-ledger` (`rdc:v2`,
   global, miss nunca condena), `rd-oracle` (StremThru/Torrentio opt-in). Três
   kill-switches `DEBRID_RD_GATE/LEDGER/ORACLE`.

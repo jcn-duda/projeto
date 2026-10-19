@@ -40,6 +40,9 @@ pub struct SearchMeta {
     pub query: String,
     /// Segunda query, só quando o título pt-BR difere do original.
     pub pt_query: Option<String>,
+    /// Título pt-BR cru (o `titles.pt` do Node), só quando há `pt_query`: base
+    /// do pack pt-BR (`ptPackQuery`).
+    pub pt_title: Option<String>,
     /// Query da varredura pt-BR nos globais (sem ano nem SxxEyy).
     pub sweep_query: Option<String>,
     /// Degrau do título original (nome cru).
@@ -81,6 +84,7 @@ impl SearchMeta {
             year: Value::Null,
             alt_year: None,
             pt_query: None,
+            pt_title: None,
             sweep_query: None,
             original_query: None,
             multi_work_root: None,
@@ -240,6 +244,7 @@ pub fn meta_from_response(response: &MetaResponse, req: &MetaQuery) -> SearchMet
         year,
         alt_year,
         query,
+        pt_title: pt_query.as_ref().and(pt).map(str::to_string),
         pt_query,
         sweep_query,
         original_query,

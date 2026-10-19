@@ -26,6 +26,7 @@ fn stub_meta() -> SearchMeta {
         alt_year: None,
         query: "Filme Teste 2024".into(),
         pt_query: None,
+        pt_title: None,
         sweep_query: None,
         original_query: None,
         multi_work_root: None,

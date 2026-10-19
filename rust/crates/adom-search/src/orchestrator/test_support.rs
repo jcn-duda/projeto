@@ -308,6 +308,7 @@ pub fn config() -> OrchestratorConfig {
         trace_enabled: true,
         search_index_rescue_min_ms: 2500,
         tail_collect_ms: 25_000,
+        pack_tail: true,
     }
 }
 
@@ -322,6 +323,7 @@ pub fn meta() -> SearchMeta {
         alt_year: None,
         query: "Filme Teste 2024".into(),
         pt_query: None,
+        pt_title: None,
         sweep_query: None,
         original_query: None,
         multi_work_root: None,
