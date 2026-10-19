@@ -53,6 +53,11 @@ pub struct RawItem {
     /// DUAL global cujo título começa com o nome pt do TMDB (`ptTitleDual`,
     /// marcado pelo Node): prova de origem BR que o acento não trouxe.
     pub pt_title_dual: bool,
+    /// Rótulo do tracker para exibição (`tracker || Tracker || Indexer` do
+    /// Jackett, ex.: "Rede Torrent"); `indexer` segue sendo o id das cotas.
+    pub tracker: Option<String>,
+    /// Fonte gravada no índice (`mediaSource`) para raw sem magnet.
+    pub media_source: Option<String>,
     /// Pack multiobra ADMITIDO (opt-in TMDB) — refeito a cada build.
     pub multi_work_admitted: bool,
     /// Campos públicos preservados que o build não lê.
@@ -176,6 +181,8 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         proven_quality: str_of(&["provenQuality"]),
         br_origin_only: bool_of("brOriginOnly"),
         pt_title_dual: bool_of("ptTitleDual"),
+        tracker: str_of(&["tracker", "Tracker", "Indexer"]),
+        media_source: str_of(&["mediaSource"]),
         multi_work_admitted: false,
         extra: Map::new(),
     }

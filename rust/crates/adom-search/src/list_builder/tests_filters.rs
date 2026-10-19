@@ -348,3 +348,41 @@ fn foto_do_indice_e_reserva_exibem_selo_de_dado_salvo() {
     assert_eq!(stats_line(&foto), "📦 👤 ~12");
     assert_eq!(stats_line(&reserva), "📦 👤 ~");
 }
+
+/// Rótulo do tracker e fonte pelo `dn=`, como o `toStremioStream`.
+#[test]
+fn tracker_do_jackett_e_fonte_pelo_dn_do_magnet() {
+    use crate::list_builder::helpers::{display_source, display_tracker, stats_line};
+    use crate::raw_item::RawItem;
+    let item = RawItem {
+        indexer: Some("redetorrent".into()),
+        tracker: Some("Rede Torrent".into()),
+        magnet: Some("magnet:?xt=urn:btih:abc&dn=Filme.2024.1080p.WEB-DL.x264".into()),
+        seeders: Some(3.0),
+        ..RawItem::default()
+    };
+    assert_eq!(display_tracker(&item), Some("Rede Torrent"));
+    assert_eq!(stats_line(&item), "👤 3 ⚙️ Rede Torrent");
+    assert_eq!(display_source(&item, "Filme 2024 [1080p]"), "WEB-DL");
+
+    let cam = RawItem {
+        magnet: Some("magnet:?xt=urn:btih:abc&dn=Filme.2026.CAMRip.x264".into()),
+        ..RawItem::default()
+    };
+    assert_eq!(
+        display_source(&cam, "Filme 2026 1080p WEB-DL"),
+        "CAM",
+        "CAM no magnet vence"
+    );
+
+    let so_id = RawItem {
+        indexer: Some("yts".into()),
+        ..RawItem::default()
+    };
+    assert_eq!(display_tracker(&so_id), Some("yts"));
+    let indexado = RawItem {
+        media_source: Some("BluRay".into()),
+        ..RawItem::default()
+    };
+    assert_eq!(display_source(&indexado, "Filme 2024"), "BluRay");
+}

@@ -1,11 +1,11 @@
 use adom_core::{
-    edition_from_title, is_season_pack_release, quality_from_title, source_from_title,
-    stream_display_name, stream_size_label, JsText, PoolStream, RankingStream, StreamDisplayConfig,
+    edition_from_title, is_season_pack_release, quality_from_title, stream_display_name,
+    stream_size_label, JsText, PoolStream, RankingStream, StreamDisplayConfig,
     StreamDisplayOptions, StreamRef,
 };
 
 use super::audio_proof::{audio_proof, origin_is_br, AudioAudit};
-pub use super::stats::stats_line;
+pub use super::stats::{display_source, display_tracker, stats_line};
 use super::types::{self, BuildContext, BuildOptions, WorkHint};
 use crate::raw_item::RawItem;
 
@@ -181,6 +181,7 @@ pub fn map_stream(
         .proven_quality
         .clone()
         .unwrap_or_else(|| quality_from_title(&title).to_string());
+    let source = display_source(item, &title);
     let stats = stats_line(item);
     let full_title = if stats.is_empty() {
         title.clone()
@@ -192,9 +193,9 @@ pub fn map_stream(
             title: Some(&title),
             quality: Some(&quality),
             audio: Some(&proof.chip_audio),
-            source: Some(source_from_title(&title)),
+            source: Some(&source),
             edition: Some(edition_from_title(&title)),
-            tracker: item.indexer.as_deref(),
+            tracker: display_tracker(item),
             is_br: br,
             seeders: Some(&types::seeders_value_of(item.seeders)),
             // `stored` do TS: foto do índice exibe o MESMO selo da reserva.
