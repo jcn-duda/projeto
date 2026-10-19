@@ -11,6 +11,7 @@ use crate::raw_item::RawItem;
 use crate::request::encoded_for_internal;
 
 use super::collect::plan_jobs;
+use super::fast_path::{full_window, merge_fast_with_live};
 use super::finish::{cache_max_age_for_finish, is_demo, SearchInput};
 use super::meta::{MetaQuery, SearchMeta};
 use super::respond::{as_ms, now_ms, SearchOutcome, StreamRequest};
@@ -82,14 +83,8 @@ impl Orchestrator {
                     let completion_handle = tokio::spawn(async move {
                         let (live_items, _, completion, _) =
                             this.collect(&input_tail, &meta_tail).await;
-                        let mut all_live = fast_for_tail;
-                        all_live.extend(live_items);
-                        if let Some(h) = completion {
-                            if let Ok(more) = h.await {
-                                all_live.extend(more);
-                            }
-                        }
-                        all_live
+                        let live = full_window(live_items, completion).await;
+                        merge_fast_with_live(fast_for_tail, live)
                     });
                     (fast_items, true, Some(completion_handle), false)
                 }
@@ -113,41 +108,31 @@ impl Orchestrator {
                         let (live_items, live_partial, live_completion, live_failed) =
                             self.collect(&input, &meta).await;
                         let mut merged = fast.items.clone();
-                        merged.extend(live_items);
+                        merged.extend(live_items.iter().cloned());
                         let fast_for_rescue = fast.items;
-                        let completion = live_completion.map(|handle| {
-                            tokio::spawn(async move {
-                                let mut all = fast_for_rescue;
-                                if let Ok(more) = handle.await {
-                                    all.extend(more);
-                                }
-                                all
-                            })
-                        });
+                        let completion = Some(tokio::spawn(async move {
+                            let live = full_window(live_items, live_completion).await;
+                            merge_fast_with_live(fast_for_rescue, live)
+                        }));
                         (merged, live_partial, completion, live_failed)
                     } else {
                         // O TS espera as fontes BR prioritárias ANTES de responder;
                         // globais e passe tardio ficam no tail.
                         let (br_items, _, br_completion, _) =
                             self.collect_scoped(&input, &meta, Some(true)).await;
-                        let mut head = fast.items;
-                        head.extend(br_items);
+                        let mut head = fast.items.clone();
+                        head.extend(br_items.iter().cloned());
                         let this = self.clone();
                         let input_tail = input.clone();
                         let meta_tail = meta.clone();
-                        let head_for_tail = head.clone();
+                        let fast_for_tail = fast.items;
                         let completion_handle = tokio::spawn(async move {
                             let (global_items, _, global_completion, _) = this
                                 .collect_scoped(&input_tail, &meta_tail, Some(false))
                                 .await;
-                            let mut all = head_for_tail;
-                            all.extend(global_items);
-                            for handle in [global_completion, br_completion].into_iter().flatten() {
-                                if let Ok(more) = handle.await {
-                                    all.extend(more);
-                                }
-                            }
-                            all
+                            let mut live = full_window(br_items, br_completion).await;
+                            live.extend(full_window(global_items, global_completion).await);
+                            merge_fast_with_live(fast_for_tail, live)
                         });
                         (head, true, Some(completion_handle), false)
                     }
