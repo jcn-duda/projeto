@@ -86,8 +86,9 @@ impl RawItem {
 
     /// Hash canônico do `hashOf` do banco (`src/utils/magnet-bank-merge.ts`):
     /// tenta `infoHash`, `magnet`, `MagnetUri` e `Guid` EM ORDEM até um válido.
-    /// Difere de [`RawItem::hash`]: este para no `infoHash` não vazio mesmo
-    /// inválido, porque aqui o `liveHashes` do Node também não para.
+    /// [`RawItem::hash`] escolhe o primeiro campo preenchido antes de extrair.
+    /// Já `bank_hash` tenta extrair de cada candidato até achar um válido,
+    /// como o `hashOf` usado pelo `liveHashes` do Node.
     pub(crate) fn bank_hash(&self) -> String {
         [
             self.info_hash.as_deref(),
