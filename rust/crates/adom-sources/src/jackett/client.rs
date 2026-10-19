@@ -12,11 +12,11 @@ use std::time::Instant;
 
 use reqwest::Client;
 
-use super::breaker::{now_ms, Breaker};
+use super::breaker::Breaker;
 use super::config::JackettConfig;
 use super::download::{self, download_client};
 use super::query::{budget_for, shape_for, shape_search_query};
-use super::types::{JackettMediaType, JackettRawItem, QueryOutcome, SearchOptions};
+use super::types::{IndexerStatus, JackettMediaType, JackettRawItem, QueryOutcome, SearchOptions};
 use crate::http::remaining;
 
 /// Cliente Jackett reutilizável (HTTP + breaker compartilhado).
@@ -62,6 +62,8 @@ impl JackettClient {
     /// Consulta a lista de indexers em paralelo. Sem chave / query vazia → `[]`.
     ///
     /// Lista vazia de indexers cai no agregado `/all` (mesmo contrato do TS).
+    /// O status por indexer é perdido AQUI de propósito (API legada); quem
+    /// precisa dele usa [`JackettClient::search_outcomes`].
     pub async fn search(
         &self,
         query: &str,
@@ -69,99 +71,11 @@ impl JackettClient {
         indexers: &[String],
         options: &SearchOptions,
     ) -> Vec<JackettRawItem> {
-        if !self.config.has_api_key() {
-            eprintln!("[jackett] JACKETT_API_KEY não configurada");
-            return Vec::new();
-        }
-        if query.is_empty() {
-            return Vec::new();
-        }
-
-        if indexers.is_empty() {
-            return self.search_all(query, media_type, options).await;
-        }
-
-        let active: Vec<String> = if options.ignore_breaker {
-            indexers.to_vec()
-        } else {
-            let now = now_ms();
-            indexers
-                .iter()
-                .filter(|indexer| {
-                    if !self.breaker.tripped(indexer, &self.config, now) {
-                        self.breaker.clear_announced(indexer);
-                        true
-                    } else {
-                        if self.breaker.should_announce_trip(indexer) {
-                            let snap = self.breaker.snapshot(indexer, &self.config, now);
-                            eprintln!(
-                                "[jackett] {indexer}: circuit breaker aberto após {} falha(s) \
-                                 seguidas; buscas pulam este indexer até {}min após a última falha",
-                                snap.fail_streak.max(self.config.breaker_failures),
-                                self.config.breaker_cooldown_ms / 60_000
-                            );
-                        }
-                        false
-                    }
-                })
-                .cloned()
-                .collect()
-        };
-        if active.is_empty() {
-            return Vec::new();
-        }
-
-        let mut handles = Vec::with_capacity(active.len());
-        for indexer in &active {
-            let this = self.clone();
-            let indexer = indexer.clone();
-            let query = query.to_string();
-            let options = options.clone();
-            handles.push(tokio::spawn(async move {
-                this.query_indexer(&indexer, &query, media_type, &options)
-                    .await
-            }));
-        }
-
-        let mut out = Vec::new();
-        let mut slow = Vec::new();
-        for (idx, handle) in handles.into_iter().enumerate() {
-            let indexer = &active[idx];
-            match handle.await {
-                Ok(outcome) => {
-                    if options.record_status() && !outcome.from_cache {
-                        self.breaker
-                            .record(&outcome.indexer, outcome.source_ok, now_ms());
-                        if !outcome.source_ok {
-                            if let Some(err) = &outcome.source_error {
-                                eprintln!(
-                                    "[jackett] {}: fonte fora (HTTP 200): {err}",
-                                    outcome.indexer
-                                );
-                            }
-                        }
-                    }
-                    if !outcome.source_ok {
-                        slow.push(format!("{indexer} ✗ fonte"));
-                    } else if !outcome.from_cache && outcome.ms > 2_000 {
-                        slow.push(format!("{indexer} {:.1}s", outcome.ms as f64 / 1000.0));
-                    }
-                    out.extend(outcome.items);
-                }
-                Err(err) => {
-                    // JoinError / panic no task — engole e segue (nunca propaga).
-                    eprintln!("[jackett] {indexer}: tarefa abortada: {err}");
-                    if options.record_status() {
-                        self.breaker.record(indexer, false, now_ms());
-                    }
-                    slow.push(format!("{indexer} ✗"));
-                }
-            }
-        }
-        if !slow.is_empty() {
-            eprintln!("[jackett] lentos/falharam: {}", slow.join(", "));
-        }
-        out
+        self.search_outcomes(query, media_type, indexers, options)
+            .await
+            .into_iter()
+            .flat_map(|outcome| outcome.items)
+            .collect()
     }
 
     /// Consulta UM indexer (cascata sequencial no mesmo deadline).
@@ -295,6 +209,17 @@ impl JackettClient {
         };
 
         let source_ok = !items.is_empty() || source_error.is_none();
+        let status = if source_ok {
+            if items.is_empty() {
+                IndexerStatus::Empty
+            } else {
+                IndexerStatus::Ok
+            }
+        } else {
+            // Timeout individual é falha declarada (`source_error:timeout`),
+            // como `responded:false` no Node — NUNCA `Pending`/partial.
+            IndexerStatus::Failed
+        };
         QueryOutcome {
             indexer: indexer.to_string(),
             items,
@@ -302,6 +227,10 @@ impl JackettClient {
             from_cache: live_fetches == 0,
             source_ok,
             source_error: if source_ok { None } else { source_error },
+            status,
+            record_status: options.record_status(),
+            // O coletor marca sweep como secundário antes de montar o live.
+            primary: true,
         }
     }
 
@@ -314,3 +243,6 @@ impl JackettClient {
 #[path = "client_fetch.rs"]
 mod client_fetch;
 use client_fetch::*;
+
+#[path = "client_outcomes.rs"]
+mod client_outcomes;

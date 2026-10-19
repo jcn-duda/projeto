@@ -19,6 +19,9 @@ import type { LiveIndexerState } from '../src/providers/live-indexer-state.js';
 
 const TOKEN = 'tok-internal-collect';
 const encoded = encodeConfig({});
+// Sombra: `p` é a chave curta de `providers`; jackett precisa estar na
+// seleção efetiva para a rota responder eligible:true.
+const shadowEncoded = encodeConfig({ p: ['jackett'] });
 
 function liveWith(fn: (live: LiveIndexerState) => void) {
   const live = createLiveIndexerState();
@@ -161,17 +164,120 @@ test('collect: task_scope priority é repassado ao collectRaw', async () => {
     });
     assert.equal(res.status, 200);
     const args = seen[0];
-    // (query, type, imdb, ptQuery, matchContext, onLate=null, sweep, deadline, scope)
+    // (query, type, imdb, ptQuery, matchContext, onLate=null, sweep, deadline,
+    //  scope, observer=null, trace=null, original, multiwork, skip, readOnly)
     assert.equal(args[1], 'series');
     assert.equal(args[3], 'Filme');
     assert.equal(args[5], null);
     assert.equal(args[8], 'priority');
+    assert.equal(args[9], null);
+    assert.equal(args[10], null);
+    assert.equal(args[14], false, 'caminho de resposta nunca é read-only');
     assert.equal(args[4].season, 2);
     assert.equal(args[4].episode, 3);
     assert.equal(args[4].isSeries, true);
   } finally {
     await server2.close();
   }
+});
+
+test('collect: read_only liga a referência sem efeitos e omite o breaker', async () => {
+  const seen: any[] = [];
+  const app2 = express();
+  const overrides = stubCollect({
+    collectRaw: (async (...args: any[]) => {
+      seen.push(args);
+      return stubCollect().collectRaw!(
+        'Filme 2024', 'movie', 'tt0000001', null,
+        { names: ['Filme 2024'], year: null, isSeries: false, season: null, episode: null },
+        null,
+      );
+    }) as any,
+  });
+  const services = buildServices();
+  registerInternalSearch(app2 as unknown as express.Router, services, overrides);
+  const server2 = await createTestServer(app2);
+  try {
+    const res = await server2.request('POST', '/internal/search/collect', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: collectBody({
+        encoded: shadowEncoded,
+        read_only: true,
+        shadow_source: 'jackett',
+        indexers: ['process-idx'],
+      }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(seen[0][14], true, 'read_only viaja ao collectRaw');
+    assert.deepEqual(seen[0][15], ['process-idx'], 'override de indexers viaja');
+    assert.equal(res.json.eligible, true, 'jackett está nos providers');
+    assert.deepEqual(res.json.breaker, {}, 'sombra não lê/expõe breaker');
+  } finally {
+    await server2.close();
+  }
+});
+
+test('collect: read_only com fonte fora dos providers → eligible:false sem coletar', async () => {
+  const seen: any[] = [];
+  const app2 = express();
+  const overrides = stubCollect({
+    collectRaw: (async (...args: any[]) => {
+      seen.push(args);
+      return stubCollect().collectRaw!(
+        'Filme 2024', 'movie', 'tt0000001', null,
+        { names: ['Filme 2024'], year: null, isSeries: false, season: null, episode: null },
+        null,
+      );
+    }) as any,
+  });
+  const services = buildServices();
+  registerInternalSearch(app2 as unknown as express.Router, services, overrides);
+  const server2 = await createTestServer(app2);
+  try {
+    const res = await server2.request('POST', '/internal/search/collect', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: collectBody({
+        encoded: encodeConfig({ p: ['prowlarr'] }),
+        read_only: true,
+        shadow_source: 'jackett',
+      }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.json.eligible, false);
+    assert.deepEqual(res.json.items, []);
+    assert.equal(seen.length, 0, 'fonte ausente não coleta nada');
+  } finally {
+    await server2.close();
+  }
+});
+
+test('collect: read_only com indexers inválido → 400', async () => {
+  const res = await server.request('POST', '/internal/search/collect', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: collectBody({
+      encoded: shadowEncoded,
+      read_only: true,
+      shadow_source: 'jackett',
+      indexers: 'yts',
+    }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test('collect: read_only sem shadow_source → 400', async () => {
+  const res = await server.request('POST', '/internal/search/collect', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: collectBody({ encoded: shadowEncoded, read_only: true }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test('collect: read_only não booleano → 400', async () => {
+  const res = await server.request('POST', '/internal/search/collect', {
+    headers: { 'X-Indexer-Test-Token': TOKEN },
+    body: collectBody({ read_only: 'sim' }),
+  });
+  assert.equal(res.status, 400);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

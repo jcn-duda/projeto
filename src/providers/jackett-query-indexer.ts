@@ -11,8 +11,11 @@ import { shapeSearchQuery, budgetFor } from './jackett-query.js';
 import { remaining, MIN_RESOLVE_BUDGET, resolveCardigannDownloads } from './jackett-resolve.js';
 
 export interface JackettSearchOptions {
-  /** Diagnóstico: mede a consulta de verdade, sem ler/gravar o cache bruto. */
+  /** Diagnóstico/sombra: mede a consulta de verdade, sem ler/gravar o cache bruto. */
   noRawCache?: boolean;
+  /** Referência de sombra de fonte: nenhum efeito (cache, captura, status ou
+   * breaker). A decisão de ignorar o breaker é do `jackett.search`. */
+  readOnly?: boolean;
   /** Grafia arábica do numeral (plano BR: II -> 2). */
   variantQuery?: string;
   /** Fallback bilíngue do plano BR: EN (mainstream) no live, onde a primária

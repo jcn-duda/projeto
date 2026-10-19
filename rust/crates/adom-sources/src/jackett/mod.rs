@@ -36,4 +36,6 @@ pub use results::{
     category_policy, in_category_bucket, indexer_failure, map_results, MapOptions,
     CATEGORY_UNFILTERED, OTHER_AS_UNKNOWN, UNRELIABLE_CATEGORY,
 };
-pub use types::{JackettMediaType, JackettRawItem, QueryOutcome, SearchOptions};
+pub use types::{
+    IndexerStatus, JackettMediaType, JackettRawItem, QueryOutcome, SearchOptions, ALL_QUERY_INDEXER,
+};

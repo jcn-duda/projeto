@@ -34,6 +34,7 @@ mod fast_path;
 mod finish;
 mod internal_routes;
 mod jackett_collector;
+mod jackett_live;
 mod late;
 mod live_state;
 mod meta;
@@ -44,6 +45,7 @@ mod prowlarr_collector;
 mod refresh;
 mod respond;
 mod search;
+mod source_shadow;
 mod sources_rust;
 mod tail;
 #[cfg(test)]
@@ -90,6 +92,9 @@ pub use prowlarr_collector::{
     sources_rust_includes_prowlarr, try_prowlarr_collector_from_env, ProwlarrCollector,
 };
 pub use respond::{SearchOutcome, StreamRequest, NOTICE_SEARCHING};
+pub use source_shadow::{
+    source_shadow_metrics_snapshot, wrap_collector_with_source_shadow, SourceShadowMetrics,
+};
 pub use sources_rust::{
     sources_rust_csv_includes, sources_rust_csv_winner, sources_rust_includes,
     try_sources_rust_collector_from_env, try_sources_rust_collectors_from_env,

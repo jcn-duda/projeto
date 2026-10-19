@@ -94,6 +94,12 @@ pub fn build_orchestrator() -> Orchestrator {
                     all.push(node_collector);
                     Arc::new(adom_search::orchestrator::CompositeCollector::new(all))
                 };
+            // Sombra de fonte (SOURCES_RUST_SHADOW, default vazio): compare-only,
+            // não altera o lote primário nem toca store/debrid/tail/efeitos.
+            let collector = adom_search::orchestrator::wrap_collector_with_source_shadow(
+                collector,
+                Some(routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>),
+            );
             orch = orch
                 .with_collector(collector)
                 .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
@@ -166,6 +172,10 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
                     all.push(node_collector);
                     Arc::new(adom_search::orchestrator::CompositeCollector::new(all))
                 };
+            let collector = adom_search::orchestrator::wrap_collector_with_source_shadow(
+                collector,
+                Some(routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>),
+            );
             orch = orch
                 .with_collector(collector)
                 .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))

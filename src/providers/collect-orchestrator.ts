@@ -46,6 +46,12 @@ export async function collectRaw(
   /** Fontes que o coletor nativo do Rust já cobre (`SOURCES_RUST`): o Node não
    * as consulta, senão a mesma fonte entra duas vezes na lista. */
   skipSources: ReadonlySet<string> = new Set(),
+  /** Referência da sombra de fonte: coleta SEM efeitos (conta, banco, status/
+   * breaker, cache bruto). Nunca usado pelo caminho de resposta. */
+  readOnly = false,
+  /** Sombra: indexers do PROCESSO (`JACKETT_INDEXERS`) no lugar do `ji` do
+   * encoded. Só vale em readOnly; no caminho de resposta é ignorado. */
+  indexersOverride: string[] | null = null,
 ) {
   const { providers } = opts();
   const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
@@ -98,7 +104,13 @@ export async function collectRaw(
   }
 
   const wants = (name: string) => !skipSources.has(name) && (mode === 'both' || providers.includes(name));
-  const rawSelected: string[] = [...new Set((opts().jackettIndexers || []).filter((id: any) =>
+  // Sombra read-only: a seleção é a do PROCESSO (override), não o `ji`
+  // customizado do encoded — senão o conjunto de indexers divergiria do
+  // nativo antes mesmo da comparação (limitação F2.2).
+  const selectedSource = readOnly && indexersOverride !== null
+    ? indexersOverride
+    : (opts().jackettIndexers || []);
+  const rawSelected: string[] = [...new Set(selectedSource.filter((id: any) =>
     SAFE_INDEXER_ID.test(String(id)),
   ))].map(String);
   // Index-only ficam fora do caminho da resposta (colhem em fundo para o
@@ -137,6 +149,7 @@ export async function collectRaw(
       addTask(() => jackett.search(query, type, null, {
         originalQuery: originalQuery || undefined, matchContext, imdbId,
         season: matchContext.season, episode: matchContext.episode, year: matchContext.year, resetPassedFilter: true,
+        readOnly,
         onQueryResult: (info: any) => live.noteResult(info),
       }));
     } else {
@@ -183,6 +196,7 @@ export async function collectRaw(
             // A mesma busca principal atualiza o status deste indexer. Falha da
             // variante pt-BR não pode sobrescrever aquele resultado como offline.
             recordStatus: inlineSweep ? false : undefined,
+            readOnly,
             ...(inlineSweep ? {} : { onQueryResult: (info: any) => live.noteResult(info) }),
             // Coleta com prazo é caminho de resposta; sem prazo é cauda
             // (enriquecimento do índice, pack tardio) — desperdício vai para o
@@ -223,6 +237,7 @@ export async function collectRaw(
     addTask(() => jackett.search(query, type, null, {
       originalQuery: originalQuery || undefined, matchContext, imdbId,
       season: matchContext.season, episode: matchContext.episode, year: matchContext.year, resetPassedFilter: true,
+      readOnly,
       onQueryResult: (info: any) => live.noteResult(info),
     }));
   }
@@ -259,7 +274,9 @@ export async function collectRaw(
   // A conta do debrid como fonte: o que já está pronto lá entra com ⚡ sem
   // indexer nenhum. Teto curto dentro da própria tarefa (ver account.js)
   // para a primeira leitura não segurar a resposta.
-  const accountSource = config.debrid.inventorySource && Boolean(debrid.current());
+  // Sombra read-only: a conta do debrid é inventário com efeitos (memo/cache
+  // davail) e não faz parte da comparação de fonte.
+  const accountSource = !readOnly && config.debrid.inventorySource && Boolean(debrid.current());
   if (accountSource) {
     addTask(() => account.search(matchContext, trace), false, 'account');
   }

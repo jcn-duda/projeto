@@ -54,7 +54,14 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
 }
 
 pub fn operator_search_build_from_env() -> BuildOptions {
-    let mut b = BuildOptions::default();
+    // `config.search.titlePrecisionTailCut`: default true; só "false" desliga.
+    // O `JackettCollector` lê a MESMA env (ele não recebe o OrchestratorConfig).
+    let mut b = BuildOptions {
+        title_precision_tail_cut: std::env::var("TITLE_PRECISION_TAIL_CUT")
+            .map(|raw| raw.trim() != "false")
+            .unwrap_or(true),
+        ..BuildOptions::default()
+    };
     if let Some(n) = env_f64("MAX_RESULTS") {
         b.max_results = n;
     }

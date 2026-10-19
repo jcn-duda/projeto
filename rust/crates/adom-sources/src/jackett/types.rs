@@ -28,6 +28,24 @@ pub struct JackettRawItem {
     pub is_br: bool,
 }
 
+/// Id sintético do ramo agregado `/all` (mesmo `ALL_QUERY_INDEXER` do Node).
+pub const ALL_QUERY_INDEXER: &str = "*all*";
+
+/// Desfecho de UMA consulta por indexer (F2.1).
+///
+/// `Empty` é resposta válida sem item relevante (200 saudável); `Failed` é
+/// falha declarada (HTTP/rede/envelope/breaker/**timeout**) — nunca engolida.
+/// `Pending` existe só para um não-concluído REAL (ex.: contrato futuro de
+/// tarefa em voo); timeout NÃO vira `Pending`: o Node trata prazo vencido como
+/// `responded:false`, então aqui também é `Failed` com motivo `timeout`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexerStatus {
+    Ok,
+    Empty,
+    Failed,
+    Pending,
+}
+
 /// Resultado de UMA consulta a um indexer (espelha o retorno de `queryIndexer`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct QueryOutcome {
@@ -42,6 +60,15 @@ pub struct QueryOutcome {
     /// envelope `Indexers[]` e lista vazia.
     pub source_ok: bool,
     pub source_error: Option<String>,
+    /// Desfecho por indexer que o collect nativo converte em estado vivo.
+    pub status: IndexerStatus,
+    /// Falso na varredura inline/tardia (`record_status:false`): o desfecho
+    /// NÃO pode alimentar `live` nem `partial` (o Node também não emite
+    /// `onQueryResult` nesse caminho).
+    pub record_status: bool,
+    /// `true` só para a consulta PRINCIPAL do passo. A sombra compara só
+    /// primárias; sweep nunca mascara/ inventa falha da consulta principal.
+    pub primary: bool,
 }
 
 /// Opções de uma busca (subconjunto do `JackettSearchOptions` do TS).

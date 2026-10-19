@@ -96,8 +96,8 @@ pub use config::{
 };
 pub use http::now_ms;
 pub use jackett::{
-    budget_for, shape_search_query, JackettClient, JackettConfig, JackettMediaType, JackettRawItem,
-    QueryOutcome, SearchOptions, JACKETT_DEFAULT_URL,
+    budget_for, shape_search_query, IndexerStatus, JackettClient, JackettConfig, JackettMediaType,
+    JackettRawItem, QueryOutcome, SearchOptions, ALL_QUERY_INDEXER, JACKETT_DEFAULT_URL,
 };
 pub use mico::{
     MicoClient, MicoConfig, MicoMediaType, MicoRawItem, MicoSearchArgs, MICO_DEFAULT_URL, MICO_ID,

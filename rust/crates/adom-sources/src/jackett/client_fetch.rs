@@ -1,34 +1,69 @@
+use std::time::Instant;
+
 use reqwest::header::ACCEPT;
 use reqwest::Url;
 use serde_json::Value;
 
 use super::super::query::shape_for;
 use super::super::results::{category_policy, indexer_failure, map_results, MapOptions};
-use super::super::types::{JackettMediaType, JackettRawItem, SearchOptions};
+use super::super::types::{
+    IndexerStatus, JackettMediaType, JackettRawItem, QueryOutcome, SearchOptions, ALL_QUERY_INDEXER,
+};
 use super::JackettClient;
-use crate::http::remaining;
+use crate::http::{now_ms, remaining};
 
 impl JackettClient {
-    pub(super) async fn search_all(
+    /// Ramo agregado `/all` com o mesmo contrato de status por indexer.
+    pub(super) async fn search_all_outcome(
         &self,
         query: &str,
         _media_type: JackettMediaType,
-        _options: &SearchOptions,
-    ) -> Vec<JackettRawItem> {
-        let deadline = crate::http::now_ms() + self.config.indexer_timeout_ms as i64;
+        options: &SearchOptions,
+    ) -> QueryOutcome {
+        let started = Instant::now();
+        let deadline = now_ms() + self.config.indexer_timeout_ms as i64;
         match self.get_results_json("all", query, None, deadline).await {
-            Ok(payload) => map_results(
-                &payload,
-                MapOptions {
-                    is_br: false,
-                    indexer: "",
-                    category_bucket: 0,
-                    other_as_unknown: false,
-                },
-            ),
+            Ok(payload) => {
+                let items = map_results(
+                    &payload,
+                    MapOptions {
+                        is_br: false,
+                        indexer: "",
+                        category_bucket: 0,
+                        other_as_unknown: false,
+                    },
+                );
+                QueryOutcome {
+                    indexer: ALL_QUERY_INDEXER.to_string(),
+                    status: if items.is_empty() {
+                        IndexerStatus::Empty
+                    } else {
+                        IndexerStatus::Ok
+                    },
+                    items,
+                    ms: started.elapsed().as_millis() as u64,
+                    from_cache: false,
+                    source_ok: true,
+                    source_error: None,
+                    record_status: options.record_status(),
+                    primary: true,
+                }
+            }
             Err(err) => {
-                eprintln!("[jackett] {err}");
-                Vec::new()
+                eprintln!("[jackett] {}", err.message);
+                QueryOutcome {
+                    indexer: ALL_QUERY_INDEXER.to_string(),
+                    items: Vec::new(),
+                    ms: started.elapsed().as_millis() as u64,
+                    from_cache: false,
+                    source_ok: false,
+                    // Timeout do `/all` também é falha declarada (o Node
+                    // responde `all=error`, nunca `pending`, ao estourar).
+                    status: IndexerStatus::Failed,
+                    source_error: Some(err.message),
+                    record_status: options.record_status(),
+                    primary: true,
+                }
             }
         }
     }
@@ -75,11 +110,11 @@ impl JackettClient {
                 }
             }
             Err(err) => {
-                eprintln!("[jackett] {indexer}: {err}");
+                eprintln!("[jackett] {indexer}: {}", err.message);
                 FetchStep {
                     search_query,
                     items: Vec::new(),
-                    envelope_error: Some(err),
+                    envelope_error: Some(err.message),
                     live: 1,
                 }
             }
@@ -94,11 +129,11 @@ impl JackettClient {
         query: &str,
         category: Option<u32>,
         deadline_at: i64,
-    ) -> Result<Value, String> {
+    ) -> Result<Value, FetchError> {
         let Some(budget) = remaining(deadline_at) else {
-            return Err("timeout".into());
+            return Err(FetchError::timeout());
         };
-        let mut url = self.results_url(indexer)?;
+        let mut url = self.results_url(indexer).map_err(FetchError::failed)?;
         {
             let mut pairs = url.query_pairs_mut();
             pairs.append_pair("apikey", &self.config.api_key);
@@ -116,21 +151,21 @@ impl JackettClient {
             .timeout(budget);
 
         let exchange = async move {
-            let response = request.send().await.map_err(|e| e.to_string())?;
+            let response = request.send().await.map_err(reqwest_error)?;
             let status = response.status().as_u16();
-            let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-            Ok::<_, String>((status, bytes))
+            let bytes = response.bytes().await.map_err(reqwest_error)?;
+            Ok::<_, FetchError>((status, bytes))
         };
 
         match tokio::time::timeout(budget, exchange).await {
             Ok(Ok((status, bytes))) => {
                 if !(200..300).contains(&status) {
                     eprintln!("[jackett] {label}: HTTP {status}");
-                    return Err(format!("HTTP {status}"));
+                    return Err(FetchError::failed(format!("HTTP {status}")));
                 }
                 serde_json::from_slice(&bytes).map_err(|err| {
                     eprintln!("[jackett] {label}: JSON inválido");
-                    format!("JSON inválido: {err}")
+                    FetchError::failed(format!("JSON inválido: {err}"))
                 })
             }
             Ok(Err(err)) => {
@@ -139,7 +174,7 @@ impl JackettClient {
             }
             Err(_) => {
                 eprintln!("[jackett] {label}: prazo absoluto estourado");
-                Err("timeout".into())
+                Err(FetchError::timeout())
             }
         }
     }
@@ -201,6 +236,33 @@ pub(super) struct FetchStep {
     pub(super) items: Vec<JackettRawItem>,
     pub(super) envelope_error: Option<String>,
     pub(super) live: u32,
+}
+
+/// Falha de transporte com o motivo já normalizado ("timeout" para prazo).
+pub(super) struct FetchError {
+    pub(super) message: String,
+}
+
+impl FetchError {
+    fn failed(message: String) -> Self {
+        Self { message }
+    }
+
+    fn timeout() -> Self {
+        Self {
+            message: "timeout".to_string(),
+        }
+    }
+}
+
+/// O teto por requisição do reqwest vence antes do timeout externo: o motivo
+/// vira o mesmo "timeout" do prazo absoluto (falha declarada, não pending).
+fn reqwest_error(err: reqwest::Error) -> FetchError {
+    if err.is_timeout() {
+        FetchError::timeout()
+    } else {
+        FetchError::failed(err.to_string())
+    }
 }
 
 pub(super) fn strip_trailing_year_token(query: &str) -> String {

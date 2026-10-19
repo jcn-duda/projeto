@@ -59,9 +59,12 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-/// Snapshot §9 — só contadores, sem token/credencial.
+/// Snapshot §9 — só contadores, sem token/credencial. Inclui as métricas da
+/// sombra de FONTE (`source.shadow.*`), zeradas enquanto ela está desligada.
 async fn metrics_snapshot(State(state): State<AppState>) -> Json<BTreeMap<String, u64>> {
-    Json(state.shadow_metrics.snapshot())
+    let mut snapshot = state.shadow_metrics.snapshot();
+    snapshot.extend(adom_search::orchestrator::source_shadow_metrics_snapshot());
+    Json(snapshot)
 }
 
 pub fn client() -> ProxyClient {

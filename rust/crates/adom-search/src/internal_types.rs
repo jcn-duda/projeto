@@ -101,36 +101,12 @@ pub struct StateResponse {
 
 // ── collect ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize)]
-pub struct CollectRequest {
-    pub encoded: String,
-    pub query: String,
-    #[serde(rename = "type")]
-    pub media_type: String,
-    pub imdb: String,
-    /// Epoch ms absoluto — o orquestrador manda o orçamento.
-    pub deadline_at: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub task_scope: Option<TaskScope>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pt_query: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub season: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub episode: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub year: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub names: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sweep_query: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub original_query: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub multi_work_query: Option<String>,
-    /// Fontes que o Node pula (já coletadas nativamente). Vazio = nada a pular.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub skip_sources: Vec<String>,
+#[path = "collect_request.rs"]
+mod collect_request;
+pub use collect_request::CollectRequest;
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -183,6 +159,11 @@ pub struct CollectResponse {
     pub live: Option<LiveSnapshot>,
     #[serde(default)]
     pub breaker: BTreeMap<String, BreakerSnapshot>,
+    /// `false` = a fonte da sombra não está nos `providers` efetivos; o lote
+    /// veio vazio de propósito e NÃO pode ser comparado. Ausente em Node
+    /// antigo vale `true` (compatibilidade).
+    #[serde(default = "default_true")]
+    pub eligible: bool,
 }
 
 // ── index-write ─────────────────────────────────────────────────────────────
