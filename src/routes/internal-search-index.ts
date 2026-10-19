@@ -18,7 +18,6 @@ import * as account from '../providers/account.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { enqueueIndexFollowUp } from '../providers/search-index-path.js';
 import { enrichForRust } from './internal-search-evidence.js';
-import { getTitles } from '../utils/tmdb.js';
 import config from '../config.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
@@ -62,9 +61,6 @@ export function registerInternalSearchIndex(router: Router, services: AppService
       ? (body.names as string[]).filter((n) => n.trim())
       : [];
 
-    // Títulos do TMDB em paralelo (cache aquecido pela rota `meta`): só para o
-    // ptTitleDual — a resposta não espera além do teto curto da via rápida.
-    const titles = getTitles(imdbId).catch(() => null);
     await services.runtime.run({ opts: target.opts, encoded: target.encoded }, async () => {
       try {
         const indexed = (config.releaseIndex.enabled ? releaseIndex.lookup(imdbId, { season, episode }) : [])
@@ -130,14 +126,14 @@ export function registerInternalSearchIndex(router: Router, services: AppService
           );
         }
 
-        // Prova de ARQUIVO e ptTitleDual (o Rust decide chip, `_dubbed` e a
-        // origem BR por eles, como o `toStremioStream`).
-        const until = Date.now() + config.accountFastPath.waitMs;
-        const [indexItems, instantItems, accountOut] = await Promise.all([
-          enrichForRust(idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true })), titles, until),
-          enrichForRust(instantResult.items, titles, until),
-          enrichForRust(accountItems, titles, until),
-        ]);
+        // Só a prova de ARQUIVO. O ptTitleDual (chip/_dubbed/origem BR) o Rust
+        // decide in-process por `SearchMeta.titles` → `BuildContext.titles`;
+        // não há consulta a `getTitles` nem espera de TMDB nesta rota.
+        const indexItems = enrichForRust(
+          idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true })),
+        );
+        const instantItems = enrichForRust(instantResult.items);
+        const accountOut = enrichForRust(accountItems);
         return res.json({
           ok: true,
           is_partial: isPartial,

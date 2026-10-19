@@ -1,31 +1,18 @@
-// Evidência que o orquestrador Rust ainda não tem como calcular sozinho, anexada
-// aos itens que as rotas internas devolvem (`collect`/`index`), na MESMA ordem
-// do `stream-builder-pipeline`: prova de ARQUIVO do índice (`applyFileEvidence`)
-// e DUAL global com título TMDB pt (`applyPtTitleDual`). O Rust decide o chip,
-// o `_dubbed` e a origem BR (`toStremioStream`) por estes campos.
+// Evidência que só o Node tem, anexada aos itens que as rotas internas devolvem
+// (`collect`/`index`): a prova de ARQUIVO do índice (`applyFileEvidence`).
+//
+// O `ptTitleDual` NÃO é calculado aqui. A decisão mora no núcleo do orquestrador
+// Rust: os títulos da obra chegam em `/internal/search/meta`
+// (`SearchMeta.titles`) → `BuildContext.titles` → `apply_pt_title_dual`, que
+// marca o lote in-process antes do build. Recalcular na rota duplicava a régua e
+// prendia a resposta a `getTitles` sem ganho — o Node não precisa mandar o flag.
 import type { RawItem } from '../../types/domain.js';
 import { applyFileEvidence } from '../providers/stream-file-evidence.js';
-import { applyPtTitleDual } from '../providers/pt-title-dual.js';
-import { raceWithDeadline } from '../utils/deadline.js';
-
-type Titles = { original?: string | null; pt?: string | null; en?: string | null } | null;
 
 /**
- * `titles` é a promessa do `getTitles` (cache de 7 dias, já aquecido pela rota
- * `meta` da mesma busca): espera no máximo até o prazo da rota; sem títulos a
- * tempo, só a prova de arquivo vai — ptTitleDual nunca inventa origem.
+ * Anexa a prova de arquivo do índice. Síncrono e sem rede: a rota devolve o
+ * lote imediatamente; a decisão de chip/`_dubbed`/origem BR fica no Rust.
  */
-export async function enrichForRust(
-  items: RawItem[],
-  titles: Promise<Titles> | null,
-  deadlineAt: number,
-): Promise<RawItem[]> {
-  const withEvidence = applyFileEvidence(items);
-  if (!titles) return withEvidence;
-  const resolved = await raceWithDeadline(
-    titles.catch(() => null),
-    Math.max(0, deadlineAt - Date.now()),
-    () => null,
-  );
-  return resolved ? applyPtTitleDual(withEvidence, { titles: resolved }) : withEvidence;
+export function enrichForRust(items: RawItem[]): RawItem[] {
+  return applyFileEvidence(items);
 }

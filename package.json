@@ -172,6 +172,8 @@
     "test/internal-search-routes.test.js",
     "test/internal-search-fallback.test.js",
     "test/internal-search-collect.test.js",
+    "test/internal-search-evidence.test.js",
+    "test/internal-search-index.test.js",
     "test/internal-search-effects.test.js",
     "test/internal-debrid-check.test.js",
     "test/crawl-queue-order.test.js",
