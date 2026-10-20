@@ -80,9 +80,6 @@ Opções:
   --encoded <base64url>     segmento de config; só o TAMANHO é impresso
   --samples <n>             amostras quentes por perfil (default 3; 0 desliga)
   --settle-ms <ms>          pausa antes da 2ª batida de paridade (default 400)
-  --relaxed                 gate flexível: BR e ⚡ presentes nos dois lados, total ±1 e
-                            sobreposição de hashes >= 0,7 (fontes ao vivo derivam; o
-                            default segue EXATO)
   --shadow-wait-ms <ms>     janela para detectar a sombra (default 12000)
   --deadline-stremio <ms>   prazo do perfil Stremio/1.6 (default 10000)
   --deadline-dart <ms>      prazo do perfil Dart/ (default 15000)
@@ -178,7 +175,6 @@ const OPTS = {
   corpus: getArg('--corpus', path.join(REPO, 'scripts', 'golden', 'casos-stream-e2e.json')),
   samples: intArg('--samples', 3, 0),
   settleMs: numArg('--settle-ms', 400, 0),
-  relaxed: args.includes('--relaxed'),
   shadowWaitMs: numArg('--shadow-wait-ms', 12000, 0),
   deadlineStremio: numArg('--deadline-stremio', 10000, 1000),
   deadlineDart: numArg('--deadline-dart', 15000, 1000),
@@ -359,7 +355,7 @@ function hashSetOf(streams) {
 // Gate EXATO por caso. Conjunto de hashes idêntico + BR igual + total igual.
 // Ambos vazios (ou só aviso, cf. §0.5) não provam paridade: INCONCLUSIVO.
 // Erro de rede/HTTP/prazo: ERRO. Qualquer diferença: DIVERGENCIA.
-function parityVerdict(nodeRes, rustRes, relaxed = false) {
+function parityVerdict(nodeRes, rustRes) {
   if (!nodeRes.ok || !rustRes.ok) {
     return {
       status: 'ERRO',
@@ -383,32 +379,6 @@ function parityVerdict(nodeRes, rustRes, relaxed = false) {
   }
   const missingInRust = nodeSet.filter((h) => !rustSet.includes(h));
   const missingInNode = rustSet.filter((h) => !nodeSet.includes(h));
-  if (relaxed) {
-    // Modo flexível (--relaxed): fontes ao vivo derivam entre leituras (Jackett/
-    // Flare/banco de magnets), então lista idêntica de hashes é instável por
-    // natureza. Exige o ESSENCIAL: BR e ⚡ presentes nos dois lados ou em
-    // nenhum, total com diferença de até 1 e sobreposição Jaccard >= 0,7.
-    const inter = nodeSet.length - missingInRust.length;
-    const jaccard = inter / (new Set([...nodeSet, ...rustSet]).size || 1);
-    const hasBolt = (res) => res.streams.some((st) => String(st?.name || '').includes('⚡'));
-    const reasons = [];
-    if ((nodeBr > 0) !== (rustBr > 0)) reasons.push('BR presente só num lado');
-    if (hasBolt(nodeRes) !== hasBolt(rustRes)) reasons.push('⚡ presente só num lado');
-    if (Math.abs(nodeRes.streams.length - rustRes.streams.length) > 1) reasons.push('total difere em mais de 1');
-    if (jaccard < 0.7) reasons.push(`sobreposição ${jaccard.toFixed(2)} < 0.70`);
-    if (reasons.length) {
-      return {
-        ...base, status: 'DIVERGENCIA', missingInRust, missingInNode, brSetsDiffer,
-        totalDiff: nodeRes.streams.length - rustRes.streams.length, reasons,
-      };
-    }
-    const nodeSeqR = nodeRes.streams.map(extractHash).filter(Boolean);
-    const rustSeqR = rustRes.streams.map(extractHash).filter(Boolean);
-    return {
-      ...base, status: 'PARIDADE', relaxed: true, jaccard,
-      top3Same: [0, 1, 2].every((i) => (nodeSeqR[i] ?? null) === (rustSeqR[i] ?? null)),
-    };
-  }
   if (missingInRust.length || missingInNode.length || brSetsDiffer || nodeBr !== rustBr || nodeRes.streams.length !== rustRes.streams.length) {
     return {
       ...base,
@@ -622,7 +592,7 @@ async function phaseParity(log, opts) {
     const [nodeCold, rustCold] = await Promise.all([request(opts.node), request(opts.rust)]);
     if (opts.settleMs > 0) await new Promise((resolve) => setTimeout(resolve, opts.settleMs));
     const [nodeRes, rustRes] = await Promise.all([request(opts.node), request(opts.rust)]);
-    const verdict = parityVerdict(nodeRes, rustRes, opts.relaxed);
+    const verdict = parityVerdict(nodeRes, rustRes);
     results.push({
       case: c,
       verdict,
@@ -880,7 +850,7 @@ async function runSelfTest() {
   test('help lista as flags e não exige rede', () => {
     for (const flag of [
       '--rust', '--node', '--encoded', '--samples', '--settle-ms',
-      '--relaxed', '--shadow-wait-ms', '--deadline-stremio', '--deadline-dart',
+      '--shadow-wait-ms', '--deadline-stremio', '--deadline-dart',
       '--corpus', '--self-test', '--help',
     ]) {
       assert.ok(HELP_TEXT.includes(flag), `help sem ${flag}`);
@@ -954,17 +924,6 @@ async function runSelfTest() {
     const mk = (streams) => ({ ok: true, status: 200, streams });
     const err = (extra) => ({ ok: false, status: 0, streams: [], error: 'boom', ...extra });
     assert.equal(parityVerdict(mk([]), mk([])).status, 'INCONCLUSIVO');
-    {
-      // --relaxed: 1 hash trocado em 5 (Jaccard 0,67) reprova; 1 em 9 passa; o
-      // modo exato continua reprovando os dois.
-      const h = (c) => ({ infoHash: c.repeat(40) });
-      const lista = (ids) => mk(ids.map((i) => ({ ...h(i), name: '[AD⚡] 1080p' })));
-      const base9 = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-      assert.equal(parityVerdict(lista(base9), lista([...base9.slice(0, 8), 'a']), true).status, 'PARIDADE');
-      assert.equal(parityVerdict(lista(base9), lista([...base9.slice(0, 8), 'a'])).status, 'DIVERGENCIA');
-      assert.equal(parityVerdict(lista(['1', '2', '3', '4', '5']), lista(['1', '2', '3', '4', 'a']), true).status, 'DIVERGENCIA');
-      assert.equal(parityVerdict(lista(base9), mk(base9.map((i) => h(i))), true).status, 'DIVERGENCIA');
-    }
     assert.equal(parityVerdict(mk([{ name: 'Aviso' }]), mk([{ name: 'Aviso' }])).status, 'INCONCLUSIVO');
     assert.equal(parityVerdict(mk([]), mk([{ infoHash: 'a'.repeat(40) }])).status, 'DIVERGENCIA');
     assert.equal(parityVerdict(err(), mk([])).status, 'ERRO');
