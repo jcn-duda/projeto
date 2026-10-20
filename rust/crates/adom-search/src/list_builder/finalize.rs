@@ -235,6 +235,56 @@ pub fn finalize_streams(
         },
     );
 
+    // 8e. Pack que o Node mediu EXATO na 2ª passada, mas cuja lista só chegou
+    //     depois do build (`files_at_build` sem o hash) e cujo lote terminou
+    //     `unusable` (quota): o `pos_checagem=false` acima preservou a média do
+    //     build. Se o item JÁ é pack com média, a lista final (`fsz`) ainda é a
+    //     prova do tamanho do episódio; trocar só o texto/size desse item não
+    //     cria `📦` em quem o Node não marcou (os 40 casos e o e2e ficam).
+    if !pos_checagem {
+        if let (Some(season), Some(episode), Some(build_files)) =
+            (ctx.season, ctx.episode, ctx.files_at_build.as_ref())
+        {
+            let pack_opts = adom_core::PackOpts {
+                season,
+                episode,
+                meta: &ctx.episode_counts,
+            };
+            for stream in &mut kept {
+                let hash = stream
+                    .info_hash
+                    .as_deref()
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                if hash.is_empty()
+                    || build_files.contains_key(&hash)
+                    || !ctx.files_by_hash.contains_key(&hash)
+                {
+                    continue;
+                }
+                let title = stream.title.as_deref().unwrap_or("");
+                if !title.contains("(média)") {
+                    continue;
+                }
+                let mut sem_size = stream.clone();
+                sem_size.size = None;
+                let anotado = adom_core::annotate_pack_sizes_core(
+                    std::slice::from_ref(&sem_size),
+                    &ctx.files_by_hash,
+                    &pack_opts,
+                );
+                let Some(exact) = anotado.first() else {
+                    continue;
+                };
+                let exact_title = exact.title.as_deref().unwrap_or("");
+                if !exact_title.contains("💾") || exact_title.contains("(média)") {
+                    continue;
+                }
+                *stream = exact.clone();
+            }
+        }
+    }
+
     // 9. limitReservingBr — o corte final é DEPOIS do pool ampliado; inverter
     //    faz o BR (sem seeders publicados) sumir (invariante 3).
     let refs: Vec<StreamRef> = kept.iter().map(|s| stream_to_ref(s, ctx.season)).collect();
@@ -297,6 +347,11 @@ pub fn finalize_streams(
             // Prova ou promessa: as duas entram na dica `d` do `/resolve`.
             dubbed: s.dubbed.unwrap_or(false) || s.dub_claim.unwrap_or(false),
             multi_work_admitted: s.multi_work_admitted.unwrap_or(false),
+            p2p: s
+                .extra
+                .get("_p2p")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false),
             multi_work: s.multi_work.unwrap_or(false),
         })
         .collect();
@@ -314,6 +369,7 @@ pub fn finalize_streams(
                 info_hash: None,
                 dubbed: false,
                 multi_work_admitted: false,
+                p2p: false,
                 multi_work: false,
             });
         }
@@ -346,7 +402,11 @@ fn disposition_of(
                 .get("cached")
                 .and_then(|value| value.as_bool())
                 .unwrap_or(false),
-        resolve_uncached,
+        // P2P por hash (quota) NÃO vira `/resolve` nem com `resolveUncached`:
+        // `DebridAnswer::P2p` é "sem link do debrid", o knob só vale para frio
+        // conhecido. Sem esta guarda o replay marcava `[AD download]` onde o
+        // expected era P2P (Auto da Compadecida/HP1).
+        resolve_uncached: resolve_uncached && !unusable,
         degraded,
     })
 }

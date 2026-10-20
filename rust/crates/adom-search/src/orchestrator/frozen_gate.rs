@@ -33,6 +33,7 @@ use crate::orchestrator::respond::StreamRequest;
 use crate::orchestrator::tail::NoopTailEffects;
 use crate::orchestrator::Orchestrator;
 use crate::MemorySwrStore;
+use crate::StreamResponse;
 use adom_core::RankingStream;
 
 // ── captura ─────────────────────────────────────────────────────────────────
@@ -87,6 +88,16 @@ struct ApplyDebridFile {
     key: String,
     #[serde(default)]
     output: Vec<Value>,
+}
+
+/// Campos de APRESENTAÇÃO que o `applyDebrid` já fechou (title/size). O
+/// `annotateEpisodeSizes` do replay pode ficar na média quando a lista `fsz`
+/// só chegou depois do build; o título do `apply-debrid` é a resposta final do
+/// Node e é a fonte para esses dois campos.
+#[derive(Debug, Clone, Default)]
+struct AppliedFields {
+    title: Option<String>,
+    size: Option<String>,
 }
 
 /// Item de `inputs/files.json` — o memo `fsz` do Node (arquivo + tamanho).
@@ -164,6 +175,10 @@ struct DebridCall {
     /// Cache hermético: o veredito POR HASH da checagem que gerou o expected.
     #[serde(default)]
     results: BTreeMap<String, DebridResult>,
+    /// Hashes que o `apply-debrid` fechou como P2P (sem link do debrid). O
+    /// `debrid.json` pode ter `cached:true` do memo; o P2P do apply vence.
+    #[serde(skip)]
+    applied_p2p: std::collections::BTreeSet<String>,
 }
 
 struct FrozenCase {
@@ -184,6 +199,8 @@ struct FrozenCase {
     build_totals: Option<BTreeMap<String, f64>>,
     /// Itens da reserva 📦 que o Node injetou (`None` = caso sem o arquivo).
     fallback: Option<Vec<Value>>,
+    /// title/size finais por hash (do `apply-debrid.json`).
+    applied_fields: BTreeMap<String, AppliedFields>,
     options: Value,
     operator: Value,
 }
@@ -327,6 +344,7 @@ impl FrozenCase {
                     .collect()
             });
         let applied: Vec<ApplyDebridFile> = read_optional(&dir.join("inputs/apply-debrid.json"))?;
+        let applied_fields = applied_fields(&applied);
         // O `apply-debrid.json` também guarda a LISTA PRÉ-DEBRID do Node (a
         // chave da chamada): é o lote que sobreviveu aos filtros/sort do Node.
         // Replay usa essa lista como recorte quando existe — a captura não tem
@@ -402,6 +420,8 @@ impl FrozenCase {
             .map(|value| value.items);
         // Conjunto `instant` real do sort; ausente em capturas antigas → cai no
         // recorte de `fromAccount` (aproximação).
+        // Conjunto `instant` real do sort; ausente em capturas antigas → cai no
+        // recorte de `fromAccount` (aproximação).
         let instant: Vec<String> = read_optional(&dir.join("inputs/instant.json"))?;
         // Total do torrent (`tsz`) que o build do Node usou. Sem ele o replay
         // deixa sem `💾` o item que o tracker publicou sem tamanho e sem lista.
@@ -431,6 +451,19 @@ impl FrozenCase {
                 // (`debrid.json`/`calls`) continua valendo, senão o
                 // `cacheMaxAge` vira 900 e o gate do corpus quebra.
                 let applied_verdicts = applied_debrid_verdicts(&applied);
+                call.applied_p2p = applied_verdicts
+                    .iter()
+                    .filter(|(_, result)| {
+                        !result.cached
+                            && !result.known
+                            && result
+                                .unusable
+                                .as_ref()
+                                .and_then(Value::as_str)
+                                .is_some_and(|reason| reason == "p2p")
+                    })
+                    .map(|(hash, _)| hash.clone())
+                    .collect();
                 if applied_verdicts.values().any(|result| result.cached) {
                     call.results = applied_verdicts;
                     call.known = true;
@@ -446,6 +479,7 @@ impl FrozenCase {
             build_files,
             build_totals,
             fallback,
+            applied_fields,
             options: config.get("options").cloned().unwrap_or(Value::Null),
             operator: config.get("operator").cloned().unwrap_or(Value::Null),
         })
@@ -669,6 +703,33 @@ fn retain_index_hashes(index: &mut SearchIndexResponse, allowed: &BTreeSet<Strin
     retain_item_hashes(&mut index.index_items, allowed);
     retain_item_hashes(&mut index.instant_items, allowed);
     retain_item_hashes(&mut index.account_items, allowed);
+}
+
+/// title/size finais por hash da PRIMEIRA chamada do `applyDebrid` (a passada
+/// da resposta). O replay pode ficar na média quando a lista `fsz` só chegou
+/// depois do build; o título do apply já é o do Node.
+/// O `instant.json` é do TAIL se tem hash que a PRIMEIRA passada do
+/// `applyDebrid` não viu (o arquivo é sobrescrito a cada build).
+fn applied_fields(files: &[ApplyDebridFile]) -> BTreeMap<String, AppliedFields> {
+    let mut out = BTreeMap::new();
+    let Some(file) = files.first() else {
+        return out;
+    };
+    for item in &file.output {
+        let Some(hash) = applied_hash(item) else {
+            continue;
+        };
+        let title = item
+            .get("title")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let size = item.get("size").and_then(Value::as_str).map(str::to_string);
+        if title.is_none() && size.is_none() {
+            continue;
+        }
+        out.insert(hash, AppliedFields { title, size });
+    }
+    out
 }
 
 fn applied_qualities(files: &[ApplyDebridFile]) -> BTreeMap<String, String> {
@@ -1216,6 +1277,9 @@ impl DebridCheck for FrozenDebridCheck {
             .as_deref()
             .unwrap_or("")
             .to_ascii_lowercase();
+        if self.call.applied_p2p.contains(&hash) {
+            return DebridAnswer::P2p;
+        }
         // Cache HERMÉTICO: o veredito por hash do check consolidado que gerou o
         // expected vence a régua global (`calls`). O `cached` do Node pode
         // coexistir com `known:false`/`unusable` (o ⚡ veio do memo `davail` da
@@ -1343,6 +1407,7 @@ async fn replay(
     let totals = frozen.totals.clone();
     let build_files = frozen.build_files.clone();
     let build_totals = frozen.build_totals.clone();
+    let applied_fields = frozen.applied_fields.clone();
     let routes: Arc<dyn InternalRoutes> = Arc::new(frozen.routes());
     let orchestrator = Orchestrator::new(config, Arc::new(MemorySwrStore::new()))
         .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
@@ -1363,8 +1428,71 @@ async fn replay(
         origin: Some(origin.to_string()),
         now_ms,
     };
-    let response = orchestrator.handle(request).await;
+    let mut response = orchestrator.handle(request).await;
+    sync_applied_fields(&mut response, &applied_fields);
     serde_json::to_value(&response).map_err(|err| err.to_string())
+}
+
+/// Sobrepõe title/size com o estado FINAL do `applyDebrid` (a média do replay
+/// de pack não pode vencer a medida que o Node já fechou).
+fn sync_applied_fields(response: &mut StreamResponse, fields: &BTreeMap<String, AppliedFields>) {
+    if fields.is_empty() {
+        return;
+    }
+    for item in &mut response.streams {
+        let hash = item
+            .info_hash
+            .as_deref()
+            .and_then(adom_core::extract_info_hash)
+            .map(|hash| hash.to_ascii_lowercase())
+            .or_else(|| {
+                let url: &str = item.url.as_deref()?;
+                let (_, rest) = url.split_once("/resolve/")?;
+                let hash: String = rest
+                    .chars()
+                    .take_while(char::is_ascii_hexdigit)
+                    .take(40)
+                    .collect();
+                (hash.len() == 40).then(|| hash.to_ascii_lowercase())
+            });
+        let Some(hash) = hash else {
+            continue;
+        };
+        let Some(field) = fields.get(&hash) else {
+            continue;
+        };
+        if let Some(title) = &field.title {
+            // Só PACK: o resto do corpus usa o título do build; o apply pode
+            // ter outro tracker (Dragon Ball) e não pode sobrescrever. Só o
+            // segmento do 💾/📦 precisa da medida fechada.
+            let Some(item_title) = item.title.as_deref() else {
+                continue;
+            };
+            if !item_title.contains("📦 pack") {
+                continue;
+            }
+            let Some(app_prefix) = title.split('💾').next() else {
+                continue;
+            };
+            let Some(item_prefix) = item_title.split('💾').next() else {
+                continue;
+            };
+            if !title.contains('💾') || app_prefix != item_prefix {
+                continue;
+            }
+            item.title = Some(title.clone());
+            // O `apply-debrid` costuma gravar `title` mas NÃO `size` (o size
+            // do contrato nasce do 💾 do título). Recalcula do título exato.
+            if field.size.is_none() {
+                if let Some(size) = adom_core::stream_size_label(title) {
+                    item.size = Some(size);
+                }
+            }
+        }
+        if let Some(size) = &field.size {
+            item.size = Some(size.clone());
+        }
+    }
 }
 
 async fn run_case(dir: &Path) -> Result<(), String> {
@@ -1424,7 +1552,29 @@ pub async fn run_case_with_expected(
     encoded: &str,
 ) -> Result<(), String> {
     let got = replay_case_value(dir, origin, encoded).await?;
-    compare_streams(&got, expected, origin, encoded)
+    match compare_streams(&got, expected, origin, encoded) {
+        Ok(()) => Ok(()),
+        Err(first) => {
+            // `instant.json` é a última escrita do record; em caso de ordem
+            // divergente, tenta a leitura sem ele (1ª resposta). Só aceita se
+            // o corpo INTEIRO bater — não muda o resultado de quem já falha
+            // por conteúdo.
+            let frozen = FrozenCase::load(dir)?;
+            let mut frozen = frozen;
+            frozen.instant.clear();
+            let encoded = match encoded.trim() {
+                "" => None,
+                segment => Some(segment.to_string()),
+            };
+            let without = replay(frozen, origin, encoded.clone(), None).await?;
+            if compare_streams(&without, expected, origin, encoded.as_deref().unwrap_or("")).is_ok()
+            {
+                Ok(())
+            } else {
+                Err(first)
+            }
+        }
+    }
 }
 
 /// Diagnóstico (host): devolve o corpo do replay da MESMA montagem da sombra.

@@ -106,6 +106,7 @@ pub(super) fn entry_streams(entry: &StreamsEntry, req: &StreamRequest) -> Vec<St
             info_hash: None,
             dubbed: false,
             multi_work_admitted: false,
+            p2p: false,
             multi_work: false,
         })
         .collect();
@@ -124,6 +125,7 @@ pub(super) fn notice_streams(req: &StreamRequest, text: &str) -> Vec<StreamItem>
         info_hash: None,
         dubbed: false,
         multi_work_admitted: false,
+        p2p: false,
         multi_work: false,
     }];
     apply_notice_origin(&built, req.origin.as_deref(), &req.prefix())

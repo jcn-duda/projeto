@@ -105,7 +105,8 @@ pub(super) fn finish_value(
             // a lista inteira volta P2P, como o `filter` do Node.
             cached: stream.cached && !unusable,
             // Sombra: sem checagem não há "frio conhecido" a resolver.
-            resolve_uncached,
+            // `P2p` por hash (quota) também não: o Node exibe P2P puro.
+            resolve_uncached: resolve_uncached && !stream.p2p,
             degraded,
         });
         match disposition {

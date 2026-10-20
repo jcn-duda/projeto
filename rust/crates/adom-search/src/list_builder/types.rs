@@ -285,6 +285,10 @@ pub struct BuiltStream {
     pub dubbed: bool,
     /// Pack multiobra ADMITIDO (opt-in TMDB): decide o `playDisposition`.
     pub multi_work_admitted: bool,
+    /// `DebridAnswer::P2p`: hash isolado sem link do debrid (ex.: quota). NÃO
+    /// pode virar `/resolve` nem com `resolveUncached` — o `expected` do Node é
+    /// P2P (Auto da Compadecida/HP1).
+    pub p2p: bool,
     /// Coleção multiobra GENÉRICA — o `_multiWork` do Node
     /// (`isMultiWorkCollection(title) || _multiWorkAdmitted`). É ESTA marca que
     /// entra na dica `p:1` do HMAC (o genérico basta; a admissão não é

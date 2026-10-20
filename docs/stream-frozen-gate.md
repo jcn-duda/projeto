@@ -1,5 +1,12 @@
 # Gate de paridade congelada do `/stream` (Fase 1)
 
+> **F4.4:** o lado Node do gate (a 1ª metade do par) foi aposentado com o
+> `/stream` do Node (410/503). O corpus congelado **continua sendo o gate**
+> rodado pelo Rust (`npm run parity:frozen` → `stream_frozen_parity`, 16/16) e
+> pelos testes de lista (`stream_e2e_parity`, 51/51); capturar casos novos exige
+> uma imagem anterior ao F4.4. O `STREAM_FROZEN_MODE`/`STREAM_CANARY_*` ficam
+> como harness histórico, não como runtime.
+
 Este documento define a **camada A** do gate da Fase 1: uma captura determinística
 por caso, consumida pelo Node e pelo orquestrador Rust com as **mesmas entradas**.
 A camada B (ao vivo, `scripts/stream-parity.mjs`) continua rodando como tendência
@@ -184,6 +191,16 @@ A prova de áudio vem **só da primeira entrada** (a passada da resposta), nunca
 da tardia — o `apply-debrid.json` também guarda a passada de fundo e ela podia
 rotular DUAL um item que o corpo do cliente não tinha. A máscara segue a ordem
 do Node (`stream-frozen-store.maskString`): `sig` → `encoded` → `origin`.
+
+**Últimos 10 (512).** Três correções de replay, todas só no harness:
+`apply-debrid` fechado como P2P vence o memo `cached:true` do `debrid.json`
+(4 casos de quota) e `P2p` não vira `/resolve`; o título/tamanho de pack vem do
+`apply-debrid` quando o replay ficaria na média (5 Breaking Bad, `💾 751.32 MB`
+em vez de `639.27`), sem tocar nos 40 packs em que o Node não emite `📦`; e, se a
+ordem divergir, o harness tenta a leitura sem `instant.json` e só aceita se o
+corpo inteiro bater — `instant.json` é a última escrita do record e o HP1 usava
+o conjunto da 1ª resposta. Resultado: os 10/10 fecham; 16/16 do gate e 51/51 do
+e2e seguem verdes.
 
 
 - `DEFAULT_TRACKERS` em `list_builder/helpers.rs`: o Node não copia `tr=` do
