@@ -225,31 +225,33 @@ já eram LF (hash bruto == hash LF), logo dispensam o rótulo.
 
 | Ferramenta | Cobre | Como rodar |
 | --- | --- | --- |
-| [`dump-title-normalization.mjs`](../scripts/golden/dump-title-normalization.mjs) — **18 chaves de `--fn`** (no branch `esm`; aqui só o `package.json` delega) | 18 goldens: `title-normalization`, `matching-vocabulary`, `matching-vocabulary-sets`, `matching-vocabulary-regex`, `matching-tokens-text`, `matching-tokens-decisions`, `matching-latin-ranges`, `short-name-tail`, `catalog-year`, `br-origin`, `magnet-uri`, `franchise`, `episode-parse`, `multiwork-pack`, `stream-quotas`, `release-work`, `release-title-rules`, `release-name-matching` | `npm run golden:titles:check` (delega a `../adom-esm`). Para `--fn`, rode `node scripts/golden/dump-title-normalization.mjs --check --fn <chave>` **dentro de `../adom-esm`** |
-| 7 `gen-*.mjs` + 8 `registry-*.mjs` (`--check`, `--force`) | as 5 fatias do fim da lista acima, por fora do gerador unificado (`gen-multiwork-pack`, `gen-stream-quotas`, `gen-release-work`, `gen-release-title-rules`, `gen-release-name-matching`), mais `gen-cache` (cache) e `gen-latin-table` (tabela interna) | `node scripts/golden/gen-<nome>.mjs --check` |
+| `dump-title-normalization.mjs` — **18 chaves de `--fn`** (no branch `esm`; aqui só o `package.json` delega) | 18 goldens: `title-normalization`, `matching-vocabulary`, `matching-vocabulary-sets`, `matching-vocabulary-regex`, `matching-tokens-text`, `matching-tokens-decisions`, `matching-latin-ranges`, `short-name-tail`, `catalog-year`, `br-origin`, `magnet-uri`, `franchise`, `episode-parse`, `multiwork-pack`, `stream-quotas`, `release-work`, `release-title-rules`, `release-name-matching` | `npm run golden:titles:check` (delega a `../adom-esm`). Para `--fn`, rode `node scripts/golden/dump-title-normalization.mjs --check --fn <chave>` **dentro de `../adom-esm`** |
+| 6 `gen-*.mjs` + 7 `registry-*.mjs` (`--check`, `--force`) | as 5 fatias do fim da lista acima, por fora do gerador unificado (`gen-multiwork-pack`, `gen-stream-quotas`, `gen-release-work`, `gen-release-title-rules`, `gen-release-name-matching`), mais `gen-cache` (cache). `gen-latin-table.mjs` (tabela interna) fica no branch `esm` | `node scripts/golden/gen-<nome>.mjs --check` |
 | [`dump-resolve-sign.mjs`](../scripts/golden/dump-resolve-sign.mjs) + `resolve-sign-oracle.mjs` | `resolve-sign` | `npm run golden:resolve-sign:check` |
-| [`dump-release-labels.mjs`](../scripts/golden/dump-release-labels.mjs) + `release-labels-oracle.mjs` | `release-labels` | `npm run golden:release-labels:check` |
-| [`dump-pt-audio-guards.mjs`](../scripts/golden/dump-pt-audio-guards.mjs) | `pt-audio-guards` | `npm run golden:pt-audio-guards:check` |
-| [`dump-search-name-helpers.mjs`](../scripts/golden/dump-search-name-helpers.mjs) + `search-name-helpers-oracle.mjs` | `search-name-helpers` | `npm run golden:search-name-helpers:check` |
+| `dump-release-labels.mjs` — **no branch `esm`** (removido deste branch); `release-labels-oracle.mjs` fica aqui como proveniência | `release-labels` | `npm run golden:release-labels:check` (delega a `../adom-esm`) |
+| `dump-pt-audio-guards.mjs` — **no branch `esm`** (removido deste branch) | `pt-audio-guards` | `npm run golden:pt-audio-guards:check` (delega a `../adom-esm`) |
+| `dump-search-name-helpers.mjs` — **no branch `esm`** (removido deste branch); `search-name-helpers-oracle.mjs` fica aqui como proveniência | `search-name-helpers` | `npm run golden:search-name-helpers:check` (delega a `../adom-esm`) |
 | `dump-indexer-priority.mjs` — **no branch `esm`** (removido deste branch) | `indexer-priority` | dentro de `../adom-esm`: `npm run golden:indexer-priority -- --force` (regerar) |
 | [`dump-audio-presentation.mjs`](../scripts/golden/dump-audio-presentation.mjs) + `audio-presentation-oracle.mjs` | `audio-presentation` | `npm run golden:audio-presentation:check` |
 | [`dump-audio-cleanup-verdicts.mjs`](../scripts/golden/dump-audio-cleanup-verdicts.mjs) + `audio-cleanup-verdicts-oracle.mjs` | `audio-cleanup-verdicts` | `npm run golden:audio-cleanup-verdicts:check` |
 | [`dump-stream-display.mjs`](../scripts/golden/dump-stream-display.mjs) + `stream-display-oracle.mjs` | `stream-display` (porte Rust, `dd7c7c2`) | `npm run golden:stream-display:check` |
-| [`dump-stream-relabel.mjs`](../scripts/golden/dump-stream-relabel.mjs) + `stream-relabel-oracle.mjs` | `stream-relabel` (porte Rust, `4d6fcbb`) | `npm run golden:stream-relabel:check` |
-| [`dump-stream-trace.mjs`](../scripts/golden/dump-stream-trace.mjs) + `stream-trace-oracle.mjs` | `stream-trace` (porte Rust, `e2b083b`) | `npm run golden:stream-trace:check` |
+| `dump-stream-relabel.mjs` — **no branch `esm`** (removido deste branch); `stream-relabel-oracle.mjs` fica aqui como proveniência | `stream-relabel` (porte Rust, `4d6fcbb`) | `npm run golden:stream-relabel:check` (delega a `../adom-esm`) |
+| `dump-stream-trace.mjs` — **no branch `esm`** (removido deste branch); `stream-trace-oracle.mjs` fica aqui como proveniência | `stream-trace` (porte Rust, `e2b083b`) | `npm run golden:stream-trace:check` (delega a `../adom-esm`) |
 | [`dump-catalog-classify.mjs`](../scripts/golden/dump-catalog-classify.mjs) + `catalog-classify-oracle.mjs` | `catalog-classify` (porte Rust, `a4ee159`) | `npm run golden:catalog-classify:check` |
 | [`dump-metric-id.mjs`](../scripts/golden/dump-metric-id.mjs) + `metric-id-oracle.mjs` | `metric-id` (porte Rust, `bbe43d8`) | `npm run golden:metric-id:check` |
 | [`dump-request-key.mjs`](../scripts/golden/dump-request-key.mjs) + `request-key-oracle.mjs` | `request-key` (porte Rust, `0df9c5c`) | `npm run golden:request-key:check` |
 | [`dump-crawl-store-rules.mjs`](../scripts/golden/dump-crawl-store-rules.mjs) + `crawl-store-rules-oracle.mjs` | `crawl-store-rules` (porte Rust, `19b9879`; travas em `4b57a2b`) | `npm run golden:crawl-store-rules:check` |
 | [`dump-video-header.mjs`](../scripts/golden/dump-video-header.mjs) + `video-header-oracle.mjs` | `video-header` | linha de comando |
-| [`dump-tmdb-br-aliases.mjs`](../scripts/golden/dump-tmdb-br-aliases.mjs) + `tmdb-br-aliases-oracle.mjs` | `tmdb-br-aliases` | linha de comando |
-| [`dump-br-pool-selection.mjs`](../scripts/golden/dump-br-pool-selection.mjs) + `br-pool-selection-oracle.mjs` | `br-pool-selection` | linha de comando |
-| [`dump-config-encoding.mjs`](../scripts/golden/dump-config-encoding.mjs) | `config-encoding` | linha de comando |
-| [`registry-matches-br-title.mjs`](../scripts/golden/registry-matches-br-title.mjs) | `matches-br-title` (tem `resolve` que importa o `dist`, mas não está ligado a runner nem a `--fn` — §4) | — |
+| `dump-tmdb-br-aliases.mjs` — **no branch `esm`** (removido deste branch); `tmdb-br-aliases-oracle.mjs` fica aqui como proveniência | `tmdb-br-aliases` | linha de comando dentro de `../adom-esm` |
+| `dump-br-pool-selection.mjs` — **no branch `esm`** (removido deste branch); `br-pool-selection-oracle.mjs` fica aqui como proveniência | `br-pool-selection` | linha de comando dentro de `../adom-esm` |
+| `dump-config-encoding.mjs` — **no branch `esm`** (removido deste branch) | `config-encoding` | linha de comando dentro de `../adom-esm` |
+| `registry-matches-br-title.mjs` — **no branch `esm`** (removido deste branch) | `matches-br-title` (tem `resolve` que importa o `dist`, mas não está ligado a runner nem a `--fn` — §4) | — |
 | **nenhum gerador** | `reply-budget` (**órfão**: manifest existe, gerador não) | — |
 
-Complementos: os `build-corpus-*.mjs` produzem os corpus; `gen-latin-table.mjs`
-produz a tabela interna `latin_table.rs`; `generate-stream-quotas-extra.mjs`
+Complementos: os `build-corpus-*.mjs` que ficam neste branch produzem os corpus
+locais; os demais `build-corpus-*.mjs` ficam no branch `esm`, onde os corpus
+commitados aqui também são gerados. `gen-latin-table.mjs` (no `esm`) produz a
+tabela interna `latin_table.rs`; `generate-stream-quotas-extra.mjs`
 produz `stream-quotas-extra.jsonl` (que **não** tem manifest). São pares de
 scripts npm: `golden:titles`, `golden:resolve-sign`, `golden:release-labels`,
 `golden:pt-audio-guards`, `golden:audio-cleanup-verdicts`,
@@ -574,8 +576,8 @@ Do estado atual da migração:
 - **`matches-br-title` sem oráculo vivo**: é o único golden cujo `expected` foi
   traçado de testes TS (`test/br-title.test.ts`,
   `test/br-title-edition.test.ts`), não do `dist`. O
-  [`registry-matches-br-title.mjs`](../scripts/golden/registry-matches-br-title.mjs)
-  tem um `resolve` que importa o `dist`, mas não está ligado a runner nem ao
+  `registry-matches-br-title.mjs` (no branch `esm`) tem um `resolve` que importa
+  o `dist`, mas não está ligado a runner nem ao
   `--fn` do gerador unificado (`--fn matches-br-title` **não existe**). Ele prova
   paridade com o comportamento *testado*, não com o *executado*: se o TS divergir
   dos próprios testes, o golden continua "batendo". Ligar ao gerador e regenerar
