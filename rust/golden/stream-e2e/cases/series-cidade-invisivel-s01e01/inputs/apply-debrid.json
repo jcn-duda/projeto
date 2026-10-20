@@ -1,0 +1,364 @@
+[
+ {
+  "key": "alldebrid|0|22e29f3aaec629210ecfb72dda2e6a3cfb14a1bb,344266f6ab4f3352061b72f6bd6c12abc3be6490,6757f6b92248fe0a27cf186d99862a43b3fcbe5f,72211670726fb17ce3bedb9464435e8ca7efccc1,7802090eb5e833cde88759a8596c226ded3eedea,89ac7ab2bf938f96e086865f17756c08927dfc70,960e450cf1eaa3fdf3e11ff46e3176798a6875f6,a47bd861a3b4e60b18a0c98f4b7a671767bf68d1",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "6757f6b92248fe0a27cf186d99862a43b3fcbe5f",
+    "title": "Cidade Invisivel (S01)(2021)(Hevc)(1080p)(HDR)(10bit)(WebDL)(MultiLang)(MultiSub) PHDTeam\n📦 👤 ~5 💾 877.71 MB 📦 pack 6.00 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 6442450944,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Cidade Invisivel (S01)(2021)(Hevc)(1080p)(HDR)(10bit)(WebDL)(MultiLang)(MultiSub) PHDTeam",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "960e450cf1eaa3fdf3e11ff46e3176798a6875f6",
+    "title": "Cidade Invisivel S01 1080p ViruseProject\n📦 👤 ~4 💾 1.34 GB 📦 pack 9.36 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · 1080p · LimeTorrents · 👤 ~4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 10050223472,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Cidade Invisivel S01 1080p ViruseProject",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "a47bd861a3b4e60b18a0c98f4b7a671767bf68d1",
+    "title": "Cidade Invisível 1ª Temporada (2021) Nacional 5.1 WEB-DL e – [1080p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.14 GB 📦 pack 8.00 GB (média) ⚙️ ComandoTorrents",
+    "name": "📦 · 1080p WEB-DL BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 8589934592,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Invisible.City.S01.PORTUGUESE.1080p.NF.WEBRip.DDP5.1.x264-iKA[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true
+   },
+   {
+    "infoHash": "72211670726fb17ce3bedb9464435e8ca7efccc1",
+    "title": "Invisible City S01 PORTUGUESE 1080p NF WEB DL x265 10bit HDR DDP5 1 WDYM EZTV\n📦 👤 ~1 💾 885.03 MB 📦 pack 6.05 GB (média) ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 6498415064,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Invisible City S01 PORTUGUESE 1080p NF WEB DL x265 10bit HDR DDP5 1 WDYM EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "22e29f3aaec629210ecfb72dda2e6a3cfb14a1bb",
+    "title": "Cidade Invisivel S01 1080p ViruseProject\n📦 👤 ~1 💾 1.24 GB 📦 pack 8.69 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · 1080p · LimeTorrents · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 9330816450,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Cidade Invisivel S01 1080p ViruseProject",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "7802090eb5e833cde88759a8596c226ded3eedea",
+    "title": "Cidade Invisível 1ª Temporada (2021) Nacional 5.1 WEB-DL e – [720p WEB-DL DUBLADO 5 GB]\n📦 👤 ~1 💾 731.43 MB 📦 pack 5.00 GB (média) ⚙️ ComandoTorrents",
+    "name": "📦 · 720p WEB-DL BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 5368709120,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Invisible.City.S01.PORTUGUESE.720p.NF.WEBRip.DDP5.1.x264-iKA[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true
+   },
+   {
+    "infoHash": "89ac7ab2bf938f96e086865f17756c08927dfc70",
+    "title": "Invisible.City.S01.COMPLETE.PORTUGUESE.720p.NF.WEBRip.x264-Galax\n📦 👤 ~1 💾 266.24 MB 📦 pack 1.82 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1957700446,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Invisible.City.S01.COMPLETE.PORTUGUESE.720p.NF.WEBRip.x264-Galax",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "344266f6ab4f3352061b72f6bd6c12abc3be6490",
+    "title": "Cidade Invisivel (Invisible City) (2021)  season 1 (Eng Multi s\n📦 👤 ~16 💾 950.86 MB 📦 pack 6.50 GB (média) ⚙️ 1337x",
+    "name": "📦 · BR · 1337x · 👤 ~16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 6979321856,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "1337x",
+    "_tracker": "1337x",
+    "_magnetDn": "Cidade Invisivel (Invisible City) (2021) - season 1 (Eng Multi s",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|6685846a8804b62b879da375f4666e36631852df,72211670726fb17ce3bedb9464435e8ca7efccc1,7802090eb5e833cde88759a8596c226ded3eedea,a47bd861a3b4e60b18a0c98f4b7a671767bf68d1",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "6685846a8804b62b879da375f4666e36631852df",
+    "title": "Invisible City S01E01 1080p NF WEB DL DDP5 1 H 264 BiOMA\n👤 2 💾 1.46 GB ⚙️ LimeTorrents",
+    "name": "1080p WEB-DL · LimeTorrents · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 1567663063,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Invisible City S01E01 1080p NF WEB-DL DDP5 1 H 264-BiOMA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "a47bd861a3b4e60b18a0c98f4b7a671767bf68d1",
+    "title": "Cidade Invisível - 1ª Temporada [1080p WEBRIP DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p WEBRip BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "COMOEUBAIXO.COM.1A-TEMPORADA-COMPLETA-1080P-5.1-8-GB.MKV.-NACIONAL-..Invisible.City.S01.PORTUGUESE.1080p.NF.WEBRip.DDP5.1.x264-iKA[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "72211670726fb17ce3bedb9464435e8ca7efccc1",
+    "title": "Invisible City S01 PORTUGUESE 1080p NF WEB DL x265 10bit HDR DDP5 1 WDYM EZTV\n👤 1 💾 885.03 MB 📦 pack 6.05 GB (média) ⚙️ TheRARBG",
+    "name": "1080p WEB-DL · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 6498415064,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Invisible City S01 PORTUGUESE 1080p NF WEB DL x265 10bit HDR DDP5 1 WDYM EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "7802090eb5e833cde88759a8596c226ded3eedea",
+    "title": "Cidade Invisível - 1ª Temporada [720p WEBRIP DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p WEBRip BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "COMOEUBAIXO.COM.1A-TEMPORADA-COMPLETA-720P-5.1-5-GB.MKV.-NACIONAL-..Invisible.City.S01.PORTUGUESE.720p.NF.WEBRip.DDP5.1.x264-iKA[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

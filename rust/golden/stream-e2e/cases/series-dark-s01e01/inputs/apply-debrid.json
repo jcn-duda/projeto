@@ -1,0 +1,495 @@
+[
+ {
+  "key": "alldebrid|0|0ced0b60eaf3c68d64643d0abb20bedaf99300c0,219c284787cc22a1eeb129c3857eb26fb4ac0e1c,29071e5b8ff4b147d6c022e64c159f17af55451d,388a551ac78f0d8a4c4f9498c3038987b8442b52,3ed02ea613b4003708f07b02a781dc16bd23abff,447f09d4abff9ef252e41e4322ac7fdc05d38443,5560e9db32e56e4be8d78c225830e8f57f96b0c6,598e972a4930f7719103297ad9bb378df06fbb9d,724b01762f943602f1da9e513f46db89016094fe,75e58642d6ba5654789d701f9d26ed4b558260ac,75ff8107bebd00f2c5051ff87e411c3f896a4713,81505b267b71f2e19c5059ca5b3da68defd5dc37,8b7c960c8bc9618d15489981f10ddb0d7662fbbe,8b9c90c97d4781b07767c331a687196a1cd1a17b,be4190fd61d790140e4ce8a23508bb2420748a9f,d5140faa5fbb0a27be3c7bdc5354674f2eea510f,e353238adb0388100f890f45bf7ed0b26b95fdb6",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "29071e5b8ff4b147d6c022e64c159f17af55451d",
+    "title": "www.UIndex.org    -    Dark S01E01 Secrets 2160p NF WEB-DL DUAL DDP5 1 Atmos H 265-Kitsune\n👤 1 💾 5.98 GB ⚙️ AllDebrid",
+    "name": "4K WEB-DL · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 6425278571,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dark S01E01 Secrets 2160p NF WEB-DL DUAL DDP5 1 Atmos H 265-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "724b01762f943602f1da9e513f46db89016094fe",
+    "title": "www.UIndex.org    -    Dark S01E01 Secrets 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-Kitsune\n👤 1 💾 2.28 GB ⚙️ AllDebrid",
+    "name": "1080p WEB-DL · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2444846964,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dark S01E01 Secrets 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "598e972a4930f7719103297ad9bb378df06fbb9d",
+    "title": "Dark Web S01E01 720p WEBRip x264-SKGTV [eztv]\n📦 👤 ~34 💾 383.78 MB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p WEBRip · kickass · 👤 ~34",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 402422497,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Dark Web S01E01 720p WEBRip x264-SKGTV [eztv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "219c284787cc22a1eeb129c3857eb26fb4ac0e1c",
+    "title": "Dark.SEASON.01.S01.COMPLETE.DUAL-AUDIO.GER-ENG.1080p.10bit.WEBRip.6CH.x265.HEVC-PSA\n👤 1 💾 611.33 MB 📦 pack 5.97 GB (média) ⚙️ AllDebrid",
+    "name": "1080p WEBRip · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 6404874401,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dark.S01.COMPLETE.DUAL-AUDIO.GER-ENG.1080p.10bit.WEBRip.6CH.x265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "be4190fd61d790140e4ce8a23508bb2420748a9f",
+    "title": "The Dark 2026 S01 1080p WEB-DL HEVC x265 BONE\n📦 👤 ~93 💾 374.78 MB 📦 pack 3.66 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~93",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 3931087403,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The Dark 2026 S01 1080p WEB-DL HEVC x265 BONE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "447f09d4abff9ef252e41e4322ac7fdc05d38443",
+    "title": "Dark.Matter.2024.S01.COMPLETE.1080p.ATVP.WEB-DL.DDP5.1.Atmos.H.264-FLUX[TGx]\n📦 👤 ~82 💾 3.61 GB 📦 pack 36.10 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~82",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 38762079846,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Dark.Matter.2024.S01.COMPLETE.1080p.ATVP.WEB-DL.DDP5.1.Atmos.H.264-FLUX[TGx]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "75e58642d6ba5654789d701f9d26ed4b558260ac",
+    "title": "Dark Winds (2022) S01 S01 + Extras (1080p BluRay x265 HEVC 10bit EAC3 5.1 G\n📦 👤 ~76 💾 966.66 MB 📦 pack 9.44 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~76",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 10136503060,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Dark Winds (2022) Season 1 S01 + Extras (1080p BluRay x265 HEVC 10bit EAC3 5.1 Ghost) [QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "388a551ac78f0d8a4c4f9498c3038987b8442b52",
+    "title": "Dark.Gathering.S01.1080p.BluRay.REMUX.AVC.TrueHD.Atmos.7.1-NAN0\n📦 👤 ~72 💾 15.30 GB 📦 pack 153.00 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~72",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 164282499072,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Dark.Gathering.S01.1080p.BluRay.REMUX.AVC.TrueHD.Atmos.7.1-NAN0",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "3ed02ea613b4003708f07b02a781dc16bd23abff",
+    "title": "Dark - S01 S01 - 2017 - 1080p - NF WEB-DL - AAC5.1 x264-R\n📦 👤 ~65 💾 693.25 MB 📦 pack 6.77 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~65",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 7264040043,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Dark - Season 1 S01 - 2017 - 1080p - NF WEB-DL - AAC5.1 x264-Rapta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "5560e9db32e56e4be8d78c225830e8f57f96b0c6",
+    "title": "Dark Matter (2024) Season 1 S01 (1080p ATVP WEB-DL x265 HEVC 10bit EAC3 Atmos 5.1 Ghost) [QxR]\n📦 👤 ~48 💾 1.72 GB 📦 pack 17.20 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p WEB-DL · kickass · 👤 ~48",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 18468359372,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Dark Matter (2024) Season 1 S01 (1080p ATVP WEB-DL x265 HEVC 10bit EAC3 Atmos 5.1 Ghost) [QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d5140faa5fbb0a27be3c7bdc5354674f2eea510f",
+    "title": "Dark 1ª Temporada Completa 2017 [720p] [WEBRip] [DUAL] COMANDOTORRENTS.COM\n👤 1 💾 708.61 MB 📦 pack 6.92 GB (média) ⚙️ AllDebrid",
+    "name": "720p WEBRip BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 7431596808,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dark 1ª Temporada Completa 2017 [720p] [WEBRip] [DUAL] torrentdosfilmes-v2.xyz",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8b7c960c8bc9618d15489981f10ddb0d7662fbbe",
+    "title": "Dark.SEASON.01.S01.COMPLETE.DUAL-AUDIO.GER-ENG.720p.10bit.WEBRip.2CH.x265.HEVC-PSA\n👤 1 💾 265.22 MB 📦 pack 2.59 GB (média) ⚙️ AllDebrid",
+    "name": "720p WEBRip · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2782978880,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dark.S01.S01.COMPLETE.DUAL-AUDIO.GER-ENG.720p.10bit.WEBRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8b9c90c97d4781b07767c331a687196a1cd1a17b",
+    "title": "Dark 2017 – 1ª Temporada Completa [WEB-DL] (720p) WWW.BLUDV.COM\n👤 1 💾 896.00 MB 📦 pack 8.75 GB (média) ⚙️ AllDebrid",
+    "name": "720p WEB-DL BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 9390243711,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dark 2017 – 1ª Temporada Completa [WEB-DL] (720p) WWW.BLUDV.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "e353238adb0388100f890f45bf7ed0b26b95fdb6",
+    "title": "Dark.Matter.2024.S01.COMPLETE.720p.ATVP.WEBRip.x264-GalaxyTV\n📦 👤 ~323 💾 204.80 MB 📦 pack 2.00 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~323",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2149983888,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Dark.Matter.2024.S01.COMPLETE.720p.ATVP.WEBRip.x264-GalaxyTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "0ced0b60eaf3c68d64643d0abb20bedaf99300c0",
+    "title": "Dark.Winds.S01.COMPLETE.720p.AMZN.WEBRip.x264-GalaxyTV\n📦 👤 ~79 💾 203.78 MB 📦 pack 1.99 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~79",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2133525789,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Dark.Winds.S01.COMPLETE.720p.AMZN.WEBRip.x264-GalaxyTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "75ff8107bebd00f2c5051ff87e411c3f896a4713",
+    "title": "The.Dark-S01-Series.1--2026-ITV-STV-720p-w.subs-x265-HEVC\n📦 👤 ~43 💾 141.31 MB 📦 pack 1.38 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p · The Pirate Bay · 👤 ~43",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1480800188,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Dark-S01-Series.1--2026-ITV-STV-720p-w.subs-x265-HEVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "81505b267b71f2e19c5059ca5b3da68defd5dc37",
+    "title": "The.Dark.Crystal.Age.of.Resistance.S01.COMPLETE.720p.NF.WEBRip.x\n📦 👤 ~35 💾 439.30 MB 📦 pack 4.29 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~35",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 4611538419,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Dark.Crystal.Age.of.Resistance.S01.COMPLETE.720p.NF.WEBRip.x264-GalaxyTV ⭐",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ }
+]

@@ -8,21 +8,54 @@
   "body": {
     "streams": [
       {
-        "title": "G.O.R.A. (2004) 1080p BRRip x264 -YTS\n📦 👤 ~15 💾 1.96 GB ⚙️ YTS",
-        "name": "[AD⚡] 📦 · 1080p BluRay · YTS · 👤 ~15",
+        "infoHash": "b1d885209a921cb846f87160e4b8ac4d13fadc1e",
+        "title": "G.O.R.A. (2004) 1080p BRRip x264 -YTS\n📦 👤 ~12 💾 1.96 GB ⚙️ YTS",
+        "name": "📦 · 1080p · YTS · 👤 ~12",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/b1d885209a921cb846f87160e4b8ac4d13fadc1e?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.96 GB"
       },
       {
-        "title": "G.O.R.A. (2004) 720p BRRip x264 -YTS\n📦 👤 ~5 💾 1.01 GB ⚙️ YTS",
-        "name": "[AD⚡] 📦 · 720p BluRay · YTS · 👤 ~5",
+        "infoHash": "e0bd7ad92d46aa090c3199f42421c78d37efac79",
+        "title": "G.O.R.A.2004.VOSTFR.1080p.WEB.x264-TONY92FR (GORA)\n📦 👤 ~3 💾 7.29 GB ⚙️ kickasstorrents.to",
+        "name": "📦 · 1080p · kickass · 👤 ~3",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
+          "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/80342987cb6258ae7aa083a18a8c002a147eb9b7?w=%7B%22n%22%3A%5B%22G.O.R.A.%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0384116%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "7.29 GB"
+      },
+      {
+        "infoHash": "80342987cb6258ae7aa083a18a8c002a147eb9b7",
+        "title": "G.O.R.A. (2004) 720p BRRip x264 -YTS\n📦 👤 ~5 💾 1.01 GB ⚙️ YTS",
+        "name": "📦 · 720p · YTS · 👤 ~5",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.01 GB"
       }
     ],

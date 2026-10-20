@@ -8,13 +8,88 @@
   "body": {
     "streams": [
       {
+        "infoHash": "5278b53d1db2232581b3635a9353f43b7642841c",
         "title": "Minha Mãe É Uma Peça - O Filme (2013) BDrip 720p Nacional\n👤 1 💾 1007.68 MB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
+        "name": "720p BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/5278b53d1db2232581b3635a9353f43b7642841c?w=%7B%22n%22%3A%5B%22My%20Mom%20Is%20a%20Character%22%2C%22Minha%20M%C3%A3e%20%C3%A9%20uma%20Pe%C3%A7a%3A%20O%20Filme%22%5D%2C%22y%22%3A2013%2C%22d%22%3A1%2C%22i%22%3A%22tt2464018%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1007.68 MB"
+      },
+      {
+        "infoHash": "2b9aec8735a5ab408f83a2c7d109be9d010c8491",
+        "title": "Minha Mãe é Uma Peça - O Filme [720p BLU-RAY DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 720p BluRay BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "f9e89017ede30e2f101c3f81b493a2f91919529c",
+        "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional  BFtorrent\n📦 👤 ~ 💾 1007.66 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1007.66 MB"
+      },
+      {
+        "infoHash": "f3afa962d6644e7b19b5bc0d6fcbc91409dac046",
+        "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional BF\n📦 👤 ~ 💾 1007.69 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1007.69 MB"
+      },
+      {
+        "infoHash": "e065ead48d9c622af2f2fa2ba81f9f50713215c0",
+        "title": "Minha Mae E Uma Peca O Filme (2013) BDrip 720p Nacional\n📦 👤 ~ 💾 1007.66 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1007.66 MB"
       }
     ],
     "cacheMaxAge": 0

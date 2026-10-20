@@ -1,0 +1,612 @@
+[
+ {
+  "key": "alldebrid|0|0a4fd3e0b8f48264472d3e5f507062f09f5d17be,1ab608b22bc50e84b6307f6369e0890ffaff2b5c,1b42b99b9fbc0e0416a379787f250eb73b7434e3,1f11d10c65b3fd7e33fec296d4b408f22ecf331f,2927019dbf67eb165347258c1f6d136d644efa4f,33b1396389a7d76f57215ee618f0ce438126ebe4,525f80c8c7a73e48a914ee57eabac597aea1e5d9,549bfcc4b07bd8fa2aa92b475dbd35682b13f56f,70231843b64927e1297192e686a44273a185c1fe,76beedd3910b6f59d96a6f2365bcf45f657aa644,9894bd3bc04defc2543770ce945eacbe6386262a,9a37f6bd1c81e437ef3ef562ccc86c59064c325d,a5c1aefb62c9bd67ff49412544915533155a0b99,b1ef0b298805852552d08b8f12254e9506fe4826,b43df67a93863ea91f2f773f00361072da771dd3,bd9656978969b71c2ac79ca2e4ed13307c799af6,bf4af7c03848930af17b8d82f959aada0bafcdcd,bf4b2eb7ac9605c2fd480d5061645ab9cf8756fb,d7a88f8ba6015a9019abcc9e39f2e2b3734cdcd0,dc04254193c73fc0284d827f0f013187e231e2eb,f945addc776106cc76cbfec2728f319e7219f65a",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "0a4fd3e0b8f48264472d3e5f507062f09f5d17be",
+    "title": "Breaking.Bad.S05E01-16.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66\n📦 👤 ~83 ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~83",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 21582210662,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Breaking Bad S05E01-16 1080p NF WEB-DL ITA-ENG DDP5 1 AV1-G66",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 21582210662
+   },
+   {
+    "infoHash": "bf4af7c03848930af17b8d82f959aada0bafcdcd",
+    "title": "Breaking Bad S05E14 1080p BluRay DD5 1 x264 xRed\n📦 👤 ~1 💾 978.13 MB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 1025643642,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad S05E14 1080p BluRay DD5 1 x264-xRed",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "f945addc776106cc76cbfec2728f319e7219f65a",
+    "title": "Breaking Bad S05E14 Dublado\n📦 👤 ~ 💾 432.40 MB ⚙️ The Pirate Bay",
+    "name": "📦 · BR · The Pirate Bay · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 453404262,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking.Bad.S05E14 Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "d7a88f8ba6015a9019abcc9e39f2e2b3734cdcd0",
+    "title": "Breaking Bad S05 MULTi 2160p WEBRiP H.265-Dam\n👤 1 💾 9.48 GB 📦 pack 151.69 GB (média) ⚙️ AllDebrid",
+    "name": "4K WEBRip · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 162877655337,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Breaking Bad S05 MULTi 2160p WEBRiP H.265 DTSMA AC3-Dam",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "b1ef0b298805852552d08b8f12254e9506fe4826",
+    "title": "Breaking Bad S05 MULTi 2160p WEBRiP x264-GLaDOS\n👤 1 💾 22.28 GB 📦 pack 356.42 GB (média) ⚙️ AllDebrid",
+    "name": "4K WEBRip · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 382702245058,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Breaking Bad S05 MULTi 2160p WEBRiP x264-GLaDOS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "bf4b2eb7ac9605c2fd480d5061645ab9cf8756fb",
+    "title": "Breaking.Bad.S05.2160p.AMZN.WEB-DL.DDP5.1.H.265-XEBEC\n📦 👤 ~100 💾 5.16 GB 📦 pack 82.63 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 4K WEB-DL · The Pirate Bay · 👤 ~100",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 88722112321,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking.Bad.S05.2160p.AMZN.WEB-DL.DDP5.1.H.265-XEBEC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "1b42b99b9fbc0e0416a379787f250eb73b7434e3",
+    "title": "Breaking Bad COMPLETE S01-S05 2160p WEB-DL Rus Ukr Eng DTS-HD MA\n📦 👤 ~34 ⚙️ The Pirate Bay",
+    "name": "📦 · 4K WEB-DL · The Pirate Bay · 👤 ~34",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 0,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad COMPLETE S01-S05 2160p WEB-DL Rus Ukr Eng DTS-HD MA5.1 x264-TrollUHD [RiCK]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "b43df67a93863ea91f2f773f00361072da771dd3",
+    "title": "Breaking Bad (2008) S01-5 S01-S05 (1080p BluRay x265 HEVC 1\n📦 👤 ~491 💾 2.26 GB 📦 pack 140.06 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~491",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 150389060754,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad (2008) Season 1-5 S01-S05 (1080p BluRay x265 HEVC 10bit AAC 5.1 Silence) [QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "33b1396389a7d76f57215ee618f0ce438126ebe4",
+    "title": "Breaking.Bad.S01-S02-S03-S04-S05.1080p.BluRay.10bit.HEVC-MkvCage\n📦 👤 ~195 💾 1.01 GB 📦 pack 62.70 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~195",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 67325144419,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad S01-S05 1080p BluRay 10bit HEVC 6CH 63GB - MkvCage",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "a5c1aefb62c9bd67ff49412544915533155a0b99",
+    "title": "Breaking Bad S01 S05 2008 1080p WEBRIP HEVC OPUS2 0\n📦 👤 ~107 💾 255.72 MB 📦 pack 16.60 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEBRip · TheRARBG · 👤 ~107",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 17824114278,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Breaking.Bad.S01-S05.(2008).1080p.WEBRIP.HEVC.OPUS2.0",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "2927019dbf67eb165347258c1f6d136d644efa4f",
+    "title": "Breaking.Bad.Complete.S01-S05.1080p.10bit.BluRay.x265.HEVC.6CH-M\n📦 👤 ~68 💾 623.95 MB 📦 pack 39.33 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~68",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 42228785197,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking.Bad.Complete.S01-S05.1080p.10bit.BluRay.x265.HEVC.6CH-M",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "70231843b64927e1297192e686a44273a185c1fe",
+    "title": "Breaking Bad S05 Complete (2012-2013) 1080p ENG-ITA x264 BluRay\n📦 👤 ~132 💾 2.99 GB 📦 pack 47.89 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~132",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 51418543993,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad S05 Complete (2012-2013) 1080p ENG-ITA x264 BluRay",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "dc04254193c73fc0284d827f0f013187e231e2eb",
+    "title": "Breaking Bad (2008) S05 S05 + Extras (1080p BluRay x265 HEV\n📦 👤 ~102 💾 2.25 GB 📦 pack 35.94 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~102",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 38585890266,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad (2008) Season 5 S05   Extras (1080p BluRay x265 HEV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "9a37f6bd1c81e437ef3ef562ccc86c59064c325d",
+    "title": "Breaking Bad S01-S05 Complete 720p BlaRay x265-BMF\n📦 👤 ~71 💾 327.72 MB 📦 pack 18.00 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p · The Pirate Bay · 👤 ~71",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 19326032884,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad S01-S05 Complete 720p BlaRay x265-BMF",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "bd9656978969b71c2ac79ca2e4ed13307c799af6",
+    "title": "Breaking Bad - 5ª Temporada (2012) 720p Dual Áudio - Douglasvip\n👤 1 💾 343.04 MB 📦 pack 5.36 GB (média) ⚙️ AllDebrid",
+    "name": "720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 5751310781,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Breaking Bad - 5ª Temporada (2012) 720p Dual Áudio - Douglasvip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "525f80c8c7a73e48a914ee57eabac597aea1e5d9",
+    "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 720p BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 3247307995,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Breaking Bad 5 Temporada PARTE 1 ( 2012) 720p dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "76beedd3910b6f59d96a6f2365bcf45f657aa644",
+    "title": "Breaking Bad [720p DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 720p BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 3394649612,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Breaking Bad 5 Temporada Parte 2 (2013) 720p dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "1ab608b22bc50e84b6307f6369e0890ffaff2b5c",
+    "title": "Breaking Bad 5 Temporada Parte Final 2013 720p Dublado WOLVERDONFILMES COM\n📦 👤 ~8 💾 202.24 MB 📦 pack 3.16 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 3393024163,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad 5 Temporada Parte Final 2013 720p Dublado-WOLVERDONFILMES COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "9894bd3bc04defc2543770ce945eacbe6386262a",
+    "title": "Breaking Bad 5 Temporada Parte 1 2012 720p Dublado WOLVERDONFILMES COM\n📦 👤 ~6 💾 193.28 MB 📦 pack 3.02 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 3242700308,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad 5 Temporada Parte 1 2012 720p Dublado-WOLVERDONFILMES COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "549bfcc4b07bd8fa2aa92b475dbd35682b13f56f",
+    "title": "Breaking Bad 5ª Temporada [720p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 716.80 MB 📦 pack 11.20 GB (média) ⚙️ BLUDV",
+    "name": "📦 · 720p BluRay BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 12025908429,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Breaking Bad 2012 - 2013 5ª Temporada Completa WWW.BLUDV.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "1f11d10c65b3fd7e33fec296d4b408f22ecf331f",
+    "title": "Breaking Bad 1 2 3 4 5 Temporada 2008a2012 720p Dublado\n📦 👤 ~ 💾 1.55 GB 📦 pack 24.81 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BR · The Pirate Bay · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 26639534653,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad 1 2 3 4 5 Temporada 2008a2012 720p Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   }
+  ]
+ }
+]

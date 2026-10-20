@@ -1,0 +1,478 @@
+[
+ {
+  "key": "alldebrid|0|2b6c4c391e6a5d1a6f2b29022e1c2d59a80d3bd0,4786811e0fcbd25a5576c4aba69457da264582e3,7377fce98f2d272bf0ef31cd4d7133215668be36,95a8a74789c14e43857213324d1027d77afad802,c9b955c9e8cd4d9282f2e12a59f6c09e04dedaf9,d75c61b3f0d3af894b1b240e4aeaeb8b8a8cb396,ed425fff239f22636d2bb9b260675a1ab8570370,f2ec28ad4f330fbc433258b9ce294764a761570f",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "95a8a74789c14e43857213324d1027d77afad802",
+    "title": "S.W.A.T. 6ª Temporada (2022) E01 [1080p LEGENDADO]\n📦 👤 ~1 💾 1.80 GB ⚙️ Apache Torrent",
+    "name": "📦 · 1080p WEBRip LEG BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 1932735283,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "S.W.A.T.2017.S06E01.Thai.Hard.1080p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "2b6c4c391e6a5d1a6f2b29022e1c2d59a80d3bd0",
+    "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [1080p LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · 1080p WEB-DL LEG BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "S.W.A.T.2017.S06E01.iNTERNAL.1080p.WEB.h264-KOGi[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "f2ec28ad4f330fbc433258b9ce294764a761570f",
+    "title": "S.W.A.T. 6ª Temporada (2022) E01 [720p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 1.80 GB ⚙️ Apache Torrent",
+    "name": "📦 · 720p WEB-DL LEG BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 1932735283,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "S.W.A.T.2017.S06E01.Thai.Hard.720p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "ed425fff239f22636d2bb9b260675a1ab8570370",
+    "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [720p LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · 720p WEB-DL LEG BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "S.W.A.T.2017.S06E01.iNTERNAL.720p.WEB.h264-KOGi[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "c9b955c9e8cd4d9282f2e12a59f6c09e04dedaf9",
+    "title": "SWAT 2017 S06 1080p WEBRip DataDiva\n📦 👤 ~16 💾 721.45 MB 📦 pack 15.50 GB (média) ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEBRip · TheRARBG · 👤 ~16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 16642998272,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "SWAT 2017 S06 1080p WEBRip DataDiva",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d75c61b3f0d3af894b1b240e4aeaeb8b8a8cb396",
+    "title": "SWAT.S06.SweSub.1080p.x264-Justiso\n📦 👤 ~11 💾 750.78 MB 📦 pack 16.13 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p · The Pirate Bay · 👤 ~11",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 17323312004,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "SWAT.S06.SweSub.1080p.x264-Justiso",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4786811e0fcbd25a5576c4aba69457da264582e3",
+    "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL [1080p LEGENDADO]\n📦 👤 ~1 💾 83.78 MB 📦 pack 1.80 GB (média) ⚙️ ComandoTorrents",
+    "name": "📦 · 1080p WEB-DL LEG BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 1932735283,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "S.W.A.T.2017.S06.1080p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "7377fce98f2d272bf0ef31cd4d7133215668be36",
+    "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL [720p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 83.78 MB 📦 pack 1.80 GB (média) ⚙️ ComandoTorrents",
+    "name": "📦 · 720p WEB-DL LEG BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 1932735283,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "S.W.A.T.2017.S06.720p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|2b6c4c391e6a5d1a6f2b29022e1c2d59a80d3bd0,4786811e0fcbd25a5576c4aba69457da264582e3,7377fce98f2d272bf0ef31cd4d7133215668be36,95a8a74789c14e43857213324d1027d77afad802,c9b955c9e8cd4d9282f2e12a59f6c09e04dedaf9,d75c61b3f0d3af894b1b240e4aeaeb8b8a8cb396,ed425fff239f22636d2bb9b260675a1ab8570370,f2ec28ad4f330fbc433258b9ce294764a761570f",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "2b6c4c391e6a5d1a6f2b29022e1c2d59a80d3bd0",
+    "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [1080p LEGENDADO opção 4]\n👤 1 ⚙️ TorrentDosFilmes V2",
+    "name": "1080p WEB-DL LEG BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "S.W.A.T.2017.S06E01.iNTERNAL.1080p.WEB.h264-KOGi[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ed425fff239f22636d2bb9b260675a1ab8570370",
+    "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [720p LEGENDADO opção 3]\n👤 1 ⚙️ TorrentDosFilmes V2",
+    "name": "720p WEB-DL LEG BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "S.W.A.T.2017.S06E01.iNTERNAL.720p.WEB.h264-KOGi[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "c9b955c9e8cd4d9282f2e12a59f6c09e04dedaf9",
+    "title": "SWAT 2017 S06 1080p WEBRip DataDiva\n📦 👤 ~16 💾 721.45 MB 📦 pack 15.50 GB (média) ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEBRip · TheRARBG · 👤 ~16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 16642998272,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "SWAT 2017 S06 1080p WEBRip DataDiva",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d75c61b3f0d3af894b1b240e4aeaeb8b8a8cb396",
+    "title": "SWAT.S06.SweSub.1080p.x264-Justiso\n📦 👤 ~11 💾 750.78 MB 📦 pack 16.13 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p · The Pirate Bay · 👤 ~11",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 17323312004,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "SWAT.S06.SweSub.1080p.x264-Justiso",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4786811e0fcbd25a5576c4aba69457da264582e3",
+    "title": "S.W.A.T. - Força de Intervenção - 6ª Temporada [1080p WEBRIP LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p WEBRip LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VAMOSTORRENT.COM.EPISODIOS-01-AO-22-720P-.MKV.-LEGENDADO-..S.W.A.T.2017.S06.1080p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "95a8a74789c14e43857213324d1027d77afad802",
+    "title": "S.W.A.T. - Força de Intervenção - 6ª Temporada [1080p WEBRIP LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p WEBRip LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VAMOSTORRENT.COM.-LEGENDADO-.S.W.A.T.2017.S06E01.Thai.Hard.1080p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "7377fce98f2d272bf0ef31cd4d7133215668be36",
+    "title": "S.W.A.T. - Força de Intervenção - 6ª Temporada [720p WEBRIP LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p WEBRip LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VAMOSTORRENT.COM.EPISODIOS-01-AO-22-720P-.MKV.-LEGENDADO-..S.W.A.T.2017.S06.720p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f2ec28ad4f330fbc433258b9ce294764a761570f",
+    "title": "S.W.A.T. - Força de Intervenção - 6ª Temporada [720p WEBRIP LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p WEBRip LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VAMOSTORRENT.COM.-LEGENDADO-.S.W.A.T.2017.S06E01.Thai.Hard.720p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

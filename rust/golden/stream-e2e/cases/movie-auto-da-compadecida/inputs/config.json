@@ -1,0 +1,153 @@
+{
+  "ok": true,
+  "format": "adom-search-config/1",
+  "options": {
+    "providers": [
+      "jackett"
+    ],
+    "qualities": [
+      "2160p",
+      "1080p",
+      "720p"
+    ],
+    "maxResults": 40,
+    "minSeeders": 1,
+    "brReservedSlots": 3,
+    "brFirst": true,
+    "jackettIndexers": [
+      "wolfmax4k",
+      "torrent9",
+      "eztv",
+      "1337x",
+      "limetorrents",
+      "rutracker-ru",
+      "kickasstorrents-to",
+      "magnetdownload",
+      "nyaasi",
+      "therarbg",
+      "thepiratebay",
+      "torrentgalaxyclone",
+      "yts",
+      "nekobt",
+      "tokyotosho",
+      "hdrtorrent-cardigann",
+      "apachetorrent-cardigann",
+      "redetorrent-cardigann",
+      "vacatorrent",
+      "torrentdosfilmesv2",
+      "nerdfilmes",
+      "comandotorrents",
+      "bludv-cardigann"
+    ],
+    "indexerPriority": [],
+    "indexerLimits": {},
+    "brOnly": false,
+    "dubbedOnly": true,
+    "preferDubbed": true,
+    "excludeCam": false,
+    "maxSizeGb": 0,
+    "max2160p": 2,
+    "max1080p": 2,
+    "max720p": 2,
+    "max480p": 2,
+    "maxSd": 2,
+    "maxUnknown": 2,
+    "maxPerIndexer": 0,
+    "debridService": "alldebrid",
+    "debridCachedOnly": false,
+    "showUncachedBr": false,
+    "autoFetchBr": true,
+    "streamNameStyle": "compact",
+    "streamNameShowSource": true,
+    "hasDebridKey": true
+  },
+  "operator": {
+    "replyDeadline": 9200,
+    "appReplyDeadline": 15000,
+    "cacheTtl": 900,
+    "fallbackStreamsTtl": 120,
+    "streamStaleGrace": 300,
+    "resolveUncached": true,
+    "debrid": {
+      "service": "alldebrid",
+      "cachedOnly": false,
+      "showUncachedBr": false,
+      "allowEnvKey": true
+    },
+    "search": {
+      "maxPerIndexer": 0,
+      "candidatePoolFactor": 4,
+      "brReservedPerQuality": 1,
+      "unairedMarginMs": 86400000,
+      "preAirReleaseMarginMs": 172800000,
+      "preHomeReleaseCut": true,
+      "preHomeReleaseMarginMs": 172800000,
+      "noticeStream": true,
+      "titlePrecisionTailCut": true,
+      "indexRescueMinMs": 2500
+    },
+    "budgets": {
+      "debridReserveMs": 4500,
+      "debridCheckFloorMs": 1500,
+      "brPartialGraceMs": 1500,
+      "searchTimeoutMs": 8000
+    },
+    "display": {
+      "style": "compact",
+      "showSource": true
+    },
+    "jackett": {
+      "selected": [
+        "wolfmax4k",
+        "torrent9",
+        "eztv",
+        "1337x",
+        "limetorrents",
+        "rutracker-ru",
+        "kickasstorrents-to",
+        "magnetdownload",
+        "nyaasi",
+        "therarbg",
+        "thepiratebay",
+        "torrentgalaxyclone",
+        "yts",
+        "nekobt",
+        "tokyotosho",
+        "hdrtorrent-cardigann",
+        "apachetorrent-cardigann",
+        "redetorrent-cardigann",
+        "vacatorrent",
+        "torrentdosfilmesv2",
+        "nerdfilmes",
+        "comandotorrents",
+        "bludv-cardigann"
+      ],
+      "ptBr": [
+        "bludv-cardigann",
+        "comandotorrents",
+        "nerdfilmes",
+        "torrentdosfilmesv2",
+        "vacatorrent",
+        "redetorrent-cardigann",
+        "apachetorrent-cardigann",
+        "hdrtorrent-cardigann"
+      ],
+      "slow": [
+        "bludv-cardigann",
+        "redetorrent-cardigann",
+        "apachetorrent-cardigann",
+        "hdrtorrent-cardigann"
+      ],
+      "indexOnly": [
+        "redetorrent-cardigann",
+        "apachetorrent-cardigann",
+        "hdrtorrent-cardigann",
+        "magnetdownload",
+        "1337x"
+      ],
+      "sweepEnabled": true
+    },
+    "releaseIndexEnabled": true,
+    "magnetBankEnabled": true
+  }
+}

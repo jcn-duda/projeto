@@ -1,0 +1,1362 @@
+[
+ {
+  "key": "alldebrid|0|043af6f49e1ccaf048a90f80f1e6bcd69b10cef9,0a2afba96fd519937e4c65c21d0be11626a8f7ee,1b36344df7312ed558ce35398a8c2ab27b77d015,1d612073ae3f5c7205d8e88e6d352e373f45cf1a,3027ae66c85823438929e1ca04f3d2315a616d0e,38f50515f74680052b05ca9254a8e48e74448292,3bb38caf908adef10e94b5d1f03310ed5571e1df,3ee5c96d91edd9ffe943dfda0c82f14769e8482c,429b78abc5d056534daa2528139d66e28efcb7c2,42d91dad8a071025ae7d6e0a4c585e78c5dbd2da,49fe66d2dda27a65295804705da5a4a4766c9504,513378f3f4f317e9a64f5a10d55db7ece07491a6,7a0fb831919d18d1827850090069e3142642da38,8cd6f8fa9e57f0d5d9cab8e89e1468716c5a4872,afd9933d3b57ed539d6f97e34171bd4081aa221a,bbe5755c7844fb815cf296dbc9029df066051d85,bd01652dc86930d4351e237ccd405866a26e79dd,c45d8c52ef03277da0f7d13e3e84ae9520af9dc9,c613170d2eeb5057f4b4a6d0847699761fedf382,cafffbfbe6b7b09b1b4a60fc08cde76683228d07,e14046d792d9419d6f16c3914bf716e6cbb005b2,e9e806b6aafda407c39b25cc23556a2fdb142349,ec6f6d69f65dacd8aaa27b851dd516bd4491eed7,eea66137a7458f74741fec5516bcd3cee37005d1",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "1d612073ae3f5c7205d8e88e6d352e373f45cf1a",
+    "title": "Trainspotting (1996) Criterion (2160p BluRay x265 HEVC 10bit HDR AAC 5.1 Tigole) [QxR]\n📦 👤 ~149 💾 12.20 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~149",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 13099650252,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "043af6f49e1ccaf048a90f80f1e6bcd69b10cef9",
+    "title": "Trainspotting (1996) 2160p BRRip 5.1 10Bit x265 -YTS\n📦 👤 ~82 💾 4.23 GB ⚙️ YTS",
+    "name": "📦 · 4K · YTS · 👤 ~82",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 4541927916,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "429b78abc5d056534daa2528139d66e28efcb7c2",
+    "title": "Trainspotting.1996.Criterion.Collection.2160p.UHD.Blu-ray.Remux.HEVC.DV.DTS-HD.MA.5.1-CiNEPHiLES\n📦 👤 ~60 💾 66.40 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~60",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 71296457113,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "3027ae66c85823438929e1ca04f3d2315a616d0e",
+    "title": "Trainspotting 1996 REPACK UHD BluRay 1080p DDP 5 1 DoVi HDR10 x265-SM737\n📦 👤 ~43 💾 4.27 GB ⚙️ TheRARBG",
+    "name": "📦 · 4K BluRay · TheRARBG · 👤 ~43",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 4579846958,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "1b36344df7312ed558ce35398a8c2ab27b77d015",
+    "title": "Trainspotting 1996 REPACK2 UHD BluRay 1080p DDP 5 1 DoVi HDR10 x265-SM737\n📦 👤 ~37 💾 5.50 GB ⚙️ TheRARBG",
+    "name": "📦 · 4K BluRay · TheRARBG · 👤 ~37",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 5905972505,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "c45d8c52ef03277da0f7d13e3e84ae9520af9dc9",
+    "title": "Trainspotting [1996, UK, drama, crime, UHD BDRemux 2160p, HDR10, Dolby Vision] 3x MVO + DVO + 5x AVO + VO + Ukr + Sub Rus, Eng + Original Eng + Comm\n📦 👤 ~25 💾 79.04 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~25",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 84868553768,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "0a2afba96fd519937e4c65c21d0be11626a8f7ee",
+    "title": "Trainspotting.1996.REPACK.2160p.UHD.Bluray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEP\n📦 👤 ~17 💾 65.72 GB ⚙️ TheRARBG",
+    "name": "📦 · 4K BluRay · TheRARBG · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 70564343129,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "3ee5c96d91edd9ffe943dfda0c82f14769e8482c",
+    "title": "Trainspotting 1996 REPACK 2 UHD BluRay 1080p DDP 5 1 DoVi HDR10 x265-SM737\n📦 👤 ~13 💾 5.50 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 5905580032,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "c613170d2eeb5057f4b4a6d0847699761fedf382",
+    "title": "Trainspotting (1996) 1080p BrRip x264 - YIFY\n📦 👤 ~176 💾 1.30 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~176",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 1395864371,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "513378f3f4f317e9a64f5a10d55db7ece07491a6",
+    "title": "Trainspotting (1996) Criterion (1080p BluRay x265 HEVC 10bit AAC 5.1 Tigole) [QxR]\n📦 👤 ~96 💾 7.00 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~96",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 7516192768,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "38f50515f74680052b05ca9254a8e48e74448292",
+    "title": "Trainspotting 1996 1080p BluRay DV HDR10 x265-GeneMige\n📦 👤 ~36 💾 4.84 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~36",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5196910428,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e9e806b6aafda407c39b25cc23556a2fdb142349",
+    "title": "Trainspotting [1996, UK, drama, crime, BDRip 1080p] [US Collector's Edition] 4x MVO + 2x AVO + VO + Ukr + Sub (Rus, Eng) + Original Eng\n📦 👤 ~34 💾 12.44 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p · kickass · 👤 ~34",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 13357348290,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e14046d792d9419d6f16c3914bf716e6cbb005b2",
+    "title": "Trainspotting 1996 Criterion 1080p BluRay HEVC x265 5.1 BONE\n📦 👤 ~32 💾 1.70 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~32",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 1825361100,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "bd01652dc86930d4351e237ccd405866a26e79dd",
+    "title": "Trainspotting (1996) (1080p BluRay x265 HEVC 10bit AAC 5 1 afm72) [QxR]\n📦 👤 ~31 💾 5.30 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~31",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5690831667,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "49fe66d2dda27a65295804705da5a4a4766c9504",
+    "title": "Trainspotting - Sem Limites [1080p DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 1080p BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "bbe5755c7844fb815cf296dbc9029df066051d85",
+    "title": "Trainspotting - Sem Limites [1080p DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 1080p BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "cafffbfbe6b7b09b1b4a60fc08cde76683228d07",
+    "title": "Trainspotting (1996) 720p BrRip x264 - YIFY\n📦 👤 ~31 💾 650.63 MB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p BluRay · kickass · 👤 ~31",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 682235002,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "3bb38caf908adef10e94b5d1f03310ed5571e1df",
+    "title": "Trainspotting [1996, UK, drama, crime, BDRip 720p] [US Collector's Edition] 4x MVO + 2x AVO + VO + Ukr + Sub (Rus, Eng) + Original Eng\n📦 👤 ~30 💾 7.02 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~30",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 7537667604,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "eea66137a7458f74741fec5516bcd3cee37005d1",
+    "title": "Trainspotting [1996, UK, crime, drama, comedy, BDRip 720p] 2x MVO + Original Eng\n📦 👤 ~6 💾 5.12 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 5497558138,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "8cd6f8fa9e57f0d5d9cab8e89e1468716c5a4872",
+    "title": "Trainspotting 1996 720p BluRay 999MB HQ x265 10bit-GalaxyRG\n📦 👤 ~5 💾 990.60 MB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p BluRay · kickass · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1038719385,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "ec6f6d69f65dacd8aaa27b851dd516bd4491eed7",
+    "title": "Trainspotting - Sem Limites [720p DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 720p BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "7a0fb831919d18d1827850090069e3142642da38",
+    "title": "Trainspotting - Sem Limites [720p DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 720p BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "42d91dad8a071025ae7d6e0a4c585e78c5dbd2da",
+    "title": "Trainspotting.1996.720p.BRRip.XviD.AC3-PsychoLogic\n📦 👤 ~1 💾 2.30 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p · The Pirate Bay · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2464736301,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Trainspotting.1996.720p.BRRip.XviD.AC3-PsychoLogic",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "afd9933d3b57ed539d6f97e34171bd4081aa221a",
+    "title": "Trainspotting (1996) UCE 720p BRRip 850MB- MkvCage\n📦 👤 ~1 💾 852.50 MB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 893911040,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Trainspotting (1996) UCE 720p BRRip 850MB- MkvCage",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|043af6f49e1ccaf048a90f80f1e6bcd69b10cef9,0a2afba96fd519937e4c65c21d0be11626a8f7ee,1b36344df7312ed558ce35398a8c2ab27b77d015,1d612073ae3f5c7205d8e88e6d352e373f45cf1a,2697ad7b8e762f056c00296327e21b083a459b5e,3027ae66c85823438929e1ca04f3d2315a616d0e,38f50515f74680052b05ca9254a8e48e74448292,3bb38caf908adef10e94b5d1f03310ed5571e1df,3ee5c96d91edd9ffe943dfda0c82f14769e8482c,429b78abc5d056534daa2528139d66e28efcb7c2,49fe66d2dda27a65295804705da5a4a4766c9504,513378f3f4f317e9a64f5a10d55db7ece07491a6,7929b37b70b33bdc0b99b5dfea7294de3990d912,7a0fb831919d18d1827850090069e3142642da38,8cd6f8fa9e57f0d5d9cab8e89e1468716c5a4872,9c60341174d9f8a9c051449884eb1a11844d9a81,bbe5755c7844fb815cf296dbc9029df066051d85,c45d8c52ef03277da0f7d13e3e84ae9520af9dc9,c613170d2eeb5057f4b4a6d0847699761fedf382,cafffbfbe6b7b09b1b4a60fc08cde76683228d07,e14046d792d9419d6f16c3914bf716e6cbb005b2,e9e806b6aafda407c39b25cc23556a2fdb142349,ec6f6d69f65dacd8aaa27b851dd516bd4491eed7,eea66137a7458f74741fec5516bcd3cee37005d1",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "1d612073ae3f5c7205d8e88e6d352e373f45cf1a",
+    "title": "Trainspotting (1996) Criterion (2160p BluRay x265 HEVC 10bit HDR AAC 5.1 Tigole) [QxR]\n📦 👤 ~149 💾 12.20 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~149",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 13099650252,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "043af6f49e1ccaf048a90f80f1e6bcd69b10cef9",
+    "title": "Trainspotting (1996) 2160p BRRip 5.1 10Bit x265 -YTS\n👤 88 💾 4.23 GB ⚙️ YTS",
+    "name": "4K · YTS · 👤 88",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 4541927916,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "429b78abc5d056534daa2528139d66e28efcb7c2",
+    "title": "Trainspotting.1996.Criterion.Collection.2160p.UHD.Blu-ray.Remux.HEVC.DV.DTS-HD.MA.5.1-CiNEPHiLES\n📦 👤 ~60 💾 66.40 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~60",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 71296457113,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "3027ae66c85823438929e1ca04f3d2315a616d0e",
+    "title": "Trainspotting 1996 REPACK UHD BluRay 1080p DDP 5 1 DoVi HDR10 x265-SM737\n👤 48 💾 4.27 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 48",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 4579846958,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "1b36344df7312ed558ce35398a8c2ab27b77d015",
+    "title": "Trainspotting 1996 REPACK2 UHD BluRay 1080p DDP 5 1 DoVi HDR10 x265-SM737\n👤 37 💾 5.50 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 37",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 5905972505,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "c45d8c52ef03277da0f7d13e3e84ae9520af9dc9",
+    "title": "Trainspotting [1996, UK, drama, crime, UHD BDRemux 2160p, HDR10, Dolby Vision] 3x MVO + DVO + 5x AVO + VO + Ukr + Sub Rus, Eng + Original Eng + Comm\n📦 👤 ~25 💾 79.04 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~25",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 84868553768,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "3ee5c96d91edd9ffe943dfda0c82f14769e8482c",
+    "title": "Trainspotting 1996 REPACK 2 UHD BluRay 1080p DDP 5 1 DoVi HDR10 x265-SM737\n📦 👤 ~20 💾 5.50 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 5905580032,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "0a2afba96fd519937e4c65c21d0be11626a8f7ee",
+    "title": "Trainspotting.1996.REPACK.2160p.UHD.Bluray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEP\n👤 17 💾 65.72 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 70564343129,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "c613170d2eeb5057f4b4a6d0847699761fedf382",
+    "title": "Trainspotting (1996) 1080p BrRip x264 - YIFY\n📦 👤 ~291 💾 1.30 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~291",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 1395864371,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "513378f3f4f317e9a64f5a10d55db7ece07491a6",
+    "title": "Trainspotting (1996) Criterion (1080p BluRay x265 HEVC 10bit AAC 5.1 Tigole) [QxR]\n📦 👤 ~96 💾 7.00 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~96",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 7516192768,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e14046d792d9419d6f16c3914bf716e6cbb005b2",
+    "title": "Trainspotting 1996 Criterion 1080p BluRay HEVC x265 5.1 BONE\n📦 👤 ~44 💾 1.70 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~44",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 1825361100,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "9c60341174d9f8a9c051449884eb1a11844d9a81",
+    "title": "Trainspotting.1996.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-FGT\n📦 👤 ~42 💾 25.72 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~42",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 27616639713,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "38f50515f74680052b05ca9254a8e48e74448292",
+    "title": "Trainspotting 1996 1080p BluRay DV HDR10 x265-GeneMige\n📦 👤 ~36 💾 4.84 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BluRay · kickass · 👤 ~36",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5196910428,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e9e806b6aafda407c39b25cc23556a2fdb142349",
+    "title": "Trainspotting [1996, UK, drama, crime, BDRip 1080p] [US Collector's Edition] 4x MVO + 2x AVO + VO + Ukr + Sub (Rus, Eng) + Original Eng\n📦 👤 ~34 💾 12.44 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p · kickass · 👤 ~34",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 13357348290,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "49fe66d2dda27a65295804705da5a4a4766c9504",
+    "title": "Trainspotting - Sem Limites [1080p DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "bbe5755c7844fb815cf296dbc9029df066051d85",
+    "title": "Trainspotting - Sem Limites [1080p DUAL]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "cafffbfbe6b7b09b1b4a60fc08cde76683228d07",
+    "title": "Trainspotting (1996) 720p BrRip x264 - YIFY\n📦 👤 ~31 💾 650.63 MB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p BluRay · kickass · 👤 ~31",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 682235002,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "3bb38caf908adef10e94b5d1f03310ed5571e1df",
+    "title": "Trainspotting [1996, UK, drama, crime, BDRip 720p] [US Collector's Edition] 4x MVO + 2x AVO + VO + Ukr + Sub (Rus, Eng) + Original Eng\n📦 👤 ~30 💾 7.02 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~30",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 7537667604,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "eea66137a7458f74741fec5516bcd3cee37005d1",
+    "title": "Trainspotting [1996, UK, crime, drama, comedy, BDRip 720p] 2x MVO + Original Eng\n📦 👤 ~6 💾 5.12 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 5497558138,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "8cd6f8fa9e57f0d5d9cab8e89e1468716c5a4872",
+    "title": "Trainspotting 1996 720p BluRay 999MB HQ x265 10bit-GalaxyRG\n📦 👤 ~5 💾 990.60 MB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p BluRay · kickass · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1038719385,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "7929b37b70b33bdc0b99b5dfea7294de3990d912",
+    "title": "Trainspotting 1996 720p BluRay x264 Ganool\n👤 3 💾 799.76 MB ⚙️ The Pirate Bay",
+    "name": "720p BluRay · The Pirate Bay · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 838610243,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Trainspotting 1996 720p BluRay x264 Ganool",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ec6f6d69f65dacd8aaa27b851dd516bd4491eed7",
+    "title": "Trainspotting - Sem Limites [720p DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "7a0fb831919d18d1827850090069e3142642da38",
+    "title": "Trainspotting - Sem Limites [720p DUAL]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2697ad7b8e762f056c00296327e21b083a459b5e",
+    "title": "Trainspotting.1996.720p.BluRay.x264-SiNNERS\n👤 1 💾 4.42 GB ⚙️ The Pirate Bay",
+    "name": "720p BluRay · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4741699792,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Trainspotting.1996.720p.BluRay.x264-SiNNERS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

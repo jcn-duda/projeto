@@ -1,0 +1,915 @@
+[
+ {
+  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,cfc59ce47c7c0f0edbedc357dc2458b9056f7d83,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,f5635167d1f45159e5668e6a76b38c774b238a0f,fa420904bd75ee956aba1b1b302dcee2cacaff0e,fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "fa420904bd75ee956aba1b1b302dcee2cacaff0e",
+    "title": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1]\n👤 1 💾 203.52 MB 📦 pack 6.36 GB (média) ⚙️ AllDebrid",
+    "name": "1080p BluRay · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6831166102,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1] {Tags:L2;V12;C3;A=ja,en;F=en,es419;}",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "558233c42e684236b2c0f80441085a1ddb0cc357",
+    "title": "Dragon Ball Z Complete Series 1080p MP4 English Audio\n👤 15 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 362173117235,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z Complete Series 1080p MP4 English Audio",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 362173117235
+   },
+   {
+    "infoHash": "fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+    "title": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC\n👤 9 💾 621.12 MB 📦 pack 19.41 GB (média) ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 20841328803,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "42693b014a6c848bfe15f2931ac27fe6dfca7154",
+    "title": "Dragon Ball Z S200 230 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 1 REPACK\n👤 2 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 26328149524,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S200 230 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 1 REPACK",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 26328149524
+   },
+   {
+    "infoHash": "bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2",
+    "title": "Dragon Ball Z 1989 1996 Extras 1080p x264 AVC\n👤 2 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 45279692718,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z 1989 1996 Extras 1080p x264 AVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 45279692718
+   },
+   {
+    "infoHash": "f39affc072a77cff58fdd557f76838dbf323e289",
+    "title": "Dragon Ball Z S166 194 Saga Di Cell Part 2 ITA ENG JAP BDMux AC3 1080p\n👤 1 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 24620900024,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S166 194 Saga Di Cell Part 2 ITA ENG JAP BDMux AC3 1080p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 24620900024
+   },
+   {
+    "infoHash": "2d984a56dd50b37d774536df8fe95db75f619664",
+    "title": "Dragon Ball Z S231 261 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 2\n👤 1 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 26736171417,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S231 261 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 2",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 26736171417
+   },
+   {
+    "infoHash": "c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41",
+    "title": "5 - Dragon Ball Z - Saga de Cell 720p - Filmes Beta\n👤 1 ⚙️ AllDebrid",
+    "name": "720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 11446405061,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dragon Ball Z - Saga de Cell 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 11446405061
+   },
+   {
+    "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
+    "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 4509715661,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Dragon Ball Z - Saga dos Androides 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_bankDub": true,
+    "_packBytes": 4509715661
+   },
+   {
+    "infoHash": "f5635167d1f45159e5668e6a76b38c774b238a0f",
+    "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 7194070221,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Dragon Ball Z - Saga dos Sayajins 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_bankDub": true,
+    "_packBytes": 7194070221
+   },
+   {
+    "infoHash": "cfc59ce47c7c0f0edbedc357dc2458b9056f7d83",
+    "title": "DRAGON BALL Z Saga de Freeza []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 15032385536,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Dragon Ball Z - Saga de Freeza 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_packBytes": 15032385536
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,cfc59ce47c7c0f0edbedc357dc2458b9056f7d83,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,f5635167d1f45159e5668e6a76b38c774b238a0f,fa420904bd75ee956aba1b1b302dcee2cacaff0e,fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "fa420904bd75ee956aba1b1b302dcee2cacaff0e",
+    "title": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1]\n👤 1 💾 203.52 MB 📦 pack 6.36 GB (média) ⚙️ AllDebrid",
+    "name": "1080p BluRay · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6831166102,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1] {Tags:L2;V12;C3;A=ja,en;F=en,es419;}",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "558233c42e684236b2c0f80441085a1ddb0cc357",
+    "title": "Dragon Ball Z Complete Series 1080p MP4 English Audio\n👤 15 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 362173117235,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z Complete Series 1080p MP4 English Audio",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 362173117235
+   },
+   {
+    "infoHash": "fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+    "title": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC\n👤 9 💾 621.12 MB 📦 pack 19.41 GB (média) ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 20841328803,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "42693b014a6c848bfe15f2931ac27fe6dfca7154",
+    "title": "Dragon Ball Z S200 230 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 1 REPACK\n👤 2 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 26328149524,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S200 230 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 1 REPACK",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 26328149524
+   },
+   {
+    "infoHash": "bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2",
+    "title": "Dragon Ball Z 1989 1996 Extras 1080p x264 AVC\n👤 2 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 45279692718,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z 1989 1996 Extras 1080p x264 AVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 45279692718
+   },
+   {
+    "infoHash": "f39affc072a77cff58fdd557f76838dbf323e289",
+    "title": "Dragon Ball Z S166 194 Saga Di Cell Part 2 ITA ENG JAP BDMux AC3 1080p\n👤 1 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 24620900024,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S166 194 Saga Di Cell Part 2 ITA ENG JAP BDMux AC3 1080p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 24620900024
+   },
+   {
+    "infoHash": "2d984a56dd50b37d774536df8fe95db75f619664",
+    "title": "Dragon Ball Z S231 261 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 2\n👤 1 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 26736171417,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S231 261 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 2",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 26736171417
+   },
+   {
+    "infoHash": "c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41",
+    "title": "5 - Dragon Ball Z - Saga de Cell 720p - Filmes Beta\n👤 1 ⚙️ AllDebrid",
+    "name": "720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 11446405061,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dragon Ball Z - Saga de Cell 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 11446405061
+   },
+   {
+    "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
+    "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 4509715661,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Dragon Ball Z - Saga dos Androides 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_bankDub": true,
+    "_packBytes": 4509715661
+   },
+   {
+    "infoHash": "f5635167d1f45159e5668e6a76b38c774b238a0f",
+    "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 7194070221,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Dragon Ball Z - Saga dos Sayajins 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_bankDub": true,
+    "_packBytes": 7194070221
+   },
+   {
+    "infoHash": "cfc59ce47c7c0f0edbedc357dc2458b9056f7d83",
+    "title": "DRAGON BALL Z Saga de Freeza []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 15032385536,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Dragon Ball Z - Saga de Freeza 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_packBytes": 15032385536
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,fa420904bd75ee956aba1b1b302dcee2cacaff0e,fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "fa420904bd75ee956aba1b1b302dcee2cacaff0e",
+    "title": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1]\n👤 1 💾 203.52 MB 📦 pack 6.36 GB (média) ⚙️ AllDebrid",
+    "name": "1080p BluRay · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6831166102,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1] {Tags:L2;V12;C3;A=ja,en;F=en,es419;}",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "558233c42e684236b2c0f80441085a1ddb0cc357",
+    "title": "Dragon Ball Z Complete Series 1080p MP4 English Audio\n👤 15 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 362173117235,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z Complete Series 1080p MP4 English Audio",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 362173117235
+   },
+   {
+    "infoHash": "fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+    "title": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC\n👤 9 💾 621.12 MB 📦 pack 19.41 GB (média) ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 20841328803,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "42693b014a6c848bfe15f2931ac27fe6dfca7154",
+    "title": "Dragon Ball Z S200 230 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 1 REPACK\n👤 2 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 26328149524,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S200 230 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 1 REPACK",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 26328149524
+   },
+   {
+    "infoHash": "bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2",
+    "title": "Dragon Ball Z 1989 1996 Extras 1080p x264 AVC\n👤 2 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 45279692718,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z 1989 1996 Extras 1080p x264 AVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 45279692718
+   },
+   {
+    "infoHash": "f39affc072a77cff58fdd557f76838dbf323e289",
+    "title": "Dragon Ball Z S166 194 Saga Di Cell Part 2 ITA ENG JAP BDMux AC3 1080p\n👤 1 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 24620900024,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S166 194 Saga Di Cell Part 2 ITA ENG JAP BDMux AC3 1080p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 24620900024
+   },
+   {
+    "infoHash": "2d984a56dd50b37d774536df8fe95db75f619664",
+    "title": "Dragon Ball Z S231 261 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 2\n👤 1 ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 26736171417,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Dragon Ball Z S231 261 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 2",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 26736171417
+   },
+   {
+    "infoHash": "c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41",
+    "title": "5 - Dragon Ball Z - Saga de Cell 720p - Filmes Beta\n👤 1 ⚙️ AllDebrid",
+    "name": "720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 11446405061,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Dragon Ball Z - Saga de Cell 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 11446405061
+   },
+   {
+    "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
+    "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ TorrentDosFilmes",
+    "name": "📦 · BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 4509715661,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
+    "_magnetDn": "Dragon Ball Z - Saga dos Androides 720p dublado - FB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_bankDub": true,
+    "_packBytes": 4509715661
+   }
+  ]
+ }
+]

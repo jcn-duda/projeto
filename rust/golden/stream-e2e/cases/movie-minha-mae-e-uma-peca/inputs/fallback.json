@@ -1,0 +1,117 @@
+{
+ "key": "fallback:movie:tt2464018:::late",
+ "value": {
+  "items": [
+   {
+    "title": "[Portuguese-Pt] Minha Mae E Uma Peca - O Filme (2013) BDrip 720p",
+    "infoHash": "92162dd5011ca4d2ecd613ddef6c12764e736323",
+    "magnet": "magnet:?xt=urn:btih:92162dd5011ca4d2ecd613ddef6c12764e736323&dn=Minha+Mae+E+Uma+Peca+-+O+Filme+%282013%29+BDrip+720p&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 1056607402,
+    "seeders": 0,
+    "indexer": "kickasstorrents-to",
+    "tracker": "kickasstorrents.to",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "kickasstorrents-to",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional  BFtorrent",
+    "infoHash": "f9e89017ede30e2f101c3f81b493a2f91919529c",
+    "magnet": "magnet:?xt=urn:btih:f9e89017ede30e2f101c3f81b493a2f91919529c&dn=Minha+Mae+E+Uma+Peca+-+O+Filme+%282013%29+BDrip+720p+Nacional+-+BFtorrent&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 1056608092,
+    "seeders": 0,
+    "indexer": "limetorrents",
+    "tracker": "LimeTorrents",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "limetorrents",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional BF",
+    "infoHash": "f3afa962d6644e7b19b5bc0d6fcbc91409dac046",
+    "magnet": "magnet:?xt=urn:btih:f3afa962d6644e7b19b5bc0d6fcbc91409dac046&dn=Minha+Mae+E+Uma+Peca+-+O+Filme+%282013%29+BDrip+720p+Nacional+BF&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 1056639549,
+    "seeders": 0,
+    "indexer": "limetorrents",
+    "tracker": "LimeTorrents",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "limetorrents",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Minha Mae E Uma Peca O Filme (2013) BDrip 720p Nacional",
+    "infoHash": "e065ead48d9c622af2f2fa2ba81f9f50713215c0",
+    "magnet": "magnet:?xt=urn:btih:e065ead48d9c622af2f2fa2ba81f9f50713215c0&dn=Minha+Mae+E+Uma+Peca++O+Filme+%282013%29+BDrip+720p+Nacional&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fretracker.lanta-net.ru%3A2710%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2730%2Fannounce&tr=udp%3A%2F%2Fipv4.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fipv6.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 1056608092,
+    "seeders": 0,
+    "indexer": "limetorrents",
+    "tracker": "LimeTorrents",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "limetorrents",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p",
+    "infoHash": "930e61695b2385915b648b225c735c3d85e45725",
+    "magnet": "magnet:?xt=urn:btih:930e61695b2385915b648b225c735c3d85e45725&dn=Minha+Mae+E+Uma+Peca+-+O+Filme+%282013%29+BDrip+720p&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 1056608092,
+    "seeders": 0,
+    "indexer": "limetorrents",
+    "tracker": "LimeTorrents",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "limetorrents",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Minha Mae e Uma Peca - O Filme DVDRIP Nacional",
+    "infoHash": "502055b4eff61ad51632170a62e9f981d0f300f1",
+    "magnet": "magnet:?xt=urn:btih:502055b4eff61ad51632170a62e9f981d0f300f1&dn=Minha+Mae+e+Uma+Peca+-+O+Filme+DVDRIP+Nacional&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 750527810,
+    "seeders": 0,
+    "indexer": "kickasstorrents-to",
+    "tracker": "kickasstorrents.to",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "SD",
+    "fromFallback": true,
+    "fallbackIndexer": "kickasstorrents-to",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Minha.Mae.e.uma.Peca.O.Filme.2013.DVD5.NTSC",
+    "infoHash": "f77b499cfa0fc6bfd7370b0161a6b84909d1c0d4",
+    "magnet": "magnet:?xt=urn:btih:f77b499cfa0fc6bfd7370b0161a6b84909d1c0d4&dn=Minha.Mae.e.uma.Peca.O.Filme.2013.DVD5.NTSC&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 4681539584,
+    "seeders": 0,
+    "indexer": "kickasstorrents-to",
+    "tracker": "kickasstorrents.to",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "SD",
+    "fromFallback": true,
+    "fallbackIndexer": "kickasstorrents-to",
+    "fallbackFetchable": true
+   }
+  ],
+  "injected": 7,
+  "cut": {
+   "live-dedupe": 30,
+   "no-source": 1
+  }
+ }
+}

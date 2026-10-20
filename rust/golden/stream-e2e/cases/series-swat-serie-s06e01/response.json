@@ -8,21 +8,120 @@
   "body": {
     "streams": [
       {
-        "title": "S.W.A.T.  1080p D4V1\n👤 1 💾 1.51 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BluRay · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/658c8d634fe7423257f15856667861c64804bb91?s=6&e=1&w=%7B%22i%22%3A%22tt6111130%22%7D&sig={{sig}}",
-        "size": "1.51 GB"
-      },
-      {
-        "title": "SWAT 2017 S06 1080p WEBRip DataDiva\n📦 👤 ~16 💾 721.45 MB 📦 pack 15.50 GB (média) ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 1080p WEBRip · TheRARBG · 👤 ~16",
+        "infoHash": "95a8a74789c14e43857213324d1027d77afad802",
+        "title": "S.W.A.T. 6ª Temporada (2022) E01 [1080p LEGENDADO]\n📦 👤 ~1 💾 1.80 GB ⚙️ Apache Torrent",
+        "name": "📦 · 1080p WEBRip LEG BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/c9b955c9e8cd4d9282f2e12a59f6c09e04dedaf9?s=6&e=1&w=%7B%22i%22%3A%22tt6111130%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.80 GB"
+      },
+      {
+        "infoHash": "2b6c4c391e6a5d1a6f2b29022e1c2d59a80d3bd0",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [1080p LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · 1080p WEB-DL LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "f2ec28ad4f330fbc433258b9ce294764a761570f",
+        "title": "S.W.A.T. 6ª Temporada (2022) E01 [720p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 1.80 GB ⚙️ Apache Torrent",
+        "name": "📦 · 720p WEB-DL LEG BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.80 GB"
+      },
+      {
+        "infoHash": "ed425fff239f22636d2bb9b260675a1ab8570370",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL E01 [720p LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · 720p WEB-DL LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "4786811e0fcbd25a5576c4aba69457da264582e3",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL [1080p LEGENDADO]\n📦 👤 ~1 💾 83.78 MB 📦 pack 1.80 GB (média) ⚙️ ComandoTorrents",
+        "name": "📦 · 1080p WEB-DL LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "83.78 MB"
+      },
+      {
+        "infoHash": "7377fce98f2d272bf0ef31cd4d7133215668be36",
+        "title": "S.W.A.T.: Força de Intervenção 6ª Temporada (2022) WEB-DL [720p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 83.78 MB 📦 pack 1.80 GB (média) ⚙️ ComandoTorrents",
+        "name": "📦 · 720p WEB-DL LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "83.78 MB"
+      },
+      {
+        "infoHash": "c9b955c9e8cd4d9282f2e12a59f6c09e04dedaf9",
+        "title": "SWAT 2017 S06 1080p WEBRip DataDiva\n📦 👤 ~16 💾 721.45 MB 📦 pack 15.50 GB (média) ⚙️ TheRARBG",
+        "name": "📦 · 1080p WEBRip · TheRARBG · 👤 ~16",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "721.45 MB"
       }
     ],

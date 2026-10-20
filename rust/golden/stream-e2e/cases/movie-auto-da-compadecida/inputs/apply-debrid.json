@@ -1,0 +1,359 @@
+[
+ {
+  "key": "alldebrid|0|41be6f40abfb8ecfaf44a21e4c560dacf454fa6e,4299faf9cf5e223796c3b23f98e9647538f59acd,438ad83956a3c44a26bdda4aee228c4aa14a1764,ab4912ac4783493528e8d629159aad85868ce2c0,b71926031dea70bd81e9e1b1e29faafc99d97bfe,d79dd45f3354530852ee754a7bbad31777ee56af,e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+    "title": "A Dog s Will (2000) (1080p BluRay x265 10bit EAC3 5 1 Portuguese r00t) [QxR]\n📦 👤 ~101 💾 6.32 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~101",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6786048327,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "ab4912ac4783493528e8d629159aad85868ce2c0",
+    "title": "A Dog s Will 2000 PORTUGUESE 1080p 10bit BluRay 6CH x265 HEVC\n📦 👤 ~9 💾 2.10 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2254857830,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "4299faf9cf5e223796c3b23f98e9647538f59acd",
+    "title": "O Auto da Compadecida (1999) [720p WEBRIP DUBLADO 2 GB]\n📦 👤 ~1 💾 2.00 GB ⚙️ Rede Torrent",
+    "name": "📦 · 720p WEBRip NAC BR · Rede Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2147483648,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "redetorrent-cardigann",
+    "_tracker": "Rede Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "d79dd45f3354530852ee754a7bbad31777ee56af",
+    "title": "O Auto da Compadecida (2000) 720p WEBRip x264 -YTS\n📦 👤 ~17 💾 943.15 MB ⚙️ yts",
+    "name": "📦 · 720p WEBRip · yts · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 988964454,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "yts",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "41be6f40abfb8ecfaf44a21e4c560dacf454fa6e",
+    "title": "A Dog s Will 2000 PORTUGUESE 720p 10bit BluRay 6CH x265 HEVC\n📦 👤 ~12 💾 1.07 GB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BluRay · LimeTorrents · 👤 ~12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1148903751,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "438ad83956a3c44a26bdda4aee228c4aa14a1764",
+    "title": "O Auto da Compadecida [720p DUBLADO]\n📦 👤 ~1 💾 6.85 GB ⚙️ BLUDV",
+    "name": "📦 · 720p BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 7355131494,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "{WWW.BLUDV.TV} O Auto da Compadecida 2000 (DVDRip) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "b71926031dea70bd81e9e1b1e29faafc99d97bfe",
+    "title": "O Auto da Compadecida [720p DUBLADO]\n📦 👤 ~1 💾 2.47 GB ⚙️ BLUDV",
+    "name": "📦 · 720p BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2652142305,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "{WWW.BLUDV.TV} O Auto da Compadecida 2000 (x265) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|41be6f40abfb8ecfaf44a21e4c560dacf454fa6e,4299faf9cf5e223796c3b23f98e9647538f59acd,ab4912ac4783493528e8d629159aad85868ce2c0,d79dd45f3354530852ee754a7bbad31777ee56af,e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+    "title": "A Dog s Will (2000) (1080p BluRay x265 10bit EAC3 5 1 Portuguese r00t) [QxR]\n👤 101 💾 6.32 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 101",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6786048327,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ab4912ac4783493528e8d629159aad85868ce2c0",
+    "title": "A Dog s Will 2000 PORTUGUESE 1080p 10bit BluRay 6CH x265 HEVC\n👤 9 💾 2.10 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2254857830,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "4299faf9cf5e223796c3b23f98e9647538f59acd",
+    "title": "O Auto da Compadecida (1999) [720p WEBRIP DUBLADO 2 GB]\n👤 1 💾 2.00 GB ⚙️ Rede Torrent",
+    "name": "720p WEBRip NAC BR · Rede Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2147483648,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "redetorrent-cardigann",
+    "_tracker": "Rede Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "d79dd45f3354530852ee754a7bbad31777ee56af",
+    "title": "O Auto da Compadecida (2000) 720p WEBRip x264 -YTS\n👤 17 💾 943.15 MB ⚙️ yts",
+    "name": "720p WEBRip · yts · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 988964454,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "yts",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "41be6f40abfb8ecfaf44a21e4c560dacf454fa6e",
+    "title": "A Dog s Will 2000 PORTUGUESE 720p 10bit BluRay 6CH x265 HEVC\n👤 12 💾 1.07 GB ⚙️ LimeTorrents",
+    "name": "720p BluRay · LimeTorrents · 👤 12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1148903751,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

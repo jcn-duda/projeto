@@ -8,9 +8,25 @@
   "body": {
     "streams": [
       {
-        "infoHash": "8d0d7e6c2b6b0acaad2c0496dfe48cebe43bdd75",
-        "title": "Friends [720p BLU-RAY DUBLADO]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
-        "name": "📦 · 720p BluRay BR · apachetorrent · 👤 ~1",
+        "infoHash": "160e6f5f535fd91022372fc63de6add173330476",
+        "title": "Friends [1080p BLU-RAY DUAL]\n📦 👤 ~2 ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p BluRay BR · The Pirate Bay · 👤 ~2",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "b6cc7f5b2807b9337f3f171663e3f4ef74227df2",
+        "title": "Friends [720p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Rede Torrent",
+        "name": "📦 · 720p BluRay BR · Rede Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
@@ -25,8 +41,8 @@
       },
       {
         "infoHash": "257f07e623590f7fedce7d872cce70163d247377",
-        "title": "Friends 2ª Temporada – – Bluray (1995) [720p BLURAY DUBLADO 4.10 GB]\n📦 👤 ~ 💾 174.93 MB 📦 pack 4.10 GB (média) ⚙️ ComandoTorrents",
-        "name": "📦 · 720p BluRay BR · Comando · 👤 ~",
+        "title": "Friends 2ª Temporada – – Bluray (1995) [720p BLURAY DUBLADO 4.10 GB]\n📦 👤 ~1 💾 174.93 MB 📦 pack 4.10 GB (média) ⚙️ TorrentDosFilmes",
+        "name": "📦 · 720p BluRay BR · TorrentDos · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
@@ -42,8 +58,8 @@
       },
       {
         "infoHash": "05a33c94b42933142d4baef95da48af7daa75c7e",
-        "title": "Friends (1994) 1° à 10° Temporada Completo S02 [720p]\n📦 👤 ~1 💾 21.04 MB 📦 pack 4.85 GB (média) ⚙️ BLUDV",
-        "name": "📦 · 720p BR · BLUDV · 👤 ~1",
+        "title": "Friends (1994) 1° à 10° Temporada Completo S02 [720p]\n📦 👤 ~1 💾 21.04 MB 📦 pack 4.85 GB (média) ⚙️ TorrentDosFilmes",
+        "name": "📦 · 720p BR · TorrentDos · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
@@ -59,8 +75,8 @@
       },
       {
         "infoHash": "e9d0724e40561805afe3757fb2b240dce79ea9c3",
-        "title": "Friends S02E07 The One Where Ross Finds Out REPACK 1080p AMZN WEB-DL DDP5 1\n👤 12 💾 1.68 GB ⚙️ TheRARBG",
-        "name": "1080p WEB-DL · TheRARBG · 👤 12",
+        "title": "Friends S02E07 The One Where Ross Finds Out REPACK 1080p AMZN WEB-DL DDP5 1\n📦 👤 ~12 💾 1.68 GB ⚙️ TheRARBG",
+        "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~12",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -76,8 +92,8 @@
       },
       {
         "infoHash": "1d58041b835e64516adf12349b2c4ac56013fd51",
-        "title": "Friends S02E07 The One Where Ross Finds Out 1080p AMZN WEB-DL DDP5 1 H 264-\n👤 7 💾 1.68 GB ⚙️ The Pirate Bay",
-        "name": "1080p WEB-DL · The Pirate Bay · 👤 7",
+        "title": "Friends S02E07 The One Where Ross Finds Out 1080p AMZN WEB-DL DDP5 1 H 264-\n📦 👤 ~6 💾 1.68 GB ⚙️ TheRARBG",
+        "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~6",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -90,6 +106,57 @@
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
         "size": "1.68 GB"
+      },
+      {
+        "infoHash": "69ddb3a5e85b4c184e77aa879f0dd9e186bb83dd",
+        "title": "FRIENDS.S02.2160p.UHD.Blu-ray.Remux.DV.HEVC.DTS-HD.MA.5.1-SiCFoI\n📦 👤 ~14 💾 6.85 GB 📦 pack 164.35 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · 4K BluRay · The Pirate Bay · 👤 ~14",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "6.85 GB"
+      },
+      {
+        "infoHash": "ac021554e0d9eecf4a7fd0fa9f3a401aeaa74fe8",
+        "title": "Friends S02 UHD BluRay 2160p DTS HD MA 5 1 DV HEVC REMUX FraMeSTo\n📦 👤 ~5 💾 6.89 GB 📦 pack 165.40 GB (média) ⚙️ TheRARBG",
+        "name": "📦 · 4K BluRay · TheRARBG · 👤 ~5",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "6.89 GB"
+      },
+      {
+        "infoHash": "413b4490cca0ac748d7b878ed05468eba11d2607",
+        "title": "Friends.S02.S02.720p.BluRay.x264-PublicHD\n📦 👤 ~12 💾 834.99 MB 📦 pack 19.57 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · 720p BluRay · The Pirate Bay · 👤 ~12",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "834.99 MB"
       }
     ],
     "cacheMaxAge": 0

@@ -1,0 +1,465 @@
+[
+  {
+    "key": {
+      "imdb": "tt2464018",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "My Mom Is a Character 2013",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Minha Mãe É Uma Peça - O Filme (2013) BDrip 720p Nacional",
+          "infoHash": "5278b53d1db2232581b3635a9353f43b7642841c",
+          "seeders": 1,
+          "size": 1056627687,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Era Uma Vez Minha Mãe [1080p DUAL]",
+          "magnet": "magnet:?xt=urn:btih:fd7b1b0cd6a8951b91b3a6d2d3161e06aa6a7330&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.trackerfix.com%3A83%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Feddie4.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fzer0day.ch%3A1337%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftorrent.gresille.org%3A80%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.ch%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.btzoo.eu%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.birkenwald.de%3A6969%2Fannounce&tr=http%3A%2F%2Ftracker.vraphim.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fu4.trakx.crim.ist%3A1337%2Fannounce&tr=udp%3A%2F%2Fu6.trakx.crim.ist%3A1337%2Fannounce&tr=https%3A%2F%2Ftrackers.mlsub.net%3A443%2Fannounce&tr=udp%3A%2F%2Fp2p.publictracker.xyz%3A6969%2Fannounce&tr=udp%3A%2F%2Fttk2.nbaonlineservice.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.fnix.net%3A6969%2Fannounce&tr=udp%3A%2F%2Fevan.im%3A6969%2Fannounce&tr=https%3A%2F%2Ftracker.yemekyedim.com%3A443%2Fannounce&tr=udp%3A%2F%2Fmartin-gebhardt.eu%3A25%2Fannounce&tr=udp%3A%2F%2Fr.l5.ca%3A6969%2Fannounce&dn=HIDRATORRENTS.ORG...1080P.MKV.-DUBLADO-DUAL-AUDIO-..",
+          "infoHash": "fd7b1b0cd6a8951b91b3a6d2d3161e06aa6a7330",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197224,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça 2 [720p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:055BD38178ABBD4CC3EFCF3FD2BE84FDAC580AEA&dn=Minha.M%c3%a3e.%c3%a9.Uma.Pe%c3%a7a.2.2017.720p.BluRay.DD5.1.x264.NACIONAL-WWW.TORRENTDOSFILMES.COM.mkv&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2740%2fannounce&tr=udp%3a%2f%2fexplodie.org%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2fp4p.arenabg.com%3a1337%2fannounce&tr=udp%3a%2f%2ftorrent.gresille.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce",
+          "infoHash": "055BD38178ABBD4CC3EFCF3FD2BE84FDAC580AEA",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197224,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça 2 [1080p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:69E9AF8512D303E43DD3895E200080878428C053&dn=Minha.M%c3%a3e.%c3%89.Uma.Pe%c3%a7a.2.2017.1080p.BluRay.x264.NACIONAL-WWW.TORRENTDOSFILMES.COM.mp4&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2740%2fannounce&tr=udp%3a%2f%2fexplodie.org%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2fp4p.arenabg.com%3a1337%2fannounce&tr=udp%3a%2f%2ftorrent.gresille.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce",
+          "infoHash": "69E9AF8512D303E43DD3895E200080878428C053",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197224,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça 2 [720p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:C66208AE2034F7EAF7C2E5CAF429E60DBDA0CA28&dn=Minha.M%c3%a3e.%c3%a9.Uma.Pe%c3%a7a.2.2017.720p.BluRay.x264.NACIONAL-WWW.TORRENTDOSFILMES.COM.mp4&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2740%2fannounce&tr=udp%3a%2f%2fexplodie.org%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2fp4p.arenabg.com%3a1337%2fannounce&tr=udp%3a%2f%2ftorrent.gresille.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce",
+          "infoHash": "C66208AE2034F7EAF7C2E5CAF429E60DBDA0CA28",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197224,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça 2 - O Filme [1080p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:69E9AF8512D303E43DD3895E200080878428C053&dn=Minha.M%c3%a3e.%c3%89.Uma.Pe%c3%a7a.2.2017.1080p.BluRay.x264.NACIONAL.mp4&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2740%2fannounce&tr=udp%3a%2f%2fexplodie.org%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2fp4p.arenabg.com%3a1337%2fannounce&tr=udp%3a%2f%2ftorrent.gresille.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce",
+          "infoHash": "69E9AF8512D303E43DD3895E200080878428C053",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197224,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça 2 - O Filme [720p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:C66208AE2034F7EAF7C2E5CAF429E60DBDA0CA28&dn=Minha.M%c3%a3e.%c3%a9.Uma.Pe%c3%a7a.2.2017.720p.BluRay.x264.NACIONAL.mp4&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2740%2fannounce&tr=udp%3a%2f%2fexplodie.org%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2fp4p.arenabg.com%3a1337%2fannounce&tr=udp%3a%2f%2ftorrent.gresille.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce",
+          "infoHash": "C66208AE2034F7EAF7C2E5CAF429E60DBDA0CA28",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197223,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça 2 - O Filme [1080p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:FC0794E9D6AAD4016D2252BE80095D99F1FCFF91&dn=Minha.M%c3%a3e.%c3%89.Uma.Pe%c3%a7a.2.2017.1080p.BluRay.DD5.1.x264.NACIONAL.mkv&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2740%2fannounce&tr=udp%3a%2f%2fexplodie.org%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2fp4p.arenabg.com%3a1337%2fannounce&tr=udp%3a%2f%2ftorrent.gresille.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce",
+          "infoHash": "FC0794E9D6AAD4016D2252BE80095D99F1FCFF91",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197223,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça 2 - O Filme [720p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:055BD38178ABBD4CC3EFCF3FD2BE84FDAC580AEA&dn=Minha.M%c3%a3e.%c3%a9.Uma.Pe%c3%a7a.2.2017.720p.BluRay.DD5.1.x264.NACIONAL.mkv&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2740%2fannounce&tr=udp%3a%2f%2fexplodie.org%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2fp4p.arenabg.com%3a1337%2fannounce&tr=udp%3a%2f%2ftorrent.gresille.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce",
+          "infoHash": "055BD38178ABBD4CC3EFCF3FD2BE84FDAC580AEA",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197223,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é uma Peça 3 - O Filme [720p DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:8ae201dd95624ee7bc858022e191224cfd70634d&dn=COMANDO.TO%20-%20Minha%20Mae%20e%20uma%20Peca%203%20-%20O%20Filme%202020%20%5b720p-FULL%5d&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2ftracker4.piratux.com%3a6969%2fannounce&tr=udp%3a%2f%2fcoppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2ft2.pow7.com%2fannounce&tr=udp%3a%2f%2ftracker.yify-torrents.com%3a80%2fannounce&tr=http%3a%2f%2fwww.h33t.com%3a3310%2fannounce&tr=http%3a%2f%2fexodus.desync.com%2fannounce&tr=http%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2fbt.careland.com.cn%3a6969%2fannounce&tr=http%3a%2f%2fexodus.desync.com%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.istole.it%3a80%2fannounce&tr=http%3a%2f%2ftracker.blazing.de%2fannounce&tr=http%3a%2f%2ftracker.yify-torrents.com%2fannounce&tr=udp%3a%2f%2ftracker.prq.to%2fannounce&tr=udp%3a%2f%2ftracker.1337x.org%3a80%2fannounce&tr=udp%3a%2f%2f9.rarbg.com%3a2740%2fannounce&tr=udp%3a%2f%2ftracker.ex.ua%3a80%2fannounce&tr=udp%3a%2f%2fipv4.tracker.harry.lu%3a80%2fannounce&tr=udp%3a%2f%2f12.rarbg.me%3a80%2fannounce&tr=udp%3a%2f%2f11.rarbg.com%2fannounce&tr=udp%3a%2f%2ftracker.ccc.de%3a80%2fannounce&tr=udp%3a%2f%2ffr33dom.h33t.com%3a3310%2fannounce&tr=udp%3a%2f%2fpublic.popcorn-tracker.org%3a6969%2fannounce",
+          "infoHash": "8ae201dd95624ee7bc858022e191224cfd70634d",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197223,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça - O Filme [BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:5278b53d1db2232581b3635a9353f43b7642841c&dn=Minha.M%26atilde%3Be.%26Eacute%3B.Uma.Pe%26ccedil%3Ba.%282013%29.BDrip.Nacional.&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+          "infoHash": "5278b53d1db2232581b3635a9353f43b7642841c",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197223,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Minha Mãe é Uma Peça - O Filme [720p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:2B9AEC8735A5AB408F83A2C7D109BE9D010C8491&dn=Minha%20M%c3%a3e%20%c3%89%20Uma%20Pe%c3%a7a%20-%20O%20Filme%20%282013%29%20BDrip%20720p%20Nacional%20%28By-KleysonLima%29&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce",
+          "infoHash": "2B9AEC8735A5AB408F83A2C7D109BE9D010C8491",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486197223,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Bränn alla mina brev 2022 1080p web YTS",
+          "magnet": "magnet:?xt=urn:btih:D6D6D063451EE2DCDD84865C8F704642FF3EE0CC&dn=Br%C3%A4nn+alla+mina+brev+2022+1080p+web+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "D6D6D063451EE2DCDD84865C8F704642FF3EE0CC",
+          "seeders": 6,
+          "size": 2136746230,
+          "publishedAt": 1788648325000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Bränn alla mina brev 2022 720p web YTS",
+          "magnet": "magnet:?xt=urn:btih:52A55628301ADE3D481D4C94220B5A5C6C8C3939&dn=Br%C3%A4nn+alla+mina+brev+2022+720p+web+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "52A55628301ADE3D481D4C94220B5A5C6C8C3939",
+          "seeders": 2,
+          "size": 1148903752,
+          "publishedAt": 1788648324000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Mina ni ko are 2023 1080p web YTS",
+          "magnet": "magnet:?xt=urn:btih:0044A24A405BA827C8BF6D0C3BDB9D0841BF41D7&dn=Mina+ni+ko+are+2023+1080p+web+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "0044A24A405BA827C8BF6D0C3BDB9D0841BF41D7",
+          "seeders": 46,
+          "size": 1760936591,
+          "publishedAt": 1788615866000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Mina ni ko are 2023 720p web YTS",
+          "magnet": "magnet:?xt=urn:btih:960E55D5FFC3F7401678093F73BB288CC864C63F&dn=Mina+ni+ko+are+2023+720p+web+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "960E55D5FFC3F7401678093F73BB288CC864C63F",
+          "seeders": 6,
+          "size": 854820127,
+          "publishedAt": 1788615865000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Minha.Querida.Senhorita.2026.WEB-DL.1080p.x264.DUAL.5.1-STARCKFILMES",
+          "magnet": "magnet:?xt=urn:btih:0EFA8FB6E6F085CD9048DB9822087F3116F1C89C&dn=Minha.Querida.Senhorita.2026.WEB-DL.1080p.x264.DUAL.5.1-STARCKFILMES&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "0EFA8FB6E6F085CD9048DB9822087F3116F1C89C",
+          "seeders": 0,
+          "size": 3070901616,
+          "publishedAt": 1787038583000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj The Kings Jester 2022 720p NF WEB-DL DDP5 1 H 264-Kitsune",
+          "magnet": "magnet:?xt=urn:btih:871D44BC3138D41627ABBCAB586FA87017B10169&dn=Hasan+Minhaj+The+Kings+Jester+2022+720p+NF+WEB-DL+DDP5+1+H+264-Kitsune&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "871D44BC3138D41627ABBCAB586FA87017B10169",
+          "seeders": 0,
+          "size": 1267761721,
+          "publishedAt": 1785448176000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Minna - yatteru ka! 1994 1080p bluray YTS",
+          "magnet": "magnet:?xt=urn:btih:C6BCAD842A9E755DE43616CF26458EF97A624C6D&dn=Minna+-+yatteru+ka!+1994+1080p+bluray+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "C6BCAD842A9E755DE43616CF26458EF97A624C6D",
+          "seeders": 15,
+          "size": 1954210120,
+          "publishedAt": 1781208876000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Minna - yatteru ka! 1994 720p bluray YTS",
+          "magnet": "magnet:?xt=urn:btih:64A670E7C2DD203E7866A9855E65C0FE6C0105C2&dn=Minna+-+yatteru+ka!+1994+720p+bluray+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "64A670E7C2DD203E7866A9855E65C0FE6C0105C2",
+          "seeders": 3,
+          "size": 1054783570,
+          "publishedAt": 1781208873000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "O Filme da Minha Vida 2017 1080p web YTS",
+          "magnet": "magnet:?xt=urn:btih:C0CDA66B137EDC819F0A8EE722A35624C08D205C&dn=O+Filme+da+Minha+Vida+2017+1080p+web+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "C0CDA66B137EDC819F0A8EE722A35624C08D205C",
+          "seeders": 0,
+          "size": 2233382994,
+          "publishedAt": 1781198412000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "O Filme da Minha Vida 2017 720p web YTS",
+          "magnet": "magnet:?xt=urn:btih:21108DE0FA9EC5E07726BB28E28F34280B096310&dn=O+Filme+da+Minha+Vida+2017+720p+web+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "21108DE0FA9EC5E07726BB28E28F34280B096310",
+          "seeders": 3,
+          "size": 1084479242,
+          "publishedAt": 1781198410000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Brann Alla Mina Brev (2022) 1080p WEBRip-WORLD",
+          "magnet": "magnet:?xt=urn:btih:87C7432777440DAF927101BEAEE7AF390572B0AE&dn=Brann+Alla+Mina+Brev+(2022)+1080p+WEBRip-WORLD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "87C7432777440DAF927101BEAEE7AF390572B0AE",
+          "seeders": 0,
+          "size": 2139711742,
+          "publishedAt": 1777047012000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Brann Alla Mina Brev (2022) 720p WEBRip-WORLD",
+          "magnet": "magnet:?xt=urn:btih:F635B653CFF4EAE483E83865A19D8E3CCDFD7B18&dn=Brann+Alla+Mina+Brev+(2022)+720p+WEBRip-WORLD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "F635B653CFF4EAE483E83865A19D8E3CCDFD7B18",
+          "seeders": 0,
+          "size": 1152034249,
+          "publishedAt": 1777041146000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj Off With His Head 2024 1080p NF WEB-DL DDP5 1 x264-OzONE",
+          "magnet": "magnet:?xt=urn:btih:91AD79E3CFAAFA1D5C1A8F4856E702710556DD43&dn=Hasan+Minhaj+Off+With+His+Head+2024+1080p+NF+WEB-DL+DDP5+1+x264-OzONE&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "91AD79E3CFAAFA1D5C1A8F4856E702710556DD43",
+          "seeders": 0,
+          "size": 2611864154,
+          "publishedAt": 1776693492000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj Off with His Head 2024 1080p Netflix WEB-DL AVC DDP 5 1-DBTV",
+          "magnet": "magnet:?xt=urn:btih:D6DA47F77718B073097A8E0D9749AEE514F1FAB7&dn=Hasan+Minhaj+Off+with+His+Head+2024+1080p+Netflix+WEB-DL+AVC+DDP+5+1-DBTV&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "D6DA47F77718B073097A8E0D9749AEE514F1FAB7",
+          "seeders": 0,
+          "size": 2612875422,
+          "publishedAt": 1776352592000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj Off with His Head 2024 1080p Netflix WEB-DL AVC DDP 5 1-DBTV",
+          "magnet": "magnet:?xt=urn:btih:EB9060524B6B5B2A79F64C8C47FAAEF76F6710F4&dn=Hasan+Minhaj+Off+with+His+Head+2024+1080p+Netflix+WEB-DL+AVC+DDP+5+1-DBTV&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "EB9060524B6B5B2A79F64C8C47FAAEF76F6710F4",
+          "seeders": 0,
+          "size": 2612875424,
+          "publishedAt": 1774403933000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "The.Misty.Experiment.The.Secret.Battle.For.The.Ho.Chi.Minh.Trail.2022.1080p",
+          "magnet": "magnet:?xt=urn:btih:2906A2DE0CD18E8AA3BCDEE4746758EC90852B6C&dn=The.Misty.Experiment.The.Secret.Battle.For.The.Ho.Chi.Minh.Trail.2022.1080p&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "2906A2DE0CD18E8AA3BCDEE4746758EC90852B6C",
+          "seeders": 0,
+          "size": 2886870874,
+          "publishedAt": 1772420419000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Tih Minh 1918 FRE SUB ENG ITA BDRip x264",
+          "magnet": "magnet:?xt=urn:btih:4F79A1B660C79F48AEE0ED5424F926220F2FDB52&dn=Tih+Minh+1918+FRE+SUB+ENG+ITA+BDRip+x264&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "4F79A1B660C79F48AEE0ED5424F926220F2FDB52",
+          "seeders": 4,
+          "size": 7623566950,
+          "publishedAt": 1742730639000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "The Resident 4x02 Il Tribunale Di Mina Okafor iTA ENG AC3 SUB iTA ENG WEB DLMux x264 jeddak MIRCrew",
+          "magnet": "magnet:?xt=urn:btih:B7CC248FF6502504B98008062A905E42EEFBE494&dn=The+Resident+4x02+Il+Tribunale+Di+Mina+Okafor+iTA+ENG+AC3+SUB+iTA+ENG+WEB+DLMux+x264+jeddak+MIRCrew&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "B7CC248FF6502504B98008062A905E42EEFBE494",
+          "seeders": 0,
+          "size": 539397980,
+          "publishedAt": 1741494833000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Gorky Park 1983 KL 1080p BluRay x265 HEVC 10bit AAC 2 0 Micha",
+          "magnet": "magnet:?xt=urn:btih:8B5E377C72EE77723F57CF0B9EEBB0691C800207&dn=Gorky+Park+1983+KL+1080p+BluRay+x265+HEVC+10bit+AAC+2+0+Micha&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "8B5E377C72EE77723F57CF0B9EEBB0691C800207",
+          "seeders": 14,
+          "size": 14710262988,
+          "publishedAt": 1740905725000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj Off With His Head 2024 1080p NF WEB DL DDP5 1 H 264",
+          "magnet": "magnet:?xt=urn:btih:1AD3BF0A26DFE5E654583AFD0EA7FEC3B14CB980&dn=Hasan+Minhaj+Off+With+His+Head+2024+1080p+NF+WEB+DL+DDP5+1+H+264&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "1AD3BF0A26DFE5E654583AFD0EA7FEC3B14CB980",
+          "seeders": 7,
+          "size": 2576980377,
+          "publishedAt": 1729794659000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj Off with His Head 2024 1080p WEBRip AAC5 1 YTS",
+          "magnet": "magnet:?xt=urn:btih:34C17E1B7D68BB518EA76E044ADF774F7211B5B7&dn=Hasan+Minhaj+Off+with+His+Head+2024+1080p+WEBRip+AAC5+1+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "34C17E1B7D68BB518EA76E044ADF774F7211B5B7",
+          "seeders": 3,
+          "size": 1224065679,
+          "publishedAt": 1729591860000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj Off with His Head 2024 720p WEBRip YTS",
+          "magnet": "magnet:?xt=urn:btih:2301759FE9002FF578B3D083AC79ABA042C7EB3D&dn=Hasan+Minhaj+Off+with+His+Head+2024+720p+WEBRip+YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "2301759FE9002FF578B3D083AC79ABA042C7EB3D",
+          "seeders": 0,
+          "size": 598957096,
+          "publishedAt": 1729588269000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Hasan Minhaj Off With His Head 2024 720p NF WEBRip 800MB x264 GalaxyRG",
+          "magnet": "magnet:?xt=urn:btih:C783E34587444C889E5DD6DFC2CDAAABA75796A8&dn=Hasan+Minhaj+Off+With+His+Head+2024+720p+NF+WEBRip+800MB+x264+GalaxyRG&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "C783E34587444C889E5DD6DFC2CDAAABA75796A8",
+          "seeders": 1,
+          "size": 837927567,
+          "publishedAt": 1729584893000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Minha mãe é uma peça - O Filme",
+          "magnet": "magnet:?xt=urn:btih:73941A6927EF64186E2824B463DA2EBC00237F4F&dn=Minha+m%26atilde%3Be+%26eacute%3B+uma+pe%26ccedil%3Ba+-+O+Filme&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "73941A6927EF64186E2824B463DA2EBC00237F4F",
+          "seeders": 0,
+          "size": 1056607402,
+          "publishedAt": 1389042615000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Minha Mãe é Uma Peça - O Filme",
+          "magnet": "magnet:?xt=urn:btih:B9ED425F3019066E8482ADFFC765E12974CE44C0&dn=Minha+M%26atilde%3Be+%26eacute%3B+Uma+Pe%26ccedil%3Ba+-+O+Filme&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "B9ED425F3019066E8482ADFFC765E12974CE44C0",
+          "seeders": 0,
+          "size": 363577928,
+          "publishedAt": 1385939958000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Minha Mãe é Uma Peça – O Filme Nacio",
+          "magnet": "magnet:?xt=urn:btih:7E88A79D0DB8245D39B5BCE0F6C90D93B7635134&dn=Minha+M%26atilde%3Be+%26eacute%3B+Uma+Pe%26ccedil%3Ba+%26ndash%3B+O+Filme+Nacio&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "7E88A79D0DB8245D39B5BCE0F6C90D93B7635134",
+          "seeders": 0,
+          "size": 363239423,
+          "publishedAt": 1378573110000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        }
+      ],
+      "partial": false,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "wolfmax4k"
+        ],
+        "pending": [],
+        "empty": [
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "rutracker-ru",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "served": [
+          "apachetorrent-cardigann",
+          "thepiratebay"
+        ],
+        "all": "unknown"
+      }
+    }
+  }
+]

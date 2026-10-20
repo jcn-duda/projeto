@@ -1,0 +1,639 @@
+[
+ {
+  "key": "alldebrid|0|218f60cda1644cdbfb41d82dd82d5a8bec716f3d,2210b846fc83778d5324290692d10b7255e222f7,26a00e7436ce5ed0cdd3fec336c0a40cd0e17df8,4a2c750fa5ab28dfe8e2caebf299cb5ab6425fd6,5780081eb753e0a0811dd37ba072b7b85b9f0c9e,62913f4deab9b57424fc485b2a55aad8e2148999,903bbaba631606d14d38cdb96c6ea935150df9c2,a23bf5f07fe388e29915d8f4d22e034c286a264a,b51d195ad81bc7e95bc81dab9ea1fd3dd370825c,bb9de70673a5d94e93efdd7fb81fc26bd35e13c4,cfa5eda914d1e8f2d9dcb05b6fb529a2e771490e",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "5780081eb753e0a0811dd37ba072b7b85b9f0c9e",
+    "title": "Central.do.Brasil.1998.4K.SDR.2160p.BDRemux Ita Por x265-NAHOM\n👤 1 💾 65.69 GB ⚙️ AllDebrid",
+    "name": "4K BluRay · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 70535422671,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2210b846fc83778d5324290692d10b7255e222f7",
+    "title": "Central do Brasil / Central Station [1998, Brazil, France, drama, UHD BDRemux 2160p, SDR] [Curzon Film] DVO (Videogram) + AVO (Kartsev) + Sub Rus, Ukr, Por, Eng + Original Por\n📦 👤 ~5 💾 68.51 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 73562052362,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Центральный вокзал / Central do Brasil / Central Station (Вальтер Саллес / Walter Salles) [1998, Бразилия, Франция, драма, UHD BDRemux 2160p, SDR] [Curzon Film] DVO (Videogram) + AVO (Карцев) + Sub Rus, Ukr, Por, Eng + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4a2c750fa5ab28dfe8e2caebf299cb5ab6425fd6",
+    "title": "Central Station 1998 PORTUGUESE 1080p BluRay x264 HANDJOB\n📦 👤 ~57 💾 6.94 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~57",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 7451768258,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "903bbaba631606d14d38cdb96c6ea935150df9c2",
+    "title": "Central Station (1998) RM4K (1080p BluRay x265 HEVC 10bit AAC 2 0 Portuguese afm72)\n📦 👤 ~8 💾 4.88 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5239860101,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "a23bf5f07fe388e29915d8f4d22e034c286a264a",
+    "title": "Central do Brasil Central Station 1998 1080p H265 ITA POR AC3\n📦 👤 ~7 💾 3.40 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p · TheRARBG · 👤 ~7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3650722201,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "cfa5eda914d1e8f2d9dcb05b6fb529a2e771490e",
+    "title": "Central Station 1998 1080p BluRay FLAC2 0 x264 WMING\n📦 👤 ~6 💾 17.79 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 19101867048,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "b51d195ad81bc7e95bc81dab9ea1fd3dd370825c",
+    "title": "Central Station 1998 PORTUGUESE 1080p BluRay x264 HANDJOB\n📦 👤 ~4 💾 6.94 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 7451768258,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "26a00e7436ce5ed0cdd3fec336c0a40cd0e17df8",
+    "title": "Central Station 1998 1080p BluRay x264-OFT\n📦 👤 ~3 💾 4.73 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p BluRay · TheRARBG · 👤 ~3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5078977608,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "218f60cda1644cdbfb41d82dd82d5a8bec716f3d",
+    "title": "Central Station 1998 PORTUGUESE 1080p BluRay H264 AAC VXT\n📦 👤 ~2 💾 2.10 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2254857830,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "62913f4deab9b57424fc485b2a55aad8e2148999",
+    "title": "Central.Station.1998.MULTi.1080p.WEB.H264-FW (Central do Brasil)\n📦 👤 ~1 💾 7.30 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 7838315315,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Central.Station.1998.MULTi.1080p.WEB.H264-FW (Central do Brasil)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "bb9de70673a5d94e93efdd7fb81fc26bd35e13c4",
+    "title": "Central do Brasil / Central Station [1998, Brazil, France, drama, BDRip 720p] MVO (R5) + AVO (P. Kartsev) + Sub Rus, Eng, Fra + Original Por\n📦 👤 ~6 💾 5.33 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 5723043921,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Центральный вокзал / Central do Brasil / Central Station (Вальтер Саллес / Walter Salles) [1998, Бразилия, Франция, драма, BDRip 720p] MVO (R5) + AVO (П. Карцев) + Sub Rus, Eng, Fra + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|218f60cda1644cdbfb41d82dd82d5a8bec716f3d,2210b846fc83778d5324290692d10b7255e222f7,26a00e7436ce5ed0cdd3fec336c0a40cd0e17df8,4a2c750fa5ab28dfe8e2caebf299cb5ab6425fd6,5780081eb753e0a0811dd37ba072b7b85b9f0c9e,62913f4deab9b57424fc485b2a55aad8e2148999,903bbaba631606d14d38cdb96c6ea935150df9c2,a23bf5f07fe388e29915d8f4d22e034c286a264a,b51d195ad81bc7e95bc81dab9ea1fd3dd370825c,bb9de70673a5d94e93efdd7fb81fc26bd35e13c4,cfa5eda914d1e8f2d9dcb05b6fb529a2e771490e",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "5780081eb753e0a0811dd37ba072b7b85b9f0c9e",
+    "title": "Central.do.Brasil.1998.4K.SDR.2160p.BDRemux Ita Por x265-NAHOM\n👤 1 💾 65.69 GB ⚙️ AllDebrid",
+    "name": "4K BluRay · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 70535422671,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2210b846fc83778d5324290692d10b7255e222f7",
+    "title": "Central do Brasil / Central Station [1998, Brazil, France, drama, UHD BDRemux 2160p, SDR] [Curzon Film] DVO (Videogram) + AVO (Kartsev) + Sub Rus, Ukr, Por, Eng + Original Por\n📦 👤 ~5 💾 68.51 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K BluRay · kickass · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 73562052362,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Центральный вокзал / Central do Brasil / Central Station (Вальтер Саллес / Walter Salles) [1998, Бразилия, Франция, драма, UHD BDRemux 2160p, SDR] [Curzon Film] DVO (Videogram) + AVO (Карцев) + Sub Rus, Ukr, Por, Eng + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4a2c750fa5ab28dfe8e2caebf299cb5ab6425fd6",
+    "title": "Central Station 1998 PORTUGUESE 1080p BluRay x264 HANDJOB\n👤 57 💾 6.94 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 57",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 7451768258,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "903bbaba631606d14d38cdb96c6ea935150df9c2",
+    "title": "Central Station (1998) RM4K (1080p BluRay x265 HEVC 10bit AAC 2 0 Portuguese afm72)\n👤 8 💾 4.88 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5239860101,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "a23bf5f07fe388e29915d8f4d22e034c286a264a",
+    "title": "Central do Brasil Central Station 1998 1080p H265 ITA POR AC3\n👤 7 💾 3.40 GB ⚙️ TheRARBG",
+    "name": "1080p · TheRARBG · 👤 7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3650722201,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "cfa5eda914d1e8f2d9dcb05b6fb529a2e771490e",
+    "title": "Central Station 1998 1080p BluRay FLAC2 0 x264 WMING\n👤 6 💾 17.79 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 19101867048,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "b51d195ad81bc7e95bc81dab9ea1fd3dd370825c",
+    "title": "Central Station 1998 PORTUGUESE 1080p BluRay x264 HANDJOB\n👤 4 💾 6.94 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 7451768258,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "26a00e7436ce5ed0cdd3fec336c0a40cd0e17df8",
+    "title": "Central Station 1998 1080p BluRay x264-OFT\n👤 3 💾 4.73 GB ⚙️ TheRARBG",
+    "name": "1080p BluRay · TheRARBG · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5078977608,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "218f60cda1644cdbfb41d82dd82d5a8bec716f3d",
+    "title": "Central Station 1998 PORTUGUESE 1080p BluRay H264 AAC VXT\n👤 2 💾 2.10 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2254857830,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "62913f4deab9b57424fc485b2a55aad8e2148999",
+    "title": "Central.Station.1998.MULTi.1080p.WEB.H264-FW (Central do Brasil)\n📦 👤 ~1 💾 7.30 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 7838315315,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Central.Station.1998.MULTi.1080p.WEB.H264-FW (Central do Brasil)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "bb9de70673a5d94e93efdd7fb81fc26bd35e13c4",
+    "title": "Central do Brasil / Central Station [1998, Brazil, France, drama, BDRip 720p] MVO (R5) + AVO (P. Kartsev) + Sub Rus, Eng, Fra + Original Por\n📦 👤 ~6 💾 5.33 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 5723043921,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Центральный вокзал / Central do Brasil / Central Station (Вальтер Саллес / Walter Salles) [1998, Бразилия, Франция, драма, BDRip 720p] MVO (R5) + AVO (П. Карцев) + Sub Rus, Eng, Fra + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ }
+]

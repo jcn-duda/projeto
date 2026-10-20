@@ -8,84 +8,154 @@
   "body": {
     "streams": [
       {
-        "title": "Monster Hunter (2020) [1080p DUBLADO 2.71 GB]\n📦 👤 ~1 💾 2.71 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · NerdFilmes · 👤 ~1",
+        "infoHash": "5730dc09f510038de225e9e0ad9321361232a629",
+        "title": "Monster Hunter [1080p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 1080p BluRay BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "943be643d013811d5d3f340afd018dee5ef2ca5d",
+        "title": "Monster Hunter [1080p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 1080p BluRay BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "a455a7d825abd133e1628045166b1e010354c254",
+        "title": "Monster Hunter (2020) WEB-DL [1080p WEB-DL DUBLADO 2.71 GB]\n📦 👤 ~1 💾 2.71 GB ⚙️ TorrentDosFilmes V2",
+        "name": "📦 · 1080p WEB-DL BR · TorrentDos · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/3b34d27d707f008b1ee861eb6d266d9c9b208915?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "2.71 GB"
       },
       {
-        "title": "Monster Hunter (2020) [2160p BLU-RAY LEGENDADO 4.63 GB]\n📦 👤 ~1 💾 4.63 GB ⚙️ Rede Torrent",
-        "name": "[AD⚡] 📦 · 4K BluRay LEG BR · Rede Torrent · 👤 ~1",
+        "infoHash": "fa71541b24609da965707d87f5f734162c6a2a59",
+        "title": "Monster Hunter (2021) WEB-DL – [1080p WEB-DL DUBLADO 2.2 GB]\n📦 👤 ~1 💾 2.20 GB ⚙️ TorrentDosFilmes V2",
+        "name": "📦 · 1080p WEB-DL BR · TorrentDos · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/87a62ec5829c8e03f2d7a35cdcb1ed203e2af4d1?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.20 GB"
+      },
+      {
+        "infoHash": "acafe25caeb3dcf08fee90cdfceea808c0c71e44",
+        "title": "Monster Hunter (2021) Oficial WEB-DL – [1080p WEB-DL DUBLADO 2.2 GB]\n📦 👤 ~1 💾 2.20 GB ⚙️ TorrentDosFilmes V2",
+        "name": "📦 · 1080p WEB-DL BR · TorrentDos · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.20 GB"
+      },
+      {
+        "infoHash": "32181709f6ebe3f0899a0b47b9bfb36d15fbd1e5",
+        "title": "Monster Hunter [2160p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 10.99 GB ⚙️ Apache Torrent",
+        "name": "📦 · 4K WEB-DL LEG BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "10.99 GB"
+      },
+      {
+        "infoHash": "87a62ec5829c8e03f2d7a35cdcb1ed203e2af4d1",
+        "title": "Monster Hunter (2020) 2160p BRRip 5.1 10Bit x265 -YTS\n📦 👤 ~18 💾 4.63 GB ⚙️ YTS",
+        "name": "📦 · 4K · YTS · 👤 ~18",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "4.63 GB"
       },
       {
-        "title": "Monster Hunter (2020) [1080p BLU-RAY 3.42 GB]\n📦 👤 ~10 💾 3.42 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · The Pirate Bay · 👤 ~10",
+        "infoHash": "4050ab795f013c8032fbd5056609a9df4d5dd446",
+        "title": "Monster Hunter (2020) 720p BRRip x264 -YTS\n📦 👤 ~20 💾 946.82 MB ⚙️ YTS",
+        "name": "📦 · 720p · YTS · 👤 ~20",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/1a3ca6fb21cf8099929eb6df46f416f8c32d3a66?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "3.42 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "946.82 MB"
       },
       {
-        "title": "Monster Hunter (2020) [1080p BLU-RAY LEGENDADO 1.9 GB]\n📦 👤 ~1 💾 1.90 GB ⚙️ Rede Torrent",
-        "name": "[AD⚡] 📦 · 1080p BluRay LEG BR · Rede Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/6edbc8cad1164f8efb06cc80c588451437eabbc3?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "1.90 GB"
-      },
-      {
-        "title": "Monster Hunter (2020) [720p BLU-RAY LEGENDADO 946 MB]\n📦 👤 ~1 💾 946.00 MB ⚙️ Rede Torrent",
-        "name": "[AD⚡] 📦 · 720p BluRay LEG BR · Rede Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/4050ab795f013c8032fbd5056609a9df4d5dd446?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "946.00 MB"
-      },
-      {
-        "title": "Monster Hunter 2020 2160p UHD BluRay REMUX DV HDR10 PLUS MULTi TrueHD Atmos 7 1 HYBRID H265 BEN THE\n📦 👤 ~8 💾 48.97 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~8",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/363c7ab2a747f13316097d2bdbc66b0ce9380a29?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "48.97 GB"
-      },
-      {
-        "title": "Monster Hunter 2020 MULTI COMPLETE UHD BLURAY\n📦 👤 ~5 💾 54.33 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~5",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/dcbc4866fc5b5287f29c4f728a07fa561adb9acd?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "54.33 GB"
-      },
-      {
-        "title": "Monster.Hunter.2021.BluRay.720p.DUAL.5.1.COMANDO.TO\n👤 1 💾 1.08 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BluRay · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/86ce2706c05f6ebcb3f8b033a2eac7d5cd74adc6?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
-        "size": "1.08 GB"
-      },
-      {
+        "infoHash": "10baccaa2e4427a265465505bb1435381d4a55d2",
         "title": "Monster Hunter (2020) 720p WEBRip x264 -YTS\n📦 👤 ~7 💾 946.50 MB ⚙️ YTS",
-        "name": "[AD⚡] 📦 · 720p WEBRip · YTS · 👤 ~7",
+        "name": "📦 · 720p WEBRip · YTS · 👤 ~7",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/10baccaa2e4427a265465505bb1435381d4a55d2?w=%7B%22n%22%3A%5B%22Monster%20Hunter%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt6475714%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "946.50 MB"
       }
     ],

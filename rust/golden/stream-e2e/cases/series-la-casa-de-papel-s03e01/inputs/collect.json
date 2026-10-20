@@ -1,0 +1,79 @@
+[
+  {
+    "key": {
+      "imdb": "tt6468322",
+      "type": "series",
+      "season": 3,
+      "episode": 1,
+      "scope": "all",
+      "query": "Money Heist S03E01",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "La casa de papel - 3ª Temporada Completa 2019 (720p) Acesse o ORIGINAL WWW.BLUDV.TV",
+          "infoHash": "ac42c26432f1915326f6a7394ca3174697600fc7",
+          "seeders": 1,
+          "size": 9907340949,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true
+        },
+        {
+          "title": "Money.Heist.S03.MULTi.HDR.DV.2160p.WEB.H265-FW",
+          "infoHash": "f8eb9c47be1d0aa3315cd9d291599f85f95b6440",
+          "seeders": 1,
+          "size": 55125783822,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Money.Heist.S03.COMPLETE.DUBBED.720p.NF.WEBRip.x264-GalaxyTV[TGx]",
+          "infoHash": "ce6a68ca2f591eda93817178555e512da6bd9dab",
+          "seeders": 1,
+          "size": 2763993183,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "nerdfilmes",
+          "rutracker-ru"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "kickasstorrents-to",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "wolfmax4k",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

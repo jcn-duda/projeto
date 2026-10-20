@@ -1,0 +1,951 @@
+[
+ {
+  "key": "alldebrid|0|0010b4664feb88746a8a29735283d7c636232c4b,061252d49abcc6d22877021a93d81932c4c68b22,16b32387b659f6dae0c48b7dc0c9f8b1ca404fe0,1a984782a738626f84bf5e44b4767dab84f7075e,33376c45f155a4b9a9d992ac320a5000d99fd555,4a25c24f6c5747151bfe22331e672f5bf6c3294b,5ecd7c77fdf71fc588dd394d8b414f04a9c407ba,656c3010026858036920b6e72553ce0c8344e420,7bbcbc18d6b00b4565b0d639284309819d360996,b7cb26b9fe39feffcf5094646e95eff0f8902e97,c64711cb38715617c0e1e6f274534dd8cd59d8ec,d541b9f31a3dac482171496a9b5534a74d96366e,d78fdb149f516733f414910b5324a59e8ed24912,dce0104877ac6ff4bbf60bd82a1235a7cd59e709,eb6346b2dbced9c17ffd96afcff3e771ba3781b1,f65075b69b07c2a7e846cc270025cd38e1de3460,f73dcbf82ae0ec2d26732f4d462b2a1f6b5d9d43,f8e69b75d2baae8d5b2db89b5893361ba6015e96",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "5ecd7c77fdf71fc588dd394d8b414f04a9c407ba",
+    "title": "Squid Game S02E01 2021 REPACK 2160p NF WEB-DL DDP5 1 Atmos DV HDR H 265-HHWEB\n📦 👤 ~17 💾 5.79 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 4K WEB-DL · The Pirate Bay · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 6222096396,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02E01 2021 REPACK 2160p NF WEB-DL DDP5 1 Atmos DV HDR H 265-HHWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "1a984782a738626f84bf5e44b4767dab84f7075e",
+    "title": "Squid Game S02E01 1080p WEB h264 ETHEL EZTV\n📦 👤 ~51 💾 2.85 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p · The Pirate Bay · 👤 ~51",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3062761800,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02E01 1080p WEB h264 ETHEL EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4a25c24f6c5747151bfe22331e672f5bf6c3294b",
+    "title": "Squid Game S02E01 Bread and Lottery 1080p WEBRip 10bit Dual DDP5\n📦 👤 ~28 💾 1.10 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEBRip · TheRARBG · 👤 ~28",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 1181116006,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid Game S02E01 Bread and Lottery 1080p WEBRip 10bit Dual DDP5",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "7bbcbc18d6b00b4565b0d639284309819d360996",
+    "title": "Squid Game S02E01 1080p HEVC x265 MeGusta EZTV\n📦 👤 ~24 💾 665.03 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p · The Pirate Bay · 👤 ~24",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 697331548,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02E01 1080p HEVC x265 MeGusta EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "16b32387b659f6dae0c48b7dc0c9f8b1ca404fe0",
+    "title": "Squid Game S02e01 07 1080p Ita Eng Spa Kor h265 10bit SubS byMe\n📦 👤 ~17 💾 8.70 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p · The Pirate Bay · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 9341553868,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02e01 07 1080p Ita Eng Spa Kor h265 10bit SubS byMe",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "061252d49abcc6d22877021a93d81932c4c68b22",
+    "title": "Squid.Game.S02E01.1080p.HEVC.x265-MeGusta\n📦 👤 ~16 💾 686.38 MB ⚙️ TheRARBG",
+    "name": "📦 · 1080p · TheRARBG · 👤 ~16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 719717647,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid.Game.S02E01.1080p.HEVC.x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "c64711cb38715617c0e1e6f274534dd8cd59d8ec",
+    "title": "Squid Game S02E01 ENG 1080p NF WEB DL x264 ESubs 910MB MP4\n📦 👤 ~14 💾 917.00 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 961544192,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02E01 ENG 1080p NF WEB DL x264 ESubs 910MB MP4",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "f73dcbf82ae0ec2d26732f4d462b2a1f6b5d9d43",
+    "title": "Squid.Game.S02E01.720p.HEVC.x265-MeGusta\n📦 👤 ~17 💾 558.61 MB ⚙️ TheRARBG",
+    "name": "📦 · 720p · TheRARBG · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 585740789,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid.Game.S02E01.720p.HEVC.x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d541b9f31a3dac482171496a9b5534a74d96366e",
+    "title": "Squid Game S02e01 07 720p Ita Eng Spa Kor SubS byMe7alh MIRCre\n📦 👤 ~12 💾 9.70 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p · The Pirate Bay · 👤 ~12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 10415295692,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02e01 07 720p Ita Eng Spa Kor SubS byMe7alh MIRCre",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "dce0104877ac6ff4bbf60bd82a1235a7cd59e709",
+    "title": "Squid Game S02E01 Bread and Lottery 720p HEVC x265 MeGusta EZTV\n📦 👤 ~10 💾 548.18 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p · The Pirate Bay · 👤 ~10",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 574809778,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02E01 Bread and Lottery 720p HEVC x265 MeGusta EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "656c3010026858036920b6e72553ce0c8344e420",
+    "title": "Squid.Game.S02E01.Bread.and.Lottery.720p.HEVC.x265-MeGusta\n📦 👤 ~9 💾 558.62 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p · The Pirate Bay · 👤 ~9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 585752225,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid.Game.S02E01.Bread.and.Lottery.720p.HEVC.x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "eb6346b2dbced9c17ffd96afcff3e771ba3781b1",
+    "title": "Squid.Game.S02.MULTI.2160p.WEB-DL.SDR.H265-AOC\n📦 👤 ~19 💾 7.71 GB 📦 pack 53.97 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 4K WEB-DL · The Pirate Bay · 👤 ~19",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 57951284750,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid.Game.S02.MULTI.2160p.WEB-DL.SDR.H265-AOC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "33376c45f155a4b9a9d992ac320a5000d99fd555",
+    "title": "Squid Game S02 Hybrid 2160p NF WEB-DL Dual-Audio DDP 5.1 Atmos DV HDR H.265-HHWEB (Ojing-eo geim | 오징어 게임)\n📦 👤 ~9 💾 6.74 GB 📦 pack 47.20 GB (média) ⚙️ Nyaa.si",
+    "name": "📦 · 4K WEB-DL · Nyaa · 👤 ~9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 50680614092,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "nyaasi",
+    "_tracker": "Nyaa.si",
+    "_magnetDn": "Squid Game S02 Hybrid 2160p NF WEB-DL Dual-Audio DDP 5.1 Atmos DV HDR H.265-HHWEB (Ojing-eo geim | 오징어 게임)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "f65075b69b07c2a7e846cc270025cd38e1de3460",
+    "title": "Round.6.S02.1080p.WEB-DL.DUAL.5.1\n👤 1 💾 2.66 GB 📦 pack 18.59 GB (média) ⚙️ AllDebrid",
+    "name": "1080p WEB-DL BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 19959982642,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Round.6.S02.1080p.WEB-DL.DUAL.5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f8e69b75d2baae8d5b2db89b5893361ba6015e96",
+    "title": "Round 6 2ª Temporada (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 2.66 GB 📦 pack 18.60 GB (média) ⚙️ BLUDV",
+    "name": "📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 19971597926,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Round 6 S02 2024 WEB-DL 1080p x264 DUAL 5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "0010b4664feb88746a8a29735283d7c636232c4b",
+    "title": "Squid.Game.S02.720p.ITA-KOR-ENG.MULTI.WEBRip.x265.AAC-V3SP4EV3R\n📦 👤 ~31 💾 390.58 MB 📦 pack 2.67 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~31",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2866710912,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid.Game.S02.720p.ITA-KOR-ENG.MULTI.WEBRip.x265.AAC-V3SP4EV3R",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "b7cb26b9fe39feffcf5094646e95eff0f8902e97",
+    "title": "Squid Game S02 720p NF WEBRip English Hindi AAC 5.1 ESubs x264 -mkvAnime\n📦 👤 ~13 💾 656.82 MB 📦 pack 4.49 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 4816364921,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid Game S02 720p NF WEBRip English Hindi AAC 5.1 ESubs x264 -mkvAnime",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d78fdb149f516733f414910b5324a59e8ed24912",
+    "title": "Squid.Game.S02.720p.NF.WEB-DL.MULTi.AAC2.0.H.264-BiGiL\n📦 👤 ~11 💾 961.10 MB 📦 pack 6.57 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEB-DL · The Pirate Bay · 👤 ~11",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 7058399377,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Squid.Game.S02.720p.NF.WEB-DL.MULTi.AAC2.0.H.264-BiGiL",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|03013c04ffc53cafb1598e37e452ea53602d99ce,0da6c62fec8c6adf0e93da779f311230b8cf684a,16b32387b659f6dae0c48b7dc0c9f8b1ca404fe0,1a984782a738626f84bf5e44b4767dab84f7075e,422870373ffa36d76b34b6687f843baa9f0ef49d,4a25c24f6c5747151bfe22331e672f5bf6c3294b,5ecd7c77fdf71fc588dd394d8b414f04a9c407ba,656c3010026858036920b6e72553ce0c8344e420,7bbcbc18d6b00b4565b0d639284309819d360996,c64711cb38715617c0e1e6f274534dd8cd59d8ec,d541b9f31a3dac482171496a9b5534a74d96366e,dce0104877ac6ff4bbf60bd82a1235a7cd59e709,f65075b69b07c2a7e846cc270025cd38e1de3460,f73b577c786f48ace9c76d04ba46f87b43f66c69,f73dcbf82ae0ec2d26732f4d462b2a1f6b5d9d43",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "f73b577c786f48ace9c76d04ba46f87b43f66c69",
+    "title": "Squid Game (2024) S02E01 2160p NF WEB DL HDR [Korean DDPA 5 1   Hindi DDP 5 1   English DDP 5 1] H 265 (HHWEB Ionicboy)\n👤 30 💾 6.42 GB ⚙️ LimeTorrents",
+    "name": "4K WEB-DL · LimeTorrents · 👤 30",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 6893422510,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game (2024) S02E01 2160p NF WEB-DL HDR [Korean DDPA 5 1 + Hindi DDP 5 1 + English DDP 5 1] H 265 (HHWEB-Ionicboy)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "5ecd7c77fdf71fc588dd394d8b414f04a9c407ba",
+    "title": "Squid Game S02E01 2021 REPACK 2160p NF WEB-DL DDP5 1 Atmos DV HDR H 265-HHWEB\n👤 22 💾 5.79 GB ⚙️ TheRARBG",
+    "name": "4K WEB-DL · TheRARBG · 👤 22",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 6222096396,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid Game S02E01 2021 REPACK 2160p NF WEB-DL DDP5 1 Atmos DV HDR H 265-HHWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "1a984782a738626f84bf5e44b4767dab84f7075e",
+    "title": "Squid Game S02E01 1080p WEB h264 ETHEL EZTV\n👤 2371 💾 2.85 GB ⚙️ LimeTorrents",
+    "name": "1080p · LimeTorrents · 👤 2371",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3060164198,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02E01 1080p WEB h264-ETHEL EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "4a25c24f6c5747151bfe22331e672f5bf6c3294b",
+    "title": "Squid Game S02E01 Bread and Lottery 1080p WEBRip 10bit Dual DDP5 1 x265 HODL mkv\n👤 238 💾 1.10 GB ⚙️ LimeTorrents",
+    "name": "1080p WEBRip · LimeTorrents · 👤 238",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 1181116006,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02E01 Bread and Lottery 1080p WEBRip 10bit Dual DDP5 1 x265-HODL mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "03013c04ffc53cafb1598e37e452ea53602d99ce",
+    "title": "Squid Game S02E01 Bread and Lottery 1080p NF WEB DL DUAL DDP5 1 Atmos H 264 FLUX EZTV\n👤 124 💾 2.85 GB ⚙️ LimeTorrents",
+    "name": "1080p WEB-DL · LimeTorrents · 👤 124",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 3060164198,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02E01 Bread and Lottery 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-FLUX EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "c64711cb38715617c0e1e6f274534dd8cd59d8ec",
+    "title": "Squid Game S02E01 ENG 1080p NF WEB DL x264 ESubs [910MB] [MP4]\n👤 68 💾 917.01 MB ⚙️ LimeTorrents",
+    "name": "1080p WEB-DL · LimeTorrents · 👤 68",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 961554677,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02E01 ENG 1080p NF WEB-DL x264 ESubs [910MB] [MP4]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "16b32387b659f6dae0c48b7dc0c9f8b1ca404fe0",
+    "title": "Squid Game S02e01 07 [1080p Ita Eng Spa Kor h265 10bit SubS] byMe7alh [MIRCrew]\n👤 43 💾 8.72 GB ⚙️ LimeTorrents",
+    "name": "1080p · LimeTorrents · 👤 43",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 9363028705,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02e01-07 [1080p Ita Eng Spa Kor h265 10bit SubS] byMe7alh [MIRCrew]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "422870373ffa36d76b34b6687f843baa9f0ef49d",
+    "title": "Squid Game S02E01 Bread and Lottery 1080p HEVC x265 MeGusta EZTV\n👤 25 💾 665.03 MB ⚙️ LimeTorrents",
+    "name": "1080p · LimeTorrents · 👤 25",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 697334497,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02E01 Bread and Lottery 1080p HEVC x265-MeGusta EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "7bbcbc18d6b00b4565b0d639284309819d360996",
+    "title": "Squid Game S02E01 1080p HEVC x265 MeGusta EZTV\n👤 23 💾 665.03 MB ⚙️ LimeTorrents",
+    "name": "1080p · LimeTorrents · 👤 23",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 697334497,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02E01 1080p HEVC x265-MeGusta EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "dce0104877ac6ff4bbf60bd82a1235a7cd59e709",
+    "title": "Squid Game S02E01 Bread and Lottery 720p HEVC x265 MeGusta EZTV\n👤 20 💾 548.18 MB ⚙️ LimeTorrents",
+    "name": "720p · LimeTorrents · 👤 20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 574808391,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Squid Game S02E01 Bread and Lottery 720p HEVC x265-MeGusta EZTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f73dcbf82ae0ec2d26732f4d462b2a1f6b5d9d43",
+    "title": "Squid.Game.S02E01.720p.HEVC.x265-MeGusta\n👤 15 💾 558.61 MB ⚙️ TheRARBG",
+    "name": "720p · TheRARBG · 👤 15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 585740789,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid.Game.S02E01.720p.HEVC.x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "d541b9f31a3dac482171496a9b5534a74d96366e",
+    "title": "Squid Game S02e01 07 720p Ita Eng Spa Kor SubS byMe7alh MIRCre\n👤 14 💾 9.70 GB ⚙️ TheRARBG",
+    "name": "720p · TheRARBG · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 10415295692,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid Game S02e01 07 720p Ita Eng Spa Kor SubS byMe7alh MIRCre",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "656c3010026858036920b6e72553ce0c8344e420",
+    "title": "Squid.Game.S02E01.Bread.and.Lottery.720p.HEVC.x265-MeGusta\n👤 9 💾 558.62 MB ⚙️ TheRARBG",
+    "name": "720p · TheRARBG · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 585752225,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid.Game.S02E01.Bread.and.Lottery.720p.HEVC.x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0da6c62fec8c6adf0e93da779f311230b8cf684a",
+    "title": "Squid.Game.S02E01.720p.WEB.H264-SYLiX\n👤 1 💾 1.25 GB ⚙️ TheRARBG",
+    "name": "720p · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1339997507,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Squid.Game.S02E01.720p.WEB.H264-SYLiX",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f65075b69b07c2a7e846cc270025cd38e1de3460",
+    "title": "Round.6.S02.1080p.WEB-DL.DUAL.5.1\n👤 1 💾 2.66 GB 📦 pack 18.59 GB (média) ⚙️ AllDebrid",
+    "name": "1080p WEB-DL BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 19959982642,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Round.6.S02.1080p.WEB-DL.DUAL.5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

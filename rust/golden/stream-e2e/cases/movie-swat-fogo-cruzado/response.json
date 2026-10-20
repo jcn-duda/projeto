@@ -8,49 +8,104 @@
   "body": {
     "streams": [
       {
-        "title": "S.W.A.T. Comando Especial (2003) [1080p BLU-RAY DUBLADO 1.5 GB]\n📦 👤 ~1 💾 1.51 GB ⚙️ ComandoTorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · Comando · 👤 ~1",
+        "infoHash": "658c8d634fe7423257f15856667861c64804bb91",
+        "title": "S.W.A.T. - Comando Especial [1080p BLU-RAY DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+        "name": "1080p BluRay BR · Apache Torrent · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/658c8d634fe7423257f15856667861c64804bb91?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
-        "size": "1.51 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
       },
       {
-        "title": "S.W.A.T. Comando Especial (2003) [1080p LEGENDADO 1.5 GB]\n📦 👤 ~61 💾 1.50 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p LEG BR · LimeTorrents · 👤 ~61",
+        "infoHash": "ed1c364e71950e5e8c9640772a9d0d7f4d8290e0",
+        "title": "S.W.A.T. - Comando Especial [720p BLU-RAY DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+        "name": "720p BluRay BR · Apache Torrent · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "a352ae91972e617b13098cf7d4bf4c367bbf8a68",
+        "title": "Swat (2003) 1080p BrRip x264 - 1.5GB -YIFY\n👤 66 💾 1.50 GB ⚙️ The Pirate Bay",
+        "name": "1080p · The Pirate Bay · 👤 66",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/a352ae91972e617b13098cf7d4bf4c367bbf8a68?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.50 GB"
       },
       {
-        "title": "S.W.A.T. Comando Especial (2003) [720p LEGENDADO 700 MB]\n📦 👤 ~6 💾 700.00 MB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 720p LEG BR · LimeTorrents · 👤 ~6",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/1a4c1b0491716f2d727deb1117e72b0bef346fd9?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
-        "size": "700.00 MB"
-      },
-      {
-        "title": "Swat 2003 BluRay 1080p DTS dxva LoNeWolf\n📦 👤 ~11 💾 10.11 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~11",
+        "infoHash": "c1cdbf98039959d7455b801c0a3218fff96af05f",
+        "title": "Swat 2003 BluRay 1080p DTS dxva-LoNeWolf\n👤 11 💾 10.11 GB ⚙️ The Pirate Bay",
+        "name": "1080p BluRay · The Pirate Bay · 👤 11",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/c1cdbf98039959d7455b801c0a3218fff96af05f?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "10.11 GB"
       },
       {
-        "title": "SWAT 2003 1080p BluRay H264 AAC RARBG\n📦 👤 ~4 💾 2.24 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~4",
+        "infoHash": "1a4c1b0491716f2d727deb1117e72b0bef346fd9",
+        "title": "Swat (2003) 720p BrRip x264 - 700MB -YIFY\n👤 6 💾 702.14 MB ⚙️ The Pirate Bay",
+        "name": "720p · The Pirate Bay · 👤 6",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/db5bb50e695f8ef416032b325a50464886385c67?w=%7B%22n%22%3A%5B%22S.W.A.T.%22%2C%22S.W.A.T.%3A%20Comando%20Especial%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0257076%22%7D&sig={{sig}}",
-        "size": "2.24 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "702.14 MB"
+      },
+      {
+        "infoHash": "36cd4224899f3529787531310e6aa4187586ecc9",
+        "title": "Swat (2003) 720p BluRay x264 [MoviesFD]\n👤 2 💾 933.95 MB ⚙️ LimeTorrents",
+        "name": "720p BluRay · LimeTorrents · 👤 2",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "933.95 MB"
       }
     ],
     "cacheMaxAge": 0

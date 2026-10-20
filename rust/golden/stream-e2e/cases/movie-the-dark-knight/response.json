@@ -8,76 +8,191 @@
   "body": {
     "streams": [
       {
-        "title": "Batman  O Cavaleiro das Trevas (2008) 1080p Dublado  Dual Audi\n📦 👤 ~6 💾 2.54 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p BR · LimeTorrents · 👤 ~6",
+        "infoHash": "e9afedf42bef3dd8d990309ea84d3a7c583bbda1",
+        "title": "Batman O Cavaleiro das Trevas (2008) [1080p BLU-RAY DUAL 1.9 GB]\n📦 👤 ~1 💾 1.90 GB ⚙️ Rede Torrent",
+        "name": "📦 · 1080p BluRay BR · Rede Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.90 GB"
+      },
+      {
+        "infoHash": "41f7cff94d81b8e49f421f06697f09978dc887e7",
+        "title": "Batman O Cavaleiro das Trevas (2008) [1080p BLU-RAY DUBLADO 1.8 GB]\n📦 👤 ~2 💾 1.80 GB ⚙️ Rede Torrent",
+        "name": "📦 · 1080p BluRay BR · Rede Torrent · 👤 ~2",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.80 GB"
+      },
+      {
+        "infoHash": "afa45bf67d00ab111db7dd91e8c890c0bdf0edf4",
+        "title": "Batman O Cavaleiro das Trevas (2008) BluRay 1080p Dublado\n📦 👤 ~2 💾 2.41 GB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p BluRay BR · LimeTorrents · 👤 ~2",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.41 GB"
+      },
+      {
+        "infoHash": "d8666906f5c56bb6d179c94f2ca906be2b6ccc2b",
+        "title": "Batman O Cavaleiro das Trevas Parte 1 BluRay 1080p Dublado D4V1\n📦 👤 ~1 💾 1.15 GB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p BluRay BR · LimeTorrents · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.15 GB"
+      },
+      {
+        "infoHash": "3ed20a355091dc8e79d1a7b84b0cb4dc570bb093",
+        "title": "Batman  O Cavaleiro das Trevas (2008) 1080p Dublado  Dual Audi\n📦 👤 ~ 💾 2.54 GB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p BR · LimeTorrents · 👤 ~",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/3ed20a355091dc8e79d1a7b84b0cb4dc570bb093?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22d%22%3A1%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "2.54 GB"
       },
       {
-        "title": "Trilogia O Cavaleiro das Trevas (2005-2012) BDRip 1080p Dublado - The Pirate Filmes\n👤 1 💾 7.59 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BR · AllDebrid · 👤 1",
+        "infoHash": "afc07ef4e691bd4bb471b296a6d3e5d7f5d9f738",
+        "title": "Batman O Cavaleiro das Trevas (2008) [720p BLU-RAY DUBLADO 1 GB]\n📦 👤 ~1 💾 1.00 GB ⚙️ Rede Torrent",
+        "name": "📦 · 720p BluRay BR · Rede Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
+          "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/8c9425255e86c4a3d4ccf4c9c24d69d15647663d?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22p%22%3A1%2C%22d%22%3A1%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
-        "size": "7.59 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.00 GB"
       },
       {
-        "title": "Batman: O Cavaleiro das Trevas [1080p BLU-RAY DUBLADO]\n📦 👤 ~ 💾 1.89 GB ⚙️ mico",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · mico · 👤 ~",
+        "infoHash": "e01d229bf872dce0155810b68f912ecc618b3b5a",
+        "title": "Batman O Cavaleiro das Trevas (2008) [720p BLU-RAY DUAL 1.1 GB]\n📦 👤 ~1 💾 1.10 GB ⚙️ Rede Torrent",
+        "name": "📦 · 720p BluRay BR · Rede Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/c18d5058cf4c35c6822dcd89949828916d7cc5ef?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22d%22%3A1%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
-        "size": "1.89 GB"
-      },
-      {
-        "title": "Batman O Cavaleiro Das Trevas (2008) 720p Dublado Pt Br\n📦 👤 ~1 💾 1.10 GB ⚙️ Apache Torrent",
-        "name": "[AD⚡] 📦 · 720p BR · Apache Torrent · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/83af9dc022fb32f0f0ba7a7fcfd86d3d1ec0c923?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22d%22%3A1%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.10 GB"
       },
       {
-        "title": "The Dark Knight 2008 Bluray IMAX 2160p AV1 HDR10 EN ITA FR ES OPUS 5 1 UH [UserHEVC]\n📦 👤 ~77 💾 9.54 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K IMAX BluRay · LimeTorrents · 👤 ~77",
+        "infoHash": "541d65ec93f73809dfc67a5a89b9341a31e68a16",
+        "title": "Batman o cavaleiro das trevas Dublado\n📦 👤 ~ 💾 949.30 MB ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "949.30 MB"
+      },
+      {
+        "infoHash": "77c590cd2709edc321ac2cf79105b2ffbca55c89",
+        "title": "Batman - O Cavaleiro das Trevas Dublado RMVB\n📦 👤 ~ 💾 395.68 MB ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "395.68 MB"
+      },
+      {
+        "infoHash": "61be42fb337b1b84f844b88fd904982a0a2330e3",
+        "title": "Batman O Cavaleiro das Trevas (2008) [2160p BLU-RAY LEGENDADO 7.5 GB]\n📦 👤 ~100 💾 7.50 GB ⚙️ Rede Torrent",
+        "name": "📦 · 4K BluRay LEG BR · Rede Torrent · 👤 ~100",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/6ae0ed5ab38c545dd2ad37556c29e356e0d21ade?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
-        "size": "9.54 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "7.50 GB"
       },
       {
-        "title": "The Dark Knight 2008 IMAX UHD BluRay 2160p HEVC DV DTS HD MA 5 1 x265 E\n📦 👤 ~60 💾 33.12 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K IMAX BluRay · LimeTorrents · 👤 ~60",
+        "infoHash": "a5fc2e0ac62e290c9c62fbd47a2462e96a84f52c",
+        "title": "The.Dark.Knight.2008.2160p.UHD.BluRay.x265.10bit.HDR.DTS-HD.MA.5\n📦 👤 ~70 💾 22.11 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 4K BluRay · The Pirate Bay · 👤 ~70",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/46e817191657e8505b6f85f31116ea2613c16a00?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
-        "size": "33.12 GB"
-      },
-      {
-        "title": "The.Dark.Knight.2008.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265\n📦 👤 ~79 💾 4.02 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~79",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/28fb373db2c936015e967544e50a7bffdbb5d3a1?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
-        "size": "4.02 GB"
-      },
-      {
-        "title": "The Dark Knight 2008 IMAX 1080p AV1 10Bit DKong\n📦 👤 ~79 💾 1.22 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p IMAX · The Pirate Bay · 👤 ~79",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/d94d910a8b8aacaebe064d51eb0473ce4d2c2b2c?w=%7B%22n%22%3A%5B%22The%20Dark%20Knight%22%2C%22Batman%3A%20O%20Cavaleiro%20das%20Trevas%22%5D%2C%22y%22%3A2008%2C%22i%22%3A%22tt0468569%22%7D&sig={{sig}}",
-        "size": "1.22 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "22.11 GB"
       }
     ],
     "cacheMaxAge": 0

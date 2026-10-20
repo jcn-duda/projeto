@@ -1,0 +1,704 @@
+[
+ {
+  "key": "alldebrid|0|039621b56a677fa333d5a9393711c8f43be7e8c6,0479dd89bb2f6ae8cf2a84c11ba4f394343a32e6,0c9bac2af47b62cb6c66a571024c53bec765811d,117e9c4af3a0dec7365db9ccd9dc40fda612b22f,137da82576939629678342b8500264afd1ee2366,192ff612c1f6203dad1707fd28090981fd80fe68,20a43018fb29c58dd488897cdc899b9ca9d781b2,3560db25326ed76af3c03bfbc083770633ea8ed9,36980247dafc2f3e53afd5f838c50cad4050eaa1,425612f05e296fcba59c9d65c5280740224e1154,5055dc2110d173c972b4a5b1baed2d63a7a31357,c4cac4eb4783fca9b2cd4068b793924d1bea55a9,d2505a4be7f22cc095e9af3b21d208b0d87ef765,f03c13cf31f81e2ce9cbdcb020e6da934da60aa9,ff9fae5f603d6b9a6561265c91d421b035be655d",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "20a43018fb29c58dd488897cdc899b9ca9d781b2",
+    "title": "The Office US S03E22 Beach Games Extended Cut 1080p AMZN WEB DL DDP5 1 H 264 Kitsune\n📦 👤 ~33 💾 2.57 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p Extended WEB-DL · TheRARBG · 👤 ~33",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2759516487,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "The Office US S03E22 Beach Games Extended Cut 1080p AMZN WEB-DL DDP5 1 H 264-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "3560db25326ed76af3c03bfbc083770633ea8ed9",
+    "title": "The Office US S03E22 Beach Games Extended Cut 1080p PCOK WEB DL DDP5 1 H 264 Kitsune\n📦 👤 ~10 💾 2.02 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p Extended WEB-DL · TheRARBG · 👤 ~10",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2168958484,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "The Office US S03E22 Beach Games Extended Cut 1080p PCOK WEB-DL DDP5 1 H 264-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "192ff612c1f6203dad1707fd28090981fd80fe68",
+    "title": "The Office US S03E22 Beach Games 720p DSNP WEB DL DD 5 1 H 264 playWEB\n📦 👤 ~13 💾 661.15 MB ⚙️ TheRARBG",
+    "name": "📦 · 720p WEB-DL · TheRARBG · 👤 ~13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 693266022,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "The Office US S03E22 Beach Games 720p DSNP WEB-DL DD 5 1 H 264-playWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "36980247dafc2f3e53afd5f838c50cad4050eaa1",
+    "title": "The.Office.US.S03.1080p.BluRay.x265\n📦 👤 ~441 💾 398.02 MB 📦 pack 8.94 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~441",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 9602200553,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Office.US.S03.1080p.BluRay.x265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "5055dc2110d173c972b4a5b1baed2d63a7a31357",
+    "title": "The Office (US) Superfan Extended (2005) S01-S09 (1080p BluRay x265 10bit EAC3 5.1 Silence) [QxR] REPACK\n📦 👤 ~98 💾 1.25 GB 📦 pack 242.90 GB (média) ⚙️ TheRARBG",
+    "name": "📦 · 1080p Extended BluRay · TheRARBG · 👤 ~98",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 260811889049,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "The Office (US) Superfan Extended (2005) S01-S09 (1080p BluRay x265 10bit EAC3 5 1 Silence) REPACK",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "0479dd89bb2f6ae8cf2a84c11ba4f394343a32e6",
+    "title": "The Office (US) Superfan Extended (2005) S01-S09 (1080p BluRay x265 10bit EAC3 5.1 Silence) [QxR]\n📦 👤 ~47 💾 1.26 GB 📦 pack 245.70 GB (média) ⚙️ TheRARBG",
+    "name": "📦 · 1080p Extended BluRay · TheRARBG · 👤 ~47",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 263818366156,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "The Office (US) Superfan Ext (2005) S01-09 (1080p BluRay x265 EAC3 Silence)[QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "137da82576939629678342b8500264afd1ee2366",
+    "title": "The.Office.US.S03.EXTENDED.1080p.WEBRip.x265\n📦 👤 ~27 💾 526.69 MB 📦 pack 11.83 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p Extended WEBRip · The Pirate Bay · 👤 ~27",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 12705007944,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Office.US.S03.EXTENDED.1080p.WEBRip.x265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "039621b56a677fa333d5a9393711c8f43be7e8c6",
+    "title": "The.Office.US.S03.1080p.AMZN.WEBRip.x264-AJP69 [S03 Three]\n📦 👤 ~24 💾 2.46 GB 📦 pack 56.52 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEBRip · The Pirate Bay · 👤 ~24",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 60687211903,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Office.US.S03.1080p.AMZN.WEBRip.x264-AJP69 [S03 Three]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "425612f05e296fcba59c9d65c5280740224e1154",
+    "title": "The.Office.US.S03.EXTENDED.1080p.WEBRip.x265\n📦 👤 ~18 💾 472.82 MB 📦 pack 10.62 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p Extended WEBRip · The Pirate Bay · 👤 ~18",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 11408363611,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Office.US.S03.EXTENDED.1080p.WEBRip.x265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "f03c13cf31f81e2ce9cbdcb020e6da934da60aa9",
+    "title": "The Office 3ª Temporada Completa 720p (2007) Dual Áudio BluRay -- By - Lucas Firmo\n👤 1 💾 176.75 MB 📦 pack 3.97 GB (média) ⚙️ AllDebrid",
+    "name": "720p BluRay BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4264252878,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "The Office 3ª Temporada Completa 720p (2007) Dual Áudio BluRay -- By - Lucas Firmo",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0c9bac2af47b62cb6c66a571024c53bec765811d",
+    "title": "The Office - Todas as Temporadas [720p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 720p BluRay BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Vida de Escritório (The Office) 2007 - 3ª Temporada Completa Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "c4cac4eb4783fca9b2cd4068b793924d1bea55a9",
+    "title": "The.Office.US.S03.S03.COMPLETE.720p.WEBRip.2CH.x265.HEVC-P\n📦 👤 ~30 💾 146.48 MB 📦 pack 3.29 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~30",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 3527650820,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Office.US.S03.S03.COMPLETE.720p.WEBRip.2CH.x265.HEVC-P",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "117e9c4af3a0dec7365db9ccd9dc40fda612b22f",
+    "title": "The.Office.US.S03.720p.BluRay.x264-BTN\n📦 👤 ~14 💾 1.14 GB 📦 pack 26.28 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BluRay · The Pirate Bay · 👤 ~14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 28222691850,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Office.US.S03.720p.BluRay.x264-BTN",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d2505a4be7f22cc095e9af3b21d208b0d87ef765",
+    "title": "The Office [720p LEGENDADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 720p LEG BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1234803098,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "The Office US +Extras 720p BrRip EN-SUB x264-[MULVAcoded]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 1234803098
+   },
+   {
+    "infoHash": "ff9fae5f603d6b9a6561265c91d421b035be655d",
+    "title": "The Office\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 1234803098,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "hidratorrent.com The Office Legendas 1-9",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 1234803098
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|0479dd89bb2f6ae8cf2a84c11ba4f394343a32e6,0c9bac2af47b62cb6c66a571024c53bec765811d,192ff612c1f6203dad1707fd28090981fd80fe68,20a43018fb29c58dd488897cdc899b9ca9d781b2,3560db25326ed76af3c03bfbc083770633ea8ed9,5055dc2110d173c972b4a5b1baed2d63a7a31357,d2505a4be7f22cc095e9af3b21d208b0d87ef765,f03c13cf31f81e2ce9cbdcb020e6da934da60aa9,ff9fae5f603d6b9a6561265c91d421b035be655d",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "20a43018fb29c58dd488897cdc899b9ca9d781b2",
+    "title": "The Office US S03E22 Beach Games Extended Cut 1080p AMZN WEB DL DDP5 1 H 264 Kitsune\n👤 58 💾 2.57 GB ⚙️ LimeTorrents",
+    "name": "1080p Extended WEB-DL · LimeTorrents · 👤 58",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2759516487,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "The Office US S03E22 Beach Games Extended Cut 1080p AMZN WEB-DL DDP5 1 H 264-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "3560db25326ed76af3c03bfbc083770633ea8ed9",
+    "title": "The Office US S03E22 Beach Games Extended Cut 1080p PCOK WEB DL DDP5 1 H 264 Kitsune\n👤 19 💾 2.02 GB ⚙️ LimeTorrents",
+    "name": "1080p Extended WEB-DL · LimeTorrents · 👤 19",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2168958484,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "The Office US S03E22 Beach Games Extended Cut 1080p PCOK WEB-DL DDP5 1 H 264-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "192ff612c1f6203dad1707fd28090981fd80fe68",
+    "title": "The Office US S03E22 Beach Games 720p DSNP WEB DL DD 5 1 H 264 playWEB\n👤 73 💾 661.15 MB ⚙️ LimeTorrents",
+    "name": "720p WEB-DL · LimeTorrents · 👤 73",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 693266022,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "The Office US S03E22 Beach Games 720p DSNP WEB-DL DD 5 1 H 264-playWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "5055dc2110d173c972b4a5b1baed2d63a7a31357",
+    "title": "The Office (US) Superfan Extended (2005) S01-S09 (1080p BluRay x265 10bit EAC3 5.1 Silence) [QxR] REPACK\n👤 70 💾 1.25 GB 📦 pack 242.90 GB (média) ⚙️ TheRARBG",
+    "name": "1080p Extended BluRay · TheRARBG · 👤 70",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 260811889049,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "The Office (US) Superfan Extended (2005) S01-S09 (1080p BluRay x265 10bit EAC3 5.1 Silence) [QxR] REPACK",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0479dd89bb2f6ae8cf2a84c11ba4f394343a32e6",
+    "title": "The Office (US) Superfan Extended (2005) S01-S09 (1080p BluRay x265 10bit EAC3 5.1 Silence) [QxR]\n👤 31 💾 1.26 GB 📦 pack 245.70 GB (média) ⚙️ TheRARBG",
+    "name": "1080p Extended BluRay · TheRARBG · 👤 31",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 263818366156,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "The Office (US) Superfan Extended (2005) S01-S09 (1080p BluRay x265 10bit EAC3 5.1 Silence) [QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f03c13cf31f81e2ce9cbdcb020e6da934da60aa9",
+    "title": "The Office 3ª Temporada Completa 720p (2007) Dual Áudio BluRay -- By - Lucas Firmo\n👤 1 💾 176.75 MB 📦 pack 3.97 GB (média) ⚙️ AllDebrid",
+    "name": "720p BluRay BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4264252878,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "The Office 3ª Temporada Completa 720p (2007) Dual Áudio BluRay -- By - Lucas Firmo",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0c9bac2af47b62cb6c66a571024c53bec765811d",
+    "title": "The Office - Todas as Temporadas [720p BLU-RAY DUAL]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p BluRay BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Vida de Escritório (The Office) 2007 - 3ª Temporada Completa Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "d2505a4be7f22cc095e9af3b21d208b0d87ef765",
+    "title": "The Office [720p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "The Office US +Extras 720p BrRip EN-SUB x264-[MULVAcoded]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ff9fae5f603d6b9a6561265c91d421b035be655d",
+    "title": "The Office\n👤 1 ⚙️ Apache Torrent",
+    "name": "BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "hidratorrent.com The Office Legendas 1-9",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

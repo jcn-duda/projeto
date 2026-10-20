@@ -1,0 +1,110 @@
+[
+  {
+    "key": {
+      "imdb": "tt21692408",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "Kung Fu Panda 4 2024",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.x264.Dual.YG",
+          "infoHash": "36b719629836a0f611e59b46c6758f681ccccec6",
+          "seeders": 1,
+          "size": 3265666236,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv",
+          "infoHash": "405e4d8e941131eb99826df196e3be4f53b3a4bb",
+          "seeders": 1,
+          "size": 1952177653,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dublado",
+          "provenName": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Kung.Fu.Panda.4.2024.1080p.WEB-DL.EAC3.AAC.DUAL.5.1",
+          "infoHash": "01d9a5c0e38709e8c56e6e6c30b0c25cbdd118df",
+          "seeders": 1,
+          "size": 3005903629,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Kung.Fu.Panda.4.2024.1080p.WEB-DL.EAC3.AAC.DUAL.5.1.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Kung Fu Panda 4 2024 WEB-DL 1080p x264 DUAL 5.1",
+          "infoHash": "e844d28bf15aba4436c74718c57a0b88941f9da4",
+          "seeders": 1,
+          "size": 2312037536,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Kung Fu Panda 4 2024 WEB-DL 1080p x264 DUAL 5.1.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Kung.Fu.Panda.4.2024.MULTI.2160p.WEB-DL.DV.HDR.H265-AOC",
+          "infoHash": "3a44500cf20ab3bba13c8213165dfadadad1b7aa",
+          "seeders": 1,
+          "size": 18819198144,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

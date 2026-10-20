@@ -1,0 +1,454 @@
+[
+ {
+  "key": "alldebrid|0|03dd34fea0ff15a451c1723062a901aa3a0ad458,1a65cebb895ccd66a9f3fd2e76eb0958ba7a74db,26fa43a4ccca61d8f7cf96a106d7fe1801aed9c2,28dec3ac8cc8c5758730a334d98705dd698f7bc1,32dde1f88cb0d890b7e8dd5064c91f30477f2c94,363bc6c534b1430c6758318d196ccd61db61b647,3950b0923106a7457d3ab8340a929f38c636b1a0,3ae90cdc31db5285c26ccb7b9f5d274f89cff1f1,498ddeca847fba8ea6bf2bf2279b89c4771742a7,51ca3ba90f04bf50394e9eb7e448ceea214d5ad6,673a8bc41d60b4b20df1682cc6483ec95dcd8d06,76949e573ff48aa138f1e06541f3482bb49359c2,8cc4fdc2c777d1464d9043397309f45859b9297b,90d3277aa33f639c3533a6d7015e3002c892e2d5,9370954b0fd021bde342c49bc157e6334c10440f,96fdc513d5551feb50b955e542ad3a9acd37f361,c392386c397245b6f3b88634f348afa72d88d6d0,c4fcc532acf6fe877d1991fde909f79648452b4e,cffdaac58475f4e492aacec1f4671c4287c38806,d7a46713eaee18c746b3254b7d1492a50fd9d6ce,ee57f2ade00a83897ff90d613d6b0a700479e5e2,fa8ae4bc6caec272ac57c7890d8f893aab3caa88",
+  "signals": [
+   {
+    "known": true,
+    "needsFullRefresh": false
+   }
+  ],
+  "output": [
+   {
+    "title": "The Matrix 1999 REPACK 4K HDR DV 2160p BDRemux Ita Eng x265 NAHOM\n📦 👤 ~324 💾 51.84 GB ⚙️ TheRARBG",
+    "name": "[AD⚡] 📦 · 4K BluRay · TheRARBG · 👤 ~324",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 55662776156,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/ee57f2ade00a83897ff90d613d6b0a700479e5e2?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=07ae78030054acec42d33ac7d65b356f419bc3664a227d59024ae277f5056a26"
+   },
+   {
+    "title": "The.Matrix.1999.2160p.UHD.BluRay.x265.10bit.HDR.TrueHD.7.1.Atmos\n📦 👤 ~100 💾 35.35 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 4K BluRay · The Pirate Bay · 👤 ~100",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 37957791233,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/03dd34fea0ff15a451c1723062a901aa3a0ad458?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=e74de0ab88428ef9a74f67b633f1a5a13bba011da0a39404e243bb1f14941f8c"
+   },
+   {
+    "title": "The Matrix (1999) 2160p BRRip 5.1 10Bit x265 -YTS\n📦 👤 ~100 💾 6.49 GB ⚙️ YTS",
+    "name": "[AD⚡] 📦 · 4K BluRay · YTS · 👤 ~100",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 6968584438,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/28dec3ac8cc8c5758730a334d98705dd698f7bc1?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=1fea9f9ffde504bb8ce19b615fc8f79b89a965735913d762c7ccd0989f5ce080"
+   },
+   {
+    "title": "The.Matrix.1999.2160p.YouTubeMovies.WEB-DL.DDP5.1.HDR.VP9-SomniWare\n📦 👤 ~96 💾 19.47 GB ⚙️ TheRARBG",
+    "name": "[AD⚡] 📦 · 4K WEB-DL · TheRARBG · 👤 ~96",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 20907946685,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/32dde1f88cb0d890b7e8dd5064c91f30477f2c94?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=29613540c8b04ea146015852359ccaff4dbc9e8fe963e306607dd0685ac69412"
+   },
+   {
+    "title": "The Matrix 1999 2160p UHD BDRip HEVC 10bit DV HDR TrueHD.7.1 Atmos MUSHR00M\n📦 👤 ~54 💾 23.23 GB ⚙️ TheRARBG",
+    "name": "[AD⚡] 📦 · 4K · TheRARBG · 👤 ~54",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 24944353313,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/3950b0923106a7457d3ab8340a929f38c636b1a0?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=c94ee2197274c26d6f97d7511bd6d49feea0e329335af53cc863d581b97a2bb1"
+   },
+   {
+    "title": "The Matrix 1999 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC REMUX F\n📦 👤 ~51 💾 52.90 GB ⚙️ TheRARBG",
+    "name": "[AD⚡] 📦 · 4K BluRay · TheRARBG · 👤 ~51",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 56800942489,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/1a65cebb895ccd66a9f3fd2e76eb0958ba7a74db?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=9e31f10cf02b931e3177cabcd3189d159890ce0c56a2fb68fd036653c2d22d5f"
+   },
+   {
+    "title": "The.Matrix.1999.2160p.BluRay.HDR.DDP5.1.x265-GalaxyUHD\n📦 👤 ~39 💾 3.41 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 4K BluRay · The Pirate Bay · 👤 ~39",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 3665584050,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/c392386c397245b6f3b88634f348afa72d88d6d0?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=81fe819bfea478678e48a14618bfa2b93d247529050c2390297036aa0a66569f"
+   },
+   {
+    "title": "Matrix [2160p BLU-RAY DUAL]\n📦 👤 ~1 💾 30.03 GB ⚙️ apachetorrent-cardigann",
+    "name": "[AD⚡] 📦 · 4K BluRay BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 32276395693,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/96fdc513d5551feb50b955e542ad3a9acd37f361?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig=dc24c7c6aa6879212f121325d41daa620eda6fe0d91fcdbc22fc602053572ef8"
+   },
+   {
+    "title": "Matrix.1999.OPEN.MATTE.IMAX.1080p.WEB-DL.H264.AC3.2.0-5.1.DUAL-MLD-BLUDV\n👤 1 💾 5.46 GB ⚙️ AllDebrid",
+    "name": "[AD⚡] 1080p IMAX WEB-DL DUAL BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 5864489054,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/76949e573ff48aa138f1e06541f3482bb49359c2?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig=7160fd90c9daa5be02622564cc8daab57f977c974e0b0206fece2a0a473e7b0c"
+   },
+   {
+    "title": "The Matrix (1999) 1080p BrRip x264 - 1.85GB -YIFY\n📦 👤 ~871 💾 1.86 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 1080p · The Pirate Bay · 👤 ~871",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 1992277407,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/d7a46713eaee18c746b3254b7d1492a50fd9d6ce?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=dc83fd151e8358308e82840ed474a480fb6adee25ec0f33399cc4ab66fa1eddf"
+   },
+   {
+    "title": "The.Matrix.1999.REMASTERED.1080p.BluRay.REMUX.AVC.DTS-HD.MA.True\n📦 👤 ~126 💾 34.17 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 1080p Remaster BluRay · The Pirate Bay · 👤 ~126",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 36692225203,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/673a8bc41d60b4b20df1682cc6483ec95dcd8d06?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=b07b0fae93e9cbe7aa8846d11f38b9988f6ae92e96530aeb40fb4ae593f15478"
+   },
+   {
+    "title": "The Matrix 1999 1080p YT WEB-DL DDP 5 1 H 264-PiRaTeS\n📦 👤 ~96 💾 7.06 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~96",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 7582103986,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/9370954b0fd021bde342c49bc157e6334c10440f?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=b7a9ff584da340c6a200d6f4d8d34dd82c6c7e3efad176c19cc76ec37f3aaf0d"
+   },
+   {
+    "title": "The.Matrix.1999.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265\n📦 👤 ~85 💾 3.03 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~85",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 3258483932,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/90d3277aa33f639c3533a6d7015e3002c892e2d5?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=05109e51081b2e6a000e6173b0d7f28437cd6a4dd7c4258cd2f750d63d9a24af"
+   },
+   {
+    "title": "The.Matrix.1999.REMASTERED.RERIP.1080p.BluRay.x264.TrueHD.7.1.At\n📦 👤 ~73 💾 19.27 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 1080p Remaster BluRay · The Pirate Bay · 👤 ~73",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 20686392361,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/cffdaac58475f4e492aacec1f4671c4287c38806?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=625a23c74ad40dc769de27b60df5126494d0f2a6983854fa25941a9687fd8f79"
+   },
+   {
+    "title": "Matrix (1999) BDRip 1080p Dual Audio - WWW.WOLVERDONFILMES.COM\n👤 1 💾 2.04 GB ⚙️ AllDebrid",
+    "name": "[AD⚡] 1080p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2187291273,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/8cc4fdc2c777d1464d9043397309f45859b9297b?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig=e5e33936f8d7b23f45a2b2d49df8ef5f001a220cf7654b9c00d20bc3dff310f6"
+   },
+   {
+    "title": "Matrix - Trilogia [1080p DUAL]\n📦 👤 ~1 💾 2.04 GB ⚙️ apachetorrent-cardigann",
+    "name": "[AD⚡] 📦 · 1080p BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 6552528730,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "_packBytes": 2190433321,
+    "url": "/e30/resolve/498ddeca847fba8ea6bf2bf2279b89c4771742a7?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22p%22%3A1%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig=69855d952e7ddcb4641d036b3d9e84096ed399f92e0f37bee964fc01e3029e3c"
+   },
+   {
+    "title": "The Matrix (1999) 720p BrRip x264 - 700mb -YIFY\n📦 👤 ~105 💾 703.90 MB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 720p · The Pirate Bay · 👤 ~105",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 738095006,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/363bc6c534b1430c6758318d196ccd61db61b647?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=60c4de56a9f0dc1a489412bc48289292d99eb6d2e0863345a1de1ee3ba479b3a"
+   },
+   {
+    "title": "The Matrix Trilogy Complete (1999-2003) 720p 5.1 BRRiP x264 AAC\n📦 👤 ~14 💾 1.04 GB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 720p · The Pirate Bay · 👤 ~14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 3320522193,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "_packBytes": 3317862236,
+    "url": "/e30/resolve/fa8ae4bc6caec272ac57c7890d8f893aab3caa88?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22p%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig=57131722d6e4351073cfb2c342eda05bbfbe3294b1b6c0bdf79aacb7e0de3923"
+   },
+   {
+    "title": "The.Matrix.1999.REMASTERED.720p.BluRay.999MB.x265.10bit-Galax\n📦 👤 ~12 💾 992.88 MB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 720p Remaster BluRay · The Pirate Bay · 👤 ~12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1041112653,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "url": "/e30/resolve/c4fcc532acf6fe877d1991fde909f79648452b4e?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=decb3600b8be966297f69fd07f24f16ec5318780b9cd60d71c2d2425548af86d"
+   },
+   {
+    "title": "The.Matrix.1999.720p.10bit.BluRay.6CH.x265.HEVC-PSA\n📦 👤 ~2 💾 877.38 MB ⚙️ The Pirate Bay",
+    "name": "[AD⚡] 📦 · 720p BluRay · The Pirate Bay · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 920002552,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "The.Matrix.1999.720p.10bit.BluRay.6CH.x265.HEVC-PSA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "url": "/e30/resolve/3ae90cdc31db5285c26ccb7b9f5d274f89cff1f1?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=b2e4a8d69048784b1e01477cc9d312d5e1fcba8b42cace429d4acbd45a6f8b71"
+   },
+   {
+    "title": "Matrix (www.ThePirateFilmes.com)\n👤 1 💾 796.60 MB ⚙️ AllDebrid",
+    "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 835291328,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/51ca3ba90f04bf50394e9eb7e448ceea214d5ad6?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig=d4d28d06312d6048f4970e2140ba5b75c97774483f70a4bdcfa3bf3df2474906"
+   },
+   {
+    "title": "Matrix - Trilogia [720p DUAL]\n📦 👤 ~1 💾 890.06 MB ⚙️ apachetorrent-cardigann",
+    "name": "[AD⚡] 📦 · 720p BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2839946191,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_fromSnapshot": true,
+    "_packBytes": 933295555,
+    "url": "/e30/resolve/26fa43a4ccca61d8f7cf96a106d7fe1801aed9c2?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22p%22%3A1%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig=b2adf2ab3ae75ce006f69c0b8eeaf95e2107af1fa1b7b3fd0116fa5b88e7a33f"
+   }
+  ]
+ }
+]

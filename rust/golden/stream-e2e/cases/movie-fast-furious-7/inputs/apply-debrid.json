@@ -1,0 +1,463 @@
+[
+ {
+  "key": "alldebrid|0|12fa935ebd8c7d2ef5d70d963bcf38370a766009,19ca7825067bacf5565e23f00d566660600e41ae,3632eff4840b5c13a2102a837092e2e29fa2611b,4d2f76d264aa82b7507c8d4f8470c75f69ac34bb,4e4eaaaeb58abcc845e322e8b711aeda3a344996,6c7ab1445564f69dc0c113e16be01fbb88bd98bb,6e0167b99d13e26622d856309e29ea2ad1a3b5fc,79c976fced3cd43b8285d00b1051435b33cd3487,91fd1a3a28905fbfaf5da2a97849db49f71ea77d,9bf61b525a39fe329c0c7c44cc718d2fae18a448,9eb0f5835228d2534dbcab5a7ed095b89d90546f,a6273574704e724a77319798097f9b16de8e083b,c012d7a8cc1e89d43891cd10e58e09d088341a6f,db301cbbc567a784c34f75bd10b41b85d63b9871,dc9bce0376e46a7b0bc1b84c124e29e759a3364f,e3ebbef93427d1be21ac35b74b24c8d05cf2ad2c,e78b3a34ed28ad59a1def279d919bbc6c62fe617",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "dc9bce0376e46a7b0bc1b84c124e29e759a3364f",
+    "title": "Furious.7.2015.EXTENDED.Fast.and.2160p.UHD.BluRay.x265.10bit.HDR\n📦 👤 ~17 💾 19.35 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 4K Extended BluRay · The Pirate Bay · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 20773855333,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "79c976fced3cd43b8285d00b1051435b33cd3487",
+    "title": "Furious 7 2015 2160p PCOK WEB DL DDPA 5 1 DV H 265 TRB\n📦 👤 ~9 💾 15.10 GB ⚙️ LimeTorrents",
+    "name": "📦 · 4K WEB-DL · LimeTorrents · 👤 ~9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 16213501542,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "91fd1a3a28905fbfaf5da2a97849db49f71ea77d",
+    "title": "Velozes e Furiosos 7 Versão Estendida – BluRay – – (2015) [2160p BLURAY DUBLADO opção 3]\n📦 👤 ~1 ⚙️ TorrentDosFilmes V2",
+    "name": "📦 · 4K Extended BluRay BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "4d2f76d264aa82b7507c8d4f8470c75f69ac34bb",
+    "title": "Velozes.e.Furiosos.7.Versao.Estendida.2015.1080p.Dual-WOLVERDONFILMES.COM\n👤 1 💾 2.50 GB ⚙️ AllDebrid",
+    "name": "1080p DUAL BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2681793021,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "db301cbbc567a784c34f75bd10b41b85d63b9871",
+    "title": "Coleção 7 Filmes Velozes e Furiosos BluRay 5.1 – Dual Audio (2001-2015) [1080p BLURAY DUBLADO 11.5 GB]\n📦 👤 ~1 💾 2.50 GB ⚙️ TorrentDosFilmes V2",
+    "name": "📦 · 1080p BluRay DUB BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 12348030976,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true,
+    "_packBytes": 12348030976
+   },
+   {
+    "infoHash": "4e4eaaaeb58abcc845e322e8b711aeda3a344996",
+    "title": "Coleçao Velozes & Furiosos BluRay 1080p Dublado Coman\n📦 👤 ~7 💾 9.09 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay BR · The Pirate Bay · 👤 ~7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 9757923519,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "c012d7a8cc1e89d43891cd10e58e09d088341a6f",
+    "title": "Velozes & Furiosos 7 (2015).5.1.CH.Dublado.1080p.[WEB-DL]\n📦 👤 ~1 💾 2.02 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL BR · The Pirate Bay · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2172985337,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e3ebbef93427d1be21ac35b74b24c8d05cf2ad2c",
+    "title": "Velozes e Furiosos 7 Versão Estendida – BluRay – – (2015) [1080p BLURAY DUBLADO opção 2]\n📦 👤 ~1 ⚙️ TorrentDosFilmes V2",
+    "name": "📦 · 1080p Extended BluRay BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e78b3a34ed28ad59a1def279d919bbc6c62fe617",
+    "title": "Velozes e Furiosos - Coleção [1080p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 1080p BluRay BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "6e0167b99d13e26622d856309e29ea2ad1a3b5fc",
+    "title": "Velozes e Furiosos - Coleção [1080p BLU-RAY DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 1080p BluRay BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "6c7ab1445564f69dc0c113e16be01fbb88bd98bb",
+    "title": "Velozes.e.Furiosos.7.Versao.Estendida.2015.720p.Dual-WOLVERDONFILMES.COM\n👤 1 💾 1.35 GB ⚙️ AllDebrid",
+    "name": "720p DUAL BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1446974480,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "9eb0f5835228d2534dbcab5a7ed095b89d90546f",
+    "title": "Furious 7 2015 720p BluRay x264 DuaL TURKO\n📦 👤 ~8 💾 1.35 GB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BluRay · LimeTorrents · 👤 ~8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1449551462,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "19ca7825067bacf5565e23f00d566660600e41ae",
+    "title": "Velozes & Furiosos 7 (2015).5.1.CH.Dublado.720p.[WEB-DL]\n📦 👤 ~1 💾 1.23 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEB-DL BR · The Pirate Bay · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 1317637770,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "3632eff4840b5c13a2102a837092e2e29fa2611b",
+    "title": "Velozes e Furiosos 7 Versão Estendida – BluRay – – (2015) [720p BLURAY DUBLADO 5.09 GB]\n📦 👤 ~1 💾 5.09 GB ⚙️ TorrentDosFilmes V2",
+    "name": "📦 · 720p Extended BluRay BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 5465345884,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "9bf61b525a39fe329c0c7c44cc718d2fae18a448",
+    "title": "Velozes e Furiosos 7 [720p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 1.14 GB ⚙️ apachetorrent-cardigann",
+    "name": "📦 · 720p BluRay BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1224065679,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "Velozes & Furiosos 7 - Versão Estendida (2015) Dublado 720p 5.1 By-LuanHarper",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "a6273574704e724a77319798097f9b16de8e083b",
+    "title": "Velozes e Furiosos 7 (2015) HDTS 720p XviD Dublado\n📦 👤 ~ 💾 4.20 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p CAM BR · The Pirate Bay · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 4511575080,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true,
+    "_seedFloorWaived": true
+   }
+  ]
+ }
+]

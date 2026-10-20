@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt0257076",
+  "meta": {
+    "name": "S.W.A.T.",
+    "year": "2003",
+    "type": "movie",
+    "released": "2003-08-08T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "S.W.A.T.: Comando Especial",
+    "original": "S.W.A.T.",
+    "en": "S.W.A.T.",
+    "br": [],
+    "year": "2003"
+  },
+  "collection": null,
+  "homeReleaseAt": 1082592000000
+}

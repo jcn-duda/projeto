@@ -1,0 +1,72 @@
+{
+ "key": "fallback:series:tt0108778:2:7:late",
+ "value": {
+  "items": [
+   {
+    "title": "Friends 2ª Temporada – – Bluray (1995) [720p BLURAY DUBLADO 4.10 GB]",
+    "infoHash": "257f07e623590f7fedce7d872cce70163d247377",
+    "magnet": "magnet:?xt=urn:btih:257f07e623590f7fedce7d872cce70163d247377&dn=Friends%202%c2%aa%20Temporada%20Completa%20720p%20%281995%29%20Dublado%20-%20YTSBR.COM&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.ccc.de%3a80%2fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 4402341478,
+    "seeders": 1,
+    "indexer": "torrentdosfilmesv2",
+    "tracker": "TorrentDosFilmes",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "torrentdosfilmesv2",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "夏目友人帳 Natsume's Book of Friends S02 2009 BluRay 1080p HEVC 10bit OPUS UYS",
+    "infoHash": "3ae8d4836ea5da2b1c168f3a4bd6e019346e8eb6",
+    "magnet": "magnet:?xt=urn:btih:3ae8d4836ea5da2b1c168f3a4bd6e019346e8eb6&dn=%E5%A4%8F%E7%9B%AE%E5%8F%8B%E4%BA%BA%E5%B8%B3%20Natsume%27s%20Book%20of%20Friends%20S02%202009%20BluRay%201080p%20HEVC%2010bit%20OPUS%20UYS&tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 2254857830,
+    "seeders": 1,
+    "indexer": "nyaasi",
+    "tracker": "Nyaa.si",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "1080p",
+    "fromFallback": true,
+    "fallbackIndexer": "nyaasi",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "夏目友人帳 Natsume's Book of Friends S01 S02 S03 S04 S05 BluRay 1080p HEVC 10bit FLAC GOA 夏目友人帐",
+    "infoHash": "4480a1fb22b9b6d2c6fb4c53b4eb6e83d8cf32dc",
+    "magnet": "magnet:?xt=urn:btih:4480a1fb22b9b6d2c6fb4c53b4eb6e83d8cf32dc&dn=%E5%A4%8F%E7%9B%AE%E5%8F%8B%E4%BA%BA%E5%B8%B3%20Natsume%27s%20Book%20of%20Friends%20S01%20S02%20S03%20S04%20S05%20BluRay%201080p%20HEVC%2010bit%20FLAC%20GOA%20%E5%A4%8F%E7%9B%AE%E5%8F%8B%E4%BA%BA%E5%B8%90&tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 30386893619,
+    "seeders": 1,
+    "indexer": "nyaasi",
+    "tracker": "Nyaa.si",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "1080p",
+    "fromFallback": true,
+    "fallbackIndexer": "nyaasi",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Friends [720p BLU-RAY DUBLADO]",
+    "infoHash": "8d0d7e6c2b6b0acaad2c0496dfe48cebe43bdd75",
+    "magnet": "magnet:?xt=urn:btih:8d0d7e6c2b6b0acaad2c0496dfe48cebe43bdd75&dn=COMOEUBAIXO.COM.TEMPORADA.BLURAY.720P.MP4.Friends%207%20temporda%20dublada%201080&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "seeders": 1,
+    "indexer": "apachetorrent-cardigann",
+    "tracker": "",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "apachetorrent-cardigann",
+    "fallbackFetchable": true
+   }
+  ],
+  "injected": 4,
+  "cut": {
+   "episode-mismatch": 5,
+   "live-dedupe": 33,
+   "no-source": 10
+  }
+ }
+}

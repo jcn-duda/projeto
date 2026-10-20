@@ -1,0 +1,112 @@
+[
+  {
+    "key": {
+      "imdb": "tt5753856",
+      "type": "series",
+      "season": 1,
+      "episode": 1,
+      "scope": "all",
+      "query": "Dark S01E01",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "www.UIndex.org    -    Dark S01E01 Secrets 2160p NF WEB-DL DUAL DDP5 1 Atmos H 265-Kitsune",
+          "infoHash": "29071e5b8ff4b147d6c022e64c159f17af55451d",
+          "seeders": 1,
+          "size": 6425278571,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Dark 1ª Temporada Completa 2017 [720p] [WEBRip] [DUAL] COMANDOTORRENTS.COM",
+          "infoHash": "d5140faa5fbb0a27be3c7bdc5354674f2eea510f",
+          "seeders": 1,
+          "size": 7431596808,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "www.UIndex.org    -    Dark S01E01 Secrets 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-Kitsune",
+          "infoHash": "724b01762f943602f1da9e513f46db89016094fe",
+          "seeders": 1,
+          "size": 2444846964,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Dark.SEASON.01.S01.COMPLETE.DUAL-AUDIO.GER-ENG.1080p.10bit.WEBRip.6CH.x265.HEVC-PSA",
+          "infoHash": "219c284787cc22a1eeb129c3857eb26fb4ac0e1c",
+          "seeders": 1,
+          "size": 6404874401,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Dark.SEASON.01.S01.COMPLETE.DUAL-AUDIO.GER-ENG.720p.10bit.WEBRip.2CH.x265.HEVC-PSA",
+          "infoHash": "8b7c960c8bc9618d15489981f10ddb0d7662fbbe",
+          "seeders": 1,
+          "size": 2782978880,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Dark 2017 – 1ª Temporada Completa [WEB-DL] (720p) WWW.BLUDV.COM",
+          "infoHash": "8b9c90c97d4781b07767c331a687196a1cd1a17b",
+          "seeders": 1,
+          "size": 9390243711,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

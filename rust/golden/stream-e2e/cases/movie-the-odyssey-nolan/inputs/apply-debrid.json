@@ -1,0 +1,1089 @@
+[
+ {
+  "key": "alldebrid|0|045eeb1823a83ebd8bf02fc3d783ed18f6440b62,0a0c455106a1e61dc349ea86e50955c20606be79,0d323a3e19362269f3c759400a224ba94b68de8c,157c8b54e90a902fad0fc643f8a52765e8bfe789,17e9eab0ce1e6030172adf814c12a8522696d83b,31d9a7762897b6712b6751902123c723f36864dc,407555e14aa398985d994fb2bd35f5305ee2c03c,48aeb057454aafacaa00614aa6be73ac7cc29cbb,5fd0f0e960db806bd9075c9871ed6b0b434959dd,832e44125cd1b845a90536a913d94ec9d93aa735,8889d6d1dfe7b1370ab7a6073e565ffb22160f0d,8950e2d12048395e838f664cf0806625c54023fe,b8a538cc5767861d8aa5b214b163b2ea63663a52,c1eb9d5796b7a2baa92b8bfd6a9401bb36c2bea3,c58eb93646a8df4867eee9102ae4551e061582b1,d6a7303d77548da786cc68793089a9a0413e928e,ee85e5a22a2cebbf11982e0f0871c52e3628d3d3,f8bd1bb74326a34f96dfde9afab02b6f00047e71,ff9c30e8b7bf4059016701647cb6b12a9ca8a35e",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "c1eb9d5796b7a2baa92b8bfd6a9401bb36c2bea3",
+    "title": "The Odyssey (2026) 2160p FULL HD\n📦 👤 ~9 💾 1.17 GB ⚙️ LimeTorrents",
+    "name": "📦 · 4K · LimeTorrents · 👤 ~9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 1256277934,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "0a0c455106a1e61dc349ea86e50955c20606be79",
+    "title": "The Odyssey 2026 2160p TELESYNC HEVC AAC2 ENG MULTI SUBS 0 SPLiCE\n📦 👤 ~5 💾 1.07 GB ⚙️ LimeTorrents",
+    "name": "📦 · 4K CAM · LimeTorrents · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-CAM"
+    },
+    "_quality": "2160p",
+    "_bytes": 1148903751,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "407555e14aa398985d994fb2bd35f5305ee2c03c",
+    "title": "The Odyssey 2026 2160p TELESYNC HEVC AAC2 ENGSUBS 0 SPLiCE\n📦 👤 ~4 💾 1.17 GB ⚙️ LimeTorrents",
+    "name": "📦 · 4K CAM · LimeTorrents · 👤 ~4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-CAM"
+    },
+    "_quality": "2160p",
+    "_bytes": 1256277934,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "d6a7303d77548da786cc68793089a9a0413e928e",
+    "title": "The.Odyssey.2026.TELESYNC.1080p.HEVC.Cinematic.Dub\n📦 👤 ~18 💾 5.78 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p CAM BR · kickass · 👤 ~18",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 6206227742,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "The.Odyssey.2026.TELESYNC.1080p.HEVC.Cinematic.Dub.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "0d323a3e19362269f3c759400a224ba94b68de8c",
+    "title": "The.Odyssey.2026.1080p.CAMRip.Dublado.V.3.mkv\n👤 1 💾 4.98 GB ⚙️ AllDebrid",
+    "name": "1080p CAM BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 5342536626,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "48aeb057454aafacaa00614aa6be73ac7cc29cbb",
+    "title": "The Odyssey 2026 1080p TELESYNC HEVC AAC2 0 SPLiCE\n📦 👤 ~4804 💾 5.56 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p CAM · LimeTorrents · 👤 ~4804",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 5970004541,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "8889d6d1dfe7b1370ab7a6073e565ffb22160f0d",
+    "title": "The Odyssey (2026) 1080P HQ HDTS x265 AAC2 0 MULTI HC Sub  MAZE\n📦 👤 ~747 💾 1.98 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p CAM · LimeTorrents · 👤 ~747",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 2126008811,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "832e44125cd1b845a90536a913d94ec9d93aa735",
+    "title": "The Odyssey (2026) TS-HEVC 1080p | P\n📦 👤 ~283 💾 4.45 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p CAM · TheRARBG · 👤 ~283",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 4778151116,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "ee85e5a22a2cebbf11982e0f0871c52e3628d3d3",
+    "title": "The Odyssey (2026) 1080p HQ HDTS  x264  [Tel   Tam   Hin   Eng]  HQ Clean  3\n📦 👤 ~207 💾 3.47 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p CAM · LimeTorrents · 👤 ~207",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 3725884129,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "31d9a7762897b6712b6751902123c723f36864dc",
+    "title": "A Odisseia [1080p CAM LEGENDADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 1080p CAM LEG BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "f8bd1bb74326a34f96dfde9afab02b6f00047e71",
+    "title": "A Odisseia [1080p CAM LEGENDADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 1080p CAM LEG BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "ff9c30e8b7bf4059016701647cb6b12a9ca8a35e",
+    "title": "The Odyssey (2026) 720p HQ HDTS  x264  [Tel   Tam   Hin   Eng]  HQ Clean  2GB\n📦 👤 ~191 💾 2.08 GB ⚙️ LimeTorrents",
+    "name": "📦 · 720p CAM · LimeTorrents · 👤 ~191",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2233382993,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "c58eb93646a8df4867eee9102ae4551e061582b1",
+    "title": "The Odyssey (2026) HQ PreDVD - 720p - x264 - [Tam + Hin + Eng] - HQ Clean - AAC - 1.8GB\n📦 👤 ~28 💾 1.91 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~28",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2050846883,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "www.1TamilMV.reisen - The Odyssey (2026) HQ PreDVD - 720p - x264 - [Tam + Hin + Eng] - HQ Clean - AAC - 1.8GB.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "157c8b54e90a902fad0fc643f8a52765e8bfe789",
+    "title": "The Odyssey (2026) New HQ HDTS - 720p - x264 - [Tam + Tel + Hin + Eng] - HQ Clean - 2GB\n📦 👤 ~21 💾 2.08 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~21",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2233382993,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "www.1TamilMV.reisen - The Odyssey (2026) New HQ HDTS - 720p - x264 - [Tam + Tel + Hin + Eng] - HQ Clean - 2GB.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "045eeb1823a83ebd8bf02fc3d783ed18f6440b62",
+    "title": "The Odyssey 2026 720p TELESYNC HEVC [Ukr Dub]\n📦 👤 ~9 💾 7.24 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p CAM · The Pirate Bay · 👤 ~9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 7771947345,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "17e9eab0ce1e6030172adf814c12a8522696d83b",
+    "title": "The Odyssey (2026) Hdts 720p\n📦 👤 ~8 💾 1.59 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 1707249500,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "the-odyssey-2026-hdts-720p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "5fd0f0e960db806bd9075c9871ed6b0b434959dd",
+    "title": "The Odyssey (2026) [720p HQ HDTS - x264 - [Tamil + Telugu + Hindi + English] - AAC - 1.8GB - HQ Line Audio]\n📦 👤 ~5 💾 1.79 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 1921997864,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "www.1TamilBlasters.tattoo - The Odyssey (2026) [720p HQ HDTS - x264 - [Tamil + Telugu + Hindi + English] - AAC - 1.8GB - HQ Line Audio].mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "8950e2d12048395e838f664cf0806625c54023fe",
+    "title": "The.Odyssey.2026.720p.HDCAM.MD.HUN-D3MON\n📦 👤 ~2 💾 1.69 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 1814623682,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "The.Odyssey.2026.720p.HDCAM.MD.HUN-D3MON",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "b8a538cc5767861d8aa5b214b163b2ea63663a52",
+    "title": "The.Odyssey.2026.720p.Subtitulado\n📦 👤 ~1 💾 1.66 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1782411427,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "The.Odyssey.2026.720p.Subtitulado.Esp.CC.mp4",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|045eeb1823a83ebd8bf02fc3d783ed18f6440b62,0a0c455106a1e61dc349ea86e50955c20606be79,0d323a3e19362269f3c759400a224ba94b68de8c,157c8b54e90a902fad0fc643f8a52765e8bfe789,17e9eab0ce1e6030172adf814c12a8522696d83b,31d9a7762897b6712b6751902123c723f36864dc,407555e14aa398985d994fb2bd35f5305ee2c03c,48aeb057454aafacaa00614aa6be73ac7cc29cbb,5fd0f0e960db806bd9075c9871ed6b0b434959dd,832e44125cd1b845a90536a913d94ec9d93aa735,8889d6d1dfe7b1370ab7a6073e565ffb22160f0d,8950e2d12048395e838f664cf0806625c54023fe,b8a538cc5767861d8aa5b214b163b2ea63663a52,c1eb9d5796b7a2baa92b8bfd6a9401bb36c2bea3,c58eb93646a8df4867eee9102ae4551e061582b1,d6a7303d77548da786cc68793089a9a0413e928e,ee85e5a22a2cebbf11982e0f0871c52e3628d3d3,f8bd1bb74326a34f96dfde9afab02b6f00047e71,ff9c30e8b7bf4059016701647cb6b12a9ca8a35e",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "c1eb9d5796b7a2baa92b8bfd6a9401bb36c2bea3",
+    "title": "The Odyssey (2026) 2160p FULL HD\n👤 9 💾 1.17 GB ⚙️ LimeTorrents",
+    "name": "4K · LimeTorrents · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 1256277934,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0a0c455106a1e61dc349ea86e50955c20606be79",
+    "title": "The Odyssey 2026 2160p TELESYNC HEVC AAC2 ENG MULTI SUBS 0 SPLiCE\n👤 5 💾 1.07 GB ⚙️ LimeTorrents",
+    "name": "4K CAM · LimeTorrents · 👤 5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-CAM"
+    },
+    "_quality": "2160p",
+    "_bytes": 1148903751,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "407555e14aa398985d994fb2bd35f5305ee2c03c",
+    "title": "The Odyssey 2026 2160p TELESYNC HEVC AAC2 ENGSUBS 0 SPLiCE\n👤 4 💾 1.17 GB ⚙️ LimeTorrents",
+    "name": "4K CAM · LimeTorrents · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-CAM"
+    },
+    "_quality": "2160p",
+    "_bytes": 1256277934,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0d323a3e19362269f3c759400a224ba94b68de8c",
+    "title": "The.Odyssey.2026.1080p.CAMRip.Dublado.V.3.mkv\n👤 1 💾 4.98 GB ⚙️ AllDebrid",
+    "name": "1080p CAM BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 5342536626,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "d6a7303d77548da786cc68793089a9a0413e928e",
+    "title": "The.Odyssey.2026.TELESYNC.1080p.HEVC.Cinematic.Dub.mkv\n👤 1 💾 5.78 GB ⚙️ AllDebrid",
+    "name": "1080p CAM BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 6205223034,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "48aeb057454aafacaa00614aa6be73ac7cc29cbb",
+    "title": "The Odyssey 2026 1080p TELESYNC HEVC AAC2 0 SPLiCE\n👤 4804 💾 5.56 GB ⚙️ LimeTorrents",
+    "name": "1080p CAM · LimeTorrents · 👤 4804",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 5970004541,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8889d6d1dfe7b1370ab7a6073e565ffb22160f0d",
+    "title": "The Odyssey (2026) 1080P HQ HDTS x265 AAC2 0 MULTI HC Sub  MAZE\n👤 747 💾 1.98 GB ⚙️ LimeTorrents",
+    "name": "1080p CAM · LimeTorrents · 👤 747",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 2126008811,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "832e44125cd1b845a90536a913d94ec9d93aa735",
+    "title": "The Odyssey (2026) TS-HEVC 1080p | P\n👤 283 💾 4.45 GB ⚙️ TheRARBG",
+    "name": "1080p CAM · TheRARBG · 👤 283",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 4778151116,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ee85e5a22a2cebbf11982e0f0871c52e3628d3d3",
+    "title": "The Odyssey (2026) 1080p HQ HDTS  x264  [Tel   Tam   Hin   Eng]  HQ Clean  3\n👤 207 💾 3.47 GB ⚙️ LimeTorrents",
+    "name": "1080p CAM · LimeTorrents · 👤 207",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 3725884129,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "31d9a7762897b6712b6751902123c723f36864dc",
+    "title": "A Odisseia [1080p CAM LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p CAM LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f8bd1bb74326a34f96dfde9afab02b6f00047e71",
+    "title": "A Odisseia [1080p CAM LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p CAM LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ff9c30e8b7bf4059016701647cb6b12a9ca8a35e",
+    "title": "The Odyssey (2026) 720p HQ HDTS  x264  [Tel   Tam   Hin   Eng]  HQ Clean  2GB\n👤 191 💾 2.08 GB ⚙️ LimeTorrents",
+    "name": "720p CAM · LimeTorrents · 👤 191",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2233382993,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "c58eb93646a8df4867eee9102ae4551e061582b1",
+    "title": "The Odyssey (2026) HQ PreDVD - 720p - x264 - [Tam + Hin + Eng] - HQ Clean - AAC - 1.8GB\n📦 👤 ~28 💾 1.91 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~28",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2050846883,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "www.1TamilMV.reisen - The Odyssey (2026) HQ PreDVD - 720p - x264 - [Tam + Hin + Eng] - HQ Clean - AAC - 1.8GB.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "157c8b54e90a902fad0fc643f8a52765e8bfe789",
+    "title": "The Odyssey (2026) New HQ HDTS - 720p - x264 - [Tam + Tel + Hin + Eng] - HQ Clean - 2GB\n📦 👤 ~21 💾 2.08 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~21",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2233382993,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "www.1TamilMV.reisen - The Odyssey (2026) New HQ HDTS - 720p - x264 - [Tam + Tel + Hin + Eng] - HQ Clean - 2GB.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "045eeb1823a83ebd8bf02fc3d783ed18f6440b62",
+    "title": "The Odyssey 2026 720p TELESYNC HEVC [Ukr Dub]\n👤 9 💾 7.24 GB ⚙️ The Pirate Bay",
+    "name": "720p CAM · The Pirate Bay · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 7771947345,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "17e9eab0ce1e6030172adf814c12a8522696d83b",
+    "title": "The Odyssey (2026) Hdts 720p\n📦 👤 ~8 💾 1.59 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 1707249500,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "the-odyssey-2026-hdts-720p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "5fd0f0e960db806bd9075c9871ed6b0b434959dd",
+    "title": "The Odyssey (2026) [720p HQ HDTS - x264 - [Tamil + Telugu + Hindi + English] - AAC - 1.8GB - HQ Line Audio]\n📦 👤 ~5 💾 1.79 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 1921997864,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "www.1TamilBlasters.tattoo - The Odyssey (2026) [720p HQ HDTS - x264 - [Tamil + Telugu + Hindi + English] - AAC - 1.8GB - HQ Line Audio].mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "8950e2d12048395e838f664cf0806625c54023fe",
+    "title": "The.Odyssey.2026.720p.HDCAM.MD.HUN-D3MON\n📦 👤 ~2 💾 1.69 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p CAM · kickass · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 1814623682,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "The.Odyssey.2026.720p.HDCAM.MD.HUN-D3MON",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "b8a538cc5767861d8aa5b214b163b2ea63663a52",
+    "title": "The.Odyssey.2026.720p.Subtitulado\n📦 👤 ~1 💾 1.66 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1782411427,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "The.Odyssey.2026.720p.Subtitulado.Esp.CC.mp4",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ }
+]

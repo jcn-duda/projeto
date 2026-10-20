@@ -1,0 +1,315 @@
+[
+ {
+  "key": "alldebrid|0|2b9aec8735a5ab408f83a2c7d109be9d010c8491,5278b53d1db2232581b3635a9353f43b7642841c,e065ead48d9c622af2f2fa2ba81f9f50713215c0,f3afa962d6644e7b19b5bc0d6fcbc91409dac046,f9e89017ede30e2f101c3f81b493a2f91919529c",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "5278b53d1db2232581b3635a9353f43b7642841c",
+    "title": "Minha Mãe É Uma Peça - O Filme (2013) BDrip 720p Nacional\n👤 1 💾 1007.68 MB ⚙️ AllDebrid",
+    "name": "720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056627687,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Minha M\\u00e3e \\u00c9 Uma Pe\\u00e7a - O Filme (2013) BDrip 720p Nacional",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2b9aec8735a5ab408f83a2c7d109be9d010c8491",
+    "title": "Minha Mãe é Uma Peça - O Filme [720p BLU-RAY DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · 720p BluRay BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "f9e89017ede30e2f101c3f81b493a2f91919529c",
+    "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional  BFtorrent\n📦 👤 ~ 💾 1007.66 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056608092,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Minha Mae E Uma Peca - O Filme (2013) BDrip 720p Nacional - BFtorrent",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "f3afa962d6644e7b19b5bc0d6fcbc91409dac046",
+    "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional BF\n📦 👤 ~ 💾 1007.69 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056639549,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Minha Mae E Uma Peca - O Filme (2013) BDrip 720p Nacional BF",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "e065ead48d9c622af2f2fa2ba81f9f50713215c0",
+    "title": "Minha Mae E Uma Peca O Filme (2013) BDrip 720p Nacional\n📦 👤 ~ 💾 1007.66 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056608092,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|2b9aec8735a5ab408f83a2c7d109be9d010c8491,5278b53d1db2232581b3635a9353f43b7642841c,e065ead48d9c622af2f2fa2ba81f9f50713215c0,f3afa962d6644e7b19b5bc0d6fcbc91409dac046,f9e89017ede30e2f101c3f81b493a2f91919529c",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "5278b53d1db2232581b3635a9353f43b7642841c",
+    "title": "Minha Mãe É Uma Peça - O Filme (2013) BDrip 720p Nacional\n👤 1 💾 1007.68 MB ⚙️ AllDebrid",
+    "name": "720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056627687,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2b9aec8735a5ab408f83a2c7d109be9d010c8491",
+    "title": "Minha Mãe é Uma Peça - O Filme [720p BLU-RAY DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p BluRay BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f9e89017ede30e2f101c3f81b493a2f91919529c",
+    "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional  BFtorrent\n📦 👤 ~ 💾 1007.66 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056608092,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Minha Mae E Uma Peca - O Filme (2013) BDrip 720p Nacional - BFtorrent",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "f3afa962d6644e7b19b5bc0d6fcbc91409dac046",
+    "title": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional BF\n📦 👤 ~ 💾 1007.69 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056639549,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Minha Mae E Uma Peca - O Filme (2013) BDrip 720p Nacional BF",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "e065ead48d9c622af2f2fa2ba81f9f50713215c0",
+    "title": "Minha Mae E Uma Peca O Filme (2013) BDrip 720p Nacional\n📦 👤 ~ 💾 1007.66 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1056608092,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Minha Mae E Uma Peca  O Filme (2013) BDrip 720p Nacional",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   }
+  ]
+ }
+]

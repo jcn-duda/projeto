@@ -1,0 +1,25 @@
+{
+ "key": "fallback:movie:tt0271383:::late",
+ "value": {
+  "items": [
+   {
+    "title": "Sobrenatural: 9ª temporada (2013) 720p Dual Audio",
+    "infoHash": "eb1b95c0f858f02c951ffe4148df7fba35dc6768",
+    "magnet": "magnet:?xt=urn:btih:eb1b95c0f858f02c951ffe4148df7fba35dc6768&dn=Sobrenatural%3A%209%26ordf%3B%20temporada%20%282013%29%20720p%20Dual%20Audio&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2850%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2920%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 7634304368,
+    "seeders": 0,
+    "indexer": "kickasstorrents-to",
+    "tracker": "kickasstorrents.to",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "kickasstorrents-to"
+   }
+  ],
+  "injected": 1,
+  "cut": {
+   "live-dedupe": 1
+  }
+ }
+}

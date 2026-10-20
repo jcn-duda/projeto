@@ -1,0 +1,54 @@
+{
+ "key": "fallback:series:tt4922804:1:1:late",
+ "value": {
+  "items": [
+   {
+    "title": "СтартАп /StartUp /S1-3 (Бен Кетаи) [2016-2018, Триллер, криминал, WEB-DL] [MVO] [LostFilm]",
+    "infoHash": "e0bcc995a1d99fb31182dda0e19593684466eb05",
+    "magnet": "magnet:?xt=urn:btih:e0bcc995a1d99fb31182dda0e19593684466eb05&tr=http%3A%2F%2Frutracker.ru%2Fbt%2Fannounce.php%3Fuk%3D56WtM1NE1U&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 18757048320,
+    "seeders": 0,
+    "indexer": "rutracker-ru",
+    "tracker": "RuTracker.RU",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "sem resolução",
+    "fromFallback": true,
+    "fallbackIndexer": "rutracker-ru"
+   },
+   {
+    "title": "Рождественская песнь / A Christmas Carol / S1E1-3 of 3 (Ник Мерфи) [2019, Фэнтези, драма, WEB-DL 1080p] [DVO] [IdeaFilm]",
+    "infoHash": "a9ca70c74a5b2d8e3335515e12d01c22e74ed53e",
+    "magnet": "magnet:?xt=urn:btih:a9ca70c74a5b2d8e3335515e12d01c22e74ed53e&tr=http%3A%2F%2Frutracker.ru%2Fbt%2Fannounce.php%3Fuk%3D56WtM1NE1U&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 9083464482,
+    "seeders": 0,
+    "indexer": "rutracker-ru",
+    "tracker": "RuTracker.RU",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "1080p",
+    "fromFallback": true,
+    "fallbackIndexer": "rutracker-ru"
+   },
+   {
+    "title": "Рождественская песнь / A Christmas Carol / S1E1-3 of 3 (Ник Мерфи) [2019, Фэнтези, драма, WEB-DL] [DVO] [IdeaFilm]",
+    "infoHash": "4824de5cabede289dc0dbad35ba9f18e2d8284d3",
+    "magnet": "magnet:?xt=urn:btih:4824de5cabede289dc0dbad35ba9f18e2d8284d3&tr=http%3A%2F%2Frutracker.ru%2Fbt%2Fannounce.php%3Fuk%3D56WtM1NE1U&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 2458869760,
+    "seeders": 0,
+    "indexer": "rutracker-ru",
+    "tracker": "RuTracker.RU",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "sem resolução",
+    "fromFallback": true,
+    "fallbackIndexer": "rutracker-ru"
+   }
+  ],
+  "injected": 3,
+  "cut": {
+   "live-dedupe": 149,
+   "no-source": 1
+  }
+ }
+}

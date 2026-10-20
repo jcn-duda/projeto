@@ -8,21 +8,52 @@
   "body": {
     "streams": [
       {
-        "title": "One Piece - A Série - FAN DUB [1080p WEBRIP DUBLADO]\n👤 1 💾 1.78 GB ⚙️ Apache Torrent",
-        "name": "[AD⚡] 1080p WEBRip BR · Apache Torrent · 👤 1",
+        "infoHash": "4e3ac1f08036068a0a20855bf1cb7c5a979c69e6",
+        "title": "One Piece - A Série - FAN DUB [1080p WEBRIP DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+        "name": "1080p WEBRip BR · Apache Torrent · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/4e3ac1f08036068a0a20855bf1cb7c5a979c69e6?s=21&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0388629%22%7D&sig={{sig}}",
-        "size": "1.78 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
       },
       {
-        "title": "One Piece 1999 Seasons 16 to 21 ANIME 1080p WEB-DL x264 [i_c]\n📦 👤 ~31 ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~31",
+        "infoHash": "3de0b1b63abb30d1b8754b4fc1c1408ee8f62aae",
+        "title": "One Piece\n👤 1 ⚙️ Apache Torrent",
+        "name": "BR · Apache Torrent · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "7cee20309ff9ff2abf09d552ea19a11d0a8c34ec",
+        "title": "One Piece 1999 Seasons 16 to 21 ANIME 1080p WEB-DL x264 [i_c]\n👤 31 ⚙️ The Pirate Bay",
+        "name": "1080p WEB-DL · The Pirate Bay · 👤 31",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/7cee20309ff9ff2abf09d552ea19a11d0a8c34ec?s=21&e=1&w=%7B%22i%22%3A%22tt0388629%22%7D&sig={{sig}}"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
       }
     ],
     "cacheMaxAge": 0

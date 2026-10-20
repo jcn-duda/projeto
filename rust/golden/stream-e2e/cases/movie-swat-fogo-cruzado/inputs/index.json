@@ -1,0 +1,375 @@
+{
+ "key": "index:movie:tt0257076",
+ "value": {
+  "servedFromIndex": true,
+  "instant": false,
+  "raw": {
+   "items": [
+    {
+     "title": "S.W.A.T. - Comando Especial [1080p BLU-RAY DUBLADO]",
+     "infoHash": "658c8d634fe7423257f15856667861c64804bb91",
+     "seeders": 1,
+     "size": 1024,
+     "indexer": "apachetorrent-cardigann",
+     "tracker": "Apache Torrent",
+     "isBr": true,
+     "dubbed": true,
+     "lied": false,
+     "quality": "1080p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "S.W.A.T. - Comando Especial [720p BLU-RAY DUBLADO]",
+     "infoHash": "ed1c364e71950e5e8c9640772a9d0d7f4d8290e0",
+     "seeders": 1,
+     "size": 1024,
+     "indexer": "apachetorrent-cardigann",
+     "tracker": "Apache Torrent",
+     "isBr": true,
+     "dubbed": true,
+     "lied": false,
+     "quality": "720p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "Swat (2003) 1080p BrRip x264 - 1.5GB -YIFY",
+     "infoHash": "a352ae91972e617b13098cf7d4bf4c367bbf8a68",
+     "seeders": 66,
+     "size": 1606655574,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "1080p"
+    },
+    {
+     "title": "Swat 2003 BluRay 1080p DTS dxva-LoNeWolf",
+     "infoHash": "c1cdbf98039959d7455b801c0a3218fff96af05f",
+     "seeders": 11,
+     "size": 10855941356,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "1080p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "Swat (2003) 720p BrRip x264 - 700MB -YIFY",
+     "infoHash": "1a4c1b0491716f2d727deb1117e72b0bef346fd9",
+     "seeders": 6,
+     "size": 736242387,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "720p"
+    },
+    {
+     "title": "SWAT 2003 1080p BluRay H264 AAC",
+     "infoHash": "db5bb50e695f8ef416032b325a50464886385c67",
+     "seeders": 4,
+     "size": 2404136368,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "1080p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "SWAT 2003 1080p BluRay x264-OFT",
+     "infoHash": "2f86de5a39be0a87fe370974ae0c98c4d779795f",
+     "seeders": 2,
+     "size": 5460736589,
+     "indexer": "therarbg",
+     "tracker": "TheRARBG",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "1080p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "Swat (2003) 720p BluRay x264 [MoviesFD]",
+     "infoHash": "36cd4224899f3529787531310e6aa4187586ecc9",
+     "seeders": 2,
+     "size": 979317555,
+     "indexer": "limetorrents",
+     "tracker": "LimeTorrents",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "720p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "SWAT 2003 1080p.BluRay.H264.AAC",
+     "infoHash": "85e3abd12acf6d241c2adfd3568579aca16e0234",
+     "seeders": 1,
+     "size": 2401991281,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "1080p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "SWAT 2003 BRRip H264 AAC-MS",
+     "infoHash": "81546969e6aae31f9559ae65f15868a9fc478278",
+     "seeders": 1,
+     "size": 1863778637,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "sem resolução"
+    },
+    {
+     "title": "Swat 2003 720p BluRay Esub Dual Audio English Hindi  GOPI SINGH",
+     "infoHash": "6a6d45e079c8fdab19605939a9ac07280195e246",
+     "seeders": 0,
+     "size": 829638092,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "720p",
+     "mediaSource": "BluRay"
+    },
+    {
+     "title": "SWAT .2003.DVDRip{Hindi-dubbed}.aaaevilacharya",
+     "infoHash": "4a58a93e3e98b35a8ed6b1bf6957129263dec862",
+     "seeders": 0,
+     "size": 694206644,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "SD"
+    },
+    {
+     "title": "SWAT.2003.720p.DVDRip.[Hindi].aaaevilacharya",
+     "infoHash": "843ee371b940154e2703224f045e39e6b1f6b5ba",
+     "seeders": 0,
+     "size": 694206802,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "720p"
+    },
+    {
+     "title": "Swat 2003 Brrip Resource Rg H264",
+     "infoHash": "6f099d97c716574c6a4133dab0cfcab27496858f",
+     "seeders": 0,
+     "size": 1893025179,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "sem resolução"
+    },
+    {
+     "title": "SWAT[2003]DvDrip[Eng]-NikonXP",
+     "infoHash": "4bd15f6a5b4d29bc166bc65ce55174a48d8e5b9e",
+     "seeders": 0,
+     "size": 735059271,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "SD"
+    },
+    {
+     "title": "SWAT (2003) BivX (FR-ENG) Specmedia",
+     "infoHash": "1a666c8fb74f66ec50971344213b5e8a6971e3e5",
+     "seeders": 0,
+     "size": 1468063120,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "sem resolução"
+    },
+    {
+     "title": "SWAT.2003.DVDRip.XviD.SWESUB-SWEpneT",
+     "infoHash": "37de752fd8b2a0f3bced9c9c113132c2b7abf16a",
+     "seeders": 0,
+     "size": 1467780437,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "SD"
+    },
+    {
+     "title": "Swat.2003.Nordic.Playtoy",
+     "infoHash": "22da24403763c0bdf2a78251d2251a32831d2fed",
+     "seeders": 0,
+     "size": 4681639936,
+     "indexer": "thepiratebay",
+     "tracker": "The Pirate Bay",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "sem resolução"
+    },
+    {
+     "title": "S.W.A.T. - Comando Especial [1080p BLU-RAY DUBLADO]",
+     "magnet": "magnet:?xt=urn:btih:658c8d634fe7423257f15856667861c64804bb91&dn=S.W.A.T.+%282003%29+BluRay+1080p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": "658c8d634fe7423257f15856667861c64804bb91",
+     "seeders": 1,
+     "size": 1024,
+     "publishedAt": 1792487184044,
+     "tracker": "Apache Torrent",
+     "indexer": "apachetorrent-cardigann",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. - Comando Especial [720p BLU-RAY DUBLADO]",
+     "magnet": "magnet:?xt=urn:btih:ed1c364e71950e5e8c9640772a9d0d7f4d8290e0&dn=S.W.A.T.+%282003%29+BluRay+720p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": "ed1c364e71950e5e8c9640772a9d0d7f4d8290e0",
+     "seeders": 1,
+     "size": 1024,
+     "publishedAt": 1792487184044,
+     "tracker": "Apache Torrent",
+     "indexer": "apachetorrent-cardigann",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. - Comando Especial 2",
+     "magnet": "magnet:?xt=urn:btih:38a95dcdff94f304768177c804ec2aad62badfac&dn=SWAT.Comando.Especial.2.DVDR-ZMG.iso&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%2F&tr=udp%3A%2F%2Ftracker.ccc.de%2F&tr=http%3A%2F%2Ftracker.torrentbay.to%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.istole.it%2F&tr=http%3A%2F%2Fwww.h33t.com%3A3310%2Fannounce&tr=http%3A%2F%2Fcpleft.com%3A2710%2Fannounce&tr=http%3A%2F%2Fputo.me%3A6969%2Fannounce&tr=http%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce",
+     "infoHash": "38a95dcdff94f304768177c804ec2aad62badfac",
+     "seeders": 1,
+     "size": 1024,
+     "publishedAt": 1792487184044,
+     "tracker": "Apache Torrent",
+     "indexer": "apachetorrent-cardigann",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial – Blu-ray Rip – (2003) [1080p BLU-RAY DUBLADO opção 2]",
+     "magnet": "magnet:?xt=urn:btih:658c8d634fe7423257f15856667861c64804bb91&dn=S.W.A.T.+%282003%29+BluRay+1080p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 1024,
+     "publishedAt": 1792487185999,
+     "tracker": "TorrentDosFilmes V2",
+     "indexer": "torrentdosfilmesv2",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial (2003) e – [1080p BLURAY DUBLADO 2 GB]",
+     "magnet": "magnet:?xt=urn:btih:658c8d634fe7423257f15856667861c64804bb91&dn=S.W.A.T.+%282003%29+BluRay+1080p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 2147483648,
+     "publishedAt": 1792487185999,
+     "tracker": "TorrentDosFilmes V2",
+     "indexer": "torrentdosfilmesv2",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial – Blu-ray Rip – (2003) [720p BLU-RAY DUBLADO 1.52 GB]",
+     "magnet": "magnet:?xt=urn:btih:ed1c364e71950e5e8c9640772a9d0d7f4d8290e0&dn=S.W.A.T.+%282003%29+BluRay+720p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 1632087572,
+     "publishedAt": 1792487185999,
+     "tracker": "TorrentDosFilmes V2",
+     "indexer": "torrentdosfilmesv2",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial (2003) e – [720p BLURAY DUBLADO 1.1 GB]",
+     "magnet": "magnet:?xt=urn:btih:ed1c364e71950e5e8c9640772a9d0d7f4d8290e0&dn=S.W.A.T.+%282003%29+BluRay+720p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 1181116006,
+     "publishedAt": 1792487185999,
+     "tracker": "TorrentDosFilmes V2",
+     "indexer": "torrentdosfilmesv2",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial (2003) e [1080p BLU-RAY DUBLADO 2 GB]",
+     "magnet": "magnet:?xt=urn:btih:658c8d634fe7423257f15856667861c64804bb91&dn=S.W.A.T.+%282003%29+BluRay+1080p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 2147483648,
+     "publishedAt": 1792487186864,
+     "tracker": "ComandoTorrents",
+     "indexer": "comandotorrents",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial (2003) e [720p BLU-RAY DUBLADO 1.1 GB]",
+     "magnet": "magnet:?xt=urn:btih:ed1c364e71950e5e8c9640772a9d0d7f4d8290e0&dn=S.W.A.T.+%282003%29+BluRay+720p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 1181116006,
+     "publishedAt": 1792487186864,
+     "tracker": "ComandoTorrents",
+     "indexer": "comandotorrents",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial – Rip – (2003) [1080p BLU-RAY opção 2]",
+     "magnet": "magnet:?xt=urn:btih:658c8d634fe7423257f15856667861c64804bb91&dn=S.W.A.T.+%282003%29+BluRay+1080p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 1024,
+     "publishedAt": 1792487186864,
+     "tracker": "ComandoTorrents",
+     "indexer": "comandotorrents",
+     "isBr": true
+    },
+    {
+     "title": "S.W.A.T. – Comando Especial – Rip – (2003) [720p BLU-RAY opção 1]",
+     "magnet": "magnet:?xt=urn:btih:ed1c364e71950e5e8c9640772a9d0d7f4d8290e0&dn=S.W.A.T.+%282003%29+BluRay+720p+Dublado&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+     "infoHash": null,
+     "seeders": 1,
+     "size": 1024,
+     "publishedAt": 1792487186864,
+     "tracker": "ComandoTorrents",
+     "indexer": "comandotorrents",
+     "isBr": true
+    }
+   ],
+   "partial": true,
+   "sweepInline": true,
+   "instant": false,
+   "live": {
+    "failed": [
+     "nerdfilmes"
+    ],
+    "pending": [
+     "bludv-cardigann",
+     "vacatorrent"
+    ],
+    "empty": [],
+    "served": [
+     "apachetorrent-cardigann",
+     "comandotorrents",
+     "torrentdosfilmesv2"
+    ],
+    "all": "unknown"
+   }
+  }
+ }
+}

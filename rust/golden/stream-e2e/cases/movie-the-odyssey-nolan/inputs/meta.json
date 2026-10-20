@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt33764258",
+  "meta": {
+    "name": "The Odyssey",
+    "year": "2026",
+    "type": "movie",
+    "released": "2026-07-17T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "A Odisseia",
+    "original": "The Odyssey",
+    "en": "The Odyssey",
+    "br": [],
+    "year": "2026"
+  },
+  "collection": null,
+  "homeReleaseAt": 1794873600000
+}

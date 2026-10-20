@@ -1,0 +1,777 @@
+[
+ {
+  "key": "alldebrid|0|0757e718901864bb79c5b7ca2b72bb682c7de616,3d28acfef6ce847263057490d96b66370a61cb58,4e065dd6063a0758e3fa0aeb4540e11bfa2cce74,52032e8fbf33c7b6295a6a8b029a080712406509,68982dcfe1a3ad70baa03f83b12e497ae53a4248,8c97623114a77be6d39592de6bff514cb7eef29d,933b59589e95261e419a02a9aead3f9e4d8900b2,94df380129b7551e44ad834070a21b7cd40b400c,988c989708d2e7c5c857ab0cf3c0277eb7512e47,f55cb357f4d7dc39c5f55e01e6d8e0b0d1a67246",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "8c97623114a77be6d39592de6bff514cb7eef29d",
+    "title": "Brooklyn Nine Nine S05E04 1080p WEB x264 TBS\n📦 👤 ~59 💾 772.15 MB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p · LimeTorrents · 👤 ~59",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 809657958,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 1080p WEB x264-TBS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "f55cb357f4d7dc39c5f55e01e6d8e0b0d1a67246",
+    "title": "Brooklyn Nine Nine (2013) S05E04 (1080p AMZN WEB DL x265 HEVC 10bit AAC 5 1 Vyndros) [UTR]\n📦 👤 ~7 💾 363.83 MB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 381503406,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine (2013) S05E04 (1080p AMZN WEB-DL x265 HEVC 10bit AAC 5 1 Vyndros) [UTR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "0757e718901864bb79c5b7ca2b72bb682c7de616",
+    "title": "Brooklyn Nine Nine s05e04 WEBDL 1080p NewStudio TV mkv\n📦 👤 ~4 💾 907.19 MB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 951257661,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine s05e04 WEBDL 1080p NewStudio TV mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "933b59589e95261e419a02a9aead3f9e4d8900b2",
+    "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS[eztv]\n📦 👤 ~35 💾 590.79 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p HDTV · LimeTorrents · 👤 ~35",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 619488215,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 720p HDTV x264-AVS[eztv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4e065dd6063a0758e3fa0aeb4540e11bfa2cce74",
+    "title": "Brooklyn Nine-Nine 5ª Temporada – (2017) e HDTV | – E04 [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 921.60 MB ⚙️ ComandoTorrents",
+    "name": "📦 · 720p WEB-DL BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 966367642,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "[ACESSE torrentdosfilmes-v2.xyz] Brooklyn Nine-Nine S05E04-05-06 [720p] [WEB-DL] [DUAL]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true
+   },
+   {
+    "infoHash": "68982dcfe1a3ad70baa03f83b12e497ae53a4248",
+    "title": "Brooklyn Nine-Nine 5ª Temporada – (2017) e HDTV | – E04 [720p LEGENDADO]\n📦 👤 ~1 💾 600.00 MB ⚙️ Apache Torrent",
+    "name": "📦 · 720p HDTV LEG BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 629145600,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 720p HDTV x264-AVS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "3d28acfef6ce847263057490d96b66370a61cb58",
+    "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS[ettv]\n📦 👤 ~1 💾 590.79 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p HDTV · LimeTorrents · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 619488215,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 720p HDTV x264-AVS[ettv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "52032e8fbf33c7b6295a6a8b029a080712406509",
+    "title": "Brooklyn Nine-Nine 5ª Temporada – (2017) e HDTV | – E04 [HDTV LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+    "name": "📦 · HDTV LEG BR · Comando · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "Brooklyn.Nine-Nine.S05E04.HDTV.x264-SVA[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "94df380129b7551e44ad834070a21b7cd40b400c",
+    "title": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 1080p BluRay x264\n📦 👤 ~31 ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~31",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 83429739724,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 1080p BluRay x264 [i c]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 83429739724
+   },
+   {
+    "infoHash": "988c989708d2e7c5c857ab0cf3c0277eb7512e47",
+    "title": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 720p BluRay x264\n📦 👤 ~17 ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BluRay · The Pirate Bay · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 48855252992,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 720p BluRay x264",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 48855252992
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|0757e718901864bb79c5b7ca2b72bb682c7de616,3d28acfef6ce847263057490d96b66370a61cb58,51a3b1d96b198c8bb6acde8ec357ae7359db2afc,52032e8fbf33c7b6295a6a8b029a080712406509,646e704ac63ff344f747fbcccdc7d977315a3528,68982dcfe1a3ad70baa03f83b12e497ae53a4248,80afdb103f9971e3501d1837681e2592e69f27fd,81477f53b38ca4e42c92ae69c72f8f3f83bbf3c6,830cd214beca83f74a892bdce9dff00ed18dbab2,86971f0c96e9993dd323ed00da25a4795a42e1ca,8c97623114a77be6d39592de6bff514cb7eef29d,933b59589e95261e419a02a9aead3f9e4d8900b2,988c989708d2e7c5c857ab0cf3c0277eb7512e47,c2f83cbd5f32004a48bd9641d7f6e2e8f52668e6,e7088b179f86c0d2fb40baa23a1ba16da27c74fa,ed4cbf6ef10d71f28aa28d7f59f702d47355388f,f55cb357f4d7dc39c5f55e01e6d8e0b0d1a67246",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "ed4cbf6ef10d71f28aa28d7f59f702d47355388f",
+    "title": "Brooklyn Nine Nine S05E04 HalloVeen 1080p BluRay DDP5 1 H 264 NTb\n👤 140 💾 2.13 GB ⚙️ LimeTorrents",
+    "name": "1080p BluRay · LimeTorrents · 👤 140",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2287070085,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine Nine S05E04 HalloVeen 1080p BluRay DDP5 1 H 264-NTb",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8c97623114a77be6d39592de6bff514cb7eef29d",
+    "title": "Brooklyn Nine Nine S05E04 1080p WEB x264 TBS\n👤 59 💾 772.15 MB ⚙️ LimeTorrents",
+    "name": "1080p · LimeTorrents · 👤 59",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 809657958,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 1080p WEB x264-TBS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f55cb357f4d7dc39c5f55e01e6d8e0b0d1a67246",
+    "title": "Brooklyn Nine Nine (2013) S05E04 (1080p AMZN WEB DL x265 HEVC 10bit AAC 5 1 Vyndros) [UTR]\n👤 7 💾 363.83 MB ⚙️ LimeTorrents",
+    "name": "1080p WEB-DL · LimeTorrents · 👤 7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 381503406,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine (2013) S05E04 (1080p AMZN WEB-DL x265 HEVC 10bit AAC 5 1 Vyndros) [UTR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0757e718901864bb79c5b7ca2b72bb682c7de616",
+    "title": "Brooklyn Nine Nine s05e04 WEBDL 1080p NewStudio TV mkv\n👤 4 💾 907.19 MB ⚙️ LimeTorrents",
+    "name": "1080p WEB-DL · LimeTorrents · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 951257661,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine s05e04 WEBDL 1080p NewStudio TV mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "e7088b179f86c0d2fb40baa23a1ba16da27c74fa",
+    "title": "Brooklyn Nine Nine S05E04 1080p WEB x264 TBS\n👤 1 💾 782.54 MB ⚙️ LimeTorrents",
+    "name": "1080p · LimeTorrents · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 820552663,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 1080p WEB x264-TBS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "933b59589e95261e419a02a9aead3f9e4d8900b2",
+    "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS[eztv]\n👤 35 💾 590.79 MB ⚙️ LimeTorrents",
+    "name": "720p HDTV · LimeTorrents · 👤 35",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 619488215,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 720p HDTV x264-AVS[eztv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "68982dcfe1a3ad70baa03f83b12e497ae53a4248",
+    "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS\n👤 18 💾 590.79 MB ⚙️ LimeTorrents",
+    "name": "720p HDTV · LimeTorrents · 👤 18",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 619488215,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 720p HDTV x264-AVS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "3d28acfef6ce847263057490d96b66370a61cb58",
+    "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS[ettv]\n👤 12 💾 590.79 MB ⚙️ LimeTorrents",
+    "name": "720p HDTV · LimeTorrents · 👤 12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 619488215,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 720p HDTV x264-AVS[ettv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "830cd214beca83f74a892bdce9dff00ed18dbab2",
+    "title": "Brooklyn Nine Nine S05E04 HalloVeen 720p AMZN WEB DL x264 AAC\n👤 6 💾 235.67 MB ⚙️ LimeTorrents",
+    "name": "720p WEB-DL · LimeTorrents · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 247117905,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 HalloVeen 720p AMZN WEB-DL x264 AAC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "80afdb103f9971e3501d1837681e2592e69f27fd",
+    "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS\n👤 3 💾 590.79 MB ⚙️ LimeTorrents",
+    "name": "720p HDTV · LimeTorrents · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 619488215,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Brooklyn Nine-Nine S05E04 720p HDTV x264-AVS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "52032e8fbf33c7b6295a6a8b029a080712406509",
+    "title": "Brooklyn Nine-Nine 5ª Temporada – (2017) e HDTV | – E04 [HDTV LEGENDADO opção 14]\n👤 1 ⚙️ TorrentDosFilmes V2",
+    "name": "HDTV LEG BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "Brooklyn.Nine-Nine.S05E04.HDTV.x264-SVA[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "51a3b1d96b198c8bb6acde8ec357ae7359db2afc",
+    "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265\n👤 257 💾 701.14 MB 📦 pack 104.76 GB (média) ⚙️ The Pirate Bay",
+    "name": "1080p BluRay · The Pirate Bay · 👤 257",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 112485284536,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "c2f83cbd5f32004a48bd9641d7f6e2e8f52668e6",
+    "title": "Brooklyn Nine-Nine (2013) S05 S05 (1080p AMZN WEB-DL x265 H\n👤 78 💾 363.99 MB 📦 pack 7.82 GB (média) ⚙️ The Pirate Bay",
+    "name": "1080p WEB-DL · The Pirate Bay · 👤 78",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 8397469538,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine (2013) S05 S05 (1080p AMZN WEB-DL x265 H",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "86971f0c96e9993dd323ed00da25a4795a42e1ca",
+    "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p AMZN WEB-DL\n👤 50 💾 684.94 MB 📦 pack 102.34 GB (média) ⚙️ The Pirate Bay",
+    "name": "1080p WEB-DL · The Pirate Bay · 👤 50",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 109887186440,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p AMZN WEB-DL",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "81477f53b38ca4e42c92ae69c72f8f3f83bbf3c6",
+    "title": "Brooklyn.Nine-Nine.S05.COMPLETE.720p.AMZN.WEBRip.x264-GalaxyTV\n👤 47 💾 173.15 MB 📦 pack 3.72 GB (média) ⚙️ The Pirate Bay",
+    "name": "720p WEBRip · The Pirate Bay · 👤 47",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 3995191397,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn.Nine-Nine.S05.COMPLETE.720p.AMZN.WEBRip.x264-GalaxyTV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "988c989708d2e7c5c857ab0cf3c0277eb7512e47",
+    "title": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 720p BluRay x264 [i_c]\n👤 17 ⚙️ The Pirate Bay",
+    "name": "720p BluRay · The Pirate Bay · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 48900038005,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 720p BluRay x264 [i_c]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 48900038005
+   },
+   {
+    "infoHash": "646e704ac63ff344f747fbcccdc7d977315a3528",
+    "title": "Brooklyn Nine-Nine - Lei e Desordem 5ª Temporada [720p DUAL]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Brooklyn Nine-Nine - 5ª Temporada Completa (720p) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

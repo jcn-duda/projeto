@@ -1,0 +1,719 @@
+[
+ {
+  "key": "alldebrid|0|01476eaa3f4ad97a108b382564d8b8d72d31c903,065075b8a32bc6c23b0142b4897f137d2f2acbb5,12cce17222036da9f35d751427e1aa631d71f0f5,2fb9d491862efe6308b3a3aac0c527110e23bbbf,48537408d99efa84bc31f4ff557c94e5dba30a81,8f3b54300f081d364573172c82f604cc0543517b,a6dc9a0a59ad352d66775b323fc305b1813dce0d,acd1443b211ef4d17631a366fc0bc3b3f7525504,d3285f35d32277ac421bc0a63cffbdd5551f1f02,d5d3cac17055e192fb85ffb208c144aeffa7c799,e8dfc3c6b5f648cc9311892c82e996151f7166ac,fd59719aa7c04e0a861c6cd93b26c578737f4bd3",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "065075b8a32bc6c23b0142b4897f137d2f2acbb5",
+    "title": "Family Guy S01E01 Death Has a Shadow 1080p DSNP WEB-DL AAC2 0 H 264-playWEB\n📦 👤 ~34 💾 627.44 MB ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~34",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 657921532,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 1080p DSNP WEB-DL AAC2 0 H 264-playWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "e8dfc3c6b5f648cc9311892c82e996151f7166ac",
+    "title": "Family.Guy.S01E01.Death.Has.a.Shadow.1080p.HEVC.x265-MeGusta\n📦 👤 ~4 💾 245.73 MB ⚙️ TheRARBG",
+    "name": "📦 · 1080p · TheRARBG · 👤 ~4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 257663073,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 1080p HEVC x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "8f3b54300f081d364573172c82f604cc0543517b",
+    "title": "Family Guy S01E01 Death Has a Shadow 720p DSNP WEB-DL AAC2 0 H 264-playWEB\n📦 👤 ~10 💾 365.36 MB ⚙️ TheRARBG",
+    "name": "📦 · 720p WEB-DL · TheRARBG · 👤 ~10",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 383108442,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 720p DSNP WEB-DL AAC2 0 H 264-playWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "fd59719aa7c04e0a861c6cd93b26c578737f4bd3",
+    "title": "Family.Guy.S01E01.Death.Has.a.Shadow.720p.HEVC.x265-MeGusta\n📦 👤 ~3 💾 177.12 MB ⚙️ TheRARBG",
+    "name": "📦 · 720p · TheRARBG · 👤 ~3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 185725978,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 720p HEVC x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "acd1443b211ef4d17631a366fc0bc3b3f7525504",
+    "title": "Family Guy 1999 1080p WEB DL Season 1 22\n📦 👤 ~65 💾 46.71 GB 📦 pack 327.00 GB (média) ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~65",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 351113576448,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Family Guy 1999 1080p WEB DL Season 1 22",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "a6dc9a0a59ad352d66775b323fc305b1813dce0d",
+    "title": "Uma Família da Pesada [720p DUBLADO]\n📦 👤 ~17 ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BR · The Pirate Bay · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 621805568,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Uma Fam&iacute;lia da Pesada 1&ordf; a 12&ordf; Temporadas 720p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 621805568
+   },
+   {
+    "infoHash": "12cce17222036da9f35d751427e1aa631d71f0f5",
+    "title": "Family Guy 1 Temporada (1999) [720p CAM DUBLADO 2.4 GB]\n📦 👤 ~1 💾 351.09 MB 📦 pack 2.40 GB (média) ⚙️ TorrentDosFilmes",
+    "name": "📦 · 720p CAM BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2576980378,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "01476eaa3f4ad97a108b382564d8b8d72d31c903",
+    "title": "Uma Família da Pesada [720p DUBLADO]\n📦 👤 ~1 ⚙️ LimeTorrents",
+    "name": "📦 · 720p BR · LimeTorrents · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 83214991360,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada (Family Guy) - 1 a 13 Temp - DUBLADO",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 83214991360
+   },
+   {
+    "infoHash": "2fb9d491862efe6308b3a3aac0c527110e23bbbf",
+    "title": "Uma Familia da Pesada Temporada 1 Dublado\n📦 👤 ~ 💾 84.76 MB 📦 pack 593.34 MB (média) ⚙️ LimeTorrents",
+    "name": "📦 · BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 622162083,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada Temporada 1 Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "d3285f35d32277ac421bc0a63cffbdd5551f1f02",
+    "title": "Uma Familia da Pesada Dublado 1 a 5 Dub\n📦 👤 ~ ⚙️ LimeTorrents",
+    "name": "📦 · BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 15343770664,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada Dublado 1 a 5 Dub",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true,
+    "_packBytes": 15343770664
+   },
+   {
+    "infoHash": "d5d3cac17055e192fb85ffb208c144aeffa7c799",
+    "title": "Uma Familia da Pesada Dublado Temp 4 e 5\n📦 👤 ~ ⚙️ LimeTorrents",
+    "name": "📦 · BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 4778151116,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada Dublado Temp 4 e 5",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true,
+    "_packBytes": 4778151116
+   },
+   {
+    "infoHash": "48537408d99efa84bc31f4ff557c94e5dba30a81",
+    "title": "Family Guy S01 - Completa -PTBR\n📦 👤 ~ 💾 81.46 MB 📦 pack 570.22 MB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · BR · The Pirate Bay · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 597917968,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Family Guy S01 - Completa -PTBR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|01476eaa3f4ad97a108b382564d8b8d72d31c903,065075b8a32bc6c23b0142b4897f137d2f2acbb5,12cce17222036da9f35d751427e1aa631d71f0f5,2fb9d491862efe6308b3a3aac0c527110e23bbbf,8f3b54300f081d364573172c82f604cc0543517b,a6dc9a0a59ad352d66775b323fc305b1813dce0d,bb480dd84c4802f1d75086c70bb385b15c013c83,c42eee4099ff7813f2b770686a8f98ed4d72db36,d3285f35d32277ac421bc0a63cffbdd5551f1f02,d5d3cac17055e192fb85ffb208c144aeffa7c799,e8dfc3c6b5f648cc9311892c82e996151f7166ac,fd59719aa7c04e0a861c6cd93b26c578737f4bd3",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "065075b8a32bc6c23b0142b4897f137d2f2acbb5",
+    "title": "Family Guy S01E01 Death Has a Shadow 1080p DSNP WEB-DL AAC2 0 H 264-playWEB\n👤 34 💾 627.44 MB ⚙️ TheRARBG",
+    "name": "1080p WEB-DL · TheRARBG · 👤 34",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 657921532,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 1080p DSNP WEB-DL AAC2 0 H 264-playWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "e8dfc3c6b5f648cc9311892c82e996151f7166ac",
+    "title": "Family Guy S01E01 Death Has a Shadow 1080p HEVC x265 MeGusta\n👤 5 💾 245.73 MB ⚙️ LimeTorrents",
+    "name": "1080p · LimeTorrents · 👤 5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 257666580,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 1080p HEVC x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "fd59719aa7c04e0a861c6cd93b26c578737f4bd3",
+    "title": "Family Guy S01E01 Death Has a Shadow 720p HEVC x265 MeGusta\n👤 15 💾 177.12 MB ⚙️ LimeTorrents",
+    "name": "720p · LimeTorrents · 👤 15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 185723781,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 720p HEVC x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8f3b54300f081d364573172c82f604cc0543517b",
+    "title": "Family Guy S01E01 Death Has a Shadow 720p DSNP WEB DL AAC2 0 H 264 playWEB\n👤 8 💾 365.36 MB ⚙️ LimeTorrents",
+    "name": "720p WEB-DL · LimeTorrents · 👤 8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 383107727,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Family Guy S01E01 Death Has a Shadow 720p DSNP WEB-DL AAC2 0 H 264-playWEB",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "12cce17222036da9f35d751427e1aa631d71f0f5",
+    "title": "Family Guy 1 Temporada (1999) [720p CAM DUBLADO 2.4 GB]\n📦 👤 ~1 💾 351.09 MB 📦 pack 2.40 GB (média) ⚙️ TorrentDosFilmes",
+    "name": "📦 · 720p CAM BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-CAM"
+    },
+    "_quality": "720p",
+    "_bytes": 2576980378,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
+    "_magnetDn": "CAMRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "a6dc9a0a59ad352d66775b323fc305b1813dce0d",
+    "title": "Uma Familia da Pesada\n👤 17 ⚙️ AllDebrid",
+    "name": "BR · AllDebrid · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 55363776037,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Uma Fam&iacute;lia da Pesada 1&ordf; a 12&ordf; Temporadas 720p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 55363776037
+   },
+   {
+    "infoHash": "01476eaa3f4ad97a108b382564d8b8d72d31c903",
+    "title": "Uma Familia da Pesada (Family Guy)  1 a 13 Temp  DUBLADO\n👤 1 ⚙️ LimeTorrents",
+    "name": "BR · LimeTorrents · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 83225728778,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada (Family Guy) - 1 a 13 Temp - DUBLADO",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_packBytes": 83225728778
+   },
+   {
+    "infoHash": "2fb9d491862efe6308b3a3aac0c527110e23bbbf",
+    "title": "Uma Familia da Pesada Temporada 1 Dublado\n👤 0 💾 84.76 MB 📦 pack 593.34 MB (média) ⚙️ LimeTorrents",
+    "name": "BR · LimeTorrents",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 622162083,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada Temporada 1 Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "d3285f35d32277ac421bc0a63cffbdd5551f1f02",
+    "title": "Uma Familia da Pesada Dublado 1 a 5 Dub\n👤 0 ⚙️ LimeTorrents",
+    "name": "BR · LimeTorrents",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 15343770664,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada Dublado 1 a 5 Dub",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_seedFloorWaived": true,
+    "_packBytes": 15343770664
+   },
+   {
+    "infoHash": "d5d3cac17055e192fb85ffb208c144aeffa7c799",
+    "title": "Uma Familia da Pesada Dublado Temp 4 e 5\n👤 0 ⚙️ LimeTorrents",
+    "name": "BR · LimeTorrents",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 4778151116,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Uma Familia da Pesada Dublado Temp 4 e 5",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_seedFloorWaived": true,
+    "_packBytes": 4778151116
+   },
+   {
+    "infoHash": "bb480dd84c4802f1d75086c70bb385b15c013c83",
+    "title": "Uma Familia Da Pesada 1ª Temporada Dublada\n📦 👤 ~ 💾 146.29 MB 📦 pack 1.00 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · BR · kickass · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 1073741824,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Uma Familia Da Pesada 1&ordf; Temporada Dublada",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "c42eee4099ff7813f2b770686a8f98ed4d72db36",
+    "title": "Uma Familia da Pesada Temporada 1 Dublado\n📦 👤 ~ 💾 84.76 MB 📦 pack 593.34 MB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · BR · kickass · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 622162083,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Uma Familia da Pesada Temporada 1 Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_seedFloorWaived": true
+   }
+  ]
+ }
+]

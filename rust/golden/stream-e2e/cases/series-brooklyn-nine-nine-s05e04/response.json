@@ -8,26 +8,122 @@
   "body": {
     "streams": [
       {
-        "title": "Brooklyn Nine Nine S05E04 HalloVeen 1080p BluRay DDP5 1 H 264 NTb\n📦 👤 ~26 💾 2.13 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~26",
+        "infoHash": "4e065dd6063a0758e3fa0aeb4540e11bfa2cce74",
+        "title": "Brooklyn Nine-Nine 5ª Temporada – (2017) e HDTV | – E04 [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 921.60 MB ⚙️ ComandoTorrents",
+        "name": "📦 · 720p WEB-DL BR · Comando · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-720p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/ed4cbf6ef10d71f28aa28d7f59f702d47355388f?s=5&e=4&w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
-        "size": "2.13 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "921.60 MB"
       },
       {
-        "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265\n📦 👤 ~254 💾 676.99 MB 📦 pack 104.76 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~254",
+        "infoHash": "68982dcfe1a3ad70baa03f83b12e497ae53a4248",
+        "title": "Brooklyn Nine-Nine 5ª Temporada – (2017) e HDTV | – E04 [720p LEGENDADO]\n📦 👤 ~1 💾 600.00 MB ⚙️ Apache Torrent",
+        "name": "📦 · 720p HDTV LEG BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-720p-HDTV"
         },
-        "url": "{{base}}/{{config}}/resolve/51a3b1d96b198c8bb6acde8ec357ae7359db2afc?s=5&e=4&w=%7B%22i%22%3A%22tt2467372%22%7D&sig={{sig}}",
-        "size": "676.99 MB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "600.00 MB"
       },
       {
-        "name": "Fontes BR dubladas existem, mas ainda fora do cache do debrid",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "infoHash": "52032e8fbf33c7b6295a6a8b029a080712406509",
+        "title": "Brooklyn Nine-Nine 5ª Temporada – (2017) e HDTV | – E04 [HDTV LEGENDADO]\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · HDTV LEG BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-HDTV"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "8c97623114a77be6d39592de6bff514cb7eef29d",
+        "title": "Brooklyn Nine Nine S05E04 1080p WEB x264 TBS\n📦 👤 ~59 💾 772.15 MB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p · LimeTorrents · 👤 ~59",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "772.15 MB"
+      },
+      {
+        "infoHash": "f55cb357f4d7dc39c5f55e01e6d8e0b0d1a67246",
+        "title": "Brooklyn Nine Nine (2013) S05E04 (1080p AMZN WEB DL x265 HEVC 10bit AAC 5 1 Vyndros) [UTR]\n📦 👤 ~7 💾 363.83 MB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~7",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "363.83 MB"
+      },
+      {
+        "infoHash": "933b59589e95261e419a02a9aead3f9e4d8900b2",
+        "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS[eztv]\n📦 👤 ~35 💾 590.79 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p HDTV · LimeTorrents · 👤 ~35",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-HDTV"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "590.79 MB"
+      },
+      {
+        "infoHash": "3d28acfef6ce847263057490d96b66370a61cb58",
+        "title": "Brooklyn Nine Nine S05E04 720p HDTV x264 AVS[ettv]\n📦 👤 ~1 💾 590.79 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p HDTV · LimeTorrents · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-HDTV"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "590.79 MB"
       }
     ],
     "cacheMaxAge": 0

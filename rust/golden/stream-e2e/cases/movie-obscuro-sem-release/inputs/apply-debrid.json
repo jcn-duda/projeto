@@ -1,0 +1,1163 @@
+[
+ {
+  "key": "alldebrid|0|0bdd3bd6746762c31e4e957f560f4a3d75f3db6f,0ed38bd4fb85b08d28362dc1d4d68867b45ff9d9,15004c403b3665b828b1037ca0d222f3995e4561,1f7a64ce56861cb19625724f84dae7ce845ec8cc,2ce309c09cf494efcd6f3ccb5a805d55bd7fa1c8,2f8693402794cfecead52327f1cb560d27c5353d,31a83ce9cfb160940d3abb1eee050383a03cf558,38fffcbb331d3e5d24058bfc7e081b63d9d7d101,3a1871e396bfd90cb6f5aa2ebddf84f3f822140d,6a813dbf4b021c13171f43a00ea748ba013a4d37,7fc321308744c59aa685ef2e0b98c2459a326218,8427a7e7b0662142178499be4cc321da1ff19e8f,8ccafa7bac374190d062aa1b32a6a7919582a0b7,aa1411ce6c8eab79f27c2beb439b2ff4f47bd4b6,b4608c2fe604aa86f463b3f398747ec88dc80a52,be370788894f1731163e833be9de77b67eb1cb99,d081021d197a7f5ffaef33b6930f490469d19812,d50faa42352f9ec6e16b1698888113d0946097c6,dfe55f64622a7c90bf05642495b80bf02e3cdbf5,f20f8fc314db6f4e63a34c9d3c0bcfac8ed9ba0c,fa134496927f1c4f19b06e53fa8a13ebbd91e8db",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "7fc321308744c59aa685ef2e0b98c2459a326218",
+    "title": "Deep Red 1975 aka Profondo Rosso Extended OV 4k Restored Remastered 1080p BluRay x265 HEVC 10bit AAC 5 1 Dual Commentary Dario Argento David Hemm\n👤 17 💾 8.90 GB ⚙️ TheRARBG",
+    "name": "4K Extended BluRay · TheRARBG · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 9556302233,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "fa134496927f1c4f19b06e53fa8a13ebbd91e8db",
+    "title": "Deep.Red.1975.4K.HDR.2160p.BDRip Ita Eng x265-NAHOM\n👤 9 💾 39.80 GB ⚙️ TheRARBG",
+    "name": "4K · TheRARBG · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 42734924595,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8427a7e7b0662142178499be4cc321da1ff19e8f",
+    "title": "Deep Red 1975 4K HDR DV 2160p BDRemux Ita Eng x265 NAHOM\n👤 3 💾 74.40 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 79886391705,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "15004c403b3665b828b1037ca0d222f3995e4561",
+    "title": "Profondo rosso Deep Red 1975 2160p H265 BluRay Rip 10 bit DV HDR10 AC3 5 1 eng AC3 1 0 sub eng\n👤 10 💾 4.83 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 10",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 5186173009,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8ccafa7bac374190d062aa1b32a6a7919582a0b7",
+    "title": "Deep Red 1975 ITALIAN 2160p BluRay HEVC DTS HD MA 5 1 TASTED ORARBG\n👤 4 💾 89.11 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 95680462848,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "be370788894f1731163e833be9de77b67eb1cb99",
+    "title": "Deep Red 1975 DC 2160p UHD BluRay x265 10bit HDR FLAC 1 0 B0MBARDiERS ORARBG\n👤 1 💾 48.38 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 51942260736,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2f8693402794cfecead52327f1cb560d27c5353d",
+    "title": "Deep.Red.1975.GBR.LE.RM.in.4K.Orig.Vers.Bluray.1080p.x264-Grym\n👤 1 💾 15.72 GB ⚙️ The Pirate Bay",
+    "name": "4K BluRay · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 16883120456,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "6a813dbf4b021c13171f43a00ea748ba013a4d37",
+    "title": "Deep.Red.1975.4K.1080p.BluRay.HEVC.EAC3-SARTRE\n👤 1 💾 6.03 GB ⚙️ The Pirate Bay",
+    "name": "4K BluRay · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 6475889515,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2ce309c09cf494efcd6f3ccb5a805d55bd7fa1c8",
+    "title": "Deep Red 1975 1080p bluray YTS\n👤 62 💾 2.02 GB ⚙️ TheRARBG",
+    "name": "1080p BluRay · TheRARBG · 👤 62",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2168958484,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "b4608c2fe604aa86f463b3f398747ec88dc80a52",
+    "title": "Profondo rosso Deep Red 1975 1080p H265 BluRay Rip ita AC3 5 1 eng AC3 1 0 sub eng Licdom\n👤 18 💾 2.36 GB ⚙️ TheRARBG",
+    "name": "1080p BluRay · TheRARBG · 👤 18",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2534030704,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "dfe55f64622a7c90bf05642495b80bf02e3cdbf5",
+    "title": "Deep Red (1975) 1080p BrRip x264 -VPPV\n👤 14 💾 3.01 GB ⚙️ The Pirate Bay",
+    "name": "1080p · The Pirate Bay · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3231694174,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0ed38bd4fb85b08d28362dc1d4d68867b45ff9d9",
+    "title": "Profondo rosso - Deep Red Extended (1974) AC3 5.1 ITA 1.0 ENG 1080p H265 sub NUita(tradotti).eng Sp33dy94 MIRCrew\n👤 13 💾 3.20 GB ⚙️ TheRARBG",
+    "name": "1080p Extended · TheRARBG · 👤 13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3435973836,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0bdd3bd6746762c31e4e957f560f4a3d75f3db6f",
+    "title": "Deep Red 1975 Director s Cut 01 ITA 02 ENG ITA 1080p BluRay x264\n👤 7 💾 14.20 GB ⚙️ TheRARBG",
+    "name": "1080p BluRay · TheRARBG · 👤 7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 15247133900,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "3a1871e396bfd90cb6f5aa2ebddf84f3f822140d",
+    "title": "Prelúdio Para Matar [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "HIDRATORRENTS.ORG...1080P..-LEGENDADO-..Deep Red (1975)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "31a83ce9cfb160940d3abb1eee050383a03cf558",
+    "title": "Deep Red 1975 REMASTERED DC ITALIAN 1080p BluRay H264 AAC VXT ORARBG\n👤 1 💾 2.43 GB ⚙️ TheRARBG",
+    "name": "1080p Remaster BluRay · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2606759936,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f20f8fc314db6f4e63a34c9d3c0bcfac8ed9ba0c",
+    "title": "Profondo rosso - Deep red [BDrip 1080p-H264-Ita Dts Eng Ac3-Sub\n👤 1 💾 8.74 GB ⚙️ The Pirate Bay",
+    "name": "1080p · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 9389059428,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "38fffcbb331d3e5d24058bfc7e081b63d9d7d101",
+    "title": "Deep Red 1975 720p bluray YTS\n👤 4 💾 1.04 GB ⚙️ TheRARBG",
+    "name": "720p BluRay · TheRARBG · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1116691497,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "1f7a64ce56861cb19625724f84dae7ce845ec8cc",
+    "title": "Deep Red (1975) 720p BrRip x264 -VPPV\n👤 1 💾 1.07 GB ⚙️ The Pirate Bay",
+    "name": "720p · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1143818779,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "aa1411ce6c8eab79f27c2beb439b2ff4f47bd4b6",
+    "title": "Profondo Rosso - Deep Red - Director\\'s Cut [BDRip-720p-Mkv-Ita-\n👤 4 💾 4.38 GB ⚙️ The Pirate Bay",
+    "name": "720p · The Pirate Bay · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 4699719785,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "d081021d197a7f5ffaef33b6930f490469d19812",
+    "title": "Deep.Red.1975.THEATRICAL.DUBBED.720p.BluRay.x264-LiViDiTY [Publi\n👤 0 💾 4.36 GB ⚙️ The Pirate Bay",
+    "name": "720p Cinema BluRay BR · The Pirate Bay",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4686517505,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "d50faa42352f9ec6e16b1698888113d0946097c6",
+    "title": "Deep Red 1975 REMASTERED DIRECTORS CUT DUBBED BRRip XviD B4ND1T69\n👤 0 💾 1.40 GB ⚙️ TheRARBG",
+    "name": "DC BR · TheRARBG",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 1503238553,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_seedFloorWaived": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|0bdd3bd6746762c31e4e957f560f4a3d75f3db6f,0ed38bd4fb85b08d28362dc1d4d68867b45ff9d9,15004c403b3665b828b1037ca0d222f3995e4561,1f7a64ce56861cb19625724f84dae7ce845ec8cc,2ce309c09cf494efcd6f3ccb5a805d55bd7fa1c8,2f8693402794cfecead52327f1cb560d27c5353d,31a83ce9cfb160940d3abb1eee050383a03cf558,38fffcbb331d3e5d24058bfc7e081b63d9d7d101,3a1871e396bfd90cb6f5aa2ebddf84f3f822140d,6a813dbf4b021c13171f43a00ea748ba013a4d37,7fc321308744c59aa685ef2e0b98c2459a326218,8427a7e7b0662142178499be4cc321da1ff19e8f,8ccafa7bac374190d062aa1b32a6a7919582a0b7,aa1411ce6c8eab79f27c2beb439b2ff4f47bd4b6,b4608c2fe604aa86f463b3f398747ec88dc80a52,be370788894f1731163e833be9de77b67eb1cb99,d081021d197a7f5ffaef33b6930f490469d19812,d50faa42352f9ec6e16b1698888113d0946097c6,dfe55f64622a7c90bf05642495b80bf02e3cdbf5,ea6ff4fda6b9fe2def04506d0a1fd6b5f0563540,fa134496927f1c4f19b06e53fa8a13ebbd91e8db",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "7fc321308744c59aa685ef2e0b98c2459a326218",
+    "title": "Deep Red 1975 aka Profondo Rosso Extended OV 4k Restored Remastered 1080p BluRay x265 HEVC 10bit AAC 5 1 Dual Commentary Dario Argento David Hemm\n👤 17 💾 8.90 GB ⚙️ TheRARBG",
+    "name": "4K Extended BluRay · TheRARBG · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 9556302233,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "fa134496927f1c4f19b06e53fa8a13ebbd91e8db",
+    "title": "Deep.Red.1975.4K.HDR.2160p.BDRip Ita Eng x265-NAHOM\n👤 9 💾 39.80 GB ⚙️ TheRARBG",
+    "name": "4K · TheRARBG · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 42734924595,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8427a7e7b0662142178499be4cc321da1ff19e8f",
+    "title": "Deep Red 1975 4K HDR DV 2160p BDRemux Ita Eng x265 NAHOM\n👤 3 💾 74.40 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 79886391705,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "15004c403b3665b828b1037ca0d222f3995e4561",
+    "title": "Profondo rosso Deep Red 1975 2160p H265 BluRay Rip 10 bit DV HDR10 AC3 5 1 eng AC3 1 0 sub eng\n👤 10 💾 4.83 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 10",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 5186173009,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "8ccafa7bac374190d062aa1b32a6a7919582a0b7",
+    "title": "Deep Red 1975 ITALIAN 2160p BluRay HEVC DTS HD MA 5 1 TASTED ORARBG\n👤 4 💾 89.11 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 95680462848,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "be370788894f1731163e833be9de77b67eb1cb99",
+    "title": "Deep Red 1975 DC 2160p UHD BluRay x265 10bit HDR FLAC 1 0 B0MBARDiERS ORARBG\n👤 1 💾 48.38 GB ⚙️ TheRARBG",
+    "name": "4K BluRay · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 51942260736,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2f8693402794cfecead52327f1cb560d27c5353d",
+    "title": "Deep.Red.1975.GBR.LE.RM.in.4K.Orig.Vers.Bluray.1080p.x264-Grym\n👤 1 💾 15.72 GB ⚙️ The Pirate Bay",
+    "name": "4K BluRay · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 16883120456,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "6a813dbf4b021c13171f43a00ea748ba013a4d37",
+    "title": "Deep.Red.1975.4K.1080p.BluRay.HEVC.EAC3-SARTRE\n👤 1 💾 6.03 GB ⚙️ The Pirate Bay",
+    "name": "4K BluRay · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 6475889515,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2ce309c09cf494efcd6f3ccb5a805d55bd7fa1c8",
+    "title": "Deep Red 1975 1080p bluray YTS\n👤 62 💾 2.02 GB ⚙️ TheRARBG",
+    "name": "1080p BluRay · TheRARBG · 👤 62",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2168958484,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "b4608c2fe604aa86f463b3f398747ec88dc80a52",
+    "title": "Profondo rosso Deep Red 1975 1080p H265 BluRay Rip ita AC3 5 1 eng AC3 1 0 sub eng Licdom\n👤 18 💾 2.36 GB ⚙️ TheRARBG",
+    "name": "1080p BluRay · TheRARBG · 👤 18",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2534030704,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "dfe55f64622a7c90bf05642495b80bf02e3cdbf5",
+    "title": "Deep Red (1975) 1080p BrRip x264 -VPPV\n👤 14 💾 3.01 GB ⚙️ The Pirate Bay",
+    "name": "1080p · The Pirate Bay · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3231694174,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0ed38bd4fb85b08d28362dc1d4d68867b45ff9d9",
+    "title": "Profondo rosso - Deep Red Extended (1974) AC3 5.1 ITA 1.0 ENG 1080p H265 sub NUita(tradotti).eng Sp33dy94 MIRCrew\n👤 13 💾 3.20 GB ⚙️ TheRARBG",
+    "name": "1080p Extended · TheRARBG · 👤 13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3435973836,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0bdd3bd6746762c31e4e957f560f4a3d75f3db6f",
+    "title": "Deep Red 1975 Director s Cut 01 ITA 02 ENG ITA 1080p BluRay x264\n👤 7 💾 14.20 GB ⚙️ TheRARBG",
+    "name": "1080p BluRay · TheRARBG · 👤 7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 15247133900,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ea6ff4fda6b9fe2def04506d0a1fd6b5f0563540",
+    "title": "Deep Red 1975 Remastered 1080p BluRay x264-OFT\n👤 3 💾 5.21 GB ⚙️ TheRARBG",
+    "name": "1080p Remaster BluRay · TheRARBG · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5589578939,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "3a1871e396bfd90cb6f5aa2ebddf84f3f822140d",
+    "title": "Prelúdio Para Matar [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "HIDRATORRENTS.ORG...1080P..-LEGENDADO-..Deep Red (1975)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "31a83ce9cfb160940d3abb1eee050383a03cf558",
+    "title": "Deep Red 1975 REMASTERED DC ITALIAN 1080p BluRay H264 AAC VXT ORARBG\n👤 1 💾 2.43 GB ⚙️ TheRARBG",
+    "name": "1080p Remaster BluRay · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2606759936,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "38fffcbb331d3e5d24058bfc7e081b63d9d7d101",
+    "title": "Deep Red 1975 720p bluray YTS\n👤 4 💾 1.04 GB ⚙️ TheRARBG",
+    "name": "720p BluRay · TheRARBG · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1116691497,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "1f7a64ce56861cb19625724f84dae7ce845ec8cc",
+    "title": "Deep Red (1975) 720p BrRip x264 -VPPV\n👤 1 💾 1.07 GB ⚙️ The Pirate Bay",
+    "name": "720p · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1143818779,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "aa1411ce6c8eab79f27c2beb439b2ff4f47bd4b6",
+    "title": "Profondo Rosso - Deep Red - Director\\'s Cut [BDRip-720p-Mkv-Ita-\n👤 4 💾 4.38 GB ⚙️ The Pirate Bay",
+    "name": "720p · The Pirate Bay · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 4699719785,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "d081021d197a7f5ffaef33b6930f490469d19812",
+    "title": "Deep.Red.1975.THEATRICAL.DUBBED.720p.BluRay.x264-LiViDiTY [Publi\n👤 0 💾 4.36 GB ⚙️ The Pirate Bay",
+    "name": "720p Cinema BluRay BR · The Pirate Bay",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4686517505,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "d50faa42352f9ec6e16b1698888113d0946097c6",
+    "title": "Deep Red 1975 REMASTERED DIRECTORS CUT DUBBED BRRip XviD B4ND1T69\n👤 1 💾 1.40 GB ⚙️ TheRARBG",
+    "name": "DC BR · TheRARBG · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 1503238553,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

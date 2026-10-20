@@ -8,103 +8,191 @@
   "body": {
     "streams": [
       {
-        "title": "A Origem 4k 2160p Dual Audio\n📦 👤 ~14 💾 24.62 GB ⚙️ limetorrents",
-        "name": "[AD⚡] 📦 · 4K DUAL BR · limetorrents · 👤 ~14",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/b8d2b6a12a152de91d32119c38e81a53918d7d35?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "24.62 GB"
-      },
-      {
-        "title": "A Origem (2010) – BluRay FullHD Dual Audio 5.1 [1080p BLURAY DUBLADO 11 GB]\n📦 👤 ~2 💾 11.00 GB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 1080p BluRay DUAL BR · thepiratebay · 👤 ~2",
+        "infoHash": "c301b175cae6ae4870076bd478680b6e3fc13743",
+        "title": "A Origem (2010) – BluRay Dual – [1080p BLURAY DUBLADO 2.15 GB]\n📦 👤 ~10 💾 2.15 GB ⚙️ TorrentDosFilmes V2",
+        "name": "📦 · 1080p BluRay BR · TorrentDos · 👤 ~10",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/b9b055311fc31fa5e44b0035fe4ea80a12a206c2?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "11.00 GB"
-      },
-      {
-        "title": "A.Origem.2010.1080p.DUAL.5.1.BluRay.x265.HDR-SF\n👤 1 💾 5.45 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BluRay DUAL BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/e872a00f346bab17d7e2593d08e0fa38f3f885fc?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "5.45 GB"
-      },
-      {
-        "title": "A Origem (2010) – BluRay Dual – [1080p BLURAY DUBLADO 2.15 GB]\n📦 👤 ~10 💾 2.15 GB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · thepiratebay · 👤 ~10",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/c301b175cae6ae4870076bd478680b6e3fc13743?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "2.15 GB"
       },
       {
-        "title": "A Origem (Inception) 2010 720p HD Dublado PT-BR 210GJI\n📦 👤 ~9 💾 861.85 MB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 720p BR · thepiratebay · 👤 ~9",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/a7d717f9fb5b34162db85aeb95423213bc71679f?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "861.85 MB"
-      },
-      {
-        "title": "Inception 2010 PROPER Bluray 2160p AV1 HDR10 EN ITA FR ES DE OPUS\n📦 👤 ~324 💾 8.90 GB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 4K BluRay · thepiratebay · 👤 ~324",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/2849211f150e966ef7924f43aec22727a644e10d?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "8.90 GB"
-      },
-      {
-        "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, detective, UHD BDRip 1080p, HDR10, Dolby Vision] [Hybrid] Dub + 2x DVO + 2x AVO + 2x Ukr + Original (Eng) + Sub (Rus, Ukr, Eng)\n📦 👤 ~180 💾 24.25 GB ⚙️ kickasstorrents-to",
-        "name": "[AD⚡] 📦 · 4K · kickasstorrent · 👤 ~180",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/343d7045b5434e8949472595b3f10718c8bb2f5b?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "24.25 GB"
-      },
-      {
-        "title": "Inception (2010) 1080p BrRip x264 - 1.85GB -YIFY\n📦 👤 ~921 💾 1.85 GB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 1080p · thepiratebay · 👤 ~921",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/224bf45881252643dfc2e71abc7b2660a21c68c4?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "1.85 GB"
-      },
-      {
-        "title": "Inception 2010 1080p BluRay DDP5 1 x265 10bit GalaxyRG265\n📦 👤 ~236 💾 2.87 GB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · thepiratebay · 👤 ~236",
+        "infoHash": "b9b055311fc31fa5e44b0035fe4ea80a12a206c2",
+        "title": "A Origem (2010) – BluRay FullHD Dual Audio 5.1 [1080p BLURAY DUBLADO 11 GB]\n📦 👤 ~2 💾 11.00 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 1080p BluRay BR · torrentdosfilm · 👤 ~2",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/1c6b2179bcd73efd07fb8018268598c062cf95af?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "2.87 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "11.00 GB"
       },
       {
-        "title": "Inception (2010) 720p - mkv - 1.0GB -YIFY\n📦 👤 ~88 💾 1.07 GB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 720p BluRay · thepiratebay · 👤 ~88",
+        "infoHash": "b1e586533c3120c783f1f8815ba9197933726908",
+        "title": "A Origem 2010 1080p BRRip x264 DUAL-JRViX mkv\n📦 👤 ~ 💾 2.49 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p BR · The Pirate Bay · 👤 ~",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
+          "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/ce9156eb497762f8b7577b71c0647a4b0c3423e1?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "1.07 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.49 GB"
       },
       {
-        "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, BDRip 720p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng\n📦 👤 ~70 💾 14.86 GB ⚙️ kickasstorrents-to",
-        "name": "[AD⚡] 📦 · 720p · kickasstorrent · 👤 ~70",
+        "infoHash": "a7d717f9fb5b34162db85aeb95423213bc71679f",
+        "title": "A.Origem.(Inception).2010.720p.HD.Dublado.PT-BR.210GJI\n📦 👤 ~9 💾 861.85 MB ⚙️ The Pirate Bay",
+        "name": "📦 · 720p BR · The Pirate Bay · 👤 ~9",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/2b33af03de0ea1ceb6d9d2a4317a23348dd809bc?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig={{sig}}",
-        "size": "14.86 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "861.85 MB"
+      },
+      {
+        "infoHash": "ff6598d2faf91fd52f2c40a7e273ee356c8c68b6",
+        "title": "A Origem (2010) BDRip 720p Dublado\n📦 👤 ~1 💾 860.64 MB ⚙️ The Pirate Bay",
+        "name": "📦 · 720p BR · The Pirate Bay · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "860.64 MB"
+      },
+      {
+        "infoHash": "56d03db239621cc39d25dd22e8fd81216c03ebd6",
+        "title": "A Origem 2010 DVRip Dual Audio pt-br\n📦 👤 ~ 💾 2.27 GB ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.27 GB"
+      },
+      {
+        "infoHash": "02ed0e5cb86d4995132b8c154e8ff0005aad0a51",
+        "title": "A Origem (Inception) 2010 Dual-Audio Dublado BDRip\n📦 👤 ~ 💾 2.25 GB ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.25 GB"
+      },
+      {
+        "infoHash": "2849211f150e966ef7924f43aec22727a644e10d",
+        "title": "Inception 2010 PROPER Bluray 2160p AV1 HDR10 EN ITA FR ES DE OPUS 5 1 UH [UserHEVC]\n📦 👤 ~303 💾 8.91 GB ⚙️ TheRARBG",
+        "name": "📦 · 4K BluRay · TheRARBG · 👤 ~303",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "8.91 GB"
+      },
+      {
+        "infoHash": "43e3691dc6f4172841e32b25b349e2b7a980b9c5",
+        "title": "Inception (2010) 2160p BRRip 5.1 10Bit x265 -YTS\n📦 👤 ~100 💾 6.64 GB ⚙️ yts",
+        "name": "📦 · 4K BluRay · yts · 👤 ~100",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "6.64 GB"
+      },
+      {
+        "infoHash": "224bf45881252643dfc2e71abc7b2660a21c68c4",
+        "title": "Inception (2010) 1080p BrRip x264 - 1.85GB -YIFY\n📦 👤 ~765 💾 1.85 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p · The Pirate Bay · 👤 ~765",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.85 GB"
+      },
+      {
+        "infoHash": "1c6b2179bcd73efd07fb8018268598c062cf95af",
+        "title": "Inception.2010.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265\n📦 👤 ~234 💾 2.87 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~234",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.87 GB"
       }
     ],
     "cacheMaxAge": 0

@@ -1,0 +1,1136 @@
+[
+ {
+  "key": "alldebrid|0|1cd8758cbf71d6d984589ddb8fb57cc672a2da86,3ad24e63837371177bb65ce0b5a7b419edf27fa9,46e1656c386cdd889de56c587f14890da149657f,51a3b1d96b198c8bb6acde8ec357ae7359db2afc,594f09040a84027baadcbb582e8962e5168cd074,5b3d79176e3330ae3ebe243f7c7d956a9380c591,687c0065a56edf0e1f7c360007242f4f2aa988bd,7b35aab0522f7c6357e39d07bedd8b320693d7a8,80ffea8dbb339130046dcc651bc32bd222ae6e58,846f79af3c710f834838d26a60046219c3272b49,86971f0c96e9993dd323ed00da25a4795a42e1ca,8a44b055d2abf9cd5ff529be1e20225739fbb316,964432445dca04177a81cb2a394e8c0e523c17b1,988c989708d2e7c5c857ab0cf3c0277eb7512e47,e8493b983c8301d9c16097f054ff6858972b3104,ebf4c8c99e5873e53ecb7710a8f11c89b77fe0f7",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "51a3b1d96b198c8bb6acde8ec357ae7359db2afc",
+    "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p BluRay x265\n📦 👤 ~257 💾 104.76 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~257",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 112485284536,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "687c0065a56edf0e1f7c360007242f4f2aa988bd",
+    "title": "Brooklyn Nine-Nine (2013) S02 S02 (1080p WEB-DL x265 HEVC 1\n📦 👤 ~68 💾 7.84 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~68",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 8415062224,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "86971f0c96e9993dd323ed00da25a4795a42e1ca",
+    "title": "Brooklyn Nine-Nine (2013) S01-8 S01-S08 (1080p AMZN WEB-DL\n📦 👤 ~50 💾 102.34 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~50",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 109887186440,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "594f09040a84027baadcbb582e8962e5168cd074",
+    "title": "Brooklyn Nine-Nine S02E03 1080p WEB-DL DD5 1 H 264-NTb\n📦 👤 ~36 💾 844.97 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~36",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 886020189,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine S02E03 1080p WEB-DL DD5 1 H 264-NTb",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "846f79af3c710f834838d26a60046219c3272b49",
+    "title": "Brooklyn Nine-Nine S02E22 1080p WEB-DL DD5 1 H 264-NTb\n📦 👤 ~33 💾 834.33 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~33",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 874860984,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine S02E22 1080p WEB-DL DD5 1 H 264-NTb",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "964432445dca04177a81cb2a394e8c0e523c17b1",
+    "title": "Brooklyn Nine-Nine S02E17 1080p WEB-DL DD5 1 H 264-NTb\n📦 👤 ~32 💾 870.81 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~32",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 913111301,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine S02E17 1080p WEB-DL DD5 1 H 264-NTb",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "7b35aab0522f7c6357e39d07bedd8b320693d7a8",
+    "title": "Brooklyn Nine-Nine S02E23 1080p WEB-DL DD5 1 H 264-NTb\n📦 👤 ~32 💾 852.15 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~32",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 893548277,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine S02E23 1080p WEB-DL DD5 1 H 264-NTb",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "8a44b055d2abf9cd5ff529be1e20225739fbb316",
+    "title": "Brooklyn Nine-Nine S02E19 1080p WEB-DL DD5 1 H 264-NTb\n📦 👤 ~32 💾 820.93 MB ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p WEB-DL · The Pirate Bay · 👤 ~32",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 860809377,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine-Nine S02E19 1080p WEB-DL DD5 1 H 264-NTb",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "1cd8758cbf71d6d984589ddb8fb57cc672a2da86",
+    "title": "Brooklyn.Nine-Nine.S02.COMPLETE.720p.AMZN.WEBRip.x264-GalaxyTV\n📦 👤 ~87 💾 4.05 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~87",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 4343411211,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "988c989708d2e7c5c857ab0cf3c0277eb7512e47",
+    "title": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 720p BluRay x264\n📦 👤 ~17 💾 45.50 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BluRay · The Pirate Bay · 👤 ~17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 48855252992,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn Nine Nine 2013 Seasons 1 to 8 Complete 720p BluRay x264",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "80ffea8dbb339130046dcc651bc32bd222ae6e58",
+    "title": "Brooklyn.Nine-Nine.S02.COMPLETE.720p.WEB-DL.2CH.x265.HEVC-PSA\n📦 👤 ~7 💾 1.92 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEB-DL · The Pirate Bay · 👤 ~7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 2061082107,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Brooklyn.Nine-Nine.S02.COMPLETE.720p.WEB-DL.2CH.x265.HEVC-PSA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "46e1656c386cdd889de56c587f14890da149657f",
+    "title": "Brooklyn Nine-Nine 2ª Temporada Bluray (2015) [720p BLURAY DUBLADO 3.70 GB]\n📦 👤 ~1 💾 3.70 GB ⚙️ Apache Torrent",
+    "name": "📦 · 720p BluRay BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 3972844749,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Brooklyn Nine-Nine 2ª Temporada Completa 720p (2015) Dublado - YTSBR.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "e8493b983c8301d9c16097f054ff6858972b3104",
+    "title": "Brooklyn Nine-Nine 3ª Temporada (2016) WEB-DL E21 [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 3.27 GB ⚙️ apachetorrent-cardigann",
+    "name": "📦 · 720p WEB-DL BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 3511135764,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "B.N-N.E21.WEB-DL.720.DUAL",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "ebf4c8c99e5873e53ecb7710a8f11c89b77fe0f7",
+    "title": "Brooklyn Nine-Nine 3ª Temporada (2016) WEB-DL E20 [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 3.27 GB ⚙️ apachetorrent-cardigann",
+    "name": "📦 · 720p WEB-DL BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 3511135764,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "B.N-N.E20.WEB-DL.720P.DUAL",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "5b3d79176e3330ae3ebe243f7c7d956a9380c591",
+    "title": "Brooklyn Nine-Nine 1ª 2ª 3ª 4ª 5ª 6ª 7ª 8ª Temporada Completa [720p]\n📦 👤 ~1 💾 13.70 GB ⚙️ RedeTorrent",
+    "name": "📦 · 720p BR · RedeTorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 14710262989,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "redetorrent-cardigann",
+    "_tracker": "RedeTorrent",
+    "_magnetDn": "Brooklyn Nine-Nine - 2ª Temporada Completa (720p) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_bankDub": true
+   },
+   {
+    "infoHash": "3ad24e63837371177bb65ce0b5a7b419edf27fa9",
+    "title": "Brooklyn Nine-Nine 1ª 2ª 3ª 4ª 5ª 6ª 7ª 8ª Temporada Completa [720p]\n📦 👤 ~1 💾 3.99 GB ⚙️ RedeTorrent",
+    "name": "📦 · 720p BR · RedeTorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 4284229878,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "redetorrent-cardigann",
+    "_tracker": "RedeTorrent",
+    "_magnetDn": "Brooklyn Nine-Nine 2ª Temporada (2014) - Dublado 720p (By-LuanHarper)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_bankDub": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|064a8a65f33612c9318d7b2a328a2b92e951b038,20588ca5dd6deff34e875dc7b97177fe556f852b,2ea546c31eb021fbc509112749b7bf96e6d4cfbf,32692c7379cabccfdc32811722f2d2460aed7aba,3ef6f83931840c56a24355aac93e4f5126e265ef,4f23303fd9096270b61edf459642b41487350ad7,5cd61853a4db93e73860879cbac69c2a5e171c02,5e9b71560d3e4fd0bf080a1c474ad266ce170b08,679c26dbb78f0a9cbf1afbf8d24301a194d7f968,73b9054906b4630b42c75ea36585a0db86211c1e,7e6adcac09c06cff61bd5b697a325319e5799858,80ed0df5624fbd0abf5a65e98d10e59beced4547,919496f44684f1d82ba2d3fbceb4ef38c1879abd,9956285ed8f59e32c4078a756b2fdf3c521f8a5e,9ccbc0f15fda38677f2cbad790fc16b5cc26652f,a4763d3428133020598bc7bd8dde055a473e32a4,a5582d2a6d9c287b7a2a9ca1b525440ea135f071,b7c598c9eeae0c93a32b6b5ec37e17ab3f258610,c33c7d8b50d64b6be7d69395340aa0a07b788fc7,de8977b83f37074bd46eedd8b72f37520e24d0fc,dff738c407835a5edeff8c651f83f268292105c3,f6d4f95087872c281926a19a1cec83ee1a38f9fc,f89a48689fed9039688854bbc1b6b37d0a7feb96,ff5e84ff473fd077e802a0cdbb3d85ab4423baae",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "c33c7d8b50d64b6be7d69395340aa0a07b788fc7",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E10.1080p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "4f23303fd9096270b61edf459642b41487350ad7",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E09.1080p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "679c26dbb78f0a9cbf1afbf8d24301a194d7f968",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E08.1080p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "2ea546c31eb021fbc509112749b7bf96e6d4cfbf",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p WEBRIP LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p WEBRip LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E07.Game.of.Boyles.1080p.AMZN.WEBRip.DDP5.1.x264-NTb[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "b7c598c9eeae0c93a32b6b5ec37e17ab3f258610",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E06.1080p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f6d4f95087872c281926a19a1cec83ee1a38f9fc",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E05.1080p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "5e9b71560d3e4fd0bf080a1c474ad266ce170b08",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E04.1080p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "9956285ed8f59e32c4078a756b2fdf3c521f8a5e",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [1080p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "1080p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E03.1080p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "dff738c407835a5edeff8c651f83f268292105c3",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E10.720p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "a5582d2a6d9c287b7a2a9ca1b525440ea135f071",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E09.720p.WEB.H264-STRONTiUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "80ed0df5624fbd0abf5a65e98d10e59beced4547",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p HDTV LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p HDTV LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E08.720p.HDTV.x264-SYNCOPY[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "919496f44684f1d82ba2d3fbceb4ef38c1879abd",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p HDTV LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p HDTV LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E07.720p.HDTV.x264-SYNCOPY[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "20588ca5dd6deff34e875dc7b97177fe556f852b",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p HDTV LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p HDTV LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E06.720p.HDTV.x264-SYNCOPY[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "064a8a65f33612c9318d7b2a328a2b92e951b038",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p HDTV LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p HDTV LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E05.720p.HDTV.x264-SYNCOPY[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "ff5e84ff473fd077e802a0cdbb3d85ab4423baae",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p HDTV LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p HDTV LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E04.720p.HDTV.x264-SYNCOPY[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "5cd61853a4db93e73860879cbac69c2a5e171c02",
+    "title": "Brooklyn Nine-Nine - 8ª Temporada [720p HDTV LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "720p HDTV LEG BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "VACATORRENT.COM.-LEGENDADO-.Brooklyn.Nine-Nine.S08E03.720p.HDTV.x264-SYNCOPY[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "de8977b83f37074bd46eedd8b72f37520e24d0fc",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E23 [HDTV opção 45]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e23 hdtv x264 fum ettv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "9ccbc0f15fda38677f2cbad790fc16b5cc26652f",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E22 [HDTV opção 43]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e22 hdtv x264 killers ettv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "3ef6f83931840c56a24355aac93e4f5126e265ef",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E21 [HDTV opção 41]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e21 hdtv x264 lol ettv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "32692c7379cabccfdc32811722f2d2460aed7aba",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E20 [HDTV opção 39]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e20 hdtv x264 killers ettv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "7e6adcac09c06cff61bd5b697a325319e5799858",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E19 [HDTV opção 37]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e19 hdtv x264 killers ettv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "a4763d3428133020598bc7bd8dde055a473e32a4",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E18 [HDTV opção 35]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e18 hdtv x264 killers ettv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "73b9054906b4630b42c75ea36585a0db86211c1e",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E17 [HDTV opção 33]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e17 hdtv x264 killers ettv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "f89a48689fed9039688854bbc1b6b37d0a7feb96",
+    "title": "Brooklyn Nine-Nine 3° Temporada – (2015) E16 [HDTV opção 31]\n👤 1 ⚙️ ComandoTorrents",
+    "name": "HDTV BR · Comando · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-HDTV"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "comandotorrents",
+    "_tracker": "ComandoTorrents",
+    "_magnetDn": "brooklyn nine nine s03e16 hdtv x264 fleet rartv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   }
+  ]
+ }
+]

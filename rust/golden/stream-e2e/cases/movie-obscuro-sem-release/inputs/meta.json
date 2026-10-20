@@ -1,0 +1,20 @@
+{
+  "key": "movie:tt0073582",
+  "meta": {
+    "name": "Deep Red",
+    "year": "1976",
+    "type": "movie",
+    "released": "1976-06-11T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Prelúdio para Matar",
+    "original": "Profondo rosso",
+    "en": "Deep Red",
+    "br": [
+      "Prelúdio para Matar [1975]"
+    ],
+    "year": "1975"
+  },
+  "collection": null,
+  "homeReleaseAt": 672451200000
+}

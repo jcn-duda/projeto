@@ -1,0 +1,299 @@
+[
+  {
+    "key": {
+      "imdb": "tt1375666",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "Inception 2010",
+      "pt_query": "A Origem 2010"
+    },
+    "response": {
+      "items": [
+        {
+          "title": "A Origem (2010)",
+          "infoHash": "c301b175cae6ae4870076bd478680b6e3fc13743",
+          "seeders": 1,
+          "size": 2314639255,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "A.Origem.2010.1080p.DUAL.5.1.BluRay.x265.HDR-SF",
+          "infoHash": "e872a00f346bab17d7e2593d08e0fa38f3f885fc",
+          "seeders": 1,
+          "size": 5851990988,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "A.Origem.2010.1080p.DUAL.5.1.BluRay.x265.HDR-SF.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Inception.2010.PROPER.Bluray.2160p.AV1.HDR10.OPUS.5.1-UH.mkv",
+          "infoHash": "2849211f150e966ef7924f43aec22727a644e10d",
+          "seeders": 1,
+          "size": 9563173563,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception (2010) [2160p] [4K] [BluRay] [5.1] [YTS.MX]",
+          "infoHash": "43e3691dc6f4172841e32b25b349e2b7a980b9c5",
+          "seeders": 1,
+          "size": 7132263739,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception.2010.2160p.BluRay.REMUX.HEVC.DTS-HD.MA.5.1-FGT",
+          "infoHash": "ae3cd89c76804abfeb8977318afdc240de2ef246",
+          "seeders": 1,
+          "size": 85436578328,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception.2010.2160p.BluRay.HEVC.DTS-HD.MA.5.1-COASTER",
+          "infoHash": "a75b82ad8477187109f80e7d3fee845923b78d7c",
+          "seeders": 1,
+          "size": 92466334224,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception.2010.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265[TGx]",
+          "infoHash": "1c6b2179bcd73efd07fb8018268598c062cf95af",
+          "seeders": 1,
+          "size": 3082568603,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception 2010 1080p BluRay HEVC x265 5.1 BONE.mkv",
+          "infoHash": "2b4fba86244a317b5e607fbff1755cb4d8599281",
+          "seeders": 1,
+          "size": 2138804320,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception (2010) [1080p]",
+          "infoHash": "224bf45881252643dfc2e71abc7b2660a21c68c4",
+          "seeders": 1,
+          "size": 1991613584,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception (2010)",
+          "infoHash": "ce9156eb497762f8b7577b71c0647a4b0c3423e1",
+          "seeders": 1,
+          "size": 1152559047,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception 2010 BluRay Dual Audio [Hindi 5.1 + English 5.1] 720p x264 AAC ESub - mkvCinemas [Telly]",
+          "infoHash": "dc479da6cb6048650d460244cb19a54adfeb8f09",
+          "seeders": 1,
+          "size": 1606176522,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "A Origem",
+          "infoHash": "a7d717f9fb5b34162db85aeb95423213bc71679f",
+          "seeders": 1,
+          "size": 903715307,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "A Origem 2010 1080p BluRay x264-Belex - Dual Audio + Legenda.mkv",
+          "infoHash": "b9b055311fc31fa5e44b0035fe4ea80a12a206c2",
+          "seeders": 1,
+          "size": 12442460702,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception 2010 UHD BluRay 2160p HDR10 DV HEVC DTS-HD MA 5.1 x265-E",
+          "infoHash": "fa4a45aa220a6b0343817965a47d85f2d192e9b4",
+          "seeders": 1,
+          "size": 27093666265,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception.2010.1080p.BluRay.REMUX.VC-1.DTS-HD.MA.5.1-FGT",
+          "infoHash": "2b30b918e976c88d7b528bf58d6ca3311555df93",
+          "seeders": 1,
+          "size": 32973850684,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "A Origem 4k 2160p Dual Audio WWW.BLUDV.TV",
+          "infoHash": "b8d2b6a12a152de91d32119c38e81a53918d7d35",
+          "seeders": 1,
+          "size": 26433952122,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "A Origem 2010 4k 2160p Dual Audio Encoder by Carlos José WWW.BLUDV.TV.mkv",
+          "provenQuality": "2160p"
+        },
+        {
+          "title": "Inception.2010.Multi.2160p.UHD.Bluray.x265.DTS-HDMA.5.1.[En+Hi]-DTOne",
+          "infoHash": "82574de3afad807dcc25dbbd794d69f67b143311",
+          "seeders": 1,
+          "size": 26235984934,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Inception.2010.2160p.DV.HDR10Plus.Ai-Enhanced.HEVC.DTS-HD.MA.5.1.MULTI-RIFE.4.18-60fps-DirtyHippie",
+          "infoHash": "6a7165dc823829c6c58b966e1f40d23209db3d73",
+          "seeders": 1,
+          "size": 53488702528,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "A Origem (2010) – BluRay Dual – [1080p BLURAY DUBLADO 2.15 GB]",
+          "magnet": "magnet:?xt=urn:btih:c301b175cae6ae4870076bd478680b6e3fc13743&dn=A+Origem+%282010%29+1080p+Dublado+%2F+Dual+Audio+pt-BR&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 2308544921,
+          "publishedAt": 1792486185279,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true,
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "A Origem (2010) – BluRay FullHD Dual Audio 5.1 [1080p BLURAY DUBLADO 11 GB]",
+          "magnet": "magnet:?xt=urn:btih:b9b055311fc31fa5e44b0035fe4ea80a12a206c2&dn=A%20Origem%202010%201080p%20BluRay%20x264-Belex%20-%20Dual%20Audio%20%2B%20Legenda&&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fzer0day.to%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 11811160064,
+          "publishedAt": 1792486185278,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true
+        },
+        {
+          "title": "A Origem (2010) – Dual [opção 1]",
+          "magnet": "magnet:?xt=urn:btih:c301b175cae6ae4870076bd478680b6e3fc13743&dn=A+Origem+%282010%29+1080p+Dublado+%2F+Dual+Audio+pt-BR&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486185658,
+          "tracker": "ComandoTorrents",
+          "indexer": "comandotorrents",
+          "isBr": true,
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "A Origem (2010) [opção 1]",
+          "magnet": "magnet:?xt=urn:btih:b9b055311fc31fa5e44b0035fe4ea80a12a206c2&dn=A%20Origem%202010%201080p%20BluRay%20x264-Belex%20-%20Dual%20Audio%20%2B%20Legenda&&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fzer0day.to%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486185658,
+          "tracker": "ComandoTorrents",
+          "indexer": "comandotorrents",
+          "isBr": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "nerdfilmes"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "eztv",
+          "kickasstorrents-to",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "rutracker-ru",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "wolfmax4k",
+          "yts"
+        ],
+        "empty": [],
+        "served": [
+          "comandotorrents",
+          "torrentdosfilmesv2"
+        ],
+        "all": "unknown"
+      }
+    }
+  }
+]

@@ -1,0 +1,27 @@
+{
+ "key": "fallback:series:tt0214341:4:10:late",
+ "value": {
+  "items": [
+   {
+    "title": "Dragon Ball Z Saga dos Androides [4.2 GB]",
+    "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
+    "magnet": "magnet:?xt=urn:btih:e5f7f815ebe8a8a683744ecc47e1a32189c14a53&dn=Dragon+Ball+Z+-+Saga+dos+Androides+720p+dublado+-+FB&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80&tr=udp%3A%2F%2Fopen.demonii.com%3A1337&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 4509715661,
+    "seeders": 1,
+    "indexer": "torrentdosfilmesv2",
+    "tracker": "TorrentDosFilmes",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "torrentdosfilmesv2",
+    "fallbackFetchable": true
+   }
+  ],
+  "injected": 1,
+  "cut": {
+   "live-dedupe": 19,
+   "no-source": 3
+  }
+ }
+}

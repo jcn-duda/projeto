@@ -1,0 +1,436 @@
+[
+  {
+    "key": {
+      "imdb": "tt0903747",
+      "type": "series",
+      "season": 1,
+      "episode": 1,
+      "scope": "all",
+      "query": "Breaking Bad S01E01",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Breaking Bad 2008 - 1ª Temporada Completa [4k] WWW.BLUDV.COM",
+          "infoHash": "c1f61689123b32edd923fc86d143bc8100769e4e",
+          "seeders": 1,
+          "size": 15392100642,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Breaking.Bad.S01E01.4K.2160p.WEB-DL.5.1.x264.DUAL-WWW.BLUDV.COM.mkv",
+          "provenQuality": "2160p"
+        },
+        {
+          "title": "Breaking.Bad.S01.MULTi.2160p.WEBRip.5.1.x265-SQUEEZE",
+          "infoHash": "499bd160941763954e8ba236969bee1280e1e963",
+          "seeders": 1,
+          "size": 14178038373,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Breaking.Bad.S01E01.MULTi.2160p.WEBRip.5.1.x265-SQUEEZE.mkv",
+          "provenQuality": "2160p"
+        },
+        {
+          "title": "www.UIndex.org    -    Breaking Bad S01E01 Pilot 2160p NF WEB-DL DDP5 1 H 265-XEBEC",
+          "infoHash": "0d9b239b02f5fa8c4cdda71f3ccfde93ae918bd9",
+          "seeders": 1,
+          "size": 7321503190,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01E01-07.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66",
+          "infoHash": "6a12ce77043c07604314f30fa62f2b17ea8d4ab9",
+          "seeders": 1,
+          "size": 12785681540,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "www.UIndex.org    -    Breaking.Bad.S01E01.Pilot.1080p.HEVC.x265-MeGusta",
+          "infoHash": "0c9fa2cb87da2d5fccd4af71fb1e0a7e7638b4e9",
+          "seeders": 1,
+          "size": 1193049621,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "www.UIndex.org    -    Breaking.Bad.S01E01.Pilot.720p.HEVC.x265-MeGusta",
+          "infoHash": "60885c299508f9ae39b0085e0c79d4b76704fefd",
+          "seeders": 1,
+          "size": 674775939,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad s01e01 720p.BRrip.HDTV.RWN.mkv",
+          "infoHash": "5628c6c403068d39d4ba1f93923bb9bc9a441b15",
+          "seeders": 1,
+          "size": 487194215,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01E01.720p.HDTV.x264-BiA.mkv",
+          "infoHash": "f023c4c883c29e50a56a63cce8e69899f45fc537",
+          "seeders": 1,
+          "size": 1172906811,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad. S01. 2008  2160P.Ai Upscaled.BluRay.60FPS.H265.BT709.AC3.5.1_Marjenbo",
+          "infoHash": "a584351126afcf50d32be068f3c9a62550d41ecc",
+          "seeders": 1,
+          "size": 57373111404,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad (2008) S01 (2160p AMZN WEB-DL H265 SDR DDP 5.1 English - HONE)",
+          "infoHash": "f0fd1cad0e24b69ff6aaadb9df40c50286327188",
+          "seeders": 1,
+          "size": 40101527572,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01E01.Pilot.2160p.NF.WEBRip.DTS.x264-iON.mkv",
+          "infoHash": "173787c5415303d73885a07f49cd1fd96de0d5f8",
+          "seeders": 1,
+          "size": 19037182916,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad Season 1 (2160p x265 10bit Joy)",
+          "infoHash": "51653df273317cfdfdccd5f9e4c367351e61a842",
+          "seeders": 1,
+          "size": 11113609059,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.Complete.Series.720p.BluRay.Goblin.Eng.AMC",
+          "infoHash": "1531d4c9b1034d887f3a0e10dfc86280e2e779aa",
+          "seeders": 1,
+          "size": 184632583903,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Breaking Bad S01-S05 720p Bluray x265-BMF",
+          "infoHash": "9a37f6bd1c81e437ef3ef562ccc86c59064c325d",
+          "seeders": 1,
+          "size": 19326032884,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Breaking.Bad.SEASON.01.S01.COMPLETE.720p.10bit.BluRay.2CH.x265.HEVC-PSA",
+          "infoHash": "7008d4a01c56d6cac20bb98bef9a3144a22fb56e",
+          "seeders": 1,
+          "size": 1850666220,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Breaking.Bad.SEASON.01.S01.COMPLETE.1080p.10bit.BluRay.6CH.x265.HEVC-PSA",
+          "infoHash": "6bbad06245a0d631b0a5e47c8cd6e5abc9a70211",
+          "seeders": 1,
+          "size": 4521579480,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad (2008) Season 1-5 S01-S05 (1080p BluRay x265 HEVC 10bit AAC 5.1 Silence)",
+          "infoHash": "b43df67a93863ea91f2f773f00361072da771dd3",
+          "seeders": 1,
+          "size": 150389060754,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01-S05.1080p.BluRay.10bit.HEVC.6CH-MkvCage.ws",
+          "infoHash": "33b1396389a7d76f57215ee618f0ce438126ebe4",
+          "seeders": 1,
+          "size": 67325144419,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad 2008 - 1ª Temporada Completa WWW.BLUDV.COM",
+          "infoHash": "abde0d9e255eae8ac5758ec9203f91ef612801fa",
+          "seeders": 1,
+          "size": 4702246935,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Breaking.Bad.S01E01.720p.BluRay.5.1.x264.DUAL-WWW.BLUDV.COM.mkv",
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Breaking Bad 1 Temporada - The Pirate Filmes",
+          "infoHash": "bbd4d315a00580f9cafd9c36f35165c83f13043c",
+          "seeders": 1,
+          "size": 3016107584,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad 2008 - 1ª Temporada Completa [1080p] WWW.BLUDV.COM",
+          "infoHash": "e597915466c4bbec403804f33e947a23bc9b4b98",
+          "seeders": 1,
+          "size": 7302821002,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Breaking.Bad.S01E01.1080p.BluRay.5.1.x264.DUAL-WWW.BLUDV.COM.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Breaking Bad - 1ª Temporada (2008) 720p Dual Áudio - Douglasvip",
+          "infoHash": "e9876a1688fc774068fecc94a991f300f45cf2b7",
+          "seeders": 1,
+          "size": 2601237727,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01.2160p.NF.WEB-DL.DTS-HD.MA.5.1.HEVC-CRFW[rartv]",
+          "infoHash": "eb183076846945b898e43a679bba32017138526e",
+          "seeders": 1,
+          "size": 37265057799,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01.2160p.WEBRip.DTS-HD.MA5.1.x264-TrollUHD",
+          "infoHash": "260ac3b389be23d137bb13724dc6a5b43637fe1e",
+          "seeders": 1,
+          "size": 286366474318,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01.1080p.BluRay.x265-RARBG",
+          "infoHash": "a43107ec1e5c2f5d6429c68cc030031cddbcb0ad",
+          "seeders": 1,
+          "size": 5803242370,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01.720p.BRRip.Hindi-English.ESUB - Cukister",
+          "infoHash": "a77271af0ceae766101146f62899999e8a45ca41",
+          "seeders": 1,
+          "size": 2249849337,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad S01",
+          "infoHash": "29b3f7a8735fc60a0cc0d5e3f8ed82a74a3b8def",
+          "seeders": 1,
+          "size": 44347228783,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad",
+          "infoHash": "14e2435f8691fc8a07cc4921bfc8ce3c5a49bf56",
+          "seeders": 1,
+          "size": 610390490610,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01.FRENCH.720p.BluRay.x264",
+          "infoHash": "5feb53730d89574cd7bc900dfc011a4f9d6ef27f",
+          "seeders": 1,
+          "size": 16420466065,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.Complete.S01-S05.1080p.10bit.BluRay.x265.HEVC.6CH-MRN",
+          "infoHash": "2927019dbf67eb165347258c1f6d136d644efa4f",
+          "seeders": 1,
+          "size": 42228785197,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad - Complete Season 1,2,3,4,5 + Extras - BluRay 1080p",
+          "infoHash": "e43dbd8f4990b67f44f647da94d8779e30ff4b3d",
+          "seeders": 1,
+          "size": 226997012117,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad S01 1080p BluRay AV1 Opus [AV1D]",
+          "infoHash": "33eb14b23eb5c485872daa8270a585990fb6bdbe",
+          "seeders": 1,
+          "size": 2796637508,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01-S05.(2008).1080p.WEBRIP.HEVC.OPUS2.0",
+          "infoHash": "a5c1aefb62c9bd67ff49412544915533155a0b99",
+          "seeders": 1,
+          "size": 17790419047,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-NOGRP[rartv]",
+          "infoHash": "9858187d623771b7d59d842855c1758be50418c5",
+          "seeders": 1,
+          "size": 78659177197,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "yts"
+        ],
+        "empty": [
+          "vacatorrent"
+        ],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

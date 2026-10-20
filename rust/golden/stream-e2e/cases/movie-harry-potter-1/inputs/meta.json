@@ -1,0 +1,31 @@
+{
+  "key": "movie:tt0241527",
+  "meta": {
+    "name": "Harry Potter and the Sorcerer's Stone",
+    "year": "2001",
+    "type": "movie",
+    "released": "2001-11-16T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Harry Potter e a Pedra Filosofal",
+    "original": "Harry Potter and the Philosopher's Stone",
+    "en": "Harry Potter and the Philosopher's Stone",
+    "br": [],
+    "year": "2001"
+  },
+  "collection": {
+    "name": "Harry Potter: Coleção",
+    "root": "harry potter",
+    "years": [
+      2001,
+      2002,
+      2005,
+      2009,
+      2004,
+      2007,
+      2010,
+      2011
+    ]
+  },
+  "homeReleaseAt": 1020038400000
+}

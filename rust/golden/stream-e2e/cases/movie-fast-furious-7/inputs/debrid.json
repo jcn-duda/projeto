@@ -1,0 +1,177 @@
+{
+ "service": "alldebrid",
+ "results": {
+  "dc9bce0376e46a7b0bc1b84c124e29e759a3364f": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "79c976fced3cd43b8285d00b1051435b33cd3487": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "91fd1a3a28905fbfaf5da2a97849db49f71ea77d": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "4d2f76d264aa82b7507c8d4f8470c75f69ac34bb": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "db301cbbc567a784c34f75bd10b41b85d63b9871": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "12fa935ebd8c7d2ef5d70d963bcf38370a766009": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "4e4eaaaeb58abcc845e322e8b711aeda3a344996": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "c012d7a8cc1e89d43891cd10e58e09d088341a6f": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "e3ebbef93427d1be21ac35b74b24c8d05cf2ad2c": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "e78b3a34ed28ad59a1def279d919bbc6c62fe617": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "6e0167b99d13e26622d856309e29ea2ad1a3b5fc": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "6c7ab1445564f69dc0c113e16be01fbb88bd98bb": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "9eb0f5835228d2534dbcab5a7ed095b89d90546f": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "19ca7825067bacf5565e23f00d566660600e41ae": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "3632eff4840b5c13a2102a837092e2e29fa2611b": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "9bf61b525a39fe329c0c7c44cc718d2fae18a448": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  },
+  "a6273574704e724a77319798097f9b16de8e083b": {
+   "cached": false,
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   }
+  }
+ },
+ "calls": [
+  {
+   "hashes": [
+    "dc9bce0376e46a7b0bc1b84c124e29e759a3364f",
+    "79c976fced3cd43b8285d00b1051435b33cd3487",
+    "91fd1a3a28905fbfaf5da2a97849db49f71ea77d",
+    "4d2f76d264aa82b7507c8d4f8470c75f69ac34bb",
+    "db301cbbc567a784c34f75bd10b41b85d63b9871",
+    "12fa935ebd8c7d2ef5d70d963bcf38370a766009",
+    "4e4eaaaeb58abcc845e322e8b711aeda3a344996",
+    "c012d7a8cc1e89d43891cd10e58e09d088341a6f",
+    "e3ebbef93427d1be21ac35b74b24c8d05cf2ad2c",
+    "e78b3a34ed28ad59a1def279d919bbc6c62fe617",
+    "6e0167b99d13e26622d856309e29ea2ad1a3b5fc",
+    "6c7ab1445564f69dc0c113e16be01fbb88bd98bb",
+    "9eb0f5835228d2534dbcab5a7ed095b89d90546f",
+    "19ca7825067bacf5565e23f00d566660600e41ae",
+    "3632eff4840b5c13a2102a837092e2e29fa2611b",
+    "9bf61b525a39fe329c0c7c44cc718d2fae18a448",
+    "a6273574704e724a77319798097f9b16de8e083b"
+   ],
+   "file_hashes": [
+    "91fd1a3a28905fbfaf5da2a97849db49f71ea77d",
+    "4e4eaaaeb58abcc845e322e8b711aeda3a344996",
+    "e3ebbef93427d1be21ac35b74b24c8d05cf2ad2c",
+    "e78b3a34ed28ad59a1def279d919bbc6c62fe617",
+    "6e0167b99d13e26622d856309e29ea2ad1a3b5fc"
+   ],
+   "known": false,
+   "unusable": {
+    "reason": "quota",
+    "message": "Magnets limit reached (1000 accross all tabs) (MAGNET_TOO_MANY)"
+   },
+   "cached": []
+  }
+ ]
+}

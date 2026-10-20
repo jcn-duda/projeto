@@ -1,0 +1,37 @@
+{
+  "key": "movie:tt2820852",
+  "meta": {
+    "name": "Furious 7",
+    "year": "2015",
+    "type": "movie",
+    "released": "2015-04-03T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Velozes & Furiosos 7",
+    "original": "Furious 7",
+    "en": "Furious 7",
+    "br": [
+      "Velozes e Furiosos 7"
+    ],
+    "year": "2015"
+  },
+  "collection": {
+    "name": "Velozes & Furiosos: Coleção",
+    "root": "velozes furiosos",
+    "years": [
+      2003,
+      2006,
+      2001,
+      2011,
+      2013,
+      2015,
+      2009,
+      2017,
+      2023,
+      2021,
+      2028,
+      2019
+    ]
+  },
+  "homeReleaseAt": 1427846400000
+}

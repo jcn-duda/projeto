@@ -1,0 +1,377 @@
+[
+ {
+  "key": "alldebrid|0|16fcf6e69c5ea7b994fd52a451b5c38c285c8992,24f27946ccffead43ecab3af87ad87ccbf9862e1,4054062d4b82f10a92e27dd93c3c331f83a68542,415b6ce9e2fb31456f49b15fd294374844bf80c7,4b92b8c06b389e15841288f757ed8ca836661c98,5237ad29209e9856edbd8b132750d27a384975a4,5bf896d2e9d2250ed68b702350c05915bbdbeb48,600a67a314bce683d7c992321c31ac6086a60207,84b6cc5503545780a34a38f24df2bc28999bb424,a5734c580b9dcaac5ecc2c56f6de51ce98adbc87",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "5bf896d2e9d2250ed68b702350c05915bbdbeb48",
+    "title": "Agents of S.H.I.E.L.D. 5ª Temporada E01 [720p DUBLADO]\n📦 👤 ~1 ⚙️ BLUDV",
+    "name": "📦 · 720p BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Marvel.Agents.of.Shield.S05E01.720p.WEB.DUAL.WWW.COMANDOTORRENTS.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4b92b8c06b389e15841288f757ed8ca836661c98",
+    "title": "Marvel Agents of SHIELD S05E01 720p AMZN WEB DL x264 AAC\n📦 👤 ~1 💾 300.01 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p WEB-DL · LimeTorrents · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 314583285,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Marvel Agents of SHIELD S05E01 720p AMZN WEB-DL x264 AAC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "600a67a314bce683d7c992321c31ac6086a60207",
+    "title": "Agents of S.H.I.E.L.D. 5ª Temporada [1080p LEGENDADO]\n📦 👤 ~1 ⚙️ BLUDV",
+    "name": "📦 · 1080p WEBRip LEG BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Marvels.Agents.of.S.H.I.E.L.D.S05.1080p.AMZN.WEBRip.DDP5.1.x264-ViSUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "16fcf6e69c5ea7b994fd52a451b5c38c285c8992",
+    "title": "marvel agentes da shield episodio 12 dublado 1080p\n📦 👤 ~ ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p BR · kickass · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 1825361100,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "marvel agentes da shield episodio 12 dublado 1080p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_seedFloorWaived": true,
+    "_packBytes": 1825361100
+   },
+   {
+    "infoHash": "84b6cc5503545780a34a38f24df2bc28999bb424",
+    "title": "Marvels.Agents.of.S.H.I.E.L.D.S05.Complete.720p.x264.[SHIELD]\n📦 👤 ~7 💾 361.19 MB 📦 pack 7.76 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p · The Pirate Bay · 👤 ~7",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 8329225253,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Marvels.Agents.of.S.H.I.E.L.D.S05.Complete.720p.x264.[SHIELD]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "24f27946ccffead43ecab3af87ad87ccbf9862e1",
+    "title": "Agents of S.H.I.E.L.D. 5ª Temporada [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 688.87 MB 📦 pack 14.80 GB (média) ⚙️ BLUDV",
+    "name": "📦 · 720p WEB-DL BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 15891378995,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Agentes of Shield - 5ª Temporada Completa (720p) Baixe do original WWW.BLUDV.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "5237ad29209e9856edbd8b132750d27a384975a4",
+    "title": "Agentes da S.H.I.E.L.D. [720p DUAL]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
+    "name": "📦 · 720p BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 943718400,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "M.A.of.S.H.I.E.L.D.S05E01.720p.DUAL.[TorrentDosFilmesHD.Net].mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 943718400
+   },
+   {
+    "infoHash": "4054062d4b82f10a92e27dd93c3c331f83a68542",
+    "title": "Agentes da S.H.I.E.L.D [720p WEBRIP]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
+    "name": "📦 · 720p WEBRip BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1073741824,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "Marvels.Agents.of.S.H.I.E.L.D.S05E01.1080p.AMZN.WEBRip.DDP5.1.x264-ViSUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 1073741824
+   },
+   {
+    "infoHash": "a5734c580b9dcaac5ecc2c56f6de51ce98adbc87",
+    "title": "Agentes da S.H.I.E.L.D [720p WEBRIP]\n📦 👤 ~1 ⚙️ apachetorrent-cardigann",
+    "name": "📦 · 720p WEBRip BR · apachetorrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1073741824,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "apachetorrent-cardigann",
+    "_magnetDn": "Marvels.Agents.of.S.H.I.E.L.D.S05E01.720p.AMZN.WEBRip.DDP5.1.x264-ViSUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 1073741824
+   },
+   {
+    "infoHash": "415b6ce9e2fb31456f49b15fd294374844bf80c7",
+    "title": "Agents of S.H.I.E.L.D. 5ª Temporada [720p LEGENDADO]\n📦 👤 ~1 ⚙️ BLUDV",
+    "name": "📦 · 720p WEBRip LEG BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 0,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Marvels.Agents.of.S.H.I.E.L.D.S05.720p.AMZN.WEBRip.DDP5.1.x264-ViSUM[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|16fcf6e69c5ea7b994fd52a451b5c38c285c8992,4b92b8c06b389e15841288f757ed8ca836661c98",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "4b92b8c06b389e15841288f757ed8ca836661c98",
+    "title": "Marvel Agents of SHIELD S05E01 720p AMZN WEB DL x264 AAC\n👤 5 💾 300.01 MB ⚙️ LimeTorrents",
+    "name": "720p WEB-DL · LimeTorrents · 👤 5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 314583285,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Marvel Agents of SHIELD S05E01 720p AMZN WEB-DL x264 AAC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "16fcf6e69c5ea7b994fd52a451b5c38c285c8992",
+    "title": "marvel agentes da shield episodio 12 dublado 1080p\n👤 0 ⚙️ The Pirate Bay",
+    "name": "1080p BR · The Pirate Bay",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 1827693054,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "marvel agentes da shield episodio 12 dublado 1080p",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_seedFloorWaived": true,
+    "_packBytes": 1827693054
+   }
+  ]
+ }
+]

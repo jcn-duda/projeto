@@ -8,40 +8,121 @@
   "body": {
     "streams": [
       {
-        "title": "Carandiru [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 1.36 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 720p WEB-DL BR · LimeTorrents · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/40a3bd5172533f949bf7bf9e91b92f8322171602?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig={{sig}}",
-        "size": "1.36 GB"
-      },
-      {
-        "title": "Carandiru (2003) 1080p WEBRip 5.1 x264 -YTS\n📦 👤 ~15 💾 2.68 GB ⚙️ YTS",
-        "name": "[AD⚡] 📦 · 1080p WEBRip · YTS · 👤 ~15",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
-        },
-        "url": "{{base}}/{{config}}/resolve/2c6857822c6a503668f8925e7606b9b3c7f26cb6?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig={{sig}}",
-        "size": "2.68 GB"
-      },
-      {
-        "title": "Carandiru (2003) (1080p WEB DL x265 HEVC 10bit AC3 5 1 Portuguese afm72\n📦 👤 ~14 💾 6.12 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · LimeTorrents · 👤 ~14",
+        "infoHash": "3533cb098c8ad36c4a343b2d68855766d0b288e5",
+        "title": "Carandiru [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 5.63 GB ⚙️ Apache Torrent",
+        "name": "📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/db15834ebe927523495008911d9bad1cdf706f7f?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "5.63 GB"
+      },
+      {
+        "infoHash": "3cee647bb304e16e3248844a1331643bbef4ecef",
+        "title": "Carandiru [720p WEB-DL DUBLADO]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 720p WEB-DL BR · Apache Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "53421ce875fe1eceed01dbcdd81b0d037b52ab45",
+        "title": "Carandiru [DUBLADO]\n📦 👤 ~2 ⚙️ Apache Torrent",
+        "name": "📦 · BR · Apache Torrent · 👤 ~2",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "cf2565b5accdd767b85227341f50cf879db3d138",
+        "title": "Carandiru (2003) 1080p BluRay 5.1-WORLD\n📦 👤 ~16 💾 2.69 GB ⚙️ TheRARBG",
+        "name": "📦 · 1080p BluRay · TheRARBG · 👤 ~16",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.69 GB"
+      },
+      {
+        "infoHash": "db15834ebe927523495008911d9bad1cdf706f7f",
+        "title": "Carandiru (2003) (1080p WEB DL x265 HEVC 10bit AC3 5 1 Portuguese afm72\n📦 👤 ~14 💾 6.12 GB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~14",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "6.12 GB"
       },
       {
-        "title": "Carandiru (2003) 720p BRRip x264 -YTS\n📦 👤 ~3 💾 1.31 GB ⚙️ YTS",
-        "name": "[AD⚡] 📦 · 720p · YTS · 👤 ~3",
+        "infoHash": "e44bb30a8263a59b8cadf598252a4270d62df463",
+        "title": "Carandiru (2003) 720p BRRip x264 -YTS\n📦 👤 ~4 💾 1.31 GB ⚙️ YTS",
+        "name": "📦 · 720p BluRay · YTS · 👤 ~4",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
+          "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/e44bb30a8263a59b8cadf598252a4270d62df463?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.31 GB"
+      },
+      {
+        "infoHash": "40a3bd5172533f949bf7bf9e91b92f8322171602",
+        "title": "Carandiru.2003.720p.WEB-DL.x264.[ExYu-Subs].mp4\n👤 1 💾 1.36 GB ⚙️ AllDebrid",
+        "name": "720p WEB-DL · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.36 GB"
       }
     ],
     "cacheMaxAge": 0

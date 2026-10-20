@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt0831387",
+  "meta": {
+    "name": "Godzilla",
+    "year": "2014",
+    "type": "movie",
+    "released": "2014-05-16T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Godzilla",
+    "original": "Godzilla",
+    "en": "Godzilla",
+    "br": [],
+    "year": "2014"
+  },
+  "collection": null,
+  "homeReleaseAt": 1400025600000
+}

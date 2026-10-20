@@ -1,0 +1,26 @@
+{
+  "key": "movie:tt2464018",
+  "meta": {
+    "name": "My Mom Is a Character",
+    "year": "2013",
+    "type": "movie",
+    "released": "2013-06-21T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Minha Mãe é uma Peça: O Filme",
+    "original": "Minha Mãe é uma Peça: O Filme",
+    "en": "My Mom Is a Character",
+    "br": [],
+    "year": "2013"
+  },
+  "collection": {
+    "name": "Minha Mãe é uma Peça: Coleção",
+    "root": "minha mae e uma peca",
+    "years": [
+      2013,
+      2016,
+      2019
+    ]
+  },
+  "homeReleaseAt": null
+}

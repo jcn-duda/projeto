@@ -8,13 +8,106 @@
   "body": {
     "streams": [
       {
-        "title": "Cidade Invisível 1ª Temporada (2021) Nacional 5.1 WEB-DL e – [1080p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.26 GB 📦 pack 8.00 GB ⚙️ mico",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL BR · mico · 👤 ~1",
+        "infoHash": "a47bd861a3b4e60b18a0c98f4b7a671767bf68d1",
+        "title": "Cidade Invisível 1ª Temporada (2021) Nacional 5.1 WEB-DL e – [1080p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.14 GB 📦 pack 8.00 GB (média) ⚙️ ComandoTorrents",
+        "name": "📦 · 1080p WEB-DL BR · Comando · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/a47bd861a3b4e60b18a0c98f4b7a671767bf68d1?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt8878862%22%7D&sig={{sig}}",
-        "size": "1.26 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.14 GB"
+      },
+      {
+        "infoHash": "7802090eb5e833cde88759a8596c226ded3eedea",
+        "title": "Cidade Invisível 1ª Temporada (2021) Nacional 5.1 WEB-DL e – [720p WEB-DL DUBLADO 5 GB]\n📦 👤 ~1 💾 731.43 MB 📦 pack 5.00 GB (média) ⚙️ ComandoTorrents",
+        "name": "📦 · 720p WEB-DL BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "731.43 MB"
+      },
+      {
+        "infoHash": "344266f6ab4f3352061b72f6bd6c12abc3be6490",
+        "title": "Cidade Invisivel (Invisible City) (2021)  season 1 (Eng Multi s\n📦 👤 ~16 💾 950.86 MB 📦 pack 6.50 GB (média) ⚙️ 1337x",
+        "name": "📦 · BR · 1337x · 👤 ~16",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "950.86 MB"
+      },
+      {
+        "infoHash": "6757f6b92248fe0a27cf186d99862a43b3fcbe5f",
+        "title": "Cidade Invisivel (S01)(2021)(Hevc)(1080p)(HDR)(10bit)(WebDL)(MultiLang)(MultiSub) PHDTeam\n📦 👤 ~5 💾 877.71 MB 📦 pack 6.00 GB (média) ⚙️ LimeTorrents",
+        "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~5",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "877.71 MB"
+      },
+      {
+        "infoHash": "960e450cf1eaa3fdf3e11ff46e3176798a6875f6",
+        "title": "Cidade Invisivel S01 1080p ViruseProject\n📦 👤 ~4 💾 1.34 GB 📦 pack 9.36 GB (média) ⚙️ LimeTorrents",
+        "name": "📦 · 1080p · LimeTorrents · 👤 ~4",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.34 GB"
+      },
+      {
+        "infoHash": "89ac7ab2bf938f96e086865f17756c08927dfc70",
+        "title": "Invisible.City.S01.COMPLETE.PORTUGUESE.720p.NF.WEBRip.x264-Galax\n📦 👤 ~1 💾 266.24 MB 📦 pack 1.82 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "266.24 MB"
       }
     ],
     "cacheMaxAge": 0

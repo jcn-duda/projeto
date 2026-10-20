@@ -1,0 +1,88 @@
+[
+  {
+    "key": {
+      "imdb": "tt0831387",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "Godzilla 2014",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Godzilla.2014.720p.Dual-WOLVERDONFILMES.COM",
+          "infoHash": "d5dfb5eab5982aceda0047ba64384f2f28d4e14f",
+          "seeders": 1,
+          "size": 1322432525,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Godzilla.2014.720p.Dual-WOLVERDONFILMES.COM.mkv",
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Godzilla.(2014).Dublado.1080p",
+          "infoHash": "ee272888d8ed2e0c04ef60ae82f8203964647892",
+          "seeders": 1,
+          "size": 2020064578,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dublado",
+          "provenName": "Godzilla.(2014).Dublado.1080p..mp4",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Godzilla.2014.1080p.Dual-WOLVERDONFILMES.COM",
+          "infoHash": "67c0ffc773bc6d6ecf73d12e174d1841d083d5a7",
+          "seeders": 1,
+          "size": 2390707158,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Godzilla.2014.1080p.Dual-WOLVERDONFILMES.COM.mkv",
+          "provenQuality": "1080p"
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

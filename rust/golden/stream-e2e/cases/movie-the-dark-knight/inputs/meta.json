@@ -1,0 +1,26 @@
+{
+  "key": "movie:tt0468569",
+  "meta": {
+    "name": "The Dark Knight",
+    "year": "2008",
+    "type": "movie",
+    "released": "2008-07-18T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Batman: O Cavaleiro das Trevas",
+    "original": "The Dark Knight",
+    "en": "The Dark Knight",
+    "br": [],
+    "year": "2008"
+  },
+  "collection": {
+    "name": "O Cavaleiro das Trevas: Coleção",
+    "root": "cavaleiro das trevas",
+    "years": [
+      2008,
+      2012,
+      2005
+    ]
+  },
+  "homeReleaseAt": 1224633600000
+}

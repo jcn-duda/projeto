@@ -1,0 +1,183 @@
+{
+ "key": "index:movie:tt0271383",
+ "value": {
+  "servedFromIndex": true,
+  "instant": true,
+  "raw": {
+   "items": [
+    {
+     "title": "O Auto da Compadecida (1999) [480p DUBLADO 1.1 GB]",
+     "infoHash": "d64dea631759215465368633b0e4a1c91c845530",
+     "seeders": 1,
+     "size": 1181116006,
+     "indexer": "redetorrent-cardigann",
+     "tracker": "Rede Torrent",
+     "isBr": true,
+     "dubbed": true,
+     "lied": false,
+     "quality": "480p",
+     "fromSnapshot": true
+    },
+    {
+     "title": "O Auto da Compadecida (1999) [720p WEBRIP DUBLADO 2 GB]",
+     "infoHash": "4299faf9cf5e223796c3b23f98e9647538f59acd",
+     "seeders": 1,
+     "size": 2147483648,
+     "indexer": "redetorrent-cardigann",
+     "tracker": "Rede Torrent",
+     "isBr": true,
+     "dubbed": true,
+     "lied": false,
+     "quality": "720p",
+     "mediaSource": "WEBRip",
+     "fromSnapshot": true
+    },
+    {
+     "title": "A Dog s Will (2000) (1080p BluRay x265 10bit EAC3 5 1 Portuguese r00t) [QxR]",
+     "infoHash": "e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+     "seeders": 101,
+     "size": 6786048327,
+     "indexer": "limetorrents",
+     "tracker": "LimeTorrents",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "1080p",
+     "mediaSource": "BluRay",
+     "fromSnapshot": true
+    },
+    {
+     "title": "O Auto da Compadecida (2000) 720p WEBRip x264 -YTS",
+     "infoHash": "d79dd45f3354530852ee754a7bbad31777ee56af",
+     "seeders": 17,
+     "size": 988964454,
+     "indexer": "yts",
+     "tracker": "yts",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "720p",
+     "mediaSource": "WEBRip",
+     "fromSnapshot": true
+    },
+    {
+     "title": "A Dog s Will 2000 PORTUGUESE 720p 10bit BluRay 6CH x265 HEVC",
+     "infoHash": "41be6f40abfb8ecfaf44a21e4c560dacf454fa6e",
+     "seeders": 12,
+     "size": 1148903751,
+     "indexer": "limetorrents",
+     "tracker": "LimeTorrents",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "720p",
+     "mediaSource": "BluRay",
+     "fromSnapshot": true
+    },
+    {
+     "title": "A Dog s Will 2000 PORTUGUESE 1080p 10bit BluRay 6CH x265 HEVC",
+     "infoHash": "ab4912ac4783493528e8d629159aad85868ce2c0",
+     "seeders": 9,
+     "size": 2254857830,
+     "indexer": "limetorrents",
+     "tracker": "LimeTorrents",
+     "isBr": false,
+     "dubbed": false,
+     "lied": false,
+     "quality": "1080p",
+     "mediaSource": "BluRay",
+     "fromSnapshot": true
+    },
+    {
+     "title": "O Auto da Compadecida [720p DUBLADO]",
+     "infoHash": "438ad83956a3c44a26bdda4aee228c4aa14a1764",
+     "magnet": "magnet:?xt=urn:btih:438ad83956a3c44a26bdda4aee228c4aa14a1764&dn=%7BWWW.BLUDV.TV%7D%20O%20Auto%20da%20Compadecida%202000%20(DVDRip)%20Acesse%20o%20ORIGINAL%20WWW.BLUDV.TV&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+     "size": 7355131494,
+     "seeders": 1,
+     "indexer": "bludv-cardigann",
+     "tracker": "BLUDV",
+     "isBr": true,
+     "dubbed": true,
+     "quality": "720p",
+     "fromFallback": true,
+     "fallbackIndexer": "bludv-cardigann",
+     "fallbackFetchable": true
+    },
+    {
+     "title": "O Auto da Compadecida [720p DUBLADO]",
+     "infoHash": "b71926031dea70bd81e9e1b1e29faafc99d97bfe",
+     "magnet": "magnet:?xt=urn:btih:b71926031dea70bd81e9e1b1e29faafc99d97bfe&dn=%7BWWW.BLUDV.TV%7D%20O%20Auto%20da%20Compadecida%202000%20(x265)%20Acesse%20o%20ORIGINAL%20WWW.BLUDV.TV&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+     "size": 2652142305,
+     "seeders": 1,
+     "indexer": "bludv-cardigann",
+     "tracker": "BLUDV",
+     "isBr": true,
+     "dubbed": true,
+     "quality": "720p",
+     "fromFallback": true,
+     "fallbackIndexer": "bludv-cardigann",
+     "fallbackFetchable": true
+    },
+    {
+     "title": "O Auto da Compadecida 2000 (720p) WWW.LAPUMiAFiLMES.COM",
+     "infoHash": "4299faf9cf5e223796c3b23f98e9647538f59acd",
+     "seeders": 1,
+     "size": 2200868037,
+     "tracker": "AllDebrid",
+     "indexer": "debrid",
+     "isBr": true,
+     "brOriginOnly": true,
+     "fromAccount": true
+    },
+    {
+     "title": "o auto da compadecida (2000).avi",
+     "infoHash": "d64dea631759215465368633b0e4a1c91c845530",
+     "seeders": 1,
+     "size": 1258301440,
+     "tracker": "AllDebrid",
+     "indexer": "debrid",
+     "isBr": false,
+     "brOriginOnly": false,
+     "fromAccount": true
+    },
+    {
+     "title": "A.Dog's.Will.2000.PORTUGUESE.720p.10bit.BluRay.6CH.x265.HEVC.mkv",
+     "infoHash": "41be6f40abfb8ecfaf44a21e4c560dacf454fa6e",
+     "seeders": 1,
+     "size": 1143861283,
+     "tracker": "AllDebrid",
+     "indexer": "debrid",
+     "isBr": false,
+     "brOriginOnly": false,
+     "fromAccount": true
+    },
+    {
+     "title": "A Dog's Will (2000) (1080p BluRay x265 10bit EAC3 5.1 Portuguese r00t)",
+     "infoHash": "e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+     "seeders": 1,
+     "size": 6782556826,
+     "tracker": "AllDebrid",
+     "indexer": "debrid",
+     "isBr": false,
+     "brOriginOnly": false,
+     "fromAccount": true
+    },
+    {
+     "title": "A.Dog's.Will.2000.PORTUGUESE.1080p.10bit.BluRay.6CH.x265.HEVC.mkv",
+     "infoHash": "ab4912ac4783493528e8d629159aad85868ce2c0",
+     "seeders": 1,
+     "size": 2259415380,
+     "tracker": "AllDebrid",
+     "indexer": "debrid",
+     "isBr": false,
+     "brOriginOnly": false,
+     "fromAccount": true
+    }
+   ],
+   "partial": true,
+   "sweepInline": false,
+   "instant": true,
+   "live": null
+  }
+ }
+}

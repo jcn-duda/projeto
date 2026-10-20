@@ -1,0 +1,54 @@
+{
+ "key": "fallback:series:tt0182576:1:1:late",
+ "value": {
+  "items": [
+   {
+    "title": "Family Guy 1 Temporada (1999) [720p CAM DUBLADO 2.4 GB]",
+    "infoHash": "12cce17222036da9f35d751427e1aa631d71f0f5",
+    "magnet": "magnet:?xt=urn:btih:12cce17222036da9f35d751427e1aa631d71f0f5&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 2576980378,
+    "seeders": 1,
+    "indexer": "torrentdosfilmesv2",
+    "tracker": "TorrentDosFilmes",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "torrentdosfilmesv2",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Uma Familia Da Pesada 1ª Temporada Dublada",
+    "infoHash": "bb480dd84c4802f1d75086c70bb385b15c013c83",
+    "magnet": "magnet:?xt=urn:btih:bb480dd84c4802f1d75086c70bb385b15c013c83&dn=Uma%20Familia%20Da%20Pesada%201%26ordf%3B%20Temporada%20Dublada&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2850%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2920%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 1073741824,
+    "seeders": 0,
+    "indexer": "kickasstorrents-to",
+    "tracker": "kickasstorrents.to",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "sem resolução",
+    "fromFallback": true,
+    "fallbackIndexer": "kickasstorrents-to"
+   },
+   {
+    "title": "Uma Familia da Pesada Temporada 1 Dublado",
+    "infoHash": "c42eee4099ff7813f2b770686a8f98ed4d72db36",
+    "magnet": "magnet:?xt=urn:btih:c42eee4099ff7813f2b770686a8f98ed4d72db36&dn=Uma%20Familia%20da%20Pesada%20Temporada%201%20Dublado&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2850%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2920%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 622162083,
+    "seeders": 0,
+    "indexer": "kickasstorrents-to",
+    "tracker": "kickasstorrents.to",
+    "isBr": true,
+    "dubbed": true,
+    "quality": "sem resolução",
+    "fromFallback": true,
+    "fallbackIndexer": "kickasstorrents-to"
+   }
+  ],
+  "injected": 3,
+  "cut": {
+   "live-dedupe": 2
+  }
+ }
+}

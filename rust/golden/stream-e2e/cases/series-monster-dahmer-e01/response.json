@@ -24,43 +24,9 @@
         ]
       },
       {
-        "infoHash": "8b036f08b0a045e226259e11f22d9695caa65187",
-        "title": "Monster.The.Ed.Gein.Story.S01.2160p.WEB-DL.HDR.ENG.LATINO.FRENCH.HINDI.MP4-BTM\n📦 👤 ~12 💾 7.05 GB 📦 pack 70.51 GB (média) ⚙️ The Pirate Bay",
-        "name": "📦 · 4K WEB-DL · The Pirate Bay · 👤 ~12",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEB-DL"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "7.05 GB"
-      },
-      {
-        "infoHash": "1f1fc95b6d84eb37bb3d04f66381d373b6f07add",
-        "title": "Monster.The.Lizzie.Borden.Story.S01.1080p.HEVC.X265-MeGusta\n📦 👤 ~137 💾 407.55 MB 📦 pack 3.98 GB (média) ⚙️ The Pirate Bay",
-        "name": "📦 · 1080p · The Pirate Bay · 👤 ~137",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "407.55 MB"
-      },
-      {
         "infoHash": "e77b8b3fac02fdcd52e437b8d2afefd263bb8eff",
-        "title": "Monster (2022) S01  The Jeffrey Dahmer Story (1080p NF WEB DL x26   \n📦 👤 ~40 💾 1.90 GB 📦 pack 19.03 GB (média) ⚙️ LimeTorrents",
-        "name": "📦 · 1080p WEB-DL · LimeTorrents · 👤 ~40",
+        "title": "Monster 2022 S01 The Jeffrey Dahmer Story 1080p NF WEB DL x26\n👤 45 💾 1.90 GB 📦 pack 19.00 GB (média) ⚙️ TheRARBG",
+        "name": "1080p WEB-DL · TheRARBG · 👤 45",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
@@ -75,11 +41,11 @@
         "size": "1.90 GB"
       },
       {
-        "infoHash": "7a72e6b7e1f3460d20f73493faf13b2a1b1688d8",
-        "title": "Monster.The.Jeffrey.Dahmer.Story.S01.COMPLETE.720p.NF.WEBRip.x26\n📦 👤 ~111 💾 195.58 MB 📦 pack 1.91 GB (média) ⚙️ The Pirate Bay",
-        "name": "📦 · 720p WEBRip · The Pirate Bay · 👤 ~111",
+        "infoHash": "e1d6ba31c95c54b9d33af609f82e978699baef90",
+        "title": "Monster 2022 Seasons 1 to 4 Complete 1080p WEB x264 [i c]\n👤 23 ⚙️ LimeTorrents",
+        "name": "1080p · LimeTorrents · 👤 23",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEBRip"
+          "bingeGroup": "powerm-1080p-any"
         },
         "sources": [
           "tracker:udp://tracker.opentrackr.org:1337/announce",
@@ -88,13 +54,12 @@
           "tracker:udp://exodus.desync.com:6969/announce",
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "195.58 MB"
+        ]
       },
       {
-        "infoHash": "a65680627d3bcbe7cded883e70e7b10b907906be",
-        "title": "The.Monster.of.Florence.S01.720p.HEVC.x265-MeGusta\n📦 👤 ~16 💾 147.46 MB 📦 pack 1.44 GB (média) ⚙️ The Pirate Bay",
-        "name": "📦 · 720p · The Pirate Bay · 👤 ~16",
+        "infoHash": "3f8eac040cd9a3d30e3f085a2c7721e3392e5951",
+        "title": "Monster 2022 Seasons 1 to 4 Complete 720p WEB x264 [i c]\n👤 16 ⚙️ LimeTorrents",
+        "name": "720p · LimeTorrents · 👤 16",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
@@ -105,8 +70,23 @@
           "tracker:udp://exodus.desync.com:6969/announce",
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "147.46 MB"
+        ]
+      },
+      {
+        "infoHash": "2436ba32823ced149f336f31c07910d27f6c0a2f",
+        "title": "Monster 2022 Seasons 1 and 2 Complete 720p WEB DL x264 i_c\n👤 11 ⚙️ TheRARBG",
+        "name": "720p WEB-DL · TheRARBG · 👤 11",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
       }
     ],
     "cacheMaxAge": 0

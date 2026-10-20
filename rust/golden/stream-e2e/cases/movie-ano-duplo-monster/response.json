@@ -8,85 +8,157 @@
   "body": {
     "streams": [
       {
+        "infoHash": "ee272888d8ed2e0c04ef60ae82f8203964647892",
         "title": "Godzilla.(2014).Dublado.1080p\n👤 1 💾 1.88 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BR · AllDebrid · 👤 1",
+        "name": "1080p DUB BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/ee272888d8ed2e0c04ef60ae82f8203964647892?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.88 GB"
       },
       {
+        "infoHash": "67c0ffc773bc6d6ecf73d12e174d1841d083d5a7",
         "title": "Godzilla.2014.1080p.Dual-WOLVERDONFILMES.COM\n👤 1 💾 2.23 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BR · AllDebrid · 👤 1",
+        "name": "1080p DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/67c0ffc773bc6d6ecf73d12e174d1841d083d5a7?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "2.23 GB"
       },
       {
-        "title": "Godzilla (2014) [1080p BLU-RAY DUAL 8.1 GB]\n📦 👤 ~ 💾 907.00 MB ⚙️ mico",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · mico · 👤 ~",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/a6b9d889e57de8995e702a9dd1ff554fe4a6d7b2?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
-        "size": "907.00 MB"
-      },
-      {
+        "infoHash": "d5dfb5eab5982aceda0047ba64384f2f28d4e14f",
         "title": "Godzilla.2014.720p.Dual-WOLVERDONFILMES.COM\n👤 1 💾 1.23 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
+        "name": "720p DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/d5dfb5eab5982aceda0047ba64384f2f28d4e14f?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.23 GB"
       },
       {
-        "title": "Godzilla (2014) [2160p] [4K] [BluRay] [5 1] [YTS MX]\n📦 👤 ~41 💾 6.10 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~41",
+        "infoHash": "7307e9378445d1e5f685b3d393eb0b2a5a05aaaf",
+        "title": "Godzilla (2014) [2160p] [4K] [BluRay] [5 1] [YTS MX]\n📦 👤 ~53 💾 6.10 GB ⚙️ LimeTorrents",
+        "name": "📦 · 4K BluRay · LimeTorrents · 👤 ~53",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/7307e9378445d1e5f685b3d393eb0b2a5a05aaaf?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "6.10 GB"
       },
       {
-        "title": "Godzilla 2014 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC HYBRID RE   \n📦 👤 ~13 💾 65.43 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~13",
+        "infoHash": "5cc37314a9f99dd48eaa13d5c74c8683ad0da77f",
+        "title": "Godzilla 2014 2160p UHD BDRip HEVC 10bit DV HDR TrueHD.7.1 Atmos MUSHR00M\n📦 👤 ~18 💾 21.60 GB ⚙️ TheRARBG",
+        "name": "📦 · 4K · TheRARBG · 👤 ~18",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
+          "bingeGroup": "powerm-2160p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/1ff79bbda5bc72c534c98dc2b99e21528ab53950?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
-        "size": "65.43 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "21.60 GB"
       },
       {
-        "title": "Godzilla (2014) 1080p BrRip x264 -YIFY\n📦 👤 ~100 💾 1.84 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p · The Pirate Bay · 👤 ~100",
+        "infoHash": "70f05da4f10dfc028d1ff455d520c0a2d7121b57",
+        "title": "Godzilla (2014) 1080p BrRip x264 -YIFY\n📦 👤 ~151 💾 1.84 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p · The Pirate Bay · 👤 ~151",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/70f05da4f10dfc028d1ff455d520c0a2d7121b57?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.84 GB"
       },
       {
-        "title": "Godzilla 2014 Hybrid 1080p BluRay REMUX AVC Atmos EPSiLON\n📦 👤 ~15 💾 24.24 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay · LimeTorrents · 👤 ~15",
+        "infoHash": "c20adc96dd47f072f946e10c6d8f04e8174d8713",
+        "title": "Godzilla 2014 1080p NF WEB-DL DDP5 1 AV1-Saon\n📦 👤 ~25 💾 4.91 GB ⚙️ TheRARBG",
+        "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~25",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/20e6af6d95d4ea44b95caa7c05ea53e07eee804a?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
-        "size": "24.24 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "4.91 GB"
       },
       {
-        "title": "Godzilla (2014) 720p BrRip x264 -YIFY\n📦 👤 ~16 💾 868.40 MB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 720p · The Pirate Bay · 👤 ~16",
+        "infoHash": "fa5a27f936bb504860a1ac8238f91034a81ce71c",
+        "title": "Godzilla (2014) 720p BrRip x264 -YIFY\n📦 👤 ~19 💾 868.40 MB ⚙️ The Pirate Bay",
+        "name": "📦 · 720p · The Pirate Bay · 👤 ~19",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/fa5a27f936bb504860a1ac8238f91034a81ce71c?w=%7B%22n%22%3A%5B%22Godzilla%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0831387%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "868.40 MB"
+      },
+      {
+        "infoHash": "93aaa0ab4bd64a5eb449fe5d83308d35cfada3bb",
+        "title": "Godzilla 2014 x264 720p Esub BluRay Dual Audio English Hindi THE GOPI SAHI\n📦 👤 ~6 💾 974.62 MB ⚙️ LimeTorrents",
+        "name": "📦 · 720p BluRay · LimeTorrents · 👤 ~6",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "974.62 MB"
       }
     ],
     "cacheMaxAge": 0

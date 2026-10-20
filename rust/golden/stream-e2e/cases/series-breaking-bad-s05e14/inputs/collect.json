@@ -1,0 +1,180 @@
+[
+  {
+    "key": {
+      "imdb": "tt0903747",
+      "type": "series",
+      "season": 5,
+      "episode": 14,
+      "scope": "all",
+      "query": "Breaking Bad S05E14",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Breaking.Bad.Complete.Series.720p.BluRay.Goblin.Eng.AMC",
+          "infoHash": "1531d4c9b1034d887f3a0e10dfc86280e2e779aa",
+          "seeders": 1,
+          "size": 184632583903,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Breaking Bad S01-S05 720p Bluray x265-BMF",
+          "infoHash": "9a37f6bd1c81e437ef3ef562ccc86c59064c325d",
+          "seeders": 1,
+          "size": 19326032884,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Breaking Bad (2008) Season 1-5 S01-S05 (1080p BluRay x265 HEVC 10bit AAC 5.1 Silence)",
+          "infoHash": "b43df67a93863ea91f2f773f00361072da771dd3",
+          "seeders": 1,
+          "size": 150389060754,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01-S05.1080p.BluRay.10bit.HEVC.6CH-MkvCage.ws",
+          "infoHash": "33b1396389a7d76f57215ee618f0ce438126ebe4",
+          "seeders": 1,
+          "size": 67325144419,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad",
+          "infoHash": "14e2435f8691fc8a07cc4921bfc8ce3c5a49bf56",
+          "seeders": 1,
+          "size": 610390490610,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.Complete.S01-S05.1080p.10bit.BluRay.x265.HEVC.6CH-MRN",
+          "infoHash": "2927019dbf67eb165347258c1f6d136d644efa4f",
+          "seeders": 1,
+          "size": 42228785197,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking.Bad.S01-S05.(2008).1080p.WEBRIP.HEVC.OPUS2.0",
+          "infoHash": "a5c1aefb62c9bd67ff49412544915533155a0b99",
+          "seeders": 1,
+          "size": 17790419047,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad - 5ª Temporada (2012) 720p Dual Áudio - Douglasvip",
+          "infoHash": "bd9656978969b71c2ac79ca2e4ed13307c799af6",
+          "seeders": 1,
+          "size": 5751310781,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad S05 MULTi 2160p WEBRiP H.265-Dam",
+          "infoHash": "d7a88f8ba6015a9019abcc9e39f2e2b3734cdcd0",
+          "seeders": 1,
+          "size": 162877655337,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad S05 MULTi 2160p WEBRiP x264-GLaDOS",
+          "infoHash": "b1ef0b298805852552d08b8f12254e9506fe4826",
+          "seeders": 1,
+          "size": 382702245058,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad 5 Temporada [ Parte 1 ] - The Pirate Filmes",
+          "infoHash": "525f80c8c7a73e48a914ee57eabac597aea1e5d9",
+          "seeders": 1,
+          "size": 3247307995,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true
+        },
+        {
+          "title": "Breaking Bad 5 Temporada Parte 2 -  The Pirate Filmes",
+          "infoHash": "76beedd3910b6f59d96a6f2365bcf45f657aa644",
+          "seeders": 1,
+          "size": 3394649612,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

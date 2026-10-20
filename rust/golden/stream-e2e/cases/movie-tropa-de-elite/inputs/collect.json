@@ -1,0 +1,181 @@
+[
+  {
+    "key": {
+      "imdb": "tt0861739",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "Elite Squad 2007",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Elite Squad (2007) [1080p] [BluRay] [5.1] [YTS.MX]",
+          "infoHash": "d5a5e8002ad3d01f2c43fb729b5f56250f48074e",
+          "seeders": 1,
+          "size": 2270375721,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Elite.Squad.2007.1080p.BluRay.x265.HEVC.EAC3-SARTRE",
+          "infoHash": "1bed1bf1c0cff0462b429e2978b6749c6560755b",
+          "seeders": 1,
+          "size": 7413271752,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Elite.Squad.2007.1080p.BluRay.x265.DTS-LiNUX",
+          "infoHash": "38a5de1cd14ec4c2758f07683b9a5bdad7c1444d",
+          "seeders": 1,
+          "size": 5635478308,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Coleção Tropa de Elite - 2007 - 2010 [1080p] WWW.BLUDV.COM",
+          "infoHash": "e9396cb419ff6b19d3827b41fca8832fad08e5e4",
+          "seeders": 1,
+          "size": 4612019399,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": true,
+          "fromAccount": true
+        },
+        {
+          "title": "Tropa De Elite - Coleção (2007-2010) 5.1 CH Dublado 1080p (By-LuanHarper)",
+          "infoHash": "594f43bae0107df0f93bf85da3d3a63daaa4e54d",
+          "seeders": 1,
+          "size": 4234088801,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dublado",
+          "provenName": ""
+        },
+        {
+          "title": "Tropa de Elite (Elite Squad) 2007 720p BRRip H264 (multisubs) - antonispol",
+          "infoHash": "54fbcbc86ec7d5eb1af867b6ebb6742c9869af0f",
+          "seeders": 1,
+          "size": 1744710373,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Elite Squad (2007) [720p] [BluRay] [YTS.MX]",
+          "infoHash": "6069d35269c8961ad6eee3a39d57097966c55200",
+          "seeders": 1,
+          "size": 1105466688,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Elite.Squad.2007.PROPER.1080p.BluRay.x264-GHOULS[rarbg]",
+          "infoHash": "cd3b90051f246015b7ed663373d45c0d1e9dae17",
+          "seeders": 1,
+          "size": 9396577060,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Elite.Squad.2007.PORTUGUESE.1080p.BluRay.H264.AAC-VXT",
+          "infoHash": "006aea71e7f295cfeea8bc80971d200f2a13a261",
+          "seeders": 1,
+          "size": 2358750923,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Tropa.de.Elite.Elite.Squad.2007.720p.Bluray.x264.anoXmous",
+          "infoHash": "174e148c270f92d9439c67960111891b1eaa3418",
+          "seeders": 1,
+          "size": 733484943,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Tropa.de.Elite.Elite.Squad.2007.720p.BluRay.-SBRO.mkv",
+          "infoHash": "210c834a46803f70fd9efb65292f6ea794b44898",
+          "seeders": 1,
+          "size": 4415409546,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Elite.Squad.2007.PORTUGUESE.1080p.BluRay.REMUX.VC-1.DTS-HD.MA.5.1-FGT",
+          "infoHash": "74af83dc44ccf5dc8149d51dd9ad6dee77e0ea26",
+          "seeders": 1,
+          "size": 21669095163,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "rutracker-ru",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

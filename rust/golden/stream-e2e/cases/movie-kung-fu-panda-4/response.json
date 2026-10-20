@@ -8,103 +8,157 @@
   "body": {
     "streams": [
       {
+        "infoHash": "405e4d8e941131eb99826df196e3be4f53b3a4bb",
         "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv\n👤 1 💾 1.82 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEBRip BR · AllDebrid · 👤 1",
+        "name": "1080p WEBRip DUB BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/405e4d8e941131eb99826df196e3be4f53b3a4bb?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.82 GB"
       },
       {
-        "title": "Kung Fu Panda 4 (2024) [2160p WEB-DL LEGENDADO 4.18 GB]\n📦 👤 ~80 💾 4.18 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 4K WEB-DL LEG BR · TheRARBG · 👤 ~80",
+        "infoHash": "01d9a5c0e38709e8c56e6e6c30b0c25cbdd118df",
+        "title": "Kung Fu Panda 4 (2024) WEB-DL [1080p WEB-DL DUBLADO 2.79 GB]\n📦 👤 ~1 💾 2.79 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 1080p WEB-DL DUAL BR · torrentdosfilm · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.79 GB"
+      },
+      {
+        "infoHash": "e844d28bf15aba4436c74718c57a0b88941f9da4",
+        "title": "Kung Fu Panda 4 [1080p WEB-DL DUAL]\n📦 👤 ~1 💾 2.15 GB ⚙️ apachetorrent-cardigann",
+        "name": "📦 · 1080p WEB-DL DUAL BR · apachetorrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.15 GB"
+      },
+      {
+        "infoHash": "b65732031572e4342811e3bd4e1a2361cc48807c",
+        "title": "Kung Fu Panda 4 [2160p WEB-DL LEGENDADO]\n📦 👤 ~65 💾 15.90 GB ⚙️ Apache Torrent",
+        "name": "📦 · 4K WEB-DL LEG BR · Apache Torrent · 👤 ~65",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/22080ff718c3a97ddd916534b837a11d70e912f9?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "4.18 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "15.90 GB"
       },
       {
-        "title": "Kung Fu Panda 4 (2024) [1080p BLU-RAY LEGENDADO 1.73 GB]\n📦 👤 ~100 💾 1.73 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 1080p BluRay LEG BR · TheRARBG · 👤 ~100",
+        "infoHash": "9a909669ce21a2d2c23f27dd82096a8df5ad02de",
+        "title": "Kung Fu Panda 4 [2160p LEGENDADO]\n📦 👤 ~26 💾 8.16 GB ⚙️ Apache Torrent",
+        "name": "📦 · 4K LEG BR · Apache Torrent · 👤 ~26",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-2160p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/337596e5018cf0442b18e4b785d8887035aa6222?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "8.16 GB"
+      },
+      {
+        "infoHash": "a8e918ed1ce097fe92cb43a4c05e56b3bf8d4177",
+        "title": "Kung Fu Panda 4 [1080p WEBRIP LEGENDADO]\n📦 👤 ~325 💾 1.73 GB ⚙️ Apache Torrent",
+        "name": "📦 · 1080p WEBRip LEG BR · Apache Torrent · 👤 ~325",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.73 GB"
       },
       {
-        "title": "Kung Fu Panda 4 (2024) [1080p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 1.72 GB ⚙️ ComandoTorrents",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL LEG BR · Comando · 👤 ~1",
+        "infoHash": "5cff3c349f06372c8d790af3ed3602cdbfc86157",
+        "title": "Kung Fu Panda 4 [1080p WEBRIP LEGENDADO]\n📦 👤 ~126 💾 1.40 GB ⚙️ Apache Torrent",
+        "name": "📦 · 1080p WEBRip LEG BR · Apache Torrent · 👤 ~126",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
+          "bingeGroup": "powerm-1080p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/a8e918ed1ce097fe92cb43a4c05e56b3bf8d4177?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "1.72 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.40 GB"
       },
       {
-        "title": "Kung Fu Panda 4 (2024) [1080p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 1.56 GB ⚙️ Apache Torrent",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL LEG BR · Apache Torrent · 👤 ~1",
+        "infoHash": "6c4d2a635e51f3c1e3cd8d32aa15de67ee4c391b",
+        "title": "Kung Fu Panda 4 [720p WEBRIP LEGENDADO]\n📦 👤 ~105 💾 861.28 MB ⚙️ Apache Torrent",
+        "name": "📦 · 720p WEBRip LEG BR · Apache Torrent · 👤 ~105",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
+          "bingeGroup": "powerm-720p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/7c85d7c784416295b50010b5c92c60d7f9e4821b?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "1.56 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "861.28 MB"
       },
       {
-        "title": "Kung Fu Panda 4 (2024) [720p BLU-RAY LEGENDADO 861 MB]\n📦 👤 ~82 💾 861.64 MB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 720p BluRay LEG BR · TheRARBG · 👤 ~82",
+        "infoHash": "b1419330660f145f1414f0e5516c588e9c2c6338",
+        "title": "Kung Fu Panda 4 [720p WEBRIP LEGENDADO]\n📦 👤 ~26 💾 796.17 MB ⚙️ Apache Torrent",
+        "name": "📦 · 720p WEBRip LEG BR · Apache Torrent · 👤 ~26",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
+          "bingeGroup": "powerm-720p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/b6ac553091161950da391a74790611710e1cd467?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "861.64 MB"
-      },
-      {
-        "title": "Kung Fu Panda 4 (2024) [720p WEB-DL LEGENDADO]\n📦 👤 ~1 💾 861.00 MB ⚙️ ComandoTorrents",
-        "name": "[AD⚡] 📦 · 720p WEB-DL LEG BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/6c4d2a635e51f3c1e3cd8d32aa15de67ee4c391b?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "861.00 MB"
-      },
-      {
-        "title": "Kung.Fu.Panda.4.2024.MULTI.2160p.WEB-DL.DV.HDR.H265-AOC\n📦 👤 ~19 💾 17.53 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 4K WEB-DL · The Pirate Bay · 👤 ~19",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/3a44500cf20ab3bba13c8213165dfadadad1b7aa?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "17.53 GB"
-      },
-      {
-        "title": "Kung Fu Panda 4 2024 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC RE\n📦 👤 ~15 💾 43.40 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 4K BluRay · TheRARBG · 👤 ~15",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/ae7a6da69e222336002ef451cdf731e7020f510d?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "43.40 GB"
-      },
-      {
-        "title": "Kung.Fu.Panda.4.2024.1080p.WEB-DL.EAC3.AAC.DUAL.5.1\n👤 1 💾 2.80 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/01d9a5c0e38709e8c56e6e6c30b0c25cbdd118df?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "2.80 GB"
-      },
-      {
-        "title": "Kung Fu Panda 4 2024 WEB-DL 1080p x264 DUAL 5.1\n👤 1 💾 2.15 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/e844d28bf15aba4436c74718c57a0b88941f9da4?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig={{sig}}",
-        "size": "2.15 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "796.17 MB"
       }
     ],
     "cacheMaxAge": 0

@@ -8,102 +8,190 @@
   "body": {
     "streams": [
       {
-        "title": "Interestelar [DUAL]\n📦 👤 ~30 💾 29.53 GB ⚙️ mico",
-        "name": "[AD⚡] 📦 · 4K BR · mico · 👤 ~30",
+        "infoHash": "5669c94c766f76a380ef9e113462585cd5468c56",
+        "title": "Interestelar [DUAL]\n📦 👤 ~1 💾 29.53 GB ⚙️ Apache Torrent",
+        "name": "📦 · 4K DUAL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/5669c94c766f76a380ef9e113462585cd5468c56?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "29.53 GB"
       },
       {
-        "title": "Interestelar (2014) IMAX 1080p 6ch BrRip Dual Audio - 1046\n👤 1 💾 2.82 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p IMAX BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/d00c231fcfbafdb26afc448a84211c37cbe6717b?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
-        "size": "2.82 GB"
-      },
-      {
-        "title": "Interestelar (2014) 1080p Dublado / Dual Audio pt-BR\n📦 👤 ~1 💾 2.77 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
-        "name": "[AD⚡] 📦 · 1080p BR · NerdFilmes · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/ac3ee9395349ad9a0b6ef13e1520511a6b9ee2b2?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
-        "size": "2.77 GB"
-      },
-      {
-        "title": "Interestelar (2014) BRrip IMAX Blu-Ray 1080p 5.1 Ch Dublado - AndreTPF\n👤 1 💾 2.69 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p IMAX BluRay BR · AllDebrid · 👤 1",
+        "infoHash": "61e6caa8d9c372cf00c150bf8fefb8a3b3c0cdb9",
+        "title": "Interestelar BluRay e (2015) [1080p BLURAY DUBLADO opção 2]\n📦 👤 ~114 💾 2.60 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 1080p BluRay DUB BR · torrentdosfilm · 👤 ~114",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/1b8302c5e59b36671858f9bf0a7049093e25a22f?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
-        "size": "2.69 GB"
-      },
-      {
-        "title": "Interestelar (2014) x264 BRRip 1080p Dublado AC3 5.1\n👤 1 💾 3.93 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/e000ab0247eb231e01240d3c0926ebedaf67ef63?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
-        "size": "3.93 GB"
-      },
-      {
-        "title": "Interestelar.2014.1080p.Dublado-WOLVERDONFILMES.COM\n👤 1 💾 2.60 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/61e6caa8d9c372cf00c150bf8fefb8a3b3c0cdb9?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "2.60 GB"
       },
       {
-        "title": "Interestelar [1080p BLU-RAY DUAL]\n📦 👤 ~ 💾 11.22 GB ⚙️ mico",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · mico · 👤 ~",
+        "infoHash": "1b8302c5e59b36671858f9bf0a7049093e25a22f",
+        "title": "Interestelar (2014) BRrip IMAX Blu-Ray 1080p 5.1 Ch Dublado - AndreTPF\n👤 1 💾 2.69 GB ⚙️ AllDebrid",
+        "name": "1080p IMAX BluRay DUB BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/b329437515408208c96521ccd63ec826225e3997?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
-        "size": "11.22 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.69 GB"
       },
       {
-        "title": "Interestelar.2015.IMAX.720p.BluRay.DUAL-LAPUMiA\n👤 1 💾 1.47 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p IMAX BluRay BR · AllDebrid · 👤 1",
+        "infoHash": "d00c231fcfbafdb26afc448a84211c37cbe6717b",
+        "title": "Interestelar (2014) IMAX 1080p 6ch BrRip Dual Audio - 1046\n👤 1 💾 2.82 GB ⚙️ AllDebrid",
+        "name": "1080p IMAX DUAL BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.82 GB"
+      },
+      {
+        "infoHash": "e000ab0247eb231e01240d3c0926ebedaf67ef63",
+        "title": "Interestelar (2014) x264 BRRip 1080p Dublado AC3 5.1\n👤 1 💾 3.93 GB ⚙️ AllDebrid",
+        "name": "1080p DUB BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "3.93 GB"
+      },
+      {
+        "infoHash": "293bd62cd7db02a23299cc57da635e34b0b890fb",
+        "title": "Interestelar BluRay e (2015) [720p BLURAY DUBLADO 2.26 GB]\n📦 👤 ~34 💾 2.26 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 720p BluRay DUB BR · torrentdosfilm · 👤 ~34",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/ea9138fac73b38bbc81d7316945ab91ca9a3859f?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
-        "size": "1.47 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.26 GB"
       },
       {
+        "infoHash": "56dd7a1443fa923aed3577af2af2154ed9f8ce8f",
         "title": "Interestelar (2014) BRrip IMAX Blu-Ray 720p 5.1 Ch Dublado - AndreTPF\n👤 1 💾 1.51 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p IMAX BluRay BR · AllDebrid · 👤 1",
+        "name": "720p IMAX BluRay DUB BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/56dd7a1443fa923aed3577af2af2154ed9f8ce8f?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22d%22%3A1%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.51 GB"
       },
       {
-        "title": "Interstellar 2014 PROPER IMAX 1080p UHD BluRay x265 HDR DV DD 5 1 Dual YG⭐\n📦 👤 ~547 💾 4.21 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 4K IMAX BluRay · The Pirate Bay · 👤 ~547",
+        "infoHash": "f6c22c8de2af9a1aaf67ec4876d55997ceadea3a",
+        "title": "Interestelar (2015) BDRip XviD Dublado\n📦 👤 ~1 💾 1.26 GB ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.26 GB"
+      },
+      {
+        "infoHash": "f320044165037d0ebffe17fd4d96786a9bc7a652",
+        "title": "Interestelar Dublado\n📦 👤 ~ 💾 1.82 GB ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.82 GB"
+      },
+      {
+        "infoHash": "13121036a0a971d7ae5601b9b95b5cc77d440b01",
+        "title": "Interstellar.2014.PROPER.IMAX.1080p.UHD.BluRay.x265.HDR.DV.DD+5.1.Dual.YG⭐\n📦 👤 ~505 💾 4.21 GB ⚙️ thepiratebay",
+        "name": "📦 · 4K IMAX BluRay · thepiratebay · 👤 ~505",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/13121036a0a971d7ae5601b9b95b5cc77d440b01?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "4.21 GB"
       },
       {
-        "title": "Interstellar 2014 2160p PROPER IMAX REMUX DV HDR10 TrueHD 7 1 Atmos jennaortegaUHD\n📦 👤 ~256 💾 97.85 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 4K IMAX · The Pirate Bay · 👤 ~256",
+        "infoHash": "d8d05ebec7303f05a7243986e8c7d0e201b0ac0d",
+        "title": "Interstellar 2014 2160p PROPER IMAX REMUX DV HDR10 TrueHD 7 1 Atmos jennaortegaUHD\n📦 👤 ~257 💾 97.85 GB ⚙️ TheRARBG",
+        "name": "📦 · 4K IMAX · TheRARBG · 👤 ~257",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/d8d05ebec7303f05a7243986e8c7d0e201b0ac0d?w=%7B%22n%22%3A%5B%22Interstellar%22%2C%22Interestelar%22%5D%2C%22y%22%3A2014%2C%22i%22%3A%22tt0816692%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "97.85 GB"
       }
     ],

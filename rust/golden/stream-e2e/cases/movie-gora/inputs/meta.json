@@ -1,0 +1,27 @@
+{
+  "key": "movie:tt0384116",
+  "meta": {
+    "name": "G.O.R.A.",
+    "year": "2017",
+    "type": "movie",
+    "released": "2017-03-10T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "G.O.R.A.",
+    "original": "G.O.R.A.",
+    "en": "G.O.R.A.",
+    "br": [],
+    "year": "2004"
+  },
+  "collection": {
+    "name": "G.O.R.A. [Seri]",
+    "root": "gora seri",
+    "years": [
+      2004,
+      2008,
+      2018,
+      2027
+    ]
+  },
+  "homeReleaseAt": 1100736000000
+}

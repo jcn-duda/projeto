@@ -25,9 +25,9 @@
         "size": "1.76 GB"
       },
       {
-        "infoHash": "d653731eef4ad4b01fb28d113296ef10c0c30ad9",
-        "title": "Game of Thrones 1ª até 8ª Temporada (2011) [1080p DUBLADO 35 GB]\n📦 👤 ~1 💾 490.96 MB 📦 pack 35.00 GB (média) ⚙️ NerdFilmesTorrent / XNerdFilmes",
-        "name": "📦 · 720p DUAL BR · NerdFilmes · 👤 ~1",
+        "infoHash": "882ce98b41667cdd61c718229d79b6a8f208a9ba",
+        "title": "Game of Thrones - 8ª Temporada [720p DUAL]\n📦 👤 ~1 💾 2.11 GB ⚙️ apachetorrent-cardigann",
+        "name": "📦 · 720p DUAL BR · apachetorrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
@@ -39,7 +39,7 @@
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
-        "size": "490.96 MB"
+        "size": "2.11 GB"
       },
       {
         "infoHash": "cc959a95e6cc15de193a3ae6e2f2f3173bd1e3ee",
@@ -74,54 +74,6 @@
         ]
       },
       {
-        "infoHash": "3d128a53b6bf3167dadc170ef453535d7218a997",
-        "title": "Game of Thrones 8ª Temporada E03 [1080p DUBLADO]\n📦 👤 ~ ⚙️ mico",
-        "name": "📦 · 1080p BR · mico · 👤 ~",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "1cc0254f82817c86dba08bcd9dfe462341db555b",
-        "title": "Game of Thrones 8ª Temporada E03 [720p DUBLADO]\n📦 👤 ~ ⚙️ mico",
-        "name": "📦 · 720p BR · mico · 👤 ~",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "96ca1f258a304fd0d6bec70812350832b53e0407",
-        "title": "Game of Thrones 8ª Temporada E03 [720p DUBLADO]\n📦 👤 ~ ⚙️ mico",
-        "name": "📦 · 720p BR · mico · 👤 ~",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
         "infoHash": "a8bfb4ff1da8a6d45d7ec2e410408a046724d456",
         "title": "Game of Thrones S08E03 dublado\n📦 👤 ~ 💾 894.24 MB ⚙️ The Pirate Bay",
         "name": "📦 · BR · The Pirate Bay · 👤 ~",
@@ -139,7 +91,7 @@
         "size": "894.24 MB"
       },
       {
-        "infoHash": "764df99685749513533785e012d7c87c2654b79b",
+        "infoHash": "d86147ac5fe1372cc62d9725f92014a5ae96a6a7",
         "title": "Game of Thrones - 8ª Temporada [1080p DUAL]\n📦 👤 ~1 💾 2.13 GB ⚙️ Apache Torrent",
         "name": "📦 · 1080p BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
@@ -156,11 +108,11 @@
         "size": "2.13 GB"
       },
       {
-        "infoHash": "ec2e866540e3174a6763d934fcb7556dd2ff6c4d",
-        "title": "Game of Thrones 1ª até 8ª Temporada (2011) [1080p DUBLADO 109.02 GB]\n📦 👤 ~1 💾 2.13 GB 📦 pack 109.02 GB ⚙️ NerdFilmesTorrent / XNerdFilmes",
-        "name": "📦 · 1080p WEB-DL BR · NerdFilmes · 👤 ~1",
+        "infoHash": "286668f8058221f82adcf50fd12564afbf133447",
+        "title": "Game of Thrones [720p WEB-DL DUAL]\n📦 👤 ~1 💾 1.40 GB ⚙️ Apache Torrent",
+        "name": "📦 · 720p WEB-DL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
+          "bingeGroup": "powerm-720p-WEB-DL"
         },
         "sources": [
           "tracker:udp://tracker.opentrackr.org:1337/announce",
@@ -170,14 +122,14 @@
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
-        "size": "2.13 GB"
+        "size": "1.40 GB"
       },
       {
-        "infoHash": "882ce98b41667cdd61c718229d79b6a8f208a9ba",
-        "title": "Game of Thrones - 8ª Temporada [720p DUAL]\n📦 👤 ~1 💾 2.11 GB ⚙️ Apache Torrent",
-        "name": "📦 · 720p BR · Apache Torrent · 👤 ~1",
+        "infoHash": "1765891e2c033b156acc1c8761d9783833b717a3",
+        "title": "Game of Thrones - 8ª Temporada [720p WEB-DL DUAL]\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · 720p WEB-DL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
+          "bingeGroup": "powerm-720p-WEB-DL"
         },
         "sources": [
           "tracker:udp://tracker.opentrackr.org:1337/announce",
@@ -186,8 +138,7 @@
           "tracker:udp://exodus.desync.com:6969/announce",
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ],
-        "size": "2.11 GB"
+        ]
       },
       {
         "infoHash": "743354be0941de697ce8ce4a62a788b236677eb5",
@@ -207,9 +158,9 @@
         "size": "3.31 GB"
       },
       {
-        "infoHash": "b1956a18ce8ef2f8f7fd34748d93e799b51d42b0",
-        "title": "Game.Of.Thrones.S05-S08.BluRay.4K.UHD.H265\n📦 👤 ~40 ⚙️ The Pirate Bay",
-        "name": "📦 · 4K BluRay · The Pirate Bay · 👤 ~40",
+        "infoHash": "ff2978337e7195b513df4f659611f84e580246cd",
+        "title": "Game of Thrones S08 (2019) MULTi VFI 2160p 10bit 4KLight HDR BluRay TrueHD Atmos 7.1 x265-QTZ\n👤 1 💾 5.14 GB 📦 pack 24.76 GB ⚙️ AllDebrid",
+        "name": "4K BluRay · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
@@ -220,7 +171,8 @@
           "tracker:udp://exodus.desync.com:6969/announce",
           "tracker:udp://open.demonii.com:1337/announce",
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
+        ],
+        "size": "5.14 GB"
       }
     ],
     "cacheMaxAge": 0

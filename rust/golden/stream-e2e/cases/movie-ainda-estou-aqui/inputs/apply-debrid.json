@@ -1,0 +1,353 @@
+[
+ {
+  "key": "alldebrid|0|08f1479b132df5e3c036c55c9c12bd643622c388,1aaf1c1354a14cc2f4efb1aa2c87f0cffc19b96e,2840164aeaa8ea025ce0a2e34ddb398e8e9541f5,477d1dc12a824bf03b1fe3e2a1c9055ec29eecad,56aade77a75403e482400ff4d94ecc4e36db75e8,5702ca0796c456112ccc872be30abf53f4bcafcf,90382edd11f8f6ceea14a9a4345819c5aae858a4,94ce76385cc5844e3a018986fa042285ee94fe37,96828f2b8f2d3fe908288ba8e8df3da71451a1a8,a3f6821eaa4c16d2c055c02099f6dad935dda80d,d2712c35feffd1d867f6a695cc6b49b7c0feaf7f,e06b18245874ff276a25e950cc0cbe89d345f26d",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "2840164aeaa8ea025ce0a2e34ddb398e8e9541f5",
+    "title": "Ainda Estou Aqui (2024) [2160p WEB-DL DUBLADO]\n📦 👤 ~50 💾 6.13 GB ⚙️ YTS",
+    "name": "📦 · 4K WEB-DL BR · YTS · 👤 ~50",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 6582037381,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Ainda Estou Aqui (2024) 2160p WEBRip 5.1 10Bit x265 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "08f1479b132df5e3c036c55c9c12bd643622c388",
+    "title": "Ainda.Estou.Aqui.2024.1080p.WEB-DL.EAC3.AAC.NACIONAL.5.1\n👤 1 💾 3.75 GB ⚙️ AllDebrid",
+    "name": "1080p WEB-DL NAC BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 4025369653,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "5702ca0796c456112ccc872be30abf53f4bcafcf",
+    "title": "Ainda.Estou.Aqui.2024.1080p.FULL.HD.WEB-DL.NACIONAL.5.1\n👤 1 💾 9.63 GB ⚙️ AllDebrid",
+    "name": "1080p WEB-DL NAC BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 10338517933,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "90382edd11f8f6ceea14a9a4345819c5aae858a4",
+    "title": "I m Still Here 2024 1080p AMZN WEB DL x265 10bit EAC3 5 1 Port\n📦 👤 ~79 💾 5.90 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~79",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 6335076761,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "477d1dc12a824bf03b1fe3e2a1c9055ec29eecad",
+    "title": "Ainda Estou Aqui (2024) 1080p BRRip 5.1 x264 -YTS\n📦 👤 ~32 💾 2.57 GB ⚙️ YTS",
+    "name": "📦 · 1080p · YTS · 👤 ~32",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2759516488,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Ainda Estou Aqui (2024) 1080p BRRip 5.1 x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "1aaf1c1354a14cc2f4efb1aa2c87f0cffc19b96e",
+    "title": "Ainda Estou Aqui (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 9.62 GB ⚙️ BLUDV",
+    "name": "📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 10329396347,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Ainda Estou Aqui 2024 WEB-DL 1080p x264 FULLHD NACIONAL 5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "94ce76385cc5844e3a018986fa042285ee94fe37",
+    "title": "Ainda Estou Aqui (2024) [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 3.14 GB ⚙️ BLUDV",
+    "name": "📦 · 1080p WEB-DL BR · BLUDV · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 3371549327,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "BLUDV",
+    "_magnetDn": "Ainda Estou Aqui 2024 WEB-DL 1080p x264 NACIONAL 5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "a3f6821eaa4c16d2c055c02099f6dad935dda80d",
+    "title": "Ainda Estou Aqui (2024) 720p BRRip x264 -YTS\n📦 👤 ~23 💾 1.25 GB ⚙️ YTS",
+    "name": "📦 · 720p · YTS · 👤 ~23",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1342177280,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Ainda Estou Aqui (2024) 720p BRRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "56aade77a75403e482400ff4d94ecc4e36db75e8",
+    "title": "Ainda Estou Aqui [I'm Still Here] 10bit 720p SCREENER\n📦 👤 ~12 💾 1.09 GB ⚙️ TheRARBG",
+    "name": "📦 · 720p · TheRARBG · 👤 ~12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1169815706,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "d2712c35feffd1d867f6a695cc6b49b7c0feaf7f",
+    "title": "Still Here (2023) [720p] [WEBRip]\n📦 👤 ~18 💾 994.31 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p WEBRip · LimeTorrents · 👤 ~18",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1042609602,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "96828f2b8f2d3fe908288ba8e8df3da71451a1a8",
+    "title": "Still Here 2023 720p TUBI WEB DL AAC 2 0 H 264 PiRaTeS[TGx]\n📦 👤 ~16 💾 1.88 GB ⚙️ LimeTorrents",
+    "name": "📦 · 720p WEB-DL · LimeTorrents · 👤 ~16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 2018634629,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e06b18245874ff276a25e950cc0cbe89d345f26d",
+    "title": "Still Here (2023) 720p WEBRip WORLD\n📦 👤 ~2 💾 994.28 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p WEBRip · LimeTorrents · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1042578145,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   }
+  ]
+ }
+]

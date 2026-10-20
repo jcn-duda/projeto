@@ -8,53 +8,191 @@
   "body": {
     "streams": [
       {
-        "title": "Breaking Bad S01E01 Pilot 2160p NF WEB DL DDP5 1 H 265 XEBEC\n📦 👤 ~41 💾 6.82 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K WEB-DL · LimeTorrents · 👤 ~41",
+        "infoHash": "c1f61689123b32edd923fc86d143bc8100769e4e",
+        "title": "Breaking Bad - 1ª Temporada [DUBLADO]\n📦 👤 ~1 💾 2.41 GB ⚙️ Apache Torrent",
+        "name": "📦 · 4K DUAL BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEB-DL"
+          "bingeGroup": "powerm-2160p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/0d9b239b02f5fa8c4cdda71f3ccfde93ae918bd9?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "6.82 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.41 GB"
       },
       {
-        "title": "Breaking Bad S01E01 Pilot 2160p NF WEBRip DTS x264 iON\n📦 👤 ~1 💾 17.73 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K WEBRip · LimeTorrents · 👤 ~1",
+        "infoHash": "abde0d9e255eae8ac5758ec9203f91ef612801fa",
+        "title": "Breaking Bad 1ª Temporada [720p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 751.32 MB 📦 pack 4.37 GB ⚙️ Bludv",
+        "name": "📦 · 720p BluRay DUAL BR · Bludv · 👤 ~1",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEBRip"
+          "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/173787c5415303d73885a07f49cd1fd96de0d5f8?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "17.73 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "751.32 MB"
       },
       {
-        "title": "Breaking Bad S01E01 Pilot 1080p HEVC x265 MeGusta\n📦 👤 ~99 💾 1.11 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p · LimeTorrents · 👤 ~99",
+        "infoHash": "e597915466c4bbec403804f33e947a23bc9b4b98",
+        "title": "Breaking Bad 2008 - 1ª Temporada Completa [1080p] WWW.BLUDV.COM\n👤 1 💾 1.14 GB 📦 pack 6.80 GB ⚙️ AllDebrid",
+        "name": "1080p DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/0c9fa2cb87da2d5fccd4af71fb1e0a7e7638b4e9?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "1.11 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.14 GB"
       },
       {
-        "title": "Breaking Bad S01E01 07 1080p NF WEB DL ITA ENG DDP5 1 AV1 G66\n📦 👤 ~76 💾 2.08 GB 📦 pack 11.91 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p WEB-DL · LimeTorrents · 👤 ~76",
+        "infoHash": "bbd4d315a00580f9cafd9c36f35165c83f13043c",
+        "title": "Breaking Bad 1 Temporada BDRip blruay 720p dublado -derew\n📦 👤 ~15 💾 481.87 MB 📦 pack 2.81 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 720p BluRay BR · The Pirate Bay · 👤 ~15",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
+          "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/6a12ce77043c07604314f30fa62f2b17ea8d4ab9?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "2.08 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "481.87 MB"
       },
       {
-        "title": "Breaking Bad S01E01 Pilot 720p HEVC x265 MeGusta\n📦 👤 ~159 💾 643.52 MB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 720p · LimeTorrents · 👤 ~159",
+        "infoHash": "e9876a1688fc774068fecc94a991f300f45cf2b7",
+        "title": "Breaking Bad [720p DUAL]\n📦 👤 ~2 💾 415.63 MB ⚙️ Apache Torrent",
+        "name": "📦 · 720p BR · Apache Torrent · 👤 ~2",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/60885c299508f9ae39b0085e0c79d4b76704fefd?s=1&e=1&w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "643.52 MB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "415.63 MB"
       },
       {
-        "name": "⏳ Busca de dublado BR na fila — aguarde a colheita",
-        "externalUrl": "{{base}}/{{config}}/configure"
+        "infoHash": "d13bbcaad8e6e00e78d2afa0101545b8c4e435ab",
+        "title": "1ª Temporada - Breaking Bad - Dublado -T3GP\n📦 👤 ~1 💾 120.92 MB 📦 pack 846.41 MB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "120.92 MB"
+      },
+      {
+        "infoHash": "8f5af5cd4ad3c5b6d046dc1aae86e73a09c6adab",
+        "title": "Breaking Bad S01 2008 BDRip Dublado Pt-BR\n📦 👤 ~1 💾 462.26 MB 📦 pack 3.16 GB (média) ⚙️ The Pirate Bay",
+        "name": "📦 · BR · The Pirate Bay · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "462.26 MB"
+      },
+      {
+        "infoHash": "0d9b239b02f5fa8c4cdda71f3ccfde93ae918bd9",
+        "title": "Breaking Bad S01E01 Pilot 2160p NF WEB DL DDP5 1 H 265 XEBEC\n📦 👤 ~114 💾 6.82 GB ⚙️ LimeTorrents",
+        "name": "📦 · 4K WEB-DL · LimeTorrents · 👤 ~114",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "6.82 GB"
+      },
+      {
+        "infoHash": "173787c5415303d73885a07f49cd1fd96de0d5f8",
+        "title": "Breaking.Bad.S01E01.Pilot.2160p.NF.WEBRip.DTS.x264-iON.mkv\n👤 1 💾 17.73 GB ⚙️ AllDebrid",
+        "name": "4K WEBRip · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "17.73 GB"
+      },
+      {
+        "infoHash": "0c9fa2cb87da2d5fccd4af71fb1e0a7e7638b4e9",
+        "title": "Breaking Bad S01E01 Pilot 1080p HEVC x265 MeGusta\n📦 👤 ~197 💾 1.11 GB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p · LimeTorrents · 👤 ~197",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.11 GB"
+      },
+      {
+        "infoHash": "6a12ce77043c07604314f30fa62f2b17ea8d4ab9",
+        "title": "Breaking.Bad.S01E01-07.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66\n📦 👤 ~59 💾 2.08 GB 📦 pack 11.90 GB ⚙️ TheRARBG",
+        "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~59",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.08 GB"
       }
     ],
     "cacheMaxAge": 0

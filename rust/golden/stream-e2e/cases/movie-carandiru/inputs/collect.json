@@ -1,0 +1,622 @@
+[
+  {
+    "key": {
+      "imdb": "tt0293007",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "Carandiru 2003",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Carandiru [DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:53421ce875fe1eceed01dbcdd81b0d037b52ab45&dn=Carandiru.2003.DVDRip.XViD&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Fopen.demonii.com%3A1337&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Fexodus.desync.com%3A6969",
+          "infoHash": "53421ce875fe1eceed01dbcdd81b0d037b52ab45",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486571714,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Carandiru [1080p DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:3533CB098C8AD36C4A343B2D68855766D0B288E5&dn=Carandiru%202003%205.1%20%281080p%29%20LAPUMiA&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce",
+          "infoHash": "3533CB098C8AD36C4A343B2D68855766D0B288E5",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486571714,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Carandiru [720p WEB-DL DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:3cee647bb304e16e3248844a1331643bbef4ecef&dn=Carandiru.2003.PORTUGUESE.720p.WEB-DL.AAC2.0.H264-FGT&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2770&tr=udp%3A%2F%2F9.rarbg.to%3A2720",
+          "infoHash": "3cee647bb304e16e3248844a1331643bbef4ecef",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486571714,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Carandiru.2003.720p.WEB-DL.x264.[ExYu-Subs].mp4",
+          "infoHash": "40a3bd5172533f949bf7bf9e91b92f8322171602",
+          "seeders": 1,
+          "size": 1462180214,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Carandiru (2003) [1080p] [WEBRip] [5.1] [YTS.MX]",
+          "infoHash": "2c6857822c6a503668f8925e7606b9b3c7f26cb6",
+          "seeders": 1,
+          "size": 2877970478,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Carandiru (2003) (1080p WEB-DL x265 HEVC 10bit AC3 5.1 Portuguese afm72)",
+          "infoHash": "db15834ebe927523495008911d9bad1cdf706f7f",
+          "seeders": 1,
+          "size": 6576015685,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Carandiru (2003) [1080p] [BluRay] [5.1] [YTS.MX]",
+          "infoHash": "cc1efca00c6048e9389c8e9795119c8b899b0e11",
+          "seeders": 1,
+          "size": 2884750732,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Carandiru.2003.PORTUGUESE.1080p.WEB-DL.x265.AAC-5.1-Kali",
+          "infoHash": "f0ba40948831fb7ede9a7d84b8c0d2d3937b8b45",
+          "seeders": 1,
+          "size": 3485981442,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Carandiru.2003.REPACK.1080p.WEB-DL.DD5.1.H.264-alfaHD.mkv",
+          "infoHash": "914e94ece9632e62dbf71a654e7e14369f465803",
+          "seeders": 1,
+          "size": 11599947987,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Carandiru (2003) [720p] [BluRay] [YTS.MX]",
+          "infoHash": "e44bb30a8263a59b8cadf598252a4270d62df463",
+          "seeders": 1,
+          "size": 1405676706,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Carandiru – WEB-DL – DVDRip Nacional (2003) [720p WEB-DL DUBLADO opção 2]",
+          "magnet": "magnet:?xt=urn:btih:3CEE647BB304E16E3248844A1331643BBEF4ECEF&dn=carandiru+2003+720p+web+dl+aac2+0+h264+fgt&tr=udp%3A%2F%2Ftracker.publicbt.com%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486573360,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true
+        },
+        {
+          "title": "Carandiru – WEB-DL – DVDRip Nacional (2003) [720p WEB-DL DUBLADO 4.19 GB]",
+          "magnet": "magnet:?xt=urn:btih:53421ce875fe1eceed01dbcdd81b0d037b52ab45&dn=carandiru+2003+dvd+rip+xvideng+sub&tr=udp%3A%2F%2Ftracker.publicbt.com%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 4498978242,
+          "publishedAt": 1792486573360,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true
+        },
+        {
+          "title": "Carandiru 2003 web dl sdr NF 1080p av1 5 1 eac3 multi subs Dust",
+          "magnet": "magnet:?xt=urn:btih:48363C04EFE0E82716263AF53136A7D58C37ED9B&dn=Carandiru.2003.web-dl.sdr.NF.1080p.av1.5.1.eac3.multi.subs-Dust&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 6,
+          "size": 9771050598,
+          "publishedAt": 1763974570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 PORTUGUESE 1080p WEB DL x265 AAC 5 1 Kali",
+          "magnet": "magnet:?xt=urn:btih:F0BA40948831FB7EDE9A7D84B8C0D2D3937B8B45&dn=Carandiru+2003+PORTUGUESE+1080p+WEB-DL+x265+AAC-5+1-Kali&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 3,
+          "size": 3489660928,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 AMZN WEB DL 1080p",
+          "magnet": "magnet:?xt=urn:btih:6ED7B32F25266D830F8C3BD35ABE61762AF2A288&dn=Carandiru+2003+AMZN+WEB-DL+1080p&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 0,
+          "size": 11735998136,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) (1080p WEB DL x265 HEVC 10bit AC3 5 1 Portuguese afm72",
+          "magnet": "magnet:?xt=urn:btih:DB15834EBE927523495008911D9BAD1CDF706F7F&dn=Carandiru+%282003%29+%281080p+WEB-DL+x265+HEVC+10bit+AC3+5+1+Portuguese+afm72&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 14,
+          "size": 6571299962,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 PORTUGUESE 1080p AMZN WEBRip DD5 1 x264 alfaHD",
+          "magnet": "magnet:?xt=urn:btih:BC17E68D38B6270EA0816721A858AE3B6508819E&dn=Carandiru+2003+PORTUGUESE+1080p+AMZN+WEBRip+DD5+1+x264-alfaHD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 2,
+          "size": 11317238824,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 PORTUGUESE 1080p WEBRip x264",
+          "magnet": "magnet:?xt=urn:btih:B25A6A1E69BEB8861DB1A3B48B59F829E0CB7A12&dn=Carandiru+2003+PORTUGUESE+1080p+WEBRip+x264&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 0,
+          "size": 2974264852,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 PORTUGUESE 1080p WEBRip x265 VXT",
+          "magnet": "magnet:?xt=urn:btih:7AFEF30111317FEE3246C1F457EBB704A7B86465&dn=Carandiru+2003+PORTUGUESE+1080p+WEBRip+x265-VXT&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 2,
+          "size": 2426656522,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 720p WEB DL AAC2 0 H264 FGT",
+          "magnet": "magnet:?xt=urn:btih:3CEE647BB304E16E3248844A1331643BBEF4ECEF&dn=Carandiru+2003+720p+WEB-DL+AAC2+0+H264-FGT&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 0,
+          "size": 4509715660,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 720p WEB DL AAC2 0 H 264 alfaHD mkv",
+          "magnet": "magnet:?xt=urn:btih:8B93EE182760B0110A3D40A73387343C2D617438&dn=Carandiru+2003+720p+WEB-DL+AAC2+0+H+264-alfaHD+mkv&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 3,
+          "size": 4509715660,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 720p WEB DL x264 [ExYu Subs]",
+          "magnet": "magnet:?xt=urn:btih:40A3BD5172533F949BF7BF9E91B92F8322171602&dn=Carandiru+2003+720p+WEB-DL+x264+%5BExYu-Subs%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1460288880,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) [720p] [WEBRip] [YTS MX]",
+          "magnet": "magnet:?xt=urn:btih:BB049622BC5CFE061A69C65CB4C41CF3CBA0CA39&dn=Carandiru+%282003%29+%5B720p%5D+%5BWEBRip%5D+%5BYTS+MX%5D&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1395864371,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 WEBRip x264 HUD",
+          "magnet": "magnet:?xt=urn:btih:0AD7D14FAB555C8EC1A51E727CB28A7C6B9F9801&dn=Carandiru+2003+WEBRip+x264-HUD&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 0,
+          "size": 1492501135,
+          "publishedAt": 1760950570961,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.REPACK.1080p.WEB-DL.DD5.1.H.264-alfaHD",
+          "magnet": "magnet:?xt=urn:btih:914E94ECE9632E62DBF71A654E7E14369F465803&dn=Carandiru.2003.REPACK.1080p.WEB-DL.DD5.1.H.264-alfaHD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "914E94ECE9632E62DBF71A654E7E14369F465803",
+          "seeders": 3,
+          "size": 11596411699,
+          "publishedAt": 1789008485000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 1080p BluRay Remux AVC DTS-HD MA 5 1-IMPRiSONED",
+          "magnet": "magnet:?xt=urn:btih:8685E4ED8EA05E2E842A5840FAB30025229AC0E9&dn=Carandiru+2003+1080p+BluRay+Remux+AVC+DTS-HD+MA+5+1-IMPRiSONED&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "8685E4ED8EA05E2E842A5840FAB30025229AC0E9",
+          "seeders": 0,
+          "size": 28007787143,
+          "publishedAt": 1776727514000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 720p BluRay-WORLD",
+          "magnet": "magnet:?xt=urn:btih:96925BB31EC1982021E575F71B4EABA399D3D765&dn=Carandiru+(2003)+720p+BluRay-WORLD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "96925BB31EC1982021E575F71B4EABA399D3D765",
+          "seeders": 0,
+          "size": 1405626913,
+          "publishedAt": 1776727333000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 1080p BluRay 5.1-WORLD",
+          "magnet": "magnet:?xt=urn:btih:CF2565B5ACCDD767B85227341F50CF879DB3D138&dn=Carandiru+(2003)+1080p+BluRay+5.1-WORLD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "CF2565B5ACCDD767B85227341F50CF879DB3D138",
+          "seeders": 16,
+          "size": 2884700957,
+          "publishedAt": 1776727194000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 web dl sdr NF 1080p av1 5 1 eac3 multi subs Dust",
+          "magnet": "magnet:?xt=urn:btih:48363C04EFE0E82716263AF53136A7D58C37ED9B&dn=Carandiru+2003+web+dl+sdr+NF+1080p+av1+5+1+eac3+multi+subs+Dust&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "48363C04EFE0E82716263AF53136A7D58C37ED9B",
+          "seeders": 5,
+          "size": 9771050598,
+          "publishedAt": 1761412929000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 1080p BluRay 5.1-WORLD",
+          "magnet": "magnet:?xt=urn:btih:CF2565B5ACCDD767B85227341F50CF879DB3D138&dn=Carandiru+(2003)+1080p+BluRay+5.1-WORLD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "CF2565B5ACCDD767B85227341F50CF879DB3D138",
+          "seeders": 7,
+          "size": 2884700957,
+          "publishedAt": 1742619578000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 720p BluRay-WORLD",
+          "magnet": "magnet:?xt=urn:btih:96925BB31EC1982021E575F71B4EABA399D3D765&dn=Carandiru+(2003)+720p+BluRay-WORLD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "96925BB31EC1982021E575F71B4EABA399D3D765",
+          "seeders": 1,
+          "size": 1405626913,
+          "publishedAt": 1742611836000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 1080p BluRay Remux AVC DTS-HD MA 5 1-IMPRiSONED",
+          "magnet": "magnet:?xt=urn:btih:8685E4ED8EA05E2E842A5840FAB30025229AC0E9&dn=Carandiru+2003+1080p+BluRay+Remux+AVC+DTS-HD+MA+5+1-IMPRiSONED&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "8685E4ED8EA05E2E842A5840FAB30025229AC0E9",
+          "seeders": 2,
+          "size": 28007787143,
+          "publishedAt": 1742600746000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.PORTUGUESE.1080p.WEB-DL.x265.AAC-5.1-Kali",
+          "magnet": "magnet:?xt=urn:btih:F0BA40948831FB7EDE9A7D84B8C0D2D3937B8B45&dn=Carandiru.2003.PORTUGUESE.1080p.WEB-DL.x265.AAC-5.1-Kali&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "F0BA40948831FB7EDE9A7D84B8C0D2D3937B8B45",
+          "seeders": 12,
+          "size": 3485981442,
+          "publishedAt": 1580667341000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.720p.WEB-DL.x264.[ExYu-Subs]",
+          "magnet": "magnet:?xt=urn:btih:40A3BD5172533F949BF7BF9E91B92F8322171602&dn=Carandiru.2003.720p.WEB-DL.x264.%5BExYu-Subs%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "40A3BD5172533F949BF7BF9E91B92F8322171602",
+          "seeders": 1,
+          "size": 1462180214,
+          "publishedAt": 1484904611000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru 2003 720p WEB-DL AAC2.0 H.264-alfaHD.mkv",
+          "magnet": "magnet:?xt=urn:btih:8B93EE182760B0110A3D40A73387343C2D617438&dn=Carandiru+2003+720p+WEB-DL+AAC2.0+H.264-alfaHD.mkv&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "8B93EE182760B0110A3D40A73387343C2D617438",
+          "seeders": 1,
+          "size": 4507225971,
+          "publishedAt": 1441286519000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru [2003 PAL DVD][Pt.Es Multisubs[17]",
+          "magnet": "magnet:?xt=urn:btih:E32AFBD91E6CA5CAEA1DC2255C04F616084AE693&dn=Carandiru+%5B2003+PAL+DVD%5D%5BPt.Es+Multisubs%5B17%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "E32AFBD91E6CA5CAEA1DC2255C04F616084AE693",
+          "seeders": 1,
+          "size": 7293483404,
+          "publishedAt": 1317986397000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.DVDRip.H264.AAC.Gopo Format: MPEG-4",
+          "magnet": "magnet:?xt=urn:btih:D1F4F8C61FEA20698BB325BAD94CBB5B69C1E5B7&dn=Carandiru.2003.DVDRip.H264.AAC.Gopo+Format%3A+MPEG-4&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "D1F4F8C61FEA20698BB325BAD94CBB5B69C1E5B7",
+          "seeders": 0,
+          "size": 2702293547,
+          "publishedAt": 1317739823000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) DD5.1 Retail Multisubs-17 PAL --TBS",
+          "magnet": "magnet:?xt=urn:btih:7A93F11D7268B3E73F1A8EA6AF5B8C7BF5F7EF6C&dn=Carandiru+(2003)+DD5.1+Retail+Multisubs-17+PAL+--TBS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "7A93F11D7268B3E73F1A8EA6AF5B8C7BF5F7EF6C",
+          "seeders": 0,
+          "size": 7311565728,
+          "publishedAt": 1303459055000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.DVDRip.XViD",
+          "magnet": "magnet:?xt=urn:btih:53421CE875FE1ECEED01DBCDD81B0D037B52AB45&dn=Carandiru.2003.DVDRip.XViD&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "53421CE875FE1ECEED01DBCDD81B0D037B52AB45",
+          "seeders": 2,
+          "size": 1473640487,
+          "publishedAt": 1255313107000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.DVDRip-Morsan(SweSub)",
+          "magnet": "magnet:?xt=urn:btih:E6E753E085C79D95BE12D39EBB576345E480C032&dn=Carandiru.2003.DVDRip-Morsan(SweSub)&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "E6E753E085C79D95BE12D39EBB576345E480C032",
+          "seeders": 0,
+          "size": 1467274893,
+          "publishedAt": 1234851495000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.Swesub.DVDrip.Royskatt.avi",
+          "magnet": "magnet:?xt=urn:btih:F6C32B98915A049D3F2DBCA8E6F4E3BAC2340CDD&dn=Carandiru.2003.Swesub.DVDrip.Royskatt.avi&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "F6C32B98915A049D3F2DBCA8E6F4E3BAC2340CDD",
+          "seeders": 0,
+          "size": 733657088,
+          "publishedAt": 1234398147000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.LiMiTED.MULTiSUBS.PAL.DVDR-Pyton2000",
+          "magnet": "magnet:?xt=urn:btih:DD2940C1100BE25B47B6B433E289F41C38F83FAD&dn=Carandiru.2003.LiMiTED.MULTiSUBS.PAL.DVDR-Pyton2000&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "DD2940C1100BE25B47B6B433E289F41C38F83FAD",
+          "seeders": 0,
+          "size": 4336797484,
+          "publishedAt": 1234317806000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru.2003.SWESUB.DVDRip.XviD-HE3",
+          "magnet": "magnet:?xt=urn:btih:FA5AEBA7E991AFF5CCA3FA933A94FCE55BC35E4D&dn=Carandiru.2003.SWESUB.DVDRip.XviD-HE3&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "FA5AEBA7E991AFF5CCA3FA933A94FCE55BC35E4D",
+          "seeders": 0,
+          "size": 1468852224,
+          "publishedAt": 1233191005000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru - Swe.Nor.Dan.Eng - 2003 -DVDR",
+          "magnet": "magnet:?xt=urn:btih:256700E345FFB431403A9AC10578E85CCB1C1B82&dn=Carandiru+-+Swe.Nor.Dan.Eng+-+2003+-DVDR&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "256700E345FFB431403A9AC10578E85CCB1C1B82",
+          "seeders": 0,
+          "size": 4640604160,
+          "publishedAt": 1138731806000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003)",
+          "magnet": "magnet:?xt=urn:btih:B9A8FBA88419CD4704D273CC0A2AB741E43A0D0C&dn=Carandiru+(2003)&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "B9A8FBA88419CD4704D273CC0A2AB741E43A0D0C",
+          "seeders": 0,
+          "size": 4669841845,
+          "publishedAt": 1115039842000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 1080p BRRip 5.1 x264 -YTS",
+          "magnet": "magnet:?xt=urn:btih:CC1EFCA00C6048E9389C8E9795119C8B899B0E11&dn=Carandiru+(2003)+1080p+BRRip+5.1+x264+-YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "CC1EFCA00C6048E9389C8E9795119C8B899B0E11",
+          "seeders": 11,
+          "size": 2888365507,
+          "publishedAt": 1742618259000,
+          "tracker": "YTS",
+          "indexer": "yts",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 720p BRRip x264 -YTS",
+          "magnet": "magnet:?xt=urn:btih:E44BB30A8263A59B8CADF598252A4270D62DF463&dn=Carandiru+(2003)+720p+BRRip+x264+-YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "E44BB30A8263A59B8CADF598252A4270D62DF463",
+          "seeders": 4,
+          "size": 1406601789,
+          "publishedAt": 1742610261000,
+          "tracker": "YTS",
+          "indexer": "yts",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 1080p WEBRip 5.1 x264 -YTS",
+          "magnet": "magnet:?xt=urn:btih:2C6857822C6A503668F8925E7606B9B3C7F26CB6&dn=Carandiru+(2003)+1080p+WEBRip+5.1+x264+-YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "2C6857822C6A503668F8925E7606B9B3C7F26CB6",
+          "seeders": 11,
+          "size": 2877628088,
+          "publishedAt": 1653441290000,
+          "tracker": "YTS",
+          "indexer": "yts",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru (2003) 720p WEBRip x264 -YTS",
+          "magnet": "magnet:?xt=urn:btih:D047AB585E8C4D0A88A8D73E77AD7E7F20B08787&dn=Carandiru+(2003)+720p+WEBRip+x264+-YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "D047AB585E8C4D0A88A8D73E77AD7E7F20B08787",
+          "seeders": 1,
+          "size": 1395864371,
+          "publishedAt": 1653435087000,
+          "tracker": "YTS",
+          "indexer": "yts",
+          "isBr": false
+        },
+        {
+          "title": "Carandiru [1080p WEB-DL DUBLADO]",
+          "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fcarandiru-torrent-web-dl-720p-1080p-nacional-download-2003%2F&i=1&h=b49bc0277b&n=3",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 6045166469,
+          "publishedAt": 1566442800000,
+          "tracker": "Bludv",
+          "indexer": "bludv-cardigann",
+          "isBr": true
+        },
+        {
+          "item": {
+            "title": "Carandiru [720p WEB-DL DUBLADO]",
+            "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fcarandiru-torrent-web-dl-720p-1080p-nacional-download-2003%2F&i=0&h=d9825cad74&n=3",
+            "infoHash": null,
+            "seeders": 1,
+            "size": 4498978242,
+            "publishedAt": 1566442800000,
+            "tracker": "Bludv",
+            "indexer": "bludv-cardigann",
+            "isBr": true
+          },
+          "bloqueado": false
+        },
+        {
+          "title": "Carandiru [720p WEB-DL DUBLADO]",
+          "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fcarandiru-torrent-web-dl-720p-1080p-nacional-download-2003%2F&i=2&h=612f8f4d50&n=3",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1460288880,
+          "publishedAt": 1566442800000,
+          "tracker": "Bludv",
+          "indexer": "bludv-cardigann",
+          "isBr": true
+        }
+      ],
+      "partial": false,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "wolfmax4k"
+        ],
+        "pending": [],
+        "empty": [
+          "comandotorrents",
+          "eztv",
+          "nekobt",
+          "nyaasi",
+          "rutracker-ru",
+          "tokyotosho",
+          "torrent9",
+          "torrentgalaxyclone",
+          "vacatorrent"
+        ],
+        "served": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "limetorrents",
+          "thepiratebay",
+          "therarbg",
+          "torrentdosfilmesv2",
+          "yts"
+        ],
+        "all": "unknown"
+      }
+    }
+  }
+]

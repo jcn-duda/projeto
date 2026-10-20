@@ -1,0 +1,116 @@
+[
+  {
+    "key": {
+      "imdb": "tt22022452",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "Inside Out 2 2024",
+      "pt_query": "Divertida Mente 2 2024"
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Inside.Out.2.2024.720p.CAMRip.Dublado.mkv",
+          "infoHash": "e4bd7056f5e32fc76c77b18efbe332cded1e562a",
+          "seeders": 1,
+          "size": 1837495354,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dublado",
+          "provenName": "Inside.Out.2.2024.720p.CAMRip.Dublado.mkv",
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Divertida.Mente.2.2024.1080p.WEB-DL.DUAL.5.1",
+          "infoHash": "a3e1943be008338b6146bf916286cb839a40268b",
+          "seeders": 1,
+          "size": 2401148658,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Divertida.Mente.2.2024.1080p.WEB-DL.DUAL.5.1.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Inside.Out.2.2024.1080p.WEBRip.Dublado.mkv",
+          "infoHash": "7b3e430350a5c0eebd08de78b8d5592639feb444",
+          "seeders": 1,
+          "size": 2048822355,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dublado",
+          "provenName": "Inside.Out.2.2024.1080p.WEBRip.Dublado.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Divertida Mente 2 2024 WEB-DL 2160p x265 DV HDR DUAL 5.1",
+          "infoHash": "90aaa940f82ed567d30a2eedf5cc9fe8fc5b41de",
+          "seeders": 1,
+          "size": 18058785926,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Divertida Mente 2 2024 WEB-DL 2160p x265 DV HDR DUAL 5.1.mkv",
+          "provenQuality": "2160p"
+        },
+        {
+          "title": "Divertida Mente 2 2024 WEB-DL 1080p x264 DUAL 5.1",
+          "infoHash": "e3a4072068b9fc5261a365012f33ba8d94ce2117",
+          "seeders": 1,
+          "size": 2090642616,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Dual",
+          "provenName": "Divertida Mente 2 2024 WEB-DL 1080p x264 DUAL 5.1.mkv",
+          "provenQuality": "1080p"
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

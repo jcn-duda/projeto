@@ -1,0 +1,45 @@
+[
+  {
+    "key": {
+      "imdb": "tt99999991",
+      "type": "series",
+      "season": 1,
+      "episode": 1,
+      "scope": "all",
+      "query": "tt99999991 S01E01",
+      "pt_query": null
+    },
+    "response": {
+      "items": [],
+      "partial": false,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "therarbg",
+          "tokyotosho",
+          "wolfmax4k"
+        ],
+        "pending": [],
+        "empty": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

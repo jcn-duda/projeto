@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt6475714",
+  "meta": {
+    "name": "Monster Hunter",
+    "year": "2020",
+    "type": "movie",
+    "released": "2020-12-18T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Monster Hunter",
+    "original": "Monster Hunter",
+    "en": "Monster Hunter",
+    "br": [],
+    "year": "2020"
+  },
+  "collection": null,
+  "homeReleaseAt": 1606953600000
+}

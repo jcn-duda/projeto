@@ -8,112 +8,157 @@
   "body": {
     "streams": [
       {
+        "infoHash": "90aaa940f82ed567d30a2eedf5cc9fe8fc5b41de",
         "title": "Divertida Mente 2 2024 WEB-DL 2160p x265 DV HDR DUAL 5.1\n👤 1 💾 16.82 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 4K WEB-DL BR · AllDebrid · 👤 1",
+        "name": "4K WEB-DL DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/90aaa940f82ed567d30a2eedf5cc9fe8fc5b41de?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "16.82 GB"
       },
       {
+        "infoHash": "a3e1943be008338b6146bf916286cb839a40268b",
         "title": "Divertida.Mente.2.2024.1080p.WEB-DL.DUAL.5.1\n👤 1 💾 2.24 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL BR · AllDebrid · 👤 1",
+        "name": "1080p WEB-DL DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/a3e1943be008338b6146bf916286cb839a40268b?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "2.24 GB"
       },
       {
-        "title": "Divertida Mente 2 2024 WEB-DL 1080p x264 DUAL 5.1\n👤 1 💾 1.95 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEB-DL BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/e3a4072068b9fc5261a365012f33ba8d94ce2117?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "1.95 GB"
-      },
-      {
+        "infoHash": "7b3e430350a5c0eebd08de78b8d5592639feb444",
         "title": "Inside.Out.2.2024.1080p.WEBRip.Dublado.mkv\n👤 1 💾 1.91 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p WEBRip BR · AllDebrid · 👤 1",
+        "name": "1080p WEBRip DUB BR · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-WEBRip"
         },
-        "url": "{{base}}/{{config}}/resolve/7b3e430350a5c0eebd08de78b8d5592639feb444?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.91 GB"
       },
       {
-        "title": "Inside.Out.2.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX[TG\n📦 👤 ~66 💾 16.65 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 4K WEB-DL BR · The Pirate Bay · 👤 ~66",
+        "infoHash": "e3a4072068b9fc5261a365012f33ba8d94ce2117",
+        "title": "Divertida Mente 2 2024 WEB-DL 1080p x264 DUAL 5.1\n👤 1 💾 1.95 GB ⚙️ AllDebrid",
+        "name": "1080p WEB-DL DUAL BR · AllDebrid · 👤 1",
         "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEB-DL"
+          "bingeGroup": "powerm-1080p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/9cccf3e41e9a4772132601610ef4a9b937a627c5?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "16.65 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.95 GB"
       },
       {
-        "title": "Inside Out 2 (2024) [1080p] [BluRay] [5 1]\n📦 👤 ~100 💾 1.78 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · LimeTorrents · 👤 ~100",
+        "infoHash": "e4bd7056f5e32fc76c77b18efbe332cded1e562a",
+        "title": "Inside.Out.2.2024.720p.CAMRip.Dublado.mkv\n👤 1 💾 1.71 GB ⚙️ AllDebrid",
+        "name": "720p CAM DUB BR · AllDebrid · 👤 1",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
+          "bingeGroup": "powerm-720p-CAM"
         },
-        "url": "{{base}}/{{config}}/resolve/9e6936be0cbdfdd5bb9bf1d0a401d22cb9aa9fb9?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "1.78 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.71 GB"
       },
       {
-        "title": "Inside Out 2 (2024) [720p] [BluRay]\n📦 👤 ~100 💾 890.50 MB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 720p BluRay BR · The Pirate Bay · 👤 ~100",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/d4472ad3b2ab98e2b905ef63f4214da6cdaea3b0?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "890.50 MB"
-      },
-      {
-        "title": "Inside Out 2 2024 2160p web YTS\n📦 👤 ~100 💾 4.30 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 4K · TheRARBG · 👤 ~100",
+        "infoHash": "543e5ed11901738294d4376e46040d256d92ed4d",
+        "title": "Inside Out 2 2024 2160p web YTS\n📦 👤 ~93 💾 4.30 GB ⚙️ TheRARBG",
+        "name": "📦 · 4K · TheRARBG · 👤 ~93",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/543e5ed11901738294d4376e46040d256d92ed4d?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "4.30 GB"
       },
       {
-        "title": "Inside Out 2 2024 2160p BluRay HYBRID REMUX DV HDR ENG LATINO ITALIAN FRENCH TrueHD Atmos 7 1 H265 BEN THE MEN\n📦 👤 ~84 💾 38.64 GB ⚙️ LimeTorrents",
-        "name": "[AD⚡] 📦 · 4K BluRay · LimeTorrents · 👤 ~84",
+        "infoHash": "d640fb594e8a0651b2b50e6f7ecb37bea8acacc0",
+        "title": "Inside Out 2 2024 2160p BluRay HYBRID REMUX DV HDR ENG LATINO ITALIAN FRENCH TrueHD Atmos 7 1 H265 BEN THE MEN\n📦 👤 ~88 💾 38.64 GB ⚙️ LimeTorrents",
+        "name": "📦 · 4K BluRay · LimeTorrents · 👤 ~88",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/d640fb594e8a0651b2b50e6f7ecb37bea8acacc0?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "38.64 GB"
       },
       {
-        "title": "Inside.Out.2.2024.1080p.WEBRip.1400MB.DD5.1.x264-GalaxyRG\n📦 👤 ~152 💾 1.40 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p WEBRip · The Pirate Bay · 👤 ~152",
+        "infoHash": "9e6936be0cbdfdd5bb9bf1d0a401d22cb9aa9fb9",
+        "title": "Inside Out 2 (2024) [1080p] [BluRay] [5 1]\n📦 👤 ~518 💾 1.78 GB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~518",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
+          "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/d791e0acfa6f68e4a8854b1091d6b2691677cd11?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "1.40 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.78 GB"
       },
       {
-        "title": "Inside.Out.2.2024.1080p.WEBRip.DDP5.1.x265.10bit-GalaxyRG265\n📦 👤 ~84 💾 2.32 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p WEBRip · The Pirate Bay · 👤 ~84",
+        "infoHash": "d4472ad3b2ab98e2b905ef63f4214da6cdaea3b0",
+        "title": "Inside Out 2 (2024) [720p] [BluRay]\n📦 👤 ~126 💾 890.50 MB ⚙️ TheRARBG",
+        "name": "📦 · 720p BluRay · TheRARBG · 👤 ~126",
         "behaviorHints": {
-          "bingeGroup": "powerm-1080p-WEBRip"
+          "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/26174298cdfb3a3055e6851d9c6056d90ae342bf?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "2.32 GB"
-      },
-      {
-        "title": "Inside.Out.2.2024.720p.WEBRip.800MB.x264-GalaxyRG\n📦 👤 ~36 💾 796.95 MB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 720p WEBRip · The Pirate Bay · 👤 ~36",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-WEBRip"
-        },
-        "url": "{{base}}/{{config}}/resolve/3d4a1e97bc54f44e8290a5dc0149139ea958d67a?w=%7B%22n%22%3A%5B%22Inside%20Out%202%22%2C%22Divertida%20Mente%202%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt22022452%22%7D&sig={{sig}}",
-        "size": "796.95 MB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "890.50 MB"
       }
     ],
     "cacheMaxAge": 0

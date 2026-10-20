@@ -1,0 +1,25 @@
+{
+  "key": "movie:tt0861739",
+  "meta": {
+    "name": "Elite Squad",
+    "year": "2007",
+    "type": "movie",
+    "released": "2007-10-12T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Tropa de Elite",
+    "original": "Tropa de Elite",
+    "en": "Elite Squad",
+    "br": [],
+    "year": "2007"
+  },
+  "collection": {
+    "name": "Tropa de Elite: Coleção",
+    "root": "tropa de elite",
+    "years": [
+      2007,
+      2010
+    ]
+  },
+  "homeReleaseAt": 1204070400000
+}

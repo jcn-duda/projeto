@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt15239678",
+  "meta": {
+    "name": "Dune: Part Two",
+    "year": "2024",
+    "type": "movie",
+    "released": "2024-03-01T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Duna: Parte Dois",
+    "original": "Dune: Part Two",
+    "en": "Dune: Part Two",
+    "br": [],
+    "year": "2024"
+  },
+  "collection": null,
+  "homeReleaseAt": 1713139200000
+}

@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt0133093",
+  "meta": {
+    "name": "The Matrix",
+    "year": "1999",
+    "type": "movie",
+    "released": "1999-03-31T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Matrix",
+    "original": "The Matrix",
+    "en": "The Matrix",
+    "br": [],
+    "year": "1999"
+  },
+  "collection": null,
+  "homeReleaseAt": 943488000000
+}

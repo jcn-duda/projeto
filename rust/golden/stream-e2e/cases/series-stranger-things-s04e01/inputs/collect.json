@@ -1,0 +1,101 @@
+[
+  {
+    "key": {
+      "imdb": "tt4574334",
+      "type": "series",
+      "season": 4,
+      "episode": 1,
+      "scope": "all",
+      "query": "Stranger Things S04E01",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Stranger Things 4ª Temporada 2022 VOLUME 1 1080p WEB-DL DUAL 5.1",
+          "infoHash": "5716a09dd6cbee22c5a9dc4c5eb0cce1b925571d",
+          "seeders": 1,
+          "size": 28881160262,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Stranger Things S04 2022 WEB-DL 1080p x265 DUAL 5.1",
+          "infoHash": "cb6d9e2c5001999427a7d02789197b93d952cbcc",
+          "seeders": 1,
+          "size": 16631937253,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Stranger Things 4ª Temporada 2022 VOLUME 1 720p WEB-DL DUAL 5.1",
+          "infoHash": "fa784dc9e10cdfa9866561d9a531ede33e6844ae",
+          "seeders": 1,
+          "size": 10562410774,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Stranger Things 4ª Temporada 2022 VOLUME 2 720p WEB-DL DUAL 5.1",
+          "infoHash": "98c9a1ff37c565b145bcfd95211c0564ae81d968",
+          "seeders": 1,
+          "size": 4600532671,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Stranger Things (2016) S04 MULTi VFI 2160p 10bit 4KLight DV HDR WebRip DDP 5.1 Atmos x265-QTZ",
+          "infoHash": "4ea18c17ceabf8b2ed11aefee8f12e63b5c8e52e",
+          "seeders": 1,
+          "size": 32419922347,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nerdfilmes",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

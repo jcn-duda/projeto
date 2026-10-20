@@ -8,44 +8,191 @@
   "body": {
     "streams": [
       {
-        "title": "Breaking.Bad.S05.2160p.AMZN.WEB-DL.DDP5.1.H.265-XEBEC\n📦 👤 ~100 💾 82.63 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 4K WEB-DL · The Pirate Bay · 👤 ~100",
+        "infoHash": "c1f61689123b32edd923fc86d143bc8100769e4e",
+        "title": "Breaking Bad 2008 - 1ª Temporada Completa [4k] WWW.BLUDV.COM\n👤 1 💾 14.34 GB ⚙️ AllDebrid",
+        "name": "4K DUAL BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "14.34 GB"
+      },
+      {
+        "infoHash": "e597915466c4bbec403804f33e947a23bc9b4b98",
+        "title": "Breaking Bad 2008 - 1ª Temporada Completa [1080p] WWW.BLUDV.COM\n👤 1 💾 6.80 GB ⚙️ AllDebrid",
+        "name": "1080p DUAL BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "6.80 GB"
+      },
+      {
+        "infoHash": "abde0d9e255eae8ac5758ec9203f91ef612801fa",
+        "title": "Breaking Bad 2008 - 1ª Temporada Completa WWW.BLUDV.COM\n👤 1 💾 4.38 GB ⚙️ AllDebrid",
+        "name": "720p DUAL BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "4.38 GB"
+      },
+      {
+        "infoHash": "e9876a1688fc774068fecc94a991f300f45cf2b7",
+        "title": "Breaking Bad - 1ª Temporada (2008) 720p Dual Áudio - Douglasvip\n👤 1 💾 2.42 GB ⚙️ AllDebrid",
+        "name": "720p BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.42 GB"
+      },
+      {
+        "infoHash": "bd9656978969b71c2ac79ca2e4ed13307c799af6",
+        "title": "Breaking Bad - 5ª Temporada (2012) 720p Dual Áudio - Douglasvip\n👤 1 💾 5.36 GB ⚙️ AllDebrid",
+        "name": "720p BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "5.36 GB"
+      },
+      {
+        "infoHash": "aedddc140106f33f13a1c870b7d7cb779d73c6ce",
+        "title": "Breaking Bad 2010 2ª Temporada Completa WWW.BLUDV.COM\n👤 1 💾 9.06 GB ⚙️ AllDebrid",
+        "name": "BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "9.06 GB"
+      },
+      {
+        "infoHash": "f32eb77f755f0d349271a74e930b1cc4bb37bb49",
+        "title": "Breaking Bad 2 Temporada - The Pirate Filmes\n👤 1 💾 4.99 GB ⚙️ AllDebrid",
+        "name": "BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "4.99 GB"
+      },
+      {
+        "infoHash": "499bd160941763954e8ba236969bee1280e1e963",
+        "title": "Breaking.Bad.S01.MULTi.2160p.WEBRip.5.1.x265-SQUEEZE\n👤 1 💾 13.20 GB ⚙️ AllDebrid",
+        "name": "4K WEBRip · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-2160p-WEBRip"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "13.20 GB"
+      },
+      {
+        "infoHash": "0d9b239b02f5fa8c4cdda71f3ccfde93ae918bd9",
+        "title": "www.UIndex.org    -    Breaking Bad S01E01 Pilot 2160p NF WEB-DL DDP5 1 H 265-XEBEC\n👤 1 💾 6.82 GB ⚙️ AllDebrid",
+        "name": "4K WEB-DL · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-WEB-DL"
         },
-        "url": "{{base}}/{{config}}/resolve/bf4b2eb7ac9605c2fd480d5061645ab9cf8756fb?w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "82.63 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "6.82 GB"
       },
       {
-        "title": "Breaking Bad S05E02 Madrigal 2160p NF WEB-DL DDP5 1 H 265-XEBEC\n📦 👤 ~25 💾 5.54 GB ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 4K WEB-DL · TheRARBG · 👤 ~25",
-        "behaviorHints": {
-          "bingeGroup": "powerm-2160p-WEB-DL"
-        },
-        "url": "{{base}}/{{config}}/resolve/43bcd806d01b6ca5eae798f5edb7fb602a847dc1?w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
-        "size": "5.54 GB"
-      },
-      {
-        "title": "Breaking Bad (2008) S01-5 S01-S05 (1080p BluRay x265 HEVC 1\n📦 👤 ~499 💾 140.06 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~499",
+        "infoHash": "b43df67a93863ea91f2f773f00361072da771dd3",
+        "title": "Breaking Bad (2008) S01-5 S01-S05 (1080p BluRay x265 HEVC 1\n📦 👤 ~491 💾 140.06 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~491",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/b43df67a93863ea91f2f773f00361072da771dd3?w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "140.06 GB"
       },
       {
-        "title": "Breaking.Bad.S01-S02-S03-S04-S05.1080p.BluRay.10bit.HEVC-MkvCage\n📦 👤 ~193 💾 62.70 GB ⚙️ The Pirate Bay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · The Pirate Bay · 👤 ~193",
+        "infoHash": "33b1396389a7d76f57215ee618f0ce438126ebe4",
+        "title": "Breaking.Bad.S01-S02-S03-S04-S05.1080p.BluRay.10bit.HEVC-MkvCage\n📦 👤 ~195 💾 62.70 GB ⚙️ The Pirate Bay",
+        "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~195",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/33b1396389a7d76f57215ee618f0ce438126ebe4?w=%7B%22i%22%3A%22tt0903747%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "62.70 GB"
-      },
-      {
-        "name": "⏳ Busca de dublado BR na fila — aguarde a colheita",
-        "externalUrl": "{{base}}/{{config}}/configure"
       }
     ],
     "cacheMaxAge": 0

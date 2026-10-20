@@ -1,6 +1,6 @@
 {
   "format": "adom-stream-e2e/1",
-  "capturedAt": "2026-10-20T08:57:24.494Z",
+  "capturedAt": "2026-10-20T09:12:45.959Z",
   "node": "v22.23.3",
   "base": "{{base}}",
   "user_config_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8",
@@ -14,11 +14,37 @@
       "dir": "cases/movie-ainda-estou-aqui",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:06:49.164Z",
       "files": {
-        "request.json": "a3b197c9cc24e09e751a39029aa90173fdf61e9c3a75c68bc66b711e2d0f3238",
-        "response.json": "0b299209caafa2fabfdb220a6765f7f88f3286591929ea5df0c3d3b56f5c30b9"
+        "request.json": "cc4ec1328f31111d98098617936c13fa2f208ba71a6284865b91f437c36b13ea",
+        "response.json": "ee32cca0dcb4ef49dc707d503b1b9cb5781a9f14b85382a19dd2b49956f17891",
+        "inputs/meta.json": "f880e9f8a4343f48f7c55735002c3ebb8e36f1ffd50b4663b48df5ff9f4cfe67",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "dac2fcc4e253de5348ee318c85a163a42512b27ebbdc84aee231b07683a5dba2",
+        "inputs/collect.json": "72877bd395bcf4136376b68bcce3f2ec13f6b9b6a812a4d61df2e369fb8fc7e3",
+        "inputs/debrid.json": "dd340807a8335b5b2fd60acc9c84375e3967e1a2f782e6be3442d62f1e534598",
+        "inputs/proven-quality.json": "45c97047f2aa0ae18147afd8de6cb551b8daeccd6f92a8fa9d24ef78d602e720",
+        "inputs/apply-debrid.json": "9f730d8ac0f6cfcdcd4a62fcbc6142f3589e1aa0d8ad30e2318ab394f5bfb58e",
+        "inputs/files.json": "f15452f6bdcd9df9c88a2c0b81876d95f4a539223d67dcfdc68890b8c8261b56",
+        "inputs/instant.json": "80d75b76a05de494e8fd2f933cbdd7b1836d67849ee75c67d9bcd51fbddb82cb",
+        "inputs/fallback.json": "eaa6b8ca40044f45ed328911859859c85e6d60133e43da27f9eff097848ec378"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-ano-duplo-monster",
@@ -28,11 +54,37 @@
       "dir": "cases/movie-ano-duplo-monster",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:05:43.189Z",
       "files": {
-        "request.json": "c9486c4f049f59048ef16df88a48a06be2b7103eaefce4cb6edcf78455fa4266",
-        "response.json": "6137b6a3dd66019dee45d0689e650054a759a9a3fcc2598a7c60ebe92d55e433"
+        "request.json": "46aa5276b20bd6499b6e8cd0ebb390721a29dfe60907c52192a3493971e7c27c",
+        "response.json": "0e6f9ae5364ebd4f0a2a56f6f2106bf5a50fceb70bf63e1c2be90eb733fb941a",
+        "inputs/meta.json": "46e4f97622fbdc2f8f7ebd0b8d273e8d129325c2c9e0d36c6971b448f32c57b0",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "5dbf0ef4a275e1d796aea4e589155a26a2072a1cc37a8a5dc4672647f164689e",
+        "inputs/collect.json": "e3df79d2c95ad6b2045a4331ad72ddba7e6ba918d5b671f94a5841a4b059e8d6",
+        "inputs/debrid.json": "58edb5c34bfba89f26ab6f7fbc3eb8955bb69a44dfb9d3546cad80e1af5ea1e1",
+        "inputs/proven-quality.json": "d9c6df360402ba5f08876247c16e3b245d3053d83c18d6f648cf185982697723",
+        "inputs/apply-debrid.json": "38cc40c0b470a0fa19eb349def620a32572e29cde79a9dcb7a9ca4be0ee84870",
+        "inputs/files.json": "07d3f3f114af2112df441dc01594a5af2a7488f4ce5b3fa13cf40a1b0f74e950",
+        "inputs/instant.json": "dd3b95e7cf39a052db09c64f17852f0a64b7841258cbf4ae7db63555881cce34",
+        "inputs/fallback.json": "f25d5d01ee07feccb088dea1c00c2dd2b20adfa2474551ccbcd97171b104ace4"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-auto-da-compadecida",
@@ -42,11 +94,37 @@
       "dir": "cases/movie-auto-da-compadecida",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:03:34.238Z",
       "files": {
-        "request.json": "cbddc961928fc2e97a2384e2b4af626d2fe8dd82488219ee1d18c49a86ed02b4",
-        "response.json": "acc71c6c178b0295a85ff6ea7162ac793af5cb85d5c3794d8b46c4710870bb68"
+        "request.json": "c620caa868815d94d2f9f8119474285812cf3abd86d70a2778b4f488200a6f1f",
+        "response.json": "63468b9740cd6ace84c4ec3518a508d9060b25acb6d2ebeb0a5beb6372a96dde",
+        "inputs/meta.json": "be35354f454f2a020aafacab53797add993f9a53279abfb96354115dfc90e2da",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "5e1a248e55684ac39bbb9f70102296ef96a39f24ab5e6760c8250c961328cf6c",
+        "inputs/collect.json": "4d1909a74af1041c7e5bc34e8fd8730ce1c87e56bebf73f662f5e0ddd5db6713",
+        "inputs/debrid.json": "297e6f2a61d2622a040360908d965e49333e2656db19ce0432f822d4dcbc7034",
+        "inputs/proven-quality.json": "a0a39f7a471aa0f740c40905fdb3f94fb41e283e8f2fb318c1b63ba52e83faff",
+        "inputs/apply-debrid.json": "27889f3a9f159416838be7fa01246c1d28881b049b698fba771982809d49a2cd",
+        "inputs/files.json": "c8b87365db5e82cf32da1831c7b905f003c53aadea815c51804d1b902f27a9c8",
+        "inputs/instant.json": "0a88d1893d0ee25556e5a94ec76387acd23070fae12822dd42274da3fadece35",
+        "inputs/fallback.json": "5409c7ec93854c0e2b76b6cb440f8b1c84ed84690f544c87b1bb6282b6e70d5b"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-bacurau",
@@ -56,11 +134,37 @@
       "dir": "cases/movie-bacurau",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:04:30.008Z",
       "files": {
-        "request.json": "4d8d3db82cf3a8bbee4d15cb3c7991a202702b313c8455d95826c8c3dd17d002",
-        "response.json": "cb97bddea20ce9bf3f054b804db229d2a5815ab1cdd55de36cd01e80fb3a5365"
+        "request.json": "60b2fa1946087312bee7c291c325dc86990a5911e3b7d65ced2e747e602ae7d3",
+        "response.json": "8b3eb66920a40c6a592b6c88a6bd8e8480f7904e44ad2e7ef651624199e12f56",
+        "inputs/meta.json": "2c8a04614bb436b6b34a4369784cc8c7e8d3fbb477652882371f8f1b127f85e1",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "88b81b20b590c63a613d2bebd305375aac054db663fd306acbd423ed56818b43",
+        "inputs/collect.json": "c671753b55f50e1fbaaa7e1daa08be4e7cc372b3122726eb1241c0909b796fcc",
+        "inputs/debrid.json": "16c1e3f5895bfe7a3b5c013390be96de8582a8bdac78d5c8e327936f5e5affbf",
+        "inputs/proven-quality.json": "324e5df4466f1f7fb27e0b5fec2487438ca729d5d509b312b140cf5e2b03a36c",
+        "inputs/apply-debrid.json": "33381f002ec6657640d0301682f62859fa84fc4ca51f5f71d9433053717188a3",
+        "inputs/files.json": "65b2470a420e1f16a7111d76bc10dda61dc162ff1d6a1964d690a96e663c3149",
+        "inputs/instant.json": "fe595f787e4ff1cfb96c360dac2522073dbbfc71de4ad01b0c2ef2a36cb330ed",
+        "inputs/fallback.json": "6b45bd356c6a4c8838d3c0d30c76fadd30ac960881ee9a725bc742ae3918f8e3"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-carandiru",
@@ -70,11 +174,33 @@
       "dir": "cases/movie-carandiru",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:03:34.238Z",
       "files": {
-        "request.json": "8ae78319cbec078c707646621ab118e8bdc292a50fc677be7a74dfc0b7aa4ba9",
-        "response.json": "ba616a0d42cc30be6fa90458af956bd28a3bd4bd7c8f567577603d1efb9be149"
+        "request.json": "bf776320e93a4d1f8e1662d893dd98819e8d9d06d53ee5ec24a2c171487a8d61",
+        "response.json": "6d6d19210040cbe37dc212da4e49ab9e9a47d8e348ddb5aa8ca1e269b66815d0",
+        "inputs/meta.json": "fb444af2ebfa7488741f8590c324ab283d61a5b2dff0bb34034e38668210bc84",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "217633e7d2fa534364e5a8b61e8631e29760afa3b2d834a82b17b209bad0e2e4",
+        "inputs/collect.json": "26e4f122a33b63a5e3c50b2664d102dad41c697888d528720863a62cedd742e7",
+        "inputs/debrid.json": "2213fd7fd5adb9b2f3217fa0c04de340512f3763a6559e1f9d63f5a4e09551a8",
+        "inputs/apply-debrid.json": "aeb3f6065f24ed42ed7e8165202714e427d87aa30b3de544e4a911ebfcf60db6",
+        "inputs/instant.json": "376fe4832c6b8fa55f4e2360da397c317d33eb28cec128da92483479c5b5cfe2",
+        "inputs/fallback.json": "ccf8664ce3d8dcd55c26365afa970a1367de759f08c00db6176af2002b716f1d"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-central-do-brasil",
@@ -84,34 +210,58 @@
       "dir": "cases/movie-central-do-brasil",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:03:34.238Z",
       "files": {
-        "request.json": "742150950c117726d8af6f083951792ea5f4685ed58b4e61967bf404cc8dce8a",
-        "response.json": "72eff66868bfccda84f7fcf3c07835af563b9ab4a59d8404fcacf0ce9218b051"
+        "request.json": "160c36071605f044b84972b096e3ed4bc17ea67864bc53f9772e6321d3d16d0d",
+        "response.json": "a05f3d6faef7f708827de82905351c6fbf9ea795ae2701205ae8cffbda316395",
+        "inputs/meta.json": "1717114caa6653f729a83a9b0236b006ad039df823908ea2d31658fca810ef40",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "a32544e6399e4817ffcc09491b788239a64c4d9bf4160bcf272cfffdbf0bc44c",
+        "inputs/collect.json": "d8d1e0ab7d44b0ed659b86953c1f8bf698c79905af85ab8e514a925b01f7c0d6",
+        "inputs/debrid.json": "cb6f0972f9a0eb7632608a42484d94cadf1769da60d11ba88ae65bbbb8a66ebb",
+        "inputs/proven-quality.json": "053ee046983ec74c4f4c0bbd40b08af37696130d3fcd8ffbcb70fe542ff4fac1",
+        "inputs/apply-debrid.json": "dd065dec207c55484da5b55bb5926eca23af74872960e8556f9d3eb221f1c567",
+        "inputs/instant.json": "e7eb77088dbba8c737e515876cd5c4b1edb21fc249372408da909d95c5bd5baf",
+        "inputs/fallback.json": "ea9ea3207911ad5f71327d6b1b7ed7459fb3018473d775814a29052c8cdca679"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-cidade-de-deus",
-      "label": "PILOTO — Cidade de Deus (2002)",
+      "label": "BR nacional — Cidade de Deus (2002)",
       "type": "movie",
       "stream_id": "tt0317248",
       "dir": "cases/movie-cidade-de-deus",
       "status": 200,
       "cacheMaxAge": 0,
-      "capturedAt": "2026-10-20T08:57:24.494Z",
+      "capturedAt": "2026-10-20T09:03:34.238Z",
       "files": {
         "request.json": "4eaa3e58cbfe4a5571b786731cee754ace8276d0713b73a8ed78be4631501fc8",
         "response.json": "b8287ad0039a99c3af7b932b4a60b13287a28e541bd7da4a02ba711a764c0648",
         "inputs/meta.json": "405d6d16e507bd9ca3027932b591ea23a7b4257add3c8452466988c0301b1df6",
         "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
         "inputs/index.json": "7ea261cc0092016bd0f83bfc18ff5801e217ff4c15d82414eb3308e8532cfc2f",
-        "inputs/collect.json": "4ea6bd3d76a078d7b32cd06fc42db2b5efd1ab62ab1a81784f074f90ffbc6eef",
-        "inputs/debrid.json": "1e039ed38d9da152f4d8b87d357afa15e78b36b8c544a817b0ed9e090a7d61ce",
+        "inputs/collect.json": "efdb93f3efcc3413524144fcefb4f912c2c44ebc8467e4479343aacc71e1263b",
+        "inputs/debrid.json": "4abf0976179351aeadec897e61b2229f84cd3b2c8e569db83539fde943ae8373",
         "inputs/proven-quality.json": "0ca8919dfd8777fff430da1fffc8285eb316fd92bec689a02ef24b8df5af6ddf",
-        "inputs/apply-debrid.json": "a50d1cf66ff5f31c8b1f8a20a4776c018dcd9fa0435be48fecaca045b3e50c26",
+        "inputs/apply-debrid.json": "3f55cfced356158084acfc771cbf2e9b06b31185d2ac19c401b3437b0586bc85",
         "inputs/files.json": "2a92a4f720c7c8d80748cd0f0228968f0cfde5e5dc719167dcceaf07e8311788",
         "inputs/instant.json": "5b0c661317812eaf3217b5abc04a6d66bce49ca24e31cdfa0ba71759a508f8f3",
-        "inputs/fallback.json": "1107009a05a44058783347d5783d25adaf1087c3f76eec8b065b2ce8e3b7f8c1"
+        "inputs/fallback.json": "0406b7b4a9abda7300f11be67be29a3cd677f48c729a4cdf16b92bc34c7a3420"
       },
       "internal": [
         "inputs/meta.json",
@@ -138,11 +288,37 @@
       "dir": "cases/movie-divertidamente-2",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:05:43.189Z",
       "files": {
-        "request.json": "9e06cba8ac56039f2ce4e0c84a84249b72407260603c51efb60f9e6d6d5880ec",
-        "response.json": "0e73b55f6c2dda62fffa68ab02073808c4c0cf70347caf681d985151e0b8e6a8"
+        "request.json": "99724871e44782e8eef40295c98bf778c0a3c83f9d88a6fca139fe44c0896071",
+        "response.json": "04519178afd5b07480bb3e1248404546fec37408fbf3acaf2287403579825549",
+        "inputs/meta.json": "e6348b36259b12e5b5a11347a8b097e04eaea694cb4b6e5e5939fc7ac71ee385",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "2adfe0c26f690a1a83acb99e38a5527264c3d2aff7d23c4520655eb6162b564c",
+        "inputs/collect.json": "078d98d17b17cc3c4417abbc37b17a64c83c8c56eba9b86d2508b44e09e6ded5",
+        "inputs/debrid.json": "269ae7f6383b171066e63ce4e73db8881cd06d330408d6487361bb3f9947607d",
+        "inputs/proven-quality.json": "ca2e9fa4d76d8e718161dcdbd9756166d64a832dd24a9a9292d18d1733069ea4",
+        "inputs/apply-debrid.json": "11f20eca64a361f07a1cd768724f1c89f08fc31a8dad4de037cf775749bed1e9",
+        "inputs/files.json": "771c51bdc5cc09ee6d5c90f07e1034ad63293e397813c07b7a4c15e8340e4cb9",
+        "inputs/instant.json": "abdcd057ccd8f50b8475882945417157c57e81c4bad92e7136cadd7c4a0330ca",
+        "inputs/fallback.json": "6c815aec77f9f9cf6a5993e3b03b10a39ead377661e4006e766d0ea938bad5bf"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-duna-parte-2",
@@ -152,11 +328,37 @@
       "dir": "cases/movie-duna-parte-2",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:06:49.164Z",
       "files": {
-        "request.json": "5c734b97e4f8c7de7f9c569d2df89d589141c0e4e476d87e7b7c4f99af80b1ca",
-        "response.json": "6762326de6de66fe7619af3770ffe324c284380dec695c6b041ff2c44c1e8eea"
+        "request.json": "eb0d73dacb41a7c1294a61f8226e7f004976ebbb08b660f78ccbd320b97d38fc",
+        "response.json": "cf0eb5a35e2de2c2872be879e5f3c4209f817f113d28051d964593ca949ba01e",
+        "inputs/meta.json": "5d177d7c1536c7841b3fbff85513f9c6ecddf675fdbb46800bf8837c53f4615f",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "cb1899d0319bea38e687069834ef1982c5f327ffebee8d52d006c7c58f4d8a5e",
+        "inputs/collect.json": "a8f5473cf4fd3420d0b6c54d011ae3dc1b12aca44cea9a86319616e1ecafaa1a",
+        "inputs/debrid.json": "a44d6287a41a46541a91ca47db347e7ad8413a77c8cc8b8805b8e72b02b0c397",
+        "inputs/proven-quality.json": "b91f520dd8ee6a2f93546b31cd109180d70385b5e100b6f89d98665ed253bb6e",
+        "inputs/apply-debrid.json": "e8b95ce008dec0f7df746face04b9b333cecde0c41b7e5c2e050b43181966147",
+        "inputs/files.json": "4e1432d357b94ac4021cf2409e346c17c7c63b37eaa826bb89015995dbb8124e",
+        "inputs/instant.json": "8631a41e80600ab58f770f3415846439d873658921877dff7ca56a2ed83ef953",
+        "inputs/fallback.json": "c46306ef9334d2c1df8fb837202158a6aa11faa2e6c1cc81f5d253b03b399388"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-fake-id-guard",
@@ -166,11 +368,32 @@
       "dir": "cases/movie-fake-id-guard",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:12:45.959Z",
       "files": {
-        "request.json": "53129c9846691311f417a77041a495293e33c645179528d75f2fba53a304b6f7",
-        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
+        "request.json": "ee6d3d66edbc53ae45b8f229902c977e48760651e6a677c0c4a805c75bb08359",
+        "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2",
+        "inputs/meta.json": "59d8ac7ce4af871d8d37d9228eb417f434ed173d3f01c86a51acdb3d7d683909",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "43f45206d5622af767bec4b35ad35bdec56061da4fb011a5d4a8f09baec40b3a",
+        "inputs/collect.json": "67929b50a3edd2b66ca0287e221e974947eeec289f807355264d711c99f07839",
+        "inputs/debrid.json": "9daf56b9a2cf589c73537ab3559730324a018f47bc9687086fa2ff42cde93786",
+        "inputs/apply-debrid.json": "a4aaec79ce2fb30dde4b50490298147dee1cbd32d12fd80a863d3e17769fefec",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "6cf0d012b89d3c16d58eb67535dc3488fac6e135602b56b37ae9cc0507f8bea7"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-fast-furious-7",
@@ -180,11 +403,37 @@
       "dir": "cases/movie-fast-furious-7",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:04:30.008Z",
       "files": {
-        "request.json": "6b6271603c37fe3bdb113faf4a2c334dcfb34a3be89ae018a7c57001db26ff49",
-        "response.json": "0290c0d895ec82f4b7515effc9b3ed7bf09b77bf7a98e1c36ba76bf1070bb01a"
+        "request.json": "a4778b60c8742553f17f44ef67e03207fe7de08dbbb9083e78245d887e5787ae",
+        "response.json": "8284b39514b0f9e370283ed4f50fe4f076e027c74b02d365e382de7e86d14abb",
+        "inputs/meta.json": "0184620f46e0b0a2fb0dd0125977716b4ed1e19e8ce282fb5e9c9ca20a08f507",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "972c76b650c89d742917db31e5425b2ac0d56bc4d3f9013b9b47256b96a132fd",
+        "inputs/collect.json": "f9f6a1d08c78b806bdc615ef864a58964b629ee2e04c4d1f9948d24e17eef845",
+        "inputs/debrid.json": "d2a499dc0b774cf84037e0079a11697fa7e3b3ddd5f305c35d5270c884b8f637",
+        "inputs/proven-quality.json": "b121c7652b2e04704493cbe912236e0ebb9237e2565a5d6e65322870ec5dd2ed",
+        "inputs/apply-debrid.json": "733b6e90e499d62a093ad54c4a3a1844e3d44ac16f89bbde3671d6f8711c38eb",
+        "inputs/files.json": "cb8be485a8c1b2b603167a50770c71e690347073351fd4cfa9005c78f9497bdc",
+        "inputs/instant.json": "10ea09be05670629a49de89bb4f077a15b6021eb8228ef7cd82d37621790bafd",
+        "inputs/fallback.json": "ceaa16d5e6f500c8a0b39cd84fe92d62f3edbfca973ff6c4abbfacec2ae0f126"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-gora",
@@ -194,11 +443,33 @@
       "dir": "cases/movie-gora",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:05:43.189Z",
       "files": {
-        "request.json": "58653cfea521cb271394d62b76ba39f67a035e00f389b25911c50443e7013f55",
-        "response.json": "6f8c04b2f597cdcd795d6418c6e9decd462ad7c269eb95e34c8b51f1071109aa"
+        "request.json": "875afe641d3d0360380e49cc6466ab056e6c1b29902cb4d7a32b3e18f680a338",
+        "response.json": "c97b2f95cfe32c9fb5b28b6f81e7fef2cf4320bb844542626e9a6a03d9e0c65f",
+        "inputs/meta.json": "b279bd55c606ce912e675ada5aa33c249b2a75313d7da3fd88c805b6bbb2ac73",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "055dbe3054ac0b713d8025becd185584d4e6ac768885c3e3acd466f6bb9174f0",
+        "inputs/collect.json": "be117f12bdcb4568c8747eddd436dcbbb83476d8c41a906763cdcb73e53cde82",
+        "inputs/debrid.json": "31d7aa5035b4b9b9cf6342a8acf949074a1bcb653776981178c08fef249afba3",
+        "inputs/apply-debrid.json": "ecc17810f0288f085b89a07e5094e75e361186b4b839c26c1f1bb719a4a1bed4",
+        "inputs/instant.json": "bf2fecd9b03d237b7720162191108afcda38f5e204dca0ac954cdd794437558b",
+        "inputs/fallback.json": "eb4ecd53f6f0b08dd24349dbe039eaf3a936383c32e2683d331d5c2b5796f31d"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-harry-potter-1",
@@ -208,11 +479,37 @@
       "dir": "cases/movie-harry-potter-1",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:04:30.008Z",
       "files": {
-        "request.json": "841b8a5badb6d2750faf9c5a7f13a564c775f89df9431553e0e3b62602f718f2",
-        "response.json": "66a7d087f975fbe99556c6c8a1e70c74121976ea076a38c1daf6b441b1cde193"
+        "request.json": "a7a2ba5785e16324acc903da1ba097221fc79a7b123b7a0290c0dc3f3cf401ff",
+        "response.json": "9f939a4375eb7543d1b30d4875769d41df8e41256df5380a1eb72b1763039062",
+        "inputs/meta.json": "4b99ff8237687d6a1bea489c8cd4cbbbf9177a3b08c32268daab983a5552a4fb",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "50cc34c05a2fbcb2d3c5fd876e24b61ec361e583c6f9894ed31026b833770a06",
+        "inputs/collect.json": "1132b2fa022ee04140c13264ab935e4dc22dace2de9e5f870239183152e06500",
+        "inputs/debrid.json": "5f3c4a4e20183fd1227f61468a41f57aaab25b72bb1bf0f236ed41b0551fc5e3",
+        "inputs/proven-quality.json": "91f81a5490204df063fa44430560a8c46f95f512f3e82b79c7c2982d0db4882f",
+        "inputs/apply-debrid.json": "ded9a8605a26e8b7a467a0a5433998ad0e306c826e1f8487e86f270366145f9a",
+        "inputs/files.json": "bc85648465eac0b39922d69a2a48afeeed17c86e35d443ea0e47e39461a4d9bd",
+        "inputs/instant.json": "d30ad1f61b53db2a78e0064bbb468d4cf2491412a279ef8adab990caafc6a84c",
+        "inputs/fallback.json": "ca3c7fdbc0b3a2de234237226e89e2e6772f6b97a72542a9830238f2fa604701"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-harry-potter-8",
@@ -222,11 +519,37 @@
       "dir": "cases/movie-harry-potter-8",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:04:30.008Z",
       "files": {
-        "request.json": "200760541253161f3fb666d473dd9d0535cbe4f7c9a116edf5af5309fdf2e1c9",
-        "response.json": "7a8243ffe4cafdaba8ba046a43530943f4d300bd9e96a77aea752920419164c3"
+        "request.json": "c9bb0d96bfafab0ce9c6ae208ac74e665546b318997103c165404d35adc37c11",
+        "response.json": "8771e6bc03d670ec60cc6e19c988100dc3981e506d09d304c893e90447828463",
+        "inputs/meta.json": "565a866be8b95488b6dd441bcaaa61bcf59348b5a7079dca35e657a7a61b48fa",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "1d15afcd97ecd1a72e2f81908650e70e8caa52ded15fe7345e4ca00928a03e6d",
+        "inputs/collect.json": "93157382026acbd0ae9162fb64413dacf20b6e5a3bc27e402323fec052421c17",
+        "inputs/debrid.json": "46c256cca2e8761311c6b3953405df0b5a6cdab6fd7bf98b3bc97f089d7807bb",
+        "inputs/proven-quality.json": "5490ce6a3be7362477ab94056d2dafa4ce06c88acd5b38d85732492a1ed76e3b",
+        "inputs/apply-debrid.json": "e422a1893ece1e1059d1b2b866709c812131ae95a6c7e59d1ba72618f5b2db12",
+        "inputs/files.json": "bbd64a39c60d97ddb159adce7177746b3ba073d37a65693d982494e911afb64f",
+        "inputs/instant.json": "857054c951d5d954a2010b164731fcf9f74e6704966f4c5d04a1e0bd5693a69d",
+        "inputs/fallback.json": "36bfa88d6328cd451d601a4ddca5863108b993c43e6744c6ec37cf80e62f1a45"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-inception",
@@ -236,11 +559,37 @@
       "dir": "cases/movie-inception",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:02:41.115Z",
       "files": {
-        "request.json": "a89387207d3ad82215be92570656a323759eea3e703e1dc2ecbc71c25617b320",
-        "response.json": "14d59e4355a0a0e765a3e5584687857d44272df38b6ba640e123fadf3307aafd"
+        "request.json": "c5700d6f5b2e2b11bf8b0c1195c2e827777252baec60c5123c6fd810d166efac",
+        "response.json": "9a81eead8df8f519f8a5f2455d8dce81fe12939a0630c6a217f806e83721a613",
+        "inputs/meta.json": "c98e707bf2d7a7824610ece795f4f3119d4c2f990a2a14ea5d8079ab958067e4",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "ba4a25b2e035ed966b3f950ba21e2b34a14cec1acee1ebe123e382f7a11097d1",
+        "inputs/collect.json": "615e7d71756151c9e6f332d2345866bc58d406f01622ef43b998326ac068bcac",
+        "inputs/debrid.json": "a5b62f7373dac8e27a392c2d1b0ea1bf5a03ccafeefbb016451beaa919802011",
+        "inputs/proven-quality.json": "4bdf91d69e1ac08223c11a2c37fee486126842d9d950df237f7f9654553fe906",
+        "inputs/apply-debrid.json": "cce014de8c350524d595242b41e7d333f9cb45e451036d0a69e7c5a3a8b988c7",
+        "inputs/files.json": "c8160dcbbe9ca6ae10b2edb65141ba6f6447421860f153dcc29edc2ddfc0de6d",
+        "inputs/instant.json": "2be5fa791da0ae73e80d633d25052ce70d538787709b56145ecb676e8386736a",
+        "inputs/fallback.json": "7d766a0b1711389a7ac073d4bb0687e8d1215cc5be3a745c14d908db250a2051"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-interstellar",
@@ -250,11 +599,37 @@
       "dir": "cases/movie-interstellar",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:02:41.115Z",
       "files": {
-        "request.json": "57f0aef6a835eaf2be38893ecae262b421cee64756b665b777579ae2af70fc32",
-        "response.json": "7dd73ca75df27827976e303356646b0128a2f5b40e731b6b8bf488245dd84605"
+        "request.json": "14126084896dc846d292d7408592caae24540ab1ecf5181a28703cccb3a3e2ab",
+        "response.json": "65f927e1a46c216e06d461b01aa5a1ec21abc74dd66c4c551946e56c49933708",
+        "inputs/meta.json": "0354df2042f9e54f8765de7c6e067e7f0d1d8d92de7a59378d1b6784e1bce7a8",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "90287590f254ab50fc979c299630ad8d61981b78ba23b40ab3f4c32907504429",
+        "inputs/collect.json": "79fb9a38cff4442fb8b9919d7da4291507f163bc40b4835f23101f32d26209b9",
+        "inputs/debrid.json": "059a2fd577e207f7a34185dd4d49db301985181da11e21e4fc1b3c6f1790f3dc",
+        "inputs/proven-quality.json": "95807ebbd604a0218b90e96d68da4a4c2da8700f6ee5401f87ed61ba3179ace1",
+        "inputs/apply-debrid.json": "aaae5ee4fb6e70b625a5b4d6589fc5d571673a5c2b26df42334e8ada7e59a435",
+        "inputs/files.json": "35fd97e215b3e539165b82b4808024df7082b46e68541f844765f76f28f9fe09",
+        "inputs/instant.json": "0cf58f90eccabfa0483268f71cfbc967f6c8b704527cdea7ae0b1da213a05b8c",
+        "inputs/fallback.json": "d7ce1ea119a5f6fc481e6674a91405386631ce2df13dd5ada4608144c945fcbb"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-kung-fu-panda-4",
@@ -264,11 +639,37 @@
       "dir": "cases/movie-kung-fu-panda-4",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:05:43.189Z",
       "files": {
-        "request.json": "9c5ef4c57dbf1a20802041cb3e23cd27bd8bc778a03417f5b90038827b5ec33f",
-        "response.json": "0a89d9f546e47aabf0b0db7400300d68651f7ff55861269a39a45f24ff6c3350"
+        "request.json": "9a648f85489c502355e8b951dcfc0cf677e02359fe09951102ab4fae2a2954ac",
+        "response.json": "df82c64bc3f202632fcbeb75a63538038a88212db9da3227cf1a3de8b48660bb",
+        "inputs/meta.json": "bec91ec72479d6def3ceea05b5353d643ad0966134054de655a573ba7fa7642a",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "fa4d5c4198826c26e969df0328ab1b71419662f2b4113e07ad990f5048cfcf06",
+        "inputs/collect.json": "fc9d2d8f8d6665de65c5b83195f6e36c10216aef90be2510ec4174f232fd34d0",
+        "inputs/debrid.json": "74d86a79464f029618265f690533981d9c5574b00de0544dc1ba19843b5772fb",
+        "inputs/proven-quality.json": "319ccb90b317dd1a4b18db9d97411d66545f62a5e53570531fb35f3c7f01cee8",
+        "inputs/apply-debrid.json": "67b2f2f35861f195b71387c4fc7d17b410fcdc0f365d848ec0e3615eb6d03619",
+        "inputs/files.json": "b098bf2476aa10518209c717b14aa3c60f4b37045117f8bbbad26780308d8842",
+        "inputs/instant.json": "9ac7d9f4094c9ee928c00e92b906065bda90e10d115104c8f2711110a8061514",
+        "inputs/fallback.json": "91ba5fbe0f4917884654583faa5394311f42b81db19e8261da4f58f94f860ca2"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-matrix",
@@ -278,11 +679,37 @@
       "dir": "cases/movie-matrix",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:02:41.115Z",
       "files": {
-        "request.json": "b3fafbeb6cd3c085afa0dbe81b2b6198cea148521517b55f2deadcdd057a33bf",
-        "response.json": "36ef15235e2121ec8eaed6322bf079ea07f995286d6fce0e2f2a1b08df875864"
+        "request.json": "c5d36a5579f9e2b51b4a1353f48a8a2ab66003d921fb74542668d6f6a118ad4b",
+        "response.json": "53aacf461e737f42200c891316da56addffe32c02da3dd42ffbe28f5a90b1d65",
+        "inputs/meta.json": "b4357ad147223b589414937f4454ccb7e15393add02d984a45ef27db40006015",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "892f8d6a8504656c9fe74fda68234f6a3ced1b6f2a37b9ea5a74a9259898c4d3",
+        "inputs/collect.json": "f4fed3df809e7bbfc6a13d1ef5d75866b907f16a90d86e33e8d8bc7bcbf39530",
+        "inputs/debrid.json": "9661dc1291d6067e280b44c6b0367215bfb2924bfc246e696ff2f9c4f19f7890",
+        "inputs/proven-quality.json": "4146416b10ed94b99eba9802eb36d5e2acbad1d0641129f6775df26020ff7b81",
+        "inputs/apply-debrid.json": "14bbd2a57faf2fa82743ef6c050ed2456560902d9afb806ee16b990e6b87112e",
+        "inputs/files.json": "07e68daf43ab25b63b206639a027307621dd2fc7d41734405f37c45e30ca154b",
+        "inputs/instant.json": "e00fa50289af4a30ed501e3989414eb7fef2b147849408e179764d7469284bdc",
+        "inputs/fallback.json": "f7675edca56f2af9950a0c0f2fd47809d3a585cced300ecd5babaff1037ed854"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-minha-mae-e-uma-peca",
@@ -292,11 +719,33 @@
       "dir": "cases/movie-minha-mae-e-uma-peca",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:03:34.238Z",
       "files": {
-        "request.json": "af330ab6643fb73c55cfe83496a306e5fc267849751a9547cf7452c561559e23",
-        "response.json": "a0ba4bfcb5bda995a0fb90321500621f7112e215316ab2ad81bea5bdbd7f0287"
+        "request.json": "b7337ecf74f22a2e9049a8354ef335e62c46e8acaeba040c495c1b3e29b3d047",
+        "response.json": "84d87d5f0f8d85c95f0ca2368ecae9c534cb5f5d3d23aefea2bf8523aebe20b4",
+        "inputs/meta.json": "e75df5ddbf58d0dbc7bbc45d67faab075954e567f34e6fc0dc5fc3e3a3cdb20a",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "b84fba5cb6e075668ceb303100e579d53e0a8a21a50355a84f8986ecf8deb911",
+        "inputs/collect.json": "f4c5db451b75e085b3ded379e7c08b3e9d0d4c7e287e79b4fcfc1a4c079e2540",
+        "inputs/debrid.json": "028d9491a2f39e47bd1828ca87326a49db70f10a3293cdd6afdfa86059f9a785",
+        "inputs/apply-debrid.json": "73733b9c0def288f2e826f4b43b78e66959abb2227bf485a2e68d78bed1e9bfd",
+        "inputs/instant.json": "d8900c737057aa36c8cb24b66a3865d5b1e30a869421ac3e0efa21d166fc9bda",
+        "inputs/fallback.json": "5ee7fb43e9405b634996f65193b6dfc17b890b8d64474cc7a8df095c26c24b0c"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-monster-hunter",
@@ -306,11 +755,35 @@
       "dir": "cases/movie-monster-hunter",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:04:30.008Z",
       "files": {
-        "request.json": "42808907037c73f85d41ff00d04df749493cd45b14ef022b564db97e9b887950",
-        "response.json": "21a92f2eed4916993a3431c57090d44380bb9490a1bd85764ccbf8e33183d68b"
+        "request.json": "6b7d0c840e54e7844fb3c46088bfdd06bfded385d2077e3c14f84bdaa68fd85b",
+        "response.json": "9ea2254b8a897c22a01801ca7d6eae775d97e5c7cf66f5c1d4edb97ccbb8da13",
+        "inputs/meta.json": "f8e334321991ffffbf9e39f0cc07978d0050dd6a203d6cf9964f5556a42fba3b",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "5774d2285c009ec7228d1083235d5da7ff504265b536d57e6380a2485485f959",
+        "inputs/collect.json": "cbaeb4cb8b73b11c9f401625a0e97434fcccd5410c4a1e0c69165256b620144e",
+        "inputs/debrid.json": "2e6aeef87c974aa11d59765d9724ac85c8413f293920d2be30647837230bbda6",
+        "inputs/apply-debrid.json": "4f30fb5b30dc57c8308c7984e829b0a66b960be91518c4f50f8a3df6aa2bc98d",
+        "inputs/files.json": "febb59869cdcb493dbcf7de13ec23434751be6d004a636242537b981091b9042",
+        "inputs/instant.json": "043aae187714c868bedda8e917aa1bb85a752d27bf15b191d4731d17ac54aa92",
+        "inputs/fallback.json": "1b574638c96a1769169ccab6fd1837d921ca916b53f2a6f4ec42c3311b19b9e9"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-obscuro-sem-release",
@@ -320,11 +793,33 @@
       "dir": "cases/movie-obscuro-sem-release",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:05:43.189Z",
       "files": {
-        "request.json": "618d7616f688e3f36f044a849a86c68a6549dc9945031948ddbad989f9abcfb0",
-        "response.json": "1dde495f9110026127d85d06b64f7f79bc70619c511013f1207e2641295d8de3"
+        "request.json": "873befa584937a4f075b23fb2cc8c98a948fec03aaa6e7fe402012b7f111d7cb",
+        "response.json": "df50d9e4254b505992abfa03008eab296a9d81b2e9dcce3fdaee917f042f1197",
+        "inputs/meta.json": "9290bc6a1bfc1d1dc7ac8ee470d8a114a54f7b6b8e23fcfa0b9983284e32810f",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "7a97a3b2efc271b88ca2b3ef0980763d4aaad5ae8b9206bd479b87e7466df890",
+        "inputs/collect.json": "87dc08945e26896f080899136e6f8bf23622d6c5713a948e45a8ea27818fe63b",
+        "inputs/debrid.json": "52f561ace437f6d41b24056ac07427a8453c1300f7c35d5876b1f44c520f3dc3",
+        "inputs/apply-debrid.json": "4392593884955bf63c63d11c74c77a5dc088b56b24087767335c23d48bfaff62",
+        "inputs/instant.json": "2441daa584a0ac79f8375fe55e15b191c0488c999db8622e56ab983c2cc428a5",
+        "inputs/fallback.json": "59217d2528ccd53160987537af1c141dc33aac52f95503329acee2cba3e79d7b"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-parasite",
@@ -334,11 +829,37 @@
       "dir": "cases/movie-parasite",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:02:41.115Z",
       "files": {
-        "request.json": "f2c3b7a0a1d0121992bc1eaa9a779b76124f8a4ad01be385374b487ba1053bf5",
-        "response.json": "753df4dc7e0f6b3637070484531843395d44a5c3c9cdcb2b13de3a0486a259fc"
+        "request.json": "fc037c8f661c35f72bb226eb18b44bc2c9d4807b4b0777ed00921ace0b444da5",
+        "response.json": "6a64f43ea6d7d878e1278cfca9e3e2cb5f7e970c75ef72017012560a49539b8f",
+        "inputs/meta.json": "54c03c8c7b6677dca2ea142347944b1514608f64fd0f68ae7259f6a63bb9306f",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "4be23379c133f41cbc5f1ae0965a663d511f8b5e2a85dba1982988463734ab4a",
+        "inputs/collect.json": "d7ff7b796a9687bc9759a479d5b295b7fcdf648e8300121099377ca94ed93b28",
+        "inputs/debrid.json": "3cef11d23988f6fa97dd5c36652b0e3ddf2e0c885503eedb94c1133ec57ebc0d",
+        "inputs/proven-quality.json": "2c0ad49b2291c0b0862e8b6c9dfa70f438e6d67842662bcd9bee5637eef83ceb",
+        "inputs/apply-debrid.json": "251e1d0e4d506cf2751a72719eeca8ddb4958cd4e5cefa73a3887f281f04ac19",
+        "inputs/files.json": "2149a31f5aaee25393bd92b291d4f36b497d390024abf0bc8c93b4da046bfcd4",
+        "inputs/instant.json": "049352d28883fc7c8949e707385d456d1058ed39bb43454269295d465074f150",
+        "inputs/fallback.json": "850b790fa72246d6dd5a81c05440a86720d15ccb0eaa235e38508b46f87982e9"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-swat-fogo-cruzado",
@@ -348,11 +869,33 @@
       "dir": "cases/movie-swat-fogo-cruzado",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:05:43.189Z",
       "files": {
-        "request.json": "ae8da7ced4ff08d0ddc5a2966bcdc6a7afa9b47e4ac3cd862a9dcc2aef7e1879",
-        "response.json": "b92a3e1f7171ab8ebea020a0c0da676de2d6b357ae27d60aeb328f119f72b1c2"
+        "request.json": "9a391d1b84a324759f15a7249c4cbefa6fd10033c6ca9545e5e9353091f05cc2",
+        "response.json": "0532fc85bb48177e578b59fcfeb44bf293e6b275f2c5508ba9f071d83564e7bb",
+        "inputs/meta.json": "8294334f86aa3ad9f28d2080dca38cc1c42a4dbaa5d1f08073b0a9178796fd78",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "9dfc75f5d716caef126b4ef3b0d22afb7b239e9a6b1d5e76782cbaf2e18e4710",
+        "inputs/collect.json": "0f1e52cf9bd7a69f5149921a9f876a430706b621a97eca9ce1204e02d7b2a992",
+        "inputs/debrid.json": "ad27efc3426fa5b82cdd737498f76df7e5522ae0bfe807387af7209887e8b82e",
+        "inputs/apply-debrid.json": "0377718e7d7280feb5cc76ae098117c3decdccb1bb67ad2aed02c4fe0b743e5c",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "b78ad1937e7d5456b4fce027a7618a69e2f69d9f0d42a86592c51cb21a784f7a"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-the-dark-knight",
@@ -362,11 +905,33 @@
       "dir": "cases/movie-the-dark-knight",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:02:41.115Z",
       "files": {
-        "request.json": "8260f91c00ae6d1e1654a75281f5e5652d5db8acf361d05060f24e01237e700d",
-        "response.json": "768556bf51f29b69adffa631904c85fa72eba8e5506a9c7280848aa6122b8203"
+        "request.json": "6d6abffe65cb5242c361cde5ff76a55f238ecc080d5f1c9c10f43ecbc751dc24",
+        "response.json": "eedb09d5c4550c69dde42e0fbd9b37286441fdc5460cc3ee1ad7bdb7bddcb847",
+        "inputs/meta.json": "bf7343025f7535981438bc51d7c4f04fbf9db00a87ec331a8fc63c95222506d9",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "77d83f9f6fcf842977c88a49e94878b0a1bcb3868b5128c7c720408d81c08b69",
+        "inputs/collect.json": "8edcd0349df1e1e6ee6d511fa2f290c7f7e7373240143ed2f2399cc2793029f7",
+        "inputs/debrid.json": "de1ce160aeff94f75b85a4e5c9e40193a71ba57fd505efdffdb7117b1fbe9796",
+        "inputs/apply-debrid.json": "d23cdc3bd7ca51ef7f641f6df8d56faf4ea6599b0d87eae363869a1a0a1fae9e",
+        "inputs/instant.json": "39605acc0c766919f191c3e2efcbd71d1f45c19735e271986df36829c40002aa",
+        "inputs/fallback.json": "51094ee336dc23f0d09798d7e4ea1dffa88ec10d0c86e393fd375c2e88d84c9d"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-the-odyssey-nolan",
@@ -376,11 +941,33 @@
       "dir": "cases/movie-the-odyssey-nolan",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:04:30.008Z",
       "files": {
-        "request.json": "40d6bf9ae917453b7c53cc94607fc9d2f9672336b186944f1b4696f4110c1edc",
-        "response.json": "49d74a0f2d0f708eb325569a2297b650460f123438a16e2548636577d88493a2"
+        "request.json": "795844d3415509977eb1e820faff6bf76dad2b5c3e31faac00974c70a282c5ad",
+        "response.json": "ac69c8dcfef58d20207718af4b6cc34f5c70458d89f81eb0f32d623f51252961",
+        "inputs/meta.json": "d20c6626b1f8b83de6f3d1ccfb682ae24cb27464216e4c733dba0520d3135841",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "b26260b6f148f67417b51548aa7faa47e8880a82de847dc39de399438aebe4d3",
+        "inputs/collect.json": "777e3bdeb121461234dd7fd37ffdcf93d2bc9e0d9ed3a6c5baa83f22622f39b9",
+        "inputs/debrid.json": "49a1bc5f4021e3a93cea75db8e6f6b6ba3b1100a9de9770fdbedb6a11836b54e",
+        "inputs/apply-debrid.json": "f25c47c81e18e1f236d3ba0a99299d5485c5a74c534bdb5b667681ff00800242",
+        "inputs/instant.json": "f6b830cc7fd60f3dae28078e64a756716fe4f1aa983e8a12f4cfde1ee2dafc4a",
+        "inputs/fallback.json": "1e5eb59d01739c5e8e67fd811aa0f18bf37d93f700901724d0d0675b26bcb902"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-trainspotting",
@@ -390,11 +977,33 @@
       "dir": "cases/movie-trainspotting",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:02:41.115Z",
       "files": {
-        "request.json": "f6c52f4d3338c5020af10699e323bba362b538ba23bd8bb108ce791009b54a16",
-        "response.json": "832478c849cf48c4dfdfc917cc3aa4f3b41caebaf092a72d642ef69cb6d7fd57"
+        "request.json": "e6c3e297fb71d5e6be5489c881db582b50e9b4c301ac77e4e4bd644405b7225b",
+        "response.json": "97f9c14ad6337790cddd4d2bb988f506e018b30057880a74712313a3f21d941d",
+        "inputs/meta.json": "5b6d2432f64162978b11bcb18c9a3bab4b917a16414ecbc03ab1b130b0e2e49e",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "95c72131471d005841268fc7a63533f244c982ad88e38c591989ccba145351c8",
+        "inputs/collect.json": "4083aff720f46656914f4796d8405e2a16fe45e3853182d47743c173c215031e",
+        "inputs/debrid.json": "87e1d3c5f5c5458d17d4f08cb4b5e3b320a5d9efd5d3a02b5f6c9ed456048dc1",
+        "inputs/apply-debrid.json": "88ca9ec51171683c2cfd515464b3373bfd8fd15f8d4772dc33292709531a4662",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "dc79801c8a51e638449ce2c3c882bbd16a790b1e28990fe7f99d329df792a1f7"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-tropa-de-elite",
@@ -404,11 +1013,37 @@
       "dir": "cases/movie-tropa-de-elite",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:03:34.238Z",
       "files": {
-        "request.json": "e85b4514d0372960ff2d24738b26a330179af67835ada4bc19abfe4e2da28f76",
-        "response.json": "eb53e06eada9b84978a4a16df14879e163718905ae2f0c12b0c324a9b3944ce0"
+        "request.json": "06eba198e5fa68c24b99955e8ab885bade11436b3249d908bb66a650062f3cad",
+        "response.json": "ba806666ba703d68bdd371f062c7652b288efb88becc0bf3c7071a761a73fc6b",
+        "inputs/meta.json": "e689f5f2c00b0817bf8f1cac5293259252601cf8ec6920069429755eb44b781c",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "f8b44392eebd60d8c3436b4b08a6f70f873c31f40f3e178191f8546c749b34cd",
+        "inputs/collect.json": "63f44c263776d51ba4f56cf3e67988882a25f4d0e9b2a4302adfcce764164fa8",
+        "inputs/debrid.json": "93b8a6caedd69726cbfbd3fad7388f8f91393d6233b0095c6d20adbaffe2cf5d",
+        "inputs/proven-quality.json": "393a292394db7d77932fd9ed6e8d9009de223f9fd625697c0b07ffea24460421",
+        "inputs/apply-debrid.json": "91d09b74c04c8ef1ec29da1f8e38dbd3b3e6a5261702f1230192643c09b3cf49",
+        "inputs/files.json": "f8da5205bf53ea720e7d43c714dfca2b34af3d845c6504f6c70a388bd70ddd0f",
+        "inputs/instant.json": "9696e4345110d9671142eb0e0fbc44c3b16df58373d073190cfb2c84b6a93a0e",
+        "inputs/fallback.json": "81bf18f5a9dc486b034b575b07be7c048952d35de7e8665418b9b304f858044e"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-3-percent-s01e01",
@@ -418,11 +1053,32 @@
       "dir": "cases/series-3-percent-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:08:33.241Z",
       "files": {
-        "request.json": "b603e91a16c537989265df7172efd32b4443b1bb8e8e704f4ce9a9b485fdc21b",
-        "response.json": "07f9fd5b2186cdff4211dc18ffffa627fe5d06b28fd822c900472e5fc9237339"
+        "request.json": "84c3bb2434863f3afcc26f0a3765d20d73897ad546f297c0094c55616508fdbf",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949",
+        "inputs/meta.json": "2c93703a244b56720589ed9b764a8c5251a2e273900649fdd0f59ef72f49b30a",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "865122ea44779a59d4ccfe06b307ae9aa8cb8975d55a3b18b5f642b95b27998a",
+        "inputs/collect.json": "6080022105694c47ef1af83ffd09ca8e401472677b170eb64cb4a973000d0864",
+        "inputs/debrid.json": "8d1b74b1d51bf68c1aaf1f9d05388604d6e7762ffeed59d947b12657cdc7925f",
+        "inputs/apply-debrid.json": "21757ce15ff0a01e4ff8ebc7b3c9f649dd712ff61be7270ed1be61c2d893e152",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "9ef36eedd267ec16b21363aa6adab7c72a1bc3d8f2710b421af188ec0468a7a9"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-anatomy-of-s1-pack",
@@ -432,11 +1088,33 @@
       "dir": "cases/series-anatomy-of-s1-pack",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:10:29.657Z",
       "files": {
-        "request.json": "475538d3442dac27ec2a744feee1e5ec05500df8735f8ba696f7901cc44ae9d8",
-        "response.json": "e58a9abd008762ae2079226459a23663d6589d8ff33e61e40997d7ef9bb39c86"
+        "request.json": "c9733bc6874ca021dc2f9f14af1fce8d55462c893571c29def5bc0ca8e1d6b6a",
+        "response.json": "cb9cf13188749e8bc85c3f8e72840e68121cd9f5107056ba27099f710667aea8",
+        "inputs/meta.json": "4f1bc55b03fc950116b7141233b2ecd1cbf29a08f9acaf69037991d636f2d603",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "7f49cd002f32d8cef6074c05b83341ab570db88193fc3630f911b01bfbb8f644",
+        "inputs/collect.json": "183b820d914ea016b5643cc2bc7f0441c84457da4ba799a9b2bcd6a89f1b85c5",
+        "inputs/debrid.json": "b52cbb4ec061d149dc85a7360b26da6eaf0590aa858ffe620cd22220767bb4ec",
+        "inputs/apply-debrid.json": "63c79336c741a0866921a92302d5d34ce16a6d331b5f2ce8501a4c4f3d029b97",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "a1dd3a6906afe65665630972c33caf38552ccdcb3c86b9b1fb7e8951de66e928"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-anime-dragon-ball-z-frieza",
@@ -446,11 +1124,33 @@
       "dir": "cases/series-anime-dragon-ball-z-frieza",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:10:29.657Z",
       "files": {
-        "request.json": "7cc4adeea2421398fc35ba0a9957c324841ea4b129537fecdc26398705c2a747",
-        "response.json": "8f06eeb2bf515d9fe03462d8b2edd21d776d9055b4775d982937e6ebee7cff54"
+        "request.json": "d26036168fd6fdce4d7852026afcf98806c891ceb6414a4d19d95203dd9f3840",
+        "response.json": "c242d8c2703495f58936f4f9406a30c85c133f2a04b9b0a5601ff94995367f48",
+        "inputs/meta.json": "62dc3eb1de3fb9ac57b8e5525db53490dcf09ff1cb0a66bd8591af8c5318c1bf",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "5371612c8386793ca945b4c3eddee6b644eabe22c318313ec9f20e4dc19501f8",
+        "inputs/collect.json": "c5e7ae38beae1aa5346a829245ae46655540cbf873b156c95c14595f13c7efe6",
+        "inputs/debrid.json": "7e9bcbab5555cd8f72b1c53e22186146fef516f804e024c9a02c6eeccfa6ac01",
+        "inputs/apply-debrid.json": "10eed0222568ce8d9e3bdbe0f7681ec304e75271027763756b3b94846f21a7bf",
+        "inputs/instant.json": "2dda2616b168ed241b9da822d3d0f8b5efd4b32a52b96a50e6ea140999c36eba",
+        "inputs/fallback.json": "ec5e63f2bf7aa9fd192105ad8dca9ca4c24a86e4e8377fccd94644c862172a5a"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-anime-naruto-s01e01",
@@ -460,11 +1160,35 @@
       "dir": "cases/series-anime-naruto-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:10:29.657Z",
       "files": {
-        "request.json": "12636f279216df14c76cdd0637ae35209ac188c56793ca2eae43ac9272dc8d59",
-        "response.json": "6d505a8d5c6537f49c9d0c18159e137f94035fb726dd23edde9ea213d5eb7f98"
+        "request.json": "2cba6db5614e55eb1c0547bbb00decf6673050e4bb324021a8ea0fd942615b6e",
+        "response.json": "e308f12cb22ae9aee0839e6f1802e66d137a98b249c0480d91556107854c86ea",
+        "inputs/meta.json": "1e127ef8c83630693f1340b50577b984136fda7db01efdcde0eba09ac9e214e2",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "64009f4dfef3e7d845b93965bb2c8a7d189215b6ac85f650f1ce1aa5cca2bec8",
+        "inputs/collect.json": "097b26558dd6a7cb226cc1d552ef057514c12332c03fe2e08a2d1c58c2d2622b",
+        "inputs/debrid.json": "7e308e2c46f04bf9caf12c420793d2b3f9ce27dccfa3c2e0ee354789886d32f7",
+        "inputs/apply-debrid.json": "0de0eb83105226549a6fa33e7046b6d4398ed2bd5ee54a06080fd54eae5266eb",
+        "inputs/files.json": "db520b3fd4d35ebda37b9c94d9659d1c14ccc7d65db6c51756cfcd1c23ee38c5",
+        "inputs/instant.json": "d3b2e7bf57fe20fc706fca0c5a3fe5f26ae6a0f8b13b423e4ebe65dc50309f76",
+        "inputs/fallback.json": "898eeef7b36decd85946043e1f36e820b0ed4d251f2983d8657210a8a6f1ea7c"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-anime-one-piece-wano",
@@ -474,11 +1198,33 @@
       "dir": "cases/series-anime-one-piece-wano",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:10:29.657Z",
       "files": {
-        "request.json": "d767e670a46ea4933735bc484b09d516e6b30dac8b02d8fbb37dc88de5a1f9ee",
-        "response.json": "f9d84eae75aede5aec3573821578b2f851140e4a2a1942934166e43f9dd3dc89"
+        "request.json": "b90e921ea250abce2686ee07dd6031a019d961e66d520036ace6a20931d54895",
+        "response.json": "15b76166f31d7d456083df56b37f83b85461084ef8241c39822009b18ab3e57f",
+        "inputs/meta.json": "2201f9ea3d15e4f393c19b77f4119047d964b218204f4c4c3b10749ff5ff8851",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "e16c01394df997a5d141abde5320b7ad4a5bf48894d437e073e125aa441dbb10",
+        "inputs/collect.json": "10bccad490cef7932d503cc764d3707b6c6e50ba3c0a728aa32e12ae6adb4c3e",
+        "inputs/debrid.json": "98a0fed9c026f47ad1f386b3e0a677eba17237e87b0e1866ca862a028ae883cc",
+        "inputs/apply-debrid.json": "82f6abdc9c276d4dc3d37ea55b308dc21049e320c23faab56c87c3a3e6b69ca9",
+        "inputs/instant.json": "d14122ba7b8e71bdb157e3504a1a43f4da97dd797afef6480ac066efa3d80278",
+        "inputs/fallback.json": "0cea5f2c4df67946de0e5b97fc0dc0a4b47f05c588a22dcaa40f4fb49be6912c"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-breaking-bad-s01e01",
@@ -488,11 +1234,37 @@
       "dir": "cases/series-breaking-bad-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:06:49.164Z",
       "files": {
-        "request.json": "42aa0f5925035f018439bf48ff654088a52c03e56b959e8a967bc54098e9ed00",
-        "response.json": "b2f0fac00093fda812fd7849f7febbdab760cb67f3f19b1ca9ee10a8f5d86f6c"
+        "request.json": "5607ce0975087afaf0e279ed055dd05fd297164adf0ddd626daa0e08e5319bc5",
+        "response.json": "4f29f836a5a5234bcc0c927081c983f8e6d66a6d64f18c1149d752d46b1c4d3f",
+        "inputs/meta.json": "349ca4334952074e93905740ce672fdd3c0b2f1c6e1ea2583828707933b8c760",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "d062d253388f25174ffe0c6a9e0301be3ac9c3f25e1deff0599417dee8171f2f",
+        "inputs/collect.json": "e38dd384406d905a621bbb1ed5db8d2f26dfa55fee60c7575d85ba0aef38a4c8",
+        "inputs/debrid.json": "5009f9b31748fdab47f2bcff1326096ceb8181cf71ab49d5861599acf4b91495",
+        "inputs/proven-quality.json": "82af0125017fa6c1329cf787029f2ad74641c6cf3bc0426aad723d72b6a900f9",
+        "inputs/apply-debrid.json": "7d00d9816bdcfbf24b700f0a9e35c9bcdbc68485d6dfe1253bcdc1d1b93d3c75",
+        "inputs/files.json": "cd0cbe549d81c9803c6261b22467abbdf12f568078480379112ad57664614c86",
+        "inputs/instant.json": "f665bbbfc14bd71af6ad4105aaef5bef09f80d2546576f856d2c07db99c8bb28",
+        "inputs/fallback.json": "b5db6dcdd317c5ad57b7da90a5eafd2b7df925cbb772e1bffba5ecd890579830"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-breaking-bad-s05-pack",
@@ -502,11 +1274,37 @@
       "dir": "cases/series-breaking-bad-s05-pack",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:06:49.164Z",
       "files": {
-        "request.json": "c54438aebf39a5941d088cd5813ae9c9f528f85f59b40013d934fe9bc1b2320c",
-        "response.json": "22dbf169bf2032e247beeadb6e7807a1ca8cad096a33159f15c161657eaeeff8"
+        "request.json": "4a5d85fe69440070f8cf112b07cac7cb21d4fa25c9624cd20a85a3e6f6c87ba1",
+        "response.json": "9d6e575090789124028f46126f7eeb450157d75624f0ed0d9e4d902f43351249",
+        "inputs/meta.json": "e507b4a92e92187df5fed06e7a5cb56c0466bfe73fffb666c18854f6b9cbe23d",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "d7a12849ef501a9cdf2cc9af020d1c9f49f5177a7d728a3860a0a4afd47fe28c",
+        "inputs/collect.json": "178273f3beef75e5ac4ad8b58c485b9118a5923d4dffec5e8b646bdc7881371e",
+        "inputs/debrid.json": "9bcd33365087283907392f9e26a5b9b9d46f5137efa2dfbffd1054f4381f20a3",
+        "inputs/proven-quality.json": "82af0125017fa6c1329cf787029f2ad74641c6cf3bc0426aad723d72b6a900f9",
+        "inputs/apply-debrid.json": "a8e60b52c8b4a544c5dc80387712e9896b69686e332906229454364757bc038a",
+        "inputs/files.json": "268d09157e01599e635831c04181e17240b5a65992d9d5c4d283b11cf7d7da1d",
+        "inputs/instant.json": "3a271b28db52e7f4f3b61683be2740384725978a75ab87332d74e9a4b72d6efb",
+        "inputs/fallback.json": "2ef75dc7ec13a80923e76761455c734def8ea6fded2a6919850976bdea12d382"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-breaking-bad-s05e14",
@@ -516,11 +1314,37 @@
       "dir": "cases/series-breaking-bad-s05e14",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:06:49.164Z",
       "files": {
-        "request.json": "81434ac63cf4c467f977a215d4f7246b0423bf44325eb2a25c3f0ddc2fcfd8e2",
-        "response.json": "4f0c9cfc06a695720023af7b55c1b7329b7da5f077d53e8138acba0a1cb27db8"
+        "request.json": "9ffc81341d88611ccc1480e65df62215764045492e2b974be0f1d72a65403079",
+        "response.json": "d729c6913c169b439946477a210532b61aeea73c99e9e752afd9820157661824",
+        "inputs/meta.json": "0d629fc4438af92bf157d5450c96d81b8acfe74a4c2acecbfd87c7033f7caa67",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "6a073b871037be83ce103feb9c0a5baff3a005344469cfba225ac119206f4553",
+        "inputs/collect.json": "c1fbe79adb1eb9223ce82a250034ba2b9b4f695138c643c195088f4f237e86a3",
+        "inputs/debrid.json": "3ee64cdd8744200d07ef8cde4a53aa1325ea302afb07127a5924d9ac2994f005",
+        "inputs/proven-quality.json": "2231b09e1cedcade0173b3983633395b6d3a1397bb2a426ea350984c0f1ccfd6",
+        "inputs/apply-debrid.json": "4488d388e790ba40f4cfbceeb544b573b284f74116b9a00cb231be7f2fd72b39",
+        "inputs/files.json": "df2e899b4710d64979ad654344fe3b18aafcd9cffbf16b93061dc1cd5a092536",
+        "inputs/instant.json": "f78db8186cb397627f6f8ec6a80d252860fcc1b36fdfc7f05a2e8ffe5f8473d3",
+        "inputs/fallback.json": "fd95837b8daa8b45ff0cb680a20ad41a7465370f623431757d01e7ce9fc0c903"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-brooklyn-nine-nine-s05e04",
@@ -530,11 +1354,33 @@
       "dir": "cases/series-brooklyn-nine-nine-s05e04",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:08:33.241Z",
       "files": {
-        "request.json": "4241c6ba8a4997bf03de4f3af9298ce5a131bef98e4d846516fa20783fd5467e",
-        "response.json": "58884ab43db2fb52148a05db09aa4a3774237be5f390d2e3aea0624ee02080f7"
+        "request.json": "2f4adc1da37d4342cf825aabcfdead009ebfd00b6f79b2a8a6367258f3c76df3",
+        "response.json": "f67796b786ae43350c483e621097c291de016557650c2cddcb7654c9ab44bdb0",
+        "inputs/meta.json": "10ff75036c188a32e6c700f580ef0c8cb7fd42441292e67e5a64358322c9a563",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "d5f6eb827b733d1c6f0384bc46a24a434d3cdb65d176ea37dd46b93c2df2d89d",
+        "inputs/collect.json": "db84c6413f353f76322278c32895fe60f5d51214633d8c7c66421a3177b2bfe0",
+        "inputs/debrid.json": "437c2fea3237984bcbd1cfbffe0381c47af9816237f76f208db10c03b3fd669b",
+        "inputs/apply-debrid.json": "eccff40a3473b85cadc36677d08ec1c5d3a0a0142504ef0945bf174c8096fc86",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "25c2df1bfac23e3ca154daf06927f4fb0c931758a40b909170d9e540cf1b3c0b"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-cidade-invisivel-s01e01",
@@ -544,11 +1390,33 @@
       "dir": "cases/series-cidade-invisivel-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:08:33.241Z",
       "files": {
-        "request.json": "e7dcd1f623ed58eb567420bacdb9b53c98acbec8aa65a79a2621c8fb7005cfda",
-        "response.json": "5ab9f39a345d5f1b60593bb54e44cb951d9fcefae6dbfcef10a7723e62be605a"
+        "request.json": "cd5fb1af28d649a553701ab13bcd5e99a423970e3fa4b8cc4f4d3ad07b484a07",
+        "response.json": "ea7a9fa9b7b8eec7146e0dee0fd36626293c2f0cc6372c98499c327519f6bf73",
+        "inputs/meta.json": "632b7c824e2dff9a1bf19819f61d81e3d4e6cfbf069d22222d3a5abdc557bf33",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "e09ad400b639121f80a2519b6244a7ceebe48e8f2fe23ed093c028ba7677a653",
+        "inputs/collect.json": "f17983e1e081a769e8a0ae39bf9e50fc58a113f9164dbe2b459e8e898d9766b5",
+        "inputs/debrid.json": "e1b0deb24757aa5e2a3ae521c820917d0981b5f9759860882ccbfd11078e0eed",
+        "inputs/apply-debrid.json": "180bc5dca259a97c391b1998006178136ffe1abe8b895b2692c40ff4b284bd35",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "da8d86a01effed69fea72850cac34abda82ea052f6bc9c101c20a97fddc0bb9c"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-dark-s01e01",
@@ -558,11 +1426,33 @@
       "dir": "cases/series-dark-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:07:32.139Z",
       "files": {
-        "request.json": "bc320c30b24d1560798c9114f9218179aa3b01c5aad7e150d78db950f492b381",
-        "response.json": "64eaf76d5bcad248ec04a017b069e6962bf857cc15cc354f3eb57e1438335c3c"
+        "request.json": "630897c8e2648e0a39d547c53999bce9fdfc0c658a9b50eb932f22292986843a",
+        "response.json": "4996928a13285f18399b4a0f98d139bc922a6d8907967db8e583b70551b2032d",
+        "inputs/meta.json": "1e23dfb88d0c9c03548cf5fc5003c1f70c81cd63ab591ae4a499394b5143acef",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "82aa69448016c632f17aa46c52dceb895fe062d97f3b51ff8869a90287c05e00",
+        "inputs/collect.json": "559983f41c6ff36fe0ee37b61ca153a3ef048823290c6b534526b026566b779c",
+        "inputs/debrid.json": "f1e47f0cf8253604110b8f0309873b21ee3559d1c70c2503110325e0c4c3950f",
+        "inputs/apply-debrid.json": "a79f966fa14ae860ab0ca1a2045f2eb76e4228a6cb1fbe3a1f781dbb8b92733d",
+        "inputs/instant.json": "f53db25b418874e203824b39a3799742f9163dd5c7fbad1eee751dba30bd0663",
+        "inputs/fallback.json": "e874cb09d8335a8bac913a4677817a3172b28511642bc89697efb4d2b3bcfb06"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-fake-id-guard",
@@ -572,11 +1462,32 @@
       "dir": "cases/series-fake-id-guard",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:12:45.959Z",
       "files": {
-        "request.json": "387c72590385c8a695a2223dea2f2413508e9f4d01e8b56891c0c67c8a7e445c",
-        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
+        "request.json": "b2a12c57a6b7b1ca8a373f58afaf536bea78b2f5a8bf1b599222d666c1fed962",
+        "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949",
+        "inputs/meta.json": "fa7ddb2e195e27f1b3b72d0aef423467f2f39b234f045ebeec5504253bb0c300",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "72b11f1741e15c1ce1fed7c68419b7ff5e331366fad230f5556d0b5c4fb755ee",
+        "inputs/collect.json": "d02a914ecf6e8d1bea5c022b7f35783a5a7f094e1c42e9c32ba8bd0c359af541",
+        "inputs/debrid.json": "9daf56b9a2cf589c73537ab3559730324a018f47bc9687086fa2ff42cde93786",
+        "inputs/apply-debrid.json": "a4aaec79ce2fb30dde4b50490298147dee1cbd32d12fd80a863d3e17769fefec",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "d8400b6496449bc03bec79abe70e2bf7ef413d36e1648705daaae9f21309dd7b"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-friends-s02e07",
@@ -586,11 +1497,33 @@
       "dir": "cases/series-friends-s02e07",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:07:32.139Z",
       "files": {
-        "request.json": "6efa401a7c16f5c8bcaaf74e0071e6a2190b1a0eb00fb3c7df1e86ff11006940",
-        "response.json": "74e6645056b8af1560de40530e6e00f9a4a59ed76dd026b11fa68fd5de762e05"
+        "request.json": "a073c0783923da31ee2ce2ade66080e3bdb978e5c7f2f16ab1da169067fbd31d",
+        "response.json": "431f23f836f48e2e4bca2c5e60580600e55af0fe57709e7eef873942848ee21b",
+        "inputs/meta.json": "8dee306d1ff87ab1fcfdb209a67c47474976061f48322ef4c86973d173384612",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "39db402bae6dccaea6d9e5f7f534c27dd6e7c7fda9ef0ceb7d35b78d75b2e6c8",
+        "inputs/collect.json": "37f7e6d1d6f84d505d08f83da0b18f431f510965940324d110849bd92d22e747",
+        "inputs/debrid.json": "7d85c93fabd01f44acae6914970457a7bfd7d061d670531481c92885f433c732",
+        "inputs/apply-debrid.json": "1707e624ca1d0bbec4c82e935ae535d4e63d07dd504523dd13dd992c716df989",
+        "inputs/instant.json": "8d0918e6b3ae7a222b20e8bf49fc872e91b299b71f3be488f8231ead0e615aef",
+        "inputs/fallback.json": "1d176a0702f348e5ab6ca2a10b20b8303b277d13be31828862c6296b8dd4ebc1"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-got-s08e03",
@@ -600,11 +1533,37 @@
       "dir": "cases/series-got-s08e03",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:06:49.164Z",
       "files": {
-        "request.json": "da2b883483da76317b758a0e150f322e652b7cbe280e1d55d567865b322e6360",
-        "response.json": "5a95a0a9b3926c24a87da4f2826b78c9d029d449fc5d44b79fde9ec5bc26c48b"
+        "request.json": "1c1bc68201a1d03ef33988d279abbf862a8385aacba5e1bf654958f669ef7e0e",
+        "response.json": "c355e884dcc6e42c2f026f2af11f218debcd31e9190f2786218cf3fbf7fc30d2",
+        "inputs/meta.json": "f22e2610a50da1ee65ed7177bdd48907e3568f82b182f082547270d7d4f87177",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "9afdadf34bf40dab742a95ac693265ccd912b340013cf52acbe6b671d2a974fb",
+        "inputs/collect.json": "b02aaedcc004033dafa9f57c74b732b07fff23708adbba1a5cb31c8dc50db66a",
+        "inputs/debrid.json": "ff8624a9989a0e9bff77903095bd389baa4c1410b493d27139fa4852560bef63",
+        "inputs/proven-quality.json": "1ccd8dac9b85f498265536f7c8087ec659f3c04bc62b4d5b255f5d5364e53d87",
+        "inputs/apply-debrid.json": "3678abaaf38803c4c728e4c541639c1db3d5d85cb27d9e95db5ec41f9852314d",
+        "inputs/files.json": "5db5fe5fcfbb31256e6eeb471c9272602663f7654428bc2eedb92adc1b07aa02",
+        "inputs/instant.json": "2cb6599ef266dda692cf6e3d46331e77c2e2eeb916d3e805c845300d7e85c98b",
+        "inputs/fallback.json": "520de417a1a0a5b3721e6bdd78a5075985b59c5ef35fda5a8fc617cd286c330e"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-la-casa-de-papel-s03e01",
@@ -614,11 +1573,33 @@
       "dir": "cases/series-la-casa-de-papel-s03e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:07:32.139Z",
       "files": {
-        "request.json": "3dcf573addb00a1e6f94e1b08d0b7285a75bc5e7c5f0ab391f1af2e6973b6382",
-        "response.json": "cbd1c60c40f36aaf3288519a317d3de031466d458093d3e4b34147cf9ba5c70b"
+        "request.json": "f1200516c5ea4de658e363f6a17cb0d7a88c14a4eebf2d50e96621831d5e12d4",
+        "response.json": "f0107ffaf2471a38342dc3fd0cfe5ac6a2cf768ffb25e0762b5115de84d9f624",
+        "inputs/meta.json": "0e4784ce828a973aa543546610eb2bfb99d03dd70f083b28f7f7c7f5dd8c26f8",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "b5b11ce829d164a7307e42a1f17a1a53539f1d1d1e86c75fdbaa0017d97ca6fa",
+        "inputs/collect.json": "218897d7ddc950500ee544e8c397529ad4833ced20f1ae57e3736004219aaafc",
+        "inputs/debrid.json": "d2dac6a0ad4c75aa878e1479a13e32b96339f75525c233197adcb72be01e8f20",
+        "inputs/apply-debrid.json": "06528acd94d1975849c92486a357cff6dd11931aa90dd5cc755ed5ef2aade405",
+        "inputs/instant.json": "8867b9c9e72ee6024431288b8efd5a9003f00a452146eb334a3cbd30b0aba21e",
+        "inputs/fallback.json": "56c1e24890d81be2883272252995a1637c5e7d33d1b621288076c943833a405f"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-monster-dahmer-e01",
@@ -628,11 +1609,33 @@
       "dir": "cases/series-monster-dahmer-e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:10:29.657Z",
       "files": {
-        "request.json": "e72b2be091407927cb0401b7064f933df8ebdaa151200f8ce664830905f7d01f",
-        "response.json": "f6327b85659b2bff1b7ded5318a071ca0dc6e817936de257e5a591b6d320b367"
+        "request.json": "072528e71093e229dad79ab3e695c5a8603d48706577d301e24e7882cf2df66e",
+        "response.json": "3423b34e01de5fee35783b7b88b4b0483802b475519e1194967f0d83b6fcc687",
+        "inputs/meta.json": "09b2aa3b8c553af5d3e74c3af1ec7083890b75bf315fe2c5aa1bab4ce2b2d66b",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "e05d647de131fd88301188be83862cbfb5b48adc2a6b6ac2328c9d38a80763d4",
+        "inputs/collect.json": "0ad74fb610d34c72d9382212fc75a659535ba9bd2a97321b6f045e16e2f19fd5",
+        "inputs/debrid.json": "3dfd738e88d797ce54232aed902318c7724dcdbbb7d09d1eae70c25bf1797dc2",
+        "inputs/apply-debrid.json": "10813839ab3dbc849c0330d1d48baaa7a26e5c66bda51426f11da9af17cb4da2",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "91b77c0c334f1853764a459c8395e6c5b216f17bf74df034cdef0b02bc28cf6c"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-multiwork-marvel-aos",
@@ -642,11 +1645,33 @@
       "dir": "cases/series-multiwork-marvel-aos",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:12:45.959Z",
       "files": {
-        "request.json": "0a427caac22d04bb24fe079d64024568b6770a60a368d815bb07d115031c9b3d",
-        "response.json": "f1662712cc749b9d5cabbeb473d16c6e18ae8cd6768041d0482e1805dbbe6853"
+        "request.json": "b3e5a3adcce08627570ab72d69a3fded92518dab9e9acaf6745865f65ea85c9b",
+        "response.json": "52ce5b41ed32baee657e61334b4caee2afe3123418121dc5fadd84315fbc078c",
+        "inputs/meta.json": "a0da1687352e58bf0b606d7a23b380f25b0f1c3a8a103a430265044d250da8ef",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "b50c28de74c5f5d97c239b829ee82aee0451ea923a63774b6190fcdf2d75d985",
+        "inputs/collect.json": "ddfe745bed5cad93bf6361f6da73304f3c3ef7e0b5a3f727d7e9f740e8c3b103",
+        "inputs/debrid.json": "30825890ed047929877072bf25e02b8f58296c52e2ea5e56d1dee383dfada9d3",
+        "inputs/apply-debrid.json": "56b22b93edc2d963c356cb33f3422deaf8c6be9422aaa786d483a352bc09ddc3",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "58141c4dd72ecc9eceafc7bd45d9934a99c782bca7b2255547b7430307a11e32"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-obscure-empty-tv",
@@ -656,11 +1681,33 @@
       "dir": "cases/series-obscure-empty-tv",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:10:29.657Z",
       "files": {
-        "request.json": "30e557637fd45a6c0aff5c6d20b59da754e8b1e6115d1c4271f3bfc6804d9bdc",
-        "response.json": "bb977be7e69d8c6cb040a6d0a720a365824d44be5ba8fabfff1cb026dc1845c9"
+        "request.json": "bc287d16c8cf74726f55bbc385189926b3c30ff7220dc5d2da946479253843ee",
+        "response.json": "8473abb2773bdaca3e6ebc82fa36c4ae7e49fb166b149e021683781a959161df",
+        "inputs/meta.json": "bcf236abb8b6a81c348fa519831b3748a8a96af4889bf8e165b2f76f208f2ef2",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "6fba3d6ae3a2ab724232a4bcd94f2406444e7df1bfe06e3a9cc928a3e2e20e50",
+        "inputs/collect.json": "54660d6ad97ed497a70e648ba64ff602320e1234c65f11035da3652da55afbfe",
+        "inputs/debrid.json": "f9a1b6b34e1a8fdb2fada5ef4e755291cda2017980a69c1567b632012f40745e",
+        "inputs/apply-debrid.json": "2d62138fe3c22302488059db182af917eacb9d324b2c1457ad141d520c751787",
+        "inputs/instant.json": "56f54079b407dae6a963a3fa8bc9bed683d935070cc3e10c0cca96ae3841a976",
+        "inputs/fallback.json": "5312337916e13e934cd543b64766a78a447c5cccd973d36ca998b676b9582b70"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-peaky-blinders-s01e01",
@@ -670,11 +1717,33 @@
       "dir": "cases/series-peaky-blinders-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:07:32.139Z",
       "files": {
-        "request.json": "fbc8225d3fdae6e8b14c6bf50f9195381797076daeb30efbf90f89d916f4ddb8",
-        "response.json": "c2d01e548e9da1bc6b49c0e710fa4ccdb686f9eca32baf0c26c4b896790f9911"
+        "request.json": "66f4e5d84254da2c730a0837eb388a6bdcd832d99aa7fb5a7443eeb80a3566bc",
+        "response.json": "ea1604fb9c253fb5d9968085fa83228bc707b28d37e30c2271b8c2583c8c7085",
+        "inputs/meta.json": "0cc9b61f1ad5593dabc4ab5bec93dbd41650fa2ff95c2af0bbb5a32613e1fd48",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "517f496aa1a2c31ba44e2ea3111cd1d4691a0839c126f1889827e6c82a73c9f2",
+        "inputs/collect.json": "c4dbd0f1fc7c945866a8638dfeeaf9ef5ac6348d1a43a3435bb90d99a93871c5",
+        "inputs/debrid.json": "df9dc82bdb7b7184b696a274f69efb7ba7ebc21f7f73522f5a1c16c48f723d0b",
+        "inputs/apply-debrid.json": "ae420264fe73d5f11549a7027cee4d9aea50b4d455c5b062301b9d201af3d474",
+        "inputs/instant.json": "c6efc989c6835dda3bb555d5b1cf666b7c2ead2a3a3c58de3a1b83821b92b0a0",
+        "inputs/fallback.json": "579e1c4ed932acdaf34549d83ded8b6d2486ecdea01a29d593d267e88e9d3ab2"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-round-6-s02e01",
@@ -684,11 +1753,33 @@
       "dir": "cases/series-round-6-s02e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:08:33.241Z",
       "files": {
-        "request.json": "3a7ed64015cd072103d702648adc7c5fe4384d612d3bb4907b150d712a49a2c3",
-        "response.json": "d04f407e751e9f2e6b4d03ac75360b0eee220c91a2a939beda79e90b56901dbd"
+        "request.json": "ee0999b3b51f6147e2edee4b2fb9df15d6bfced90a6fb785992517b90b0c9376",
+        "response.json": "2aed1d76f5595968c8f095e4fa41040ef067ae484f9e2cf82dc20218f6ce003c",
+        "inputs/meta.json": "eba73fca47c4bc64d3cd95b8b1a96bb6f8c1eb8abfa73312a6e7fb999fb71946",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "ceab423d5c8bb3af48eacb391eaccf9d47ecc49f73dc32ab1fdc255cb4ce5f36",
+        "inputs/collect.json": "e53bdcdd4e8a02e66574135ba9a407f78c4debc2c42167bfea1e10b67e18fac0",
+        "inputs/debrid.json": "c399406972fef16b1e599646d130cb593655e609700817f47b65c99f15f5b9e3",
+        "inputs/apply-debrid.json": "3289d246fe60b37df26359391f853f031225510e0793c6e3dd7e1b60348f24e8",
+        "inputs/instant.json": "ecd82eb69a8f4f9ad72baca0f59be9fcf6832b37503bb692f6fccfc258ae7f15",
+        "inputs/fallback.json": "4e6cf09d837105abe5e2dcad81bec4556b316b77f1de8ac3db3ca95020fe614b"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-stranger-things-s04e01",
@@ -698,11 +1789,33 @@
       "dir": "cases/series-stranger-things-s04e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:07:32.139Z",
       "files": {
-        "request.json": "2bb9936000e590d63b09838ea4e84783948d6846679312f47bd57f391b2ba464",
-        "response.json": "a3d2f6cb20a018f02bce21c047cb66153c5ad8f14bdac71783e289334c26f449"
+        "request.json": "e1dc3c7f0856dca2606e9c2cc8c6d89696123a6d4bcf6a920b0ea44766ee43d7",
+        "response.json": "37cc48f7f0df069f1b94dc9c9e1a39560b7b76b9529d05b6c4c9c4c16228b30a",
+        "inputs/meta.json": "7439c2cbfe3c348e51748b7575d13f44e42bb97ba5315d72b79ef4c27daa3f8e",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "8b4984ad785e68123df3e9165f959f9492f1c4350e54c4dc1acdf65de7e4b68d",
+        "inputs/collect.json": "f5cd6b04e0129203d4286bfe36a7efb4a9ec1553c9a61927fb40d4f3deaecc43",
+        "inputs/debrid.json": "3a5f567be52de95b6d1d5a543828c3cbebbd51379b3a8f7cad58a59136b0ba42",
+        "inputs/apply-debrid.json": "6e8f27ddaf2e1afac13afabc4c47b17ce01913af50b7b9cb8dc4af6133b967fa",
+        "inputs/instant.json": "c698d8a870f15bd9caf52a9b0faffb9fcf1bc8de11b9c0e702065e586a20bbb6",
+        "inputs/fallback.json": "c65da272db411a422988dee047e293266b019a6e3011ddaf8d51127fd4e67bd9"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-swat-serie-s06e01",
@@ -712,11 +1825,33 @@
       "dir": "cases/series-swat-serie-s06e01",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:08:33.241Z",
       "files": {
-        "request.json": "04f1d564fb8152ae6150b2f307a158490e83328e484f5d1e1ccdff89ef088115",
-        "response.json": "7df06808cc648852096207539f8ad4c0f62142604cdf40309a0728c5cdaeeb11"
+        "request.json": "dbd618a59df105e59901fb9edec12cd097b2f6e6e196770d7b809fe03c4a3531",
+        "response.json": "e3f2d7806fe1711dfe97cbe4e2c9f74c9c607471dd6e42e00ff702f0b3e1bac8",
+        "inputs/meta.json": "2b696f0b4953681810d2ed844994c52a3f999e7a4a62c3b2204e69db5789f86e",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "841babd972d7b932dc3e3534934d60378e831c257c494a3c4153fd8939ecb81c",
+        "inputs/collect.json": "29822ae55a2e42d89a19fd024abcaa2121cda92947d0ae7e924afb6ed38f754f",
+        "inputs/debrid.json": "fcc5cd2ce3ea21958b03454d3b1408b00b17f78b578ea611d2bd79a849bdb402",
+        "inputs/apply-debrid.json": "2e5f62953cbcfbf87dad4a991f6eaa467033ad8c46a32a0cd212221a833cc738",
+        "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "inputs/fallback.json": "675f7b77e4b47df766aa2725e9573ef66eea0a055f3a0fa871240c5245618a9c"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-the-last-of-us-s01e05",
@@ -726,11 +1861,33 @@
       "dir": "cases/series-the-last-of-us-s01e05",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:08:33.241Z",
       "files": {
-        "request.json": "9cb346a916543bc71b417d01f8ec283f2750f8031c4ce6b03377a828ce7c2869",
-        "response.json": "854664ed02631613a8344960e8814c4bebce20a8c19c1a856e0b377c628cce84"
+        "request.json": "8ccad9ce6cf86f40400e7e72e7233e6ab0dd6bf1b2dcf5af9473fb2e66fc82ca",
+        "response.json": "00b2490f59ab6cdee33c5b7c7b9394ab5a4864d7c40655522d1975d2d33a33be",
+        "inputs/meta.json": "4ad906faa0d9fe6f487d6a666144aa2ba136e50412b4224fec1a19a60a773cbd",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "29c0873b30c7fb15038b1e65645297d2fa6dacb1b643c1372fdba832707d8cdb",
+        "inputs/collect.json": "39b6e6529b8cd306c779de82c4474e49d2995ab703837e9a01166c3338e4ce8d",
+        "inputs/debrid.json": "4df56fc7338f3de6ef170aa682117f6036fa239231f0c2924b5455b8e3ed5e97",
+        "inputs/apply-debrid.json": "37e38dbffa0c288c9e33e20cfd469a12237d0cd5e6eedfae32b66c18a0432e2e",
+        "inputs/instant.json": "8f132356cd282306c74442425ee1707264315335ea7fa32b066bb582bd3c37ab",
+        "inputs/fallback.json": "afa205968c44a69d86e37322770a9f882b8f1b762e26c58f142518576f9bc413"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "series-the-office-s03e22",
@@ -740,11 +1897,33 @@
       "dir": "cases/series-the-office-s03e22",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T09:07:32.139Z",
       "files": {
-        "request.json": "76a47911f9398a6fd0b6c54ba235d15d9be5208065eb5ba44e13532fe1411783",
-        "response.json": "71cabee2fc2a86e83a30ed00dfd58346605fac34a5e4d38f25447651ce5c2c97"
+        "request.json": "697e0604fddc1a305bad6a6c292f3ec6a3f37e4da1e191b3b03cca2da3588545",
+        "response.json": "37832729f195454a83dac7190bee900f0b69b4d257ef9aa97b4427db5d9e0cf0",
+        "inputs/meta.json": "96bf55a2954e56c5254601c999594767aeaa5c9f855c2b22d280f7a08588149f",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "0d4a0bacbc6e75fbc4bf64a784784962823e20a98f4eb069f92731c20bd26623",
+        "inputs/collect.json": "365b88936db744f2296a3982e6d41e08d41afdf2943a3f343e0048a45c259eb5",
+        "inputs/debrid.json": "c88d311fb3e1de23e0a7d676a3b4d963082e9cf96a9cfa5e24757f8c0a676231",
+        "inputs/apply-debrid.json": "b2b8702467cd55e3c969a7a4cb9db150c346b677aa871e5e1ff71e01522775ee",
+        "inputs/instant.json": "896a29917342d7c3cdbcb3ec911c92280aa3883dba484e0d0dc27fa6651cebb1",
+        "inputs/fallback.json": "a168caa198439113f3aba1a42ad1f8f9bcc9e4faee4494e8a1a8ebba84dd9ede"
       },
-      "capturedAt": "2026-10-19T01:11:18.652Z"
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/apply-debrid.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     }
   ],
   "notCaptured": [

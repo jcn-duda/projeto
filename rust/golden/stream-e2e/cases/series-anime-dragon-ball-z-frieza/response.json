@@ -8,21 +8,101 @@
   "body": {
     "streams": [
       {
-        "title": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1]\n👤 1 💾 228.99 MB 📦 pack 6.36 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 1080p BluRay · AllDebrid · 👤 1",
+        "infoHash": "c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41",
+        "title": "5 - Dragon Ball Z - Saga de Cell 720p - Filmes Beta\n👤 1 ⚙️ AllDebrid",
+        "name": "720p BR · AllDebrid · 👤 1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-720p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
+        "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "f5635167d1f45159e5668e6a76b38c774b238a0f",
+        "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "cfc59ce47c7c0f0edbedc357dc2458b9056f7d83",
+        "title": "DRAGON BALL Z Saga de Freeza []\n📦 👤 ~1 ⚙️ ComandoTorrents",
+        "name": "📦 · BR · Comando · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-na-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
+      },
+      {
+        "infoHash": "fa420904bd75ee956aba1b1b302dcee2cacaff0e",
+        "title": "[BlackRabbit] Dragon Ball Super (2015) - S04 [Bluray-1080p][Opus 2.0][Dual Audio][AV1]\n👤 1 💾 203.52 MB 📦 pack 6.36 GB (média) ⚙️ AllDebrid",
+        "name": "1080p BluRay · AllDebrid · 👤 1",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/fa420904bd75ee956aba1b1b302dcee2cacaff0e?s=4&e=10&w=%7B%22i%22%3A%22tt0214341%22%7D&sig={{sig}}",
-        "size": "228.99 MB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "203.52 MB"
       },
       {
-        "title": "Dragon Ball Z S200 230 Saga Di Majin Bu ITA ENG JAP BDMux AC3 1080p Part 1 REPACK\n📦 👤 ~2 ⚙️ TheRARBG",
-        "name": "[AD⚡] 📦 · 1080p · TheRARBG · 👤 ~2",
+        "infoHash": "558233c42e684236b2c0f80441085a1ddb0cc357",
+        "title": "Dragon Ball Z Complete Series 1080p MP4 English Audio\n👤 15 ⚙️ TheRARBG",
+        "name": "1080p · TheRARBG · 👤 15",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-any"
         },
-        "url": "{{base}}/{{config}}/resolve/42693b014a6c848bfe15f2931ac27fe6dfca7154?s=4&e=10&w=%7B%22i%22%3A%22tt0214341%22%7D&sig={{sig}}"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ]
       }
     ],
     "cacheMaxAge": 0

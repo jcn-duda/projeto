@@ -1,0 +1,72 @@
+{
+ "key": "fallback:series:tt8878862:1:1:late",
+ "value": {
+  "items": [
+   {
+    "title": "Invisible City S01 PORTUGUESE 1080p NF WEBRip DDP5 1 x264-WDYM",
+    "infoHash": "8845f2995d03e6eb1d770f31fdb6766b848498ac",
+    "magnet": "magnet:?xt=urn:btih:8845f2995d03e6eb1d770f31fdb6766b848498ac&dn=Invisible+City+S01+PORTUGUESE+1080p+NF+WEBRip+DDP5+1+x264+WDYM+EZTV&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 10060960890,
+    "seeders": 0,
+    "indexer": "eztv",
+    "tracker": "EZTV",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "1080p",
+    "fromFallback": true,
+    "fallbackIndexer": "eztv",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Invisible City S01 PORTUGUESE 720p NF WEBRip DDP5 1 x264-WDYM",
+    "infoHash": "687bae2976c621d84c1f05bd64f55974f10b5c94",
+    "magnet": "magnet:?xt=urn:btih:687bae2976c621d84c1f05bd64f55974f10b5c94&dn=Invisible+City+S01+PORTUGUESE+720p+NF+WEBRip+DDP5+1+x264+WDYM+EZTV&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 6753836072,
+    "seeders": 0,
+    "indexer": "eztv",
+    "tracker": "EZTV",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "720p",
+    "fromFallback": true,
+    "fallbackIndexer": "eztv",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Invisible City S01 PORTUGUESE WEBRip x265-ION265",
+    "infoHash": "fa8c3efc90616a4343d8185d947f665a4685d8a6",
+    "magnet": "magnet:?xt=urn:btih:fa8c3efc90616a4343d8185d947f665a4685d8a6&dn=Invisible+City+S01+PORTUGUESE+WEBRip+x265+ION265+EZTV&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 1793148846,
+    "seeders": 0,
+    "indexer": "eztv",
+    "tracker": "EZTV",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "sem resolução",
+    "fromFallback": true,
+    "fallbackIndexer": "eztv",
+    "fallbackFetchable": true
+   },
+   {
+    "title": "Invisible City S01 PORTUGUESE 1080p WEBRip x265",
+    "infoHash": "3abf259eab5e10252bd2d4e6141dca002f40e143",
+    "magnet": "magnet:?xt=urn:btih:3abf259eab5e10252bd2d4e6141dca002f40e143&dn=Invisible+City+S01+PORTUGUESE+1080p+WEBRip+x265+EZTV&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce",
+    "size": 4284229877,
+    "seeders": 0,
+    "indexer": "eztv",
+    "tracker": "EZTV",
+    "isBr": false,
+    "dubbed": false,
+    "quality": "1080p",
+    "fromFallback": true,
+    "fallbackIndexer": "eztv",
+    "fallbackFetchable": true
+   }
+  ],
+  "injected": 4,
+  "cut": {
+   "live-dedupe": 8,
+   "no-source": 7
+  }
+ }
+}

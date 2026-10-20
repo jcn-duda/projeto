@@ -1,0 +1,539 @@
+[
+  {
+    "key": {
+      "imdb": "tt2762506",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "Bacurau 2020",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Bacurau [720p DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:2679c48fc03d83538b681c860cfbc3ad862a995d&dn=Bacurau%202019%20%5b720p%5d%20%5bFULL%5d&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2ftracker4.piratux.com%3a6969%2fannounce&tr=udp%3a%2f%2fcoppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2ft2.pow7.com%2fannounce&tr=udp%3a%2f%2ftracker.yify-torrents.com%3a80%2fannounce&tr=http%3a%2f%2fwww.h33t.com%3a3310%2fannounce&tr=http%3a%2f%2fexodus.desync.com%2fannounce&tr=http%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2fbt.careland.com.cn%3a6969%2fannounce&tr=http%3a%2f%2fexodus.desync.com%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.istole.it%3a80%2fannounce&tr=http%3a%2f%2ftracker.blazing.de%2fannounce&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=http%3a%2f%2ftracker.yify-torrents.com%2fannounce&tr=udp%3a%2f%2ftracker.prq.to%2fannounce&tr=udp%3a%2f%2ftracker.1337x.org%3a80%2fannounce&tr=udp%3a%2f%2f9.rarbg.com%3a2740%2fannounce&tr=udp%3a%2f%2ftracker.ex.ua%3a80%2fannounce&tr=udp%3a%2f%2fipv4.tracker.harry.lu%3a80%2fannounce&tr=udp%3a%2f%2f12.rarbg.me%3a80%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f11.rarbg.com%2fannounce&tr=udp%3a%2f%2ftracker.ccc.de%3a80%2fannounce&tr=udp%3a%2f%2ffr33dom.h33t.com%3a3310%2fannounce&tr=udp%3a%2f%2fpublic.popcorn-tracker.org%3a6969%2fannounce",
+          "infoHash": "2679c48fc03d83538b681c860cfbc3ad862a995d",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486570339,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Bacurau no Mapa [720p DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:3ce4caacaa77e59ce3d526a291d4ecc0bd1e6d26&dn=COMANDO.TO%20-%20Bacurau%20no%20Mapa%202020%20%5b720p%5d&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2ftracker4.piratux.com%3a6969%2fannounce&tr=udp%3a%2f%2fcoppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2ft2.pow7.com%2fannounce&tr=udp%3a%2f%2ftracker.yify-torrents.com%3a80%2fannounce&tr=http%3a%2f%2fwww.h33t.com%3a3310%2fannounce&tr=http%3a%2f%2fexodus.desync.com%2fannounce&tr=http%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2fbt.careland.com.cn%3a6969%2fannounce&tr=http%3a%2f%2fexodus.desync.com%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.istole.it%3a80%2fannounce&tr=http%3a%2f%2ftracker.blazing.de%2fannounce&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=http%3a%2f%2ftracker.yify-torrents.com%2fannounce&tr=udp%3a%2f%2ftracker.prq.to%2fannounce&tr=udp%3a%2f%2ftracker.1337x.org%3a80%2fannounce&tr=udp%3a%2f%2f9.rarbg.com%3a2740%2fannounce&tr=udp%3a%2f%2ftracker.ex.ua%3a80%2fannounce&tr=udp%3a%2f%2fipv4.tracker.harry.lu%3a80%2fannounce&tr=udp%3a%2f%2f12.rarbg.me%3a80%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f11.rarbg.com%2fannounce&tr=udp%3a%2f%2ftracker.ccc.de%3a80%2fannounce&tr=udp%3a%2f%2ffr33dom.h33t.com%3a3310%2fannounce&tr=udp%3a%2f%2fpublic.popcorn-tracker.org%3a6969%2fannounce",
+          "infoHash": "3ce4caacaa77e59ce3d526a291d4ecc0bd1e6d26",
+          "seeders": 1,
+          "size": 1024,
+          "publishedAt": 1792486570338,
+          "tracker": "Apache Torrent",
+          "indexer": "apachetorrent-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Bacurau.2019.PORUTUGESE.1080p.BluRay.H264.AAC-VXT",
+          "infoHash": "80e367ee5db90eef6fe77cb69642e8be9679f75d",
+          "seeders": 1,
+          "size": 2684003869,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Bacurau 2019 [720p] [FULL]",
+          "infoHash": "2679c48fc03d83538b681c860cfbc3ad862a995d",
+          "seeders": 1,
+          "size": 4349175893,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Bacurau (2019) [1080p] [BluRay] [5.1] [YTS.MX]",
+          "infoHash": "6656e191533d3fcfc7546de83923c73746fbddbd",
+          "seeders": 1,
+          "size": 2595321761,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Bacurau.2019.1080p.BluRay.x264-CADAVER[TGx]",
+          "infoHash": "587d175ead93eb46ead3dcab083911909e3f88b0",
+          "seeders": 1,
+          "size": 19211889605,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5.1 Portuguese Tigole)",
+          "infoHash": "f1ed353368f75500c05ac097b75229f87bfcc9dc",
+          "seeders": 1,
+          "size": 6345417606,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Bacurau (2019) [720p] [BluRay] [YTS.MX]",
+          "infoHash": "9a7f1090691bfd150f4b33c0f481b646a63ed687",
+          "seeders": 1,
+          "size": 1262646920,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": false,
+          "brOriginOnly": false,
+          "fromAccount": true
+        },
+        {
+          "title": "Bacurau (2020) Nacional BluRay e FULL HD – [1080p BLURAY DUBLADO 17 GB]",
+          "magnet": "magnet:?xt=urn:btih:9205c8593a5b51825ad1f0b292b5c257e5d16810&dn=Bacurau.2019.1080p.BluRay.x264-CADAVER&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2720&tr=udp%3A%2F%2F9.rarbg.to%3A2900",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 18253611008,
+          "publishedAt": 1792486572802,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true,
+          "provenQuality": "1080p",
+          "broken": true
+        },
+        {
+          "title": "Bacurau (2020) Nacional BluRay e FULL HD – [1080p BLURAY DUBLADO 2.5 GB]",
+          "magnet": "magnet:?xt=urn:btih:80e367ee5db90eef6fe77cb69642e8be9679f75d&dn=Bacurau.2019.PORTUGUESE.1080p.BluRay.H264.AAC-VXT&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2940&tr=udp%3A%2F%2F9.rarbg.to%3A2930",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 2684354560,
+          "publishedAt": 1792486572802,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true,
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Bacurau (2020) Nacional BluRay e FULL HD – [720p BLURAY DUBLADO 1.5 GB]",
+          "magnet": "magnet:?xt=urn:btih:1eb3466869c9480c1fc32e31673b68e5846f4f89&dn=Bacurau.2019.PORTUGUESE.720p.BluRay.H264.AAC-VXT&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2950&tr=udp%3A%2F%2F9.rarbg.to%3A2910",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1610612736,
+          "publishedAt": 1792486572802,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true
+        },
+        {
+          "title": "Bacurau (2019) Nacional WEB-DL FULL – [720p WEB-DL DUBLADO 4 GB]",
+          "magnet": "magnet:?xt=urn:btih:2679c48fc03d83538b681c860cfbc3ad862a995d&dn=Bacurau%202019%20%5b720p%5d%20%5bFULL%5d&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2ftracker4.piratux.com%3a6969%2fannounce&tr=udp%3a%2f%2fcoppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2ft2.pow7.com%2fannounce&tr=udp%3a%2f%2ftracker.yify-torrents.com%3a80%2fannounce&tr=http%3a%2f%2fwww.h33t.com%3a3310%2fannounce&tr=http%3a%2f%2fexodus.desync.com%2fannounce&tr=http%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=http%3a%2f%2fbt.careland.com.cn%3a6969%2fannounce&tr=http%3a%2f%2fexodus.desync.com%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.istole.it%3a80%2fannounce&tr=http%3a%2f%2ftracker.blazing.de%2fannounce&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80%2fannounce&tr=http%3a%2f%2ftracker.yify-torrents.com%2fannounce&tr=udp%3a%2f%2ftracker.prq.to%2fannounce&tr=udp%3a%2f%2ftracker.1337x.org%3a80%2fannounce&tr=udp%3a%2f%2f9.rarbg.com%3a2740%2fannounce&tr=udp%3a%2f%2ftracker.ex.ua%3a80%2fannounce&tr=udp%3a%2f%2fipv4.tracker.harry.lu%3a80%2fannounce&tr=udp%3a%2f%2f12.rarbg.me%3a80%2fannounce&tr=udp%3a%2f%2ftracker.publicbt.com%3a80%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2f11.rarbg.com%2fannounce&tr=udp%3a%2f%2ftracker.ccc.de%3a80%2fannounce&tr=udp%3a%2f%2ffr33dom.h33t.com%3a3310%2fannounce&tr=udp%3a%2f%2fpublic.popcorn-tracker.org%3a6969%2fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 4294967296,
+          "publishedAt": 1792486572802,
+          "tracker": "TorrentDosFilmes V2",
+          "indexer": "torrentdosfilmesv2",
+          "isBr": true,
+          "provenQuality": "720p"
+        },
+        {
+          "title": "Bacurau (2020) e [1080p BLU-RAY DUBLADO 17 GB]",
+          "magnet": "magnet:?xt=urn:btih:9205c8593a5b51825ad1f0b292b5c257e5d16810&dn=Bacurau.2019.1080p.BluRay.x264-CADAVER&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2720&tr=udp%3A%2F%2F9.rarbg.to%3A2900",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 18253611008,
+          "publishedAt": 1792486574363,
+          "tracker": "ComandoTorrents",
+          "indexer": "comandotorrents",
+          "isBr": true,
+          "provenQuality": "1080p",
+          "broken": true
+        },
+        {
+          "title": "Bacurau (2020) e [1080p BLU-RAY DUBLADO 2.5 GB]",
+          "magnet": "magnet:?xt=urn:btih:80e367ee5db90eef6fe77cb69642e8be9679f75d&dn=Bacurau.2019.PORTUGUESE.1080p.BluRay.H264.AAC-VXT&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2940&tr=udp%3A%2F%2F9.rarbg.to%3A2930",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 2684354560,
+          "publishedAt": 1792486574363,
+          "tracker": "ComandoTorrents",
+          "indexer": "comandotorrents",
+          "isBr": true,
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Bacurau (2020) e [720p BLU-RAY DUBLADO 1.5 GB]",
+          "magnet": "magnet:?xt=urn:btih:1eb3466869c9480c1fc32e31673b68e5846f4f89&dn=Bacurau.2019.PORTUGUESE.720p.BluRay.H264.AAC-VXT&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2950&tr=udp%3A%2F%2F9.rarbg.to%3A2910",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1610612736,
+          "publishedAt": 1792486574363,
+          "tracker": "ComandoTorrents",
+          "indexer": "comandotorrents",
+          "isBr": true
+        },
+        {
+          "title": "[ ] Bacurau 2019 1080p MULTi FRENCH BluRay x264 STVFRV",
+          "magnet": "magnet:?xt=urn:btih:356DB6803B35BA3DB08EA9C488030C5B16E6F6F5&dn=%5B++%5D+Bacurau+2019+1080p+MULTi+FRENCH+BluRay+x264-STVFRV&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fretracker.lanta-net.ru%3A2710%2Fannounce&tr=udp%3A%2F%2Fipv4.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fipv6.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 9234179686,
+          "publishedAt": 1760950585590,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 720p HDRip Hindi Dub Dual Audio x264 1XBET",
+          "magnet": "magnet:?xt=urn:btih:3585F6188F1D1780F646560D3178EE578E07FBB2&dn=Bacurau+2019+720p+HDRip+Hindi+Dub+Dual-Audio+x264-1XBET&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fretracker.lanta-net.ru%3A2710%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fipv4.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fipv6.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 2,
+          "size": 1224065679,
+          "publishedAt": 1760950585590,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 1080p BluRay x264",
+          "magnet": "magnet:?xt=urn:btih:9205C8593A5B51825AD1F0B292B5C257E5D16810&dn=Bacurau+2019+1080p+BluRay+x264&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fbt1.archive.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 0,
+          "size": 19209241231,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false,
+          "provenQuality": "1080p",
+          "broken": true
+        },
+        {
+          "title": "Bacurau 2019 1080p BluRay x264 CADAVER[TGx]",
+          "magnet": "magnet:?xt=urn:btih:587D175EAD93EB46EAD3DCAB083911909E3F88B0&dn=Bacurau+2019+1080p+BluRay+x264-CADAVER%5BTGx%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fipv4.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fipv6.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 2,
+          "size": 19209241231,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau (2019) (1080p) [BluRay] [5 1] [YTS MX]",
+          "magnet": "magnet:?xt=urn:btih:6656E191533D3FCFC7546DE83923C73746FBDDBD&dn=Bacurau+%282019%29+%281080p%29+%5BBluRay%5D+%5B5+1%5D+%5BYTS+MX%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 68,
+          "size": 2598455214,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 PORUTUGESE 1080p BluRay H264",
+          "magnet": "magnet:?xt=urn:btih:80E367EE5DB90EEF6FE77CB69642E8BE9679F75D&dn=Bacurau+2019+PORUTUGESE+1080p+BluRay+H264&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 5,
+          "size": 2684354560,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false,
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Bacurau 2019 PORTUGUESE 1080p BluRay x265 RARBG",
+          "magnet": "magnet:?xt=urn:btih:1585FCE2C65D240A55734FB3717964BA5C1C8BBA&dn=Bacurau+2019+PORTUGUESE+1080p+BluRay+x265-RARBG&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Fbt1.archive.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 3,
+          "size": 2190433320,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 PORTUGUESE 1080p BluRay REMUX AVC DTS HD MA 5 1",
+          "magnet": "magnet:?xt=urn:btih:0A23F0FA6EB6C6092101C22973878FFA144912D4&dn=Bacurau+2019+PORTUGUESE+1080p+BluRay+REMUX+AVC+DTS-HD+MA+5+1&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Fbt1.archive.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 38354057953,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5 1 Portuguese Tigole)",
+          "magnet": "magnet:?xt=urn:btih:F1ED353368F75500C05AC097B75229F87BFCC9DC&dn=Bacurau+%282019%29+%281080p+BluRay+x265+HEVC+10bit+AAC+5+1+Portuguese+Tigole%29&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Fretracker.lanta-net.ru%3A2710%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2740%2Fannounce&tr=udp%3A%2F%2Fipv4.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fipv6.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 4,
+          "size": 6345814179,
+          "publishedAt": 1760950585590,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 1080p AMZN WEB DL x264 EAC3  HdT",
+          "magnet": "magnet:?xt=urn:btih:FB1FFB650A144CACF7D5404214CC1D2F8C3C21DA&dn=Bacurau+2019+1080p+AMZN+WEB-DL+x264+EAC3+-+HdT&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 9298604195,
+          "publishedAt": 1789894585590,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 720p BluRay x264",
+          "magnet": "magnet:?xt=urn:btih:1875601E6471FE09F368E4D802103262FF3208A7&dn=Bacurau+2019+720p+BluRay+x264&tr=udp%3A%2F%2F9.rarbg.me%3A2730%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fipv4.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker.lanta-net.ru%3A2710%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Fopentor.org%3A2710%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fipv6.tracker.harry.lu%3A80%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 5,
+          "size": 6485400616,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 PORUTUGESE 720p BluRay H264",
+          "magnet": "magnet:?xt=urn:btih:1EB3466869C9480C1FC32E31673B68E5846F4F89&dn=Bacurau+2019+PORUTUGESE+720p+BluRay+H264&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fexplodie.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.ololosh.space%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dump.cl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker-udp.gbitt.info%3A80%2Fannounce&tr=udp%3A%2F%2Fretracker01-msk-virt.corbina.net%3A80%2Fannounce&tr=udp%3A%2F%2Fopen.free-tracker.ga%3A6969%2Fannounce&tr=udp%3A%2F%2Fns-1.x-fins.com%3A6969%2Fannounce&tr=udp%3A%2F%2Fleet-tracker.moe%3A1337%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.open-internet.nl%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Fdenis.stalker.upeer.me%3A6969%2Fannounce",
+          "infoHash": null,
+          "seeders": 0,
+          "size": 1696512081,
+          "publishedAt": 1760950585591,
+          "tracker": "LimeTorrents",
+          "indexer": "limetorrents",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 1080p AMZN WEB-DL x264 EAC3 - HdT",
+          "magnet": "magnet:?xt=urn:btih:FB1FFB650A144CACF7D5404214CC1D2F8C3C21DA&dn=Bacurau+2019+1080p+AMZN+WEB-DL+x264+EAC3+-+HdT&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "FB1FFB650A144CACF7D5404214CC1D2F8C3C21DA",
+          "seeders": 4,
+          "size": 9302186838,
+          "publishedAt": 1788426129000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 1080p BluRay x264-OFT",
+          "magnet": "magnet:?xt=urn:btih:4ADD8997D18EF4290B9965D40F29DC2258911065&dn=Bacurau+2019+1080p+BluRay+x264-OFT&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "4ADD8997D18EF4290B9965D40F29DC2258911065",
+          "seeders": 4,
+          "size": 6109431495,
+          "publishedAt": 1776817778000,
+          "tracker": "TheRARBG",
+          "indexer": "therarbg",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 1080p AMZN WEB-DL x264 EAC3 -HdT",
+          "magnet": "magnet:?xt=urn:btih:FB1FFB650A144CACF7D5404214CC1D2F8C3C21DA&dn=Bacurau+2019+1080p+AMZN+WEB-DL+x264+EAC3+-HdT&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "FB1FFB650A144CACF7D5404214CC1D2F8C3C21DA",
+          "seeders": 6,
+          "size": 9302186838,
+          "publishedAt": 1788410584000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 1080p BluRay x264-OFT",
+          "magnet": "magnet:?xt=urn:btih:4ADD8997D18EF4290B9965D40F29DC2258911065&dn=Bacurau+2019+1080p+BluRay+x264-OFT&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "4ADD8997D18EF4290B9965D40F29DC2258911065",
+          "seeders": 4,
+          "size": 6109431495,
+          "publishedAt": 1737890563000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau.2019.1080p.BluRay.x264-CADAVER[TGx]",
+          "magnet": "magnet:?xt=urn:btih:587D175EAD93EB46EAD3DCAB083911909E3F88B0&dn=Bacurau.2019.1080p.BluRay.x264-CADAVER%5BTGx%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "587D175EAD93EB46EAD3DCAB083911909E3F88B0",
+          "seeders": 8,
+          "size": 19211889605,
+          "publishedAt": 1589458394000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau.2019.BDRip.x264-CADAVER[TGx]",
+          "magnet": "magnet:?xt=urn:btih:E797253ECD411513E22C2F2939BCC3F5954BC480&dn=Bacurau.2019.BDRip.x264-CADAVER%5BTGx%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "E797253ECD411513E22C2F2939BCC3F5954BC480",
+          "seeders": 21,
+          "size": 1038700908,
+          "publishedAt": 1589457136000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau HEVC 10bit 720p sn6op.mkv",
+          "magnet": "magnet:?xt=urn:btih:C8DE58A924E5AE1413B60602AC129CA167CC5F14&dn=Bacurau+HEVC+10bit+720p+sn6op.mkv&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "C8DE58A924E5AE1413B60602AC129CA167CC5F14",
+          "seeders": 0,
+          "size": 2314665880,
+          "publishedAt": 1578946309000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau 2019 WEB-DL Sonata Premiere",
+          "magnet": "magnet:?xt=urn:btih:47FC53F2418738FB07F09BD02F9D6BF40EE16C03&dn=Bacurau+2019+WEB-DL+Sonata+Premiere&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "47FC53F2418738FB07F09BD02F9D6BF40EE16C03",
+          "seeders": 17,
+          "size": 2420031066,
+          "publishedAt": 1575369665000,
+          "tracker": "The Pirate Bay",
+          "indexer": "thepiratebay",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau (2019) 1080p BRRip 5.1 x264 -YTS",
+          "magnet": "magnet:?xt=urn:btih:6656E191533D3FCFC7546DE83923C73746FBDDBD&dn=Bacurau+(2019)+1080p+BRRip+5.1+x264+-YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "6656E191533D3FCFC7546DE83923C73746FBDDBD",
+          "seeders": 67,
+          "size": 2598455214,
+          "publishedAt": 1589507148000,
+          "tracker": "YTS",
+          "indexer": "yts",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau (2019) 720p BRRip x264 -YTS",
+          "magnet": "magnet:?xt=urn:btih:9A7F1090691BFD150F4B33C0F481B646A63ED687&dn=Bacurau+(2019)+720p+BRRip+x264+-YTS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.space%3A6969%2Fannounce&tr=udp%3A%2F%2Fvito-tracker.duckdns.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.theoks.net%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.srv00.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.qu.ax%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.corpscorp.online%3A80%2Fannounce",
+          "infoHash": "9A7F1090691BFD150F4B33C0F481B646A63ED687",
+          "seeders": 15,
+          "size": 1267015352,
+          "publishedAt": 1589498445000,
+          "tracker": "YTS",
+          "indexer": "yts",
+          "isBr": false
+        },
+        {
+          "title": "Bacurau [1080p BLU-RAY DUBLADO]",
+          "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fbacurau-torrent-bluray-720p-1080p-nacional-2019-download%2F&i=1&h=bd7829e78c&n=6",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 2673617141,
+          "publishedAt": 1589857200000,
+          "tracker": "Bludv",
+          "indexer": "bludv-cardigann",
+          "isBr": true
+        },
+        {
+          "item": {
+            "title": "Bacurau [1080p BLU-RAY DUBLADO]",
+            "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fbacurau-torrent-bluray-720p-1080p-nacional-2019-download%2F&i=2&h=75d39d9f9e&n=6",
+            "infoHash": null,
+            "seeders": 1,
+            "size": 2190433320,
+            "publishedAt": 1589857200000,
+            "tracker": "Bludv",
+            "indexer": "bludv-cardigann",
+            "isBr": true
+          },
+          "bloqueado": false
+        },
+        {
+          "item": {
+            "title": "Bacurau [1080p BLU-RAY DUBLADO]",
+            "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fbacurau-torrent-bluray-720p-1080p-nacional-2019-download%2F&i=4&h=2ca841670b&n=6",
+            "infoHash": null,
+            "seeders": 1,
+            "size": 19112604467,
+            "publishedAt": 1589857200000,
+            "tracker": "Bludv",
+            "indexer": "bludv-cardigann",
+            "isBr": true
+          },
+          "bloqueado": false
+        },
+        {
+          "title": "Bacurau [1080p BLU-RAY DUBLADO]",
+          "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fbacurau-torrent-bluray-720p-1080p-nacional-2019-download%2F&i=5&h=3b2609a770&n=6",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 38332583116,
+          "publishedAt": 1589857200000,
+          "tracker": "Bludv",
+          "indexer": "bludv-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Bacurau [720p BLU-RAY DUBLADO]",
+          "magnet": "magnet:?xt=urn:btih:D2ZUM2DJZFEAYH6DFYYWOO3I4WCG6T4J&dn=Bacurau.2019.PORUTUGESE.720p.BluRay.H264.AAC-VXT",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 1696512081,
+          "publishedAt": 1589857200000,
+          "tracker": "Bludv",
+          "indexer": "bludv-cardigann",
+          "isBr": true
+        },
+        {
+          "title": "Bacurau [720p BLU-RAY DUBLADO]",
+          "magnet": "http://127.0.0.1:8700/resolve?url=https%3A%2F%2Fbludvfilmes1.xyz%2Fbacurau-torrent-bluray-720p-1080p-nacional-2019-download%2F&i=3&h=bead823579&n=6",
+          "infoHash": null,
+          "seeders": 1,
+          "size": 6474663198,
+          "publishedAt": 1589857200000,
+          "tracker": "Bludv",
+          "indexer": "bludv-cardigann",
+          "isBr": true
+        }
+      ],
+      "partial": false,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "wolfmax4k"
+        ],
+        "pending": [],
+        "empty": [
+          "eztv",
+          "nekobt",
+          "nyaasi",
+          "rutracker-ru",
+          "tokyotosho",
+          "torrent9",
+          "torrentgalaxyclone",
+          "vacatorrent"
+        ],
+        "served": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "limetorrents",
+          "thepiratebay",
+          "therarbg",
+          "torrentdosfilmesv2",
+          "yts"
+        ],
+        "all": "unknown"
+      }
+    }
+  }
+]

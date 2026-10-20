@@ -1,0 +1,801 @@
+[
+ {
+  "key": "alldebrid|0|0aab86cc8fe5d020de5ebfc349427b3c54b5c814,0c9fa2cb87da2d5fccd4af71fb1e0a7e7638b4e9,0d9b239b02f5fa8c4cdda71f3ccfde93ae918bd9,12d435140bb63a9f9bd1a0a99537f4e98389b709,173787c5415303d73885a07f49cd1fd96de0d5f8,2f72d95e23fed076590edc326707b084994372f4,33b1396389a7d76f57215ee618f0ce438126ebe4,499bd160941763954e8ba236969bee1280e1e963,51653df273317cfdfdccd5f9e4c367351e61a842,5628c6c403068d39d4ba1f93923bb9bc9a441b15,60885c299508f9ae39b0085e0c79d4b76704fefd,6a12ce77043c07604314f30fa62f2b17ea8d4ab9,6bbad06245a0d631b0a5e47c8cd6e5abc9a70211,714da393e627fffd6e4d0a42d89815edeb2da16b,8f5af5cd4ad3c5b6d046dc1aae86e73a09c6adab,986d231e5869f45d8ba0a4eb06c022f261396842,a584351126afcf50d32be068f3c9a62550d41ecc,abde0d9e255eae8ac5758ec9203f91ef612801fa,afc92cc3969fcba6cf1c51ccef6f635860f7d2c3,b43df67a93863ea91f2f773f00361072da771dd3,bbd4d315a00580f9cafd9c36f35165c83f13043c,c1f61689123b32edd923fc86d143bc8100769e4e,d13bbcaad8e6e00e78d2afa0101545b8c4e435ab,e597915466c4bbec403804f33e947a23bc9b4b98,e9876a1688fc774068fecc94a991f300f45cf2b7,eb183076846945b898e43a679bba32017138526e,f023c4c883c29e50a56a63cce8e69899f45fc537,f0fd1cad0e24b69ff6aaadb9df40c50286327188",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "0d9b239b02f5fa8c4cdda71f3ccfde93ae918bd9",
+    "title": "Breaking Bad S01E01 Pilot 2160p NF WEB DL DDP5 1 H 265 XEBEC\n📦 👤 ~114 💾 6.82 GB ⚙️ LimeTorrents",
+    "name": "📦 · 4K WEB-DL · LimeTorrents · 👤 ~114",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 7322919239,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad S01E01 Pilot 2160p NF WEB-DL DDP5 1 H 265-XEBEC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "173787c5415303d73885a07f49cd1fd96de0d5f8",
+    "title": "Breaking.Bad.S01E01.Pilot.2160p.NF.WEBRip.DTS.x264-iON.mkv\n👤 1 💾 17.73 GB ⚙️ AllDebrid",
+    "name": "4K WEBRip · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 19037182916,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Breaking Bad S01E01 Pilot 2160p NF WEBRip DTS x264-iON",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "0c9fa2cb87da2d5fccd4af71fb1e0a7e7638b4e9",
+    "title": "Breaking Bad S01E01 Pilot 1080p HEVC x265 MeGusta\n📦 👤 ~197 💾 1.11 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p · LimeTorrents · 👤 ~197",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 1191853424,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad S01E01 Pilot 1080p HEVC x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "6a12ce77043c07604314f30fa62f2b17ea8d4ab9",
+    "title": "Breaking.Bad.S01E01-07.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66\n📦 👤 ~59 💾 2.08 GB 📦 pack 11.90 GB ⚙️ TheRARBG",
+    "name": "📦 · 1080p WEB-DL · TheRARBG · 👤 ~59",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 12777527705,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Breaking.Bad.S01E01-07.1080p.NF.WEB-DL.ITA-ENG.DDP5.1.AV1-G66",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "986d231e5869f45d8ba0a4eb06c022f261396842",
+    "title": "Breaking Bad S01e01-07 [1080p Ita Eng Spa h265 10bit SubS][MirCrewRelease] byMe7alh\n📦 👤 ~5 💾 1.14 GB 📦 pack 6.80 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p · kickass · 👤 ~5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 7301444403,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Breaking Bad S01e01-07 [1080p Ita Eng Spa h265 10bit SubS][MirCrewRelease] byMe7alh",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "2f72d95e23fed076590edc326707b084994372f4",
+    "title": "Breaking Bad S01E01 1080p BluRay 10bit x265\n📦 👤 ~2 💾 1.08 GB ⚙️ LimeTorrents",
+    "name": "📦 · 1080p BluRay · LimeTorrents · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 1159641169,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad S01E01 1080p BluRay 10bit x265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "60885c299508f9ae39b0085e0c79d4b76704fefd",
+    "title": "Breaking Bad S01E01 Pilot 720p HEVC x265 MeGusta\n📦 👤 ~159 💾 643.52 MB ⚙️ LimeTorrents",
+    "name": "📦 · 720p · LimeTorrents · 👤 ~159",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 674779627,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad S01E01 Pilot 720p HEVC x265-MeGusta",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "f023c4c883c29e50a56a63cce8e69899f45fc537",
+    "title": "Breaking.Bad.S01E01.720p.HDTV.x264-BiA\n📦 👤 ~2 💾 1.09 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p HDTV · The Pirate Bay · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 1172906811,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking.Bad.S01E01.720p.HDTV.x264-BiA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "5628c6c403068d39d4ba1f93923bb9bc9a441b15",
+    "title": "Breaking Bad s01e01 720p.BRrip.HDTV.RWN.mkv\n👤 1 💾 464.62 MB ⚙️ AllDebrid",
+    "name": "720p HDTV · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-HDTV"
+    },
+    "_quality": "720p",
+    "_bytes": 487194215,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Breaking Bad s01e01 720p BRrip HDTV RWN mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "c1f61689123b32edd923fc86d143bc8100769e4e",
+    "title": "Breaking Bad - 1ª Temporada [DUBLADO]\n📦 👤 ~1 💾 2.41 GB ⚙️ Apache Torrent",
+    "name": "📦 · 4K DUAL BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 15392100642,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Breaking Bad 2008 - 1ª Temporada Completa [4k] ACESSE COMANDO4KFILMES.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "499bd160941763954e8ba236969bee1280e1e963",
+    "title": "Breaking.Bad.S01.MULTi.2160p.WEBRip.5.1.x265-SQUEEZE\n👤 1 💾 2.72 GB 📦 pack 13.20 GB ⚙️ AllDebrid",
+    "name": "4K WEBRip · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 14178038373,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": true,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Breaking.Bad.S01.MULTi.2160p.WEBRip.5.1.x265-SQUEEZE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "a584351126afcf50d32be068f3c9a62550d41ecc",
+    "title": "Breaking Bad. S01. 2008 2160P.Ai Upscaled.BluRay.60FPS.H265.SDR.AC3.5.1_Marjenbo\n📦 👤 ~384 💾 9.53 GB 📦 pack 53.45 GB ⚙️ TheRARBG",
+    "name": "📦 · 4K BluRay · TheRARBG · 👤 ~384",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 57389893032,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Breaking Bad  S01  2008  2160P Ai Upscaled BluRay 60FPS H265 BT709 AC3 5 1 Marjenbo",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "f0fd1cad0e24b69ff6aaadb9df40c50286327188",
+    "title": "Breaking Bad (2008) S01 (2160p AMZN WEB-DL H265 SDR DDP 5.1 English - HONE)\n📦 👤 ~71 💾 5.34 GB 📦 pack 37.35 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 4K WEB-DL · The Pirate Bay · 👤 ~71",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 40101527572,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad (2008) S01 (2160p AMZN WEB-DL H265 SDR DDP 5.1 English - HONE)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "51653df273317cfdfdccd5f9e4c367351e61a842",
+    "title": "Breaking Bad (2008) Season 01 S01 (2160p WEBRip x265 HEVC 10bit AAC 5 1 Joy) [UTR]\n📦 👤 ~39 💾 1.70 GB 📦 pack 10.35 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K WEBRip · kickass · 👤 ~39",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 11113227878,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Breaking Bad (2008) Season 01 S01 (2160p WEBRip x265 HEVC 10bit AAC 5.1 Joy) [UTR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "eb183076846945b898e43a679bba32017138526e",
+    "title": "Breaking.Bad.S01.2160p.NF.WEB-DL.x265.10bit.SDR.DTS-HD.MA.5.1-CRFW[rartv]\n📦 👤 ~23 💾 5.84 GB 📦 pack 34.72 GB ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K WEB-DL · kickass · 👤 ~23",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 37280316129,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Breaking.Bad.S01.2160p.NF.WEB-DL.x265.10bit.SDR.DTS-HD.MA.5.1-CRFW[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "e597915466c4bbec403804f33e947a23bc9b4b98",
+    "title": "Breaking Bad 2008 - 1ª Temporada Completa [1080p] WWW.BLUDV.COM\n👤 1 💾 1.14 GB 📦 pack 6.80 GB ⚙️ AllDebrid",
+    "name": "1080p DUAL BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 7302821002,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": true,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Breaking Bad 2008 - 1ª Temporada Completa [1080p] WWW.BLUDV.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "6bbad06245a0d631b0a5e47c8cd6e5abc9a70211",
+    "title": "Breaking.Bad.S01.S01.COMPLETE.1080p.10bit.BluRay.6CH.x265\n📦 👤 ~620 💾 615.86 MB 📦 pack 4.21 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~620",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 4521579480,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking.Bad.SEASON.01.S01.COMPLETE.1080p.10bit.BluRay.6CH.x265.HEVC-PSA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "b43df67a93863ea91f2f773f00361072da771dd3",
+    "title": "Breaking Bad (2008) S01-5 S01-S05 (1080p BluRay x265 HEVC 1\n📦 👤 ~491 💾 2.26 GB 📦 pack 140.06 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~491",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 150389060754,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad (2008) Season 1-5 S01-S05 (1080p BluRay x265 HEVC 10bit AAC 5.1 Silence) [QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "33b1396389a7d76f57215ee618f0ce438126ebe4",
+    "title": "Breaking.Bad.S01-S02-S03-S04-S05.1080p.BluRay.10bit.HEVC-MkvCage\n📦 👤 ~195 💾 1.01 GB 📦 pack 62.70 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p BluRay · The Pirate Bay · 👤 ~195",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 67325144419,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad S01-S05 1080p BluRay 10bit HEVC 6CH 63GB - MkvCage",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "abde0d9e255eae8ac5758ec9203f91ef612801fa",
+    "title": "Breaking Bad 1ª Temporada [720p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 751.32 MB 📦 pack 4.37 GB ⚙️ Bludv",
+    "name": "📦 · 720p BluRay DUAL BR · Bludv · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4692251770,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": true,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "Breaking Bad 2008 - 1ª Temporada Completa WWW.BLUDV.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "bbd4d315a00580f9cafd9c36f35165c83f13043c",
+    "title": "Breaking Bad 1 Temporada BDRip blruay 720p dublado -derew\n📦 👤 ~15 💾 481.87 MB 📦 pack 2.81 GB ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BluRay BR · The Pirate Bay · 👤 ~15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 3016107584,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad 1 Temporada BDRip blruay 720p dublado -derew",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "e9876a1688fc774068fecc94a991f300f45cf2b7",
+    "title": "Breaking Bad [720p DUAL]\n📦 👤 ~2 💾 415.63 MB ⚙️ Apache Torrent",
+    "name": "📦 · 720p BR · Apache Torrent · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2601237727,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Breaking Bad: 1&ordf; Temporada (2008) BDRip 720p Dual Audio",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "12d435140bb63a9f9bd1a0a99537f4e98389b709",
+    "title": "Breaking Bad 1ª Temporada (2008) BluRay 720p Dublado\n📦 👤 ~1 💾 411.06 MB 📦 pack 2.81 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BluRay BR · The Pirate Bay · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 3017093143,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad 1&ordf; Temporada (2008) BluRay 720p Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "714da393e627fffd6e4d0a42d89815edeb2da16b",
+    "title": "Breaking Bad 1ª Temporada (2008) BDRip 720p Dublado\n📦 👤 ~ 💾 411.06 MB 📦 pack 2.81 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p BR · The Pirate Bay · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 3016008632,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad 1&ordf; Temporada (2008) BDRip 720p Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "d13bbcaad8e6e00e78d2afa0101545b8c4e435ab",
+    "title": "1ª Temporada - Breaking Bad - Dublado -T3GP\n📦 👤 ~1 💾 120.92 MB 📦 pack 846.41 MB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · BR · The Pirate Bay · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 887521802,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "1&ordf; Temporada - Breaking Bad - Dublado -T3GP",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "8f5af5cd4ad3c5b6d046dc1aae86e73a09c6adab",
+    "title": "Breaking Bad S01 2008 BDRip Dublado Pt-BR\n📦 👤 ~1 💾 462.26 MB 📦 pack 3.16 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · BR · The Pirate Bay · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 3392473718,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Breaking Bad S01 2008 BDRip Dublado Pt-BR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true
+   },
+   {
+    "infoHash": "0aab86cc8fe5d020de5ebfc349427b3c54b5c814",
+    "title": "Breaking Bad 1 Temporada  Dublado PT BR\n📦 👤 ~ 💾 411.06 MB 📦 pack 2.81 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 3017214525,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad 1 Temporada - Dublado PT BR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true,
+    "_seedFloorWaived": true
+   },
+   {
+    "infoHash": "afc92cc3969fcba6cf1c51ccef6f635860f7d2c3",
+    "title": "Breaking Bad  1Âª Temporada Completa Dublado Portugues PT BR\n📦 👤 ~ 💾 411.06 MB 📦 pack 2.81 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · BR · LimeTorrents · 👤 ~",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 3017214525,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Breaking Bad - 1Âª Temporada Completa Dublado Portugues PT-BR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromSnapshot": true,
+    "_seedFloorWaived": true
+   }
+  ]
+ }
+]

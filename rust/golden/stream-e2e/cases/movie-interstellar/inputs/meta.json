@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt0816692",
+  "meta": {
+    "name": "Interstellar",
+    "year": "2014",
+    "type": "movie",
+    "released": "2014-11-07T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Interestelar",
+    "original": "Interstellar",
+    "en": "Interstellar",
+    "br": [],
+    "year": "2014"
+  },
+  "collection": null,
+  "homeReleaseAt": 1415318400000
+}

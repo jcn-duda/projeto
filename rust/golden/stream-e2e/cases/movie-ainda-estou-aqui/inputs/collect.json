@@ -1,0 +1,74 @@
+[
+  {
+    "key": {
+      "imdb": "tt14961016",
+      "type": "movie",
+      "season": null,
+      "episode": null,
+      "scope": "all",
+      "query": "I'm Still Here 2025",
+      "pt_query": null
+    },
+    "response": {
+      "items": [
+        {
+          "title": "Ainda.Estou.Aqui.2024.1080p.WEB-DL.EAC3.AAC.NACIONAL.5.1",
+          "infoHash": "08f1479b132df5e3c036c55c9c12bd643622c388",
+          "seeders": 1,
+          "size": 4025369653,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Nacional",
+          "provenName": "Ainda.Estou.Aqui.2024.1080p.WEB-DL.EAC3.AAC.NACIONAL.5.1.mkv",
+          "provenQuality": "1080p"
+        },
+        {
+          "title": "Ainda.Estou.Aqui.2024.1080p.FULL.HD.WEB-DL.NACIONAL.5.1",
+          "infoHash": "5702ca0796c456112ccc872be30abf53f4bcafcf",
+          "seeders": 1,
+          "size": 10338517933,
+          "tracker": "AllDebrid",
+          "indexer": "debrid",
+          "isBr": true,
+          "brOriginOnly": false,
+          "fromAccount": true,
+          "provenAudio": "Nacional",
+          "provenName": "COMANDO.LA-Ainda.Estou.Aqui.2024.1080p.FULL.HD.WEB-DL.NACIONAL.5.1.mkv",
+          "provenQuality": "1080p"
+        }
+      ],
+      "partial": true,
+      "live": {
+        "failed": [
+          "kickasstorrents-to",
+          "nerdfilmes",
+          "rutracker-ru",
+          "wolfmax4k"
+        ],
+        "pending": [
+          "apachetorrent-cardigann",
+          "bludv-cardigann",
+          "comandotorrents",
+          "eztv",
+          "limetorrents",
+          "nekobt",
+          "nyaasi",
+          "thepiratebay",
+          "therarbg",
+          "tokyotosho",
+          "torrent9",
+          "torrentdosfilmesv2",
+          "torrentgalaxyclone",
+          "vacatorrent",
+          "yts"
+        ],
+        "empty": [],
+        "served": [],
+        "all": "unknown"
+      }
+    }
+  }
+]

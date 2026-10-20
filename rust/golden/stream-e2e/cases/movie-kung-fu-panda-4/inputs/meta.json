@@ -1,0 +1,27 @@
+{
+  "key": "movie:tt21692408",
+  "meta": {
+    "name": "Kung Fu Panda 4",
+    "year": "2024",
+    "type": "movie",
+    "released": "2024-03-08T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Kung Fu Panda 4",
+    "original": "Kung Fu Panda 4",
+    "en": "Kung Fu Panda 4",
+    "br": [],
+    "year": "2024"
+  },
+  "collection": {
+    "name": "Kung Fu Panda: Coleção",
+    "root": "kung fu panda",
+    "years": [
+      2008,
+      2011,
+      2016,
+      2024
+    ]
+  },
+  "homeReleaseAt": 1712620800000
+}

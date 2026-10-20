@@ -1,0 +1,622 @@
+[
+ {
+  "key": "alldebrid|0|139895ac2694cc37d2eac42c5662be1bade3ec17,21ed5512ac32041ad0136ca8d730227a76195cc9,25ebea69738365718a2003ea87da3c127858b960,37dd12d5b71549569acca76432c57406af2e2ba6,44c4e93773ea273e875be6cce3f5f757ee25bd8d,4a45bb7d3485ecc7c8089c5cee251e328b6f1232,4c5b32ec7539135aa4d3082ebf803beda35d3eb4,57f78b7a6ad73c1170e54e065fcdc0170727c362,8f05c22564e04ca3015f417d303ee7dc6740c9ff,9fb9d13041e433eb10be3e457120b25dd7fa79ac,a2a8433a4d267b4a6f412b10a95e6391ab64c1aa,a379722e8da54dc7abbeb0f5f26f5c9d85e51d35,ac42c26432f1915326f6a7394ca3174697600fc7,bfe4389ec9fdbcb18ee73f653f22d9eb7f1bdfef,cc9259121bba7b83f8a4206672964c21233b5deb,ccff33f36b58a663608d90d402555670b8295298,ce6a68ca2f591eda93817178555e512da6bd9dab,d065c6ca3301d59a17c34dd92b2d46016969b87f,d4161a18932c75f598853910c581eccfa2a43929,d48ba8cecca284411a3e21e84467813944b306ab,f8eb9c47be1d0aa3315cd9d291599f85f95b6440",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": false,
+    "autofetchCount": 0
+   }
+  ],
+  "output": [
+   {
+    "infoHash": "ccff33f36b58a663608d90d402555670b8295298",
+    "title": "La Casa de Papel 3ª Temporada E01 [1080p WEB-DL DUBLADO]\n📦 👤 ~1 💾 14.20 GB ⚙️ Apache Torrent",
+    "name": "📦 · 1080p WEB-DL BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 15247133901,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "La casa de papel - 3ª Temporada Completa 2019 (WEB-DL) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "ac42c26432f1915326f6a7394ca3174697600fc7",
+    "title": "La Casa de Papel 3ª Temporada E01 [720p WEB-DL DUBLADO]\n📦 👤 ~1 💾 9.22 GB ⚙️ Apache Torrent",
+    "name": "📦 · 720p WEB-DL BR · Apache Torrent · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 9899899617,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "La casa de papel - 3ª Temporada Completa 2019 (720p) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "f8eb9c47be1d0aa3315cd9d291599f85f95b6440",
+    "title": "Money.Heist.S03.MULTi.HDR.DV.2160p.WEB.H265-FW\n👤 1 💾 6.42 GB 📦 pack 51.34 GB (média) ⚙️ AllDebrid",
+    "name": "4K · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 55125783822,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Money.Heist.S03.MULTi.HDR.DV.2160p.WEB.H265-FW (La casa de papel)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ]
+   },
+   {
+    "infoHash": "4c5b32ec7539135aa4d3082ebf803beda35d3eb4",
+    "title": "Money Heist S01-S03 Part 1-5 (La Casa de Papel) 1080i / 2160p BluRay REMUX AVC NF WEBRip x265 HDR-MiXED [RiCK]\n📦 👤 ~25 💾 10.64 GB 📦 pack 319.20 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 4K BluRay · The Pirate Bay · 👤 ~25",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 342738390220,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Money Heist S01-S03 Part 1-5 (La Casa de Papel) 1080i / 2160p BluRay REMUX AVC NF WEBRip x265 HDR-MiXED [RiCK]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "21ed5512ac32041ad0136ca8d730227a76195cc9",
+    "title": "Money.Heist.S03.SPANISH.2160p.NF.WEB-DL.x265.10bit.HDR.DDP5.1-ABBiE[rartv]\n📦 👤 ~2 💾 5.58 GB 📦 pack 44.64 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K WEB-DL · kickass · 👤 ~2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 47931835023,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Money.Heist.S03.SPANISH.2160p.NF.WEB-DL.x265.10bit.HDR.DDP5.1-ABBiE[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "8f05c22564e04ca3015f417d303ee7dc6740c9ff",
+    "title": "Money.Heist.S03.Multi.WEB.2160p.HDR.HEVC-D5T0\n📦 👤 ~1 💾 6.11 GB 📦 pack 48.89 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 52495237775,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Money.Heist.S03.Multi.WEB.2160p.HDR.HEVC-D5T0",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "bfe4389ec9fdbcb18ee73f653f22d9eb7f1bdfef",
+    "title": "La casa de papel (derniere saison) -  Money.Heist.S03.2160p.NF.WEBRip.HDR.x265.DD+5.1.Atmos.-N0TTZ\n📦 👤 ~1 💾 9.66 GB 📦 pack 77.30 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · 4K WEBRip · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 83000242995,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "La casa de papel (derniere saison) -  Money.Heist.S03.2160p.NF.WEBRip.HDR.x265.DD+5.1.Atmos.-N0TTZ",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "cc9259121bba7b83f8a4206672964c21233b5deb",
+    "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [1080p DUBLADO 9 GB]\n📦 👤 ~1 💾 1.13 GB 📦 pack 9.00 GB (média) ⚙️ TorrentDosFilmes",
+    "name": "📦 · 1080p WEB-DL BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 9663676416,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
+    "_magnetDn": "[ACESSE torrentdosfilmes-v2.xyz] La Casa de Papel 3ª Temporada Completa 2019 [1080p] [WEB-DL] [DUAL]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "9fb9d13041e433eb10be3e457120b25dd7fa79ac",
+    "title": "Money Heist S03 COMPLETE 1080p WEB X264-EDHD[TGx]\n📦 👤 ~37 💾 1.57 GB 📦 pack 12.54 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 1080p · The Pirate Bay · 👤 ~37",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 13464722472,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Money.Heist.S03.COMPLETE.1080p.WEB.X264-EDHD[TGx] ⭐",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "a379722e8da54dc7abbeb0f5f26f5c9d85e51d35",
+    "title": "La Casa De Papel AKA Money Heist S03 (2019) Season 03 1080p 10bit HEVC NF WEBRip x265 [ENGLISH - SPANISH] AAC 5 1 ~RONIN~\n📦 👤 ~28 💾 742.40 MB 📦 pack 5.80 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · 1080p WEBRip · kickass · 👤 ~28",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 6227702579,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "La Casa De Papel AKA Money Heist S03 (2019) Season 03 1080p 10bit HEVC NF WEBRip x265 [ENGLISH - SPANISH] AAC 5.1  ~RONIN~",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "57f78b7a6ad73c1170e54e065fcdc0170727c362",
+    "title": "La Casa De Papel S03 BoxSet 2019 1080p [TR SPA] DUAL NF WEB-DL x264 AC3 5.1   NTG [HdT]\n📦 👤 ~27 💾 1.78 GB 📦 pack 14.23 GB (média) ⚙️ 1337x",
+    "name": "📦 · 1080p WEB-DL · 1337x · 👤 ~27",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 15276124930,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "1337x",
+    "_tracker": "1337x",
+    "_magnetDn": "La Casa De Papel S03 BoxSet 2019 1080p [TR-SPA] DUAL NF WEB-DL x264 AC3 5.1 - NTG [HdT]",
+    "_multiWork": true,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "44c4e93773ea273e875be6cce3f5f757ee25bd8d",
+    "title": "La Casa de Papel  Money Heist 2017 Complete Seasons 1 to 5 1080p 10bit WEBRip 2CH x265 HEVC PSA\n📦 👤 ~9 ⚙️ LimeTorrents",
+    "name": "📦 · 1080p WEBRip · LimeTorrents · 👤 ~9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 30096983326,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "La Casa de Papel   Money Heist 2017 Complete Seasons 1 to 5 1080p 10bit WEBRip 2CH x265 HEVC-PSA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true,
+    "_packBytes": 30096983326
+   },
+   {
+    "infoHash": "d065c6ca3301d59a17c34dd92b2d46016969b87f",
+    "title": "[moon] La casa de papel   Money Heist Season 3 1080p WEBRip x264 AC3 DualAudio MultiSubs\n📦 👤 ~8 💾 1.11 GB 📦 pack 8.85 GB (média) ⚙️ LimeTorrents",
+    "name": "📦 · 1080p WEBRip · LimeTorrents · 👤 ~8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 9502615142,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "[moon] La casa de papel - Money Heist Season 3 1080p WEBRip x264 AC3 DualAudio MultiSubs",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "139895ac2694cc37d2eac42c5662be1bade3ec17",
+    "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [1080p LEGENDADO 12 GB]\n📦 👤 ~1 💾 1.50 GB 📦 pack 12.00 GB (média) ⚙️ TorrentDosFilmes",
+    "name": "📦 · 1080p WEB-DL LEG BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 12884901888,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
+    "_magnetDn": "Money.Heist.S03.SPANISH.1080p.NF.WEBRip.DDP5.1.x264-NTG[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "ce6a68ca2f591eda93817178555e512da6bd9dab",
+    "title": "Money Heist S03 COMPLETE DUBBED 720p NF WEBRip x264-GalaxyTV\n📦 👤 ~8 💾 328.96 MB 📦 pack 2.57 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEBRip BR · The Pirate Bay · 👤 ~8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2759516487,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Money.Heist.S03.COMPLETE.DUBBED.720p.NF.WEBRip.x264-GalaxyTV ⭐",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d4161a18932c75f598853910c581eccfa2a43929",
+    "title": "La Casa De Papel AKA Money Heist 2019 Season 03 Complete 720p WEB-DL x264 AAC ESub English DD 5.1 3 3GB-CraZzyBoY\n📦 👤 ~420 💾 427.52 MB 📦 pack 3.34 GB (média) ⚙️ 1337x",
+    "name": "📦 · 720p WEB-DL · 1337x · 👤 ~420",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 3588445175,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "1337x",
+    "_tracker": "1337x",
+    "_magnetDn": "La Casa De Papel AKA Money Heist (2019) Season 03 Complete 720p WEB-DL x264 AAC ESub [English DD5.1] 3.3GB [CraZzyBoY]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "37dd12d5b71549569acca76432c57406af2e2ba6",
+    "title": "La Casa De Papel A.K.A. Money Heist Season 3 Complete 720P Webrip x264 [i_c]\n📦 👤 ~42 💾 504.32 MB 📦 pack 3.94 GB (média) ⚙️ 1337x",
+    "name": "📦 · 720p WEBRip · 1337x · 👤 ~42",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 4232690270,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "1337x",
+    "_tracker": "1337x",
+    "_magnetDn": "La Casa De Papel A.K.A. Money Heist Season 3 Complete 720P Webrip x264 [i_c]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "4a45bb7d3485ecc7c8089c5cee251e328b6f1232",
+    "title": "Money Heist aka La Casa de Papel S03 Season 03 Complete 720p WEB-DL x264-XpoZ\n📦 👤 ~37 💾 349.44 MB 📦 pack 2.73 GB (média) ⚙️ The Pirate Bay",
+    "name": "📦 · 720p WEB-DL · The Pirate Bay · 👤 ~37",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 2930993056,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Money Heist aka La Casa de Papel S03 Season 03 Complete 720p WEB-DL x264-XpoZ",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "a2a8433a4d267b4a6f412b10a95e6391ab64c1aa",
+    "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [720p DUBLADO 8 GB]\n📦 👤 ~1 💾 1.00 GB 📦 pack 8.00 GB (média) ⚙️ TorrentDosFilmes",
+    "name": "📦 · 720p WEB-DL BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 8589934592,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
+    "_magnetDn": "[ACESSE torrentdosfilmes-v2.xyz] La Casa de Papel 3ª Temporada Completa 2019 [720p] [WEB-DL] [DUAL]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "25ebea69738365718a2003ea87da3c127858b960",
+    "title": "Money Heist S03 COMPLETE DUBBED 720p NF WEBRip x264-ExtremlymTorrents\n📦 👤 ~1 💾 328.96 MB 📦 pack 2.57 GB (média) ⚙️ kickasstorrents.to",
+    "name": "📦 · 720p WEBRip BR · kickass · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2759516487,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Money.Heist.S03.COMPLETE.DUBBED.720p.NF.WEBRip.x264-ExtremlymTorrents",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   },
+   {
+    "infoHash": "d48ba8cecca284411a3e21e84467813944b306ab",
+    "title": "La Casa de Papel 3ª Temporada (2019) 5.1 / WEB-DL | – [720p LEGENDADO 7.4 GB]\n📦 👤 ~1 💾 947.20 MB 📦 pack 7.40 GB (média) ⚙️ TorrentDosFilmes",
+    "name": "📦 · 720p WEB-DL LEG BR · TorrentDos · 👤 ~1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 7945689498,
+    "_br": true,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
+    "_magnetDn": "Money.Heist.S03.SPANISH.720p.NF.WEBRip.DDP5.1.x264-NTG[rartv]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "sources": [
+     "tracker:udp://tracker.opentrackr.org:1337/announce",
+     "tracker:udp://open.stealth.si:80/announce",
+     "tracker:udp://tracker.torrent.eu.org:451/announce",
+     "tracker:udp://exodus.desync.com:6969/announce",
+     "tracker:udp://open.demonii.com:1337/announce",
+     "tracker:udp://tracker.openbittorrent.com:6969/announce"
+    ],
+    "_fromFallback": true,
+    "_fallbackFetchable": true
+   }
+  ]
+ }
+]
