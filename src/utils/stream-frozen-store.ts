@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import * as runtime from '../runtime.js';
+import { extractInfoHash } from './title-normalization.js';
 
 export type FrozenMode = 'off' | 'record' | 'replay' | 'shadow';
 
@@ -35,6 +36,7 @@ export const FILES = {
   files: 'files.json',
   instant: 'instant.json',
   apply: 'apply-debrid.json',
+  provenQuality: 'proven-quality.json',
   config: 'config.json',
   response: 'node-response.json',
 };
@@ -138,6 +140,53 @@ export function writeFileSizes(infoHash: string, files: Array<{ path: string; si
   writeJson(inputFile(FILES.files), data);
 }
 
+/**
+ * Qualidade PROVADA pelo arquivo (sonda do cabeçalho/nome escolhido no play e
+ * evidência do `releaseIndex`) que o build usou para ESTE hash. Não está em
+ * nenhum outro input: o `index.json`/`collect.json` são gravados ANTES da
+ * prova e só carregam o rótulo do post. Sem este mapa o replay do Rust lê "sem
+ * resolução" e o corte por cota de qualidade diverge (Cidade de Deus: 720p
+ * provado no arquivo, cortado no Node).
+ *
+ * Primeira gravação vence: a passada da resposta é a que o corpus compara, e a
+ * prova do MESMO arquivo não muda entre passadas (uma sonda que complete depois
+ * não pode reescrever o caso).
+ */
+export function writeProvenQuality(infoHash: string, quality: string) {
+  const hash = String(infoHash || '').trim().toLowerCase();
+  const label = String(quality || '').trim();
+  if (!hash || !label) return;
+  const data = readJson<Record<string, string>>(inputFile(FILES.provenQuality), {});
+  if (data[hash]) return;
+  data[hash] = label;
+  writeJson(inputFile(FILES.provenQuality), data);
+}
+
+/** Qualidade provada de UM hash, no modo record/shadow (API pública). */
+export function recordProvenQuality(hash: string, quality: string) {
+  if (!recording() || !active()) return;
+  writeProvenQuality(hash, quality);
+}
+
+/**
+ * O lote que o build REALMENTE usa (pós `applyFileEvidence`/`applyProbedQuality`):
+ * grava só o que tem `provenQuality` — o rótulo derivado do título já está no
+ * `index.json`/`collect.json` e não é prova.
+ */
+export function recordProvenQualities(items: ReadonlyArray<{
+  provenQuality?: string | null;
+  infoHash?: string | null;
+  magnet?: string | null;
+}>) {
+  if (!recording() || !active()) return;
+  for (const item of items) {
+    const quality = String(item?.provenQuality || '').trim();
+    if (!quality) continue;
+    const hash = String(extractInfoHash(item.infoHash || item.magnet || '') || '').toLowerCase();
+    if (hash) writeProvenQuality(hash, quality);
+  }
+}
+
 export function sha256(value: string | Buffer) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -193,7 +242,7 @@ export function reset(dir = dirOf()) {
   // ANTES do GET /stream e o beginRequest() do record chama reset(). Apagá-lo
   // deixaria o manifest sem o arquivo (e o replay sem os knobs do operador).
   if (!dir) return;
-  for (const name of [FILES.meta, FILES.index, FILES.collect, FILES.fallback, FILES.debrid, FILES.files, FILES.instant, FILES.apply]) {
+  for (const name of [FILES.meta, FILES.index, FILES.collect, FILES.fallback, FILES.debrid, FILES.files, FILES.instant, FILES.apply, FILES.provenQuality]) {
     try {
       fs.rmSync(inputFile(name, dir), { force: true });
     } catch { /* arquivo ausente */ }
@@ -211,7 +260,7 @@ export function writeManifest(dir = dirOf()) {
     if (hash) files[rel.split(path.sep).join('/')] = hash;
   };
   add(FILES.request);
-  for (const name of [FILES.meta, FILES.index, FILES.collect, FILES.fallback, FILES.debrid, FILES.files, FILES.instant, FILES.apply, FILES.config]) {
+  for (const name of [FILES.meta, FILES.index, FILES.collect, FILES.fallback, FILES.debrid, FILES.files, FILES.instant, FILES.apply, FILES.provenQuality, FILES.config]) {
     add(path.join('inputs', name));
   }
   add(path.join('expected', FILES.response));

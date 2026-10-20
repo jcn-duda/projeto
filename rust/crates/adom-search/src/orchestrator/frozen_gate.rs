@@ -76,6 +76,12 @@ struct CollectFile {
     response: BatchFile,
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct ApplyDebridFile {
+    #[serde(default)]
+    output: Vec<Value>,
+}
+
 #[derive(Debug, Deserialize)]
 struct IndexFile {
     value: IndexValue,
@@ -157,9 +163,9 @@ impl FrozenCase {
                 .filter(|value| !value.is_null()),
             home_release_at: meta_file.get("homeReleaseAt").and_then(Value::as_i64),
         };
-        let collect: Vec<CollectFile> = read_optional(&dir.join("inputs/collect.json"))?;
+        let mut collect: Vec<CollectFile> = read_optional(&dir.join("inputs/collect.json"))?;
         let index_value: Option<IndexFile> = read_optional(&dir.join("inputs/index.json"))?;
-        let index = index_value
+        let mut index = index_value
             .map(|file| {
                 let raw = file.value.raw.unwrap_or_default();
                 SearchIndexResponse {
@@ -173,6 +179,31 @@ impl FrozenCase {
                 }
             })
             .unwrap_or_default();
+        // A qualidade PROVADA pelo ARQUIVO (sonda do play + evidência do
+        // `releaseIndex`) é decisão do BUILD, não do post: o índice e o lote
+        // crus são gravados ANTES dela e só trazem o rótulo do post. O record
+        // grava `inputs/proven-quality.json` (hash → qualidade) e aqui se repõe
+        // o campo antes do build, exatamente como o Node o tinha.
+        let proven = normalize_qualities(read_optional::<BTreeMap<String, String>>(
+            &dir.join("inputs/proven-quality.json"),
+        )?);
+        if proven.is_empty() {
+            // Captura antiga (sem o arquivo): o `_quality` do `applyDebrid` é o
+            // `provenQuality` que o Node passou ao build. Sem repor o campo, o
+            // corte final do Rust classifica o item no balde "sem resolução" e a
+            // cota de qualidade deixa passar o que o Node cortou (Cidade de
+            // Deus: apachetorrent, 15 seeders → 720p).
+            let applied: Vec<ApplyDebridFile> =
+                read_optional(&dir.join("inputs/apply-debrid.json"))?;
+            annotate_proven_quality(&mut index.index_items, &applied_qualities(&applied));
+        } else {
+            // O arquivo novo é o contrato: vale para o índice E para o lote cru
+            // (a prova também corrige item que veio da coleta).
+            annotate_proven_quality(&mut index.index_items, &proven);
+            for entry in &mut collect {
+                annotate_proven_quality(&mut entry.response.items, &proven);
+            }
+        }
         let debrid: DebridFile = read_optional(&dir.join("inputs/debrid.json"))?;
         // Conjunto `instant` real do sort; ausente em capturas antigas → cai no
         // recorte de `fromAccount` (aproximação).
@@ -305,6 +336,91 @@ impl FrozenCase {
             call: self.debrid.clone(),
         }
     }
+}
+
+/// Hash de um stream já resolvido pelo debrid. O `infoHash` some do envelope
+/// (`url` substitui), então o caminho `/resolve/<hash>` é a única âncora.
+fn applied_hash(item: &Value) -> Option<String> {
+    if let Some(hash) = item
+        .get("infoHash")
+        .and_then(Value::as_str)
+        .and_then(adom_core::extract_info_hash)
+    {
+        let hash = hash.trim().to_ascii_lowercase();
+        if !hash.is_empty() {
+            return Some(hash);
+        }
+    }
+    let url = item.get("url").and_then(Value::as_str)?;
+    let (_, rest) = url.split_once("/resolve/")?;
+    let hash: String = rest
+        .chars()
+        .take_while(char::is_ascii_hexdigit)
+        .take(40)
+        .collect();
+    (hash.len() == 40).then(|| hash.to_ascii_lowercase())
+}
+
+/// Qualidade que o Node efetivamente usou no build (`_quality` do
+/// `applyDebrid`). No replay do Node ela vem PRONTA no `apply-debrid.json`; o
+/// `index.json` só tem o rótulo do post. A primeira entrada vence: é a passada
+/// da resposta, que é o que o comparador de streams mede.
+fn applied_qualities(files: &[ApplyDebridFile]) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for file in files {
+        for item in &file.output {
+            let Some(quality) = item
+                .get("_quality")
+                .and_then(Value::as_str)
+                .filter(|quality| !quality.is_empty())
+            else {
+                continue;
+            };
+            if let Some(hash) = applied_hash(item) {
+                out.entry(hash).or_insert_with(|| quality.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Repõe o `provenQuality` nos itens do índice. É o campo que o
+/// `toStremioStream` lê ANTES do título (`item.provenQuality || qualityFromTitle`)
+/// e que o `map_stream` do Rust já consome (`RawItem::proven_quality`); aqui só
+/// se recupera a entrada que a captura não tem em nenhum outro arquivo. Item que
+/// já traz o campo na captura vence: é a prova do próprio lote.
+fn annotate_proven_quality(items: &mut [Value], qualities: &BTreeMap<String, String>) {
+    for item in items {
+        if item.get("provenQuality").is_some() {
+            continue;
+        }
+        let hash = item
+            .get("infoHash")
+            .and_then(Value::as_str)
+            .or_else(|| item.get("magnet").and_then(Value::as_str))
+            .and_then(adom_core::extract_info_hash)
+            .map(|hash| hash.trim().to_ascii_lowercase());
+        let Some(quality) = hash.as_ref().and_then(|hash| qualities.get(hash)) else {
+            continue;
+        };
+        if let Some(map) = item.as_object_mut() {
+            map.insert("provenQuality".into(), Value::String(quality.clone()));
+        }
+    }
+}
+
+/// `proven-quality.json` é `{ "<hash>": "<quality>" }`; hash minúsculo é o
+/// contrato do record, mas normalizar aqui impede que um corpus antigo/escrito
+/// à mão com maiúsculas perca o casamento em silêncio. Qualidade vazia não é
+/// prova: fica de fora para não virar balde nomeado.
+fn normalize_qualities(raw: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    raw.into_iter()
+        .filter_map(|(hash, quality)| {
+            let hash = hash.trim().to_ascii_lowercase();
+            let quality = quality.trim().to_string();
+            (!hash.is_empty() && !quality.is_empty()).then_some((hash, quality))
+        })
+        .collect()
 }
 
 // ── rotas congeladas ────────────────────────────────────────────────────────

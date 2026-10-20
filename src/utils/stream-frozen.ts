@@ -56,6 +56,12 @@ export function recordFileSizes(infoHash: string, files: Array<{ path: string; s
   writeFileSizes(infoHash, files);
 }
 
+/**
+ * Grava a qualidade que o build REALMENTE usou (hash → qualidade provada). Mora
+ * no store pela catraca de linhas; a API pública é esta.
+ */
+export { recordProvenQuality, recordProvenQualities } from './stream-frozen-store.js';
+
 /** Conjunto `instant` exato que o sort usou (magnetdb/inventário/knownInstant). */
 export function recordInstant(hashes: string[]) {
   if (!recording() || !active()) return;

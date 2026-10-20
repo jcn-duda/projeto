@@ -6,6 +6,7 @@ import { peekFileSizes } from '../debrid/file-sizes.js';
 import { pickFile, baseName } from '../debrid/file-selector.js';
 import { peekVideoQuality, scheduleVideoProbe } from '../debrid/video-quality.js';
 import * as metrics from '../utils/metrics.js';
+import * as frozen from '../utils/stream-frozen.js';
 
 type WorkHintInput = { n: string[]; y: number | null } | null | undefined;
 
@@ -37,7 +38,7 @@ function applyProbedQuality(
     apiKey = '';
   }
   let scheduled = 0;
-  return items.map((item) => {
+  const out = items.map((item) => {
     if (!item || item.provenQuality) return item;
     const title = String(item.title || item.Title || '');
     if (qualityFromTitle(title) !== UNKNOWN_QUALITY) return item;
@@ -82,6 +83,11 @@ function applyProbedQuality(
     }
     return item;
   });
+  // Gate congelado: `out` é o lote que o build REALMENTE usa — a prova do
+  // `releaseIndex` (que passou por aqui) mais a sonda acima. Grava hash →
+  // qualidade porque o índice/lote gravado antes disso não a carrega.
+  frozen.recordProvenQualities(out);
+  return out;
 }
 
 export { applyProbedQuality };
