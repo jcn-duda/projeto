@@ -1,11 +1,20 @@
 import type { AppServices } from './types.js';
 import { streamsNeedRevalidation } from './origin.js';
 import { errorMessage } from '../utils/logger.js';
+import * as frozen from '../utils/stream-frozen.js';
 
 type StreamArgs = { type: string; id: string };
 
 function createStreamHandler(services: AppServices) {
   return async (args: StreamArgs) => {
+    const ctx = services.runtime.capture();
+    frozen.beginRequest({
+      type: args.type,
+      id: args.id,
+      encoded: ctx?.encoded ?? null,
+      deadlineMs: services.runtime.replyDeadline(),
+    });
+    let response: { streams: any[]; cacheMaxAge?: number; staleRevalidate?: number; staleError?: number };
     try {
       const result = await services.providers.findStreams({ type: args.type, id: args.id });
       if (args.type === 'series' && typeof args.id === 'string') {
@@ -19,6 +28,7 @@ function createStreamHandler(services: AppServices) {
             const adapter = services.debrid.current();
             const { autoFetchBr, debridApiKey } = services.runtime.opts();
             if (
+              !frozen.active() &&
               services.config.debrid.prefetchNextEp &&
               autoFetchBr &&
               adapter &&
@@ -45,18 +55,21 @@ function createStreamHandler(services: AppServices) {
 
       const streams = services.providers.applyNoticeOrigin(result.streams);
       if (services.providers.onlyNotice(result.streams) || streamsNeedRevalidation(result)) {
-        return { streams, cacheMaxAge: 0 };
+        response = { streams, cacheMaxAge: 0 };
+      } else {
+        response = {
+          streams,
+          cacheMaxAge: services.config.cacheTtl,
+          staleRevalidate: services.config.cacheTtl * 4,
+          staleError: 86400,
+        };
       }
-      return {
-        streams,
-        cacheMaxAge: services.config.cacheTtl,
-        staleRevalidate: services.config.cacheTtl * 4,
-        staleError: 86400,
-      };
     } catch (err) {
       services.log.error('[stream]', err);
-      return { streams: [], cacheMaxAge: 0 };
+      response = { streams: [], cacheMaxAge: 0 };
     }
+    frozen.finishResponse(response, { origin: ctx?.origin ?? null, encoded: ctx?.encoded ?? null });
+    return response;
   };
 }
 

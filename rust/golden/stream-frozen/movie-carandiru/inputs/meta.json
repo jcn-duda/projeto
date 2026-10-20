@@ -1,0 +1,18 @@
+{
+ "key": "movie:tt0293007",
+ "meta": {
+  "name": "Carandiru",
+  "year": "2003",
+  "type": "movie",
+  "released": "2003-04-11T00:00:00.000Z"
+ },
+ "titles": {
+  "pt": "Carandiru",
+  "original": "Carandiru",
+  "en": "Carandiru",
+  "br": [],
+  "year": "2003"
+ },
+ "collection": null,
+ "homeReleaseAt": 1095984000000
+}

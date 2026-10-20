@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-harry-potter-1",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "c19d1980fbb222a53a8e9fd05571a5260e90ab9b517accbeee750e1042055db1",
+  "inputs/apply-debrid.json": "1e58f7b901c592e6d56853c58d86f6e1276cca6da36e5b15fa047d36a719fa61",
+  "inputs/collect.json": "c5ff3791f9829cd034a1d0708e0010c9f2f8de1624b5b34f322366401a947f9d",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "fa8091b9fc542cd01acf482a4c2fd9a4ec828359c397a4d4eff097b12ff0a687",
+  "inputs/fallback.json": "08e46630530f2349f5b16fa0b907a4eda5c394284f8db0e87345e928de5ae229",
+  "inputs/index.json": "2a4e9e461255f0ec1769788a286e610aded5ee64302e0274ebf7cc37d80028f7",
+  "inputs/instant.json": "d7d3167c5a5eb0b848f134d4b9fb702d4d6051b5622b568db3acec24467d9ee1",
+  "inputs/meta.json": "8034349c5c527a6de7f1da8af1365aad2cfcf12d0cf293546257f58a1b539567",
+  "request.json": "797fa64af5b0c77126db9831134e81fc4ffada11e4f50393bc257765a38e128b"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

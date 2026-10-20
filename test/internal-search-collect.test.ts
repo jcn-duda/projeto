@@ -132,10 +132,11 @@ test('collect: 200 com itens por indexer, live e breaker', async () => {
   // `items` é o lote cru completo (compatível com o que alimenta o raw:v1).
   assert.equal(res.json.items.length, 3);
   assert.equal(res.json.partial, true);
-  // Estado vivo em snapshot (contrato de LiveIndexerState.snapshot: sem
-  // `served`): bludv serviu, eztv vazio suspeito, tpb falho por breaker.
+  // Estado vivo em snapshot (contrato de LiveIndexerState.snapshot):
+  // bludv serviu, eztv vazio suspeito, tpb falho por breaker. `served` é o
+  // desempate do replay congelado (desfaz o vazio suspeito na ordem certa).
   assert.deepEqual(res.json.live, {
-    failed: ['thepiratebay'], pending: [], empty: ['eztv'], all: 'unknown',
+    failed: ['thepiratebay'], pending: [], empty: ['eztv'], served: ['bludv'], all: 'unknown',
   });
   // Breaker cobre quem apareceu no lote E quem o estado vivo marcou.
   assert.deepEqual(Object.keys(res.json.breaker), ['bludv', 'eztv', 'sem-indexer', 'thepiratebay']);

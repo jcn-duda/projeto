@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-central-do-brasil",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "889fde50a2f1c88c3c0f94b98ac8702ba60701dc1957ee1cb2d1fbd93466aba0",
+  "inputs/apply-debrid.json": "880157b653e44a1c2bc4ea9bf18dec85ed03675e525cc3fb5dfbb8963f8241d1",
+  "inputs/collect.json": "a8aaa08d25e3f045ea9cc77aab93ed4dd65596a195ed54e034622bca8bf36d3f",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "7f1341901821612784c52b85a047e01773d15605045abc7f8119a6b80d88853f",
+  "inputs/fallback.json": "3236e629ece83fef5d6c9534e2eed8a6619e4a46a6d46c3b6c03ff15934f4589",
+  "inputs/index.json": "6f68417d7a250706cc1f0de8da68c6825481cc7b45d77d978f50d7762166ea47",
+  "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "inputs/meta.json": "5d12f71daa84870e64c982c9d2cd4883c39937089f447acf03094b83979eb1b7",
+  "request.json": "21031e9373cb33c20696edc61a416d91e6cbcf2a4b8007f375db25154ad4557b"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

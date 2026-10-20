@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-bacurau",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "61aefe2ee7a5038b65476c312018ede8d2f57e378711c561f18467dda35b1d02",
+  "inputs/apply-debrid.json": "e40a354f0301e53d4b939249b26e60294fdcc207ec091bbc2823b3ffa1c444af",
+  "inputs/collect.json": "a2f09057dc9e6bc95fd751609f90076cc135d80a30b240fed82523224d97b951",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "2a4f5e1b6883e7fb1708f9fd803b7494728a0757ebf2f52d9585d150b154c534",
+  "inputs/fallback.json": "6b45bd356c6a4c8838d3c0d30c76fadd30ac960881ee9a725bc742ae3918f8e3",
+  "inputs/index.json": "90c04b3b398b6bea22e44dae2ba6c562a576cbec26f5fa6c6afe2953d39a5106",
+  "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "inputs/meta.json": "43fbc9a0f45176de269f46b8de9f96539fb94b437ed6baa0c10fd100ac8fd9bf",
+  "request.json": "4e5eb7d3a40caf8357376524c825bce1b54f7f92bfb5eee430569d32f9dd230f"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

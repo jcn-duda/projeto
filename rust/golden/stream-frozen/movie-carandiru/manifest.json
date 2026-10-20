@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-carandiru",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "d57dad037a74341045fb2581ec07b299a9b4d183fccac897fa6bd9ee96e93534",
+  "inputs/apply-debrid.json": "2a2c49b7215516527da52f6fda0c146af38290ab2887c19b342848bc7ccb63fd",
+  "inputs/collect.json": "e8f0fb3e172a3140e2650db13f5f23ca6b311f7af377304183f3c83da161bb7a",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "b50375f58d0af34f95fa2e2ec0012233c9f7c900093b0e66d655a738aba1b767",
+  "inputs/fallback.json": "79cff26290aad3ef38f7b7d6676202b044101a56209c5468efccd52216015aba",
+  "inputs/index.json": "558248115dc9a296df98a0019b1cc7c35811bbc8ad7fa14715f47f216958781f",
+  "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "inputs/meta.json": "4c5048c7dae0bc3961139053472fc1e15c271cbe3ed44f8d439fb1e881ae4140",
+  "request.json": "5b27b4e8d0e060bda20e2ecdb028569a9b1c8fff050c4aeaf2faa1e03e94593e"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

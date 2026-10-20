@@ -1,0 +1,18 @@
+{
+ "key": "movie:tt2762506",
+ "meta": {
+  "name": "Bacurau",
+  "year": "2020",
+  "type": "movie",
+  "released": "2020-03-19T00:00:00.000Z"
+ },
+ "titles": {
+  "pt": "Bacurau",
+  "original": "Bacurau",
+  "en": "Bacurau",
+  "br": [],
+  "year": "2019"
+ },
+ "collection": null,
+ "homeReleaseAt": 1584576000000
+}

@@ -1,0 +1,96 @@
+{
+ "service": "alldebrid",
+ "results": {
+  "b5958b477fea5223e33109fa094754294ed49b04": {
+   "cached": false,
+   "known": false
+  },
+  "58d964e36a838731a91b1d3102606c5ccf747833": {
+   "cached": false,
+   "known": false
+  },
+  "873c2988081ea49d730e9df87075eca8c144ee28": {
+   "cached": false,
+   "known": false
+  },
+  "25878d0ffd17fab49a4cb0dfb59f701129b4592a": {
+   "cached": false,
+   "known": false
+  },
+  "01301e58ee19124d48fe89cba574b0b38b5e90f4": {
+   "cached": false,
+   "known": false
+  },
+  "e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4": {
+   "cached": false,
+   "known": false
+  },
+  "47c57d2b80ae05ec1935e00511d654c3bc9682a2": {
+   "cached": false,
+   "known": false
+  }
+ },
+ "calls": [
+  {
+   "hashes": [
+    "b5958b477fea5223e33109fa094754294ed49b04",
+    "58d964e36a838731a91b1d3102606c5ccf747833",
+    "873c2988081ea49d730e9df87075eca8c144ee28"
+   ],
+   "file_hashes": [
+    "b5958b477fea5223e33109fa094754294ed49b04",
+    "58d964e36a838731a91b1d3102606c5ccf747833",
+    "873c2988081ea49d730e9df87075eca8c144ee28"
+   ],
+   "known": false,
+   "unusable": null,
+   "cached": []
+  },
+  {
+   "hashes": [
+    "b5958b477fea5223e33109fa094754294ed49b04",
+    "58d964e36a838731a91b1d3102606c5ccf747833",
+    "25878d0ffd17fab49a4cb0dfb59f701129b4592a",
+    "01301e58ee19124d48fe89cba574b0b38b5e90f4",
+    "e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4",
+    "47c57d2b80ae05ec1935e00511d654c3bc9682a2",
+    "873c2988081ea49d730e9df87075eca8c144ee28"
+   ],
+   "file_hashes": [
+    "b5958b477fea5223e33109fa094754294ed49b04",
+    "58d964e36a838731a91b1d3102606c5ccf747833",
+    "25878d0ffd17fab49a4cb0dfb59f701129b4592a",
+    "01301e58ee19124d48fe89cba574b0b38b5e90f4",
+    "e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4",
+    "47c57d2b80ae05ec1935e00511d654c3bc9682a2",
+    "873c2988081ea49d730e9df87075eca8c144ee28"
+   ],
+   "known": false,
+   "unusable": null,
+   "cached": []
+  },
+  {
+   "hashes": [
+    "b5958b477fea5223e33109fa094754294ed49b04",
+    "58d964e36a838731a91b1d3102606c5ccf747833",
+    "25878d0ffd17fab49a4cb0dfb59f701129b4592a",
+    "01301e58ee19124d48fe89cba574b0b38b5e90f4",
+    "e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4",
+    "47c57d2b80ae05ec1935e00511d654c3bc9682a2",
+    "873c2988081ea49d730e9df87075eca8c144ee28"
+   ],
+   "file_hashes": [
+    "b5958b477fea5223e33109fa094754294ed49b04",
+    "58d964e36a838731a91b1d3102606c5ccf747833",
+    "25878d0ffd17fab49a4cb0dfb59f701129b4592a",
+    "01301e58ee19124d48fe89cba574b0b38b5e90f4",
+    "e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4",
+    "47c57d2b80ae05ec1935e00511d654c3bc9682a2",
+    "873c2988081ea49d730e9df87075eca8c144ee28"
+   ],
+   "known": false,
+   "unusable": null,
+   "cached": []
+  }
+ ]
+}

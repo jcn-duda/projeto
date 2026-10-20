@@ -1,0 +1,936 @@
+[
+ {
+  "key": "alldebrid|0|01d9a5c0e38709e8c56e6e6c30b0c25cbdd118df,0a9ddabe9a317ff29f086c566444781dc5ba4acf,22080ff718c3a97ddd916534b837a11d70e912f9,22421dfa19978f83333c4617b35a8e569e4435a2,36b719629836a0f611e59b46c6758f681ccccec6,3a44500cf20ab3bba13c8213165dfadadad1b7aa,405e4d8e941131eb99826df196e3be4f53b3a4bb,50c14f0096721bd9adc5c04f3579cfff429b79a8,6c4d2a635e51f3c1e3cd8d32aa15de67ee4c391b,7a33f8c294afe517e7442ba9a6727efaa2a58199,7db669d4294b5df2b3acd0104f68738f620fa1b7,8e48dc60ec060484a1eba0f2cd2b926d8c04a403,9d96b4144e634378fae47d4b325987be9a8d0a88,9f15dd9308196c3184f19a6c3795bef784d6dbf2,a20d61f181b65a638ee354ef8ba0de0b5f202b1c,a64754ba12a6e6d61896d693be3cb58a54e89bd1,a8e918ed1ce097fe92cb43a4c05e56b3bf8d4177,b1419330660f145f1414f0e5516c588e9c2c6338,b4439be7c28689c761a8c5b066b5f418f9ee4e94,b65732031572e4342811e3bd4e1a2361cc48807c,b6ac553091161950da391a74790611710e1cd467,c1bd3e15c6a9e6e19cba707a69c0a71670b90fa9,e844d28bf15aba4436c74718c57a0b88941f9da4,f07c49d9f0672a251b40488e8d6ed0b69715634b",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Kung.Fu.Panda.4.2024.MULTI.2160p.WEB-DL.DV.HDR.H265-AOC\n👤 19 💾 17.53 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K WEB-DL · The Pirate Bay · 👤 19",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 18819198144,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.MULTI.2160p.WEB-DL.DV.HDR.H265-AOC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3a44500cf20ab3bba13c8213165dfadadad1b7aa?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=8426a4ea4d44444818eef722986161670159186a2ad471e55631920907e5ae7f"
+   },
+   {
+    "title": "Kung Fu Panda 4 [2024, USA, China, animation, fantasy, action, comedy, adventure, UHD BDRemux 2160p Dolby Vision] 2x Dub + 2x MVO + Dub Ukr+ DVO Geo + Sub Rus, Ukr, Eng, Spa, Fra + Original Eng\n👤 80 💾 48.18 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K BluRay · kickass · 👤 80",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 51732881080,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Кунг-фу Панда 4 / Kung Fu Panda 4 (Майк Митчелл, Стефани Стайн / Mike Mitchell, Stephanie Stine) [2024, США, Китай, мультфильм, фэнтези, боевик, комедия, приключения, UHD BDRemux 2160p Dolby Vision] 2x Dub + 2x MVO + Dub Ukr+ DVO Geo + Sub Rus, Ukr, Eng, Spa, Fra + Original Eng",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/50c14f0096721bd9adc5c04f3579cfff429b79a8?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=5dc696d1b33230f493e5ff6a81444d4f37a43f8ff1c39878dbf3e19068aff486"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 2160p WEBRip 5.1 10Bit x265 -YTS\n👤 76 💾 4.18 GB ⚙️ YTS",
+    "name": "[AD download] 4K WEBRip · YTS · 👤 76",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 4488240824,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 2160p WEBRip 5.1 10Bit x265 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/22080ff718c3a97ddd916534b837a11d70e912f9?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=6b9f40cbd28fe1e71eff374db4c870dce1690ea6017fc1f01ba0548d3cc83954"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX[TGx]\n👤 66 💾 15.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K WEB-DL · kickass · 👤 66",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 17072495001,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX[TGx]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b65732031572e4342811e3bd4e1a2361cc48807c?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=9a6f1f7918056dd187c64db713217ded13be03248c2e3aa09acb15fc0ae0a3b5"
+   },
+   {
+    "title": "Kung Fu Panda 4 [2024, USA, China, animation, fantasy, action, comedy, adventure, WEB-DL 2160p Dolby Vision, HDR10, HDR10+] MVO (Jaskier) + Dub (Red Head Sound) + Original Eng + Sub (Rus, Eng)\n👤 65 💾 16.57 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K WEB-DL · kickass · 👤 65",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 17791902023,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Кунг-фу Панда 4 / Kung Fu Panda 4 (Майк Митчелл, Стефани Стайн / Mike Mitchell, Stephanie Stine) [2024, США, Китай, Мультфильм, фэнтези, боевик, комедия, приключения, WEB-DL 2160p Dolby Vision, HDR10, HDR10+] MVO (Jaskier) + Dub (Red Head Sound) + Original Eng + Sub (Rus, Eng)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/9f15dd9308196c3184f19a6c3795bef784d6dbf2?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=b644d9d81242521fc1e88a70fc77929a2720a10beb7bd672aafbbeb6346dbc97"
+   },
+   {
+    "title": "Kung Fu Panda Collection (2008-2024) 2160p 4K UHD HDR10 DV Blu-ray REMUX Dual Audio [Hindi + English] ESub ~ RemuxDoc\n👤 28 💾 157.20 GB ⚙️ TheRARBG",
+    "name": "[AD download] 4K BluRay · TheRARBG · 👤 28",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 168792214732,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Kung Fu Panda Collection (2008-2024) 2160p 4K UHD HDR10 DV Blu-ray REMUX Dual Audio [Hindi + English] ESub ~ RemuxDoc",
+    "_multiWork": true,
+    "_multiWorkAdmitted": true,
+    "_lied": false,
+    "url": "/e30/resolve/c1bd3e15c6a9e6e19cba707a69c0a71670b90fa9?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22p%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=1c39c678606c736c2cea6705d3362ae3f3fdbdb6cce86679943f149dbfa3730a"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC REMUX FraMeSToR\n👤 27 💾 43.42 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 4K BluRay · LimeTorrents · 👤 27",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 46621869998,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Kung Fu Panda 4 2024 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC REMUX-FraMeSToR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/22421dfa19978f83333c4617b35a8e569e4435a2?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=6d7a4e2bfd9a6d9aaae2a4b85b2693ad42b69fd1b8b897ff7fb89d098304ab4e"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 2160p H265 WebDl Rip 10 bit DV HDR10  ita eng AC3 5 1 sub ita eng Licdom\n👤 27 💾 3.09 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 4K WEB-DL · LimeTorrents · 👤 27",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 3317862236,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 2160p H265 WebDl Rip 10 bit DV HDR10+ ita eng AC3 5 1 sub ita eng Licdom",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/7db669d4294b5df2b3acd0104f68738f620fa1b7?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=02389117696ffe678e1ec0dee0469bdb30045c5ade47142b621ed9616438f6cb"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.x264.Dual.YG\n👤 58 💾 3.04 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 58",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 3264175144,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.1080p.WEBRip.x264.Dual.YG",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/36b719629836a0f611e59b46c6758f681ccccec6?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=002e55f392b05030df4acfd97afd77a6ecd80cb1c9604dba9846a44d6e5346d4"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 1080p NF WEB DL DUAL DDP5 1 Atmos H 264 TURG\n👤 39 💾 4.19 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p WEB-DL · LimeTorrents · 👤 39",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 4498978242,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Kung Fu Panda 4 2024 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-TURG",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a20d61f181b65a638ee354ef8ba0de0b5f202b1c?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=d6aaa5dda50077cebf29fa6a503a3e33ac7f5c824479d7de833927cb496bcf1b"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv\n👤 1 💾 1.82 GB ⚙️ AllDebrid",
+    "name": "[AD download] 1080p WEBRip BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 1952177653,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/405e4d8e941131eb99826df196e3be4f53b3a4bb?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=4cb01047c48d7454db4a6b89a603f22e0c5900ff63969fba498e8a214b4a2e6a"
+   },
+   {
+    "title": "Kung Fu Panda 4 [1080p WEB-DL DUAL]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 1080p WEB-DL BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2312037536,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "SITEDETORRENTS.COM..MKV.Kung Fu Panda 4 2024 WEB-DL 1080p x264 DUAL 5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e844d28bf15aba4436c74718c57a0b88941f9da4?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=db444864f5f83390aedc0da6654ac21160f03313e0385faa9a93d58bb8ff617b"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) WEB-DL [1080p WEB-DL DUBLADO 2.79 GB]\n👤 1 💾 2.79 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 1080p WEB-DL BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2995739688,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.1080p.WEB-DL.EAC3.AAC.DUAL.5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/01d9a5c0e38709e8c56e6e6c30b0c25cbdd118df?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=33ed7c739f5611668a2a0b6cd6bbf5b1173a661b72f0e1fdf32d33bb083eb4d6"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 1080p WEBRip x264 5.1 [YTS.MX]\n👤 341 💾 1.73 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 341",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 1857573355,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 1080p WEBRip x264 5.1 YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a8e918ed1ce097fe92cb43a4c05e56b3bf8d4177?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=0df5449cc03152a6bc27ffb60b101889d521c0590f3ac7337bfe65817bcbc105"
+   },
+   {
+    "title": "Kung Fu Panda 4 [2024, USA, China, animation, fantasy, action, comedy, adventure, family, WEBRip 1080p] [Localized video sequence] Dub (Red Head Sound)\n👤 330 💾 2.79 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 330",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 2995739688,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Кунг-фу Панда 4 / Kung Fu Panda 4 (Майк Митчелл, Стефани Стайн / Mike Mitchell, Stephanie Stine) [2024, США, Китай, мультфильм, фэнтези, боевик, комедия, приключения, семейный, WEBRip 1080p] [Локализованный видеоряд] Dub (Red Head Sound)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b4439be7c28689c761a8c5b066b5f418f9ee4e94?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=d30301824049f5a60c1b73286bbd3878625cd8373e173a324687cf7e9feca4db"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 1080p HDTS H264 COLLECTIVE\n👤 150 💾 2.10 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p CAM · kickass · 👤 150",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 2254857830,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 2024 1080p HDTS H264 COLLECTIVE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/8e48dc60ec060484a1eba0f2cd2b926d8c04a403?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=0d7224ccfccef27f0bb62fbbb63a4e26ab6449fb5c287e437479d3b18f40c203"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 720p WEBRip x264 2.0 [YTS.MX]\n👤 270 💾 861.33 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 270",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 903169966,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 720p WEBRip x264 2.0 YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/6c4d2a635e51f3c1e3cd8d32aa15de67ee4c391b?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=b753852a89c125a8747ce5460f14e85119e784f94cd29b6e879b9298df93589b"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 720p BluRay x264 2.0 [YTS.MX]\n👤 134 💾 861.64 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 134",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 903495024,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 720p BluRay x264 2.0 YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b6ac553091161950da391a74790611710e1cd467?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=a27d3e255d60968f31cf621ab81ce5b66f0b84813d9ae5f6015ac4fbb55d8322"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.TRUEFRENCH.720p.WEBRip.x264-MULTiViSiON\n👤 44 💾 1.20 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 44",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1288490188,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.TRUEFRENCH.720p.WEBRip.x264-MULTiViSiON",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/f07c49d9f0672a251b40488e8d6ed0b69715634b?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=233f0fdacb050579e8af0cd40b52a25448a163efd1daa5ace42675f5d0a9b523"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.720p.10bit.WEBRip.6CH.x265.HEVC-PSA\n👤 42 💾 757.10 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 42",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 793876889,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.720p.10bit.WEBRip.6CH.x265.HEVC-PSA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/7a33f8c294afe517e7442ba9a6727efaa2a58199?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=25d886ecd41983c40f8804345ef520afd81dd6dc3ceb217854338dfc978f6f0a"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.720p.AMZN.WEBRip.800MB.x264-GalaxyRG\n👤 29 💾 796.20 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 29",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 834876211,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.720p.AMZN.WEBRip.800MB.x264-GalaxyRG",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b1419330660f145f1414f0e5516c588e9c2c6338?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=fcacb5a9446cb485fc2286a8485a5324436b6df52a738c830d1be7805fc4e1ce"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) BLURAY 720p BluRay-LAMA\n👤 20 💾 861.60 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 903453081,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) BLURAY 720p BluRay-LAMA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a64754ba12a6e6d61896d693be3cb58a54e89bd1?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=462dd0ef69fb5e5f5cdf6001e8782acbeba5119dd18d458649ec0c08694ce258"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.FRENCH.VFQ.720p.WEB.H264-FW\n👤 16 💾 2.46 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2641404887,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.FRENCH.VFQ.720p.WEB.H264-FW",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/0a9ddabe9a317ff29f086c566444781dc5ba4acf?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=2b111e7cb13a7c9e3f44aabdb0e164bd8343731dea9f67e5082ddfaab4439b38"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 720p WEBRip x265 AAC-SSN\n👤 13 💾 1.24 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1331439861,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 2024 720p WEBRip x265 AAC-SSN",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/9d96b4144e634378fae47d4b325987be9a8d0a88?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=38b9c9a05c24ca1e5e1232bc49c0dac42ff8fd9815a70357eda3a63c6985a411"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|01d9a5c0e38709e8c56e6e6c30b0c25cbdd118df,0a9ddabe9a317ff29f086c566444781dc5ba4acf,22080ff718c3a97ddd916534b837a11d70e912f9,22421dfa19978f83333c4617b35a8e569e4435a2,36b719629836a0f611e59b46c6758f681ccccec6,3a44500cf20ab3bba13c8213165dfadadad1b7aa,405e4d8e941131eb99826df196e3be4f53b3a4bb,50c14f0096721bd9adc5c04f3579cfff429b79a8,6c4d2a635e51f3c1e3cd8d32aa15de67ee4c391b,7a33f8c294afe517e7442ba9a6727efaa2a58199,7db669d4294b5df2b3acd0104f68738f620fa1b7,8e48dc60ec060484a1eba0f2cd2b926d8c04a403,9d96b4144e634378fae47d4b325987be9a8d0a88,9f15dd9308196c3184f19a6c3795bef784d6dbf2,a20d61f181b65a638ee354ef8ba0de0b5f202b1c,a64754ba12a6e6d61896d693be3cb58a54e89bd1,a8e918ed1ce097fe92cb43a4c05e56b3bf8d4177,b1419330660f145f1414f0e5516c588e9c2c6338,b4439be7c28689c761a8c5b066b5f418f9ee4e94,b65732031572e4342811e3bd4e1a2361cc48807c,b6ac553091161950da391a74790611710e1cd467,c1bd3e15c6a9e6e19cba707a69c0a71670b90fa9,e844d28bf15aba4436c74718c57a0b88941f9da4,f07c49d9f0672a251b40488e8d6ed0b69715634b",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Kung.Fu.Panda.4.2024.MULTI.2160p.WEB-DL.DV.HDR.H265-AOC\n👤 19 💾 17.53 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K WEB-DL · The Pirate Bay · 👤 19",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 18819198144,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.MULTI.2160p.WEB-DL.DV.HDR.H265-AOC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3a44500cf20ab3bba13c8213165dfadadad1b7aa?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=8426a4ea4d44444818eef722986161670159186a2ad471e55631920907e5ae7f"
+   },
+   {
+    "title": "Kung Fu Panda 4 [2024, USA, China, animation, fantasy, action, comedy, adventure, UHD BDRemux 2160p Dolby Vision] 2x Dub + 2x MVO + Dub Ukr+ DVO Geo + Sub Rus, Ukr, Eng, Spa, Fra + Original Eng\n👤 80 💾 48.18 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K BluRay · kickass · 👤 80",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 51732881080,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Кунг-фу Панда 4 / Kung Fu Panda 4 (Майк Митчелл, Стефани Стайн / Mike Mitchell, Stephanie Stine) [2024, США, Китай, мультфильм, фэнтези, боевик, комедия, приключения, UHD BDRemux 2160p Dolby Vision] 2x Dub + 2x MVO + Dub Ukr+ DVO Geo + Sub Rus, Ukr, Eng, Spa, Fra + Original Eng",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/50c14f0096721bd9adc5c04f3579cfff429b79a8?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=5dc696d1b33230f493e5ff6a81444d4f37a43f8ff1c39878dbf3e19068aff486"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 2160p WEBRip 5.1 10Bit x265 -YTS\n👤 76 💾 4.18 GB ⚙️ YTS",
+    "name": "[AD download] 4K WEBRip · YTS · 👤 76",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEBRip"
+    },
+    "_quality": "2160p",
+    "_bytes": 4488240824,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 2160p WEBRip 5.1 10Bit x265 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/22080ff718c3a97ddd916534b837a11d70e912f9?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=6b9f40cbd28fe1e71eff374db4c870dce1690ea6017fc1f01ba0548d3cc83954"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX[TGx]\n👤 66 💾 15.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K WEB-DL · kickass · 👤 66",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 17072495001,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-FLUX[TGx]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b65732031572e4342811e3bd4e1a2361cc48807c?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=9a6f1f7918056dd187c64db713217ded13be03248c2e3aa09acb15fc0ae0a3b5"
+   },
+   {
+    "title": "Kung Fu Panda 4 [2024, USA, China, animation, fantasy, action, comedy, adventure, WEB-DL 2160p Dolby Vision, HDR10, HDR10+] MVO (Jaskier) + Dub (Red Head Sound) + Original Eng + Sub (Rus, Eng)\n👤 65 💾 16.57 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K WEB-DL · kickass · 👤 65",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 17791902023,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Кунг-фу Панда 4 / Kung Fu Panda 4 (Майк Митчелл, Стефани Стайн / Mike Mitchell, Stephanie Stine) [2024, США, Китай, Мультфильм, фэнтези, боевик, комедия, приключения, WEB-DL 2160p Dolby Vision, HDR10, HDR10+] MVO (Jaskier) + Dub (Red Head Sound) + Original Eng + Sub (Rus, Eng)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/9f15dd9308196c3184f19a6c3795bef784d6dbf2?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=b644d9d81242521fc1e88a70fc77929a2720a10beb7bd672aafbbeb6346dbc97"
+   },
+   {
+    "title": "Kung Fu Panda Collection (2008-2024) 2160p 4K UHD HDR10 DV Blu-ray REMUX Dual Audio [Hindi + English] ESub ~ RemuxDoc\n👤 28 💾 157.20 GB ⚙️ TheRARBG",
+    "name": "[AD download] 4K BluRay · TheRARBG · 👤 28",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 168792214732,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Kung Fu Panda Collection (2008-2024) 2160p 4K UHD HDR10 DV Blu-ray REMUX Dual Audio [Hindi + English] ESub ~ RemuxDoc",
+    "_multiWork": true,
+    "_multiWorkAdmitted": true,
+    "_lied": false,
+    "url": "/e30/resolve/c1bd3e15c6a9e6e19cba707a69c0a71670b90fa9?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22p%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=1c39c678606c736c2cea6705d3362ae3f3fdbdb6cce86679943f149dbfa3730a"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC REMUX FraMeSToR\n👤 27 💾 43.42 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 4K BluRay · LimeTorrents · 👤 27",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 46621869998,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Kung Fu Panda 4 2024 UHD BluRay 2160p TrueHD Atmos 7 1 DV HEVC REMUX-FraMeSToR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/22421dfa19978f83333c4617b35a8e569e4435a2?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=6d7a4e2bfd9a6d9aaae2a4b85b2693ad42b69fd1b8b897ff7fb89d098304ab4e"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 2160p H265 WebDl Rip 10 bit DV HDR10  ita eng AC3 5 1 sub ita eng Licdom\n👤 27 💾 3.09 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 4K WEB-DL · LimeTorrents · 👤 27",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-WEB-DL"
+    },
+    "_quality": "2160p",
+    "_bytes": 3317862236,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 2160p H265 WebDl Rip 10 bit DV HDR10+ ita eng AC3 5 1 sub ita eng Licdom",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/7db669d4294b5df2b3acd0104f68738f620fa1b7?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=02389117696ffe678e1ec0dee0469bdb30045c5ade47142b621ed9616438f6cb"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.x264.Dual.YG\n👤 58 💾 3.04 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 58",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 3264175144,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.1080p.WEBRip.x264.Dual.YG",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/36b719629836a0f611e59b46c6758f681ccccec6?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=002e55f392b05030df4acfd97afd77a6ecd80cb1c9604dba9846a44d6e5346d4"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 1080p NF WEB DL DUAL DDP5 1 Atmos H 264 TURG\n👤 39 💾 4.19 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p WEB-DL · LimeTorrents · 👤 39",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 4498978242,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Kung Fu Panda 4 2024 1080p NF WEB-DL DUAL DDP5 1 Atmos H 264-TURG",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a20d61f181b65a638ee354ef8ba0de0b5f202b1c?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=d6aaa5dda50077cebf29fa6a503a3e33ac7f5c824479d7de833927cb496bcf1b"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv\n👤 1 💾 1.82 GB ⚙️ AllDebrid",
+    "name": "[AD download] 1080p WEBRip BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 1952177653,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/405e4d8e941131eb99826df196e3be4f53b3a4bb?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=4cb01047c48d7454db4a6b89a603f22e0c5900ff63969fba498e8a214b4a2e6a"
+   },
+   {
+    "title": "Kung Fu Panda 4 [1080p WEB-DL DUAL]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 1080p WEB-DL BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2312037536,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "SITEDETORRENTS.COM..MKV.Kung Fu Panda 4 2024 WEB-DL 1080p x264 DUAL 5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e844d28bf15aba4436c74718c57a0b88941f9da4?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=db444864f5f83390aedc0da6654ac21160f03313e0385faa9a93d58bb8ff617b"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) WEB-DL [1080p WEB-DL DUBLADO 2.79 GB]\n👤 1 💾 2.79 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 1080p WEB-DL BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 2995739688,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.1080p.WEB-DL.EAC3.AAC.DUAL.5.1",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/01d9a5c0e38709e8c56e6e6c30b0c25cbdd118df?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22d%22%3A1%2C%22i%22%3A%22tt21692408%22%7D&sig=33ed7c739f5611668a2a0b6cd6bbf5b1173a661b72f0e1fdf32d33bb083eb4d6"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 1080p WEBRip x264 5.1 [YTS.MX]\n👤 341 💾 1.73 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 341",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 1857573355,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 1080p WEBRip x264 5.1 YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a8e918ed1ce097fe92cb43a4c05e56b3bf8d4177?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=0df5449cc03152a6bc27ffb60b101889d521c0590f3ac7337bfe65817bcbc105"
+   },
+   {
+    "title": "Kung Fu Panda 4 [2024, USA, China, animation, fantasy, action, comedy, adventure, family, WEBRip 1080p] [Localized video sequence] Dub (Red Head Sound)\n👤 330 💾 2.79 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 330",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 2995739688,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Кунг-фу Панда 4 / Kung Fu Panda 4 (Майк Митчелл, Стефани Стайн / Mike Mitchell, Stephanie Stine) [2024, США, Китай, мультфильм, фэнтези, боевик, комедия, приключения, семейный, WEBRip 1080p] [Локализованный видеоряд] Dub (Red Head Sound)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b4439be7c28689c761a8c5b066b5f418f9ee4e94?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=d30301824049f5a60c1b73286bbd3878625cd8373e173a324687cf7e9feca4db"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 1080p HDTS H264 COLLECTIVE\n👤 150 💾 2.10 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p CAM · kickass · 👤 150",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-CAM"
+    },
+    "_quality": "1080p",
+    "_bytes": 2254857830,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 2024 1080p HDTS H264 COLLECTIVE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/8e48dc60ec060484a1eba0f2cd2b926d8c04a403?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=0d7224ccfccef27f0bb62fbbb63a4e26ab6449fb5c287e437479d3b18f40c203"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 720p WEBRip x264 2.0 [YTS.MX]\n👤 270 💾 861.33 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 270",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 903169966,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 720p WEBRip x264 2.0 YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/6c4d2a635e51f3c1e3cd8d32aa15de67ee4c391b?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=b753852a89c125a8747ce5460f14e85119e784f94cd29b6e879b9298df93589b"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) 720p BluRay x264 2.0 [YTS.MX]\n👤 134 💾 861.64 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 134",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 903495024,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) 720p BluRay x264 2.0 YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b6ac553091161950da391a74790611710e1cd467?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=a27d3e255d60968f31cf621ab81ce5b66f0b84813d9ae5f6015ac4fbb55d8322"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.TRUEFRENCH.720p.WEBRip.x264-MULTiViSiON\n👤 44 💾 1.20 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 44",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1288490188,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.TRUEFRENCH.720p.WEBRip.x264-MULTiViSiON",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/f07c49d9f0672a251b40488e8d6ed0b69715634b?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=233f0fdacb050579e8af0cd40b52a25448a163efd1daa5ace42675f5d0a9b523"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.720p.10bit.WEBRip.6CH.x265.HEVC-PSA\n👤 42 💾 757.10 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 42",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 793876889,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.720p.10bit.WEBRip.6CH.x265.HEVC-PSA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/7a33f8c294afe517e7442ba9a6727efaa2a58199?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=25d886ecd41983c40f8804345ef520afd81dd6dc3ceb217854338dfc978f6f0a"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.720p.AMZN.WEBRip.800MB.x264-GalaxyRG\n👤 29 💾 796.20 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 29",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 834876211,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.720p.AMZN.WEBRip.800MB.x264-GalaxyRG",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b1419330660f145f1414f0e5516c588e9c2c6338?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=fcacb5a9446cb485fc2286a8485a5324436b6df52a738c830d1be7805fc4e1ce"
+   },
+   {
+    "title": "Kung Fu Panda 4 (2024) BLURAY 720p BluRay-LAMA\n👤 20 💾 861.60 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 903453081,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 (2024) BLURAY 720p BluRay-LAMA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a64754ba12a6e6d61896d693be3cb58a54e89bd1?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=462dd0ef69fb5e5f5cdf6001e8782acbeba5119dd18d458649ec0c08694ce258"
+   },
+   {
+    "title": "Kung.Fu.Panda.4.2024.FRENCH.VFQ.720p.WEB.H264-FW\n👤 16 💾 2.46 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2641404887,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung.Fu.Panda.4.2024.FRENCH.VFQ.720p.WEB.H264-FW",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/0a9ddabe9a317ff29f086c566444781dc5ba4acf?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=2b111e7cb13a7c9e3f44aabdb0e164bd8343731dea9f67e5082ddfaab4439b38"
+   },
+   {
+    "title": "Kung Fu Panda 4 2024 720p WEBRip x265 AAC-SSN\n👤 13 💾 1.24 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEBRip · kickass · 👤 13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1331439861,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Kung Fu Panda 4 2024 720p WEBRip x265 AAC-SSN",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/9d96b4144e634378fae47d4b325987be9a8d0a88?w=%7B%22n%22%3A%5B%22Kung%20Fu%20Panda%204%22%5D%2C%22y%22%3A2024%2C%22i%22%3A%22tt21692408%22%7D&sig=38b9c9a05c24ca1e5e1232bc49c0dac42ff8fd9815a70357eda3a63c6985a411"
+   }
+  ]
+ }
+]

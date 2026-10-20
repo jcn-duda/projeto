@@ -1,0 +1,364 @@
+[
+ {
+  "key": "alldebrid|0|58d964e36a838731a91b1d3102606c5ccf747833,873c2988081ea49d730e9df87075eca8c144ee28,b5958b477fea5223e33109fa094754294ed49b04",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Naruto (Complete Series) [BD 1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] - Judas\n👤 82 ⚙️ TheRARBG",
+    "name": "[AD download] 1080p BluRay · TheRARBG · 👤 82",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 59592671232,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Naruto (Complete Series) [BD 1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] - Judas",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_packBytes": 59592671232,
+    "url": "/e30/resolve/b5958b477fea5223e33109fa094754294ed49b04?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=be23fdc46187e96769acf2901dc4fc1e47163052d606b8968e6df46e7d44b719"
+   },
+   {
+    "title": "Naruto Complete (001-220 + Movies) [BD] Dual Audio 1080p Eng Sub\n👤 184 ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 184",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 70093866270,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Naruto Complete (001-220 + Movies) [BD] Dual Audio 1080p Eng Sub",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_packBytes": 70093866270,
+    "url": "/e30/resolve/58d964e36a838731a91b1d3102606c5ccf747833?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=754f20db669b8d70e3966ae3cc058c4a98047a4ff8cd53319d4b9db194f07d05"
+   },
+   {
+    "title": "Naruto.Clássico.1º.Temporada.Completa.2002.720p.Dual-BAIXARFILMESVIATORRENTS.COM\n👤 1 💾 226.45 MB 📦 pack 7.74 GB (média) ⚙️ AllDebrid",
+    "name": "[AD download] 720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 8311314928,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/873c2988081ea49d730e9df87075eca8c144ee28?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0409591%22%7D&sig=e113760daace641f5fe951bc415a6b1b70f9889f943c6db7670d32d90da0704a"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|01301e58ee19124d48fe89cba574b0b38b5e90f4,25878d0ffd17fab49a4cb0dfb59f701129b4592a,47c57d2b80ae05ec1935e00511d654c3bc9682a2,58d964e36a838731a91b1d3102606c5ccf747833,873c2988081ea49d730e9df87075eca8c144ee28,b5958b477fea5223e33109fa094754294ed49b04,e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Naruto (Complete Series) [BD 1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] - Judas\n👤 82 ⚙️ TheRARBG",
+    "name": "[AD download] 1080p BluRay · TheRARBG · 👤 82",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 59592671232,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Naruto (Complete Series) [BD 1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] - Judas",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_packBytes": 59592671232,
+    "url": "/e30/resolve/b5958b477fea5223e33109fa094754294ed49b04?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=be23fdc46187e96769acf2901dc4fc1e47163052d606b8968e6df46e7d44b719"
+   },
+   {
+    "title": "Naruto Complete (001-220 + Movies) [BD] Dual Audio 1080p Eng Sub\n👤 184 ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 184",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 70093866270,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Naruto Complete (001-220 + Movies) [BD] Dual Audio 1080p Eng Sub",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_packBytes": 70093866270,
+    "url": "/e30/resolve/58d964e36a838731a91b1d3102606c5ccf747833?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=754f20db669b8d70e3966ae3cc058c4a98047a4ff8cd53319d4b9db194f07d05"
+   },
+   {
+    "title": "NARUTO S01 VOSTFR BLURAY 1080P 10BIT X265\n👤 9 💾 382.39 MB 📦 pack 13.07 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 14033805639,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "NARUTO S01 VOSTFR BLURAY 1080P 10BIT X265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/25878d0ffd17fab49a4cb0dfb59f701129b4592a?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=1612f7dbe186899772619942fbb5c4dfc434af8d32b1f53cfe5137224b933f82"
+   },
+   {
+    "title": "NARUTO.Spin-Off.Rock.Lee.and.His.Ninja.Pals.S01.1080p.CR.WEB-DL.AAC2.0.H.264-Kitsune\n👤 3 💾 1.92 GB 📦 pack 67.30 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEB-DL · kickass · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 72262824755,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "NARUTO.Spin-Off.Rock.Lee.and.His.Ninja.Pals.S01.1080p.CR.WEB-DL.AAC2.0.H.264-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/01301e58ee19124d48fe89cba574b0b38b5e90f4?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=21944c778fc234e78ad73a160039dc095f27952df44a85bf8baaa25e74ac56b7"
+   },
+   {
+    "title": "Naruto.SD-Rock.Lee.and.His.Ninja.Pals.S01.FRENCH.1080p.WEB-DL.H264-THESYNDiCATE (Rock Lee : Les Péripéties d'un ninja en herbe)\n👤 2 💾 680.81 MB 📦 pack 23.27 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEB-DL · kickass · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 24985972244,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Naruto.SD-Rock.Lee.and.His.Ninja.Pals.S01.FRENCH.1080p.WEB-DL.H264-THESYNDiCATE (Rock Lee : Les Péripéties d'un ninja en herbe)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=159cb750b7c8d33c45febf354eb41a335f3ad3fd147498b385dff7923f25080c"
+   },
+   {
+    "title": "Naruto.S01.MULTi.1080p.BDRip.x265-MGD\n👤 1 💾 440.03 MB 📦 pack 15.04 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p · kickass · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 16149077032,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Naruto.S01.MULTi.1080p.BDRip.x265-MGD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/47c57d2b80ae05ec1935e00511d654c3bc9682a2?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=8a15c128fd9ef4060460c0b3bfbfc7be11f68f41bb4be6ca049d3ffae6f93ca8"
+   },
+   {
+    "title": "Naruto.Clássico.1º.Temporada.Completa.2002.720p.Dual-BAIXARFILMESVIATORRENTS.COM\n👤 1 💾 226.45 MB 📦 pack 7.74 GB (média) ⚙️ AllDebrid",
+    "name": "[AD download] 720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 8311314928,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/873c2988081ea49d730e9df87075eca8c144ee28?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0409591%22%7D&sig=e113760daace641f5fe951bc415a6b1b70f9889f943c6db7670d32d90da0704a"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|01301e58ee19124d48fe89cba574b0b38b5e90f4,25878d0ffd17fab49a4cb0dfb59f701129b4592a,47c57d2b80ae05ec1935e00511d654c3bc9682a2,58d964e36a838731a91b1d3102606c5ccf747833,873c2988081ea49d730e9df87075eca8c144ee28,b5958b477fea5223e33109fa094754294ed49b04,e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Naruto (Complete Series) [BD 1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] - Judas\n👤 82 ⚙️ TheRARBG",
+    "name": "[AD download] 1080p BluRay · TheRARBG · 👤 82",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 59592671232,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Naruto (Complete Series) [BD 1080p][HEVC x265 10bit][Multi-Audio][Multi-Subs] - Judas",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_packBytes": 59592671232,
+    "url": "/e30/resolve/b5958b477fea5223e33109fa094754294ed49b04?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=be23fdc46187e96769acf2901dc4fc1e47163052d606b8968e6df46e7d44b719"
+   },
+   {
+    "title": "Naruto Complete (001-220 + Movies) [BD] Dual Audio 1080p Eng Sub\n👤 184 ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 184",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 70093866270,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Naruto Complete (001-220 + Movies) [BD] Dual Audio 1080p Eng Sub",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_packBytes": 70093866270,
+    "url": "/e30/resolve/58d964e36a838731a91b1d3102606c5ccf747833?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=754f20db669b8d70e3966ae3cc058c4a98047a4ff8cd53319d4b9db194f07d05"
+   },
+   {
+    "title": "NARUTO S01 VOSTFR BLURAY 1080P 10BIT X265\n👤 9 💾 382.39 MB 📦 pack 13.07 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 14033805639,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "NARUTO S01 VOSTFR BLURAY 1080P 10BIT X265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/25878d0ffd17fab49a4cb0dfb59f701129b4592a?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=1612f7dbe186899772619942fbb5c4dfc434af8d32b1f53cfe5137224b933f82"
+   },
+   {
+    "title": "NARUTO.Spin-Off.Rock.Lee.and.His.Ninja.Pals.S01.1080p.CR.WEB-DL.AAC2.0.H.264-Kitsune\n👤 3 💾 1.92 GB 📦 pack 67.30 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEB-DL · kickass · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 72262824755,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "NARUTO.Spin-Off.Rock.Lee.and.His.Ninja.Pals.S01.1080p.CR.WEB-DL.AAC2.0.H.264-Kitsune",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/01301e58ee19124d48fe89cba574b0b38b5e90f4?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=21944c778fc234e78ad73a160039dc095f27952df44a85bf8baaa25e74ac56b7"
+   },
+   {
+    "title": "Naruto.SD-Rock.Lee.and.His.Ninja.Pals.S01.FRENCH.1080p.WEB-DL.H264-THESYNDiCATE (Rock Lee : Les Péripéties d'un ninja en herbe)\n👤 2 💾 680.81 MB 📦 pack 23.27 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEB-DL · kickass · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 24985972244,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Naruto.SD-Rock.Lee.and.His.Ninja.Pals.S01.FRENCH.1080p.WEB-DL.H264-THESYNDiCATE (Rock Lee : Les Péripéties d'un ninja en herbe)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e087089b1af8f8dfedcc830ca72d38fbfbd2c6a4?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=159cb750b7c8d33c45febf354eb41a335f3ad3fd147498b385dff7923f25080c"
+   },
+   {
+    "title": "Naruto.S01.MULTi.1080p.BDRip.x265-MGD\n👤 1 💾 440.03 MB 📦 pack 15.04 GB (média) ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p · kickass · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 16149077032,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Naruto.S01.MULTi.1080p.BDRip.x265-MGD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/47c57d2b80ae05ec1935e00511d654c3bc9682a2?s=1&e=1&w=%7B%22i%22%3A%22tt0409591%22%7D&sig=8a15c128fd9ef4060460c0b3bfbfc7be11f68f41bb4be6ca049d3ffae6f93ca8"
+   },
+   {
+    "title": "Naruto.Clássico.1º.Temporada.Completa.2002.720p.Dual-BAIXARFILMESVIATORRENTS.COM\n👤 1 💾 226.45 MB 📦 pack 7.74 GB (média) ⚙️ AllDebrid",
+    "name": "[AD download] 720p BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 8311314928,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/873c2988081ea49d730e9df87075eca8c144ee28?s=1&e=1&w=%7B%22d%22%3A1%2C%22i%22%3A%22tt0409591%22%7D&sig=e113760daace641f5fe951bc415a6b1b70f9889f943c6db7670d32d90da0704a"
+   }
+  ]
+ }
+]

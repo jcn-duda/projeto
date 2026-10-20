@@ -303,6 +303,22 @@ fn int_of(value: &Value, key: &str) -> Option<i64> {
 /// EPISÓDIOS distintos por temporada — o `annotateEpisodeSizes` usa a contagem
 /// para a média do 💾 de pack.
 fn episode_counts(meta: Option<&Value>) -> Vec<(i64, i64)> {
+    // O `getMeta` do Node normaliza o Cinemeta para `episodes: {"1": 7, ...}`
+    // (contagem por temporada) — é essa a forma que a rota interna devolve e
+    // que o gate congelado grava. Sem aceitá-la, `ctx.episode_counts` ficava
+    // vazio e o 💾 médio de pack nunca era calculado no Rust.
+    if let Some(map) = meta.and_then(|m| m.get("episodes")).and_then(Value::as_object) {
+        let mut out: Vec<(i64, i64)> = map
+            .iter()
+            .filter_map(|(season, count)| {
+                season.parse::<i64>().ok().zip(count.as_i64())
+            })
+            .collect();
+        out.sort_by_key(|(season, _)| *season);
+        if !out.is_empty() {
+            return out;
+        }
+    }
     let Some(videos) = meta.and_then(|m| m.get("videos")).and_then(Value::as_array) else {
         return Vec::new();
     };

@@ -20,8 +20,8 @@ import { poolCovered } from './search-pool-coverage.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { createLiveIndexerState, ALL_QUERY_INDEXER } from './live-indexer-state.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
-
-export async function collectRaw(
+import * as frozen from '../utils/stream-frozen.js';
+export async function collectRawLive(
   query: string,
   type: string,
   imdbId: string,
@@ -292,7 +292,9 @@ export async function collectRaw(
   // Fast-path da conta: inventário suficiente responde NA HORA e o resto da
   // coleta segue em fundo. A resposta sai partial de propósito — é isso que
   // faz o passe tardio promovê-la quando os indexers fecharem.
-  const fastPathOn = config.accountFastPath.enabled && accountSource;
+  // No replay congelado ele é DESLIGADO: a captura precisa do lote final, não
+  // do parcial que o cliente recebeu antes de os indexers fecharem.
+  const fastPathOn = !frozen.active() && config.accountFastPath.enabled && accountSource;
   // Quando o índice já cobre a obra, a primeira resposta ainda pode esperar
   // somente os BR vivos: eles são a parte que o índice não sabe atualizar. Os
   // globais ficam no enriquecimento, sem transformar um hit do índice em uma
@@ -387,3 +389,7 @@ export async function collectRaw(
   // incompleta não pode cacheá-la por 15 minutos (ver o handler em addon.js).
   return { items: bucket, partial: !done, completion, sweepInline, live };
 }
+
+// A fachada congelada mora em arquivo próprio (catraca de linhas); o reexport
+// preserva o caminho público `collectRaw` de todos os callers e testes.
+export { collectRaw } from './collect-orchestrator-frozen.js';

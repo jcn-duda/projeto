@@ -76,6 +76,7 @@
     "test": "node dist/scripts/run-tests.js",
     "test:complete": "node dist/scripts/check-test-list.js",
     "lint:lines": "node dist/scripts/check-line-budget.js",
+    "parity:frozen": "cargo test --manifest-path rust/Cargo.toml -p adom-search --test stream_frozen_parity -- --nocapture",
     "test:adversarial": "node dist/test/empirical-e2e-challenger.js",
     "test:ranking-challenger": "node dist/scripts/empirical-ranking-challenger.js",
     "test:nerdfilmes": "node dist/nerdfilmes-resolver/test.js",

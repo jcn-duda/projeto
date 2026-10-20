@@ -604,10 +604,27 @@ os itens abaixo valerem na janela:
 3. **Zero** `stream.shadow.divergence` e zero `stream.shadow.divergence.items`
    na janela (inclusive nos casos de borda acima).
 4. **Zero** `stream.shadow.timeout` e `stream.shadow.error` na mesma janela.
-5. **Corpus e2e**: `rust/golden/stream-e2e` com 100 % dos casos batendo depois da
-   máscara (§9.3) — e o corpus precisa ter sido recapturado na mesma versão.
-6. **Revisor humano** assina a amostra: os últimos 8 KiB de diffs vazios e a
+5. **Camada A — corpus congelado**: `npm run parity:frozen`
+   (`rust/golden/stream-frozen`, contrato em
+   [`stream-frozen-gate.md`](stream-frozen-gate.md)) com **100 %** dos casos
+   batendo depois da máscara (§9.3). Node e Rust consomem as MESMAS entradas
+   (meta, lotes crus, inventário da conta, veredito de debrid): divergência ali
+   é pipeline, não ruído de coleta. A captura precisa ter sido recapturada na
+   mesma versão.
+6. **Camada B — ao vivo (informativa)**: `scripts/stream-parity.mjs` continua
+   rodando como tendência; não bloqueia sozinha, mas **zero BR faltando** na
+   janela. O ruído de coleta (Jackett/Flare/banco lidos em instantes diferentes)
+   não pode ser confundido com divergência de pipeline.
+7. **Revisor humano** assina a amostra: os últimos 8 KiB de diffs vazios e a
    lista de casos cobertos.
+
+Estado da camada A (2026-10-20): **16 casos**, **13 exatos** (Node replay
+16/16). As 3 divergências abertas — `movie-matrix` (`p:1` de multiobra),
+`series-anime-naruto-s01e01` (seleção/ranking de pack) e
+`series-breaking-bad-s01e01` (total de pack de faixa no 💾) — estão listadas em
+`stream-frozen-gate.md` e bloqueiam o corte até a Fase 2 fechar. O comando é
+`cargo test -p adom-search --test stream_frozen_parity` (ou
+`npm run parity:frozen`); o alvo NÃO é `#[ignore]`.
 
 Corte é **por rota**, com canário: 5 % → 50 % → 100 %, exigindo **zero**
 divergência em cada degrau por ≥ 24 h. Regrediu, volta um degrau e a rota

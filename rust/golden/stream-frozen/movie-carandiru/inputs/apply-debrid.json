@@ -1,0 +1,632 @@
+[
+ {
+  "key": "alldebrid|0|2c6857822c6a503668f8925e7606b9b3c7f26cb6,3533cb098c8ad36c4a343b2d68855766d0b288e5,3cee647bb304e16e3248844a1331643bbef4ecef,40a3bd5172533f949bf7bf9e91b92f8322171602,48363c04efe0e82716263af53136a7d58c37ed9b,695298c5f2a7630abd12c5a56e551168cd9407b8,8b93ee182760b0110a3d40a73387343c2d617438,914e94ece9632e62dbf71a654e7e14369f465803,96925bb31ec1982021e575f71b4eaba399d3d765,bb049622bc5cfe061a69c65cb4c41cf3cba0ca39,cc1efca00c6048e9389c8e9795119c8b899b0e11,cf2565b5accdd767b85227341f50cf879db3d138,d047ab585e8c4d0a88a8d73e77ad7e7f20b08787,db15834ebe927523495008911d9bad1cdf706f7f,e44bb30a8263a59b8cadf598252a4270d62df463,f0ba40948831fb7ede9a7d84b8c0d2d3937b8b45",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Carandiru (2003) 1080p BluRay 5.1-WORLD\n👤 19 💾 2.69 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 19",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2888365506,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Carandiru (2003) 1080p BluRay 5.1-WORLD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/cf2565b5accdd767b85227341f50cf879db3d138?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=add6ba37fb9f005ad38a8f0b6d6a61eb580f6638a468e862ac0f83fa6008f273"
+   },
+   {
+    "title": "Carandiru (2003) 1080p WEBRip [YTS.MX]\n👤 16 💾 2.68 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 2877628088,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Carandiru (2003) 1080p WEBRip YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2c6857822c6a503668f8925e7606b9b3c7f26cb6?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=f47617f5faa7515f551aee8bad38d243fd43cc27aad205d4e5fd517045a60cd3"
+   },
+   {
+    "title": "Carandiru (2003) (1080p WEB DL x265 HEVC 10bit AC3 5 1 Portuguese afm72\n👤 14 💾 6.12 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p WEB-DL · LimeTorrents · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 6571299962,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru (2003) (1080p WEB-DL x265 HEVC 10bit AC3 5 1 Portuguese afm72",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/db15834ebe927523495008911d9bad1cdf706f7f?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=aab225fbd10bd0dabd8b576a6bc6dc10c504d522e1393520d47ed01093b56617"
+   },
+   {
+    "title": "Carandiru.2003.PORTUGUESE.1080p.WEB-DL.x265.AAC-5.1-Kali\n👤 12 💾 3.25 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p WEB-DL · The Pirate Bay · 👤 12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 3485981442,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Carandiru.2003.PORTUGUESE.1080p.WEB-DL.x265.AAC-5.1-Kali",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/f0ba40948831fb7ede9a7d84b8c0d2d3937b8b45?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=4402a1920f56185e2ff4077869aa69427e5701c05d4b6ac71b31d49546207be4"
+   },
+   {
+    "title": "Carandiru (2003) 1080p BRRip 5.1 x264 -YTS\n👤 12 💾 2.69 GB ⚙️ YTS",
+    "name": "[AD download] 1080p · YTS · 👤 12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2888365507,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Carandiru (2003) 1080p BRRip 5.1 x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/cc1efca00c6048e9389c8e9795119c8b899b0e11?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=d36bee48128b1312402cf65b152c2b5da3843f2762cb6510edd05c0675dd2511"
+   },
+   {
+    "title": "Carandiru.2003.REPACK.1080p.WEB-DL.DD5.1.H.264-alfaHD\n👤 9 💾 10.80 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEB-DL · kickass · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 11596411699,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Carandiru.2003.REPACK.1080p.WEB-DL.DD5.1.H.264-alfaHD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/914e94ece9632e62dbf71a654e7e14369f465803?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=d8a301ebd8afd2cbb50490ebc8c050d210e2ebb5bca0a81c56c8670ec7454e40"
+   },
+   {
+    "title": "Carandiru 2003 web dl sdr NF 1080p av1 5 1 eac3 multi subs Dust\n👤 6 💾 9.10 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p WEB-DL · LimeTorrents · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 9771050598,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru.2003.web-dl.sdr.NF.1080p.av1.5.1.eac3.multi.subs-Dust",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/48363c04efe0e82716263af53136a7d58c37ed9b?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=0d9894145448cb21ee8ea567fa63de746dec2cee52b9eadecb484e61fe115697"
+   },
+   {
+    "title": "Carandiru [1080p DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 1080p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 6045166469,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Carandiru 2003 5.1 (1080p) LAPUMiA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3533cb098c8ad36c4a343b2d68855766d0b288e5?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig=0e9b542f79b260403aec965eb185bad6350175b0141dbca4ef01faf90b3f1e0e"
+   },
+   {
+    "title": "Carandiru [2003, Brazil, Argentina, Italy, drama, crime, WEB-DL 720p] MVO + AVO + Sub Eng + Original Por\n👤 6 💾 5.04 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEB-DL · kickass · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 5411658792,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Карандиру / Carandiru (Эктор Бабенко / Hector Babenco) [2003, Бразилия, Аргентина, Италия, драма, криминал, WEB-DL 720p] MVO + AVO + Sub Eng + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/695298c5f2a7630abd12c5a56e551168cd9407b8?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=7ba3e8aaef994c3557abf950559e4eeefd8fd98a4c63d04e570e54084953d37d"
+   },
+   {
+    "title": "Carandiru (2003) 720p BRRip x264 -YTS\n👤 4 💾 1.31 GB ⚙️ YTS",
+    "name": "[AD download] 720p · YTS · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1406601789,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Carandiru (2003) 720p BRRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e44bb30a8263a59b8cadf598252a4270d62df463?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=722612e85bb012d320ede9e65f5fee6f51d32681775e036e69f6bab7cd555dab"
+   },
+   {
+    "title": "Carandiru 2003 720p WEB DL AAC2 0 H 264 alfaHD mkv\n👤 3 💾 4.20 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p WEB-DL · LimeTorrents · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 4509715660,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru 2003 720p WEB-DL AAC2 0 H 264-alfaHD mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/8b93ee182760b0110a3d40a73387343c2d617438?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=e31588e0f2353b4e216ad5818cd7a80efa52b2279e43a23df39fcdc7d30e4b68"
+   },
+   {
+    "title": "Carandiru [720p WEB-DL DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 720p WEB-DL BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 4509715660,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Carandiru.2003.PORTUGUESE.720p.WEB-DL.AAC2.0.H264-FGT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3cee647bb304e16e3248844a1331643bbef4ecef?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig=fc333377b9fc0746076093aa1105fea40b851f11b4b540eb68840eeb3489d527"
+   },
+   {
+    "title": "Carandiru [720p WEB-DL DUBLADO]\n👤 1 💾 1.36 GB ⚙️ Bludv",
+    "name": "[AD download] 720p WEB-DL BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 1460288880,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "Carandiru.2003.720p.WEB-DL.x264.[ExYu-Subs].mp4",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/40a3bd5172533f949bf7bf9e91b92f8322171602?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig=1553a7de08ae72d8ab4b2d941bc1ac5341f0faf37c4f2de0a6f2ebcfa68242b0"
+   },
+   {
+    "title": "Carandiru (2003) [720p] [WEBRip] [YTS MX]\n👤 1 💾 1.30 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p WEBRip · LimeTorrents · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1395864371,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru (2003) [720p] [WEBRip] [YTS MX]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/bb049622bc5cfe061a69c65cb4c41cf3cba0ca39?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=c74416d13ebf89db3a14d13df2d7741a51ddd8b9028d02be6f1d089182b23eb9"
+   },
+   {
+    "title": "Carandiru (2003) 720p BluRay-WORLD\n👤 1 💾 1.31 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BluRay · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1405626913,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Carandiru (2003) 720p BluRay-WORLD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/96925bb31ec1982021e575f71b4eaba399d3d765?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=091f6d7d9f3a3da40c88ce9bc914b621b80d24fe36d70d3353a3b4c7bcc2679c"
+   },
+   {
+    "title": "Carandiru (2003) 720p WEBRip x264 -YTS\n👤 1 💾 1.30 GB ⚙️ YTS",
+    "name": "[AD download] 720p WEBRip · YTS · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1395864371,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Carandiru (2003) 720p WEBRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d047ab585e8c4d0a88a8d73e77ad7e7f20b08787?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=74595b258ae71bdeb86740282aeef52d9b4bd1487298d434c2e572d7030c0008"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|2c6857822c6a503668f8925e7606b9b3c7f26cb6,3533cb098c8ad36c4a343b2d68855766d0b288e5,3cee647bb304e16e3248844a1331643bbef4ecef,40a3bd5172533f949bf7bf9e91b92f8322171602,48363c04efe0e82716263af53136a7d58c37ed9b,695298c5f2a7630abd12c5a56e551168cd9407b8,8b93ee182760b0110a3d40a73387343c2d617438,914e94ece9632e62dbf71a654e7e14369f465803,96925bb31ec1982021e575f71b4eaba399d3d765,bb049622bc5cfe061a69c65cb4c41cf3cba0ca39,cc1efca00c6048e9389c8e9795119c8b899b0e11,cf2565b5accdd767b85227341f50cf879db3d138,d047ab585e8c4d0a88a8d73e77ad7e7f20b08787,db15834ebe927523495008911d9bad1cdf706f7f,e44bb30a8263a59b8cadf598252a4270d62df463,f0ba40948831fb7ede9a7d84b8c0d2d3937b8b45",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Carandiru (2003) 1080p BluRay 5.1-WORLD\n👤 19 💾 2.69 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 19",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2888365506,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Carandiru (2003) 1080p BluRay 5.1-WORLD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/cf2565b5accdd767b85227341f50cf879db3d138?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=add6ba37fb9f005ad38a8f0b6d6a61eb580f6638a468e862ac0f83fa6008f273"
+   },
+   {
+    "title": "Carandiru (2003) 1080p WEBRip [YTS.MX]\n👤 16 💾 2.68 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEBRip · kickass · 👤 16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEBRip"
+    },
+    "_quality": "1080p",
+    "_bytes": 2877628088,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Carandiru (2003) 1080p WEBRip YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2c6857822c6a503668f8925e7606b9b3c7f26cb6?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=f47617f5faa7515f551aee8bad38d243fd43cc27aad205d4e5fd517045a60cd3"
+   },
+   {
+    "title": "Carandiru (2003) (1080p WEB DL x265 HEVC 10bit AC3 5 1 Portuguese afm72\n👤 14 💾 6.12 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p WEB-DL · LimeTorrents · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 6571299962,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru (2003) (1080p WEB-DL x265 HEVC 10bit AC3 5 1 Portuguese afm72",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/db15834ebe927523495008911d9bad1cdf706f7f?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=aab225fbd10bd0dabd8b576a6bc6dc10c504d522e1393520d47ed01093b56617"
+   },
+   {
+    "title": "Carandiru.2003.PORTUGUESE.1080p.WEB-DL.x265.AAC-5.1-Kali\n👤 12 💾 3.25 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p WEB-DL · The Pirate Bay · 👤 12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 3485981442,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Carandiru.2003.PORTUGUESE.1080p.WEB-DL.x265.AAC-5.1-Kali",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/f0ba40948831fb7ede9a7d84b8c0d2d3937b8b45?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=4402a1920f56185e2ff4077869aa69427e5701c05d4b6ac71b31d49546207be4"
+   },
+   {
+    "title": "Carandiru (2003) 1080p BRRip 5.1 x264 -YTS\n👤 12 💾 2.69 GB ⚙️ YTS",
+    "name": "[AD download] 1080p · YTS · 👤 12",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2888365507,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Carandiru (2003) 1080p BRRip 5.1 x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/cc1efca00c6048e9389c8e9795119c8b899b0e11?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=d36bee48128b1312402cf65b152c2b5da3843f2762cb6510edd05c0675dd2511"
+   },
+   {
+    "title": "Carandiru.2003.REPACK.1080p.WEB-DL.DD5.1.H.264-alfaHD\n👤 9 💾 10.80 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p WEB-DL · kickass · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 11596411699,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Carandiru.2003.REPACK.1080p.WEB-DL.DD5.1.H.264-alfaHD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/914e94ece9632e62dbf71a654e7e14369f465803?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=d8a301ebd8afd2cbb50490ebc8c050d210e2ebb5bca0a81c56c8670ec7454e40"
+   },
+   {
+    "title": "Carandiru 2003 web dl sdr NF 1080p av1 5 1 eac3 multi subs Dust\n👤 6 💾 9.10 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p WEB-DL · LimeTorrents · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 9771050598,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru.2003.web-dl.sdr.NF.1080p.av1.5.1.eac3.multi.subs-Dust",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/48363c04efe0e82716263af53136a7d58c37ed9b?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=0d9894145448cb21ee8ea567fa63de746dec2cee52b9eadecb484e61fe115697"
+   },
+   {
+    "title": "Carandiru [1080p DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 1080p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 6045166469,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Carandiru 2003 5.1 (1080p) LAPUMiA",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3533cb098c8ad36c4a343b2d68855766d0b288e5?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig=0e9b542f79b260403aec965eb185bad6350175b0141dbca4ef01faf90b3f1e0e"
+   },
+   {
+    "title": "Carandiru [2003, Brazil, Argentina, Italy, drama, crime, WEB-DL 720p] MVO + AVO + Sub Eng + Original Por\n👤 6 💾 5.04 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p WEB-DL · kickass · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 5411658792,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Карандиру / Carandiru (Эктор Бабенко / Hector Babenco) [2003, Бразилия, Аргентина, Италия, драма, криминал, WEB-DL 720p] MVO + AVO + Sub Eng + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/695298c5f2a7630abd12c5a56e551168cd9407b8?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=7ba3e8aaef994c3557abf950559e4eeefd8fd98a4c63d04e570e54084953d37d"
+   },
+   {
+    "title": "Carandiru (2003) 720p BRRip x264 -YTS\n👤 4 💾 1.31 GB ⚙️ YTS",
+    "name": "[AD download] 720p · YTS · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1406601789,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Carandiru (2003) 720p BRRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e44bb30a8263a59b8cadf598252a4270d62df463?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=722612e85bb012d320ede9e65f5fee6f51d32681775e036e69f6bab7cd555dab"
+   },
+   {
+    "title": "Carandiru 2003 720p WEB DL AAC2 0 H 264 alfaHD mkv\n👤 3 💾 4.20 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p WEB-DL · LimeTorrents · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 4509715660,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru 2003 720p WEB-DL AAC2 0 H 264-alfaHD mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/8b93ee182760b0110a3d40a73387343c2d617438?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=e31588e0f2353b4e216ad5818cd7a80efa52b2279e43a23df39fcdc7d30e4b68"
+   },
+   {
+    "title": "Carandiru [720p WEB-DL DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 720p WEB-DL BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 4509715660,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Carandiru.2003.PORTUGUESE.720p.WEB-DL.AAC2.0.H264-FGT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3cee647bb304e16e3248844a1331643bbef4ecef?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig=fc333377b9fc0746076093aa1105fea40b851f11b4b540eb68840eeb3489d527"
+   },
+   {
+    "title": "Carandiru [720p WEB-DL DUBLADO]\n👤 1 💾 1.36 GB ⚙️ Bludv",
+    "name": "[AD download] 720p WEB-DL BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEB-DL"
+    },
+    "_quality": "720p",
+    "_bytes": 1460288880,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "Carandiru.2003.720p.WEB-DL.x264.[ExYu-Subs].mp4",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/40a3bd5172533f949bf7bf9e91b92f8322171602?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22d%22%3A1%2C%22i%22%3A%22tt0293007%22%7D&sig=1553a7de08ae72d8ab4b2d941bc1ac5341f0faf37c4f2de0a6f2ebcfa68242b0"
+   },
+   {
+    "title": "Carandiru (2003) [720p] [WEBRip] [YTS MX]\n👤 1 💾 1.30 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p WEBRip · LimeTorrents · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1395864371,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Carandiru (2003) [720p] [WEBRip] [YTS MX]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/bb049622bc5cfe061a69c65cb4c41cf3cba0ca39?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=c74416d13ebf89db3a14d13df2d7741a51ddd8b9028d02be6f1d089182b23eb9"
+   },
+   {
+    "title": "Carandiru (2003) 720p BluRay-WORLD\n👤 1 💾 1.31 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BluRay · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1405626913,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Carandiru (2003) 720p BluRay-WORLD",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/96925bb31ec1982021e575f71b4eaba399d3d765?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=091f6d7d9f3a3da40c88ce9bc914b621b80d24fe36d70d3353a3b4c7bcc2679c"
+   },
+   {
+    "title": "Carandiru (2003) 720p WEBRip x264 -YTS\n👤 1 💾 1.30 GB ⚙️ YTS",
+    "name": "[AD download] 720p WEBRip · YTS · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 1395864371,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Carandiru (2003) 720p WEBRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d047ab585e8c4d0a88a8d73e77ad7e7f20b08787?w=%7B%22n%22%3A%5B%22Carandiru%22%5D%2C%22y%22%3A2003%2C%22i%22%3A%22tt0293007%22%7D&sig=74595b258ae71bdeb86740282aeef52d9b4bd1487298d434c2e572d7030c0008"
+   }
+  ]
+ }
+]

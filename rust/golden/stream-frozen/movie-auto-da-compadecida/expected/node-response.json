@@ -1,0 +1,67 @@
+{
+ "streams": [
+  {
+   "title": "O Auto da Compadecida - Versão Estendida [DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+   "name": "[AD download] 4K Extended CAM BR · Apache Torrent · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-2160p-CAM"
+   },
+   "url": "{{base}}/{{config}}/resolve/d64dea631759215465368633b0e4a1c91c845530?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}"
+  },
+  {
+   "title": "O Auto da Compadecida [720p WEBRIP DUBLADO]\n👤 1 💾 2.04 GB ⚙️ Bludv",
+   "name": "[AD download] 720p WEBRip BR · Bludv · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-WEBRip"
+   },
+   "url": "{{base}}/{{config}}/resolve/4299faf9cf5e223796c3b23f98e9647538f59acd?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+   "size": "2.04 GB"
+  },
+  {
+   "title": "O Auto da Compadecida [720p DUBLADO]\n👤 1 💾 6.85 GB ⚙️ Bludv",
+   "name": "[AD download] 720p BR · Bludv · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/438ad83956a3c44a26bdda4aee228c4aa14a1764?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+   "size": "6.85 GB"
+  },
+  {
+   "title": "O Auto da Compadecida [720p DUBLADO]\n👤 1 💾 2.47 GB ⚙️ Bludv",
+   "name": "[AD download] 720p BR · Bludv · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/b71926031dea70bd81e9e1b1e29faafc99d97bfe?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+   "size": "2.47 GB"
+  },
+  {
+   "title": "A Dog's Will (2000) (1080p BluRay x265 10bit EAC3 5.1 Portuguese r00t) [QxR]\n👤 101 💾 6.32 GB ⚙️ The Pirate Bay",
+   "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 101",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/e1f33a5752f85c1817547fbd8fb0fd4b47051c1d?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+   "size": "6.32 GB"
+  },
+  {
+   "title": "A.Dog's.Will.2000.PORTUGUESE.1080p.10bit.BluRay.6CH.x265.HEVC\n👤 33 💾 2.10 GB ⚙️ TheRARBG",
+   "name": "[AD download] 1080p BluRay · TheRARBG · 👤 33",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/ab4912ac4783493528e8d629159aad85868ce2c0?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+   "size": "2.10 GB"
+  },
+  {
+   "title": "A.Dog's.Will.2000.PORTUGUESE.720p.10bit.BluRay.6CH.x265.HEVC\n👤 40 💾 1.07 GB ⚙️ TheRARBG",
+   "name": "[AD download] 720p BluRay · TheRARBG · 👤 40",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/41be6f40abfb8ecfaf44a21e4c560dacf454fa6e?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig={{sig}}",
+   "size": "1.07 GB"
+  }
+ ],
+ "cacheMaxAge": 0
+}

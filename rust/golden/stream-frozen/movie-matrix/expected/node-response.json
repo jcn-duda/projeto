@@ -1,0 +1,83 @@
+{
+ "streams": [
+  {
+   "title": "Matrix [2160p BLU-RAY DUAL]\n👤 1 ⚙️ Apache Torrent",
+   "name": "[AD download] 4K BluRay BR · Apache Torrent · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-2160p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/96fdc513d5551feb50b955e542ad3a9acd37f361?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}"
+  },
+  {
+   "title": "Matrix (1999) BDRip 1080p Dual Audio - WWW.WOLVERDONFILMES.COM\n👤 1 💾 2.04 GB ⚙️ AllDebrid",
+   "name": "[AD download] 1080p BR · AllDebrid · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/8cc4fdc2c777d1464d9043397309f45859b9297b?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}",
+   "size": "2.04 GB"
+  },
+  {
+   "title": "Matrix.1999.OPEN.MATTE.IMAX.1080p.WEB-DL.H264.AC3.2.0-5.1.DUAL-MLD-BLUDV\n👤 1 💾 5.46 GB ⚙️ AllDebrid",
+   "name": "[AD download] 1080p IMAX WEB-DL BR · AllDebrid · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-WEB-DL"
+   },
+   "url": "{{base}}/{{config}}/resolve/76949e573ff48aa138f1e06541f3482bb49359c2?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}",
+   "size": "5.46 GB"
+  },
+  {
+   "title": "Matrix - Trilogia [1080p DUAL]\n👤 1 ⚙️ Apache Torrent",
+   "name": "[AD download] 1080p BR · Apache Torrent · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/498ddeca847fba8ea6bf2bf2279b89c4771742a7?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22p%22%3A1%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}"
+  },
+  {
+   "title": "Matrix 1: – Bluray – Dual Audio (1999) [720p BLURAY DUBLADO 2.03 GB]\n👤 1 💾 2.03 GB ⚙️ TorrentDosFilmes V2",
+   "name": "[AD download] 720p BluRay BR · TorrentDos · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/51ca3ba90f04bf50394e9eb7e448ceea214d5ad6?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}",
+   "size": "2.03 GB"
+  },
+  {
+   "title": "Matrix - Trilogia [720p DUAL]\n👤 1 ⚙️ Apache Torrent",
+   "name": "[AD download] 720p BR · Apache Torrent · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/26fa43a4ccca61d8f7cf96a106d7fe1801aed9c2?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22p%22%3A1%2C%22d%22%3A1%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}"
+  },
+  {
+   "title": "The Matrix 1999 UHD Blu-ray 2160p HDR Remux Multi Atmos 7.1-DTOn\n👤 100 💾 51.35 GB ⚙️ The Pirate Bay",
+   "name": "[AD download] 4K BluRay · The Pirate Bay · 👤 100",
+   "behaviorHints": {
+    "bingeGroup": "powerm-2160p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/8dc393c100ef0c0d010cfefdcebe572e26c4f775?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}",
+   "size": "51.35 GB"
+  },
+  {
+   "title": "Matrix (1999) MULTi VFI 2160p 10bit 4KLight DOLBY VISION BluRay DD+7.1 x265-QTZ (The Matrix)\n👤 29 💾 6.25 GB ⚙️ kickasstorrents.to",
+   "name": "[AD download] 4K BluRay · kickass · 👤 29",
+   "behaviorHints": {
+    "bingeGroup": "powerm-2160p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/24af023f52942b75634f7298978c2c8e3583ee57?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}",
+   "size": "6.25 GB"
+  },
+  {
+   "title": "The Matrix (1999) 1080p BrRip x264 - 1.85GB -YIFY\n👤 904 💾 1.86 GB ⚙️ The Pirate Bay",
+   "name": "[AD download] 1080p · The Pirate Bay · 👤 904",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/d7a46713eaee18c746b3254b7d1492a50fd9d6ce?w=%7B%22n%22%3A%5B%22The%20Matrix%22%2C%22Matrix%22%5D%2C%22y%22%3A1999%2C%22i%22%3A%22tt0133093%22%7D&sig={{sig}}",
+   "size": "1.86 GB"
+  }
+ ],
+ "cacheMaxAge": 0
+}

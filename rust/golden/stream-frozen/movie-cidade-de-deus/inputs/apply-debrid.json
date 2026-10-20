@@ -1,0 +1,670 @@
+[
+ {
+  "key": "alldebrid|0|022e3905421cf425a1b5d8b32acb094691b1181b,228099df0de02b711bc34caf829b171bbfa8f926,2f7e933a60d54f29601a3a53f8d22256e9bf91db,3ab3a7f3de1c71ac196be572cd173d9f5e3f86c5,80275c5c97dbb22837dfd51098c56cc2aa11a30d,86a338246204a48d75985861817bf56f9e3e18e9,8ffbadcada5292e00e462b566f4628d80b328f00,93936a441908d50dce630431b46e9680a068a89e,b7bcbdddad8e62c7c81523dc3de8b42fd048f77d,b9f51fb4f1cdef92e282abc9da5f23e41c0d80f1,bae139875bffb1860714306961ed0382ad5920aa,c8f7e803c0bdef87ad6d8e5748c5c0aa91934260,cf6f5c68031a4725bae7f6598ae0e8a7d91a3515,d3aee6d673c6cf52e93ecdb954029119b934cdc4,dc8a85cb682b8f66905634250ed130f55efc78db,dfeb00253a134a37c63a6615bae68b09a7721107,ed567d8c5aac0b417de9aeceedd3ad76c32f1c31",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "City of God 2002 Upscaled Bluray 2160p HDR10 HEVC DTS HD MA 5 1 x\n👤 20 💾 32.70 GB ⚙️ TheRARBG",
+    "name": "[AD download] 4K BluRay · TheRARBG · 👤 20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 35111357644,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "City of God 2002 Upscaled Bluray 2160p HDR10 HEVC DTS HD MA 5 1 x",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/dc8a85cb682b8f66905634250ed130f55efc78db?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=c4abca1efa24ae040d3fa5019c3a4e51dab65671b45a3030de7bb323c6ccfe88"
+   },
+   {
+    "title": "City Of God Cidade de Deus 2002 1080p H265 ITA POR AC3 5 1 SUB ITA ENG Tarek\n👤 24 💾 3.96 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p · LimeTorrents · 👤 24",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 4252017623,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "City Of God-Cidade de Deus 2002 1080p H265 ITA POR AC3 5 1 SUB ITA ENG-Tarek",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b7bcbdddad8e62c7c81523dc3de8b42fd048f77d?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=1c89604b706e2b0aaf47b09d179c240533346467919a27fe5f1eecfd653fe9ac"
+   },
+   {
+    "title": "City of God - Cidade de Deus (2002) AC3 5.1 ITA.POR 1080p H265 sub ita.eng MIRCrew\n👤 20 💾 3.20 GB ⚙️ TheRARBG",
+    "name": "[AD download] 1080p · TheRARBG · 👤 20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3435973836,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "City of God - Cidade de Deus (2002) AC3 5.1 ITA.POR 1080p H265 sub ita.eng MIRCrew",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/022e3905421cf425a1b5d8b32acb094691b1181b?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=37d5b36774c6ea26e4b4601156136eedf91afcbdc09f4b84d318c1503d435abb"
+   },
+   {
+    "title": "City.of.God.2002.MULTi.1080p.WEB.H265-FW (La Cité de Dieu)\n👤 6 💾 4.09 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p · kickass · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 4391604060,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City.of.God.2002.MULTi.1080p.WEB.H265-FW (La Cité de Dieu)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b9f51fb4f1cdef92e282abc9da5f23e41c0d80f1?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=69273aa5e081cec4fcec0e664d9e220823005f7810c48dd4964cf1b176671f04"
+   },
+   {
+    "title": "City of God (2002) [BluRay] [1080p] [YTS] [YIFY]\n👤 242 💾 2.07 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 242",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2222645575,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City of God (2002) 1080p BluRay YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/86a338246204a48d75985861817bf56f9e3e18e9?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=b2157e2fafeab664614cf3cc5329aedd3cd3d0c5db22be1f06d4ac20817cbb6d"
+   },
+   {
+    "title": "City Of God 2002 1080p BluRay x264-CiNEFiLE\n👤 122 💾 8.75 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 122",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 9391809040,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City Of God 2002 1080p BluRay x264-CiNEFiLE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/93936a441908d50dce630431b46e9680a068a89e?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=c87eb536a80c31aeccafd79c75fde3957899f95bd74b8fe1033e314f910dcecb"
+   },
+   {
+    "title": "City of God (2002) (1080p BluRay x265 HEVC 10bit EAC3 5 1 Portuguese Bandi)\n👤 65 💾 8.50 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p BluRay · LimeTorrents · 👤 65",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 9126805504,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "City of God (2002) (1080p BluRay x265 HEVC 10bit EAC3 5 1 Portuguese Bandi)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d3aee6d673c6cf52e93ecdb954029119b934cdc4?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=0cb5b006a6d607a0601d27d9a673b5f0e7c929edd14f1297c7c744a9b922d92b"
+   },
+   {
+    "title": "City.Of.God.2002.1080p.BluRay.x265.HEVC.EAC3-SARTRE\n👤 54 💾 6.05 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 54",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6500154370,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City.Of.God.2002.1080p.BluRay.x265.HEVC.EAC3-SARTRE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/dfeb00253a134a37c63a6615bae68b09a7721107?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=f5101b0514bf23166deacd94a48cd4ba9d1dd822e61a58f12c1809f4733cc32f"
+   },
+   {
+    "title": "Cidade de Deus (2002) Bluray – [1080p BLURAY DUBLADO 2.23 GB]\n👤 1 💾 2.23 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 1080p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2394444267,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "City.of.God.2002.1080p.BluRay.x264.anoXmous",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/80275c5c97dbb22837dfd51098c56cc2aa11a30d?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig=be3bf148e1df7b0205064b9859778425d758dd8688629d396bc036515bd87de7"
+   },
+   {
+    "title": "City of God (2002) [BluRay] [720p] [YTS] [YIFY]\n👤 42 💾 1.07 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 42",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1148903751,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City of God (2002) 720p BluRay YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ed567d8c5aac0b417de9aeceedd3ad76c32f1c31?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=61153e8a34b3fe5d6e549c1c005daaab6d4e57932c6a444c5c2b0550ec87f48f"
+   },
+   {
+    "title": "Cidade de Deus / City of God [2002, Brazil, France, thriller, drama, crime, BDRip 720p] MVO + VO + Sub Rus, Eng + Original Por\n👤 23 💾 7.38 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 23",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 7924214661,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Город бога / Cidade de Deus / City of God (Фернанду Мейреллиш, Катя Люнд / Fernando Meirelles, Kátia Lund) [2002, Бразилия, Франция, триллер, драма, криминал, BDRip 720p] MVO + VO + Sub Rus, Eng + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/cf6f5c68031a4725bae7f6598ae0e8a7d91a3515?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=d4cb7ff345c5ec0054b8b1fa906a0abfc6a445e0d74ff8dbe8219bda69266448"
+   },
+   {
+    "title": "City.of.God.2002.PROPER.720p.BluRay.x264-PHOBOS [Cidade de Deus]\n👤 15 💾 6.55 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BluRay · The Pirate Bay · 👤 15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 7032427468,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City.of.God.2002.PROPER.720p.BluRay.x264-PHOBOS [Cidade de Deus]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3ab3a7f3de1c71ac196be572cd173d9f5e3f86c5?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=bc94c5008d0a46a305062228c0197a1529de1a088dec10503318212a38ce0434"
+   },
+   {
+    "title": "City Of God-720p MP4 AAC x264 BRRip 2002-CC\n👤 14 💾 2.26 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p · The Pirate Bay · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2425528908,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City Of God-720p MP4 AAC x264 BRRip 2002-CC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/c8f7e803c0bdef87ad6d8e5748c5c0aa91934260?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=0f840854b3a4e79228f9aefa341a81dcc712879a133c7644a9a89b3893534832"
+   },
+   {
+    "title": "City of God (2002) (EN subs) 720p 10bit BluRay x265-budgetbits\n👤 3 💾 1.10 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1181116006,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City of God (2002) (EN subs) 720p.10bit.BluRay.x265-budgetbits",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/bae139875bffb1860714306961ed0382ad5920aa?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=95a9d90784995e0c5e5a243cd48e27c0b1ff074d8445fd8842d0292ac2cceaad"
+   },
+   {
+    "title": "City of God (2002) 720p BRRiP x264 AAC 5.1 [Team Nanban](pimprg)\n👤 3 💾 1.16 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p · The Pirate Bay · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1241575981,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City of God (2002) 720p BRRiP x264 AAC 5.1 [Team Nanban](pimprg)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/8ffbadcada5292e00e462b566f4628d80b328f00?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=99ab724c9b8ccd90a512bfba0671a6af7a288b6f3201b596b02907af1da5b421"
+   },
+   {
+    "title": "Cidade de Deus (2002) Bluray Nacional – [720p BLURAY DUBLADO 791 MB]\n👤 1 💾 791.00 MB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 720p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 829423616,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "Cidade de Deus (2002) BDrip 720p Nacional dat2014",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2f7e933a60d54f29601a3a53f8d22256e9bf91db?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig=5625acf88168ed67fb6146a64a9702b09524f8b24c08844363634debfe437484"
+   },
+   {
+    "title": "Cidade de Deus BluRay /REMUX Nacional [720p BLURAY DUBLADO 1.56 GB]\n👤 1 💾 1.56 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 720p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1675037245,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "City.of.God.2002.PORTUGUESE.720p.BluRay.H264.AAC-VXT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/228099df0de02b711bc34caf829b171bbfa8f926?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig=30573b54d84bf062fa7e91be581a0772dcaa85a6928cdd18b306cc3090ba1492"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|022e3905421cf425a1b5d8b32acb094691b1181b,228099df0de02b711bc34caf829b171bbfa8f926,2f7e933a60d54f29601a3a53f8d22256e9bf91db,3ab3a7f3de1c71ac196be572cd173d9f5e3f86c5,80275c5c97dbb22837dfd51098c56cc2aa11a30d,86a338246204a48d75985861817bf56f9e3e18e9,8ffbadcada5292e00e462b566f4628d80b328f00,93936a441908d50dce630431b46e9680a068a89e,b7bcbdddad8e62c7c81523dc3de8b42fd048f77d,b9f51fb4f1cdef92e282abc9da5f23e41c0d80f1,bae139875bffb1860714306961ed0382ad5920aa,c8f7e803c0bdef87ad6d8e5748c5c0aa91934260,cf6f5c68031a4725bae7f6598ae0e8a7d91a3515,d3aee6d673c6cf52e93ecdb954029119b934cdc4,dc8a85cb682b8f66905634250ed130f55efc78db,dfeb00253a134a37c63a6615bae68b09a7721107,ed567d8c5aac0b417de9aeceedd3ad76c32f1c31",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "City of God 2002 Upscaled Bluray 2160p HDR10 HEVC DTS HD MA 5 1 x\n👤 20 💾 32.70 GB ⚙️ TheRARBG",
+    "name": "[AD download] 4K BluRay · TheRARBG · 👤 20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 35111357644,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "City of God 2002 Upscaled Bluray 2160p HDR10 HEVC DTS HD MA 5 1 x",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/dc8a85cb682b8f66905634250ed130f55efc78db?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=c4abca1efa24ae040d3fa5019c3a4e51dab65671b45a3030de7bb323c6ccfe88"
+   },
+   {
+    "title": "City Of God Cidade de Deus 2002 1080p H265 ITA POR AC3 5 1 SUB ITA ENG Tarek\n👤 24 💾 3.96 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p · LimeTorrents · 👤 24",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 4252017623,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "City Of God-Cidade de Deus 2002 1080p H265 ITA POR AC3 5 1 SUB ITA ENG-Tarek",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b7bcbdddad8e62c7c81523dc3de8b42fd048f77d?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=1c89604b706e2b0aaf47b09d179c240533346467919a27fe5f1eecfd653fe9ac"
+   },
+   {
+    "title": "City of God - Cidade de Deus (2002) AC3 5.1 ITA.POR 1080p H265 sub ita.eng MIRCrew\n👤 20 💾 3.20 GB ⚙️ TheRARBG",
+    "name": "[AD download] 1080p · TheRARBG · 👤 20",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 3435973836,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "City of God - Cidade de Deus (2002) AC3 5.1 ITA.POR 1080p H265 sub ita.eng MIRCrew",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/022e3905421cf425a1b5d8b32acb094691b1181b?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=37d5b36774c6ea26e4b4601156136eedf91afcbdc09f4b84d318c1503d435abb"
+   },
+   {
+    "title": "City.of.God.2002.MULTi.1080p.WEB.H265-FW (La Cité de Dieu)\n👤 6 💾 4.09 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p · kickass · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 4391604060,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City.of.God.2002.MULTi.1080p.WEB.H265-FW (La Cité de Dieu)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b9f51fb4f1cdef92e282abc9da5f23e41c0d80f1?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=69273aa5e081cec4fcec0e664d9e220823005f7810c48dd4964cf1b176671f04"
+   },
+   {
+    "title": "City of God (2002) [BluRay] [1080p] [YTS] [YIFY]\n👤 242 💾 2.07 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 242",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2222645575,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City of God (2002) 1080p BluRay YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/86a338246204a48d75985861817bf56f9e3e18e9?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=b2157e2fafeab664614cf3cc5329aedd3cd3d0c5db22be1f06d4ac20817cbb6d"
+   },
+   {
+    "title": "City Of God 2002 1080p BluRay x264-CiNEFiLE\n👤 122 💾 8.75 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 122",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 9391809040,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City Of God 2002 1080p BluRay x264-CiNEFiLE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/93936a441908d50dce630431b46e9680a068a89e?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=c87eb536a80c31aeccafd79c75fde3957899f95bd74b8fe1033e314f910dcecb"
+   },
+   {
+    "title": "City of God (2002) (1080p BluRay x265 HEVC 10bit EAC3 5 1 Portuguese Bandi)\n👤 65 💾 8.50 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p BluRay · LimeTorrents · 👤 65",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 9126805504,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "City of God (2002) (1080p BluRay x265 HEVC 10bit EAC3 5 1 Portuguese Bandi)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d3aee6d673c6cf52e93ecdb954029119b934cdc4?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=0cb5b006a6d607a0601d27d9a673b5f0e7c929edd14f1297c7c744a9b922d92b"
+   },
+   {
+    "title": "City.Of.God.2002.1080p.BluRay.x265.HEVC.EAC3-SARTRE\n👤 54 💾 6.05 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 54",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6500154370,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City.Of.God.2002.1080p.BluRay.x265.HEVC.EAC3-SARTRE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/dfeb00253a134a37c63a6615bae68b09a7721107?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=f5101b0514bf23166deacd94a48cd4ba9d1dd822e61a58f12c1809f4733cc32f"
+   },
+   {
+    "title": "Cidade de Deus (2002) Bluray – [1080p BLURAY DUBLADO 2.23 GB]\n👤 1 💾 2.23 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 1080p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2394444267,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "City.of.God.2002.1080p.BluRay.x264.anoXmous",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/80275c5c97dbb22837dfd51098c56cc2aa11a30d?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig=be3bf148e1df7b0205064b9859778425d758dd8688629d396bc036515bd87de7"
+   },
+   {
+    "title": "City of God (2002) [BluRay] [720p] [YTS] [YIFY]\n👤 42 💾 1.07 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 42",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1148903751,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City of God (2002) 720p BluRay YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ed567d8c5aac0b417de9aeceedd3ad76c32f1c31?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=61153e8a34b3fe5d6e549c1c005daaab6d4e57932c6a444c5c2b0550ec87f48f"
+   },
+   {
+    "title": "Cidade de Deus / City of God [2002, Brazil, France, thriller, drama, crime, BDRip 720p] MVO + VO + Sub Rus, Eng + Original Por\n👤 23 💾 7.38 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 23",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 7924214661,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Город бога / Cidade de Deus / City of God (Фернанду Мейреллиш, Катя Люнд / Fernando Meirelles, Kátia Lund) [2002, Бразилия, Франция, триллер, драма, криминал, BDRip 720p] MVO + VO + Sub Rus, Eng + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/cf6f5c68031a4725bae7f6598ae0e8a7d91a3515?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=d4cb7ff345c5ec0054b8b1fa906a0abfc6a445e0d74ff8dbe8219bda69266448"
+   },
+   {
+    "title": "City.of.God.2002.PROPER.720p.BluRay.x264-PHOBOS [Cidade de Deus]\n👤 15 💾 6.55 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BluRay · The Pirate Bay · 👤 15",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 7032427468,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City.of.God.2002.PROPER.720p.BluRay.x264-PHOBOS [Cidade de Deus]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3ab3a7f3de1c71ac196be572cd173d9f5e3f86c5?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=bc94c5008d0a46a305062228c0197a1529de1a088dec10503318212a38ce0434"
+   },
+   {
+    "title": "City Of God-720p MP4 AAC x264 BRRip 2002-CC\n👤 14 💾 2.26 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p · The Pirate Bay · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2425528908,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City Of God-720p MP4 AAC x264 BRRip 2002-CC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/c8f7e803c0bdef87ad6d8e5748c5c0aa91934260?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=0f840854b3a4e79228f9aefa341a81dcc712879a133c7644a9a89b3893534832"
+   },
+   {
+    "title": "City of God (2002) (EN subs) 720p 10bit BluRay x265-budgetbits\n👤 3 💾 1.10 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1181116006,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "City of God (2002) (EN subs) 720p.10bit.BluRay.x265-budgetbits",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/bae139875bffb1860714306961ed0382ad5920aa?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=95a9d90784995e0c5e5a243cd48e27c0b1ff074d8445fd8842d0292ac2cceaad"
+   },
+   {
+    "title": "City of God (2002) 720p BRRiP x264 AAC 5.1 [Team Nanban](pimprg)\n👤 3 💾 1.16 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p · The Pirate Bay · 👤 3",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1241575981,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "City of God (2002) 720p BRRiP x264 AAC 5.1 [Team Nanban](pimprg)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/8ffbadcada5292e00e462b566f4628d80b328f00?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig=99ab724c9b8ccd90a512bfba0671a6af7a288b6f3201b596b02907af1da5b421"
+   },
+   {
+    "title": "Cidade de Deus (2002) Bluray Nacional – [720p BLURAY DUBLADO 791 MB]\n👤 1 💾 791.00 MB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 720p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 829423616,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "Cidade de Deus (2002) BDrip 720p Nacional dat2014",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2f7e933a60d54f29601a3a53f8d22256e9bf91db?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig=5625acf88168ed67fb6146a64a9702b09524f8b24c08844363634debfe437484"
+   },
+   {
+    "title": "Cidade de Deus BluRay /REMUX Nacional [720p BLURAY DUBLADO 1.56 GB]\n👤 1 💾 1.56 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 720p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1675037245,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "City.of.God.2002.PORTUGUESE.720p.BluRay.H264.AAC-VXT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/228099df0de02b711bc34caf829b171bbfa8f926?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig=30573b54d84bf062fa7e91be581a0772dcaa85a6928cdd18b306cc3090ba1492"
+   }
+  ]
+ }
+]

@@ -190,7 +190,7 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         info_hash: str_of(&["infoHash", "info_hash"]),
         published_at: f64_of(&["publishedAt", "PublishDate", "published_at"]),
         seeders: f64_of(&["seeders"]),
-        size_bytes: f64_of(&["sizeBytes", "size", "size_bytes"]),
+        size_bytes: known_size(f64_of(&["sizeBytes", "size", "size_bytes"])),
         indexer: str_of(&["indexer"]),
         sources,
         is_br: bool_of("isBr") || bool_of("is_br"),
@@ -283,6 +283,15 @@ impl RawItem {
         }
         Value::Object(map)
     }
+}
+
+/// Tamanho conhecido do item (`search-names.ts`: `UNKNOWN_SIZE_MAX` /
+/// `IMPLAUSIBLE_SIZE_MIN`). Fontes BR mandam 1 KB quando o post não publica
+/// tamanho; sem esta limpeza o nativo pintava `💾 1.00 KB` e o Node não.
+fn known_size(value: Option<f64>) -> Option<f64> {
+    const UNKNOWN_SIZE_MAX: f64 = 1024.0;
+    const IMPLAUSIBLE_SIZE_MIN: f64 = 500.0 * 1024.0 * 1024.0 * 1024.0;
+    value.filter(|bytes| *bytes > UNKNOWN_SIZE_MAX && *bytes < IMPLAUSIBLE_SIZE_MIN)
 }
 
 #[cfg(test)]

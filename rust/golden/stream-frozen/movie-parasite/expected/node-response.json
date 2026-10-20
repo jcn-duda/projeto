@@ -1,0 +1,83 @@
+{
+ "streams": [
+  {
+   "title": "Parasita [1080p DUAL]\n👤 1 ⚙️ Apache Torrent",
+   "name": "[AD download] 1080p BR · Apache Torrent · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/fc33008ab9b2fefa78cf264d3124b841875d5c11?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22d%22%3A1%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}"
+  },
+  {
+   "title": "Parasita [1080p DUAL]\n👤 1 ⚙️ Apache Torrent",
+   "name": "[AD download] 1080p BR · Apache Torrent · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-any"
+   },
+   "url": "{{base}}/{{config}}/resolve/1171e608f0d31b7f99a49c365a92eac478fdd217?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22d%22%3A1%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}"
+  },
+  {
+   "title": "Parasita (2020) e BluRay | – [1080p BLURAY DUBLADO 3.2 GB]\n👤 1 💾 3.20 GB ⚙️ TorrentDosFilmes V2",
+   "name": "[AD download] 1080p BluRay BR · TorrentDos · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/e16d57ab306baa8131449656157c85de4daafcd3?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22d%22%3A1%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}",
+   "size": "3.20 GB"
+  },
+  {
+   "title": "Parasita (2020) [720p BLU-RAY DUBLADO 1.7 GB]\n👤 1 💾 1.70 GB ⚙️ ComandoTorrents",
+   "name": "[AD download] 720p BluRay BR · Comando · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/3c5801caebc493aee12fbc2cc8f2126d6f164d58?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22d%22%3A1%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}",
+   "size": "1.70 GB"
+  },
+  {
+   "title": "Parasita [720p BLU-RAY DUBLADO]\n👤 1 💾 1.76 GB ⚙️ Bludv",
+   "name": "[AD download] 720p BluRay BR · Bludv · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-720p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/ce027d6d488621af291968c9e29dc83e575e94bc?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22d%22%3A1%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}",
+   "size": "1.76 GB"
+  },
+  {
+   "title": "Parasita - Parasite [1080p BLU-RAY LEGENDADO]\n👤 1 ⚙️ Apache Torrent",
+   "name": "[AD download] 1080p BluRay LEG BR · Apache Torrent · 👤 1",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/3177016847f1efd093dd40fa0a9b63c3e98d456a?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}"
+  },
+  {
+   "title": "Parasite 2019 MULTi UHD Bluray 2160p HDR Atmos 7 1 HEVC (Kor Fr)\n👤 27 💾 20.19 GB ⚙️ kickasstorrents.to",
+   "name": "[AD download] 4K BluRay · kickass · 👤 27",
+   "behaviorHints": {
+    "bingeGroup": "powerm-2160p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/a483118fe9c1f973456d1bd9ff6ce2f37b30ba6b?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}",
+   "size": "20.19 GB"
+  },
+  {
+   "title": "Parasite 2019 KOREAN 2160p BluRay HEVC TrueHD 7 1 Atmos-MMCLX\n👤 14 💾 89.42 GB ⚙️ kickasstorrents.to",
+   "name": "[AD download] 4K BluRay · kickass · 👤 14",
+   "behaviorHints": {
+    "bingeGroup": "powerm-2160p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/a90d4354a1d1b189f178ee6f5428a4d0fab731d2?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}",
+   "size": "89.42 GB"
+  },
+  {
+   "title": "Parasite (2019) [BluRay] [1080p] [YTS] [YIFY]\n👤 811 💾 2.10 GB ⚙️ kickasstorrents.to",
+   "name": "[AD download] 1080p BluRay · kickass · 👤 811",
+   "behaviorHints": {
+    "bingeGroup": "powerm-1080p-BluRay"
+   },
+   "url": "{{base}}/{{config}}/resolve/ce6d2a6bbc439a8f6b94b23ba63b04164400fe3b?w=%7B%22n%22%3A%5B%22Parasite%22%2C%22Parasita%22%2C%22%EA%B8%B0%EC%83%9D%EC%B6%A9%22%5D%2C%22y%22%3A2019%2C%22i%22%3A%22tt6751668%22%7D&sig={{sig}}",
+   "size": "2.10 GB"
+  }
+ ],
+ "cacheMaxAge": 0
+}

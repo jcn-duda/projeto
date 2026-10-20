@@ -51,6 +51,12 @@ mod tail;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+// Gate de paridade congelada do `/stream` (`docs/stream-frozen-gate.md`): o
+// alvo de integração `tests/stream_frozen_parity.rs` chama `run_all()` daqui,
+// então o módulo NÃO é `cfg(test)` — `doc(hidden)` só evita que ele apareça
+// como API do crate. O comando do gate é sem `--features`.
+#[doc(hidden)]
+pub mod frozen_gate;
 mod torrentio_collector;
 mod trace;
 
@@ -199,7 +205,8 @@ impl Orchestrator {
 
     /// Liga coleta/metadados/efeitos no cliente HTTP das rotas internas.
     pub fn with_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
-        self.collector = Arc::new(NodeCollector::new(routes.clone()).with_skip_account(!self.shadow_mode));
+        self.collector =
+            Arc::new(NodeCollector::new(routes.clone()).with_skip_account(!self.shadow_mode));
         self.meta = Arc::new(NodeMetaSource::new(routes.clone()));
         self.tail = Arc::new(NodeTailEffects::new(routes.clone()));
         self.routes = Some(routes);

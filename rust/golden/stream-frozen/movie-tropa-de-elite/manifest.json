@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-tropa-de-elite",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "7e4c6c33625ed5119a8cc09d7bd6a3d77652d856e87e4193269cd69f7fb606fe",
+  "inputs/apply-debrid.json": "1f6fef76e00ecfd12013d889672179f928e24218662482d984f7654f1c12a131",
+  "inputs/collect.json": "abfaf6bfd6b5b48d12780d4dd885627eefe4697d35dfefdc588ce1f7b43f30c2",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "52e793065cc3fd7568456f1dc78b11637d636376fc39cfe5cd62ac60d3df0a89",
+  "inputs/fallback.json": "40378702326fbda63ecd9dfc1358a274ec41971cc42949bbbccd4c3d7d675cd9",
+  "inputs/index.json": "1ec382c1cdeda33f1697f218caae8842b0c9331da6b59f1bc1cc9873cf316290",
+  "inputs/instant.json": "a8a1aebae6d33caca40047ddc695843a74c5768511b737c7313d38f7fee775b2",
+  "inputs/meta.json": "6bf47b8f936c61ae72cad16e70f51eeb9f1eb42a10264d0c3023f83749449019",
+  "request.json": "f0e3f61a2b3057fe5302873296c46e5a8193775a1da392c59d917fbc585082b4"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

@@ -29,6 +29,7 @@ import { dropFakeReleases } from './fake-release.js';
 import { filterSeriesEpisodeRaw } from './stream-builder-episode-filter.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 import { globalLieHashes } from '../utils/magnet-bank-lie.js';
+import * as frozen from '../utils/stream-frozen.js';
 
 // Indexer id vindo da config do usuario (URL) precisa validar antes de
 // entrar em query, limite por id ou desempate -- id fora do padrao e
@@ -354,6 +355,9 @@ export function prepareCandidateStreams(
     ? new Set(mappedStreams.flatMap((s) => s?.infoHash ? [s.infoHash] : [])
         .filter((h: string) => liedHashes.has(String(h).toLowerCase()) || magnetdb.isLie(aliveAdapter.id, aliveApiKey, h)))
     : liedHashes;
+  // Gate congelado: grava o conjunto `instant` que o sort REALMENTE usou.
+  // `fromAccount` sozinho não o reconstrói (alive de banco + conta não instantânea).
+  if (instantSet) frozen.recordInstant([...instantSet]);
   const markedStreams = mappedStreams.map((stream) =>
     stream && liedSet.has(String(stream.infoHash || '').toLowerCase())
       ? { ...stream, _lied: true, _dubbed: false, _dubClaim: false }

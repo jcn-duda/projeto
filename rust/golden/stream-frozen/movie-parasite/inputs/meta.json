@@ -1,0 +1,18 @@
+{
+ "key": "movie:tt6751668",
+ "meta": {
+  "name": "Parasite",
+  "year": "2019",
+  "type": "movie",
+  "released": "2019-11-08T00:00:00.000Z"
+ },
+ "titles": {
+  "pt": "Parasita",
+  "original": "기생충",
+  "en": "Parasite",
+  "br": [],
+  "year": "2019"
+ },
+ "collection": null,
+ "homeReleaseAt": 1565049600000
+}

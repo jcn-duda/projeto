@@ -275,7 +275,7 @@ pub fn build_stream_list(
             br_first: opts.br_first,
             indexer_priority: opts.indexer_priority.clone(),
         },
-        instant_hashes: Default::default(),
+        instant_hashes: opts.instant_hashes.iter().cloned().collect(),
     });
     out.count("afterSort", sort.streams.len());
     let mut streams = sort.streams;

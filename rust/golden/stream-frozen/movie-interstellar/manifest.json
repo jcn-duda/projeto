@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-interstellar",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "1ce2648a06fc0e60e7a1361ac952508829333802e068ebcb61fef3aae265839c",
+  "inputs/apply-debrid.json": "1eadcc905821486588d6a494e0edc3407128ff0d8b956056e25f28ba74f9fb48",
+  "inputs/collect.json": "c0c01346c1161e5046908d159b7e405ac54eafac97a42931e0d1dbc355167b0e",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "84d871a3c745e7c10faf004257db4bb38f9ea68a8b791dedf723c49e07709a27",
+  "inputs/fallback.json": "9031dab1cb67a30743e76e1a1b968d18f8c72fc36d6e0711bbf98328fd1a14dd",
+  "inputs/index.json": "220c1ab1ff3c906fd8e7adc368e969e6be40718752676a721831d3a5889b90d0",
+  "inputs/instant.json": "beef3d0c318e7c8032f03c093fde4e760cc0ae60f51e14b63077493ce4628dfd",
+  "inputs/meta.json": "aedf4f40c81f3a66d1602e578adac20123122cffafc12b3f90b448dc49685c51",
+  "request.json": "043dc12408f078a436a8a0ab74ea5402f27e8d9706cffcc451b8850f7af47bfa"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

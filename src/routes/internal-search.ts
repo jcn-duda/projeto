@@ -24,6 +24,7 @@ import { worksForObraMany, sourcesForMany, firstSeenMany } from '../utils/magnet
 import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/search-multiwork.js';
 import { collectRaw } from '../providers/collect-orchestrator.js';
 import { handleCollect } from './internal-search-collect.js';
+import { handleConfig } from './internal-search-config.js';
 import { breakerSnapshot } from '../providers/jackett-breaker.js';
 import { parseStremioId } from '../utils/format.js';
 import * as log from '../utils/logger.js';
@@ -254,6 +255,14 @@ export function registerInternalSearch(
   router.post('/internal/search/collect', json, asyncRoute(async (req, res) => {
     if (rejectedByGuard(services, req, res)) return;
     await handleCollect(services, deps, req, res);
+  }));
+
+  // Knobs do operador + opções decodificadas, sem credencial. Usado pelo gate
+  // congelado (docs/stream-frozen-gate.md) para o Rust replays com os MESMOS
+  // números da captura.
+  router.post('/internal/search/config', json, asyncRoute(async (req, res) => {
+    if (rejectedByGuard(services, req, res)) return;
+    handleConfig(services, req, res);
   }));
 
   // Escrita e efeitos do orquestrador (index-write/effects) — mesmo guarda,

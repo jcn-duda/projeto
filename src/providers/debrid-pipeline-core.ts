@@ -25,6 +25,7 @@ import type { FirstObserverState } from './stream-builder.js';
 import { dropTrace, type StreamTraceState } from '../utils/stream-trace.js';
 import { annotateEpisodeSizes, packHashesMissingFiles } from './episode-size.js';
 import { playDisposition, playDispositions } from './debrid-play-guard.js';
+import { checkCachedFrozen } from './debrid-check-frozen.js';
 
 /**
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
@@ -146,10 +147,8 @@ export async function applyDebrid(input: Array<Stream | null>, {
   const adapterTimeoutMs = remainingCheckBudget(deadlineAt, Date.now(), config.debrid.checkFormatMargin);
   // Packs sem lista de arquivos no memo: quem sabe listar lê na mesma checagem.
   const fileHashes = packHashesMissingFiles(streams, season);
-  const { cached, known, unusable } = await debrid.checkCached(
-    hashes,
-    { ...(adapterTimeoutMs != null ? { timeoutMs: adapterTimeoutMs } : {}), ...(fileHashes.length ? { fileHashes } : {}) },
-  );
+  const { cached, known, unusable } = await checkCachedFrozen(adapter.id, hashes, fileHashes, adapterTimeoutMs,
+    (options) => debrid.checkCached(hashes, options));
   const checkMs = Date.now() - checkStarted;
   const needsFullRefresh = adapter.cacheCheck && !known && !unusable;
   // Chave recusada ou conta cheia: a lista inteira sairia como `[AD download]`

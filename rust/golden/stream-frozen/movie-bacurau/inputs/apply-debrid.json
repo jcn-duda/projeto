@@ -1,0 +1,634 @@
+[
+ {
+  "key": "alldebrid|0|0a23f0fa6eb6c6092101c22973878ffa144912d4,1875601e6471fe09f368e4d802103262ff3208a7,1eb3466869c9480c1fc32e31673b68e5846f4f89,2679c48fc03d83538b681c860cfbc3ad862a995d,3585f6188f1d1780f646560d3178ee578e07fbb2,4add8997d18ef4290b9965d40f29dc2258911065,587d175ead93eb46ead3dcab083911909e3f88b0,5ecfab137eb29e6ea4429943685d24dd173fbf53,6656e191533d3fcfc7546de83923c73746fbddbd,79035c2e57ccca7c3199a160a5befb4b2d915b81,80e367ee5db90eef6fe77cb69642e8be9679f75d,9a7f1090691bfd150f4b33c0f481b646a63ed687,afe1a64dcb5e81197e2448d3a617714cf714ad2a,c8de58a924e5ae1413b60602ac129ca167cc5f14,f1ed353368f75500c05ac097b75229f87bfcc9dc,fb1ffb650a144cacf7d5404214cc1d2f8c3c21da",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Bacurau (2019) 1080p BRRip 5.1 x264 -YTS\n👤 76 💾 2.42 GB ⚙️ YTS",
+    "name": "[AD download] 1080p · YTS · 👤 76",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2598455214,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Bacurau (2019) 1080p BRRip 5.1 x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/6656e191533d3fcfc7546de83923c73746fbddbd?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=28dd3414c45c273e215031abe9c1a4ef7aa173f29e801dfae7c010a6e4ef56dc"
+   },
+   {
+    "title": "Bacurau 2019 1080p BluRay x264-CADAVER[TGx]\n👤 16 💾 17.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 19219978649,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau.2019.1080p.BluRay.x264-CADAVER[TGx] ⭐",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/587d175ead93eb46ead3dcab083911909e3f88b0?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=6e2a8e77a10b9cd1b1cd48bae7ad45d18a1b2745d2fec1c970fea2695852d84f"
+   },
+   {
+    "title": "Bacurau [2019, Brazil, France, drama, crime, BDRemux 1080p] MVO (WestFilm) + Sub (Rus, Eng, Por) + Original Por\n👤 8 💾 33.98 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 36485747179,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Бакурау / Bacurau (Жулиано Дорнель / Juliano Dornelles, Клебер Мендонса Фильо / Kleber Mendonça Filho) [2019, Бразилия, Франция, драма, криминал, BDRemux 1080p] MVO (WestFilm) + Sub (Rus, Eng, Por) + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/afe1a64dcb5e81197e2448d3a617714cf714ad2a?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=c700b07d303482624880df1edd2da4089f690de695f341afb81fbba5a87520de"
+   },
+   {
+    "title": "Bacurau 2019 1080p AMZN WEB-DL x264 EAC3 -HdT\n👤 6 💾 8.66 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p WEB-DL · The Pirate Bay · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 9302186838,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Bacurau 2019 1080p AMZN WEB-DL x264 EAC3 -HdT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/fb1ffb650a144cacf7d5404214cc1d2f8c3c21da?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=795bfe37e3f17c0b554206239833040f7250cbb18b8fad9abf2a4a438a935c08"
+   },
+   {
+    "title": "Bacurau 2019 PORUTUGESE 1080p BluRay H264\n👤 5 💾 2.50 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p BluRay · LimeTorrents · 👤 5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2684354560,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau 2019 PORUTUGESE 1080p BluRay H264",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/80e367ee5db90eef6fe77cb69642e8be9679f75d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=f856ffadee90ac2e4ba55a780216840d5247e4a73470e0e9c030452dfcf3c7b6"
+   },
+   {
+    "title": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5 1 Portuguese Tigole)\n👤 4 💾 5.91 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p BluRay · LimeTorrents · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6345814179,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5 1 Portuguese Tigole)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/f1ed353368f75500c05ac097b75229f87bfcc9dc?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=ef44187a7abcd881382c32938db0f6f70a3167bb5c3675d1356046a55e4700b7"
+   },
+   {
+    "title": "Bacurau 2019 1080p BluRay x264-OFT\n👤 4 💾 5.69 GB ⚙️ TheRARBG",
+    "name": "[AD download] 1080p BluRay · TheRARBG · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6109431495,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Bacurau 2019 1080p BluRay x264-OFT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/4add8997d18ef4290b9965d40f29dc2258911065?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=3bc0f6b18ec9b8661ab39ec41833493683e5b477cbd7eaf54cd61d7cdcf0366f"
+   },
+   {
+    "title": "Bacurau [1080p BLU-RAY DUBLADO]\n👤 1 💾 35.70 GB ⚙️ Bludv",
+    "name": "[AD download] 1080p BluRay BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 38332583116,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "Bacurau.2019.PORTUGUESE.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-FGT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/0a23f0fa6eb6c6092101c22973878ffa144912d4?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=fc9a40e4f344279414af7bd3c3077af35fa6fda3044ca1f8fe428ebe9560a668"
+   },
+   {
+    "title": "Bacurau (2019) 720p BRRip x264 -YTS\n👤 17 💾 1.18 GB ⚙️ YTS",
+    "name": "[AD download] 720p · YTS · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1267015352,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Bacurau (2019) 720p BRRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/9a7f1090691bfd150f4b33c0f481b646a63ed687?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=e01290b6ac2bfb77f6ed7ad897da1ee4fa917fbba9eae42bfe0170509b3b5591"
+   },
+   {
+    "title": "Bacurau 2019 720p BluRay x264\n👤 5 💾 6.04 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p BluRay · LimeTorrents · 👤 5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 6485400616,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau 2019 720p BluRay x264",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/1875601e6471fe09f368e4d802103262ff3208a7?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=98c59e876d165f51fb434f34c388f925f281c55a897393580b08d9b5abe87060"
+   },
+   {
+    "title": "Bacurau 2019 720p HDRip Hindi Dub Dual Audio x264 1XBET\n👤 2 💾 1.14 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p · LimeTorrents · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1224065679,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau 2019 720p HDRip Hindi Dub Dual-Audio x264-1XBET",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3585f6188f1d1780f646560d3178ee578e07fbb2?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=d9654cfadfc50fd3287d319d184077b3aa52ea9f65233076e498a3754b19a4c7"
+   },
+   {
+    "title": "Bacurau [720p DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 720p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 4294967296,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Bacurau 2019 [720p] [FULL]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2679c48fc03d83538b681c860cfbc3ad862a995d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=007d3ac8849d331cc2e1e162e1e51430a4b48d54bf4ae2c53dbbb413e6bb6b86"
+   },
+   {
+    "title": "Bacurau (2020) Nacional BluRay e FULL HD – [720p BLURAY DUBLADO 1.5 GB]\n👤 1 💾 1.50 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 720p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1610612736,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "Bacurau.2019.PORTUGUESE.720p.BluRay.H264.AAC-VXT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/1eb3466869c9480c1fc32e31673b68e5846f4f89?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=17901732f12fc4c2aae40f16761a766a7fdc6b875be2204af023f417f8f28a17"
+   },
+   {
+    "title": "Bacurau.2019.720p.TRUEFRENCH.BluRay.x264.AC3-STVFRV\n👤 1 💾 4.10 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4402341478,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau.2019.720p.TRUEFRENCH.BluRay.x264.AC3-STVFRV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/79035c2e57ccca7c3199a160a5befb4b2d915b81?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=3d4dab1ab40111ef2e90840526988b399d9d3bb6b3deeb6a3ccb48f174e99eea"
+   },
+   {
+    "title": "Bacurau HEVC 10bit 720p sn6op mkv\n👤 1 💾 2.16 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2319282339,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau HEVC 10bit 720p sn6op mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/c8de58a924e5ae1413b60602ac129ca167cc5f14?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=619d13b72ef291b48594cc0523b0f9879ac90b9324921cf7264caee53bcf7898"
+   },
+   {
+    "title": "Bacurau.2019.VOSTFR.BRAZiLiAN.COMPLETE.BLURAY-FaiLED\n👤 0 💾 44.23 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] BluRay BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-BluRay"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 47491600875,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau.2019.VOSTFR.BRAZiLiAN.COMPLETE.BLURAY-FaiLED",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/5ecfab137eb29e6ea4429943685d24dd173fbf53?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=745df5dca4e74a99748d5576a9dde7ca0918827f696395d116b0dd79f5850a9b"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|0a23f0fa6eb6c6092101c22973878ffa144912d4,1875601e6471fe09f368e4d802103262ff3208a7,1eb3466869c9480c1fc32e31673b68e5846f4f89,2679c48fc03d83538b681c860cfbc3ad862a995d,3585f6188f1d1780f646560d3178ee578e07fbb2,4add8997d18ef4290b9965d40f29dc2258911065,587d175ead93eb46ead3dcab083911909e3f88b0,5ecfab137eb29e6ea4429943685d24dd173fbf53,6656e191533d3fcfc7546de83923c73746fbddbd,79035c2e57ccca7c3199a160a5befb4b2d915b81,80e367ee5db90eef6fe77cb69642e8be9679f75d,9a7f1090691bfd150f4b33c0f481b646a63ed687,afe1a64dcb5e81197e2448d3a617714cf714ad2a,c8de58a924e5ae1413b60602ac129ca167cc5f14,f1ed353368f75500c05ac097b75229f87bfcc9dc,fb1ffb650a144cacf7d5404214cc1d2f8c3c21da",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "Bacurau (2019) 1080p BRRip 5.1 x264 -YTS\n👤 76 💾 2.42 GB ⚙️ YTS",
+    "name": "[AD download] 1080p · YTS · 👤 76",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2598455214,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Bacurau (2019) 1080p BRRip 5.1 x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/6656e191533d3fcfc7546de83923c73746fbddbd?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=28dd3414c45c273e215031abe9c1a4ef7aa173f29e801dfae7c010a6e4ef56dc"
+   },
+   {
+    "title": "Bacurau 2019 1080p BluRay x264-CADAVER[TGx]\n👤 16 💾 17.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 16",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 19219978649,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau.2019.1080p.BluRay.x264-CADAVER[TGx] ⭐",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/587d175ead93eb46ead3dcab083911909e3f88b0?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=6e2a8e77a10b9cd1b1cd48bae7ad45d18a1b2745d2fec1c970fea2695852d84f"
+   },
+   {
+    "title": "Bacurau [2019, Brazil, France, drama, crime, BDRemux 1080p] MVO (WestFilm) + Sub (Rus, Eng, Por) + Original Por\n👤 8 💾 33.98 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 36485747179,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Бакурау / Bacurau (Жулиано Дорнель / Juliano Dornelles, Клебер Мендонса Фильо / Kleber Mendonça Filho) [2019, Бразилия, Франция, драма, криминал, BDRemux 1080p] MVO (WestFilm) + Sub (Rus, Eng, Por) + Original Por",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/afe1a64dcb5e81197e2448d3a617714cf714ad2a?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=c700b07d303482624880df1edd2da4089f690de695f341afb81fbba5a87520de"
+   },
+   {
+    "title": "Bacurau 2019 1080p AMZN WEB-DL x264 EAC3 -HdT\n👤 6 💾 8.66 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p WEB-DL · The Pirate Bay · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-WEB-DL"
+    },
+    "_quality": "1080p",
+    "_bytes": 9302186838,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Bacurau 2019 1080p AMZN WEB-DL x264 EAC3 -HdT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/fb1ffb650a144cacf7d5404214cc1d2f8c3c21da?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=795bfe37e3f17c0b554206239833040f7250cbb18b8fad9abf2a4a438a935c08"
+   },
+   {
+    "title": "Bacurau 2019 PORUTUGESE 1080p BluRay H264\n👤 5 💾 2.50 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p BluRay · LimeTorrents · 👤 5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2684354560,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau 2019 PORUTUGESE 1080p BluRay H264",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/80e367ee5db90eef6fe77cb69642e8be9679f75d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=f856ffadee90ac2e4ba55a780216840d5247e4a73470e0e9c030452dfcf3c7b6"
+   },
+   {
+    "title": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5 1 Portuguese Tigole)\n👤 4 💾 5.91 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 1080p BluRay · LimeTorrents · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6345814179,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau (2019) (1080p BluRay x265 HEVC 10bit AAC 5 1 Portuguese Tigole)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/f1ed353368f75500c05ac097b75229f87bfcc9dc?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=ef44187a7abcd881382c32938db0f6f70a3167bb5c3675d1356046a55e4700b7"
+   },
+   {
+    "title": "Bacurau 2019 1080p BluRay x264-OFT\n👤 4 💾 5.69 GB ⚙️ TheRARBG",
+    "name": "[AD download] 1080p BluRay · TheRARBG · 👤 4",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6109431495,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "Bacurau 2019 1080p BluRay x264-OFT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/4add8997d18ef4290b9965d40f29dc2258911065?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=3bc0f6b18ec9b8661ab39ec41833493683e5b477cbd7eaf54cd61d7cdcf0366f"
+   },
+   {
+    "title": "Bacurau [1080p BLU-RAY DUBLADO]\n👤 1 💾 35.70 GB ⚙️ Bludv",
+    "name": "[AD download] 1080p BluRay BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 38332583116,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "Bacurau.2019.PORTUGUESE.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-FGT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/0a23f0fa6eb6c6092101c22973878ffa144912d4?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=fc9a40e4f344279414af7bd3c3077af35fa6fda3044ca1f8fe428ebe9560a668"
+   },
+   {
+    "title": "Bacurau (2019) 720p BRRip x264 -YTS\n👤 17 💾 1.18 GB ⚙️ YTS",
+    "name": "[AD download] 720p · YTS · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1267015352,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "Bacurau (2019) 720p BRRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/9a7f1090691bfd150f4b33c0f481b646a63ed687?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=e01290b6ac2bfb77f6ed7ad897da1ee4fa917fbba9eae42bfe0170509b3b5591"
+   },
+   {
+    "title": "Bacurau 2019 720p BluRay x264\n👤 5 💾 6.04 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p BluRay · LimeTorrents · 👤 5",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 6485400616,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau 2019 720p BluRay x264",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/1875601e6471fe09f368e4d802103262ff3208a7?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=98c59e876d165f51fb434f34c388f925f281c55a897393580b08d9b5abe87060"
+   },
+   {
+    "title": "Bacurau 2019 720p HDRip Hindi Dub Dual Audio x264 1XBET\n👤 2 💾 1.14 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 720p · LimeTorrents · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1224065679,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "Bacurau 2019 720p HDRip Hindi Dub Dual-Audio x264-1XBET",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/3585f6188f1d1780f646560d3178ee578e07fbb2?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=d9654cfadfc50fd3287d319d184077b3aa52ea9f65233076e498a3754b19a4c7"
+   },
+   {
+    "title": "Bacurau [720p DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 720p BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 4294967296,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "Bacurau 2019 [720p] [FULL]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2679c48fc03d83538b681c860cfbc3ad862a995d?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=007d3ac8849d331cc2e1e162e1e51430a4b48d54bf4ae2c53dbbb413e6bb6b86"
+   },
+   {
+    "title": "Bacurau (2020) Nacional BluRay e FULL HD – [720p BLURAY DUBLADO 1.5 GB]\n👤 1 💾 1.50 GB ⚙️ TorrentDosFilmes V2",
+    "name": "[AD download] 720p BluRay BR · TorrentDos · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1610612736,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes V2",
+    "_magnetDn": "Bacurau.2019.PORTUGUESE.720p.BluRay.H264.AAC-VXT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/1eb3466869c9480c1fc32e31673b68e5846f4f89?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=17901732f12fc4c2aae40f16761a766a7fdc6b875be2204af023f417f8f28a17"
+   },
+   {
+    "title": "Bacurau.2019.720p.TRUEFRENCH.BluRay.x264.AC3-STVFRV\n👤 1 💾 4.10 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 4402341478,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau.2019.720p.TRUEFRENCH.BluRay.x264.AC3-STVFRV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/79035c2e57ccca7c3199a160a5befb4b2d915b81?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=3d4dab1ab40111ef2e90840526988b399d9d3bb6b3deeb6a3ccb48f174e99eea"
+   },
+   {
+    "title": "Bacurau HEVC 10bit 720p sn6op mkv\n👤 1 💾 2.16 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2319282339,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau HEVC 10bit 720p sn6op mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/c8de58a924e5ae1413b60602ac129ca167cc5f14?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22i%22%3A%22tt2762506%22%7D&sig=619d13b72ef291b48594cc0523b0f9879ac90b9324921cf7264caee53bcf7898"
+   },
+   {
+    "title": "Bacurau.2019.VOSTFR.BRAZiLiAN.COMPLETE.BLURAY-FaiLED\n👤 0 💾 44.23 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] BluRay BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-BluRay"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 47491600875,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Bacurau.2019.VOSTFR.BRAZiLiAN.COMPLETE.BLURAY-FaiLED",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/5ecfab137eb29e6ea4429943685d24dd173fbf53?w=%7B%22n%22%3A%5B%22Bacurau%22%5D%2C%22y%22%3A2020%2C%22d%22%3A1%2C%22i%22%3A%22tt2762506%22%7D&sig=745df5dca4e74a99748d5576a9dde7ca0918827f696395d116b0dd79f5850a9b"
+   }
+  ]
+ }
+]

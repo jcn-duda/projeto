@@ -1,0 +1,13 @@
+{
+ "format": "adom-stream-frozen-request/1",
+ "case": "movie-tropa-de-elite",
+ "type": "movie",
+ "stream_id": "tt0861739",
+ "encoded_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8",
+ "encoded_len": 3,
+ "deadline_ms": 180000,
+ "user_agent": null,
+ "captured_at": "2026-10-20T05:41:39.651Z",
+ "node_version": "v22.23.2",
+ "mode": "record"
+}

@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "series-anime-naruto-s01e01",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "db69d3facd099c33b973fb06491e2441f677a0181cc41cc37880664e95ca785f",
+  "inputs/apply-debrid.json": "f3726272ad0f09576042bf632ab898f61ff9b62c583e320cd62798260e81fbed",
+  "inputs/collect.json": "c840b390c26520d7143fdd9501f272c9468849efcc7ea0b2ae4d86aaf5a4c70c",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "3803ac1d63bdbeeaa547bdd8166a1a3c0b0309031a9c5b688d944e855f05d0af",
+  "inputs/fallback.json": "d9a69efb7a58718a84bbfac938232113d334bdaa8b38abf41b42bd19a58b7c85",
+  "inputs/index.json": "64009f4dfef3e7d845b93965bb2c8a7d189215b6ac85f650f1ce1aa5cca2bec8",
+  "inputs/instant.json": "d3b2e7bf57fe20fc706fca0c5a3fe5f26ae6a0f8b13b423e4ebe65dc50309f76",
+  "inputs/meta.json": "e348dde1fd0bf8ba98d9f065d921c22cb68c692221e51cb278f69d91e25133d8",
+  "request.json": "7bb93d2aa6d1d74bd5744a42b2970518179dd1e8b0c0c9d084d6bcc595e5e80f"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

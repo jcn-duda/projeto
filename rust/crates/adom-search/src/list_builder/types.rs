@@ -100,6 +100,11 @@ pub struct BuildOptions {
     pub title_precision_tail_cut: bool,
     /// `config.audioAudit`: o `dn=` de cena EN anula a promessa de dublado.
     pub audio_audit: super::AudioAudit,
+    /// Hashes que o debrid desta conta já provou tocáveis (inventário/alive).
+    /// O Node usa isto como `instant` no sorteio; sem a lista, o desempate cai
+    /// para seeders e troca itens do mesmo balde de qualidade. Vem do operador
+    /// (inventário da conta), nunca do usuário.
+    pub instant_hashes: Vec<String>,
 }
 
 impl Default for BuildOptions {
@@ -132,6 +137,7 @@ impl Default for BuildOptions {
             pre_home_release_margin_ms: 0,
             title_precision_tail_cut: true,
             audio_audit: super::AudioAudit::default(),
+            instant_hashes: Vec::new(),
         }
     }
 }

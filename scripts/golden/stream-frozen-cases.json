@@ -1,0 +1,98 @@
+[
+ {
+  "id": "movie-cidade-de-deus",
+  "type": "movie",
+  "streamId": "tt0317248",
+  "label": "Cidade de Deus (BR Nacional)"
+ },
+ {
+  "id": "movie-tropa-de-elite",
+  "type": "movie",
+  "streamId": "tt0861739",
+  "label": "Tropa de Elite (BR Nacional)"
+ },
+ {
+  "id": "movie-central-do-brasil",
+  "type": "movie",
+  "streamId": "tt0140888",
+  "label": "Central do Brasil (BR Nacional)"
+ },
+ {
+  "id": "movie-auto-da-compadecida",
+  "type": "movie",
+  "streamId": "tt0271383",
+  "label": "O Auto da Compadecida (BR Nacional)"
+ },
+ {
+  "id": "movie-carandiru",
+  "type": "movie",
+  "streamId": "tt0293007",
+  "label": "Carandiru (BR Nacional)"
+ },
+ {
+  "id": "movie-bacurau",
+  "type": "movie",
+  "streamId": "tt2762506",
+  "label": "Bacurau (BR Nacional)"
+ },
+ {
+  "id": "movie-inception",
+  "type": "movie",
+  "streamId": "tt1375666",
+  "label": "Inception (Dublado Global)"
+ },
+ {
+  "id": "movie-matrix",
+  "type": "movie",
+  "streamId": "tt0133093",
+  "label": "Matrix (Global EN)"
+ },
+ {
+  "id": "movie-interstellar",
+  "type": "movie",
+  "streamId": "tt0816692",
+  "label": "Interstellar (Global)"
+ },
+ {
+  "id": "movie-parasite",
+  "type": "movie",
+  "streamId": "tt6751668",
+  "label": "Parasita (Dublado BR)"
+ },
+ {
+  "id": "movie-harry-potter-1",
+  "type": "movie",
+  "streamId": "tt0241527",
+  "label": "Harry Potter 1 (Multiobra/Pack)"
+ },
+ {
+  "id": "movie-kung-fu-panda-4",
+  "type": "movie",
+  "streamId": "tt21692408",
+  "label": "Kung Fu Panda 4 (Animação/Pack)"
+ },
+ {
+  "id": "series-breaking-bad-s01e01",
+  "type": "series",
+  "streamId": "tt0903747:1:1",
+  "label": "Breaking Bad S01E01 (Série)"
+ },
+ {
+  "id": "series-got-s08e03",
+  "type": "series",
+  "streamId": "tt0944947:8:3",
+  "label": "Game of Thrones S08E03 (Série)"
+ },
+ {
+  "id": "series-3-percent-s01e01",
+  "type": "series",
+  "streamId": "tt4922804:1:1",
+  "label": "3% S01E01 (Série BR Nacional)"
+ },
+ {
+  "id": "series-anime-naruto-s01e01",
+  "type": "series",
+  "streamId": "tt0409591:1:1",
+  "label": "Naruto S01E01 (Anime Dublado)"
+ }
+]

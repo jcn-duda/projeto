@@ -13,6 +13,7 @@ import { onlyNotice, createFirstObserver, promoteFirstObserverEligible } from '.
 import type { FirstObserverState } from './stream-builder.js';
 import { doSearch } from './search-orchestrator.js';
 import { debridRefreshSatisfied, staleRefreshEligible } from './search-commit.js';
+import * as frozen from '../utils/stream-frozen.js';
 
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
@@ -73,12 +74,16 @@ export async function findStreams({ type, id, background }: { type: string; id: 
   // justamente ela que o SWR quer servir enquanto o refresh de fundo roda.
   // Graça 0 restaura a semântica dura anterior (kill-switch).
   const grace = config.streamStaleGrace;
-  const hit = grace > 0
-    ? cache.getWithStale(cacheKey, grace)
-    : (() => {
-        const value = cache.get(cacheKey);
-        return value ? { value, stale: false } : null;
-      })();
+  // No replay congelado o SWR é desligado: servir uma entrada de produção
+  // mascararia justamente o pipeline que o gate quer medir.
+  const hit = frozen.active()
+    ? null
+    : grace > 0
+      ? cache.getWithStale(cacheKey, grace)
+      : (() => {
+          const value = cache.get(cacheKey);
+          return value ? { value, stale: false } : null;
+        })();
   if (hit) {
     const cached = hit.value;
     // O cache em SQLite sobrevive ao deploy, e a versão anterior gravava só o

@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-kung-fu-panda-4",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "4bf0694d92595f64e845ccb7a45a3a317c814ebc54c2e2d4d367839a1eeb0838",
+  "inputs/apply-debrid.json": "a848f36a08ceebd2f49422951d767c6609f247fa9119cadaa0b5ce6b1a08f46e",
+  "inputs/collect.json": "5812c2958d93d61ac8c96c4d00c4e4c8857ebc1a7da66cb983147e4cf642a3ae",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "b979c36ac040f998570d69f0767d7b8cd3926e3e6647a7495e08e71cb195cf0f",
+  "inputs/fallback.json": "e68856f8b2af06a1d746a58fb300fcf61e580713708ede6e1612caa6c917b94b",
+  "inputs/index.json": "9e9df6ac4169d4ee750179092d19562c4d546e0e5e695ac847b9c796df14feba",
+  "inputs/instant.json": "2390de8e211317d303e5cbfd52da6d1555f4b620514cdc9bc6a92ed37f732f21",
+  "inputs/meta.json": "872e35632698b11905ee9e9857c6e0bac379eb2ef5b36c308485475fe1039623",
+  "request.json": "e2bbc862ba6352348fd639c58453b389006809e3954c9121ade27d6a6769c136"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

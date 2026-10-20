@@ -1,0 +1,1060 @@
+[
+ {
+  "key": "alldebrid|0|00a781baf81af07c73b96faceb3182eb260098f6,02ed0e5cb86d4995132b8c154e8ff0005aad0a51,158531b47ec6c39c579d6e4410f3212a812f3f14,18689ed476198173d158dbf2cb48f88210b3951b,1c6b2179bcd73efd07fb8018268598c062cf95af,224bf45881252643dfc2e71abc7b2660a21c68c4,2849211f150e966ef7924f43aec22727a644e10d,2b33af03de0ea1ceb6d9d2a4317a23348dd809bc,2b4fba86244a317b5e607fbff1755cb4d8599281,343d7045b5434e8949472595b3f10718c8bb2f5b,39f28706f3bda8f8ac0081c18d6043a752d6d6b9,3e311f344c7b992c79f04555acd5cfbd1a68a1ea,43e3691dc6f4172841e32b25b349e2b7a980b9c5,50b2f9b9e57fcac9ad6ba129f3d6d854e8c48840,56d03db239621cc39d25dd22e8fd81216c03ebd6,620e8b3e2ae9c9ee212dba048309ac34d63b64e2,6a7165dc823829c6c58b966e1f40d23209db3d73,82574de3afad807dcc25dbbd794d69f67b143311,a7d717f9fb5b34162db85aeb95423213bc71679f,ae3cd89c76804abfeb8977318afdc240de2ef246,b1e586533c3120c783f1f8815ba9197933726908,b8d2b6a12a152de91d32119c38e81a53918d7d35,b9b055311fc31fa5e44b0035fe4ea80a12a206c2,c301b175cae6ae4870076bd478680b6e3fc13743,ce9156eb497762f8b7577b71c0647a4b0c3423e1,e872a00f346bab17d7e2593d08e0fa38f3f885fc,ff6598d2faf91fd52f2c40a7e273ee356c8c68b6",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "A Origem 4k 2160p Dual Audio\n👤 14 💾 24.62 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 4K BR · LimeTorrents · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 26435523706,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "A Origem 4k 2160p Dual Audio",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b8d2b6a12a152de91d32119c38e81a53918d7d35?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=73f9f0bbd9faa3e2fa51124ce6a0751aec9643a27cfacff249a567cd4f9a8a48"
+   },
+   {
+    "title": "Inception.2010.2160p.DV.HDR10Plus.Ai-Enhanced.HEVC.DTS-HD.MA.5.1.MULTI-RIFE.4.18-60fps-DirtyHippie\n👤 6 💾 49.82 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K · kickass · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 53493817671,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.2160p.DV.HDR10Plus.Ai-Enhanced.HEVC.DTS-HD.MA.5.1.MULTI-RIFE.4.18-60fps-DirtyHippie",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/6a7165dc823829c6c58b966e1f40d23209db3d73?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=00f91211e8a8f434b89a06b5c0be468ae0ec3428264dd89511975bef8a9bca8a"
+   },
+   {
+    "title": "Inception.2010.Multi.2160p.UHD.Bluray.x265.DTS-HDMA.5.1.[En+Hi]-\n👤 6 💾 24.43 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K BluRay · The Pirate Bay · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 26235984934,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception.2010.Multi.2160p.UHD.Bluray.x265.DTS-HDMA.5.1.[En+Hi]-",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/82574de3afad807dcc25dbbd794d69f67b143311?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=baf0d05201465ba041956787cb6eed75b494a707284c4fd60b89cb6203da0cbd"
+   },
+   {
+    "title": "Inception.2010.UHD.Bluray.1080p.DUAL.x264-HDM\n👤 2 💾 5.97 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K BluRay · The Pirate Bay · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 6409103167,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception.2010.UHD.Bluray.1080p.DUAL.x264-HDM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/50b2f9b9e57fcac9ad6ba129f3d6d854e8c48840?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=a4688b8a98c4e13bd2a15b88a65a63b4b5e93975e473c41f2f7a7dc4159dba01"
+   },
+   {
+    "title": "Inception 2010 PROPER Bluray 2160p AV1 HDR10 EN/ITA/FR/ES/DE OPUS 5.1-UH\n👤 299 💾 8.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K BluRay · kickass · 👤 299",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 9556302233,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception 2010 PROPER Bluray 2160p AV1 HDR10 EN/ITA/FR/ES/DE OPUS 5.1-UH",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2849211f150e966ef7924f43aec22727a644e10d?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=25288fd0f999bd68ef8d9fac7cba076d0cc206ebd9a6bc422df1259779a3ac65"
+   },
+   {
+    "title": "Inception (2010) 2160p 4k BluRay [YTS.MX]\n👤 216 💾 6.64 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K BluRay · kickass · 👤 216",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 7129645711,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception (2010) 2160p 4k BluRay YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/43e3691dc6f4172841e32b25b349e2b7a980b9c5?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=e38cf6872ca0c71e38dcde8bce02d836c126e13941a67c19743332a8a2d280fc"
+   },
+   {
+    "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, detective, UHD BDRip 1080p, HDR10, Dolby Vision] [Hybrid] Dub + 2x DVO + 2x AVO + 2x Ukr + Original (Eng) + Sub (Rus, Ukr, Eng)\n👤 180 💾 24.25 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K · kickass · 👤 180",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 26038239232,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Начало / Inception (Кристофер Нолан / Christopher Nolan) [2010, США, Великобритания, фантастика, боевик, триллер, драма, детектив, UHD BDRip 1080p, HDR10, Dolby Vision] [Hybrid] Dub + 2x DVO + 2x AVO + 2x Ukr + Original (Eng) + Sub (Rus, Ukr, Eng)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/343d7045b5434e8949472595b3f10718c8bb2f5b?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=d22c0e152c8fdb821c8ab192e79582b84e8188caae47250ba8c686862e728d91"
+   },
+   {
+    "title": "Inception.2010.2160p.BluRay.REMUX.HEVC.DTS-HD.MA.5.1-FGT\n👤 82 💾 79.57 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K BluRay · The Pirate Bay · 👤 82",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 85436578328,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception.2010.2160p.BluRay.REMUX.HEVC.DTS-HD.MA.5.1-FGT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ae3cd89c76804abfeb8977318afdc240de2ef246?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=3e97a312e3cb73ea577f0b6c5d4fd09f060ced46c790b335808444d3d474d566"
+   },
+   {
+    "title": "A Origem 2010 1080p BluRay x264-Belex - Dual Audio + Legenda\n👤 2 💾 11.59 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay BR · The Pirate Bay · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 12442460702,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem 2010 1080p BluRay x264-Belex - Dual Audio + Legenda",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b9b055311fc31fa5e44b0035fe4ea80a12a206c2?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=9b8553cbd9c35be01a151e1fa99849a9f76e8c5659049a13bab9927832d8e9db"
+   },
+   {
+    "title": "A.Origem.2010.1080p.DUAL.5.1.BluRay.x265.HDR-SF\n👤 1 💾 5.45 GB ⚙️ AllDebrid",
+    "name": "[AD download] 1080p BluRay BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5851990988,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e872a00f346bab17d7e2593d08e0fa38f3f885fc?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=5d7620d3e1b7b84466f87ac216364fb04061c558e83cdbb5e570fecc403ab6de"
+   },
+   {
+    "title": "Inception (2010) 1080p BrRip x264 - 1.85GB -YIFY\n👤 719 💾 1.85 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p · The Pirate Bay · 👤 719",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 1991613584,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception (2010) 1080p BrRip x264 - 1.85GB -YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/224bf45881252643dfc2e71abc7b2660a21c68c4?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=5187439e49e78968f12c88f5ca83f4e03aa7ce71b4cc1b5faa539f0a7eaaf04a"
+   },
+   {
+    "title": "Inception.2010.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265\n👤 250 💾 2.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 250",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 3113851289,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/1c6b2179bcd73efd07fb8018268598c062cf95af?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=d3110dd1f6d4675ce66b4092f6b1ce318cafd70361c8903aa79ea6166ce6ce49"
+   },
+   {
+    "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, BDRip 1080p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng\n👤 175 💾 20.89 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 175",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 22430466703,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.1080p.BluRay.x264.5xRus.Eng-Otaibi.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/158531b47ec6c39c579d6e4410f3212a812f3f14?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=2517fb2315fc15a729da95d948336501e57579dc7c68cd91b000c2d4a55b44c6"
+   },
+   {
+    "title": "Inception 2010 1080p BluRay HEVC x265 5.1 BONE\n👤 102 💾 1.99 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 102",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2138804320,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception 2010 1080p BluRay HEVC x265 5.1 BONE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2b4fba86244a317b5e607fbff1755cb4d8599281?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=0a6791557e8b76c01821ad30d062e9894126c455ca5d0e83ef9ecf9b60448f5b"
+   },
+   {
+    "title": "A Origem (2010) 1080p Dublado / Dual Audio pt-BR\n👤 10 💾 2.16 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BR · The Pirate Bay · 👤 10",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2314639255,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem (2010) 1080p Dublado / Dual Audio pt-BR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/c301b175cae6ae4870076bd478680b6e3fc13743?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=791f286237b68700eb49f4c2479829b99c0046323f2b5414d6747de824f04074"
+   },
+   {
+    "title": "A Origem 2010 1080p BRRip x264 DUAL-JRViX mkv\n👤 0 💾 2.49 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2673617141,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "A Origem 2010 1080p BRRip x264 DUAL-JRViX mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/b1e586533c3120c783f1f8815ba9197933726908?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=98b80ef8f2e943f6051e0470907275e2fb13c7aa568ca4a46af7f501dde34074"
+   },
+   {
+    "title": "Inception (2010) 720p - mkv - 1.0GB -YIFY\n👤 88 💾 1.07 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p · The Pirate Bay · 👤 88",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1152559047,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception (2010) 720p - mkv - 1.0GB -YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ce9156eb497762f8b7577b71c0647a4b0c3423e1?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=f6e815475bc379c46510af7e51982205a2bf7f6ddcbede3b08454e2e2ed5bbe5"
+   },
+   {
+    "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, BDRip 720p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng\n👤 70 💾 14.86 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 70",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 15955803504,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Начало / Inception (Кристофер Нолан / Christopher Nolan) [2010, США, Великобритания, фантастика, боевик, триллер, драма, BDRip 720p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2b33af03de0ea1ceb6d9d2a4317a23348dd809bc?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=e75f2295c5ddc0a6ede6ce4da7e3643516d47848b74733e9d273cad549f0d77e"
+   },
+   {
+    "title": "Inception 2010 720p BluRay 999MB HQ x265 10bit-GalaxyRG\n👤 23 💾 991.50 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 23",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1039663104,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.720p.BluRay.999MB.HQ.x265.10bit-GalaxyRG ⭐",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/00a781baf81af07c73b96faceb3182eb260098f6?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=e228a56ded6082f94a459117dcc582247efadc3d5b7c94a18526bf9e689ac917"
+   },
+   {
+    "title": "Inception (2010) 720p BluRay - x264 - (DD 5.1 - 224Kbps) [Tel + Tam + Hin + Eng]\n👤 13 💾 1.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 2040109465,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception (2010) 720p BluRay - x264 - (DD 5.1 - 224Kbps) [Tel + Tam + Hin + Eng].mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/18689ed476198173d158dbf2cb48f88210b3951b?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=64801aed41e7e66d39fd0ab32a217969dd0c86a05596684d187b7e86b10837f9"
+   },
+   {
+    "title": "A.Origem.(Inception).2010.720p.HD.Dublado.PT-BR.210GJI\n👤 9 💾 861.85 MB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BR · The Pirate Bay · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 903715307,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A.Origem.(Inception).2010.720p.HD.Dublado.PT-BR.210GJI",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a7d717f9fb5b34162db85aeb95423213bc71679f?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=1bf8e344fa7202ddf92dbe9d6d5db736a4230775a2cc3bff5e698ac9bf64aad2"
+   },
+   {
+    "title": "Inception.2010.MULTi.720p.BluRay.H264.DTS.AC3\n👤 8 💾 5.29 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 5680094248,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.MULTi.720p.BluRay.H264.DTS.AC3",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/620e8b3e2ae9c9ee212dba048309ac34d63b64e2?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=28382bed63d80e9dbac370ae5cb0fcc9cb2852e8a0943d412446e5dd19ba3586"
+   },
+   {
+    "title": "A Origem (2010) BDRip 720p Dublado\n👤 1 💾 860.64 MB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BR · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 902447419,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem (2010) BDRip 720p Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ff6598d2faf91fd52f2c40a7e273ee356c8c68b6?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=aaadb6fb105ea44fce724c8c65875d43f38459719fe929c112ac93638173eca6"
+   },
+   {
+    "title": "A Origem 720p Dublado\n👤 0 💾 860.62 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 902425477,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "A Origem 720p Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/39f28706f3bda8f8ac0081c18d6043a752d6d6b9?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=06209c6a08a625c327612459ce02d10bec67baecccb6605f9c664c181c495623"
+   },
+   {
+    "title": "A Origem 2010 DVRip Dual Audio pt-br\n👤 0 💾 2.27 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 2437393940,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "A Origem 2010 DVRip Dual Audio pt-br",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/56d03db239621cc39d25dd22e8fd81216c03ebd6?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=a44bf35664123a42184ecc51278fea2822929ece87921377b4ddf26f61e3b24d"
+   },
+   {
+    "title": "A Origem (Inception) 2010 Dual-Audio Dublado BDRip\n👤 0 💾 2.25 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] BR · The Pirate Bay",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 2418067197,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem (Inception) 2010 Dual-Audio Dublado BDRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/02ed0e5cb86d4995132b8c154e8ff0005aad0a51?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=f5c46c7ba91bb44517e45fa7cf0eb100cb054904d7376b37eb0a947e508db645"
+   },
+   {
+    "title": "A Origem - Dublado [Blu-Ray]\n👤 0 💾 25.51 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] BluRay BR · The Pirate Bay",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-BluRay"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 27393825538,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem - Dublado [Blu-Ray]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/3e311f344c7b992c79f04555acd5cfbd1a68a1ea?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=a3ea08bb69d5e8f69c147fbfbede0dae0b208b962451e49210d96a95e66672ba"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|00a781baf81af07c73b96faceb3182eb260098f6,02ed0e5cb86d4995132b8c154e8ff0005aad0a51,158531b47ec6c39c579d6e4410f3212a812f3f14,18689ed476198173d158dbf2cb48f88210b3951b,1c6b2179bcd73efd07fb8018268598c062cf95af,224bf45881252643dfc2e71abc7b2660a21c68c4,2849211f150e966ef7924f43aec22727a644e10d,2b33af03de0ea1ceb6d9d2a4317a23348dd809bc,2b4fba86244a317b5e607fbff1755cb4d8599281,343d7045b5434e8949472595b3f10718c8bb2f5b,39f28706f3bda8f8ac0081c18d6043a752d6d6b9,3e311f344c7b992c79f04555acd5cfbd1a68a1ea,43e3691dc6f4172841e32b25b349e2b7a980b9c5,50b2f9b9e57fcac9ad6ba129f3d6d854e8c48840,56d03db239621cc39d25dd22e8fd81216c03ebd6,620e8b3e2ae9c9ee212dba048309ac34d63b64e2,6a7165dc823829c6c58b966e1f40d23209db3d73,82574de3afad807dcc25dbbd794d69f67b143311,a7d717f9fb5b34162db85aeb95423213bc71679f,ae3cd89c76804abfeb8977318afdc240de2ef246,b1e586533c3120c783f1f8815ba9197933726908,b8d2b6a12a152de91d32119c38e81a53918d7d35,b9b055311fc31fa5e44b0035fe4ea80a12a206c2,c301b175cae6ae4870076bd478680b6e3fc13743,ce9156eb497762f8b7577b71c0647a4b0c3423e1,e872a00f346bab17d7e2593d08e0fa38f3f885fc,ff6598d2faf91fd52f2c40a7e273ee356c8c68b6",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "A Origem 4k 2160p Dual Audio\n👤 14 💾 24.62 GB ⚙️ LimeTorrents",
+    "name": "[AD download] 4K BR · LimeTorrents · 👤 14",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 26435523706,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "limetorrents",
+    "_tracker": "LimeTorrents",
+    "_magnetDn": "A Origem 4k 2160p Dual Audio",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b8d2b6a12a152de91d32119c38e81a53918d7d35?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=73f9f0bbd9faa3e2fa51124ce6a0751aec9643a27cfacff249a567cd4f9a8a48"
+   },
+   {
+    "title": "Inception.2010.2160p.DV.HDR10Plus.Ai-Enhanced.HEVC.DTS-HD.MA.5.1.MULTI-RIFE.4.18-60fps-DirtyHippie\n👤 6 💾 49.82 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K · kickass · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 53493817671,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.2160p.DV.HDR10Plus.Ai-Enhanced.HEVC.DTS-HD.MA.5.1.MULTI-RIFE.4.18-60fps-DirtyHippie",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/6a7165dc823829c6c58b966e1f40d23209db3d73?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=00f91211e8a8f434b89a06b5c0be468ae0ec3428264dd89511975bef8a9bca8a"
+   },
+   {
+    "title": "Inception.2010.Multi.2160p.UHD.Bluray.x265.DTS-HDMA.5.1.[En+Hi]-\n👤 6 💾 24.43 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K BluRay · The Pirate Bay · 👤 6",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 26235984934,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception.2010.Multi.2160p.UHD.Bluray.x265.DTS-HDMA.5.1.[En+Hi]-",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/82574de3afad807dcc25dbbd794d69f67b143311?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=baf0d05201465ba041956787cb6eed75b494a707284c4fd60b89cb6203da0cbd"
+   },
+   {
+    "title": "Inception.2010.UHD.Bluray.1080p.DUAL.x264-HDM\n👤 2 💾 5.97 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K BluRay · The Pirate Bay · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 6409103167,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception.2010.UHD.Bluray.1080p.DUAL.x264-HDM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/50b2f9b9e57fcac9ad6ba129f3d6d854e8c48840?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=a4688b8a98c4e13bd2a15b88a65a63b4b5e93975e473c41f2f7a7dc4159dba01"
+   },
+   {
+    "title": "Inception 2010 PROPER Bluray 2160p AV1 HDR10 EN/ITA/FR/ES/DE OPUS 5.1-UH\n👤 299 💾 8.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K BluRay · kickass · 👤 299",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 9556302233,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception 2010 PROPER Bluray 2160p AV1 HDR10 EN/ITA/FR/ES/DE OPUS 5.1-UH",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2849211f150e966ef7924f43aec22727a644e10d?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=25288fd0f999bd68ef8d9fac7cba076d0cc206ebd9a6bc422df1259779a3ac65"
+   },
+   {
+    "title": "Inception (2010) 2160p 4k BluRay [YTS.MX]\n👤 216 💾 6.64 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K BluRay · kickass · 👤 216",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 7129645711,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception (2010) 2160p 4k BluRay YTS YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/43e3691dc6f4172841e32b25b349e2b7a980b9c5?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=e38cf6872ca0c71e38dcde8bce02d836c126e13941a67c19743332a8a2d280fc"
+   },
+   {
+    "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, detective, UHD BDRip 1080p, HDR10, Dolby Vision] [Hybrid] Dub + 2x DVO + 2x AVO + 2x Ukr + Original (Eng) + Sub (Rus, Ukr, Eng)\n👤 180 💾 24.25 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 4K · kickass · 👤 180",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-any"
+    },
+    "_quality": "2160p",
+    "_bytes": 26038239232,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Начало / Inception (Кристофер Нолан / Christopher Nolan) [2010, США, Великобритания, фантастика, боевик, триллер, драма, детектив, UHD BDRip 1080p, HDR10, Dolby Vision] [Hybrid] Dub + 2x DVO + 2x AVO + 2x Ukr + Original (Eng) + Sub (Rus, Ukr, Eng)",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/343d7045b5434e8949472595b3f10718c8bb2f5b?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=d22c0e152c8fdb821c8ab192e79582b84e8188caae47250ba8c686862e728d91"
+   },
+   {
+    "title": "Inception.2010.2160p.BluRay.REMUX.HEVC.DTS-HD.MA.5.1-FGT\n👤 82 💾 79.57 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 4K BluRay · The Pirate Bay · 👤 82",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-BluRay"
+    },
+    "_quality": "2160p",
+    "_bytes": 85436578328,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception.2010.2160p.BluRay.REMUX.HEVC.DTS-HD.MA.5.1-FGT",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ae3cd89c76804abfeb8977318afdc240de2ef246?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=3e97a312e3cb73ea577f0b6c5d4fd09f060ced46c790b335808444d3d474d566"
+   },
+   {
+    "title": "A Origem 2010 1080p BluRay x264-Belex - Dual Audio + Legenda\n👤 2 💾 11.59 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay BR · The Pirate Bay · 👤 2",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 12442460702,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem 2010 1080p BluRay x264-Belex - Dual Audio + Legenda",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b9b055311fc31fa5e44b0035fe4ea80a12a206c2?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=9b8553cbd9c35be01a151e1fa99849a9f76e8c5659049a13bab9927832d8e9db"
+   },
+   {
+    "title": "A.Origem.2010.1080p.DUAL.5.1.BluRay.x265.HDR-SF\n👤 1 💾 5.45 GB ⚙️ AllDebrid",
+    "name": "[AD download] 1080p BluRay BR · AllDebrid · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 5851990988,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "debrid",
+    "_tracker": "AllDebrid",
+    "_magnetDn": "",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e872a00f346bab17d7e2593d08e0fa38f3f885fc?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=5d7620d3e1b7b84466f87ac216364fb04061c558e83cdbb5e570fecc403ab6de"
+   },
+   {
+    "title": "Inception (2010) 1080p BrRip x264 - 1.85GB -YIFY\n👤 719 💾 1.85 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p · The Pirate Bay · 👤 719",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 1991613584,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception (2010) 1080p BrRip x264 - 1.85GB -YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/224bf45881252643dfc2e71abc7b2660a21c68c4?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=5187439e49e78968f12c88f5ca83f4e03aa7ce71b4cc1b5faa539f0a7eaaf04a"
+   },
+   {
+    "title": "Inception.2010.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265\n👤 250 💾 2.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 250",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 3113851289,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG265",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/1c6b2179bcd73efd07fb8018268598c062cf95af?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=d3110dd1f6d4675ce66b4092f6b1ce318cafd70361c8903aa79ea6166ce6ce49"
+   },
+   {
+    "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, BDRip 1080p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng\n👤 175 💾 20.89 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BluRay · kickass · 👤 175",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 22430466703,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.1080p.BluRay.x264.5xRus.Eng-Otaibi.mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/158531b47ec6c39c579d6e4410f3212a812f3f14?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=2517fb2315fc15a729da95d948336501e57579dc7c68cd91b000c2d4a55b44c6"
+   },
+   {
+    "title": "Inception 2010 1080p BluRay HEVC x265 5.1 BONE\n👤 102 💾 1.99 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 102",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2138804320,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception 2010 1080p BluRay HEVC x265 5.1 BONE",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2b4fba86244a317b5e607fbff1755cb4d8599281?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=0a6791557e8b76c01821ad30d062e9894126c455ca5d0e83ef9ecf9b60448f5b"
+   },
+   {
+    "title": "A Origem (2010) 1080p Dublado / Dual Audio pt-BR\n👤 10 💾 2.16 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BR · The Pirate Bay · 👤 10",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2314639255,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem (2010) 1080p Dublado / Dual Audio pt-BR",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/c301b175cae6ae4870076bd478680b6e3fc13743?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=791f286237b68700eb49f4c2479829b99c0046323f2b5414d6747de824f04074"
+   },
+   {
+    "title": "A Origem 2010 1080p BRRip x264 DUAL-JRViX mkv\n👤 0 💾 2.49 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 1080p BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-any"
+    },
+    "_quality": "1080p",
+    "_bytes": 2673617141,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "A Origem 2010 1080p BRRip x264 DUAL-JRViX mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/b1e586533c3120c783f1f8815ba9197933726908?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=98b80ef8f2e943f6051e0470907275e2fb13c7aa568ca4a46af7f501dde34074"
+   },
+   {
+    "title": "Inception (2010) 720p - mkv - 1.0GB -YIFY\n👤 88 💾 1.07 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p · The Pirate Bay · 👤 88",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 1152559047,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "Inception (2010) 720p - mkv - 1.0GB -YIFY",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ce9156eb497762f8b7577b71c0647a4b0c3423e1?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=f6e815475bc379c46510af7e51982205a2bf7f6ddcbede3b08454e2e2ed5bbe5"
+   },
+   {
+    "title": "Inception [2010, USA, UK, sci-fi, action, thriller, drama, BDRip 720p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng\n👤 70 💾 14.86 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p · kickass · 👤 70",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 15955803504,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Начало / Inception (Кристофер Нолан / Christopher Nolan) [2010, США, Великобритания, фантастика, боевик, триллер, драма, BDRip 720p] Dub + 2x DVO + 2x AVO + Original Eng + Sub Rus, Eng",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/2b33af03de0ea1ceb6d9d2a4317a23348dd809bc?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=e75f2295c5ddc0a6ede6ce4da7e3643516d47848b74733e9d273cad549f0d77e"
+   },
+   {
+    "title": "Inception 2010 720p BluRay 999MB HQ x265 10bit-GalaxyRG\n👤 23 💾 991.50 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 23",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1039663104,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.720p.BluRay.999MB.HQ.x265.10bit-GalaxyRG ⭐",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/00a781baf81af07c73b96faceb3182eb260098f6?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=e228a56ded6082f94a459117dcc582247efadc3d5b7c94a18526bf9e689ac917"
+   },
+   {
+    "title": "Inception (2010) 720p BluRay - x264 - (DD 5.1 - 224Kbps) [Tel + Tam + Hin + Eng]\n👤 13 💾 1.90 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 13",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 2040109465,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception (2010) 720p BluRay - x264 - (DD 5.1 - 224Kbps) [Tel + Tam + Hin + Eng].mkv",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/18689ed476198173d158dbf2cb48f88210b3951b?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=64801aed41e7e66d39fd0ab32a217969dd0c86a05596684d187b7e86b10837f9"
+   },
+   {
+    "title": "A.Origem.(Inception).2010.720p.HD.Dublado.PT-BR.210GJI\n👤 9 💾 861.85 MB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BR · The Pirate Bay · 👤 9",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 903715307,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A.Origem.(Inception).2010.720p.HD.Dublado.PT-BR.210GJI",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/a7d717f9fb5b34162db85aeb95423213bc71679f?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=1bf8e344fa7202ddf92dbe9d6d5db736a4230775a2cc3bff5e698ac9bf64aad2"
+   },
+   {
+    "title": "Inception.2010.MULTi.720p.BluRay.H264.DTS.AC3\n👤 8 💾 5.29 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BluRay · kickass · 👤 8",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 5680094248,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "Inception.2010.MULTi.720p.BluRay.H264.DTS.AC3",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/620e8b3e2ae9c9ee212dba048309ac34d63b64e2?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22i%22%3A%22tt1375666%22%7D&sig=28382bed63d80e9dbac370ae5cb0fcc9cb2852e8a0943d412446e5dd19ba3586"
+   },
+   {
+    "title": "A Origem (2010) BDRip 720p Dublado\n👤 1 💾 860.64 MB ⚙️ The Pirate Bay",
+    "name": "[AD download] 720p BR · The Pirate Bay · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 902447419,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem (2010) BDRip 720p Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ff6598d2faf91fd52f2c40a7e273ee356c8c68b6?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=aaadb6fb105ea44fce724c8c65875d43f38459719fe929c112ac93638173eca6"
+   },
+   {
+    "title": "A Origem 720p Dublado\n👤 0 💾 860.62 MB ⚙️ kickasstorrents.to",
+    "name": "[AD download] 720p BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 902425477,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "A Origem 720p Dublado",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/39f28706f3bda8f8ac0081c18d6043a752d6d6b9?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=06209c6a08a625c327612459ce02d10bec67baecccb6605f9c664c181c495623"
+   },
+   {
+    "title": "A Origem 2010 DVRip Dual Audio pt-br\n👤 0 💾 2.27 GB ⚙️ kickasstorrents.to",
+    "name": "[AD download] BR · kickass",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 2437393940,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "kickasstorrents-to",
+    "_tracker": "kickasstorrents.to",
+    "_magnetDn": "A Origem 2010 DVRip Dual Audio pt-br",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/56d03db239621cc39d25dd22e8fd81216c03ebd6?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=a44bf35664123a42184ecc51278fea2822929ece87921377b4ddf26f61e3b24d"
+   },
+   {
+    "title": "A Origem (Inception) 2010 Dual-Audio Dublado BDRip\n👤 0 💾 2.25 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] BR · The Pirate Bay",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-any"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 2418067197,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem (Inception) 2010 Dual-Audio Dublado BDRip",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/02ed0e5cb86d4995132b8c154e8ff0005aad0a51?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=f5c46c7ba91bb44517e45fa7cf0eb100cb054904d7376b37eb0a947e508db645"
+   },
+   {
+    "title": "A Origem - Dublado [Blu-Ray]\n👤 0 💾 25.51 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] BluRay BR · The Pirate Bay",
+    "behaviorHints": {
+     "bingeGroup": "powerm-na-BluRay"
+    },
+    "_quality": "sem resolução",
+    "_bytes": 27393825538,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Origem - Dublado [Blu-Ray]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "_seedFloorWaived": true,
+    "url": "/e30/resolve/3e311f344c7b992c79f04555acd5cfbd1a68a1ea?w=%7B%22n%22%3A%5B%22Inception%22%2C%22A%20Origem%22%5D%2C%22y%22%3A2010%2C%22d%22%3A1%2C%22i%22%3A%22tt1375666%22%7D&sig=a3ea08bb69d5e8f69c147fbfbede0dae0b208b962451e49210d96a95e66672ba"
+   }
+  ]
+ }
+]

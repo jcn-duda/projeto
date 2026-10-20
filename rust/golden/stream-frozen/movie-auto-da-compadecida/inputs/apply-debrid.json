@@ -1,0 +1,328 @@
+[
+ {
+  "key": "alldebrid|0|41be6f40abfb8ecfaf44a21e4c560dacf454fa6e,4299faf9cf5e223796c3b23f98e9647538f59acd,438ad83956a3c44a26bdda4aee228c4aa14a1764,ab4912ac4783493528e8d629159aad85868ce2c0,b71926031dea70bd81e9e1b1e29faafc99d97bfe,d64dea631759215465368633b0e4a1c91c845530,d79dd45f3354530852ee754a7bbad31777ee56af,e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "O Auto da Compadecida - Versão Estendida [DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 4K Extended CAM BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-CAM"
+    },
+    "_quality": "2160p",
+    "_bytes": 1256277934,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "O Auto da Compadecida.avi",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d64dea631759215465368633b0e4a1c91c845530?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=79f756c93399d2b7cf629161cea01f761b43e7138da80cde3e3dc371c8f20ac7"
+   },
+   {
+    "title": "A Dog's Will (2000) (1080p BluRay x265 10bit EAC3 5.1 Portuguese r00t) [QxR]\n👤 101 💾 6.32 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 101",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6782556826,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Dog's Will (2000) (1080p BluRay x265 10bit EAC3 5.1 Portuguese r00t) [QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e1f33a5752f85c1817547fbd8fb0fd4b47051c1d?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=96a52ba82a6f36a9cc0e91d29863497e38c278f7317339bd04dfd28bcbc5a779"
+   },
+   {
+    "title": "A.Dog's.Will.2000.PORTUGUESE.1080p.10bit.BluRay.6CH.x265.HEVC\n👤 33 💾 2.10 GB ⚙️ TheRARBG",
+    "name": "[AD download] 1080p BluRay · TheRARBG · 👤 33",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2259415380,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "A.Dog's.Will.2000.PORTUGUESE.1080p.10bit.BluRay.6CH.x265.HEVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ab4912ac4783493528e8d629159aad85868ce2c0?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=8c2437b65acce519ad96f68a97a1e43b85d154c9a6e499c44b1e10ce917de860"
+   },
+   {
+    "title": "O Auto da Compadecida [720p WEBRIP DUBLADO]\n👤 1 💾 2.04 GB ⚙️ Bludv",
+    "name": "[AD download] 720p WEBRip BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2190433320,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "O Auto da Compadecida 2000 (720p) WWW.LAPUMiAFiLMES.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/4299faf9cf5e223796c3b23f98e9647538f59acd?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=8c9e4769648c50994c3b22f466a8644c60ea73ad64133d6ffbbde0d0f4d5ea07"
+   },
+   {
+    "title": "O Auto da Compadecida [720p DUBLADO]\n👤 1 💾 6.85 GB ⚙️ Bludv",
+    "name": "[AD download] 720p BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 7355131494,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "{WWW.BLUDV.TV} O Auto da Compadecida 2000 (DVDRip) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/438ad83956a3c44a26bdda4aee228c4aa14a1764?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=1c6dc19062e936c580391d92c9fdcd8e6c891483831867c4bb599175bf7978ea"
+   },
+   {
+    "title": "A.Dog's.Will.2000.PORTUGUESE.720p.10bit.BluRay.6CH.x265.HEVC\n👤 40 💾 1.07 GB ⚙️ TheRARBG",
+    "name": "[AD download] 720p BluRay · TheRARBG · 👤 40",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1143861283,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "A.Dog's.Will.2000.PORTUGUESE.720p.10bit.BluRay.6CH.x265.HEVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/41be6f40abfb8ecfaf44a21e4c560dacf454fa6e?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=efe850b6c595ee52b945d50db12790a34f46424f817fafb84ace5e883f130a18"
+   },
+   {
+    "title": "O Auto da Compadecida (2000) 720p WEBRip x264 -YTS\n👤 17 💾 943.15 MB ⚙️ YTS",
+    "name": "[AD download] 720p WEBRip · YTS · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 988964454,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "O Auto da Compadecida (2000) 720p WEBRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d79dd45f3354530852ee754a7bbad31777ee56af?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=3cd7a5fa2a707c9e9c60e05a131f4f4707b2ad02d31c25a12dbeacba74944659"
+   },
+   {
+    "title": "O Auto da Compadecida [720p DUBLADO]\n👤 1 💾 2.47 GB ⚙️ Bludv",
+    "name": "[AD download] 720p BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2652142305,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "{WWW.BLUDV.TV} O Auto da Compadecida 2000 (x265) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b71926031dea70bd81e9e1b1e29faafc99d97bfe?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=39dc90049e4152fb1f73806322627312b43defd60024b872c1de70fbf2bf33aa"
+   }
+  ]
+ },
+ {
+  "key": "alldebrid|0|41be6f40abfb8ecfaf44a21e4c560dacf454fa6e,4299faf9cf5e223796c3b23f98e9647538f59acd,438ad83956a3c44a26bdda4aee228c4aa14a1764,ab4912ac4783493528e8d629159aad85868ce2c0,b71926031dea70bd81e9e1b1e29faafc99d97bfe,d64dea631759215465368633b0e4a1c91c845530,d79dd45f3354530852ee754a7bbad31777ee56af,e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+  "signals": [
+   {
+    "known": false,
+    "needsFullRefresh": true
+   }
+  ],
+  "output": [
+   {
+    "title": "O Auto da Compadecida - Versão Estendida [DUBLADO]\n👤 1 ⚙️ Apache Torrent",
+    "name": "[AD download] 4K Extended CAM BR · Apache Torrent · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-2160p-CAM"
+    },
+    "_quality": "2160p",
+    "_bytes": 1256277934,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
+    "_magnetDn": "O Auto da Compadecida.avi",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d64dea631759215465368633b0e4a1c91c845530?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=79f756c93399d2b7cf629161cea01f761b43e7138da80cde3e3dc371c8f20ac7"
+   },
+   {
+    "title": "A Dog's Will (2000) (1080p BluRay x265 10bit EAC3 5.1 Portuguese r00t) [QxR]\n👤 101 💾 6.32 GB ⚙️ The Pirate Bay",
+    "name": "[AD download] 1080p BluRay · The Pirate Bay · 👤 101",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 6782556826,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "thepiratebay",
+    "_tracker": "The Pirate Bay",
+    "_magnetDn": "A Dog's Will (2000) (1080p BluRay x265 10bit EAC3 5.1 Portuguese r00t) [QxR]",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/e1f33a5752f85c1817547fbd8fb0fd4b47051c1d?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=96a52ba82a6f36a9cc0e91d29863497e38c278f7317339bd04dfd28bcbc5a779"
+   },
+   {
+    "title": "A.Dog's.Will.2000.PORTUGUESE.1080p.10bit.BluRay.6CH.x265.HEVC\n👤 33 💾 2.10 GB ⚙️ TheRARBG",
+    "name": "[AD download] 1080p BluRay · TheRARBG · 👤 33",
+    "behaviorHints": {
+     "bingeGroup": "powerm-1080p-BluRay"
+    },
+    "_quality": "1080p",
+    "_bytes": 2259415380,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "A.Dog's.Will.2000.PORTUGUESE.1080p.10bit.BluRay.6CH.x265.HEVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/ab4912ac4783493528e8d629159aad85868ce2c0?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=8c2437b65acce519ad96f68a97a1e43b85d154c9a6e499c44b1e10ce917de860"
+   },
+   {
+    "title": "O Auto da Compadecida [720p WEBRIP DUBLADO]\n👤 1 💾 2.04 GB ⚙️ Bludv",
+    "name": "[AD download] 720p WEBRip BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 2190433320,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "O Auto da Compadecida 2000 (720p) WWW.LAPUMiAFiLMES.COM",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/4299faf9cf5e223796c3b23f98e9647538f59acd?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=8c9e4769648c50994c3b22f466a8644c60ea73ad64133d6ffbbde0d0f4d5ea07"
+   },
+   {
+    "title": "O Auto da Compadecida [720p DUBLADO]\n👤 1 💾 6.85 GB ⚙️ Bludv",
+    "name": "[AD download] 720p BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 7355131494,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "{WWW.BLUDV.TV} O Auto da Compadecida 2000 (DVDRip) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/438ad83956a3c44a26bdda4aee228c4aa14a1764?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=1c6dc19062e936c580391d92c9fdcd8e6c891483831867c4bb599175bf7978ea"
+   },
+   {
+    "title": "A.Dog's.Will.2000.PORTUGUESE.720p.10bit.BluRay.6CH.x265.HEVC\n👤 40 💾 1.07 GB ⚙️ TheRARBG",
+    "name": "[AD download] 720p BluRay · TheRARBG · 👤 40",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-BluRay"
+    },
+    "_quality": "720p",
+    "_bytes": 1143861283,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "therarbg",
+    "_tracker": "TheRARBG",
+    "_magnetDn": "A.Dog's.Will.2000.PORTUGUESE.720p.10bit.BluRay.6CH.x265.HEVC",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/41be6f40abfb8ecfaf44a21e4c560dacf454fa6e?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=efe850b6c595ee52b945d50db12790a34f46424f817fafb84ace5e883f130a18"
+   },
+   {
+    "title": "O Auto da Compadecida (2000) 720p WEBRip x264 -YTS\n👤 17 💾 943.15 MB ⚙️ YTS",
+    "name": "[AD download] 720p WEBRip · YTS · 👤 17",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-WEBRip"
+    },
+    "_quality": "720p",
+    "_bytes": 988964454,
+    "_br": false,
+    "_dubClaim": false,
+    "_dubbed": false,
+    "_indexer": "yts",
+    "_tracker": "YTS",
+    "_magnetDn": "O Auto da Compadecida (2000) 720p WEBRip x264 -YTS",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/d79dd45f3354530852ee754a7bbad31777ee56af?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22i%22%3A%22tt0271383%22%7D&sig=3cd7a5fa2a707c9e9c60e05a131f4f4707b2ad02d31c25a12dbeacba74944659"
+   },
+   {
+    "title": "O Auto da Compadecida [720p DUBLADO]\n👤 1 💾 2.47 GB ⚙️ Bludv",
+    "name": "[AD download] 720p BR · Bludv · 👤 1",
+    "behaviorHints": {
+     "bingeGroup": "powerm-720p-any"
+    },
+    "_quality": "720p",
+    "_bytes": 2652142305,
+    "_br": true,
+    "_dubClaim": true,
+    "_dubbed": false,
+    "_indexer": "bludv-cardigann",
+    "_tracker": "Bludv",
+    "_magnetDn": "{WWW.BLUDV.TV} O Auto da Compadecida 2000 (x265) Acesse o ORIGINAL WWW.BLUDV.TV",
+    "_multiWork": false,
+    "_multiWorkAdmitted": false,
+    "_lied": false,
+    "url": "/e30/resolve/b71926031dea70bd81e9e1b1e29faafc99d97bfe?w=%7B%22n%22%3A%5B%22A%20Dog's%20Will%22%2C%22O%20Auto%20da%20Compadecida%22%5D%2C%22y%22%3A2000%2C%22d%22%3A1%2C%22i%22%3A%22tt0271383%22%7D&sig=39dc90049e4152fb1f73806322627312b43defd60024b872c1de70fbf2bf33aa"
+   }
+  ]
+ }
+]

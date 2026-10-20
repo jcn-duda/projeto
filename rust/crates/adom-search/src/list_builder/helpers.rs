@@ -14,6 +14,18 @@ pub const EXECUTABLE_EXTS: [&str; 8] = [
     ".exe", ".scr", ".lnk", ".bat", ".cmd", ".msi", ".pif", ".vbs",
 ];
 
+/// `TRACKERS` de `src/utils/search-names.ts`: o Node NÃO copia os `tr=` do
+/// magnet — todo item P2P sai com esta lista fixa (e os clientes esperam
+/// `tracker:`). Sem isto o nativo devolvia `infoHash` sem `sources`.
+pub const DEFAULT_TRACKERS: [&str; 6] = [
+    "udp://tracker.opentrackr.org:1337/announce",
+    "udp://open.stealth.si:80/announce",
+    "udp://tracker.torrent.eu.org:451/announce",
+    "udp://exodus.desync.com:6969/announce",
+    "udp://open.demonii.com:1337/announce",
+    "udp://tracker.openbittorrent.com:6969/announce",
+];
+
 /// O título ou o `dn=` declara um executável? A extensão fecha o nome ou vem
 /// antes de espaço/colchete/parêntese/pontuação — `DVDSCR` e `site.com` não
 /// casam.
@@ -210,20 +222,54 @@ pub fn map_stream(
         None,
         display,
     );
+    // `_indexer` do Node (`String(item.indexer || tracker || '').trim().toLowerCase()`):
+    // é o id que as cotas por indexador e a prioridade comparam. O `item.indexer`
+    // pode faltar (fonte que só publica o label) ou vir com caixa/espaço.
+    let indexer = item
+        .indexer
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| display_tracker(item))
+        .map(|s| s.trim().to_lowercase());
+    // `_tracker`/`_magnetDn` do `toStremioStream`: o dedupe remonta o `name` no
+    // `relabel` e lê os DOIS do VENCEDOR. Sem eles aqui, o vencedor trocado por
+    // qualidade herdada perdia o rótulo do tracker na coluna estreita (e o CAM
+    // do `dn=` sumia do `excludeCam`).
+    let magnet_dn = {
+        let dn = item.dn();
+        if !dn.is_empty() {
+            dn
+        } else if source == "CAM" {
+            "CAMRip".to_string()
+        } else {
+            String::new()
+        }
+    };
     let mut stream = RankingStream {
         info_hash: Some(hash),
         title: Some(full_title),
         name: Some(js_to_contract_string(&name_text)),
-        quality: Some(quality),
+        quality: Some(quality.clone()),
         seeders: item.seeders,
         size: item.size_bytes,
         bytes: item.size_bytes,
         br: Some(br),
         dubbed: Some(proof.dubbed),
         dub_claim: Some(proof.dub_claim),
-        indexer: item.indexer.clone(),
+        indexer,
+        tracker: display_tracker(item).map(str::to_string),
+        magnet_dn: Some(magnet_dn),
         lied: item.lied.then_some(true),
         multi_work_admitted: item.multi_work_admitted.then_some(true),
+        // `bingeGroup` do Node (`search-names.ts`): episódios da MESMA release
+        // tocam em sequência no Stremio. Sem isto o nativo omitia o campo.
+        behavior_hints: Some(serde_json::json!({
+            "bingeGroup": format!(
+                "powerm-{}-{}",
+                if quality == adom_core::UNKNOWN_QUALITY { "na" } else { quality.as_str() },
+                if source.is_empty() { "any" } else { source.as_str() },
+            ),
+        })),
         ..RankingStream::default()
     };
     if !item.sources.is_empty() {
@@ -331,20 +377,17 @@ pub fn to_stream_item(stream: &RankingStream) -> crate::contract::StreamItem {
         sources: if resolvido {
             None
         } else {
-            stream
-                .extra
-                .get("sources")
-                .and_then(|v| v.as_array())
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|s| s.as_str().map(String::from))
-                        .collect()
-                })
+            Some(
+                DEFAULT_TRACKERS
+                    .iter()
+                    .map(|tracker| format!("tracker:{tracker}"))
+                    .collect(),
+            )
         },
         behavior_hints: stream
-            .extra
-            .get("behaviorHints")
-            .map(|v| serde_json::from_value(v.clone()).unwrap_or_default()),
+            .behavior_hints
+            .clone()
+            .and_then(|value| serde_json::from_value(value).ok()),
         url,
         external_url: None,
         size: stream_size_label(stream.title.as_deref().unwrap_or("")),

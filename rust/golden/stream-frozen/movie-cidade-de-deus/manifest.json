@@ -1,0 +1,24 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "movie-cidade-de-deus",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "f753abb3c005b82995b669098e5a81e78195877130f77e650fd77ba2bf64bef4",
+  "inputs/apply-debrid.json": "4d863c87b91cd85cde992230ad0cdb803548d8738b975470c9735dd0f5703378",
+  "inputs/collect.json": "e5f7f2d2a70b44ec828e8750ad97a41adc902dec42466a4a2688d6612a92c909",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/debrid.json": "d6c665f13aca6d1963a6dbf5a4a15ded991fa881361410cc0feffdca20961d1a",
+  "inputs/fallback.json": "42df94e7f103fae1eabe3ff7105a92830fd56bc569a9a6aeaabc285a52314c1a",
+  "inputs/index.json": "320d6dfc103535c123396d267df6b88ea85e1da0dbb8368c9fcb68a073a23c1d",
+  "inputs/instant.json": "b71c5ef861b771ddb125bf49cc2b31509c4e7c722fc7f174bfd9fa9f5f907e0d",
+  "inputs/meta.json": "51365875fc48aa49906bcc9054a8d54bca25182dfc360f8a221b8a5666d251b3",
+  "request.json": "2242a1c992a6e9941c2f769b076177d8fe26c030567d9feef925fbfa11a064f9"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

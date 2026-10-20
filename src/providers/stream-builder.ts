@@ -2,7 +2,8 @@ import config from '../config.js';
 import type { RawItem, Stream } from '../../types/domain.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 import { limitReservingBr } from '../utils/format.js';
-import { prefix, origin } from '../runtime.js';
+import { prefix, origin, opts } from '../runtime.js';
+import * as frozen from '../utils/stream-frozen.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { applyDebrid } from './debrid-pipeline.js';
@@ -134,28 +135,47 @@ export async function buildStreams(rawInput: RawItem[], {
   // "fora do cache" mentiria sobre o motivo.
   let trustDropped = 0;
   const debridStart = deadlineAt != null ? Date.now() : null;
-  const beforeCut = await applyDebrid(streams, {
-    season,
-    episode,
-    imdbId,
-    searchKey,
-    deadlineAt,
-    // Contagem de episódios por temporada: a reanotação pós-checagem (fsz
-    // aquecido na AllDebrid) usa a mesma média do annotate pré-debrid.
-    meta,
-    // Só a passada reclamada e ainda não contada observa o `search.first.*`.
-    observeFirstPass: Boolean(observeFirstPass && firstObserver && !firstObserver.firstCounted),
-    firstObserver,
-    // P5 — os cortes do debrid (bad/dead/lie/idx-miss, cached-only, rd-miss)
-    // também entram no ledger; o ledger mora aqui fora, o steps só lê/escreve.
-    trace,
-    onCacheResult: (result: { autofetchCount?: number; trustDropped?: number }) => {
-      autofetchCount += result.autofetchCount || 0;
-      trustDropped += result.trustDropped || 0;
-      if (onDebridResult) onDebridResult(result);
+  // Replay congelado: a saída de `applyDebrid` e os sinais de `onCacheResult`
+  // vêm do arquivo. Os sinais são reexecutados porque é deles que saem
+  // `debridKnown`, `needsFullRefresh` e `autofetchCount` — sem isso a lista
+  // pareceria não checada e o `cacheMaxAge` mudaria no replay.
+  const cacheResultHandler = (result: { autofetchCount?: number; trustDropped?: number }) => {
+    autofetchCount += result.autofetchCount || 0;
+    trustDropped += result.trustDropped || 0;
+    if (onDebridResult) onDebridResult(result);
+  };
+  const userOpts = opts();
+  const debridHashes = streams.flatMap((s) => (s.infoHash ? [s.infoHash] : []));
+  const beforeCut = await frozen.aroundApplyDebrid(
+    streams,
+    {
+      service: userOpts.debridService || null,
+      cachedOnly: Boolean(userOpts.debridCachedOnly),
+      hashes: debridHashes,
     },
-    workHint: pool.workHint,
-  });
+    (captureSignal) => applyDebrid(streams, {
+      season,
+      episode,
+      imdbId,
+      searchKey,
+      deadlineAt,
+      // Contagem de episódios por temporada: a reanotação pós-checagem (fsz
+      // aquecido na AllDebrid) usa a mesma média do annotate pré-debrid.
+      meta,
+      // Só a passada reclamada e ainda não contada observa o `search.first.*`.
+      observeFirstPass: Boolean(observeFirstPass && firstObserver && !firstObserver.firstCounted),
+      firstObserver,
+      // P5 — os cortes do debrid (bad/dead/lie/idx-miss, cached-only, rd-miss)
+      // também entram no ledger; o ledger mora aqui fora, o steps só lê/escreve.
+      trace,
+      onCacheResult: (result: { autofetchCount?: number; trustDropped?: number }) => {
+        captureSignal(result);
+        cacheResultHandler(result);
+      },
+      workHint: pool.workHint,
+    }),
+    cacheResultHandler,
+  );
   // I0 — mede a checagem de debrid SOMENTE no passo de resposta (`deadlineAt`
   // presente). Passes tardios vêm com `deadlineAt` null; SWR pode carregar um
   // prazo próprio, mas usa observador inelegível e nunca chega ao commit first.

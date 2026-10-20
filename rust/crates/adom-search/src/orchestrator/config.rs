@@ -243,6 +243,16 @@ pub fn build_options_from(options: &Value, fallback: &BuildOptions) -> BuildOpti
             .map(str::to_string)
             .collect();
     }
+    // Inventário da conta (hashes já provados tocáveis): desempate `instant`
+    // do sorteio. Chave extra fora do SCHEMA do usuário — o operador injeta.
+    if let Some(Value::Array(list)) = get("instantHashes") {
+        out.instant_hashes = list
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|hash| hash.trim().to_ascii_lowercase())
+            .filter(|hash| !hash.is_empty())
+            .collect();
+    }
     out.quality_limits = quality_limits_from(options, "max", &out.quality_limits);
     out.indexer_limits = indexer_limits_from(options);
     out

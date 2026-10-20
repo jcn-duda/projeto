@@ -1,0 +1,75 @@
+{
+ "service": "alldebrid",
+ "results": {
+  "d64dea631759215465368633b0e4a1c91c845530": {
+   "cached": false,
+   "known": false
+  },
+  "e1f33a5752f85c1817547fbd8fb0fd4b47051c1d": {
+   "cached": false,
+   "known": false
+  },
+  "ab4912ac4783493528e8d629159aad85868ce2c0": {
+   "cached": false,
+   "known": false
+  },
+  "4299faf9cf5e223796c3b23f98e9647538f59acd": {
+   "cached": false,
+   "known": false
+  },
+  "438ad83956a3c44a26bdda4aee228c4aa14a1764": {
+   "cached": false,
+   "known": false
+  },
+  "41be6f40abfb8ecfaf44a21e4c560dacf454fa6e": {
+   "cached": false,
+   "known": false
+  },
+  "d79dd45f3354530852ee754a7bbad31777ee56af": {
+   "cached": false,
+   "known": false
+  },
+  "b71926031dea70bd81e9e1b1e29faafc99d97bfe": {
+   "cached": false,
+   "known": false
+  }
+ },
+ "calls": [
+  {
+   "hashes": [
+    "d64dea631759215465368633b0e4a1c91c845530",
+    "e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+    "ab4912ac4783493528e8d629159aad85868ce2c0",
+    "4299faf9cf5e223796c3b23f98e9647538f59acd",
+    "438ad83956a3c44a26bdda4aee228c4aa14a1764",
+    "41be6f40abfb8ecfaf44a21e4c560dacf454fa6e",
+    "d79dd45f3354530852ee754a7bbad31777ee56af",
+    "b71926031dea70bd81e9e1b1e29faafc99d97bfe"
+   ],
+   "file_hashes": [
+    "d64dea631759215465368633b0e4a1c91c845530"
+   ],
+   "known": false,
+   "unusable": null,
+   "cached": []
+  },
+  {
+   "hashes": [
+    "d64dea631759215465368633b0e4a1c91c845530",
+    "e1f33a5752f85c1817547fbd8fb0fd4b47051c1d",
+    "ab4912ac4783493528e8d629159aad85868ce2c0",
+    "4299faf9cf5e223796c3b23f98e9647538f59acd",
+    "438ad83956a3c44a26bdda4aee228c4aa14a1764",
+    "41be6f40abfb8ecfaf44a21e4c560dacf454fa6e",
+    "d79dd45f3354530852ee754a7bbad31777ee56af",
+    "b71926031dea70bd81e9e1b1e29faafc99d97bfe"
+   ],
+   "file_hashes": [
+    "d64dea631759215465368633b0e4a1c91c845530"
+   ],
+   "known": false,
+   "unusable": null,
+   "cached": []
+  }
+ ]
+}

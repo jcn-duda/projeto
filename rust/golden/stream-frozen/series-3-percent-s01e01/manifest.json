@@ -1,0 +1,23 @@
+{
+ "format": "adom-stream-frozen/1",
+ "case": "series-3-percent-s01e01",
+ "mode": "record",
+ "masked": true,
+ "files": {
+  "expected/node-response.json": "40953a725195346df6a2a233810f2cbc0095b3dd0ad0bc518539ed908c801a88",
+  "inputs/apply-debrid.json": "21757ce15ff0a01e4ff8ebc7b3c9f649dd712ff61be7270ed1be61c2d893e152",
+  "inputs/collect.json": "3bb7fe4f9c7b06147575544f273324d2687fd7455b69a69297f178025e5fb0dd",
+  "inputs/config.json": "88c19346622263c3eba296d2c6b32cf760679746276b85ba2f18c6ec080823a7",
+  "inputs/fallback.json": "f197bb709a7b2ee0c2dae90961f31c00c98142c8e19e4baffb1e2f172c74e4a1",
+  "inputs/index.json": "865122ea44779a59d4ccfe06b307ae9aa8cb8975d55a3b18b5f642b95b27998a",
+  "inputs/instant.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "inputs/meta.json": "c56fba8b73410a461de3a097588cba881123ced5d82ba3cb2516a3c21a8b52d5",
+  "request.json": "e8d3f3fd5c62ffc527f8d40d49fc4b81210cd9ab32a3e9ab81dbe721dd84d3b0"
+ },
+ "notCaptured": [
+  "índice e banco vivo: desligados neste piloto (RELEASE_INDEX=false, MAGNET_BANK=false)",
+  "relógio, ordem da lista e ordem de chaves: fora do diff (§9.3)",
+  "HMAC: sig mascarado; replay Rust usa segredo vazio",
+  "segmento de config: não versionado; replay usa e30 ou --encoded do operador"
+ ]
+}

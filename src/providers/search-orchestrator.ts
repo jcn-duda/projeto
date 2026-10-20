@@ -1,5 +1,4 @@
 import config from '../config.js';
-import { getMeta } from '../utils/cinemeta.js';
 import {
   parseStremioId,
   buildSearchQuery,
@@ -8,7 +7,6 @@ import {
   filterRelevantRaw,
 } from '../utils/format.js';
 import * as cache from '../utils/cache.js';
-import * as tmdb from '../utils/tmdb.js';
 import { createLatestWriter } from '../utils/latest-writer.js';
 import { ptSweepQueryFor } from './search-plan.js';
 import * as harvester from './harvester.js';
@@ -27,13 +25,15 @@ import { fuseIndexEnrichment } from './index-evidence.js';
 import type { RawBatch } from './search-index-path.js';
 import { schedulePtSweepTail } from './search-sweep-tail.js';
 import { createTailQueue } from './tail-enqueue.js';
-import { startMultiWorkDiscovery, resolveMultiWork, startHomeReleaseLookup } from './search-multiwork.js';
+import { resolveMultiWork } from './search-multiwork.js';
+import { loadSearchMetadata } from './search-metadata-load.js';
 import type { MultiWorkCollection, MatchContext, RawItem } from '../../types/domain.js';
 import { collectFallbackForBuild } from './magnet-bank-fallback.js';
 import { promoteInstantTail } from './magnet-bank-instant.js';
 import { createLatePromoter } from './search-late-promoter.js';
 import { mergeLiveIndexerStates } from './live-indexer-state.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
+import * as frozen from '../utils/stream-frozen.js';
 
 // Fachada pós-split: `poolCovered`/`idxPoolCovered`/`idxReleasesToRaw` vivem em
 // `search-pool-coverage.ts`, `collectRaw` em `collect-orchestrator.ts`. As
@@ -66,18 +66,15 @@ export async function doSearch({
 }) {
   const isDemo = opts().providers.includes('demo');
   const { imdbId, season, episode } = parseStremioId(id);
-  // Coleção (multiobra) e 1º lançamento doméstico (TMDB) em paralelo com os
-  // metadados; Cinemeta e TMDB também: o título pt-BR não pode atrasar a busca.
-  const collectionPromise = startMultiWorkDiscovery({ imdbId, season, isDemo, deadlineAt });
-  const homeReleasePromise = startHomeReleaseLookup({ imdbId, season, isDemo, deadlineAt });
   const metadataDone = metrics.timed('search.metadata');
   let metadataComplete = false;
-  let meta: any;
-  let titles: any;
-  let collection: MultiWorkCollection | null = null;
+  let meta: any, titles: any;
+  let collection: MultiWorkCollection | null = null, homeReleaseAt: number | null = null;
   const metadataStartedAt = Date.now();
   try {
-    [meta, titles] = await Promise.all([getMeta(type, imdbId), tmdb.getTitles(imdbId)]);
+    ({ meta, titles, collection, homeReleaseAt } = await loadSearchMetadata({
+      type, id, imdbId, season, isDemo, deadlineAt,
+    }));
     metadataComplete = true;
   } finally {
     const endedAt = Date.now();
@@ -94,10 +91,7 @@ export async function doSearch({
       progress.metadataConsumedProviderBudget = endedAt >= deadlineAt - config.debridReserve;
     }
   }
-  // M3: a espera da coleção (e da data doméstica) fica FORA do timer de
-  // metadados e usa o deadline absoluto já em curso.
-  collection = await collectionPromise;
-  const homeReleaseAt = await homeReleasePromise;
+
   // Cinemeta preferido; 404 em título obscuro/novo cai no TMDB (`resolveSearchNames`).
   const searchMeta = resolveSearchNames({ meta, titles, imdbId });
   const query = buildSearchQuery(searchMeta, { season, episode });
@@ -141,7 +135,9 @@ export async function doSearch({
       let needsDebridRefresh = false, autofetchCount = 0, debridKnown: boolean | undefined = undefined;
       // P5 — um ledger POR build. Kill-switch desligado => null (no-op).
       const trace: StreamTraceState | null = cloneStreamTrace(collectionTrace);
-      const fallback = collectFallbackForBuild({ live, items, type, imdbId, season, episode, trace });
+      const fallback = await frozen.aroundFallback(
+        `fallback:${type}:${imdbId}:${season ?? ''}:${episode ?? ''}:${inputDeadline != null ? 'first' : 'late'}`,
+        async () => collectFallbackForBuild({ live, items, type, imdbId, season, episode, trace }));
       const buildInput = fallback.items.length ? [...items, ...fallback.items] : items;
       const streams = await buildStreams(buildInput, {
         meta, titles, imdbId, season, episode, isDemo, searchKey: cacheKey,
@@ -179,14 +175,18 @@ export async function doSearch({
       // `debridKnown` registra se a lista nasceu de checagem confiável; sem ele
       // o passe tardio promovia sem refazer a checagem e congelava a lista sem ⚡.
       // P5 — `trace` serializado (o /stream-trace.json lê offline) + `searchMeta`.
-      cache.set(cacheKey, {
-        streams,
-        partial: decision.partial,
-        debridKnown: decision.debridKnown,
-        trace: serializeTrace(trace),
-        searchMeta,
-        ...(hasFallback ? { fallback: true } : {}),
-      }, decision.ttl);
+      // No replay congelado não há cache de produção: gravar aqui contaminaria
+      // a próxima execução e o gate deixaria de ser determinístico.
+      if (!frozen.active()) {
+        cache.set(cacheKey, {
+          streams,
+          partial: decision.partial,
+          debridKnown: decision.debridKnown,
+          trace: serializeTrace(trace),
+          searchMeta,
+          ...(hasFallback ? { fallback: true } : {}),
+        }, decision.ttl);
+      }
       log.info(`[search] ${streams.length} stream(s)${hasFallback ? ' (fallback)' : partial ? ' (parcial)' : ''} para ${id}`);
     },
     (value) => Array.isArray(value?.streams) && value.streams.length > 0,
@@ -212,9 +212,12 @@ export async function doSearch({
   // qualquer indexer). Extraídas para `search-index-path.ts`; o facade só decide
   // se cai na coleta ao vivo quando o índice NÃO cobriu a obra.
   noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep });
-  const { servedFromIndex, instant, raw: indexedRaw } = await attemptIndexFastPath({
-    query, type, id, imdbId, season, episode, ptQuery, originalQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace: collectionTrace,
-  });
+  const { servedFromIndex, instant, raw: indexedRaw } = await frozen.aroundIndex(
+    `index:${type}:${id}`,
+    () => attemptIndexFastPath({
+      query, type, id, imdbId, season, episode, ptQuery, originalQuery, matchContext, sweepQuery, deadlineAt, isDemo, firstObserver, trace: collectionTrace,
+    }),
+  );
   let raw: RawBatch = indexedRaw ?? await collectRaw(
     query, type, imdbId, ptQuery, matchContext,
     (items: any[], grew: boolean, partial?: boolean, live?: LiveIndexerState | null) => late(items, grew, episodePhase, partial, live ?? null),
@@ -375,7 +378,7 @@ export async function doSearch({
         // a checagem completa já grava partial:false e não pode rebaixar uma
         // promoção concorrente feita pelo callback de conclusão.
         if (raw.partial && raw.completion) await raw.completion;
-        const refreshed = cache.get(cacheKey);
+        const refreshed = frozen.active() ? null : cache.get(cacheKey);
         // O passe tardio pode já ter reconstruído a mesma lista. Não
         // repetimos a consulta cara (e, na AllDebrid, o upload) sem necessidade.
         if (debridRefreshSatisfied(refreshed)) return;

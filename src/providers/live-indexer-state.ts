@@ -71,7 +71,7 @@ export interface LiveIndexerState {
   /** Falha provada OU vazio suspeito: o banco deve ser consultado/mantido. */
   needsFallback(): boolean;
   /** Sanitiza para teste/log. */
-  snapshot(): { failed: string[]; pending: string[]; empty: string[]; all: AllState };
+  snapshot(): { failed: string[]; pending: string[]; empty: string[]; served: string[]; all: AllState };
 }
 
 export function createLiveIndexerState(): LiveIndexerState {
@@ -145,9 +145,42 @@ export function createLiveIndexerState(): LiveIndexerState {
       return this.hasAnyFailure() || this.suspectIndexers().size > 0;
     },
     snapshot() {
-      return { failed: [...failed.keys()].sort(), pending: [...pending].sort(), empty: [...empty].sort(), all };
+      return {
+        failed: [...failed.keys()].sort(),
+        pending: [...pending].sort(),
+        empty: [...empty].sort(),
+        served: [...served].sort(),
+        all,
+      };
     },
   };
+}
+
+/**
+ * Reconstroi o estado a partir do snapshot gravado (replay congelado).
+ *
+ * O snapshot perde o MOTIVO da falha (`failed` é um Map indexer→motivo) e o
+ * agregado `all`; o motivo só alimenta log/diagnóstico, então `'error'` é
+ * suficiente para o fallback. `served` desfaz o "vazio suspeito" na ordem
+ * certa — sem ele, um indexer que respondeu vazio e depois serviu voltaria
+ * como suspeito no replay.
+ */
+export function liveFromSnapshot(snapshot: {
+  failed?: string[];
+  pending?: string[];
+  empty?: string[];
+  served?: string[];
+  all?: string;
+} | null | undefined): LiveIndexerState {
+  const state = createLiveIndexerState();
+  for (const indexer of snapshot?.empty || []) state.noteResult({ indexer, responded: true, relevant: 0 });
+  for (const indexer of snapshot?.served || []) state.noteResult({ indexer, responded: true, relevant: 1 });
+  for (const indexer of snapshot?.failed || []) state.noteResult({ indexer, responded: false, reason: 'error' });
+  for (const indexer of snapshot?.pending || []) state.noteStart([indexer]);
+  if (snapshot?.all === 'error') state.noteAllResult(false);
+  else if (snapshot?.all === 'pending') state.noteAllStart();
+  else if (snapshot?.all === 'ok') state.noteAllResult(true);
+  return state;
 }
 
 /**

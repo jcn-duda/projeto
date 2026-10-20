@@ -1,0 +1,13 @@
+{
+ "format": "adom-stream-frozen-request/1",
+ "case": "series-got-s08e03",
+ "type": "series",
+ "stream_id": "tt0944947:8:3",
+ "encoded_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8",
+ "encoded_len": 3,
+ "deadline_ms": 180000,
+ "user_agent": null,
+ "captured_at": "2026-10-20T05:43:43.447Z",
+ "node_version": "v22.23.2",
+ "mode": "record"
+}
