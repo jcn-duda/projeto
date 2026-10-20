@@ -21,6 +21,7 @@ import {
   WorkPickError,
 } from './common.js';
 import { alldebridLinkFacts } from './rust-link-facts.js';
+import { alldebridCheckFacts } from './alldebrid-cleanup-facts.js';
 import { takeResolveEffect, type RustResolveEffect } from './rust-resolve-apply.js';
 import { applyPlayEffects } from './rust-play-effects.js';
 
@@ -300,6 +301,7 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
   out.checkCached = async (apiKey, hashes, checkOpts) => {
     const fetchOpts = checkFetchOptions(opts, checkOpts?.timeoutMs);
     if (!fetchOpts) return unchecked();
+    const facts = alldebridCheckFacts(adapter.id, apiKey, hashes);
     const remote = await post(fetchOpts, '/debrid/check', {
       service: adapter.id,
       apiKey,
@@ -307,6 +309,7 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
       timeoutMs: checkOpts?.timeoutMs,
       fileHashes: checkOpts?.fileHashes,
       fileWaitTimeoutMs: checkOpts?.fileWaitTimeoutMs,
+      ...(facts ?? {}),
     });
     if (remote.ok) return asCheck(remote.json);
     // 501 = ainda não portado: o TS é a implementação, não uma segunda pergunta.

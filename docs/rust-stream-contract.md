@@ -845,7 +845,9 @@ sem depender de o oráculo Node responder a todas as buscas.
   regressão do caminho nativo; `compared` é o denominador e `timeout`/`error`
   não contam como divergência. A linha de log sai com prefixo `[canary]` e o
   mesmo diff do replay da sombra. No modo direto o diff de identidade é o
-  mesmo (§9.3), mas nasce do corpo que o cliente recebeu.
+  mesmo (§9.3), mas nasce do corpo que o cliente recebeu. O snapshot do
+  canário **não** semeia `stream.shadow.*`: o `/metrics` mescla os dois e a
+  sobrescrita com zero cegava a janela da sombra.
 - **O que ele NÃO cobre**:
   1. **Rollout**: não é divisão de tráfego nem promove a rota. Os degraus
      5 % → 50 % → 100 % do §9.4 continuam manuais (e o rollback é voltar o

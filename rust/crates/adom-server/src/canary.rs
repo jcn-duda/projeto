@@ -204,7 +204,10 @@ impl CanaryMetrics {
     /// Snapshot para `/metrics`: chaves do canário (zeradas inclusive) +
     /// `stream.canary.percent` e o gauge do modo.
     pub fn snapshot(&self) -> BTreeMap<String, u64> {
-        let mut snapshot = self.counters.snapshot();
+        // `raw_snapshot` (e não `snapshot`) para NÃO semear `stream.shadow.*`:
+        // este mapa é mesclado no `/metrics` e sobrescreveria os contadores da
+        // sombra com zero.
+        let mut snapshot = self.counters.raw_snapshot();
         for key in KEYS {
             snapshot.entry((*key).to_string()).or_insert(0);
         }

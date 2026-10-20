@@ -500,3 +500,31 @@ fn metricas_do_canario_expoem_percentual_e_chaves_zeradas() {
     assert_eq!(snap[DIVERGENCE], 1);
     assert_eq!(snap[DIVERGENCE_ITEMS], 3);
 }
+
+/// Regressão da janela §9.4: o `/metrics` mescla o snapshot do canário DEPOIS
+/// do snapshot da sombra (`extend` sobrescreve). Se o canário semear
+/// `stream.shadow.*` com zero, `stream.shadow.compared` real vira 0 e a sombra
+/// fica invisível (foi o que aconteceu no 512 da imagem `da794cad`).
+#[test]
+fn snapshot_do_canario_nao_zera_as_metricas_da_sombra() {
+    let shadow = ShadowMetrics::new();
+    shadow.inc(shadow::COMPARED, 3);
+    shadow.inc(shadow::DIVERGENCE, 1);
+    shadow.inc(shadow::DIVERGENCE_ITEMS, 2);
+
+    // Nenhuma chave da sombra no snapshot do canário (nem zerada).
+    let canary = CanaryMetrics::new(0).snapshot();
+    assert!(!canary.contains_key(shadow::COMPARED));
+    assert!(!canary.contains_key(shadow::DIVERGENCE));
+    assert!(!canary.contains_key(shadow::ERROR));
+
+    // A mescla do `/metrics` preserva os valores reais da sombra.
+    let mut merged = shadow.snapshot();
+    merged.extend(canary);
+    assert_eq!(merged[shadow::COMPARED], 3);
+    assert_eq!(merged[shadow::DIVERGENCE], 1);
+    assert_eq!(merged[shadow::DIVERGENCE_ITEMS], 2);
+    // E as chaves do canário continuam expostas (zeradas inclusive).
+    assert_eq!(merged[PERCENT], 0);
+    assert_eq!(merged[SKIPPED], 0);
+}

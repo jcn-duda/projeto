@@ -193,6 +193,48 @@ function isCleanupProtected(hash: string, account: string, adapterId: string): b
   return isHeld(hash, account) || isDurablyProtected(adapterId, account, hash);
 }
 
+interface HoldAudit {
+  /** Hashes do lote protegidos pelo hold volátil OU pelo `adprot` (minúsculos). */
+  hashes: string[];
+  /** `true` só quando TODOS os hashes do lote foram avaliados nas duas camadas. */
+  complete: boolean;
+}
+
+/**
+ * Auditoria dos holds para o lote que o chamador vai enviar ao Rust.
+ *
+ * Existe porque a limpeza segura do Rust só apaga com `holdsComplete`, e a
+ * prova tem que sair daqui: o hold do autofetch é memória deste processo. Como
+ * o hold é chaveado por conta+hash (não existe hold "curinga"), varrer cada
+ * hash do lote cobre TODOS os holds vivos que podem barrar a limpeza dele.
+ *
+ * `complete` é fail-closed: chave de conta ausente (`none`), hash ilegível ou
+ * falha ao consultar a camada durável derrubam a prova — o Rust então suprime
+ * a limpeza e mantém o que foi listado. Nunca devolvemos "completo" por
+ * omissão.
+ */
+function heldHashesFor(hashes: readonly string[], account: string, adapterId: string): HoldAudit {
+  // `none` é o balde da chave vazia: não identifica conta, logo não prova nada.
+  if (!account || account === 'none') return { hashes: [], complete: false };
+  const found: string[] = [];
+  let complete = true;
+  for (const raw of hashes) {
+    const hash = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    if (!hash) {
+      complete = false;
+      continue;
+    }
+    try {
+      if (isHeld(hash, account) || isDurablyProtected(adapterId, account, hash)) found.push(hash);
+    } catch {
+      // Leitura da camada durável falhou: o hash PODE estar protegido. Manter a
+      // lista parcial e derrubar a prova é o único desfecho seguro.
+      complete = false;
+    }
+  }
+  return { hashes: found, complete };
+}
+
 /**
  * Poda do acervo durável: remove registros de hashes que JÁ NÃO estão na conta
  * (por qualquer via). Só sai o que as três guardas aceitam:
@@ -231,4 +273,5 @@ function pruneMissing(adapterId: string, account: string, presentHashes: Iterabl
   return removed;
 }
 
-export { hold, release, isHeld, protectBr, noteReady, unprotect, reconcile, isDurablyProtected, isCleanupProtected, pruneMissing };
+export { hold, release, isHeld, protectBr, noteReady, unprotect, reconcile, isDurablyProtected, isCleanupProtected, pruneMissing, heldHashesFor };
+export type { HoldAudit };

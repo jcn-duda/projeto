@@ -269,6 +269,27 @@ export function warmInventory(apiKey: string) {
 }
 
 /**
+ * Fatos do inventário no corpo do check NATIVO (`/debrid/check` do sidecar).
+ *
+ * Reusa o `knownBefore` como o caminho Node: snapshot vigente vale; vencido ou
+ * frio devolve `loaded:false` e dispara o refresh em fundo (uma leitura em voo
+ * por conta, nunca no prazo de quem chamou). Sem snapshot, o Rust consulta o
+ * próprio `/magnet/status` e, sem ele, não apaga — o fail-safe não depende
+ * deste fato.
+ *
+ * `knownBefore` é a MESMA referência que autorizaria o delete no Node (conta
+ * menos a posse `adsub`/`submitted`), então entregá-la ao Rust não afrouxa a
+ * regra: ele continua sem poder apagar acervo do usuário.
+ */
+export function inventoryFacts(apiKey: string, account: string): { loaded: boolean; hashes: string[] } {
+  if (!apiKey) return { loaded: false, hashes: [] };
+  const snapshot = knownBefore(apiKey, account);
+  return snapshot
+    ? { loaded: true, hashes: [...snapshot] }
+    : { loaded: false, hashes: [] };
+}
+
+/**
  * Snapshot `knownBefore` AGUARDADO, para caminhos de FUNDO (varreduras
  * agendadas e limpezas manuais do painel) que não disputam o prazo da
  * resposta. O fail-safe fecha: `null` = sem prova de proveniência, e ausência

@@ -18,6 +18,7 @@ import { resolvers } from './config/resolvers.js';
 import { searchSettings, budgets, search } from './config/search.js';
 import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.js';
 import { debrid } from './config/debrid.js';
+import { debridRust } from './config/debrid-rust.js';
 import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
 import { crawl } from './config/crawl.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
@@ -48,6 +49,8 @@ const config = {
   catalog: catalog(),
   magnetBank: magnetBank(),
   debrid: debrid(),
+  // Flags do sidecar Rust que o Node espelha (ex.: DEBRID_AL_CLEANUP).
+  debridRust: debridRust(),
   // searchTimeout, replyDeadline, debridReserve, debridCheckFloor
   ...budgets(),
   search: search(),

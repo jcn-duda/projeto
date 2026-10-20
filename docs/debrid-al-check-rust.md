@@ -75,13 +75,21 @@ Node; a rota `/internal/debrid/check` do Node não foi tocada.
 
 ## 4. O que ficou fora (bloqueia o F4.6)
 
-1. **Feed de holds (volátil)**: a limpeza segura está portada (§8), mas o hold
-   do autofetch em voo mora na memória do processo Node. O Rust não o enxerga:
-   por isso a execução exige `holdsComplete` (o chamador prova que `heldHashes`
-   cobre o lote) e, **sem esse fato, a nativa é read-only mesmo com a flag ON**.
-   O `adom-search` in-process não tem como preenchê-lo; a rota 8710 aceita os
-   fatos no corpo, mas o `rust-remote.ts` atual não os envia. Contrato exato em
-   §8.4.
+1. **Feed de holds (volátil)** — **ponte pronta no caminho do sidecar**:
+   `src/debrid/rust-remote.ts` envia, para a AllDebrid, `inventoryLoaded`,
+   `knownBefore`, `heldHashes`, `holdsComplete`, `dropReady` e `dropUncached`
+   no corpo do `/debrid/check` (8710) quando a checagem vai para o sidecar
+   (`DEBRID_RUST_SERVICES=alldebrid`) **e** `DEBRID_AL_CLEANUP=on`. Com a
+   limpeza OFF nada é enviado. (Com `DEBRID_AL_RUST=off` o sidecar devolve 501
+   e o TS assume; os fatos preparados não custam leitura extra, porque a
+   checagem Node espera o MESMO snapshot.) `holdsComplete` só é `true` quando
+   todos os hashes do lote foram avaliados nas duas camadas do Node (`isHeld ||
+   isDurablyProtected`); chave vazia, hash ilegível ou falha na leitura durável
+   ⇒ `false` (fail-closed). Ver `src/debrid/alldebrid-cleanup-facts.ts` e §8.4.
+   **Ainda fora**: o seam in-process (`adom-search::debrid_seam` →
+   `verdict::check_service_report`) não enxerga o hold (mora no Node) e fixa
+   `holds_complete:false` — nesse caminho a limpeza segue read-only mesmo com a
+   flag ON. O F4.6 depende de levar o feed também para lá.
 2. **`fileHashes`/`fsz`**: o Node lê `/magnet/status` dos packs prontos
    (`packFilesPerCheck`, `fileWaitTimeoutMs`) e grava a prova de
    arquivo/tamanho. A nativa não lê arquivos; a rota responde 200 sem essa
@@ -98,9 +106,10 @@ Node; a rota `/internal/debrid/check` do Node não foi tocada.
    validar offline é o contrato (fixtures de resposta, lotes, teto, timeout,
    unusable, limpeza); a paridade de produção segue pendente.
 6. **F4.6**: a rota Node `/internal/debrid/check` **não** pode ser removida
-   enquanto o feed de holds não existir. O `DEBRID_AL_RUST=on` é instrumento de
-   paridade, não corte; sem `holdsComplete` a nativa não limpa a conta e não
-   substitui o davail.
+   enquanto o feed de holds não cobrir TODOS os chamadores. O caminho do
+   sidecar (`rust-remote`) já manda os fatos (§4.1); o seam in-process do
+   `adom-search` continua sem eles (read-only). `DEBRID_AL_RUST=on` no seam é
+   instrumento de paridade, não corte.
 
 ## 5. Métricas (`/metrics` do gateway)
 
@@ -125,10 +134,14 @@ pelo MESMO conjunto (hash não perguntado não vira divergência falsa).
 3. Só então `DEBRID_AL_RUST=on` em uma instalação de teste, com
    `DEBRID_RUST_SERVICES=alldebrid` **desligado** (a rota Node continua dona)
    e observar `debrid.al.native.*`.
-4. Para o corte: a limpeza segura já está portada (§8), mas falta o feed de
-   holds do Node (`holdsComplete` + `heldHashes`) e o `fileHashes`/`davail`.
-   Só então `DEBRID_RUST_SERVICES=alldebrid` pode apontar a 8710 e a rota Node
-   pode sair.
+4. Para o corte: a limpeza segura já está portada (§8) e o feed de holds do
+   Node (`holdsComplete` + `heldHashes` + `knownBefore`) já viaja no caminho do
+   sidecar. Com `DEBRID_RUST_SERVICES=alldebrid` + `DEBRID_AL_RUST=on` +
+   `DEBRID_AL_CLEANUP=on`, a nativa limpa com os fatos do Node; conferir
+   `debrid.al.cleanup.*` e `rust.debrid.cleanup.holds_incomplete` (tem que ficar
+   em 0 nesse caminho). Continuam fora o `fileHashes`/`fsz` (§4.2), o `davail`
+   (§4.3), as varreduras (§4.4) e o seam in-process (§4.1) — por isso a rota
+   Node ainda existe.
 
 ## 7. Testes
 
@@ -144,6 +157,13 @@ pelo MESMO conjunto (hash não perguntado não vira divergência falsa).
   fallback só pré-upload, unusable) e sombra (amostra, comparação,
   divergência).
 - `cargo test -p adom-server` — `/metrics` expõe `debrid.al.*` zerado.
+- `test/debrid-al-cleanup-facts.test.ts` (Node) — ponte do corpo: hold volátil
+  + `adprot` em `heldHashes`, `holdsComplete` completo × ilegível/chave vazia
+  (fail-closed), `inventoryLoaded`/`knownBefore` frio × vigente,
+  `dropReady`/`dropUncached`, e o `wrap` mantendo os campos antigos
+  (`service`/`apiKey`/`hashes`/`timeoutMs`/`fileHashes`/`fileWaitTimeoutMs`) e
+  omitindo os fatos nos outros serviços. `test/internal-debrid-check.test.ts`
+  segue cobrindo a rota Node (corpo `encoded`/`deadline_at`).
 
 ## 8. Limpeza segura (`DEBRID_AL_CLEANUP`, default OFF)
 
@@ -194,7 +214,10 @@ Porte de `src/debrid/protected.ts` + `alldebrid-cleanup.ts` para
 `debrid.al.cleanup.planned`, `.protected`, `.known_before`,
 `.suppressed.<flag_off|kill_switch|holds_incomplete|no_drop_flags|inventory_missing>`,
 `.removed`, `.failed`, `.stopped`. A 8710 também expõe
-`rust.debrid.api.alldebrid_cleanup_*`.
+`rust.debrid.api.alldebrid_cleanup_*`. Do lado Node, a ponte conta
+`rust.debrid.cleanup.facts` (fatos montados) e `rust.debrid.cleanup.holds_incomplete`
+(prova de cobertura falhou) — os dois só andam com `DEBRID_AL_CLEANUP=on` no
+caminho do sidecar.
 
 ### 8.4 Contrato exato para ligar a limpeza em produção
 
@@ -219,7 +242,20 @@ A rota `POST /debrid/check` aceita, para AllDebrid:
   consulta: `isHeld || isDurablyProtected`).
 - `inventoryLoaded`/`knownBefore` são o snapshot do Node (`preexisting`);
   ausentes, o Rust tenta o próprio `/magnet/status` e, sem ele, não apaga.
-- O `rust-remote.ts` atual **não envia** esses campos e o seam in-process não
-  tem o hold: enquanto essa ponte não existir, `DEBRID_AL_CLEANUP=on` é
-  read-only na prática. Não remova a rota Node (F4.6) antes dela.
+- O `rust-remote.ts` **já envia** esses campos (via
+  `src/debrid/alldebrid-cleanup-facts.ts`) quando `DEBRID_AL_CLEANUP=on` — com
+  a flag OFF nada é enviado e o caminho nativo de paridade fica idêntico ao
+  anterior (nenhuma leitura extra de `/magnet/status`). O seam in-process não
+  tem o hold e continua read-only. Enquanto o gateway usar o seam para
+  `/stream`, não remova a rota Node (F4.6).
+- Ponte implementada: `heldHashes` = união `isHeld` + `isDurablyProtected`
+  varrendo **cada hash do lote** (o hold é chaveado por conta+hash, sem
+  coringa) — logo `holdsComplete:true` é cobertura real do lote. Hash ilegível,
+  chave vazia (`accountScope` = `none`) ou falha na leitura do `adprot` ⇒
+  `holdsComplete:false`, mantendo na lista o que foi provado (fail-closed).
+- `inventoryLoaded`/`knownBefore` vêm do `knownBefore` do Node: snapshot
+  vigente ⇒ `true` + hashes; vencido/frio ⇒ `false` (refresh segue em fundo e
+  o Rust usa o próprio snapshot — nunca apaga sem referência). Serviços que não
+  são a AllDebrid não recebem os campos, e a rota Node
+  `/internal/debrid/check` (corpo `encoded`/`deadline_at`) não mudou.
 

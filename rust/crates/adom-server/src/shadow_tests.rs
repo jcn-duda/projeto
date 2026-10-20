@@ -381,3 +381,74 @@ fn aviso_de_coleta_vazia_nao_e_comparavel() {
         ]
     })));
 }
+
+fn copy_case_dir(src: &Path, dst: &Path) {
+    fs::create_dir_all(dst).unwrap();
+    for entry in fs::read_dir(src).unwrap() {
+        let entry = entry.unwrap();
+        let target = dst.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_case_dir(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// Regressão `da794cad`: com a captura congelada ligada, a segunda request
+/// grava o caso e o replay conta `stream.shadow.compared`. O teste usa um caso
+/// REAL do corpus (movie-inception) e um stub que devolve o `expected`; não
+/// depende de `STREAM_FROZEN_MODE` nem de Node.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sombra_congelada_grava_o_dir_e_conta_compared() {
+    let src =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../golden/stream-frozen/movie-inception");
+    let temp = tempfile::tempdir().expect("tempdir");
+    let case_dir = temp.path().join("abc123");
+    copy_case_dir(&src, &case_dir);
+    let expected: Value = serde_json::from_str(
+        &fs::read_to_string(src.join("expected/node-response.json")).expect("expected do corpus"),
+    )
+    .expect("expected JSON");
+    let body = serde_json::to_vec(&expected).expect("body");
+
+    let (addr, hits) = spawn_frozen_stub(expected.clone()).await;
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        http::header::HOST,
+        HeaderValue::from_static("publico.example"),
+    );
+    let req = ShadowRequest {
+        path: "/e30/stream/movie/tt1375666.json".into(),
+        user_agent: Some("Stremio/1.6".into()),
+        origin: Some("http://127.0.0.1:7100".into()),
+        shadow_id: Some("abc123".into()),
+        frozen_base: Some(temp.path().to_path_buf()),
+        direct: false,
+        headers,
+        node_base: format!("http://{addr}").parse().unwrap(),
+    };
+    let metrics = ShadowMetrics::new();
+    observe_node_response(
+        StatusCode::OK,
+        Bytes::from(body),
+        req,
+        metrics.clone(),
+        None,
+    )
+    .await;
+
+    assert_eq!(
+        metrics.get(COMPARED),
+        1,
+        "snapshot: {:?}",
+        metrics.snapshot()
+    );
+    assert_eq!(metrics.get(ERROR), 0);
+    assert_eq!(metrics.get(DIVERGENCE), 0);
+    assert_eq!(hits.lock().unwrap().len(), 1, "uma segunda request");
+    // O dir do caso continua completo (a captura não apaga o corpus).
+    assert!(case_dir.join("request.json").is_file());
+    assert!(case_dir.join("inputs/meta.json").is_file());
+    assert!(case_dir.join("inputs/config.json").is_file());
+}

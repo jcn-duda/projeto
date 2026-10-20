@@ -110,10 +110,19 @@ impl ShadowMetrics {
     }
 
     pub fn snapshot(&self) -> BTreeMap<String, u64> {
-        let mut guard = self.counts.lock().unwrap_or_else(|err| err.into_inner());
+        let mut snapshot = self.raw_snapshot();
         for key in KEYS {
-            guard.entry((*key).to_string()).or_insert(0);
+            snapshot.entry((*key).to_string()).or_insert(0);
         }
+        snapshot
+    }
+
+    /// Cópia CRUA dos contadores, sem semear as chaves de `stream.shadow.*`.
+    /// O canário usa esta forma: o snapshot dele é mesclado no `/metrics` e
+    /// semear as chaves da sombra AQUI apagaria os valores reais da sombra
+    /// (`extend` sobrescreve com zero) — a janela §9.4 ficava cega.
+    pub fn raw_snapshot(&self) -> BTreeMap<String, u64> {
+        let guard = self.counts.lock().unwrap_or_else(|err| err.into_inner());
         guard.clone()
     }
 
@@ -556,10 +565,14 @@ async fn observe_frozen(
 }
 
 /// Grava `inputs/config.json` com os knobs do Node para o `encoded` desta
-/// requisição. Se a rota falhar mas o arquivo já existir (o record grava o
-/// config ANTES do `/stream`), usa o arquivo — melhor que cair no remount.
+/// requisição. Se o arquivo já existe (corpus/harness/teste) ele é a fonte: não
+/// há por que pedir de novo ao Node. Se a rota falhar e o arquivo não existir,
+/// o replay cai no remount.
 async fn hydrate_config(dir: &Path, encoded: &str, label: &str) -> Result<(), String> {
     let path = dir.join("inputs/config.json");
+    if path.is_file() {
+        return Ok(());
+    }
     match config_from_node(encoded).await {
         Ok(value) => {
             let bytes = serde_json::to_vec(&value).map_err(|err| format!("config json: {err}"))?;

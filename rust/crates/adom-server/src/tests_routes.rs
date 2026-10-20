@@ -82,6 +82,28 @@ async fn canario_direto_compara_corte_com_node_sem_captura() {
 }
 
 #[tokio::test]
+async fn metrics_preserva_contadores_da_sombra_ao_mesclar_o_canario() {
+    let (upstream, _hits) = spawn_upstream().await;
+    let state = gateway_state(upstream, false, true);
+    state.shadow_metrics.inc(COMPARED, 2);
+    state.shadow_metrics.inc(DIVERGENCE, 1);
+    let gateway = spawn_gateway_state(state).await;
+
+    let req = Request::builder()
+        .uri("/metrics")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    let snap: Value = serde_json::from_str(&body).unwrap();
+    // O snapshot do canário é mesclado DEPOIS; ele não pode semear
+    // `stream.shadow.*` com zero (regressão da janela §9.4).
+    assert_eq!(snap[COMPARED], 2);
+    assert_eq!(snap[DIVERGENCE], 1);
+    assert_eq!(snap[crate::canary::PERCENT], 0);
+}
+
+#[tokio::test]
 async fn stream_nativo_path_nao_stream_continua_proxy() {
     let (upstream, hits) = spawn_upstream().await;
     let gateway =
