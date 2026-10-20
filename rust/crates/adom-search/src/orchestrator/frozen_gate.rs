@@ -78,6 +78,13 @@ struct CollectFile {
 
 #[derive(Debug, Deserialize, Default)]
 struct ApplyDebridFile {
+    /// `service|cachedOnly|hash1,hash2,...` — o lote que o Node passou ao
+    /// `applyDebrid` (a lista PRÉ-debrid da resposta). É o único registro dessa
+    /// fronteira no corpus: sem ele o replay re-deriva filtros que dependem de
+    /// `releaseIndex.fileEvidence` (não capturado) e mantém item que o Node já
+    /// tinha descartado.
+    #[serde(default)]
+    key: String,
     #[serde(default)]
     output: Vec<Value>,
 }
@@ -320,6 +327,19 @@ impl FrozenCase {
                     .collect()
             });
         let applied: Vec<ApplyDebridFile> = read_optional(&dir.join("inputs/apply-debrid.json"))?;
+        // O `apply-debrid.json` também guarda a LISTA PRÉ-DEBRID do Node (a
+        // chave da chamada): é o lote que sobreviveu aos filtros/sort do Node.
+        // Replay usa essa lista como recorte quando existe — a captura não tem
+        // `releaseIndex.fileEvidence` e re-derivar os filtros mantinha itens
+        // que o Node já havia descartado (medido nos 512: 94 buscas, extras
+        // TorrentDos/Apache BR e ausentes TPB/Lime/AllDebrid).
+        let pre_debrid = pre_debrid_hashes(&applied);
+        if let Some(allowed) = &pre_debrid {
+            retain_index_hashes(&mut index, allowed);
+            for entry in &mut collect {
+                retain_item_hashes(&mut entry.response.items, allowed);
+            }
+        }
         let applied_q = applied_qualities(&applied);
         if proven.is_empty() {
             // Captura antiga (sem o arquivo): o `_quality` do `applyDebrid` é o
@@ -371,6 +391,9 @@ impl FrozenCase {
         // grava o resultado; sem este canal a reserva não entra na build e o
         // item vivo que ela venceria troca de posição.
         let fallback_file = dir.join("inputs/fallback.json");
+        // A reserva 📦 é decisão do Node (`collectFallbackForBuild`) e pode ser
+        // injetada FORA do lote pré-debrid (o caso e2e do Dragon Ball tem um
+        // Apache só no fallback): NÃO passa pelo recorte da chave.
         let fallback = fallback_file
             .is_file()
             .then(|| read_optional::<FallbackFile>(&fallback_file))
@@ -549,14 +572,16 @@ impl FrozenCase {
 /// Hash de um stream já resolvido pelo debrid. O `infoHash` some do envelope
 /// (`url` substitui), então o caminho `/resolve/<hash>` é a única âncora.
 fn applied_hash(item: &Value) -> Option<String> {
-    if let Some(hash) = item
-        .get("infoHash")
-        .and_then(Value::as_str)
-        .and_then(adom_core::extract_info_hash)
-    {
-        let hash = hash.trim().to_ascii_lowercase();
-        if !hash.is_empty() {
-            return Some(hash);
+    for field in ["infoHash", "magnet"] {
+        if let Some(hash) = item
+            .get(field)
+            .and_then(Value::as_str)
+            .and_then(adom_core::extract_info_hash)
+        {
+            let hash = hash.trim().to_ascii_lowercase();
+            if !hash.is_empty() {
+                return Some(hash);
+            }
         }
     }
     let url = item.get("url").and_then(Value::as_str)?;
@@ -599,6 +624,12 @@ fn applied_debrid_verdicts(files: &[ApplyDebridFile]) -> BTreeMap<String, Debrid
                     unusable: None,
                 }
             } else {
+                // Sem prefixo = P2P porque ESTE hash não foi resolvido (conta
+                // em quota ou release fora do cache sem `resolveUncached`),
+                // não porque o lote inteiro falhou: os `[AD⚡]`/`[AD download]`
+                // do mesmo lote continuam valendo. `Unusable` no lote
+                // desmaterializava a resposta toda; `Missing` materializava o
+                // P2P que o Node deixou cru. `Unknown` preserva os dois.
                 DebridResult {
                     cached: false,
                     known: false,
@@ -615,6 +646,31 @@ fn applied_debrid_verdicts(files: &[ApplyDebridFile]) -> BTreeMap<String, Debrid
 /// `applyDebrid`). No replay do Node ela vem PRONTA no `apply-debrid.json`; o
 /// `index.json` só tem o rótulo do post. A primeira entrada vence: é a passada
 /// da resposta, que é o que o comparador de streams mede.
+/// Hashes da lista PRÉ-debrid que o Node passou ao `applyDebrid` (primeira
+/// chamada = passada da resposta). `None` em captura antiga/sem chave: o replay
+/// mantém o comportamento anterior.
+fn pre_debrid_hashes(files: &[ApplyDebridFile]) -> Option<BTreeSet<String>> {
+    let key = files.first()?.key.trim();
+    let list = key.split('|').nth(2)?;
+    let hashes: BTreeSet<String> = list
+        .split(',')
+        .map(str::trim)
+        .filter(|hash| !hash.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect();
+    (!hashes.is_empty()).then_some(hashes)
+}
+
+fn retain_item_hashes(items: &mut Vec<Value>, allowed: &BTreeSet<String>) {
+    items.retain(|item| batch_item_hash(item).is_some_and(|hash| allowed.contains(&hash)));
+}
+
+fn retain_index_hashes(index: &mut SearchIndexResponse, allowed: &BTreeSet<String>) {
+    retain_item_hashes(&mut index.index_items, allowed);
+    retain_item_hashes(&mut index.instant_items, allowed);
+    retain_item_hashes(&mut index.account_items, allowed);
+}
+
 fn applied_qualities(files: &[ApplyDebridFile]) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for file in files {
@@ -821,30 +877,36 @@ fn applied_audio_proofs(
     files: &BTreeMap<String, Vec<FileEntry>>,
 ) -> BTreeMap<String, AudioProof> {
     let mut out: BTreeMap<String, AudioProof> = BTreeMap::new();
-    for file in applied {
-        for item in &file.output {
-            let Some(hash) = applied_hash(item) else {
-                continue;
-            };
-            if item.get("_dubbed").and_then(Value::as_bool) != Some(true) {
-                continue;
-            }
-            let list = files.get(&hash);
-            let label = item
-                .get("name")
-                .and_then(Value::as_str)
-                .and_then(chip_audio_label)
-                .map(str::to_string)
-                .or_else(|| file_audio_label(list))
-                .unwrap_or_else(|| "Dual".to_string());
-            out.insert(
-                hash,
-                AudioProof {
-                    audio: label,
-                    name: file_evidence_name(list),
-                },
-            );
+    // Só a PRIMEIRA chamada (a passada da resposta). O `apply-debrid.json`
+    // também guarda a passada tardia, e ela pode ter `_dubbed:true`/chip DUAL
+    // que o corpo do cliente NÃO tinha (medido em Harry Potter 1: a tardia
+    // rotulava DUAL um item que a primeira exibia sem chip). O `expected` é a
+    // primeira build; as provas têm que vir dela.
+    let Some(file) = applied.first() else {
+        return out;
+    };
+    for item in &file.output {
+        let Some(hash) = applied_hash(item) else {
+            continue;
+        };
+        if item.get("_dubbed").and_then(Value::as_bool) != Some(true) {
+            continue;
         }
+        let list = files.get(&hash);
+        let label = item
+            .get("name")
+            .and_then(Value::as_str)
+            .and_then(chip_audio_label)
+            .map(str::to_string)
+            .or_else(|| file_audio_label(list))
+            .unwrap_or_else(|| "Dual".to_string());
+        out.insert(
+            hash,
+            AudioProof {
+                audio: label,
+                name: file_evidence_name(list),
+            },
+        );
     }
     out
 }
@@ -920,8 +982,21 @@ fn normalize_qualities(raw: BTreeMap<String, String>) -> BTreeMap<String, String
 /// `name` (`powerm-<qualidade>-<fonte>`). `any` = o Node não tinha fonte.
 fn applied_media_sources(files: &[ApplyDebridFile]) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
+    let mut seen: BTreeSet<String> = BTreeSet::new();
     for file in files {
         for item in &file.output {
+            let Some(hash) = applied_hash(item) else {
+                continue;
+            };
+            // A PRIMEIRA ocorrência do hash é a do vencedor da passada (a
+            // mesma regra de `applied_qualities`). Ela pode dizer `any` (sem
+            // fonte) ou nem trazer `behaviorHints`; nesse caso a passada
+            // seguinte NÃO pode emprestar a fonte dela — era o que pintava um
+            // item `📦 · 720p` de `BluRay` porque o re-passe do debrid tinha a
+            // mesma hash com outro rótulo.
+            if !seen.insert(hash.clone()) {
+                continue;
+            }
             let Some(source) = item
                 .get("behaviorHints")
                 .and_then(|hints| hints.get("bingeGroup"))
@@ -930,9 +1005,7 @@ fn applied_media_sources(files: &[ApplyDebridFile]) -> BTreeMap<String, String> 
             else {
                 continue;
             };
-            if let Some(hash) = applied_hash(item) {
-                out.entry(hash).or_insert(source);
-            }
+            out.insert(hash, source);
         }
     }
     out
@@ -1154,6 +1227,14 @@ impl DebridCheck for FrozenDebridCheck {
             if result.known {
                 return DebridAnswer::Missing;
             }
+            if result
+                .unusable
+                .as_ref()
+                .and_then(Value::as_str)
+                .is_some_and(|reason| reason == "p2p")
+            {
+                return DebridAnswer::P2p;
+            }
             if result.unusable.is_some() {
                 return DebridAnswer::Unusable;
             }
@@ -1342,13 +1423,19 @@ pub async fn run_case_with_expected(
     origin: &str,
     encoded: &str,
 ) -> Result<(), String> {
+    let got = replay_case_value(dir, origin, encoded).await?;
+    compare_streams(&got, expected, origin, encoded)
+}
+
+/// Diagnóstico (host): devolve o corpo do replay da MESMA montagem da sombra.
+/// Usado pelo harness `examples/shadow_replay` para classificar divergências.
+pub async fn replay_case_value(dir: &Path, origin: &str, encoded: &str) -> Result<Value, String> {
     let frozen = FrozenCase::load(dir)?;
     let encoded = match encoded.trim() {
         "" => None,
         segment => Some(segment.to_string()),
     };
-    let got = replay(frozen, origin, encoded.clone(), None).await?;
-    compare_streams(&got, expected, origin, encoded.as_deref().unwrap_or(""))
+    replay(frozen, origin, encoded, None).await
 }
 
 fn compare(got: &Value, expected: &Value, origin: &str, encoded: &str) -> Result<(), String> {
@@ -1464,28 +1551,37 @@ fn mask(value: &mut Value, origin: &str, encoded: &str) {
 /// O corpus é gravado mascarado (`{{base}}/{{config}}`), mas o Rust monta a URL
 /// com o origin/encoded do replay; normaliza os dois lados antes do diff.
 fn mask_text(text: &str, origin: &str, encoded: &str) -> String {
-    let mut out = text.to_string();
-    if !origin.is_empty() {
-        out = out.replace(origin, "{{base}}");
-    }
-    if !encoded.is_empty() {
-        out = out.replace(&format!("/{encoded}/"), "/{{config}}/");
-    }
-    let mut masked = String::with_capacity(out.len());
-    let mut rest = out.as_str();
+    // MESMA ordem do `stream-frozen-store.maskString` do Node: `sig` PRIMEIRO,
+    // depois encoded, depois origin. Mascarar o encoded antes do sig substitui
+    // `e30` que apareça DENTRO da assinatura e cria `sig={{sig}}{{config}}…`
+    // no lado Rust (falso positivo medido no gate: Breaking Bad/GOT).
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
     while let Some(index) = rest.find("sig=") {
-        masked.push_str(&rest[..index + 4]);
-        masked.push_str("{{sig}}");
+        out.push_str(&rest[..index + 4]);
+        out.push_str("{{sig}}");
         let after = &rest[index + 4..];
         let end = after
             .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '-'))
             .unwrap_or(after.len());
         rest = &after[end..];
     }
-    masked.push_str(rest);
+    out.push_str(rest);
+    if !encoded.is_empty() {
+        // O record do Node mascara o segmento por SUBSTITUIÇÃO GLOBAL
+        // (`stream-frozen-store.maskString`: `split(encoded).join(...)`), então
+        // um hash que contém `e30` chega no `expected` já como
+        // `…{{config}}…`. O lado Rust nasce cru: mascarar só `/{encoded}/`
+        // deixava esses itens divergentes sem nenhuma diferença real (medido
+        // nos 512: `90d327…e30…` virava falso positivo).
+        out = out.replace(encoded, "{{config}}");
+    }
+    if !origin.is_empty() {
+        out = out.replace(origin, "{{base}}");
+    }
     // O corpus gravou `sig={{sig}}` e o envelope mascara de novo; idempotência
     // vale para os dois lados do diff.
-    masked.replace("{{sig}}{{sig}}", "{{sig}}")
+    out.replace("{{sig}}{{sig}}", "{{sig}}")
 }
 
 fn short(value: &Value) -> String {
@@ -1553,6 +1649,84 @@ mod tests {
     use serde_json::json;
     use std::fs;
 
+    #[test]
+    fn pre_debrid_hashes_le_a_chave_da_primeira_chamada() {
+        let files = vec![ApplyDebridFile {
+            key: "alldebrid|0|AA, bb ,,cc".into(),
+            output: Vec::new(),
+        }];
+        let allowed = pre_debrid_hashes(&files).expect("chave válida");
+        assert!(allowed.contains("aa"));
+        assert!(allowed.contains("bb"));
+        assert!(allowed.contains("cc"));
+        assert_eq!(allowed.len(), 3);
+        // Sem chave (captura antiga): não filtra.
+        assert!(pre_debrid_hashes(&[ApplyDebridFile::default()]).is_none());
+    }
+
+    #[test]
+    fn retain_item_hashes_remove_o_que_o_node_nao_passou_ao_debrid() {
+        let a = "a".repeat(40);
+        let b = "b".repeat(40);
+        let c = "c".repeat(40);
+        let mut items = vec![
+            json!({"infoHash": a.clone()}),
+            json!({"infoHash": b.clone()}),
+            json!({"url": format!("/e30/resolve/{c}?sig=x")}),
+        ];
+        let allowed: BTreeSet<String> = [a.clone(), c.clone()].into_iter().collect();
+        retain_item_hashes(&mut items, &allowed);
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["infoHash"], a);
+        assert_eq!(items[1]["url"], format!("/e30/resolve/{c}?sig=x"));
+    }
+
+    #[test]
+    fn audio_proof_usa_so_a_primeira_passada() {
+        // Primeira passada: sem `_dubbed` → sem prova (o Node não rotulava DUAL).
+        // Segunda (tardio): `_dubbed:true` + chip DUAL → NÃO pode vazar.
+        let files = vec![
+            ApplyDebridFile {
+                key: "svc|0|abde".into(),
+                output: vec![json!({
+                    "url": "/e30/resolve/abde0d9e255eae8ac5758ec9203f91ef612801fa",
+                    "name": "📦 · 720p BluRay BR · Bludv",
+                    "_dubbed": false
+                })],
+            },
+            ApplyDebridFile {
+                key: String::new(),
+                output: vec![json!({
+                    "url": "/e30/resolve/abde0d9e255eae8ac5758ec9203f91ef612801fa",
+                    "name": "📦 · 720p BluRay DUAL BR · Bludv",
+                    "_dubbed": true
+                })],
+            },
+        ];
+        let proofs = applied_audio_proofs(&files, &BTreeMap::new());
+        assert!(
+            proofs.is_empty(),
+            "prova da passada tardia vazou: {proofs:?}"
+        );
+
+        // E a primeira passada com prova positiva continua valendo.
+        let files = vec![ApplyDebridFile {
+            key: "svc|0|abde".into(),
+            output: vec![json!({
+                "url": "/e30/resolve/abde0d9e255eae8ac5758ec9203f91ef612801fa",
+                "name": "📦 · 720p BluRay DUB BR · Bludv",
+                "_dubbed": true
+            })],
+        }];
+        let proofs = applied_audio_proofs(&files, &BTreeMap::new());
+        assert_eq!(
+            proofs
+                .get("abde0d9e255eae8ac5758ec9203f91ef612801fa")
+                .map(|proof| proof.audio.as_str()),
+            Some("Dublado")
+        );
+    }
+
     /// Cópia recursiva sem dependência nova (`tempfile` não é dev-dep aqui).
     fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
         fs::create_dir_all(to)?;
@@ -1619,5 +1793,80 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn mascara_o_segmento_global_como_o_node() {
+        // O hash pode conter o próprio segmento (`e30`); o record do Node
+        // mascara por `split(encoded).join`, então o lado Rust precisa fazer o
+        // mesmo ou o comparador acusa divergência de item idêntico.
+        let hash = "90d3277aa33f639c3533a6d7015e3002c892e2d5";
+        let masked = mask_text(hash, "", "e30");
+        assert_eq!(masked, "90d3277aa33f639c3533a6d7015{{config}}02c892e2d5");
+        // URL com o segmento no path continua mascarada uma vez só.
+        let url = "http://x/e30/resolve/90d3277aa33f639c3533a6d7015e3002c892e2d5?sig=abc";
+        assert_eq!(
+            mask_text(url, "http://x", "e30"),
+            "{{base}}/{{config}}/resolve/90d3277aa33f639c3533a6d7015{{config}}02c892e2d5?sig={{sig}}"
+        );
+        // Idempotência: o expected já vem mascarado.
+        assert_eq!(
+            mask_text(&masked, "", "e30"),
+            "90d3277aa33f639c3533a6d7015{{config}}02c892e2d5"
+        );
+    }
+
+    #[test]
+    fn p2p_da_passada_nao_marca_o_lote_todo_como_unusable() {
+        // Um hash sem prefixo no `apply-debrid` é P2P, mas os `[AD⚡]` do mesmo
+        // lote continuam resolvidos — marcar `unusable` derrubava todos.
+        let cached = "a".repeat(40);
+        let p2p = "b".repeat(40);
+        let files = vec![ApplyDebridFile {
+            key: String::new(),
+            output: vec![
+                json!({"url": format!("/e30/resolve/{cached}?sig=x"), "name": "[AD⚡] 4K · AllDebrid · 👤 1"}),
+                json!({"infoHash": p2p, "name": "1080p · The Pirate Bay · 👤 2"}),
+            ],
+        }];
+        let verdicts = applied_debrid_verdicts(&files);
+        assert!(verdicts.get(&cached).is_some_and(|v| v.cached));
+        let p2p_verdict = verdicts.get(&p2p).expect("hash P2P");
+        assert!(!p2p_verdict.known, "{p2p_verdict:?}");
+        assert_eq!(
+            p2p_verdict.unusable.as_ref().and_then(Value::as_str),
+            Some("p2p"),
+            "{p2p_verdict:?}"
+        );
+        assert!(!p2p_verdict.cached, "{p2p_verdict:?}");
+    }
+
+    #[test]
+    fn media_source_da_primeira_passada_any_nao_e_emprestada() {
+        let hash = "a".repeat(40);
+        let files = vec![
+            ApplyDebridFile {
+                key: String::new(),
+                output: vec![json!({
+                    "infoHash": hash,
+                    "behaviorHints": {"bingeGroup": "powerm-720p-any"},
+                })],
+            },
+            ApplyDebridFile {
+                key: String::new(),
+                output: vec![json!({
+                    "url": format!("/e30/resolve/{hash}?sig=x"),
+                    "behaviorHints": {"bingeGroup": "powerm-720p-BluRay"},
+                })],
+            },
+        ];
+        let sources = applied_media_sources(&files);
+        assert!(
+            !sources.contains_key(&hash),
+            "o `any` da primeira passada é a fonte real (ausente): {sources:?}"
+        );
+        // Sem o primeiro passe, a segunda fonte vale.
+        let only_second = applied_media_sources(&files[1..]);
+        assert_eq!(only_second.get(&hash).map(String::as_str), Some("BluRay"));
     }
 }

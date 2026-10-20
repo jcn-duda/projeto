@@ -174,6 +174,17 @@ A request normal do cliente continua igual (SWR e fast-path intactos); a
 segunda request é o custo da sombra. O caminho antigo
 (`build_shadow_orchestrator`) fica como fallback quando a captura não existe.
 
+**Recorte pré-debrid (2026-10-20, 512 da imagem `42b9c3e5`).** O replay usa a
+chave `service|cachedOnly|hash1,hash2,...` do `apply-debrid.json` como a lista
+de candidatos que o Node passou ao debrid. É a única captura dessa fronteira:
+`releaseIndex.fileEvidence`/`provenAudio` não entram no corpus, e sem o recorte
+o replay re-derivava filtros e/ou mantinha item que o Node já tinha descartado
+(94 buscas: 3 filmes, extras TorrentDos/Apache BR, ausentes TPB/Lime/AllDebrid).
+A prova de áudio vem **só da primeira entrada** (a passada da resposta), nunca
+da tardia — o `apply-debrid.json` também guarda a passada de fundo e ela podia
+rotular DUAL um item que o corpo do cliente não tinha. A máscara segue a ordem
+do Node (`stream-frozen-store.maskString`): `sig` → `encoded` → `origin`.
+
 
 - `DEFAULT_TRACKERS` em `list_builder/helpers.rs`: o Node não copia `tr=` do
   magnet; todo P2P sai com a lista fixa e `sources` (antes vinha sem).

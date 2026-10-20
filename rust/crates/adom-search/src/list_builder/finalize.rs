@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use serde_json::Value;
+
 use adom_core::{
     limit_reserving_br_trace, play_disposition, uncached_br_hashes, LimitBrOpts, PlayDisposition,
     PlayFacts, PoolStream, RankingStream, StreamRef,
@@ -86,6 +88,13 @@ pub fn finalize_streams(
                 unusable_seen = true;
                 kept.push(stream);
             }
+            DebridAnswer::P2p => {
+                // Hash isolado sem link do debrid: fica P2P, mas os `[AD⚡]`
+                // do mesmo lote continuam materizados.
+                out.debrid_known = true;
+                stream.extra.insert("_p2p".into(), true.into());
+                kept.push(stream);
+            }
         }
     }
     if ctx.debrid_cached_only && !missing.is_empty() {
@@ -133,7 +142,13 @@ pub fn finalize_streams(
     let degraded = check_usable && unknown_seen;
     let resolve_uncached = check_usable && ctx.debrid_resolve_uncached;
     kept.retain(|stream| {
-        disposition_of(stream, degraded, resolve_uncached, unusable_seen) != PlayDisposition::Drop
+        let p2p = stream
+            .extra
+            .get("_p2p")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        disposition_of(stream, degraded, resolve_uncached, unusable_seen || p2p)
+            != PlayDisposition::Drop
     });
     out.count("afterDebrid", kept.len());
 
@@ -152,12 +167,6 @@ pub fn finalize_streams(
     //     Bad: `💾 481.87 MB` × `💾 481.87 MB 📦 pack 481.87 MB`). Captura
     //     antiga (sem o mapa do build) mantém a régua anterior.
     let duas_passadas = ctx.files_at_build.is_some();
-    // O Node sai do `applyDebrid` ANTES da 2ª anotação quando a conta não
-    // responde (auth/quota): o P2P volta só com o que a 1ª passada mediu. Nesse
-    // caso o replay usa o estado do PRÉ (`files_at_build`/`totals_at_build`) e
-    // NÃO repete a anotação de pack (que acrescentava `📦 pack` inexistente).
-    // Filme não passa pelo composto do item 7; o fill do pré é feito aqui com o
-    // mesmo estado (Tropa de Elite `💾 1.61 GB`).
     let pos_checagem = !(duas_passadas && unusable_seen);
     let files_ref = if pos_checagem {
         &ctx.files_by_hash
@@ -214,7 +223,11 @@ pub fn finalize_streams(
     }
     kept = adom_core::fill_missing_sizes_core(
         &kept,
-        files_ref,
+        // O fill do Node usa o `fsz` já aquecido pela checagem, inclusive
+        // quando ela termina `unusable`: o item P2P que sobrou ainda ganha o
+        // 💾 exato (Game of Thrones S08E03, 1.76 GB). O `files_at_build` só
+        // governa a anotação de pack (que não pode nascer nesse caso).
+        &ctx.files_by_hash,
         &adom_core::FillOpts {
             season: ctx.season,
             episode: ctx.episode,

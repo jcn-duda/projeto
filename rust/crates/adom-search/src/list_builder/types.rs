@@ -39,6 +39,10 @@ pub enum DebridAnswer {
     Unknown,
     /// `unusable` (auth/quota): lista volta como P2P, sem autofetch.
     Unusable,
+    /// Este hash voltou P2P no `applyDebrid` (sem link do debrid), mas o LOTE
+    /// não falhou: os demais itens ainda podem tocar na conta. Diferente de
+    /// `Unusable`, não contamina a disposição dos outros streams.
+    P2p,
 }
 
 /// Quem constrói a lista recebe a checagem AQUI, injetada. A implementação
