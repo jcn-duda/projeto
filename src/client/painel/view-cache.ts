@@ -1,4 +1,4 @@
-﻿import { html, useState } from './vendor/preact.js';
+import { html, useState } from './vendor/preact.js';
 import { Card, StatNumber, ProgressBar } from './kit.js';
 import { useAction, actionError } from './action.js';
 import { formatBytes } from './fmt.js';
@@ -67,7 +67,22 @@ export function ViewCache({ cache, metrics }: ViewCacheProps) {
       body: scope ? { scope } : {},
       confirm: { message: confirmMsg, danger: true, confirmLabel: 'Limpar cache' },
       poll: ['cache', 'metrics'],
-      successToast: (data) => `Cache limpo com sucesso (${Number(data.removed || 0)} entradas removidas)`,
+      successToast: (data) => {
+        // F4.4a: o SWR do corte é o `streams.db` do gateway, limpo pela MESMA
+        // ação. Sem separar os dois, o operador lia "0 entradas removidas"
+        // (o L1 do Node nasce vazio no corte) e não sabia se o nativo foi
+        // limpo — ou se sequer foi alcançado.
+        const l1 = Number(data?.removed || 0);
+        const native = Number(data?.native?.removed || 0);
+        const parts: string[] = [];
+        if (l1) parts.push(`${l1} no L1`);
+        if (native) parts.push(`${native} no SWR nativo`);
+        const resumo = parts.length ? ` (${parts.join(' + ')})` : '';
+        const aviso = data?.native?.attempted === true && data?.native?.ok === false
+          ? ' — o SWR nativo NÃO foi limpo'
+          : '';
+        return `Cache limpo com sucesso${resumo}${aviso}`;
+      },
     });
     // O erro fica no card (feedback inline); o sucesso sai como toast global.
     const error = actionError(outcome);

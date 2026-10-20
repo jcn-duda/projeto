@@ -5,7 +5,7 @@
 import type { AppServices, GateAdmission } from './types.js';
 import type express from 'express';
 import { errorMessage } from '../utils/logger.js';
-import { streamsCacheScope } from '../utils/request-key.js';
+import { clearCache } from './dashboard-actions-cache.js';
 import { harvestDebridGet, harvestDebridSet } from './dashboard-actions-harvest-debrid.js';
 import { autofetchPause, autofetchDrain, autofetchConfigGet, autofetchConfigSet, autofetchConfigReset } from './dashboard-actions-autofetch.js';
 import { autofetchSuppressedGet, autofetchSuppressedDrain } from './dashboard-actions-autofetch-suppressed.js';
@@ -48,42 +48,7 @@ const DESTRUCTIVE_ACTIONS = new Set([
 const MAX_TEST_KEY_LENGTH = 512;
 
 const ACTIONS: Record<string, ActionHandler> = {
-  'clear-cache': ({ services, req, res, action }) => {
-    const entriesBefore = services.cache.size();
-    const scope = req.body?.scope;
-    let removed = entriesBefore;
-    let appliedScope: { kind: 'global' | 'namespace' | 'installation'; namespace?: string } = { kind: 'global' };
-    if (scope != null) {
-      if (!scope || typeof scope !== 'object' || Array.isArray(scope)) {
-        return res.status(400).json({ ok: false, error: 'escopo de cache inválido' });
-      }
-      const namespace = typeof scope.namespace === 'string' ? scope.namespace : '';
-      const installation = scope.installation === true;
-      if (namespace && installation) {
-        return res.status(400).json({ ok: false, error: 'escolha namespace ou instalação, não os dois' });
-      }
-      if (namespace) {
-        if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(namespace)) {
-          return res.status(400).json({ ok: false, error: 'namespace de cache inválido' });
-        }
-        removed = services.cache.clearNamespace(namespace);
-        appliedScope = { kind: 'namespace', namespace };
-      } else if (installation) {
-        if (!services.runtime.prefix()) {
-          return res.status(400).json({ ok: false, error: 'escopo por instalação exige URL configurada' });
-        }
-        const suffix = `:${streamsCacheScope(services.runtime.opts())}`;
-        removed = services.cache.clearWhere((key) => key.startsWith('streams:') && key.endsWith(suffix));
-        appliedScope = { kind: 'installation' };
-      } else {
-        return res.status(400).json({ ok: false, error: 'escopo de cache inválido' });
-      }
-    } else {
-      services.cache.clear();
-    }
-    services.metrics.count('dashboard.cache.clear');
-    return res.json({ ok: true, action, scope: appliedScope, removed, entriesBefore, entriesAfter: services.cache.size() });
-  },
+  'clear-cache': clearCache,
 
   'sweep-dead': async ({ services, res, action }) => {
     const result = (await services.debrid.sweepDeadCurrent()) ?? (await services.debrid.sweepDeadEnv());

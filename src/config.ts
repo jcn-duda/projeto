@@ -19,6 +19,7 @@ import { searchSettings, budgets, search } from './config/search.js';
 import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.js';
 import { debrid } from './config/debrid.js';
 import { debridRust } from './config/debrid-rust.js';
+import { streamStore } from './config/stream-store.js';
 import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
 import { crawl } from './config/crawl.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
@@ -51,6 +52,8 @@ const config = {
   debrid: debrid(),
   // Flags do sidecar Rust que o Node espelha (ex.: DEBRID_AL_CLEANUP).
   debridRust: debridRust(),
+  // Ponte com o store nativo `streams.db` (invalidação/clear/trace).
+  streamStore: streamStore(),
   // searchTimeout, replyDeadline, debridReserve, debridCheckFloor
   ...budgets(),
   search: search(),

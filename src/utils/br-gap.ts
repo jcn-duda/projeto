@@ -14,6 +14,7 @@
 // aqui só vivem o predicado e a decisão, puros e testáveis.
 import * as cache from './cache.js';
 import { prefix } from './cache-keys.js';
+import { invalidateNativeStreamsForObra } from './streams-store-native.js';
 import type { IndexedRelease } from './release-index.js';
 
 function isBrDubbed(release: IndexedRelease | undefined | null): boolean {
@@ -159,6 +160,11 @@ export function brTransition(
 export function invalidateStreamsForObra(imdbId: string): number {
   const target = String(imdbId || '').toLowerCase();
   if (!/^tt\d+$/.test(target)) return 0;
+  // F4.4a — o SWR do corte é o `streams.db` NATIVO: a varredura acima só
+  // alcança o L1 deste processo e sozinha não invalida a lista servida pelo
+  // gateway. A ponte é fire-and-forget (o chamador é síncrono e o `/resolve`
+  // não pode esperar); o caminho antigo continua valendo sempre.
+  invalidateNativeStreamsForObra(target);
   const streamPrefix = prefix('streams');
   let cleared = 0;
   for (const key of cache.keysMatching(streamPrefix)) {

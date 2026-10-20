@@ -27,6 +27,7 @@ import { serializeTrace, sanitizeTraceLabel } from '../utils/stream-trace.js';
 import { recomputeOffline } from '../utils/trace-recompute.js';
 import { liveCapability, liveCheck } from '../debrid/live-check.js';
 import { prefix } from '../utils/cache-keys.js';
+import { fetchNativeStreamTrace } from '../utils/streams-store-native.js';
 
 /** Gate comum dos diagnósticos: sem JACKETT_TEST_TOKEN no .env a rota fica
  * desligada (503, mesmo com header correto); com token, header errado ou
@@ -42,6 +43,46 @@ function unavailable(services: AppServices, req: express.Request, res: express.R
     return true;
   }
   return false;
+}
+
+/**
+ * Sonda de CAPACIDADE sempre presente (o painel decide se renderiza o botão) e
+ * a execução de `mode=live`, que é gateada por ela: knob desligado, sem conta ou
+ * serviço recusado => responde SEM tocar a rede (o GET ao serviço é quota da
+ * conta; o operador tem que ter optado).
+ *
+ * Compartilhada pelas duas origens do ledger (L1 do Node e `streams.db`
+ * nativo): a decisão de live não pode divergir entre elas.
+ */
+async function appendLive(
+  services: AppServices,
+  mode: unknown,
+  base: Record<string, unknown>,
+  streams: Array<{ name?: unknown; infoHash?: unknown }>,
+): Promise<Record<string, unknown>> {
+  const opts = services.runtime.opts();
+  const service = opts.debridService || null;
+  const apiKey = opts.debridApiKey || '';
+  // O kill-switch STREAM_TRACE desliga o live junto (é o interruptor do
+  // diagnóstico inteiro); o STREAM_TRACE_LIVE decide se o serviço efetivo
+  // está na allowlist.
+  const liveEnabled = services.config.search.streamTrace
+    && services.config.search.streamTraceLive.includes(String(service || ''));
+  const live = liveCapability(service, apiKey, liveEnabled);
+  if (String(mode || '') !== 'live' || !live.allowed) return { ...base, live };
+  const items = streams.slice(0, services.config.search.streamTraceLiveMaxHashes).map((s, i) => ({
+    id: `d${i + 1}`,
+    // Mesma defesa do trace/recompute: o name do stream pode carregar
+    // magnet/hash cru do cache; o hash em si vai cru ao BY_ID mas some da
+    // resposta (liveCheck só devolve id/name/verdict).
+    name: sanitizeTraceLabel(String(s.name || '').split('\n')[0]),
+    hash: String(s.infoHash || ''),
+  })).filter((i) => i.hash);
+  const liveResult = await liveCheck(String(service || ''), apiKey, items, {
+    timeoutMs: services.config.search.streamTraceLiveTimeoutMs,
+    maxHashes: services.config.search.streamTraceLiveMaxHashes,
+  });
+  return { ...base, live: liveResult };
 }
 
 export function makeStreamTraceHandler(services: AppServices): express.RequestHandler {
@@ -88,6 +129,32 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
         }
       }
       if (!hit) {
+        // F4.4a — no corte o ledger da busca vive no orquestrador NATIVO
+        // (`data/streams.db`), não mais no L1 deste processo: sem esta leitura o
+        // painel mostrava "sem trace" mesmo com a busca feita. A ponte devolve o
+        // MESMO contrato de cache/ledger; `key` tenta a chave exata desta
+        // instalação e o Rust cai para a build mais recente da obra.
+        const native = await fetchNativeStreamTrace(type, id, cacheKey);
+        if (native?.found) {
+          const cache = native.cache ?? {};
+          const base = {
+            ok: true,
+            found: true,
+            origin: 'cached',
+            source: 'rust',
+            type,
+            id,
+            cache: {
+              remainingS: Number(cache.remainingS) || 0,
+              partial: cache.partial === true,
+              debridKnown: cache.debridKnown === true,
+              stale: cache.stale === true,
+            },
+            trace: serializeTrace(native.trace as Parameters<typeof serializeTrace>[0]),
+            recompute: null,
+          };
+          return res.json(await appendLive(services, req.query.mode, base, native.streams ?? []));
+        }
         // Sem entrada NÃO há searchMeta (nomes/ano) nem lista para explicar: o
         // recompute não tem o que dizer. Knob desligado => nem tentou.
         const recomputeOff = !(services.config.search.streamTrace && services.config.search.streamTraceRecompute);
@@ -120,19 +187,6 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
         const year = value.searchMeta?.year ?? null;
         recompute = recomputeOffline(imdbId, { season, episode }, names, year);
       }
-      // P5 Fatia B — sonda de CAPACIDADE sempre presente (o painel decide se
-      // renderiza o botão). A EXECUÇÃO de `mode=live` é gateada por ela: knob
-      // desligado, sem conta ou serviço recusado => responde sem tocar a rede
-      // (o GET ao serviço é quota da conta; o operador tem que ter optado).
-      const opts = services.runtime.opts();
-      const service = opts.debridService || null;
-      const apiKey = opts.debridApiKey || '';
-      // O kill-switch STREAM_TRACE desliga o live junto (é o interruptor do
-      // diagnóstico inteiro); o STREAM_TRACE_LIVE decide se o serviço efetivo
-      // está na allowlist.
-      const liveEnabled = services.config.search.streamTrace
-        && services.config.search.streamTraceLive.includes(String(service || ''));
-      const live = liveCapability(service, apiKey, liveEnabled);
       const base = {
         ok: true,
         found: true,
@@ -148,24 +202,8 @@ export function makeStreamTraceHandler(services: AppServices): express.RequestHa
         trace: serializeTrace(value.trace as Parameters<typeof serializeTrace>[0]),
         recompute,
       };
-      if (String(req.query.mode || '') === 'live') {
-        if (!live.allowed) return res.json({ ...base, live });
-        const streams = Array.isArray(value.streams) ? value.streams : [];
-        const items = streams.slice(0, services.config.search.streamTraceLiveMaxHashes).map((s, i) => ({
-          id: `d${i + 1}`,
-          // Mesma defesa do trace/recompute: o name do stream pode carregar
-          // magnet/hash cru do cache; o hash em si vai cru ao BY_ID mas some
-          // da resposta (liveCheck só devolve id/name/verdict).
-          name: sanitizeTraceLabel(String(s.name || '').split('\n')[0]),
-          hash: String(s.infoHash || ''),
-        })).filter((i) => i.hash);
-        const liveResult = await liveCheck(String(service || ''), apiKey, items, {
-          timeoutMs: services.config.search.streamTraceLiveTimeoutMs,
-          maxHashes: services.config.search.streamTraceLiveMaxHashes,
-        });
-        return res.json({ ...base, live: liveResult });
-      }
-      return res.json({ ...base, live });
+      const streams = Array.isArray(value.streams) ? value.streams : [];
+      return res.json(await appendLive(services, req.query.mode, base, streams));
     } finally {
       admission.release();
     }

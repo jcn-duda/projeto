@@ -54,8 +54,11 @@ pub use list_builder::{
     apply_notice_origin, build_stream_list, seed_floor_for, AudioAudit, BuildContext, BuildOptions,
     BuiltList, BuiltStream, DebridAnswer, DebridCheck, WorkHint,
 };
-// Costura real com os adaptadores de debrid + reserva interna do Node.
-pub use debrid_seam::{answer_of, AdapterDebridCheck, FallbackCheck, NodeInternalFallback};
+// Costura real com os adaptadores de debrid + reserva interna do Node + feed
+// de holds do autofetch (`DEBRID_AL_HOLDS`).
+pub use debrid_seam::{
+    answer_of, AdapterDebridCheck, FallbackCheck, HoldsFeed, NodeHoldsFeed, NodeInternalFallback,
+};
 pub use raw_item::RawItem;
 // Store do `raw:v1` (o gateway injeta o mesmo `cache.db` do Node no coletor
 // BLUDV nativo); a sombra nunca o recebe.

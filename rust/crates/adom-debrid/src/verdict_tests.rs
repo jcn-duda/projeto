@@ -14,7 +14,9 @@ use axum::Router;
 use serde_json::{json, Value};
 use tokio::net::TcpListener;
 
-use super::{check_service, is_cached, outcome_json, UnusableKind};
+use super::{alldebrid_opts, check_service, is_cached, outcome_json, UnusableKind};
+use crate::alldebrid_cleanup::CleanupMode;
+use crate::holds_feed::HoldsFacts;
 use crate::store::Store;
 use crate::verdict::{rd_gate_enabled, rd_ledger_enabled, rd_oracle_enabled};
 
@@ -363,4 +365,138 @@ fn outcome_json_carrega_known_e_unusable() {
     let json = outcome_json(&outcome);
     assert_eq!(json["unusable"]["reason"], json!("quota"));
     assert!(!json.to_string().contains(KEY));
+}
+
+// ── Fatos do feed de holds → CheckOpts (AllDebrid) ──────────────────────────
+
+const ACCOUNT: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const BATCH: [&str; 2] = [HIT, MISS];
+
+fn holds_facts(complete: bool, evaluated: &[&str]) -> HoldsFacts {
+    HoldsFacts {
+        account: ACCOUNT.into(),
+        inventory_loaded: true,
+        known_before: vec![DARK.into()],
+        held: vec![MISS.into()],
+        evaluated: evaluated.iter().map(|h| (*h).to_string()).collect(),
+        holds_complete: complete,
+        drop_ready: Some(false),
+        drop_uncached: Some(true),
+    }
+}
+
+fn batch() -> Vec<String> {
+    BATCH.iter().map(|h| (*h).to_string()).collect()
+}
+
+/// Limpeza OFF (default): read-only de verdade — fatos e drops ignorados, nem
+/// inventário nem `DurablePeek` são montados.
+#[test]
+fn alldebrid_opts_limpeza_off_ignora_fatos() {
+    let facts = holds_facts(true, &BATCH);
+    let opts = alldebrid_opts(CleanupMode::Off, None, Some(&facts), &batch());
+    assert!(!opts.cleanup.is_on());
+    assert!(!opts.drop_ready);
+    assert!(!opts.drop_uncached);
+    assert!(!opts.inventory_loaded);
+    assert!(!opts.holds_complete);
+    assert!(opts.known_before.is_empty());
+    assert!(opts.held.is_empty());
+    assert!(opts.durable.is_none(), "flag OFF não abre o cache.db");
+}
+
+/// Limpeza ON sem feed: comportamento anterior preservado (read-only por
+/// `holds_incomplete`), com os drops do ambiente.
+#[test]
+fn alldebrid_opts_sem_fatos_continua_read_only() {
+    let _env = EnvGuard::set(&[
+        ("DEBRID_DROP_READY", None),
+        ("DEBRID_DROP_UNCACHED", Some("false")),
+    ]);
+    let opts = alldebrid_opts(CleanupMode::On, None, None, &batch());
+    assert!(opts.drop_ready, "default do ambiente é true");
+    assert!(!opts.drop_uncached, "env manda quando não há fato");
+    assert!(!opts.inventory_loaded);
+    assert!(!opts.holds_complete, "sem prova o plano nasce suprimido");
+    assert!(opts.durable.is_some());
+}
+
+/// Fatos completos: drops/inventário/hold do Node viajam e `holds_complete`
+/// só fica verdadeiro porque `evaluated` cobre o lote.
+#[test]
+fn alldebrid_opts_fatos_completos_autorizam_o_plano() {
+    let facts = holds_facts(true, &BATCH);
+    let opts = alldebrid_opts(
+        CleanupMode::On,
+        Some(Duration::from_millis(123)),
+        Some(&facts),
+        &batch(),
+    );
+    assert_eq!(opts.timeout, Some(Duration::from_millis(123)));
+    assert!(!opts.drop_ready);
+    assert!(opts.drop_uncached);
+    assert!(opts.inventory_loaded);
+    assert!(opts.holds_complete);
+    assert!(opts.known_before.contains(DARK));
+    assert!(opts.held.contains(MISS));
+    assert!(opts.durable.is_some());
+}
+
+/// `holdsComplete:true` com `evaluated` parcial NÃO autoriza: a cobertura é
+/// reconferida no Rust (fail-closed).
+#[test]
+fn alldebrid_opts_fatos_incompletos_nao_autorizam() {
+    let partial = holds_facts(true, &[HIT]);
+    let opts = alldebrid_opts(CleanupMode::On, None, Some(&partial), &batch());
+    assert!(!opts.holds_complete, "evaluated não cobre o lote");
+    // O que foi provado (held/inventário) continua indo: protege mais, nunca
+    // menos.
+    assert!(opts.held.contains(MISS));
+    assert!(opts.inventory_loaded);
+
+    let lying = holds_facts(false, &BATCH);
+    let opts = alldebrid_opts(CleanupMode::On, None, Some(&lying), &batch());
+    assert!(!opts.holds_complete, "flag falso do Node nunca vira prova");
+}
+
+/// A checagem com fatos atravessa `check_service_report_with` sem mexer no
+/// veredito: o plano é só um efeito do corpo, nunca da resposta.
+#[tokio::test]
+async fn check_com_fatos_mantem_o_veredito() {
+    let body = json!({
+        "status": "success",
+        "data": {
+            "magnets": [
+                { "hash": HIT, "ready": true, "id": 11 },
+                { "hash": MISS, "ready": false, "id": 12 }
+            ]
+        }
+    })
+    .to_string();
+    let base = serve(upstream(200, &body).1).await;
+    // Cache durável inexistente: o teste não pode depender do cache.db do host.
+    let cache_db =
+        std::env::temp_dir().join(format!("adom-holds-verdict-{}.db", std::process::id()));
+    let _env = EnvGuard::set(&[
+        ("ALLDEBRID_API_BASE", Some(&base)),
+        (
+            "CACHE_DB_PATH",
+            Some(cache_db.to_str().unwrap_or("nao-existe.db")),
+        ),
+        ("DEBRID_AL_CLEANUP", Some("on")),
+    ]);
+    let facts = holds_facts(true, &BATCH);
+    let report = super::check_service_report_with(
+        "alldebrid",
+        KEY,
+        &[HIT.into(), MISS.into()],
+        Some(Duration::from_millis(2000)),
+        None,
+        Some(&facts),
+    )
+    .await
+    .unwrap();
+    assert!(report.outcome.known);
+    assert!(is_cached(&report.outcome, HIT));
+    assert!(!is_cached(&report.outcome, MISS));
 }

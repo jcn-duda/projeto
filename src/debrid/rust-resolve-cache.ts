@@ -8,6 +8,7 @@
 import config from '../config.js';
 import { errorMessage } from '../utils/logger.js';
 import { invalidateStreamsForObra } from '../utils/br-gap.js';
+import { clearNativeStreamsSoon } from '../utils/streams-store-native.js';
 
 // Rajada de plays bloqueados não pode esfriar o cache de todo mundo
 // repetidamente. O instante fica neste processo — é o L1 daqui que se apaga.
@@ -39,6 +40,10 @@ function invalidateStreamsOnBlocked(services: CacheEffectServices): number {
   lastBlockedInvalidateAt = now;
   try {
     const removed = services.cache.clearNamespace('streams');
+    // F4.4a — o SWR do corte vive no `streams.db` nativo; limpar só o L1 do
+    // Node deixava a lista bloqueada no ar até o TTL. Best-effort: o efeito do
+    // play é síncrono e a ponte tem timeout curto.
+    clearNativeStreamsSoon();
     if (removed) {
       services.metrics.count('resolve.streamsInvalidated.blocked');
       services.log.info(`[resolve] cache de streams invalidado por bloqueio legal (${removed} entrada(s)); a próxima abertura não oferece mais este hash pelo debrid (ledger blocked)`);

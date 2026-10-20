@@ -522,30 +522,62 @@ container com o gateway default. O deploy deve rodar o checklist do contrato §0
 e o `clear-cache` antes de medir; a 1ª abertura a frio ainda pode vir só com
 aviso (§0.5).
 
-**Dependências do pipeline que ficaram inertes (reportadas, não quebradas):**
+**Dependências do pipeline — RESOLVIDAS no F4.4a:**
 
-1. `/resolve` invalida o namespace `streams:*` do Node (`invalidateStreamsForObra`)
-   em `NoVideoError`/`DubLieError`/`EpisodePickError`. O SWR do corte agora é
-   `data/streams.db` (store nativo), então essa invalidação **não alcança** a
-   lista servida pelo gateway — o hash pode continuar na lista até o TTL.
-   `magnetdb.markBad`/`markLie` continuam gravando em `cache.db`, mas o build
-   nativo também não lê o `mag:` para cortar `bad`/`lie`; o que segura o caso é
-   a checagem de cache (`cachedOnly`) e o TTL.
-2. O `streams.db` nativo não é limpo pelo `clear-cache` do painel (que mexe no
-   `cache.db`), nem pelo `POST /dashboard-action.json`. Para descartar o SWR
-   nativo é preciso parar o gateway e remover/invalidar `data/streams.db`.
-3. `/stream-trace.json` (P5) lê o ledger do namespace `streams:*` do Node; com o
-   corte nativo ele nasce vazio (o ledger agora é do orquestrador Rust). O
-   `STREAM_TRACE`/`mode=live` continuam válidos, mas a leitura offline precisa
-   de uma rota interna do Rust (F4.4a). O painel mostra "sem trace" — não é
-   falha de busca.
-4. `DEBRID_AL_RUST` segue **off**: o nativo é read-only sem o feed de holds
+O F4.4a fechou os itens 1–3 com uma API administrativa do store nativo
+(`adom-server::store_admin`, loopback + token) consumida pelo Node. O que era
+"inerte" agora tem caminho:
+
+1. **`/resolve` alcança o `streams.db`.** `invalidateStreamsForObra`
+   (`src/utils/br-gap.ts`) continua limpando o L1 do Node e passa a enfileirar
+   `POST /streams/invalidate {"imdbId"}`; os ramos de erro do `/resolve`
+   (`NoVideoError`/`DubLieError`/`EpisodePickError` e o caminho `rustServices`)
+   fazem `flush` antes de responder, então a reabertura imediata já reconstrói.
+   O 451 (`invalidateStreamsOnBlocked`) limpa o nativo em best-effort, atrás do
+   mesmo cooldown. Há também `{"hash"}` para o item resolvido (a URL relativa
+   de `/resolve/<hash>` é o que sobra na entrada).
+2. **`clear-cache` do painel limpa o nativo.** Escopo global → namespace todo;
+   `{namespace:"streams"}` → idem; `{installation:true}` → chaves com o MESMO
+   sufixo `:<streamsCacheScope>`; qualquer outro namespace não toca o nativo. A
+   resposta ganhou o campo `native` (`{attempted, ok, removed, error?}`) para o
+   operador ver o que aconteceu de fato.
+3. **`/stream-trace.json` lê o ledger nativo.** Quando o L1 do Node não tem a
+   obra (o caso do corte), a rota chama `GET /streams/trace?type=&id=[&key=]` e
+   devolve o MESMO contrato (`origin:'cached'`, `cache.remainingS/partial/
+   debridKnown/stale`, `trace`, `recompute:null`, `live`), com
+   `source:'rust'`. A chave exata do segmento vai em `key`; sem ela o Rust
+   escolhe a build mais recente da obra. `STREAM_TRACE=false` continua zerando
+   a exposição (o `serializeTrace` do Node roda sobre o ledger do Rust).
+4. **`bad`/`lie` no build nativo.** `STREAM_BAD_RUST` (default ON) injeta em
+   `BuildContext.broken_hashes` os hashes `mag:v1:{bad|lie}:<adapter>:<conta>:`
+   vivos, lidos do `cache.db` por `adom-store::MagnetDbStore` (conexão
+   read-only). O build marca `_broken` e o `finalize` corta antes da checagem —
+   a mesma régua do `pruneKnownBroken`, agora aplicada aos itens que a coleta e
+   o índice NATIVOS produzem (eles não passam pela rota de evidência do Node).
+5. `DEBRID_AL_RUST` segue **off**: o nativo é read-only sem o feed de holds
    (F4.6). A checagem com limpeza continua na rota interna do Node.
 
-Nenhuma dessas dependências quebra a BUSCA: são invalidação/observabilidade. A
-busca responde pelo orquestrador e os gates de código estão verdes; o deploy
-deve considerar os itens 1–3 como dívida declarada (F4.4a), não como regressão
-silenciosa.
+**Contrato da API administrativa (`STREAM_STORE_ADMIN_LISTEN`, default
+`127.0.0.1:8711`)** — token `X-Indexer-Test-Token`
+(`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` → `JACKETT_TEST_TOKEN`;
+sem token, 503). Ela é montada SÓ no processo `adom-server` com
+`ROUTES_RUST` contendo `stream` (`GATEWAY=on`), nunca na 7000 pública (o
+gateway recusa `/internal/*`) e nunca por Caddy.
+
+| rota | efeito |
+|---|---|
+| `POST /streams/invalidate` `{"imdbId":"tt…"}` | apaga as chaves da obra |
+| `POST /streams/invalidate` `{"hash":"<40hex>"}` | apaga as entradas que citam o hash |
+| `POST /streams/clear` `{}` / `{"suffix":":…"}` | limpa tudo / só o escopo da instalação |
+| `GET /streams/trace?type=&id=[&key=]` | ledger + estado da entrada da obra |
+| `GET /streams/stats` | ocupação/cota (diagnóstico) |
+
+**Rollback (sem rebuild):** `STREAM_STORE_RUST=off` nos DOIS lados — o Rust não
+sobe a API e não injeta a ponte; o Node volta a limpar só o L1 (comportamento
+F4.4) e o painel responde `native.attempted:false`. `STREAM_BAD_RUST=off`
+desliga só a poda `bad`/`lie` nativa (o build volta à régua anterior, com a
+evidência vinda apenas das rotas internas). Nenhuma das duas afeta a BUSCA: são
+invalidação/observabilidade; a lista continua sendo servida pelo orquestrador.
 
 ---
 

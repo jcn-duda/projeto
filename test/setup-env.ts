@@ -81,6 +81,14 @@ process.env.MAX_STREAMS_480P = '6';
 process.env.MAX_STREAMS_SD = '6';
 process.env.MAX_STREAMS_UNKNOWN = '6';
 
+// Fronteira do store NATIVO de `streams:v21` (F4.4a). Em produção a ponte nasce
+// LIGADA (o corte é o default e o Node precisa invalidar/limpar/ler o
+// `streams.db`); na suíte ela fica DESLIGADA para o verde não depender de um
+// gateway local nem de porta aberta — os testes da ponte
+// (`test/streams-store-native.test.ts`) ligam no `beforeEach` e apontam a URL
+// para o dublê de fetch.
+process.env.STREAM_STORE_RUST = 'off';
+
 // O selo do install URL é exercitado pelos próprios testes (withSecret e
 // atribuição local em app-routes/tier2/tier3, sempre restaurada em finally).
 // O `.env` do operador pode ter RESOLVE_SECRET (caso do dev que ligou o selo

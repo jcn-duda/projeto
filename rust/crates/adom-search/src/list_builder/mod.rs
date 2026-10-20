@@ -256,10 +256,27 @@ pub fn build_stream_list(
 
     // 6. Mapeia para o stream de ranking (coluna estreita via `stream_display_name`
     //    do núcleo) e ordena no POOL AMPLIADO.
-    let mapped: Vec<RankingStream> = raw
+    let mut mapped: Vec<RankingStream> = raw
         .iter()
         .filter_map(|item| map_stream(item, display, &opts.audio_audit))
         .collect();
+    // 6b. `pruneKnownBroken` (F4.4a): o histórico `bad`/`lie` desta conta sai
+    //     AQUI, antes da checagem do debrid — a mesma marca `broken` que a rota
+    //     de evidência do Node põe no item, só que vinda do `cache.db` lido
+    //     pela fonte injetada (`STREAM_BAD_RUST`). Sem fonte o conjunto é vazio
+    //     e o funil segue idêntico ao do corpus.
+    if !ctx.broken_hashes.is_empty() {
+        for stream in &mut mapped {
+            let known_broken = stream
+                .info_hash
+                .as_deref()
+                .map(str::to_ascii_lowercase)
+                .is_some_and(|hash| ctx.broken_hashes.contains(&hash));
+            if known_broken {
+                stream.extra.insert("_broken".into(), true.into());
+            }
+        }
+    }
     let sem_hash = raw.len() - mapped.len();
     if sem_hash > 0 {
         out.count("no-hash", sem_hash);

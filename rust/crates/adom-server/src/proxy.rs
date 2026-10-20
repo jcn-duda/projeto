@@ -96,11 +96,20 @@ pub async fn run(config: Config) -> Result<(), String> {
     let resolve_cut = config.resolve_native;
     let resolve_proxy = config.resolve_proxy;
     let upstream = config.upstream.clone();
-    let orchestrator = if stream_cut {
-        Some(stream::build_orchestrator())
+    // F4.4a: o store do corte é aberto UMA vez e compartilhado com a API
+    // administrativa (`streams.db`), para a invalidação do Node valer para o
+    // SWR deste processo na hora.
+    let stores = if stream_cut {
+        Some(stream::open_stream_stores())
     } else {
         None
     };
+    let orchestrator = stores
+        .as_ref()
+        .map(|stores| stream::build_orchestrator_from(stores.clone()));
+    if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
+        spawn_store_admin(stores, orch.config().stale_grace_seconds);
+    }
     // Sombra só quando o corte NÃO engole a rota; sem token → None (pula).
     // `STREAM_SHADOW_MODE=direct` não monta a captura: compara o corpo normal
     // com a remontagem (o remount pode existir ou não; sem token, pula).
@@ -170,6 +179,30 @@ pub async fn run(config: Config) -> Result<(), String> {
     axum::serve(listener, router(state))
         .await
         .map_err(|err| format!("servidor encerrou: {err}"))
+}
+
+/// Sobe a API administrativa do `streams.db` (loopback + token) em segundo
+/// plano. Falha de bind é só log: o `/stream` não depende dela, e as chamadas
+/// do Node degradam para "sem efeito" (o Node loga e segue).
+fn spawn_store_admin(stores: &stream::StreamStores, grace_seconds: u64) {
+    let Some(streams) = stores.streams.clone() else {
+        eprintln!("[gateway] streams admin sem store SQLite (memória); invalidação indisponível");
+        return;
+    };
+    let cfg = match crate::store_admin::config_from_env() {
+        Ok(Some(cfg)) => cfg,
+        // Flag desligada: o Node volta a ser o único dono (F4.4).
+        Ok(None) => return,
+        Err(err) => {
+            eprintln!("[gateway] {err}; API do streams.db não sobe");
+            return;
+        }
+    };
+    tokio::spawn(async move {
+        if let Err(err) = crate::store_admin::serve(cfg, streams, grace_seconds).await {
+            eprintln!("[gateway] {err}");
+        }
+    });
 }
 
 async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response<Body> {

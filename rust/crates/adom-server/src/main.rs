@@ -3,6 +3,7 @@ mod config;
 mod proxy;
 mod resolve;
 mod shadow;
+mod store_admin;
 mod stream;
 
 #[cfg(test)]

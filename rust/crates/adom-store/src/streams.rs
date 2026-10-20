@@ -162,6 +162,126 @@ impl StreamsStore {
         Ok(())
     }
 
+    /// Apaga TODO o namespace (`clear-cache` do painel). Devolve quantas linhas
+    /// saíram — é o número que o Node relata ao operador.
+    pub fn clear_all(&self) -> Result<usize, String> {
+        let conn = self.lock();
+        conn.execute(
+            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1",
+            params![streams_prefix()],
+        )
+        .map_err(|err| err.to_string())
+    }
+
+    /// Apaga as chaves de UMA obra no formato
+    /// `<prefixo><movie|series>:<tt…>[:S:E]:<scope>` — o espelho de
+    /// `invalidateStreamsForObra` do Node (`src/utils/br-gap.ts`). O token
+    /// `tt\d+` é o primeiro segmento depois do tipo, então `:tt1230` não colide
+    /// com `:tt123`.
+    pub fn invalidate_for_obra(&self, imdb_id: &str) -> Result<usize, String> {
+        let target = imdb_id.trim().to_ascii_lowercase();
+        if !is_imdb_id(&target) {
+            return Err(format!("imdbId inválido: {imdb_id}"));
+        }
+        let conn = self.lock();
+        let prefix = streams_prefix();
+        let mut stmt = conn
+            .prepare("SELECT key FROM cache WHERE substr(key, 1, length(?1)) = ?1")
+            .map_err(|err| err.to_string())?;
+        let keys: Vec<String> = stmt
+            .query_map(params![prefix], |row| row.get::<_, String>(0))
+            .map_err(|err| err.to_string())?
+            .filter_map(Result::ok)
+            .filter(|key| obra_id_of(key).is_some_and(|id| id == target))
+            .collect();
+        let mut removed = 0;
+        for key in keys {
+            removed += conn
+                .execute("DELETE FROM cache WHERE key = ?1", params![key])
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(removed)
+    }
+
+    /// Apaga as chaves cuja ENTRADA menciona o hash. Serve ao `/resolve`: o
+    /// item resolvido perde `infoHash` (a URL relativa de `/resolve/<hash>` é o
+    /// que sobra), então a varredura é textual no valor, em minúsculas (hex).
+    pub fn invalidate_for_hash(&self, hash: &str) -> Result<usize, String> {
+        let target = hash.trim().to_ascii_lowercase();
+        if target.len() != 40 || !target.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(format!("hash inválido: {hash}"));
+        }
+        let conn = self.lock();
+        conn.execute(
+            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1
+             AND instr(lower(value), ?2) > 0",
+            params![streams_prefix(), target],
+        )
+        .map_err(|err| err.to_string())
+    }
+
+    /// Apaga as chaves que terminam no sufixo (escopo “instalação” do painel:
+    /// `:<streamsCacheScope>`). Sufixo vazio = limpar tudo.
+    pub fn clear_by_suffix(&self, suffix: &str) -> Result<usize, String> {
+        if suffix.is_empty() {
+            return self.clear_all();
+        }
+        let conn = self.lock();
+        conn.execute(
+            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1
+             AND substr(key, -length(?2)) = ?2",
+            params![streams_prefix(), suffix],
+        )
+        .map_err(|err| err.to_string())
+    }
+
+    /// Entrada de UMA chave para o `/stream-trace.json` (admin): `None` além da
+    /// graça SWR (e apaga, como o `getWithStale` do Node).
+    pub fn trace_entry(
+        &self,
+        key: &str,
+        grace_seconds: u64,
+        now_ms: u64,
+    ) -> Result<Option<TraceHit>, String> {
+        let conn = self.lock();
+        trace_hit(&conn, key, grace_seconds, now_ms)
+    }
+
+    /// Entrada mais RECENTE da obra em qualquer escopo (a leitura do painel sem
+    /// segmento): varre o prefixo `<tipo>:<id>:` e escolhe pelo `finishedAt`
+    /// (senão `startedAt`) do ledger — o mesmo critério do
+    /// `/stream-trace.json` do Node quando a chave exata não existe.
+    pub fn latest_trace(
+        &self,
+        kind: &str,
+        id: &str,
+        grace_seconds: u64,
+        now_ms: u64,
+    ) -> Result<Option<TraceHit>, String> {
+        let prefix = format!("{}{}:{}:", streams_prefix(), kind, id);
+        let conn = self.lock();
+        let mut stmt = conn
+            .prepare("SELECT key FROM cache WHERE substr(key, 1, length(?1)) = ?1")
+            .map_err(|err| err.to_string())?;
+        let keys: Vec<String> = stmt
+            .query_map(params![prefix], |row| row.get::<_, String>(0))
+            .map_err(|err| err.to_string())?
+            .filter_map(Result::ok)
+            .collect();
+        drop(stmt);
+        let mut best: Option<(f64, TraceHit)> = None;
+        for key in keys {
+            let Some(hit) = trace_hit(&conn, &key, grace_seconds, now_ms)? else {
+                continue;
+            };
+            let at = trace_at(&hit.value);
+            if best.as_ref().is_none_or(|(best_at, _)| at >= *best_at) {
+                best = Some((at, hit));
+            }
+        }
+        Ok(best.map(|(_, hit)| hit))
+    }
+
     pub fn len(&self) -> Result<usize, String> {
         let conn = self.lock();
         let n: i64 = conn
@@ -215,6 +335,71 @@ fn read_row(conn: &Connection, key: &str) -> Result<Option<(String, i64)>, Strin
         })
         .ok();
     Ok(row)
+}
+
+/// Entrada lida PARA DIAGNÓSTICO (`/stream-trace.json`): o valor, se está na
+/// graça e o TTL restante em segundos.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraceHit {
+    pub value: StreamsEntry,
+    pub stale: bool,
+    /// Segundos até o TTL vencer (`0` quando já venceu e está na graça).
+    pub remaining_s: u64,
+}
+
+fn trace_hit(
+    conn: &Connection,
+    key: &str,
+    grace_seconds: u64,
+    now_ms: u64,
+) -> Result<Option<TraceHit>, String> {
+    let Some((value, expires_at)) = read_row(conn, key)? else {
+        return Ok(None);
+    };
+    let expires_at = expires_at as u64;
+    let stale = now_ms > expires_at;
+    if stale && now_ms > expires_at.saturating_add(grace_seconds.saturating_mul(1000)) {
+        // Fora da graça: mesma poda do `getWithStale` (o diagnóstico não
+        // ressuscita entrada que a busca não serviria).
+        conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
+            .map_err(|err| err.to_string())?;
+        return Ok(None);
+    }
+    Ok(Some(TraceHit {
+        value: decode_entry(&value)?,
+        stale,
+        remaining_s: if stale {
+            0
+        } else {
+            expires_at.saturating_sub(now_ms) / 1000
+        },
+    }))
+}
+
+/// `at` do ledger: `finishedAt`, senão `startedAt`, senão 0 (mesma ordenação do
+/// cruzamento de escopos do Node).
+fn trace_at(entry: &StreamsEntry) -> f64 {
+    let trace = entry.trace.as_ref();
+    let at = |field: &str| trace.and_then(|t| t.get(field)).and_then(|v| v.as_f64());
+    at("finishedAt").or_else(|| at("startedAt")).unwrap_or(0.0)
+}
+
+/// `tt` + dígitos (o mesmo `/^tt\d+$/` do Node).
+fn is_imdb_id(id: &str) -> bool {
+    id.strip_prefix("tt")
+        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// Obra (imdbId) de uma chave `streams:v21:<movie|series>:<tt…>[:…]:…`.
+/// `None` = chave fora do formato (não é deste filtro).
+fn obra_id_of(key: &str) -> Option<&str> {
+    let rest = key.strip_prefix(streams_prefix())?;
+    let (kind, after) = rest.split_once(':')?;
+    if kind != "movie" && kind != "series" {
+        return None;
+    }
+    let id = after.split(':').next()?;
+    is_imdb_id(id).then_some(id)
 }
 
 fn decode_entry(raw: &str) -> Result<StreamsEntry, String> {

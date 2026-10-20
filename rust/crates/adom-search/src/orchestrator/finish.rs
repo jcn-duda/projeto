@@ -1,6 +1,6 @@
 //! Fim da passada: commit, URL de play, TTL e lote do índice.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
@@ -360,6 +360,15 @@ impl Orchestrator {
     pub(super) fn build_context(&self, input: &SearchInput, meta: &SearchMeta) -> BuildContext {
         let service = str_of(&input.options, "debridService");
         let api_key = str_of(&input.options, "debridApiKey");
+        // `pruneKnownBroken` nativo: `bad`/`lie` do banco de magnets DESTA conta
+        // (`STREAM_BAD_RUST`). Sem fonte/sem conta o conjunto é vazio — nenhuma
+        // régua nova, só a evidência que o Node já usava.
+        let broken_hashes = match self.known_broken.as_ref() {
+            Some(source) if !service.is_empty() && !api_key.is_empty() => {
+                source.broken_hashes(&service, &api_key, input.now_ms)
+            }
+            _ => HashSet::new(),
+        };
         BuildContext {
             names: meta.names.clone(),
             year: meta.year_text(),
@@ -400,6 +409,7 @@ impl Orchestrator {
                 .totals_at_build
                 .as_ref()
                 .map(|totals| totals.as_ref().clone()),
+            broken_hashes,
         }
     }
 

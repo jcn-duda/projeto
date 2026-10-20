@@ -5,6 +5,10 @@ import config from '../config.js';
 import { errorMessage } from '../utils/logger.js';
 import { accountScope } from '../utils/request-key.js';
 import { invalidateStreamsForObra } from '../utils/br-gap.js';
+import {
+  clearNativeStreamsSoon,
+  flushNativeStreamStores,
+} from '../utils/streams-store-native.js';
 import * as protectedApi from '../debrid/protected.js';
 import { applyResolveEffects } from '../debrid/rust-resolve-apply.js';
 
@@ -24,6 +28,10 @@ function invalidateStreamsOnBlocked(services: AppServices) {
   lastBlockedInvalidateAt = now;
   try {
     const removed = services.cache.clearNamespace('streams');
+    // F4.4a — o SWR servido pelo gateway vive no `streams.db` nativo: limpar só
+    // o L1 deste processo deixava a lista bloqueada no ar até o TTL. Best-effort
+    // (o 451 não pode segurar o cliente; a ponte tem timeout curto).
+    clearNativeStreamsSoon();
     if (removed) {
       services.metrics.count('resolve.streamsInvalidated.blocked');
       services.log.info(`[resolve] cache de streams invalidado por bloqueio legal (${removed} entrada(s)); a próxima abertura não oferece mais este hash pelo debrid (ledger blocked)`);
@@ -132,6 +140,10 @@ function makeResolveHandler(services: AppServices) {
           episode: req.query.e ? Number(req.query.e) : null,
           services,
         });
+        // A invalidação do store NATIVO (obra/streams) nasce aqui dentro do
+        // apply; esperar a ponte garante que a próxima abertura já não sirva o
+        // hash que acabou de falhar. Falha da ponte não muda a resposta.
+        await flushNativeStreamStores();
         return respondWhenRustApplied(services, res, err, infoHash, req.query);
       }
       if (services.debridCommon.isNoVideoError(err)) {
@@ -142,6 +154,9 @@ function makeResolveHandler(services: AppServices) {
         // sem `i` não há clearNamespace global.
         if (hintedImdbId) {
           const cleared = invalidateStreamsForObra(hintedImdbId);
+          // O SWR do corte é o `streams.db` nativo: espera o DELETE chegar
+          // antes de responder, senão a reabertura imediata ainda serve a lista.
+          await flushNativeStreamStores();
           if (cleared > 0) {
             services.metrics.count('resolve.streamsInvalidated.bad');
             services.log.info(
@@ -182,6 +197,7 @@ function makeResolveHandler(services: AppServices) {
           // Lista pronta ainda oferece o hash mentiroso com ⚡/vaga BR até o TTL.
           // Só a obra da dica — sem `i` não há clearNamespace global.
           const cleared = invalidateStreamsForObra(hintedImdbId);
+          await flushNativeStreamStores();
           if (cleared > 0) {
             services.metrics.count('resolve.streamsInvalidated.lie');
             services.log.info(
@@ -219,6 +235,7 @@ function makeResolveHandler(services: AppServices) {
           // Lista pronta ainda oferece o pack sem o episódio até o TTL — mesmo
           // buraco do lie: markMissing sozinho não invalida streams.
           const cleared = invalidateStreamsForObra(hintedImdbId);
+          await flushNativeStreamStores();
           if (cleared > 0) {
             services.metrics.count('resolve.streamsInvalidated.missing');
             services.log.info(

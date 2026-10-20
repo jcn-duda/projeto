@@ -135,6 +135,12 @@ npm run docker:up / docker:logs
   saiu. `docker-compose.gateway.yml` é diagnóstico/rollback (publica o 7100);
   rollback funcional do corte é imagem/commit anterior, não env. Detalhe em
   `docs/rust-stream-contract.md` §0.
+  **F4.4a**: o gateway também sobe uma API administrativa do store nativo em
+  `127.0.0.1:8711` (`STREAM_STORE_ADMIN_*`, token no header) que o Node usa
+  para invalidar por obra/hash, limpar no `clear-cache` e ler o
+  `/stream-trace.json`; `STREAM_STORE_RUST=off` (ou `STREAM_BAD_RUST=off` para a
+  poda `bad`/`lie` do build) é o rollback sem rebuild. Contrato em
+  `docs/migracao-stream-rust.md` §F4 (F4.4a).
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda

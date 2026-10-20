@@ -47,6 +47,7 @@ mod index_source;
 mod internal_routes;
 mod jackett_collector;
 mod jackett_live;
+mod known_broken;
 mod late;
 mod live_state;
 mod meta;
@@ -124,6 +125,7 @@ pub use jackett_collector::{
     plan_jackett_searches, sources_rust_includes_jackett, try_jackett_collector_from_env,
     JackettCollector, PlannedJackettSearch,
 };
+pub use known_broken::KnownBroken;
 pub use live_state::{
     live_state_snapshot, merge_states, shared_live_state, LiveAllState, LiveBatchState,
     SharedLiveState,
@@ -198,6 +200,9 @@ pub struct Orchestrator {
     index: Option<SharedIndex>,
     /// Banco de magnets nativo (`BANK_RUST=on`/`shadow`); `None` = Node.
     bank: Option<SharedBank>,
+    /// Evidência `bad`/`lie` do banco de magnets da conta (`STREAM_BAD_RUST`);
+    /// `None` = sem fonte (build igual ao de antes do F4.4a).
+    known_broken: Option<Arc<dyn KnownBroken>>,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -248,6 +253,7 @@ impl Orchestrator {
             account: None,
             index: None,
             bank: None,
+            known_broken: None,
         }
     }
 
@@ -359,6 +365,19 @@ impl Orchestrator {
     /// `true` quando o banco nativo foi injetado.
     pub fn bank_source(&self) -> Option<&SharedBank> {
         self.bank.as_ref()
+    }
+
+    /// Injeta a evidência `bad`/`lie` da conta (o `cache.db` do Node lido pelo
+    /// gateway). `None` mantém o build sem poda — o caminho Node continua
+    /// marcando `broken` nos itens que ELE coleta.
+    pub fn with_known_broken(mut self, source: Arc<dyn KnownBroken>) -> Self {
+        self.known_broken = Some(source);
+        self
+    }
+
+    /// `true` quando a poda `bad`/`lie` nativa está ativa (diagnóstico).
+    pub fn known_broken_source(&self) -> Option<&Arc<dyn KnownBroken>> {
+        self.known_broken.as_ref()
     }
 
     pub fn config(&self) -> &OrchestratorConfig {

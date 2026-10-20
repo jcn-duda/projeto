@@ -19,7 +19,7 @@
 //! - **host nunca entra na lista**: avisos e `/resolve` nascem RELATIVOS; o
 //!   host é montado na resposta por [`apply_notice_origin`].
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use adom_core::{DebridFile, QualityLimits, RankingStream, QUALITY_KEYS};
 use serde_json::{json, Value};
@@ -257,6 +257,10 @@ pub struct BuildContext {
     /// captura antiga/sem o arquivo: a 1ª passada segue a régua anterior.
     pub files_at_build: Option<BTreeMap<String, Vec<DebridFile>>>,
     pub totals_at_build: Option<BTreeMap<String, f64>>,
+    /// Hashes que o PLAY desta conta já provou quebrados (`bad`/`lie` do banco
+    /// de magnets, lidos do `cache.db` pelo gateway — `STREAM_BAD_RUST`). Vazio
+    /// = sem fonte: o build não poda nada além do `broken` que vem no item.
+    pub broken_hashes: HashSet<String>,
     /// Relógio da build (ms desde a época).
     pub now_ms: i64,
 }

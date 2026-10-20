@@ -45,8 +45,12 @@ fn new_shadow_swr_store_memoria_vazia_nao_abre_disco() {
 fn open_swr_store_at_tempfile_abre() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("streams.db");
-    let store = open_swr_store_at(&path);
-    assert_eq!(store.len(), 0);
+    let stores = open_stream_stores_at(&path);
+    assert_eq!(stores.swr.len(), 0);
+    assert!(
+        stores.streams.is_some(),
+        "a API administrativa recebe o SQLite"
+    );
     assert!(path.is_file(), "open deve criar o arquivo em disco");
 }
 
@@ -57,8 +61,8 @@ fn open_swr_store_at_path_invalido_cai_em_memoria() {
     let blocker = dir.path().join("nao-e-pasta");
     std::fs::write(&blocker, b"x").expect("blocker");
     let path = blocker.join("streams.db");
-    let store = open_swr_store_at(&path);
-    assert_eq!(store.len(), 0);
+    let stores = open_stream_stores_at(&path);
+    assert_eq!(stores.swr.len(), 0);
     assert!(!path.exists(), "fallback memória não cria o path inválido");
 }
 
