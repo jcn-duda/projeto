@@ -149,7 +149,31 @@ Os 16: Cidade de Deus, Tropa de Elite, Central do Brasil, Auto da Compadecida,
 Carandiru, Bacurau, Inception, Interstellar, Parasite, Harry Potter 1, Kung Fu
 Panda 4, Matrix, GOT S08E03, 3% S01E01, Breaking Bad S01E01 e Naruto S01E01.
 
-## Correções que o gate já forçou no Rust
+## Sombra congelada (Fase 2)
+
+A sombra live antiga comparava a lista **pré-debrid** do Rust (`NoDebridFactory`)
+com a resposta **pós-debrid** do Node; o contador dava 100 % de divergência por
+escopo, não por pipeline. A sombra congelada mede o mesmo caso dos dois lados:
+
+1. O gateway manda a request normal do cliente **sem** header de captura.
+2. Depois da resposta, dispara uma segunda request ao Node 7100 com o mesmo
+   path/UA/`encoded` + `X-Adom-Shadow-Id` e `X-Adom-Shadow-Frozen: 1`.
+3. O Node roda essa segunda em `behaviorFrozen` (sem SWR/fast-path), grava
+   `inputs/{meta,index,collect,fallback,debrid,apply-debrid,instant}` e
+   `expected/node-response.json` em `<base>/<id>/`; o `frozenDir` viaja no
+   `AsyncLocalStorage` (uma request não contamina a outra). O `config.json` é
+   hidratado pelo gateway via `POST /internal/search/config`.
+4. O gateway roda `FrozenRoutes`/`FrozenDebridFactory` com o mesmo caso
+   (`run_case_with_expected`) e compara **só `streams`** com a resposta frozen
+   do Node (`cacheMaxAge`/`stale*` do modo normal ficam fora).
+5. `compared` conta a comparação; `divergence`/`items` só quando o conjunto de
+   identidades difere; caso sem `collect`/`meta` (ou segunda request falhou) é
+   `skipped`, nunca divergência.
+
+A request normal do cliente continua igual (SWR e fast-path intactos); a
+segunda request é o custo da sombra. O caminho antigo
+(`build_shadow_orchestrator`) fica como fallback quando a captura não existe.
+
 
 - `DEFAULT_TRACKERS` em `list_builder/helpers.rs`: o Node não copia `tr=` do
   magnet; todo P2P sai com a lista fixa e `sources` (antes vinha sem).

@@ -304,7 +304,10 @@ fn header_str(headers: &HeaderMap, name: http::header::HeaderName) -> Option<Str
 }
 
 /// Espelha `originOf` do Node: `PUBLIC_URL` do operador, senão Host validado.
-fn request_origin(headers: &HeaderMap) -> Option<String> {
+///
+/// `pub(crate)` para a sombra: o replay congelado tem que mascarar o MESMO
+/// origin que o Node escreveu no corpo (Host puro divergiria com `PUBLIC_URL`).
+pub(crate) fn request_origin(headers: &HeaderMap) -> Option<String> {
     if let Ok(url) = std::env::var("PUBLIC_URL") {
         let trimmed = url.trim().trim_end_matches('/');
         if !trimmed.is_empty() {

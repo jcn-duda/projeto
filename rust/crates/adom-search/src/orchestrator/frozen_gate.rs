@@ -532,13 +532,20 @@ pub async fn run_all() -> Result<(), String> {
     ))
 }
 
-async fn run_case(dir: &Path) -> Result<(), String> {
-    let frozen = FrozenCase::load(dir)?;
-    let encoded = if frozen.request.encoded_len == 0 {
-        None
-    } else {
-        Some("e30".to_string())
-    };
+/// Origem sintética do corpus do gate (os dois lados são mascarados).
+const FROZEN_ORIGIN: &str = "http://127.0.0.1:7200";
+/// Relógio fixo do replay do corpus: a captura inteira foi feita neste instante.
+const FROZEN_NOW_MS: i64 = 1_760_000_000_000;
+
+/// Replay de UMA captura: monta o orquestrador REAL com as rotas/debrid
+/// congelados e devolve o corpo produzido (JSON). Única montagem — o gate e a
+/// sombra diferem só no alvo da comparação e no relógio.
+async fn replay(
+    frozen: FrozenCase,
+    origin: &str,
+    encoded: Option<String>,
+    now_ms: Option<i64>,
+) -> Result<Value, String> {
     let kind = if frozen.request.r#type.is_empty() {
         "movie".to_string()
     } else {
@@ -559,18 +566,28 @@ async fn run_case(dir: &Path) -> Result<(), String> {
     let request = StreamRequest {
         kind,
         id,
-        encoded: encoded.clone(),
+        encoded,
         user_agent: Some("Dart/3.0 (dart:io)".to_string()),
-        origin: Some("http://127.0.0.1:7200".to_string()),
-        now_ms: Some(1_760_000_000_000),
+        origin: Some(origin.to_string()),
+        now_ms,
     };
     let response = orchestrator.handle(request).await;
-    let got = serde_json::to_value(&response).map_err(|err| err.to_string())?;
+    serde_json::to_value(&response).map_err(|err| err.to_string())
+}
+
+async fn run_case(dir: &Path) -> Result<(), String> {
+    let frozen = FrozenCase::load(dir)?;
+    let encoded = if frozen.request.encoded_len == 0 {
+        None
+    } else {
+        Some("e30".to_string())
+    };
+    let got = replay(frozen, FROZEN_ORIGIN, encoded.clone(), Some(FROZEN_NOW_MS)).await?;
     let expected: Value = read_json(&dir.join("expected/node-response.json"))?;
     compare(
         &got,
         &expected,
-        "http://127.0.0.1:7200",
+        FROZEN_ORIGIN,
         encoded.as_deref().unwrap_or(""),
     )?;
     // Evidência do que foi comparado: sucesso silencioso esconderia um gate que
@@ -588,22 +605,49 @@ async fn run_case(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Replay da MESMA montagem do gate, mas contra o corpo que o Node devolveu ao
+/// vivo e só pela lista de `streams`.
+///
+/// Usado pela sombra (`adom-server::shadow`): o Node grava
+/// `<base>/<id>/{request,inputs,expected,manifest}` para ESTA requisição e o
+/// `expected` aqui é o **corpo normal** que ele respondeu (não o
+/// `expected/node-response.json`, que é o envelope mascarado do corpus).
+///
+/// - relógio de PAREDE (`now_ms: None`): o corpo do Node acabou de ser gerado
+///   para a mesma requisição; congelar o relógio mudaria a janela de
+///   estreia/pré-air de conteúdo recém-lançado e criaria divergência falsa.
+/// - `origin`/`encoded` mascarados nos DOIS lados (host e segmento de config
+///   não entram no diff) e também usados na montagem das URLs.
+/// - só `streams` é comparado: `cacheMaxAge`/`stale*` do caminho normal podem
+///   diferir do replay congelado (o store da sombra é outro e o debrid é
+///   congelado) e não dizem nada sobre o pipeline. No gate (`run_case`) o
+///   envelope inteiro continua sendo comparado.
+///
+/// `Err` traz o diff legível; uma linha iniciada por `#` por item divergente é
+/// o formato que a sombra conta em `stream.shadow.divergence.items`.
+pub async fn run_case_with_expected(
+    dir: &Path,
+    expected: &Value,
+    origin: &str,
+    encoded: &str,
+) -> Result<(), String> {
+    let frozen = FrozenCase::load(dir)?;
+    let encoded = match encoded.trim() {
+        "" => None,
+        segment => Some(segment.to_string()),
+    };
+    let got = replay(frozen, origin, encoded.clone(), None).await?;
+    compare_streams(&got, expected, origin, encoded.as_deref().unwrap_or(""))
+}
+
 fn compare(got: &Value, expected: &Value, origin: &str, encoded: &str) -> Result<(), String> {
     let got = normalize(got, origin, encoded);
     let expected = normalize(expected, origin, encoded);
     if got == expected {
         return Ok(());
     }
-    let got_streams = got
-        .get("streams")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let want_streams = expected
-        .get("streams")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let got_streams = streams_of(&got);
+    let want_streams = streams_of(&expected);
     let mut lines = vec![format!(
         "total got={} want={}; cacheMaxAge got={} want={}",
         got_streams.len(),
@@ -611,6 +655,42 @@ fn compare(got: &Value, expected: &Value, origin: &str, encoded: &str) -> Result
         got.get("cacheMaxAge").cloned().unwrap_or(Value::Null),
         expected.get("cacheMaxAge").cloned().unwrap_or(Value::Null),
     )];
+    lines.extend(stream_diff_lines(&got_streams, &want_streams));
+    Err(lines.join("\n"))
+}
+
+/// Comparador da sombra: só `streams`, mesma máscara/ordenação do gate.
+fn compare_streams(
+    got: &Value,
+    expected: &Value,
+    origin: &str,
+    encoded: &str,
+) -> Result<(), String> {
+    let got_streams = streams_of(&normalize(got, origin, encoded));
+    let want_streams = streams_of(&normalize(expected, origin, encoded));
+    if got_streams == want_streams {
+        return Ok(());
+    }
+    let mut lines = vec![format!(
+        "streams divergentes: got={} want={}",
+        got_streams.len(),
+        want_streams.len(),
+    )];
+    lines.extend(stream_diff_lines(&got_streams, &want_streams));
+    Err(lines.join("\n"))
+}
+
+fn streams_of(value: &Value) -> Vec<Value> {
+    value
+        .get("streams")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Diff item a item (uma linha `#<índice>` por divergência).
+fn stream_diff_lines(got_streams: &[Value], want_streams: &[Value]) -> Vec<String> {
+    let mut lines = Vec::new();
     for (index, want) in want_streams.iter().enumerate() {
         let have = got_streams.get(index);
         if have == Some(want) {
@@ -629,7 +709,7 @@ fn compare(got: &Value, expected: &Value, origin: &str, encoded: &str) -> Result
     for (index, have) in got_streams.iter().enumerate().skip(want_streams.len()) {
         lines.push(format!("#{index} extra got={}", short(have)));
     }
-    Err(lines.join("\n"))
+    lines
 }
 
 fn normalize(value: &Value, origin: &str, encoded: &str) -> Value {
@@ -747,4 +827,86 @@ fn f64_of(value: &Value, fallback: f64) -> f64 {
 
 fn bool_of(value: &Value, fallback: bool) -> bool {
     value.as_bool().unwrap_or(fallback)
+}
+
+// ── teste do comparador da sombra ───────────────────────────────────────────
+//
+// Prova o contrato que a sombra usa: o caso copiado para um diretório
+// temporário (com o `inputs/config.json` que o Node grava) compara igual ao
+// corpo do Node, o envelope fora de `streams` NÃO entra no diff e um stream
+// alterado falha.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::fs;
+
+    /// Cópia recursiva sem dependência nova (`tempfile` não é dev-dep aqui).
+    fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(to)?;
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            let target = to.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                copy_tree(&entry.path(), &target)?;
+            } else {
+                fs::copy(entry.path(), &target)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn temp_case() -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("adom-frozen-shadow-{}-{nanos}", std::process::id()))
+    }
+
+    fn read_value(path: &Path) -> Value {
+        let bytes = fs::read(path).expect("ler json");
+        serde_json::from_slice(&bytes).expect("json válido")
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn caso_copiado_bate_e_stream_alterado_falha() {
+        let source = corpus_root().join("movie-cidade-de-deus");
+        let dir = temp_case();
+        copy_tree(&source, &dir).expect("copiar caso");
+        let body = read_value(&dir.join("expected/node-response.json"));
+
+        // 1) o próprio corpo do Node, com a máscara do gate, compara igual.
+        run_case_with_expected(&dir, &body, FROZEN_ORIGIN, "e30")
+            .await
+            .expect("caso copiado deve bater com o corpo do Node");
+
+        // 2) `cacheMaxAge`/`stale*` fora do comparador da sombra.
+        let mut envelope = body.clone();
+        envelope["cacheMaxAge"] = json!(0);
+        envelope["staleRevalidate"] = json!(true);
+        envelope["staleError"] = json!(86400);
+        run_case_with_expected(&dir, &envelope, FROZEN_ORIGIN, "e30")
+            .await
+            .expect("envelope fora de streams não pode divergir");
+
+        // 3) stream alterado: diff com UMA linha `#` (o que a métrica conta).
+        let mut alterado = body.clone();
+        alterado["streams"][0]["name"] = json!("[alterado]");
+        let diff = run_case_with_expected(&dir, &alterado, FROZEN_ORIGIN, "e30")
+            .await
+            .expect_err("stream alterado tem que divergir");
+        assert!(
+            diff.starts_with("streams divergentes"),
+            "diff inesperado: {diff}"
+        );
+        assert_eq!(
+            diff.lines().filter(|line| line.starts_with('#')).count(),
+            1,
+            "diff: {diff}"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

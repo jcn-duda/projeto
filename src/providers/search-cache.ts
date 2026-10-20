@@ -74,9 +74,10 @@ export async function findStreams({ type, id, background }: { type: string; id: 
   // justamente ela que o SWR quer servir enquanto o refresh de fundo roda.
   // Graça 0 restaura a semântica dura anterior (kill-switch).
   const grace = config.streamStaleGrace;
-  // No replay congelado o SWR é desligado: servir uma entrada de produção
-  // mascararia justamente o pipeline que o gate quer medir.
-  const hit = frozen.active()
+  // No record/replay congelado o SWR é desligado: servir uma entrada de
+  // produção mascararia justamente o pipeline que o gate quer medir. No shadow
+  // o SWR segue LIGADO — a resposta tem que ser a de produção.
+  const hit = frozen.behaviorFrozen()
     ? null
     : grace > 0
       ? cache.getWithStale(cacheKey, grace)
@@ -211,7 +212,11 @@ export function scheduleStaleRefresh(cacheKey: string, { type, id }: { type: str
   // opts() leria os defaults do .env e o refresh regravaria o cache com a
   // config ERRADA — mesmo padrão do runRecheck. Sem contexto capturado,
   // roda com os defaults mesmo (caso de teste/chamada fora de request).
-  const ctx = requestCtx || { opts: opts(), encoded: '' };
+  // O refresh NÃO pertence à resposta que já saiu: sem o `frozenDir`, ele não
+  // grava entradas no corpus shadow daquela requisição (que já foi fechado).
+  const ctx = requestCtx
+    ? { ...requestCtx, frozenDir: undefined }
+    : { opts: opts(), encoded: '' };
   Promise.resolve(run(ctx, async () => {
     // Revalida antes de pagar a busca: passe tardio, recheck do autofetch ou
     // outra requisição podem ter reescrito a entrada fresca nesse meio tempo.

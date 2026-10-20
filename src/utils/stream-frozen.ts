@@ -14,6 +14,9 @@
 //   STREAM_FROZEN_MODE=record|replay
 //   STREAM_FROZEN_DIR=<dir do caso>
 //   STREAM_FROZEN_CASE=<id do caso> (opcional)
+//   STREAM_FROZEN_MODE=shadow + STREAM_FROZEN_SHADOW_BASE=<base>
+//     Grava UM dir por request (`<base>/<X-Adom-Shadow-Id>`) sem desligar SWR,
+//     fast-path, índice ou prefetch: a resposta é a de produção.
 //
 // A infraestrutura de I/O/máscara/manifesto vive em `stream-frozen-store.ts`
 // (catraca de 400 linhas); este módulo é a API pública de record/replay.
@@ -24,7 +27,10 @@ import {
   CASE_ID,
   FILES,
   active,
+  behaviorFrozen,
+  recording,
   mode,
+  dirOf,
   inputFile,
   expectedFile,
   caseFile,
@@ -35,41 +41,54 @@ import {
   maskValue,
   stripSecrets,
   reset,
+  shadowDir,
   writeManifest,
   writeFileSizes,
   writeInstant,
 } from './stream-frozen-store.js';
 
-export { active, mode };
+export { active, behaviorFrozen, mode };
 export type { FrozenMode } from './stream-frozen-store.js';
 
 /** Lista de arquivos do debrid (hash → caminho/tamanho) para o 💾 de pack. */
 export function recordFileSizes(infoHash: string, files: Array<{ path: string; size: number }>) {
-  if (MODE !== 'record' || !active()) return;
+  if (!recording() || !active()) return;
   writeFileSizes(infoHash, files);
 }
 
 /** Conjunto `instant` exato que o sort usou (magnetdb/inventário/knownInstant). */
 export function recordInstant(hashes: string[]) {
-  if (MODE !== 'record' || !active()) return;
+  if (!recording() || !active()) return;
   writeInstant(hashes);
 }
 
 // -- request/response -------------------------------------------------------
 
+/**
+ * Abre a captura da requisição. Devolve o dir POR REQUEST no shadow (o chamador
+ * o publica no AsyncLocalStorage) e `null` em record/replay, que usam o DIR
+ * global. `base` existe para o teste/smoke; em produção vale a env.
+ */
 export function beginRequest(info: {
   type: string;
   id: string;
   encoded?: string | null;
   deadlineMs?: number | null;
   userAgent?: string | null;
-}) {
-  if (!active() || MODE !== 'record') return;
-  reset();
+  shadowId?: string | null;
+  base?: string | null;
+}): string | null {
+  if (!active() || MODE === 'replay') return null;
+  const shadowId = String(info.shadowId || '').trim();
+  const dir = MODE === 'shadow'
+    ? shadowDir(shadowId, String(info.base || '').trim() || undefined)
+    : dirOf();
+  if (!dir) return null;
+  reset(dir);
   const encoded = String(info.encoded || '');
-  writeJson(caseFile(FILES.request), {
+  writeJson(caseFile(FILES.request, dir), {
     format: 'adom-stream-frozen-request/1',
-    case: CASE_ID || `${info.type}-${info.id}`,
+    case: CASE_ID || (MODE === 'shadow' ? shadowId : '') || `${info.type}-${info.id}`,
     type: info.type,
     stream_id: info.id,
     encoded_sha256: encoded ? sha256(encoded) : null,
@@ -80,6 +99,7 @@ export function beginRequest(info: {
     node_version: process.version,
     mode: MODE,
   });
+  return MODE === 'shadow' ? dir : null;
 }
 
 export function finishResponse(
@@ -87,8 +107,11 @@ export function finishResponse(
   ctx: { origin?: string | null; encoded?: string | null } = {},
 ) {
   if (!active()) return;
+  // Sem dir desta requisição não há o que gravar (shadow sem header, ou tarefa
+  // de fundo que não pertence a nenhum caso).
+  if (!dirOf()) return;
   const masked = maskValue(response, ctx);
-  if (MODE === 'record') {
+  if (recording()) {
     writeJson(expectedFile(FILES.response), masked);
     writeManifest();
     return;
@@ -110,8 +133,8 @@ export async function aroundMeta<T extends FrozenMeta>(
   key: string,
   run: () => Promise<T>,
 ): Promise<T> {
-  if (!active()) return run();
   const file = inputFile(FILES.meta);
+  if (!active() || !file) return run();
   if (MODE === 'replay') {
     const captured = readJson<T | null>(file, null);
     if (!captured) throw new Error(`frozen: ${file} ausente no replay`);
@@ -150,8 +173,8 @@ export async function aroundCollect<T extends {
   sweepInline?: boolean;
   live?: LiveIndexerState | null;
 }>(key: CollectKey, run: () => Promise<T>): Promise<T> {
-  if (!active()) return run();
   const file = inputFile(FILES.collect);
+  if (!active() || !file) return run();
   if (MODE === 'replay') {
     const entries = readJson<CollectEntry[]>(file, []);
     const entry = matchCollect(entries, key);
@@ -217,8 +240,8 @@ export async function aroundIndex<T extends { servedFromIndex: boolean; instant:
   key: string,
   run: () => Promise<T>,
 ): Promise<T> {
-  if (!active()) return run();
   const file = inputFile(FILES.index);
+  if (!active() || !file) return run();
   if (MODE === 'replay') {
     const captured = readJson<{ key: string; value: any } | null>(file, null);
     if (!captured) return { servedFromIndex: false, instant: false, raw: null } as T;
@@ -253,8 +276,8 @@ export async function aroundFallback<T extends { items: unknown[]; injected: num
   key: string,
   run: () => Promise<T>,
 ): Promise<T> {
-  if (!active()) return run();
   const file = inputFile(FILES.fallback);
+  if (!active() || !file) return run();
   if (MODE === 'replay') {
     const captured = readJson<{ key: string; value: T } | null>(file, null);
     return captured?.value ?? ({ items: [], injected: 0, cut: {} } as unknown as T);
@@ -289,8 +312,8 @@ export async function aroundCheck<T extends {
   meta: { service: string | null; fileHashes?: string[] },
   run: () => Promise<T>,
 ): Promise<T> {
-  if (!active()) return run();
   const file = inputFile(FILES.debrid);
+  if (!active() || !file) return run();
   if (MODE === 'replay') {
     const data = readJson<DebridFile>(file, { service: null, results: {}, calls: [] });
     const normalized = hashes.map((hash) => String(hash).toLowerCase());
@@ -348,8 +371,8 @@ export async function aroundApplyDebrid<T extends unknown[]>(
   run: (captureSignal: (signal: unknown) => void) => Promise<T>,
   replaySignal?: (signal: unknown) => void,
 ): Promise<T> {
-  if (!active()) return run(() => {});
   const file = inputFile(FILES.apply);
+  if (!active() || !file) return run(() => {});
   const key = `${meta.service || ''}|${meta.cachedOnly ? 1 : 0}|${meta.hashes.map((h) => h.toLowerCase()).sort().join(',')}`;
   if (MODE === 'replay') {
     const entries = readJson<ApplyEntry[]>(file, []);

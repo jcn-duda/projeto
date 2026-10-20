@@ -1,4 +1,6 @@
 use super::*;
+use std::fs;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use adom_search::orchestrator::{NoDebridFactory, OrchestratorConfig};
@@ -91,11 +93,7 @@ async fn observe_sem_remount_ainda_pula() {
     observe_node_response(
         StatusCode::OK,
         Bytes::from(body),
-        ShadowRequest {
-            path: "/stream/movie/tt0133093.json".into(),
-            user_agent: Some("Stremio/1.6".into()),
-            origin: None,
-        },
+        req_com_captura(None, None),
         metrics.clone(),
         None,
     )
@@ -125,11 +123,7 @@ async fn observe_com_remount_shadow_sobe_compared_sem_debrid() {
     observe_node_response(
         StatusCode::OK,
         Bytes::from(body),
-        ShadowRequest {
-            path: "/stream/movie/tt0133093.json".into(),
-            user_agent: Some("Stremio/1.6".into()),
-            origin: None,
-        },
+        req_com_captura(None, None),
         metrics.clone(),
         Some(orch),
     )
@@ -139,4 +133,154 @@ async fn observe_com_remount_shadow_sobe_compared_sem_debrid() {
     // o que importa: compared sobe e o caminho não panica sem debrid.
     assert_eq!(metrics.get(TIMEOUT), 0);
     assert_eq!(metrics.get(ERROR), 0);
+}
+
+// ── captura congelada (id/dir/segunda request) ──────────────────────────────
+
+/// Request de teste: `node_base` aponta para uma porta fechada (o fluxo só a
+/// usa quando `frozen_base` está setado; os testes que a exercitam trocam).
+fn req_com_captura(id: Option<&str>, base: Option<PathBuf>) -> ShadowRequest {
+    ShadowRequest {
+        path: "/stream/movie/tt0133093.json".into(),
+        user_agent: Some("Stremio/1.6".into()),
+        origin: Some("http://publico.example".into()),
+        shadow_id: id.map(str::to_string),
+        frozen_base: base,
+        headers: HeaderMap::new(),
+        node_base: "http://127.0.0.1:1".parse().unwrap(),
+    }
+}
+
+#[test]
+fn id_do_shadow_so_aceita_hex_e_hifen() {
+    assert!(valid_shadow_id("1a2b3c"));
+    assert!(valid_shadow_id("6b1f2a3c-1a2-0"));
+    assert!(!valid_shadow_id(""));
+    assert!(!valid_shadow_id("../etc"));
+    assert!(!valid_shadow_id("abc/def"));
+    assert!(!valid_shadow_id("id com espaço"));
+}
+
+#[test]
+fn loopback_do_config_recusa_host_externo() {
+    assert!(is_loopback_base("http://127.0.0.1:7100"));
+    assert!(is_loopback_base("http://localhost:7100/"));
+    assert!(is_loopback_base("http://[::1]:7100"));
+    assert!(!is_loopback_base("http://10.0.0.2:7100"));
+    assert!(!is_loopback_base("https://powermovie.net"));
+    assert!(!is_loopback_base("127.0.0.1:7100"));
+}
+
+#[tokio::test]
+async fn segunda_request_falha_nao_vira_divergencia() {
+    let metrics = ShadowMetrics::new();
+    let body = serde_json::to_vec(&StreamResponse {
+        streams: vec![item_ih("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+        cache_max_age: 0,
+    })
+    .unwrap();
+    // Porta 1 fechada: a segunda request frozen falha; a resposta NORMAL não
+    // pode virar divergência.
+    observe_node_response(
+        StatusCode::OK,
+        Bytes::from(body),
+        req_com_captura(Some("abc123"), Some(std::env::temp_dir())),
+        metrics.clone(),
+        None,
+    )
+    .await;
+    assert_eq!(metrics.get(COMPARED), 0);
+    assert_eq!(metrics.get(DIVERGENCE), 0);
+    assert_eq!(metrics.get(DIVERGENCE_ITEMS), 0);
+    assert_eq!(metrics.get(ERROR), 1);
+}
+
+/// Stub do Node: devolve `body` e registra path + headers de cada request.
+type StubHit = (String, HeaderMap);
+type StubHits = Arc<Mutex<Vec<StubHit>>>;
+
+async fn spawn_frozen_stub(body: Value) -> (SocketAddr, StubHits) {
+    async fn handler(
+        axum::extract::State((body, hits)): axum::extract::State<(Value, StubHits)>,
+        request: axum::extract::Request,
+    ) -> axum::Json<Value> {
+        hits.lock()
+            .unwrap()
+            .push((request.uri().path().to_string(), request.headers().clone()));
+        axum::Json(body)
+    }
+    let hits: StubHits = Arc::new(Mutex::new(Vec::new()));
+    let app = axum::Router::new()
+        .fallback(axum::routing::any(handler))
+        .with_state((body, hits.clone()));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (addr, hits)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn segunda_request_leva_id_frozen_e_herda_host_ua() {
+    let expected = serde_json::json!({"streams": [], "cacheMaxAge": 0});
+    let (addr, hits) = spawn_frozen_stub(expected.clone()).await;
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        http::header::HOST,
+        HeaderValue::from_static("publico.example"),
+    );
+    headers.insert(
+        http::header::USER_AGENT,
+        HeaderValue::from_static("Stremio/1.6"),
+    );
+    let mut req = req_com_captura(Some("abc123"), Some(std::env::temp_dir()));
+    req.path = "/eyJ4IjoxfQ/stream/movie/tt0133093.json".into();
+    req.headers = headers;
+    req.node_base = format!("http://{addr}").parse().unwrap();
+
+    let got = capture_frozen_body(&req, "abc123")
+        .await
+        .expect("segunda request");
+    assert_eq!(got, expected);
+
+    let seen = hits.lock().unwrap();
+    assert_eq!(seen.len(), 1, "uma única segunda request");
+    let (path, headers) = &seen[0];
+    assert_eq!(path, "/eyJ4IjoxfQ/stream/movie/tt0133093.json");
+    assert_eq!(headers.get(SHADOW_ID_HEADER).unwrap(), "abc123");
+    assert_eq!(headers.get(SHADOW_FROZEN_HEADER).unwrap(), "1");
+    // Mesmo origin da request normal: o Node calcula `{{base}}` igual.
+    assert_eq!(headers.get(http::header::HOST).unwrap(), "publico.example");
+    assert_eq!(
+        headers.get(http::header::USER_AGENT).unwrap(),
+        "Stremio/1.6"
+    );
+    // Pedido de compressão/cache não pode transformar a resposta (204/304).
+    assert!(headers.get(http::header::ACCEPT_ENCODING).is_none());
+    assert!(headers.get(http::header::IF_NONE_MATCH).is_none());
+}
+
+#[tokio::test]
+async fn espera_do_dir_aceita_captura_completa() {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("adom-shadow-wait-{}-{nanos}", std::process::id()));
+    fs::create_dir_all(dir.join("inputs")).unwrap();
+
+    assert!(
+        wait_frozen_case(&dir, Duration::from_millis(40))
+            .await
+            .is_err(),
+        "sem collect/meta/request não há captura"
+    );
+    fs::write(dir.join("request.json"), "{}").unwrap();
+    fs::write(dir.join("inputs/collect.json"), "[]").unwrap();
+    fs::write(dir.join("inputs/meta.json"), "{}").unwrap();
+    assert!(wait_frozen_case(&dir, Duration::from_millis(40))
+        .await
+        .is_ok());
+
+    let _ = fs::remove_dir_all(&dir);
 }

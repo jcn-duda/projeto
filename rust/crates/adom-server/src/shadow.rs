@@ -2,26 +2,48 @@
 //!
 //! Contrato `docs/rust-stream-contract.md` §9.1: o Node responde ao cliente; o
 //! Rust observa em `tokio::spawn` e **só compara**. Não escreve cache, não
-//! chama debrid, não devolve nada ao cliente. O remontador usa
-//! [`crate::stream::build_shadow_orchestrator`] (`shadow_mode` +
-//! `NoDebridFactory` + `NoopTailEffects`).
+//! chama debrid, não devolve nada ao cliente.
+//!
+//! Dois caminhos de comparação, nesta ordem:
+//!
+//! 1. **captura congelada por requisição** (`STREAM_FROZEN_SHADOW_BASE`): a
+//!    resposta NORMAL do cliente não serve de `expected` — ela pode vir do SWR
+//!    ou do fast-path parcial e não é reproduzível a partir das entradas. Depois
+//!    de observá-la, a sombra faz uma **segunda request** ao mesmo Node com o
+//!    mesmo path/headers + `X-Adom-Shadow-Id` e `X-Adom-Shadow-Frozen: 1`
+//!    (`behaviorFrozen`: SWR/fast-path desligados). O Node grava
+//!    `<base>/<id>/{request,inputs,expected,manifest}` e o corpo DESSA request é
+//!    o `expected`; o gateway hidrata `inputs/config.json` pelo
+//!    `POST /internal/search/config` e reexecuta
+//!    [`frozen_gate::run_case_with_expected`] — mesma montagem do gate
+//!    congelado, sem ruído de coleta.
+//! 2. **fallback** (comportamento anterior, só sem `STREAM_FROZEN_SHADOW_BASE`):
+//!    [`crate::stream::build_shadow_orchestrator`] (`shadow_mode` +
+//!    `NoDebridFactory` + `NoopTailEffects`) contra as rotas ao vivo. Falha da
+//!    segunda request NUNCA vira divergência.
 //!
 //! Gate atual: comparação por **identidade** (§9.3 parcial — `infoHash` / URL
 //! relativa mascarando host+sig+config / `externalUrl`, ordem via `BTreeSet`).
 //! Isso **não** autoriza o corte por rota do §9.4 sozinho (faltam cobertura,
 //! janela ≥72 h, distribuição, corpus e2e e revisor humano).
 //!
-//! Sem token/env para remontar: **pula** — não incrementa `compared` nem
-//! acusa `divergence` (falso positivo envenenaria o critério de corte).
+//! Sem token/env para remontar (fallback) e sem base congelada: **pula** — não
+//! incrementa `compared` nem acusa `divergence` (falso positivo envenenaria o
+//! critério de corte).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use adom_search::orchestrator::{NodeRoutes, Orchestrator, StreamRequest};
+use adom_search::orchestrator::{frozen_gate, NodeRoutes, Orchestrator, StreamRequest};
 use adom_search::{parse_stream_path, relative_url, reply_deadline_ms, StreamItem, StreamResponse};
+use axum::body::Body;
 use bytes::Bytes;
-use http::StatusCode;
+use http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
+use http::{HeaderMap, Request as HttpRequest, StatusCode, Uri};
+use http_body_util::BodyExt;
+use serde_json::Value;
 
 /// Nomes do contrato `docs/rust-stream-contract.md` §9.2.
 pub const COMPARED: &str = "stream.shadow.compared";
@@ -73,7 +95,8 @@ impl ShadowMetrics {
 pub type ShadowRemount = Orchestrator;
 
 /// Monta o orquestrador **compare-only** ligado às rotas internas do Node.
-/// `None` sem token — a sombra então **não compara** (evita falso `divergence`).
+/// `None` sem token — o FALLBACK então não compara; o caminho congelado (segunda
+/// request + replay) não depende deste remount.
 ///
 /// Usa [`crate::stream::build_shadow_orchestrator`] (sem debrid / SWR / tail).
 pub fn remount_from_env() -> Option<ShadowRemount> {
@@ -86,18 +109,42 @@ pub fn is_stream_path(path: &str) -> bool {
     parse_stream_path(path).is_some()
 }
 
-/// Contexto da requisição capturado no proxy (path + UA + origin).
+/// Header que liga a captura congelada à requisição (`X-Adom-Shadow-Id`).
+/// Vai só na SEGUNDA request (a normal do cliente nunca o leva).
+pub const SHADOW_ID_HEADER: &str = "x-adom-shadow-id";
+/// Marca a segunda request como comportamento frozen (`behaviorFrozen`: SWR e
+/// fast-path desligados no Node), para o corpo ser reproduzível.
+pub const SHADOW_FROZEN_HEADER: &str = "x-adom-shadow-frozen";
+
+/// Contexto da requisição capturado no proxy (path + UA + origin), os headers
+/// que a segunda request herda e o alvo da captura congelada.
 #[derive(Debug, Clone)]
 pub struct ShadowRequest {
     pub path: String,
     pub user_agent: Option<String>,
     pub origin: Option<String>,
+    /// Id gerado pelo gateway e mandado só na segunda request (`X-Adom-Shadow-Id`).
+    pub shadow_id: Option<String>,
+    /// `STREAM_FROZEN_SHADOW_BASE` — raiz onde o Node grava `<id>/`.
+    pub frozen_base: Option<PathBuf>,
+    /// Headers da request do cliente já filtrados (hop-by-hop fora, sem os
+    /// headers da sombra). A segunda request os reusa para o Node calcular o
+    /// MESMO `originOf` da resposta normal — o diff mascara host, mas precisa
+    /// mascarar exatamente o que o Node escreveu.
+    pub headers: HeaderMap,
+    /// Base do Node (`GATEWAY_UPSTREAM`), alvo da segunda request.
+    pub node_base: Uri,
 }
 
-/// Observação fire-and-forget do corpo que o Node devolveu.
+/// Observação fire-and-forget do corpo que o Node devolveu para o CLIENTE.
 ///
-/// - Sem `remount`: pula (sem `compared` / sem `divergence`).
-/// - Body inválido / path inválido / falha do orquestrador: `error` (nunca
+/// O corpo normal não é o `expected` (pode vir do SWR/fast-path e não é
+/// reproduzível); com `STREAM_FROZEN_SHADOW_BASE` a sombra dispara a segunda
+/// request frozen e compara contra ela.
+///
+/// - Captura congelada ok: `compared`/`divergence`/`divergence.items`.
+/// - Sem base congelada e sem `remount`: pula (sem `compared`/`divergence`).
+/// - Segunda request / captura incompleta / config / replay: `error` (nunca
 ///   `divergence`).
 /// - Prazo estourado: `timeout`.
 /// - Remontagem ok: sempre `compared`; `divergence`/`items` só se os conjuntos
@@ -109,15 +156,11 @@ pub async fn observe_node_response(
     metrics: ShadowMetrics,
     remount: Option<ShadowRemount>,
 ) {
-    let Some(orch) = remount else {
-        return;
-    };
-    debug_assert!(
-        orch.shadow_mode(),
-        "sombra deve usar build_shadow_orchestrator (shadow_mode)"
-    );
     if !status.is_success() {
         // `/stream` quase sempre é 200; não-sucesso não entra no denominador.
+        return;
+    }
+    if req.frozen_base.is_none() && remount.is_none() {
         return;
     }
 
@@ -130,10 +173,47 @@ pub async fn observe_node_response(
         metrics.inc(ERROR, 1);
         return;
     };
+    let encoded = stream_req.encoded.as_deref().unwrap_or("");
 
-    let node = match parse_stream_body(&body) {
+    // 1) Caminho congelado: segunda request com `behaviorFrozen`; o `expected`
+    //    é o corpo DELA (nunca o corpo normal), e só `streams` é comparado.
+    if let (Some(id), Some(base)) = (req.shadow_id.as_deref(), req.frozen_base.as_deref()) {
+        if !valid_shadow_id(id) {
+            metrics.inc(ERROR, 1);
+            return;
+        }
+        let dir = base.join(id);
+        match capture_frozen_body(&req, id).await {
+            Ok(frozen_body) => {
+                if let Err(err) = wait_frozen_case(&dir, FROZEN_DIR_WAIT).await {
+                    eprintln!("[shadow] captura congelada incompleta em {id}: {err}");
+                    metrics.inc(ERROR, 1);
+                    return;
+                }
+                observe_frozen(&dir, &frozen_body, &req, encoded, &metrics).await;
+            }
+            Err(err) => {
+                // Segunda request falhou: `error`, nunca divergência (o corpo
+                // normal não é comparável de forma honesta).
+                eprintln!("[shadow] segunda request frozen falhou em {id}: {err}");
+                metrics.inc(ERROR, 1);
+            }
+        }
+        return;
+    }
+
+    // 2) Fallback: remontagem ao vivo (comportamento anterior).
+    let Some(orch) = remount else {
+        return;
+    };
+    debug_assert!(
+        orch.shadow_mode(),
+        "sombra deve usar build_shadow_orchestrator (shadow_mode)"
+    );
+
+    let node: StreamResponse = match serde_json::from_slice(&body) {
         Ok(parsed) => parsed,
-        Err(()) => {
+        Err(_) => {
             metrics.inc(ERROR, 1);
             return;
         }
@@ -177,8 +257,291 @@ pub fn record_comparison(
     }
 }
 
-fn parse_stream_body(body: &[u8]) -> Result<StreamResponse, ()> {
-    serde_json::from_slice(body).map_err(|_| ())
+// ── captura congelada por requisição ────────────────────────────────────────
+
+/// Default do Node em loopback com `GATEWAY=on` (mesmo do `NodeRoutes`).
+const DEFAULT_INTERNAL_BASE: &str = "http://127.0.0.1:7100";
+/// Teto HTTP da hidratação de `config.json` (loopback, corpo pequeno).
+const CONFIG_TIMEOUT: Duration = Duration::from_millis(5_000);
+/// Teto da SEGUNDA request (a frozen não coleta rede; o teto é folga).
+const FROZEN_NODE_TIMEOUT: Duration = Duration::from_secs(20);
+/// Espera pelo flush do dir depois da resposta frozen (o Node grava durante a
+/// request; a resposta pode chegar com o último arquivo ainda no buffer).
+const FROZEN_DIR_WAIT: Duration = Duration::from_millis(1_000);
+/// Intervalo da espera do dir.
+const FROZEN_DIR_POLL: Duration = Duration::from_millis(20);
+/// Teto do replay congelado. As rotas congeladas não fazem I/O de rede; o prazo
+/// existe só para não deixar task pendurada se um dublê travar.
+const FROZEN_REPLAY_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Id aceito no nome do diretório: o gateway gera hexadecimal com `-`; fechar
+/// o alfabeto impede traversal (`../`) e nomes arbitrários.
+fn valid_shadow_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+}
+
+/// SEGUNDA request ao Node, no MESMO path/headers, marcada com
+/// `X-Adom-Shadow-Id` + `X-Adom-Shadow-Frozen: 1`. O corpo dela é o `expected`
+/// (a resposta normal pode vir do SWR/fast-path). `Err` = falha de
+/// transporte/status/JSON: a sombra conta `error`, nunca divergência.
+async fn capture_frozen_body(req: &ShadowRequest, id: &str) -> Result<Value, String> {
+    let uri = crate::proxy::upstream_uri(&req.node_base, &req.path)
+        .map_err(|()| "frozen: path inválido".to_string())?;
+    let mut headers = req.headers.clone();
+    // Body vazio + resposta JSON: fora o que poderia pedir 304/gzip/corpo.
+    headers.remove(http::header::CONTENT_LENGTH);
+    headers.remove(http::header::ACCEPT_ENCODING);
+    headers.remove(http::header::IF_NONE_MATCH);
+    headers.remove(http::header::IF_MODIFIED_SINCE);
+    headers.insert(
+        HeaderName::from_static(SHADOW_ID_HEADER),
+        HeaderValue::from_str(id).map_err(|err| format!("id inválido: {err}"))?,
+    );
+    headers.insert(
+        HeaderName::from_static(SHADOW_FROZEN_HEADER),
+        HeaderValue::from_static("1"),
+    );
+    let mut request = HttpRequest::builder()
+        .method(http::Method::GET)
+        .uri(uri)
+        .body(Body::empty())
+        .map_err(|err| format!("requisição frozen: {err}"))?;
+    *request.headers_mut() = headers;
+
+    let client = crate::proxy::client();
+    let response = tokio::time::timeout(FROZEN_NODE_TIMEOUT, client.request(request))
+        .await
+        .map_err(|_| "frozen: prazo esgotado".to_string())?
+        .map_err(|err| format!("frozen: rede {err}"))?;
+    let status = response.status();
+    let bytes = tokio::time::timeout(FROZEN_NODE_TIMEOUT, response.into_body().collect())
+        .await
+        .map_err(|_| "frozen: corpo atrasou".to_string())?
+        .map_err(|err| format!("frozen: corpo {err}"))?
+        .to_bytes();
+    if !status.is_success() {
+        let snippet: String = String::from_utf8_lossy(&bytes).chars().take(200).collect();
+        return Err(format!("frozen: HTTP {status}: {snippet}"));
+    }
+    serde_json::from_slice(&bytes).map_err(|err| format!("frozen: json {err}"))
+}
+
+/// Espera o dir `<base>/<id>` ficar completo para o replay. `collect`/`meta`
+/// são o contrato com o Node; `request.json` entra porque `FrozenCase::load` o
+/// exige. Sem flush no prazo → `Err` (o chamador conta `error`, nunca
+/// divergência).
+async fn wait_frozen_case(dir: &Path, budget: Duration) -> Result<(), String> {
+    let deadline = std::time::Instant::now() + budget;
+    loop {
+        if frozen_case_ready(dir) {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(format!("{} sem collect/meta/request", dir.display()));
+        }
+        tokio::time::sleep(FROZEN_DIR_POLL).await;
+    }
+}
+
+/// Captura completa o bastante para o replay. Além do collect (busca viva),
+/// aceita o caminho INDEX-SERVED: a 2ª request em produção pode responder do
+/// índice e não chamar `collect`; o `FrozenCase` então monta por `index.json`.
+fn frozen_case_ready(dir: &Path) -> bool {
+    if !dir.join("request.json").is_file() || !dir.join("inputs/meta.json").is_file() {
+        return false;
+    }
+    if dir.join("inputs/collect.json").is_file() {
+        return true;
+    }
+    let index = dir.join("inputs/index.json");
+    let Ok(bytes) = std::fs::read(&index) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_slice::<Value>(&bytes) else {
+        return false;
+    };
+    value
+        .get("value")
+        .and_then(|v| v.get("servedFromIndex"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+/// Replay do caso congelado e contagem §9.2.
+///
+/// O chamador já esperou o dir ficar completo; falha de replay (JSON quebrado,
+/// config ausente/sem `options`, diretório concorrente) é `error`, NUNCA
+/// `divergence` — só o diff de `streams` conta como divergência.
+async fn observe_frozen(
+    dir: &Path,
+    expected: &Value,
+    req: &ShadowRequest,
+    encoded: &str,
+    metrics: &ShadowMetrics,
+) {
+    if let Err(err) = hydrate_config(dir, encoded).await {
+        eprintln!(
+            "[shadow] config do caso {} indisponível: {err}",
+            dir.display()
+        );
+        metrics.inc(ERROR, 1);
+        return;
+    }
+    let origin = req.origin.as_deref().unwrap_or("");
+    let replay = tokio::time::timeout(
+        FROZEN_REPLAY_TIMEOUT,
+        frozen_gate::run_case_with_expected(dir, expected, origin, encoded),
+    )
+    .await;
+    let detail = match replay {
+        Ok(Ok(())) => {
+            metrics.inc(COMPARED, 1);
+            return;
+        }
+        Ok(Err(detail)) => detail,
+        Err(_) => {
+            metrics.inc(TIMEOUT, 1);
+            return;
+        }
+    };
+    // O comparador emite uma linha `#<índice>` por item divergente; sem
+    // nenhuma, o `Err` é falha de replay (não diff) e vira `error`.
+    let items = detail.lines().filter(|line| line.starts_with('#')).count() as u64;
+    if items == 0 {
+        eprintln!(
+            "[shadow] replay congelado falhou em {}: {detail}",
+            dir.display()
+        );
+        metrics.inc(ERROR, 1);
+        return;
+    }
+    metrics.inc(COMPARED, 1);
+    metrics.inc(DIVERGENCE, 1);
+    metrics.inc(DIVERGENCE_ITEMS, items);
+    eprintln!(
+        "[shadow] divergência congelada em {}: {detail}",
+        dir.display()
+    );
+}
+
+/// Grava `inputs/config.json` com os knobs do Node para o `encoded` desta
+/// requisição. Se a rota falhar mas o arquivo já existir (o record grava o
+/// config ANTES do `/stream`), usa o arquivo — melhor que cair no remount.
+async fn hydrate_config(dir: &Path, encoded: &str) -> Result<(), String> {
+    let path = dir.join("inputs/config.json");
+    match config_from_node(encoded).await {
+        Ok(value) => {
+            let bytes = serde_json::to_vec(&value).map_err(|err| format!("config json: {err}"))?;
+            std::fs::write(&path, bytes).map_err(|err| format!("{}: {err}", path.display()))
+        }
+        Err(err) => {
+            if path.is_file() {
+                eprintln!(
+                    "[shadow] /internal/search/config falhou ({err}); usando {}",
+                    path.display()
+                );
+                return Ok(());
+            }
+            Err(err)
+        }
+    }
+}
+
+/// POST `/internal/search/config` (loopback + `X-Indexer-Test-Token`) com
+/// `{encoded}`. Mesmo token/base do `NodeRoutes`; o token nunca sai de
+/// loopback — se `INTERNAL_SEARCH_URL` apontar para fora, nem tenta.
+async fn config_from_node(encoded: &str) -> Result<Value, String> {
+    let token = std::env::var("JACKETT_TEST_TOKEN")
+        .ok()
+        .map(|raw| raw.trim().to_string())
+        .filter(|raw| !raw.is_empty())
+        .ok_or_else(|| "sem JACKETT_TEST_TOKEN".to_string())?;
+    let base = std::env::var("INTERNAL_SEARCH_URL")
+        .ok()
+        .map(|raw| raw.trim().to_string())
+        .filter(|raw| !raw.is_empty())
+        .unwrap_or_else(|| DEFAULT_INTERNAL_BASE.to_string());
+    if !is_loopback_base(&base) {
+        return Err(format!("INTERNAL_SEARCH_URL fora de loopback: {base}"));
+    }
+    let payload = serde_json::json!({
+        "encoded": adom_search::encoded_for_internal(Some(encoded)),
+    });
+    let request = HttpRequest::builder()
+        .method(http::Method::POST)
+        .uri(format!(
+            "{}/internal/search/config",
+            base.trim_end_matches('/')
+        ))
+        .header(CONTENT_TYPE, "application/json")
+        .header(
+            HeaderName::from_static("x-indexer-test-token"),
+            HeaderValue::from_str(&token).map_err(|err| format!("token inválido: {err}"))?,
+        )
+        .body(Body::from(payload.to_string()))
+        .map_err(|err| format!("requisição de config: {err}"))?;
+    let client = crate::proxy::client();
+    let response = tokio::time::timeout(CONFIG_TIMEOUT, client.request(request))
+        .await
+        .map_err(|_| "config: prazo esgotado".to_string())?
+        .map_err(|err| format!("config: rede {err}"))?;
+    let status = response.status();
+    let bytes = tokio::time::timeout(CONFIG_TIMEOUT, response.into_body().collect())
+        .await
+        .map_err(|_| "config: corpo atrasou".to_string())?
+        .map_err(|err| format!("config: corpo {err}"))?
+        .to_bytes();
+    if !status.is_success() {
+        // 401/503 do guarda interno: o corpo diz qual (token ausente/inválido).
+        let snippet: String = String::from_utf8_lossy(&bytes).chars().take(200).collect();
+        return Err(format!("config: HTTP {status}: {snippet}"));
+    }
+    let value: Value =
+        serde_json::from_slice(&bytes).map_err(|err| format!("config: json {err}"))?;
+    if value.get("ok").and_then(Value::as_bool) == Some(false) {
+        return Err(format!(
+            "config: {}",
+            value
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("ok:false")
+        ));
+    }
+    if value.get("options").and_then(Value::as_object).is_none() {
+        return Err("config: resposta sem options".to_string());
+    }
+    Ok(value)
+}
+
+/// Só loopback (mesma invariante de `InternalSearchClient`).
+fn is_loopback_base(base: &str) -> bool {
+    let Some(rest) = base
+        .strip_prefix("http://")
+        .or_else(|| base.strip_prefix("https://"))
+    else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = if let Some(inner) = authority.strip_prefix('[') {
+        inner.split(']').next().unwrap_or("")
+    } else if let Some((host, port)) = authority.rsplit_once(':') {
+        if port.chars().all(|ch| ch.is_ascii_digit()) {
+            host
+        } else {
+            authority
+        }
+    } else {
+        authority
+    };
+    matches!(host, "localhost" | "127.0.0.1" | "::1")
+        || host
+            .parse::<std::net::IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false)
 }
 
 /// Identidades estáveis de uma lista (ordem fora do conjunto).

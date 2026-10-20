@@ -292,9 +292,10 @@ export async function collectRawLive(
   // Fast-path da conta: inventário suficiente responde NA HORA e o resto da
   // coleta segue em fundo. A resposta sai partial de propósito — é isso que
   // faz o passe tardio promovê-la quando os indexers fecharem.
-  // No replay congelado ele é DESLIGADO: a captura precisa do lote final, não
-  // do parcial que o cliente recebeu antes de os indexers fecharem.
-  const fastPathOn = !frozen.active() && config.accountFastPath.enabled && accountSource;
+  // No record/replay congelado ele é DESLIGADO: a captura precisa do lote
+  // final, não do parcial que o cliente recebeu antes de os indexers fecharem.
+  // No shadow segue o de produção.
+  const fastPathOn = !frozen.behaviorFrozen() && config.accountFastPath.enabled && accountSource;
   // Quando o índice já cobre a obra, a primeira resposta ainda pode esperar
   // somente os BR vivos: eles são a parte que o índice não sabe atualizar. Os
   // globais ficam no enriquecimento, sem transformar um hit do índice em uma

@@ -14,3 +14,7 @@ services:
       ROUTES_RUST: "stream-shadow"
       INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
       INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
+      # Sombra congelada: a 2ª request (X-Adom-Shadow-Frozen) roda sem
+      # SWR/fast-path e grava o caso; o gateway compara Rust × ela.
+      STREAM_FROZEN_MODE: "shadow"
+      STREAM_FROZEN_SHADOW_BASE: "/tmp/adom-shadow"

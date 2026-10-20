@@ -175,9 +175,9 @@ export async function doSearch({
       // `debridKnown` registra se a lista nasceu de checagem confiável; sem ele
       // o passe tardio promovia sem refazer a checagem e congelava a lista sem ⚡.
       // P5 — `trace` serializado (o /stream-trace.json lê offline) + `searchMeta`.
-      // No replay congelado não há cache de produção: gravar aqui contaminaria
-      // a próxima execução e o gate deixaria de ser determinístico.
-      if (!frozen.active()) {
+      // No record/replay congelado não há cache de produção: gravar aqui
+      // contaminaria o gate; no shadow o cache é o de produção (SWR/fast-path).
+      if (!frozen.behaviorFrozen()) {
         cache.set(cacheKey, {
           streams,
           partial: decision.partial,
@@ -378,7 +378,7 @@ export async function doSearch({
         // a checagem completa já grava partial:false e não pode rebaixar uma
         // promoção concorrente feita pelo callback de conclusão.
         if (raw.partial && raw.completion) await raw.completion;
-        const refreshed = frozen.active() ? null : cache.get(cacheKey);
+        const refreshed = frozen.behaviorFrozen() ? null : cache.get(cacheKey);
         // O passe tardio pode já ter reconstruído a mesma lista. Não
         // repetimos a consulta cara (e, na AllDebrid, o upload) sem necessidade.
         if (debridRefreshSatisfied(refreshed)) return;

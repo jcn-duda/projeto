@@ -5,6 +5,7 @@
 //! (orquestrador) e não chega ao upstream — a sombra também fica de fora.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use axum::body::Body;
 use axum::extract::State;
@@ -13,7 +14,7 @@ use axum::routing::{any, get};
 use axum::Json;
 use axum::Router;
 use bytes::Bytes;
-use http::header::{CONNECTION, CONTENT_TYPE, HOST, USER_AGENT};
+use http::header::{CONNECTION, CONTENT_TYPE, USER_AGENT};
 use http::{HeaderMap, HeaderName, Method, Request, Response, StatusCode, Uri};
 use http_body_util::BodyExt;
 use hyper_util::client::legacy::connect::HttpConnector;
@@ -205,17 +206,36 @@ async fn forward(
         .path_and_query()
         .map(|item| item.as_str())
         .unwrap_or("/");
+    // Id da captura congelada: gerado AQUI e usado só pela SEGUNDA request
+    // (frozen), feita em `shadow::observe_node_response`. A request normal do
+    // cliente NÃO grava dir — ela pode vir do SWR/fast-path e não é
+    // reproduzível a partir das entradas.
+    let shadow_id = if capture_for_shadow {
+        Some(new_shadow_id())
+    } else {
+        None
+    };
+    let mut headers = forward_headers(&req_parts.headers);
+    // Os headers da sombra são do gateway; cliente não os atravessa (nem na
+    // request normal, nem forjando a captura).
+    headers.remove(HeaderName::from_static(shadow::SHADOW_ID_HEADER));
+    headers.remove(HeaderName::from_static(shadow::SHADOW_FROZEN_HEADER));
     let shadow_req = if capture_for_shadow {
         Some(ShadowRequest {
             path: req_parts.uri.path().to_string(),
             user_agent: header_text(&req_parts.headers, &USER_AGENT),
             origin: shadow_origin(&req_parts.headers),
+            shadow_id,
+            frozen_base: frozen_shadow_base(),
+            // A segunda request herda Host/UA/accept da original para o Node
+            // calcular o MESMO `originOf` (a máscara §9 casa `{{base}}`).
+            headers: headers.clone(),
+            node_base: state.upstream.clone(),
         })
     } else {
         None
     };
     let uri = upstream_uri(&state.upstream, path)?;
-    let headers = forward_headers(&req_parts.headers);
     let mut upstream_req = Request::builder()
         .method(req_parts.method)
         .uri(uri)
@@ -255,14 +275,40 @@ fn header_text(headers: &HeaderMap, name: &HeaderName) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Origin aproximado para a sombra (Host → `http://host`). Sem PUBLIC_URL aqui
-/// de propósito: a máscara §9 remove o host da identidade.
+/// Origin da sombra: o MESMO `originOf` do Node (`PUBLIC_URL` do operador e,
+/// senão, Host validado). A comparação congelada mascara o host, mas precisa
+/// mascarar EXATAMENTE o que o Node escreveu no corpo — Host puro divergiria
+/// de `PUBLIC_URL` atrás do proxy.
 fn shadow_origin(headers: &HeaderMap) -> Option<String> {
-    let host = headers.get(HOST)?.to_str().ok()?;
-    if host.is_empty() {
-        return None;
-    }
-    Some(format!("http://{host}"))
+    stream::request_origin(headers)
+}
+
+/// Id curto e único por requisição sombreada (`X-Adom-Shadow-Id`). Sem
+/// dependência de uuid: timestamp + contador, hexadecimal (nome de diretório
+/// seguro e ordenável).
+fn new_shadow_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    format!(
+        "{:x}-{:03x}-{:x}",
+        now.as_secs(),
+        now.subsec_millis(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
+/// Raiz da captura congelada (`STREAM_FROZEN_SHADOW_BASE`), vazia → `None`.
+/// Lida por requisição (env do processo, barata): o caminho congelado só age
+/// quando o Node gravou `<base>/<id>` para esta sombra.
+fn frozen_shadow_base() -> Option<PathBuf> {
+    std::env::var("STREAM_FROZEN_SHADOW_BASE")
+        .ok()
+        .map(|raw| raw.trim().to_string())
+        .filter(|raw| !raw.is_empty())
+        .map(PathBuf::from)
 }
 
 pub fn upstream_uri(base: &Uri, path_and_query: &str) -> Result<Uri, ()> {

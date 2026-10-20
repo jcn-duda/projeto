@@ -18,6 +18,13 @@ interface RuntimeContext {
   origin?: string | null;
   /** Prazo da resposta deste cliente (app com timeout maior); ausente = `config.replyDeadline`. */
   replyDeadlineMs?: number | null;
+  /** Header `X-Adom-Shadow-Id` do gateway; só o modo shadow o consome. */
+  shadowId?: string | null;
+  /** `X-Adom-Shadow-Frozen: 1` — a 2ª request da sombra roda com comportamento
+   * congelado (SWR/fast-path/cache desligados) só nesta requisição. */
+  shadowFrozen?: boolean;
+  /** Dir do corpus congelado POR REQUISIÇÃO (shadow); vence o DIR global. */
+  frozenDir?: string | null;
 }
 type RuntimeOptions = ReturnType<typeof defaults>;
 const store = new AsyncLocalStorage<RuntimeContext>();
