@@ -411,6 +411,36 @@ async fn effects_rust_on_emite_interrogatorio_e_warmer_no_tail() {
         "hash em cache não entra no warmer"
     );
     assert_eq!(releases[0]["isBr"], json!(true));
+
+    // O lote do Chupim leva o universo PÓS-CHECAGEM INTEIRO (o frio que o
+    // cachedOnly esconde é justamente o alvo do download), com os fatos
+    // internos e o `known` da checagem.
+    let batch = achar(&effects, "autofetch_batch").expect("autofetch_batch no lote");
+    assert_eq!(batch.payload["known"], json!(true));
+    assert_eq!(batch.payload["imdbId"], json!("tt0133093"));
+    let items = batch.payload["items"].as_array().expect("items array");
+    let hashes: Vec<&str> = items
+        .iter()
+        .filter_map(|item| item["infoHash"].as_str())
+        .collect();
+    assert!(hashes.contains(&HASH), "item em cache no lote: {hashes:?}");
+    assert!(
+        hashes.contains(&FRIO),
+        "o frio cortado pelo cachedOnly continua no lote: {hashes:?}"
+    );
+    let item = items
+        .iter()
+        .find(|item| item["infoHash"] == json!(HASH))
+        .expect("item do HASH");
+    assert_eq!(item["_br"], json!(true));
+    // O título BR "DUBLADO" é promessa (`_dubClaim`); prova só com arquivo.
+    assert!(
+        item["_dubbed"] == json!(true) || item["_dubClaim"] == json!(true),
+        "fato de áudio no lote: {item:?}"
+    );
+    assert_eq!(item["_quality"], json!("1080p"));
+    let cached = batch.payload["cached"].as_array().expect("cached array");
+    assert!(cached.iter().any(|h| h == &json!(HASH)));
 }
 
 #[tokio::test]

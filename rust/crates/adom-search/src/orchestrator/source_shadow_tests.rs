@@ -13,6 +13,7 @@ fn pair(native: Arc<dyn Collector>, node: Arc<dyn ReferenceCollector>) -> Shadow
         source: "jackett",
         native,
         node,
+        compare_live: true,
     }
 }
 
@@ -177,19 +178,30 @@ async fn erro_nao_e_divergencia() {
 }
 
 #[test]
-fn f21_so_jackett_entra_na_sombra() {
+fn sombra_aceita_jackett_e_prowlarr() {
     assert_eq!(shadow_sources("jackett", "jackett"), Vec::<&str>::new());
     assert_eq!(
         shadow_sources("jackett,BLUDV , jackett", "jackett"),
         Vec::<&str>::new(),
-        "BLUDV não é F2.1"
+        "BLUDV não tem sombra"
+    );
+    assert_eq!(shadow_sources("prowlarr", ""), vec!["prowlarr"]);
+    assert_eq!(
+        shadow_sources("prowlarr", "prowlarr"),
+        Vec::<&str>::new(),
+        "fonte no corte nativo não roda sombra"
     );
     assert_eq!(
-        shadow_sources("prowlarr,torrentio,desconhecida", ""),
+        shadow_sources("jackett,prowlarr", ""),
+        vec!["jackett", "prowlarr"]
+    );
+    assert_eq!(
+        shadow_sources("torrentio,bludv,mico,desconhecida", ""),
         Vec::<&str>::new(),
-        "fora de F2.1 é ignorado, não roda"
+        "fontes sem identidade normalizada ficam fora"
     );
     assert_eq!(shadow_sources("JACKETT", ""), vec!["jackett"]);
+    assert_eq!(shadow_sources(" PROWLARR , prowlarr", ""), vec!["prowlarr"]);
     assert_eq!(shadow_sources("", "jackett"), Vec::<&str>::new());
 }
 
@@ -197,12 +209,127 @@ fn f21_so_jackett_entra_na_sombra() {
 fn tokens_ignorados_aparecem_para_log() {
     assert_eq!(
         ignored_shadow_tokens("jackett,BLUDV,prowlarr,desconhecida", "torrentio"),
-        vec![
-            "BLUDV".to_string(),
-            "prowlarr".to_string(),
-            "desconhecida".to_string()
-        ]
+        vec!["BLUDV".to_string(), "desconhecida".to_string()]
     );
+    // Já migrado no corte nativo também é ignorado (não é sombra).
+    assert_eq!(
+        ignored_shadow_tokens("prowlarr", "prowlarr"),
+        vec!["prowlarr".to_string()]
+    );
+}
+
+/// Montagem dos coletores da sombra: o Prowlarr entra SEM override de
+/// `JACKETT_INDEXERS` (não tem indexers) e o recorte segue só jackett/prowlarr.
+#[test]
+fn native_collector_monta_prowlarr_e_limita_o_recorte() {
+    let prowlarr = native_collector("prowlarr").expect("ProwlarrCollector monta sem chave");
+    assert!(
+        prowlarr.indexers.is_none(),
+        "Prowlarr não tem lista de JACKETT_INDEXERS"
+    );
+    let jackett = native_collector("jackett").expect("JackettCollector monta");
+    assert!(
+        jackett.indexers.is_some(),
+        "Jackett leva a lista do processo como fallback do ji"
+    );
+    assert!(
+        native_collector("torrentio").is_err(),
+        "fonte fora do recorte não monta sombra"
+    );
+    assert!(!has_live_reference("prowlarr"));
+    assert!(has_live_reference("jackett"));
+}
+
+/// O Node não emite `live` para o Prowlarr: comparar o live nativo com o
+/// snapshot vazio da referência daria divergência FALSA. O par do Prowlarr
+/// entra com `compare_live:false` e só a identidade é comparada.
+#[test]
+fn prowlarr_nao_compara_live_sem_contrato_do_node() {
+    let native = batch(
+        vec![item("yts", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+        false,
+        Some(live(&["prowlarr"], &[], &[], LiveAllState::Unknown)),
+    );
+    let node = batch(
+        vec![item("yts", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+        false,
+        Some(live(&[], &[], &[], LiveAllState::Unknown)),
+    );
+    // Com a régua do Jackett (compare_live = true) o live divergiria…
+    assert!(
+        compare_batches(&native, &node).live_divergence,
+        "o snapshot vazio do Node não atesta nada do Prowlarr"
+    );
+    // …mas o par do Prowlarr desliga essa comparação: mesmos hashes, sem
+    // divergência de fonte.
+    let comparison = compare_batches_opts(&native, &node, false);
+    assert!(!comparison.live_divergence);
+    assert!(!comparison.diverged());
+
+    let metrics = SourceShadowMetrics::new();
+    record_comparison_opts("prowlarr", &native, &node, &metrics, false);
+    assert_eq!(metrics.get(COMPARED), 1);
+    assert_eq!(metrics.get(LIVE_DIVERGENCE), 0);
+    assert_eq!(metrics.get(DIVERGENCE), 0);
+}
+
+/// A sombra do Prowlarr compara a IDENTIDADE (`_indexer` = tracker) dos dois
+/// lados: hash a mais/a menos continua contando como divergência.
+#[test]
+fn prowlarr_compara_hash_por_tracker() {
+    let native = batch(
+        vec![item("yts", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+        false,
+        Some(live(&[], &["prowlarr"], &[], LiveAllState::Unknown)),
+    );
+    let node = batch(
+        vec![item("yts", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")],
+        false,
+        Some(live(&[], &[], &[], LiveAllState::Unknown)),
+    );
+    let metrics = SourceShadowMetrics::new();
+    let comparison = record_comparison_opts("prowlarr", &native, &node, &metrics, false);
+    assert_eq!(comparison.missing_count, 1);
+    assert_eq!(comparison.extra_count, 1);
+    assert_eq!(metrics.get(DIVERGENCE), 1);
+    assert_eq!(metrics.get(LIVE_DIVERGENCE), 0);
+}
+
+/// Fonte do Prowlarr fora dos `providers` efetivos: a referência read-only
+/// devolve `eligible:false` e o par é pulado (sem compared/divergence).
+#[tokio::test]
+async fn prowlarr_skipped_quando_fora_da_selecao() {
+    let metrics = SourceShadowMetrics::new();
+    let native = stub(
+        Ok(batch(
+            vec![item("yts", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+            false,
+            Some(live(&[], &["prowlarr"], &[], LiveAllState::Unknown)),
+        )),
+        0,
+    );
+    let node = stub_ref(
+        Ok((
+            batch(
+                vec![],
+                false,
+                Some(live(&[], &[], &[], LiveAllState::Unknown)),
+            ),
+            false,
+        )),
+        0,
+    );
+    let pair = ShadowPair {
+        source: "prowlarr",
+        native,
+        node,
+        compare_live: false,
+    };
+    run_pair(pair, job(now_ms() + 1_000), metrics.clone()).await;
+    assert_eq!(metrics.get(SKIPPED), 1);
+    assert_eq!(metrics.get(COMPARED), 0);
+    assert_eq!(metrics.get(DIVERGENCE), 0);
+    assert_eq!(metrics.get(LIVE_DIVERGENCE), 0);
 }
 
 /// Timeout de UM indexer chega como `Failed` nos dois lotes: a comparação

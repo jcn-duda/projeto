@@ -34,9 +34,9 @@ de debrid desligado.
 Uma vez por busca, no fim da fila tardia (`orchestrator/late.rs` →
 `emit_effects`), depois do `index-write` e já fora do prazo do cliente:
 
-1. `dub_audit` e `rd_warmer` — vêm do lote da passada **mais nova**
-   (`FinishValue.effects`, calculado no `finish` porque depende do veredito de
-   cache por stream);
+1. `dub_audit`, `rd_warmer` e `autofetch_batch` — vêm do lote da passada
+   **mais nova** (`FinishValue.effects`, calculado no `finish` porque depende do
+   veredito de cache por stream e do lote pós-checagem);
 2. `harvester_enqueue` (`next-episode`) — quando a lista final tem play de
    verdade e a obra é série com S/E;
 3. `season_key` — emitido **na abertura** (`Orchestrator::handle`), antes do
@@ -47,8 +47,9 @@ mesma lista que o `applyDebrid` enxerga — e não sobre o corte final.
 
 Reemissão: o Node reemite a cada `applyDebrid` (resposta e passes tardios). Aqui
 o lote é o da passada final do tail; como a lista final é superconjunto das
-anteriores e cada fila do Node dedupa, o efeito prático é o mesmo. A diferença
-conhecida está em `rd_warmer` (abaixo).
+anteriores e cada fila do Node dedupa (marker do Chupim, fila, pending da
+auditoria), o efeito prático é o mesmo. As diferenças conhecidas estão em
+`rd_warmer` (abaixo) e na conta `unusable` do autofetch.
 
 Prazo: não há prazo de cliente no tail; o POST usa o timeout curto do
 `InternalSearchClient` (15 s) e falha só vira log (`[search] effects …`).
@@ -144,45 +145,64 @@ Contrato exato que falta para migrar essa emissão:
 
 Enquanto o índice for lido pelo Node, nada a fazer: a rota já cobre.
 
-### `autofetch` — Chupim (NÃO coberto; contrato que falta)
+### `autofetch` — Chupim (COBERTO pelo lote `autofetch_batch`)
 
 - Origem TS: `debrid-pipeline-core.ts:130-134` (`autoFetchCandidates`, que
   escolhe e SEGURA os hashes antes da checagem) e `:213-220`
   (`autoFetchBrDubbed`, que despacha depois do veredito de cache).
-- Por que o Rust não emite: a decisão não é só a cascata `br → any → seeds`
-  (essa já está no núcleo). Ela depende de estado de PROCESSO que o
-  orquestrador nativo não tem:
-  - config viva do painel (`autofetchLive.effective()`: `autoFetchMax`,
-    `autoFetchTopSeeds/Max`, `autoFetchAnyDubbed`, `autoFetchQueue(+Depth)`,
-    tetos de raros, `autoFetchTtl`, `autoFetchMinSeeders`, `ptFirst`);
-  - visão do teto por OBRA (`autofetch-obra.ts`: `obra_entries` +
-    `pending_reservations`, reserva síncrona antes de qualquer `await`);
-  - portões do enqueue (`classifyEnqueue`): marker no cache, lock em voo,
-    vaga por busca (`acquireSearchSlot`), conta bloqueada, orçamento horário;
-  - `hold` durável por hash (`debrid/protected.ts`) e a fila persistente
-    (`autofetch.writeQueue`, `drainNext`, recheck por lotes);
-  - `debrid.enqueue(hash)` — o upload em si, no adaptador Node.
-- Contrato mínimo que falta (uma de duas opções):
-  1. **Rota/kg de lote**: um `kind` que receba a lista pós-debrid com os fatos
-     internos (`infoHash`, `_br`, `_dubbed`, `_dubClaim`, `_seeders`,
-     `_quality`, `_fromFallback`, `_fallbackFetchable`, `_seedFloorWaived`,
-     `_multiWorkAdmitted`, `title`, `name`) mais
-     `{ cached[], known, season, episode, imdbId, searchKey }` e rode
-     `autoFetchCandidates` + `autoFetchBrDubbed` no Node (o código já existe e
-     continua sendo o dono do estado). Hoje nenhum `kind` da rota aceita isso e
-     o Rust não carrega esses fatos depois da materialização do `StreamItem`.
-  2. Trazer ao Rust o estado acima (painel + cache de marker/obra/fila +
-     `debrid.enqueue`), o que é uma fatia inteira, não um payload.
+- **Por que um lote, e não a seleção no Rust**: a decisão depende de estado de
+  PROCESSO que o orquestrador nativo não tem — config viva do painel
+  (`autofetchLive.effective()`), teto por OBRA/reservas (`autofetch-obra.ts`),
+  portões do enqueue (`classifyEnqueue`), `hold` durável
+  (`debrid/protected.ts`), fila persistente (`autofetch.writeQueue`/`drainNext`)
+  e `debrid.enqueue`. Em vez de duplicar esse estado, o Rust entrega os FATOS
+  medidos (`kind: "autofetch_batch"`) e o Node roda as MESMAS funções.
+- Payload (Rust → Node): `{ items[], cached[], known, season, episode, imdbId,
+  searchKey }`.
+  - `items` = o lote **pós-checagem e PRÉ-corte `cachedOnly`** (o BR frio que o
+    corte esconde é justamente o alvo do download), sem pack multiobra admitido
+    e sem reserva não elegível (`_fromFallback && !_fallbackFetchable`); ordem
+    preservada. Cada item leva `infoHash`, `title`, `name` e os fatos internos
+    `_br`, `_dubbed`, `_dubClaim`, `_seeders`, `_quality`, `_size`,
+    `_packBytes`, `_fromFallback`, `_fallbackFetchable`, `_seedFloorWaived`,
+    `_multiWorkAdmitted`, `_bankDub`, `_lied`, `_indexer`, `_tracker` (campo
+    ausente é omitido);
+  - `cached` = hashes confirmados em cache pela checagem, em minúsculas;
+  - `known` = veredito do lote (`debrid_known && !needsDebridRefresh`); com
+    `false`, o Node escolhe/segura e o despacho libera os holds sem enfileirar,
+    como no `applyDebrid`. O handler ainda completa o veredito com o inventário
+    da conta (`enrichInstantWithoutCacheCheck`): adaptador sem `cacheCheck`
+    (RD/Debrid-Link) pode responder pelo acervo mesmo com `known:false` — esse
+    estado é do Node e não viaja no payload.
+- Handler Node: `src/providers/autofetch-batch.ts::runAutofetchBatch` —
+  reconstrói os `Stream`s, aplica o mesmo filtro de entrada e chama
+  `autoFetchCandidates` → `enrichInstantWithoutCacheCheck` →
+  `autoFetchBrDubbed`. Nada do caminho normal muda: a rota só ENFILEIRA (202) e
+  o teste do enqueue é o mesmo (`marker`, lock, `acquireSearchSlot`, teto por
+  obra, conta bloqueada, orçamento, fila, `protectBr`).
+- Seleção Rust: `list_builder/effects.rs::autofetch_items`; fio:
+  `orchestrator/effects.rs::autofetch_batch`.
+- Kill-switches (Node, inalterados): `autoFetchBr`, pausa do painel,
+  `classifyEnqueue`, orçamento/janela ociosa e `config.debrid` do operador.
+  `EFFECTS_RUST` off = o Node continua sendo o único emissor.
+- O que **não** vai no lote e continua no Node: sonda BR (`br_probe`), purga da
+  fila seeds, contadores de skip, trace do Chupim, `releaseIndex`/banco de
+  magnets (usados pela seleção), inventário da conta e o `debrid.enqueue` em si.
+- **Divergência conhecida**: conta `unusable` (auth/quota) não emite o lote —
+  o Rust trata como os demais efeitos. No Node, o `applyDebrid` ainda roda a
+  seleção antes de sair e libera os holds; a sonda/fila que ela gravaria nesse
+  caminho não é replicada. Sem download possível, o efeito prático é nulo.
 
 ## Arquivos
 
 | Papel | Arquivo |
 |---|---|
-| Seleção pura (dub_audit/warmer) | `rust/crates/adom-search/src/list_builder/effects.rs` |
+| Seleção pura (dub_audit/warmer/autofetch) | `rust/crates/adom-search/src/list_builder/effects.rs` |
 | Payloads de fio + gates locais | `rust/crates/adom-search/src/orchestrator/effects.rs` |
 | Emissão no tail | `rust/crates/adom-search/src/orchestrator/late.rs` (`emit_effects`) |
 | `season_key` na abertura | `rust/crates/adom-search/src/orchestrator/mod.rs` (`emit_season_key`) |
 | Flag | `rust/crates/adom-server/src/stream_config.rs` (`EFFECTS_RUST`) |
 | Contrato do Node | `src/routes/internal-search-effects.ts` |
-| Teste TS do contrato | `test/internal-search-effects.test.ts` |
+| Handler do lote do Chupim | `src/providers/autofetch-batch.ts` |
+| Teste TS do contrato | `test/internal-search-effects.test.ts`, `test/internal-search-autofetch-batch.test.ts` |
 | Testes Rust | `orchestrator/effects_tests.rs`, `orchestrator/tests_pipeline.rs`, `list_builder/effects.rs` |

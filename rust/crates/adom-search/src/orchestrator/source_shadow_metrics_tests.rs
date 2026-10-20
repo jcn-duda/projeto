@@ -23,6 +23,7 @@ fn pair(native: Arc<dyn Collector>, node: Arc<dyn ReferenceCollector>) -> Shadow
         source: "jackett",
         native,
         node,
+        compare_live: true,
     }
 }
 
@@ -155,7 +156,7 @@ impl InternalRoutes for RecordingRoutes {
 #[tokio::test]
 async fn wrapper_da_sombra_manda_skip_sources_e_read_only() {
     let routes = Arc::new(RecordingRoutes::default());
-    let collector = node_collector_for_source(routes.clone(), "jackett", vec!["yts".into()]);
+    let collector = node_collector_for_source(routes.clone(), "jackett", Some(vec!["yts".into()]));
     let batch = collector
         .collect(job(now_ms() + 2_000))
         .await
@@ -185,12 +186,42 @@ async fn wrapper_da_sombra_manda_skip_sources_e_read_only() {
     );
 }
 
+/// Prowlarr: a referência pula as outras fontes, mas NÃO manda override de
+/// `JACKETT_INDEXERS` (não são indexers do Prowlarr); o `ji` da request segue
+/// no job quando existir.
+#[tokio::test]
+async fn wrapper_da_sombra_prowlarr_manda_skip_sources_sem_override() {
+    let routes = Arc::new(RecordingRoutes::default());
+    let collector = node_collector_for_source(routes.clone(), "prowlarr", None);
+    collector
+        .collect(job(now_ms() + 2_000))
+        .await
+        .expect("coleta");
+    let requests = routes.seen.lock().expect("requests");
+    let request = requests.first().expect("uma requisição");
+    assert!(request.read_only, "sombra não pode ter efeitos no Node");
+    assert_eq!(request.shadow_source.as_deref(), Some("prowlarr"));
+    assert_eq!(
+        request.skip_sources,
+        vec![
+            "jackett".to_string(),
+            "torrentio".to_string(),
+            "bludv".to_string(),
+            "mico".to_string()
+        ]
+    );
+    assert_eq!(
+        request.indexers, None,
+        "Prowlarr não tem lista de JACKETT_INDEXERS"
+    );
+}
+
 /// C0b: quando o job traz o `ji` da request, a referência usa ESSA seleção —
 /// o override do processo fica só como fallback de instalação sem `ji`.
 #[tokio::test]
 async fn sombra_prefere_a_selecao_da_request_ao_override_do_processo() {
     let routes = Arc::new(RecordingRoutes::default());
-    let collector = node_collector_for_source(routes.clone(), "jackett", vec!["yts".into()]);
+    let collector = node_collector_for_source(routes.clone(), "jackett", Some(vec!["yts".into()]));
     let mut selected = job(now_ms() + 2_000);
     selected.providers = vec!["jackett".into()];
     selected.jackett_indexers = vec!["req-idx".into()];

@@ -177,6 +177,7 @@
     "test/jackett-read-only.test.js",
     "test/source-shadow-read-only.test.js",
     "test/internal-search-effects.test.js",
+    "test/internal-search-autofetch-batch.test.js",
     "test/internal-debrid-check.test.js",
     "test/crawl-queue-order.test.js",
     "test/crawl-url-key.test.js",

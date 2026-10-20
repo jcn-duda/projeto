@@ -1,16 +1,15 @@
-//! Sombra de FONTE (F2.1): compara o coletor nativo com o `NodeCollector`
+//! Sombra de FONTE (F2.1/F2.2): compara o coletor nativo com o `NodeCollector`
 //! para o MESMO [`CollectJob`], sem tocar store/debrid/tail/efeitos.
 //!
-//! Liga por `SOURCES_RUST_SHADOW` (CSV, default vazio). **F2.1 compara só
-//! `jackett`**: Prowlarr/Torrentio/BLUDV/Mico são registrados como ignorados
-//! (log de boot) e NÃO rodam sombra até a normalização de identidade. Fonte
-//! que já está em `SOURCES_RUST` também é ignorada - o corte nativo dela está
+//! Liga por `SOURCES_RUST_SHADOW` (CSV, default vazio). Fontes com sombra:
+//! `jackett` e `prowlarr`; Torrentio/BLUDV/Mico são registrados como ignorados
+//! (log de boot) e NÃO rodam sombra até a normalização de identidade. Fonte que
+//! já está em `SOURCES_RUST` também é ignorada - o corte nativo dela está
 //! ativo, não é sombra.
 //!
 //! O coletor de produção responde normalmente; as comparações correm em
 //! `tokio::spawn` e só alimentam métricas/log. O lado Node roda em
-//! `read_only` (sem conta, banco, status/breaker nem cache bruto), então
-//! `partial` compara uma coleta sem esses efeitos.
+//! `read_only` (sem conta, banco, status/breaker nem cache bruto).
 //!
 //! Contrato comparado, por indexer:
 //!
@@ -19,14 +18,18 @@
 //! - `live.failed`/`pending`/`empty` e o agregado `all` (só quando AMBOS os
 //!   lados têm veredito; `Unknown` = ramo `/all` ausente, não divergência).
 //!
+//! **Live do Prowlarr não é comparado:** o `collectRawLive` do Node só emite
+//! `onQueryResult` para Jackett (por indexer) e Mico, então a referência
+//! read-only do Prowlarr sai vazia. Comparar o live nativo (por FONTE) com
+//! esse vazio daria divergência FALSA; a sombra dele compara a IDENTIDADE
+//! (hashes por `_indexer`/tracker). O `live` nativo vale na produção com
+//! `SOURCES_RUST=prowlarr`; quando o Node prometer o contrato, o flag
+//! `compare_live` do par liga sem mexer no coletor.
+//!
 //! `partial` NÃO é divergência de fonte: é a janela de coleta do Node. Quando
 //! difere, só incrementa `source.shadow.partial_divergence` (informativa) e
 //! NÃO soma em `source.shadow.divergence`; `source.shadow.compared` continua
 //! contando o par comparado, com a diferença de `partial` registrada à parte.
-//!
-//! Timeout do PAR e erro NÃO são divergência: entram em contadores próprios.
-//! Um pair que não terminou não incrementa `compared`. Timeout de INDEXER é
-//! `Failed` nos dois lados (não usa `source.shadow.timeout`).
 //!
 //! Elegibilidade: a rota Node devolve `eligible:false` quando a fonte não está
 //! nos `providers` efetivos; o pair pula a comparação e conta
@@ -37,14 +40,9 @@
 //! falha principal nem inventa falha. `late_sweep` nem roda sombra
 //! (`source.shadow.skipped_late`).
 //!
-//! Presença ao vivo: o nativo da sombra usa `JACKETT_LIVE_EXEMPT_INDEXERS`
-//! (default `apachetorrent-cardigann`), como o Node, para o card isento não
-//! virar missing/extra.
-//!
 //! Seleção de indexers (C0b): a referência usa o `ji` da REQUEST que viaja no
 //! [`CollectJob`]; só sem `ji` (instalação sem seleção) cai no
-//! `JACKETT_INDEXERS` do processo. Os dois lados passam a consultar o mesmo
-//! conjunto dentro da mesma busca.
+//! `JACKETT_INDEXERS` do processo. Os dois lados consultam o mesmo conjunto.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -54,10 +52,11 @@ use adom_sources::now_ms;
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector, NodeCollector};
 use crate::orchestrator::internal_routes::InternalRoutes;
 use crate::orchestrator::jackett_collector::JackettCollector;
+use crate::orchestrator::prowlarr_collector::ProwlarrCollector;
 
 #[path = "source_shadow_compare.rs"]
 mod compare;
-pub use compare::{compare_batches, ShadowComparison};
+pub use compare::{compare_batches, compare_batches_opts, ShadowComparison};
 
 #[path = "source_shadow_metrics.rs"]
 mod metrics;
@@ -72,64 +71,14 @@ pub const SOURCE_SHADOW_ENV: &str = "SOURCES_RUST_SHADOW";
 /// Env do corte nativo - fonte presente aqui não roda sombra.
 pub const SOURCES_ENV: &str = "SOURCES_RUST";
 
-/// F2.1 é SÓ Jackett: os demais coletores nativos ainda não têm a mesma
-/// identidade de indexer do Node, então compará-los daria divergência falsa.
-const SHADOW_SOURCES: &[&str] = &["jackett"];
+#[path = "source_shadow_sources.rs"]
+mod sources;
+use sources::has_live_reference;
+use sources::ignored_shadow_tokens;
+pub use sources::shadow_sources;
 
 /// Fontes que o Node conhece no collect (usado para `skip_sources`).
 const NODE_SOURCES: &[&str] = &["jackett", "prowlarr", "torrentio", "bludv", "mico"];
-
-/// Fontes pedidas pela sombra, já excluindo as que estão em `SOURCES_RUST`
-/// (puro - testável sem tocar no env do processo).
-pub fn shadow_sources(shadow_raw: &str, sources_raw: &str) -> Vec<&'static str> {
-    let mut out: Vec<&'static str> = Vec::new();
-    for token in shadow_raw.split(',') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        let Some(source) = SHADOW_SOURCES
-            .iter()
-            .copied()
-            .find(|known| known.eq_ignore_ascii_case(token))
-        else {
-            // Fora de F2.1: token aceito pela lista do Node, mas sem sombra.
-            continue;
-        };
-        if out.contains(&source) {
-            continue;
-        }
-        if csv_includes(sources_raw, source) {
-            continue;
-        }
-        out.push(source);
-    }
-    out
-}
-
-/// Tokens de `SOURCES_RUST_SHADOW` que NÃO entram na sombra (fora de F2.1 ou
-/// já migrados). Só para o log de boot — nada roda por eles.
-fn ignored_shadow_tokens(shadow_raw: &str, sources_raw: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for token in shadow_raw.split(',') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        let accepted = SHADOW_SOURCES
-            .iter()
-            .any(|known| known.eq_ignore_ascii_case(token));
-        if !accepted || csv_includes(sources_raw, token) {
-            out.push(token.to_string());
-        }
-    }
-    out
-}
-
-fn csv_includes(raw: &str, token: &str) -> bool {
-    raw.split(',')
-        .any(|item| item.trim().eq_ignore_ascii_case(token))
-}
 
 fn sources_from_env() -> Vec<&'static str> {
     let shadow = std::env::var(SOURCE_SHADOW_ENV).unwrap_or_default();
@@ -138,7 +87,7 @@ fn sources_from_env() -> Vec<&'static str> {
     if !ignored.is_empty() {
         eprintln!(
             "[source-shadow] ignorado(s) em {SOURCE_SHADOW_ENV}: {} \
-             (F2.1 compara só jackett)",
+             (sombra: jackett,prowlarr)",
             ignored.join(",")
         );
     }
@@ -169,17 +118,22 @@ pub fn wrap_collector_with_source_shadow(
     let mut pairs = Vec::new();
     for source in sources {
         match native_collector(source) {
-            Ok((native, indexers)) => {
+            Ok(native) => {
                 // O Node da sombra roda SÓ a fonte comparada, em READ-ONLY:
                 // sem inventário da conta, captura/banco, status/breaker ou
                 // cache bruto. As demais fontes ficam em `skip_sources` para
-                // não poluir o conjunto comparado. A lista de indexers é a do
-                // PROCESSO (não o `ji` customizado do usuário — F2.2).
-                let node = Arc::new(node_collector_for_source(routes.clone(), source, indexers));
+                // não poluir o conjunto comparado. O `ji` da request viaja no
+                // job (C0b); o override do processo é só fallback do Jackett.
+                let node = Arc::new(node_collector_for_source(
+                    routes.clone(),
+                    source,
+                    native.indexers,
+                ));
                 pairs.push(ShadowPair {
                     source,
-                    native,
+                    native: native.collector,
                     node,
+                    compare_live: has_live_reference(source),
                 });
             }
             Err(err) => eprintln!("[source-shadow] {source}: coletor nativo indisponível: {err}"),
@@ -203,39 +157,64 @@ pub fn wrap_collector_with_source_shadow(
     })
 }
 
-/// Coletor nativo da sombra + os indexers do PROCESSO que o Node deve usar.
-fn native_collector(source: &str) -> Result<(Arc<dyn Collector>, Vec<String>), String> {
+/// Coletor nativo da sombra + o override de indexers do `NodeCollector`.
+struct NativeShadow {
+    collector: Arc<dyn Collector>,
+    /// `Some` só para o Jackett (`JACKETT_INDEXERS` do processo); `None` para
+    /// fontes que não têm indexers (Prowlarr) — aí a referência usa o `ji` do
+    /// job, sem override.
+    indexers: Option<Vec<String>>,
+}
+
+/// Coletor nativo da sombra. O Jackett entra em modo sombra (ignora breaker e
+/// não registra status); o Prowlarr não tem breaker/status e usa o cliente
+/// normal.
+fn native_collector(source: &str) -> Result<NativeShadow, String> {
     match source {
         "jackett" => {
             let collector = JackettCollector::from_env()
                 .map_err(|err| format!("JackettClient: {err}"))?
                 .with_shadow(true);
             let indexers = collector.client().config().indexers.clone();
-            Ok((Arc::new(collector) as Arc<dyn Collector>, indexers))
+            Ok(NativeShadow {
+                collector: Arc::new(collector),
+                indexers: Some(indexers),
+            })
         }
-        other => Err(format!("fora de F2.1: {other}")),
+        "prowlarr" => {
+            let collector =
+                ProwlarrCollector::from_env().map_err(|err| format!("ProwlarrClient: {err}"))?;
+            Ok(NativeShadow {
+                collector: Arc::new(collector),
+                indexers: None,
+            })
+        }
+        other => Err(format!("fonte sem sombra: {other}")),
     }
 }
 
 /// O `NodeCollector` de referência da sombra: só a fonte comparada e sem
 /// efeitos (`read_only`). `skip_sources` lista todas as outras fontes do Node;
-/// `indexers` é o FALLBACK do `ji` (vale só quando o job não traz seleção) —
-/// o C0b passou a mandar a seleção da request pelo próprio job.
+/// `indexers` (quando presente) é o FALLBACK do `ji` (vale só quando o job não
+/// traz seleção) — o C0b passou a mandar a seleção da request pelo job.
 fn node_collector_for_source(
     routes: Arc<dyn InternalRoutes>,
     source: &str,
-    indexers: Vec<String>,
+    indexers: Option<Vec<String>>,
 ) -> NodeCollector {
     let skip_sources: Vec<String> = NODE_SOURCES
         .iter()
         .filter(|token| **token != source)
         .map(|token| (*token).to_string())
         .collect();
-    NodeCollector::new(routes)
+    let collector = NodeCollector::new(routes)
         .with_skip_sources(skip_sources)
         .with_read_only(true)
-        .with_shadow_source(source)
-        .with_indexers_override(indexers)
+        .with_shadow_source(source);
+    match indexers {
+        Some(indexers) => collector.with_indexers_override(indexers),
+        None => collector,
+    }
 }
 
 /// Lado Node da sombra: além do lote, entrega a elegibilidade da fonte.
@@ -259,6 +238,8 @@ struct ShadowPair {
     source: &'static str,
     native: Arc<dyn Collector>,
     node: Arc<dyn ReferenceCollector>,
+    /// Só quando o Node promete `live` para esta fonte (`has_live_reference`).
+    compare_live: bool,
 }
 
 /// Coletor de produção com sombra fire-and-forget: a resposta usa SEMPRE o
@@ -322,7 +303,11 @@ async fn run_pair(pair: ShadowPair, job: CollectJob, metrics: SourceShadowMetric
             );
         }
         Ok((Ok(native), Ok((node, true)))) => {
-            record_comparison(source, &native, &node, &metrics);
+            if pair.compare_live {
+                record_comparison(source, &native, &node, &metrics);
+            } else {
+                record_comparison_opts(source, &native, &node, &metrics, false);
+            }
         }
         Ok((native, node)) => {
             // `source.shadow.timeout` é SÓ o prazo do PAR (wrapper acima).
@@ -354,8 +339,25 @@ fn record_comparison(
     node: &CollectBatch,
     metrics: &SourceShadowMetrics,
 ) -> ShadowComparison {
+    record_comparison_opts(source, native, node, metrics, true)
+}
+
+/// Variante que decide se o `live` entra na comparação. Fonte sem contrato de
+/// `live` no Node (Prowlarr) compara só identidade — o live nativo dela não
+/// tem referência e nunca pode virar divergência.
+fn record_comparison_opts(
+    source: &str,
+    native: &CollectBatch,
+    node: &CollectBatch,
+    metrics: &SourceShadowMetrics,
+    compare_live: bool,
+) -> ShadowComparison {
     metrics.inc(COMPARED, 1);
-    let comparison = compare_batches(native, node);
+    let comparison = if compare_live {
+        compare_batches(native, node)
+    } else {
+        compare_batches_opts(native, node, false)
+    };
     metrics.inc(ITEMS_MISSING, comparison.missing_count);
     metrics.inc(ITEMS_EXTRA, comparison.extra_count);
     if comparison.live_divergence {

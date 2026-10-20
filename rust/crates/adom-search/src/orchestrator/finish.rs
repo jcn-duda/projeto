@@ -184,6 +184,7 @@ pub(super) fn finish_value(
             season: meta.season,
             episode: meta.episode,
             search_key,
+            known: debrid_known,
             work: built.work_hint.as_ref(),
         };
         super::effects::build_effects(&built.effect_seeds, &effect_ctx)

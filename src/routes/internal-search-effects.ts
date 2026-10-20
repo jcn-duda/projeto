@@ -24,6 +24,8 @@ import { queueDubAudit } from '../providers/dub-audit.js';
 import { requestBrProbe } from '../providers/br-probe.js';
 import * as harvestQueue from '../providers/harvest-queue.js';
 import { registerSeasonSearchKey } from '../providers/autofetch-season-index.js';
+import { runAutofetchBatch } from '../providers/autofetch-batch.js';
+import type { AutofetchBatchPayload } from '../providers/autofetch-batch.js';
 import * as runtime from '../runtime.js';
 import * as log from '../utils/logger.js';
 
@@ -32,6 +34,9 @@ import * as log from '../utils/logger.js';
 const MAX_RELEASE_ENTRIES = 200;
 const MAX_ITEMS_PER_ENTRY = 2000;
 const MAX_EFFECTS = 100;
+/** Lote do Chupim: o pool pós-debrid é `maxResults × candidatePoolFactor`
+ *  (100 × 4 no teto do SCHEMA), com folga. */
+const MAX_AUTOFETCH_ITEMS = 400;
 
 const IMDB_RE = /^tt\d+$/;
 
@@ -53,6 +58,8 @@ export interface InternalSearchEffectsCollaborators {
   harvestEnqueue: typeof harvestQueue.enqueue;
   /** LRU de temporadas com pack pronto (Season Pack Fill). */
   registerSeasonSearchKey: typeof registerSeasonSearchKey;
+  /** Lote pós-debrid do Chupim: reconstrói os streams e roda a cascata do Node. */
+  runAutofetchBatch: typeof runAutofetchBatch;
 }
 
 type ReleaseEntry = {
@@ -165,6 +172,14 @@ function parseEffects(raw: unknown): { accepted: Effect[]; rejected: number } {
         case 'autofetch':
           return Boolean(payload.candidate && payload.request
             && typeof payload.candidate === 'object' && typeof payload.request === 'object');
+        case 'autofetch_batch':
+          // O lote em si é sanitizado no handler (`streamOfItem`); aqui só a
+          // forma grosseira, para um payload sem lista não virar varredura.
+          return Array.isArray(payload.items)
+            && payload.items.length <= MAX_AUTOFETCH_ITEMS
+            && Array.isArray(payload.cached)
+            && payload.cached.length <= MAX_AUTOFETCH_ITEMS
+            && typeof payload.known === 'boolean';
         case 'rd_warmer':
           return Array.isArray(payload.releases);
         case 'dub_audit':
@@ -196,6 +211,9 @@ function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): vo
   switch (effect.kind) {
     case 'autofetch':
       deps.enqueueAutofetch(p.candidate as any, p.request as any);
+      return;
+    case 'autofetch_batch':
+      deps.runAutofetchBatch(p as AutofetchBatchPayload);
       return;
     case 'rd_warmer':
       deps.queueRdWarmForRelevant(p.releases as any[]);
@@ -282,6 +300,7 @@ export function registerInternalSearchEffects(
     requestBrProbe: overrides.requestBrProbe ?? requestBrProbe,
     harvestEnqueue: overrides.harvestEnqueue ?? harvestQueue.enqueue,
     registerSeasonSearchKey: overrides.registerSeasonSearchKey ?? registerSeasonSearchKey,
+    runAutofetchBatch: overrides.runAutofetchBatch ?? runAutofetchBatch,
   };
   const json = express.json({ limit: '1mb' });
 

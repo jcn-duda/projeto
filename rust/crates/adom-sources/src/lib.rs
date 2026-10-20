@@ -103,7 +103,8 @@ pub use mico::{
     MicoClient, MicoConfig, MicoMediaType, MicoRawItem, MicoSearchArgs, MICO_DEFAULT_URL, MICO_ID,
 };
 pub use prowlarr::{
-    ProwlarrClient, ProwlarrConfig, ProwlarrRawItem, PROWLARR_DEFAULT_URL, PROWLARR_USER_AGENT,
+    ProwlarrClient, ProwlarrConfig, ProwlarrOutcome, ProwlarrRawItem, PROWLARR_DEFAULT_URL,
+    PROWLARR_USER_AGENT,
 };
 pub use sources::MetaSources;
 pub use tmdb::TmdbClient;

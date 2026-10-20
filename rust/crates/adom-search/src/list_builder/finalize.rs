@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use adom_core::{
     limit_reserving_br_trace, play_disposition, uncached_br_hashes, LimitBrOpts, PlayDisposition,
@@ -23,6 +23,12 @@ pub fn finalize_streams(
         .filter(|s| !s.extra.contains_key("_broken"))
         .collect();
     out.count("afterBroken", streams.len());
+    // Universo do Chupim: a lista pós-checagem INTEIRA, porque o `applyDebrid`
+    // chama `autoFetchCandidates` ANTES do corte `cachedOnly` (o BR frio é
+    // justamente o alvo do download). `kept` já saiu cortado e não serve.
+    // Guardado como item COMPACTO (não clona o stream inteiro): os fatos da
+    // versão anotada de `kept` são refrescados no fim.
+    let mut autofetch_batch = super::effects::autofetch_items(&streams);
 
     // 8. applyDebrid (na ordem do TS: prepare() em lote se o serviço aceita,
     //    depois check() por stream).
@@ -241,6 +247,26 @@ pub fn finalize_streams(
     // por isso a seleção roda aqui, com `kept` e o conjunto de hashes cacheados
     // da checagem. Emitir é do orquestrador (`EFFECTS_RUST`).
     out.effect_seeds = super::effects::collect(&kept, &cached_hashes, ctx.season, ctx.episode);
+    // O lote do Chupim usa o universo pré-corte, mas com os fatos da versão
+    // ANOTADA de quem sobreviveu (o Node anota antes de escolher os
+    // candidatos). Só os campos que a anotação pode mexer são refrescados.
+    let annotated: HashMap<String, &RankingStream> = kept
+        .iter()
+        .filter_map(|stream| {
+            stream
+                .info_hash
+                .as_deref()
+                .map(|hash| (hash.to_lowercase(), stream))
+        })
+        .collect();
+    for item in &mut autofetch_batch {
+        if let Some(stream) = annotated.get(&item.hash.to_lowercase()) {
+            if let Some(refreshed) = super::effects::autofetch_item_of(stream) {
+                *item = refreshed;
+            }
+        }
+    }
+    out.effect_seeds.autofetch = autofetch_batch;
 
     // 10. Aviso se vazia — o TEXTO nasce relativo (o link é do origin).
     let mut built: Vec<BuiltStream> = finais

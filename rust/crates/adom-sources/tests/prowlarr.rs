@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use adom_sources::{ProwlarrClient, ProwlarrConfig};
+use adom_sources::{ProwlarrClient, ProwlarrConfig, ProwlarrOutcome};
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -30,6 +30,7 @@ struct Inner {
 enum Mode {
     #[default]
     Ok,
+    Http429,
     Http500,
     NotArray,
     Hang,
@@ -98,6 +99,7 @@ async fn search(
             tokio::time::sleep(Duration::from_secs(30)).await;
             StatusCode::OK.into_response()
         }
+        Mode::Http429 => StatusCode::TOO_MANY_REQUESTS.into_response(),
         Mode::Http500 => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         Mode::NotArray => (StatusCode::OK, axum::Json(json!({ "oops": true }))).into_response(),
         Mode::Ok => {
@@ -261,5 +263,112 @@ async fn ssrf_barra_privado_quando_desligado() {
     };
     let client = ProwlarrClient::new(cfg).expect("client");
     assert!(client.search("x").await.is_empty());
+    assert!(api.calls().is_empty());
+}
+
+// ── `search_outcome`: o desfecho tipado que o coletor nativo consome ───────
+
+#[tokio::test]
+async fn outcome_ok_mapeia_itens() {
+    let (_api, base) = FakeProwlarr::start().await;
+    let client = ProwlarrClient::new(test_config(&base)).expect("client");
+    match client.search_outcome("Joker").await {
+        ProwlarrOutcome::Ok(items) => assert_eq!(items.len(), 3),
+        other => panic!("esperava Ok, veio {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn outcome_disabled_sem_chave_nao_e_falha_de_consulta() {
+    let (api, base) = FakeProwlarr::start().await;
+    let cfg = ProwlarrConfig {
+        api_key: String::new(),
+        ..test_config(&base)
+    };
+    let client = ProwlarrClient::new(cfg).expect("client");
+    let outcome = client.search_outcome("Joker").await;
+    assert_eq!(outcome, ProwlarrOutcome::Disabled);
+    assert!(!outcome.is_consult_failure());
+    assert!(api.calls().is_empty());
+}
+
+#[tokio::test]
+async fn outcome_query_vazia_e_ok_vazio_sem_rede() {
+    let (api, base) = FakeProwlarr::start().await;
+    let client = ProwlarrClient::new(test_config(&base)).expect("client");
+    assert_eq!(
+        client.search_outcome("").await,
+        ProwlarrOutcome::Ok(Vec::new())
+    );
+    assert!(api.calls().is_empty());
+}
+
+#[tokio::test]
+async fn outcome_429_e_http_com_status() {
+    let (api, base) = FakeProwlarr::start().await;
+    let client = ProwlarrClient::new(test_config(&base)).expect("client");
+    api.set_mode(Mode::Http429);
+    let outcome = client.search_outcome("x").await;
+    assert_eq!(outcome, ProwlarrOutcome::Http(429));
+    assert!(outcome.is_consult_failure());
+}
+
+#[tokio::test]
+async fn outcome_json_fora_do_contrato_e_invalid_json() {
+    let (api, base) = FakeProwlarr::start().await;
+    let client = ProwlarrClient::new(test_config(&base)).expect("client");
+    api.set_mode(Mode::NotArray);
+    let outcome = client.search_outcome("x").await;
+    assert_eq!(outcome, ProwlarrOutcome::InvalidJson);
+    assert!(outcome.is_consult_failure());
+}
+
+#[tokio::test]
+async fn outcome_timeout_nao_vira_network() {
+    let (api, base) = FakeProwlarr::start().await;
+    api.set_mode(Mode::Hang);
+    let cfg = ProwlarrConfig {
+        timeout_ms: 80,
+        ..test_config(&base)
+    };
+    let client = ProwlarrClient::new(cfg).expect("client");
+    let outcome = client.search_outcome("x").await;
+    assert_eq!(outcome, ProwlarrOutcome::Timeout);
+    assert!(outcome.is_consult_failure());
+}
+
+/// Rede recusada é `Network` e o texto logado NÃO pode carregar a URL (que
+/// leva `apikey=` na query).
+#[tokio::test]
+async fn outcome_rede_nao_vaza_a_api_key() {
+    let cfg = ProwlarrConfig {
+        url: "http://127.0.0.1:1".into(),
+        api_key: "segredo-prowlarr".into(),
+        timeout_ms: 500,
+        ..ProwlarrConfig::default()
+    };
+    let client = ProwlarrClient::new(cfg).expect("client");
+    match client.search_outcome("x").await {
+        ProwlarrOutcome::Network(text) => {
+            assert!(!text.contains("segredo-prowlarr"), "texto: {text}");
+            assert!(!text.contains("apikey"), "texto: {text}");
+        }
+        ProwlarrOutcome::Timeout => {}
+        other => panic!("esperava Network/Timeout, veio {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn outcome_url_barrada_e_blocked_sem_consulta() {
+    let (api, _base) = FakeProwlarr::start().await;
+    let client = ProwlarrClient::new(ProwlarrConfig {
+        url: "file:///etc/passwd".into(),
+        api_key: "k".into(),
+        ..ProwlarrConfig::default()
+    })
+    .expect("client");
+    let outcome = client.search_outcome("x").await;
+    assert_eq!(outcome, ProwlarrOutcome::BlockedUrl);
+    assert!(!outcome.is_consult_failure());
     assert!(api.calls().is_empty());
 }

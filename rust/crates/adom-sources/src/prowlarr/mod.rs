@@ -20,4 +20,4 @@ pub use client::ProwlarrClient;
 pub use config::{
     ProwlarrConfig, PROWLARR_DEFAULT_TIMEOUT_MS, PROWLARR_DEFAULT_URL, PROWLARR_USER_AGENT,
 };
-pub use types::ProwlarrRawItem;
+pub use types::{ProwlarrOutcome, ProwlarrRawItem};

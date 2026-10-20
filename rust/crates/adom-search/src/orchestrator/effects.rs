@@ -17,16 +17,18 @@
 //!   (`debrid-pipeline-core.ts:221-243`);
 //! - `harvester_enqueue` — episódio seguinte de série assistida
 //!   (`search-orchestrator.ts:315`);
-//! - `season_key` — LRU de temporadas com pack pronto (`search-cache.ts:70`).
+//! - `season_key` — LRU de temporadas com pack pronto (`search-cache.ts:70`);
+//! - `autofetch_batch` — lote pós-debrid que o Node entrega a
+//!   `autoFetchCandidates`/`autoFetchBrDubbed` (`debrid-pipeline-core.ts:130,213`).
 //!
 //! Fora desta fatia, com o contrato exato que falta, em
-//! `docs/rust-effects-contract.md`: `autofetch`, `br_probe` e o
-//! `harvester_enqueue` de `miss`/`gap`/`br-gap` da via do índice.
+//! `docs/rust-effects-contract.md`: `br_probe` e o `harvester_enqueue` de
+//! `miss`/`gap`/`br-gap` da via do índice.
 
 use serde_json::{json, Map, Value};
 
 use crate::internal_types::EffectEntry;
-use crate::list_builder::{EffectSeeds, WorkHint};
+use crate::list_builder::{AutofetchItem, EffectSeeds, WorkHint};
 
 /// Fatos da requisição que os payloads carregam (nunca segredo em log).
 #[derive(Debug, Clone)]
@@ -41,6 +43,9 @@ pub struct EffectContext<'a> {
     pub episode: Option<i64>,
     /// Chave de cache da busca (`input.key`): vira `searchKey` do interrogatório.
     pub search_key: &'a str,
+    /// Veredito de cache do lote (`known` do `applyDebrid`): o autofetch só
+    /// despacha com cache conhecido — sem isso o Node libera os holds.
+    pub known: bool,
     /// Dica de obra do build (`n`/`y` do `/resolve`).
     pub work: Option<&'a WorkHint>,
 }
@@ -180,9 +185,77 @@ pub fn season_key(
     ))
 }
 
-/// Lote da resposta/tail: `dub_audit` + `rd_warmer` do lote pós-debrid.
+/// Lote pós-debrid do Chupim (`debrid-pipeline-core.ts:130-134,213-220`).
+///
+/// O Node reconstrói os `Stream`s (campos `_*` são internos do pipeline e
+/// viajam com o nome do TS) e roda `autoFetchCandidates` + `autoFetchBrDubbed`
+/// com o estado que só ele tem: marker/lock/hold, teto por obra, fila
+/// persistente, config viva do painel e `debrid.enqueue`. O Rust só entrega os
+/// FATOS medidos — nunca decide nem segura hash.
+pub fn autofetch_batch(seeds: &EffectSeeds, ctx: &EffectContext<'_>) -> Option<EffectEntry> {
+    // Sem adaptador/conta o Node não teria como enfileirar; com o lote vazio
+    // (busca sem stream com hash) também não há o que selecionar.
+    if seeds.autofetch.is_empty() || ctx.adapter_id.is_empty() || ctx.api_key.is_empty() {
+        return None;
+    }
+    let items: Vec<Value> = seeds.autofetch.iter().map(item_json).collect();
+    let payload = json!({
+        "items": items,
+        "cached": seeds.cached,
+        "known": ctx.known,
+        "season": ctx.season,
+        "episode": ctx.episode,
+        "imdbId": if ctx.imdb_id.is_empty() { Value::Null } else { json!(ctx.imdb_id) },
+        "searchKey": ctx.search_key,
+    });
+    Some(entry("autofetch_batch", payload))
+}
+
+/// Um item do lote: `infoHash`/`title`/`name` + os campos `_*` que
+/// `autoFetchCandidates`/`autoFetchBrDubbed` consomem. Campo ausente é omitido
+/// (o Node trata `undefined` como sempre: `Boolean(undefined)` etc.).
+fn item_json(item: &AutofetchItem) -> Value {
+    let mut out = Map::new();
+    out.insert("infoHash".into(), json!(item.hash));
+    out.insert("title".into(), json!(item.title));
+    out.insert("name".into(), json!(item.name));
+    out.insert("_br".into(), json!(item.br));
+    out.insert("_dubbed".into(), json!(item.dubbed));
+    out.insert("_dubClaim".into(), json!(item.dub_claim));
+    out.insert("_fromFallback".into(), json!(item.from_fallback));
+    out.insert("_fallbackFetchable".into(), json!(item.fallback_fetchable));
+    out.insert("_seedFloorWaived".into(), json!(item.seed_floor_waived));
+    out.insert("_multiWorkAdmitted".into(), json!(item.multi_work_admitted));
+    out.insert("_bankDub".into(), json!(item.bank_dub));
+    out.insert("_lied".into(), json!(item.lied));
+    if let Some(seeders) = item.seeders {
+        out.insert("_seeders".into(), json!(seeders));
+    }
+    if let Some(quality) = &item.quality {
+        out.insert("_quality".into(), json!(quality));
+    }
+    if let Some(size) = item.size {
+        out.insert("_size".into(), json!(size));
+    }
+    if let Some(pack_bytes) = item.pack_bytes {
+        out.insert("_packBytes".into(), json!(pack_bytes));
+    }
+    if let Some(indexer) = &item.indexer {
+        out.insert("_indexer".into(), json!(indexer));
+    }
+    if let Some(tracker) = &item.tracker {
+        out.insert("_tracker".into(), json!(tracker));
+    }
+    Value::Object(out)
+}
+
+/// Lote da resposta/tail: `autofetch_batch` + `dub_audit` + `rd_warmer` do lote
+/// pós-debrid.
 pub fn build_effects(seeds: &EffectSeeds, ctx: &EffectContext<'_>) -> Vec<EffectEntry> {
     let mut out = Vec::new();
+    if let Some(effect) = autofetch_batch(seeds, ctx) {
+        out.push(effect);
+    }
     if let Some(effect) = dub_audit(seeds, ctx) {
         out.push(effect);
     }

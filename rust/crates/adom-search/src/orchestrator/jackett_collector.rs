@@ -31,6 +31,15 @@ use env::{
     split_csv,
 };
 
+/// `TITLE_PRECISION_TAIL_CUT` do processo (default true, como o Node). O
+/// coletor é montado por env e não recebe o `OrchestratorConfig`; o Prowlarr
+/// usa esta mesma leitura para medir `empty` com a régua idêntica.
+pub(crate) fn process_title_precision_tail_cut() -> bool {
+    std::env::var("TITLE_PRECISION_TAIL_CUT")
+        .map(|value| parse_title_precision_tail_cut(&value))
+        .unwrap_or(true)
+}
+
 /// `SOURCES_RUST` contém o token `jackett` (CSV, case-insensitive).
 pub fn sources_rust_includes_jackett() -> bool {
     sources_rust_includes("jackett")
@@ -230,9 +239,7 @@ impl JackettCollector {
             // Limitação: o collector é montado por env, não recebe o
             // `OrchestratorConfig`; se o processo Rust não tiver a env, o
             // default do Node (true) é usado.
-            title_precision_tail_cut: std::env::var("TITLE_PRECISION_TAIL_CUT")
-                .map(|value| parse_title_precision_tail_cut(&value))
-                .unwrap_or(true),
+            title_precision_tail_cut: process_title_precision_tail_cut(),
             client,
         }
     }

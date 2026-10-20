@@ -26,8 +26,20 @@ impl ShadowComparison {
     }
 }
 
-/// Compara o lote nativo (esquerda) com o Node (referência).
+/// Compara o lote nativo (esquerda) com o Node (referência), incluindo `live`.
 pub fn compare_batches(native: &CollectBatch, node: &CollectBatch) -> ShadowComparison {
+    compare_batches_opts(native, node, true)
+}
+
+/// Compara com o `live` opcional. `compare_live:false` é para fonte cujo Node
+/// NÃO promete contrato vivo (Prowlarr): o snapshot da referência é vazio por
+/// construção e usá-lo acusaria divergência falsa. Hashes/`partial` seguem
+/// comparados normalmente.
+pub fn compare_batches_opts(
+    native: &CollectBatch,
+    node: &CollectBatch,
+    compare_live: bool,
+) -> ShadowComparison {
     let native_sets = by_indexer(native);
     let node_sets = by_indexer(node);
     let empty = BTreeSet::new();
@@ -57,7 +69,7 @@ pub fn compare_batches(native: &CollectBatch, node: &CollectBatch) -> ShadowComp
         extra,
         missing_count,
         extra_count,
-        live_divergence: live_differs(native.live.as_ref(), node.live.as_ref()),
+        live_divergence: compare_live && live_differs(native.live.as_ref(), node.live.as_ref()),
         partial_divergence: native.partial != node.partial,
     }
 }

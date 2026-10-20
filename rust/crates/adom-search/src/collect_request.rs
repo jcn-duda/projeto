@@ -1,7 +1,7 @@
 //! Corpo de `POST /internal/search/collect` (Node ↔ orquestrador).
 //!
 //! Extraído de `internal_types.rs` pela catraca de 400 linhas. `read_only` e
-//! `shadow_source` são o contrato da sombra de fonte (F2.1); o caminho de
+//! `shadow_source` são o contrato da sombra de fonte (F2.1/F2.2); o caminho de
 //! resposta nunca liga os dois.
 
 use serde::Serialize;
@@ -44,13 +44,13 @@ pub struct CollectRequest {
     /// liga; o caminho de resposta nunca.
     #[serde(default, skip_serializing_if = "is_false")]
     pub read_only: bool,
-    /// Fonte que a sombra quer comparar (`jackett` na F2.1). A rota read-only
-    /// confere se ela está habilitada nos `providers` efetivos; ausente =
-    /// `eligible:false` e nada é coletado.
+    /// Fonte que a sombra quer comparar (`jackett`/`prowlarr`). A rota
+    /// read-only confere se ela está habilitada nos `providers` efetivos;
+    /// ausente = `eligible:false` e nada é coletado.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow_source: Option<String>,
-    /// Indexers do PROCESSO (`JACKETT_INDEXERS`): a rota read-only usa esta
-    /// lista no lugar do `ji` do usuário (limitação F2.2).
+    /// `JACKETT_INDEXERS` do PROCESSO como FALLBACK do `ji` da request na rota
+    /// read-only (C0b): `None` = o Node usa a seleção que veio no job.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indexers: Option<Vec<String>>,
 }

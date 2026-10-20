@@ -97,7 +97,12 @@ fn relevant_items(
     job: &CollectJob,
     title_precision_tail_cut: bool,
 ) -> usize {
-    let entries: Vec<RelevanceItem> = items
+    relevant_count(&relevance_entries(items), job, title_precision_tail_cut)
+}
+
+/// Campos que a régua de relevância lê, a partir do lote cru do Jackett.
+fn relevance_entries(items: &[JackettRawItem]) -> Vec<RelevanceItem> {
+    items
         .iter()
         .map(|item| RelevanceItem {
             title: Some(item.title.clone()),
@@ -107,7 +112,21 @@ fn relevant_items(
             guid: None,
             is_br: item.is_br,
         })
-        .collect();
+        .collect()
+}
+
+/// Quantos itens passam na relevância da obra. Sem `names` o Node não mede
+/// `relevant` (`undefined`): todo item conta como resposta útil. Compartilhado
+/// com o coletor Prowlarr para medir `empty` com a MESMA régua
+/// (`filter_relevant_raw`) em vez de inventar "vazio".
+pub(crate) fn relevant_count(
+    entries: &[RelevanceItem],
+    job: &CollectJob,
+    title_precision_tail_cut: bool,
+) -> usize {
+    if job.names.is_empty() {
+        return entries.len();
+    }
     let year = job
         .year
         .as_ref()
@@ -138,7 +157,7 @@ fn relevant_items(
         pre_home_release_margin_ms: 0,
         title_precision_tail_cut,
     };
-    filter_relevant_raw(&entries, &query, &settings).kept.len()
+    filter_relevant_raw(entries, &query, &settings).kept.len()
 }
 
 #[derive(Default)]

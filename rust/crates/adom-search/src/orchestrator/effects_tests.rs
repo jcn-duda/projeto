@@ -2,7 +2,7 @@
 //! `src/routes/internal-search-effects.ts` valida) e os gates locais.
 
 use super::*;
-use crate::list_builder::{AuditSeed, WarmerSeed};
+use crate::list_builder::{AuditSeed, AutofetchItem, WarmerSeed};
 use serde_json::{json, Value};
 
 const HASH: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -22,7 +22,31 @@ fn ctx<'a>(work: &'a WorkHint, adapter: &'a str, key: &'a str) -> EffectContext<
         season: None,
         episode: None,
         search_key: "streams:v21:movie:tt0133093:x:account:y",
+        known: true,
         work: Some(work),
+    }
+}
+
+fn autofetch_item() -> AutofetchItem {
+    AutofetchItem {
+        hash: HASH.into(),
+        title: "Filme Teste 2024 1080p DUBLADO".into(),
+        name: "DUB 1080p · 👤 20".into(),
+        br: true,
+        dubbed: true,
+        dub_claim: false,
+        seeders: Some(20.0),
+        quality: Some("1080p".into()),
+        size: Some(1_500_000_000.0),
+        pack_bytes: Some(4_000_000_000.0),
+        indexer: Some("bludv".into()),
+        tracker: Some("bludv".into()),
+        from_fallback: false,
+        fallback_fetchable: false,
+        seed_floor_waived: false,
+        multi_work_admitted: false,
+        bank_dub: false,
+        lied: false,
     }
 }
 
@@ -40,6 +64,8 @@ fn seeds() -> EffectSeeds {
             is_br: true,
             dubbed: true,
         }],
+        autofetch: vec![autofetch_item()],
+        cached: vec![HASH.into()],
     }
 }
 
@@ -111,6 +137,94 @@ fn rd_warmer_leva_releases_com_hash_minusculo_e_marcas() {
 fn rd_warmer_vazio_nao_vira_efeito() {
     let vazio = EffectSeeds::default();
     assert!(rd_warmer(&vazio).is_none());
+}
+
+#[test]
+fn autofetch_batch_tem_a_forma_que_o_handler_do_node_le() {
+    let work = work();
+    let effects = build_effects(&seeds(), &ctx(&work, "alldebrid", "chave"));
+    let effect = kind(&effects, "autofetch_batch").expect("autofetch_batch no lote");
+    let payload = &effect.payload;
+    assert_eq!(payload["known"], json!(true));
+    assert_eq!(payload["season"], Value::Null);
+    assert_eq!(payload["episode"], Value::Null);
+    assert_eq!(payload["imdbId"], json!("tt0133093"));
+    assert_eq!(
+        payload["searchKey"],
+        json!("streams:v21:movie:tt0133093:x:account:y")
+    );
+    assert_eq!(payload["cached"], json!([HASH]));
+    let items = payload["items"].as_array().expect("items array");
+    assert_eq!(items.len(), 1);
+    let item = &items[0];
+    assert_eq!(item["infoHash"], json!(HASH));
+    assert_eq!(item["title"], json!("Filme Teste 2024 1080p DUBLADO"));
+    assert_eq!(item["name"], json!("DUB 1080p · 👤 20"));
+    assert_eq!(item["_br"], json!(true));
+    assert_eq!(item["_dubbed"], json!(true));
+    assert_eq!(item["_dubClaim"], json!(false));
+    assert_eq!(item["_seeders"], json!(20.0));
+    assert_eq!(item["_quality"], json!("1080p"));
+    assert_eq!(item["_size"], json!(1_500_000_000.0));
+    assert_eq!(item["_packBytes"], json!(4_000_000_000.0));
+    assert_eq!(item["_indexer"], json!("bludv"));
+    assert_eq!(item["_tracker"], json!("bludv"));
+    assert_eq!(item["_fromFallback"], json!(false));
+    assert_eq!(item["_fallbackFetchable"], json!(false));
+    assert_eq!(item["_seedFloorWaived"], json!(false));
+    assert_eq!(item["_multiWorkAdmitted"], json!(false));
+    assert_eq!(item["_bankDub"], json!(false));
+    assert_eq!(item["_lied"], json!(false));
+}
+
+#[test]
+fn autofetch_batch_leva_known_false_e_serie_com_s_e() {
+    let work = work();
+    let mut contexto = ctx(&work, "realdebrid", "chave");
+    contexto.known = false;
+    contexto.season = Some(2);
+    contexto.episode = Some(3);
+    let effect = autofetch_batch(&seeds(), &contexto).expect("efeito");
+    assert_eq!(effect.payload["known"], json!(false));
+    assert_eq!(effect.payload["season"], json!(2));
+    assert_eq!(effect.payload["episode"], json!(3));
+}
+
+#[test]
+fn autofetch_batch_omite_fatos_ausentes() {
+    let work = work();
+    let mut vazio = seeds();
+    vazio.autofetch = vec![AutofetchItem {
+        hash: HASH.into(),
+        ..AutofetchItem::default()
+    }];
+    let effect = autofetch_batch(&vazio, &ctx(&work, "alldebrid", "chave")).expect("efeito");
+    let item = &effect.payload["items"][0];
+    assert_eq!(item["infoHash"], json!(HASH));
+    // Sem fato medido o campo NÃO viaja: `undefined` no Node preserva o
+    // comportamento do `applyDebrid` (não vira 0/false/"").
+    for key in [
+        "_seeders",
+        "_quality",
+        "_size",
+        "_packBytes",
+        "_indexer",
+        "_tracker",
+    ] {
+        assert!(
+            item.get(key).is_none(),
+            "{key} não deveria viajar: {item:?}"
+        );
+    }
+}
+
+#[test]
+fn autofetch_batch_vazio_ou_sem_conta_nao_sai() {
+    let work = work();
+    let vazio = EffectSeeds::default();
+    assert!(autofetch_batch(&vazio, &ctx(&work, "alldebrid", "chave")).is_none());
+    assert!(autofetch_batch(&seeds(), &ctx(&work, "", "chave")).is_none());
+    assert!(autofetch_batch(&seeds(), &ctx(&work, "alldebrid", "")).is_none());
 }
 
 #[test]

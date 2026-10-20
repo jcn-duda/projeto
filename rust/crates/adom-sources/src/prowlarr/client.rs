@@ -1,8 +1,12 @@
 //! Cliente HTTP `/api/v1/search` do Prowlarr.
 //!
-//! - Sem chave / query vazia / base SSRF → `[]`.
-//! - Rede/timeout/HTTP/JSON inválido → `[]` (fail-open, sem panic).
-//! - A API key nunca entra em log (só na query + `X-Api-Key`).
+//! - Sem chave / query vazia / base SSRF → resposta vazia (fail-open).
+//! - Rede/timeout/HTTP/JSON inválido → resposta vazia (sem panic).
+//! - A API key nunca entra em log (só na query + `X-Api-Key`; erro de rede é
+//!   logado SEM a URL, que carrega `apikey=`).
+//!
+//! `search()` mantém o contrato antigo (`Vec`); `search_outcome()` devolve o
+//! desfecho tipado que o coletor nativo usa para montar o `live`.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,7 +16,7 @@ use reqwest::{Client, Url};
 use serde_json::Value;
 
 use super::config::ProwlarrConfig;
-use super::types::ProwlarrRawItem;
+use super::types::{ProwlarrOutcome, ProwlarrRawItem};
 
 /// Cliente Prowlarr reutilizável.
 #[derive(Clone)]
@@ -45,23 +49,31 @@ impl ProwlarrClient {
         &self.config
     }
 
-    /// Consulta `/api/v1/search`. Sem chave / query vazia / falha → `[]`.
+    /// Consulta `/api/v1/search` devolvendo só os itens. Sem chave / query
+    /// vazia / falha → `[]` (contrato histórico, fail-open).
     pub async fn search(&self, query: &str) -> Vec<ProwlarrRawItem> {
+        self.search_outcome(query).await.into_items()
+    }
+
+    /// Consulta detalhada: distingue resposta válida (mesmo vazia) de falha.
+    /// Query vazia NÃO vai à rede e devolve `Ok([])` (o TS também retorna
+    /// antes do fetch; o coletor já corta query vazia antes de chamar).
+    pub async fn search_outcome(&self, query: &str) -> ProwlarrOutcome {
         if !self.config.has_api_key() {
             eprintln!("[prowlarr] PROWLARR_API_KEY não configurada");
-            return Vec::new();
+            return ProwlarrOutcome::Disabled;
         }
         if query.is_empty() {
-            return Vec::new();
+            return ProwlarrOutcome::Ok(Vec::new());
         }
         if !self.config.base_url_allowed() {
             eprintln!("[prowlarr] PROWLARR_URL bloqueada pela guarda SSRF");
-            return Vec::new();
+            return ProwlarrOutcome::BlockedUrl;
         }
 
         let Ok(mut url) = self.search_url() else {
             eprintln!("[prowlarr] URL inválida");
-            return Vec::new();
+            return ProwlarrOutcome::BlockedUrl;
         };
         {
             let mut pairs = url.query_pairs_mut();
@@ -81,10 +93,10 @@ impl ProwlarrClient {
         // NÃO logar `url` — carrega a apikey.
         let request = self.http.get(url).headers(headers).timeout(timeout);
         let exchange = async move {
-            let response = request.send().await.map_err(|e| e.to_string())?;
+            let response = request.send().await?;
             let status = response.status().as_u16();
-            let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-            Ok::<_, String>((status, bytes))
+            let bytes = response.bytes().await?;
+            Ok::<_, reqwest::Error>((status, bytes))
         };
 
         match tokio::time::timeout(timeout, exchange).await {
@@ -93,23 +105,35 @@ impl ProwlarrClient {
                     let body = String::from_utf8_lossy(&bytes);
                     let preview: String = body.chars().take(200).collect();
                     eprintln!("[prowlarr] HTTP {status} {preview}");
-                    return Vec::new();
+                    return ProwlarrOutcome::Http(status);
                 }
                 match serde_json::from_slice::<Value>(&bytes) {
-                    Ok(data) => map_results(&data),
+                    Ok(data) if data.is_array() => ProwlarrOutcome::Ok(map_results(&data)),
+                    Ok(_) => {
+                        eprintln!("[prowlarr] JSON não é array");
+                        ProwlarrOutcome::InvalidJson
+                    }
                     Err(_) => {
                         eprintln!("[prowlarr] JSON inválido");
-                        Vec::new()
+                        ProwlarrOutcome::InvalidJson
                     }
                 }
             }
+            // `Display` do reqwest carrega a URL (com `apikey`): `without_url`
+            // fecha o vazamento antes de qualquer log.
             Ok(Err(err)) => {
-                eprintln!("[prowlarr] {err}");
-                Vec::new()
+                let timed_out = err.is_timeout();
+                let text = err.without_url().to_string();
+                eprintln!("[prowlarr] {text}");
+                if timed_out {
+                    ProwlarrOutcome::Timeout
+                } else {
+                    ProwlarrOutcome::Network(text)
+                }
             }
             Err(_) => {
                 eprintln!("[prowlarr] timeout");
-                Vec::new()
+                ProwlarrOutcome::Timeout
             }
         }
     }

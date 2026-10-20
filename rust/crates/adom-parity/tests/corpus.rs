@@ -26,17 +26,19 @@ fn corpus_real_carrega_51_casos_e_sha256_confere() {
     assert_eq!(corpus.stats.json_bodies, 51);
     assert_eq!(corpus.stats.raw_bodies, 0);
     assert_eq!(corpus.stats.empty_lists, 1);
-    assert_eq!(corpus.stats.notice_cases, 1);
-    assert_eq!(corpus.stats.p2p_cases, 6);
-    assert_eq!(corpus.stats.debrid_cases, 43);
-    assert_eq!(corpus.stats.stream_items, 314);
-    assert_eq!(corpus.stats.max_streams, 13);
+    assert_eq!(corpus.stats.notice_cases, 2);
+    assert_eq!(corpus.stats.p2p_cases, 47);
+    assert_eq!(corpus.stats.debrid_cases, 1);
+    assert_eq!(corpus.stats.stream_items, 384);
+    assert_eq!(corpus.stats.max_streams, 11);
     assert_eq!(corpus.stats.labels_missing, 0);
     // O corpus real NÃO tem trace/meta/raw/debrid por etapa. Este assert é o
     // tripwire: quando o gerador passar a gravá-los, atualize a documentação e
     // o runner para consumir as entradas novas.
-    assert_eq!(corpus.stats.step_files, 0);
-    assert!(corpus.stats.step_file_names.is_empty());
+    // O corpus recapturado agora tem as fixtures internas (`inputs/`) por caso;
+    // o tripwire dispara e o runner consome as entradas novas.
+    assert_eq!(corpus.stats.step_files, 51);
+    assert!(!corpus.stats.step_file_names.is_empty());
     let expected_fields: BTreeSet<String> = [
         "behaviorHints",
         "externalUrl",

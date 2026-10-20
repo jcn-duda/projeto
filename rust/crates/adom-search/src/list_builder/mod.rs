@@ -37,7 +37,7 @@ mod tests;
 mod types;
 
 pub use audio_proof::{apply_pt_title_dual, AudioAudit};
-pub use effects::{AuditSeed, EffectSeeds, WarmerSeed};
+pub use effects::{AuditSeed, AutofetchItem, EffectSeeds, WarmerSeed};
 use finalize::finalize_streams;
 
 pub use types::{
