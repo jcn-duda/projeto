@@ -65,11 +65,12 @@ pub fn router(state: AppState) -> Router {
 }
 
 /// Snapshot §9 — só contadores, sem token/credencial. Inclui as métricas da
-/// sombra de FONTE (`source.shadow.*`), zeradas enquanto ela está desligada, e
-/// as do canário do corte (`stream.canary.*`).
+/// sombra de FONTE (`source.shadow.*`), as do inventário nativo da conta
+/// (`account.*`, F3) e as do canário do corte (`stream.canary.*`).
 async fn metrics_snapshot(State(state): State<AppState>) -> Json<BTreeMap<String, u64>> {
     let mut snapshot = state.shadow_metrics.snapshot();
     snapshot.extend(adom_search::orchestrator::source_shadow_metrics_snapshot());
+    snapshot.extend(adom_search::orchestrator::account_metrics_snapshot());
     // Sombra de METADADOS (C5): namespace próprio `meta.shadow.*`.
     snapshot.extend(adom_search::orchestrator::meta_shadow_metrics_snapshot());
     snapshot.extend(state.canary.metrics().snapshot());

@@ -3,13 +3,22 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use adom_core::RelevanceSettings;
+use serde_json::Value;
+use tokio::sync::oneshot;
+
 use crate::collection_window::{collect_within_window, CollectTask, CollectWindowOptions};
 use crate::latest_writer::LatestWriter;
-use crate::raw_item::RawItem;
+use crate::raw_item::{raw_item_from_value, RawItem};
 
-use super::collect::{account_request_from_job, plan_jobs};
+use super::account::{
+    account_raw_items, fast_path_decision, record_fast_path, sampled, AccountMode, AccountRequest,
+};
+use super::account_metrics;
+use super::account_shadow::spawn_shadow_compare;
+use super::collect::{account_request_from_job, plan_jobs, CollectJob};
 use super::fast_path::{full_window, merge_fast_with_live};
-use super::finish::{cache_max_age_for_finish, SearchInput};
+use super::finish::{bool_of, cache_max_age_for_finish, str_of, SearchInput};
 use super::live_state::{
     live_state_snapshot, merge_into_shared, merge_states, shared_live_state, LiveBatchState,
     SharedLiveState,
@@ -17,6 +26,10 @@ use super::live_state::{
 use super::meta::SearchMeta;
 use super::respond::{now_ms, SearchOutcome};
 use super::Orchestrator;
+
+/// `stop_when` da janela para o fast-path da conta (lote, balde, fonte).
+type AccountStopWhen =
+    Box<dyn Fn(&[RawItem], &[RawItem], &crate::collection_window::BatchMeta) -> bool + Send>;
 
 impl Orchestrator {
     pub(super) async fn run_search(&self, input: SearchInput) -> Arc<SearchOutcome> {
@@ -289,10 +302,11 @@ impl Orchestrator {
                 self.config.mico_default,
             ),
         );
-        // A conta do debrid vira tarefa PRÓPRIA nos grupos não prioritários: a
-        // primeira leitura custa ~100 ms e, dentro do `nonpriority`, esperava o
-        // indexer global mais lento (4 s+) para sair do Node.
-        let account_job = if !self.shadow_mode && scope != Some(true) && self.routes.is_some() {
+        // Fonte da conta: Node (default), nativa (`ACCOUNT_RUST=on`) ou Node +
+        // sombra nativa (`ACCOUNT_RUST=shadow`). A tarefa é PRÓPRIA nos grupos
+        // não prioritários: a primeira leitura custa ~100 ms e, dentro do
+        // `nonpriority`, esperava o indexer global mais lento (4 s+).
+        let account_base = if !self.shadow_mode && scope != Some(true) {
             jobs.iter()
                 .find(|job| !job.priority)
                 .or(jobs.first())
@@ -300,6 +314,14 @@ impl Orchestrator {
         } else {
             None
         };
+        let account_plan =
+            account_base.and_then(|job| self.account_plan(job, &input.options, meta));
+        // Fast-path da conta: só no modo NATIVO (o Node tem o dele dentro do
+        // `collectRaw`; o nativo precisa parar a janela aqui). `ACCOUNT_FAST_PATH`
+        // reproduz o kill-switch do operador.
+        let fast_path_on = self.config.account_mode.is_on()
+            && self.config.account_fast_path
+            && matches!(&account_plan, Some(AccountPlan::Native { .. }));
         let jobs: Vec<_> = jobs
             .into_iter()
             .filter(|job| scope.is_none_or(|priority| job.priority == priority))
@@ -348,27 +370,145 @@ impl Orchestrator {
                 }
             })
             .collect();
-        if let (Some(job), Some(routes)) = (account_job, self.routes.clone()) {
-            tasks.push(CollectTask {
-                fut: Box::pin(async move {
-                    // Falha da conta não conta como falha de coleta nem apaga a
-                    // reserva 📦: o Node já a tratava como fonte neutra.
-                    match routes.collect(account_request_from_job(job)).await {
-                        Ok(resp) => Ok(resp
-                            .items
-                            .iter()
-                            .map(crate::raw_item::raw_item_from_value)
-                            .collect()),
-                        Err(err) => {
-                            eprintln!("[search] conta do debrid falhou: {err}");
-                            Ok(Vec::new())
-                        }
-                    }
-                }),
-                priority: false,
-                source: None,
-            });
+        match account_plan {
+            None => {}
+            Some(AccountPlan::Node(job)) => {
+                if let Some(routes) = self.routes.clone() {
+                    account_metrics::global_metrics().inc(account_metrics::NODE, 1);
+                    tasks.push(CollectTask {
+                        fut: Box::pin(async move {
+                            // Falha da conta não conta como falha de coleta nem
+                            // apaga a reserva 📦: o Node já a tratava como fonte
+                            // neutra.
+                            match routes.collect(account_request_from_job(job)).await {
+                                Ok(resp) => {
+                                    Ok(resp.items.iter().map(raw_item_from_value).collect())
+                                }
+                                Err(err) => {
+                                    eprintln!("[search] conta do debrid falhou: {err}");
+                                    Ok(Vec::new())
+                                }
+                            }
+                        }),
+                        priority: false,
+                        source: None,
+                    });
+                }
+            }
+            Some(AccountPlan::Native { req, label }) => {
+                if let Some(source) = self.account.clone() {
+                    let meta = meta.clone();
+                    let settings = self.account_settings();
+                    tasks.push(CollectTask {
+                        fut: Box::pin(async move {
+                            match source.inventory(req).await {
+                                Ok(inventory) if inventory.is_unusable() => {
+                                    eprintln!(
+                                        "[account] conta inutilizável ({}); fonte pulada",
+                                        inventory
+                                            .unusable
+                                            .as_ref()
+                                            .map(|(kind, _)| kind.as_str())
+                                            .unwrap_or("desconhecido")
+                                    );
+                                    Ok(Vec::new())
+                                }
+                                Ok(inventory) => {
+                                    let items = account_raw_items(
+                                        &inventory.items,
+                                        &meta,
+                                        settings,
+                                        &label,
+                                    );
+                                    if !items.is_empty() {
+                                        eprintln!(
+                                            "[account] {} item(ns) pronto(s) na conta entraram como fonte (nativo)",
+                                            items.len()
+                                        );
+                                    }
+                                    Ok(items)
+                                }
+                                Err(err) => {
+                                    eprintln!("[account] inventário nativo indisponível: {err}");
+                                    Ok(Vec::new())
+                                }
+                            }
+                        }),
+                        priority: false,
+                        source: Some("account".to_string()),
+                    });
+                }
+            }
+            Some(AccountPlan::Shadow { job, req, label }) => {
+                if let (Some(routes), Some(source)) = (self.routes.clone(), self.account.clone()) {
+                    account_metrics::global_metrics().inc(account_metrics::NODE, 1);
+                    // O clone do lote Node viaja para a comparação por oneshot:
+                    // a sombra NÃO faz uma segunda chamada à rota e NÃO segura o
+                    // cliente (a tarefa devolve assim que o Node responde).
+                    let (tx, rx) = oneshot::channel();
+                    tasks.push(CollectTask {
+                        fut: Box::pin(async move {
+                            match routes.collect(account_request_from_job(job)).await {
+                                Ok(resp) => {
+                                    let items: Vec<RawItem> =
+                                        resp.items.iter().map(raw_item_from_value).collect();
+                                    let _ = tx.send(Ok(items.clone()));
+                                    Ok(items)
+                                }
+                                Err(err) => {
+                                    eprintln!("[search] conta do debrid falhou: {err}");
+                                    let _ = tx.send(Err(err));
+                                    Ok(Vec::new())
+                                }
+                            }
+                        }),
+                        priority: false,
+                        source: None,
+                    });
+                    spawn_shadow_compare(
+                        source,
+                        req,
+                        label,
+                        meta.clone(),
+                        self.account_settings(),
+                        rx,
+                        std::time::Duration::from_millis(
+                            self.config.account_shadow_timeout_ms.max(1) as u64,
+                        ),
+                    );
+                }
+            }
         }
+        let stop_when: Option<AccountStopWhen> = if fast_path_on {
+            let min_releases = self.config.account_fast_min_releases;
+            let prefer_dubbed = bool_of(&input.options, "preferDubbed");
+            let season = meta.season;
+            let min_seeders = self.config.account_fast_min_seeders;
+            Some(Box::new(
+                move |batch: &[RawItem],
+                      _items: &[RawItem],
+                      batch_meta: &crate::collection_window::BatchMeta| {
+                    let decision = fast_path_decision(
+                        batch,
+                        batch_meta,
+                        min_releases,
+                        prefer_dubbed,
+                        season,
+                        min_seeders,
+                    );
+                    record_fast_path(decision);
+                    if decision.stops() {
+                        eprintln!(
+                            "[search] conta suficiente ({} release(s)); respondendo sem esperar a coleta",
+                            batch.len()
+                        );
+                    }
+                    decision.stops()
+                },
+            ))
+        } else {
+            None
+        };
         let window = collect_within_window(
             tasks,
             CollectWindowOptions {
@@ -381,7 +521,7 @@ impl Orchestrator {
                 // O recache intermediário do TS (`onBatch`) nunca dispara: o
                 // `watchLate` só é armado DEPOIS que a janela retorna. Aqui o
                 // equivalente é o passe tardio, que espera o `completion`.
-                stop_when: None,
+                stop_when,
                 on_batch: None,
                 on_error: Some(Box::new(|err| {
                     eprintln!("[search] fonte falhou: {err}");
@@ -399,4 +539,89 @@ impl Orchestrator {
             live_state,
         )
     }
+
+    /// Config de relevância do filtro da conta: as MESMAS chaves que o build
+    /// usa (`preHomeReleaseCut`/margem/cauda). O relógio é por chamada.
+    fn account_settings(&self) -> RelevanceSettings {
+        RelevanceSettings {
+            now_ms: now_ms(),
+            pre_home_release_cut: self.config.build.pre_home_release_cut,
+            pre_home_release_margin_ms: self.config.build.pre_home_release_margin_ms,
+            title_precision_tail_cut: self.config.build.title_precision_tail_cut,
+        }
+    }
+
+    /// Plano da tarefa da conta para esta busca. `None` = P2P puro / sem fonte,
+    /// exatamente como o `accountSource` do TS quando não há debrid.
+    fn account_plan(
+        &self,
+        job: CollectJob,
+        options: &Value,
+        meta: &SearchMeta,
+    ) -> Option<AccountPlan> {
+        let req = AccountRequest {
+            service: str_of(options, "debridService"),
+            api_key: str_of(options, "debridApiKey"),
+        };
+        // `debrid.current()` do Node: serviço DESCONHECIDO não tem adaptador —
+        // não é P2P puro, mas também não é fonte.
+        let known_service = adom_debrid::account::is_known_service(&req.service);
+        match self.config.account_mode {
+            AccountMode::Off => self.routes.as_ref().map(|_| AccountPlan::Node(job)),
+            AccountMode::Shadow => {
+                // Sem rotas Node ou sem fonte não há par a comparar; a resposta
+                // continua a de sempre (nunca vira fonte neste modo). Conta
+                // desligada pelo operador também não gera par (o Node devolve
+                // vazio de propósito e comparar seria divergência falsa).
+                if self.routes.is_none()
+                    || self.account.is_none()
+                    || !req.is_active()
+                    || !known_service
+                    || !self.config.account_inventory_source
+                {
+                    return self.routes.as_ref().map(|_| AccountPlan::Node(job));
+                }
+                if !sampled(&meta.imdb_id, self.config.account_shadow_sample) {
+                    account_metrics::global_metrics().inc(account_metrics::SHADOW_NOT_SAMPLED, 1);
+                    return Some(AccountPlan::Node(job));
+                }
+                Some(AccountPlan::Shadow {
+                    job,
+                    label: adom_debrid::account::label_of(&req.service).to_string(),
+                    req,
+                })
+            }
+            AccountMode::On => {
+                if !req.is_active() || !known_service || !self.config.account_inventory_source {
+                    return None;
+                }
+                if self.account.is_some() {
+                    Some(AccountPlan::Native {
+                        label: adom_debrid::account::label_of(&req.service).to_string(),
+                        req,
+                    })
+                } else {
+                    // Degradação honesta: sem fonte injetada, a conta continua
+                    // no Node em vez de sumir da lista.
+                    account_metrics::global_metrics().inc(account_metrics::SOURCE_MISSING, 1);
+                    eprintln!("[account] ACCOUNT_RUST=on sem fonte nativa; usando a tarefa Node");
+                    self.routes.as_ref().map(|_| AccountPlan::Node(job))
+                }
+            }
+        }
+    }
+}
+
+/// Plano da conta para UMA coleta (Node, nativa ou Node+sombra).
+enum AccountPlan {
+    Node(CollectJob),
+    Native {
+        req: AccountRequest,
+        label: String,
+    },
+    Shadow {
+        job: CollectJob,
+        req: AccountRequest,
+        label: String,
+    },
 }

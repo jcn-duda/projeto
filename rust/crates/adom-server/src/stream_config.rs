@@ -1,4 +1,4 @@
-use adom_search::orchestrator::OrchestratorConfig;
+use adom_search::orchestrator::{AccountMode, OrchestratorConfig};
 use adom_search::BuildOptions;
 use serde_json::Value;
 
@@ -59,6 +59,44 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     cfg.mico_default = std::env::var("MICO_DEFAULT")
         .map(|raw| env_flag(&raw))
         .unwrap_or(false);
+    // Inventário nativo da conta (F3). `off` é o default: a tarefa Node da
+    // conta segue intacta até o operador pedir `shadow`/`on`.
+    cfg.account_mode = std::env::var("ACCOUNT_RUST")
+        .map(|raw| AccountMode::parse(&raw))
+        .unwrap_or_default();
+    // `DEBRID_INVENTORY_SOURCE` (default true, como no Node): desligado, a
+    // conta não é fonte nem no modo nativo.
+    cfg.account_inventory_source = std::env::var("DEBRID_INVENTORY_SOURCE")
+        .map(|raw| env_flag(&raw))
+        .unwrap_or(true);
+    // `ACCOUNT_FAST_PATH` do Node nasce LIGADO; só um valor falso desliga.
+    cfg.account_fast_path = std::env::var("ACCOUNT_FAST_PATH")
+        .map(|raw| env_flag(&raw))
+        .unwrap_or(true);
+    if let Some(n) = env_i64("ACCOUNT_FAST_MIN_RELEASES") {
+        cfg.account_fast_min_releases = n.max(1) as usize;
+    }
+    // O `poolCovered` do Node usa o piso do AUTOFETCH (default 3), não o
+    // `MIN_SEEDERS` do build.
+    if let Some(n) = env_f64("DEBRID_AUTO_FETCH_MIN_SEEDERS") {
+        cfg.account_fast_min_seeders = n.max(0.0);
+    }
+    if let Some(ms) = env_i64("DEBRID_INVENTORY_TIMEOUT_MS") {
+        cfg.account_inventory_timeout_ms = ms.max(1);
+    }
+    if let Some(n) = env_i64("DEBRID_INVENTORY_MAX") {
+        cfg.account_inventory_max = n.max(1) as usize;
+    }
+    if let Some(ttl) = env_i64("DEBRID_INVENTORY_TTL") {
+        cfg.account_inventory_ttl_s = ttl.max(0);
+    }
+    // Amostra da sombra: 0 desliga, 1 roda todas (clamp 0..=1).
+    if let Some(sample) = env_f64("ACCOUNT_SHADOW_SAMPLE") {
+        cfg.account_shadow_sample = sample.clamp(0.0, 1.0);
+    }
+    if let Some(ms) = env_i64("ACCOUNT_SHADOW_TIMEOUT_MS") {
+        cfg.account_shadow_timeout_ms = ms.max(1);
+    }
     cfg
 }
 

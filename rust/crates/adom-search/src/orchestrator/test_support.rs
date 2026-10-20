@@ -318,6 +318,8 @@ pub fn config() -> OrchestratorConfig {
         pack_tail: true,
         effects_enabled: false,
         mico_default: false,
+        // Campos novos (F3) herdam o default: o dublê nunca liga a conta nativa.
+        ..OrchestratorConfig::default()
     }
 }
 

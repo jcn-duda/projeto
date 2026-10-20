@@ -464,11 +464,14 @@ já vale para os dois lados (C0b): `JACKETT_INDEXERS` do processo é só fallbac
 de instalação sem `ji`, e o Mico lê o card virtual `"mico"` desse mesmo `ji`
 (ou `MICO_DEFAULT` sem `ji`).
 
-**Próximas partes:** metadados (Cinemeta/TMDB) e inventário da conta; o
-BLUDV já tem cliente próprio (C3/F2.5, sem reusar o binário `adom-resolvers`);
-falta o que hoje é 501 no `adom-debrid` (`check` de
-RD/TorBox/AllDebrid, `files`, `account`). Cada fonte migrada sai da rota
-`collect`. O Jackett mantém Torznab/JSON, globais agrupados e BR isolados em
+**Próximas partes:** inventário da conta (F3 — leitura nativa atrás de
+`ACCOUNT_RUST`, `off` por default; contrato em
+[`account-rust-contract.md`](account-rust-contract.md)) e o restante de
+`adom-debrid` (o que hoje é 501: `check` de RD/TorBox/AllDebrid, `files`,
+`account`). Metadados (Cinemeta/TMDB) já têm porte puro atrás de `META_RUST`
+(OFF) e sombra própria. O BLUDV já tem cliente próprio (C3/F2.5, sem reusar o
+binário `adom-resolvers`). Cada fonte migrada sai da rota `collect`. O Jackett
+mantém Torznab/JSON, globais agrupados e BR isolados em
 pt-BR (invariante 4, breaker só em `offline`).
 
 ## F3 — Estado em Rust

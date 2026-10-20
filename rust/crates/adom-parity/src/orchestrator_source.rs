@@ -279,6 +279,9 @@ fn stub_config() -> OrchestratorConfig {
         pack_tail: true,
         effects_enabled: false,
         mico_default: false,
+        // Campos novos (F3/C5) herdam o default: o dublê não liga conta nem
+        // metadados nativos.
+        ..OrchestratorConfig::default()
     }
 }
 

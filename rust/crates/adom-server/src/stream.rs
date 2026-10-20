@@ -148,6 +148,15 @@ pub fn build_orchestrator() -> Orchestrator {
     let fallback: Option<Arc<dyn FallbackCheck>> =
         NodeInternalFallback::from_env().map(|fb| Arc::new(fb) as Arc<dyn FallbackCheck>);
     orch = orch.with_debrid(Arc::new(AdapterDebridFactory::new(None, fallback)));
+    // Inventário nativo da conta (F3). `ACCOUNT_RUST=off` (default) mantém
+    // `None`: a coleta da conta continua na tarefa Node.
+    if orch.config().account_mode.uses_native() {
+        eprintln!(
+            "[gateway] inventário da conta nativo: ACCOUNT_RUST={}",
+            orch.config().account_mode.as_str()
+        );
+        orch = orch.with_native_account();
+    }
     orch
 }
 

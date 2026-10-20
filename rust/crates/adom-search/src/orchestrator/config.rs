@@ -20,6 +20,8 @@ use crate::debrid_seam::{AdapterDebridCheck, FallbackCheck};
 use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
 use adom_core::RankingStream;
 
+use super::account::AccountMode;
+
 /// Defaults do operador (`src/config/*.ts`) que governam a resposta.
 #[derive(Debug, Clone)]
 pub struct OrchestratorConfig {
@@ -79,6 +81,31 @@ pub struct OrchestratorConfig {
     /// Só vale quando a request não traz `jackettIndexers` (a seleção da URL
     /// vence); alimenta o `wants("mico")` do `CollectJob`.
     pub mico_default: bool,
+    /// `ACCOUNT_RUST`: `off` (default) = tarefa Node da conta; `shadow` =
+    /// nativo × Node compare-only; `on` = o inventário nativo responde.
+    pub account_mode: AccountMode,
+    /// `DEBRID_INVENTORY_SOURCE` (default ligado, como no Node): sem ele a
+    /// conta não é fonte nem no modo nativo.
+    pub account_inventory_source: bool,
+    /// `ACCOUNT_FAST_PATH` (default ligado): lote da conta suficiente responde
+    /// na hora. Só tem efeito com `account_mode = on`.
+    pub account_fast_path: bool,
+    /// `ACCOUNT_FAST_MIN_RELEASES` (default 2).
+    pub account_fast_min_releases: usize,
+    /// Piso de seeders do `poolCovered` do fast-path. O Node usa
+    /// `autoFetchLive.effective().autoFetchMinSeeders` (default 3), não o
+    /// `MIN_SEEDERS` do build.
+    pub account_fast_min_seeders: f64,
+    /// `DEBRID_INVENTORY_TIMEOUT_MS` (default 1500).
+    pub account_inventory_timeout_ms: i64,
+    /// `DEBRID_INVENTORY_MAX` (default 3000).
+    pub account_inventory_max: usize,
+    /// `DEBRID_INVENTORY_TTL` em segundos (default 300).
+    pub account_inventory_ttl_s: i64,
+    /// `ACCOUNT_SHADOW_SAMPLE` (0..=1, default 0.1).
+    pub account_shadow_sample: f64,
+    /// `ACCOUNT_SHADOW_TIMEOUT_MS` (default 2500): teto da leitura da sombra.
+    pub account_shadow_timeout_ms: i64,
 }
 
 impl Default for OrchestratorConfig {
@@ -106,6 +133,16 @@ impl Default for OrchestratorConfig {
             pack_tail: true,
             effects_enabled: false,
             mico_default: false,
+            account_mode: AccountMode::Off,
+            account_inventory_source: true,
+            account_fast_path: true,
+            account_fast_min_releases: 2,
+            account_fast_min_seeders: 3.0,
+            account_inventory_timeout_ms: 1_500,
+            account_inventory_max: 3_000,
+            account_inventory_ttl_s: 300,
+            account_shadow_sample: super::account::DEFAULT_SHADOW_SAMPLE,
+            account_shadow_timeout_ms: 2_500,
         }
     }
 }

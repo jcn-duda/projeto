@@ -26,6 +26,10 @@
 //! lista vazia + aviso, como o handler do Node (`stream.ts`).
 
 mod bludv_collector;
+// Inventário nativo da conta (F3): fonte, filtro, memo e fast-path.
+mod account;
+mod account_metrics;
+mod account_shadow;
 mod collect;
 mod composite_collector;
 mod config;
@@ -80,6 +84,15 @@ use crate::request::{encoded_for_internal, reply_deadline_ms, request_cache_key}
 use finish::SearchInput;
 use respond::{as_ms, empty_response, now_ms};
 
+pub use account::{
+    account_raw_items, br_origin_only, fast_path_decision, sampled, signals_of,
+    try_native_account_source, AccountInventorySource, AccountMode, AccountRequest, AccountSignals,
+    FastPathDecision, NativeAccountConfig, NativeAccountSource, ENV as ACCOUNT_RUST_ENV,
+    FAST_PATH_ENV as ACCOUNT_FAST_PATH_ENV, FAST_PATH_MIN_ENV as ACCOUNT_FAST_MIN_ENV,
+    SHADOW_SAMPLE_ENV as ACCOUNT_SHADOW_SAMPLE_ENV,
+};
+pub use account_metrics::account_metrics_snapshot;
+pub use account_shadow::spawn_shadow_compare;
 pub use bludv_collector::{
     sources_rust_includes_bludv, try_bludv_collector_from_env,
     try_bludv_collector_from_env_with_store, BludvCollector,
@@ -163,6 +176,9 @@ pub struct Orchestrator {
     /// anterior.
     files_at_build: Option<Arc<BTreeMap<String, Vec<DebridFile>>>>,
     totals_at_build: Option<Arc<BTreeMap<String, f64>>>,
+    /// Fonte do inventário da conta (`ACCOUNT_RUST=on`/`shadow`). `None` =
+    /// modo desligado ou fonte não injetada (o caminho Node segue igual).
+    account: Option<Arc<dyn AccountInventorySource>>,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -210,6 +226,7 @@ impl Orchestrator {
             totals_by_hash: Arc::new(BTreeMap::new()),
             files_at_build: None,
             totals_at_build: None,
+            account: None,
         }
     }
 
@@ -281,6 +298,24 @@ impl Orchestrator {
     pub fn with_internal_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
         self.routes = Some(routes);
         self
+    }
+
+    /// Injeta a fonte do inventário da conta (teste ou integração própria).
+    pub fn with_account_source(mut self, source: Arc<dyn AccountInventorySource>) -> Self {
+        self.account = Some(source);
+        self
+    }
+
+    /// Monta a fonte NATIVA do inventário quando `ACCOUNT_RUST` pede
+    /// (`on`/`shadow`). `off` mantém `None` — o caminho Node fica intacto.
+    pub fn with_native_account(mut self) -> Self {
+        self.account = try_native_account_source(&self.config);
+        self
+    }
+
+    /// Fonte atual do inventário (`None` = modo desligado/sem injeção).
+    pub fn account_source(&self) -> Option<&Arc<dyn AccountInventorySource>> {
+        self.account.as_ref()
     }
 
     pub fn config(&self) -> &OrchestratorConfig {

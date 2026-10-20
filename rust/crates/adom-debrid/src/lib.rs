@@ -12,6 +12,8 @@
 
 pub mod alldebrid;
 pub mod alldebrid_clean_shadow;
+// Inventário PRONTO da conta como fonte (F3): leitura pura, sem memo/efeitos.
+pub mod account;
 pub mod api;
 pub mod debridlink;
 pub mod error;

@@ -94,7 +94,9 @@ impl DebridLink {
         Ok(&self.base)
     }
 
-    async fn call(
+    /// `pub(super)` para o inventário (`crate::account`) reusar o mesmo
+    /// transporte, incluindo a classificação de erro do `value_of`.
+    pub(super) async fn call(
         &self,
         api_key: &str,
         path: &str,
