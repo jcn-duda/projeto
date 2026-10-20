@@ -358,6 +358,21 @@ mod tests {
         assert_eq!(cfg.defaults["max1080p"], json!(2.0));
         assert_eq!(cfg.defaults["brReservedSlots"], json!(6.0));
         assert_eq!(cfg.defaults["brReservedPerQuality"], json!(1.0));
+        // `dubbedOnly` nasce de `BLUDV_DUBBED_ONLY` (default TRUE) e é o MESMO
+        // valor que o coletor BLUDV recebe para filtrar LEGENDADO no scrape.
+        assert_eq!(cfg.defaults["dubbedOnly"], json!(true));
+        let selection =
+            crate::orchestrator::collect::RequestSelection::from_options(&cfg.defaults, false);
+        assert!(
+            selection.dubbed_only,
+            "default do operador chega ao BludvSearchOpts"
+        );
+        // O `d=false` da URL vence o default (o Node faz o mesmo overlay).
+        let off = crate::orchestrator::collect::RequestSelection::from_options(
+            &json!({"dubbedOnly": false}),
+            false,
+        );
+        assert!(!off.dubbed_only);
     }
 
     #[test]

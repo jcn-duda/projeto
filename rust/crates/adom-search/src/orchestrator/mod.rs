@@ -79,7 +79,8 @@ use finish::SearchInput;
 use respond::{as_ms, empty_response, now_ms};
 
 pub use bludv_collector::{
-    sources_rust_includes_bludv, try_bludv_collector_from_env, BludvCollector,
+    sources_rust_includes_bludv, try_bludv_collector_from_env,
+    try_bludv_collector_from_env_with_store, BludvCollector,
 };
 pub use collect::{
     plan_jobs, CollectBatch, CollectJob, Collector, NodeCollector, RequestSelection,
@@ -110,7 +111,7 @@ pub use source_shadow::{
 pub use sources_rust::{
     sources_rust_csv_includes, sources_rust_csv_winner, sources_rust_includes,
     try_sources_rust_collector_from_env, try_sources_rust_collectors_from_env,
-    try_sources_rust_native_from_env,
+    try_sources_rust_native_from_env, try_sources_rust_native_from_env_with_bludv_store,
 };
 pub use tail::{
     EffectsBatch, IndexBatch, NodeTailEffects, NoopTailEffects, TailEffects, TailJob, TailPlan,

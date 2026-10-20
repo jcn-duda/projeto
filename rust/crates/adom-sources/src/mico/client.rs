@@ -1,8 +1,11 @@
 //! Cliente HTTP do addon Mico (busca por IMDb).
 //!
 //! - fail-open → `[]`; breaker local (429/5xx/rede/timeout);
-//! - 4xx ≠ 429 neutro (não reseta nem incrementa o circuito);
-//! - `fetch_streams` sem breaker/banco (núcleo compartilhado com crawl futuro);
+//! - 4xx ≠ 429 é NEUTRO (não reseta nem incrementa o circuito) e vira
+//!   `{items:[], ok:false}` no fetch puro / `Http(4xx)` no desfecho tipado;
+//! - `fetch_streams` sem breaker/banco (núcleo compartilhado com o crawl);
+//! - `search_outcome` devolve o desfecho tipado do coletor; o breaker só é
+//!   lido/escrito no caminho VIVO (`MicoSearchOptions::LIVE`).
 //! - base configurável sob guarda SSRF.
 
 use std::collections::HashSet;
@@ -13,10 +16,14 @@ use reqwest::header::ACCEPT;
 use reqwest::{Client, Url};
 use serde_json::Value;
 
-use super::breaker::{now_ms, Breaker};
+use super::breaker::now_ms;
+use super::breaker::Breaker;
 use super::config::MicoConfig;
-use super::parse::{map_stream, retry_after_ms};
-use super::types::{MicoFetchOutcome, MicoMediaType, MicoRawItem, MicoSearchArgs};
+use super::parse::map_stream;
+use super::retry_after::retry_after_ms;
+use super::types::{
+    MicoFetchOutcome, MicoMediaType, MicoOutcome, MicoRawItem, MicoSearchArgs, MicoSearchOptions,
+};
 
 /// Erro HTTP do Mico que o fetch puro propaga (429/5xx/rede).
 #[derive(Debug, Clone)]
@@ -33,6 +40,13 @@ impl std::fmt::Display for MicoHttpError {
 }
 
 impl std::error::Error for MicoHttpError {}
+
+/// Falha interna de transporte: o coletor distingue timeout de rede, mas os
+/// dois alimentam o breaker no caminho vivo.
+enum FetchFailure {
+    Timeout,
+    Network(String),
+}
 
 /// Cliente Mico reutilizável (HTTP + breaker compartilhado).
 #[derive(Clone)]
@@ -77,37 +91,119 @@ impl MicoClient {
     }
 
     /// Consulta o addon. Fail-open: sempre `Vec` (nunca `Err` para o caller).
+    /// Equivale ao caminho VIVO (`MicoSearchOptions::LIVE`).
     pub async fn search(&self, args: &MicoSearchArgs) -> Vec<MicoRawItem> {
+        self.search_outcome(args, MicoSearchOptions::LIVE)
+            .await
+            .into_items()
+    }
+
+    /// Consulta detalhada: distingue resposta válida (inclusive vazia) de
+    /// configuração, falha declarada e `pending` no prazo. O breaker só
+    /// participa quando `options.read_only` é falso — na sombra a referência
+    /// ignora o circuito aberto e NÃO o abre/reseta (contrato do `readOnly`).
+    pub async fn search_outcome(
+        &self,
+        args: &MicoSearchArgs,
+        options: MicoSearchOptions,
+    ) -> MicoOutcome {
         if !self.config.enabled {
-            return Vec::new();
+            return MicoOutcome::Disabled;
         }
         if !self.config.base_url_allowed() {
             eprintln!("[mico] MICO_URL bloqueada pela guarda SSRF");
-            return Vec::new();
+            return MicoOutcome::BlockedUrl;
         }
         let Some(url) = endpoint_url(&self.config.url, args) else {
-            return Vec::new();
+            return MicoOutcome::NoEndpoint;
         };
         let now = now_ms();
-        if self.breaker.is_open(&self.config, now) {
-            return Vec::new();
-        }
-
-        match fetch_streams_with(&self.http, url.as_str(), self.config.timeout_ms).await {
-            Ok(outcome) => {
-                if outcome.ok {
-                    self.breaker.note_success();
+        let configured_timeout = self.config.timeout_ms.max(1);
+        // O prazo do COLETOR vence antes do timeout do cliente? A consulta
+        // fica `pending` (como no Node) e não há rede.
+        let (timeout_ms, deadline_bound) = match options.deadline_at {
+            Some(deadline) => {
+                let remaining = deadline.saturating_sub(now).max(0) as u64;
+                if remaining == 0 {
+                    return MicoOutcome::Pending;
                 }
-                // 4xx ≠ 429: neutro — não reseta, não incrementa.
-                outcome.items
+                (
+                    remaining.min(configured_timeout),
+                    remaining < configured_timeout,
+                )
             }
-            Err(err) => {
-                self.breaker.note_failure(&self.config, now_ms());
-                eprintln!(
-                    "[mico] falha na consulta de {}: {}",
-                    args.imdb_id, err.message
-                );
-                Vec::new()
+            None => (configured_timeout, false),
+        };
+        if !options.read_only && self.breaker.is_open(&self.config, now) {
+            return MicoOutcome::BreakerOpen;
+        }
+        let timeout = Duration::from_millis(timeout_ms);
+        match fetch_once(&self.http, url.as_str(), timeout).await {
+            Ok((status, retry, bytes)) => {
+                if !(200..300).contains(&status) {
+                    // 4xx (salvo rate limit) pertence à obra — não abre breaker.
+                    if status < 500 && status != 429 {
+                        eprintln!("[mico] HTTP {status} para {url}");
+                        return MicoOutcome::Http(status);
+                    }
+                    if !options.read_only {
+                        self.breaker.note_failure(&self.config, now_ms());
+                    }
+                    let retry_ms = retry_after_ms(retry.as_deref(), now_ms());
+                    eprintln!(
+                        "[mico] falha na consulta de {}: HTTP {status}{}",
+                        args.imdb_id,
+                        retry_ms
+                            .map(|ms| format!(" (Retry-After {ms} ms)"))
+                            .unwrap_or_default()
+                    );
+                    return MicoOutcome::Http(status);
+                }
+                match serde_json::from_slice::<Value>(&bytes) {
+                    // JSON sem `streams` é resposta vazia válida: o TS lê
+                    // `Array.isArray(data?.streams) ? … : []` e conta sucesso.
+                    Ok(data) => {
+                        if !options.read_only {
+                            self.breaker.note_success();
+                        }
+                        MicoOutcome::Ok(collect_streams(&data))
+                    }
+                    Err(err) => {
+                        if !options.read_only {
+                            self.breaker.note_failure(&self.config, now_ms());
+                        }
+                        eprintln!(
+                            "[mico] falha na consulta de {}: JSON inválido: {err}",
+                            args.imdb_id
+                        );
+                        MicoOutcome::InvalidJson
+                    }
+                }
+            }
+            Err(FetchFailure::Timeout) => {
+                // O timeout pode ser o do cliente (falha) ou o do prazo do
+                // coletor (pending — o Node ainda teria a consulta em voo).
+                // `deadline_bound` cobre o timer que dispara no limite sem que
+                // o relógio já tenha cruzado `deadline` por 1 ms.
+                if deadline_bound
+                    || options
+                        .deadline_at
+                        .is_some_and(|deadline| now_ms() >= deadline)
+                {
+                    return MicoOutcome::Pending;
+                }
+                if !options.read_only {
+                    self.breaker.note_failure(&self.config, now_ms());
+                }
+                eprintln!("[mico] falha na consulta de {}: timeout", args.imdb_id);
+                MicoOutcome::Timeout
+            }
+            Err(FetchFailure::Network(message)) => {
+                if !options.read_only {
+                    self.breaker.note_failure(&self.config, now_ms());
+                }
+                eprintln!("[mico] falha na consulta de {}: {message}", args.imdb_id);
+                MicoOutcome::Network(message)
             }
         }
     }
@@ -172,24 +268,8 @@ async fn fetch_streams_with(
     timeout_ms: u64,
 ) -> Result<MicoFetchOutcome, MicoHttpError> {
     let timeout = Duration::from_millis(timeout_ms.max(1));
-    let request = http
-        .get(url)
-        .header(ACCEPT, "application/json")
-        .timeout(timeout);
-    let exchange = async move {
-        let response = request.send().await.map_err(|e| e.to_string())?;
-        let status = response.status().as_u16();
-        let retry = response
-            .headers()
-            .get(reqwest::header::RETRY_AFTER)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_string);
-        let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-        Ok::<_, String>((status, retry, bytes))
-    };
-
-    match tokio::time::timeout(timeout, exchange).await {
-        Ok(Ok((status, retry, bytes))) => {
+    match fetch_once(http, url, timeout).await {
+        Ok((status, retry, bytes)) => {
             if !(200..300).contains(&status) {
                 if status < 500 && status != 429 {
                     eprintln!("[mico] HTTP {status} para {url}");
@@ -198,11 +278,10 @@ async fn fetch_streams_with(
                         ok: false,
                     });
                 }
-                let retry_ms = retry_after_ms(retry.as_deref(), now_ms());
                 return Err(MicoHttpError {
                     message: format!("HTTP {status}"),
                     status: Some(status),
-                    retry_after_ms: retry_ms,
+                    retry_after_ms: retry_after_ms(retry.as_deref(), now_ms()),
                 });
             }
             match serde_json::from_slice::<Value>(&bytes) {
@@ -217,16 +296,51 @@ async fn fetch_streams_with(
                 }),
             }
         }
-        Ok(Err(err)) => Err(MicoHttpError {
-            message: err,
-            status: None,
-            retry_after_ms: None,
-        }),
-        Err(_) => Err(MicoHttpError {
+        Err(FetchFailure::Timeout) => Err(MicoHttpError {
             message: "timeout".into(),
             status: None,
             retry_after_ms: None,
         }),
+        Err(FetchFailure::Network(message)) => Err(MicoHttpError {
+            message,
+            status: None,
+            retry_after_ms: None,
+        }),
+    }
+}
+
+/// GET com prazo DURO de rede (fetch + corpo), como o `fetchJsonWithin` do TS.
+async fn fetch_once(
+    http: &Client,
+    url: &str,
+    timeout: Duration,
+) -> Result<(u16, Option<String>, Vec<u8>), FetchFailure> {
+    let request = http
+        .get(url)
+        .header(ACCEPT, "application/json")
+        .timeout(timeout);
+    let exchange = async move {
+        let response = request.send().await.map_err(classify)?;
+        let status = response.status().as_u16();
+        let retry = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let bytes = response.bytes().await.map_err(classify)?;
+        Ok::<_, FetchFailure>((status, retry, bytes.to_vec()))
+    };
+    match tokio::time::timeout(timeout, exchange).await {
+        Ok(result) => result,
+        Err(_) => Err(FetchFailure::Timeout),
+    }
+}
+
+fn classify(error: reqwest::Error) -> FetchFailure {
+    if error.is_timeout() {
+        FetchFailure::Timeout
+    } else {
+        FetchFailure::Network(error.to_string())
     }
 }
 

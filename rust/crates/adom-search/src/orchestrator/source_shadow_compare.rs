@@ -76,6 +76,8 @@ pub fn compare_batches_opts(
 
 /// Conjunto de hashes normalizados por indexer. Itens de conta ficam de fora
 /// (o Node sempre roda o inventário; o nativo não), assim como item sem hash.
+/// `indexer` ausente cai no `tracker` — é o caso do BLUDV nativo (o Node só
+/// publica `tracker: "BLUDV"` e a rota agrupa por ele).
 fn by_indexer(batch: &CollectBatch) -> BTreeMap<String, BTreeSet<String>> {
     let mut out: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for item in &batch.items {
@@ -89,6 +91,7 @@ fn by_indexer(batch: &CollectBatch) -> BTreeMap<String, BTreeSet<String>> {
         let indexer = item
             .indexer
             .as_deref()
+            .or(item.tracker.as_deref())
             .map(|id| id.trim().to_ascii_lowercase())
             .filter(|id| !id.is_empty())
             .unwrap_or_else(|| "sem-indexer".to_string());

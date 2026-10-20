@@ -119,7 +119,9 @@ impl Default for BuildOptions {
             cached_only_ignores_seeds: true,
             qualities: vec!["2160p".into(), "1080p".into(), "720p".into()],
             prefer_dubbed: true,
-            dubbed_only: false,
+            // `opts().dubbedOnly` do Node nasce de `BLUDV_DUBBED_ONLY` (default
+            // TRUE) — é a MESMA opção que filtra `legendado` no scrape BR.
+            dubbed_only: true,
             exclude_cam: false,
             max_size_gb: 0.0,
             quality_limits: default_quality_limits(2.0),

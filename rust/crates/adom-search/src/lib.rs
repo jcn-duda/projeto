@@ -57,6 +57,9 @@ pub use list_builder::{
 // Costura real com os adaptadores de debrid + reserva interna do Node.
 pub use debrid_seam::{answer_of, AdapterDebridCheck, FallbackCheck, NodeInternalFallback};
 pub use raw_item::RawItem;
+// Store do `raw:v1` (o gateway injeta o mesmo `cache.db` do Node no coletor
+// BLUDV nativo); a sombra nunca o recebe.
+pub use adom_sources::{MemoryRawStore, RawStore};
 
 pub use collection_window::{
     jump_deadline, BatchMeta, CollectBudgets, CollectTask, CollectWindow, CollectWindowOptions,

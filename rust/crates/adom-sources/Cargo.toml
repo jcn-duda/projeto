@@ -12,7 +12,12 @@ license = "UNLICENSED"
 adom-core = { path = "../adom-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Regex do título/parser BLUDV (mesma versão pinada do workspace). As classes
+# `\b`/`\d` do JS são explícitas no código (`(?-u:\b)`), como no `adom-crawl`.
+regex = "=1.13.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# `Retry-After` em data HTTP (RFC 1123/850/asctime) — já vinha via reqwest.
+httpdate = "1"
 tokio = { version = "1", features = ["rt", "time", "macros"] }
 
 [dev-dependencies]

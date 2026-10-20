@@ -235,6 +235,55 @@ async fn sombra_prefere_a_selecao_da_request_ao_override_do_processo() {
     );
 }
 
+/// Mico: a referência read-only roda SÓ ele (`skip_sources` das outras 4) e
+/// leva o `ji` da request (o card virtual mora nele); sem `ji` no job, o
+/// override do processo fica `None` e a rota usa o `encoded`.
+#[tokio::test]
+async fn wrapper_da_sombra_mico_manda_skip_sources_e_ji() {
+    let routes = Arc::new(RecordingRoutes::default());
+    let collector = node_collector_for_source(routes.clone(), "mico", None);
+    let mut selected = job(now_ms() + 2_000);
+    selected.providers = vec!["jackett".into()];
+    selected.jackett_indexers = vec!["mico".into()];
+    collector.collect(selected).await.expect("coleta");
+    {
+        let requests = routes.seen.lock().expect("requests");
+        let request = requests.first().expect("uma requisição");
+        assert!(request.read_only, "sombra não pode ter efeitos no Node");
+        assert_eq!(
+            request.shadow_source.as_deref(),
+            Some("mico"),
+            "rota confere o card virtual nos providers efetivos"
+        );
+        assert_eq!(
+            request.skip_sources,
+            vec![
+                "jackett".to_string(),
+                "prowlarr".to_string(),
+                "torrentio".to_string(),
+                "bludv".to_string()
+            ],
+            "a referência não repete as outras fontes (nem a conta)"
+        );
+        assert_eq!(
+            request.indexers.as_deref(),
+            Some(&["mico".to_string()][..]),
+            "o ji da request (com o card) atravessa para a referência"
+        );
+    }
+
+    // Sem `ji` no job: nenhum override — a rota usa a seleção do encoded.
+    let routes = Arc::new(RecordingRoutes::default());
+    let collector = node_collector_for_source(routes.clone(), "mico", None);
+    collector
+        .collect(job(now_ms() + 2_000))
+        .await
+        .expect("coleta");
+    let requests = routes.seen.lock().expect("requests");
+    assert_eq!(requests[0].indexers, None);
+    assert_eq!(requests[0].shadow_source.as_deref(), Some("mico"));
+}
+
 /// Torrentio: a referência read-only roda SÓ ele (`skip_sources` das outras) e
 /// não manda override de `JACKETT_INDEXERS` — a fonte consulta por IMDb.
 #[tokio::test]
@@ -262,5 +311,56 @@ async fn wrapper_da_sombra_torrentio_manda_skip_sources_sem_override() {
     assert_eq!(
         request.indexers, None,
         "Torrentio não tem lista de JACKETT_INDEXERS"
+    );
+}
+
+/// BLUDV: a referência read-only roda SÓ ele (`skip_sources` das outras 4) e
+/// não manda override de `JACKETT_INDEXERS` — a fonte consulta por título.
+#[tokio::test]
+async fn wrapper_da_sombra_bludv_manda_skip_sources_sem_override() {
+    let routes = Arc::new(RecordingRoutes::default());
+    let collector = node_collector_for_source(routes.clone(), "bludv", None);
+    collector
+        .collect(job(now_ms() + 2_000))
+        .await
+        .expect("coleta");
+    let requests = routes.seen.lock().expect("requests");
+    let request = requests.first().expect("uma requisição");
+    assert!(request.read_only, "sombra não pode ter efeitos no Node");
+    assert_eq!(
+        request.shadow_source.as_deref(),
+        Some("bludv"),
+        "rota confere o kill-switch do BLUDV na seleção"
+    );
+    assert_eq!(
+        request.skip_sources,
+        vec![
+            "jackett".to_string(),
+            "prowlarr".to_string(),
+            "torrentio".to_string(),
+            "mico".to_string()
+        ],
+        "a referência não repete as outras fontes"
+    );
+    assert_eq!(
+        request.indexers, None,
+        "BLUDV não tem lista de JACKETT_INDEXERS"
+    );
+}
+
+/// O `ji` da request continua viajando para a referência do BLUDV (a rota
+/// read-only usa a seleção do encoded; o BLUDV em si não consome indexers).
+#[tokio::test]
+async fn wrapper_da_sombra_bludv_leva_o_ji_da_request() {
+    let routes = Arc::new(RecordingRoutes::default());
+    let collector = node_collector_for_source(routes.clone(), "bludv", None);
+    let mut selected = job(now_ms() + 2_000);
+    selected.jackett_indexers = vec!["yts".into()];
+    collector.collect(selected).await.expect("coleta");
+    let requests = routes.seen.lock().expect("requests");
+    assert_eq!(
+        requests[0].indexers.as_deref(),
+        Some(&["yts".to_string()][..]),
+        "o ji da request atravessa para a referência"
     );
 }

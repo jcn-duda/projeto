@@ -13,6 +13,8 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use serde_json::Value;
+
 use crate::types::{CinemetaMeta, CollectionInfo, MediaType, Titles};
 
 /// Valor gravado no cache. O `Option` interno é o MISS: `None` é "a API não
@@ -103,6 +105,88 @@ impl MetaStore for MemoryMetaStore {
             key.to_string(),
             MemoryRecord {
                 value,
+                expires_at_ms,
+            },
+        );
+    }
+}
+
+/// Store do cache bruto `raw:v1` (o `cache.get`/`cache.set` do Node).
+///
+/// O valor é o `serde_json::Value` que o Node grava (`{"items":[…]}`), não um
+/// tipo do cliente: a mesma tabela `cache` (`key`, `value`, `expires_at`) é
+/// compartilhada entre Node e gateway, e o namespace é versionado em
+/// `adom_core::cache_key("raw", …)`.
+///
+/// `now_ms` entra por parâmetro (mesma razão do [`MetaStore`]): o TTL é
+/// testável sem dormir.
+pub trait RawStore: Send + Sync {
+    /// Entrada VIVA (TTL não vencido); `None` = miss/expirada.
+    fn get(&self, key: &str, now_ms: i64) -> Option<Value>;
+
+    /// Grava com TTL em segundos. `ttl_seconds == 0` desliga a escrita.
+    fn set(&self, key: &str, value: &Value, ttl_seconds: u64, now_ms: i64);
+}
+
+/// `RawStore` em memória, para testes e para o caminho sem SQLite.
+#[derive(Default)]
+pub struct MemoryRawStore {
+    inner: Mutex<HashMap<String, RawRecord>>,
+}
+
+#[derive(Debug, Clone)]
+struct RawRecord {
+    value: Value,
+    expires_at_ms: i64,
+}
+
+impl MemoryRawStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.lock().expect("store envenenado").len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Chaves vivas em ordem estável (diagnóstico/teste do formato da chave).
+    pub fn keys(&self) -> Vec<String> {
+        let mut keys: Vec<String> = self
+            .inner
+            .lock()
+            .expect("store envenenado")
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    }
+}
+
+impl RawStore for MemoryRawStore {
+    fn get(&self, key: &str, now_ms: i64) -> Option<Value> {
+        let mut map = self.inner.lock().expect("store envenenado");
+        let record = map.get(key)?;
+        if now_ms >= record.expires_at_ms {
+            map.remove(key);
+            return None;
+        }
+        Some(record.value.clone())
+    }
+
+    fn set(&self, key: &str, value: &Value, ttl_seconds: u64, now_ms: i64) {
+        if ttl_seconds == 0 {
+            return;
+        }
+        let expires_at_ms = now_ms.saturating_add(ttl_seconds.saturating_mul(1_000) as i64);
+        self.inner.lock().expect("store envenenado").insert(
+            key.to_string(),
+            RawRecord {
+                value: value.clone(),
                 expires_at_ms,
             },
         );

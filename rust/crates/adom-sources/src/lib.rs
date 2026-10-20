@@ -52,8 +52,13 @@
 //! BLUDV pulado no caminho de busca; Mico com breaker local. Collectors
 //! `BludvCollector` / `MicoCollector` no orquestrador (opt-in CSV).
 //!
+//! BLUDV: identidade do Node (`tracker: "BLUDV"`, sem `indexer`/`sources`),
+//! título/qualidade/fonte/áudio pelo contexto do botão, redirect `follow` com
+//! SSRF em cada hop, concorrência limitada e `raw:v1` (`RawStore`) só no
+//! caminho vivo — a sombra read-only não lê nem grava o cache bruto.
+//!
 //! Pendências da próxima fatia: composição multi-fonte (ex.: jackett+bludv),
-//! cache `raw:v1`, pré-resolve BR (já no núcleo) e captura do magnet-bank.
+//! pré-resolve BR (já no núcleo) e captura do magnet-bank.
 //!
 //! Fora do escopo B.1 (de propósito): busca por TÍTULO (`tmdb-search.ts`),
 //! contagem de temporadas e `external_ids` da raspagem — são background-only
@@ -88,8 +93,13 @@ pub mod torrentio;
 mod types;
 mod wire;
 
-pub use bludv::{BludvClient, BludvConfig, BludvRawItem, BludvSearchOpts, BLUDV_DEFAULT_URL};
-pub use cache::{CacheValue, CollectionRead, HomeReleaseRead, MemoryMetaStore, MetaStore};
+pub use bludv::{
+    BludvClient, BludvConfig, BludvOutcome, BludvRawItem, BludvSearchOpts, BLUDV_DEFAULT_URL,
+};
+pub use cache::{
+    CacheValue, CollectionRead, HomeReleaseRead, MemoryMetaStore, MemoryRawStore, MetaStore,
+    RawStore,
+};
 pub use cinemeta::CinemetaClient;
 pub use config::{
     CinemetaConfig, SourcesConfig, TmdbConfig, CINEMETA_BASE, DEFAULT_USER_AGENT, TMDB_BASE,
@@ -100,7 +110,8 @@ pub use jackett::{
     JackettRawItem, QueryOutcome, SearchOptions, ALL_QUERY_INDEXER, JACKETT_DEFAULT_URL,
 };
 pub use mico::{
-    MicoClient, MicoConfig, MicoMediaType, MicoRawItem, MicoSearchArgs, MICO_DEFAULT_URL, MICO_ID,
+    fetch_streams, MicoClient, MicoConfig, MicoMediaType, MicoOutcome, MicoRawItem, MicoSearchArgs,
+    MicoSearchOptions, MICO_DEFAULT_URL, MICO_ID,
 };
 pub use prowlarr::{
     ProwlarrClient, ProwlarrConfig, ProwlarrOutcome, ProwlarrRawItem, PROWLARR_DEFAULT_URL,

@@ -4,25 +4,46 @@
 //! (`POST /internal/search/collect`). BLUDV é fonte BR (WordPress + protetor):
 //! no TS entra como tarefa prioritária (`addTask(..., true)`).
 //!
-//! - `TaskScope::Nonpriority` → lote vazio (não é fonte global).
+//! - `TaskScope::Nonpriority` → lote vazio, live sem falha (não é fonte global).
 //! - `late_sweep` → lote vazio (varredura pt-BR é caminho Jackett).
-//! - `Priority` / `All` → `client.search(pt_query || query)`; fail-open.
-//! - Gate de anúncio já pulado no cliente (orçamento 0 ms no caminho de busca).
+//! - `Priority` / `All` → `client.search_outcome(pt_query || query)`; fail-open.
 //!
-//! Fora desta fatia: composição com Jackett/Mico, `dubbedOnly` do usuário no
-//! scrape, cache `raw:v1`.
+//! **Identidade** é a do Node (`src/providers/bludv.ts`): o item cru tem
+//! `tracker: "BLUDV"` e **não** tem `indexer`; o `_indexer` do stream nasce
+//! dele (`String(item.indexer || tracker || '').trim().toLowerCase()` →
+//! `"bludv"`) e o chip é `⚙️ BLUDV`. Fixar `indexer = "bludv"` movia o rótulo
+//! do ⚙️ para minúsculas e a chave da sombra para outro balde. `sources` fica
+//! vazio no cru (o Node publica `tracker:` a partir de `TRACKERS` no build).
+//!
+//! **Live (F2.5)** é por FONTE (`"bludv"`), como Prowlarr/Torrentio: o Node
+//! NÃO emite `live` para o BLUDV, então a sombra compara só a identidade
+//! (`compare_live:false`). `Ok` = resposta válida com item relevante; `Empty` =
+//! resposta válida sem item relevante (inclusive 4xx da obra); `Failed` =
+//! 429/5xx/rede/timeout. `pending` nunca é inventado e `all` fica `Unknown`.
+//!
+//! **`raw:v1`** só no caminho VIVO (`SOURCES_RUST=bludv`): a sombra monta o
+//! cliente com `shadow` e passa `read_only`, que não lê nem grava o cache
+//! bruto (o mesmo `readOnly` do `bludv.search`).
 
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
-use adom_core::extract_info_hash;
-use adom_sources::{BludvClient, BludvRawItem, BludvSearchOpts};
+use adom_core::RelevanceItem;
+use adom_sources::{BludvClient, BludvOutcome, BludvRawItem, BludvSearchOpts, RawStore};
 use serde_json::{Map, Value};
 
 use crate::internal_types::TaskScope;
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
+use crate::orchestrator::jackett_collector::process_title_precision_tail_cut;
+use crate::orchestrator::jackett_live::relevant_count;
+use crate::orchestrator::live_state::LiveBatchState;
 use crate::orchestrator::sources_rust::sources_rust_includes;
-use crate::raw_item::RawItem;
+use crate::raw_item::{known_size, RawItem};
+
+/// Chave do estado vivo da fonte. UMA consulta WordPress: não há como atribuir
+/// falha/vazio a um card específico sem inventar.
+pub const BLUDV_LIVE_KEY: &str = "bludv";
 
 /// `SOURCES_RUST` contém o token `bludv` (CSV, case-insensitive).
 pub fn sources_rust_includes_bludv() -> bool {
@@ -32,11 +53,22 @@ pub fn sources_rust_includes_bludv() -> bool {
 /// Monta o collector só quando o env pediu BLUDV nativo. Falha de boot do
 /// cliente → `None` + log (degrada para o caller usar NodeCollector).
 pub fn try_bludv_collector_from_env() -> Option<BludvCollector> {
+    try_bludv_collector_from_env_with_store(None)
+}
+
+/// Mesma montagem com o store do `raw:v1` injetado (gateway). `None` = sem
+/// cache bruto; o caminho vivo continua fail-open.
+pub fn try_bludv_collector_from_env_with_store(
+    raw_store: Option<Arc<dyn RawStore>>,
+) -> Option<BludvCollector> {
     if !sources_rust_includes_bludv() {
         return None;
     }
     match BludvCollector::from_env() {
-        Ok(c) => Some(c),
+        Ok(collector) => Some(match raw_store {
+            Some(store) => collector.with_raw_store(store),
+            None => collector,
+        }),
         Err(err) => {
             eprintln!("[search] SOURCES_RUST=bludv mas BludvClient falhou: {err}");
             None
@@ -47,19 +79,95 @@ pub fn try_bludv_collector_from_env() -> Option<BludvCollector> {
 /// Collector que raspa o WordPress BLUDV (sem POST `/internal/search/collect`).
 pub struct BludvCollector {
     client: BludvClient,
+    /// Sombra read-only: sem `raw:v1` (leitura ou escrita).
+    shadow: bool,
 }
 
 impl BludvCollector {
     pub fn new(client: BludvClient) -> Self {
-        Self { client }
+        Self {
+            client,
+            shadow: false,
+        }
     }
 
     pub fn from_env() -> Result<Self, String> {
         Ok(Self::new(BludvClient::from_env()?))
     }
 
+    /// Store do `raw:v1` compartilhado com o Node (caminho vivo).
+    pub fn with_raw_store(mut self, store: Arc<dyn RawStore>) -> Self {
+        self.client = self.client.clone().with_raw_store(store);
+        self
+    }
+
+    /// Modo sombra: `readOnly` do Node (sem cache bruto, sem status).
+    pub fn with_shadow(mut self, shadow: bool) -> Self {
+        self.shadow = shadow;
+        self
+    }
+
     pub fn client(&self) -> &BludvClient {
         &self.client
+    }
+}
+
+/// Estado vivo da fonte: `all` fica `Unknown` e `pending` nunca é criado.
+fn live_state(failed: bool, empty: bool) -> LiveBatchState {
+    let mut state = LiveBatchState::default();
+    if failed {
+        state.failed.insert(BLUDV_LIVE_KEY.to_string());
+    }
+    if empty {
+        state.empty.insert(BLUDV_LIVE_KEY.to_string());
+    }
+    state
+}
+
+pub(crate) fn live_ok() -> LiveBatchState {
+    live_state(false, false)
+}
+
+pub(crate) fn live_empty() -> LiveBatchState {
+    live_state(false, true)
+}
+
+pub(crate) fn live_failed() -> LiveBatchState {
+    live_state(true, false)
+}
+
+/// Resposta válida é `Ok` quando ALGUM item passa na relevância da obra;
+/// sem item relevante é `Empty` (vazio suspeito), como o `relevant: 0` do TS.
+/// A régua é a mesma do Jackett/Prowlarr (`filter_relevant_raw`).
+fn live_from_items(items: &[BludvRawItem], job: &CollectJob) -> LiveBatchState {
+    if items.is_empty() {
+        return live_empty();
+    }
+    let entries: Vec<RelevanceItem> = items
+        .iter()
+        .map(|item| RelevanceItem {
+            title: Some(item.title.clone()),
+            title_pascal: None,
+            magnet: Some(item.magnet.clone()),
+            magnet_uri: None,
+            guid: None,
+            // O provider marca `isBr: true`; o filtro de título lê igual.
+            is_br: true,
+        })
+        .collect();
+    let relevant = relevant_count(&entries, job, process_title_precision_tail_cut());
+    if relevant == 0 {
+        live_empty()
+    } else {
+        live_ok()
+    }
+}
+
+fn batch(items: Vec<RawItem>, live: LiveBatchState) -> CollectBatch {
+    CollectBatch {
+        items,
+        partial: false,
+        live: Some(live),
     }
 }
 
@@ -72,39 +180,50 @@ impl Collector for BludvCollector {
             // Fonte BR independente do PROVIDER (só o kill-switch do cliente);
             // o `wants` existe para espelhar a régua do Node por fonte.
             if !job.wants("bludv") {
-                return Ok(CollectBatch {
-                    items: Vec::new(),
-                    partial: false,
-                    live: Some(crate::orchestrator::live_state::LiveBatchState::default()),
-                });
+                return Ok(batch(Vec::new(), live_ok()));
             }
             // Topologia TS: bludv é tarefa BR (`priority=true`); globais e
             // late-sweep não consultam.
             if job.late_sweep || matches!(job.scope, TaskScope::Nonpriority) {
-                return Ok(CollectBatch::default());
+                return Ok(batch(Vec::new(), live_ok()));
             }
             let query = br_query(&job);
             if query.is_empty() {
-                return Ok(CollectBatch::default());
+                return Ok(batch(Vec::new(), live_ok()));
             }
-            // `dubbedOnly` do usuário viaja no CollectJob (o scrape filtra o
-            // botão `legendado`, como o `opts().dubbedOnly` do Node).
             let opts = BludvSearchOpts {
+                // `dubbedOnly` chega pelo `RequestSelection` (o default do
+                // operador já foi aplicado ao `options` da request).
                 dubbed_only: job.dubbed_only,
+                read_only: self.shadow,
             };
-            let items = self
-                .client
-                .search(query, &opts)
-                .await
-                .into_iter()
-                .map(raw_from_bludv)
-                .collect();
-            Ok(CollectBatch {
-                items,
-                partial: false,
-                // Coletor nativo: sem o contrato vivo por indexer do Node.
-                live: None,
-            })
+            let outcome = self.client.search_outcome(query, &opts).await;
+            let label = outcome.label();
+            match outcome {
+                BludvOutcome::Ok(items) => {
+                    let live = live_from_items(&items, &job);
+                    let mapped = items.into_iter().map(raw_from_bludv).collect();
+                    Ok(batch(mapped, live))
+                }
+                // Configuração (kill-switch / base barrada / consulta vazia):
+                // a fonte nem foi consultada — o Node também não registra nada.
+                BludvOutcome::Disabled | BludvOutcome::BlockedUrl => {
+                    Ok(batch(Vec::new(), live_ok()))
+                }
+                // 4xx da obra/site: o host está vivo; sem release para esta
+                // obra → vazio suspeito (nunca falha sintética).
+                BludvOutcome::Http(status) if status < 500 && status != 429 => {
+                    eprintln!("[search] bludv: {label} (obra sem release no site)");
+                    Ok(batch(Vec::new(), live_empty()))
+                }
+                // 429/5xx, rede, timeout e redirect inválido: a consulta foi
+                // prometida e não foi respondida.
+                failure => {
+                    debug_assert!(failure.is_host_failure());
+                    eprintln!("[search] bludv: {label} (falha viva, lote vazio)");
+                    Ok(batch(Vec::new(), live_failed()))
+                }
+            }
         })
     }
 }
@@ -118,9 +237,8 @@ fn br_query(job: &CollectJob) -> &str {
         .unwrap_or(job.query.trim())
 }
 
-fn raw_from_bludv(item: BludvRawItem) -> RawItem {
+pub(crate) fn raw_from_bludv(item: BludvRawItem) -> RawItem {
     let magnet = item.magnet.trim();
-    let info_hash = extract_info_hash(magnet);
     let mut extra = Map::new();
     if !item.audio.is_empty() {
         extra.insert("audio".into(), Value::String(item.audio.clone()));
@@ -128,12 +246,17 @@ fn raw_from_bludv(item: BludvRawItem) -> RawItem {
     RawItem {
         title: Some(item.title).filter(|t| !t.is_empty()),
         magnet: Some(magnet.to_string()).filter(|m| !m.is_empty()),
-        info_hash,
+        // O Node NÃO publica `infoHash` no item cru do BLUDV: o build extrai do
+        // magnet. Manter `None` evita escrever um campo que a fonte não deu.
+        info_hash: None,
         seeders: Some(item.seeders),
-        size_bytes: item.size,
-        // Rótulo do provider standalone (não o cardigann `bludv-cardigann`).
-        indexer: Some("bludv".into()),
-        sources: vec!["tracker:BLUDV".into()],
+        // Mesma régua do `knownSize` do `toStremioStream` (1 KB sentinela).
+        size_bytes: known_size(item.size),
+        // `_indexer = item.indexer || tracker` → "bludv" (o rótulo é o tracker).
+        indexer: None,
+        tracker: Some("BLUDV".into()),
+        // O cru do Node não tem `sources`; o build monta os `tracker:` fixos.
+        sources: Vec::new(),
         is_br: true,
         extra,
         ..RawItem::default()
@@ -195,12 +318,13 @@ mod tests {
         assert_eq!(br_query(&empty_pt), "The Matrix 1999");
     }
 
+    /// Identidade do Node: tracker "BLUDV", SEM indexer, sem sources; o
+    /// `_indexer` do build nasce do tracker (coberto no list_builder).
     #[test]
-    fn mapa_marca_br_tracker_e_hash() {
-        // 40 hex — `extract_info_hash` rejeita comprimento ≠ 40.
+    fn mapa_marca_tracker_br_e_hash() {
         let hash = "abcd0123456789abcdef0123456789abcdef0123";
         let raw = raw_from_bludv(BludvRawItem {
-            title: "Matrix 1999 Dublado".into(),
+            title: "Matrix 1999 [1080p WEB-DL DUBLADO]".into(),
             magnet: format!("magnet:?xt=urn:btih:{hash}&dn=x"),
             seeders: 1.0,
             size: Some(1_000.0),
@@ -208,12 +332,73 @@ mod tests {
             audio: "dublado".into(),
             is_br: true,
         });
-        assert_eq!(raw.indexer.as_deref(), Some("bludv"));
-        assert_eq!(raw.sources, vec!["tracker:BLUDV".to_string()]);
+        assert_eq!(raw.tracker.as_deref(), Some("BLUDV"));
+        assert_eq!(raw.indexer, None, "Node não publica indexer no cru");
+        assert!(raw.sources.is_empty(), "Node não publica sources no cru");
         assert!(raw.is_br);
-        assert_eq!(raw.info_hash.as_deref(), Some(hash));
+        assert_eq!(raw.hash(), hash, "hash vem do magnet, como no Node");
         assert_eq!(raw.extra.get("audio"), Some(&json!("dublado")));
         assert_eq!(raw.seeders, Some(1.0));
+    }
+
+    #[test]
+    fn tamanho_sentinela_1kb_vira_desconhecido() {
+        let raw = raw_from_bludv(BludvRawItem {
+            title: "X".into(),
+            magnet: "magnet:?xt=urn:btih:abcd0123456789abcdef0123456789abcdef0123".into(),
+            seeders: 1.0,
+            size: Some(1024.0),
+            tracker: "BLUDV".into(),
+            audio: "dublado".into(),
+            is_br: true,
+        });
+        assert_eq!(raw.size_bytes, None);
+    }
+
+    #[test]
+    fn live_de_item_relevante_e_ok() {
+        let item = BludvRawItem {
+            title: "The Matrix 1999 [1080p WEB-DL DUBLADO]".into(),
+            magnet: "magnet:?xt=urn:btih:abcd0123456789abcdef0123456789abcdef0123".into(),
+            seeders: 1.0,
+            size: None,
+            tracker: "BLUDV".into(),
+            audio: "dublado".into(),
+            is_br: true,
+        };
+        let live = live_from_items(std::slice::from_ref(&item), &base_job());
+        assert!(live.failed.is_empty());
+        assert!(live.empty.is_empty());
+        assert_eq!(
+            live.all,
+            crate::orchestrator::live_state::LiveAllState::Unknown
+        );
+        assert!(live.pending.is_empty(), "pending nunca é inventado");
+
+        // Obra diferente: resposta válida sem item relevante = Empty.
+        let other = CollectJob {
+            names: vec!["Outra Obra".into()],
+            query: "Outra Obra 2024".into(),
+            pt_query: None,
+            year: Some(json!(2024)),
+            ..base_job()
+        };
+        let live = live_from_items(&[item], &other);
+        assert!(live.empty.contains(BLUDV_LIVE_KEY));
+        assert!(live.failed.is_empty());
+    }
+
+    #[test]
+    fn live_vazio_e_falha_tem_all_unknown_e_sem_pending() {
+        for state in [live_ok(), live_empty(), live_failed()] {
+            assert_eq!(
+                state.all,
+                crate::orchestrator::live_state::LiveAllState::Unknown
+            );
+            assert!(state.pending.is_empty());
+        }
+        assert!(live_empty().empty.contains(BLUDV_LIVE_KEY));
+        assert!(live_failed().failed.contains(BLUDV_LIVE_KEY));
     }
 
     #[tokio::test]
@@ -233,13 +418,13 @@ mod tests {
         };
         let batch = collector.collect(nonpriority).await.expect("ok");
         assert!(batch.items.is_empty());
+        assert!(batch
+            .live
+            .as_ref()
+            .is_some_and(|live| live.failed.is_empty()));
 
         let late = CollectJob {
             late_sweep: true,
-            providers: Vec::new(),
-            jackett_indexers: Vec::new(),
-            dubbed_only: false,
-            mico_default: false,
             ..base_job()
         };
         let batch = collector.collect(late).await.expect("ok");
@@ -262,5 +447,13 @@ mod tests {
         let batch = collector.collect(priority).await.expect("ok");
         assert!(batch.items.is_empty());
         assert!(!batch.partial);
+        assert!(batch
+            .live
+            .as_ref()
+            .is_some_and(|live| live.failed.is_empty()));
     }
 }
+
+#[cfg(test)]
+#[path = "bludv_collector_live_tests.rs"]
+mod live_tests;

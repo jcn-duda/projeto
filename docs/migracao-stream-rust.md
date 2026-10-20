@@ -200,8 +200,8 @@ p50/p95 e a semana em `stream-shadow`.
    antigo), vale a régua antiga. Coberto por `live_state_wiring.rs` (em
    `adom-search`); nesta rodada, `cargo test --workspace`, `clippy -D warnings`
    e `fmt` deram exit 0. O coletor **Jackett** nativo passou a emitir `live` na
-   F2.1 (`search_outcomes`); o Prowlarr na F2.2 e o Torrentio na F2.3 passaram a
-   emitir `live` por FONTE; BLUDV/Mico seguem sem `live` nativo.
+   F2.1 (`search_outcomes`); o Prowlarr na F2.2, o Torrentio na F2.3, o Mico na
+   F2.4 e o BLUDV na F2.5 passaram a emitir `live` por FONTE.
 3. **Paridade (pendente)**: o corpus da F0 é só `request/response` e remonta
    0/51; o critério formal §9.4 continua **não medido**. O gate operacional
    `scripts/stream-parity.mjs` cobre 16 casos do corpus (atende aos 15+),
@@ -229,10 +229,11 @@ p50/p95 e a semana em `stream-shadow`.
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
-**Estado: F2.3 PARCIAL (Jackett/Prowlarr/Torrentio), default OFF.**
+**Estado: F2.5 PARCIAL (Jackett/Prowlarr/Torrentio/Mico/BLUDV), default OFF.**
 `SOURCES_RUST_SHADOW` (CSV) é vazio por default e `SOURCES_RUST` segue OFF; a
-sombra de fonte compara **Jackett, Prowlarr e Torrentio** e **não** é o
-critério §9.4. O contrato e o recorte estão em `docs/rust-stream-contract.md`.
+sombra de fonte compara **Jackett, Prowlarr, Torrentio, Mico e BLUDV** e **não**
+é o critério §9.4. O contrato e o recorte estão em
+`docs/rust-stream-contract.md`.
 
 **F2.1 — Jackett com `live` e sombra de fonte (`b10df543`).** `search_outcomes`
 devolve um `QueryOutcome` por indexer: `Ok`/`Empty` são resposta válida
@@ -264,20 +265,6 @@ respondida. `all` fica **sempre `Unknown`** (o agregado só existe no ramo
 `/all` do Jackett), `pending` nunca é inventado e falha de configuração não vira
 falha viva.
 
-A sombra (`SOURCES_RUST_SHADOW=jackett,prowlarr,torrentio`) roda
-**fire-and-forget** (`tokio::spawn`) e compara, por indexer, o conjunto de
-hashes normalizados e o `live` (`failed`/`pending`/`empty`/`all`); o lado Node
-roda em `read_only`, sem inventário da conta, captura no banco, status/breaker
-nem cache bruto. Só a consulta principal entra na comparação. Para Prowlarr e
-Torrentio o `live` **não** é comparado: o `collectRawLive` do Node não emite
-`onQueryResult` para eles, então a referência sai vazia/`unknown` e a
-comparação acusaria divergência falsa em toda falha. A sombra deles compara a
-IDENTIDADE (hashes por `_indexer`); o `live` nativo vale na produção com
-`SOURCES_RUST=prowlarr,torrentio`. Métricas: `source.shadow.compared`,
-`divergence`, `items_missing`, `items_extra`, `live_divergence`, `timeout`,
-`error`, `partial_divergence`, `skipped`, `skipped_late`; `partial` diferente
-conta só em `partial_divergence` (informativa), nunca em `divergence`.
-
 **F2.3 — Torrentio com identidade do Node, `live` e sombra.** O
 `src/providers/torrentio.ts` publica `indexer:"torrentio"` (o AGREGADOR, não o
 tracker interno), `tracker` = rótulo depois do `⚙️` na linha de metadados
@@ -304,19 +291,113 @@ também não alimenta o breaker em 4xx), `Failed` = 429/5xx/rede/timeout/JSON
 inválido/breaker aberto. `all` fica **sempre `Unknown`**, `pending` nunca é
 inventado e configuração não vira falha viva.
 
-**Limitações (F2.4):** `live` nativo existe para Jackett (por indexer),
-Prowlarr e Torrentio (por fonte), mas o de Prowlarr/Torrentio não tem referência
-no Node e por isso não é comparado; BLUDV e Mico seguem ignorados pela sombra
-(sem identidade de indexer normalizada) e sem `live`; **paridade real não foi
-medida** e a sombra de fonte não substitui §9.4. O `ji` por requisição já vale
-para os dois lados (C0b): `JACKETT_INDEXERS` do processo é só fallback de
-instalação sem `ji`.
+**F2.4 — Mico com identidade/parse do Node, `live` e sombra (C4).** O
+`src/providers/mico.ts` é card VIRTUAL por IMDb (fora do Jackett): título da
+primeira linha sem `👥`/`💾`/`(langs)`/`…`, hash 40-hex minúsculo, `seeders`
+(`👥`, default 1), `size` (`💾` > 0), `indexer:"mico"` e `isBr`
+(`looksPtBr(title)` ou `(brazil`). O parser nativo passou a ser fiel também nos
+pontos que divergiam: `strip_pictographic` usa a tabela REAL de
+`Extended_Pictographic` (o aproximado por blocos apagava ①/あ e símbolos
+comuns), os `(langs)` exigem a lista `[a-z]+(, [a-z]+)*` (sem vírgula sobrando),
+`size` aceita `2.1GB` sem espaço e avança até o primeiro match válido, e os
+trackers do magnet saem na ORDEM do `Set` do Node (com `encodeURIComponent`
+fiel: `!*'()~` não são escapados), sem `dn=`.
 
-**Próximas partes:** metadados (Cinemeta/TMDB) e inventário da conta; depois
-BLUDV/Mico (reusar `adom-resolvers`/`mico_net`) e o que hoje é 501 no
-`adom-debrid` (`check` de RD/TorBox/AllDebrid, `files`, `account`). Cada fonte
-migrada sai da rota `collect`. O Jackett mantém Torznab/JSON, globais agrupados
-e BR isolados em pt-BR (invariante 4, breaker só em `offline`).
+`MicoClient::search_outcome` distingue resposta válida (`Ok`, inclusive JSON
+sem `streams`), configuração (`Disabled`/`BlockedUrl`/`NoEndpoint`),
+`BreakerOpen`, `Pending` (deadline do coletor vencido — o Node teria a consulta
+em voo), `Http(4xx)` (obra, NEUTRO no breaker e vira `empty`/`responded:true`),
+`Http(429/5xx)`, `InvalidJson`, `Network` e `Timeout`. O `Retry-After` cobre
+segundos (`Number`, inclusive `1.5`/`0x10`/`1e2`) e data HTTP (RFC 1123/850/
+asctime via `httpdate`), com piso zero. O `search()` antigo segue fail-open em
+`Vec`; o breaker só é lido/escrito no caminho vivo (`MicoSearchOptions::LIVE`) e
+a sombra usa `SHADOW` (ignora o circuito aberto e não o abre/reseta).
+
+O `live` nativo é **por fonte** (`"mico"`): `Ok` = conjuntos vazios, `Empty` =
+resposta válida sem item relevante (`filter_relevant_raw`) ou 4xx da obra,
+`Failed` = 429/5xx/rede/timeout do CLIENTE/JSON inválido/breaker aberto,
+`Pending` = prazo do coletor vencido (lote `partial`). `all` fica sempre
+`Unknown` (o Mico não tem ramo `/all`). Como o Node **emite live para o Mico**
+(`noteStart(["mico"])` + `onQueryResult` no `collectRawLive`), a sombra roda o
+par com `compare_live:true`: `ok`/`empty`/`failed`/`pending` são comparados e
+`live_divergence` cobre as quatro combinações.
+
+**F2.5 — BLUDV com identidade/título do Node, `live`, `raw:v1` e sombra (C3).**
+O `src/providers/bludv.ts` publica `tracker:"BLUDV"` e **não** publica
+`indexer`/`sources` no cru; o `_indexer` do stream nasce do tracker
+(`"BLUDV"` → `"bludv"`) e o chip é `⚙️ BLUDV` (o nativo agora mantém o
+`tracker`; antes o rótulo caía em `indexer` minúsculo). `sources` do contrato
+continua sendo a lista FIXA de trackers do Node (`DEFAULT_TRACKERS`), nunca
+`tracker:BLUDV`. O título é o `releaseTitle` do TS: `cleanPostTitle` (7
+remoções) + tag do BOTÃO `[<qualidade>p <fonte> DUBLADO|LEGENDADO]`, com
+qualidade/fonte/áudio classificados pelo contexto `segmento + âncora`
+(`normalizeQuality`/`normalizeSource`/marcadores NACIONAL/PORTUGUÊS/[DUB]/[LEG]).
+`size` vem da última ocorrência `N GB/MB` do contexto e passa por `known_size`
+(1 KB sentinela = desconhecido); `seeders` é o neutro 1; `isBr: true`.
+
+O `redirect:'follow'` do TS foi preservado **manualmente**: o cliente usa
+`Policy::none()` e segue cada `Location` validando `is_safe_download_url` no
+hop seguinte (SSRF preservado; um redirect para privado fora da origem é
+barrado antes do GET) e o prazo absoluto cobre todos os hops. Posts e links
+rodam com concorrência limitada (`BLUDV_CONCURRENCY`, default 6) e a ordem do
+documento é preservada — o custo de manter sequencial era o scrape inteiro
+(~1 post a cada dois saltos de protetor).
+
+`dubbedOnly` chega pelo `CollectJob`/`RequestSelection` e filtra o botão
+`legendado` DENTRO do scrape, como o `opts().dubbedOnly` do Node; o default do
+operador (`BLUDV_DUBBED_ONLY=true`) virou o default de `BuildOptions` e o
+`d=false` da URL vence o default (o overlay do `SCHEMA` já fazia isso).
+
+`BludvClient::search_outcome` distingue resposta válida (`Ok`), configuração
+(`Disabled`/`BlockedUrl`, sem consulta) e falha declarada (`Http(429/5xx)`,
+`Failed` = rede/timeout/redirect inválido). O `live` nativo é **por fonte**
+(`"bludv"`): `Ok` = item relevante, `Empty` = resposta válida sem item relevante
+(inclusive 4xx da obra), `Failed` = 429/5xx/rede/timeout; `all` fica sempre
+`Unknown` e `pending` nunca é inventado. O Node **não** emite live para o
+BLUDV, então a sombra roda o par com `compare_live:false` e compara só a
+IDENTIDADE (hashes agrupados por `indexer || tracker` — o item cru do BLUDV só
+tem `tracker`).
+
+`raw:v1` do BLUDV (`raw:v1:bludv:d|t:<query>`, valor `{items}`) só é
+lido/gravado no caminho VIVO (`SOURCES_RUST=bludv`): o gateway injeta o mesmo
+`cache.db` do Node (`CACHE_DB_PATH`, cota `raw` de 800) no coletor; a sombra
+monta o cliente com `read_only` e não toca o cache bruto. Lote com portão de
+anúncio fica `incomplete` e não é cacheado (mesmo `notePending` do Node).
+
+A sombra (`SOURCES_RUST_SHADOW=jackett,prowlarr,torrentio,mico,bludv`) roda
+**fire-and-forget** (`tokio::spawn`) e compara, por indexer, o conjunto de
+hashes normalizados e o `live` (`failed`/`pending`/`empty`/`all`); o lado Node
+roda em `read_only`, sem inventário da conta, captura no banco, status/breaker
+nem cache bruto. Só a consulta principal entra na comparação. Para Prowlarr,
+Torrentio e BLUDV o `live` **não** é comparado: o `collectRawLive` do Node não
+emite `onQueryResult` para eles, então a referência sai vazia/`unknown` e a
+comparação acusaria divergência falsa em toda falha. A sombra deles compara a
+IDENTIDADE (hashes por `_indexer`/tracker); o `live` nativo vale na produção com
+`SOURCES_RUST=prowlarr,torrentio,bludv`. Para o Mico, o Node emite
+`pending`/`failed`/`empty`, então o `live` é comparado e conta
+`live_divergence`. O nativo do BLUDV não faz captura no banco, card/status nem
+`raw:v1` na sombra; o nativo do Mico também não. Métricas: `source.shadow.compared`,
+`divergence`, `items_missing`, `items_extra`, `live_divergence`, `timeout`,
+`error`, `partial_divergence`, `skipped`, `skipped_late`; `partial` diferente
+conta só em `partial_divergence` (informativa), nunca em `divergence`.
+
+**Limitações (F2.5):** `live` nativo existe para Jackett (por indexer),
+Prowlarr, Torrentio, Mico e BLUDV (por fonte). O de Prowlarr/Torrentio/BLUDV
+não tem referência no Node (o `collectRawLive` não emite para eles) e por isso
+não é comparado; o do Mico é. **Paridade real não foi medida** e a sombra de
+fonte não substitui §9.4. O BLUDV não tem `episodeOf` no título nativo (o Node
+acrescenta o sufixo `E01` do passo âncora-local; o título do post continua
+carregando a temporada/episódio). O `ji` por requisição
+já vale para os dois lados (C0b): `JACKETT_INDEXERS` do processo é só fallback
+de instalação sem `ji`, e o Mico lê o card virtual `"mico"` desse mesmo `ji`
+(ou `MICO_DEFAULT` sem `ji`).
+
+**Próximas partes:** metadados (Cinemeta/TMDB) e inventário da conta; o
+BLUDV já tem cliente próprio (C3/F2.5, sem reusar o binário `adom-resolvers`);
+falta o que hoje é 501 no `adom-debrid` (`check` de
+RD/TorBox/AllDebrid, `files`, `account`). Cada fonte migrada sai da rota
+`collect`. O Jackett mantém Torznab/JSON, globais agrupados e BR isolados em
+pt-BR (invariante 4, breaker só em `offline`).
 
 ## F3 — Estado em Rust
 

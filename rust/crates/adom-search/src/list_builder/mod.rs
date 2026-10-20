@@ -34,6 +34,9 @@ mod helpers;
 mod stats;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "tests_bludv_br.rs"]
+mod tests_bludv_br;
 mod types;
 
 pub use audio_proof::{apply_pt_title_dual, AudioAudit};

@@ -1,13 +1,26 @@
 //! Parsers HTML do BLUDV — porte essencial de `parsePosts` /
 //! `parseDownloadLinks` e extrator de magnet do protetor legado.
 //!
+//! O coletor de links segue a máquina do `createLinkCollector`: percorre as
+//! âncoras EM ORDEM DE DOCUMENTO, mantém o áudio da seção (dublado/legendado)
+//! e classifica qualidade/fonte/tamanho pelo contexto `segmento + âncora`.
+//! É o mesmo contexto que o Node usa para montar o título e o tamanho do item.
+//!
 //! Gate (`/gate/go/…`): detectado e **pulado** no caminho de busca (o TS
 //! só aproveita hit imediato com orçamento 0 ms; solve de ~30 s nunca entra
 //! na resposta). Sem cache de gate nesta fatia → gate = miss.
 
+use std::sync::LazyLock;
+
+use regex::Regex;
+
 use adom_core::decode_entities;
 
+use super::title::{audio_from_anchor, audio_from_segment, normalize_quality, normalize_source};
 use super::types::{BludvDownloadLink, BludvPost};
+
+pub use super::title::clean_post_title;
+pub use super::title::release_title;
 
 /// Cards da página de busca: `div.post > div.title > a[href]`.
 pub fn parse_posts(html: &str) -> Vec<BludvPost> {
@@ -49,10 +62,11 @@ pub fn parse_posts(html: &str) -> Vec<BludvPost> {
 }
 
 /// Links legado (`systemads`/`videosad`) e portão (`/gate/go/…`) em ordem de
-/// documento, com seção de áudio. O cliente de busca **pula** o gate (sem solve).
+/// documento, com áudio/qualidade/fonte/tamanho do contexto. O cliente de
+/// busca **pula** o gate (sem solve).
 pub fn parse_download_links(html: &str) -> Vec<BludvDownloadLink> {
     let mut out = Vec::new();
-    let mut audio = "desconhecido".to_string();
+    let mut audio_state = "desconhecido".to_string();
     let mut cursor = 0usize;
     let lower = html.to_ascii_lowercase();
     let mut search_from = 0usize;
@@ -65,7 +79,7 @@ pub fn parse_download_links(html: &str) -> Vec<BludvDownloadLink> {
             continue;
         };
         let href_region = &tag_slice[href_off..];
-        let Some((url_raw, _)) = take_quoted(href_region) else {
+        let Some((url_raw, after_url)) = take_quoted(href_region) else {
             search_from = abs + 1;
             continue;
         };
@@ -77,17 +91,31 @@ pub fn parse_download_links(html: &str) -> Vec<BludvDownloadLink> {
             continue;
         }
 
+        // Segmento = tudo desde o botão anterior (carrega o cabeçalho da seção
+        // e a especificação logo antes do botão), como o `slice(cursor, index)`
+        // do `createLinkCollector`.
         let segment = strip_tags(&html[cursor..abs]).to_ascii_uppercase();
-        if let Some(marker) = last_audio_marker(&segment) {
-            audio = marker.to_string();
+        if let Some(audio) = audio_from_segment(&segment) {
+            audio_state = audio.to_string();
         }
-        let (label, size) = parse_spec(&segment);
+        let anchor_text = anchor_text_after(after_url);
+        let local = audio_from_anchor(&anchor_text.to_ascii_uppercase());
+        let audio = local.unwrap_or(audio_state.as_str()).to_string();
+
+        // `context = segment + anchorText` (o Node concatena com espaço).
+        let context = format!("{segment} {}", anchor_text.to_ascii_uppercase());
+        let size = last_size(&context);
+        let quality = normalize_quality(&context);
+        let source = normalize_source(&context).map(str::to_string);
+        let label = parse_spec(&segment).0;
 
         out.push(BludvDownloadLink {
             url,
             label,
             size,
-            audio: audio.clone(),
+            audio,
+            quality,
+            source,
         });
 
         // Avança após o `</a>` se existir.
@@ -100,6 +128,38 @@ pub fn parse_download_links(html: &str) -> Vec<BludvDownloadLink> {
         search_from = close;
     }
     out
+}
+
+/// Texto da âncora: depois do `>` da tag de abertura até `</a>`.
+fn anchor_text_after(after_url: &str) -> String {
+    let Some(gt) = after_url.find('>') else {
+        return String::new();
+    };
+    let inner = &after_url[gt + 1..];
+    let end = find_ci(inner, "</a>").unwrap_or(inner.len());
+    strip_tags(&inner[..end])
+}
+
+static SIZE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)([\d.,]+)\s*(TB|GB|MB|KB)(?-u:\b)").expect("regex de tamanho")
+});
+
+/// Último `N GB` do contexto (o `matchAll(...).pop()` do Node), normalizado.
+fn last_size(context: &str) -> Option<String> {
+    let caps = SIZE_RE.captures_iter(context).last()?;
+    let value = caps.get(1)?.as_str();
+    let unit = caps.get(2)?.as_str().to_ascii_uppercase();
+    Some(format!("{value} {unit}"))
+}
+
+static AD_GATE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)/gate/go/[a-f0-9]{16}(?:\?p=[0-9]+)?").expect("regex do portão")
+});
+
+/// O HTML tem o portão de anúncio em QUALQUER lugar? É o `hasAdGate` do TS
+/// (o post deixa de ser cacheável mesmo quando o botão foi descartado).
+pub fn has_ad_gate(html: &str) -> bool {
+    AD_GATE_RE.is_match(html)
 }
 
 /// URL do portão de anúncio (`/gate/go/<16hex>?p=<digits>` no host BLUDV).
@@ -196,16 +256,14 @@ pub fn is_valid_magnet_uri(value: &str) -> bool {
         || (h.len() == 32 && h.bytes().all(|b| b.is_ascii_alphanumeric()))
 }
 
-/// "3.39 GB" → bytes.
+/// "3.39 GB" / "3,39 GB" → bytes (o `parseSize` do TS).
 pub fn parse_size(text: &str) -> Option<f64> {
-    let mut parts = text.split_whitespace();
-    let value_txt = parts.next()?;
-    let unit = parts.next()?;
-    let value: f64 = value_txt.replace(',', ".").parse().ok()?;
+    let caps = SIZE_RE.captures(text)?;
+    let value: f64 = caps.get(1)?.as_str().replace(',', ".").parse().ok()?;
     if !value.is_finite() {
         return None;
     }
-    let mult = match unit.to_ascii_uppercase().as_str() {
+    let mult = match caps.get(2)?.as_str().to_ascii_uppercase().as_str() {
         "KB" => 1024.0,
         "MB" => 1024.0_f64.powi(2),
         "GB" => 1024.0_f64.powi(3),
@@ -213,17 +271,6 @@ pub fn parse_size(text: &str) -> Option<f64> {
         _ => return None,
     };
     Some((value * mult).round())
-}
-
-/// Título da release: post + label do botão (essencial do `releaseTitle`).
-pub fn release_title(post_title: &str, link: &BludvDownloadLink) -> String {
-    let post = post_title.trim();
-    let label = link.label.trim();
-    if label.is_empty() {
-        post.to_string()
-    } else {
-        format!("{post} {label}")
-    }
 }
 
 fn strip_tags(s: &str) -> String {
@@ -292,32 +339,10 @@ fn url_looks_like_gate_path(url: &str) -> bool {
     lower.contains("/gate/go/")
 }
 
-fn last_audio_marker(segment: &str) -> Option<&'static str> {
-    // DUAL ÁUDIO / DUBLAD* → dublado; LEGENDAD* → legendado.
-    let mut last: Option<&'static str> = None;
-    let upper = segment;
-    for (i, _) in upper.char_indices() {
-        let rest = &upper[i..];
-        if rest.starts_with("LEGENDAD") {
-            last = Some("legendado");
-            continue;
-        }
-        if rest.starts_with("DUBLAD") {
-            last = Some("dublado");
-            continue;
-        }
-        if let Some(stripped) = rest.strip_prefix("DUAL") {
-            let after = stripped.trim_start();
-            if after.starts_with("ÁUDIO") || after.starts_with("AUDIO") {
-                last = Some("dublado");
-            }
-        }
-    }
-    last
-}
-
+/// Última especificação do segmento: "WEB-DL 2160p x265 DV HDR" (sem o
+/// tamanho). É o `label` do botão; o título da release usa qualidade/fonte
+/// classificadas do contexto, como o Node.
 fn parse_spec(segment: &str) -> (String, Option<String>) {
-    // Última ocorrência WEB-DL|BLURAY|…(…)
     let sources = ["WEB-DL", "BLURAY", "BLU-RAY", "BDRIP", "HDTV", "WEBRIP"];
     let mut best: Option<(usize, usize, usize)> = None; // start, paren_open, paren_close
     for (i, _) in segment.char_indices() {
@@ -333,7 +358,7 @@ fn parse_spec(segment: &str) -> (String, Option<String>) {
             }
         }
     }
-    let Some((start, open, close)) = best else {
+    let Some((start, open, _close)) = best else {
         return (String::new(), None);
     };
     let mut label = collapse_ws(&segment[start..open]);
@@ -343,14 +368,7 @@ fn parse_spec(segment: &str) -> (String, Option<String>) {
             label = label[cut..].trim().to_string();
         }
     }
-    let size_raw = decode_entities(&segment[open + 1..close]);
-    let size = size_raw
-        .split(['-', '–', '—'])
-        .next()
-        .map(str::trim)
-        .filter(|s| s.chars().any(|c| c.is_ascii_digit()))
-        .map(str::to_string);
-    (label, size)
+    (label, None)
 }
 
 fn last_source_index(label: &str, sources: &[&str]) -> Option<usize> {

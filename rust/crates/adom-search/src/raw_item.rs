@@ -260,6 +260,11 @@ impl RawItem {
         if let Some(indexer) = &self.indexer {
             put("indexer", Value::String(indexer.clone()));
         }
+        // O BLUDV do Node publica `tracker` (rótulo "BLUDV") e NÃO `indexer`;
+        // sem o campo no fio o índice perderia a origem do item nativo.
+        if let Some(tracker) = &self.tracker {
+            put("tracker", Value::String(tracker.clone()));
+        }
         if !self.sources.is_empty() {
             put(
                 "sources",

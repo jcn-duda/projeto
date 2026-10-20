@@ -71,7 +71,11 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 pub fn build_orchestrator() -> Orchestrator {
     let store = open_swr_store();
     let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
-    let native = adom_search::orchestrator::try_sources_rust_native_from_env();
+    // `raw:v1` do BLUDV: SÓ no caminho vivo. O store é o mesmo `cache.db` que
+    // o Node usa (chave/valor idênticos); a sombra nem o abre.
+    let raw_store = open_bludv_raw_store();
+    let native =
+        adom_search::orchestrator::try_sources_rust_native_from_env_with_bludv_store(raw_store);
     let skip_sources: Vec<String> = native.iter().map(|(t, _)| t.to_string()).collect();
     let native_collectors: Vec<Arc<dyn adom_search::orchestrator::Collector>> =
         native.into_iter().map(|(_, c)| c).collect();
@@ -133,6 +137,28 @@ pub fn build_orchestrator() -> Orchestrator {
         NodeInternalFallback::from_env().map(|fb| Arc::new(fb) as Arc<dyn FallbackCheck>);
     orch = orch.with_debrid(Arc::new(AdapterDebridFactory::new(None, fallback)));
     orch
+}
+
+/// Store do `raw:v1` compartilhado com o Node (`data/cache.db`), aberto só
+/// quando o coletor BLUDV nativo está pedido. Falha de abertura → `None`
+/// (o caminho vivo segue sem cache bruto; a busca nunca cai).
+fn open_bludv_raw_store() -> Option<Arc<dyn adom_search::RawStore>> {
+    if !sources_rust_includes("bludv") {
+        return None;
+    }
+    match adom_store::RawCacheStore::from_env() {
+        Ok(store) => {
+            eprintln!(
+                "[gateway] raw:v1 BLUDV no cache.db do Node (cota {})",
+                store.quota()
+            );
+            Some(Arc::new(store))
+        }
+        Err(err) => {
+            eprintln!("[gateway] raw:v1 indisponível ({err}); BLUDV sem cache bruto");
+            None
+        }
+    }
 }
 
 /// Store da sombra: memória fresca — nunca [`open_swr_store`] / `STREAMS_DB`.

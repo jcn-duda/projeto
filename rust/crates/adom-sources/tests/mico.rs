@@ -6,10 +6,11 @@ use std::time::Duration;
 
 use adom_sources::mico::endpoint_url;
 use adom_sources::{
-    MicoClient, MicoConfig, MicoMediaType, MicoSearchArgs, MICO_DEFAULT_URL, MICO_ID,
+    fetch_streams, MicoClient, MicoConfig, MicoMediaType, MicoOutcome, MicoSearchArgs,
+    MicoSearchOptions, MICO_DEFAULT_URL, MICO_ID,
 };
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
@@ -37,8 +38,32 @@ enum Mode {
     #[default]
     Ok,
     Http400,
+    Http429RetrySeconds,
+    Http429RetryDate,
     Http503,
     Hang,
+}
+
+impl Mode {
+    fn retry_after(self) -> Option<String> {
+        match self {
+            Self::Http429RetrySeconds => Some("120".to_string()),
+            Self::Http429RetryDate => {
+                let when = std::time::SystemTime::now() + Duration::from_secs(120);
+                Some(httpdate::fmt_http_date(when))
+            }
+            _ => None,
+        }
+    }
+
+    fn status(self) -> StatusCode {
+        match self {
+            Self::Http400 => StatusCode::BAD_REQUEST,
+            Self::Http429RetrySeconds | Self::Http429RetryDate => StatusCode::TOO_MANY_REQUESTS,
+            Self::Http503 => StatusCode::SERVICE_UNAVAILABLE,
+            Self::Ok | Self::Hang => StatusCode::OK,
+        }
+    }
 }
 
 impl FakeMico {
@@ -92,11 +117,16 @@ async fn respond(api: FakeMico, path: String) -> Response {
             tokio::time::sleep(Duration::from_secs(30)).await;
             StatusCode::OK.into_response()
         }
-        Mode::Http400 => StatusCode::BAD_REQUEST.into_response(),
-        Mode::Http503 => StatusCode::SERVICE_UNAVAILABLE.into_response(),
         Mode::Ok => {
             let body = api.inner.payload.lock().expect("payload").clone();
             (StatusCode::OK, axum::Json(body)).into_response()
+        }
+        other => {
+            let status = other.status();
+            match other.retry_after() {
+                Some(retry) => (status, [(header::RETRY_AFTER, retry)]).into_response(),
+                None => status.into_response(),
+            }
         }
     }
 }
@@ -332,4 +362,120 @@ async fn default_ligado() {
     let cfg = MicoConfig::default();
     assert!(cfg.enabled);
     assert_eq!(cfg.url, MICO_DEFAULT_URL);
+}
+
+#[tokio::test]
+async fn search_outcome_separa_ok_empty_e_http_400() {
+    let (api, base) = FakeMico::start().await;
+    let client = MicoClient::new(test_config(&base)).expect("client");
+    assert!(matches!(
+        client
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .await,
+        MicoOutcome::Ok(items) if items.is_empty()
+    ));
+
+    api.set_streams(json!([stream("Filme 2024", HASH_LOWER)]));
+    assert!(matches!(
+        client
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .await,
+        MicoOutcome::Ok(items) if items.len() == 1
+    ));
+
+    api.set_mode(Mode::Http400);
+    assert_eq!(
+        client
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .await,
+        MicoOutcome::Http(400)
+    );
+    assert_eq!(client.breaker().failures(), 0, "4xx é neutro");
+}
+
+#[tokio::test]
+async fn search_outcome_pending_quando_o_deadline_venceu() {
+    let (api, base) = FakeMico::start().await;
+    let client = MicoClient::new(test_config(&base)).expect("client");
+    let options = MicoSearchOptions {
+        read_only: false,
+        deadline_at: Some(0),
+    };
+    assert_eq!(
+        client.search_outcome(&movie_args("tt1"), options).await,
+        MicoOutcome::Pending
+    );
+    assert!(api.calls().is_empty(), "pending não faz rede");
+    assert_eq!(client.breaker().failures(), 0);
+}
+
+#[tokio::test]
+async fn search_outcome_shadow_ignora_o_breaker_e_nao_o_alimenta() {
+    let (api, base) = FakeMico::start().await;
+    api.set_mode(Mode::Http503);
+    let client = MicoClient::new(MicoConfig {
+        breaker_failures: 1,
+        ..test_config(&base)
+    })
+    .expect("client");
+
+    // Caminho vivo abre o circuito.
+    assert_eq!(
+        client
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .await,
+        MicoOutcome::Http(503)
+    );
+    assert_eq!(client.breaker().failures(), 1);
+    assert_eq!(
+        client
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .await,
+        MicoOutcome::BreakerOpen
+    );
+    assert_eq!(api.calls().len(), 1);
+
+    // Sombra consulta mesmo aberto e não mexe no contador.
+    api.set_mode(Mode::Ok);
+    assert!(matches!(
+        client
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::SHADOW)
+            .await,
+        MicoOutcome::Ok(_)
+    ));
+    assert_eq!(api.calls().len(), 2);
+    assert_eq!(client.breaker().failures(), 1);
+}
+
+#[tokio::test]
+async fn fetch_streams_devolve_retry_after_em_segundos_e_data_http() {
+    let (api, base) = FakeMico::start().await;
+    let url = endpoint_url(&base, &movie_args("tt1"))
+        .expect("url")
+        .to_string();
+
+    api.set_mode(Mode::Http429RetrySeconds);
+    let error = fetch_streams(&url, 1_000).await.expect_err("429");
+    assert_eq!(error.status, Some(429));
+    assert_eq!(error.retry_after_ms, Some(120_000));
+
+    api.set_mode(Mode::Http429RetryDate);
+    let error = fetch_streams(&url, 1_000).await.expect_err("429");
+    let retry = error.retry_after_ms.expect("Retry-After data");
+    assert!(
+        (115_000..=120_000).contains(&retry),
+        "data HTTP a ~120s: {retry} ms"
+    );
+}
+
+#[tokio::test]
+async fn fetch_streams_4xx_e_neutro_no_fetch_puro() {
+    let (api, base) = FakeMico::start().await;
+    api.set_mode(Mode::Http400);
+    let url = endpoint_url(&base, &movie_args("tt1"))
+        .expect("url")
+        .to_string();
+    let outcome = fetch_streams(&url, 1_000).await.expect("4xx não lança");
+    assert!(outcome.items.is_empty());
+    assert!(!outcome.ok);
 }

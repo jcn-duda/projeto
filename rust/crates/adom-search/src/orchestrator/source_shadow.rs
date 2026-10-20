@@ -3,10 +3,8 @@
 //! efeitos.
 //!
 //! Liga por `SOURCES_RUST_SHADOW` (CSV, default vazio). Fontes com sombra:
-//! `jackett`, `prowlarr` e `torrentio`; BLUDV/Mico são registrados como
-//! ignorados (log de boot) e NÃO rodam sombra até a normalização de identidade.
-//! Fonte que já está em `SOURCES_RUST` também é ignorada - o corte nativo dela
-//! está ativo, não é sombra.
+//! `jackett`, `prowlarr`, `torrentio`, `mico` e `bludv`. Fonte que já está em
+//! `SOURCES_RUST` é ignorada - o corte nativo dela está ativo, não é sombra.
 //!
 //! O coletor de produção responde normalmente; as comparações correm em
 //! `tokio::spawn` e só alimentam métricas/log. O lado Node roda em
@@ -19,13 +17,17 @@
 //! - `live.failed`/`pending`/`empty` e o agregado `all` (só quando AMBOS os
 //!   lados têm veredito; `Unknown` = ramo `/all` ausente, não divergência).
 //!
-//! **Live de Prowlarr/Torrentio não é comparado:** o `collectRawLive` do Node
-//! só emite `onQueryResult` para Jackett (por indexer) e Mico, então a
+//! **Live de Prowlarr/Torrentio/BLUDV não é comparado:** o `collectRawLive` do
+//! Node só emite `onQueryResult` para Jackett (por indexer) e Mico, então a
 //! referência read-only dessas fontes sai vazia. Comparar o live nativo (por
 //! FONTE) com esse vazio daria divergência FALSA; a sombra delas compara a
-//! IDENTIDADE (hashes por `_indexer`). O `live` nativo vale na produção com
-//! `SOURCES_RUST=prowlarr,torrentio`; quando o Node prometer o contrato, o flag
-//! `compare_live` do par liga sem mexer no coletor.
+//! IDENTIDADE (hashes por `_indexer`). O live nativo vale na produção com
+//! `SOURCES_RUST=prowlarr,torrentio,bludv`.
+//!
+//! O **Mico** é a exceção: o Node emite `pending`/`failed`/`empty` para
+//! `"mico"` no `collectRawLive`, então o par entra com `compare_live:true` e o
+//! live nativo (mesma chave `"mico"`) é comparável — inclusive `pending`.
+//! `all` segue `Unknown` dos dois lados (Mico não tem ramo `/all`).
 //!
 //! `partial` NÃO é divergência de fonte: é a janela de coleta do Node. Quando
 //! difere, só incrementa `source.shadow.partial_divergence` (informativa) e
@@ -90,7 +92,7 @@ fn sources_from_env() -> Vec<&'static str> {
     if !ignored.is_empty() {
         eprintln!(
             "[source-shadow] ignorado(s) em {SOURCE_SHADOW_ENV}: {} \
-             (sombra: jackett,prowlarr,torrentio)",
+             (sombra: jackett,prowlarr,torrentio,mico,bludv)",
             ignored.join(",")
         );
     }
@@ -365,6 +367,14 @@ mod tests;
 #[cfg(test)]
 #[path = "source_shadow_torrentio_tests.rs"]
 mod torrentio_tests;
+
+#[cfg(test)]
+#[path = "source_shadow_mico_tests.rs"]
+mod mico_tests;
+
+#[cfg(test)]
+#[path = "source_shadow_bludv_tests.rs"]
+mod bludv_tests;
 
 #[cfg(test)]
 #[path = "source_shadow_metrics_tests.rs"]

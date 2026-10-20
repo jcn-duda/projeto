@@ -178,12 +178,12 @@ async fn erro_nao_e_divergencia() {
 }
 
 #[test]
-fn sombra_aceita_jackett_prowlarr_e_torrentio() {
+fn sombra_aceita_jackett_prowlarr_torrentio_mico_e_bludv() {
     assert_eq!(shadow_sources("jackett", "jackett"), Vec::<&str>::new());
     assert_eq!(
         shadow_sources("jackett,BLUDV , jackett", "jackett"),
-        Vec::<&str>::new(),
-        "BLUDV não tem sombra"
+        vec!["bludv"],
+        "BLUDV entrou na sombra (C3)"
     );
     assert_eq!(shadow_sources("prowlarr", ""), vec!["prowlarr"]);
     assert_eq!(
@@ -197,8 +197,8 @@ fn sombra_aceita_jackett_prowlarr_e_torrentio() {
     );
     assert_eq!(
         shadow_sources("torrentio,bludv,mico,desconhecida", ""),
-        vec!["torrentio"],
-        "Torrentio entrou na sombra (F2.3); BLUDV/Mico seguem fora"
+        vec!["torrentio", "bludv", "mico"],
+        "BLUDV e Mico entram na sombra; token desconhecido sai"
     );
     assert_eq!(
         shadow_sources("torrentio", "torrentio"),
@@ -206,12 +206,24 @@ fn sombra_aceita_jackett_prowlarr_e_torrentio() {
         "corte nativo do Torrentio não roda sombra"
     );
     assert_eq!(
-        shadow_sources("jackett,prowlarr,torrentio", ""),
-        vec!["jackett", "prowlarr", "torrentio"]
+        shadow_sources("mico", "mico"),
+        Vec::<&str>::new(),
+        "corte nativo do Mico não roda sombra"
+    );
+    assert_eq!(
+        shadow_sources("bludv", "bludv"),
+        Vec::<&str>::new(),
+        "corte nativo do BLUDV não roda sombra"
+    );
+    assert_eq!(
+        shadow_sources("jackett,prowlarr,torrentio,mico,bludv", ""),
+        vec!["jackett", "prowlarr", "torrentio", "mico", "bludv"]
     );
     assert_eq!(shadow_sources("JACKETT", ""), vec!["jackett"]);
     assert_eq!(shadow_sources(" PROWLARR , prowlarr", ""), vec!["prowlarr"]);
     assert_eq!(shadow_sources(" TORRENTIO ", ""), vec!["torrentio"]);
+    assert_eq!(shadow_sources(" MICO ", ""), vec!["mico"]);
+    assert_eq!(shadow_sources(" BLUDV ", ""), vec!["bludv"]);
     assert_eq!(shadow_sources("", "jackett"), Vec::<&str>::new());
 }
 
@@ -219,7 +231,8 @@ fn sombra_aceita_jackett_prowlarr_e_torrentio() {
 fn tokens_ignorados_aparecem_para_log() {
     assert_eq!(
         ignored_shadow_tokens("jackett,BLUDV,torrentio,desconhecida", "prowlarr"),
-        vec!["BLUDV".to_string(), "desconhecida".to_string()]
+        vec!["desconhecida".to_string()],
+        "BLUDV é sombra; só token fora do recorte é ignorado"
     );
     // Já migrado no corte nativo também é ignorado (não é sombra).
     assert_eq!(
@@ -230,13 +243,17 @@ fn tokens_ignorados_aparecem_para_log() {
         ignored_shadow_tokens("torrentio", "torrentio"),
         vec!["torrentio".to_string()]
     );
+    assert_eq!(
+        ignored_shadow_tokens("bludv", "bludv"),
+        vec!["bludv".to_string()]
+    );
 }
 
-/// Montagem dos coletores da sombra: Prowlarr e Torrentio entram SEM override
-/// de `JACKETT_INDEXERS` (não têm indexers) e o recorte é jackett/prowlarr/
-/// torrentio.
+/// Montagem dos coletores da sombra: Prowlarr, Torrentio, Mico e BLUDV entram
+/// SEM override de `JACKETT_INDEXERS` (não têm indexers) e o recorte é
+/// jackett/prowlarr/torrentio/mico/bludv.
 #[test]
-fn native_collector_monta_prowlarr_torrentio_e_limita_o_recorte() {
+fn native_collector_monta_prowlarr_torrentio_mico_bludv_e_limita_o_recorte() {
     let prowlarr = native_collector("prowlarr").expect("ProwlarrCollector monta sem chave");
     assert!(
         prowlarr.indexers.is_none(),
@@ -247,18 +264,33 @@ fn native_collector_monta_prowlarr_torrentio_e_limita_o_recorte() {
         torrentio.indexers.is_none(),
         "Torrentio não tem lista de JACKETT_INDEXERS"
     );
+    let mico = native_collector("mico").expect("MicoCollector monta sem config");
+    assert!(
+        mico.indexers.is_none(),
+        "Mico consulta por IMDb, sem lista de JACKETT_INDEXERS"
+    );
+    let bludv = native_collector("bludv").expect("BludvCollector monta sem config");
+    assert!(
+        bludv.indexers.is_none(),
+        "BLUDV consulta por título, sem lista de JACKETT_INDEXERS"
+    );
     let jackett = native_collector("jackett").expect("JackettCollector monta");
     assert!(
         jackett.indexers.is_some(),
         "Jackett leva a lista do processo como fallback do ji"
     );
     assert!(
-        native_collector("bludv").is_err(),
+        native_collector("desconhecido").is_err(),
         "fonte fora do recorte não monta sombra"
     );
     assert!(!has_live_reference("prowlarr"));
     assert!(!has_live_reference("torrentio"));
+    assert!(
+        !has_live_reference("bludv"),
+        "o Node não emite live do BLUDV"
+    );
     assert!(has_live_reference("jackett"));
+    assert!(has_live_reference("mico"), "o Node emite live para o Mico");
 }
 
 /// O Node não emite `live` para o Prowlarr: comparar o live nativo com o

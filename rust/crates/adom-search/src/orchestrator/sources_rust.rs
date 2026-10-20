@@ -10,7 +10,9 @@
 
 use std::sync::Arc;
 
-use super::bludv_collector::try_bludv_collector_from_env;
+use adom_sources::RawStore;
+
+use super::bludv_collector::try_bludv_collector_from_env_with_store;
 use super::collect::Collector;
 use super::jackett_collector::try_jackett_collector_from_env;
 use super::mico_collector::try_mico_collector_from_env;
@@ -47,6 +49,15 @@ pub fn sources_rust_csv_winner(raw: &str) -> Option<&'static str> {
 /// que o Node precisa para pular a mesma fonte (`skip_sources`): sem ele a
 /// fonte entraria duas vezes, uma no Rust e outra no `NodeCollector`.
 pub fn try_sources_rust_native_from_env() -> Vec<(&'static str, Arc<dyn Collector>)> {
+    try_sources_rust_native_from_env_with_bludv_store(None)
+}
+
+/// Mesma lista com o store do `raw:v1` injetado no coletor BLUDV (o gateway
+/// compartilha o `cache.db` do Node). `None` = sem cache bruto; as outras
+/// fontes ignoram o parâmetro.
+pub fn try_sources_rust_native_from_env_with_bludv_store(
+    raw_store: Option<Arc<dyn RawStore>>,
+) -> Vec<(&'static str, Arc<dyn Collector>)> {
     let raw = std::env::var("SOURCES_RUST").unwrap_or_default();
     let mut native: Vec<(&'static str, Arc<dyn Collector>)> = Vec::new();
 
@@ -66,7 +77,7 @@ pub fn try_sources_rust_native_from_env() -> Vec<(&'static str, Arc<dyn Collecto
         }
     }
     if sources_rust_csv_includes(&raw, "bludv") {
-        if let Some(c) = try_bludv_collector_from_env() {
+        if let Some(c) = try_bludv_collector_from_env_with_store(raw_store) {
             native.push(("bludv", Arc::new(c) as Arc<dyn Collector>));
         }
     }
