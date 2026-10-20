@@ -40,6 +40,23 @@
           "tracker:udp://tracker.openbittorrent.com:6969/announce"
         ],
         "size": "253.37 MB"
+      },
+      {
+        "infoHash": "01301e58ee19124d48fe89cba574b0b38b5e90f4",
+        "title": "NARUTO.Spin-Off.Rock.Lee.and.His.Ninja.Pals.S01.1080p.CR.WEB-DL.AAC2.0.H.264-Kitsune\n📦 👤 ~4 💾 1.92 GB 📦 pack 67.30 GB (média) ⚙️ Nyaa.si",
+        "name": "📦 · 1080p WEB-DL · Nyaa · 👤 ~4",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-WEB-DL"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "1.92 GB"
       }
     ],
     "cacheMaxAge": 0

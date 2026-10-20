@@ -494,11 +494,10 @@ async fn piloto_cidade_de_deus_remonta_igual_ao_node() {
     println!("[e2e] piloto {PILOT_CASE}: {streams} stream(s) — igual ao Node");
 }
 
-/// Corpus INTEIRO: exige as fixtures internas em todos os 51 casos. Fica
-/// `#[ignore]` até o batch; quando rodar, falha listando o que falta e/ou o diff
-/// de cada caso (nunca só o primeiro erro).
+/// Corpus INTEIRO: exige as fixtures internas em todos os 51 casos. Roda na
+/// suíte normal; falha listando o que falta e/ou o diff de cada caso (nunca só
+/// o primeiro erro).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore = "corpus ainda só tem o piloto com inputs/ — o batch captura os 51"]
 async fn build_stream_list_parity_completa() {
     let (root, _manifest, cases) = load_corpus();
     let total = cases.len();

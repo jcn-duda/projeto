@@ -1,6 +1,6 @@
 {
   "format": "adom-stream-e2e/1",
-  "capturedAt": "2026-10-20T09:12:45.959Z",
+  "capturedAt": "2026-10-20T11:32:23.602Z",
   "node": "v22.23.3",
   "base": "{{base}}",
   "user_config_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8",
@@ -1124,18 +1124,18 @@
       "dir": "cases/series-anime-dragon-ball-z-frieza",
       "status": 200,
       "cacheMaxAge": 0,
-      "capturedAt": "2026-10-20T09:10:29.657Z",
+      "capturedAt": "2026-10-20T11:32:23.602Z",
       "files": {
         "request.json": "d26036168fd6fdce4d7852026afcf98806c891ceb6414a4d19d95203dd9f3840",
-        "response.json": "c242d8c2703495f58936f4f9406a30c85c133f2a04b9b0a5601ff94995367f48",
+        "response.json": "9eed72dbaf49e85dc9fa1cb692dc22863eb104ec22bfcca9de5579f5c5f5177b",
         "inputs/meta.json": "62dc3eb1de3fb9ac57b8e5525db53490dcf09ff1cb0a66bd8591af8c5318c1bf",
         "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
         "inputs/index.json": "5371612c8386793ca945b4c3eddee6b644eabe22c318313ec9f20e4dc19501f8",
-        "inputs/collect.json": "c5e7ae38beae1aa5346a829245ae46655540cbf873b156c95c14595f13c7efe6",
-        "inputs/debrid.json": "7e9bcbab5555cd8f72b1c53e22186146fef516f804e024c9a02c6eeccfa6ac01",
-        "inputs/apply-debrid.json": "10eed0222568ce8d9e3bdbe0f7681ec304e75271027763756b3b94846f21a7bf",
+        "inputs/collect.json": "87506e10d0d18007ad604aa0a514f4ccbe84cf8a58ba38c7ba0dc313af913e5a",
+        "inputs/debrid.json": "e5d369007e61041a66f2b732242254eb4c843bdd3cd07cd898c4654a7a85bfd1",
+        "inputs/apply-debrid.json": "d303a2a9453182d62aa7f9a6e21adf83e2b2875e09626072491b808b4b7b02cc",
         "inputs/instant.json": "2dda2616b168ed241b9da822d3d0f8b5efd4b32a52b96a50e6ea140999c36eba",
-        "inputs/fallback.json": "ec5e63f2bf7aa9fd192105ad8dca9ca4c24a86e4e8377fccd94644c862172a5a"
+        "inputs/fallback.json": "4307fa9e1b3beec809d4639925089b51ff2feb15a9d07add514d38d20261efbe"
       },
       "internal": [
         "inputs/meta.json",
@@ -1160,19 +1160,19 @@
       "dir": "cases/series-anime-naruto-s01e01",
       "status": 200,
       "cacheMaxAge": 0,
-      "capturedAt": "2026-10-20T09:10:29.657Z",
+      "capturedAt": "2026-10-20T11:32:23.602Z",
       "files": {
         "request.json": "2cba6db5614e55eb1c0547bbb00decf6673050e4bb324021a8ea0fd942615b6e",
-        "response.json": "e308f12cb22ae9aee0839e6f1802e66d137a98b249c0480d91556107854c86ea",
+        "response.json": "5e90cd3c980f97620d1491e4bae0811f29a6cad96e5af2dc5a11ebb19f860c02",
         "inputs/meta.json": "1e127ef8c83630693f1340b50577b984136fda7db01efdcde0eba09ac9e214e2",
         "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
-        "inputs/index.json": "64009f4dfef3e7d845b93965bb2c8a7d189215b6ac85f650f1ce1aa5cca2bec8",
-        "inputs/collect.json": "097b26558dd6a7cb226cc1d552ef057514c12332c03fe2e08a2d1c58c2d2622b",
-        "inputs/debrid.json": "7e308e2c46f04bf9caf12c420793d2b3f9ce27dccfa3c2e0ee354789886d32f7",
-        "inputs/apply-debrid.json": "0de0eb83105226549a6fa33e7046b6d4398ed2bd5ee54a06080fd54eae5266eb",
+        "inputs/index.json": "dc3ca0a7f7ed62b1a57888b1fe9332197d3cecf43d526048ef49c473d95fc06c",
+        "inputs/collect.json": "784da4aac624772a1282f3171e9a929b2a9743af57c8c7d49d9036244fbeb32e",
+        "inputs/debrid.json": "5c999a380e782205c047200a42990e345fef9ec451aee1154f8af839db2f1364",
+        "inputs/apply-debrid.json": "a378fa5acba399f9c94fce7e625db7ce2480a6c3d33b2a5d8545aafbf4b99355",
         "inputs/files.json": "db520b3fd4d35ebda37b9c94d9659d1c14ccc7d65db6c51756cfcd1c23ee38c5",
         "inputs/instant.json": "d3b2e7bf57fe20fc706fca0c5a3fe5f26ae6a0f8b13b423e4ebe65dc50309f76",
-        "inputs/fallback.json": "898eeef7b36decd85946043e1f36e820b0ed4d251f2983d8657210a8a6f1ea7c"
+        "inputs/fallback.json": "9df11ab08b37efc0539f359db03027d80a026e2423330bd93e05ef8357324196"
       },
       "internal": [
         "inputs/meta.json",

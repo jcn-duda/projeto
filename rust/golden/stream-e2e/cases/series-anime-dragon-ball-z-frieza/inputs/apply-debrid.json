@@ -1,6 +1,6 @@
 [
  {
-  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,cfc59ce47c7c0f0edbedc357dc2458b9056f7d83,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,f5635167d1f45159e5668e6a76b38c774b238a0f,fa420904bd75ee956aba1b1b302dcee2cacaff0e,fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,fa420904bd75ee956aba1b1b302dcee2cacaff0e",
   "signals": [
    {
     "known": false,
@@ -63,33 +63,6 @@
      "tracker:udp://tracker.openbittorrent.com:6969/announce"
     ],
     "_packBytes": 362173117235
-   },
-   {
-    "infoHash": "fd719615257a64d2cd9327ea0c63d1eaf3667d59",
-    "title": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC\n👤 9 💾 621.12 MB 📦 pack 19.41 GB (média) ⚙️ TheRARBG",
-    "name": "1080p · TheRARBG · 👤 9",
-    "behaviorHints": {
-     "bingeGroup": "powerm-1080p-any"
-    },
-    "_quality": "1080p",
-    "_bytes": 20841328803,
-    "_br": false,
-    "_dubClaim": false,
-    "_dubbed": false,
-    "_indexer": "therarbg",
-    "_tracker": "TheRARBG",
-    "_magnetDn": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC",
-    "_multiWork": false,
-    "_multiWorkAdmitted": false,
-    "_lied": false,
-    "sources": [
-     "tracker:udp://tracker.opentrackr.org:1337/announce",
-     "tracker:udp://open.stealth.si:80/announce",
-     "tracker:udp://tracker.torrent.eu.org:451/announce",
-     "tracker:udp://exodus.desync.com:6969/announce",
-     "tracker:udp://open.demonii.com:1337/announce",
-     "tracker:udp://tracker.openbittorrent.com:6969/announce"
-    ]
    },
    {
     "infoHash": "42693b014a6c848bfe15f2931ac27fe6dfca7154",
@@ -233,8 +206,8 @@
    },
    {
     "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
-    "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-    "name": "📦 · BR · Comando · 👤 ~1",
+    "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ TorrentDosFilmes",
+    "name": "📦 · BR · TorrentDos · 👤 ~1",
     "behaviorHints": {
      "bingeGroup": "powerm-na-any"
     },
@@ -243,8 +216,8 @@
     "_br": true,
     "_dubClaim": false,
     "_dubbed": false,
-    "_indexer": "comandotorrents",
-    "_tracker": "ComandoTorrents",
+    "_indexer": "torrentdosfilmesv2",
+    "_tracker": "TorrentDosFilmes",
     "_magnetDn": "Dragon Ball Z - Saga dos Androides 720p dublado - FB",
     "_multiWork": false,
     "_multiWorkAdmitted": false,
@@ -261,70 +234,11 @@
     "_fallbackFetchable": true,
     "_bankDub": true,
     "_packBytes": 4509715661
-   },
-   {
-    "infoHash": "f5635167d1f45159e5668e6a76b38c774b238a0f",
-    "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-    "name": "📦 · BR · Comando · 👤 ~1",
-    "behaviorHints": {
-     "bingeGroup": "powerm-na-any"
-    },
-    "_quality": "sem resolução",
-    "_bytes": 7194070221,
-    "_br": true,
-    "_dubClaim": false,
-    "_dubbed": false,
-    "_indexer": "comandotorrents",
-    "_tracker": "ComandoTorrents",
-    "_magnetDn": "Dragon Ball Z - Saga dos Sayajins 720p dublado - FB",
-    "_multiWork": false,
-    "_multiWorkAdmitted": false,
-    "_lied": false,
-    "sources": [
-     "tracker:udp://tracker.opentrackr.org:1337/announce",
-     "tracker:udp://open.stealth.si:80/announce",
-     "tracker:udp://tracker.torrent.eu.org:451/announce",
-     "tracker:udp://exodus.desync.com:6969/announce",
-     "tracker:udp://open.demonii.com:1337/announce",
-     "tracker:udp://tracker.openbittorrent.com:6969/announce"
-    ],
-    "_fromFallback": true,
-    "_bankDub": true,
-    "_packBytes": 7194070221
-   },
-   {
-    "infoHash": "cfc59ce47c7c0f0edbedc357dc2458b9056f7d83",
-    "title": "DRAGON BALL Z Saga de Freeza []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-    "name": "📦 · BR · Comando · 👤 ~1",
-    "behaviorHints": {
-     "bingeGroup": "powerm-na-any"
-    },
-    "_quality": "sem resolução",
-    "_bytes": 15032385536,
-    "_br": true,
-    "_dubClaim": false,
-    "_dubbed": false,
-    "_indexer": "comandotorrents",
-    "_tracker": "ComandoTorrents",
-    "_magnetDn": "Dragon Ball Z - Saga de Freeza 720p dublado - FB",
-    "_multiWork": false,
-    "_multiWorkAdmitted": false,
-    "_lied": false,
-    "sources": [
-     "tracker:udp://tracker.opentrackr.org:1337/announce",
-     "tracker:udp://open.stealth.si:80/announce",
-     "tracker:udp://tracker.torrent.eu.org:451/announce",
-     "tracker:udp://exodus.desync.com:6969/announce",
-     "tracker:udp://open.demonii.com:1337/announce",
-     "tracker:udp://tracker.openbittorrent.com:6969/announce"
-    ],
-    "_fromFallback": true,
-    "_packBytes": 15032385536
    }
   ]
  },
  {
-  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,cfc59ce47c7c0f0edbedc357dc2458b9056f7d83,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,f5635167d1f45159e5668e6a76b38c774b238a0f,fa420904bd75ee956aba1b1b302dcee2cacaff0e,fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,f5635167d1f45159e5668e6a76b38c774b238a0f,fa420904bd75ee956aba1b1b302dcee2cacaff0e",
   "signals": [
    {
     "known": false,
@@ -387,33 +301,6 @@
      "tracker:udp://tracker.openbittorrent.com:6969/announce"
     ],
     "_packBytes": 362173117235
-   },
-   {
-    "infoHash": "fd719615257a64d2cd9327ea0c63d1eaf3667d59",
-    "title": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC\n👤 9 💾 621.12 MB 📦 pack 19.41 GB (média) ⚙️ TheRARBG",
-    "name": "1080p · TheRARBG · 👤 9",
-    "behaviorHints": {
-     "bingeGroup": "powerm-1080p-any"
-    },
-    "_quality": "1080p",
-    "_bytes": 20841328803,
-    "_br": false,
-    "_dubClaim": false,
-    "_dubbed": false,
-    "_indexer": "therarbg",
-    "_tracker": "TheRARBG",
-    "_magnetDn": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC",
-    "_multiWork": false,
-    "_multiWorkAdmitted": false,
-    "_lied": false,
-    "sources": [
-     "tracker:udp://tracker.opentrackr.org:1337/announce",
-     "tracker:udp://open.stealth.si:80/announce",
-     "tracker:udp://tracker.torrent.eu.org:451/announce",
-     "tracker:udp://exodus.desync.com:6969/announce",
-     "tracker:udp://open.demonii.com:1337/announce",
-     "tracker:udp://tracker.openbittorrent.com:6969/announce"
-    ]
    },
    {
     "infoHash": "42693b014a6c848bfe15f2931ac27fe6dfca7154",
@@ -557,8 +444,8 @@
    },
    {
     "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
-    "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-    "name": "📦 · BR · Comando · 👤 ~1",
+    "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · BR · Apache Torrent · 👤 ~1",
     "behaviorHints": {
      "bingeGroup": "powerm-na-any"
     },
@@ -567,8 +454,8 @@
     "_br": true,
     "_dubClaim": false,
     "_dubbed": false,
-    "_indexer": "comandotorrents",
-    "_tracker": "ComandoTorrents",
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
     "_magnetDn": "Dragon Ball Z - Saga dos Androides 720p dublado - FB",
     "_multiWork": false,
     "_multiWorkAdmitted": false,
@@ -588,8 +475,8 @@
    },
    {
     "infoHash": "f5635167d1f45159e5668e6a76b38c774b238a0f",
-    "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-    "name": "📦 · BR · Comando · 👤 ~1",
+    "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ Apache Torrent",
+    "name": "📦 · BR · Apache Torrent · 👤 ~1",
     "behaviorHints": {
      "bingeGroup": "powerm-na-any"
     },
@@ -598,8 +485,8 @@
     "_br": true,
     "_dubClaim": false,
     "_dubbed": false,
-    "_indexer": "comandotorrents",
-    "_tracker": "ComandoTorrents",
+    "_indexer": "apachetorrent-cardigann",
+    "_tracker": "Apache Torrent",
     "_magnetDn": "Dragon Ball Z - Saga dos Sayajins 720p dublado - FB",
     "_multiWork": false,
     "_multiWorkAdmitted": false,
@@ -613,42 +500,14 @@
      "tracker:udp://tracker.openbittorrent.com:6969/announce"
     ],
     "_fromFallback": true,
+    "_fallbackFetchable": true,
     "_bankDub": true,
     "_packBytes": 7194070221
-   },
-   {
-    "infoHash": "cfc59ce47c7c0f0edbedc357dc2458b9056f7d83",
-    "title": "DRAGON BALL Z Saga de Freeza []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-    "name": "📦 · BR · Comando · 👤 ~1",
-    "behaviorHints": {
-     "bingeGroup": "powerm-na-any"
-    },
-    "_quality": "sem resolução",
-    "_bytes": 15032385536,
-    "_br": true,
-    "_dubClaim": false,
-    "_dubbed": false,
-    "_indexer": "comandotorrents",
-    "_tracker": "ComandoTorrents",
-    "_magnetDn": "Dragon Ball Z - Saga de Freeza 720p dublado - FB",
-    "_multiWork": false,
-    "_multiWorkAdmitted": false,
-    "_lied": false,
-    "sources": [
-     "tracker:udp://tracker.opentrackr.org:1337/announce",
-     "tracker:udp://open.stealth.si:80/announce",
-     "tracker:udp://tracker.torrent.eu.org:451/announce",
-     "tracker:udp://exodus.desync.com:6969/announce",
-     "tracker:udp://open.demonii.com:1337/announce",
-     "tracker:udp://tracker.openbittorrent.com:6969/announce"
-    ],
-    "_fromFallback": true,
-    "_packBytes": 15032385536
    }
   ]
  },
  {
-  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,fa420904bd75ee956aba1b1b302dcee2cacaff0e,fd719615257a64d2cd9327ea0c63d1eaf3667d59",
+  "key": "alldebrid|0|2d984a56dd50b37d774536df8fe95db75f619664,42693b014a6c848bfe15f2931ac27fe6dfca7154,558233c42e684236b2c0f80441085a1ddb0cc357,bb2e41ac6b07c202c300e0863fe9cb7f1f7f6bd2,c99759c4f0accb04e2b47aa0b6d2efa5f0da5b41,e5f7f815ebe8a8a683744ecc47e1a32189c14a53,f39affc072a77cff58fdd557f76838dbf323e289,fa420904bd75ee956aba1b1b302dcee2cacaff0e",
   "signals": [
    {
     "known": false,
@@ -711,33 +570,6 @@
      "tracker:udp://tracker.openbittorrent.com:6969/announce"
     ],
     "_packBytes": 362173117235
-   },
-   {
-    "infoHash": "fd719615257a64d2cd9327ea0c63d1eaf3667d59",
-    "title": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC\n👤 9 💾 621.12 MB 📦 pack 19.41 GB (média) ⚙️ TheRARBG",
-    "name": "1080p · TheRARBG · 👤 9",
-    "behaviorHints": {
-     "bingeGroup": "powerm-1080p-any"
-    },
-    "_quality": "1080p",
-    "_bytes": 20841328803,
-    "_br": false,
-    "_dubClaim": false,
-    "_dubbed": false,
-    "_indexer": "therarbg",
-    "_tracker": "TheRARBG",
-    "_magnetDn": "Dragon Ball Z 1989 1996 Season 4 1080p x264 AVC",
-    "_multiWork": false,
-    "_multiWorkAdmitted": false,
-    "_lied": false,
-    "sources": [
-     "tracker:udp://tracker.opentrackr.org:1337/announce",
-     "tracker:udp://open.stealth.si:80/announce",
-     "tracker:udp://tracker.torrent.eu.org:451/announce",
-     "tracker:udp://exodus.desync.com:6969/announce",
-     "tracker:udp://open.demonii.com:1337/announce",
-     "tracker:udp://tracker.openbittorrent.com:6969/announce"
-    ]
    },
    {
     "infoHash": "42693b014a6c848bfe15f2931ac27fe6dfca7154",

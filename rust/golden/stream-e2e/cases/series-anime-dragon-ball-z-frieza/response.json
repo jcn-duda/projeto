@@ -25,8 +25,8 @@
       },
       {
         "infoHash": "e5f7f815ebe8a8a683744ecc47e1a32189c14a53",
-        "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-        "name": "📦 · BR · Comando · 👤 ~1",
+        "title": "Dragon Ball Z Saga dos Androides []\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-na-any"
         },
@@ -41,24 +41,8 @@
       },
       {
         "infoHash": "f5635167d1f45159e5668e6a76b38c774b238a0f",
-        "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-        "name": "📦 · BR · Comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-na-any"
-        },
-        "sources": [
-          "tracker:udp://tracker.opentrackr.org:1337/announce",
-          "tracker:udp://open.stealth.si:80/announce",
-          "tracker:udp://tracker.torrent.eu.org:451/announce",
-          "tracker:udp://exodus.desync.com:6969/announce",
-          "tracker:udp://open.demonii.com:1337/announce",
-          "tracker:udp://tracker.openbittorrent.com:6969/announce"
-        ]
-      },
-      {
-        "infoHash": "cfc59ce47c7c0f0edbedc357dc2458b9056f7d83",
-        "title": "DRAGON BALL Z Saga de Freeza []\n📦 👤 ~1 ⚙️ ComandoTorrents",
-        "name": "📦 · BR · Comando · 👤 ~1",
+        "title": "Dragon Ball Z Saga dos Sayajins []\n📦 👤 ~1 ⚙️ Apache Torrent",
+        "name": "📦 · BR · Apache Torrent · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-na-any"
         },

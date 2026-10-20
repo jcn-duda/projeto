@@ -315,10 +315,19 @@ function writeJson(absPath, value) {
  * Copia VERBATIM um fixture gravado pelo próprio addon no dir do shadow. O
  * `stream-frozen-store` já mascara encoded/origem/sig e remove `downloadUrl`;
  * a varredura de credencial é o último portão antes de gravar no corpus.
+ *
+ * O que NÃO condena: `passkey`/`apikey=` DENTRO de `magnet:` de tracker público
+ * — é dado público do torrent (o corpus `stream-frozen` também os carrega). O
+ * que condena é o parâmetro do Jackett (`jackett_apikey`) ou o valor de um
+ * segredo do operador presente no ambiente.
  */
 function copyShadowInput(absPath, source) {
   const bytes = fs.readFileSync(source);
-  if (/(jackett_apikey|apikey=|passkey|authorization:\s*bearer)/i.test(bytes.toString('utf8'))) {
+  const text = bytes.toString('utf8');
+  const operatorSecrets = ['JACKETT_TEST_TOKEN', 'JACKETT_API_KEY', 'DEBRID_API_KEY', 'RESOLVE_SECRET']
+    .map((name) => process.env[name])
+    .filter((value) => typeof value === 'string' && value.length >= 8);
+  if (/jackett_apikey/i.test(text) || operatorSecrets.some((secret) => text.includes(secret))) {
     fail(`credencial em claro em ${source}; recusando copiar para o corpus`);
   }
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
