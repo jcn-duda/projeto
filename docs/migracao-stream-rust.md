@@ -102,8 +102,10 @@ novos é o TS do worktree `../adom-esm`.
    Captura com fixtures internas e o critério §9.4.5 seguem **pendentes**.
 3. **Sombra** (`ROUTES_RUST=stream-shadow`): o Node responde, o Rust remonta com
    store `MemorySwrStore` isolado (nunca `STREAMS_DB`) e só as métricas
-   `stream.shadow.*` do contrato §9.2 são públicas. É o **default** do override
-   `docker-compose.gateway.yml` (contrato §0).
+   `stream.shadow.*` do contrato §9.2 são públicas. Era o default do override
+   `docker-compose.gateway.yml` **até o F4.4**; com o `/stream` do Node
+   aposentado (410/503) a referência não existe mais — hoje é instrumento
+   histórico e o gate é o corpus congelado (§F4).
 
 ## F1 — Orquestrador Rust com a rede no Node por padrão
 
@@ -482,13 +484,68 @@ e `davail` num store Rust no padrão de `adom-debrid/src/store.rs`, com
 importação única do `cache.db`. Painel e `/stream-trace.json`/
 `/dashboard-status.json` passam a ler do Rust por rota interna.
 
-## F4 — Corte final
+## F4 — Corte final (F4.4 ENTREGUE, sem Docker)
 
-**Estado:** não iniciada nesta rodada; contrato pronto em
-`docs/rust-stream-contract.md`. Só depois de paridade BR+cotas e critério §9.4:
-`ROUTES_RUST=stream` vira padrão; saem `search-orchestrator`, `search-cache`,
-`stream-builder*`, `debrid-pipeline*` e as rotas internas de coleta. O Node fica
-com configure, painel, `/resolve` (até ser portado) e config.
+**Estado no branch `rust`:** o F4.4 foi executado com autorização explícita do
+operador para **pular a janela §9.4** (evidência substituta: corpus congelado
+16/16 + e2e 51/51 + os gates de código; Docker/rebuild ficam para o deploy).
+Aceite do corte agora é **por commit/imagem**, não por soak.
+
+O que mudou:
+
+- **Defaults**: `GATEWAY=on` e `ROUTES_RUST=stream` no `docker-compose.yml`
+  (Node na 7100); no gateway, `SOURCES_RUST` ausente = as cinco fontes,
+  `META_RUST`/`ACCOUNT_RUST`/`INDEX_RUST`/`BANK_RUST`/`EFFECTS_RUST` = `on`.
+  `DEBRID_AL_RUST` fica **off**: o nativo é read-only sem o feed de holds
+  (F4.6 bloqueado) e o Node, via `/internal/debrid/check`, segue dono do
+  upload+limpeza. Cada fatia tem rollback por env (off = rota interna).
+- **Pipeline TS removido**: `search-orchestrator`, `search-cache`,
+  `stream-builder*`, `debrid-pipeline*`/`debrid-play-guard`,
+  `search-metadata-load`, `tail-enqueue`, `search-late-promoter`,
+  `search-sweep-tail` e `search-commit`. O `/stream` do Node responde **410**
+  com `GATEWAY=on`+`ROUTES_RUST=stream` e **503** sem gateway.
+- **O que ficou no Node**: rotas internas (`meta/state/collect/index/`
+  `index-write/effects/debrid check`), coleta (`collect-orchestrator`),
+  índice/banco (`release-index`, `magnet-bank-*`), metadados
+  (`cinemeta`/`tmdb`), efeitos (autofetch/warmer/auditoria/sonda/colhedor),
+  `/resolve`, painel/config e o raspador. `applyDebrid`/`play-guard` seguem só
+  como **oráculo congelado** em `test/helpers/pipeline-oracle/`.
+- **Testes**: os que mediam o pipeline TS saíram (190 testes); os que mediam
+  decisões que o Node ainda executa foram migrados para o oráculo/`collectRaw`.
+  O harness adversarial MUT-09/MUT-10 foi realinhado para o oráculo.
+- **Sombra/canário/frozen**: aposentados do runtime (código fica como
+  instrumento histórico); o `docker-compose.gateway.yml` virou
+  diagnóstico/rollback.
+
+Limite honesto: sem Docker/rebuild nesta rodada, **não** há prova de boot do
+container com o gateway default. O deploy deve rodar o checklist do contrato §0
+e o `clear-cache` antes de medir; a 1ª abertura a frio ainda pode vir só com
+aviso (§0.5).
+
+**Dependências do pipeline que ficaram inertes (reportadas, não quebradas):**
+
+1. `/resolve` invalida o namespace `streams:*` do Node (`invalidateStreamsForObra`)
+   em `NoVideoError`/`DubLieError`/`EpisodePickError`. O SWR do corte agora é
+   `data/streams.db` (store nativo), então essa invalidação **não alcança** a
+   lista servida pelo gateway — o hash pode continuar na lista até o TTL.
+   `magnetdb.markBad`/`markLie` continuam gravando em `cache.db`, mas o build
+   nativo também não lê o `mag:` para cortar `bad`/`lie`; o que segura o caso é
+   a checagem de cache (`cachedOnly`) e o TTL.
+2. O `streams.db` nativo não é limpo pelo `clear-cache` do painel (que mexe no
+   `cache.db`), nem pelo `POST /dashboard-action.json`. Para descartar o SWR
+   nativo é preciso parar o gateway e remover/invalidar `data/streams.db`.
+3. `/stream-trace.json` (P5) lê o ledger do namespace `streams:*` do Node; com o
+   corte nativo ele nasce vazio (o ledger agora é do orquestrador Rust). O
+   `STREAM_TRACE`/`mode=live` continuam válidos, mas a leitura offline precisa
+   de uma rota interna do Rust (F4.4a). O painel mostra "sem trace" — não é
+   falha de busca.
+4. `DEBRID_AL_RUST` segue **off**: o nativo é read-only sem o feed de holds
+   (F4.6). A checagem com limpeza continua na rota interna do Node.
+
+Nenhuma dessas dependências quebra a BUSCA: são invalidação/observabilidade. A
+busca responde pelo orquestrador e os gates de código estão verdes; o deploy
+deve considerar os itens 1–3 como dívida declarada (F4.4a), não como regressão
+silenciosa.
 
 ---
 
@@ -501,11 +558,11 @@ O que trava o quê:
   com a F1.
 - A sombra da F0 **só é honesta depois** que o orquestrador da F1 existir: sem
   ele não há "remontar a resposta", só um proxy que finge comparar.
-- O override gateway fica em **sombra** (`stream-shadow`). Corte
-  `ROUTES_RUST=stream` é experimental e **não** default; critério formal
-  §9.4 + paridade BR+cotas travam a promoção. Não confundir smoke/
-  `validate-docker.mjs` (só tocável) com aceite do corte, nem “compose
-  local” com “F4 no compose principal”.
+- **F4.4 mudou o gate**: a sombra/canário comparavam com o `/stream` do Node,
+  que saiu. O gate vigente é o corpus congelado (`parity:frozen`, 16/16) e o
+  e2e (`stream_e2e_parity`, 51/51); não confundir smoke/`validate-docker.mjs`
+  (só tocável) com paridade BR+cotas. Rollback do corte = imagem/commit
+  anterior com `GATEWAY=off`.
 - A F2.1 começou sobre a rota `collect` em `read_only`; as próximas fontes só
   avançam quando esse contrato estabilizar. Migrar fonte com a rota ainda
   mudando joga trabalho fora.

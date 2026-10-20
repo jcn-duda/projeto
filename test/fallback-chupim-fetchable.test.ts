@@ -13,7 +13,6 @@ import * as runtime from '../src/runtime.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { toRawItem } from '../src/providers/magnet-bank-fallback.js';
 import { toStremioStream } from '../src/utils/search-names.js';
-import { applyNoticeOrigin } from '../src/providers/stream-builder.js';
 import { brDubbedPool, fallbackBlocked } from '../src/utils/autofetch-pools.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
 
@@ -34,14 +33,14 @@ test('elegível: aprovada no filtro vivo OU fonte index-only; o resto segue bloq
   assert.equal(toRawItem(candidate('kickasstorrents-to', 0)).fallbackFetchable, undefined, 'palpite nunca aprovado');
 });
 
-test('a marca atravessa o stream, entra no pool BR e sai antes do protocolo', () => {
+test('a marca atravessa o stream e entra no pool BR', () => {
   const ok = toStremioStream({ ...toRawItem(candidate('hdrtorrent-cardigann', 0)), seeders: 1 }) as any;
   const blocked = toStremioStream({ ...toRawItem(candidate('kickasstorrents-to', 0)), infoHash: hex('b'), seeders: 1 }) as any;
   assert.equal(ok._fallbackFetchable, true);
   assert.equal(fallbackBlocked(ok), false);
   assert.equal(fallbackBlocked(blocked), true);
   assert.deepEqual(brDubbedPool([ok, blocked]).map((s: any) => s.infoHash), [hex('a')]);
-  assert.equal('_fallbackFetchable' in applyNoticeOrigin([ok])[0], false, 'marca interna não vai ao protocolo');
+  // A egressão (marca interna não vai ao protocolo) é do gateway nativo.
 });
 
 test('reserva elegível vira candidato do Chupim no applyDebrid', async () => {

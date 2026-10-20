@@ -79,12 +79,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.use((req, _res, next) => services.runtime.run({
     origin: originOf(req),
     replyDeadlineMs: services.runtime.clientReplyDeadline(req.get('user-agent')),
-    // Gate shadow: o gateway manda o id do caso por header; o contexto da
-    // requisição carrega até o `beginRequest` do /stream (nunca global).
-    shadowId: String(req.get('X-Adom-Shadow-Id') || '').trim().slice(0, 128) || null,
-    // 2ª request da sombra: comportamento congelado (sem SWR/fast-path/cache)
-    // só nesta requisição; a resposta normal do cliente nunca leva este header.
-    shadowFrozen: req.get('X-Adom-Shadow-Frozen') === '1',
+    // Os gates da sombra (`X-Adom-Shadow-*`) saíram do runtime no F4.4: o
+    // `/stream` do Node está aposentado e a captura congelada virou harness de
+    // teste (scripts). Nenhum header de cliente liga comportamento congelado.
   }, () => next()));
   app.use(makeAddonRouter(addonInterface));
 

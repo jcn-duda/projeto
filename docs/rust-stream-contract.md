@@ -1,13 +1,20 @@
 # Contrato do `/stream` — o que o orquestrador Rust precisa reproduzir
 
-Status: **contrato F0 fixado** a partir do TypeScript; override gateway em
-**sombra por default** (`ROUTES_RUST=stream-shadow`). Corte nativo
-(`ROUTES_RUST=stream`) é **experimental** — não está pronto como default:
-falta paridade BR + cotas (evidência operacional: BR some no corte). Nada nos
-§§1–8 é proposta: cada afirmação tem `arquivo:linha` do fonte real. O
-orquestrador vive em
+Status: **contrato F0 fixado** a partir do TypeScript. Desde o **F4.4** o corte
+nativo é o **PADRÃO** (`GATEWAY=on`, `ROUTES_RUST=stream` no
+`docker-compose.yml`): o pipeline TS de busca saiu e o `/stream` do Node
+responde **410** no modo gateway (**503** sem gateway). A sombra
+(`ROUTES_RUST=stream-shadow`) e o canário congelados do §9.4/§9.5 ficam como
+**instrumentos históricos** — a referência era o `/stream` do Node, que não
+existe mais; o gate vigente é o corpus congelado
+(`cargo test -p adom-search --test stream_frozen_parity`, 16/16) e o corpus
+e2e 51/51 (`--test stream_e2e_parity`). Nada nos §§1–8 é proposta: cada
+afirmação tem `arquivo:linha` do fonte real. O orquestrador vive em
 [`rust/crates/adom-search`](../rust/crates/adom-search/src/lib.rs); a fachada
 que corta a rota é [`adom-server`](../rust/crates/adom-server/src/stream.rs).
+As referências de `src/providers/*` nos §§1–8 são a **derivação original** do
+contrato (branch `esm`/commit `c11cb720`): esses arquivos saíram no F4.4 e o
+código vigente é o Rust indicado em cada seção.
 
 Ordem de leitura sugerida: §0 (estado operacional) → §1 (rota) → §2 (corpo) →
 §3 (aviso) → §5 (cache) → §7 (identidade) → §9 (métrica). Os §§4/6/8 são as
@@ -15,31 +22,29 @@ regras que mais quebram.
 
 ---
 
-## 0. Estado operacional (Fase F — sombra default; corte experimental)
+## 0. Estado operacional (F4.4 — corte nativo é o padrão)
 
-### 0.1 Override local (sombra default; corte experimental)
+### 0.1 Compose padrão e override de diagnóstico
 
-Override opt-in (o compose padrão **não** o carrega). Default do YAML:
-`ROUTES_RUST=stream-shadow` — Node responde; Rust remonta e só incrementa
-`stream.shadow.*` (§9).
+O **compose padrão** já sobe o gateway (`docker-compose.yml`):
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --build
-```
-
-| Env | Valor no override | Papel |
+| Env | Default | Papel |
 |---|---|---|
 | `GATEWAY` | `on` | `adom-server` na 7000; Node atrás na 7100 |
-| `ROUTES_RUST` | `stream-shadow` | sombra (default deste override) |
+| `ROUTES_RUST` | `stream` | corte nativo do `/stream` |
 | `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | meta/collect/tail e reserva de debrid — **nunca** `:7000` (a fachada recusa `/internal/*`) |
 
-Corte nativo (`ROUTES_RUST=stream`, token exato) é **experimental**: força o
-handler Rust a responder `/stream`. Ainda **não** está pronto para default —
-evidência de uso: conteúdo BR some da lista. Exige paridade BR+cotas (e o
-critério formal §9.4) antes de qualquer promoção. Com `stream` e
-`stream-shadow` no mesmo CSV, o corte nativo vence (`adom-server/src/proxy.rs`).
-No corte a sombra não roda; o alarme de divergência é o canário
-`STREAM_CANARY_PERCENT` (§9.5), default **0 (OFF)**.
+O `docker-compose.gateway.yml` virou **diagnóstico/rollback** (publica o Node
+em `127.0.0.1:7100`); ele **não** é mais necessário para ligar o nativo.
+Rollback por env existe para cada fatia (`SOURCES_RUST=`, `META_RUST=off`,
+`ACCOUNT_RUST=off`, `INDEX_RUST=off`, `BANK_RUST=off`, `EFFECTS_RUST=off`,
+`DEBRID_AL_RUST=off`), mas o rollback **funcional do corte** é a
+imagem/commit anterior com `GATEWAY=off`: sem o pipeline TS, `GATEWAY=off`
+deixa o `/stream` do Node em 503.
+
+O canário `STREAM_CANARY_PERCENT` (§9.5) e a sombra continuam no binário como
+instrumentos **históricos**: com `ROUTES_RUST` contendo `stream-shadow` o
+gateway avisa e a comparação não tem referência. Não os use como gate.
 
 ### 0.2 Debrid com herança do `.env`
 
@@ -52,17 +57,17 @@ commit `dd9330c4`). Sem isso o orquestrador caía em `NoDebridCheck` (lista só
 smoke Docker com chave só no `.env` depende dessa herança (não confundir
 com aceite de paridade BR).
 
-### 0.3 Collect: Node por padrão; Jackett Rust opt-in
+### 0.3 Collect: nativo por default (F4.4); Node no rollback
 
-- Default do corte: collect/meta/tail via `POST /internal/search/*` no Node
-  (`NodeRoutes`, precisa `JACKETT_TEST_TOKEN` + `INTERNAL_SEARCH_URL`).
-- Opt-in `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV,
-  case-insensitive): collect nativo (`JackettCollector` /
-  `ProwlarrCollector` / `TorrentioCollector` / `BludvCollector` /
-  `MicoCollector`); **composição**: cada fonte listada coleta no Rust e o
-  `NodeCollector` roda o resto com `skip_sources` (as fontes já migradas, que o
-  Node pula no `/internal/search/collect`). Meta/tail seguem no Node quando as
-  rotas internas existem. Default **OFF**.
+- Default do corte (F4.4): `SOURCES_RUST` **ausente = as cinco fontes** no Rust.
+  Meta/índice/banco também são nativos por default; as rotas internas
+  (`POST /internal/search/*`) continuam existindo como **fallback/rollback**
+  (`SOURCES_RUST=` vazio, `META_RUST=off`, `INDEX_RUST=off`, `BANK_RUST=off`).
+  Elas precisam de `JACKETT_TEST_TOKEN` + `INTERNAL_SEARCH_URL`.
+- `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV, case-insensitive):
+  **composição** — cada fonte listada coleta no Rust e o `NodeCollector` roda o
+  resto com `skip_sources` (as fontes já migradas, que o Node pula no
+  `/internal/search/collect`).
 
 ### 0.3.1 Prova de arquivo/qualidade no item (`provenQuality`)
 
@@ -785,9 +790,15 @@ no corte não existe comparação rodando. O canário é o instrumento mínimo d
 alarme/amostragem para essa janela: ele amostra o corte e compara em paralelo,
 sem depender de o oráculo Node responder a todas as buscas.
 
+> **F4.4 (histórico):** os dois modos do canário comparavam com o `/stream` do
+> Node, que responde 410/503 desde o corte. O código fica como instrumento —
+> **não** como gate; ligar `STREAM_CANARY_PERCENT>0` só produz divergência
+> falsa. O gate vigente é o corpus congelado (§F4 de
+> `docs/migracao-stream-rust.md`).
+
 - **Flags**: `STREAM_CANARY_PERCENT` inteiro `0..100`, default **0 (OFF)**; e
-  `STREAM_CANARY_MODE=frozen|direct`, default **`frozen`** (rollback da janela
-  §9.4 atual). Só agem quando `ROUTES_RUST` contém o token exato `stream`; com
+  `STREAM_CANARY_MODE=frozen|direct`, default **`frozen`** (histórico da janela
+  §9.4). Só agem quando `ROUTES_RUST` contém o token exato `stream`; com
   proxy ou `stream-shadow` o percentual é ignorado (`/metrics` mostra 0).
 - **Seleção determinística**: FNV-1a de 64 bits sobre o **path** da requisição
   (`/<config>/stream/<tipo>/<id>.json`, que já inclui o segmento `encoded`) →

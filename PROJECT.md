@@ -47,13 +47,13 @@
 - **Process & Application Layer**:
   - `src/addon.ts`: Process runner, port listening, embedded Brazilian resolvers supervisor, global `unhandledRejection` handler, dead magnet cleaner, graceful shutdown.
   - `src/app.ts`: Express application factory (`createApp()`); route *registration* lives in `src/routes/register.ts` since §5.5 (`/manifest.json`, `/stream/:type/:id.json`, `/resolve/:infoHash`, `/configure`, `/painel`, `/seal-config`, `/metrics.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/dashboard-status.json`, `/dashboard-action.json`, plus the closed `PAGE_ASSETS` allowlist of panel HTML/CSS/images and the `CLIENT_ASSETS` allowlist of the `/configure` and `/painel` ESM client modules).
-- **Providers & Orchestration Layer**:
-  - `src/providers/search-orchestrator.ts`: Query planning, Cinemeta/TMDB metadata, raw provider fan-out (`collectRaw`), Brazilian priority grace, pack fallbacks, enrichment tails. Phase control stays implicit via `latest-writer`'s `finish.phase()`/`finish.advance()` — no explicit `SearchPhase` state machine (A3 not implemented).
-  - `src/providers/search-cache.ts`: Stale-While-Revalidate (SWR) cache handling, request coalescing (`inFlight`), background revalidation (`scheduleStaleRefresh`).
-  - `src/providers/stream-builder.ts`: Stream parsing, relevance filtering, release index evidence, quota clamping, Brazilian slot reservation (`limitReservingBr`), notice generation.
-  - `src/providers/debrid-pipeline.ts`: Bad/dead/miss magnet filtering, dynamic budget allocation (`remainingCheckBudget`), debrid cache checking, P2P degradation, HMAC signing, audio audit tails.
+- **Providers & Orchestration Layer** (F4.4: o `/stream` é do **gateway Rust**):
+  - `rust/crates/adom-search`: orquestrador do `/stream` (SWR `data/streams.db`, metadados, coleta, build no núcleo, debrid, cotas, efeitos). Defaults do gateway: `SOURCES_RUST` = as cinco fontes, `META_RUST`/`ACCOUNT_RUST`/`INDEX_RUST`/`BANK_RUST`/`EFFECTS_RUST` = `on`; `DEBRID_AL_RUST` segue `off` (F4.6 bloqueado).
+  - `src/providers/collect-orchestrator.ts`: coleta no Node (Jackett/Prowlarr/Torrentio/BLUDV/Mico/conta) atendida por `POST /internal/search/collect`; também é a via de rollback de `SOURCES_RUST`.
+  - `src/providers/search-index-path.ts` / `magnet-bank-instant.ts` / `index-enrichment.ts`: leitura do índice/instantânea e fusão de evidência por hash para a rota interna `/internal/search/index` (rollback de `INDEX_RUST`/`BANK_RUST`).
   - `src/providers/autofetch-runner.ts`: Candidate stream hold acquisition, persistent queue management (`drainNext`), hourly limit backoff, settle LRU, and periodic recheck loop.
-  - `src/providers/index.ts`: Backward-compatible facade re-exporting provider APIs.
+  - `src/providers/index.ts`: fachada mínima (`autofetchStatus`, cobertura de pool, observador de primeira resposta).
+  - `applyDebrid`/`play-guard` TS saíram da produção e vivem em `test/helpers/pipeline-oracle/` como oráculo congelado.
 - **Debrid Layer**:
   - `src/debrid/file-selector.ts`: Video file parsing, multi-work collection resolution, episode matching, and error classes (`WorkPickError`, `EpisodePickError`, `NoVideoError`, `DubLieError`).
   - `src/debrid/common.ts`: Adapter common utilities, network helpers, re-exports from file-selector.

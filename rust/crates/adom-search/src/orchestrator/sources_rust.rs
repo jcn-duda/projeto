@@ -1,7 +1,9 @@
-//! Opt-in de collect nativo via `SOURCES_RUST` (CSV, case-insensitive).
+//! Collect nativo via `SOURCES_RUST` (CSV, case-insensitive).
 //!
-//! Default OFF → [`super::NodeCollector`]. Tokens suportados: `jackett`,
-//! `prowlarr`, `torrentio`, `bludv`, `mico`.
+//! **Default (env ausente) = todas as fontes migradas** — `jackett`, `prowlarr`,
+//! `torrentio`, `bludv`, `mico` — porque o corte nativo é o caminho padrão desde
+//! o F4.4. `SOURCES_RUST=` (vazio) ou um CSV sem o token devolve o collect
+//! daquela fonte ao [`super::NodeCollector`] (rollback por env, rota interna).
 //!
 //! Múltiplas fontes em `SOURCES_RUST` são compostas via [`super::CompositeCollector`],
 //! que executa todas as fontes nativas em paralelo e combina seus lotes.
@@ -22,17 +24,23 @@ use super::torrentio_collector::try_torrentio_collector_from_env;
 /// Tokens conhecidos, em ordem de prioridade na exclusão mútua.
 const KNOWN_TOKENS: &[&str] = &["jackett", "prowlarr", "torrentio", "bludv", "mico"];
 
+/// CSV default quando a env está AUSENTE (rollback = `SOURCES_RUST=` vazio).
+pub const DEFAULT_SOURCES_RUST: &str = "jackett,prowlarr,torrentio,bludv,mico";
+
+/// CSV efetivo: env ausente cai no default; env presente (mesmo vazia) vence.
+fn sources_csv_env() -> String {
+    std::env::var("SOURCES_RUST").unwrap_or_else(|_| DEFAULT_SOURCES_RUST.to_string())
+}
+
 /// Parse puro do CSV (testável sem mexer no env do processo).
 pub fn sources_rust_csv_includes(raw: &str, token: &str) -> bool {
     raw.split(',').any(|t| t.trim().eq_ignore_ascii_case(token))
 }
 
-/// `SOURCES_RUST` contém o token (CSV, case-insensitive). Ausente → false.
+/// `SOURCES_RUST` efetivo contém o token (CSV, case-insensitive). Ausente →
+/// [`DEFAULT_SOURCES_RUST`]; vazia → nenhum token.
 pub fn sources_rust_includes(token: &str) -> bool {
-    std::env::var("SOURCES_RUST")
-        .ok()
-        .map(|raw| sources_rust_csv_includes(&raw, token))
-        .unwrap_or(false)
+    sources_rust_csv_includes(&sources_csv_env(), token)
 }
 
 /// Qual token vence no CSV (puro). `None` = nenhum token conhecido / vazio.
@@ -58,7 +66,7 @@ pub fn try_sources_rust_native_from_env() -> Vec<(&'static str, Arc<dyn Collecto
 pub fn try_sources_rust_native_from_env_with_bludv_store(
     raw_store: Option<Arc<dyn RawStore>>,
 ) -> Vec<(&'static str, Arc<dyn Collector>)> {
-    let raw = std::env::var("SOURCES_RUST").unwrap_or_default();
+    let raw = sources_csv_env();
     let mut native: Vec<(&'static str, Arc<dyn Collector>)> = Vec::new();
 
     if sources_rust_csv_includes(&raw, "jackett") {

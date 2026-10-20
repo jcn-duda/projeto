@@ -12,7 +12,9 @@ import { accountScope } from '../utils/request-key.js';
 import * as protectedApi from '../debrid/protected.js';
 import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
 import { invalidateStreamsForObra } from '../utils/br-gap.js';
-import type { ApplyDebridOptions } from './debrid-pipeline-types.js';
+// O tipo sobreviveu ao pipeline (o applyDebrid TS virou oráculo de teste; a
+// auditoria de áudio continua no Node e lê as mesmas opções).
+import type { ApplyDebridOptions } from './debrid-apply-types.js';
 
 // Fase D da auditoria de áudio: candidatos ⚡ dublados confirmados em cache
 // nesta busca. A prova (paths reais dos vídeos) só existe no debrid; esperar

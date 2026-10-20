@@ -4,6 +4,11 @@
  * addon rodando e grava, por caso, o request e a resposta em
  * `rust/golden/stream-e2e/cases/<id>/`.
  *
+ * F4.4: o `/stream` do Node está aposentado (410/503) — a captura só funciona
+ * contra uma IMAGEM/COMMIT anterior ao F4.4 (com `GATEWAY=off`), que é também
+ * de onde saiu o corpus atual. O gate do corte não captura: ele REPLAIA o
+ * corpus (`stream_e2e_parity` 51/51, `stream_frozen_parity` 16/16).
+ *
  * Por que existe: os goldens de função provam o núcleo isolado, mas não o que o
  * orquestrador Rust terá de reproduzir — o corpo JSON que o Stremio recebe,
  * com os cortes de debrid, o aviso de lista vazia e o host montado na resposta.

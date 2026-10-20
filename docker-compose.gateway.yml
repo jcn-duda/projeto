@@ -1,20 +1,51 @@
-# OVERRIDE opt-in de validação local (commitado de propósito; o compose padrão
-# não o carrega): liga o gateway Rust na 7000 com o Node na 7100 atrás.
-# Default deste override: ROUTES_RUST=stream-shadow (Node responde; Rust
-# remonta e só compara — sombra). Corte nativo (ROUTES_RUST=stream) é
-# experimental: NÃO está pronto (evidência: BR some) e exige paridade
-# BR+cotas antes de virar default. Não tratar smoke/validate-docker como
-# aceite do corte. Rotas internas e reserva de debrid falam com o Node na
-# 7100 — NUNCA :7000 (a fachada recusa /internal/*).
-# Docs: docs/rust-stream-contract.md §0.
+# OVERRIDE de DIAGNÓSTICO/ROLLBACK do corte nativo (`/stream` no gateway Rust).
+#
+# Desde o F4.4 o corte é o PADRÃO do `docker-compose.yml`:
+#   GATEWAY=on, ROUTES_RUST=stream, INTERNAL_SEARCH_URL/INTERNAL_CHECK_URL=:7100
+# Este arquivo NÃO é mais necessário para ligar o nativo — ele existe para:
+#
+# 1. DIAGNÓSTICO: publicar o Node em 127.0.0.1:7100 para inspecionar painel e
+#    rotas internas direto. Como o Node não monta mais lista (o `/stream` dele
+#    responde 410 com GATEWAY=on + ROUTES_RUST=stream), o diagnóstico de BUSCA
+#    é o `/metrics` do gateway e o corpus congelado
+#    (`cargo test -p adom-search --test stream_frozen_parity`).
+# 2. ROLLBACK: o rollback FUNCIONAL do corte é a IMAGEM/COMMIT anterior (com
+#    `GATEWAY=off`), não uma env — o bloco comentado no fim mostra como fixar a
+#    tag anterior sem editar o compose principal.
+#
+# Rotas internas e reserva de debrid falam com o Node na 7100 — NUNCA :7000
+# (a fachada recusa /internal/*). Docs: docs/rust-stream-contract.md §0.
 services:
   adom:
     environment:
-      GATEWAY: "on"
-      ROUTES_RUST: "stream-shadow"
+      GATEWAY: "${GATEWAY:-on}"
+      ROUTES_RUST: "${ROUTES_RUST:-stream}"
       INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
       INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
-      # Sombra congelada: a 2ª request (X-Adom-Shadow-Frozen) roda sem
-      # SWR/fast-path e grava o caso; o gateway compara Rust × ela.
-      STREAM_FROZEN_MODE: "shadow"
-      STREAM_FROZEN_SHADOW_BASE: "/tmp/adom-shadow"
+      # Histórico (F4.2/F4.3): a sombra/canário comparavam com o `/stream` do
+      # Node, que está aposentado. LIGAR HOJE SÓ GERA DIVERGÊNCIA FALSA — os
+      # knobs ficam documentados e desligados; o gate é o corpus congelado.
+      STREAM_CANARY_PERCENT: "0"
+      # Harness de captura/replay (não é runtime): usado por scripts/golden.
+      STREAM_FROZEN_MODE: ""
+      STREAM_FROZEN_SHADOW_BASE: ""
+    ports:
+      # Só para diagnóstico no host: o Node direto (painel/rotas internas).
+      - "127.0.0.1:7100:7100"
+
+# ── Rollback de runtime (imagem anterior) ────────────────────────────────────
+# O `/stream` do Node não existe mais neste branch; voltar `GATEWAY=off` sem
+# trocar a imagem deixa o addon sem busca. Para reverter de verdade, crie um
+# override de rollback com a tag anterior ao F4.4:
+#
+#   services:
+#     adom:
+#       image: <registry>/stremio-adom:<tag-anterior-ao-F4.4>
+#       build: !reset null
+#       environment:
+#         GATEWAY: "off"
+#
+#   docker compose -f docker-compose.yml -f docker-compose.rollback.yml up -d
+#
+# O `docker-data/addon/cache.db` e o `magnets.db` sobrevivem ao rollback; o
+# `streams.db` (SWR nativo) simplesmente deixa de ser lido pela imagem antiga.

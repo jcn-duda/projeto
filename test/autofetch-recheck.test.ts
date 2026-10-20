@@ -12,8 +12,19 @@ import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { findStreams } from '../src/providers/index.js';
+import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
+import { parseStremioId } from '../src/utils/format.js';
 import type { DebridAdapter } from '../types/domain.js';
+
+// O F4.4 removeu `findStreams`; o registro da chave de temporada (único efeito
+// que estes testes usavam da busca) agora é explícito, como no efeito
+// `season_key` do orquestrador nativo.
+function registerSeasons(ids: string[], keys: string[], adapterId: string, apiKey: string) {
+  ids.forEach((id, i) => {
+    const { imdbId, season } = parseStremioId(id);
+    if (season != null) registerSeasonSearchKey(adapterId, accountScope(apiKey), imdbId, season, keys[i]);
+  });
+}
 
 test('recheck pós-enfileiramento esquece a busca quando o download fica pronto', async () => {
   const testMock = mock;
@@ -139,9 +150,9 @@ test('pack de temporada pronto invalida episódios indexados e semeia davail', a
     };
     for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
 
-    // O registro fica no início do findStreams e funciona inclusive em hit.
+    // O registro da temporada é o efeito `season_key` do orquestrador.
     await runtime.run({ opts: userOpts, encoded: 'cfg-season-fill' }, async () => {
-      for (const id of ids) await findStreams({ type: 'series', id });
+      registerSeasons(ids, keys, pmAdapter.id, apiKey);
     });
 
     testMock.timers.enable({ apis: ['setTimeout'] });
@@ -268,7 +279,7 @@ test('LRU do índice descarta a temporada mais antiga sem invalidar suas chaves'
     };
     for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
     await runtime.run({ opts: userOpts, encoded: 'cfg-season-lru' }, async () => {
-      for (const id of ids) await findStreams({ type: 'series', id });
+      registerSeasons(ids, keys, pmAdapter.id, apiKey);
     });
 
     testMock.timers.enable({ apis: ['setTimeout'] });

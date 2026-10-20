@@ -24,7 +24,6 @@ import { resetObraForTest } from '../src/providers/autofetch-obra.js';
 import { verifyResolve } from '../src/utils/sign.js';
 import { toRawItem } from '../src/providers/magnet-bank-fallback.js';
 import { toStremioStream } from '../src/utils/search-names.js';
-import { applyNoticeOrigin } from '../src/providers/stream-builder.js';
 import { brDubbedPool } from '../src/utils/autofetch-pools.js';
 import { uncachedBrHashes } from '../src/utils/autofetch-picks.js';
 import type { DebridAdapter } from '../types/domain.js';
@@ -125,9 +124,12 @@ test('vaga P2P do showUncachedBr: a reserva com áudio gravado lista na 1ª aber
   assert.ok(uncachedBrHashes([s], new Set(), 1).has(hex('a')));
 });
 
-test('_bankDub sai antes do protocolo, como as outras marcas internas do fallback', () => {
+// `_bankDub` é marca INTERNA: a egressão para o protocolo (apagar as marcas do
+// fallback e montar host/size) agora é do gateway nativo (`apply_notice_origin`
+// no Rust). O contrato aqui é só a marca existir no stream interno.
+test('_bankDub marca o stream interno da reserva (a egressão é do gateway)', () => {
   const s = toStremioStream({ ...toRawItem(bank()), seeders: 1 }) as any;
-  assert.equal('_bankDub' in applyNoticeOrigin([s])[0], false);
+  assert.equal(s._bankDub, true);
 });
 
 // Guardas de contradição (2026-10-09): o banco guarda CLASSIFICAÇÃO de áudio

@@ -1,8 +1,10 @@
 # Contrato do inventário nativo da conta (F3)
 
-Estado: **implementado atrás de flag, default OFF**. Nada no caminho Node muda
-com `ACCOUNT_RUST` vazio/`off`; rollback é desligar a env e reiniciar o
-processo (nenhum estado persistido é criado por esta fatia).
+Estado: **implementado e default ON desde o F4.4** (`ACCOUNT_RUST` ausente =
+`on`; `shadow` compara, `off` volta à tarefa Node da conta). Nada mais no
+caminho Node depende desta flag: com `off`, o orquestrador pede a conta pela
+rota interna `/internal/search/collect`; rollback é desligar a env e reiniciar
+o processo (nenhum estado persistido é criado por esta fatia).
 
 Escopo desta fatia: o inventário da conta como **fonte da busca** (o que
 sustenta a "conta-como-fonte" e o fast-path do `collectRaw`) e o veredito
@@ -171,7 +173,7 @@ items_missing/items_extra/not_sampled/skipped/timeout/error`.
 
 | Env | Default | Efeito |
 |---|---|---|
-| `ACCOUNT_RUST` | vazio = `off` | `off` = Node; `shadow` = Node + comparação; `on` = nativo responde a conta |
+| `ACCOUNT_RUST` | ausente = `on` (F4.4) | `off` = Node (rota interna de collect); `shadow` = Node + comparação; `on` = nativo responde a conta |
 | `ACCOUNT_SHADOW_SAMPLE` | `0.1` | fração 0..=1 amostrada (determinística por IMDb) |
 | `ACCOUNT_SHADOW_TIMEOUT_MS` | `2500` | teto da leitura nativa na sombra |
 | `DEBRID_INVENTORY_SOURCE` | `true` | desligado, a conta não é fonte (nem nativo nem sombra) |

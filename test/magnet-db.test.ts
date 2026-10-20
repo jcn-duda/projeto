@@ -14,7 +14,6 @@ import * as cache from '../src/utils/cache.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import debrid from '../src/debrid/index.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { buildStreams } from '../src/providers/index.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { sortAndLimit } from '../src/utils/format.js';
 import { pickFile, NoVideoError, DubLieError } from '../src/debrid/common.js';

@@ -343,16 +343,15 @@ stremio adom/
 │   ├── routes/               # as rotas de verdade moram aqui
 │   │   ├── register.ts       # único ponto que monta as rotas (ordem importa)
 │   │   ├── addon-router.ts   # protocolo Stremio (substituiu o SDK no runtime)
-│   │   ├── stream.ts         # /stream por cima do findStreams
+│   │   ├── stream.ts         # /stream do Node: 410 com gateway nativo, 503 sem
 │   │   ├── resolve.ts        # /resolve (HMAC)
 │   │   ├── public.ts         # /configure, /painel, /seal-config
 │   │   └── diagnostics.ts    # /metrics.json, /dashboard-*.json
 │   ├── providers/
-│   │   ├── index.ts          # fachada: reexporta os módulos irmãos
-│   │   ├── search-cache.ts   # findStreams, coalescing, SWR
-│   │   ├── search-orchestrator.ts  # doSearch, collectRaw, deadline
-│   │   ├── stream-builder.ts # filtro, cotas, vagas BR
-│   │   ├── debrid-pipeline.ts# checagem de cache, ⚡, assinatura
+│   │   ├── index.ts          # fachada: autofetchStatus + cobertura de pool
+│   │   ├── collect-orchestrator.ts # coleta (rotas internas do gateway)
+│   │   ├── search-index-path.ts   # leitura do índice p/ /internal/search
+│   │   ├── magnet-bank-*.ts  # banco VIVO + reserva 📦 (BANK_RUST on)
 │   │   ├── autofetch-runner.ts    # fila, holds, recheck
 │   │   ├── demo.ts           # teste sem indexer
 │   │   ├── jackett.ts / prowlarr.ts
@@ -367,7 +366,7 @@ stremio adom/
 │   │   └── painel.html       # + painel.css/painel-tokens.css/dashboard-tokens.css; JS em src/client/painel
 │   └── utils/
 │       ├── cache.ts
-│       ├── cache-keys.ts     # versão dos namespaces (streams:v6, idx:v5, …)
+│       ├── cache-keys.ts     # versão dos namespaces (streams:v21, idx:v14, …)
 │       ├── cinemeta.ts       # título/ano pelo IMDb
 │       ├── tmdb.ts           # título pt-BR
 │       ├── sign.ts           # HMAC dos links /resolve

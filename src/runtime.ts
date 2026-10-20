@@ -18,12 +18,14 @@ interface RuntimeContext {
   origin?: string | null;
   /** Prazo da resposta deste cliente (app com timeout maior); ausente = `config.replyDeadline`. */
   replyDeadlineMs?: number | null;
-  /** Header `X-Adom-Shadow-Id` do gateway; só o modo shadow o consome. */
+  /**
+   * Campos do harness congelado (captura/replay `STREAM_FROZEN_*`). Saíram do
+   * runtime no F4.4 (o `/stream` do Node está aposentado): ninguém os injeta a
+   * partir de header; só scripts de captura os passam explicitamente.
+   */
   shadowId?: string | null;
-  /** `X-Adom-Shadow-Frozen: 1` — a 2ª request da sombra roda com comportamento
-   * congelado (SWR/fast-path/cache desligados) só nesta requisição. */
   shadowFrozen?: boolean;
-  /** Dir do corpus congelado POR REQUISIÇÃO (shadow); vence o DIR global. */
+  /** Dir do corpus congelado POR REQUISIÇÃO; vence o DIR global. */
   frozenDir?: string | null;
 }
 type RuntimeOptions = ReturnType<typeof defaults>;

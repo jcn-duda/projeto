@@ -3,8 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { debridRefreshSatisfied } from '../src/providers/index.js';
-import { streamsNeedRevalidation } from '../src/app.js';
 
 process.env.CACHE_PERSIST = 'false';
 
@@ -185,100 +183,8 @@ test('falha sem teto (passe tardio) mantém needsFullRefresh', async () => {
   }
 });
 
-// --- Metade 2: quem consome o pedido. Era aqui que ele morria.
-
-test('lista promovida pelo passe tardio ainda precisa do refresh', () => {
-  // O passe tardio fecha a coleta e marca partial:false SEM refazer a checagem.
-  // Tratar isso como "já processado" foi o que matou o ⚡ na AllDebrid.
-  assert.equal(
-    debridRefreshSatisfied({ streams: [stream(A)], partial: false, debridKnown: false }),
-    false,
-  );
-});
-
-test('lista reconstruída com checagem confiável dispensa o refresh', () => {
-  // Esse é o único caso em que repetir a consulta é desperdício — e, na
-  // AllDebrid, um upload a mais na conta do usuário.
-  assert.equal(
-    debridRefreshSatisfied({ streams: [stream(A)], partial: false, debridKnown: true }),
-    true,
-  );
-});
-
-test('entrada antiga, sem o campo, paga uma checagem e se corrige', () => {
-  // O cache em SQLite sobrevive ao deploy: as entradas gravadas antes deste
-  // campo não têm `debridKnown`. Elas devem cair no refresh (uma vez), não ser
-  // confundidas com lista já checada.
-  assert.equal(debridRefreshSatisfied({ streams: [stream(A)], partial: false }), false);
-});
-
-test('lista parcial nunca dispensa o refresh', () => {
-  assert.equal(
-    debridRefreshSatisfied({ streams: [stream(A)], partial: true, debridKnown: true }),
-    false,
-  );
-});
-
-test('ausência de entrada não dispensa o refresh', () => {
-  // cache.get devolve undefined quando a entrada expirou entre a resposta e o
-  // setImmediate; nesse caso refazer é o certo.
-  assert.equal(debridRefreshSatisfied(undefined), false);
-  assert.equal(debridRefreshSatisfied(null), false);
-});
-
-// --- Metade 3: a resposta HTTP. `streamsNeedRevalidation` decide o cacheMaxAge
-// do stream handler — true = cacheMaxAge 0 (o cliente precisa perguntar de
-// novo), false = TTL normal. É o mesmo problema do cache visto do outro lado.
-
-test('lista vazia nunca vira cache longo', () => {
-  // Busca ainda em background devolve [] ao cliente; cachear com TTL normal
-  // prenderia o Stremio num "nada" que a resposta real só desfaria depois.
-  assert.equal(streamsNeedRevalidation({ streams: [] }), true);
-  assert.equal(streamsNeedRevalidation(undefined), true);
-});
-
-test('lista parcial exige revalidação, mesmo com debrid conhecido', () => {
-  // A coleta sai antes das fontes BR terminarem; `partial` promete passe
-  // tardio. `debridKnown:true` não desfaz essa promessa — o cliente precisa
-  // perguntar de novo pra pegar o lote completo.
-  assert.equal(streamsNeedRevalidation({ streams: [stream(A)], partial: true }), true);
-  assert.equal(
-    streamsNeedRevalidation({ streams: [stream(A)], partial: true, debridKnown: true }),
-    true,
-  );
-});
-
-test('resultado fresco com needsDebridRefresh:true exige revalidação', () => {
-  // O passo de resposta da AllDebrid não checa cache a tempo e sinaliza
-  // `needsDebridRefresh`: o ⚡ só aparece no passe tardio, então a resposta
-  // atual não pode ser cacheada como definitiva.
-  assert.equal(streamsNeedRevalidation({ streams: [stream(A)], needsDebridRefresh: true }), true);
-});
-
-test('cache hit com debridKnown:false exige revalidação', () => {
-  // Entrada gravada com checagem não confiável: o refresh tardio pode trocar
-  // `[AD download]` por `[AD⚡]` sem mudar a coleta. É o caso explícito — e o
-  // filtro cachedOnly depende dessa segunda passada.
-  assert.equal(
-    streamsNeedRevalidation({ streams: [stream(A)], partial: false, debridKnown: false }),
-    true,
-  );
-});
-
-test('lista completa com debridKnown:true dispensa revalidação', () => {
-  // Único caso em que repetir a consulta é desperdício: coleta fechada E
-  // checagem confiável. Vira cacheMaxAge normal (TTL + stale).
-  assert.equal(
-    streamsNeedRevalidation({ streams: [stream(A)], partial: false, debridKnown: true }),
-    false,
-  );
-});
-
-test('resultado legado sem os campos novos mantém o cache normal', () => {
-  // Entradas gravadas antes do deploy não têm `needsDebridRefresh`/`debridKnown`.
-  // `debridKnown === false` é comparação estrita: ausência do campo não é
-  // "desconhecido" (senão todo cache antigo revalidaria pra sempre) — o
-  // comportamento de antes, lista completa cacheada por TTL, segue valendo.
-  assert.equal(streamsNeedRevalidation({ streams: [stream(A)], partial: false }), false);
-  assert.equal(streamsNeedRevalidation({ streams: [stream(A)] }), false);
-});
+// --- Fim da metade 1. As metades 2 e 3 (`debridRefreshSatisfied` e
+// `streamsNeedRevalidation`) eram cascas do fim da busca do Node e saíram com o
+// pipeline TS (F4.4). A régua equivalente vive no núcleo Rust
+// (`adom_core::search_finish`); o oráculo do applyDebrid, que ainda importa,
+// segue coberto aqui.

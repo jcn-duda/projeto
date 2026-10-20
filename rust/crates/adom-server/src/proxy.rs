@@ -110,6 +110,17 @@ pub async fn run(config: Config) -> Result<(), String> {
     } else {
         None
     };
+    // A sombra do `/stream` comparava com a resposta do Node, que no F4.4 está
+    // APOSENTADA (410/503). Ligar `stream-shadow` hoje só produz divergência
+    // falsa: o caminho de comparação fica no código como instrumento histórico,
+    // mas o harness do gate é o corpus congelado (`stream_frozen_parity`).
+    if shadow {
+        eprintln!(
+            "[gateway] AVISO: ROUTES_RUST=stream-shadow é HISTÓRICO — o /stream do Node está \
+             aposentado (410/503) e a referência não existe mais. Use o corpus congelado \
+             (cargo test -p adom-search --test stream_frozen_parity)."
+        );
+    }
     if shadow && shadow_direct {
         eprintln!("[gateway] stream-shadow em modo DIRETO (sem captura congelada)");
         if shadow_remount.is_none() {

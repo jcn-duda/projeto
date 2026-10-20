@@ -126,6 +126,14 @@ function makeAddonRouter(addonInterface: AddonInterface) {
       return res.type('application/json').send(JSON.stringify(response));
     } catch (err: unknown) {
       if ((err as { noHandler?: boolean })?.noHandler) return next();
+      // O handler pode declarar o status (F4.4: `/stream` aposentado responde
+      // 410/503 de propósito). Sem isso o operador veria um 500 opaco para um
+      // estado esperado do processo.
+      const declared = (err as { status?: unknown })?.status;
+      if (typeof declared === 'number' && Number.isInteger(declared) && declared >= 400 && declared <= 599) {
+        const message = err instanceof Error ? err.message : 'handler error';
+        return res.status(declared).json({ err: message });
+      }
       return res.status(500).json({ err: 'handler error' });
     }
   });

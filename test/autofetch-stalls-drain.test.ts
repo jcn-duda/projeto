@@ -13,7 +13,6 @@ import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { findStreams } from '../src/providers/index.js';
 import { recheckLots, runRecheck } from '../src/providers/autofetch-recheck.js';
 import { drainNext } from '../src/providers/autofetch-runner.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';

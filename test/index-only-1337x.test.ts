@@ -13,7 +13,10 @@ import { liveIndexers, ptSweepIndexers } from '../src/providers/search-plan.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as cache from '../src/utils/cache.js';
 import * as runtime from '../src/runtime.js';
-import { findStreams } from '../src/providers/index.js';
+// O `/stream` do Node saiu no F4.4; a decisão de index-only que este teste cobra
+// é a da COLETA (`collectRaw`), que continua sendo a executada pelas rotas
+// internas do orquestrador nativo.
+import { collectRaw } from '../src/providers/collect-orchestrator.js';
 
 test('default JACKETT_INDEX_ONLY_INDEXERS inclui 1337x', () => {
   assert.ok(config.jackett.indexOnlyIndexers.includes('1337x'), '1337x é index-only por default');
@@ -74,12 +77,19 @@ test('todos index-only selecionados: nenhuma consulta Jackett, sem fallback /all
     return new Response('', { status: 404 });
   }) as typeof globalThis.fetch;
   try {
+    const matchContext = {
+      names: ['Big Buck Bunny'], year: 2008, isSeries: false,
+      season: null, episode: null, released: null, firstAired: null,
+    };
     await runtime.run(
       {
         opts: { ...runtime.normalize(null), providers: ['jackett'], jackettIndexers: ['1337x'] },
         encoded: 'idxonly-1337x-all',
       },
-      () => findStreams({ type: 'movie', id: 'tt1254207' }),
+      () => collectRaw(
+        'Big Buck Bunny 2008', 'movie', 'tt1254207', null, matchContext as any,
+        null, null, Date.now() + 5000,
+      ),
     );
     const jackettCalls = chamadas.filter((u) => u.includes('/api/v2.0/indexers/'));
     assert.equal(jackettCalls.length, 0, 'nenhuma consulta Jackett na busca ao vivo');

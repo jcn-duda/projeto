@@ -8,7 +8,9 @@ import * as cache from '../src/utils/cache.js';
 import { recordFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import { videoQualityKey } from '../src/debrid/video-quality.js';
 import { applyProbedQuality } from '../src/providers/probed-quality.js';
-import { applyFileEvidence } from '../src/providers/stream-builder-pipeline.js';
+// `applyFileEvidence` sobreviveu ao pipeline (a rota interna de índice/coleta
+// ainda anexa a prova de arquivo); o módulo é o mesmo, sem o builder.
+import { applyFileEvidence } from '../src/providers/stream-file-evidence.js';
 import { toStremioStream, UNKNOWN_QUALITY } from '../src/utils/format.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import { recordFileEvidence } from '../src/debrid/audio-audit.js';

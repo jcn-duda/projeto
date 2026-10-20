@@ -216,53 +216,30 @@ test('segmento de 1 segmento que não é config vira 404, não manifest', async 
   assert.equal(res.status, 404);
 });
 
-test('segmento base64url válido serve o manifest e o overlay chega na busca', async () => {
+test('segmento base64url válido serve o manifest; /stream do Node está aposentado (410/503)', async () => {
   const segment = encodeConfig({ m: 3 });
   const res = await server.request('GET', `/${segment}/manifest.json`);
   assert.equal(res.status, 200);
   assert.equal(res.json.id, config.addonId);
 
-  // Prova de que o overlay do usuário é usado de verdade: o MESMO lote de
-  // resultados volta com tamanhos diferentes conforme o `m` do segmento.
-  // O endpoint do Jackett devolve JSON (mapResults lê Results/Title/...), e
-  // o segmento não força lista de indexers: ji vazio faria search() devolver
-  // [] de propósito (sem indexers escolhidos não há o que consultar).
-  const items = Array.from({ length: 6 }, (_, i) => ({
-    Title: 'Test Title 2024 1080p',
-    InfoHash: (i + 1).toString(16).padStart(40, '0'),
-    MagnetUri: `magnet:?xt=urn:btih:${(i + 1).toString(16).padStart(40, '0')}`,
-    Seeders: 100 + i,
-    Size: 1024 * 1024 * 700,
-    Tracker: 'mockindexer',
-  }));
-  const routes = [
-    { match: '/api/v2.0/indexers/', handler: () => fakeResponse({ Results: items }) },
-  ];
+  // F4.4: o pipeline de busca do Node saiu e o `/stream` nativo é do gateway.
+  // Sem gateway o processo responde 503 explícito; com GATEWAY=on +
+  // ROUTES_RUST=stream responde 410 (o pedido nunca deveria chegar aqui).
+  const semGateway = await server.request('GET', `/${segment}/stream/movie/tt1254207.json`);
+  assert.equal(semGateway.status, 503);
+  assert.match(String(semGateway.json.err), /gateway/);
 
-  await withMockFetch(routes, async () => {
-    const busca = (maxResults: any) =>
-      server.request(
-        'GET',
-        `/${encodeConfig({
-          p: ['jackett'],
-          m: maxResults,
-          d: 0,
-          q: ['2160p', '1080p', '720p', '480p'],
-          q1: 10,
-        })}/stream/movie/tt1254207.json`,
-      );
-
-    const comDois = await busca(2);
-    assert.equal(comDois.status, 200);
-    assert.equal(comDois.json.streams.length, 2, 'maxResults do usuário corta a lista');
-
-    // A chave de busca pode incluir a config; limpar garante que a segunda
-    // medição não pegou carona no resultado da primeira.
-    cache.clear();
-    const comQuatro = await busca(4);
-    assert.equal(comQuatro.status, 200);
-    assert.equal(comQuatro.json.streams.length, 4, 'o limite acompanha o segmento');
-  });
+  const saved = { gateway: process.env.GATEWAY, routes: process.env.ROUTES_RUST };
+  process.env.GATEWAY = 'on';
+  process.env.ROUTES_RUST = 'stream';
+  try {
+    const nativo = await server.request('GET', `/${segment}/stream/movie/tt1254207.json`);
+    assert.equal(nativo.status, 410);
+    assert.match(String(nativo.json.err), /gateway nativo/);
+  } finally {
+    if (saved.gateway === undefined) delete process.env.GATEWAY; else process.env.GATEWAY = saved.gateway;
+    if (saved.routes === undefined) delete process.env.ROUTES_RUST; else process.env.ROUTES_RUST = saved.routes;
+  }
 });
 
 test('Caddyfile e entrypoint não fecham /configure com basic_auth', () => {

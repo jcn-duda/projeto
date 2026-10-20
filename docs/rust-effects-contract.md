@@ -1,11 +1,12 @@
 # Efeitos de cauda do `/stream` — contrato e cobertura do orquestrador Rust
 
 Este documento fixa **quem enfileira o quê** ao fim de uma busca e o que o
-orquestrador nativo (`adom-search`) já consegue emitir sozinho. Ele é o
-pré-requisito do F4.1: o pipeline de debrid do Node (`applyDebrid`) é hoje quem
-produz estes efeitos; se ele sair antes de o Rust emitir os mesmos, o BR
-"seca" (o Chupim para de baixar, o colhedor para de colher, a auditoria de
-áudio para de provar, a chave de temporada para de invalidar listas).
+orquestrador nativo (`adom-search`) já consegue emitir sozinho. Ele era o
+pré-requisito do F4.1: o pipeline de debrid do Node (`applyDebrid`) produzia
+estes efeitos; se ele saísse antes de o Rust emitir os mesmos, o BR "secaria"
+(o Chupim para de baixar, o colhedor para de colher, a auditoria de áudio para
+de provar, a chave de temporada para de invalidar listas). No F4.4 o pipeline
+TS saiu e `EFFECTS_RUST` virou **default on** — estas são as únicas emissões.
 
 O transporte é a rota interna já existente `POST /internal/search/effects`
 (`src/routes/internal-search-effects.ts`), fire-and-forget, resposta **202** com
@@ -18,16 +19,14 @@ cada efeito dentro de `runtime.run(ctx do encoded)` — a conta do usuário vem 
 | Item | Valor |
 |---|---|
 | Env | `EFFECTS_RUST` (aceita `1/true/on/yes`) |
-| Default | **OFF** — nada muda em relação ao comportamento atual |
+| Default | **ON** desde o F4.4 (env ausente = ligado; `off` desliga) |
 | Onde liga | `adom-server` (`stream_config.rs` → `OrchestratorConfig::effects_enabled`) |
-| Alcance | só o orquestrador nativo; a sombra §9.1 continua sem tail e sem efeitos |
-| Rollback | remover/zerar a env (ou `EFFECTS_RUST=off`) e reiniciar o gateway |
+| Alcance | só o orquestrador nativo; a sombra §9.1 (histórica) continua sem tail e sem efeitos |
+| Rollback | `EFFECTS_RUST=off` (as filas do Node dedupam, mas o custo dobra) e reiniciar o gateway |
 
-Ligar `EFFECTS_RUST` com o pipeline de debrid do Node **ainda ativo** duplica a
-emissão: as filas do Node dedupam (marker do Chupim, fila do warmer, fila do
-colhedor com dedupe de 12 h, pending da auditoria por hash+S/E), mas o custo de
-rede dobra. O uso previsto é o corte `ROUTES_RUST=stream` **com** o pipeline TS
-de debrid desligado.
+Com o pipeline de debrid do Node fora, não há duplicação: a emissão nativa é a
+única. Rollback por env só faz sentido se a rota interna voltar a ser dona da
+coisa (é o mesmo caminho que o Node executa quando a flag está off).
 
 ## O que é emitido, quando
 

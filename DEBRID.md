@@ -459,7 +459,7 @@ ausente). Teste: `test/operator-env-account.test.ts`.
 ## ⚡ de memória no degradado (`DEBRID_ALIVE_AS_CACHE`)
 
 Evolução da sessão de limpeza de 2026-08-30, implementada em
-`src/providers/debrid-pipeline-steps.ts` (gancho `enrichInstantWithoutCacheCheck`,
+`src/providers/debrid-cache-steps.ts` (gancho `enrichInstantWithoutCacheCheck`,
 que o núcleo chama para todo adaptador). Default `false`. O problema que ele
 ataca é da AllDebrid — a checagem é upload — mas o atalho vale para TODO
 adaptador com `cacheCheck` (Premiumize, TorBox e o RD dinâmico quando

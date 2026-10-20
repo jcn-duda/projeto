@@ -12,8 +12,19 @@ import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { findStreams } from '../src/providers/index.js';
+import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
+import { parseStremioId } from '../src/utils/format.js';
 import type { DebridAdapter } from '../types/domain.js';
+
+// O F4.4 removeu `findStreams` (o /stream é do gateway nativo). O único efeito
+// que estes testes usavam da busca era o registro da chave de temporada no
+// início dela — que agora é chamado pelo efeito `season_key` da rota interna.
+function registerSeasons(ids: string[], keys: string[], adapterId: string, apiKey: string) {
+  ids.forEach((id, i) => {
+    const { imdbId, season } = parseStremioId(id);
+    if (season != null) registerSeasonSearchKey(adapterId, accountScope(apiKey), imdbId, season, keys[i]);
+  });
+}
 
 test('hash NÃO-pack pronto no recheck semeia davail', async () => {
   const testMock = mock;
@@ -138,7 +149,7 @@ test('T4a: adaptador sem cacheCheck (Real-Debrid/Debrid-Link) não semeia davail
     for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-sf-rd' }, async () => {
-      for (const id of ids) await findStreams({ type: 'series', id });
+      registerSeasons(ids, keys, rdAdapter.id, apiKey);
     });
 
     testMock.timers.enable({ apis: ['setTimeout'] });

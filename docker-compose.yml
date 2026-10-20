@@ -29,6 +29,16 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 7000
+      # F4.4: o gateway Rust é o caminho PADRÃO do `/stream`. O entrypoint sobe
+      # `adom-server` na 7000 e o Node só na 7100 (rotas internas/painel/play).
+      # Rollback de runtime: `GATEWAY=off` no .env volta o Node para a 7000 —
+      # mas o `/stream` do Node está aposentado (503), então o rollback
+      # FUNCIONAL do corte é a imagem/commit anterior.
+      GATEWAY: "${GATEWAY:-on}"
+      ROUTES_RUST: "${ROUTES_RUST:-stream}"
+      # O orquestrador nativo fala com o Node pelas rotas internas (loopback).
+      INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
+      INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
       # Tudo vive no mesmo container agora: loopback no lugar do DNS do Docker.
       JACKETT_URL: http://127.0.0.1:9117
       PROWLARR_URL: http://127.0.0.1:9696

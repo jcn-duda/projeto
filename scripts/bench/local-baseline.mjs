@@ -23,12 +23,14 @@ import { setTimeout as sleep } from 'node:timers/promises';
 const execFileAsync = promisify(execFile);
 const PROBE_SRC_URL = new URL('./local-container-probe.py', import.meta.url);
 // Subconjunto compilado comparado entre container e host (sem importar addon.js).
+// F4.4: o pipeline de busca TS saiu; o baseline compara o que sobrou do processo
+// (rede/coleta e hot paths do núcleo) e não inventa arquivo removido.
 const ARTIFACT_RELS = [
   'dist/src/addon.js',
   'dist/src/app.js',
   'dist/src/utils/title-normalization.js',
-  'dist/src/providers/search-orchestrator.js',
-  'dist/src/providers/stream-builder.js',
+  'dist/src/providers/collect-orchestrator.js',
+  'dist/src/providers/magnet-bank-instant.js',
 ];
 const DEFAULT_CONTAINER = 'stremio-adom';
 const DEFAULT_OUT = 'rust/benchmarks/local-ts-baseline.json';

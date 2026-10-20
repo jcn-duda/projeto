@@ -13,9 +13,19 @@ import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import { findStreams } from '../src/providers/index.js';
+import { registerSeasonSearchKey } from '../src/providers/autofetch-runner.js';
+import { parseStremioId } from '../src/utils/format.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { flush, brDubCandidate, autofetchUserOpts } from './helpers/autofetch-fixtures.js';
+
+// O F4.4 removeu `findStreams`; o registro da temporada (único efeito usado
+// aqui) é explícito, como no efeito `season_key` do orquestrador nativo.
+function registerSeasons(ids: string[], keys: string[], adapterId: string, apiKey: string) {
+  ids.forEach((id, i) => {
+    const { imdbId, season } = parseStremioId(id);
+    if (season != null) registerSeasonSearchKey(adapterId, accountScope(apiKey), imdbId, season, keys[i]);
+  });
+}
 
 function clearDead(adapterId: string, account: string, hashes: string[]) {
   for (const h of hashes) cache.forget(autofetch.deadKey(adapterId, account, h));
@@ -60,7 +70,7 @@ test('pack "Temporada Completa" sem número não dispara season fill', async () 
     for (const key of keys) cache.set(key, [{ infoHash: h }], 900);
 
     await runtime.run({ opts: userOpts, encoded: 'cfg-fill-sem-numero' }, async () => {
-      for (const id of ids) await findStreams({ type: 'series', id });
+      registerSeasons(ids, keys, pmAdapter.id, apiKey);
     });
 
     testMock.timers.enable({ apis: ['setTimeout'] });

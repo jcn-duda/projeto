@@ -35,4 +35,4 @@ function createApp() {
 
 export { createApp };
 export { asyncRoute } from './routes/async.js';
-export { originOf, streamsNeedRevalidation } from './routes/origin.js';
+export { originOf } from './routes/origin.js';

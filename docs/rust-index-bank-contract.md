@@ -5,19 +5,21 @@ Este documento fixa o contrato do **índice** (`idx:v14` no `cache.db`) e do
 nativo (`adom-search`), atrás de `INDEX_RUST`/`BANK_RUST`. É o pré-requisito do
 corte do `/stream`: sem ele, `POST /internal/search/index` e
 `/internal/search/fallback` continuam sendo o caminho do Node para a resposta
-rápida, a reserva 📦 e a escrita do índice.
+rápida, a reserva 📦 e a escrita do índice. **No F4.4 os dois viraram default
+`on`** — o caminho Node é o rollback por env.
 
 ## Flags e rollback
 
 | Env | Valores | Default | O que faz |
 |---|---|---|---|
-| `INDEX_RUST` | `off` / `shadow` / `on` (ou `1/true/yes`) | **off** | `on`: o nativo lê `idx:v14`, decide cobertura/instantânea, escreve o índice e emite o follow-up. `shadow`: Node responde; o nativo recomputa em fundo e compara. |
-| `BANK_RUST` | `off` / `shadow` / `on` | **off** | `on`: o nativo lê o `magnets.db` (instantânea + reserva 📦) e grava `passed_filter` na escrita do índice. `shadow`: Node responde e o nativo compara. |
+| `INDEX_RUST` | `off` / `shadow` / `on` (ou `1/true/yes`) | **on** (F4.4) | `on`: o nativo lê `idx:v14`, decide cobertura/instantânea, escreve o índice e emite o follow-up. `shadow`: Node responde; o nativo recomputa em fundo e compara. `off`: rota interna do Node. |
+| `BANK_RUST` | `off` / `shadow` / `on` | **on** (F4.4) | `on`: o nativo lê o `magnets.db` (instantânea + reserva 📦) e grava `passed_filter` na escrita do índice. `shadow`: Node responde e o nativo compara. `off`: rota interna do Node. |
 | `INDEX_SHADOW_SAMPLE` | `0..=1` | `0.1` | Amostra determinística por IMDb id (FNV-1a). Fora da amostra conta só `index.shadow.not_sampled`. |
 
-Rollback: remover/zerar a env (ou `INDEX_RUST=off`/`BANK_RUST=off`) e reiniciar
-o gateway. As chaves e o schema SQLite são os do Node, então um rollback vê o
-mesmo índice/banco que o nativo gravou — nada é migrado.
+Rollback: `INDEX_RUST=off`/`BANK_RUST=off` (ou remover e deixar o default, que
+agora é `on`) e reiniciar o gateway. As chaves e o schema SQLite são os do
+Node, então um rollback vê o mesmo índice/banco que o nativo gravou — nada é
+migrado.
 
 Combinações:
 

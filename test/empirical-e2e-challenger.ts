@@ -8,11 +8,15 @@ console.log('================================================================');
 console.log(' EMPIRICAL CHALLENGER 1: E2E TEST SUITE STRESS & MUTATION HARNESS');
 console.log('================================================================\n');
 
+// F4.4: os tier4 usavam `findStreams` (pipeline TS, removido). O baseline do
+// challenger fica com os tiers que ainda exercitam código REAL do Node; os
+// gates do corte nativo são os corpus de Rust (stream_frozen_parity/
+// stream_e2e_parity).
 const E2E_FILES = [
   'dist/test/e2e/tier1-feature-coverage.test.js',
+  'dist/test/e2e/tier1-invariants-security.test.js',
   'dist/test/e2e/tier2-boundary-corner.test.js',
-  'dist/test/e2e/tier3-cross-feature.test.js',
-  'dist/test/e2e/tier4-application-scenarios.test.js'
+  'dist/test/e2e/tier3-cross-feature.test.js'
 ];
 
 // Mesmo ambiente da suíte (`dist/scripts/run-tests.js`): os e2e exigem o
@@ -155,37 +159,28 @@ const mutations = [
     testFile: 'dist/test/e2e/tier3-pipeline.test.js'
   },
   {
-    // PLANO_MELHORIAS 5.1: applyDebrid (e markDebridName) saiu de
-    // providers/index.js para providers/debrid-pipeline.js no split de
-    // providers. PLANO_MELHORIAS 5.8 dividiu o pipeline: o branding
-    // viaDebrid/markDebridName mora agora no core. O alvo segue o arquivo que
-    // herda a lógica — atualização de alvo, não enfraquecimento.
-    name: 'MUT-09: Break Tier 4 Scenario 1 Premiumize branding [PM⚡] (providers/debrid-pipeline-core.js)',
-    file: 'dist/src/providers/debrid-pipeline-core.js',
+    // F4.4: o pipeline TS de busca saiu do `src/`. O `applyDebrid` que os
+    // testes medem é o ORÁCULO congelado (`test/helpers/pipeline-oracle/`), e
+    // é nele que o branding viaDebrid/[PM⚡] tem que continuar sendo cobrado —
+    // o alvo segue o arquivo que herda a lógica, não some com o corte.
+    name: 'MUT-09: Break Premiumize branding [PM⚡] (oráculo applyDebrid)',
+    file: 'dist/test/helpers/pipeline-oracle/debrid-pipeline.js',
     target: 'name: markDebridName(s.name, adapter.short || adapter.id, instant),',
     replacement: 'name: s.name, // MUTATED: stripped [PM⚡]',
-    testFile: 'dist/test/e2e/tier4-application-scenarios.test.js'
+    testFile: 'dist/test/e2e/tier3-cross-feature.test.js'
   },
   {
-    // A promoção tardia saiu de `search-orchestrator.ts` para
-    // `search-late-promoter.ts` (catraca de 400 linhas). O alvo é a escrita do
-    // ramo SEM novidade: a coleta estourou o orçamento, a resposta saiu parcial
-    // e o lote fechou sem item novo. É essa reescrita (`partial:false`) que faz
-    // a reabertura do Stremio sair do cache com TTL cheio; forçá-la a `true`
-    // deixa a entrada parcial para sempre.
-    //
-    // `testFile` dedicado: nenhuma suíte existente ALCANÇA esse ramo (o caminho
-    // quente responde completo e o ramo `grew` passa pelo `finish`, não por esta
-    // escrita). O tier3-runtime chegou a pegar a mutação, mas por uma falha
-    // pré-existente do próprio arquivo (4 pass / 1 fail SEM mutação) — captura
-    // vácua. `test/search-late-promoter.test.ts` fixa o contrato no símbolo.
-    name: 'MUT-10: Break Late-Pass Cache Promotion (providers/search-late-promoter.js)',
-    file: 'dist/src/providers/search-late-promoter.js',
-    // O emit do tsc quebra o objeto em várias linhas; `partial: false,` é
-    // único no arquivo e é o campo que a promoção sem novidade grava.
-    target: 'partial: false,',
-    replacement: 'partial: true, // MUTATED',
-    testFile: 'dist/test/search-late-promoter.test.js'
+    // A promoção tardia (`search-late-promoter.ts`) morreu no F4.4: a régua
+    // equivalente é `adom_core::search_finish` (coberta por
+    // `cargo test -p adom-search`). Para não perder um mutante do harness, o
+    // alvo passou a ser a decisão de SAÍDA que os testes ainda alcançam pelo
+    // oráculo: inverter `resolveUncached` na travessia para o núcleo transforma
+    // "pack frio fica no /resolve" em "pack frio vira P2P" (e vice-versa).
+    name: 'MUT-10: Invert resolveUncached no oráculo play-disposition',
+    file: 'dist/test/helpers/pipeline-oracle/debrid-play-guard.js',
+    target: 'resolveUncached: opts.resolveUncached,',
+    replacement: 'resolveUncached: !opts.resolveUncached, // MUTATED',
+    testFile: 'dist/test/debrid-resolve-uncached.test.js'
   }
 ];
 

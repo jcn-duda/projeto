@@ -9,7 +9,7 @@ import debrid from '../src/debrid/index.js';
 import { getMeta } from '../src/utils/cinemeta.js';
 import { getTitles } from '../src/utils/tmdb.js';
 import {
-  buildStreams, firstObserverStep, createFirstObserver,
+  firstObserverStep, createFirstObserver,
   firstObserverClaim, promoteFirstObserverEligible,
 } from '../src/providers/index.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';

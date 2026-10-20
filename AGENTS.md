@@ -127,10 +127,13 @@ npm run docker:up / docker:logs
   debrid/check da busca) só existe em loopback + token; com
   `GATEWAY=on` o gateway Rust recusa `/internal/*` antes do proxy (o Caddy
   também bloqueia). A guarda de loopback do Node **não** distingue o cliente
-  atrás do proxy — a recusa tem que estar na fachada. Override gateway
-  (`docker-compose.gateway.yml`): sombra default `ROUTES_RUST=stream-shadow`
-  (Node na 7100); corte `stream` é experimental e exige paridade BR+cotas
-  antes de default. Detalhe em `docs/rust-stream-contract.md` §0.
+  atrás do proxy — a recusa tem que estar na fachada. **Desde o F4.4 o corte
+  nativo é o PADRÃO**: o `docker-compose.yml` sobe `GATEWAY=on` +
+  `ROUTES_RUST=stream` (gateway na 7000, Node na 7100) e o `/stream` do Node
+  responde **410** nesse modo (**503** sem gateway) — o pipeline TS de busca
+  saiu. `docker-compose.gateway.yml` é diagnóstico/rollback (publica o 7100);
+  rollback funcional do corte é imagem/commit anterior, não env. Detalhe em
+  `docs/rust-stream-contract.md` §0.
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
   (escopo global). Bump de namespace (`src/utils/cache-keys.ts`) só quando muda
@@ -142,24 +145,31 @@ npm run docker:up / docker:logs
 
 ## Fluxo de busca (um `stream` request)
 
+Desde o F4.4 o `/stream` é do **gateway Rust** (`adom-server` → `adom-search`);
+o Node não monta mais lista. O Node fica com I/O e rede: metadados/coleta em
+fallback, índice/banco em fallback, efeitos, debrid, painel, `/resolve`,
+`/configure` e o raspador.
+
 ```
-app.ts → providers/index.ts findStreams
-  ├─ cache SWR (streams:v21) + coalescing inFlight
-  └─ doSearch: cinemeta + tmdb (pt-BR e en-US) em paralelo
-       → collectRaw (search-plan + collection-window): jackett (globais EN
-         agrupados; BR/slow isolados em pt-BR), prowlarr, torrentio, bludv,
-         mico, inventário da conta
-       → buildStreams (latest-writer; parcial e tardio): filtro de título →
-         pack multiobra → episódio → sortAndLimit (pool ampliado) → applyDebrid
-         → limitReservingBr → aviso se vazia
-       → enqueueTail (fora da resposta): pack complementar, refresh debrid,
-         varredura pt-BR nos globais
+Caddy → adom-server (:7000) → Orchestrator (adom-search)
+  ├─ cache SWR nativo (data/streams.db, streams:v21) + coalescing inFlight
+  ├─ metadados: nativo (META_RUST, default) OU POST /internal/search/meta
+  ├─ coleta: fontes nativas (SOURCES_RUST, default todas) + NodeCollector com
+  │  skip_sources (jackett BR/globais, prowlarr, torrentio, bludv, mico, conta)
+  ├─ via do índice/banco: nativo (INDEX_RUST/BANK_RUST, default) OU
+  │  POST /internal/search/index, /collect, /debrid/check
+  ├─ build no núcleo (filtro → multiobra → episódio → ranking → debrid →
+  │  cotas → aviso) — MESMA régua dos goldens
+  └─ efeitos (EFFECTS_RUST, default): POST /internal/search/effects
 ```
+
+O Node fora desse caminho: `POST /internal/*` (loopback+token), `/resolve`
+(HMAC + debrid), painel/config, autofetch/colhedor/raspador (workers próprios).
 
 Pontos que mordem:
 - **Host nunca vai para o cache.** Aviso de lista vazia e URL de `/resolve` são
-  gravados relativos; `applyNoticeOrigin` monta o host na resposta, com o origin
-  da requisição.
+  gravados relativos; `apply_notice_origin` (Rust) monta o host na resposta, com
+  o origin da requisição.
 - **Config por usuário** viaja codificada na URL (`/<base64url>/manifest.json`),
   servidor stateless. Preferência do usuário lê-se por `opts()` (`src/runtime.ts`),
   **nunca** de `config.*` no caminho de busca. Timer/promise pós-request precisa de
@@ -216,8 +226,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   um indexer falha. Captura é assíncrona e a busca nunca espera o disco.
   Os índices `magnet_last_seen` / `magnet_source_last_seen` seguram o `MAX` do
   status do painel: sem eles o poll travava o event loop por ~7 s. A via rápida
-  do `/stream` nativo segue a ordem do `search-index-path.ts` (instantânea antes
-  do índice coberto); o `/internal/search/collect` aceita `skip_sources`. O
+  do `/stream` é do orquestrador nativo (`adom-search/orchestrator/fast_path.rs`:
+  instantânea antes do índice coberto); no Node, `search-index-path.ts` só
+  atende a rota interna `/internal/search/index` (leitura do índice/instantânea
+  para o fallback) e o `/internal/search/collect` aceita `skip_sources`. O
   tail dela coleta com prazo próprio (`SEARCH_TAIL_COLLECT_MS`) e, na
   promoção, tira o 📦 de reserva/foto que a coleta ao vivo superou
   (`merge_fast_with_live`, espelho de `dropInstantFallbacks`/`clearInstantSnapshots`).
@@ -332,7 +344,8 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
    BR **não** (têm total próprio, saltos com deadline absoluto). Etapa de rede
    nova num provider global precisa caber nele. Deadline estourado devolve parcial
    e a busca continua em fundo (cache ≤ 60s). Rode
-   `test/search-budget-metadata.test.ts` ao mexer.
+   `cargo test -p adom-search --test search_budget_metadata` ao mexer (o porte
+   para Rust substituiu `test/search-budget-metadata.test.ts` no F4.4).
 2. **Origem BR é um campo** (`isBr` do provider), não regex de título como única
    fonte; `looksPtBr` também liga o flag. Dual sozinho nunca condena nem promove
    (precisa de PT/contexto, `ptTitleDual`, herança). Dual + idioma estrangeiro
@@ -373,7 +386,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 |---|---|
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
-| Busca | `src/providers/` (`search-cache`, `search-orchestrator`, `search-plan`, `collection-window`, `stream-builder`, `debrid-pipeline`) |
+| Busca | Gateway/orquestrador: `rust/crates/adom-search`; no Node ficou a coleta (`collect-orchestrator`, `search-plan`, `collection-window`, `search-index-path`), o índice/banco (`magnet-bank-*`, `release-index`), os metadados (`cinemeta`/`tmdb`) e o debrid (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
 | Fontes | `jackett*.ts`, `prowlarr.ts`, `torrentio.ts`, `bludv.ts`, `mico.ts`, `account.ts` |
 | Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`, `harvester*.ts`, `harvest-*.ts` |
 | Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*` |

@@ -163,10 +163,7 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
   const originalEnqueue = adapter.enqueue;
   const originalCheck = debrid.checkCached;
   const originalInventory = adapter.inventory;
-  const originalSearch = jackett.search;
   const saved = {
-    jackettKey: config.jackett.apiKey,
-    tmdbKey: config.tmdb.apiKey,
     publicUrl: config.debrid.publicUrl,
     resolveSecret: config.debrid.resolveSecret,
   };
@@ -175,13 +172,9 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
   const imdbId = 'tt0119081';
   const apiKey = 'f4-ciclo-chave';
   const searchKey = 'f4-autofetch-index-cycle';
-  const account = accountScope(apiKey);
   let ready = false;
   let enqueueCount = 0;
-  let server: Awaited<ReturnType<typeof createTestServer>> | null = null;
   try {
-    config.jackett.apiKey = 'f4-jackett-fake';
-    config.tmdb.apiKey = 'f4-tmdb-fake';
     config.debrid.publicUrl = 'https://addon.teste';
     config.debrid.resolveSecret = '';
     adapter.enqueue = async () => {
@@ -194,70 +187,51 @@ test('F4: a abertura seguinte oferece a release do autofetch sem declarar cobert
       cached: new Set(ready ? [hash] : []),
       known: true,
     });
-    jackett.search = async () => [{
-      title: 'O Enigma do Horizonte 1997 1080p DUBLADO alternativa',
+    const userOpts = {
+      ...runtime.defaults(), providers: ['jackett'], debridService: 'premiumize',
+      debridApiKey: apiKey, debridCachedOnly: true, autoFetchBr: true,
+    };
+    const candidate = {
+      title: 'O Enigma do Horizonte 1997 1080p DUBLADO\n👤 1 ⚙️ hdrtorrent',
+      name: 'PowerMovie BR', infoHash: hash,
+      _br: true, _dubbed: true, _lied: false,
+      _quality: '1080p', _seeders: 1, _indexer: 'hdrtorrent',
+    } as Stream;
+    // Outro release dublado da MESMA obra/faixa: a próxima abertura não pode
+    // mandá-lo de novo para a conta enquanto o primeiro estiver pronto.
+    const alternate = {
+      ...candidate,
       infoHash: alternateHash,
-      indexer: 'hdrtorrent',
-      isBr: true,
-      dubbed: true,
-      seeders: 99,
-    }];
-    server = await createTestServer(createApp().app);
+      title: 'O Enigma do Horizonte 1997 1080p DUBLADO alternativa\n👤 99 ⚙️ hdrtorrent',
+      _seeders: 99,
+    } as Stream;
 
-    await withMockFetch([
-      { match: 'cinemeta.strem.io', handler: () => ({ meta: { name: 'Event Horizon', year: '1997', type: 'movie' } }) },
-      {
-        match: 'themoviedb.org',
-        handler: () => ({ movie_results: [{ title: 'O Enigma do Horizonte', original_title: 'Event Horizon', release_date: '1997-08-15' }] }),
-      },
-    ], async () => {
-      const userOpts = {
-        ...runtime.defaults(), providers: ['jackett'], debridService: 'premiumize',
-        debridApiKey: apiKey, debridCachedOnly: true, autoFetchBr: true,
-      };
-      const candidate = {
-        title: 'O Enigma do Horizonte 1997 1080p DUBLADO\n👤 1 ⚙️ hdrtorrent',
-        name: 'PowerMovie BR', infoHash: hash,
-        _br: true, _dubbed: true, _lied: false,
-        _quality: '1080p', _seeders: 1, _indexer: 'hdrtorrent',
-      } as Stream;
+    const first = await runtime.run({ opts: userOpts, encoded: 'f4-cycle' }, () =>
+      applyDebrid([candidate], { imdbId, searchKey } as any)) as Stream[];
+    assert.equal(first.length, 0, 'cachedOnly oculta a BR ainda fria na primeira abertura');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(enqueueCount, 1);
+    const indexed = releaseIndex.lookupQuiet(imdbId);
+    assert.equal(indexed[0]?.hash, hash);
+    assert.equal(indexed[0]?.source, 'autofetch');
+    assert.equal(idxPoolCovered(indexed), false, 'o enqueue não dispensa a coleta');
 
-      const first = await runtime.run({ opts: userOpts, encoded: 'f4-cycle' }, () =>
-        applyDebrid([candidate], { imdbId, searchKey } as any)) as Stream[];
-      assert.equal(first.length, 0, 'cachedOnly oculta a BR ainda fria na primeira abertura');
-      await new Promise((resolve) => setImmediate(resolve));
-      assert.equal(enqueueCount, 1);
-      const indexed = releaseIndex.lookupQuiet(imdbId);
-      assert.equal(indexed[0]?.hash, hash);
-      assert.equal(indexed[0]?.source, 'autofetch');
-      assert.equal(idxPoolCovered(indexed), false, 'o enqueue não dispensa a coleta');
-
-      const cfg = encodeConfig({
-        p: ['jackett'], ds: 'premiumize', dk: apiKey, c: true, ab: true,
-        q: ['2160p', '1080p', '720p', '480p'],
-      });
-      const second = await server!.request('GET', `/${cfg}/stream/movie/${imdbId}.json`);
-      assert.equal(second.status, 200);
-      assert.ok(JSON.stringify(second.json.streams || []).toLowerCase().includes(hash));
-      assert.equal(enqueueCount, 1, 'outro hash da mesma obra/faixa não volta para a conta');
-      assert.ok((metrics.snapshot().counters['autofetch.skip.already-cached'] || 0) >= 1);
-      // O fast-path provisional enriquece no tail. Deixe-o assentar ainda sob
-      // os dublês; restaurar fetch/adapter antes faria rede real após o teste.
-      await sleep(100);
-    });
+    // "Próxima abertura": o mesmo par (obra, faixa) já pronto e outro release
+    // 1080p dublado da obra — o primeiro sai, o segundo NÃO volta para a conta.
+    const second = await runtime.run({ opts: userOpts, encoded: 'f4-cycle' }, () =>
+      applyDebrid([candidate, alternate], { imdbId, searchKey } as any)) as Stream[];
+    assert.ok(JSON.stringify(second).toLowerCase().includes(hash));
+    assert.equal(enqueueCount, 1, 'outro hash da mesma obra/faixa não volta para a conta');
+    assert.ok((metrics.snapshot().counters['autofetch.skip.already-cached'] || 0) >= 1);
   } finally {
-    if (server) await server.close();
     adapter.enqueue = originalEnqueue;
     adapter.inventory = originalInventory;
     debrid.checkCached = originalCheck;
-    jackett.search = originalSearch;
-    config.jackett.apiKey = saved.jackettKey;
-    config.tmdb.apiKey = saved.tmdbKey;
     config.debrid.publicUrl = saved.publicUrl;
     config.debrid.resolveSecret = saved.resolveSecret;
     autofetch.releaseSearch(searchKey);
-    cache.forget(autofetch.markerKey('premiumize', account, hash));
-    held.release(hash, account);
+    cache.forget(autofetch.markerKey('premiumize', accountScope(apiKey), hash));
+    held.release(hash, accountScope(apiKey));
     cache.clear();
   }
 });

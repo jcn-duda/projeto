@@ -1,10 +1,12 @@
 # Checagem de cache da AllDebrid no Rust (`DEBRID_AL_RUST`)
 
-Status: **opt-in, default OFF**. A rota Node `/internal/debrid/check` continua
-sendo a que responde em produção; o corte F4.6 (remover a rota) **não** foi
-feito. Este documento registra o contrato mapeado, o que o `adom-debrid` cobre,
-o que ficou fora e como validar quando a conta AllDebrid sair de
-`MAGNET_TOO_MANY`.
+Status: **opt-in, default OFF — inclusive depois do F4.4**. A rota Node
+`/internal/debrid/check` continua sendo a que responde em produção (e é o que o
+orquestrador nativo usa com a flag off); o corte F4.6 (remover a rota) **não**
+foi feito. O motivo é objetivo: o nativo é read-only sem o feed de holds do
+autofetch, então `on` deixaria a conta acumular o que subiu. Este documento
+registra o contrato mapeado, o que o `adom-debrid` cobre, o que ficou fora e
+como validar quando a conta AllDebrid sair de `MAGNET_TOO_MANY`.
 
 ## 1. Contrato do Node
 

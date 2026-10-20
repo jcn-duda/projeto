@@ -26,7 +26,6 @@ const { planJackettQueries } = await import('../src/providers/search-plan.js');
 const { playDisposition } = await import('./helpers/pipeline-oracle/debrid-play-guard.js');
 const { resolveMultiWork, startMultiWorkDiscovery } = await import('../src/providers/tmdb-multiwork.js');
 const { getCollection } = await import('../src/utils/tmdb.js');
-const { prepareCandidateStreams } = await import('../src/providers/stream-builder.js');
 const releaseIndex = await import('../src/utils/release-index.js');
 const { stubFetch } = await import('./helpers/stub.js');
 
@@ -263,60 +262,6 @@ test('startMultiWorkDiscovery: default nativo (multiWorkPacks on) consulta o TMD
   }
 });
 
-test('não-indexação: pack admitido não entra no índice público da obra', async () => {
-  const pack = indyPack();
-  try {
-    await runtime.run(
-      // debrid ativo é precondição de operador para a admissão existir.
-      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'k' }, encoded: 'cfg-mw' },
-      async () => {
-        const pool = prepareCandidateStreams([pack], {
-          meta: { name: MOVIE_NAME, year: 1981 },
-          titles: null as any,
-          imdbId: IMDB,
-          season: null,
-          episode: null,
-          isDemo: false,
-          multiWork: INDY,
-        });
-        // Serve a RESPOSTA...
-        assert.equal(pool.streams.length, 1);
-        assert.equal(pool.streams[0]._multiWork, true);
-        assert.equal((pool.streams[0] as any)._multiWorkAdmitted, true);
-        // ...mas o pack NÃO é evidência pública de existência da obra isolada.
-        const indexed = releaseIndex.lookup(IMDB);
-        assert.equal(indexed.some((release: any) => release.hash === HASH), false);
-      },
-    );
-  } finally {
-    cache.clearNamespace('idx');
-  }
-});
-
-test('H2: sob o opt-in, pack sem nomes não gera URL e não cai no maior arquivo', async () => {
-  try {
-    await runtime.run(
-      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'k' }, encoded: 'cfg-h2' },
-      async () => {
-        const pool = prepareCandidateStreams([indyPack()], {
-          meta: { year: 1981 }, // sem name => sem nomes => sem dica de obra
-          titles: null as any,
-          imdbId: IMDB,
-          season: null,
-          episode: null,
-          isDemo: false,
-          multiWork: INDY,
-        });
-        // Sem dica válida o pack sai do lote: nenhum stream de coleção e,
-        // portanto, nenhuma URL /resolve que pudesse escolher o maior arquivo.
-        assert.equal(pool.streams.filter((s: any) => s._multiWork).length, 0);
-      },
-    );
-  } finally {
-    cache.clearNamespace('idx');
-  }
-});
-
 test('marcador interno _multiWorkAdmitted sobrevive ao dedupe mas não vaza', () => {
   const winner: any = { name: 'win', infoHash: HASH, url: 'http://x/resolve/1', _quality: '1080p', _seeders: 1 };
   const loser: any = { name: 'lose', infoHash: HASH, _multiWork: true, _multiWorkAdmitted: true, _quality: '1080p', _seeders: 1 };
@@ -326,34 +271,6 @@ test('marcador interno _multiWorkAdmitted sobrevive ao dedupe mas não vaza', ()
   const out = limitReservingBr(merged, { maxResults: 5, brReservedSlots: 1, brReservedPerQuality: 1 });
   assert.equal('_multiWorkAdmitted' in out[0], false, 'campo interno não pode chegar ao cliente');
   assert.equal('_multiWork' in out[0], false);
-});
-
-test('não muta o RawItem (o item pode vir do raw cache L1/L2): clona a marca', async () => {
-  const input = indyPack();
-  const before = JSON.stringify(input);
-  try {
-    await runtime.run(
-      { opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: 'k' }, encoded: 'cfg-nomutate' },
-      async () => {
-        const pool = prepareCandidateStreams([input], {
-          meta: { name: MOVIE_NAME, year: 1981 },
-          titles: null as any,
-          imdbId: IMDB,
-          season: null,
-          episode: null,
-          isDemo: false,
-          multiWork: INDY,
-        });
-        assert.equal(pool.streams.length, 1);
-        assert.equal((pool.streams[0] as any)._multiWorkAdmitted, true);
-      },
-    );
-  } finally {
-    cache.clearNamespace('idx');
-  }
-  // O objeto de entrada (possivelmente o MESMO do cache bruto) não ganha a marca.
-  assert.equal(JSON.stringify(input), before);
-  assert.equal('_multiWorkAdmitted' in input, false);
 });
 
 test('getCollection: lê belongs_to_collection, monta a raiz e cacheia; falha é fail-open', async () => {

@@ -1,5 +1,11 @@
 # RUST-CONTRATOS.md — contratos TS→Rust
 
+> **F4.4:** as referências a `src/providers/debrid-pipeline-core.ts` (e aos
+> demais módulos do pipeline) descrevem a **derivação original** do contrato.
+> Esses arquivos saíram do branch na F4.4; o produtor vigente da URL/`sig` é o
+> orquestrador Rust (`adom-search`/`adom-core::resolve_sign`), e a cópia TS
+> congelada que os testes usam mora em `test/helpers/pipeline-oracle/`.
+
 Status: **EM CURSO**. Snapshot desta revisão: **`19b9879`** (branch `rust`;
 `git describe` = `v1.1.0-103-g19b9879`; **96 commits** à frente de `022ae03`, o
 `HEAD` que o §1 citava, e **59** à frente de `d8505b2`, a última revisão deste

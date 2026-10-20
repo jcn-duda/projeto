@@ -215,6 +215,14 @@ nem versão implantada: confira esses estados separadamente no deploy.
 
 ## Arquitetura do fluxo de busca
 
+> **Nota F4.4:** a descrição abaixo é a do pipeline **Node** que existiu até o
+> F4.4. Desde o corte, o `/stream` é do gateway Rust (`adom-server` →
+> `adom-search`, com SWR em `data/streams.db`); o Node responde 410/503 nele e
+> ficou com as rotas internas, `/resolve`, painel/config, autofetch e raspador.
+> Os módulos citados (`search-cache`, `search-orchestrator`, `stream-builder*`,
+> `debrid-pipeline*`) foram removidos; o histórico fica aqui pela rastreabilidade
+> das decisões.
+
 Um `stream` request do Stremio percorre exatamente este caminho:
 
 ```
@@ -2968,11 +2976,12 @@ fire-and-forget) continua.
 | `src/br-resolvers.ts` | Carrega os oito profiles no processo do addon (factory com config explícita, sem mutar env); `probe()` é o teste direto do painel (`/test-resolver.json`), que não toca `indexerStatus` nem o breaker |
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
 | `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
-| `src/providers/index.ts` | Fachada pós split 5.1: reexporta os módulos irmãos + glue de `autofetchStatus` (não guarda estado próprio) |
-| `src/providers/search-cache.ts` | `findStreams`, coalescing (`inFlight`), SWR (`debridRefreshSatisfied`, `staleRefreshEligible`, `scheduleStaleRefresh`), `hasPlayableStream` |
-| `src/providers/search-orchestrator.ts` | `doSearch`, `collectRaw`, `poolCovered`, `idxPoolCovered`, `idxReleasesToRaw` |
-| `src/providers/debrid-pipeline.ts` | `applyDebrid`, filtro pré-checagem, auditoria de áudio (`collectAuditCandidates`, `queueDubAudit`, `runDubAudit`) |
-| `src/providers/stream-builder.ts` | `buildStreams`, `applyFileEvidence`, `applyNoticeOrigin`, `onlyNotice` |
+| `src/providers/index.ts` | Fachada pós F4.4: `autofetchStatus` (snapshot do Chupim), cobertura de pool (`poolCovered`/`idxPoolCovered`) e o observador de primeira resposta; não guarda estado próprio |
+| `src/providers/collect-orchestrator.ts` | `collectRaw`/`collectRawLive`: a coleta atendida por `POST /internal/search/collect` (fonte de rollback de `SOURCES_RUST`) |
+| `src/providers/search-index-path.ts` | `enqueueIndexFollowUp` + fast-path do índice usado pela rota interna `/internal/search/index` (rollback de `INDEX_RUST`) |
+| `src/providers/magnet-bank-instant.ts` | `collectInstantItems`/`promoteInstantTail` (instantânea e reserva 📦; `BANK_RUST` default on) |
+| `src/providers/debrid-cache-steps.ts` / `dub-audit.ts` / `episode-size.ts` | Etapas de debrid que sobreviveram ao corte (pré-checagem, auditoria de áudio, anotação de tamanho) — consumidas pelo oráculo e pelo autofetch |
+| ~~`search-cache`/`search-orchestrator`/`stream-builder*`/`debrid-pipeline*`~~ | **Removidos no F4.4.** `applyDebrid`/`play-guard` vivem em `test/helpers/pipeline-oracle/` como oráculo congelado; a decisão de produção é do núcleo Rust |
 | `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |
 | `src/providers/autofetch-obra.ts` | Teto por obra (F2): reserva volátil + registro persistido por hash (pool/acceptedAt/título/br/dubbed/id) e `obraDigest` — a identidade segura que o marker novo da Fase 6 guarda |
 | `src/providers/autofetch-evict.ts` | Evicção dirigida dos fallbacks `any`/`seeds` da mesma obra (Fase 6): política, travas, coalescing e chamada do `adapter.evictFallbacks`; `evictMarkerMeta` grava o marker novo |

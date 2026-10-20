@@ -50,20 +50,22 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Ok(raw) = std::env::var("DEBRID_RESOLVE_UNCACHED") {
         cfg.resolve_uncached = env_flag(&raw);
     }
-    // Efeitos de cauda emitidos pelo orquestrador nativo. Default OFF: com o
-    // pipeline de debrid do Node ainda decidindo, ligar duplicaria a emissão.
+    // Efeitos de cauda emitidos pelo orquestrador nativo. Default ON desde o
+    // F4.4 (o pipeline de debrid do Node saiu; estas são as ÚNICAS emissões).
+    // Rollback: EFFECTS_RUST=off/0 — as filas do Node dedupam, mas o custo dobra.
     cfg.effects_enabled = std::env::var("EFFECTS_RUST")
         .map(|raw| env_flag(&raw))
-        .unwrap_or(false);
+        .unwrap_or(true);
     // Card virtual `mico` no `ji` default (mesma env do Node).
     cfg.mico_default = std::env::var("MICO_DEFAULT")
         .map(|raw| env_flag(&raw))
         .unwrap_or(false);
-    // Inventário nativo da conta (F3). `off` é o default: a tarefa Node da
-    // conta segue intacta até o operador pedir `shadow`/`on`.
+    // Inventário nativo da conta (F3). Default ON desde o F4.4: o nativo é a
+    // fonte no corte. Rollback: ACCOUNT_RUST=off — a tarefa volta à rota
+    // interna `/internal/search/collect` (o Node segue dono do inventário).
     cfg.account_mode = std::env::var("ACCOUNT_RUST")
         .map(|raw| AccountMode::parse(&raw))
-        .unwrap_or_default();
+        .unwrap_or(AccountMode::On);
     // `DEBRID_INVENTORY_SOURCE` (default true, como no Node): desligado, a
     // conta não é fonte nem no modo nativo.
     cfg.account_inventory_source = std::env::var("DEBRID_INVENTORY_SOURCE")
@@ -100,14 +102,16 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Some(ms) = env_i64("ACCOUNT_FAST_WAIT_MS") {
         cfg.account_fast_wait_ms = ms.max(1);
     }
-    // Índice/banco nativos (F4.5). Default OFF: Node responde e é o único que
-    // lê/escreve `idx:v14`/`magnets.db` até o operador pedir `shadow`/`on`.
+    // Índice/banco nativos (F4.5). Default ON desde o F4.4: o orquestrador
+    // nativo é quem lê/escreve `idx:v14`/`magnets.db` no MESMO cache.db do Node.
+    // Rollback por env: INDEX_RUST=off / BANK_RUST=off devolve a leitura/escrita
+    // à rota interna `/internal/search/index` (Node), sem reiniciar o contrato.
     cfg.index_mode = std::env::var("INDEX_RUST")
         .map(|raw| IndexMode::parse(&raw))
-        .unwrap_or_default();
+        .unwrap_or(IndexMode::On);
     cfg.bank_mode = std::env::var("BANK_RUST")
         .map(|raw| IndexMode::parse(&raw))
-        .unwrap_or_default();
+        .unwrap_or(IndexMode::On);
     // Defaults do Node (`config/harvest.ts`/`config/cache.ts`).
     cfg.release_index_enabled = std::env::var("RELEASE_INDEX")
         .map(|raw| raw.trim() == "true")

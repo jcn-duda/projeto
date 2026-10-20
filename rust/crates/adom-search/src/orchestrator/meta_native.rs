@@ -46,11 +46,13 @@ pub fn flag_enabled(raw: &str) -> bool {
     )
 }
 
-/// `META_RUST` ligado? Ausente/vazio = OFF (default do operador).
+/// `META_RUST` ligado? **Ausente = ON** (default do F4.4: o nativo é a fonte e
+/// a rota interna do Node é o fallback). `META_RUST=` (vazio), `off`, `0` ou
+/// qualquer valor não-flag devolvem o caminho de referência (rollback por env).
 pub fn meta_rust_enabled() -> bool {
     std::env::var(META_RUST_ENV)
         .map(|raw| flag_enabled(&raw))
-        .unwrap_or(false)
+        .unwrap_or(true)
 }
 
 /// Fonte nativa: `MetaSources` (Cinemeta + TMDB + coleção/data) já montados com

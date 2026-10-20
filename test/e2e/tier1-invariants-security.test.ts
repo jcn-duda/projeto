@@ -1,4 +1,4 @@
-﻿// Rodada 2: checagem ligada; tier 1 (cobertura de features) tipado.
+// Rodada 2: checagem ligada; tier 1 (cobertura de features) tipado.
 // remover arquivo a arquivo na rodada 2.
 // A suíte precisa ser idêntica no Node 18 e no Node 22, sem criar SQLite local.
 process.env.CACHE_PERSIST = 'false';
@@ -212,15 +212,23 @@ describe('Feature 13: E2E Testing Suite (Tiers 1-4)', () => {
     assert.deepEqual(res.json.types, ['movie', 'series']);
   });
 
-  it('13.2: Endpoint /stream/movie/tt1254207.json com demo provider retorna streams válidos', async () => {
+  it('13.2: /stream do Node está aposentado (410 com gateway nativo, 503 sem gateway)', async () => {
     const configSegment = encodeConfig({ p: ['demo'], d: 0 });
-    const res = await server.request('GET', `/${configSegment}/stream/movie/tt1254207.json`);
+    const semGateway = await server.request('GET', `/${configSegment}/stream/movie/tt1254207.json`);
+    assert.equal(semGateway.status, 503, 'sem gateway não há pipeline local');
+    assert.match(String(semGateway.json.err), /gateway/);
 
-    assert.equal(res.status, 200);
-    assert.ok(res.json);
-    assert.ok(Array.isArray(res.json.streams));
-    assert.ok(res.json.streams.length > 0);
-    assert.ok(res.json.streams[0].name.includes('Big Buck Bunny') || res.json.streams[0].title.includes('Big Buck Bunny'));
+    const saved = { gateway: process.env.GATEWAY, routes: process.env.ROUTES_RUST };
+    process.env.GATEWAY = 'on';
+    process.env.ROUTES_RUST = 'stream';
+    try {
+      const nativo = await server.request('GET', `/${configSegment}/stream/movie/tt1254207.json`);
+      assert.equal(nativo.status, 410);
+      assert.match(String(nativo.json.err), /gateway nativo/);
+    } finally {
+      if (saved.gateway === undefined) delete process.env.GATEWAY; else process.env.GATEWAY = saved.gateway;
+      if (saved.routes === undefined) delete process.env.ROUTES_RUST; else process.env.ROUTES_RUST = saved.routes;
+    }
   });
 
   it('13.3: Endpoint /defaults.json entrega opções públicas sem vazar chave de debrid', async () => {
@@ -329,11 +337,12 @@ describe('Feature 14: Final E2E Pass & Adversarial Hardening (Tier 5)', () => {
     }
   });
 
-  it('14.5: Consulta com ID fora do padrão IMDb (não iniciado por tt) retorna streams vazios sem buscas de rede', async () => {
+  it('14.5: /stream aposentado não faz busca de rede, mesmo com ID fora do padrão IMDb', async () => {
+    // F4.4: o `/stream` do Node saiu; o ID fora do padrão (kitsu:) é decidido
+    // pelo gateway, que devolve lista vazia. Aqui a garantia é a do processo
+    // Node: a rota só sinaliza o modo (410/503) e não dispara coleta.
     const res = await server.request('GET', '/stream/movie/kitsu:99999.json');
-    assert.equal(res.status, 200);
-    assert.ok(Array.isArray(res.json.streams));
-    assert.equal(res.json.streams.length, 0);
-    assert.equal(res.json.cacheMaxAge, 0);
+    assert.equal(res.status, 503);
+    assert.equal(Array.isArray(res.json.streams), false, 'não devolve lista: devolve erro explícito');
   });
 });

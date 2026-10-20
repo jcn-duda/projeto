@@ -8,7 +8,9 @@ import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
 import { filterRelevantRaw as relevantRaw, filterInventoryRelevant } from '../src/utils/format.js';
-import { buildStreams } from '../src/providers/index.js';
+// O pipeline TS de busca saiu (F4.4); a decisão de debrid que sobrevive aos
+// testes mora no oráculo congelado (`applyDebrid` do Node × núcleo nativo).
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import * as account from '../src/providers/account.js';
 import type { InventoryItem, RawItem, Stream } from '../types/domain.js';
 import { createStreamTrace } from '../src/utils/stream-trace.js';
@@ -316,12 +318,12 @@ test('relevância: obra-base na conta não serve à busca da sequência', () => 
   assert.deepEqual(filterInventoryRelevant([propria], ctx), [propria]);
 });
 
-test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve', async () => {
+test('applyDebrid preserva o pack de franquia da conta e o entrega via /resolve', async () => {
   const HASH_FILM = 'f'.repeat(40);
-  const raw = [{
-    title: FILMOGRAFIA, infoHash: HASH_FILM, seeders: 1, size: 22_450_000_000,
-    indexer: 'debrid', isBr: false, fromAccount: true,
-  }];
+  const stream = {
+    name: FILMOGRAFIA, title: FILMOGRAFIA, infoHash: HASH_FILM,
+    _seeders: 1, _size: 22_450_000_000, _indexer: 'debrid',
+  };
   const originalCheck = debrid.checkCached;
   debrid.checkCached = async () => ({ cached: new Set([HASH_FILM]), known: true });
   try {
@@ -336,12 +338,10 @@ test('buildStreams preserva o pack de franquia da conta e o entrega via /resolve
         },
         encoded: 'seginv',
       },
-      () => buildStreams(raw, {
-        meta: { name: 'Star Trek: The Motion Picture', year: '1979' },
-        titles: null,
+      () => applyDebrid([stream as any], {
         season: null,
         episode: null,
-        isDemo: false,
+        imdbId: 'tt0062622',
         searchKey: `inv-${Math.random()}`,
       } as any),
     );

@@ -20,7 +20,6 @@ import * as releaseIndex from '../src/utils/release-index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { takeDrainCandidate } from '../src/providers/autofetch-drain.js';
 import { seedsSelectionBlock } from '../src/providers/autofetch-policy.js';
-import { buildStreams } from '../src/providers/stream-builder.js';
 import * as runtime from '../src/runtime.js';
 import jackett from '../src/providers/jackett.js';
 import debrid from '../src/debrid/index.js';
@@ -332,29 +331,6 @@ test('preempção renova o lease do pending (não finaliza)', () => {
     brProbe.noteBrProbePreempted(MOVIE);
     assert.equal(brProbe.isBrProbePending(MOVIE), true, 'preempção renova o lease');
   } finally {
-    restore(s);
-  }
-});
-
-test('aviso de sonda aparece em pending e some ao finalizar', async () => {
-  const s = setup();
-  const originalCheck = debrid.checkCached;
-  debrid.checkCached = async () => ({ cached: new Set(), known: true });
-  const opts = { ...runtime.defaults(), providers: ['demo'], debridService: 'premiumize', debridApiKey: 'k', debridCachedOnly: true, autoFetchBr: false };
-  const build = () => buildStreams([], {
-    meta: null, titles: null, imdbId: MOVIE.imdbId, season: null, episode: null, isDemo: false, searchKey: `probe-aviso-${Math.random()}`,
-  } as any);
-  try {
-    brProbe.requestBrProbe(MOVIE);
-    const antes = await (runtime.run({ opts, encoded: 'segcfg' }, build) as Promise<any[]>);
-    assert.equal(antes.length, 1);
-    assert.match(antes[0].name as string, /Busca de dublado BR na fila/);
-
-    brProbe.finalizeBrProbe(MOVIE, 'empty');
-    const depois = await (runtime.run({ opts, encoded: 'segcfg' }, build) as Promise<any[]>);
-    assert.deepEqual(depois, [], 'aviso some após conclusão/invalidação');
-  } finally {
-    debrid.checkCached = originalCheck;
     restore(s);
   }
 });
