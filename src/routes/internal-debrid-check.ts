@@ -1,5 +1,13 @@
-// POST /internal/debrid/check — reserva do orquestrador Rust (Fase A, passo 2)
-// enquanto o sidecar `adom-debrid` não cobre a checagem de cache (hoje 501).
+// POST /internal/debrid/check — reserva do orquestrador Rust (Fase A, passo 2).
+//
+// F4.6: a rota está APOSENTADA como respondedora no default do corte. Com
+// `DEBRID_AL_RUST=on` (default do `docker-compose.yml`) ela responde **410** —
+// quem responde é a checagem nativa do `adom-search` (e a reserva Node só
+// seria usada antes de qualquer upload, quando então vira `Unknown` honesto).
+// O caminho `off` continua VIVO e funcional: é o rollback de uma linha
+// (`DEBRID_AL_RUST=off`), o mesmo do Rust. No modo `shadow` a rota também
+// segue viva, porque ali o Node é a REFERÊNCIA da comparação.
+//
 // Corpo: `{ encoded, service, hashes, deadline_at }`; o usuário vem no CORPO
 // (`encoded` decodificado e executado dentro de `runtime.run`) — invariante:
 // a chave do debrid é a do contexto do usuário, nunca do `.env` do operador.
@@ -21,6 +29,7 @@ import { BY_ID, current } from '../debrid/registry.js';
 import { checkCached, normalizeCacheResult, unusableReason } from '../debrid/cache-check.js';
 import type { CacheCheckResult } from '../debrid/cache-check.js';
 import { opts } from '../runtime.js';
+import { alRustMode } from '../config/debrid-rust.js';
 import * as log from '../utils/logger.js';
 import { rejectedByGuard, decodeTarget, withinDeadline, DEADLINE } from './internal-search-shared.js';
 
@@ -173,7 +182,8 @@ async function handleCheck(
 /**
  * Registra POST /internal/debrid/check no router. Mesma guarda das rotas
  * /internal/search/* (loopback + token) e mesma posição no roteador (antes do
- * overlay /:userConfig).
+ * overlay /:userConfig). O modo vem de `DEBRID_AL_RUST` por requisição:
+ * `on` ⇒ 410 (aposentada, F4.6); `off`/`shadow` ⇒ caminho Node vivo.
  */
 export function registerInternalDebridCheck(
   router: Router,
@@ -195,6 +205,18 @@ export function registerInternalDebridCheck(
   const json = express.json({ limit: '256kb' });
   router.post('/internal/debrid/check', json, asyncRoute(async (req, res) => {
     if (rejectedByGuard(services, req, res)) return;
+    // F4.6 — a rota não é mais a respondedora no default do corte. 410 (e não
+    // 404) de propósito: diz que o caminho existiu e aponta o rollback, sem
+    // fingir que a reserva nunca fez parte do contrato. A guarda acima fica
+    // ANTES: fora do loopback/sem token continua 403/401, nunca 410.
+    if (alRustMode() === 'on') {
+      return res.status(410).json({
+        ok: false,
+        retired: true,
+        error: 'rota aposentada: a checagem nativa da AllDebrid responde (DEBRID_AL_RUST=on); '
+          + 'rollback: DEBRID_AL_RUST=off',
+      });
+    }
     await handleCheck(services, deps, req, res);
   }));
 }

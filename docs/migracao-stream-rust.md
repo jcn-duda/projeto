@@ -226,8 +226,9 @@ p50/p95 e a semana em `stream-shadow`.
    o multiobra. O drop acontece antes de
    `limit_reserving_br`, e `fallback` é lido da lista FINAL (depois do drop e do
    corte); `DebridLink` entra como `known:false`; URLs e HMAC foram testadas nos
-   cinco serviços. Mas o `/resolve` nativo ainda é proxy/501: o play externo
-   real **não** foi validado por debrid.
+   cinco serviços. O `/resolve` nativo por debrid existe atrás de
+   `RESOLVE_RUST=on` (default OFF, Node é o rollback); o play externo real
+   continua **não** validado ponta a ponta (sem Docker nesta rodada).
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
@@ -496,9 +497,13 @@ O que mudou:
 - **Defaults**: `GATEWAY=on` e `ROUTES_RUST=stream` no `docker-compose.yml`
   (Node na 7100); no gateway, `SOURCES_RUST` ausente = as cinco fontes,
   `META_RUST`/`ACCOUNT_RUST`/`INDEX_RUST`/`BANK_RUST`/`EFFECTS_RUST` = `on`.
-  `DEBRID_AL_RUST` fica **off**: o nativo é read-only sem o feed de holds
-  (F4.6 bloqueado) e o Node, via `/internal/debrid/check`, segue dono do
-  upload+limpeza. Cada fatia tem rollback por env (off = rota interna).
+  **F4.6**: `DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` — a
+  checagem nativa da AllDebrid responde e a rota Node
+  `/internal/debrid/check` fica **410**; `DEBRID_AL_RUST=off` volta à rota
+  (rollback de uma linha, Node+Rust releem a env). Cada fatia tem rollback por
+  env (off = rota interna); a limpeza nativa só apaga com `holdsComplete` +
+  inventário (`may_delete` fail-closed). Contrato em
+  [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
 - **Pipeline TS removido**: `search-orchestrator`, `search-cache`,
   `stream-builder*`, `debrid-pipeline*`/`debrid-play-guard`,
   `search-metadata-load`, `tail-enqueue`, `search-late-promoter`,
@@ -554,8 +559,13 @@ O F4.4a fechou os itens 1–3 com uma API administrativa do store nativo
    read-only). O build marca `_broken` e o `finalize` corta antes da checagem —
    a mesma régua do `pruneKnownBroken`, agora aplicada aos itens que a coleta e
    o índice NATIVOS produzem (eles não passam pela rota de evidência do Node).
-5. `DEBRID_AL_RUST` segue **off**: o nativo é read-only sem o feed de holds
-   (F4.6). A checagem com limpeza continua na rota interna do Node.
+5. **F4.6 ENTREGUE**: `DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP`
+   = `on` no compose. A checagem nativa da AllDebrid responde; a rota Node
+   `/internal/debrid/check` responde 410 (rollback: `DEBRID_AL_RUST=off`, com a
+   rota voltando a responder). A conta do operador segue em `MAGNET_TOO_MANY`,
+   então o check nativo responde `unusable: quota` (mesmo estado do caminho
+   Node) e a limpeza nasce suprimida por `inventory_missing` — fail-closed, sem
+   remoção. Detalhe em [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
 
 **Contrato da API administrativa (`STREAM_STORE_ADMIN_LISTEN`, default
 `127.0.0.1:8711`)** — token `X-Indexer-Test-Token`
@@ -617,6 +627,7 @@ O que trava o quê:
    BR dublado + cotas — Node desligado **e** ligado. 1ª hit a frio: §0.5.
 5. Play: `/resolve` de um item de cada debrid pela lista gerada no Rust (o HMAC
    tem que valer). No orquestrador Rust, `finish`/`finalize` já aplicam
-   `play_disposition` e as URLs/HMAC foram testadas offline nos cinco serviços,
-   mas o `/resolve` nativo segue proxy/501 — o play externo real por debrid
-   **não** foi validado.
+   `play_disposition` e as URLs/HMAC foram testadas offline nos cinco serviços.
+   O `/resolve` nativo (`RESOLVE_RUST=on`, default OFF) existe e tem testes de
+   contrato/fixtures; o play externo real por debrid **não** foi validado
+   ponta a ponta nesta rodada (sem Docker).

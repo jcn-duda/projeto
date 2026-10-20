@@ -267,6 +267,23 @@ fn alldebrid_on_cai_no_node_so_quando_nada_foi_enviado() {
     assert_eq!(debrid.fallback_checks(), 1);
 }
 
+/// F4.6 — a reserva Node está APOSENTADA (410) no default do corte. Sem nada
+/// enviado pela nativa, o fallback ainda é tentado; o 410 vira erro e a
+/// resposta é `Unknown` honesto (nunca `Missing`, nunca segundo upload).
+#[test]
+fn alldebrid_on_reserva_aposentada_vira_unknown() {
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.mode = AlRustMode::On;
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.local_stub = Some(native_stub(service(vec![], false, None, false)));
+    debrid.fallback = Some(Arc::new(StubFallback::err()));
+    debrid.prepare(&[HIT.into()]);
+    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
+    assert_eq!(debrid.local_checks(), 1);
+    assert_eq!(debrid.fallback_checks(), 1, "tentou a reserva uma vez");
+}
+
 /// `on` com upload tentado e lote perdido → Unknown, NUNCA segundo upload.
 #[test]
 fn alldebrid_on_falha_pos_upload_nao_repete_no_node() {

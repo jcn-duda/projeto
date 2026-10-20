@@ -1,6 +1,7 @@
 //! Limpeza segura da AllDebrid — porte de `src/debrid/protected.ts` e da
 //! decisão de `src/debrid/alldebrid-check.ts`, atrás de `DEBRID_AL_CLEANUP`
-//! (default **OFF**).
+//! (default do CÓDIGO **OFF**; o default do CORTE desde o F4.6 é **ON**, junto
+//! com `DEBRID_AL_RUST=on` e `DEBRID_AL_HOLDS=on`).
 //!
 //! A checagem da AllDebrid é um `/magnet/upload` real: sem limpeza cada busca
 //! deixa dezenas de magnets na conta até estourar o teto e derrubar o ⚡. O
@@ -44,8 +45,8 @@ use sha2::{Digest, Sha256};
 use crate::alldebrid::AllDebrid;
 use crate::error::now_ms;
 
-/// Liga a limpeza nativa. Default OFF: `drop_ready`/`drop_uncached` são
-/// ignorados e nada é apagado.
+/// Liga a limpeza nativa. Default do código OFF (o corte sobe ON):
+/// `drop_ready`/`drop_uncached` são ignorados e nada é apagado.
 pub const CLEANUP_ENV: &str = "DEBRID_AL_CLEANUP";
 /// Kill-switch de uma linha: qualquer valor de liga (`on/1/true/yes`) suprime
 /// o plano e a fila mesmo com `DEBRID_AL_CLEANUP=on`.

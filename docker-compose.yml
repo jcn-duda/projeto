@@ -36,6 +36,28 @@ services:
       # FUNCIONAL do corte é a imagem/commit anterior.
       GATEWAY: "${GATEWAY:-on}"
       ROUTES_RUST: "${ROUTES_RUST:-stream}"
+      # F4.7: play por debrid no Rust. Default OFF — o `/resolve` continua no
+      # Node e `GATEWAY_RESOLVE_PROXY=on` é o caminho de rollback sem rebuild.
+      # `RESOLVE_RUST=on` exige `RESOLVE_SECRET` OU a chave no segmento da URL
+      # (a mesma regra do HMAC do Node).
+      RESOLVE_RUST: "${RESOLVE_RUST:-off}"
+      # F4.6: a checagem/limpeza da AllDebrid no Rust também é o PADRÃO. Os três
+      # andam juntos de propósito:
+      #   DEBRID_AL_RUST=on ....... a nativa responde o cache check (a rota Node
+      #                             `/internal/debrid/check` fica 410;
+      #                             `off` volta à rota — rollback de uma linha);
+      #   DEBRID_AL_HOLDS=on ...... feed in-process dos holds (`/internal/debrid/holds`):
+      #                             hold volátil + `adprot` + `knownBefore` + drops;
+      #   DEBRID_AL_CLEANUP=on .... habilita o PLANO de limpeza, que só apaga com
+      #                             `holdsComplete` + inventário (`may_delete`
+      #                             fail-closed: sem snapshot, ninguém sai).
+      # Sem HOLDs+CLEANUP a nativa checa mas é READ-ONLY (a conta acumula
+      # magnets até `MAGNET_TOO_MANY`); é o preço de não ligar limpeza cega.
+      # `shadow` continua sendo observação (Node vira referência e a rota fica
+      # viva); `DEBRID_AL_CLEANUP_KILL=on` é o kill-switch da fila.
+      DEBRID_AL_RUST: "${DEBRID_AL_RUST:-on}"
+      DEBRID_AL_HOLDS: "${DEBRID_AL_HOLDS:-on}"
+      DEBRID_AL_CLEANUP: "${DEBRID_AL_CLEANUP:-on}"
       # O orquestrador nativo fala com o Node pelas rotas internas (loopback).
       INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
       INTERNAL_CHECK_URL: "http://127.0.0.1:7100"

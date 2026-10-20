@@ -89,6 +89,15 @@ process.env.MAX_STREAMS_UNKNOWN = '6';
 // para o dublê de fetch.
 process.env.STREAM_STORE_RUST = 'off';
 
+// F4.6: o default do CORTE (compose) liga a checagem nativa da AllDebrid e
+// aposenta a rota `/internal/debrid/check` (410). A suíte fixa os três em OFF
+// para o verde não depender de quem roda: por padrão ela exercita o caminho
+// Node, e o corte tem testes próprios que LIGAM a flag
+// (`test/debrid-al-cut-default.test.ts`, `test/internal-debrid-check.test.ts`).
+process.env.DEBRID_AL_RUST = 'off';
+process.env.DEBRID_AL_HOLDS = 'off';
+process.env.DEBRID_AL_CLEANUP = 'off';
+
 // O selo do install URL é exercitado pelos próprios testes (withSecret e
 // atribuição local em app-routes/tier2/tier3, sempre restaurada em finally).
 // O `.env` do operador pode ter RESOLVE_SECRET (caso do dev que ligou o selo

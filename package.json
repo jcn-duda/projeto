@@ -244,6 +244,7 @@
     "test/dashboard-magnet-bank.test.js",
     "test/deadline.test.js",
     "test/debrid-al-cleanup-facts.test.js",
+    "test/debrid-al-cut-default.test.js",
     "test/debrid-al-holds-feed.test.js",
     "test/debrid-auth.test.js",
     "test/debrid-avail.test.js",

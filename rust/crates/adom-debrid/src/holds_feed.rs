@@ -1,5 +1,9 @@
-//! Feed de holds do Node para o `adom-search` in-process (`DEBRID_AL_HOLDS`,
-//! default **OFF**).
+//! Feed de holds do Node para o `adom-search` in-process (`DEBRID_AL_HOLDS`).
+//!
+//! Default do CÓDIGO **OFF**; o default do CORTE (`docker-compose.yml`, desde o
+//! F4.6) é **ON**, junto com `DEBRID_AL_RUST=on` e `DEBRID_AL_CLEANUP=on`.
+//! OFF é o rollback de uma linha: o cliente nem é construído e a nativa segue
+//! read-only.
 //!
 //! O hold volátil do autofetch e o snapshot `knownBefore` moram na memória do
 //! processo Node. A checagem nativa da AllDebrid só pode limpar com
@@ -32,7 +36,8 @@ use serde_json::{json, Value};
 use crate::http::{Call, HttpClient};
 use crate::internal_check::{ensure_loopback, now_ms};
 
-/// Liga o feed in-process. Default OFF: a nativa segue read-only.
+/// Liga o feed in-process. Default do código OFF (o corte sobe ON): OFF é o
+/// rollback de uma linha e a nativa segue read-only.
 pub const ENV: &str = "DEBRID_AL_HOLDS";
 /// Prazo do POST interno (ms). Default 800 — a rota só lê memória.
 pub const TIMEOUT_ENV: &str = "DEBRID_AL_HOLDS_TIMEOUT_MS";
@@ -103,7 +108,8 @@ fn lower_set(items: &[String]) -> HashSet<String> {
         .collect()
 }
 
-/// `DEBRID_AL_HOLDS` (default OFF). Mesmos apelidos de `DEBRID_AL_CLEANUP`.
+/// `DEBRID_AL_HOLDS` (default do código OFF; o corte sobe ON). Mesmos apelidos
+/// de `DEBRID_AL_CLEANUP`.
 pub fn holds_feed_enabled() -> bool {
     std::env::var(ENV)
         .ok()

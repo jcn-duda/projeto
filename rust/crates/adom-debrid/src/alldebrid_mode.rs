@@ -1,24 +1,27 @@
 //! Opt-in da checagem de cache da AllDebrid no Rust (`DEBRID_AL_RUST`).
 //!
 //! A rota interna `/debrid/check` e o `adom-search` in-process perguntam a
-//! MESMA flag. Default **OFF**: o Node continua sendo o dono da checagem
-//! (upload + limpeza + davail) e nada muda para quem não liga.
+//! MESMA flag. Default do CÓDIGO **OFF**; o default do CORTE
+//! (`docker-compose.yml`, desde o F4.6) é **ON** — junto com
+//! `DEBRID_AL_HOLDS=on` e `DEBRID_AL_CLEANUP=on`. Quem roda o processo sem o
+//! compose (teste/CLI) segue no caminho Node.
 //!
-//! - `on` (também `1/true/yes/rust`): a checagem nativa responde. O fallback
-//!   Node só é usado quando a nativa NÃO chegou a enviar o upload (base
-//!   recusada, sem hashes ou sem chave) — repetir depois de um upload real
-//!   dobraria o lixo na conta.
-//! - `shadow`/`sombra`: o Node responde e a nativa roda DEPOIS, em fundo,
-//!   comparando `cached`/`known`/`unusable` (`debrid.al.shadow.*` no
-//!   `/metrics` do gateway). Não segura o cliente.
+//! - `off`: o Node continua sendo o dono da checagem (upload + limpeza +
+//!   davail) pela rota `/internal/debrid/check` — é o **rollback de uma linha**
+//!   do corte.
+//! - `on` (também `1/true/yes/rust`): a checagem nativa responde e a rota Node
+//!   fica **410**. O fallback Node só é usado quando a nativa NÃO chegou a
+//!   enviar o upload (base recusada, sem hashes ou sem chave) — repetir depois
+//!   de um upload real dobraria o lixo na conta.
+//! - `shadow`/`sombra`: a nativa responde e o Node roda DEPOIS, em fundo, como
+//!   REFERÊNCIA (`debrid.al.shadow.*` no `/metrics`). Não segura o cliente e a
+//!   rota Node SEGUE VIVA (é a referência).
 //!
 //! A checagem nativa é **read-only** por default: a limpeza só existe com
-//! `DEBRID_AL_CLEANUP=on` (default OFF) e, mesmo ON, exige `holds_complete` +
-//! inventário (`alldebrid_cleanup`). Como o hold volátil do autofetch mora no
-//! Node, o caminho nativo do `adom-search` segue read-only até um feed de
-//! holds; a rota interna pode receber os fatos no corpo. Por isso `on` NÃO
-//! substitui a rota Node em produção (F4.6) — ele mede paridade e deixa a
-//! conta acumular o que subiu. O rollback é remover/zerar a env.
+//! `DEBRID_AL_CLEANUP=on` e, mesmo ON, exige `holds_complete` + inventário
+//! (`alldebrid_cleanup`). O hold volátil do autofetch mora no Node, e o seam
+//! in-process o recebe pelo feed (`DEBRID_AL_HOLDS`); sem os fatos a nativa
+//! segue read-only — nunca "completa" por omissão.
 
 /// Variável que liga a checagem nativa da AllDebrid.
 pub const ENV: &str = "DEBRID_AL_RUST";
@@ -35,7 +38,8 @@ const DEFAULT_SHADOW_MAX_HASHES: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AlRustMode {
-    /// Default: o Node responde (rota 501 no sidecar, reserva Node no seam).
+    /// Default do código: o Node responde (rota 501 no sidecar, reserva Node no
+    /// seam). O compose do corte sobe `on`.
     #[default]
     Off,
     /// Checagem nativa responde, com fallback Node só antes de qualquer upload.

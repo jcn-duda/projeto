@@ -247,3 +247,50 @@ test('prazo estourado → 200 partial:true com timeout por hash (nunca "não tem
   assert.equal(res.json.partial, true);
   assert.deepEqual(res.json.results[HASH_A], { cached: false, known: false, timeout: true });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// F4.6 — a rota deixa de ser a respondedora quando a checagem nativa está ligada
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Roda com `DEBRID_AL_RUST` no modo pedido e restaura o ambiente no finally. */
+async function withAlRust(mode: string, fn: () => Promise<void>) {
+  const savedMode = process.env.DEBRID_AL_RUST;
+  process.env.DEBRID_AL_RUST = mode;
+  try {
+    await fn();
+  } finally {
+    if (savedMode === undefined) delete process.env.DEBRID_AL_RUST;
+    else process.env.DEBRID_AL_RUST = savedMode;
+  }
+}
+
+test('DEBRID_AL_RUST=on → 410 (aposentada) sem tocar no adaptador', async () => {
+  let called = 0;
+  collaborators.adapterFor = () => stubAdapter({ checkCached: async () => { called += 1; return new Set(); } });
+  await withAlRust('on', async () => {
+    const res = await post({ encoded, service: 'alldebrid', hashes: [HASH_A], deadline_at: Date.now() + 5_000 });
+    assert.equal(res.status, 410);
+    assert.equal(res.json.ok, false);
+    assert.equal(res.json.retired, true);
+    assert.match(String(res.json.error), /DEBRID_AL_RUST=off/);
+    assert.equal(called, 0, 'rota aposentada não faz upload nem checagem');
+  });
+});
+
+test('DEBRID_AL_RUST=off → rollback de uma linha: a rota volta a checar', async () => {
+  collaborators.adapterFor = () => stubAdapter({ checkCached: async (_apiKey, hashes) => new Set(hashes) });
+  await withAlRust('off', async () => {
+    const res = await post({ encoded, service: 'torbox', hashes: [HASH_A], deadline_at: Date.now() + 5_000 });
+    assert.equal(res.status, 200);
+    assert.equal(res.json.results[HASH_A].cached, true);
+  });
+});
+
+test('DEBRID_AL_RUST=shadow → a rota segue viva (é a REFERÊNCIA da sombra)', async () => {
+  collaborators.adapterFor = () => stubAdapter({ checkCached: async (_apiKey, hashes) => new Set(hashes) });
+  await withAlRust('shadow', async () => {
+    const res = await post({ encoded, service: 'alldebrid', hashes: [HASH_A], deadline_at: Date.now() + 5_000 });
+    assert.equal(res.status, 200);
+    assert.equal(res.json.results[HASH_A].cached, true);
+  });
+});

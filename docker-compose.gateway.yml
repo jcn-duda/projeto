@@ -2,19 +2,29 @@
 #
 # Desde o F4.4 o corte é o PADRÃO do `docker-compose.yml`:
 #   GATEWAY=on, ROUTES_RUST=stream, INTERNAL_SEARCH_URL/INTERNAL_CHECK_URL=:7100
-# Este arquivo NÃO é mais necessário para ligar o nativo — ele existe para:
+# e, desde o F4.6, também a checagem/limpeza da AllDebrid no Rust:
+#   DEBRID_AL_RUST=on, DEBRID_AL_HOLDS=on, DEBRID_AL_CLEANUP=on
+# (a rota Node `/internal/debrid/check` responde 410 nesse modo). Este arquivo
+# NÃO é mais necessário para ligar o nativo — ele existe para:
 #
 # 1. DIAGNÓSTICO: publicar o Node em 127.0.0.1:7100 para inspecionar painel e
 #    rotas internas direto. Como o Node não monta mais lista (o `/stream` dele
 #    responde 410 com GATEWAY=on + ROUTES_RUST=stream), o diagnóstico de BUSCA
 #    é o `/metrics` do gateway e o corpus congelado
-#    (`cargo test -p adom-search --test stream_frozen_parity`).
-# 2. ROLLBACK: o rollback FUNCIONAL do corte é a IMAGEM/COMMIT anterior (com
-#    `GATEWAY=off`), não uma env — o bloco comentado no fim mostra como fixar a
-#    tag anterior sem editar o compose principal.
+#    (`cargo test -p adom-search --test stream_frozen_parity`). O `/metrics`
+#    também é onde ficam `debrid.al.native.*`, `debrid.al.holds.*` e
+#    `debrid.al.cleanup.*`.
+# 2. ROLLBACK: `DEBRID_AL_RUST=off` (rollback de UMA linha da fatia AllDebrid:
+#    a rota Node volta a responder — Node e Rust releem a env no boot). Já o
+#    rollback FUNCIONAL do `/stream` é a IMAGEM/COMMIT anterior (com
+#    `GATEWAY=off`), não uma env — o bloco comentado no fim mostra como fixar
+#    a tag anterior sem editar o compose principal. Se a rota Node for algum
+#    dia removida do branch, o rollback da fatia passa a ser essa mesma
+#    imagem/commit anterior.
 #
 # Rotas internas e reserva de debrid falam com o Node na 7100 — NUNCA :7000
-# (a fachada recusa /internal/*). Docs: docs/rust-stream-contract.md §0.
+# (a fachada recusa /internal/*). Docs: docs/rust-stream-contract.md §0 e
+# docs/debrid-al-check-rust.md §3.
 services:
   adom:
     environment:
@@ -22,6 +32,11 @@ services:
       ROUTES_RUST: "${ROUTES_RUST:-stream}"
       INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
       INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
+      # F4.6: mesmos defaults do compose principal (o override repete para o
+      # arquivo ser autoexplicativo). `off` em qualquer um é o rollback por env.
+      DEBRID_AL_RUST: "${DEBRID_AL_RUST:-on}"
+      DEBRID_AL_HOLDS: "${DEBRID_AL_HOLDS:-on}"
+      DEBRID_AL_CLEANUP: "${DEBRID_AL_CLEANUP:-on}"
       # Histórico (F4.2/F4.3): a sombra/canário comparavam com o `/stream` do
       # Node, que está aposentado. LIGAR HOJE SÓ GERA DIVERGÊNCIA FALSA — os
       # knobs ficam documentados e desligados; o gate é o corpus congelado.

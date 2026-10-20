@@ -42,6 +42,12 @@ Rollback por env existe para cada fatia (`SOURCES_RUST=`, `META_RUST=off`,
 imagem/commit anterior com `GATEWAY=off`: sem o pipeline TS, `GATEWAY=off`
 deixa o `/stream` do Node em 503.
 
+Desde o **F4.6** a checagem/limpeza da AllDebrid também é nativa por default
+(`DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` no compose) e a
+rota Node `/internal/debrid/check` responde **410**; `DEBRID_AL_RUST=off` é o
+rollback de uma linha dessa fatia (a rota volta a responder). Contrato em
+[`debrid-al-check-rust.md`](debrid-al-check-rust.md).
+
 O canário `STREAM_CANARY_PERCENT` (§9.5) e a sombra continuam no binário como
 instrumentos **históricos**: com `ROUTES_RUST` contendo `stream-shadow` o
 gateway avisa e a comparação não tem referência. Não os use como gate.
@@ -185,16 +191,35 @@ manifest e que `/stream` devolve **pelo menos um stream tocável**
 **não falha** se BR sumir nem compara cotas/reserva com o Node. Verde no
 script **não** autoriza `ROUTES_RUST=stream` como default.
 
-### 0.8 Play `/resolve`: Node responde; nativo é guarda+proxy/501; AllDebrid no teto
+### 0.8 Play `/resolve`: nativo por debrid atrás de `RESOLVE_RUST` (default OFF)
 
-O handler de play continua **no TypeScript** (`src/routes/resolve.ts`, F4) — o
-porte nativo do play não existe. Na sombra (`ROUTES_RUST=stream-shadow`) a 7000
-só encaminha `/resolve` ao Node (7100). Quando `ROUTES_RUST` inclui o token
-`resolve`, o gateway **não** resolve debrid: `rust/crates/adom-server/src/resolve.rs`
-valida o HMAC (`resolve_play_from` + `verify_resolve_play`) e, com
-`GATEWAY_RESOLVE_PROXY` ligado (default), encaminha ao Node; com o proxy
-desligado (`GATEWAY_RESOLVE_PROXY=off`) devolve **501**. Ou seja, "nativo
-proxy/501" é o contrato real: guarda de assinatura + proxy, não play em Rust.
+O handler de play do **Node** (`src/routes/resolve.ts`) continua sendo o
+caminho de produção. A fatia F4.7 adicionou o play nativo por debrid no gateway,
+atrás de `RESOLVE_RUST=on` (default **OFF**):
+
+- **OFF (default):** comportamento histórico. Sem token, a 7000 encaminha
+  `/resolve` ao Node (7100). Com `ROUTES_RUST` incluindo `resolve`, o gateway
+  valida o HMAC (`resolve_play_from` + `verify_resolve_play`) e, com
+  `GATEWAY_RESOLVE_PROXY` ligado (default), encaminha ao Node; com o proxy
+  desligado (`GATEWAY_RESOLVE_PROXY=off`) devolve **501**.
+- **ON:** o gateway resolve o debrid no Rust (`adom_debrid::play`), com o mesmo
+  HMAC, o mesmo `pickFile` e o mesmo status/texto de erro do Node: 400
+  hash inválido, 403 assinatura inválida, 404 "ainda está baixando" (sem link),
+  404 NoVideo/DubLie/EpisodePick/WorkPick, 429 rate limit, 451 bloqueio legal e
+  502 para o resto. A config do usuário sai do segmento da URL (`ds`/`dk`) com
+  o default do operador; sem adaptador (`current()` null) a rota devolve o
+  mesmo 404 do Node e não exige HMAC. Nada é encaminhado ao Node.
+- **AllDebrid no teto:** o `/magnet/upload` recusa com `MAGNET_TOO_MANY` e o
+  nativo devolve **502** explícito (`kind=quota`), sem mascarar em 404 nem cair
+  no proxy — um segundo upload pioraria a conta.
+- **Efeitos L1** (`magnetdb`/`davail`, invalidação do `streams.db`, ledger/memo
+  do RD) continuam no Node e **não** são aplicados pelo play nativo. O 302 e os
+  erros são fiéis; a observabilidade pós-play não.
+- **Rollback:** `RESOLVE_RUST=off` (ou remover a env) devolve o `/resolve` ao
+  Node sem rebuild. O `resolve_proxy`/`GATEWAY_RESOLVE_PROXY` atuais ficam
+  intactos.
+- **HMAC/origin:** o payload (`hash + ?s=S&e=E + &w=<hint>`) e a URL relativa
+  não mudaram; `manifest` e URLs de play não precisam de bump.
 
 Medido em **2026-10-20** (container `stremio-adom`, `GATEWAY=on`,
 `ROUTES_RUST=stream-shadow`, Node na 7100):
@@ -244,8 +269,9 @@ por debrid com `/resolve` **302** medido. Não usar `cleanup-apply`/
 `includeKnown` como atalho: o preview não seleciona alvos e os "estrangeiros" por
 nome incluem filmes BR.
 
-Não medido nesta rodada: o 501 do nativo (só contrato/código; o caminho de proxy
-foi o exercitado) e qualquer limpeza destrutiva — nenhuma foi executada.
+Não medido nesta rodada: o play nativo contra um debrid real (só contrato,
+fixtures e testes offline; o caminho de proxy foi o exercitado) e qualquer
+limpeza destrutiva — nenhuma foi executada.
 
 ---
 
@@ -900,7 +926,7 @@ já responde no caminho nativo quando o token `stream` está ligado — mas isso
 | 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio\|bludv\|mico` (composição: fontes nativas + `NodeCollector` com `skip_sources`; sem `raw:v1` nessa fatia) |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | orquestrador/núcleo; **paridade BR+cotas ainda aberta** (bloqueia default do corte) |
 | 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + reserva Node (`INTERNAL_CHECK_URL`); autofetch/efeitos de cauda ainda no Node |
-| 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play completo ainda no Node |
+| 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play nativo por debrid atrás de `RESOLVE_RUST=on` (default OFF, Node é o rollback) |
 | 10 | host/origin e `prefix()` no egresso | **feito** no caminho nativo |
 | 11 | `partial`/deadline + busca em fundo | **feito** no orquestrador |
 | 12 | `cacheMaxAge` / `stale*` / `Cache-Control` | parcial — ver tipo `StreamResponse` e handler nativo |

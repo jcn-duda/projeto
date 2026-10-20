@@ -135,6 +135,11 @@ npm run docker:up / docker:logs
   saiu. `docker-compose.gateway.yml` é diagnóstico/rollback (publica o 7100);
   rollback funcional do corte é imagem/commit anterior, não env. Detalhe em
   `docs/rust-stream-contract.md` §0.
+  **F4.6**: a checagem/limpeza da AllDebrid também é nativa por default
+  (`DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` no compose) e
+  a rota Node `/internal/debrid/check` responde **410**; `DEBRID_AL_RUST=off`
+  é o rollback de uma linha e devolve a rota ao ar (o código `off` fica).
+  Contrato em `docs/debrid-al-check-rust.md`.
   **F4.4a**: o gateway também sobe uma API administrativa do store nativo em
   `127.0.0.1:8711` (`STREAM_STORE_ADMIN_*`, token no header) que o Node usa
   para invalidar por obra/hash, limpar no `clear-cache` e ler o
@@ -225,6 +230,13 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   ainda não carregado, **ninguém** (fail-safe fecha). Posse durável `adsub:v1`,
   anti-reenchimento `adrm:v1`, retenção BR `adprot:v1`. Varreduras destrutivas
   (`sweepDead`, `sweepUndubbed`, reconcile, revalidate) têm kill-switch próprio.
+  **F4.6**: a checagem/limpeza é NATIVA por default (`DEBRID_AL_RUST`/
+  `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` no compose; a rota Node
+  `/internal/debrid/check` fica 410). A nativa lê os holds do Node pelo feed
+  `/internal/debrid/holds` e só apaga com `holdsComplete` + inventário
+  (`may_delete` fail-closed); sem snapshot é read-only (`inventory_missing`).
+  Conta em `MAGNET_TOO_MANY` ⇒ `unusable: quota` (lista P2P), nunca ⚡ falso.
+  Rollback: `DEBRID_AL_RUST=off`. Contrato em `docs/debrid-al-check-rust.md`.
 - **Banco de magnets por conta** (`magnetdb`): `alive`/`bad`/`lie` com TTL, só
   evidência medida, falso negativo é pior que falso positivo. `bad` só vem de
   `NoVideoError`; `lie` só do `DubLieError` (áudio EN em post PT).
