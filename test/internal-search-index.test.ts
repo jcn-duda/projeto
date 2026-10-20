@@ -12,6 +12,7 @@ import config from '../src/config.js';
 import { buildServices } from '../src/routes/services.js';
 import { registerInternalSearchIndex } from '../src/routes/internal-search-index.js';
 import { record, markFileEvidence } from '../src/utils/release-index.js';
+import { recordFileSizes } from '../src/debrid/file-sizes.js';
 
 const TOKEN = 'tok-internal-index';
 const encoded = encodeConfig({});
@@ -75,6 +76,29 @@ test('index: não toca getTitles e anexa a prova de arquivo', async () => {
     assert.equal(item.provenQuality, '720p');
     assert.equal(item.provenName, 'Filme.Teste.2024.720p.DUAL.mkv');
     assert.equal(item.ptTitleDual, undefined, 'ptTitleDual é decisão do build Rust');
+  });
+});
+
+test('index: prova de QUALIDADE do arquivo (fsz) vira provenQuality do item', async () => {
+  // Interestelar do corte nativo (2026-10-20): o post não diz resolução, o
+  // arquivo do hash diz 2160p. Sem este campo o Rust classifica o release no
+  // balde "sem resolução" e a cota de qualidade troca o BR por um 4K global.
+  const hash = 'f'.repeat(40);
+  await withMockFetch([], async () => {
+    record('tt9900003', {}, [{
+      title: 'Interestelar [DUAL]', infoHash: hash, seeders: 1,
+      size: 30 * 1024 ** 3, indexer: 'apachetorrent-cardigann', isBr: true,
+    }]);
+    recordFileSizes(hash, [
+      { path: 'Interestelar 2014 4K Dual Audio/Interstellar.2014.2160p.UHD.Bluray.Dual.mkv', size: 30 * 1024 ** 3 },
+    ]);
+    const res = await server.request('POST', '/internal/search/index', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: indexBody('tt9900003'),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.json.index_items.length, 1);
+    assert.equal(res.json.index_items[0].provenQuality, '2160p', 'a prova do arquivo chega ao consumidor nativo');
   });
 });
 

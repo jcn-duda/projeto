@@ -287,6 +287,21 @@ impl FrozenCase {
         for entry in &mut collect {
             annotate_audio_proof_items(&mut entry.response.items, &proofs);
         }
+        // A FONTE do rótulo (`mediaSource`, o "WEB-DL" do `720p WEB-DL BR`)
+        // pode ser resolvida DURANTE o build (índice/banco) e o item cru da
+        // captura não a carrega: o replay exibia `720p BR` onde o Node exibe
+        // `720p WEB-DL BR` (Carandiru `53421ce875`, 2026-10-20). O
+        // `apply-debrid.json` já grava o VENCEDOR do dedupe com o `bingeGroup`
+        // `powerm-<qualidade>-<fonte>`; a fonte sai de lá — mesma classe de
+        // reconstrução do `_quality` em [`applied_qualities`], sem campo novo no
+        // record (capturas antigas já a têm).
+        let media_sources = applied_media_sources(&applied);
+        if !media_sources.is_empty() {
+            annotate_media_source_index(&mut index, &media_sources);
+            for entry in &mut collect {
+                annotate_media_source_items(&mut entry.response.items, &media_sources);
+            }
+        }
         let debrid: DebridFile = read_optional(&dir.join("inputs/debrid.json"))?;
         // Reserva 📦 já decidida pelo Node (`collectFallbackForBuild`). O caso
         // grava o resultado; sem este canal a reserva não entra na build e o
@@ -759,6 +774,74 @@ fn normalize_qualities(raw: BTreeMap<String, String>) -> BTreeMap<String, String
             (!hash.is_empty() && !quality.is_empty()).then_some((hash, quality))
         })
         .collect()
+}
+
+/// Fonte do rótulo por hash, lida do `behaviorHints.bingeGroup` do
+/// `apply-debrid.json` — o VENCEDOR do dedupe, com a fonte que o Node exibiu no
+/// `name` (`powerm-<qualidade>-<fonte>`). `any` = o Node não tinha fonte.
+fn applied_media_sources(files: &[ApplyDebridFile]) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for file in files {
+        for item in &file.output {
+            let Some(source) = item
+                .get("behaviorHints")
+                .and_then(|hints| hints.get("bingeGroup"))
+                .and_then(Value::as_str)
+                .and_then(source_from_binge_group)
+            else {
+                continue;
+            };
+            if let Some(hash) = applied_hash(item) {
+                out.entry(hash).or_insert(source);
+            }
+        }
+    }
+    out
+}
+
+/// `powerm-<2160p|1080p|720p|480p|SD|na>-<fonte>` → fonte (`WEB-DL`, `BluRay`…).
+/// A fonte pode conter hífen (`WEB-DL`), por isso só o PRIMEIRO token é a
+/// qualidade; `any` é a ausência de fonte no Node.
+fn source_from_binge_group(binge: &str) -> Option<String> {
+    let rest = binge.strip_prefix("powerm-")?;
+    let (quality, source) = rest.split_once('-')?;
+    if !matches!(quality, "2160p" | "1080p" | "720p" | "480p" | "SD" | "na") {
+        return None;
+    }
+    let source = source.trim();
+    (!source.is_empty() && source != "any").then(|| source.to_string())
+}
+
+/// Repõe `mediaSource` nos itens. O `toStremioStream` lê `titleSource ||
+/// magnetSource || mediaSource`; a fonte vinda do índice/banco não está no item
+/// cru da captura, então sem esta reposição o `name` do replay perde o "WEB-DL".
+/// Item que já traz a fonte vence: é a do próprio lote.
+fn annotate_media_source_items(items: &mut [Value], sources: &BTreeMap<String, String>) {
+    for item in items {
+        if item.get("mediaSource").is_some_and(|value| !value.is_null()) {
+            continue;
+        }
+        let Some(hash) = batch_item_hash(item) else {
+            continue;
+        };
+        let Some(source) = sources.get(&hash) else {
+            continue;
+        };
+        if let Some(map) = item.as_object_mut() {
+            map.insert("mediaSource".into(), Value::String(source.clone()));
+        }
+    }
+}
+
+/// Vale para as TRÊS listas do índice (as origens são mescladas no instantâneo).
+fn annotate_media_source_index(index: &mut SearchIndexResponse, sources: &BTreeMap<String, String>) {
+    for items in [
+        &mut index.index_items,
+        &mut index.instant_items,
+        &mut index.account_items,
+    ] {
+        annotate_media_source_items(items, sources);
+    }
 }
 
 // ── rotas congeladas ────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 // Evidência que só o Node tem, anexada aos itens que as rotas internas devolvem
-// (`collect`/`index`): a prova de ARQUIVO do índice (`applyFileEvidence`) e o
+// (`collect`/`index`): a prova de ARQUIVO do índice (`applyFileEvidence`), a
+// prova de QUALIDADE do arquivo que o play tocaria (`stampProvenQuality`) e o
 // histórico RUIM da conta (`broken`).
 //
 // O `ptTitleDual` NÃO é calculado aqui. A decisão mora no núcleo do orquestrador
@@ -9,6 +10,7 @@
 // prendia a resposta a `getTitles` sem ganho — o Node não precisa mandar o flag.
 import type { RawItem, Stream } from '../../types/domain.js';
 import { applyFileEvidence } from '../providers/stream-file-evidence.js';
+import { stampProvenQuality } from '../providers/probed-quality.js';
 import { pruneKnownBroken } from '../providers/debrid-pipeline-steps.js';
 import { hashOf } from '../utils/magnet-bank-merge.js';
 import { accountScope } from '../utils/request-key.js';
@@ -17,6 +19,14 @@ import { opts } from '../runtime.js';
 
 /** Obra da busca: `season`/`episode`/`imdbId` ativam a prova fina do índice. */
 export type BrokenScope = { season?: number | null; episode?: number | null; imdbId?: string | null };
+
+/** Escopo por requisição: prova de qualidade (nomes/ano) + histórico da conta. */
+export type EvidenceScope = BrokenScope & {
+  names?: string[];
+  year?: number | string | null;
+  /** Sombra de fonte (read-only): só prova; não toca o banco de magnets. */
+  readOnly?: boolean;
+};
 
 /**
  * Marca `broken: true` no que o histórico da CONTA já provou quebrado (bad,
@@ -48,11 +58,15 @@ export function markKnownBroken(items: RawItem[], scope: BrokenScope = {}): RawI
 }
 
 /**
- * Anexa a prova de arquivo do índice e, com `scope`, a marca `broken`.
- * Síncrono e sem rede: a rota devolve o lote imediatamente; a decisão de
- * chip/`_dubbed`/origem BR fica no Rust.
+ * Anexa a prova de arquivo/qualidade do índice e, fora da sombra read-only, a
+ * marca `broken`. Síncrono e sem rede: a rota devolve o lote imediatamente; a
+ * decisão de chip/`_dubbed`/origem BR fica no Rust.
+ *
+ * `provenQuality` é o campo que o `RawItem` do Rust já consome: sem ele o corte
+ * nativo classifica o release no balde "sem resolução" e a cota de qualidade
+ * troca o BR por um global 4K (Interestelar, 2026-10-20).
  */
-export function enrichForRust(items: RawItem[], scope?: BrokenScope): RawItem[] {
-  const enriched = applyFileEvidence(items);
-  return scope ? markKnownBroken(enriched, scope) : enriched;
+export function enrichForRust(items: RawItem[], scope: EvidenceScope = {}): RawItem[] {
+  const proved = stampProvenQuality(applyFileEvidence(items), scope);
+  return scope.readOnly ? proved : markKnownBroken(proved, scope);
 }

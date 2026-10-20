@@ -126,10 +126,11 @@ export function registerInternalSearchIndex(router: Router, services: AppService
           );
         }
 
-        // Só a prova de ARQUIVO. O ptTitleDual (chip/_dubbed/origem BR) o Rust
-        // decide in-process por `SearchMeta.titles` → `BuildContext.titles`;
-        // não há consulta a `getTitles` nem espera de TMDB nesta rota.
-        const brokenScope = { season, episode, imdbId };
+        // Prova de ARQUIVO + prova de QUALIDADE do arquivo (fsz/pickFile). O
+        // ptTitleDual (chip/_dubbed/origem BR) o Rust decide in-process por
+        // `SearchMeta.titles` → `BuildContext.titles`; não há consulta a
+        // `getTitles` nem espera de TMDB nesta rota.
+        const brokenScope = { season, episode, imdbId, names, year };
         const indexItems = enrichForRust(
           idxReleasesToRaw(indexed).map((item) => ({ ...item, fromSnapshot: true })),
           brokenScope,

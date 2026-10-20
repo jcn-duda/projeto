@@ -152,11 +152,19 @@ export async function handleCollect(
       log.warn(`[internal] collect ${type} ${imdbId}: prazo de ${Math.round(budget)}ms atingido`);
       return res.status(504).json({ ok: false, error: 'prazo interno esgotado' });
     }
-    // Só a prova de ARQUIVO sai daqui; o ptTitleDual (chip/_dubbed/isBr) o Rust
-    // decide in-process pelos títulos do `meta` — sem esperar TMDB na rota.
+    // Saem daqui a prova de ARQUIVO e a prova de QUALIDADE do arquivo
+    // (`fsz`/`pickFile`); o ptTitleDual (chip/_dubbed/isBr) o Rust decide
+    // in-process pelos títulos do `meta` — sem esperar TMDB na rota.
     // `broken` (histórico ruim da conta) precisa do contexto do usuário; a sombra
     // read-only não toca o banco de magnets (o prune pode autocorrigir `bad`).
-    const brokenScope = readOnly === true ? undefined : { season, episode, imdbId };
+    const brokenScope = {
+      season,
+      episode,
+      imdbId,
+      names: matchContext.names,
+      year: matchContext.year,
+      readOnly: readOnly === true,
+    };
     value.items = await services.runtime.run(ctx, () => enrichForRust(value.items, brokenScope));
     // Itens crus agrupados por indexer — mesma unidade do cache `raw:v1`
     // (array de RawItem por fonte). Fonte sem rótulo vira "sem-indexer": o

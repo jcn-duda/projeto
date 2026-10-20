@@ -62,6 +62,26 @@ com aceite de paridade BR).
   Node pula no `/internal/search/collect`). Meta/tail seguem no Node quando as
   rotas internas existem. Default **OFF**.
 
+### 0.3.1 Prova de arquivo/qualidade no item (`provenQuality`)
+
+As rotas internas devolvem o item JÁ com a prova que o build do Node usa, e é
+por aí que ela chega ao orquestrador — não há campo/rota extra no protocolo:
+
+- `provenAudio`/`provenName` — `applyFileEvidence` (evidência do `releaseIndex`);
+- `provenQuality` — `stampProvenQuality` (`fsz` + `pickFile` + nome do arquivo
+  escolhido; senão a medição `vres` já feita). Sem sonda nova na rota.
+
+O Rust lê em `RawItem::proven_quality` e o `map_stream` usa ANTES do título: é o
+que decide o balde de qualidade do `limit_reserving_br`. Sem o campo o índice
+manda o release como "sem resolução" e o corte troca o BR por um 4K global
+(Interestelar BR `f320`, 2026-10-20).
+
+`files_by_hash` (memo `fsz` do build) **não** é o portador da prova: só o gate
+congelado o injeta (`with_files_by_hash`); no caminho de produção ele segue
+vazio e o Rust só o usaria para 💾/tamanho. Medido no replay: com `files` e sem
+`provenQuality` a lista diverge igual a não ter prova; com `provenQuality` e sem
+`files` a lista bate (só o chip de áudio muda, prova separada).
+
 ### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
 
 | Modo | Store | Path |

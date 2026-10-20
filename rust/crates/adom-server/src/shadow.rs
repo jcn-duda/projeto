@@ -261,8 +261,10 @@ pub fn record_comparison(
 
 /// Default do Node em loopback com `GATEWAY=on` (mesmo do `NodeRoutes`).
 const DEFAULT_INTERNAL_BASE: &str = "http://127.0.0.1:7100";
-/// Teto HTTP da hidratação de `config.json` (loopback, corpo pequeno).
-const CONFIG_TIMEOUT: Duration = Duration::from_millis(5_000);
+/// Teto HTTP da hidratação de `config.json` (loopback, corpo pequeno). 5 s
+/// estourava sob a carga da sombra (lote + 2ª request); 15 s cobre a pressão
+/// sem mascarar falha real.
+const CONFIG_TIMEOUT: Duration = Duration::from_millis(15_000);
 /// Teto da SEGUNDA request. Ela é a busca CONGELADA de verdade — índice +
 /// coleta ao vivo, sem SWR — e sob concorrência (4 workers) o teto antigo de
 /// 20 s estourava com `frozen: prazo esgotado`, virando `error` em massa em vez
@@ -271,7 +273,9 @@ const CONFIG_TIMEOUT: Duration = Duration::from_millis(5_000);
 const FROZEN_NODE_TIMEOUT: Duration = Duration::from_secs(60);
 /// Espera pelo flush do dir depois da resposta frozen (o Node grava durante a
 /// request; a resposta pode chegar com o último arquivo ainda no buffer).
-const FROZEN_DIR_WAIT: Duration = Duration::from_millis(1_000);
+/// 1 s era curto sob carga e virava `error` de captura incompleta em ~1/8 dos
+/// casos; 10 s não muda o caminho feliz (retorna no primeiro poll completo).
+const FROZEN_DIR_WAIT: Duration = Duration::from_secs(10);
 /// Intervalo da espera do dir.
 const FROZEN_DIR_POLL: Duration = Duration::from_millis(20);
 /// Teto do replay congelado. As rotas congeladas não fazem I/O de rede; o prazo

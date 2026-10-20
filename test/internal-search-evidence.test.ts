@@ -15,6 +15,7 @@ import { buildServices } from '../src/routes/services.js';
 import { registerInternalSearch } from '../src/routes/internal-search.js';
 import type { InternalSearchCollaborators } from '../src/routes/internal-search.js';
 import { markFileEvidence } from '../src/utils/release-index.js';
+import { recordFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 
 const TOKEN = 'tok-internal-evidence';
 const encoded = encodeConfig({});
@@ -83,6 +84,33 @@ test('collect: não toca getTitles nem espera TMDB; ptTitleDual fica com o Rust'
     // O flag que a rota anexava saiu; o build in-process do Rust decide pelo
     // `SearchMeta.titles` (meta_tests + audio_proof_tests cobrem o núcleo).
     assert.equal(res.json.items.every((item: any) => item.ptTitleDual === undefined), true);
+  });
+});
+
+test('collect: prova de QUALIDADE do arquivo (fsz) vira provenQuality do item', async () => {
+  const hash = 'f'.repeat(40);
+  await withCollect({
+    collectRaw: (async () => ({
+      items: [
+        { title: 'Interestelar [DUAL]', infoHash: hash, indexer: 'apachetorrent-cardigann', isBr: true },
+      ],
+      partial: false,
+      completion: Promise.resolve(),
+      sweepInline: false,
+      live: null,
+    })) as any,
+  }, async (server) => {
+    recordFileSizes(hash, [
+      { path: 'Interestelar 2014 4K Dual Audio/Interstellar.2014.2160p.UHD.Bluray.Dual.mkv', size: 30 * 1024 ** 3 },
+    ]);
+    const res = await server.request('POST', '/internal/search/collect', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: collectBody({ names: ['Interestelar'] }),
+    });
+    assert.equal(res.status, 200);
+    const item = res.json.items.find((i: any) => i.infoHash === hash);
+    assert.equal(item.provenQuality, '2160p', 'a prova do arquivo chega ao consumidor nativo');
+    clearFileSizes();
   });
 });
 
