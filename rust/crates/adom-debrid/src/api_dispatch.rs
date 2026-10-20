@@ -1,6 +1,7 @@
 //! Despacho das rotas internas. O adaptador nasce por pedido e lê a base do
 //! ambiente. Magnet ausente é `None`: o `default_magnet` fica no adaptador.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,6 +15,9 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::AppState;
+use crate::alldebrid::AllDebrid;
+use crate::alldebrid_cleanup::{env_truthy, CleanupMode, CleanupPlan, DurablePeek};
+use crate::alldebrid_mode::AlRustMode;
 use crate::debridlink::DebridLink;
 use crate::error::DebridError;
 use crate::http::HttpClient;
@@ -55,9 +59,26 @@ struct RequestBody {
     path: String,
     #[serde(default)]
     episode: Option<Value>,
-    /// Ausente ou true não apaga: o hold mora no Node.
+    /// Resolve: ausente ou true não apaga. O hold mora no Node.
     #[serde(default)]
     held: Option<bool>,
+    // ── Fatos da limpeza segura (AllDebrid) ─────────────────────────────────
+    // `DEBRID_AL_CLEANUP=off` (default) ignora tudo e a checagem é read-only.
+    /// O chamador carregou o snapshot `knownBefore` antes do upload.
+    #[serde(default, rename = "inventoryLoaded")]
+    inventory_loaded: bool,
+    #[serde(default, rename = "knownBefore")]
+    known_before: Vec<String>,
+    /// Hashes protegidos (hold volátil + `adprot`) do lote.
+    #[serde(default, rename = "heldHashes")]
+    held_hashes: Vec<String>,
+    /// O chamador prova que `heldHashes` cobre TODOS os holds vivos da conta.
+    #[serde(default, rename = "holdsComplete")]
+    holds_complete: bool,
+    #[serde(default, rename = "dropReady")]
+    drop_ready: Option<bool>,
+    #[serde(default, rename = "dropUncached")]
+    drop_uncached: Option<bool>,
 }
 
 pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Response {
@@ -75,32 +96,13 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
         return response;
     }
     // AllDebrid: upload real suja a conta; sem hold/drop no sidecar o
-    // rust-remote aceitaria 200 e NÃO cairia no TS. Até Fase C fica 501
-    // (fail-safe). `DEBRID_AL_RUST=on` libera a checagem nativa — read-only,
-    // sem limpeza; o default OFF preserva o caminho Node.
+    // rust-remote aceitaria 200 e NÃO cairia no TS. A checagem nativa só
+    // responde com `DEBRID_AL_RUST=on`; a limpeza nativa exige
+    // `DEBRID_AL_CLEANUP=on` + os fatos no corpo (senão é read-only).
     if body.service == "alldebrid" {
-        // `shadow` é modo de OBSERVAÇÃO do adom-search: a rota continua 501
-        // para o Rust não virar o respondedor por acidente.
-        if crate::alldebrid_mode::AlRustMode::from_env() != crate::alldebrid_mode::AlRustMode::On {
-            return not_ported(&state, &body.service);
-        }
-        if body.api_key.trim().is_empty() {
-            // Mesma semântica de `configured:false` da rota Node: sem chave
-            // não há serviço, e unknown é melhor que "frio" (verdadeiro).
-            state.metrics.inc("rust.debrid.api.alldebrid_no_key");
-            return json_status(
-                StatusCode::OK,
-                json!({
-                    "cached": [],
-                    "complete": false,
-                    "known": false,
-                    "unusable": Value::Null,
-                }),
-            );
-        }
-        state.metrics.inc("rust.debrid.api.alldebrid_check");
+        return check_alldebrid(&state, &body).await;
     }
-    // PM / TorBox / RD / AllDebrid / Debrid-Link: réguas do núcleo + ledger do RD.
+    // PM / TorBox / RD / Debrid-Link: réguas do núcleo + ledger do RD.
     let outcome = match crate::verdict::check_service(
         &body.service,
         &body.api_key,
@@ -113,18 +115,125 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
         Ok(outcome) => outcome,
         Err(_) => return not_ported(&state, &body.service),
     };
-    if body.service == "alldebrid" {
-        state
-            .metrics
-            .add("rust.debrid.api.alldebrid_hashes", body.hashes.len() as u64);
-        if outcome.unusable.is_some() {
-            state.metrics.inc("rust.debrid.api.alldebrid_unusable");
+    json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
+}
+
+/// AllDebrid nativa. A rota entrega os fatos da limpeza (`inventoryLoaded`,
+/// `knownBefore`, `heldHashes`, `holdsComplete`, `dropReady`, `dropUncached`)
+/// porque o Rust não enxerga o hold volátil do autofetch, que mora no Node.
+/// Sem `holdsComplete` — e o Node atual não manda — o plano nasce suprimido e
+/// a checagem é read-only, como com `DEBRID_AL_CLEANUP=off`.
+async fn check_alldebrid(state: &AppState, body: &RequestBody) -> Response {
+    // `shadow` é modo de OBSERVAÇÃO do adom-search: a rota continua 501
+    // para o Rust não virar o respondedor por acidente.
+    if AlRustMode::from_env() != AlRustMode::On {
+        return not_ported(state, "alldebrid");
+    }
+    if body.api_key.trim().is_empty() {
+        // Mesma semântica de `configured:false` da rota Node: sem chave
+        // não há serviço, e unknown é melhor que "frio" (verdadeiro).
+        state.metrics.inc("rust.debrid.api.alldebrid_no_key");
+        return json_status(
+            StatusCode::OK,
+            json!({
+                "cached": [],
+                "complete": false,
+                "known": false,
+                "unusable": Value::Null,
+            }),
+        );
+    }
+    state.metrics.inc("rust.debrid.api.alldebrid_check");
+    let client = match http(state) {
+        Ok(client) => client,
+        Err(response) => return *response,
+    };
+    let cleanup = CleanupMode::from_env();
+    let opts = crate::alldebrid::CheckOpts {
+        timeout: body.timeout_ms.map(Duration::from_millis),
+        batch_size: None,
+        cleanup,
+        // Sem a flag, drop_* é ignorado de propósito (read-only); com a flag,
+        // o corpo manda e o default é o mesmo do Node.
+        drop_ready: cleanup.is_on()
+            && body
+                .drop_ready
+                .unwrap_or_else(|| env_truthy("DEBRID_DROP_READY", true)),
+        drop_uncached: cleanup.is_on()
+            && body
+                .drop_uncached
+                .unwrap_or_else(|| env_truthy("DEBRID_DROP_UNCACHED", true)),
+        inventory_loaded: body.inventory_loaded,
+        known_before: body.known_before.iter().cloned().collect::<HashSet<_>>(),
+        held: body.held_hashes.iter().cloned().collect::<HashSet<_>>(),
+        blocked: HashSet::new(),
+        holds_complete: body.holds_complete,
+        durable: cleanup.is_on().then(|| Arc::new(DurablePeek::from_env())),
+        kill_switch: None,
+    };
+    let ad = AllDebrid::new(client);
+    match ad
+        .check_cached_report(&body.api_key, &body.hashes, &opts)
+        .await
+    {
+        Ok(report) => {
+            state
+                .metrics
+                .add("rust.debrid.api.alldebrid_hashes", body.hashes.len() as u64);
+            record_cleanup(state, report.cleanup.as_ref());
+            // Fire-and-forget: a fila com backoff nunca segura a resposta.
+            if let Some(plan) = report.cleanup.clone().filter(|plan| !plan.is_empty()) {
+                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    let ad = ad.clone();
+                    let key = body.api_key.clone();
+                    handle.spawn(async move {
+                        let _ = plan.run(&ad, &key).await;
+                    });
+                }
+            }
+            let outcome = crate::verdict::cached_outcome(report.cached, report.complete);
+            count_outcome(state, &outcome);
+            json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
         }
-        if !outcome.known {
-            state.metrics.inc("rust.debrid.api.alldebrid_unknown");
+        Err(failure) => {
+            // Auth/quota viram `unusable` (a lista volta P2P); rate limit sai
+            // como `known:false`, igual ao caminho TS. A rota não devolve 501
+            // depois de um upload real (segundo upload dobraria o lixo).
+            let outcome = crate::verdict::error_outcome(&failure.error);
+            count_outcome(state, &outcome);
+            json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
         }
     }
-    json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
+}
+
+fn record_cleanup(state: &AppState, plan: Option<&CleanupPlan>) {
+    let Some(plan) = plan else {
+        return;
+    };
+    state.metrics.add(
+        "rust.debrid.api.alldebrid_cleanup_planned",
+        plan.target_count() as u64,
+    );
+    state.metrics.add(
+        "rust.debrid.api.alldebrid_cleanup_protected",
+        plan.protected as u64,
+    );
+    if let Some(reason) = plan.suppressed {
+        let key = format!(
+            "rust.debrid.api.alldebrid_cleanup_suppressed.{}",
+            reason.as_str()
+        );
+        state.metrics.inc(&key);
+    }
+}
+
+fn count_outcome(state: &AppState, outcome: &crate::verdict::CheckOutcome) {
+    if outcome.unusable.is_some() {
+        state.metrics.inc("rust.debrid.api.alldebrid_unusable");
+    }
+    if !outcome.known {
+        state.metrics.inc("rust.debrid.api.alldebrid_unknown");
+    }
 }
 
 pub(super) async fn link(State(state): State<Arc<AppState>>, raw: Bytes) -> Response {

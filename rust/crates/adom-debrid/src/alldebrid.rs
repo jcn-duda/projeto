@@ -172,6 +172,26 @@ impl AllDebrid {
         Ok(summarize(&data))
     }
 
+    /// Hashes da conta (`/magnet/status`), lower-case. É o snapshot
+    /// `knownBefore` da limpeza: o que já estava lá antes do upload não sai.
+    pub async fn magnet_hashes(&self, api_key: &str) -> Result<Vec<String>, DebridError> {
+        let data = self
+            .call(api_key, "/magnet/status", &[], CALL_TIMEOUT, false)
+            .await?;
+        Ok(data
+            .get("magnets")
+            .and_then(Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(|magnet| magnet.get("hash").and_then(Value::as_str))
+                    .map(str::trim)
+                    .map(str::to_lowercase)
+                    .filter(|hash| !hash.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
     /// Upload, no máximo 3 esperas, `/link/unlock` do arquivo escolhido.
     pub async fn resolve_link(
         &self,
@@ -247,10 +267,9 @@ impl AllDebrid {
 
     /// Fonte: `deleteMagnetsNow` chama `call(apiKey, '/magnet/delete', { id })`.
     /// Sem method no `call`, é GET e o id vai na query. A fila (4 workers,
-    /// backoff e segunda rodada) ficou de fora: um único GET, `id` repetido
-    /// como o `searchParams.append` faria com um array. Falha devolve o erro
-    /// e não há segunda tentativa.
-    pub(super) async fn delete_ids(
+    /// backoff e segunda rodada) mora em `alldebrid_delete`; aqui é UM GET, com
+    /// `id` repetido como o `searchParams.append` faria com um array.
+    pub(crate) async fn delete_ids(
         &self,
         api_key: &str,
         ids: &[String],

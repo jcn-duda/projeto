@@ -1,6 +1,9 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use axum::body::Body;
+use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::any;
@@ -375,4 +378,127 @@ async fn debridlink_check_vazio_e_rotas_sem_metodo_ficam_501() {
 fn escuta_fora_do_loopback_e_recusada() {
     assert!(super::parse_listen("0.0.0.0:8710").is_err());
     assert!(super::parse_listen("127.0.0.1:8710").is_ok());
+}
+
+// ── Limpeza nativa pela rota (fatos no corpo) ───────────────────────────────
+
+struct CleanupScene {
+    deletes: AtomicUsize,
+    last_query: std::sync::Mutex<Option<String>>,
+}
+
+fn cleanup_scene() -> Arc<CleanupScene> {
+    Arc::new(CleanupScene {
+        deletes: AtomicUsize::new(0),
+        last_query: std::sync::Mutex::new(None),
+    })
+}
+
+/// Upload fixo: 'a' pronto (id 97) e 'c' frio (id 99).
+async fn fake_alldebrid_cleanup(
+    State(scene): State<Arc<CleanupScene>>,
+    req: Request<Body>,
+) -> Response {
+    let path = req.uri().path().to_string();
+    let query = req.uri().query().unwrap_or("").to_string();
+    let _ = req.into_body().collect().await;
+    if path.ends_with("/magnet/upload") {
+        return (
+            StatusCode::OK,
+            r#"{"status":"success","data":{"magnets":[
+                {"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","ready":true,"id":97},
+                {"hash":"cccccccccccccccccccccccccccccccccccccccc","ready":false,"id":99}
+            ]}}"#,
+        )
+            .into_response();
+    }
+    if path.ends_with("/magnet/delete") {
+        scene.deletes.fetch_add(1, Ordering::SeqCst);
+        *scene.last_query.lock().unwrap() = Some(query);
+        return (StatusCode::OK, r#"{"status":"success","data":{}}"#).into_response();
+    }
+    (StatusCode::OK, r#"{"status":"success","data":{}}"#).into_response()
+}
+
+async fn local_cleanup_alldebrid() -> (String, Arc<CleanupScene>) {
+    let scene = cleanup_scene();
+    let app = Router::new()
+        .fallback(any(fake_alldebrid_cleanup))
+        .with_state(scene.clone());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    (format!("http://{addr}"), scene)
+}
+
+async fn wait_deletes(scene: &CleanupScene, min: usize) -> bool {
+    for _ in 0..100 {
+        if scene.deletes.load(Ordering::SeqCst) >= min {
+            return true;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    false
+}
+
+#[tokio::test]
+async fn alldebrid_limpeza_pela_rota_usa_os_fatos_do_corpo() {
+    let (base, scene) = local_cleanup_alldebrid().await;
+    let dir = tempfile::tempdir().unwrap();
+    let cache_str = dir.path().join("cache.db").to_string_lossy().to_string();
+    let _env = EnvVars::set(&[
+        ("ALLDEBRID_API_BASE", &base),
+        ("DEBRID_AL_RUST", "on"),
+        ("DEBRID_AL_CLEANUP", "on"),
+        ("CACHE_DB_PATH", cache_str.as_str()),
+    ]);
+    let hash_a = "a".repeat(40);
+    let hash_c = "c".repeat(40);
+    // `knownBefore` protege o pronto que já era do usuário; o frio novo sai.
+    let body = format!(
+        r#"{{"service":"alldebrid","apiKey":"nao-logar","hashes":["{hash_a}","{hash_c}"],
+             "inventoryLoaded":true,"knownBefore":["{hash_a}"],"heldHashes":[],
+             "holdsComplete":true}}"#
+    );
+    let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", &body).await;
+    assert_eq!(status, StatusCode::OK, "{raw}");
+    let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(json["cached"][0].as_str(), Some(hash_a.as_str()));
+    assert!(
+        wait_deletes(&scene, 1).await,
+        "a fila de delete roda em fundo"
+    );
+    assert_eq!(scene.deletes.load(Ordering::SeqCst), 1);
+    let last = scene.last_query.lock().unwrap().clone().unwrap_or_default();
+    assert!(last.contains("id=99"), "só o frio novo saiu: {last}");
+}
+
+#[tokio::test]
+async fn alldebrid_limpeza_sem_holds_completos_nao_apaga() {
+    let (base, scene) = local_cleanup_alldebrid().await;
+    let dir = tempfile::tempdir().unwrap();
+    let cache_str = dir.path().join("cache.db").to_string_lossy().to_string();
+    let _env = EnvVars::set(&[
+        ("ALLDEBRID_API_BASE", &base),
+        ("DEBRID_AL_RUST", "on"),
+        ("DEBRID_AL_CLEANUP", "on"),
+        ("CACHE_DB_PATH", cache_str.as_str()),
+    ]);
+    let body = format!(
+        r#"{{"service":"alldebrid","apiKey":"nao-logar","hashes":["{}","{}"],
+             "inventoryLoaded":true,"knownBefore":[],"heldHashes":[],
+             "holdsComplete":false}}"#,
+        "a".repeat(40),
+        "c".repeat(40)
+    );
+    let (status, _raw) = call("segredo", Some("segredo"), "/debrid/check", &body).await;
+    assert_eq!(status, StatusCode::OK);
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    assert_eq!(
+        scene.deletes.load(Ordering::SeqCst),
+        0,
+        "sem a prova dos holds do autofetch, ninguém sai"
+    );
 }

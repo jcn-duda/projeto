@@ -8,7 +8,7 @@ import * as alldebrid from '../src/debrid/alldebrid.js';
 import * as premiumize from '../src/debrid/premiumize.js';
 import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import debrid from '../src/debrid/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 

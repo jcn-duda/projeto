@@ -203,6 +203,10 @@ fn cache_opts(loaded: bool) -> CheckOpts {
         blocked: HashSet::from([hash_of('f')]),
         // Explícito: outro teste mexe em DEBRID_BATCH_SIZE (env global).
         batch_size: Some(25),
+        // A limpeza só existe com a flag ON e a prova dos holds.
+        cleanup: crate::alldebrid_cleanup::CleanupMode::On,
+        holds_complete: true,
+        kill_switch: Some(false),
         ..CheckOpts::default()
     }
 }
@@ -260,6 +264,17 @@ async fn upload_separa_cache_e_apaga_so_o_que_pode() {
     assert_eq!(report.cached, vec![hash_of('a'), hash_of('b')]);
     assert!(report.complete);
     assert_eq!(report.deleted, vec!["101".to_string(), "103".to_string()]);
+    let plan = report.cleanup.expect("plano com a flag ON");
+    plan.run_with(
+        &ad,
+        API_KEY,
+        crate::alldebrid_delete::DeleteConfig {
+            kill: Some(false),
+            ..crate::alldebrid_delete::DeleteConfig::fast()
+        },
+    )
+    .await
+    .expect("fila rodou");
     let seen = hits(&scene);
     assert!(seen.iter().all(|hit| hit.auth_ok
         && hit.method == "GET"
@@ -280,23 +295,35 @@ async fn upload_separa_cache_e_apaga_so_o_que_pode() {
         .iter()
         .filter(|hit| hit.path == "/magnet/delete")
         .collect();
-    assert_eq!(deleted.len(), 1);
-    assert_eq!(
-        values(&deleted[0].query, "id"),
-        vec!["101".to_string(), "103".to_string()]
-    );
+    // A fila manda um GET por id (4 workers); a ordem não é contrato.
+    assert_eq!(deleted.len(), 2);
+    let mut ids: Vec<String> = deleted
+        .iter()
+        .flat_map(|hit| values(&hit.query, "id"))
+        .collect();
+    ids.sort();
+    assert_eq!(ids, vec!["101".to_string(), "103".to_string()]);
 }
 
 #[tokio::test]
 async fn inventario_fechado_nao_chama_delete() {
+    // Chave própria: o snapshot `knownBefore` é global por conta e outro teste
+    // não pode deixar um snapshot vazio fresco aqui.
+    const KEY: &str = "ad-inventory-closed";
     let scene = mock(&sample_upload(), &empty_ok(), &empty_ok());
     let ad = open(listen(scene.clone()).await);
     let report = ad
-        .check_cached(API_KEY, &asked(), &cache_opts(false))
+        .check_cached(KEY, &asked(), &cache_opts(false))
         .await
         .unwrap();
     assert_eq!(report.cached, vec![hash_of('a'), hash_of('b')]);
     assert!(report.deleted.is_empty());
+    let plan = report.cleanup.expect("flag ON produz plano");
+    assert_eq!(
+        plan.suppressed,
+        Some(crate::alldebrid_cleanup::CleanupSuppressed::InventoryMissing)
+    );
+    // O refresh em fundo pode consultar `/magnet/status`; delete, nunca.
     assert!(hits(&scene).iter().all(|hit| hit.path != "/magnet/delete"));
 }
 
@@ -353,22 +380,46 @@ async fn falha_de_delete_nao_repete_nem_derruba_o_veredito() {
     let opts = CheckOpts {
         drop_uncached: true,
         inventory_loaded: true,
+        cleanup: crate::alldebrid_cleanup::CleanupMode::On,
+        holds_complete: true,
+        kill_switch: Some(false),
         ..CheckOpts::default()
     };
-    // Igual ao Node: a limpeza é efeito colateral; falha dela não vira erro
-    // da checagem (o ⚡ já está no retorno) e não há segunda tentativa.
+    // Igual ao Node: a checagem devolve o veredito sem esperar o delete; a
+    // falha da fila não vira erro da checagem.
     let report = ad
         .check_cached(API_KEY, &[hash_of('c')], &opts)
         .await
         .unwrap();
     assert!(report.complete);
     assert_eq!(report.cached, Vec::<String>::new());
-    let seen = hits(&scene);
+    assert_eq!(report.deleted, vec!["103".to_string()]);
+    assert!(hits(&scene).iter().all(|hit| hit.path != "/magnet/delete"));
+    // A fila tenta 3× na 1ª rodada e 3× na 2ª (sem espera no teste).
+    let queue = crate::alldebrid_delete::delete_with_backoff(
+        &ad,
+        API_KEY,
+        &report.deleted,
+        crate::alldebrid_delete::DeleteConfig {
+            delays: vec![
+                std::time::Duration::ZERO,
+                std::time::Duration::ZERO,
+                std::time::Duration::ZERO,
+            ],
+            kill: Some(false),
+            ..crate::alldebrid_delete::DeleteConfig::fast()
+        },
+    )
+    .await;
+    assert!(queue.removed.is_empty());
+    assert_eq!(queue.failed, vec!["103".to_string()]);
+    assert_eq!(queue.attempts, 6);
     assert_eq!(
-        seen.iter()
+        hits(&scene)
+            .iter()
             .filter(|hit| hit.path == "/magnet/delete")
             .count(),
-        1
+        6
     );
 }
 

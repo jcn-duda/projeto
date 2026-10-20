@@ -9,9 +9,10 @@ import debrid from '../src/debrid/index.js';
 import { getMeta } from '../src/utils/cinemeta.js';
 import { getTitles } from '../src/utils/tmdb.js';
 import {
-  applyDebrid, buildStreams, firstObserverStep, createFirstObserver,
+  buildStreams, firstObserverStep, createFirstObserver,
   firstObserverClaim, promoteFirstObserverEligible,
 } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { stageFirstTiming } from '../src/providers/first-observer.js';
 import { limitReservingBr } from '../src/utils/format.js';
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import debrid from '../src/debrid/index.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 
 process.env.CACHE_PERSIST = 'false';
 

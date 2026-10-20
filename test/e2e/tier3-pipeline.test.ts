@@ -15,7 +15,7 @@ import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
-import { applyDebrid } from '../../src/providers/index.js';
+import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
 import { collectWithinWindow } from '../../src/providers/collection-window.js';
 import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import { accountScope } from '../../src/utils/request-key.js';

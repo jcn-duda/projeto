@@ -17,7 +17,7 @@ import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { drainNext } from '../src/providers/autofetch-runner.js';
 import { toQueueCandidate } from '../src/providers/autofetch-fallback.js';
 import { resetObraForTest } from '../src/providers/autofetch-obra.js';

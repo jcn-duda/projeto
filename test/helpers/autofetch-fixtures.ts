@@ -7,7 +7,7 @@ import debrid from '../../src/debrid/index.js';
 import * as cache from '../../src/utils/cache.js';
 import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
-import { applyDebrid } from '../../src/providers/index.js';
+import { applyDebrid } from './pipeline-oracle/index.js';
 
 /** Hashes fixos compartilhados pelos testes de fila/dreno. */
 export const H1 = '1111111111111111111111111111111111111111';

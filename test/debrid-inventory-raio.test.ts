@@ -6,7 +6,7 @@ import config from '../src/config.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { applyDebrid } from '../src/providers/debrid-pipeline.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { Stream } from '../types/domain.js';
 
 process.env.CACHE_PERSIST = 'false';

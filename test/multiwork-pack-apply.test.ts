@@ -12,7 +12,7 @@ process.env.CACHE_PERSIST = 'false';
 import debrid from '../src/debrid/index.js';
 import * as runtime from '../src/runtime.js';
 import config from '../src/config.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { prepareCandidateStreams } from '../src/providers/stream-builder.js';
 import { pickFile } from '../src/debrid/file-selector.js';
 import * as cache from '../src/utils/cache.js';

@@ -18,7 +18,7 @@ import debrid from '../src/debrid/index.js';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as runtime from '../src/runtime.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { collectFallbackItems } from '../src/providers/magnet-bank-fallback.js';
 import { createLiveIndexerState, ALL_QUERY_INDEXER } from '../src/providers/live-indexer-state.js';

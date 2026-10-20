@@ -18,7 +18,7 @@ import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as autofetchLive from '../src/utils/autofetch-live.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { applySeedsStopGate } from '../src/providers/autofetch-seeds-pool.js';
 import type { DebridAdapter } from '../types/domain.js';
 

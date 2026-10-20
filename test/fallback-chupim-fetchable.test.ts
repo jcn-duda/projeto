@@ -10,7 +10,7 @@ import debrid from '../src/debrid/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import * as cache from '../src/utils/cache.js';
 import * as runtime from '../src/runtime.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { toRawItem } from '../src/providers/magnet-bank-fallback.js';
 import { toStremioStream } from '../src/utils/search-names.js';
 import { applyNoticeOrigin } from '../src/providers/stream-builder.js';

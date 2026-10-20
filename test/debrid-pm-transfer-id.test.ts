@@ -21,7 +21,7 @@ import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope } from '../src/utils/request-key.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import * as suppressed from '../src/providers/autofetch-suppressed.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { flush, brDubCandidate, autofetchUserOpts } from './helpers/autofetch-fixtures.js';

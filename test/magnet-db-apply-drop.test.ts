@@ -8,7 +8,7 @@ import * as magnetdb from '../src/utils/magnetdb.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import debrid from '../src/debrid/index.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import { accountScope } from '../src/utils/request-key.js';
 

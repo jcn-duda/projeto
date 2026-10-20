@@ -2,7 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as runtime from '../src/runtime.js';
-import { applyDebrid, debridRefreshSatisfied } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
+import { debridRefreshSatisfied } from '../src/providers/index.js';
 import { streamsNeedRevalidation } from '../src/app.js';
 
 process.env.CACHE_PERSIST = 'false';

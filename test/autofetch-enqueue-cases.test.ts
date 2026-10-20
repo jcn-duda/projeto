@@ -11,7 +11,7 @@ import config from '../src/config.js';
 import autofetchLive from '../src/utils/autofetch-live.js';
 import { accountScope } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

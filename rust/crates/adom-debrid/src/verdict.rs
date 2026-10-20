@@ -20,13 +20,13 @@
 //!   por construção: não há escrita na conta para serializar.
 //!
 //! AllDebrid: a checagem é o `/magnet/upload` real (não abortável). A limpeza
-//! (`dropUncached`/`dropReady`) fica DESLIGADA nesta fatia: o equivalente do
-//! `protected.ts` (hold persistente, `knownBefore`, inventário durável) ainda
-//! não está portado, e o fail-safe do núcleo (`may_delete` com
-//! `inventory_loaded:false` → ninguém apaga) é respeitado passando os três
-//! vetos fechadas. Este caminho serve o adom-search in-process; o HTTP
-//! público `/debrid/check` devolve 501 até Fase C (senão o rust-remote
-//! engole o 200 e magnets ficam na conta sem limpeza).
+//! segura mora em `alldebrid_cleanup`: `DEBRID_AL_CLEANUP` (default OFF),
+//! hold/`adprot`, `knownBefore` e a fila com backoff. Só nasce plano com a
+//! flag **e** `holds_complete` e inventário; como este caminho (o seam
+//! in-process) não vê o hold volátil do autofetch (mora no Node), ele passa
+//! `holds_complete:false` e a nativa segue read-only. A rota interna pode
+//! entregar os fatos pelo corpo — ver `api_dispatch`. O HTTP público
+//! `/debrid/check` devolve 501 com `DEBRID_AL_RUST=off` até Fase C.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -37,6 +37,7 @@ use adom_core::{
 use serde_json::{json, Value};
 
 use crate::alldebrid::{AllDebrid, CheckOpts};
+use crate::alldebrid_cleanup::{env_truthy, CleanupMode, CleanupPlan, DurablePeek};
 use crate::debridlink::DebridLink;
 use crate::error::DebridError;
 use crate::http::HttpClient;
@@ -155,20 +156,33 @@ pub async fn check_service_report(
             Err(err) => (err_verdict(&err), true),
         },
         "alldebrid" => {
-            // Fase C: `drop_*` permanece false — sem hold portado, ninguém
-            // apaga. `attempted` decide o fallback do seam.
+            // `DEBRID_AL_CLEANUP` (default OFF) é a única porta para apagar.
+            // Mesmo ON, o plano só nasce com `holds_complete` — e este caminho
+            // não tem o hold volátil do autofetch (mora no Node), então hoje a
+            // nativa segue read-only aqui. A rota interna pode entregar os
+            // fatos pelo corpo (`api_dispatch`); o seam não.
+            let cleanup = CleanupMode::from_env();
             let opts = CheckOpts {
                 timeout,
-                drop_ready: false,
-                drop_uncached: false,
+                cleanup,
+                drop_ready: cleanup.is_on() && env_truthy("DEBRID_DROP_READY", true),
+                drop_uncached: cleanup.is_on() && env_truthy("DEBRID_DROP_UNCACHED", true),
                 inventory_loaded: false,
+                holds_complete: false,
+                durable: cleanup
+                    .is_on()
+                    .then(|| std::sync::Arc::new(DurablePeek::from_env())),
                 ..CheckOpts::default()
             };
-            match AllDebrid::new(client)
-                .check_cached_report(api_key, hashes, &opts)
-                .await
-            {
-                Ok(report) => (record(report.cached, report.complete), report.attempted),
+            let ad = AllDebrid::new(client);
+            match ad.check_cached_report(api_key, hashes, &opts).await {
+                Ok(report) => {
+                    // Fire-and-forget, como o `dropMagnets` do Node: a resposta
+                    // nunca espera o backoff. Plano vazio (holds incompletos)
+                    // não spawna nada.
+                    spawn_cleanup(&ad, api_key, report.cleanup.clone());
+                    (record(report.cached, report.complete), report.attempted)
+                }
                 Err(failure) => (err_verdict(&failure.error), failure.attempted),
             }
         }
@@ -210,6 +224,23 @@ fn record(cached: Vec<String>, complete: bool) -> CacheVerdict {
     })
 }
 
+/// Agenda a fila de delete DEPOIS da resposta. Plano vazio (flag OFF ou
+/// `holds_complete=false`) não spawna: a nativa segue read-only.
+fn spawn_cleanup(ad: &AllDebrid, api_key: &str, plan: Option<CleanupPlan>) {
+    let Some(plan) = plan.filter(|plan| !plan.is_empty()) else {
+        return;
+    };
+    let Ok(handle) = tokio::runtime::Handle::try_current() else {
+        eprintln!("[alldebrid] limpeza nativa sem runtime; plano descartado");
+        return;
+    };
+    let ad = ad.clone();
+    let key = api_key.to_string();
+    handle.spawn(async move {
+        let _ = plan.run(&ad, &key).await;
+    });
+}
+
 fn unknown_verdict() -> CacheVerdict {
     CacheVerdict {
         cached: Vec::new(),
@@ -237,6 +268,18 @@ fn into_outcome(verdict: CacheVerdict) -> CheckOutcome {
             (kind, mark.message)
         }),
     }
+}
+
+/// Veredito de sucesso da checagem (usado pela rota interna, que monta o
+/// `CheckOpts` com os fatos de limpeza do corpo).
+pub fn cached_outcome(cached: Vec<String>, complete: bool) -> CheckOutcome {
+    into_outcome(record(cached, complete))
+}
+
+/// Mesma classificação de erro do adaptador: auth/quota viram `unusable`,
+/// rate limit continua `known:false` (transitório, nunca condena).
+pub fn error_outcome(err: &DebridError) -> CheckOutcome {
+    into_outcome(err_verdict(err))
 }
 
 // ── Ledger do Real-Debrid ───────────────────────────────────────────────────

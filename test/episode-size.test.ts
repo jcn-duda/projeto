@@ -12,7 +12,7 @@ import { annotateEpisodeSizes, packHashesMissingFiles, streamTitleBytes, streamS
 import { recordFileSizes, peekFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import * as torbox from '../src/debrid/torbox.js';
 import * as runtime from '../src/runtime.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { getMeta } from '../src/utils/cinemeta.js';
 import { stubFetch } from './helpers/stub.js';
 import type { Stream } from '../types/domain.js';

@@ -2,8 +2,10 @@
 //! `X-Indexer-Test-Token`. A chave do debrid chega no corpo e não é logada.
 //! `/debrid/check` via `verdict.rs` para Premiumize/TorBox/RD/Debrid-Link.
 //! AllDebrid fica 501 no HTTP público com `DEBRID_AL_RUST=off` (default);
-//! `on` libera a checagem nativa (read-only, sem limpeza). Conta/arquivos AD
-//! e rotas TorBox fora do check seguem 501.
+//! `on` libera a checagem nativa. A limpeza só roda com
+//! `DEBRID_AL_CLEANUP=on` e os fatos (`holdsComplete`/`knownBefore`/`heldHashes`)
+//! no corpo; sem eles a nativa é read-only.
+//! Conta/arquivos AD e rotas TorBox fora do check seguem 501.
 //! `/debrid/resolve` devolve o efeito e não grava estado.
 
 use std::net::SocketAddr;
@@ -191,6 +193,10 @@ fn tokens_match(expected: &str, got: &str) -> bool {
 async fn metrics(State(state): State<Arc<AppState>>) -> Json<serde_json::Map<String, Value>> {
     let mut map = serde_json::Map::new();
     for (key, value) in state.metrics.snapshot() {
+        map.insert(key, Value::from(value));
+    }
+    // Plano/fila da limpeza nativa (contadores de processo, não da instância).
+    for (key, value) in crate::alldebrid_cleanup::metrics_snapshot() {
         map.insert(key, Value::from(value));
     }
     Json(map)

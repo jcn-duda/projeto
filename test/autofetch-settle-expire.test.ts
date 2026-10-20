@@ -14,7 +14,7 @@ import * as suppressed from '../src/providers/autofetch-suppressed.js';
 import { runRecheck, recheckLots } from '../src/providers/autofetch-recheck.js';
 import { accountScope } from '../src/utils/request-key.js';
 import { preexisting } from '../src/debrid/alldebrid-inventory.js';
-import { applyDebrid } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { pmAdapter, account, brDub, userOpts } from './helpers/autofetch-skip-common.js';
 import { sleep } from './helpers/autofetch-fixtures.js';
 import type { DebridAdapter } from '../types/domain.js';

@@ -175,6 +175,8 @@ fn opts(batch: usize, timeout_ms: u64) -> super::CheckOpts {
     super::CheckOpts {
         batch_size: Some(batch),
         timeout: Some(Duration::from_millis(timeout_ms)),
+        // Sem env global: o kill-switch é fato injetado.
+        kill_switch: Some(false),
         ..super::CheckOpts::default()
     }
 }
@@ -347,11 +349,14 @@ async fn bloqueado_nao_e_enviado_e_nao_tenta_upload() {
 async fn falha_de_delete_nao_muda_o_veredito() {
     let (ad, scene) = open_scene(Behavior::AllReady, Duration::ZERO).await;
     // O mock sempre responde 200 no delete; este teste garante que a limpeza
-    // pedida (inventário carregado) não segura nem altera o cache.
+    // pedida (inventário carregado) não segura nem altera o cache. A fila roda
+    // DEPOIS, fora do prazo da checagem.
     let opts = super::CheckOpts {
         drop_ready: true,
         drop_uncached: true,
         inventory_loaded: true,
+        cleanup: crate::alldebrid_cleanup::CleanupMode::On,
+        holds_complete: true,
         ..opts(25, 1_000)
     };
     let report = ad
@@ -361,7 +366,43 @@ async fn falha_de_delete_nao_muda_o_veredito() {
     assert_eq!(report.cached, vec![hash_of('a')]);
     assert!(report.complete);
     assert_eq!(report.deleted.len(), 1);
+    assert_eq!(scene.deletes.load(Ordering::SeqCst), 0);
+    let queue = crate::alldebrid_delete::delete_with_backoff(
+        &ad,
+        API_KEY,
+        &report.deleted,
+        crate::alldebrid_delete::DeleteConfig::fast(),
+    )
+    .await;
+    assert_eq!(queue.removed, vec![report.deleted[0].clone()]);
+    assert!(queue.failed.is_empty());
     assert_eq!(scene.deletes.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn quota_na_checagem_nao_agenda_limpeza() {
+    // Conta no teto: o upload devolve quota (unusable) e não há magnet ecoado
+    // para apagar. A limpeza nunca é a saída para a conta cheia.
+    let (ad, scene) = open_scene(
+        Behavior::PayloadError("MAGNET_TOO_MANY_ACTIVE", "cheio"),
+        Duration::ZERO,
+    )
+    .await;
+    let opts = super::CheckOpts {
+        drop_ready: true,
+        drop_uncached: true,
+        inventory_loaded: true,
+        cleanup: crate::alldebrid_cleanup::CleanupMode::On,
+        holds_complete: true,
+        ..opts(25, 1_000)
+    };
+    let failure = ad
+        .check_cached_report(API_KEY, &[hash_of('a')], &opts)
+        .await
+        .unwrap_err();
+    assert_eq!(failure.error.kind(), "quota");
+    assert!(failure.attempted);
+    assert_eq!(scene.deletes.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]

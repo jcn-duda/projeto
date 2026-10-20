@@ -11,7 +11,8 @@ import config from '../src/config.js';
 import * as metrics from '../src/utils/metrics.js';
 import { accountScope, streamsCacheKey } from '../src/utils/request-key.js';
 import * as cache from '../src/utils/cache.js';
-import { applyDebrid, findStreams } from '../src/providers/index.js';
+import { applyDebrid } from './helpers/pipeline-oracle/index.js';
+import { findStreams } from '../src/providers/index.js';
 import type { DebridAdapter } from '../types/domain.js';
 
 test('recheck pós-enfileiramento esquece a busca quando o download fica pronto', async () => {

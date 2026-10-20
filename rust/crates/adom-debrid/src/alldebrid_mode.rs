@@ -12,10 +12,13 @@
 //!   comparando `cached`/`known`/`unusable` (`debrid.al.shadow.*` no
 //!   `/metrics` do gateway). Não segura o cliente.
 //!
-//! A checagem nativa é **read-only**: `dropReady`/`dropUncached` ficam
-//! desligados até o hold durável e o `knownBefore` serem portados. Por isso
-//! `on` NÃO substitui a rota Node em produção (F4.6) — ele mede paridade e
-//! deixa a conta acumular o que subiu. O rollback é remover/zerar a env.
+//! A checagem nativa é **read-only** por default: a limpeza só existe com
+//! `DEBRID_AL_CLEANUP=on` (default OFF) e, mesmo ON, exige `holds_complete` +
+//! inventário (`alldebrid_cleanup`). Como o hold volátil do autofetch mora no
+//! Node, o caminho nativo do `adom-search` segue read-only até um feed de
+//! holds; a rota interna pode receber os fatos no corpo. Por isso `on` NÃO
+//! substitui a rota Node em produção (F4.6) — ele mede paridade e deixa a
+//! conta acumular o que subiu. O rollback é remover/zerar a env.
 
 /// Variável que liga a checagem nativa da AllDebrid.
 pub const ENV: &str = "DEBRID_AL_RUST";

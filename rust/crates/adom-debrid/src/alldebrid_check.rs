@@ -8,16 +8,27 @@
 //! responderam. O teto da rota `/internal/debrid/check` (500 hashes) também
 //! vale aqui: o excedente não é enviado e conta como `complete:false` — nunca
 //! como "não está em cache". Falha de limpeza só avisa, como no Node.
+//!
+//! A limpeza é um PLANO (`CacheReport.cleanup`): esta função não apaga nada.
+//! Quem executa é o chamador, em fundo (`CleanupPlan::run`), como o Node faz
+//! com `dropMagnets` — a resposta do `/stream` nunca espera o backoff. Só
+//! existe plano com `DEBRID_AL_CLEANUP=on` **e** `holds_complete` e inventário;
+//! fora disso o relatório traz o motivo em `suppressed` (read-only).
 
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
-use adom_core::{may_delete, DeleteFacts};
 use serde_json::Value;
 use tokio::task::JoinSet;
 
 use super::{magnet_id, AllDebrid, CHECK_TIMEOUT, DEFAULT_BATCH};
+use crate::alldebrid_cleanup::{
+    account_scope, bump, classify_drop, kill_switch_on, known_before, refresh_known_before,
+    remember_submitted, CleanupGate, CleanupMode, CleanupPlan, CleanupSuppressed, DropVerdict,
+    DurablePeek, METRIC_KNOWN_BEFORE, METRIC_PLANNED, METRIC_PROTECTED, METRIC_SUPPRESSED,
+};
+use crate::error::now_ms;
 use crate::error::DebridError;
 
 /// Mesmo teto da rota Node (`MAX_HASHES` em `internal-debrid-check.ts`).
@@ -33,6 +44,17 @@ pub struct CheckOpts {
     pub known_before: HashSet<String>,
     pub held: HashSet<String>,
     pub blocked: HashSet<String>,
+    /// `DEBRID_AL_CLEANUP` (default OFF). OFF = read-only mesmo com os `drop_*`.
+    pub cleanup: CleanupMode,
+    /// O chamador prova que `held` cobre TODOS os holds vivos da conta. Sem
+    /// isso a nativa não apaga: o hold volátil do autofetch mora no Node.
+    pub holds_complete: bool,
+    /// Leitura de `adprot`/`adsub` no `cache.db` do Node. `None` = sem fonte
+    /// durável (o hold volátil e o inventário continuam valendo).
+    pub durable: Option<Arc<DurablePeek>>,
+    /// Override do kill-switch (`None` = lê `DEBRID_AL_CLEANUP_KILL`). Existe
+    /// para os testes não dependerem de env global.
+    pub kill_switch: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,12 +63,15 @@ pub struct CacheReport {
     /// `false` = algum lote não respondeu (ou o teto cortou hashes): o que não
     /// está em `cached` é "não perguntado", não "frio".
     pub complete: bool,
-    /// Ids cuja remoção foi pedida (não é prova de remoção — o Node também
-    /// conta só a tentativa).
+    /// Ids cuja remoção foi PEDIDA no plano (não é prova de remoção — a fila
+    /// com backoff roda depois, em fundo, e falha só loga).
     pub deleted: Vec<String>,
     /// `false` só quando NADA foi enviado (todos bloqueados/lista vazia): o
     /// caller pode usar o fallback Node sem risco de segundo upload.
     pub attempted: bool,
+    /// Plano da limpeza. `None` = flag OFF (nativa read-only). `Some` com
+    /// `suppressed` = pedida mas barrada por kill-switch/hold/inventário.
+    pub cleanup: Option<CleanupPlan>,
 }
 
 /// Falha da checagem com a mesma informação de `attempted` do sucesso.
@@ -62,17 +87,46 @@ impl CheckFailure {
     }
 }
 
+/// Resultado de um lote: o ⚡ confirmado e o que o plano manda apagar.
+#[derive(Default)]
 struct Piece {
     cached: Vec<String>,
-    delete_ids: Vec<String>,
+    ready: Vec<crate::alldebrid_cleanup::CleanTarget>,
+    uncached: Vec<crate::alldebrid_cleanup::CleanTarget>,
+    protected: usize,
+    known: usize,
 }
 
 /// Cópia própria dos vetos: os lotes rodam em tasks independentes.
 struct Gate {
-    opts: CheckOpts,
-    known: HashSet<String>,
-    held: HashSet<String>,
     blocked: HashSet<String>,
+    /// `None` = flag OFF; `Some` com `suppressed` = pedida e barrada.
+    cleanup: Option<CleanupRun>,
+}
+
+/// Estado imutável da limpeza nesta checagem: plano em construção, guarda e
+/// snapshot. Compartilhado (Arc) pelos lotes em paralelo.
+struct CleanupRun {
+    plan: CleanupPlan,
+    gate: CleanupGate,
+    inventory: Option<Arc<HashSet<String>>>,
+    account: String,
+}
+
+impl CleanupRun {
+    fn active(&self) -> bool {
+        self.plan.suppressed.is_none()
+    }
+}
+
+#[derive(Default)]
+struct Folded {
+    cached: Vec<String>,
+    ready: Vec<crate::alldebrid_cleanup::CleanTarget>,
+    uncached: Vec<crate::alldebrid_cleanup::CleanTarget>,
+    protected: usize,
+    known: usize,
+    complete: bool,
 }
 
 pub(super) async fn check_cached(
@@ -81,11 +135,10 @@ pub(super) async fn check_cached(
     hashes: &[String],
     opts: &CheckOpts,
 ) -> Result<CacheReport, CheckFailure> {
+    let account = account_scope(api_key);
     let gate = Arc::new(Gate {
-        opts: opts.clone(),
-        known: lower_set(&opts.known_before),
-        held: lower_set(&opts.held),
         blocked: lower_set(&opts.blocked),
+        cleanup: cleanup_run(ad, api_key, opts, &account),
     });
     let send: Vec<String> = hashes
         .iter()
@@ -101,23 +154,99 @@ pub(super) async fn check_cached(
     let send = &send[..send.len().min(MAX_HASHES)];
     let size = batch_size(opts);
     let timeout = timeout_of(opts);
-    let (cached, delete_ids, complete) =
-        match batches(ad, api_key, send, size, timeout, &gate).await {
-            Ok(folded) => folded,
-            Err(error) => return Err(CheckFailure::new(error, attempted)),
-        };
-    if !delete_ids.is_empty() {
-        // Igual ao Node: a falha da limpeza não derruba a checagem (o ⚡ já
-        // está no retorno). Só o tipo vai ao log; id e hash não.
-        if let Err(error) = ad.delete_ids(api_key, &delete_ids).await {
-            eprintln!("[alldebrid] limpeza da checagem falhou ({})", error.kind());
+    let folded = match batches(ad, api_key, send, size, timeout, &gate).await {
+        Ok(folded) => folded,
+        // Erro de lote não gera plano: sem upload não há o que limpar.
+        Err(error) => return Err(CheckFailure::new(error, attempted)),
+    };
+    let plan = gate.cleanup.as_ref().map(|run| {
+        let mut plan = run.plan.clone();
+        plan.ready = folded.ready;
+        plan.uncached = folded.uncached;
+        plan.known_before = folded.known;
+        plan.protected = folded.protected;
+        plan
+    });
+    if let Some(plan) = &plan {
+        if let Some(reason) = plan.suppressed {
+            bump(&format!("{METRIC_SUPPRESSED}.{}", reason.as_str()), 1);
         }
+        bump(METRIC_PLANNED, plan.target_count() as u64);
+        bump(METRIC_PROTECTED, plan.protected as u64);
+        bump(METRIC_KNOWN_BEFORE, plan.known_before as u64);
     }
+    let deleted = plan.as_ref().map(CleanupPlan::ids).unwrap_or_default();
     Ok(CacheReport {
-        cached,
-        complete: complete && !overflow,
-        deleted: delete_ids,
+        cached: folded.cached,
+        complete: folded.complete && !overflow,
+        deleted,
         attempted,
+        cleanup: plan,
+    })
+}
+
+/// Plano da limpeza desta checagem. `None` = flag OFF (read-only de verdade:
+/// nem inventário é carregado). O resto é fail-closed, do mais barato ao mais
+/// caro: kill-switch, holds incompletos, nenhum drop pedido, inventário
+/// ausente.
+fn cleanup_run(
+    ad: &AllDebrid,
+    api_key: &str,
+    opts: &CheckOpts,
+    account: &str,
+) -> Option<CleanupRun> {
+    if !opts.cleanup.is_on() {
+        return None;
+    }
+    let gate = CleanupGate::new(
+        opts.drop_ready,
+        opts.drop_uncached,
+        opts.holds_complete,
+        opts.held.clone(),
+        opts.durable.clone(),
+        account,
+    );
+    let suppressed = if opts.kill_switch.unwrap_or_else(kill_switch_on) {
+        Some(CleanupSuppressed::KillSwitch)
+    } else if !opts.holds_complete {
+        // O hold do autofetch mora no processo do Node. Sem a prova de que a
+        // lista `held` cobre o lote, um `dropUncached` mataria o download.
+        Some(CleanupSuppressed::HoldsIncomplete)
+    } else if !(opts.drop_ready || opts.drop_uncached) {
+        Some(CleanupSuppressed::NoDropFlags)
+    } else {
+        None
+    };
+    if let Some(reason) = suppressed {
+        return Some(CleanupRun {
+            plan: CleanupPlan::suppressed(reason),
+            gate,
+            inventory: None,
+            account: account.to_string(),
+        });
+    }
+    // Fatos do chamador (o Node tem o inventário em memória) ou snapshot
+    // próprio: peek agora; vencido, refresh em fundo e esta rodada fica
+    // fechada. O `/magnet/status` nunca entra no prazo da resposta.
+    let inventory = if opts.inventory_loaded {
+        Some(Arc::new(lower_set(&opts.known_before)))
+    } else {
+        let snapshot = known_before(account);
+        if snapshot.is_none() {
+            refresh_known_before(ad, api_key, account, opts.durable.clone());
+        }
+        snapshot
+    };
+    let plan = if inventory.is_none() {
+        CleanupPlan::suppressed(CleanupSuppressed::InventoryMissing)
+    } else {
+        CleanupPlan::default()
+    };
+    Some(CleanupRun {
+        plan,
+        gate,
+        inventory,
+        account: account.to_string(),
     })
 }
 
@@ -130,7 +259,7 @@ async fn batches(
     size: usize,
     timeout: Duration,
     gate: &Arc<Gate>,
-) -> Result<(Vec<String>, Vec<String>, bool), DebridError> {
+) -> Result<Folded, DebridError> {
     let batches: Vec<Vec<String>> = send.chunks(size).map(<[String]>::to_vec).collect();
     let mut set = JoinSet::new();
     for (index, batch) in batches.into_iter().enumerate() {
@@ -203,13 +332,11 @@ async fn upload_batch(
     let data = ad
         .call(api_key, "/magnet/upload", &params, timeout, true)
         .await?;
-    let mut piece = Piece {
-        cached: Vec::new(),
-        delete_ids: Vec::new(),
-    };
+    let mut piece = Piece::default();
     let Some(list) = data.get("magnets").and_then(Value::as_array) else {
         return Ok(piece);
     };
+    let now = now_ms() as i64;
     for magnet in list {
         let hash = magnet
             .get("hash")
@@ -223,60 +350,80 @@ async fn upload_batch(
         if ready && !piece.cached.contains(&hash) {
             piece.cached.push(hash.clone());
         }
-        let flagged = if ready {
-            gate.opts.drop_ready
-        } else {
-            gate.opts.drop_uncached
-        };
-        if !flagged {
-            continue;
-        }
-        let Some(id) = magnet_id(magnet) else {
-            continue;
-        };
-        if may_drop(&hash, gate) && !piece.delete_ids.contains(&id) {
-            piece.delete_ids.push(id);
+        let run = gate.cleanup.as_ref().filter(|run| run.active());
+        if let Some(run) = run {
+            // Posse (8.15): só o que o snapshot prova NÃO estar na conta vira
+            // "nosso"; o upload é idempotente e não diz se criou ou reaproveitou.
+            if run
+                .inventory
+                .as_ref()
+                .is_some_and(|snapshot| !snapshot.contains(&hash))
+            {
+                remember_submitted(&run.account, &hash);
+            }
+            let flagged = if ready {
+                run.gate.drop_ready
+            } else {
+                run.gate.drop_uncached
+            };
+            if !flagged {
+                continue;
+            }
+            let Some(id) = magnet_id(magnet) else {
+                continue;
+            };
+            match classify_drop(&run.gate, run.inventory.as_deref(), &hash, &id, now) {
+                DropVerdict::Delete(target) => {
+                    let list = if ready {
+                        &mut piece.ready
+                    } else {
+                        &mut piece.uncached
+                    };
+                    if !list.iter().any(|item| item.id == target.id) {
+                        list.push(target);
+                    }
+                }
+                DropVerdict::Protected => piece.protected += 1,
+                DropVerdict::KnownBefore => piece.known += 1,
+                DropVerdict::NoInventory => {}
+            }
         }
     }
     Ok(piece)
 }
 
-/// Os três vetos: inventário ausente, acervo do usuário, hold.
-fn may_drop(hash: &str, gate: &Gate) -> bool {
-    may_delete(DeleteFacts {
-        inventory_loaded: gate.opts.inventory_loaded,
-        known_before: gate.known.contains(hash),
-        protected: gate.held.contains(hash),
-    })
-}
-
-fn fold(
-    parts: Vec<Result<Piece, DebridError>>,
-) -> Result<(Vec<String>, Vec<String>, bool), DebridError> {
+fn fold(parts: Vec<Result<Piece, DebridError>>) -> Result<Folded, DebridError> {
     if !parts.is_empty() && parts.iter().all(|part| part.is_err()) {
         return Err(only_failure(&parts));
     }
-    let mut cached = Vec::new();
-    let mut delete_ids = Vec::new();
+    let mut folded = Folded::default();
     let mut failed = false;
     for part in parts {
         match part {
             Ok(piece) => {
                 for hash in piece.cached {
-                    if !cached.contains(&hash) {
-                        cached.push(hash);
+                    if !folded.cached.contains(&hash) {
+                        folded.cached.push(hash);
                     }
                 }
-                for id in piece.delete_ids {
-                    if !delete_ids.contains(&id) {
-                        delete_ids.push(id);
+                for target in piece.ready {
+                    if !folded.ready.iter().any(|item| item.id == target.id) {
+                        folded.ready.push(target);
                     }
                 }
+                for target in piece.uncached {
+                    if !folded.uncached.iter().any(|item| item.id == target.id) {
+                        folded.uncached.push(target);
+                    }
+                }
+                folded.protected += piece.protected;
+                folded.known += piece.known;
             }
             Err(_) => failed = true,
         }
     }
-    Ok((cached, delete_ids, !failed))
+    folded.complete = !failed;
+    Ok(folded)
 }
 
 /// Igual a `batched` do TS: só quando TODOS os lotes falharam o erro sobe, e

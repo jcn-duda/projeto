@@ -23,7 +23,7 @@ const { collectionRoot, collectionRootTokens, admitsMultiWorkPack, coversYear, p
   await import('../src/utils/multiwork-pack.js');
 const { filterRelevantRaw, limitReservingBr, dedupeByHash } = await import('../src/utils/format.js');
 const { planJackettQueries } = await import('../src/providers/search-plan.js');
-const { playDisposition } = await import('../src/providers/debrid-play-guard.js');
+const { playDisposition } = await import('./helpers/pipeline-oracle/debrid-play-guard.js');
 const { resolveMultiWork, startMultiWorkDiscovery } = await import('../src/providers/tmdb-multiwork.js');
 const { getCollection } = await import('../src/utils/tmdb.js');
 const { prepareCandidateStreams } = await import('../src/providers/stream-builder.js');

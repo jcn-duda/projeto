@@ -80,5 +80,11 @@ pub(super) fn global_metrics() -> &'static DebridAlMetrics {
 
 /// Snapshot das métricas `debrid.al.*` para o `/metrics` do gateway.
 pub fn debrid_al_metrics_snapshot() -> BTreeMap<String, u64> {
-    global_metrics().snapshot()
+    let mut out = global_metrics().snapshot();
+    // Limpeza nativa (`DEBRID_AL_CLEANUP`) mora no adom-debrid; os contadores
+    // `debrid.al.cleanup.*` entram no MESMO namespace.
+    for (key, value) in adom_debrid::alldebrid_cleanup::metrics_snapshot() {
+        out.insert(key, value);
+    }
+    out
 }
