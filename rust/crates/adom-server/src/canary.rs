@@ -1,40 +1,59 @@
-//! Canário do CORTE nativo (`ROUTES_RUST=stream`) — instrumento F4.2 do §9.4.
+//! Canário do CORTE nativo (`ROUTES_RUST=stream`) — instrumento F4.2/F4.3 do §9.4.
 //!
 //! A sombra congelada (`stream-shadow`) não roda quando o corte está ligado: o
 //! `proxy.rs` dá prioridade ao token `stream` e o cliente não passa pelo Node.
 //! Sem outro instrumento, o corte fica sem alarme de divergência. Este módulo
 //! amostra uma fração DETERMINÍSTICA das buscas do corte (default 0 = OFF),
-//! dispara em `tokio::spawn` a MESMA segunda request congelada da sombra e
-//! compara `streams` com o replay Rust, sem segurar o cliente e sem alterar a
-//! resposta.
+//! dispara em `tokio::spawn` uma segunda request ao Node e compara `streams`
+//! sem segurar o cliente e sem alterar a resposta.
+//!
+//! Dois modos (`STREAM_CANARY_MODE`):
+//!
+//! - `frozen` (default até o deploy, rollback): a segunda request leva
+//!   `X-Adom-Shadow-Id` + `X-Adom-Shadow-Frozen: 1`; o Node grava o caso em
+//!   `STREAM_FROZEN_SHADOW_BASE/<id>` e o gateway reexecuta
+//!   [`frozen_gate::run_case_with_expected`]. É o instrumento da janela §9.4
+//!   atual e exige a captura congelada no Node.
+//! - `direct` (F4.3): a segunda request leva SÓ `X-Adom-Shadow-Frozen: 1` (sem
+//!   id → o Node não grava corpus) e o gateway compara o corpo REAL do corte
+//!   com o corpo fresco do Node, por identidade (§9.3). NÃO usa `FrozenCase`,
+//!   não hidrata `config.json` e não precisa de `STREAM_FROZEN_*` — o novo
+//!   alarme sobrevive à aposentadoria da instrumentação congelada.
 //!
 //! Seleção: FNV-1a de 64 bits sobre o PATH (`/<config>/stream/<tipo>/<id>.json`,
 //! que já inclui o segmento `encoded`) → `hash % 100 < percentual`. O mesmo path
 //! cai sempre no mesmo balde (não repete/omite entre requisições); 0 nunca
 //! amostra, 100 amostra todas.
 //!
-//! Requisitos operacionais (os mesmos da sombra congelada): o Node precisa de
-//! `STREAM_FROZEN_MODE=shadow` + `STREAM_FROZEN_SHADOW_BASE` e o gateway de
-//! `INTERNAL_SEARCH_URL` + `JACKETT_TEST_TOKEN` para hidratar `config.json`.
-//! Sem a base congelada o canário fica inerte (não há como capturar o caso).
+//! No modo `direct` o percentual > 0 também liga contadores NATIVOS
+//! (`stream.canary.native.*`) sobre a resposta do corte, com fonte sem oráculo
+//! Node: `cut`, `streams`, `empty`, `notice` e `invalid`. Eles são a base do
+//! alarme de "o corte esvaziou" mesmo com o Node fora do ar.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use axum::body::Body;
-use http::header::{HeaderName, USER_AGENT};
-use http::{HeaderMap, Request, Uri};
+use bytes::Bytes;
+use http::header::{HeaderName, HeaderValue, USER_AGENT};
+use http::{HeaderMap, Method, Request, Uri};
+use serde_json::Value;
 
-use adom_search::parse_stream_path;
+use adom_search::{parse_stream_path, StreamResponse};
 
 use crate::shadow::{self, FrozenMetricNames, ShadowMetrics, ShadowRequest};
 
 /// Percentual do canário (inteiro 0..100, default 0). Só age no corte.
 pub const PERCENT_ENV: &str = "STREAM_CANARY_PERCENT";
 
+/// `frozen` (default) ou `direct` (F4.3, sem `FrozenCase`).
+pub const MODE_ENV: &str = "STREAM_CANARY_MODE";
+
 /// Gauge (u64) com o percentual efetivo, sempre exposto em `/metrics`.
 pub const PERCENT: &str = "stream.canary.percent";
-/// Buscas efetivamente encaminhadas para a segunda request congelada.
+/// Gauge 1 = modo direto (0 = congelado). Para saber qual alarme está ativo.
+pub const DIRECT: &str = "stream.canary.direct";
+/// Buscas efetivamente encaminhadas para a segunda request (congelada/direta).
 pub const SAMPLED: &str = "stream.canary.sampled";
 /// Comparações concluídas (denominador do alarme).
 pub const COMPARED: &str = "stream.canary.compared";
@@ -42,12 +61,20 @@ pub const COMPARED: &str = "stream.canary.compared";
 pub const DIVERGENCE: &str = "stream.canary.divergence";
 /// Soma dos itens divergentes (magnitude).
 pub const DIVERGENCE_ITEMS: &str = "stream.canary.divergence.items";
-/// Replay estourou o prazo.
+/// Replay/segunda request estourou o prazo.
 pub const TIMEOUT: &str = "stream.canary.timeout";
 /// Falha da segunda request/captura/replay; NUNCA conta como divergência.
 pub const ERROR: &str = "stream.canary.error";
 /// Amostra pulada por aviso/coleta vazia (§9.4 item 6) — não comparável.
 pub const SKIPPED: &str = "stream.canary.skipped";
+
+// Contadores NATIVOS (sem oráculo Node), atualizados quando o canário está
+// armado (percentual > 0). Ver o doc do módulo.
+pub const NATIVE_CUT: &str = "stream.canary.native.cut";
+pub const NATIVE_STREAMS: &str = "stream.canary.native.streams";
+pub const NATIVE_EMPTY: &str = "stream.canary.native.empty";
+pub const NATIVE_NOTICE: &str = "stream.canary.native.notice";
+pub const NATIVE_INVALID: &str = "stream.canary.native.invalid";
 
 const KEYS: &[&str] = &[
     SAMPLED,
@@ -57,9 +84,14 @@ const KEYS: &[&str] = &[
     TIMEOUT,
     ERROR,
     SKIPPED,
+    NATIVE_CUT,
+    NATIVE_STREAMS,
+    NATIVE_EMPTY,
+    NATIVE_NOTICE,
+    NATIVE_INVALID,
 ];
 
-/// Nomes do mesmo comparador congelado, no namespace do canário.
+/// Nomes do mesmo comparador, no namespace do canário.
 pub const NAMES: FrozenMetricNames = FrozenMetricNames {
     label: "canary",
     compared: COMPARED,
@@ -69,6 +101,36 @@ pub const NAMES: FrozenMetricNames = FrozenMetricNames {
     error: ERROR,
     skipped: Some(SKIPPED),
 };
+
+/// Caminho de comparação do canário.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    /// Captura congelada + `FrozenCase` (comportamento F4.2, rollback).
+    Frozen,
+    /// Corpo real do corte × corpo fresco do Node (F4.3).
+    Direct,
+}
+
+impl Mode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Mode::Frozen => "frozen",
+            Mode::Direct => "direct",
+        }
+    }
+}
+
+/// `direct` só com o valor exato; vazio/inválido = `frozen` (default/rollback).
+pub fn mode_from_raw(raw: Option<&str>) -> Mode {
+    match raw.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
+        Some("direct") => Mode::Direct,
+        _ => Mode::Frozen,
+    }
+}
+
+pub fn mode_from_env() -> Mode {
+    mode_from_raw(std::env::var(MODE_ENV).ok().as_deref())
+}
 
 /// Lê o percentual da env; ausência/inválido = 0; clamp em 0..100.
 pub fn percent_from_env() -> u8 {
@@ -115,13 +177,19 @@ pub fn is_sampled(path: &str, percent: u8) -> bool {
 pub struct CanaryMetrics {
     counters: ShadowMetrics,
     percent: u8,
+    direct: u64,
 }
 
 impl CanaryMetrics {
     pub fn new(percent: u8) -> Self {
+        Self::with_mode(percent, Mode::Frozen)
+    }
+
+    pub fn with_mode(percent: u8, mode: Mode) -> Self {
         Self {
             counters: ShadowMetrics::default(),
             percent: percent.min(100),
+            direct: u64::from(mode == Mode::Direct),
         }
     }
 
@@ -134,13 +202,14 @@ impl CanaryMetrics {
     }
 
     /// Snapshot para `/metrics`: chaves do canário (zeradas inclusive) +
-    /// `stream.canary.percent`.
+    /// `stream.canary.percent` e o gauge do modo.
     pub fn snapshot(&self) -> BTreeMap<String, u64> {
         let mut snapshot = self.counters.snapshot();
         for key in KEYS {
             snapshot.entry((*key).to_string()).or_insert(0);
         }
         snapshot.insert(PERCENT.to_string(), u64::from(self.percent));
+        snapshot.insert(DIRECT.to_string(), self.direct);
         snapshot
     }
 }
@@ -149,40 +218,60 @@ impl CanaryMetrics {
 #[derive(Clone)]
 pub struct Canary {
     percent: u8,
-    /// Raiz da captura congelada (`STREAM_FROZEN_SHADOW_BASE`). Lida no boot;
-    /// `None` = canário inerte (sem captura não há comparação).
+    mode: Mode,
+    /// Raiz da captura congelada (`STREAM_FROZEN_SHADOW_BASE`). Só no modo
+    /// `frozen`; `None` = canário congelado inerte (sem captura).
     frozen_base: Option<PathBuf>,
     metrics: CanaryMetrics,
 }
 
 impl Canary {
     pub fn new(percent: u8) -> Self {
-        Self::with_base(percent, None)
-    }
-
-    /// Configuração explícita (testes): percentual + base congelada.
-    pub fn with_base(percent: u8, frozen_base: Option<PathBuf>) -> Self {
-        let percent = percent.min(100);
         Self {
-            percent,
-            frozen_base,
+            percent: percent.min(100),
+            mode: Mode::Frozen,
+            frozen_base: None,
             metrics: CanaryMetrics::new(percent),
         }
     }
 
-    /// Lê `STREAM_CANARY_PERCENT` só quando o corte está ligado; fora dele o
-    /// percentual fica 0 (a sombra continua sendo o instrumento do §9.4).
-    /// A base congelada é lida uma vez no boot.
-    pub fn from_env(stream_cut: bool) -> Self {
-        if stream_cut {
-            Self::with_base(percent_from_env(), crate::proxy::frozen_shadow_base())
-        } else {
-            Self::new(0)
+    /// Configuração explícita no modo congelado (testes e compatibilidade).
+    pub fn with_base(percent: u8, frozen_base: Option<PathBuf>) -> Self {
+        Self::with_mode(percent, Mode::Frozen, frozen_base)
+    }
+
+    /// Configuração explícita: percentual + modo + base congelada.
+    pub fn with_mode(percent: u8, mode: Mode, frozen_base: Option<PathBuf>) -> Self {
+        let percent = percent.min(100);
+        Self {
+            percent,
+            mode,
+            frozen_base,
+            metrics: CanaryMetrics::with_mode(percent, mode),
         }
+    }
+
+    /// Lê `STREAM_CANARY_PERCENT`/`STREAM_CANARY_MODE` só quando o corte está
+    /// ligado; fora dele o percentual fica 0 (a sombra continua sendo o
+    /// instrumento do §9.4). A base congelada é lida uma vez no boot e só no
+    /// modo `frozen` — o modo `direct` não depende dela.
+    pub fn from_env(stream_cut: bool) -> Self {
+        if !stream_cut {
+            return Self::new(0);
+        }
+        let mode = mode_from_env();
+        if mode == Mode::Frozen {
+            return Self::with_base(percent_from_env(), crate::proxy::frozen_shadow_base());
+        }
+        Self::with_mode(percent_from_env(), mode, None)
     }
 
     pub fn percent(&self) -> u8 {
         self.percent
+    }
+
+    pub fn mode(&self) -> Mode {
+        self.mode
     }
 
     pub fn frozen_base(&self) -> Option<&std::path::Path> {
@@ -193,46 +282,165 @@ impl Canary {
         &self.metrics
     }
 
-    /// Planeja a amostra da requisição. `None` = não amostra, sem base
-    /// congelada ou path inválido — nenhuma segunda request é feita.
+    /// `true` quando há amostragem (os contadores nativos ligam junto).
+    pub fn armed(&self) -> bool {
+        self.percent > 0
+    }
+
+    /// Planeja a amostra da requisição. `None` = não amostra, modo congelado
+    /// sem base, HEAD no modo direto ou path inválido — nenhuma segunda
+    /// request é feita.
     pub fn plan(&self, req: &Request<Body>, node_base: &Uri) -> Option<CanaryPlan> {
         let path = req.uri().path();
+        // O corpo do corte (fonte do modo direto) só existe em GET.
+        if self.mode == Mode::Direct && *req.method() != Method::GET {
+            return None;
+        }
         if !is_sampled(path, self.percent) {
             return None;
         }
-        let frozen_base = self.frozen_base.clone()?;
         plan_parts(
             path,
             req.headers(),
             node_base,
-            Some(frozen_base),
+            self.mode,
+            self.frozen_base.clone(),
             self.percent,
             crate::proxy::new_shadow_id(),
         )
     }
 
+    /// Contadores NATIVOS sobre o corpo do corte (sem Node). Chamado para toda
+    /// resposta do corte quando o canário está armado (`percent > 0`), amostre
+    /// ou não. `None` = HEAD (sem corpo).
+    pub fn observe_cut(&self, body: Option<&[u8]>) {
+        if !self.armed() {
+            return;
+        }
+        if let Some(bytes) = body {
+            observe_native(bytes, &self.metrics);
+        }
+    }
+
     /// Fire-and-forget: a resposta do corte já foi montada. `sampled` conta a
     /// amostra mesmo que a segunda request falhe depois (o erro tem contador
-    /// próprio).
-    pub fn spawn(&self, plan: CanaryPlan) {
+    /// próprio). `body` é o corpo REAL devolvido ao cliente (GET).
+    pub fn spawn(&self, plan: CanaryPlan, body: Option<Bytes>) {
         let metrics = self.metrics.clone();
         tokio::spawn(async move {
-            run(plan, metrics).await;
+            if let Some(bytes) = body.as_deref() {
+                observe_native(bytes, &metrics);
+            }
+            match plan.mode {
+                Mode::Frozen => run(plan, metrics).await,
+                Mode::Direct => match body {
+                    Some(bytes) => run_direct(plan, bytes, metrics).await,
+                    None => {
+                        metrics.inc(SAMPLED, 1);
+                        metrics.inc(ERROR, 1);
+                    }
+                },
+            }
         });
     }
 }
 
-/// Executa a amostra: conta `sampled` e roda a comparação congelada. Separado
-/// de [`Canary::spawn`] para o teste chamar direto e observar as métricas.
+/// Executa a amostra congelada: conta `sampled` e roda a comparação congelada.
 pub(crate) async fn run(plan: CanaryPlan, metrics: CanaryMetrics) {
     metrics.inc(SAMPLED, 1);
     shadow::observe_frozen_request(&plan.request, &plan.encoded, metrics.inner(), NAMES).await;
 }
 
-/// Caso congelado a executar fora do caminho da resposta.
+/// Executa a amostra DIRETA: segunda request fresca ao Node (sem id, sem
+/// captura) e comparação de identidade com o corpo real do corte.
+pub(crate) async fn run_direct(plan: CanaryPlan, cut_body: Bytes, metrics: CanaryMetrics) {
+    metrics.inc(SAMPLED, 1);
+    match fetch_direct_body(&plan.request).await {
+        Ok(node_body) => compare_direct(&node_body, &cut_body, &plan.encoded, &metrics),
+        Err(err) => {
+            eprintln!(
+                "[canary] request direta falhou em {}: {err}",
+                plan.request.path
+            );
+            metrics.inc(ERROR, 1);
+        }
+    }
+}
+
+/// SEGUNDA request, sem `X-Adom-Shadow-Id`: o Node roda no comportamento fresco
+/// (`X-Adom-Shadow-Frozen: 1`) mas NÃO grava corpus. O corpo é o oráculo fresco.
+async fn fetch_direct_body(req: &ShadowRequest) -> Result<Value, String> {
+    let extra = [(
+        HeaderName::from_static(shadow::SHADOW_FROZEN_HEADER),
+        HeaderValue::from_static("1"),
+    )];
+    let bytes = shadow::get_node_body(req, &extra).await?;
+    serde_json::from_slice(&bytes).map_err(|err| format!("direto: json {err}"))
+}
+
+/// Compara o corpo do Node (fresco) com o corpo do corte. Aviso/vazio do Node
+/// não é comparável (§9.4 item 6); aviso no CORTE é divergência de verdade (o
+/// Node tinha lista e o corte esvaziou) — não pula.
+fn compare_direct(node: &Value, cut_body: &[u8], encoded: &str, metrics: &CanaryMetrics) {
+    if shadow::notice_only(node) {
+        eprintln!("[canary] Node devolveu aviso/coleta vazia: comparação pulada");
+        metrics.inc(SKIPPED, 1);
+        return;
+    }
+    let cut_value: Value = match serde_json::from_slice(cut_body) {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!("[canary] corpo do corte inválido: {err}");
+            metrics.inc(ERROR, 1);
+            return;
+        }
+    };
+    let node_resp: StreamResponse = match serde_json::from_value(node.clone()) {
+        Ok(resp) => resp,
+        Err(err) => {
+            eprintln!("[canary] corpo do Node inválido: {err}");
+            metrics.inc(ERROR, 1);
+            return;
+        }
+    };
+    let cut_resp: StreamResponse = match serde_json::from_value(cut_value) {
+        Ok(resp) => resp,
+        Err(err) => {
+            eprintln!("[canary] corpo do corte inválido: {err}");
+            metrics.inc(ERROR, 1);
+            return;
+        }
+    };
+    shadow::record_comparison_named(&node_resp, &cut_resp, Some(encoded), metrics.inner(), NAMES);
+}
+
+/// Contadores nativos de uma resposta do corte (Node fora da conta).
+fn observe_native(body: &[u8], metrics: &CanaryMetrics) {
+    metrics.inc(NATIVE_CUT, 1);
+    match serde_json::from_slice::<Value>(body) {
+        Ok(value) => {
+            let count = value
+                .get("streams")
+                .and_then(Value::as_array)
+                .map(|streams| streams.len())
+                .unwrap_or(0) as u64;
+            metrics.inc(NATIVE_STREAMS, count);
+            if count == 0 {
+                metrics.inc(NATIVE_EMPTY, 1);
+            }
+            if shadow::notice_only(&value) {
+                metrics.inc(NATIVE_NOTICE, 1);
+            }
+        }
+        Err(_) => metrics.inc(NATIVE_INVALID, 1),
+    }
+}
+
+/// Caso a executar fora do caminho da resposta.
 pub struct CanaryPlan {
     request: ShadowRequest,
     encoded: String,
+    mode: Mode,
 }
 
 /// Monta o plano com parâmetros explícitos (testes). `percent` é reavaliado
@@ -241,6 +449,7 @@ fn plan_parts(
     path: &str,
     headers: &HeaderMap,
     node_base: &Uri,
+    mode: Mode,
     frozen_base: Option<PathBuf>,
     percent: u8,
     shadow_id: String,
@@ -248,7 +457,12 @@ fn plan_parts(
     if !is_sampled(path, percent) {
         return None;
     }
-    let frozen_base = frozen_base?;
+    // A base só é exigida (e usada) no modo congelado; o direto compara o
+    // corpo do Node e não precisa de corpus em disco.
+    let frozen_base = match mode {
+        Mode::Frozen => Some(frozen_base?),
+        Mode::Direct => None,
+    };
     let encoded = parse_stream_path(path)?.encoded.unwrap_or_default();
     let mut forwarded = crate::proxy::forward_headers(headers);
     // Headers da sombra são do gateway; cliente não os atravessa.
@@ -260,11 +474,13 @@ fn plan_parts(
             user_agent: header_text(headers, USER_AGENT),
             origin: crate::stream::request_origin(headers),
             shadow_id: Some(shadow_id),
-            frozen_base: Some(frozen_base),
+            frozen_base,
+            direct: mode == Mode::Direct,
             headers: forwarded,
             node_base: node_base.clone(),
         },
         encoded,
+        mode,
     })
 }
 

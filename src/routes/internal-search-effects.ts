@@ -224,9 +224,23 @@ function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): vo
         typeof p.search_key === 'string' ? p.search_key : null,
       );
       return;
-    case 'br_probe':
-      deps.requestBrProbe(p as any, p.mode === 'upgrade' ? { mode: 'upgrade' } : {});
+    case 'br_probe': {
+      const result = deps.requestBrProbe(p as any, p.mode === 'upgrade' ? { mode: 'upgrade' } : {});
+      // Sonda INELEGÍVEL (kill-switch/retry/estado) devolve `fallbackBrGap`:
+      // o follow-up do índice manda a obra ao colhedor (`br-gap`), a MESMA
+      // rede que o `enqueueIndexFollowUp` do TS preserva. Sonda agendada já
+      // enfileirou por dentro do `requestBrProbe` — aqui não duplica.
+      if (result?.fallbackBrGap) {
+        deps.harvestEnqueue({
+          imdbId: String(p.imdbId),
+          type: p.type === 'series' ? 'series' : 'movie',
+          season: typeof p.season === 'number' ? p.season : null,
+          episode: typeof p.episode === 'number' ? p.episode : null,
+          reason: 'br-gap',
+        });
+      }
       return;
+    }
     case 'harvester_enqueue':
       deps.harvestEnqueue(p as any);
       return;

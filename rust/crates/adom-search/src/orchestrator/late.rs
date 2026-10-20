@@ -14,9 +14,11 @@ use crate::request::encoded_for_internal;
 
 use super::collect;
 use super::finish::{release_entry, FinishValue, SearchInput};
+use super::index_metrics as metrics;
+use super::index_source::BankFilterCtx;
 use super::live_state::{live_state_snapshot, LiveBatchState, SharedLiveState};
 use super::meta::SearchMeta;
-use super::respond::as_ms;
+use super::respond::{as_ms, now_ms};
 use super::tail::{EffectsBatch, IndexBatch, TailJob, TailPlan};
 use super::Orchestrator;
 
@@ -163,11 +165,58 @@ impl Orchestrator {
                 encoded: plan.encoded.clone(),
                 releases: vec![release_entry(&meta, &last.entered, &last.filtered)],
             };
-            if let Err(err) = self.tail.index_write(batch).await {
+            if self.config.index_mode.is_on() && self.index.is_some() {
+                self.write_native_index(batch);
+            } else if let Err(err) = self.tail.index_write(batch).await {
                 eprintln!("[search] index-write tardio falhou: {err}");
             }
         }
         self.emit_effects(&input, &meta, &plan.encoded, &last).await;
+    }
+
+    /// `POST /internal/search/index-write` sem HTTP: `releaseIndex.record` no
+    /// `cache.db` e (com `BANK_RUST=on`) a marca de `passed_filter` no
+    /// `magnets.db`. Falha de UMA entrada não derruba o lote, como na rota.
+    fn write_native_index(&self, batch: IndexBatch) {
+        let Some(index) = self.index.as_ref() else {
+            return;
+        };
+        let now = now_ms();
+        let bank = self.bank.clone();
+        let lookup = move |hashes: &[String]| -> Vec<adom_core::BankRow> {
+            bank.as_ref()
+                .map(|bank| bank.bank_rows_many(hashes))
+                .unwrap_or_default()
+        };
+        let lookup_ref: &dyn Fn(&[String]) -> Vec<adom_core::BankRow> = &lookup;
+        for entry in &batch.releases {
+            match index.record(entry, now, Some(lookup_ref)) {
+                Ok(recorded) => {
+                    metrics::global_metrics().inc(metrics::RECORDED, recorded as u64);
+                }
+                Err(err) => {
+                    metrics::global_metrics().inc(metrics::RECORD_FAILED, 1);
+                    eprintln!("[search] índice nativo {} falhou: {err}", entry.imdb);
+                }
+            }
+            if !self.config.bank_mode.is_on() {
+                continue;
+            }
+            let Some(bank) = self.bank.as_ref() else {
+                metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
+                continue;
+            };
+            let entered = entry.entered.as_deref().unwrap_or(&entry.items);
+            let survivors = entry.survivors.as_deref().unwrap_or(&entry.items);
+            let ctx = BankFilterCtx {
+                imdb_id: entry.imdb.clone(),
+                season: entry.season,
+                episode: entry.episode,
+            };
+            if bank.mark_filter_outcome(entered, survivors, &ctx, now) {
+                metrics::global_metrics().inc(metrics::BANK_MARKED, 1);
+            }
+        }
     }
 
     /// Efeitos de cauda: `dub_audit` + warmer (decididos na passada mais nova)

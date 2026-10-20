@@ -110,6 +110,14 @@ export function noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep
 }
 
 /**
+ * Efeito de follow-up do índice, na forma que a rota devolve em `effects`.
+ * `INDEX_RUST=shadow` compara este plano com o que o nativo decidiu.
+ */
+export type IndexFollowUpEffect =
+  | { kind: 'harvester_enqueue'; reason: 'miss' | 'gap' | 'br-gap' }
+  | { kind: 'br_probe'; mode: 'evidence' | 'upgrade' };
+
+/**
  * Trabalho de fundo do índice/colhedor que a cobertura do `idx` exige: `miss`
  * sem release nenhuma; `gap` quando há release mas não cobre o pool (ou é
  * registro parcial); e a sonda dirigida dos index-only (`br-gap`) quando cobre
@@ -117,6 +125,9 @@ export function noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep
  * índice, extraído para a via INSTANTÂNEA do banco poder preservá-lo: o acervo
  * responde, mas a obra precisa continuar entrando no índice e no colhedor.
  * `countMetrics:false` mantém o funil `search.idx` fora do caminho do banco.
+ *
+ * Devolve o plano EMITIDO (ordem dos enfileiramentos) — a rota o expõe para a
+ * sombra do índice comparar efeitos, não só itens.
  */
 export function enqueueIndexFollowUp(args: {
   indexed: readonly any[];
@@ -127,16 +138,19 @@ export function enqueueIndexFollowUp(args: {
   season: number | null;
   episode: number | null;
   countMetrics: boolean;
-}): void {
+}): IndexFollowUpEffect[] {
   const { indexed, partial, covered, type, imdbId, season, episode, countMetrics } = args;
-  if (!config.releaseIndex.enabled) return;
-  const enqueue = (reason: 'miss' | 'gap' | 'br-gap') =>
+  if (!config.releaseIndex.enabled) return [];
+  const effects: IndexFollowUpEffect[] = [];
+  const enqueue = (reason: 'miss' | 'gap' | 'br-gap') => {
     harvester.enqueue({ imdbId, type: type as 'movie' | 'series', season, episode, reason });
+    effects.push({ kind: 'harvester_enqueue', reason });
+  };
   const autofetchSeeded = indexed.some((r) => r.source === 'autofetch');
   if (indexed.length === 0) {
     if (countMetrics) metrics.count('search.idx.miss');
     enqueue('miss');
-    return;
+    return effects;
   }
   if (!partial && (covered || autofetchSeeded)) {
     if (covered) {
@@ -168,19 +182,21 @@ export function enqueueIndexFollowUp(args: {
           { mode: upgrade ? 'upgrade' : 'evidence' },
         );
         if (probe.fallbackBrGap) enqueue('br-gap');
+        else effects.push({ kind: 'br_probe', mode: upgrade ? 'upgrade' : 'evidence' });
       } else if (countMetrics) {
         metrics.count('search.idx.brGap.no-evidence');
       }
     } else if (covered && hasBrDubbed(indexed) && countMetrics) {
       metrics.count('search.idx.brGap.served');
     }
-    return;
+    return effects;
   }
   // Não cobre (ou é parcial): NUNCA impede a busca dublada de rodar — o
   // caminho completo segue e o colhedor termina o trabalho.
   if (partial && countMetrics) metrics.count('search.idx.partial');
   if (countMetrics) metrics.count('search.idx.gap');
   enqueue('gap');
+  return effects;
 }
 
 /**

@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import * as runtime from '../runtime.js';
+import { freshRequest } from './stream-fresh.js';
 import { extractInfoHash } from './title-normalization.js';
 
 export type FrozenMode = 'off' | 'record' | 'replay' | 'shadow';
@@ -46,15 +47,11 @@ export const FILES = {
 
 export const active = () => (MODE === 'shadow' ? Boolean(SHADOW_BASE) : MODE !== 'off' && Boolean(DIR));
 /**
- * Congela o COMPORTAMENTO (SWR, fast-path, índice, prefetch). Em record/replay
- * vale para o processo todo; no shadow só para a 2ª request do gateway
- * (`X-Adom-Shadow-Frozen: 1`), que é a que grava o caso e é reexecutada pelo
- * Rust. A resposta normal do cliente continua sendo a de produção.
+ * Compatibilidade: o comportamento fresco agora mora em `stream-fresh.ts`
+ * (F4.3). A captura NÃO decide mais o pipeline — o mesmo header que o canário
+ * direto manda vale sem `STREAM_FROZEN_MODE`. Mantido para o harness/rollback.
  */
-export const behaviorFrozen = () => {
-  if (MODE === 'record' || MODE === 'replay') return Boolean(DIR);
-  return MODE === 'shadow' && Boolean(SHADOW_BASE) && runtime.capture()?.shadowFrozen === true;
-};
+export const behaviorFrozen = () => freshRequest();
 /** Modos que gravam no disco; replay só lê. */
 export const recording = () => MODE === 'record' || MODE === 'shadow';
 export const mode = (): FrozenMode => (active() ? MODE : 'off');
@@ -222,12 +219,6 @@ export function writeProvenQuality(infoHash: string, quality: string) {
   if (data[hash]) return;
   data[hash] = label;
   writeJson(inputFile(FILES.provenQuality), data);
-}
-
-/** Qualidade provada de UM hash, no modo record/shadow (API pública). */
-export function recordProvenQuality(hash: string, quality: string) {
-  if (!recording() || !active()) return;
-  writeProvenQuality(hash, quality);
 }
 
 /**

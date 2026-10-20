@@ -35,6 +35,31 @@ pub(super) async fn spawn_upstream() -> (SocketAddr, Hits) {
     (addr, hits)
 }
 
+/// Upstream que responde um `/stream` VÁLIDO (não o echo): alimenta o canário
+/// direto, que compara o corpo do corte com esta lista.
+pub(super) async fn spawn_stream_upstream() -> (SocketAddr, Hits) {
+    async fn stream_handler(State(hits): State<Hits>) -> axum::Json<Value> {
+        hits.0.fetch_add(1, Ordering::SeqCst);
+        axum::Json(serde_json::json!({
+            "streams": [{
+                "name": "1080p",
+                "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }],
+            "cacheMaxAge": 900
+        }))
+    }
+    let hits = Hits(Arc::new(AtomicU32::new(0)));
+    let app = Router::new()
+        .fallback(any(stream_handler))
+        .with_state(hits.clone());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    (addr, hits)
+}
+
 pub(super) async fn echo(State(hits): State<Hits>, req: Request<Body>) -> Body {
     hits.0.fetch_add(1, Ordering::SeqCst);
     let host = req
@@ -87,6 +112,7 @@ pub(super) fn gateway_state(
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: None,
         shadow_remount: None,
+        shadow_direct: false,
         canary: Canary::new(0),
     }
 }
@@ -118,6 +144,7 @@ pub(super) fn gateway_state_native(
         orchestrator: Some(orch),
         // Com corte nativo a sombra do Node não monta.
         shadow_remount: None,
+        shadow_direct: false,
         canary: Canary::new(0),
     }
 }
@@ -139,6 +166,7 @@ pub(super) fn gateway_state_resolve(
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: None,
         shadow_remount: None,
+        shadow_direct: false,
         canary: Canary::new(0),
     }
 }

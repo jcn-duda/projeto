@@ -274,6 +274,71 @@ test('effects: efeito desconhecido/malformado é rejeitado, o lote segue', async
   }
 });
 
+test('effects: br_probe inelegível manda a obra ao colhedor (br-gap)', async () => {
+  // A sonda pode recusar por kill-switch/retry/estado: o follow-up do índice
+  // não perde a obra — ela vai ao colhedor com motivo br-gap, como o
+  // `enqueueIndexFollowUp` faz no processo Node.
+  const { deps, seen } = stubEffects();
+  deps.requestBrProbe = (work: any) => {
+    seen.probe.push(work);
+    return { probe: false, pending: false, skipped: 'disabled', fallbackBrGap: true } as any;
+  };
+  const app2 = express();
+  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
+  const server2 = await createTestServer(app2);
+  try {
+    const res = await server2.request('POST', '/internal/search/effects', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: {
+        encoded,
+        effects: [
+          {
+            kind: 'br_probe',
+            payload: { imdbId: 'tt0000001', type: 'series', season: 2, episode: 5, mode: 'upgrade' },
+          },
+        ],
+      },
+    });
+    assert.equal(res.status, 202);
+    await flushTimers();
+    assert.equal(seen.probe.length, 1);
+    assert.equal(seen.harvest.length, 1, 'sonda inelegível vira colheita br-gap');
+    assert.equal(seen.harvest[0].reason, 'br-gap');
+    assert.equal(seen.harvest[0].season, 2);
+    assert.equal(seen.harvest[0].episode, 5);
+  } finally {
+    await server2.close();
+  }
+});
+
+test('effects: br_probe agendado NÃO duplica a colheita', async () => {
+  const { deps, seen } = stubEffects();
+  deps.requestBrProbe = (work: any) => {
+    seen.probe.push(work);
+    return { probe: true, pending: true, fallbackBrGap: false } as any;
+  };
+  const app2 = express();
+  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
+  const server2 = await createTestServer(app2);
+  try {
+    const res = await server2.request('POST', '/internal/search/effects', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: {
+        encoded,
+        effects: [
+          { kind: 'br_probe', payload: { imdbId: 'tt0000001', type: 'movie', season: null, episode: null } },
+        ],
+      },
+    });
+    assert.equal(res.status, 202);
+    await flushTimers();
+    assert.equal(seen.probe.length, 1);
+    assert.equal(seen.harvest.length, 0, 'quem enfileira é o próprio requestBrProbe');
+  } finally {
+    await server2.close();
+  }
+});
+
 test('effects: falha de um efeito não afeta os outros (rota de pé)', async () => {
   const { deps, seen } = stubEffects();
   deps.queueRdWarmForRelevant = () => { throw new Error('boom'); };

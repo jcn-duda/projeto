@@ -21,7 +21,7 @@ import type { StreamTraceState } from '../utils/stream-trace.js';
 import { createLiveIndexerState, ALL_QUERY_INDEXER } from './live-indexer-state.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import { collectionSelection, sourceWanted } from './source-selection.js';
-import * as frozen from '../utils/stream-frozen.js';
+import { freshRequest } from '../utils/stream-fresh.js';
 export async function collectRawLive(
   query: string,
   type: string,
@@ -291,7 +291,7 @@ export async function collectRawLive(
   // No record/replay congelado ele é DESLIGADO: a captura precisa do lote
   // final, não do parcial que o cliente recebeu antes de os indexers fecharem.
   // No shadow segue o de produção.
-  const fastPathOn = !frozen.behaviorFrozen() && config.accountFastPath.enabled && accountSource;
+  const fastPathOn = !freshRequest() && config.accountFastPath.enabled && accountSource;
   // Quando o índice já cobre a obra, a primeira resposta ainda pode esperar
   // somente os BR vivos: eles são a parte que o índice não sabe atualizar. Os
   // globais ficam no enriquecimento, sem transformar um hit do índice em uma

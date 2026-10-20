@@ -156,6 +156,15 @@ impl Orchestrator {
         if is_demo(&input.options) {
             return None;
         }
+        // Índice/banco nativos (F4.5): `INDEX_RUST=on` lê o `cache.db`/
+        // `magnets.db` no processo e emite o follow-up; sem store injetado cai
+        // no caminho Node (degradação honesta, contada).
+        if self.config.index_mode.is_on() {
+            if self.index.is_some() {
+                return self.native_fast_path(input, meta).await;
+            }
+            super::index_metrics::global_metrics().inc(super::index_metrics::SOURCE_MISSING, 1);
+        }
         let routes = self.routes.as_ref()?;
         let req = SearchIndexRequest {
             encoded: encoded_for_internal(input.encoded.as_deref()),
@@ -171,6 +180,14 @@ impl Orchestrator {
             first_aired: meta.first_aired.clone(),
         };
         let resp = routes.search_index(req).await.ok()?;
+        // Sombra do índice: o Node responde; o nativo recomputa em fundo e
+        // compara conjunto/cobertura/ordem/efeitos. NUNCA segura o cliente.
+        if self.config.index_mode == super::index_source::IndexMode::Shadow
+            && !self.shadow_mode
+            && self.index.is_some()
+        {
+            self.spawn_index_shadow(input.clone(), meta.clone(), resp.clone());
+        }
         if resp.instant_eligible {
             let mut items = mapped(resp.instant_items, |_| {});
             items.extend(mapped(resp.index_items, |i| i.from_snapshot = true));

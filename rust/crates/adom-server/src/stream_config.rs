@@ -1,4 +1,4 @@
-use adom_search::orchestrator::{AccountMode, OrchestratorConfig};
+use adom_search::orchestrator::{AccountMode, IndexMode, OrchestratorConfig};
 use adom_search::BuildOptions;
 use serde_json::Value;
 
@@ -97,7 +97,94 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Some(ms) = env_i64("ACCOUNT_SHADOW_TIMEOUT_MS") {
         cfg.account_shadow_timeout_ms = ms.max(1);
     }
+    if let Some(ms) = env_i64("ACCOUNT_FAST_WAIT_MS") {
+        cfg.account_fast_wait_ms = ms.max(1);
+    }
+    // Índice/banco nativos (F4.5). Default OFF: Node responde e é o único que
+    // lê/escreve `idx:v14`/`magnets.db` até o operador pedir `shadow`/`on`.
+    cfg.index_mode = std::env::var("INDEX_RUST")
+        .map(|raw| IndexMode::parse(&raw))
+        .unwrap_or_default();
+    cfg.bank_mode = std::env::var("BANK_RUST")
+        .map(|raw| IndexMode::parse(&raw))
+        .unwrap_or_default();
+    // Defaults do Node (`config/harvest.ts`/`config/cache.ts`).
+    cfg.release_index_enabled = std::env::var("RELEASE_INDEX")
+        .map(|raw| raw.trim() == "true")
+        .unwrap_or(true);
+    if let Some(ttl) = env_i64("RELEASE_INDEX_TTL") {
+        cfg.release_index_ttl = ttl.max(0) as u64;
+    }
+    if let Some(n) = env_i64("RELEASE_INDEX_MAX_RELEASES") {
+        cfg.release_index_max_releases = n.max(1) as usize;
+    }
+    cfg.magnet_bank_enabled = std::env::var("MAGNET_BANK")
+        .map(|raw| raw.trim() != "false")
+        .unwrap_or(true);
+    cfg.magnet_bank_instant_enabled = std::env::var("MAGNET_BANK_INSTANT")
+        .map(|raw| raw.trim() != "false")
+        .unwrap_or(true);
+    cfg.magnet_bank_fallback_enabled = std::env::var("MAGNET_BANK_FALLBACK")
+        .map(|raw| raw.trim() != "false")
+        .unwrap_or(true);
+    if let Some(n) = env_i64("MAGNET_BANK_FALLBACK_MAX") {
+        cfg.magnet_bank_fallback_max_per_indexer = n.clamp(1, 40);
+    }
+    if let Some(n) = env_i64("MAGNET_BANK_FALLBACK_GLOBAL_MAX") {
+        cfg.magnet_bank_fallback_global_max = n.clamp(1, 500);
+    }
+    let instant_min = env_i64("MAGNET_BANK_INSTANT_MIN_MS")
+        .map(|n| n.max(1_000))
+        .unwrap_or(7 * 86_400_000);
+    let instant_max = env_i64("MAGNET_BANK_INSTANT_MAX_MS")
+        .map(|n| n.max(1_000))
+        .unwrap_or(7 * 86_400_000)
+        .max(instant_min);
+    cfg.magnet_bank_instant_min_ms = instant_min;
+    cfg.magnet_bank_instant_max_ms = instant_max;
+    cfg.magnet_bank_instant_fresh_max_ms = env_i64("MAGNET_BANK_INSTANT_FRESH_MAX_MS")
+        .map(|n| n.max(1_000))
+        .unwrap_or(2 * 3_600_000)
+        .min(instant_max);
+    if let Some(sample) = env_f64("INDEX_SHADOW_SAMPLE") {
+        cfg.index_shadow_sample = sample.clamp(0.0, 1.0);
+    }
+    // O `poolCovered` do Node usa o piso do AUTOFETCH — o MESMO número já lido
+    // para o fast-path da conta.
+    cfg.auto_fetch_min_seeders = cfg.account_fast_min_seeders;
+    // Listas de indexers do operador (`src/config/jackett.ts`). O índice/banco
+    // nativo precisa delas para `allowedSourceIndexer` (isenção dos index-only),
+    // elegibilidade da instantânea, BR-gap e `brSource` da reserva. `ji` vazio
+    // continua vazio: o catálogo automático do Jackett não é replicado aqui.
+    cfg.selected_indexers = indexer_list(std::env::var("JACKETT_INDEXERS").ok().as_deref(), "");
+    cfg.pt_br_indexers = indexer_list(
+        std::env::var("JACKETT_PT_BR_INDEXERS").ok().as_deref(),
+        "bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,vacatorrent,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann",
+    );
+    cfg.isolate_indexers = indexer_list(
+        std::env::var("JACKETT_SLOW_INDEXERS").ok().as_deref(),
+        "bludv-cardigann,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann",
+    );
+    cfg.index_only_indexers = indexer_list(
+        std::env::var("JACKETT_INDEX_ONLY_INDEXERS").ok().as_deref(),
+        "redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x",
+    );
     cfg
+}
+
+/// CSV de indexers (`indexerList` do Node): trim, descarta vazios. `raw` vazio
+/// ou ausente cai no `default` (vazio = lista vazia), nunca no catálogo vivo.
+fn indexer_list(raw: Option<&str>, default: &str) -> Vec<String> {
+    let source = raw
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(default);
+    source
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 pub fn operator_search_build_from_env() -> BuildOptions {
@@ -258,4 +345,25 @@ pub fn env_i64(key: &str) -> Option<i64> {
 
 pub fn env_f64(key: &str) -> Option<f64> {
     std::env::var(key).ok()?.trim().parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::indexer_list;
+
+    #[test]
+    fn lista_de_indexers_trim_e_default() {
+        assert_eq!(
+            indexer_list(Some(" bludv-cardigann, ,nerdfilmes "), ""),
+            vec!["bludv-cardigann".to_string(), "nerdfilmes".to_string()]
+        );
+        // Ausente/vazio usa o default (que pode ser vazio — ji automático NÃO é
+        // replicado no nativo).
+        assert_eq!(indexer_list(None, ""), Vec::<String>::new());
+        assert_eq!(indexer_list(Some("   "), ""), Vec::<String>::new());
+        assert_eq!(
+            indexer_list(None, "a,b"),
+            vec!["a".to_string(), "b".to_string()]
+        );
+    }
 }

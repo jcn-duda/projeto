@@ -52,6 +52,22 @@ pub const DIVERGENCE_ITEMS: &str = "stream.shadow.divergence.items";
 pub const TIMEOUT: &str = "stream.shadow.timeout";
 pub const ERROR: &str = "stream.shadow.error";
 
+/// Modo da sombra: `frozen` (default, captura + replay do corpus) ou `direct`
+/// (comparação Node×Rust na MESMA request, sem `FrozenCase`). Default `frozen`
+/// preserva a janela §9.4 em andamento; `direct` é o caminho novo do F4.3.
+pub const MODE_ENV: &str = "STREAM_SHADOW_MODE";
+
+/// Parsing puro do modo (testável): só `direct` desvia; vazio/inválido = frozen.
+pub fn direct_from_raw(raw: Option<&str>) -> bool {
+    raw.map(str::trim).map(str::to_ascii_lowercase).as_deref() == Some("direct")
+}
+
+/// `STREAM_SHADOW_MODE=direct` força a comparação direta mesmo com base
+/// congelada configurada.
+pub fn direct_from_env() -> bool {
+    direct_from_raw(std::env::var(MODE_ENV).ok().as_deref())
+}
+
 const KEYS: &[&str] = &[COMPARED, DIVERGENCE, DIVERGENCE_ITEMS, TIMEOUT, ERROR];
 
 /// Nomes/label do mesmo comparador congelado. A sombra (§9.1) usa
@@ -152,6 +168,9 @@ pub struct ShadowRequest {
     pub shadow_id: Option<String>,
     /// `STREAM_FROZEN_SHADOW_BASE` — raiz onde o Node grava `<id>/`.
     pub frozen_base: Option<PathBuf>,
+    /// `STREAM_SHADOW_MODE=direct`: ignora a captura congelada e compara o corpo
+    /// normal do Node com a remontagem ao vivo (`stream.shadow.*`).
+    pub direct: bool,
     /// Headers da request do cliente já filtrados (hop-by-hop fora, sem os
     /// headers da sombra). A segunda request os reusa para o Node calcular o
     /// MESMO `originOf` da resposta normal — o diff mascara host, mas precisa
@@ -202,7 +221,9 @@ pub async fn observe_node_response(
 
     // 1) Caminho congelado: segunda request com `behaviorFrozen`; o `expected`
     //    é o corpo DELA (nunca o corpo normal), e só `streams` é comparado.
-    if req.shadow_id.is_some() && req.frozen_base.is_some() {
+    //    No modo `direct` esta etapa é pulada de propósito: sem `FrozenCase`,
+    //    a comparação é a do item 2 (corpo normal × remontagem).
+    if !req.direct && req.shadow_id.is_some() && req.frozen_base.is_some() {
         observe_frozen_request(&req, encoded, &metrics, SHADOW_NAMES).await;
         return;
     }
@@ -252,13 +273,25 @@ pub fn record_comparison(
     config_segment: Option<&str>,
     metrics: &ShadowMetrics,
 ) {
-    metrics.inc(COMPARED, 1);
+    record_comparison_named(node, rust, config_segment, metrics, SHADOW_NAMES);
+}
+
+/// Mesma comparação com os nomes do chamador (a sombra usa `stream.shadow.*`;
+/// o canário usa `stream.canary.*`). `label` é só documental.
+pub fn record_comparison_named(
+    node: &StreamResponse,
+    rust: &StreamResponse,
+    config_segment: Option<&str>,
+    metrics: &ShadowMetrics,
+    names: FrozenMetricNames,
+) {
+    metrics.inc(names.compared, 1);
     let left = identity_set(&node.streams, config_segment);
     let right = identity_set(&rust.streams, config_segment);
     let items = divergent_item_count(&left, &right);
     if items > 0 {
-        metrics.inc(DIVERGENCE, 1);
-        metrics.inc(DIVERGENCE_ITEMS, items);
+        metrics.inc(names.divergence, 1);
+        metrics.inc(names.divergence_items, items);
     }
 }
 
@@ -299,11 +332,13 @@ fn valid_shadow_id(id: &str) -> bool {
             .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
 }
 
-/// SEGUNDA request ao Node, no MESMO path/headers, marcada com
-/// `X-Adom-Shadow-Id` + `X-Adom-Shadow-Frozen: 1`. O corpo dela é o `expected`
-/// (a resposta normal pode vir do SWR/fast-path). `Err` = falha de
-/// transporte/status/JSON: a sombra conta `error`, nunca divergência.
-async fn capture_frozen_body(req: &ShadowRequest, id: &str) -> Result<Value, String> {
+/// GET no Node, no MESMO path/headers da request original, com os headers
+/// extras do chamador. Base comum da segunda request congelada (sombra) e da
+/// requisição fresca do canário direto. `Err` = falha de transporte/status.
+pub(crate) async fn get_node_body(
+    req: &ShadowRequest,
+    extra: &[(HeaderName, HeaderValue)],
+) -> Result<Bytes, String> {
     let uri = crate::proxy::upstream_uri(&req.node_base, &req.path)
         .map_err(|()| "frozen: path inválido".to_string())?;
     let mut headers = req.headers.clone();
@@ -312,36 +347,50 @@ async fn capture_frozen_body(req: &ShadowRequest, id: &str) -> Result<Value, Str
     headers.remove(http::header::ACCEPT_ENCODING);
     headers.remove(http::header::IF_NONE_MATCH);
     headers.remove(http::header::IF_MODIFIED_SINCE);
-    headers.insert(
-        HeaderName::from_static(SHADOW_ID_HEADER),
-        HeaderValue::from_str(id).map_err(|err| format!("id inválido: {err}"))?,
-    );
-    headers.insert(
-        HeaderName::from_static(SHADOW_FROZEN_HEADER),
-        HeaderValue::from_static("1"),
-    );
+    for (name, value) in extra {
+        headers.insert(name.clone(), value.clone());
+    }
     let mut request = HttpRequest::builder()
         .method(http::Method::GET)
         .uri(uri)
         .body(Body::empty())
-        .map_err(|err| format!("requisição frozen: {err}"))?;
+        .map_err(|err| format!("frozen: requisição {err}"))?;
     *request.headers_mut() = headers;
 
     let client = crate::proxy::client();
     let response = tokio::time::timeout(FROZEN_NODE_TIMEOUT, client.request(request))
         .await
-        .map_err(|_| "frozen: prazo esgotado".to_string())?
-        .map_err(|err| format!("frozen: rede {err}"))?;
+        .map_err(|_| "node: prazo esgotado".to_string())?
+        .map_err(|err| format!("node: rede {err}"))?;
     let status = response.status();
     let bytes = tokio::time::timeout(FROZEN_NODE_TIMEOUT, response.into_body().collect())
         .await
-        .map_err(|_| "frozen: corpo atrasou".to_string())?
-        .map_err(|err| format!("frozen: corpo {err}"))?
+        .map_err(|_| "node: corpo atrasou".to_string())?
+        .map_err(|err| format!("node: corpo {err}"))?
         .to_bytes();
     if !status.is_success() {
         let snippet: String = String::from_utf8_lossy(&bytes).chars().take(200).collect();
-        return Err(format!("frozen: HTTP {status}: {snippet}"));
+        return Err(format!("node: HTTP {status}: {snippet}"));
     }
+    Ok(bytes)
+}
+
+/// SEGUNDA request ao Node, no MESMO path/headers, marcada com
+/// `X-Adom-Shadow-Id` + `X-Adom-Shadow-Frozen: 1`. O corpo dela é o `expected`
+/// (a resposta normal pode vir do SWR/fast-path). `Err` = falha de
+/// transporte/status/JSON: a sombra conta `error`, nunca divergência.
+async fn capture_frozen_body(req: &ShadowRequest, id: &str) -> Result<Value, String> {
+    let extra = [
+        (
+            HeaderName::from_static(SHADOW_ID_HEADER),
+            HeaderValue::from_str(id).map_err(|err| format!("id inválido: {err}"))?,
+        ),
+        (
+            HeaderName::from_static(SHADOW_FROZEN_HEADER),
+            HeaderValue::from_static("1"),
+        ),
+    ];
+    let bytes = get_node_body(req, &extra).await?;
     serde_json::from_slice(&bytes).map_err(|err| format!("frozen: json {err}"))
 }
 

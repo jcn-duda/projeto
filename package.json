@@ -415,6 +415,7 @@
     "test/stream-trace-route.test.js",
     "test/stream-trace-recompute.test.js",
     "test/stream-trace-live.test.js",
+    "test/stream-fresh.test.js",
     "test/notify.test.js",
     "test/observability.test.js",
     "test/release-index.test.js",

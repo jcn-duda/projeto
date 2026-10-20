@@ -16,6 +16,7 @@ mod autofetch_obra_overflow;
 mod autofetch_policy;
 mod autofetch_progress;
 mod autofetch_seeds_pick;
+mod br_gap;
 mod br_origin;
 mod br_pool_selection;
 mod bytes_to_size;
@@ -48,6 +49,7 @@ mod fallback_bank;
 mod franchise;
 mod indexer_priority;
 mod info_hash;
+mod instant_bank;
 mod inventory_filter;
 mod js_text;
 mod js_text16;
@@ -68,6 +70,7 @@ mod pt_audio_guards;
 mod pt_title_dual;
 mod release_filters;
 mod release_guards;
+mod release_index_cut;
 mod release_index_media;
 mod release_labels;
 mod release_name_matching;
@@ -103,6 +106,10 @@ pub use info_hash::extract_info_hash;
 pub use magnet_uri::{default_magnet, sanitize_magnet};
 
 // ── br_origin ─────────────────────────────────────────────────────────
+pub use br_gap::{
+    has_br_dubbed, has_br_dubbed_at_quality, has_br_dubbed_below_target, has_br_evidence,
+    should_br_gap, BrGapRelease, BR_GAP_TARGET_QUALITY,
+};
 pub use br_origin::{br_origin_mark, has_pt_signs};
 pub use br_pool_selection::picks::{
     br_listable_dub_pool, cached_br_dubbed_target_qualities, can_auto_fetch_br, filter_known_cache,
@@ -217,9 +224,14 @@ pub use matching_vocabulary::{
 pub use indexer_priority::{compare_indexer_priority, priority_map};
 
 // ── inventory_filter ──────────────────────────────────────────────────
+pub use instant_bank::{
+    select_instant, InstantInput, InstantItem, InstantMagnet, InstantSelection, InstantSource,
+    InstantWork, INSTANT_GLOBAL_MAX, INSTANT_PER_INDEXER_MAX,
+};
 pub use inventory_filter::filter_inventory_relevant;
 
 // ── release_index_media ───────────────────────────────────────────────
+pub use release_index_cut::{cut_protected, CutKey};
 pub use release_index_media::{
     bank_rows_for_media_source, merge_media_source, BankRow, MagnetLike,
 };

@@ -146,9 +146,73 @@ fn req_com_captura(id: Option<&str>, base: Option<PathBuf>) -> ShadowRequest {
         origin: Some("http://publico.example".into()),
         shadow_id: id.map(str::to_string),
         frozen_base: base,
+        direct: false,
         headers: HeaderMap::new(),
         node_base: "http://127.0.0.1:1".parse().unwrap(),
     }
+}
+
+#[test]
+fn modo_direto_so_com_valor_exato() {
+    assert!(direct_from_raw(Some("direct")));
+    assert!(direct_from_raw(Some(" DIRECT ")));
+    assert!(!direct_from_raw(None));
+    assert!(!direct_from_raw(Some("")));
+    assert!(!direct_from_raw(Some("frozen")));
+    assert!(!direct_from_raw(Some("shadow")));
+}
+
+#[tokio::test]
+async fn modo_direto_pula_captura_mesmo_com_base() {
+    let metrics = ShadowMetrics::new();
+    let body = serde_json::to_vec(&StreamResponse {
+        streams: vec![item_ih("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+        cache_max_age: 0,
+    })
+    .unwrap();
+    let mut req = req_com_captura(Some("abc123"), Some(std::env::temp_dir()));
+    req.direct = true;
+    // Sem remount: o modo direto não cai na captura congelada (porta 1
+    // fechada viraria `error` no fluxo frozen).
+    observe_node_response(
+        StatusCode::OK,
+        Bytes::from(body),
+        req,
+        metrics.clone(),
+        None,
+    )
+    .await;
+    assert_eq!(metrics.get(COMPARED), 0);
+    assert_eq!(metrics.get(ERROR), 0, "direto sem remount pula, não erra");
+    assert_eq!(metrics.get(TIMEOUT), 0);
+}
+
+#[tokio::test]
+async fn modo_direto_com_remount_compara_corpo_normal() {
+    let metrics = ShadowMetrics::new();
+    let orch = Orchestrator::new(
+        OrchestratorConfig::default(),
+        Arc::new(MemorySwrStore::new()),
+    )
+    .with_shadow_mode(true)
+    .with_debrid(Arc::new(NoDebridFactory));
+    let body = serde_json::to_vec(&StreamResponse {
+        streams: vec![item_ih("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")],
+        cache_max_age: 0,
+    })
+    .unwrap();
+    let mut req = req_com_captura(Some("abc123"), Some(std::env::temp_dir()));
+    req.direct = true;
+    observe_node_response(
+        StatusCode::OK,
+        Bytes::from(body),
+        req,
+        metrics.clone(),
+        Some(orch),
+    )
+    .await;
+    assert_eq!(metrics.get(COMPARED), 1);
+    assert_eq!(metrics.get(ERROR), 0);
 }
 
 #[test]

@@ -12,7 +12,7 @@
 //! sempre devolvida como cópia para o build — nunca é gravada no `Vec` canônico,
 //! senão a próxima reconstrução a trataria como item vivo.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::time::Duration;
 
 use serde_json::Map;
@@ -26,6 +26,8 @@ use crate::internal_types::FallbackRequest;
 use crate::raw_item::{raw_item_from_value, RawItem};
 
 use super::finish::SearchInput;
+use super::index_metrics as metrics;
+use super::index_source::{allowed_source_indexer, bank_limits, bank_read_window, obra_targets};
 use super::live_state::LiveBatchState;
 use super::meta::SearchMeta;
 use super::respond::now_ms;
@@ -184,6 +186,24 @@ impl Orchestrator {
         if !live.needs_fallback() {
             return items;
         }
+        // Banco nativo (`BANK_RUST=on`): a leitura do SQLite e o `collect_fallback`
+        // do núcleo rodam in-process; a rota Node nem é chamada.
+        if self.config.bank_mode.is_on() {
+            if self.bank.is_some() {
+                let out = self.native_fallback_result(input, meta, &items, live);
+                if out.is_empty() {
+                    return items;
+                }
+                eprintln!(
+                    "[search] reserva do banco (nativo): {} item(ns) para {}",
+                    out.len(),
+                    meta.imdb_id
+                );
+                items.extend(out.iter().map(raw_item_from_fallback));
+                return items;
+            }
+            metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
+        }
         let Some(routes) = self.routes.as_ref() else {
             return items;
         };
@@ -247,6 +267,20 @@ impl Orchestrator {
             return items;
         }
         let out = collect_fallback(&core_input(resp, meta, live, live_hashes));
+        // Sombra do banco (`BANK_RUST=shadow`): o Node responde; o nativo lê as
+        // mesmas linhas em fundo e compara os conjuntos. Nunca segura o cliente.
+        if self.config.bank_mode == super::index_source::IndexMode::Shadow
+            && !self.shadow_mode
+            && self.bank.is_some()
+        {
+            self.spawn_bank_shadow(
+                input.clone(),
+                meta.clone(),
+                items.clone(),
+                live.clone(),
+                out.items.clone(),
+            );
+        }
         if out.injected() == 0 {
             return items;
         }
@@ -257,5 +291,173 @@ impl Orchestrator {
         );
         items.extend(out.items.iter().map(raw_item_from_fallback));
         items
+    }
+
+    /// Banco nativo: mesmas linhas/tetos/regras da rota Node, sem HTTP.
+    /// Fail-open: banco desligado, sem store ou nada elegível → lista vazia.
+    fn native_fallback_result(
+        &self,
+        input: &SearchInput,
+        meta: &SearchMeta,
+        items: &[RawItem],
+        live: &LiveBatchState,
+    ) -> Vec<FallbackItem> {
+        if !self.config.magnet_bank_enabled || !self.config.magnet_bank_fallback_enabled {
+            return Vec::new();
+        }
+        let Some(bank) = self.bank.as_ref() else {
+            return Vec::new();
+        };
+        let failed = live.failed_indexers();
+        let suspect = live.suspect_indexers();
+        let all_failed = live.all.failed();
+        if failed.is_empty() && !all_failed && suspect.is_empty() {
+            return Vec::new();
+        }
+        let (per_indexer, global) = bank_limits(
+            self.config.magnet_bank_fallback_max_per_indexer,
+            self.config.magnet_bank_fallback_global_max,
+        );
+        let (read_limit, max_total) = bank_read_window(per_indexer, global);
+        let targets = obra_targets(&input.kind, meta.season, meta.episode);
+        let only_indexers: Option<Vec<String>> = if all_failed {
+            None
+        } else {
+            let mut list: Vec<String> = failed.union(&suspect).cloned().collect();
+            list.sort();
+            Some(list)
+        };
+        let rows = bank.works_for_obra_many(
+            &meta.imdb_id,
+            &targets,
+            read_limit,
+            max_total,
+            only_indexers.as_deref(),
+        );
+        let hashes: Vec<String> = {
+            let mut seen = HashSet::new();
+            rows.iter()
+                .map(|row| row.hash.to_lowercase())
+                .filter(|hash| !hash.is_empty() && seen.insert(hash.clone()))
+                .collect()
+        };
+        let mut sources = bank.sources_for_many(&hashes);
+        let index_only = &self.config.index_only_indexers;
+        for list in sources.values_mut() {
+            for source in list.iter_mut() {
+                source.allowed = allowed_source_indexer(
+                    &source.indexer,
+                    &input.options,
+                    index_only,
+                    &self.config.selected_indexers,
+                );
+            }
+        }
+        let live_hashes: HashSet<String> = items
+            .iter()
+            .map(RawItem::bank_hash)
+            .filter(|hash| !hash.is_empty())
+            .collect();
+        let mut works = Vec::with_capacity(rows.len());
+        for row in rows {
+            let magnet = row.magnet.map(|magnet| FallbackMagnet {
+                hash: magnet.hash,
+                uri: magnet.uri,
+                title: magnet.title,
+                size: magnet.size,
+                is_br: magnet.is_br,
+                dubbed: magnet.dubbed,
+                quality: magnet.quality,
+                seeders_max: magnet.seeders_max,
+                seeders_last: magnet.seeders_last,
+                last_seen: magnet.last_seen,
+                lied: magnet.lied,
+            });
+            works.push(FallbackWork {
+                hash: row.hash,
+                passed_filter: row.passed_filter,
+                last_seen: row.last_seen,
+                magnet,
+            });
+        }
+        let sources: BTreeMap<String, Vec<FallbackSource>> = sources
+            .into_iter()
+            .map(|(hash, list)| {
+                (
+                    hash,
+                    list.into_iter()
+                        .map(|source| FallbackSource {
+                            indexer: source.indexer,
+                            tracker: source.tracker,
+                            last_seen: source.last_seen,
+                            allowed: source.allowed,
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        collect_fallback(&FallbackInput {
+            enabled: true,
+            fallback_enabled: true,
+            imdb_id: meta.imdb_id.clone(),
+            work_target: WorkTarget {
+                season: meta.season,
+                episode: meta.episode,
+            },
+            live_hashes,
+            failed: failed.into_iter().collect(),
+            suspect: suspect.into_iter().collect(),
+            all_failed,
+            per_indexer_max: per_indexer,
+            global_max: global,
+            br_indexers: self.config.pt_br_indexers.clone(),
+            index_only_indexers: self.config.index_only_indexers.clone(),
+            works,
+            sources,
+        })
+        .items
+    }
+
+    fn spawn_bank_shadow(
+        &self,
+        input: SearchInput,
+        meta: SearchMeta,
+        items: Vec<RawItem>,
+        live: LiveBatchState,
+        node: Vec<FallbackItem>,
+    ) {
+        let this = self.clone();
+        tokio::spawn(async move {
+            let m = metrics::global_metrics();
+            if !super::account::sampled(&meta.imdb_id, this.config.index_shadow_sample) {
+                m.inc(metrics::BANK_SHADOW_NOT_SAMPLED, 1);
+                return;
+            }
+            let native = this.native_fallback_result(&input, &meta, &items, &live);
+            let node_set: HashSet<String> = node
+                .iter()
+                .map(|item| item.info_hash.to_lowercase())
+                .filter(|hash| !hash.is_empty())
+                .collect();
+            let native_set: HashSet<String> = native
+                .iter()
+                .map(|item| item.info_hash.to_lowercase())
+                .filter(|hash| !hash.is_empty())
+                .collect();
+            let missing = node_set.difference(&native_set).count();
+            let extra = native_set.difference(&node_set).count();
+            m.inc(metrics::BANK_SHADOW_COMPARED, 1);
+            m.inc(metrics::BANK_SHADOW_MISSING, missing as u64);
+            m.inc(metrics::BANK_SHADOW_EXTRA, extra as u64);
+            if missing + extra > 0 || node.len() != native.len() {
+                m.inc(metrics::BANK_SHADOW_DIVERGENCE, 1);
+                eprintln!(
+                    "[bank-shadow] divergência em {}: node={} nativo={} faltando={missing} sobrando={extra}",
+                    meta.imdb_id,
+                    node.len(),
+                    native.len()
+                );
+            }
+        });
     }
 }

@@ -83,8 +83,12 @@ export function registerInternalSearchIndex(router: Router, services: AppService
           year,
         });
 
-        if (instantResult.eligible && config.releaseIndex.enabled) {
-          enqueueIndexFollowUp({
+        // Métricas `search.idx.*` ficam FORA do caminho do banco (o dado é do
+        // acervo, não do índice), como no `search-index-path.ts`. O plano
+        // EMITIDO viaja na resposta (`effects`) para a sombra do índice
+        // comparar o que o nativo decidiu, não só os itens.
+        const followUpEffects = config.releaseIndex.enabled
+          ? enqueueIndexFollowUp({
             indexed,
             partial: isPartial,
             covered,
@@ -92,20 +96,9 @@ export function registerInternalSearchIndex(router: Router, services: AppService
             imdbId,
             season,
             episode,
-            countMetrics: false,
-          });
-        } else if (config.releaseIndex.enabled) {
-          enqueueIndexFollowUp({
-            indexed,
-            partial: isPartial,
-            covered,
-            type,
-            imdbId,
-            season,
-            episode,
-            countMetrics: true,
-          });
-        }
+            countMetrics: !instantResult.eligible,
+          })
+          : [];
 
         let accountItems: any[] = [];
         const accountSource = config.debrid.inventorySource && Boolean(services.debrid?.current?.());
@@ -145,6 +138,7 @@ export function registerInternalSearchIndex(router: Router, services: AppService
           index_items: indexItems,
           instant_items: instantItems,
           account_items: accountOut,
+          effects: followUpEffects,
         });
       } catch (err) {
         log.error('[internal-search-index] falha ao consultar índice/banco:', err);

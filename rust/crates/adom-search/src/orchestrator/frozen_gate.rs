@@ -246,6 +246,7 @@ impl FrozenCase {
                     index_items,
                     instant_items,
                     account_items: Vec::new(),
+                    effects: Vec::new(),
                 }
             })
             .unwrap_or_default();

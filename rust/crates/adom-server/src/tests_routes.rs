@@ -30,6 +30,58 @@ async fn stream_nativo_responde_sem_tocar_o_upstream() {
 }
 
 #[tokio::test]
+async fn canario_direto_compara_corte_com_node_sem_captura() {
+    use std::time::Duration;
+
+    use crate::canary::{
+        Canary, Mode, COMPARED, DIRECT, DIVERGENCE, NATIVE_CUT, NATIVE_NOTICE, SAMPLED,
+    };
+
+    let (upstream, hits) = spawn_stream_upstream().await;
+    let mut state = gateway_state_native(upstream, false, stub_orchestrator());
+    // Direct sem base congelada: o canário não pode exigir STREAM_FROZEN_*.
+    state.canary = Canary::with_mode(100, Mode::Direct, None);
+    let metrics = state.canary.metrics().clone();
+    let gateway = spawn_gateway_state(state).await;
+
+    let req = Request::builder()
+        .uri("/stream/movie/tt0133093.json")
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("streams"), "corpo do corte: {body}");
+
+    // A comparação roda em tokio::spawn: espera o contador fechar.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        if metrics.snapshot()[COMPARED] == 1 {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "canário direto não comparou: {:?}",
+            metrics.snapshot()
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(
+        hits.0.load(Ordering::SeqCst),
+        1,
+        "uma segunda request ao Node"
+    );
+    let snap = metrics.snapshot();
+    assert_eq!(snap[DIRECT], 1);
+    assert_eq!(snap[SAMPLED], 1);
+    assert_eq!(snap[COMPARED], 1);
+    // O stub do corte responde sem lista e o Node com uma: divergência real.
+    assert_eq!(snap[DIVERGENCE], 1);
+    assert_eq!(snap[NATIVE_CUT], 1, "contador nativo roda sem Node");
+    assert_eq!(snap[NATIVE_NOTICE], 1);
+}
+
+#[tokio::test]
 async fn stream_nativo_path_nao_stream_continua_proxy() {
     let (upstream, hits) = spawn_upstream().await;
     let gateway =

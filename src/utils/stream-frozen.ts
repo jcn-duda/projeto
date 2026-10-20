@@ -49,6 +49,7 @@ import {
 } from './stream-frozen-store.js';
 
 export { active, behaviorFrozen, mode };
+export { freshRequest } from './stream-fresh.js';
 export type { FrozenMode } from './stream-frozen-store.js';
 
 // `fsz`/`tsz` e o estado da 1ª passada (pré-debrid) moram no store (catraca).
@@ -58,7 +59,7 @@ export { recordFileSizes, recordTorrentTotal, recordFileSizesAtBuild, recordTorr
  * Grava a qualidade que o build REALMENTE usou (hash → qualidade provada). Mora
  * no store pela catraca de linhas; a API pública é esta.
  */
-export { recordProvenQuality, recordProvenQualities } from './stream-frozen-store.js';
+export { recordProvenQualities } from './stream-frozen-store.js';
 
 /** Conjunto `instant` exato que o sort usou (magnetdb/inventário/knownInstant). */
 export function recordInstant(hashes: string[]) {

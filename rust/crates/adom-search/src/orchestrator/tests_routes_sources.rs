@@ -2,7 +2,7 @@ use super::test_support::*;
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 
-// ── Path sem /:userConfig ───────────────────────────────────────────────────
+// â”€â”€ Path sem /:userConfig â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[tokio::test]
 async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
@@ -20,7 +20,7 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
         Some(1_000_000),
     )
     .expect("path sem config deve casar");
-    // URL truth: sem segmento. Corpo interno (abaixo) recebe o canônico `e30`.
+    // URL truth: sem segmento. Corpo interno (abaixo) recebe o canÃ´nico `e30`.
     assert_eq!(req.encoded, None);
     assert_eq!(req.prefix(), "");
 
@@ -45,12 +45,12 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
         );
         assert!(
             !url.starts_with(&format!("/{SEGMENT}/resolve/")),
-            "path sem config não deve prefixar /e30 nas URLs de play: {url}"
+            "path sem config nÃ£o deve prefixar /e30 nas URLs de play: {url}"
         );
     }
 }
 
-// ── CompositeCollector com SOURCES_RUST ──────────────────────────────────────
+// â”€â”€ CompositeCollector com SOURCES_RUST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[tokio::test]
 async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
@@ -109,7 +109,7 @@ async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
         Some(ORIGIN),
         Some(1_000_000),
     )
-    .expect("path válido");
+    .expect("path vÃ¡lido");
 
     let resposta = orch.handle(req).await;
     let mut all_text = Vec::new();
@@ -141,7 +141,7 @@ async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
     );
 }
 
-// ── Via do Índice e Via Instantânea do Banco ────────────────────────────────
+// â”€â”€ Via do Ãndice e Via InstantÃ¢nea do Banco â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[derive(Default)]
 struct StubInternalRoutes {
@@ -229,6 +229,7 @@ async fn resposta_do_indice_coberta_responde_imediatamente_com_snapshot() {
             })],
             instant_items: vec![],
             account_items: vec![],
+            effects: vec![],
         })),
     });
 
@@ -247,14 +248,14 @@ async fn resposta_do_indice_coberta_responde_imediatamente_com_snapshot() {
         Some(ORIGIN),
         Some(1_000_000),
     )
-    .expect("path válido");
+    .expect("path vÃ¡lido");
 
     let resposta = orch.handle(req).await;
     assert_eq!(resposta.streams.len(), 1);
     let title = resposta.streams[0].title.as_deref().unwrap_or("");
     assert!(
         title.contains("Filme Teste"),
-        "stream do índice deve estar presente: {title}"
+        "stream do indice deve estar presente: {title}"
     );
 }
 
@@ -277,6 +278,7 @@ async fn resposta_instantanea_do_banco_responde_com_itens_do_acervo() {
                 "fromFallback": true
             })],
             account_items: vec![],
+            effects: vec![],
         })),
     });
 
@@ -295,20 +297,20 @@ async fn resposta_instantanea_do_banco_responde_com_itens_do_acervo() {
         Some(ORIGIN),
         Some(1_000_000),
     )
-    .expect("path válido");
+    .expect("path vÃ¡lido");
 
     let resposta = orch.handle(req).await;
     assert_eq!(resposta.streams.len(), 1);
     let title = resposta.streams[0].title.as_deref().unwrap_or("");
     assert!(
         title.contains("Acervo"),
-        "stream instantâneo do banco deve estar presente: {title}"
+        "stream instantÃ¢neo do banco deve estar presente: {title}"
     );
 }
 
-/// Índice coberto E instantânea elegível ao mesmo tempo: a instantânea vence
-/// (mesma ordem do `search-index-path.ts`) e a foto do índice sai marcada como
-/// `fromSnapshot`, não como reserva bloqueada.
+/// Ãndice coberto E instantÃ¢nea elegÃ­vel ao mesmo tempo: a instantÃ¢nea vence
+/// (mesma ordem do `search-index-path.ts`) e a foto do Ã­ndice sai marcada como
+/// `fromSnapshot`, nÃ£o como reserva bloqueada.
 #[tokio::test]
 async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
     let routes = Arc::new(StubInternalRoutes {
@@ -324,6 +326,7 @@ async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
                 json!({"title": "Filme Teste 2024 Acervo", "infoHash": HASH, "indexer": "mico", "fromFallback": true}),
             ],
             account_items: vec![],
+            effects: vec![],
         })),
     });
     let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
@@ -344,8 +347,8 @@ async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
     let fast = orch
         .fast_path_items(&input, &meta())
         .await
-        .expect("via rápida");
-    assert!(fast.instant, "instantânea tem precedência sobre o índice");
+        .expect("via rÃ¡pida");
+    assert!(fast.instant, "instantanea tem precedencia sobre o indice");
     let foto = fast
         .items
         .iter()

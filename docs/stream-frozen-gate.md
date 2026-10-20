@@ -221,3 +221,20 @@ A instrumentação Node (`src/utils/stream-frozen.ts` e as fachadas
 `collect-orchestrator-frozen.ts`/`debrid-check-frozen.ts`) **sai na F4**, junto
 com o orquestrador TS. Enquanto o Node for o oráculo, ela é o que prova que a
 captura contém tudo que o pipeline leu.
+
+Desde o F4.3 o **runtime não depende mais dela para o alarme**:
+
+- o comportamento "fresco" (sem SWR/fast-path/índice/prefetch) mora em
+  `src/utils/stream-fresh.ts`; o header `X-Adom-Shadow-Frozen: 1` vale mesmo
+  sem `STREAM_FROZEN_MODE` (`STREAM_FRESH_REQUESTS=off` restaura o acoplamento);
+- o canário do corte tem `STREAM_CANARY_MODE=direct`: compara o corpo real do
+  corte com o Node fresco, sem `FrozenCase`/captura/config;
+- a sombra tem `STREAM_SHADOW_MODE=direct`: compara o corpo normal do Node com
+  a remontagem, sem captura;
+- `stream.canary.native.*` dá o alarme sem oráculo Node.
+
+O caminho congelado (`STREAM_CANARY_MODE=frozen`/`STREAM_SHADOW_MODE=frozen`,
+default) e o corpus continuam no binário até a janela §9.4 terminar e o
+deploy provar o caminho novo; só então a instrumentação e o
+`frozen_gate` de runtime saem (os alvos de teste `stream_frozen_parity` e
+`stream_e2e_parity` podem continuar usando o corpus).

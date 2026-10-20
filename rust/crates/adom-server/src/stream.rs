@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::response::IntoResponse;
+use bytes::Bytes;
 use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
@@ -70,7 +71,8 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 /// — corte stream segue em `POST /internal/search/collect`.
 pub fn build_orchestrator() -> Orchestrator {
     let store = open_swr_store();
-    let mut orch = Orchestrator::new(orchestrator_config_from_env(), store);
+    let config = orchestrator_config_from_env();
+    let mut orch = Orchestrator::new(config, store);
     // `raw:v1` do BLUDV: SÓ no caminho vivo. O store é o mesmo `cache.db` que
     // o Node usa (chave/valor idênticos); a sombra nem o abre.
     let raw_store = open_bludv_raw_store();
@@ -156,6 +158,50 @@ pub fn build_orchestrator() -> Orchestrator {
             orch.config().account_mode.as_str()
         );
         orch = orch.with_native_account();
+    }
+    wire_native_index(orch)
+}
+
+/// Abre e injeta o índice/banco nativos quando `INDEX_RUST`/`BANK_RUST` pedem
+/// (`on`/`shadow`). Falha de abertura = instrumento ausente, nunca boot caído:
+/// o modo `on` degrada para o caminho Node e a métrica
+/// `index.rust.source_missing` aparece no `/metrics`.
+fn wire_native_index(orch: Orchestrator) -> Orchestrator {
+    let cfg = orch.config().clone();
+    let mut orch = orch;
+    if cfg.index_mode.uses_native() && cfg.release_index_enabled && cfg.release_index_ttl > 0 {
+        match adom_store::ReleaseIndexStore::from_env() {
+            Ok(store) => {
+                eprintln!(
+                    "[gateway] índice de releases nativo: INDEX_RUST={} (idx:v14, ttl={}s, teto={})",
+                    cfg.index_mode.as_str(),
+                    cfg.release_index_ttl,
+                    cfg.release_index_max_releases
+                );
+                orch = orch.with_index_source(Arc::new(
+                    store.with_limits(cfg.release_index_ttl, cfg.release_index_max_releases),
+                ));
+            }
+            Err(err) => eprintln!(
+                "[gateway] idx:v14 indisponível ({err}); índice segue no Node mesmo com INDEX_RUST={}",
+                cfg.index_mode.as_str()
+            ),
+        }
+    }
+    if cfg.bank_mode.uses_native() && cfg.magnet_bank_enabled {
+        match adom_store::MagnetBankStore::from_env() {
+            Ok(store) => {
+                eprintln!(
+                    "[gateway] banco de magnets nativo: BANK_RUST={} (magnets.db)",
+                    cfg.bank_mode.as_str()
+                );
+                orch = orch.with_bank_source(Arc::new(store));
+            }
+            Err(err) => eprintln!(
+                "[gateway] magnets.db indisponível ({err}); banco segue no Node mesmo com BANK_RUST={}",
+                cfg.bank_mode.as_str()
+            ),
+        }
     }
     orch
 }
@@ -250,7 +296,7 @@ pub fn build_shadow_orchestrator() -> Orchestrator {
             }
         }
     }
-    orch
+    wire_native_index(orch)
 }
 
 /// Rótulo de log dos collectors nativos ativos.
@@ -281,9 +327,15 @@ pub fn is_native_stream(method: &Method, path: &str) -> bool {
         && adom_search::parse_stream_path(path).is_some()
 }
 
-/// Responde o `/stream` pelo orquestrador. Nunca panic: falha de parse → 502;
-/// falha de coleta vira lista/aviso 200 (contrato do orquestrador).
-pub async fn handle(orch: &Orchestrator, req: Request<Body>) -> Response<Body> {
+/// Responde o `/stream` pelo orquestrador e devolve também o corpo JSON REAL
+/// (GET) — o canário direto compara esse corpo com o Node e os contadores
+/// nativos o leem sem reserializar. HEAD devolve `None` (sem corpo). Nunca
+/// panic: falha de parse → 502; falha de coleta vira lista/aviso 200 (contrato
+/// do orquestrador).
+pub async fn handle_with_body(
+    orch: &Orchestrator,
+    req: Request<Body>,
+) -> (Response<Body>, Option<Bytes>) {
     let method = req.method().clone();
     let path = req.uri().path().to_string();
     let headers = req.headers().clone();
@@ -293,21 +345,22 @@ pub async fn handle(orch: &Orchestrator, req: Request<Body>) -> Response<Body> {
     let Some(stream_req) =
         StreamRequest::from_path(&path, user_agent.as_deref(), origin.as_deref(), None)
     else {
-        return bad_gateway();
+        return (bad_gateway(), None);
     };
 
     let response = orch.handle(stream_req).await;
     stream_http_response(&method, &response)
 }
 
-fn stream_http_response(method: &Method, body: &StreamResponse) -> Response<Body> {
+fn stream_http_response(method: &Method, body: &StreamResponse) -> (Response<Body>, Option<Bytes>) {
     let json = match serde_json::to_vec(body) {
         Ok(bytes) => bytes,
         Err(err) => {
             eprintln!("[gateway] serialize stream: {err}");
-            return bad_gateway();
+            return (bad_gateway(), None);
         }
     };
+    let payload = Bytes::from(json);
     let mut response = Response::builder()
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, "application/json; charset=utf-8")
@@ -321,9 +374,11 @@ fn stream_http_response(method: &Method, body: &StreamResponse) -> Response<Body
                 .unwrap_or_else(|_| Response::new(Body::from("bad_gateway")))
         });
     if *method == Method::GET {
-        *response.body_mut() = Body::from(json);
+        *response.body_mut() = Body::from(payload.clone());
+        (response, Some(payload))
+    } else {
+        (response, None)
     }
-    response
 }
 
 fn cache_control(max_age: u32) -> String {

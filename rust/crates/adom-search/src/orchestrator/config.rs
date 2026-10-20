@@ -21,6 +21,7 @@ use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
 use adom_core::RankingStream;
 
 use super::account::AccountMode;
+use super::index_source::IndexMode;
 
 /// Defaults do operador (`src/config/*.ts`) que governam a resposta.
 #[derive(Debug, Clone)]
@@ -106,6 +107,34 @@ pub struct OrchestratorConfig {
     pub account_shadow_sample: f64,
     /// `ACCOUNT_SHADOW_TIMEOUT_MS` (default 2500): teto da leitura da sombra.
     pub account_shadow_timeout_ms: i64,
+    /// `ACCOUNT_FAST_WAIT_MS` (default 450): teto da conta na via do índice.
+    pub account_fast_wait_ms: i64,
+    /// `INDEX_RUST`: `off` (default) = índice lido/escrito pelo Node;
+    /// `shadow` = Node responde e o nativo compara; `on` = nativo.
+    pub index_mode: IndexMode,
+    /// `BANK_RUST`: idem para a leitura do `magnets.db` (instantânea/reserva) e
+    /// a marca de `passed_filter` da escrita do índice.
+    pub bank_mode: IndexMode,
+    /// `RELEASE_INDEX`/`RELEASE_INDEX_TTL`/`RELEASE_INDEX_MAX_RELEASES`.
+    pub release_index_enabled: bool,
+    pub release_index_ttl: u64,
+    pub release_index_max_releases: usize,
+    /// `MAGNET_BANK` (liga o acervo) e o kill-switch da via instantânea.
+    pub magnet_bank_enabled: bool,
+    pub magnet_bank_instant_enabled: bool,
+    pub magnet_bank_fallback_enabled: bool,
+    /// `MAGNET_BANK_FALLBACK_MAX`/`_GLOBAL_MAX` (clamp 1..40 / 1..500).
+    pub magnet_bank_fallback_max_per_indexer: i64,
+    pub magnet_bank_fallback_global_max: i64,
+    /// Janela adaptativa da instantânea (`MAGNET_BANK_INSTANT_*`).
+    pub magnet_bank_instant_min_ms: i64,
+    pub magnet_bank_instant_max_ms: i64,
+    pub magnet_bank_instant_fresh_max_ms: i64,
+    /// `DEBRID_AUTO_FETCH_MIN_SEEDERS` (default 3): piso do `poolCovered` do
+    /// índice/instantânea, o mesmo que o Node lê do autofetch.
+    pub auto_fetch_min_seeders: f64,
+    /// `INDEX_SHADOW_SAMPLE` (0..=1, default 0.1).
+    pub index_shadow_sample: f64,
 }
 
 impl Default for OrchestratorConfig {
@@ -143,6 +172,22 @@ impl Default for OrchestratorConfig {
             account_inventory_ttl_s: 300,
             account_shadow_sample: super::account::DEFAULT_SHADOW_SAMPLE,
             account_shadow_timeout_ms: 2_500,
+            account_fast_wait_ms: 450,
+            index_mode: IndexMode::Off,
+            bank_mode: IndexMode::Off,
+            release_index_enabled: true,
+            release_index_ttl: 30 * 24 * 3600,
+            release_index_max_releases: 60,
+            magnet_bank_enabled: true,
+            magnet_bank_instant_enabled: true,
+            magnet_bank_fallback_enabled: true,
+            magnet_bank_fallback_max_per_indexer: 40,
+            magnet_bank_fallback_global_max: 40,
+            magnet_bank_instant_min_ms: 7 * 86_400_000,
+            magnet_bank_instant_max_ms: 7 * 86_400_000,
+            magnet_bank_instant_fresh_max_ms: 2 * 3_600_000,
+            auto_fetch_min_seeders: 3.0,
+            index_shadow_sample: 0.1,
         }
     }
 }

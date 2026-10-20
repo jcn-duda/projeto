@@ -2,6 +2,7 @@ import type { AppServices } from './types.js';
 import { streamsNeedRevalidation } from './origin.js';
 import { errorMessage } from '../utils/logger.js';
 import * as frozen from '../utils/stream-frozen.js';
+import { freshRequest } from '../utils/stream-fresh.js';
 
 type StreamArgs = { type: string; id: string };
 
@@ -34,7 +35,7 @@ function createStreamHandler(services: AppServices) {
               // Record/replay desligam o prefetch (ele contaminaria o corpus);
               // no shadow o comportamento é o de produção.
               if (
-                !frozen.behaviorFrozen() &&
+                !freshRequest() &&
                 services.config.debrid.prefetchNextEp &&
                 autoFetchBr &&
                 adapter &&

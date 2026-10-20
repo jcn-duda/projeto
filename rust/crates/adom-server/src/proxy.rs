@@ -52,8 +52,11 @@ pub struct AppState {
     /// Remontador da sombra (`stream-shadow`). `None` sem token/env — observe
     /// pula sem falso divergence. Independente do `orchestrator` do corte.
     pub shadow_remount: Option<ShadowRemount>,
-    /// Canário do corte (F4.2): amostra determinística + comparação congelada
-    /// em paralelo. Default 0 (OFF); não altera a resposta.
+    /// `STREAM_SHADOW_MODE=direct`: compara o corpo normal do Node com a
+    /// remontagem, sem passar pela captura congelada (F4.3).
+    pub shadow_direct: bool,
+    /// Canário do corte (F4.2/F4.3): amostra determinística + comparação em
+    /// paralelo (congelada ou direta). Default 0 (OFF); não altera a resposta.
     pub canary: Canary,
 }
 
@@ -73,6 +76,8 @@ async fn metrics_snapshot(State(state): State<AppState>) -> Json<BTreeMap<String
     snapshot.extend(adom_search::orchestrator::account_metrics_snapshot());
     // Sombra de METADADOS (C5): namespace próprio `meta.shadow.*`.
     snapshot.extend(adom_search::orchestrator::meta_shadow_metrics_snapshot());
+    // Índice/banco nativos (F4.5): `index.*`/`bank.*`.
+    snapshot.extend(adom_search::orchestrator::index_metrics_snapshot());
     snapshot.extend(state.canary.metrics().snapshot());
     Json(snapshot)
 }
@@ -95,19 +100,31 @@ pub async fn run(config: Config) -> Result<(), String> {
         None
     };
     // Sombra só quando o corte NÃO engole a rota; sem token → None (pula).
+    // `STREAM_SHADOW_MODE=direct` não monta a captura: compara o corpo normal
+    // com a remontagem (o remount pode existir ou não; sem token, pula).
+    let shadow_direct = shadow::direct_from_env();
     let shadow_remount = if shadow && !stream_cut {
         shadow::remount_from_env()
     } else {
         None
     };
+    if shadow && shadow_direct {
+        eprintln!("[gateway] stream-shadow em modo DIRETO (sem captura congelada)");
+        if shadow_remount.is_none() {
+            eprintln!(
+                "[gateway] stream-shadow direto sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — comparações puladas"
+            );
+        }
+    }
     // Canário do corte: só lê a env quando o token `stream` está ligado.
     let canary = Canary::from_env(stream_cut);
     if canary.percent() > 0 {
         eprintln!(
-            "[gateway] canary corte: {}% (amostra determinística por path; comparação congelada em paralelo)",
-            canary.percent()
+            "[gateway] canary corte: {}% modo={} (amostra determinística por path)",
+            canary.percent(),
+            canary.mode().label()
         );
-        if canary.frozen_base().is_none() {
+        if canary.mode() == crate::canary::Mode::Frozen && canary.frozen_base().is_none() {
             eprintln!(
                 "[gateway] canary corte sem STREAM_FROZEN_SHADOW_BASE — amostras puladas (não há captura)"
             );
@@ -125,6 +142,7 @@ pub async fn run(config: Config) -> Result<(), String> {
         shadow_metrics: ShadowMetrics::new(),
         orchestrator,
         shadow_remount,
+        shadow_direct,
         canary,
     };
     let listener = tokio::net::TcpListener::bind(listen)
@@ -168,9 +186,13 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
                 // resposta do corte sai igual; a comparação roda em
                 // `tokio::spawn` e nunca segura o cliente.
                 let canary_plan = state.canary.plan(&req, &state.upstream);
-                let response = stream::handle(orch, req).await;
+                // O corpo REAL do corte (GET) alimenta o canário direto e os
+                // contadores nativos; a resposta devolvida é a mesma.
+                let (response, body) = stream::handle_with_body(orch, req).await;
                 if let Some(plan) = canary_plan {
-                    state.canary.spawn(plan);
+                    state.canary.spawn(plan, body);
+                } else {
+                    state.canary.observe_cut(body.as_deref());
                 }
                 response
             }
@@ -260,6 +282,9 @@ async fn forward(
             origin: shadow_origin(&req_parts.headers),
             shadow_id,
             frozen_base: frozen_shadow_base(),
+            // `STREAM_SHADOW_MODE=direct` desliga a captura congelada nesta
+            // sombra; o `observe_node_response` usa a remontagem (item 2).
+            direct: state.shadow_direct,
             // A segunda request herda Host/UA/accept da original para o Node
             // calcular o MESMO `originOf` (a máscara §9 casa `{{base}}`).
             headers: headers.clone(),

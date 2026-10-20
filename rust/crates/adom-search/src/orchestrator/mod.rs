@@ -38,6 +38,9 @@ mod effects;
 mod fallback;
 mod fast_path;
 mod finish;
+mod index_effects;
+mod index_metrics;
+mod index_source;
 mod internal_routes;
 mod jackett_collector;
 mod jackett_live;
@@ -48,6 +51,7 @@ mod meta_load;
 mod meta_native;
 mod meta_shadow;
 mod mico_collector;
+mod native_index;
 mod pack;
 mod prowlarr_collector;
 mod refresh;
@@ -104,6 +108,12 @@ pub use composite_collector::CompositeCollector;
 pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
     NoDebridFactory, OrchestratorConfig,
+};
+pub use index_effects::{FollowUpKind, FollowUpPlan};
+pub use index_metrics::index_metrics_snapshot;
+pub use index_source::{
+    allowed_source_indexer, bank_limits, bank_read_window, obra_targets, BankFilterCtx, BankLookup,
+    IndexMode, IndexedReleaseWire, MagnetBankSource, ReleaseIndexSource, SharedBank, SharedIndex,
 };
 pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
 pub use jackett_collector::{
@@ -179,6 +189,11 @@ pub struct Orchestrator {
     /// Fonte do inventário da conta (`ACCOUNT_RUST=on`/`shadow`). `None` =
     /// modo desligado ou fonte não injetada (o caminho Node segue igual).
     account: Option<Arc<dyn AccountInventorySource>>,
+    /// Índice de releases nativo (`INDEX_RUST=on`/`shadow`); `None` = caminho
+    /// Node (a leitura segue em `POST /internal/search/index`).
+    index: Option<SharedIndex>,
+    /// Banco de magnets nativo (`BANK_RUST=on`/`shadow`); `None` = Node.
+    bank: Option<SharedBank>,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -227,6 +242,8 @@ impl Orchestrator {
             files_at_build: None,
             totals_at_build: None,
             account: None,
+            index: None,
+            bank: None,
         }
     }
 
@@ -316,6 +333,28 @@ impl Orchestrator {
     /// Fonte atual do inventário (`None` = modo desligado/sem injeção).
     pub fn account_source(&self) -> Option<&Arc<dyn AccountInventorySource>> {
         self.account.as_ref()
+    }
+
+    /// Injeta o índice de releases nativo (`INDEX_RUST`).
+    pub fn with_index_source(mut self, index: SharedIndex) -> Self {
+        self.index = Some(index);
+        self
+    }
+
+    /// Injeta o banco de magnets nativo (`BANK_RUST`).
+    pub fn with_bank_source(mut self, bank: SharedBank) -> Self {
+        self.bank = Some(bank);
+        self
+    }
+
+    /// `true` quando o índice nativo foi injetado (diagnóstico/sombra).
+    pub fn index_source(&self) -> Option<&SharedIndex> {
+        self.index.as_ref()
+    }
+
+    /// `true` quando o banco nativo foi injetado.
+    pub fn bank_source(&self) -> Option<&SharedBank> {
+        self.bank.as_ref()
     }
 
     pub fn config(&self) -> &OrchestratorConfig {

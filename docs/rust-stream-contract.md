@@ -671,6 +671,16 @@ sombra. Os contadores abaixo seguem úteis com sombra ligada; no corte puro o
 alarme operacional é a lista/HTTP do próprio caminho nativo — e BR+cotas
 ainda precisam fechar antes de qualquer default.
 
+`STREAM_SHADOW_MODE=frozen|direct` (default `frozen`) escolhe o comparador da
+sombra. `frozen` é o caminho F4.2 (2ª request congelada + `FrozenCase`).
+`direct` (F4.3) ignora a captura mesmo com `STREAM_FROZEN_SHADOW_BASE` e usa a
+remontagem ao vivo (`build_shadow_orchestrator`) contra o corpo normal do Node
+— o mesmo fallback de quando não há base; sem token/env, a sombra pula sem
+falso `divergence`. Como o remount usa `NoDebridFactory`, com debrid a
+comparação direta é pré-debrid × pós-debrid (divergência esperada); por isso o
+default segue `frozen` e o `direct` é informativo/transição, não o alarme da
+janela §9.4. Rollback: `STREAM_SHADOW_MODE=frozen`.
+
 ### 9.2 Contadores e amostra
 
 | Nome | Tipo | Semântica |
@@ -763,55 +773,79 @@ continua Node. O contador `stream.shadow.divergence` **não** pode ser apagado
 depois do corte: ele vira o alarme permanente do caminho nativo.
 
 No corte (`ROUTES_RUST=stream`) a sombra não roda; o instrumento de alarme
-dessa janela é o canário do §9.5 (`stream.canary.*`). Ele **não** substitui os
-itens 1–7 acima nem decide os degraus 5 % → 50 % → 100 % — a distribuição e a
-promoção continuam manuais.
+dessa janela é o canário do §9.5 (`stream.canary.*`), em modo `frozen` ou
+`direct`, mais os contadores nativos `stream.canary.native.*` (fonte sem
+oráculo Node). Ele **não** substitui os itens 1–7 acima nem decide os degraus
+5 % → 50 % → 100 % — a distribuição e a promoção continuam manuais.
 
-### 9.5 Canário do corte nativo (`STREAM_CANARY_PERCENT`, F4.2)
+### 9.5 Canário do corte nativo (`STREAM_CANARY_PERCENT`/`_MODE`, F4.2/F4.3)
 
 `ROUTES_RUST=stream` tem prioridade sobre `stream-shadow` (`proxy.rs`), então
 no corte não existe comparação rodando. O canário é o instrumento mínimo de
-alarme/amostragem para essa janela: ele reusa a comparação congelada da sombra
-e expõe contadores próprios, sem depender de o oráculo Node responder a todas
-as buscas.
+alarme/amostragem para essa janela: ele amostra o corte e compara em paralelo,
+sem depender de o oráculo Node responder a todas as buscas.
 
-- **Flag**: `STREAM_CANARY_PERCENT` inteiro `0..100`, default **0 (OFF)**.
-  Só age quando `ROUTES_RUST` contém o token exato `stream`; com proxy ou
-  `stream-shadow` o valor é ignorado (`/metrics` mostra 0).
+- **Flags**: `STREAM_CANARY_PERCENT` inteiro `0..100`, default **0 (OFF)**; e
+  `STREAM_CANARY_MODE=frozen|direct`, default **`frozen`** (rollback da janela
+  §9.4 atual). Só agem quando `ROUTES_RUST` contém o token exato `stream`; com
+  proxy ou `stream-shadow` o percentual é ignorado (`/metrics` mostra 0).
 - **Seleção determinística**: FNV-1a de 64 bits sobre o **path** da requisição
   (`/<config>/stream/<tipo>/<id>.json`, que já inclui o segmento `encoded`) →
   balde `hash % 100`; amostra se `balde < percentual`. O mesmo path cai sempre
   no mesmo balde (não repete/omite entre requisições); 0 nunca amostra, 100
   amostra todas. Query/corpo não entram no hash.
-- **Fluxo**: a resposta do cliente continua sendo a do corte; depois dela o
-  gateway dispara em `tokio::spawn` a MESMA segunda request congelada da
-  sombra (`X-Adom-Shadow-Id` + `X-Adom-Shadow-Frozen: 1`) ao Node 7100, espera
-  o caso em `STREAM_FROZEN_SHADOW_BASE/<id>` e roda
-  `frozen_gate::run_case_with_expected`, comparando só `streams`. O cliente
-  nunca é segurado e a segunda request não altera a resposta.
-- **Pré-requisitos**: `STREAM_FROZEN_MODE=shadow` +
-  `STREAM_FROZEN_SHADOW_BASE` no Node e `INTERNAL_SEARCH_URL` +
-  `JACKETT_TEST_TOKEN` no gateway (hidratação de `inputs/config.json`), os
-  mesmos da sombra. Sem base congelada o boot avisa e as amostras são puladas
-  (não há captura). O custo é uma busca frozen por amostra (~`percent`% do
-  tráfego do corte).
+- **Modo `frozen` (F4.2, default/rollback)**: a resposta do cliente continua
+  sendo a do corte; depois dela o gateway dispara em `tokio::spawn` a MESMA
+  segunda request congelada da sombra (`X-Adom-Shadow-Id` +
+  `X-Adom-Shadow-Frozen: 1`) ao Node 7100, espera o caso em
+  `STREAM_FROZEN_SHADOW_BASE/<id>` e roda
+  `frozen_gate::run_case_with_expected`, comparando só `streams`. Exige
+  `STREAM_FROZEN_MODE=shadow` + `STREAM_FROZEN_SHADOW_BASE` no Node e
+  `INTERNAL_SEARCH_URL` + `JACKETT_TEST_TOKEN` no gateway (hidratação de
+  `config.json`). Sem base congelada o boot avisa e as amostras são puladas.
+- **Modo `direct` (F4.3, sem `FrozenCase`)**: depois da resposta, o gateway faz
+  uma segunda request ao Node com o MESMO path/headers e **só**
+  `X-Adom-Shadow-Frozen: 1` (sem `X-Adom-Shadow-Id` → o Node não grava corpus).
+  O Node roda o pipeline fresco (sem SWR/fast-path/índice/prefetch) e devolve a
+  lista; o gateway compara o **corpo real do corte** com esse corpo por
+  identidade (§9.3). Não há captura em disco, `FrozenCase`, replay nem
+  hidratação de `config.json`: o canário direto sobrevive à aposentadoria da
+  instrumentação congelada e não precisa de `STREAM_FROZEN_*`. Um Node antigo
+  com a sombra congelada ligada também responde fresco (o header já existia);
+  sem ela, o Node responde a produção normal — o alarme continua, com mais
+  ruído de SWR. Custo: uma busca fresca por amostra (~`percent`% do tráfego).
+- **Aviso/vazio**: se o **Node** devolve aviso/coleta vazia (§9.4 item 6), a
+  amostra é `skipped` (não é comparável). Se o **corte** devolve aviso e o Node
+  tinha lista, isso é divergência de verdade — o corte esvaziou.
+- **Contadores nativos**: com `percent > 0` (qualquer modo), toda resposta do
+  corte alimenta `stream.canary.native.*` sem chamar o Node: `cut` (respostas),
+  `streams` (soma), `empty` (lista vazia), `notice` (aviso/coleta vazia) e
+  `invalid` (JSON inesperado). É a fonte de alarme que não depende do oráculo;
+  a razão `empty/cut` é o indicador de "o corte esvaziou" quando não há Node.
 - **Métricas em `/metrics`**:
 
 | Nome | Semântica |
 |---|---|
 | `stream.canary.percent` | gauge com o percentual efetivo (0..100) |
+| `stream.canary.direct` | gauge 1 = modo direto, 0 = congelado |
 | `stream.canary.sampled` | buscas encaminhadas à segunda request |
 | `stream.canary.compared` | comparações concluídas (denominador) |
 | `stream.canary.divergence` | 1 por busca divergente |
 | `stream.canary.divergence.items` | soma dos itens divergentes |
 | `stream.canary.timeout` | replay/segunda request estourou o prazo |
-| `stream.canary.error` | falha de captura/config/replay (nunca divergência) |
-| `stream.canary.skipped` | aviso/coleta vazia, não comparável (§9.4 item 6) |
+| `stream.canary.error` | falha de captura/config/replay/rede (nunca divergência) |
+| `stream.canary.skipped` | aviso/coleta vazia do Node, não comparável (§9.4 item 6) |
+| `stream.canary.native.cut` | respostas do corte observadas (fonte sem Node) |
+| `stream.canary.native.streams` | soma de streams devolvidos pelo corte |
+| `stream.canary.native.empty` | respostas do corte com `streams` vazio |
+| `stream.canary.native.notice` | respostas do corte com aviso/coleta vazia |
+| `stream.canary.native.invalid` | corpo do corte que não é JSON de `/stream` |
 
 - **Alarme**: `stream.canary.divergence`/`.items` > 0 na janela é o sinal de
   regressão do caminho nativo; `compared` é o denominador e `timeout`/`error`
   não contam como divergência. A linha de log sai com prefixo `[canary]` e o
-  mesmo diff do replay da sombra.
+  mesmo diff do replay da sombra. No modo direto o diff de identidade é o
+  mesmo (§9.3), mas nasce do corpo que o cliente recebeu.
 - **O que ele NÃO cobre**:
   1. **Rollout**: não é divisão de tráfego nem promove a rota. Os degraus
      5 % → 50 % → 100 % do §9.4 continuam manuais (e o rollback é voltar o
@@ -820,17 +854,19 @@ as buscas.
      distribuição mínima, corpus congelado e revisor humano. A amostra é
      determinística por path — a 5 % ela pode omitir uma classe inteira
      (série, configs com/sem `dk`) até o balde cair; não prova distribuição.
-  3. **Resposta real do corte**: compara o replay congelado, não o corpo que o
-     cliente recebeu. `cacheMaxAge`/`stale*` ficam fora (como na sombra) e
-     diferenças de SWR/fast-path/store vivo do caminho nativo não aparecem.
+  3. **Campos fora do diff e SWR**: `cacheMaxAge`/`stale*` ficam fora (como na
+     sombra). No modo `direct` o Node é forçado fresco; se o corte serviu SWR,
+     a diferença de geração da lista aparece como divergência. É alarme de
+     regressão, não prova de zero divergência do §9.4.
   4. **Play/debrid**: não cobre `/resolve`, resolução de link nem o oráculo
-     Node para tudo — só o pipeline de `/stream` congelado.
+     Node para tudo — só o pipeline de `/stream`.
   5. **Persistência**: `stream.canary.*` é RAM e zera no restart; não há janela
      persistida. O custo da segunda request é real e cresce com o percentual
-     (100 % ≈ uma busca frozen por busca do corte).
+     (100 % ≈ uma busca fresca por busca do corte).
 
-**Rollback**: `STREAM_CANARY_PERCENT=0` (default) ou remover a env e reiniciar
-o gateway. A rota e a sombra `stream-shadow` não mudam.
+**Rollback**: `STREAM_CANARY_PERCENT=0` (default) ou
+`STREAM_CANARY_MODE=frozen` + base congelada (o caminho F4.2 continua no
+binário). A rota e a sombra `stream-shadow` não mudam.
 
 ---
 

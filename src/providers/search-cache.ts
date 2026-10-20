@@ -13,7 +13,7 @@ import { onlyNotice, createFirstObserver, promoteFirstObserverEligible } from '.
 import type { FirstObserverState } from './stream-builder.js';
 import { doSearch } from './search-orchestrator.js';
 import { debridRefreshSatisfied, staleRefreshEligible } from './search-commit.js';
-import * as frozen from '../utils/stream-frozen.js';
+import { freshRequest } from '../utils/stream-fresh.js';
 
 // Buscas idênticas simultâneas (Stremio pede stream de vários clientes) compartilham a mesma promise.
 const inFlight = new Map();
@@ -77,7 +77,7 @@ export async function findStreams({ type, id, background }: { type: string; id: 
   // No record/replay congelado o SWR é desligado: servir uma entrada de
   // produção mascararia justamente o pipeline que o gate quer medir. No shadow
   // o SWR segue LIGADO — a resposta tem que ser a de produção.
-  const hit = frozen.behaviorFrozen()
+  const hit = freshRequest()
     ? null
     : grace > 0
       ? cache.getWithStale(cacheKey, grace)

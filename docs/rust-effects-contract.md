@@ -121,29 +121,25 @@ Prazo: não há prazo de cliente no tail; o POST usa o timeout curto do
   `autoFetchSeasonIndexMax/Keys`.
 - Fio: `orchestrator/effects.rs::season_key`, emitido em `handle`.
 
-### `harvester_enqueue` (`miss`/`gap`/`br-gap`) e `br_probe` — NÃO emitidos pelo Rust
+### `harvester_enqueue` (`miss`/`gap`/`br-gap`) e `br_probe` — agora do Rust com `INDEX_RUST=on`
 
-Estes dois **não estão perdidos hoje**: quem os emite é a própria rota de
-leitura do índice, `POST /internal/search/index`
-(`src/routes/internal-search-index.ts:86-108` → `enqueueIndexFollowUp`,
-`search-index-path.ts:130-183`), que o orquestrador nativo chama em toda busca
-rápida. Eles só saem quando a LEITURA do índice migrar para o Rust.
+Estes dois eram emitidos pela rota de leitura do índice
+(`src/routes/internal-search-index.ts` → `enqueueIndexFollowUp`). Com o índice
+nativo (F4.5, `INDEX_RUST=on`) a leitura migrou junto e o orquestrador passou a
+emitir o MESMO plano por `POST /internal/search/effects`
+(`adom-search::orchestrator::index_effects`):
 
-Contrato exato que falta para migrar essa emissão:
+- `harvester_enqueue` com `reason` `miss` (índice vazio), `gap` (não cobre ou
+  parcial) e `br-gap` (sonda inelegível);
+- `br_probe` com `mode` `evidence`/`upgrade` quando cobre o pool mas falta BR
+  dublado, com o portão de plausibilidade (evidência no índice OU no acervo).
 
-- linhas do índice por obra/localização (as mesmas de `releaseIndex.lookup`) com
-  `source` (`autofetch` ou indexer), `indexer`, `title`, `isBr`, `dubbed`,
-  `quality`, `hash`, `magnet`;
-- `partial` (`releaseIndex.isPartial`), `covered`
-  (`idxPoolCovered`, já portado em `adom_core::idx_pool_covered`) e
-  `autofetchSeeded` (`indexed.some(r => r.source === 'autofetch')`);
-- evidência BR do índice e do **banco de magnets** para o portão da sonda
-  (`hasBrEvidence`/`hasBrDubbed` de `utils/br-gap.ts` e `bankHasBrRow` de
-  `utils/magnet-bank-query.ts`) — `br-gap` ainda não foi portado ao núcleo;
-- estado da sonda (`probeEnabled`/`probeBlocksSeeds`: `autoFetchBrProbe`,
-  interseção index-only ∩ pt-BR, registro `pending` com lease).
+As regras puras de BR-gap foram portadas para `adom_core::br_gap`; a leitura do
+`idx:v14`/`magnets.db` e os flags/rollback estão em
+[`rust-index-bank-contract.md`](rust-index-bank-contract.md). `br_probe` sem
+`BANK_RUST` nativo perde só a evidência do acervo (o índice ainda prova BR).
 
-Enquanto o índice for lido pelo Node, nada a fazer: a rota já cobre.
+Enquanto `INDEX_RUST=off`, nada muda: a rota do Node continua emitindo.
 
 ### `autofetch` — Chupim (COBERTO pelo lote `autofetch_batch`)
 

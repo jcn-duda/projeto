@@ -258,6 +258,11 @@ pub struct SearchIndexResponse {
     pub instant_items: Vec<Value>,
     #[serde(default)]
     pub account_items: Vec<Value>,
+    /// Follow-up que a rota Node enfileirou (`{kind, reason|mode}`), quando ela
+    /// o reporta. Só a sombra `INDEX_RUST=shadow` compara isto; Node antigo
+    /// (campo ausente) não gera divergência de conjunto.
+    #[serde(default)]
+    pub effects: Vec<Value>,
 }
 
 // ── fallback (reserva 📦 do banco para uma build) ───────────────────────────
