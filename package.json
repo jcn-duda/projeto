@@ -172,6 +172,7 @@
     "test/internal-search-routes.test.js",
     "test/internal-search-fallback.test.js",
     "test/internal-search-collect.test.js",
+    "test/internal-search-broken.test.js",
     "test/internal-search-evidence.test.js",
     "test/internal-search-index.test.js",
     "test/jackett-read-only.test.js",

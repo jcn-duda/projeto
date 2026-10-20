@@ -154,7 +154,10 @@ export async function handleCollect(
     }
     // Só a prova de ARQUIVO sai daqui; o ptTitleDual (chip/_dubbed/isBr) o Rust
     // decide in-process pelos títulos do `meta` — sem esperar TMDB na rota.
-    value.items = enrichForRust(value.items);
+    // `broken` (histórico ruim da conta) precisa do contexto do usuário; a sombra
+    // read-only não toca o banco de magnets (o prune pode autocorrigir `bad`).
+    const brokenScope = readOnly === true ? undefined : { season, episode, imdbId };
+    value.items = await services.runtime.run(ctx, () => enrichForRust(value.items, brokenScope));
     // Itens crus agrupados por indexer — mesma unidade do cache `raw:v1`
     // (array de RawItem por fonte). Fonte sem rótulo vira "sem-indexer": o
     // orquestrador decide o que fazer, a rota não descarta item.

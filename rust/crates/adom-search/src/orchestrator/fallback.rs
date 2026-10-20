@@ -106,6 +106,7 @@ fn core_input(
     let works = resp
         .works
         .iter()
+        .filter(|work| !work.magnet.as_ref().is_some_and(|magnet| magnet.broken))
         .map(|work| FallbackWork {
             hash: work.hash.clone(),
             passed_filter: work.passed_filter,

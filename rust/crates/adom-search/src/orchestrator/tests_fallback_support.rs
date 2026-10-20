@@ -82,6 +82,7 @@ pub(super) fn fallback_response() -> FallbackResponse {
                 seeders_last: 7,
                 last_seen: 10,
                 lied: false,
+                broken: false,
             }),
         }],
         sources,

@@ -15,6 +15,15 @@ pub fn finalize_streams(
     debrid: &mut dyn DebridCheck,
     out: &mut BuiltList,
 ) -> Vec<BuiltStream> {
+    // 7b. `pruneKnownBroken`: o que a conta já provou quebrado sai ANTES da
+    //     checagem — não se gasta lote com fracasso conhecido (e o corte final
+    //     não reserva vaga para ele).
+    let streams: Vec<RankingStream> = streams
+        .into_iter()
+        .filter(|s| !s.extra.contains_key("_broken"))
+        .collect();
+    out.count("afterBroken", streams.len());
+
     // 8. applyDebrid (na ordem do TS: prepare() em lote se o serviço aceita,
     //    depois check() por stream).
     let batch: Vec<String> = streams

@@ -43,6 +43,9 @@ pub struct RawItem {
     pub from_snapshot: bool,
     /// Mentira comprovada de áudio (`DubLieError`).
     pub lied: bool,
+    /// O banco de magnets da CONTA já provou o hash quebrado (bad/lie/dead/miss):
+    /// corta antes da checagem do debrid (`pruneKnownBroken` do Node).
+    pub broken: bool,
     /// Prova de ARQUIVO (`applyFileEvidence` do Node, vinda do índice):
     /// `Some("")` é prova de release EN, não ausência de prova.
     pub proven_audio: Option<String>,
@@ -195,6 +198,7 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         from_fallback: bool_of("fromFallback") || bool_of("from_fallback"),
         from_snapshot: bool_of("fromSnapshot") || bool_of("from_snapshot"),
         lied: bool_of("lied"),
+        broken: bool_of("broken"),
         proven_audio: v
             .get("provenAudio")
             .and_then(Value::as_str)

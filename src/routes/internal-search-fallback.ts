@@ -8,6 +8,7 @@
 //
 // Sem config na URL: `encoded` no corpo + `runtime.run` (invariante 5). Guarda
 // compartilhada: loopback + X-Indexer-Test-Token.
+import { markKnownBroken } from './internal-search-evidence.js';
 import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
@@ -139,6 +140,11 @@ function handleFallback(
           .filter(Boolean),
       )];
       const sources = deps.sourcesForMany(hashes);
+      // Histórico ruim da conta (bad/lie/dead/miss): o Rust corta antes da checagem,
+      // como o `pruneKnownBroken` do Node. Reserva também reapresentaria o hash.
+      const probes: any[] = hashes.map((hash) => ({ infoHash: hash }));
+      markKnownBroken(probes, { season, episode, imdbId });
+      const brokenHashes = new Set(probes.filter((p) => p.broken).map((p) => p.infoHash));
       const workPayload = rows.map(({ work, magnet }) => ({
         hash: String(work.hash || ''),
         passed_filter: Number(work.passedFilter) || 0,
@@ -155,6 +161,7 @@ function handleFallback(
           seeders_last: Number(magnet.seedersLast) || 0,
           last_seen: Number(magnet.lastSeen) || 0,
           lied: Number(magnet.lied) === 1,
+          broken: brokenHashes.has(String(magnet.hash || '').toLowerCase()),
         } : null,
       }));
       const sourcePayload = Object.fromEntries([...sources.entries()].map(([hash, list]) => [

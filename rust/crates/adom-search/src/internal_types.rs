@@ -324,6 +324,9 @@ pub struct FallbackMagnetWire {
     pub last_seen: i64,
     #[serde(default)]
     pub lied: bool,
+    /// Histórico ruim da CONTA (bad/lie/dead/miss): a reserva não reapresenta.
+    #[serde(default)]
+    pub broken: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

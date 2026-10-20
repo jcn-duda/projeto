@@ -234,6 +234,9 @@ pub fn map_stream(
     // Marca de reserva do bank/foto do índice: o `finish` lê daqui para o
     // `hasFallback` (entrada com reserva nunca é completa). Não é campo `_*`
     // do contrato: `to_stream_item` não a copia.
+    if item.broken {
+        stream.extra.insert("_broken".into(), true.into());
+    }
     if item.from_fallback {
         stream.extra.insert("_fromFallback".into(), true.into());
         // Ponte com o Chupim: o `toRawItem` do Node põe `fallbackFetchable` e
