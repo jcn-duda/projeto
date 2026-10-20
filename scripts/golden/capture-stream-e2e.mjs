@@ -10,6 +10,29 @@
  * Este corpus é a MEDIÇÃO dessa ponta; o manifesto diz explicitamente o que ele
  * ainda NÃO cobre (metadados, itens crus por indexer, cache do debrid).
  *
+ * Com `--with-internal` o MESMO caso ganha também as entradas internas que o
+ * orquestrador Rust consome (`inputs/`): meta, config, collect, debrid e o
+ * índice/banco instantâneo. O `/stream` continua sendo a resposta normal do
+ * Node; as rotas internas falam com o MESMO processo (loopback, 7100), então a
+ * captura precisa rodar DENTRO da rede do container:
+ *
+ *   docker run --rm --network container:stremio-adom \
+ *     -v "$PWD:/repo:ro" -v "$PWD/.tmp-e2e-pilot:/out" \
+ *     --env-file .env --entrypoint node stremioadom-adom:latest \
+ *     /repo/scripts/golden/capture-stream-e2e.mjs --out /out \
+ *     --base http://127.0.0.1:7100 --with-internal \
+ *     --user-config e30 --cases scripts/golden/casos-stream-e2e.json
+ *
+ * `--shadow-dir <dir>` faz o `/stream` com `X-Adom-Shadow-Id: <caso>` +
+ * `X-Adom-Shadow-Frozen: 1` e copia do record do shadow (MESMO run) o que só ele
+ * grava: `proven-quality.json`, `apply-debrid.json`, `files.json`,
+ * `instant.json`, `fallback.json` e as versões EXATAS de `index.json`/`debrid.json`.
+ * Sem esses arquivos o replay Rust trata item provado como "sem resolução" e a
+ * cota de qualidade deixa passar um stream que o Node cortou (Cidade de Deus:
+ * apachetorrent 15 seeders → 720p).
+ *
+ * O token (`--token` ou `JACKETT_TEST_TOKEN`) NUNCA é impresso nem gravado.
+ *
  * REGRAS DE SEGURANÇA (o corpus é commitado):
  * - NUNCA grava chave de debrid, host real ou token: o segmento de config é
  *   substituído por `{{config}}` (o sha256 dele vai no request/manifesto), o
@@ -17,8 +40,9 @@
  *   `{{sig}}`;
  * - `Host` não é gravado; só headers de resposta relevantes e determinísticos
  *   (`content-type`, `cache-control`), nunca `Date`;
- * - `request.json`/`response.json` não têm timestamp: a data ISO fica SÓ no
- *   manifesto (provenance).
+ * - itens crus perdem `downloadUrl` (carrega o `jackett_apikey`);
+ * - `request.json`/`response.json`/`inputs/*` não têm timestamp: a data ISO
+ *   fica SÓ no manifesto (provenance, por caso quando há merge).
  *
  * Uso:
  *   node scripts/golden/capture-stream-e2e.mjs --dry-run --cases scripts/golden/casos.example.json
@@ -33,24 +57,62 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const OUT_DIR = path.join(REPO, 'rust', 'golden', 'stream-e2e');
-const CASES_DIR = path.join(OUT_DIR, 'cases');
-const MANIFEST = path.join(OUT_DIR, 'manifest.json');
+const DEFAULT_OUT = path.join(REPO, 'rust', 'golden', 'stream-e2e');
 const FORMAT_CASES = 'adom-stream-e2e-cases/1';
 const FORMAT_MANIFEST = 'adom-stream-e2e/1';
 const DEFAULT_UA = 'adom-stream-e2e/1';
 const REQUEST_HEADERS = ['user-agent'];
 const RESPONSE_HEADERS = ['content-type', 'cache-control'];
+/** Rotas internas (mesmo alvo do `/stream`: o Node, 7100 no gateway). */
+const INTERNAL_PATHS = {
+  meta: '/internal/search/meta',
+  config: '/internal/search/config',
+  index: '/internal/search/index',
+  collect: '/internal/search/collect',
+  debrid: '/internal/debrid/check',
+};
+/** Prazos das rotas internas (o `deadline_at` absoluto é recalculado por chamada). */
+const META_DEADLINE_MS = 60_000;
+const INDEX_DEADLINE_MS = 20_000;
+const CONFIG_DEADLINE_MS = 15_000;
+const DEFAULT_INTERNAL_DEADLINE_MS = 60_000;
+/** Teto de hashes por chamada de `/internal/debrid/check` (a rota recusa acima). */
+const MAX_DEBRID_HASHES = 500;
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+const DEBRID_SERVICES = new Set(['realdebrid', 'torbox', 'alldebrid', 'premiumize', 'debridlink']);
+/**
+ * Fixtures que SÓ o record do shadow grava e que o build do Rust consome:
+ * a qualidade PROVADA pelo arquivo (`proven-quality`/`apply-debrid`), os
+ * tamanhos de arquivo do debrid e o conjunto `instant` real do sort. O `index`
+ * do shadow é o lote EXATO que o build usou (o derivado da rota é uma re-leitura).
+ */
+const SHADOW_INPUTS = [
+  'index.json',
+  'debrid.json',
+  'proven-quality.json',
+  'apply-debrid.json',
+  'files.json',
+  'instant.json',
+  'fallback.json',
+];
 
-/** O que o corpus NÃO mede — vai no manifesto para não virar promessa implícita. */
-const GAPS = [
-  'metadados da obra (Cinemeta/TMDB): o /stream não os devolve; dependem de /internal/search/meta (F1.1)',
-  'itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: dependem das rotas internas de busca',
-  'respostas de cache do debrid (⚡ por hash, arquivos do pack, tamanhos): dependem de rotas internas de debrid',
-  'o segmento de config e a assinatura HMAC nunca são gravados (sig vira {{sig}}); replay exige --user-config e o segredo do operador',
+// Lacunas que o corpus declara. As três primeiras são FECHADAS por
+// `--with-internal` (para os casos capturados nesse modo); as demais seguem.
+const GAP_META = 'metadados da obra (Cinemeta/TMDB): o /stream não os devolve; capturados por /internal/search/meta com --with-internal';
+const GAP_COLLECT = 'itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: capturados por /internal/search/collect com --with-internal';
+const GAP_DEBRID = 'respostas de cache do debrid (⚡ por hash, arquivos do pack, tamanhos): capturadas por /internal/debrid/check com --with-internal';
+const GAPS_BASE = [
+  'o segmento de config e a assinatura HMAC nunca são gravados (sig vira {{sig}}); replay exige --user-config (e30 decodifica {}) e o segredo do operador',
   'relógio: Date/ETag/age e duração de cada requisição não entram no corpus',
   'estado do acervo (banco de magnets / índice de releases) no instante da captura não é versionado',
   'ordem de chaves do JSON e ordem da lista de streams são as do Node naquele instante; a comparação de sombra as mascara',
+];
+/** Lacunas que o modo interno ACRESCENTA (o que ele ainda não fecha). */
+const GAPS_INTERNAL = [
+  'inputs internos só existem para casos capturados com --with-internal; os demais seguem com request/response apenas',
+  '--shadow-dir copia proven-quality/apply-debrid/files/instant/fallback e as versões exatas de index/debrid do record; sem ele, inputs/index.json é derivado de /internal/search/index e a qualidade provada NÃO é capturável (o item provado volta como "sem resolução" no replay)',
+  'o record do shadow não grava config.json (o gateway o hidrata): inputs/config.json continua vindo de /internal/search/config',
+  'as fixtures internas vêm de chamadas próprias DEPOIS do /stream: dependem do cache raw:v1/davail quente para descrever a mesma lista (sem ele o diff acusa ruído de coleta, não pipeline)',
 ];
 
 class CaptureError extends Error {}
@@ -63,7 +125,18 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 function parseArgs(argv) {
   const args = {
-    base: null, token: null, userConfig: null, cases: null, dryRun: false, userAgent: DEFAULT_UA,
+    base: null,
+    token: process.env.JACKETT_TEST_TOKEN || null,
+    userConfig: null,
+    cases: null,
+    out: null,
+    dryRun: false,
+    userAgent: DEFAULT_UA,
+    withInternal: false,
+    internalBase: null,
+    internalDeadlineMs: DEFAULT_INTERNAL_DEADLINE_MS,
+    shadowDir: null,
+    merge: false,
   };
   const need = (flag, value) => {
     if (value === undefined || value.startsWith('--')) fail(`${flag} exige um valor`);
@@ -77,7 +150,17 @@ function parseArgs(argv) {
     else if (arg === '--user-config') args.userConfig = need(arg, argv[++i]);
     else if (arg === '--cases') args.cases = need(arg, argv[++i]);
     else if (arg === '--user-agent') args.userAgent = need(arg, argv[++i]);
-    else fail(`flag desconhecida: ${arg}`);
+    else if (arg === '--out') args.out = need(arg, argv[++i]);
+    else if (arg === '--merge') args.merge = true;
+    else if (arg === '--with-internal') args.withInternal = true;
+    else if (arg === '--internal-base') args.internalBase = need(arg, argv[++i]);
+    else if (arg === '--shadow-dir') args.shadowDir = need(arg, argv[++i]);
+    else if (arg === '--internal-deadline-ms') {
+      const raw = need(arg, argv[++i]);
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0) fail('--internal-deadline-ms precisa ser inteiro positivo (ms)');
+      args.internalDeadlineMs = value;
+    } else fail(`flag desconhecida: ${arg}`);
   }
   return args;
 }
@@ -145,10 +228,23 @@ function normalizeBase(raw) {
   return parsed;
 }
 
+/** As rotas internas só existem em loopback: host fora daí é erro de uso. */
+function assertInternalLoopback(base) {
+  if (!LOOPBACK_HOSTS.has(base.hostname)) {
+    fail(
+      `--internal-base precisa ser loopback (127.0.0.1/localhost), veio ${base.hostname}\n` +
+      '  as rotas /internal/* só respondem ao próprio processo; rode a captura na rede do container\n' +
+      '  (docker run --network container:stremio-adom) e use http://127.0.0.1:7100',
+    );
+  }
+}
+
 /** Contexto de mascaramento: tudo que é segredo/host sai do corpus. */
-function maskingContext({ base, token, userConfig }) {
+function maskingContext({ base, token, userConfig, internalBase }) {
+  const originOf = (parsed) => (parsed ? parsed.origin + parsed.prefix : '');
   return {
-    baseOrigin: base ? base.origin + base.prefix : '',
+    baseOrigin: originOf(base),
+    internalOrigin: internalBase && internalBase.origin !== base?.origin ? originOf(internalBase) : '',
     userConfig: userConfig || '',
     token: token || '',
   };
@@ -168,6 +264,7 @@ function maskText(text, ctx) {
     try {
       const parsed = new URL(url);
       const isAddon = (ctx.baseOrigin && `${parsed.origin}${parsed.pathname}`.startsWith(ctx.baseOrigin))
+        || (ctx.internalOrigin && `${parsed.origin}${parsed.pathname}`.startsWith(ctx.internalOrigin))
         || parsed.pathname.includes('/resolve/')
         || parsed.pathname.endsWith('/configure');
       return isAddon ? `{{base}}${url.slice(parsed.origin.length)}` : url;
@@ -190,11 +287,43 @@ function maskValue(value, ctx) {
   return value;
 }
 
+/**
+ * Remove transporte com credencial antes de gravar fixture interna. O
+ * `downloadUrl` do Jackett carrega `jackett_apikey`; o build não o usa (o magnet
+ * já veio resolvido), então gravá-lo só vazaria segredo — mesma regra de
+ * `stripSecrets` do `stream-frozen-store.ts`.
+ */
+function stripTransportSecrets(value) {
+  if (Array.isArray(value)) return value.map(stripTransportSecrets);
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key === 'downloadUrl') continue;
+    out[key] = stripTransportSecrets(item);
+  }
+  return out;
+}
+
 /** JSON determinístico: 2 espaços + newline final (mesmo padrão dos goldens). */
 function writeJson(absPath, value) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
   return sha256(fs.readFileSync(absPath));
+}
+
+/**
+ * Copia VERBATIM um fixture gravado pelo próprio addon no dir do shadow. O
+ * `stream-frozen-store` já mascara encoded/origem/sig e remove `downloadUrl`;
+ * a varredura de credencial é o último portão antes de gravar no corpus.
+ */
+function copyShadowInput(absPath, source) {
+  const bytes = fs.readFileSync(source);
+  if (/(jackett_apikey|apikey=|passkey|authorization:\s*bearer)/i.test(bytes.toString('utf8'))) {
+    fail(`credencial em claro em ${source}; recusando copiar para o corpus`);
+  }
+  fs.mkdirSync(path.dirname(absPath), { recursive: true });
+  fs.writeFileSync(absPath, bytes);
+  return sha256(bytes);
 }
 
 function streamPath(userConfig, target) {
@@ -219,13 +348,20 @@ function pickHeaders(headers, allow) {
 }
 
 /**
- * Uma requisição REAL. Sem rede, a mensagem tem que dizer o que houve — não
- * pode parecer "corpus vazio".
+ * Uma requisição REAL ao `/stream`. Sem rede, a mensagem tem que dizer o que
+ * houve — não pode parecer "corpus vazio".
  */
-async function captureCase({ target, base, token, userAgent, ctx }) {
+async function captureCase({ target, base, token, userAgent, ctx, shadowId }) {
   const url = `${base.origin}${base.prefix}${streamPath(ctx.userConfig, target)}`;
   const headers = { 'user-agent': userAgent };
   if (token) headers['x-indexer-test-token'] = token;
+  // `--shadow-dir`: a MESMA resposta de produção, mas o addon grava o caso
+  // congelado completo (proven-quality/apply-debrid/files/instant) no dir do
+  // shadow. Só o request 2 (`Frozen: 1`) roda sem SWR, que é o que queremos medir.
+  if (shadowId) {
+    headers['x-adom-shadow-id'] = shadowId;
+    headers['x-adom-shadow-frozen'] = '1';
+  }
 
   let response;
   try {
@@ -263,6 +399,389 @@ async function captureCase({ target, base, token, userAgent, ctx }) {
   return { request, response: responseDoc };
 }
 
+// ── rotas internas (--with-internal) ───────────────────────────────────────
+
+/**
+ * POST numa rota interna. Falha de rede/serviço é ERRO da captura (não grava
+ * caso pela metade): o corpus não pode parecer completo sem as entradas.
+ * O token vai só no header e nunca entra em mensagem/log.
+ */
+async function postInternal({ base, token, route, body, timeoutMs, label }) {
+  const url = `${base.origin}${base.prefix}${INTERNAL_PATHS[route]}`;
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': DEFAULT_UA,
+        ...(token ? { 'x-indexer-test-token': token } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    const cause = err?.cause?.code || err?.cause?.message || err?.message || err;
+    fail(
+      `${label}: sem rede até ${base.origin}: ${cause}\n` +
+      '  /internal/* só existe em loopback + token; rode a captura na rede do container (--network container:stremio-adom)',
+    );
+  }
+  const text = await response.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    fail(`${label}: HTTP ${response.status} sem JSON: ${text.slice(0, 300)}`);
+  }
+  if (!response.ok) {
+    fail(`${label}: HTTP ${response.status} ${JSON.stringify(parsed).slice(0, 400)}`);
+  }
+  if (parsed?.ok !== true) fail(`${label}: ok!=true ${JSON.stringify(parsed).slice(0, 400)}`);
+  return parsed;
+}
+
+/** `catalogYearOf` do `search-names.ts`: divergência > 2 anos troca pelo TMDB. */
+function catalogYearOf(metaYear, tmdbYear) {
+  const meta = Number(String(metaYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  const tmdb = Number(String(tmdbYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
+  if (meta && tmdb && Math.abs(meta - tmdb) > 2) return tmdbYear ?? null;
+  return metaYear || tmdbYear || null;
+}
+
+/** `buildSearchQuery` do `search-names.ts` (nome + ano, ou nome + SxxEyy). */
+function buildSearchQuery(meta, { season, episode }) {
+  const name = meta?.name || meta?.title || '';
+  const year = meta?.year ? String(meta.year).slice(0, 4) : '';
+  if (season != null && episode != null) {
+    const s = String(season).padStart(2, '0');
+    const e = String(episode).padStart(2, '0');
+    return `${name} S${s}E${e}`.trim();
+  }
+  return [name, year].filter(Boolean).join(' ').trim();
+}
+
+/** Aproximação do `normalizeTitle` só para decidir se o degrau original existe. */
+function comparableTitle(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** `resolveOriginalStepName`: degrau só quando o original difere do primário. */
+function originalStepName(original, primary) {
+  if (!original || !primary) return null;
+  return comparableTitle(original) !== comparableTitle(primary) ? original : null;
+}
+
+/**
+ * `dedupeNames` do núcleo sem o `normalizeTitle` completo: dedupe por caixa e
+ * espaço. Aproximação consciente — `names` só decide degraus de cascata na
+ * coleta; o diff da lista pega qualquer diferença que importe.
+ */
+function dedupeNames(names) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of names) {
+    if (typeof raw !== 'string') continue;
+    const name = raw.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+/**
+ * `ptSweepQueryFor` (raiz pt-BR da varredura) sem o núcleo: mesmo gate estrito
+ * (`pt === original` → sem varredura) e o corte de subtítulo mais comum
+ * (`:`/` - `) quando a cabeça tem 2+ palavras. Aproximação: `franchise_root`
+ * também remove marcador de sequência no fim, o que não é replicado aqui.
+ */
+function sweepQueryFor(titles) {
+  const pt = typeof titles?.pt === 'string' ? titles.pt.trim() : '';
+  if (!pt || pt === titles?.original) return null;
+  const head = pt.split(/\s*[:：]\s*|\s+-\s+/)[0].trim();
+  return (head.split(/\s+/).length >= 2 ? head : pt) || null;
+}
+
+/** Corpo do collect: os MESMOS campos que o orquestrador Rust manda. */
+function collectBody({ encoded, target, queries, names, year, deadlineAt }) {
+  const [, seasonRaw, episodeRaw] = target.streamId.split(':');
+  const season = seasonRaw != null ? Number(seasonRaw) : null;
+  const episode = episodeRaw != null ? Number(episodeRaw) : null;
+  return {
+    encoded,
+    task_scope: 'all',
+    query: queries.query,
+    ...(queries.ptQuery ? { pt_query: queries.ptQuery } : {}),
+    type: target.type,
+    imdb: target.streamId.split(':')[0],
+    ...(season != null ? { season } : {}),
+    ...(episode != null ? { episode } : {}),
+    ...(year != null ? { year } : {}),
+    ...(names.length > 0 ? { names } : {}),
+    ...(queries.sweepQuery ? { sweep_query: queries.sweepQuery } : {}),
+    ...(queries.originalQuery ? { original_query: queries.originalQuery } : {}),
+    deadline_at: deadlineAt,
+  };
+}
+
+function infoHashOf(item) {
+  const raw = String(item?.infoHash || item?.info_hash || item?.magnet || '');
+  const match = /([0-9a-fA-F]{40})/.exec(raw);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function uniqueHashes(items) {
+  const seen = new Set();
+  for (const item of items) {
+    const hash = infoHashOf(item);
+    if (hash) seen.add(hash);
+  }
+  return [...seen];
+}
+
+function debridResultDoc(results) {
+  const out = {};
+  for (const [hash, value] of Object.entries(results || {})) {
+    if (!value || typeof value !== 'object') continue;
+    out[hash.toLowerCase()] = {
+      cached: value.cached === true,
+      known: value.known === true,
+      ...(value.unusable ? { unusable: value.unusable } : {}),
+      ...(value.timeout ? { timeout: true } : {}),
+      ...(value.error ? { error: value.error } : {}),
+    };
+  }
+  return out;
+}
+
+/**
+ * Captura as entradas internas de UM caso: meta → config → índice (index/banco
+ * instantâneo) → collect → debrid. Devolve os arquivos já no formato que o
+ * `FrozenCase` do gate lê (`inputs/*.json`), sem tocar no disco.
+ */
+async function captureInternal({ base, token, encoded, target, ctx, deadlineMs, log }) {
+  const metaResponse = await postInternal({
+    base, token, route: 'meta', timeoutMs: META_DEADLINE_MS,
+    label: `[internal] meta ${target.streamId}`,
+    body: {
+      encoded,
+      type: target.type,
+      id: target.streamId,
+      include_multiwork: true,
+      include_home_release: true,
+    },
+  });
+  const meta = metaResponse.meta || {};
+  const titles = metaResponse.titles || {};
+  const [, seasonRaw, episodeRaw] = target.streamId.split(':');
+  const season = seasonRaw != null ? Number(seasonRaw) : null;
+  const episode = episodeRaw != null ? Number(episodeRaw) : null;
+  const primaryName = meta?.name || titles.en || titles.original || titles.pt || metaResponse.imdb_id;
+  const year = catalogYearOf(meta?.year, titles.year);
+  const names = dedupeNames([meta?.name, titles.en, titles.pt, titles.original, ...(titles.br || [])]);
+  const queries = {
+    query: buildSearchQuery({ name: primaryName, year }, { season, episode }),
+    ptQuery: titles.pt && titles.pt !== titles.original
+      ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season, episode })
+      : null,
+    originalQuery: originalStepName(titles.original, primaryName),
+    sweepQuery: sweepQueryFor(titles),
+  };
+  if (!queries.query) fail(`[internal] meta ${target.streamId}: sem título para montar a query`);
+
+  const config = await postInternal({
+    base, token, route: 'config', timeoutMs: CONFIG_DEADLINE_MS,
+    label: `[internal] config ${target.streamId}`,
+    body: { encoded },
+  });
+
+  const released = typeof meta?.released === 'string' ? meta.released : null;
+  const firstAired = typeof meta?.firstAired === 'string'
+    ? meta.firstAired
+    : (season != null && episode != null ? meta?.episodeAired?.[`${season}:${episode}`] ?? null : null);
+  const indexResponse = await postInternal({
+    base, token, route: 'index', timeoutMs: INDEX_DEADLINE_MS,
+    label: `[internal] index ${target.streamId}`,
+    body: {
+      encoded,
+      type: target.type,
+      imdb: metaResponse.imdb_id,
+      ...(season != null ? { season } : {}),
+      ...(episode != null ? { episode } : {}),
+      ...(names.length > 0 ? { names } : {}),
+      ...(year != null ? { year } : {}),
+      ...(released ? { released } : {}),
+      ...(firstAired ? { first_aired: firstAired } : {}),
+    },
+  });
+  const indexItems = Array.isArray(indexResponse.index_items) ? indexResponse.index_items : [];
+  const instantItems = Array.isArray(indexResponse.instant_items) ? indexResponse.instant_items : [];
+
+  const collectResponse = await postInternal({
+    base, token, route: 'collect', timeoutMs: deadlineMs,
+    label: `[internal] collect ${target.streamId}`,
+    body: collectBody({
+      encoded, target, queries, names, year,
+      deadlineAt: Date.now() + deadlineMs,
+    }),
+  });
+  const collectItems = Array.isArray(collectResponse.items) ? collectResponse.items : [];
+
+  const hashes = [...new Set([...uniqueHashes(indexItems), ...uniqueHashes(instantItems), ...uniqueHashes(collectItems)])];
+  const service = config?.options?.debridService || config?.operator?.debrid?.service || '';
+  const debrid = { service: service || null, results: {}, calls: [] };
+  if (service && !DEBRID_SERVICES.has(service)) {
+    fail(
+      `[internal] debrid ${target.streamId}: serviço ${JSON.stringify(service)} não é aceito pela rota\n` +
+      '  /internal/debrid/check aceita realdebrid, torbox, alldebrid, premiumize ou debridlink',
+    );
+  }
+  if (service) {
+    for (let offset = 0; offset < hashes.length; offset += MAX_DEBRID_HASHES) {
+      const chunk = hashes.slice(offset, offset + MAX_DEBRID_HASHES);
+      const response = await postInternal({
+        base, token, route: 'debrid', timeoutMs: deadlineMs,
+        label: `[internal] debrid ${target.streamId}`,
+        // A rota exige `service` e `deadline_at` além de `encoded`/`hashes`
+        // (src/routes/internal-debrid-check.ts) — a forma `{encoded,hashes}` do
+        // pedido original é recusada com 400.
+        body: { encoded, service, hashes: chunk, deadline_at: Date.now() + deadlineMs },
+      });
+      debrid.results = { ...debrid.results, ...debridResultDoc(response.results) };
+      const chunkResults = response.results || {};
+      const allKnown = chunk.every((hash) => chunkResults[hash]?.known === true);
+      debrid.calls.push({
+        hashes: chunk,
+        file_hashes: [],
+        known: response.configured !== false && response.partial !== true && allKnown,
+        unusable: response.unusable ?? null,
+        cached: chunk.filter((hash) => chunkResults[hash]?.cached === true),
+      });
+      if (debrid.calls.length > 1) {
+        log(`[stream-e2e] aviso: ${chunk.length}+ hashes de debrid — o gate só usa calls[0]`);
+      }
+    }
+    if (hashes.length === 0) {
+      log('[stream-e2e] aviso: nenhum hash no índice/coleta; debrid.json fica sem chamada');
+    }
+  } else {
+    log('[stream-e2e] aviso: config sem serviço de debrid; debrid.json fica sem chamadas');
+  }
+
+  const files = {
+    'inputs/meta.json': {
+      key: `${target.type}:${target.streamId}`,
+      meta: metaResponse.meta ?? null,
+      titles: metaResponse.titles ?? null,
+      collection: metaResponse.multiWork ?? null,
+      homeReleaseAt: metaResponse.homeReleaseAt ?? null,
+    },
+    'inputs/config.json': config,
+    // O gate lê `value.{servedFromIndex,instant,raw}`; o Node registra o lote
+    // mesclado (índice + banco) em `raw.items`, e o Rust marca cada item de
+    // `raw.items` como foto (`fromSnapshot`) na via rápida.
+    'inputs/index.json': {
+      key: `index:${target.type}:${metaResponse.imdb_id}`,
+      value: {
+        servedFromIndex: indexResponse.index_covered === true,
+        instant: indexResponse.instant_eligible === true,
+        raw: {
+          items: [
+            ...indexItems,
+            ...instantItems.map((item) => (
+              item && typeof item === 'object' && item.fromFallback === undefined
+                ? { ...item, fromFallback: true }
+                : item
+            )),
+          ],
+          partial: indexResponse.is_partial === true,
+          sweepInline: false,
+          instant: indexResponse.instant_eligible === true,
+          live: null,
+        },
+      },
+    },
+    'inputs/collect.json': [{
+      key: {
+        imdb: metaResponse.imdb_id,
+        type: target.type,
+        season,
+        episode,
+        scope: 'all',
+        query: queries.query,
+        pt_query: queries.ptQuery,
+      },
+      response: {
+        items: stripTransportSecrets(collectItems),
+        partial: collectResponse.partial === true,
+        live: collectResponse.live ?? null,
+      },
+    }],
+    'inputs/debrid.json': stripTransportSecrets(debrid),
+  };
+  // O `_debugFind` do strip não existe: os objetos acima são JSON puro. O
+  // mascaramento do que saiu do addon fecha a última porta (host/token).
+  for (const key of Object.keys(files)) files[key] = maskValue(files[key], ctx);
+  return { files, meta: metaResponse, collect: collectResponse, index: indexResponse };
+}
+
+// ── manifesto ──────────────────────────────────────────────────────────────
+
+function loadExistingManifest(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!parsed || parsed.format !== FORMAT_MANIFEST || !Array.isArray(parsed.cases)) return null;
+  return parsed;
+}
+
+/**
+ * Manifesto do corpus. Com `--merge` (e um manifesto anterior válido), os casos
+ * que NÃO foram recapturados são preservados e cada caso guarda a própria data
+ * (`capturedAt`) — um recaptura parcial não pode reescrever a proveniência dos
+ * outros nem apagar 50 casos.
+ */
+function buildManifest({ manifestPath, capturedCases, casesPath, ctx, startedAt, withInternal, merge }) {
+  const previous = merge ? loadExistingManifest(manifestPath) : null;
+  const byId = new Map();
+  if (previous) {
+    for (const item of previous.cases) {
+      if (!item || typeof item.id !== 'string') continue;
+      byId.set(item.id, { ...item, capturedAt: item.capturedAt || previous.capturedAt || null });
+    }
+  }
+  for (const item of capturedCases) byId.set(item.id, item);
+  const merged = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const notCaptured = [
+    ...(withInternal ? [] : [GAP_META, GAP_COLLECT, GAP_DEBRID]),
+    ...GAPS_BASE,
+    ...(withInternal ? GAPS_INTERNAL : []),
+  ];
+  return {
+    format: FORMAT_MANIFEST,
+    // Data DESTA execução; a de cada caso está em `cases[].capturedAt`.
+    capturedAt: startedAt,
+    node: process.version,
+    base: '{{base}}',
+    user_config_sha256: ctx.userConfig ? sha256(ctx.userConfig) : (previous?.user_config_sha256 ?? null),
+    // O arquivo de casos do corpus inteiro não pode virar o do recorte corrente.
+    cases_file: previous?.cases_file || path.relative(REPO, casesPath).split(path.sep).join('/'),
+    cases: merged,
+    notCaptured,
+  };
+}
+
 function plan(cases, ctx) {
   return cases.map((target) => ({
     id: target.id,
@@ -279,18 +798,43 @@ async function main() {
   const casesPath = resolveCliPath(args.cases, null) || path.join(REPO, 'scripts', 'golden', 'casos.example.json');
   const cases = loadCases(casesPath).sort((a, b) => a.id.localeCompare(b.id));
   const base = args.base ? normalizeBase(args.base) : null;
-  const ctx = maskingContext({ base, token: args.token, userConfig: args.userConfig });
+  const internalBaseRaw = args.internalBase || args.base;
+  const internalBase = internalBaseRaw ? normalizeBase(internalBaseRaw) : null;
+  if (internalBase) assertInternalLoopback(internalBase);
+  const ctx = maskingContext({ base, token: args.token, userConfig: args.userConfig, internalBase });
   const planRows = plan(cases, ctx);
+  const outDir = resolveCliPath(args.out, 'rust/golden/stream-e2e');
+  const casesDir = path.join(outDir, 'cases');
+  const manifestPath = path.join(outDir, 'manifest.json');
+
+  if (args.withInternal && !args.dryRun) {
+    if (!args.userConfig) fail('--with-internal exige --user-config (as rotas internas recebem o encoded no corpo)');
+    if (!args.token) {
+      fail('--with-internal exige token: passe --token ou exporte JACKETT_TEST_TOKEN (o valor nunca é impresso)');
+    }
+    if (!base) {
+      fail('--with-internal exige --base apontando para o Node em loopback (ex.: http://127.0.0.1:7100)');
+    }
+  }
 
   if (args.dryRun) {
     // Modo seco: valida casos e imprime o plano, sem tocar a rede nem o disco.
     console.log(`[stream-e2e] dry-run — ${cases.length} caso(s) de ${path.relative(REPO, casesPath)}`);
-    console.log(`[stream-e2e] saída: ${path.relative(REPO, CASES_DIR)}/`);
+    console.log(`[stream-e2e] saída: ${path.relative(REPO, outDir)}/`);
+    if (args.withInternal) {
+      console.log(`[stream-e2e] --with-internal: rotas ${Object.values(INTERNAL_PATHS).join(', ')}`
+        + (internalBase ? ` em ${internalBase.origin}${internalBase.prefix}` : ' (sem --base no dry-run)'));
+    }
+    if (args.shadowDir) {
+      console.log(`[stream-e2e] --shadow-dir: fixtures exatas de ${args.shadowDir}/<caso>/inputs`);
+    }
     for (const row of planRows) {
       console.log(`  - ${row.id} (${row.type}) ${row.stream_id} → ${row.path}`);
     }
     console.log('[stream-e2e] NÃO capturado (ver README/manifesto):');
-    for (const gap of GAPS) console.log(`  · ${gap}`);
+    for (const gap of (args.withInternal ? [...GAPS_BASE, ...GAPS_INTERNAL] : [GAP_META, GAP_COLLECT, GAP_DEBRID, ...GAPS_BASE])) {
+      console.log(`  · ${gap}`);
+    }
     return;
   }
 
@@ -300,12 +844,53 @@ async function main() {
   const manifestCases = [];
 
   for (const target of cases) {
+    // O `/stream` é o artefato principal: sai ANTES das rotas internas, que
+    // leem o mesmo estado (cache raw/davail quente na sequência).
     const { request, response } = await captureCase({
       target, base, token: args.token, userAgent: args.userAgent, ctx,
+      shadowId: args.shadowDir ? target.id : null,
     });
-    const caseDir = path.join(CASES_DIR, target.id);
-    const requestSha = writeJson(path.join(caseDir, 'request.json'), request);
-    const responseSha = writeJson(path.join(caseDir, 'response.json'), response);
+    const caseDir = path.join(casesDir, target.id);
+    const files = {};
+    files['request.json'] = writeJson(path.join(caseDir, 'request.json'), request);
+    files['response.json'] = writeJson(path.join(caseDir, 'response.json'), response);
+    let internal = null;
+    if (args.withInternal) {
+      const captured = await captureInternal({
+        base: internalBase,
+        token: args.token,
+        encoded: args.userConfig,
+        target,
+        ctx,
+        deadlineMs: args.internalDeadlineMs,
+        log: (line) => console.log(line),
+      });
+      for (const [name, value] of Object.entries(captured.files)) {
+        files[name] = writeJson(path.join(caseDir, name), value);
+      }
+      internal = Object.keys(captured.files);
+    }
+    // Fixtures que só o record do shadow tem (proven-quality, apply-debrid,
+    // files, instant, fallback) e as versões EXATAS do índice/debrid do build.
+    let shadowFiles = [];
+    if (args.shadowDir) {
+      const shadowInputs = path.join(args.shadowDir, target.id, 'inputs');
+      if (!fs.existsSync(shadowInputs)) {
+        fail(
+          `shadow sem captura em ${shadowInputs}\n` +
+          '  o addon precisa estar com STREAM_FROZEN_MODE=shadow e STREAM_FROZEN_SHADOW_BASE=--shadow-dir',
+        );
+      }
+      for (const name of SHADOW_INPUTS) {
+        const source = path.join(shadowInputs, name);
+        if (!fs.existsSync(source)) continue;
+        files[`inputs/${name}`] = copyShadowInput(path.join(caseDir, 'inputs', name), source);
+        shadowFiles.push(`inputs/${name}`);
+      }
+      if (shadowFiles.length === 0) {
+        fail(`shadow sem nenhum de ${SHADOW_INPUTS.join(', ')} em ${shadowInputs}`);
+      }
+    }
     manifestCases.push({
       id: target.id,
       label: target.label,
@@ -314,24 +899,32 @@ async function main() {
       dir: `cases/${target.id}`,
       status: response.status,
       cacheMaxAge: response.cacheMaxAge,
-      files: { 'request.json': requestSha, 'response.json': responseSha },
+      capturedAt: startedAt,
+      files,
+      ...(internal ? { internal } : {}),
+      ...(shadowFiles.length > 0 ? { shadow: shadowFiles } : {}),
     });
-    console.log(`[stream-e2e] ${target.id}: HTTP ${response.status} cacheMaxAge=${response.cacheMaxAge}`);
+    console.log(
+      `[stream-e2e] ${target.id}: HTTP ${response.status} cacheMaxAge=${response.cacheMaxAge}`
+      + (internal ? ` + ${internal.length} fixture(s) interna(s)` : ''),
+    );
   }
 
-  const manifest = {
-    format: FORMAT_MANIFEST,
-    capturedAt: startedAt,
-    node: process.version,
-    base: '{{base}}',
-    user_config_sha256: ctx.userConfig ? sha256(ctx.userConfig) : null,
-    cases_file: path.relative(REPO, casesPath).split(path.sep).join('/'),
-    cases: manifestCases,
-    notCaptured: GAPS,
-  };
+  const manifest = buildManifest({
+    manifestPath,
+    capturedCases: manifestCases,
+    casesPath,
+    ctx,
+    startedAt,
+    withInternal: args.withInternal,
+    merge: args.merge,
+  });
   // O manifesto NÃO entra no próprio hash: ele é o índice dos arquivos.
-  writeJson(MANIFEST, manifest);
-  console.log(`[stream-e2e] OK: ${manifestCases.length} caso(s) em ${path.relative(REPO, CASES_DIR)}; manifesto em ${path.relative(REPO, MANIFEST)}`);
+  writeJson(manifestPath, manifest);
+  console.log(
+    `[stream-e2e] OK: ${manifestCases.length} caso(s) em ${path.relative(REPO, casesDir)}; `
+    + `${manifest.cases.length} no manifesto ${path.relative(REPO, manifestPath)}`,
+  );
 }
 
 main().catch((err) => {

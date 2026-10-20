@@ -1,0 +1,18 @@
+{
+  "key": "movie:tt0317248",
+  "meta": {
+    "name": "City of God",
+    "year": "2004",
+    "type": "movie",
+    "released": "2004-02-13T00:00:00.000Z"
+  },
+  "titles": {
+    "pt": "Cidade de Deus",
+    "original": "Cidade de Deus",
+    "en": "City of God",
+    "br": [],
+    "year": "2002"
+  },
+  "collection": null,
+  "homeReleaseAt": 1068076800000
+}

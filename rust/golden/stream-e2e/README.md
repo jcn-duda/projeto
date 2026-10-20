@@ -11,10 +11,11 @@ por caso, mais `manifest.json` na raiz). Não há caso "de exemplo" inventado �
 só o que a ferramenta mediu. Regenerar sobrescreve; revise o diff antes de
 commitar.
 
-Estado no HEAD: os 51 casos têm só `request.json` + `response.json`; não há
-`meta.json`, `raw.json` nem `debrid.json`, então o harness de fixtures remonta
-**0/51** (todos `Skip`). O replay 51/51 é o Node contra ele mesmo — não é
-paridade de pipeline.
+Estado no HEAD: os 51 casos têm `request.json` + `response.json`; o **piloto**
+(`cases/movie-cidade-de-deus`) também tem `inputs/` e remonta **verde** pelo
+`frozen_gate` (`cargo test -p adom-search --test stream_e2e_parity piloto`).
+O batch dos 51 ainda **não** rodou: o teste `build_stream_list_parity_completa`
+segue `#[ignore]` e, quando rodar, exige `inputs/` em todos os casos.
 
 ### Consumidor Rust (Fase A.5)
 
@@ -24,12 +25,12 @@ Harness em `rust/crates/adom-search/tests/stream_e2e_parity.rs`:
 cd rust && cargo test -p adom-search --test stream_e2e_parity
 ```
 
-Hoje o corpus **não** traz `meta.json` / `raw.json` / `debrid.json`, então o
-teste de remontagem por `build_stream_list` fica `#[ignore]` (+ `todo!`).
-O que roda de verdade: carga + sha256 do manifest, `parse_stream_path` contra
-`type`+`stream_id`, e deserialização/`round-trip` do `contract`
-(`StreamResponse`). Ainda **não** é sombra/paridade da lista montada — só
-contrato de request/response capturado (sem assertar relógio nem ordem).
+Hoje o corpus traz `inputs/` só no piloto. Casos **com** `inputs/` remontam pelo
+`frozen_gate` (`run_case_with_expected`): o `response.json` é envelope, o teste
+extrai `body` e compara `streams`; o `request.json` mascarado (`{{config}}`) usa
+`e30` no replay. O que roda em todos: carga + sha256 do manifest,
+`parse_stream_path` contra `type`+`stream_id` e o `round-trip` do `contract`
+(`StreamResponse`). Relógio e ordem da lista/chaves ficam fora do assert.
 
 ## Como gerar
 
@@ -48,6 +49,32 @@ node scripts/golden/capture-stream-e2e.mjs \
   --user-config "$SEGMENTO_BASE64URL" \
   --cases scripts/golden/casos.example.json
 ```
+
+Captura com as entradas internas (o `/stream` continua sendo a resposta normal;
+as rotas internas falam com o MESMO processo em loopback):
+
+```bash
+# dentro da rede do container, para o alvo ser 127.0.0.1:7100 (Node atrás do gateway)
+docker exec stremio-adom node /tmp/capture-e2e.mjs \
+  --base http://127.0.0.1:7100 --with-internal \
+  --shadow-dir /tmp/adom-shadow --user-config e30 \
+  --cases /tmp/casos.json --out /tmp/e2e-out --merge
+```
+
+- `--with-internal` captura `inputs/{meta,config,collect,debrid,index}.json` por
+  `POST /internal/search/meta|config|collect|debrid/check|index`. O `collect`
+  segue o formato do `stream-frozen` (`[{key,response}]`, key derivada do
+  meta/caso — nada de query inventada); o `debrid/check` exige
+  `{encoded,service,hashes,deadline_at}` (sem `service`/`deadline_at` a rota
+  devolve 400).
+- `--shadow-dir <base>` faz o `/stream` com `X-Adom-Shadow-Id: <caso>` +
+  `X-Adom-Shadow-Frozen: 1` e copia do record do shadow, no MESMO run, o que só
+  ele grava: `proven-quality.json`, `apply-debrid.json`, `files.json`,
+  `instant.json`, `fallback.json` e as versões exatas de `index.json`/`debrid.json`.
+  Sem a qualidade provada o replay classifica item provado como "sem resolução" e
+  a cota deixa passar um stream que o Node cortou.
+- `--out` e `--merge` permitem recapturar um recorte sem apagar os outros casos;
+  cada caso guarda o próprio `capturedAt`.
 
 - `--dry-run` valida o arquivo de casos, imprime o plano e o que NÃO é
   capturado. Não toca a rede nem o disco.
@@ -84,6 +111,16 @@ Formato do arquivo de casos:
 ```
 cases/<id>/request.json
 cases/<id>/response.json
+cases/<id>/inputs/meta.json        (com --with-internal)
+cases/<id>/inputs/config.json
+cases/<id>/inputs/collect.json
+cases/<id>/inputs/index.json
+cases/<id>/inputs/debrid.json
+cases/<id>/inputs/proven-quality.json  (com --shadow-dir)
+cases/<id>/inputs/apply-debrid.json
+cases/<id>/inputs/files.json
+cases/<id>/inputs/instant.json
+cases/<id>/inputs/fallback.json
 manifest.json
 ```
 
@@ -145,17 +182,15 @@ o segredo; para reproduzir o replay é preciso passar `--user-config` de novo.
 
 ## O que este corpus AINDA NÃO mede (e por quê)
 
-1. **Metadados da obra (Cinemeta/TMDB)** — o `/stream` só devolve a lista
-   pronta. As rotas internas já existem (`POST /internal/search/meta`, `state`,
-   `collect`, `index`, `index-write`, `effects` e `POST /internal/debrid/check`),
-   mas o corpus ainda **não** foi recapturado com `meta.json`.
+1. **Metadados da obra (Cinemeta/TMDB)** — capturados por
+   `POST /internal/search/meta` com `--with-internal`. Os 50 casos sem o flag
+   continuam só com a lista pronta.
 2. **Itens crus por indexer** (antes de filtro de título, ranking e debrid) e o
-   cache `raw:v1` — a rota `collect` existe; o corpus ainda só vê o resultado
-   já cortado, sem `raw.json`.
+   cache `raw:v1` — capturados por `POST /internal/search/collect` com
+   `--with-internal` (re-consulta, não o lote exato do `/stream`).
 3. **Respostas de cache do debrid** (⚡ por hash, arquivos de pack, tamanhos
-   medidos) — a rota `POST /internal/debrid/check` existe; o corpus ainda não
-   grava `debrid.json`, e `/debrid-status.json` só publica agregado. Sem isso, o
-   diff de um item `[AD⚡]` cobre a FORMA, não a decisão que o produziu.
+   medidos) — `POST /internal/debrid/check` grava `inputs/debrid.json`; com
+   `--shadow-dir` vale a versão exata do record (`files.json` incluso).
 4. **HMAC e o segmento de config** — mascarados por segurança. O replay exige o
    segredo do operador; o corpus prova a forma da URL, não a assinatura.
 5. **Relógio** — `Date`/`ETag`/`age` e a duração da requisição não entram: o

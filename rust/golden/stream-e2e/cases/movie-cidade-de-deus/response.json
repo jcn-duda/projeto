@@ -8,94 +8,140 @@
   "body": {
     "streams": [
       {
-        "title": "Cidade de Deus (2002) [1080p BLU-RAY DUBLADO 2.2 GB]\n📦 👤 ~1 💾 2.20 GB ⚙️ Rede Torrent",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · Rede Torrent · 👤 ~1",
+        "infoHash": "7a7560cf64fb2fc4a1b1973d6b4ed0c151724888",
+        "title": "Cidade de Deus BluRay /REMUX Nacional [1080p REMUX DUBLADO 24.22 GB]\n📦 👤 ~13 💾 24.22 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 1080p BluRay BR · torrentdosfilm · 👤 ~13",
         "behaviorHints": {
           "bingeGroup": "powerm-1080p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/80275c5c97dbb22837dfd51098c56cc2aa11a30d?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
-        "size": "2.20 GB"
-      },
-      {
-        "title": "Cidade de Deus BluRay /REMUX Nacional [1080p BLURAY DUBLADO 2.47 GB]\n📦 👤 ~1 💾 2.47 GB ⚙️ comandotorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/c5619b96b6aa2dbe538a6d103d04404fd17815df?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
-        "size": "2.47 GB"
-      },
-      {
-        "title": "Cidade de Deus [1080p BLU-RAY DUBLADO]\n📦 👤 ~1 💾 2.01 GB ⚙️ bludv-cardigann",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · bludv · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/493d7f6595958043515c80ef9f85bd2e4b8b52e8?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
-        "size": "2.01 GB"
-      },
-      {
-        "title": "Cidade de Deus BluRay /REMUX Nacional [1080p REMUX DUBLADO 24.22 GB]\n📦 👤 ~1 💾 24.22 GB ⚙️ comandotorrents",
-        "name": "[AD⚡] 📦 · 1080p BluRay BR · comando · 👤 ~1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/7a7560cf64fb2fc4a1b1973d6b4ed0c151724888?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "24.22 GB"
       },
       {
-        "title": "Cidade de Deus BluRay /REMUX Nacional [720p BLURAY DUBLADO 1.56 GB]\n📦 👤 ~1 💾 1.56 GB ⚙️ comandotorrents",
-        "name": "[AD⚡] 📦 · 720p BluRay BR · comando · 👤 ~1",
+        "infoHash": "c5619b96b6aa2dbe538a6d103d04404fd17815df",
+        "title": "Cidade de Deus BluRay /REMUX Nacional [1080p BLURAY DUBLADO 2.47 GB]\n📦 👤 ~4 💾 2.47 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 1080p BluRay BR · torrentdosfilm · 👤 ~4",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.47 GB"
+      },
+      {
+        "infoHash": "80275c5c97dbb22837dfd51098c56cc2aa11a30d",
+        "title": "Cidade de Deus (2002) Bluray – [1080p BLURAY DUBLADO 2.23 GB]\n📦 👤 ~1 💾 2.23 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 1080p BluRay BR · torrentdosfilm · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.23 GB"
+      },
+      {
+        "infoHash": "a70b090285c603c82347191b9a0a08d933c3df4f",
+        "title": "Cidade de Deus (2002) [1080p BLU-RAY DUBLADO 2.6 GB]\n📦 👤 ~1 💾 2.60 GB ⚙️ Rede Torrent",
+        "name": "📦 · 1080p BluRay BR · Rede Torrent · 👤 ~1",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-BluRay"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "2.60 GB"
+      },
+      {
+        "infoHash": "d991cba2c12b84f21f156a56b833e6599b1465d0",
+        "title": "Cidade de Deus [BDRip m 1080p Dual AC3 Esp Por] mkv\n📦 👤 ~ 💾 3.30 GB ⚙️ LimeTorrents",
+        "name": "📦 · 1080p BR · LimeTorrents · 👤 ~",
+        "behaviorHints": {
+          "bingeGroup": "powerm-1080p-any"
+        },
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "3.30 GB"
+      },
+      {
+        "infoHash": "228099df0de02b711bc34caf829b171bbfa8f926",
+        "title": "Cidade de Deus BluRay /REMUX Nacional [720p BLURAY DUBLADO 1.56 GB]\n📦 👤 ~1 💾 1.56 GB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 720p BluRay BR · torrentdosfilm · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/228099df0de02b711bc34caf829b171bbfa8f926?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22d%22%3A1%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "1.56 GB"
       },
       {
-        "title": "Cidade de Deus (2002) [1080p BLU-RAY LEGENDADO 2 GB]\n📦 👤 ~100 💾 2.00 GB ⚙️ Rede Torrent",
-        "name": "[AD⚡] 📦 · 1080p BluRay LEG BR · Rede Torrent · 👤 ~100",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/86a338246204a48d75985861817bf56f9e3e18e9?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
-        "size": "2.00 GB"
-      },
-      {
-        "title": "Cidade de Deus (2002) [720p BLU-RAY LEGENDADO 1 GB]\n📦 👤 ~60 💾 1.00 GB ⚙️ Rede Torrent",
-        "name": "[AD⚡] 📦 · 720p BluRay LEG BR · Rede Torrent · 👤 ~60",
+        "infoHash": "2f7e933a60d54f29601a3a53f8d22256e9bf91db",
+        "title": "Cidade de Deus (2002) Bluray Nacional – [720p BLURAY DUBLADO 791 MB]\n📦 👤 ~1 💾 791.00 MB ⚙️ torrentdosfilmesv2",
+        "name": "📦 · 720p BluRay BR · torrentdosfilm · 👤 ~1",
         "behaviorHints": {
           "bingeGroup": "powerm-720p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/ed567d8c5aac0b417de9aeceedd3ad76c32f1c31?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
-        "size": "1.00 GB"
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
+        "size": "791.00 MB"
       },
       {
-        "title": "Cidade.de.Deus.[City.Of.God].2002.BRRip.H264.AAC.5.1ch.Gopo\n👤 1 💾 2.02 GB ⚙️ AllDebrid",
-        "name": "[AD⚡] 720p BR · AllDebrid · 👤 1",
-        "behaviorHints": {
-          "bingeGroup": "powerm-720p-any"
-        },
-        "url": "{{base}}/{{config}}/resolve/063ab0837a27ed1197386d3a6c52248905db5f57?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
-        "size": "2.02 GB"
-      },
-      {
-        "title": "City of God 2002 Upscaled Bluray 2160p HDR10 HEVC DTS HD MA 5 1 x\n📦 👤 ~25 💾 32.70 GB ⚙️ limetorrents",
-        "name": "[AD⚡] 📦 · 4K BluRay · limetorrents · 👤 ~25",
+        "infoHash": "dc8a85cb682b8f66905634250ed130f55efc78db",
+        "title": "City of God 2002 Upscaled Bluray 2160p HDR10 HEVC DTS HD MA 5 1 x\n📦 👤 ~20 💾 32.70 GB ⚙️ limetorrents",
+        "name": "📦 · 4K BluRay · limetorrents · 👤 ~20",
         "behaviorHints": {
           "bingeGroup": "powerm-2160p-BluRay"
         },
-        "url": "{{base}}/{{config}}/resolve/dc8a85cb682b8f66905634250ed130f55efc78db?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
+        "sources": [
+          "tracker:udp://tracker.opentrackr.org:1337/announce",
+          "tracker:udp://open.stealth.si:80/announce",
+          "tracker:udp://tracker.torrent.eu.org:451/announce",
+          "tracker:udp://exodus.desync.com:6969/announce",
+          "tracker:udp://open.demonii.com:1337/announce",
+          "tracker:udp://tracker.openbittorrent.com:6969/announce"
+        ],
         "size": "32.70 GB"
-      },
-      {
-        "title": "City Of God 2002 1080p BluRay x264-CiNEFiLE\n📦 👤 ~122 💾 8.75 GB ⚙️ thepiratebay",
-        "name": "[AD⚡] 📦 · 1080p BluRay · thepiratebay · 👤 ~122",
-        "behaviorHints": {
-          "bingeGroup": "powerm-1080p-BluRay"
-        },
-        "url": "{{base}}/{{config}}/resolve/93936a441908d50dce630431b46e9680a068a89e?w=%7B%22n%22%3A%5B%22City%20of%20God%22%2C%22Cidade%20de%20Deus%22%5D%2C%22y%22%3A2004%2C%22i%22%3A%22tt0317248%22%7D&sig={{sig}}",
-        "size": "8.75 GB"
       }
     ],
     "cacheMaxAge": 0

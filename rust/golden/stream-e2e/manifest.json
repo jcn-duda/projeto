@@ -1,9 +1,9 @@
 {
   "format": "adom-stream-e2e/1",
-  "capturedAt": "2026-10-19T01:11:18.652Z",
-  "node": "v22.23.2",
+  "capturedAt": "2026-10-20T08:57:24.494Z",
+  "node": "v22.23.3",
   "base": "{{base}}",
-  "user_config_sha256": "fb6190eff9c1412b58c7dbcb50dd85deaf748817102ca464fb9985d17b023a19",
+  "user_config_sha256": "beab987bef9c00dfc301b490ddb45321517e7d6a6bb3d31d259898b7d46393d8",
   "cases_file": "scripts/golden/casos-stream-e2e.json",
   "cases": [
     {
@@ -17,7 +17,8 @@
       "files": {
         "request.json": "a3b197c9cc24e09e751a39029aa90173fdf61e9c3a75c68bc66b711e2d0f3238",
         "response.json": "0b299209caafa2fabfdb220a6765f7f88f3286591929ea5df0c3d3b56f5c30b9"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-ano-duplo-monster",
@@ -30,7 +31,8 @@
       "files": {
         "request.json": "c9486c4f049f59048ef16df88a48a06be2b7103eaefce4cb6edcf78455fa4266",
         "response.json": "6137b6a3dd66019dee45d0689e650054a759a9a3fcc2598a7c60ebe92d55e433"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-auto-da-compadecida",
@@ -43,7 +45,8 @@
       "files": {
         "request.json": "cbddc961928fc2e97a2384e2b4af626d2fe8dd82488219ee1d18c49a86ed02b4",
         "response.json": "acc71c6c178b0295a85ff6ea7162ac793af5cb85d5c3794d8b46c4710870bb68"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-bacurau",
@@ -56,7 +59,8 @@
       "files": {
         "request.json": "4d8d3db82cf3a8bbee4d15cb3c7991a202702b313c8455d95826c8c3dd17d002",
         "response.json": "cb97bddea20ce9bf3f054b804db229d2a5815ab1cdd55de36cd01e80fb3a5365"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-carandiru",
@@ -69,7 +73,8 @@
       "files": {
         "request.json": "8ae78319cbec078c707646621ab118e8bdc292a50fc677be7a74dfc0b7aa4ba9",
         "response.json": "ba616a0d42cc30be6fa90458af956bd28a3bd4bd7c8f567577603d1efb9be149"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-central-do-brasil",
@@ -82,20 +87,48 @@
       "files": {
         "request.json": "742150950c117726d8af6f083951792ea5f4685ed58b4e61967bf404cc8dce8a",
         "response.json": "72eff66868bfccda84f7fcf3c07835af563b9ab4a59d8404fcacf0ce9218b051"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-cidade-de-deus",
-      "label": "BR nacional — Cidade de Deus (2002)",
+      "label": "PILOTO — Cidade de Deus (2002)",
       "type": "movie",
       "stream_id": "tt0317248",
       "dir": "cases/movie-cidade-de-deus",
       "status": 200,
       "cacheMaxAge": 0,
+      "capturedAt": "2026-10-20T08:57:24.494Z",
       "files": {
-        "request.json": "f2acd8a4c39d4214a9bea27ba97770bb9895a4fc68d60dc3921b31eb7c7c69c8",
-        "response.json": "60726445a725c9d69b677d257469d8916cfd404b87bf3fcb2c7d039c88d4c69b"
-      }
+        "request.json": "4eaa3e58cbfe4a5571b786731cee754ace8276d0713b73a8ed78be4631501fc8",
+        "response.json": "b8287ad0039a99c3af7b932b4a60b13287a28e541bd7da4a02ba711a764c0648",
+        "inputs/meta.json": "405d6d16e507bd9ca3027932b591ea23a7b4257add3c8452466988c0301b1df6",
+        "inputs/config.json": "d6ce8cbe6bbf4561483f2935fe2e2ee04cc60de9a954d4defc42ae4e94f0e5f6",
+        "inputs/index.json": "7ea261cc0092016bd0f83bfc18ff5801e217ff4c15d82414eb3308e8532cfc2f",
+        "inputs/collect.json": "4ea6bd3d76a078d7b32cd06fc42db2b5efd1ab62ab1a81784f074f90ffbc6eef",
+        "inputs/debrid.json": "1e039ed38d9da152f4d8b87d357afa15e78b36b8c544a817b0ed9e090a7d61ce",
+        "inputs/proven-quality.json": "0ca8919dfd8777fff430da1fffc8285eb316fd92bec689a02ef24b8df5af6ddf",
+        "inputs/apply-debrid.json": "a50d1cf66ff5f31c8b1f8a20a4776c018dcd9fa0435be48fecaca045b3e50c26",
+        "inputs/files.json": "2a92a4f720c7c8d80748cd0f0228968f0cfde5e5dc719167dcceaf07e8311788",
+        "inputs/instant.json": "5b0c661317812eaf3217b5abc04a6d66bce49ca24e31cdfa0ba71759a508f8f3",
+        "inputs/fallback.json": "1107009a05a44058783347d5783d25adaf1087c3f76eec8b065b2ce8e3b7f8c1"
+      },
+      "internal": [
+        "inputs/meta.json",
+        "inputs/config.json",
+        "inputs/index.json",
+        "inputs/collect.json",
+        "inputs/debrid.json"
+      ],
+      "shadow": [
+        "inputs/index.json",
+        "inputs/debrid.json",
+        "inputs/proven-quality.json",
+        "inputs/apply-debrid.json",
+        "inputs/files.json",
+        "inputs/instant.json",
+        "inputs/fallback.json"
+      ]
     },
     {
       "id": "movie-divertidamente-2",
@@ -108,7 +141,8 @@
       "files": {
         "request.json": "9e06cba8ac56039f2ce4e0c84a84249b72407260603c51efb60f9e6d6d5880ec",
         "response.json": "0e73b55f6c2dda62fffa68ab02073808c4c0cf70347caf681d985151e0b8e6a8"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-duna-parte-2",
@@ -121,7 +155,8 @@
       "files": {
         "request.json": "5c734b97e4f8c7de7f9c569d2df89d589141c0e4e476d87e7b7c4f99af80b1ca",
         "response.json": "6762326de6de66fe7619af3770ffe324c284380dec695c6b041ff2c44c1e8eea"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-fake-id-guard",
@@ -134,7 +169,8 @@
       "files": {
         "request.json": "53129c9846691311f417a77041a495293e33c645179528d75f2fba53a304b6f7",
         "response.json": "4b15490059c354a9d1300ece0d3cab9bf9373e345c83d2ebac6f0325e0139fd2"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-fast-furious-7",
@@ -147,7 +183,8 @@
       "files": {
         "request.json": "6b6271603c37fe3bdb113faf4a2c334dcfb34a3be89ae018a7c57001db26ff49",
         "response.json": "0290c0d895ec82f4b7515effc9b3ed7bf09b77bf7a98e1c36ba76bf1070bb01a"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-gora",
@@ -160,7 +197,8 @@
       "files": {
         "request.json": "58653cfea521cb271394d62b76ba39f67a035e00f389b25911c50443e7013f55",
         "response.json": "6f8c04b2f597cdcd795d6418c6e9decd462ad7c269eb95e34c8b51f1071109aa"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-harry-potter-1",
@@ -173,7 +211,8 @@
       "files": {
         "request.json": "841b8a5badb6d2750faf9c5a7f13a564c775f89df9431553e0e3b62602f718f2",
         "response.json": "66a7d087f975fbe99556c6c8a1e70c74121976ea076a38c1daf6b441b1cde193"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-harry-potter-8",
@@ -186,7 +225,8 @@
       "files": {
         "request.json": "200760541253161f3fb666d473dd9d0535cbe4f7c9a116edf5af5309fdf2e1c9",
         "response.json": "7a8243ffe4cafdaba8ba046a43530943f4d300bd9e96a77aea752920419164c3"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-inception",
@@ -199,7 +239,8 @@
       "files": {
         "request.json": "a89387207d3ad82215be92570656a323759eea3e703e1dc2ecbc71c25617b320",
         "response.json": "14d59e4355a0a0e765a3e5584687857d44272df38b6ba640e123fadf3307aafd"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-interstellar",
@@ -212,7 +253,8 @@
       "files": {
         "request.json": "57f0aef6a835eaf2be38893ecae262b421cee64756b665b777579ae2af70fc32",
         "response.json": "7dd73ca75df27827976e303356646b0128a2f5b40e731b6b8bf488245dd84605"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-kung-fu-panda-4",
@@ -225,7 +267,8 @@
       "files": {
         "request.json": "9c5ef4c57dbf1a20802041cb3e23cd27bd8bc778a03417f5b90038827b5ec33f",
         "response.json": "0a89d9f546e47aabf0b0db7400300d68651f7ff55861269a39a45f24ff6c3350"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-matrix",
@@ -238,7 +281,8 @@
       "files": {
         "request.json": "b3fafbeb6cd3c085afa0dbe81b2b6198cea148521517b55f2deadcdd057a33bf",
         "response.json": "36ef15235e2121ec8eaed6322bf079ea07f995286d6fce0e2f2a1b08df875864"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-minha-mae-e-uma-peca",
@@ -251,7 +295,8 @@
       "files": {
         "request.json": "af330ab6643fb73c55cfe83496a306e5fc267849751a9547cf7452c561559e23",
         "response.json": "a0ba4bfcb5bda995a0fb90321500621f7112e215316ab2ad81bea5bdbd7f0287"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-monster-hunter",
@@ -264,7 +309,8 @@
       "files": {
         "request.json": "42808907037c73f85d41ff00d04df749493cd45b14ef022b564db97e9b887950",
         "response.json": "21a92f2eed4916993a3431c57090d44380bb9490a1bd85764ccbf8e33183d68b"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-obscuro-sem-release",
@@ -277,7 +323,8 @@
       "files": {
         "request.json": "618d7616f688e3f36f044a849a86c68a6549dc9945031948ddbad989f9abcfb0",
         "response.json": "1dde495f9110026127d85d06b64f7f79bc70619c511013f1207e2641295d8de3"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-parasite",
@@ -290,7 +337,8 @@
       "files": {
         "request.json": "f2c3b7a0a1d0121992bc1eaa9a779b76124f8a4ad01be385374b487ba1053bf5",
         "response.json": "753df4dc7e0f6b3637070484531843395d44a5c3c9cdcb2b13de3a0486a259fc"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-swat-fogo-cruzado",
@@ -303,7 +351,8 @@
       "files": {
         "request.json": "ae8da7ced4ff08d0ddc5a2966bcdc6a7afa9b47e4ac3cd862a9dcc2aef7e1879",
         "response.json": "b92a3e1f7171ab8ebea020a0c0da676de2d6b357ae27d60aeb328f119f72b1c2"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-the-dark-knight",
@@ -316,7 +365,8 @@
       "files": {
         "request.json": "8260f91c00ae6d1e1654a75281f5e5652d5db8acf361d05060f24e01237e700d",
         "response.json": "768556bf51f29b69adffa631904c85fa72eba8e5506a9c7280848aa6122b8203"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-the-odyssey-nolan",
@@ -329,7 +379,8 @@
       "files": {
         "request.json": "40d6bf9ae917453b7c53cc94607fc9d2f9672336b186944f1b4696f4110c1edc",
         "response.json": "49d74a0f2d0f708eb325569a2297b650460f123438a16e2548636577d88493a2"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-trainspotting",
@@ -342,7 +393,8 @@
       "files": {
         "request.json": "f6c52f4d3338c5020af10699e323bba362b538ba23bd8bb108ce791009b54a16",
         "response.json": "832478c849cf48c4dfdfc917cc3aa4f3b41caebaf092a72d642ef69cb6d7fd57"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "movie-tropa-de-elite",
@@ -355,7 +407,8 @@
       "files": {
         "request.json": "e85b4514d0372960ff2d24738b26a330179af67835ada4bc19abfe4e2da28f76",
         "response.json": "eb53e06eada9b84978a4a16df14879e163718905ae2f0c12b0c324a9b3944ce0"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-3-percent-s01e01",
@@ -368,7 +421,8 @@
       "files": {
         "request.json": "b603e91a16c537989265df7172efd32b4443b1bb8e8e704f4ce9a9b485fdc21b",
         "response.json": "07f9fd5b2186cdff4211dc18ffffa627fe5d06b28fd822c900472e5fc9237339"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-anatomy-of-s1-pack",
@@ -381,7 +435,8 @@
       "files": {
         "request.json": "475538d3442dac27ec2a744feee1e5ec05500df8735f8ba696f7901cc44ae9d8",
         "response.json": "e58a9abd008762ae2079226459a23663d6589d8ff33e61e40997d7ef9bb39c86"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-anime-dragon-ball-z-frieza",
@@ -394,7 +449,8 @@
       "files": {
         "request.json": "7cc4adeea2421398fc35ba0a9957c324841ea4b129537fecdc26398705c2a747",
         "response.json": "8f06eeb2bf515d9fe03462d8b2edd21d776d9055b4775d982937e6ebee7cff54"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-anime-naruto-s01e01",
@@ -407,7 +463,8 @@
       "files": {
         "request.json": "12636f279216df14c76cdd0637ae35209ac188c56793ca2eae43ac9272dc8d59",
         "response.json": "6d505a8d5c6537f49c9d0c18159e137f94035fb726dd23edde9ea213d5eb7f98"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-anime-one-piece-wano",
@@ -420,7 +477,8 @@
       "files": {
         "request.json": "d767e670a46ea4933735bc484b09d516e6b30dac8b02d8fbb37dc88de5a1f9ee",
         "response.json": "f9d84eae75aede5aec3573821578b2f851140e4a2a1942934166e43f9dd3dc89"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-breaking-bad-s01e01",
@@ -433,7 +491,8 @@
       "files": {
         "request.json": "42aa0f5925035f018439bf48ff654088a52c03e56b959e8a967bc54098e9ed00",
         "response.json": "b2f0fac00093fda812fd7849f7febbdab760cb67f3f19b1ca9ee10a8f5d86f6c"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-breaking-bad-s05-pack",
@@ -446,7 +505,8 @@
       "files": {
         "request.json": "c54438aebf39a5941d088cd5813ae9c9f528f85f59b40013d934fe9bc1b2320c",
         "response.json": "22dbf169bf2032e247beeadb6e7807a1ca8cad096a33159f15c161657eaeeff8"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-breaking-bad-s05e14",
@@ -459,7 +519,8 @@
       "files": {
         "request.json": "81434ac63cf4c467f977a215d4f7246b0423bf44325eb2a25c3f0ddc2fcfd8e2",
         "response.json": "4f0c9cfc06a695720023af7b55c1b7329b7da5f077d53e8138acba0a1cb27db8"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-brooklyn-nine-nine-s05e04",
@@ -472,7 +533,8 @@
       "files": {
         "request.json": "4241c6ba8a4997bf03de4f3af9298ce5a131bef98e4d846516fa20783fd5467e",
         "response.json": "58884ab43db2fb52148a05db09aa4a3774237be5f390d2e3aea0624ee02080f7"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-cidade-invisivel-s01e01",
@@ -485,7 +547,8 @@
       "files": {
         "request.json": "e7dcd1f623ed58eb567420bacdb9b53c98acbec8aa65a79a2621c8fb7005cfda",
         "response.json": "5ab9f39a345d5f1b60593bb54e44cb951d9fcefae6dbfcef10a7723e62be605a"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-dark-s01e01",
@@ -498,7 +561,8 @@
       "files": {
         "request.json": "bc320c30b24d1560798c9114f9218179aa3b01c5aad7e150d78db950f492b381",
         "response.json": "64eaf76d5bcad248ec04a017b069e6962bf857cc15cc354f3eb57e1438335c3c"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-fake-id-guard",
@@ -511,7 +575,8 @@
       "files": {
         "request.json": "387c72590385c8a695a2223dea2f2413508e9f4d01e8b56891c0c67c8a7e445c",
         "response.json": "71ed70e8ee2fb7843a27c940cb8ce7ec511175c8a5922166e049011e89972949"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-friends-s02e07",
@@ -524,7 +589,8 @@
       "files": {
         "request.json": "6efa401a7c16f5c8bcaaf74e0071e6a2190b1a0eb00fb3c7df1e86ff11006940",
         "response.json": "74e6645056b8af1560de40530e6e00f9a4a59ed76dd026b11fa68fd5de762e05"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-got-s08e03",
@@ -537,7 +603,8 @@
       "files": {
         "request.json": "da2b883483da76317b758a0e150f322e652b7cbe280e1d55d567865b322e6360",
         "response.json": "5a95a0a9b3926c24a87da4f2826b78c9d029d449fc5d44b79fde9ec5bc26c48b"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-la-casa-de-papel-s03e01",
@@ -550,7 +617,8 @@
       "files": {
         "request.json": "3dcf573addb00a1e6f94e1b08d0b7285a75bc5e7c5f0ab391f1af2e6973b6382",
         "response.json": "cbd1c60c40f36aaf3288519a317d3de031466d458093d3e4b34147cf9ba5c70b"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-monster-dahmer-e01",
@@ -563,7 +631,8 @@
       "files": {
         "request.json": "e72b2be091407927cb0401b7064f933df8ebdaa151200f8ce664830905f7d01f",
         "response.json": "f6327b85659b2bff1b7ded5318a071ca0dc6e817936de257e5a591b6d320b367"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-multiwork-marvel-aos",
@@ -576,7 +645,8 @@
       "files": {
         "request.json": "0a427caac22d04bb24fe079d64024568b6770a60a368d815bb07d115031c9b3d",
         "response.json": "f1662712cc749b9d5cabbeb473d16c6e18ae8cd6768041d0482e1805dbbe6853"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-obscure-empty-tv",
@@ -589,7 +659,8 @@
       "files": {
         "request.json": "30e557637fd45a6c0aff5c6d20b59da754e8b1e6115d1c4271f3bfc6804d9bdc",
         "response.json": "bb977be7e69d8c6cb040a6d0a720a365824d44be5ba8fabfff1cb026dc1845c9"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-peaky-blinders-s01e01",
@@ -602,7 +673,8 @@
       "files": {
         "request.json": "fbc8225d3fdae6e8b14c6bf50f9195381797076daeb30efbf90f89d916f4ddb8",
         "response.json": "c2d01e548e9da1bc6b49c0e710fa4ccdb686f9eca32baf0c26c4b896790f9911"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-round-6-s02e01",
@@ -615,7 +687,8 @@
       "files": {
         "request.json": "3a7ed64015cd072103d702648adc7c5fe4384d612d3bb4907b150d712a49a2c3",
         "response.json": "d04f407e751e9f2e6b4d03ac75360b0eee220c91a2a939beda79e90b56901dbd"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-stranger-things-s04e01",
@@ -628,7 +701,8 @@
       "files": {
         "request.json": "2bb9936000e590d63b09838ea4e84783948d6846679312f47bd57f391b2ba464",
         "response.json": "a3d2f6cb20a018f02bce21c047cb66153c5ad8f14bdac71783e289334c26f449"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-swat-serie-s06e01",
@@ -641,7 +715,8 @@
       "files": {
         "request.json": "04f1d564fb8152ae6150b2f307a158490e83328e484f5d1e1ccdff89ef088115",
         "response.json": "7df06808cc648852096207539f8ad4c0f62142604cdf40309a0728c5cdaeeb11"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-the-last-of-us-s01e05",
@@ -654,7 +729,8 @@
       "files": {
         "request.json": "9cb346a916543bc71b417d01f8ec283f2750f8031c4ce6b03377a828ce7c2869",
         "response.json": "854664ed02631613a8344960e8814c4bebce20a8c19c1a856e0b377c628cce84"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     },
     {
       "id": "series-the-office-s03e22",
@@ -667,16 +743,18 @@
       "files": {
         "request.json": "76a47911f9398a6fd0b6c54ba235d15d9be5208065eb5ba44e13532fe1411783",
         "response.json": "71cabee2fc2a86e83a30ed00dfd58346605fac34a5e4d38f25447651ce5c2c97"
-      }
+      },
+      "capturedAt": "2026-10-19T01:11:18.652Z"
     }
   ],
   "notCaptured": [
-    "metadados da obra (Cinemeta/TMDB): o /stream não os devolve; dependem de /internal/search/meta (F1.1)",
-    "itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: dependem das rotas internas de busca",
-    "respostas de cache do debrid (⚡ por hash, arquivos do pack, tamanhos): dependem de rotas internas de debrid",
-    "o segmento de config e a assinatura HMAC nunca são gravados (sig vira {{sig}}); replay exige --user-config e o segredo do operador",
+    "o segmento de config e a assinatura HMAC nunca são gravados (sig vira {{sig}}); replay exige --user-config (e30 decodifica {}) e o segredo do operador",
     "relógio: Date/ETag/age e duração de cada requisição não entram no corpus",
     "estado do acervo (banco de magnets / índice de releases) no instante da captura não é versionado",
-    "ordem de chaves do JSON e ordem da lista de streams são as do Node naquele instante; a comparação de sombra as mascara"
+    "ordem de chaves do JSON e ordem da lista de streams são as do Node naquele instante; a comparação de sombra as mascara",
+    "inputs internos só existem para casos capturados com --with-internal; os demais seguem com request/response apenas",
+    "--shadow-dir copia proven-quality/apply-debrid/files/instant/fallback e as versões exatas de index/debrid do record; sem ele, inputs/index.json é derivado de /internal/search/index e a qualidade provada NÃO é capturável (o item provado volta como \"sem resolução\" no replay)",
+    "o record do shadow não grava config.json (o gateway o hidrata): inputs/config.json continua vindo de /internal/search/config",
+    "as fixtures internas vêm de chamadas próprias DEPOIS do /stream: dependem do cache raw:v1/davail quente para descrever a mesma lista (sem ele o diff acusa ruído de coleta, não pipeline)"
   ]
 }
