@@ -42,13 +42,13 @@ pub use types::{
     DebridAnswer, DebridCheck, WorkHint,
 };
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use adom_core::{
     admits_multi_work_pack, annotate_movie_sizes_core, annotate_pack_sizes_core, decode_entities,
     filter_relevant_raw, filter_series_episode, is_multi_work_collection, normalize_title,
-    sort_and_limit, DebridFile, PackOpts, RankingStream, RelevanceQuery, RelevanceSettings,
-    SortInput, SortOptions, StreamDisplayConfig, WorkHint as DebridWorkHint,
+    sort_and_limit, PackOpts, RankingStream, RelevanceQuery, RelevanceSettings, SortInput,
+    SortOptions, StreamDisplayConfig, WorkHint as DebridWorkHint,
 };
 
 use crate::raw_item::RawItem;
@@ -283,13 +283,12 @@ pub fn build_stream_list(
     // 7. 💾 de episódio (pack: média; multiobra: só medida exata). Antes do
     //    debrid — o título reescrito sobrevive à materialização.
     if let (Some(season), Some(episode)) = (ctx.season, ctx.episode) {
-        let files: BTreeMap<String, Vec<DebridFile>> = BTreeMap::new();
         let pack_opts = PackOpts {
             season,
             episode,
             meta: &ctx.episode_counts,
         };
-        streams = annotate_pack_sizes_core(&streams, &files, &pack_opts);
+        streams = annotate_pack_sizes_core(&streams, &ctx.files_by_hash, &pack_opts);
         // 7b. Pack que a anotação NÃO reduziu (sem medida exata nem média) perde
         // o total do TEXTO: exibir a temporada inteira como tamanho do episódio
         // é o defeito reportado. Mesmo passo do `dropPackTextTotals` do TS,
@@ -297,23 +296,23 @@ pub fn build_stream_list(
         // que nomeia o episódio pedido ficam; pack de título silencioso
         // ("Naruto Complete (001-220 + Movies)") não é reconhecido pelo
         // `isSeasonPackRelease` e é justamente o caso que o corte cobre.
-        // A lista de arquivos é a mesma caixa vazia da anotação neste caminho.
+        // A lista de arquivos (memo `fsz`) é a mesma do build inteiro: sem ela
+        // o pack de título silencioso não teria como provar o total.
         streams = adom_core::drop_pack_text_totals(&adom_core::PackTextTotalsInput {
             streams,
             season: Some(season),
             episode: Some(episode),
-            ..Default::default()
+            files: ctx.files_by_hash.clone().into_iter().collect(),
         })
         .streams;
     }
     if let Some(hint) = &work_hint {
-        let files: BTreeMap<String, Vec<DebridFile>> = BTreeMap::new();
         let debrid_hint = DebridWorkHint {
             names: hint.names.clone(),
             year: hint.year,
             pack: false,
         };
-        streams = annotate_movie_sizes_core(&streams, &files, &debrid_hint);
+        streams = annotate_movie_sizes_core(&streams, &ctx.files_by_hash, &debrid_hint);
     }
 
     // Contagem ANTES do debrid: o aviso "nada em cache" é medido antes do corte.

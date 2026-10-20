@@ -179,7 +179,16 @@ impl Orchestrator {
             });
         }
         if resp.index_covered {
-            let mut items = mapped(resp.index_items, |i| i.from_snapshot = true);
+            // LIMPA `from_snapshot`: na via do índice NÃO-instantânea o Node faz
+            // `raw.items.unshift(...idxReleasesToRaw(indexed), ...accountItems)`
+            // (`search-index-path.ts`) e o `idxReleasesToRaw` não põe marca
+            // nenhuma — o 📦/`~N` é só da FOTO do instantâneo. A rota interna
+            // devolve os itens do índice já com `fromSnapshot: true` (é correto
+            // para a instantânea), então aqui a marca é NEUTRALIZADA em vez de
+            // só não ser posta; sem isso toda resposta do índice saía com 📦 e
+            // seeder `~` que o Node não tem (medido: bacurau, obscuro, swat —
+            // 7-9 itens por caso).
+            let mut items = mapped(resp.index_items, |i| i.from_snapshot = false);
             items.extend(mapped(resp.account_items, |i| i.from_account = true));
             return Some(FastPath {
                 instant: false,

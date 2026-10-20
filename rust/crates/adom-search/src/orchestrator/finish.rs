@@ -359,6 +359,7 @@ impl Orchestrator {
             // precisa mandar a flag no item).
             titles: meta.titles.clone(),
             now_ms: input.now_ms,
+            files_by_hash: self.files_by_hash.as_ref().clone(),
         }
     }
 

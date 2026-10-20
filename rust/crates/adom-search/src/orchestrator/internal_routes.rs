@@ -36,6 +36,17 @@ pub trait InternalRoutes: Send + Sync {
     fn fallback<'a>(&'a self, _req: FallbackRequest) -> RouteFuture<'a, FallbackResponse> {
         Box::pin(async { Ok(FallbackResponse::default()) })
     }
+
+    /// Itens da reserva 📦 JÁ CALCULADOS pelo Node (`collectFallbackForBuild`).
+    ///
+    /// `None` = sem atalho (produção e dublês): o núcleo decide a reserva a
+    /// partir das linhas de [`Self::fallback`]. O replay congelado usa
+    /// `Some(items)` porque o caso grava o RESULTADO (`inputs/fallback.json`),
+    /// não as linhas do banco — sem isto a reserva some da lista e todo item
+    /// dela perde o selo 📦 (medido: dragon-ball-z, dahmer, naruto).
+    fn fallback_injected<'a>(&'a self) -> RouteFuture<'a, Option<Vec<serde_json::Value>>> {
+        Box::pin(async { Ok(None) })
+    }
 }
 
 /// Produção: o cliente HTTP já portado (`internal_client`).

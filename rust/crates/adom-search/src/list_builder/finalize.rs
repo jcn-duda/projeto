@@ -5,7 +5,7 @@ use adom_core::{
     PlayFacts, PoolStream, RankingStream, StreamRef,
 };
 
-use super::helpers::{notice_text, ranking_to_pool, stream_to_ref, to_stream_item};
+use super::helpers::{notice_text, ranking_to_pool, stream_to_ref, to_stream_item, work_hint_of};
 use super::types::{BuildContext, BuildOptions, BuiltList, BuiltStream, DebridAnswer, DebridCheck};
 
 pub fn finalize_streams(
@@ -130,6 +130,29 @@ pub fn finalize_streams(
         disposition_of(stream, degraded, resolve_uncached, unusable_seen) != PlayDisposition::Drop
     });
     out.count("afterDebrid", kept.len());
+
+    // 8c. `fillMissingSizes` do Node (`debrid-pipeline-core.ts`): DEPOIS da
+    //     checagem, quem veio sem `💾` recebe o tamanho do arquivo que o play
+    //     tocaria (`fsz`). O Node roda esta anotação de novo no fim do
+    //     applyDebrid (a de antes do debrid não vê a lista que a própria
+    //     checagem aqueceu); sem este passo o item que o tracker publicou sem
+    //     tamanho — TorrentDosFilmes/apachetorrent — fica sem `💾` e a resposta
+    //     diverge do Node. Só medida exata: hash sem lista segue sem `💾`.
+    let hint = work_hint_of(ctx);
+    let work = hint.as_ref().map(|hint| adom_core::WorkHint {
+        names: hint.names.clone(),
+        year: hint.year,
+        pack: true,
+    });
+    kept = adom_core::fill_missing_sizes_core(
+        &kept,
+        &ctx.files_by_hash,
+        &adom_core::FillOpts {
+            season: ctx.season,
+            episode: ctx.episode,
+            work: work.as_ref(),
+        },
+    );
 
     // 9. limitReservingBr — o corte final é DEPOIS do pool ampliado; inverter
     //    faz o BR (sem seeders publicados) sumir (invariante 3).

@@ -501,17 +501,33 @@ async fn piloto_cidade_de_deus_remonta_igual_ao_node() {
 #[ignore = "corpus ainda só tem o piloto com inputs/ — o batch captura os 51"]
 async fn build_stream_list_parity_completa() {
     let (root, _manifest, cases) = load_corpus();
+    let total = cases.len();
     let mut missing = Vec::new();
     let mut failures = Vec::new();
+    let mut passed = 0;
     for case in &cases {
         if !has_inputs(&root, &case.meta) {
             missing.push(case.meta.id.clone());
+            println!("[e2e] {}: SKIP (sem inputs internos)", case.meta.id);
             continue;
         }
-        if let Err(diff) = replay_loaded(&root, case).await {
-            failures.push(diff);
+        match replay_loaded(&root, case).await {
+            Ok(()) => {
+                passed += 1;
+                println!("[e2e] {}: PASS", case.meta.id);
+            }
+            Err(diff) => {
+                let head = diff.lines().next().unwrap_or("(sem diff)");
+                println!("[e2e] {}: FAIL {head}", case.meta.id);
+                failures.push(diff);
+            }
         }
     }
+    println!(
+        "[e2e] resumo: {passed}/{total} PASS; missing={}; failures={}",
+        missing.len(),
+        failures.len()
+    );
     assert!(
         missing.is_empty(),
         "casos sem inputs internos ({} de {}): {}",

@@ -21,7 +21,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use adom_core::{QualityLimits, RankingStream, QUALITY_KEYS};
+use adom_core::{DebridFile, QualityLimits, RankingStream, QUALITY_KEYS};
 use serde_json::{json, Value};
 
 // ── Dependência injetada: a checagem de debrid ──────────────────────────────
@@ -229,6 +229,10 @@ pub struct BuildContext {
     pub titles: Option<adom_core::PtTitleDualTitles>,
     /// Bases normalizadas de executáveis do acervo desta obra (corte 2).
     pub executable_bases: Vec<String>,
+    /// Lista de arquivos por hash (memo `fsz` do Node). É o que dá `💾` ao
+    /// pack (média do episódio) e ao item que o tracker deixou sem tamanho —
+    /// o `annotateEpisodeSizes`/`fillMissingSizes` do Node, injetado.
+    pub files_by_hash: BTreeMap<String, Vec<DebridFile>>,
     /// Relógio da build (ms desde a época).
     pub now_ms: i64,
 }

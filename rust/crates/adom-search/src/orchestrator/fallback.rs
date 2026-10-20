@@ -23,7 +23,7 @@ use adom_core::{
 };
 
 use crate::internal_types::FallbackRequest;
-use crate::raw_item::RawItem;
+use crate::raw_item::{raw_item_from_value, RawItem};
 
 use super::finish::SearchInput;
 use super::live_state::LiveBatchState;
@@ -187,6 +187,19 @@ impl Orchestrator {
         let Some(routes) = self.routes.as_ref() else {
             return items;
         };
+        // Replay congelado: o caso grava o RESULTADO da reserva
+        // (`collectFallbackForBuild`), não as linhas do banco. Injetar os itens
+        // gravados é o mesmo `[...items, ...fallback.items]` do Node; sem isto
+        // a reserva inteira some (e os itens vivos que ela venceria mudam de
+        // posição). O atalho só existe nesse modo (`None` em produção).
+        if let Ok(Some(recorded)) = routes.fallback_injected().await {
+            if recorded.is_empty() {
+                return items;
+            }
+            let mut out = items;
+            out.extend(recorded.iter().map(raw_item_from_value));
+            return out;
+        }
         let live_hashes: BTreeSet<String> = items
             .iter()
             .map(RawItem::bank_hash)

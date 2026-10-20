@@ -263,16 +263,22 @@ pub fn record_comparison(
 const DEFAULT_INTERNAL_BASE: &str = "http://127.0.0.1:7100";
 /// Teto HTTP da hidratação de `config.json` (loopback, corpo pequeno).
 const CONFIG_TIMEOUT: Duration = Duration::from_millis(5_000);
-/// Teto da SEGUNDA request (a frozen não coleta rede; o teto é folga).
-const FROZEN_NODE_TIMEOUT: Duration = Duration::from_secs(20);
+/// Teto da SEGUNDA request. Ela é a busca CONGELADA de verdade — índice +
+/// coleta ao vivo, sem SWR — e sob concorrência (4 workers) o teto antigo de
+/// 20 s estourava com `frozen: prazo esgotado`, virando `error` em massa em vez
+/// de comparação. 60 s é folga sobre o prazo do Node (`APP_REPLY_DEADLINE_MS`
+/// sem SWR + tail), não um alvo: a sombra nunca segura o cliente.
+const FROZEN_NODE_TIMEOUT: Duration = Duration::from_secs(60);
 /// Espera pelo flush do dir depois da resposta frozen (o Node grava durante a
 /// request; a resposta pode chegar com o último arquivo ainda no buffer).
 const FROZEN_DIR_WAIT: Duration = Duration::from_millis(1_000);
 /// Intervalo da espera do dir.
 const FROZEN_DIR_POLL: Duration = Duration::from_millis(20);
 /// Teto do replay congelado. As rotas congeladas não fazem I/O de rede; o prazo
-/// existe só para não deixar task pendurada se um dublê travar.
-const FROZEN_REPLAY_TIMEOUT: Duration = Duration::from_secs(30);
+/// existe só para não deixar task pendurada se um dublê travar. Igual ao da
+/// segunda request: o replay carrega/anota o caso inteiro e, sob carga, um teto
+/// menor que o da captura só produziria `timeout` falso.
+const FROZEN_REPLAY_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Id aceito no nome do diretório: o gateway gera hexadecimal com `-`; fechar
 /// o alfabeto impede traversal (`../`) e nomes arbitrários.

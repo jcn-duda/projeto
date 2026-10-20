@@ -60,9 +60,11 @@ pub mod frozen_gate;
 mod torrentio_collector;
 mod trace;
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+use adom_core::DebridFile;
 
 use serde_json::Value;
 
@@ -131,6 +133,11 @@ pub struct Orchestrator {
     /// Rotas internas do Node (`/internal/search/*`), para leitura de metadados,
     /// índice de releases e banco instantâneo.
     routes: Option<Arc<dyn InternalRoutes>>,
+    /// Lista de arquivos por hash (o memo `fsz` do Node): o `💾` de pack/item
+    /// que o tracker não publicou e o fill pós-debrid saem daqui. O Node lê o
+    /// cache `fsz`; o núcleo não tem esse cache, então o caller injeta (na
+    /// captura congelada vem de `inputs/files.json`).
+    files_by_hash: Arc<BTreeMap<String, Vec<DebridFile>>>,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -174,7 +181,15 @@ impl Orchestrator {
             refreshing: Arc::new(Mutex::new(HashSet::new())),
             shadow_mode: false,
             routes: None,
+            files_by_hash: Arc::new(BTreeMap::new()),
         }
+    }
+
+    /// Injeta a lista de arquivos por hash (memo `fsz` do Node). Sem ela o
+    /// build não inventa tamanho: item sem `💾` do tracker segue sem `💾`.
+    pub fn with_files_by_hash(mut self, files: BTreeMap<String, Vec<DebridFile>>) -> Self {
+        self.files_by_hash = Arc::new(files);
+        self
     }
 
     pub fn with_collector(mut self, collector: Arc<dyn Collector>) -> Self {

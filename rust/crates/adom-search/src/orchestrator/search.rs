@@ -289,7 +289,10 @@ impl Orchestrator {
         // primeira leitura custa ~100 ms e, dentro do `nonpriority`, esperava o
         // indexer global mais lento (4 s+) para sair do Node.
         let account_job = if !self.shadow_mode && scope != Some(true) && self.routes.is_some() {
-            jobs.iter().find(|job| !job.priority).or(jobs.first()).cloned()
+            jobs.iter()
+                .find(|job| !job.priority)
+                .or(jobs.first())
+                .cloned()
         } else {
             None
         };
