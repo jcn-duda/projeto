@@ -117,6 +117,68 @@ manifest e que `/stream` devolve **pelo menos um stream tocável**
 **não falha** se BR sumir nem compara cotas/reserva com o Node. Verde no
 script **não** autoriza `ROUTES_RUST=stream` como default.
 
+### 0.8 Play `/resolve`: Node responde; nativo é guarda+proxy/501; AllDebrid no teto
+
+O handler de play continua **no TypeScript** (`src/routes/resolve.ts`, F4) — o
+porte nativo do play não existe. Na sombra (`ROUTES_RUST=stream-shadow`) a 7000
+só encaminha `/resolve` ao Node (7100). Quando `ROUTES_RUST` inclui o token
+`resolve`, o gateway **não** resolve debrid: `rust/crates/adom-server/src/resolve.rs`
+valida o HMAC (`resolve_play_from` + `verify_resolve_play`) e, com
+`GATEWAY_RESOLVE_PROXY` ligado (default), encaminha ao Node; com o proxy
+desligado (`GATEWAY_RESOLVE_PROXY=off`) devolve **501**. Ou seja, "nativo
+proxy/501" é o contrato real: guarda de assinatura + proxy, não play em Rust.
+
+Medido em **2026-10-20** (container `stremio-adom`, `GATEWAY=on`,
+`ROUTES_RUST=stream-shadow`, Node na 7100):
+
+- `/debrid-status.json` (loopback + `X-Indexer-Test-Token`):
+  `{"service":"alldebrid","magnets":977,"ready":972,"active":5,"error":0,"cached":false,"warn":false,"warnAt":4000}`.
+  O `warnAt=4000` não antecipa o teto real de 1000: o primeiro sinal é o erro de
+  upload. O mesmo vale para o freio do autofetch
+  (`DEBRID_AUTO_FETCH_PAUSE_AT=2000`): os dois limiares do app estão acima do
+  teto do serviço, então nada freia antes do `MAGNET_TOO_MANY`.
+- O `/magnet/upload` do AllDebrid (que É a checagem de cache e a **1ª etapa** do
+  `resolveLink`, `src/debrid/alldebrid-play.ts:42`) recusa até hash que já está
+  `Ready` na conta: `MAGNET_TOO_MANY` — `Magnets limit reached (1000 accross all
+  tabs)`. O teto efetivo não é derivável da listagem: ela devolve 977, mas nem
+  um único upload passa (o adaptador já documenta a discrepância dos dois
+  limites em `alldebrid-api.ts:216-222`).
+- `/resolve/<hash>?sig=…` pela **7000** (gateway) e pela **7100** (Node) devolveu
+  **502**; o log é `[resolve] Magnets limit reached (1000 accross all tabs)`.
+- O mesmo item está `Ready` (1 arquivo,
+  `Kung.Fu.Panda.4.2024.1080p.WEBRip.Dublado.mkv`, 1.952.177.653 bytes) e o
+  `/link/unlock` devolve link em `rpiqwx.debrid.it` que responde **206**
+  `bytes 0-0/1952177653`. O arquivo é tocável; o bloqueio é o teto de magnets,
+  não o link.
+
+O **302** de play real já foi observado nesta sombra com a conta folgada (estado
+do operador, antes de o corpus encher a conta). Nesta medição ele **não** se
+reproduz: 502 em todas as tentativas. Não prometer play por AllDebrid enquanto o
+teto não for liberado — a prova de play real exige `/resolve` devolvendo **302**
+para um link tocável.
+
+Limpeza segura medida na mesma conta: 972 `Ready` + 5 `Downloading` + **0**
+terminal ⇒ `sweepDead` = 0 (a ação `sweep-dead` do painel devolveu
+`{"varridos":0,"falhas":0}`); nenhum não-pronto órfão ⇒ `dropUncached` = 0;
+`reconcile` desligado (`DEBRID_RECONCILE=false`) e os 68 magnets com posse
+`adsub` tinham <24 h (piso de idade) ⇒ 0 candidatos; `sweepUndubbed` também não
+alcança (os 43 nomes com veredito estrangeiro são todos <7 dias e vários são
+filmes BR, como `Central.do.Brasil` e `Carandiru`). O `cleanup-preview` do painel
+devolve `targets: []` (`notCondemned: 761`). Em resumo: **a limpeza automática do
+app não libera vaga** — os 904 magnets sem posse são tratados como acervo
+protegido e a condenação por nome não é segura.
+
+Ação do operador (manual, fora do app): apagar no painel do AllDebrid magnets
+que não sejam acervo BR nem os 5 downloads ativos, até o `/magnet/upload` voltar
+a aceitar. `DEBRID_BATCH_SIZE=25`, então liberar **≥25** (ideal ~50) evita que o
+primeiro lote volte a bater no teto; depois repetir a busca e só declarar play
+por debrid com `/resolve` **302** medido. Não usar `cleanup-apply`/
+`includeKnown` como atalho: o preview não seleciona alvos e os "estrangeiros" por
+nome incluem filmes BR.
+
+Não medido nesta rodada: o 501 do nativo (só contrato/código; o caminho de proxy
+foi o exercitado) e qualquer limpeza destrutiva — nenhuma foi executada.
+
 ---
 
 ## 1. Rota e parâmetros
@@ -366,6 +428,9 @@ e falha → **403** `assinatura inválida`. Status do play: **302** para o link,
 
 O router do `/stream` usa **307** para `response.redirect` (não usado hoje pelo
 handler) — `src/routes/addon-router.ts:123-125`.
+
+Estado operacional do play (inclui o bloqueio por teto do AllDebrid e a
+diferença Node × nativo) em §0.8.
 
 ---
 
