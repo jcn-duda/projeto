@@ -138,6 +138,15 @@ pub struct Orchestrator {
     /// cache `fsz`; o núcleo não tem esse cache, então o caller injeta (na
     /// captura congelada vem de `inputs/files.json`).
     files_by_hash: Arc<BTreeMap<String, Vec<DebridFile>>>,
+    /// Total do torrent (`tsz`) por hash — o `💾` de quem veio sem tamanho.
+    /// Só o replay congelado injeta hoje (`inputs/totals.json`); em produção o
+    /// Node preenche no build e o gateway ainda não o busca (gap de contrato).
+    totals_by_hash: Arc<BTreeMap<String, f64>>,
+    /// Estado do memo `fsz`/`tsz` na passada PRÉ-debrid (o Node anota duas
+    /// vezes). `None` = captura sem o arquivo: a 1ª passada segue a régua
+    /// anterior.
+    files_at_build: Option<Arc<BTreeMap<String, Vec<DebridFile>>>>,
+    totals_at_build: Option<Arc<BTreeMap<String, f64>>>,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -182,6 +191,9 @@ impl Orchestrator {
             shadow_mode: false,
             routes: None,
             files_by_hash: Arc::new(BTreeMap::new()),
+            totals_by_hash: Arc::new(BTreeMap::new()),
+            files_at_build: None,
+            totals_at_build: None,
         }
     }
 
@@ -189,6 +201,27 @@ impl Orchestrator {
     /// build não inventa tamanho: item sem `💾` do tracker segue sem `💾`.
     pub fn with_files_by_hash(mut self, files: BTreeMap<String, Vec<DebridFile>>) -> Self {
         self.files_by_hash = Arc::new(files);
+        self
+    }
+
+    /// Injeta o total do torrent por hash (memo `tsz` do Node). Sem ele o item
+    /// que o tracker publicou sem tamanho fica sem `💾` quando não há lista de
+    /// arquivos (o Node preenche com o total).
+    pub fn with_totals_by_hash(mut self, totals: BTreeMap<String, f64>) -> Self {
+        self.totals_by_hash = Arc::new(totals);
+        self
+    }
+
+    /// Injeta o estado do memo na passada PRÉ-debrid (o Node anota duas vezes e
+    /// o `📦 pack` depende do que a 1ª passada preencheu). Só o replay congela
+    /// isto (`inputs/files-build.json`); produção segue com `None`.
+    pub fn with_build_pass(
+        mut self,
+        files: Option<BTreeMap<String, Vec<DebridFile>>>,
+        totals: Option<BTreeMap<String, f64>>,
+    ) -> Self {
+        self.files_at_build = files.map(Arc::new);
+        self.totals_at_build = totals.map(Arc::new);
         self
     }
 

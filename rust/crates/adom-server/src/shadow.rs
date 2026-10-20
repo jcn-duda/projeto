@@ -393,6 +393,20 @@ async fn observe_frozen(
     encoded: &str,
     metrics: &ShadowMetrics,
 ) {
+    // §9.4 item 6: expected de AVISO/coleta vazia não é comparável — a 2ª
+    // request congelada pode herdar o prazo/coleta vazia da original e devolver
+    // o aviso ("Procurando fontes — reabra em instantes") enquanto a captura
+    // tem o lote; o replay então monta a lista e o comparador acusaria uma
+    // divergência de PIPELINE que não existe. PULA (não conta `compared` nem
+    // `divergence`); retry não resolve — a coleta vazia é transiente e a
+    // captura já é a melhor evidência do build.
+    if notice_only(expected) {
+        eprintln!(
+            "[shadow] expected de aviso/coleta vazia em {}: comparação pulada",
+            dir.display()
+        );
+        return;
+    }
     if let Err(err) = hydrate_config(dir, encoded).await {
         eprintln!(
             "[shadow] config do caso {} indisponível: {err}",
@@ -637,6 +651,21 @@ fn mask_sig_param(text: &str) -> String {
 /// Magnitude §9.2: quantos ids estão só de um lado (diferença simétrica).
 pub fn divergent_item_count(node: &BTreeSet<String>, rust: &BTreeSet<String>) -> u64 {
     node.symmetric_difference(rust).count() as u64
+}
+
+/// Corpo do Node SEM lista comparável: nenhum stream, ou só avisos
+/// (`{"name": "...", "notice": true}`). Aviso é o `Procurando fontes` da coleta
+/// vazia/parcial — não é decisão de pipeline (§9.4 item 6).
+pub fn notice_only(body: &Value) -> bool {
+    match body.get("streams").and_then(Value::as_array) {
+        None => true,
+        Some(streams) => streams.iter().all(|stream| {
+            stream
+                .get("notice")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        }),
+    }
 }
 
 #[cfg(test)]

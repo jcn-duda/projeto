@@ -149,6 +149,12 @@ struct FrozenCase {
     instant: Vec<String>,
     /// Lista de arquivos por hash (memo `fsz`): `💾` de pack e fill pós-debrid.
     files: BTreeMap<String, Vec<adom_core::DebridFile>>,
+    /// Total do torrent por hash (`inputs/totals.json`, memo `tsz` do Node):
+    /// o `💾` de quem veio sem tamanho e sem lista de arquivos.
+    totals: BTreeMap<String, f64>,
+    /// Estado do memo na passada PRÉ-debrid (`None` = captura antiga).
+    build_files: Option<BTreeMap<String, Vec<adom_core::DebridFile>>>,
+    build_totals: Option<BTreeMap<String, f64>>,
     /// Itens da reserva 📦 que o Node injetou (`None` = caso sem o arquivo).
     fallback: Option<Vec<Value>>,
     options: Value,
@@ -255,6 +261,43 @@ impl FrozenCase {
                 )
             })
             .collect();
+        // Estado do memo na passada PRÉ-debrid (1ª anotação do Node). O record
+        // grava o arquivo MESMO VAZIO (marcador): existência = captura nova;
+        // ausência = captura antiga, e a 1ª passada segue a régua anterior.
+        let build_files_path = dir.join("inputs/files-build.json");
+        let build_files: Option<BTreeMap<String, Vec<adom_core::DebridFile>>> = build_files_path
+            .is_file()
+            .then(|| read_optional::<BTreeMap<String, Vec<FileEntry>>>(&build_files_path))
+            .transpose()?
+            .map(|raw| {
+                normalize_files(raw)
+                    .into_iter()
+                    .map(|(hash, list)| {
+                        (
+                            hash,
+                            list.into_iter()
+                                .map(|file| adom_core::DebridFile {
+                                    path: file.path,
+                                    size: file.size,
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            });
+        let build_totals_path = dir.join("inputs/totals-build.json");
+        let build_totals: Option<BTreeMap<String, f64>> = build_totals_path
+            .is_file()
+            .then(|| read_optional::<BTreeMap<String, f64>>(&build_totals_path))
+            .transpose()?
+            .map(|raw| {
+                raw.into_iter()
+                    .filter_map(|(hash, total)| {
+                        let hash = hash.trim().to_ascii_lowercase();
+                        (!hash.is_empty() && total > 0.0).then_some((hash, total))
+                    })
+                    .collect()
+            });
         let applied: Vec<ApplyDebridFile> = read_optional(&dir.join("inputs/apply-debrid.json"))?;
         let applied_q = applied_qualities(&applied);
         if proven.is_empty() {
@@ -316,6 +359,17 @@ impl FrozenCase {
         // Conjunto `instant` real do sort; ausente em capturas antigas → cai no
         // recorte de `fromAccount` (aproximação).
         let instant: Vec<String> = read_optional(&dir.join("inputs/instant.json"))?;
+        // Total do torrent (`tsz`) que o build do Node usou. Sem ele o replay
+        // deixa sem `💾` o item que o tracker publicou sem tamanho e sem lista.
+        let totals: BTreeMap<String, f64> = read_optional::<BTreeMap<String, f64>>(
+            &dir.join("inputs/totals.json"),
+        )?
+        .into_iter()
+        .filter_map(|(hash, total)| {
+            let hash = hash.trim().to_ascii_lowercase();
+            (!hash.is_empty() && total > 0.0).then_some((hash, total))
+        })
+        .collect();
         let config: Value = read_json(&dir.join("inputs/config.json"))?;
         Ok(FrozenCase {
             request,
@@ -325,6 +379,9 @@ impl FrozenCase {
             debrid: debrid.calls.into_iter().next().unwrap_or_default(),
             instant,
             files,
+            totals,
+            build_files,
+            build_totals,
             fallback,
             options: config.get("options").cloned().unwrap_or(Value::Null),
             operator: config.get("operator").cloned().unwrap_or(Value::Null),
@@ -1098,6 +1155,9 @@ async fn replay(
     let config = frozen.config();
     let debrid = frozen.debrid();
     let files = frozen.files.clone();
+    let totals = frozen.totals.clone();
+    let build_files = frozen.build_files.clone();
+    let build_totals = frozen.build_totals.clone();
     let routes: Arc<dyn InternalRoutes> = Arc::new(frozen.routes());
     let orchestrator = Orchestrator::new(config, Arc::new(MemorySwrStore::new()))
         .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
@@ -1107,6 +1167,8 @@ async fn replay(
         .with_internal_routes(routes)
         .with_debrid(Arc::new(debrid))
         .with_files_by_hash(files)
+        .with_totals_by_hash(totals)
+        .with_build_pass(build_files, build_totals)
         .with_tail(Arc::new(NoopTailEffects));
     let request = StreamRequest {
         kind,

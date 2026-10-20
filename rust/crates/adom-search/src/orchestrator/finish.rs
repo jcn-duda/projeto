@@ -360,6 +360,9 @@ impl Orchestrator {
             titles: meta.titles.clone(),
             now_ms: input.now_ms,
             files_by_hash: self.files_by_hash.as_ref().clone(),
+            totals_by_hash: self.totals_by_hash.as_ref().clone(),
+            files_at_build: self.files_at_build.as_ref().map(|files| files.as_ref().clone()),
+            totals_at_build: self.totals_at_build.as_ref().map(|totals| totals.as_ref().clone()),
         }
     }
 

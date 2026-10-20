@@ -282,13 +282,26 @@ pub fn build_stream_list(
 
     // 7. 💾 de episódio (pack: média; multiobra: só medida exata). Antes do
     //    debrid — o título reescrito sobrevive à materialização.
+    //
+    //    Com o estado do memo na passada de BUILD (`files_at_build`, gravado
+    //    pelo record), roda o MESMO composto do Node da 1ª chamada de
+    //    `annotateEpisodeSizes`: total do torrent → anotação → corte do texto →
+    //    fill do 💾. É o que decide se o `📦 pack` da 2ª passada nasce — o Node
+    //    só o emite quando a 1ª passada já preencheu o 💾 (Breaking Bad alterna
+    //    entre `💾 X` e `💾 X 📦 pack X` conforme o `fsz` estava quente).
+    let files_build = ctx.files_at_build.as_ref().unwrap_or(&ctx.files_by_hash);
     if let (Some(season), Some(episode)) = (ctx.season, ctx.episode) {
         let pack_opts = PackOpts {
             season,
             episode,
             meta: &ctx.episode_counts,
         };
-        streams = annotate_pack_sizes_core(&streams, &ctx.files_by_hash, &pack_opts);
+        let duas_passadas = ctx.files_at_build.is_some();
+        if duas_passadas {
+            let totals = ctx.totals_at_build.clone().unwrap_or_default();
+            streams = adom_core::fill_torrent_totals_core(&streams, files_build, &totals);
+        }
+        streams = annotate_pack_sizes_core(&streams, files_build, &pack_opts);
         // 7b. Pack que a anotação NÃO reduziu (sem medida exata nem média) perde
         // o total do TEXTO: exibir a temporada inteira como tamanho do episódio
         // é o defeito reportado. Mesmo passo do `dropPackTextTotals` do TS,
@@ -302,9 +315,25 @@ pub fn build_stream_list(
             streams,
             season: Some(season),
             episode: Some(episode),
-            files: ctx.files_by_hash.clone().into_iter().collect(),
+            files: files_build.clone().into_iter().collect(),
         })
         .streams;
+        if duas_passadas {
+            let work = work_hint.as_ref().map(|hint| adom_core::WorkHint {
+                names: hint.names.clone(),
+                year: hint.year,
+                pack: true,
+            });
+            streams = adom_core::fill_missing_sizes_core(
+                &streams,
+                files_build,
+                &adom_core::FillOpts {
+                    season: Some(season),
+                    episode: Some(episode),
+                    work: work.as_ref(),
+                },
+            );
+        }
     }
     if let Some(hint) = &work_hint {
         let debrid_hint = DebridWorkHint {

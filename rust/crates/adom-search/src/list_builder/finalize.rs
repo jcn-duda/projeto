@@ -138,15 +138,77 @@ pub fn finalize_streams(
     //     checagem aqueceu); sem este passo o item que o tracker publicou sem
     //     tamanho — TorrentDosFilmes/apachetorrent — fica sem `💾` e a resposta
     //     diverge do Node. Só medida exata: hash sem lista segue sem `💾`.
+    //
+    //     Conta `unusable` (auth/quota): o Node sai do `applyDebrid` ANTES desta
+    //     anotação (o P2P volta como está, só com o que a 1ª passada mediu).
+    //     Com o estado da 1ª passada no record (`files_at_build`), repetir o
+    //     composto aqui acrescentava `📦 pack` que o Node não emite (Breaking
+    //     Bad: `💾 481.87 MB` × `💾 481.87 MB 📦 pack 481.87 MB`). Captura
+    //     antiga (sem o mapa do build) mantém a régua anterior.
+    let duas_passadas = ctx.files_at_build.is_some();
+    // O Node sai do `applyDebrid` ANTES da 2ª anotação quando a conta não
+    // responde (auth/quota): o P2P volta só com o que a 1ª passada mediu. Nesse
+    // caso o replay usa o estado do PRÉ (`files_at_build`/`totals_at_build`) e
+    // NÃO repete a anotação de pack (que acrescentava `📦 pack` inexistente).
+    // Filme não passa pelo composto do item 7; o fill do pré é feito aqui com o
+    // mesmo estado (Tropa de Elite `💾 1.61 GB`).
+    let pos_checagem = !(duas_passadas && unusable_seen);
+    let files_ref = if pos_checagem {
+        &ctx.files_by_hash
+    } else {
+        ctx.files_at_build.as_ref().unwrap_or(&ctx.files_by_hash)
+    };
+    let totals_ref = if pos_checagem {
+        &ctx.totals_by_hash
+    } else {
+        ctx.totals_at_build.as_ref().unwrap_or(&ctx.totals_by_hash)
+    };
     let hint = work_hint_of(ctx);
     let work = hint.as_ref().map(|hint| adom_core::WorkHint {
         names: hint.names.clone(),
         year: hint.year,
         pack: true,
     });
+    // 8c.1 `fillTorrentTotals` (`tsz`, passo 1 do `annotateEpisodeSizes`).
+    kept = adom_core::fill_torrent_totals_core(&kept, files_ref, totals_ref);
+    // 8d. Reanotação de PACK (2ª passada do Node), NA ORDEM dele: anotar →
+    //     cortar o total do texto → preencher 💾 (abaixo). O `_size` não chega
+    //     nesta chamada no Node (o `sortAndLimit` o apaga): anotar com o size
+    //     bruto faria o guard `exato >= total` pular justamente os packs que o
+    //     Node anota. O 💾 que já existe veio da 1ª passada e vira o total.
+    if pos_checagem {
+        if let (Some(season), Some(episode)) = (ctx.season, ctx.episode) {
+            let pack_opts = adom_core::PackOpts {
+                season,
+                episode,
+                meta: &ctx.episode_counts,
+            };
+            let mut sem_size = kept.clone();
+            for stream in &mut sem_size {
+                stream.size = None;
+            }
+            let anotado = adom_core::drop_pack_text_totals(&adom_core::PackTextTotalsInput {
+                streams: adom_core::annotate_pack_sizes_core(&sem_size, files_ref, &pack_opts),
+                season: Some(season),
+                episode: Some(episode),
+                files: files_ref.clone().into_iter().collect(),
+            })
+            .streams;
+            // Só título/marcador mudam; o size original de cada item é
+            // preservado para os passos seguintes (filtros já rodaram com ele).
+            kept = anotado
+                .into_iter()
+                .zip(kept)
+                .map(|(mut anotado, original)| {
+                    anotado.size = original.size;
+                    anotado
+                })
+                .collect();
+        }
+    }
     kept = adom_core::fill_missing_sizes_core(
         &kept,
-        &ctx.files_by_hash,
+        files_ref,
         &adom_core::FillOpts {
             season: ctx.season,
             episode: ctx.episode,

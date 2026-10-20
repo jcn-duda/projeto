@@ -82,6 +82,33 @@ vazio e o Rust só o usaria para 💾/tamanho. Medido no replay: com `files` e s
 `provenQuality` a lista diverge igual a não ter prova; com `provenQuality` e sem
 `files` a lista bate (só o chip de áudio muda, prova separada).
 
+### 0.3.2 Tamanho de pack (`💾` / `📦 pack`) no replay
+
+O Node anota tamanho **duas vezes**: `stream-builder.ts` (pré-debrid) e
+`debrid-pipeline-core.ts` (pós). O `📦 pack` só nasce na 2ª quando a 1ª já
+preencheu o `💾`, e a 2ª NÃO roda quando o veredito é `unusable` (auth/quota) —
+por isso o mesmo item alterna entre `💾 X` e `💾 X 📦 pack X` conforme o memo
+`fsz`/`tsz` no instante do build. O record grava o estado de CADA passada:
+
+- `inputs/files.json`/`totals.json` — pós-checagem (o que o replay já usava);
+- `inputs/files-build.json`/`totals-build.json` — pré-debrid. `{}` = a passada
+  rodou com o memo frio; ausência = captura antiga (o replay mantém a régua
+  anterior, sem a 1ª passada).
+
+O replay (`FrozenCase` → `with_build_pass` → `BuildContext.files_at_build`)
+roda o mesmo composto nas duas passadas — total do torrent → anotação → corte do
+texto → fill do 💾 — e, com `unusable`, usa o estado do pré sem repetir a
+anotação de pack. **Produção ainda não busca `fsz`/`tsz`**: no corte nativo os
+títulos de pack podem divergir do Node (gap de contrato).
+
+### 0.3.3 Aviso de coleta vazia no comparador
+
+Expected sem streams ou só com avisos (`{"name": …, "notice": true}`) não é
+comparável (§9.4 item 6): a sombra **pula** (não conta `compared` nem
+`divergence`) — a 2ª request congelada pode herdar a coleta vazia/parcial da
+original enquanto a captura tem o lote. Retry não resolve: a coleta vazia é
+transiente e a captura já é a melhor evidência do build.
+
 ### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
 
 | Modo | Store | Path |

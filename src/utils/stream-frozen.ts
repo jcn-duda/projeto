@@ -45,16 +45,14 @@ import {
   writeManifest,
   writeFileSizes,
   writeInstant,
+  writeTorrentTotal,
 } from './stream-frozen-store.js';
 
 export { active, behaviorFrozen, mode };
 export type { FrozenMode } from './stream-frozen-store.js';
 
-/** Lista de arquivos do debrid (hash → caminho/tamanho) para o 💾 de pack. */
-export function recordFileSizes(infoHash: string, files: Array<{ path: string; size: number }>) {
-  if (!recording() || !active()) return;
-  writeFileSizes(infoHash, files);
-}
+// `fsz`/`tsz` e o estado da 1ª passada (pré-debrid) moram no store (catraca).
+export { recordFileSizes, recordTorrentTotal, recordFileSizesAtBuild, recordTorrentTotalAtBuild, markBuildPass } from './stream-frozen-store.js';
 
 /**
  * Grava a qualidade que o build REALMENTE usou (hash → qualidade provada). Mora

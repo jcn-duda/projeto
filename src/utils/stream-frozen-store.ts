@@ -34,6 +34,9 @@ export const FILES = {
   fallback: 'fallback.json',
   debrid: 'debrid.json',
   files: 'files.json',
+  totals: 'totals.json',
+  filesBuild: 'files-build.json',
+  totalsBuild: 'totals-build.json',
   instant: 'instant.json',
   apply: 'apply-debrid.json',
   provenQuality: 'proven-quality.json',
@@ -132,12 +135,71 @@ export function appendJson(file: string, entry: unknown) {
  * usa o memo `fsz` para o 💾 médio de pack; o Rust não tem esse cache, então o
  * record grava a lista aqui e o `FrozenCase` a injeta no `BuildContext`.
  */
-export function writeFileSizes(infoHash: string, files: Array<{ path: string; size: number }>) {
+export function writeFileSizes(
+  infoHash: string,
+  files: Array<{ path: string; size: number }>,
+  name: string = FILES.files,
+) {
   const hash = String(infoHash || '').toLowerCase();
   if (!hash || files.length === 0) return;
-  const data = readJson<Record<string, unknown>>(inputFile(FILES.files), {});
+  const data = readJson<Record<string, unknown>>(inputFile(name), {});
   data[hash] = files.map((file) => ({ path: file.path, size: file.size }));
-  writeJson(inputFile(FILES.files), data);
+  writeJson(inputFile(name), data);
+}
+
+/**
+ * TOTAL do torrent (`tsz`) por hash que o build do Node usou para preencher o
+ * `💾` de quem veio sem tamanho (tracker mandou 1 KB ou nada). O Rust não tem o
+ * cache `tsz`; sem este mapa o replay deixa o item sem `💾` (Breaking Bad S01,
+ * `415.63 MB` só no Node). Mesma classe do `files.json`: medida do build, não
+ * invenção.
+ */
+export function writeTorrentTotal(
+  infoHash: string,
+  total: number,
+  name: string = FILES.totals,
+) {
+  const hash = String(infoHash || '').trim().toLowerCase();
+  if (!hash || !(total > 0)) return;
+  const data = readJson<Record<string, number>>(inputFile(name), {});
+  if (data[hash] === total) return;
+  data[hash] = total;
+  writeJson(inputFile(name), data);
+}
+
+/** Lista de arquivos do debrid (hash → caminho/tamanho) para o 💾 de pack. */
+export function recordFileSizes(infoHash: string, files: Array<{ path: string; size: number }>) {
+  if (!recording() || !active()) return;
+  writeFileSizes(infoHash, files);
+}
+
+/** Total do torrent (`tsz`) por hash: o `💾` de quem veio sem tamanho. */
+export function recordTorrentTotal(infoHash: string, total: number) {
+  if (!recording() || !active()) return;
+  writeTorrentTotal(infoHash, total);
+}
+
+/** Estado do memo `fsz` na passada PRÉ-debrid (o Node anota duas vezes). */
+export function recordFileSizesAtBuild(infoHash: string, files: Array<{ path: string; size: number }>) {
+  if (!recording() || !active()) return;
+  writeFileSizes(infoHash, files, FILES.filesBuild);
+}
+
+/** Estado do memo `tsz` na passada PRÉ-debrid. */
+export function recordTorrentTotalAtBuild(infoHash: string, total: number) {
+  if (!recording() || !active()) return;
+  writeTorrentTotal(infoHash, total, FILES.totalsBuild);
+}
+
+/**
+ * Marcador da passada PRÉ-debrid: garante `files-build.json` MESMO VAZIO.
+ * Ausência do arquivo = captura antiga (o replay não tenta a 1ª passada);
+ * `{}` = a passada rodou e o memo estava frio para todos os hashes.
+ */
+export function markBuildPass() {
+  if (!recording() || !active()) return;
+  const file = inputFile(FILES.filesBuild);
+  writeJson(file, {});
 }
 
 /**

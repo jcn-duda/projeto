@@ -134,6 +134,13 @@ type AnnotateOptions = {
   cached?: ReadonlySet<string> | null;
   /** Aceito pelo contrato; o Rust não emite os eventos `episodeSize.*`. */
   trace?: StreamTraceState | null;
+  /**
+   * Passada da anotação: `build` é a de antes do debrid e `debrid` a de depois.
+   * O record congelado grava os caches `fsz`/`tsz` do estado de CADA passada —
+   * o Node anota duas vezes e o `📦 pack` só nasce na 2ª quando a 1ª já
+   * preencheu o 💾; o replay precisa do estado do `build`, não do final.
+   */
+  stage?: 'build' | 'debrid';
 };
 
 /**

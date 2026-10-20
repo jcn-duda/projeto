@@ -233,6 +233,13 @@ pub struct BuildContext {
     /// pack (média do episódio) e ao item que o tracker deixou sem tamanho —
     /// o `annotateEpisodeSizes`/`fillMissingSizes` do Node, injetado.
     pub files_by_hash: BTreeMap<String, Vec<DebridFile>>,
+    /// Total do torrent (memo `tsz` do Node) por hash: o `💾` de quem veio sem
+    /// tamanho quando não há lista de arquivos. Injetado pelo replay congelado.
+    pub totals_by_hash: BTreeMap<String, f64>,
+    /// Estado do memo na passada PRÉ-debrid (1ª anotação do Node). `None` =
+    /// captura antiga/sem o arquivo: a 1ª passada segue a régua anterior.
+    pub files_at_build: Option<BTreeMap<String, Vec<DebridFile>>>,
+    pub totals_at_build: Option<BTreeMap<String, f64>>,
     /// Relógio da build (ms desde a época).
     pub now_ms: i64,
 }
