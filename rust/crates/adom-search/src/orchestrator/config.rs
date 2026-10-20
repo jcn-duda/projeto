@@ -69,6 +69,16 @@ pub struct OrchestratorConfig {
     /// `SEARCH_PACK_TAIL`: série busca o pack da temporada no tail e mescla
     /// os hashes novos (o `packTail` do TS).
     pub pack_tail: bool,
+    /// `EFFECTS_RUST`: o orquestrador nativo EMITE os efeitos de cauda
+    /// (dub_audit/warmer/colhedor/chave de temporada) por
+    /// `POST /internal/search/effects`. Default OFF: enquanto o pipeline de
+    /// debrid do Node decide, quem enfileira é ele — ligar os dois duplicaria
+    /// a emissão (as filas do Node dedupam, mas o custo é dobrado).
+    pub effects_enabled: bool,
+    /// `MICO_DEFAULT`: o card virtual `mico` entra no `ji` default do operador.
+    /// Só vale quando a request não traz `jackettIndexers` (a seleção da URL
+    /// vence); alimenta o `wants("mico")` do `CollectJob`.
+    pub mico_default: bool,
 }
 
 impl Default for OrchestratorConfig {
@@ -94,6 +104,8 @@ impl Default for OrchestratorConfig {
             search_index_rescue_min_ms: 2500,
             tail_collect_ms: 25_000,
             pack_tail: true,
+            effects_enabled: false,
+            mico_default: false,
         }
     }
 }

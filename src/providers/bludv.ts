@@ -175,8 +175,15 @@ async function collectFromPost(post: BludvPost, deadlineAt: number, notePending:
   return resolved;
 }
 
-async function search(query: string) {
+interface SearchOptions {
+  /** Sombra read-only (F2.1): referência SEM efeitos. Só o cache `raw:v1`
+   * (leitura e escrita) é suprimido aqui; a rede/parse são os mesmos. */
+  readOnly?: boolean;
+}
+
+async function search(query: string, options: SearchOptions = {}) {
   if (!config.bludv.enabled || !query) return [];
+  const readOnly = options.readOnly === true;
 
   // O buscador WordPress dos sites BR engasga com ":" — remover é o que faz
   // "O Poderoso Chefão: Parte II" voltar resultado.
@@ -188,7 +195,9 @@ async function search(query: string) {
   // (raspa WordPress + dois saltos de protetor por botão) e a que menos muda.
   const { ttlBr, emptyTtl, maxItems } = config.rawCache;
   const rawKey = `${prefix('raw')}bludv:${opts().dubbedOnly ? 'd' : 't'}:${q}`;
-  if (ttlBr > 0 && maxItems > 0) {
+  // Sombra read-only: o cache bruto é um efeito do Node (um hit serviria uma
+  // lista que a coleta de referência não viu). Não lê e não grava.
+  if (!readOnly && ttlBr > 0 && maxItems > 0) {
     const hit = cache.get(rawKey);
     if (hit && Array.isArray(hit.items)) return hit.items;
   }
@@ -228,7 +237,7 @@ async function search(query: string) {
       { onItemError: 'drop' },
     );
     const items = chunks.flat();
-    if (!incomplete && ttlBr > 0 && maxItems > 0 && items.length <= maxItems) {
+    if (!incomplete && !readOnly && ttlBr > 0 && maxItems > 0 && items.length <= maxItems) {
       // Vazio usa o TTL curto: site fora/rate-limit não pode congelar a
       // resposta. Falha (catch) continua sem cache — retry na próxima busca.
       cache.set(rawKey, { items }, items.length === 0 ? emptyTtl : ttlBr);

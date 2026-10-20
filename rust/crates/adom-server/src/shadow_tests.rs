@@ -285,7 +285,6 @@ async fn espera_do_dir_aceita_captura_completa() {
     let _ = fs::remove_dir_all(&dir);
 }
 
-
 #[test]
 fn aviso_de_coleta_vazia_nao_e_comparavel() {
     // Envelope real do aviso: o campo `notice` NÃO sobrevive à resposta; sobra

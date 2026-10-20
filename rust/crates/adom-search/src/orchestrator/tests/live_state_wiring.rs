@@ -351,6 +351,7 @@ async fn promote_late_nao_promove_vazio_parcial_com_falha_final() {
         needs_debrid_refresh: false,
         commit_write: true,
         commit_ttl: 900,
+        effects: Vec::new(),
     };
     let plan = TailPlan {
         encoded: String::new(),

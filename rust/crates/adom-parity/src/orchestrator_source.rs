@@ -277,6 +277,8 @@ fn stub_config() -> OrchestratorConfig {
         search_index_rescue_min_ms: 2500,
         tail_collect_ms: 25_000,
         pack_tail: true,
+        effects_enabled: false,
+        mico_default: false,
     }
 }
 

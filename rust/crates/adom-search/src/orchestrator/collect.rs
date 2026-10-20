@@ -29,6 +29,77 @@ use crate::orchestrator::live_state::LiveBatchState;
 use crate::orchestrator::meta::SearchMeta;
 use crate::raw_item::RawItem;
 
+/// Seleção POR REQUISIÇÃO que governa QUEM a coleta consulta.
+///
+/// No Node isso sai do `encoded` (`opts().providers`/`jackettIndexers`/
+/// `dubbedOnly`); aqui o orquestrador recebe as opções já decodificadas
+/// (`SearchInput.options`). O gate congelado sempre teve isso
+/// (`frozen_gate.rs:507-511`); a produção populava `config.selected_indexers`
+/// com vazio e o `CollectJob` não levava os outros dois campos, então o
+/// coletor nativo não honrava a seleção da request.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RequestSelection {
+    /// `providers` (`p`): `both` ou os nomes escolhidos.
+    pub providers: Vec<String>,
+    /// `jackettIndexers` (`ji`) crus — inclui o card virtual `mico`.
+    pub jackett_indexers: Vec<String>,
+    /// `dubbedOnly` (`d`): fonte BR filtra legendado no scrape.
+    pub dubbed_only: bool,
+    /// `MICO_DEFAULT` do operador: vale quando a request não traz `ji`.
+    pub mico_default: bool,
+}
+
+impl RequestSelection {
+    /// Lê as três chaves das opções normalizadas. Tipo errado = ausente (o
+    /// runtime do Node já grampeou antes de chegar aqui).
+    pub fn from_options(options: &Value, mico_default: bool) -> Self {
+        let list = |key: &str| -> Vec<String> {
+            options
+                .get(key)
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::trim)
+                        .filter(|item| !item.is_empty())
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        RequestSelection {
+            providers: list("providers"),
+            jackett_indexers: list("jackettIndexers"),
+            dubbed_only: options
+                .get("dubbedOnly")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            mico_default,
+        }
+    }
+
+    /// `ji` efetivo: a request vence; sem `ji` nela, o default do operador.
+    /// É o "sem mudar o default" do plano — instalação sem seleção continua
+    /// com o comportamento anterior (uma tarefa, lista do processo).
+    pub fn jackett_selection(&self, operator_default: &[String]) -> Vec<String> {
+        if self.jackett_indexers.is_empty() {
+            operator_default.to_vec()
+        } else {
+            self.jackett_indexers.clone()
+        }
+    }
+}
+
+/// Card virtual do Mico no `ji`: não é indexer do Jackett.
+pub(crate) fn jackett_only(indexers: &[String]) -> Vec<String> {
+    indexers
+        .iter()
+        .filter(|indexer| !indexer.trim().eq_ignore_ascii_case("mico"))
+        .cloned()
+        .collect()
+}
+
 /// Uma tarefa de coleta com o prazo absoluto da resposta.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CollectJob {
@@ -55,6 +126,75 @@ pub struct CollectJob {
     /// liga; a varredura **inline** (task `sweep:true` no plano da coleta
     /// principal) NÃO — não misturar os dois caminhos.
     pub late_sweep: bool,
+    /// `providers` da request (`p`): decide o `wants` por fonte.
+    pub providers: Vec<String>,
+    /// `ji` da request (cru, inclui `mico`). Vazio = default do operador.
+    pub jackett_indexers: Vec<String>,
+    /// `dubbedOnly` do usuário (fonte BR filtra legendado).
+    pub dubbed_only: bool,
+    /// `MICO_DEFAULT` do operador: vale quando `jackett_indexers` está vazio.
+    pub mico_default: bool,
+}
+
+impl CollectJob {
+    /// `jackettMode` do Node: `both` ou provider `jackett`. Sem `providers` na
+    /// request (encoded ausente), vale o default do processo.
+    pub fn jackett_mode(&self) -> bool {
+        self.providers.is_empty()
+            || self
+                .providers
+                .iter()
+                .any(|provider| provider == "both" || provider == "jackett")
+    }
+
+    fn provider_selected(&self, name: &str) -> bool {
+        self.providers.is_empty()
+            || self
+                .providers
+                .iter()
+                .any(|provider| provider == "both" || provider == name)
+    }
+
+    /// `mode === 'demo'` (sem `both`): o `collectRaw` responde do lote demo
+    /// ANTES de qualquer fonte real; nenhuma tarefa nativa roda nesse modo.
+    fn is_demo(&self) -> bool {
+        !self.providers.iter().any(|provider| provider == "both")
+            && self
+                .providers
+                .first()
+                .is_some_and(|provider| provider == "demo")
+    }
+
+    /// Espelho do `wants` do `collectRaw` POR FONTE. `bludv` é independente do
+    /// `providers` (só o kill-switch do cliente); `mico` exige `jackettMode` e
+    /// o card no `ji` (ou o default do operador).
+    pub fn wants(&self, source: &str) -> bool {
+        if self.is_demo() {
+            return false;
+        }
+        match source {
+            "jackett" | "prowlarr" => self.provider_selected(source),
+            "torrentio" => self.provider_selected("torrentio"),
+            "mico" => {
+                self.jackett_mode()
+                    && if self.jackett_indexers.is_empty() {
+                        self.mico_default
+                    } else {
+                        self.jackett_indexers
+                            .iter()
+                            .any(|indexer| indexer.trim().eq_ignore_ascii_case("mico"))
+                    }
+            }
+            "bludv" => true,
+            _ => false,
+        }
+    }
+
+    /// Seleção que o plano Jackett deve consultar: `ji` da request (ou default
+    /// do operador no job) SEM o card virtual.
+    pub fn jackett_indexers_for_plan(&self) -> Vec<String> {
+        jackett_only(&self.jackett_indexers)
+    }
 }
 
 /// Lote devolvido por uma tarefa.
@@ -91,9 +231,18 @@ pub fn plan_jobs(
     kind: &str,
     encoded: Option<&str>,
     deadline_at: i64,
+    selection: &RequestSelection,
 ) -> Vec<CollectJob> {
+    // Seleção da REQUEST (como o gate congelado); sem `ji` nela, cai no default
+    // do operador (`config.selected_indexers`, vazio na produção de hoje).
+    let request_indexers = selection.jackett_selection(&config.selected_indexers);
     // Index-only ficam fora do caminho da resposta (colhem em fundo no Node).
-    let selected = live_indexers(&config.selected_indexers, &config.index_only_indexers, &[]);
+    // O card virtual `mico` não é do Jackett: nunca vira consulta Torznab.
+    let selected = live_indexers(
+        &jackett_only(&request_indexers),
+        &config.index_only_indexers,
+        &[],
+    );
     let sweep_query = if config.sweep_enabled {
         meta.sweep_query.clone()
     } else {
@@ -116,6 +265,10 @@ pub fn plan_jobs(
         priority: false,
         deadline_at,
         late_sweep: false,
+        providers: selection.providers.clone(),
+        jackett_indexers: request_indexers,
+        dubbed_only: selection.dubbed_only,
+        mico_default: selection.mico_default,
     };
     if selected.is_empty() {
         return vec![CollectJob { ..base }];
@@ -180,6 +333,7 @@ pub fn sweep_job(
     kind: &str,
     encoded: Option<&str>,
     deadline_at: i64,
+    selection: &RequestSelection,
 ) -> Option<CollectJob> {
     let sweep_query = meta.sweep_query.clone().filter(|_| config.sweep_enabled)?;
     Some(CollectJob {
@@ -199,6 +353,10 @@ pub fn sweep_job(
         priority: false,
         deadline_at,
         late_sweep: true,
+        providers: selection.providers.clone(),
+        jackett_indexers: selection.jackett_selection(&config.selected_indexers),
+        dubbed_only: selection.dubbed_only,
+        mico_default: selection.mico_default,
     })
 }
 
@@ -258,8 +416,9 @@ impl NodeCollector {
         self
     }
 
-    /// Override de indexers da sombra: `JACKETT_INDEXERS` do processo, não o
-    /// `ji` do usuário (limitação F2.2 até a seleção por requisição).
+    /// Override de indexers da sombra: `JACKETT_INDEXERS` do processo. Desde o
+    /// C0b a seleção da REQUEST (no `CollectJob`) vence; este é o fallback de
+    /// instalação sem `ji`.
     pub fn with_indexers_override(mut self, indexers: Vec<String>) -> Self {
         self.indexers_override = Some(indexers);
         self
@@ -273,6 +432,10 @@ impl NodeCollector {
     }
 
     async fn collect_inner(&self, job: CollectJob) -> Result<(CollectBatch, bool), String> {
+        // Seleção de indexers da referência read-only: a da REQUEST (o mesmo
+        // `ji` que o coletor nativo usa desde o C0b); sem ela, a lista do
+        // processo (`JACKETT_INDEXERS`) — o default de instalação.
+        let job_indexers = job.jackett_indexers.clone();
         let mut request = collect_request_from_job(job);
         request.skip_sources = self.skip_sources.clone();
         if self.skip_account {
@@ -280,7 +443,15 @@ impl NodeCollector {
         }
         request.read_only = self.read_only;
         request.shadow_source = self.shadow_source.clone();
-        request.indexers = self.indexers_override.clone();
+        request.indexers = if self.read_only {
+            if job_indexers.is_empty() {
+                self.indexers_override.clone()
+            } else {
+                Some(job_indexers)
+            }
+        } else {
+            None
+        };
         let response = self.routes.collect(request).await?;
         let batch = CollectBatch {
             items: response

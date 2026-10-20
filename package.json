@@ -175,6 +175,7 @@
     "test/internal-search-evidence.test.js",
     "test/internal-search-index.test.js",
     "test/jackett-read-only.test.js",
+    "test/source-shadow-read-only.test.js",
     "test/internal-search-effects.test.js",
     "test/internal-debrid-check.test.js",
     "test/crawl-queue-order.test.js",

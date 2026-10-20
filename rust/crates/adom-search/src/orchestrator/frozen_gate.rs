@@ -381,15 +381,14 @@ impl FrozenCase {
         let instant: Vec<String> = read_optional(&dir.join("inputs/instant.json"))?;
         // Total do torrent (`tsz`) que o build do Node usou. Sem ele o replay
         // deixa sem `💾` o item que o tracker publicou sem tamanho e sem lista.
-        let totals: BTreeMap<String, f64> = read_optional::<BTreeMap<String, f64>>(
-            &dir.join("inputs/totals.json"),
-        )?
-        .into_iter()
-        .filter_map(|(hash, total)| {
-            let hash = hash.trim().to_ascii_lowercase();
-            (!hash.is_empty() && total > 0.0).then_some((hash, total))
-        })
-        .collect();
+        let totals: BTreeMap<String, f64> =
+            read_optional::<BTreeMap<String, f64>>(&dir.join("inputs/totals.json"))?
+                .into_iter()
+                .filter_map(|(hash, total)| {
+                    let hash = hash.trim().to_ascii_lowercase();
+                    (!hash.is_empty() && total > 0.0).then_some((hash, total))
+                })
+                .collect();
         let config: Value = read_json(&dir.join("inputs/config.json"))?;
         Ok(FrozenCase {
             request,
@@ -957,7 +956,10 @@ fn source_from_binge_group(binge: &str) -> Option<String> {
 /// Item que já traz a fonte vence: é a do próprio lote.
 fn annotate_media_source_items(items: &mut [Value], sources: &BTreeMap<String, String>) {
     for item in items {
-        if item.get("mediaSource").is_some_and(|value| !value.is_null()) {
+        if item
+            .get("mediaSource")
+            .is_some_and(|value| !value.is_null())
+        {
             continue;
         }
         let Some(hash) = batch_item_hash(item) else {
@@ -973,7 +975,10 @@ fn annotate_media_source_items(items: &mut [Value], sources: &BTreeMap<String, S
 }
 
 /// Vale para as TRÊS listas do índice (as origens são mescladas no instantâneo).
-fn annotate_media_source_index(index: &mut SearchIndexResponse, sources: &BTreeMap<String, String>) {
+fn annotate_media_source_index(
+    index: &mut SearchIndexResponse,
+    sources: &BTreeMap<String, String>,
+) {
     for items in [
         &mut index.index_items,
         &mut index.instant_items,

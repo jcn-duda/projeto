@@ -184,3 +184,22 @@ async fn wrapper_da_sombra_manda_skip_sources_e_read_only() {
         ]
     );
 }
+
+/// C0b: quando o job traz o `ji` da request, a referência usa ESSA seleção —
+/// o override do processo fica só como fallback de instalação sem `ji`.
+#[tokio::test]
+async fn sombra_prefere_a_selecao_da_request_ao_override_do_processo() {
+    let routes = Arc::new(RecordingRoutes::default());
+    let collector = node_collector_for_source(routes.clone(), "jackett", vec!["yts".into()]);
+    let mut selected = job(now_ms() + 2_000);
+    selected.providers = vec!["jackett".into()];
+    selected.jackett_indexers = vec!["req-idx".into()];
+    collector.collect(selected).await.expect("coleta");
+    let requests = routes.seen.lock().expect("requests");
+    let request = requests.first().expect("uma requisição");
+    assert_eq!(
+        request.indexers.as_deref(),
+        Some(&["req-idx".to_string()][..]),
+        "seleção da request vence o JACKETT_INDEXERS do processo"
+    );
+}

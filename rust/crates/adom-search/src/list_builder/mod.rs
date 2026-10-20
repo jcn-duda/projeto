@@ -27,6 +27,8 @@
 //! `magnet`).
 
 mod audio_proof;
+// Seleção dos efeitos de cauda (dub_audit/warmer) sobre o lote pós-debrid.
+mod effects;
 mod finalize;
 mod helpers;
 mod stats;
@@ -35,6 +37,7 @@ mod tests;
 mod types;
 
 pub use audio_proof::{apply_pt_title_dual, AudioAudit};
+pub use effects::{AuditSeed, EffectSeeds, WarmerSeed};
 use finalize::finalize_streams;
 
 pub use types::{

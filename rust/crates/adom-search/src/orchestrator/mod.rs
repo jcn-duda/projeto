@@ -29,6 +29,8 @@ mod bludv_collector;
 mod collect;
 mod composite_collector;
 mod config;
+// Payloads dos efeitos de cauda (`EFFECTS_RUST`); a seleção mora no build.
+mod effects;
 mod fallback;
 mod fast_path;
 mod finish;
@@ -79,7 +81,9 @@ use respond::{as_ms, empty_response, now_ms};
 pub use bludv_collector::{
     sources_rust_includes_bludv, try_bludv_collector_from_env, BludvCollector,
 };
-pub use collect::{plan_jobs, CollectBatch, CollectJob, Collector, NodeCollector};
+pub use collect::{
+    plan_jobs, CollectBatch, CollectJob, Collector, NodeCollector, RequestSelection,
+};
 pub use composite_collector::CompositeCollector;
 pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
@@ -291,6 +295,8 @@ impl Orchestrator {
         let prefix = req.prefix();
         let options = self.resolve_options(&req.encoded);
         let key = request_cache_key(&req.kind, &req.id, &self.key_options(&options));
+        // ANTES do SWR, como o `findStreams` do Node (`search-cache.ts:66-72`).
+        self.emit_season_key(&req, &options, &key);
         let reply_ms = reply_deadline_ms(
             req.user_agent.as_deref(),
             self.config.stremio_reply_ms,
@@ -349,6 +355,41 @@ impl Orchestrator {
             }
         };
         self.respond_outcome(&outcome, &req)
+    }
+
+    /// `registerSeasonSearchKey` (`search-cache.ts:66-72`): série com debrid
+    /// registra a chave da lista por temporada ANTES de olhar o cache — o hit
+    /// do SWR também registra. Fire-and-forget: a resposta nunca espera.
+    fn emit_season_key(&self, req: &StreamRequest, options: &Value, key: &str) {
+        if !self.config.effects_enabled || self.shadow_mode || req.kind != "series" {
+            return;
+        }
+        let parsed = adom_core::parse_stremio_id(&req.id);
+        let imdb = parsed.get("imdbId").and_then(Value::as_str).unwrap_or("");
+        let season = parsed.get("season").and_then(Value::as_i64).unwrap_or(0);
+        let effect = effects::season_key(
+            &finish::str_of(options, "debridService"),
+            &finish::str_of(options, "debridApiKey"),
+            imdb,
+            season,
+            key,
+        );
+        let Some(effect) = effect else {
+            return;
+        };
+        let tail = self.tail.clone();
+        let encoded = encoded_for_internal(req.encoded.as_deref());
+        tokio::spawn(async move {
+            if let Err(err) = tail
+                .effects(tail::EffectsBatch {
+                    encoded,
+                    effects: vec![effect],
+                })
+                .await
+            {
+                eprintln!("[search] effects (season_key) falhou: {err}");
+            }
+        });
     }
 
     /// Config do usuário: overlay do segmento sobre os defaults do operador.

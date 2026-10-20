@@ -17,7 +17,7 @@ use adom_core::{live_indexers, plan_jackett_queries, pt_sweep_indexers};
 use adom_sources::{JackettClient, JackettMediaType, JackettRawItem, QueryOutcome, SearchOptions};
 
 use crate::internal_types::TaskScope;
-use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
+use crate::orchestrator::collect::{jackett_only, CollectBatch, CollectJob, Collector};
 use crate::orchestrator::jackett_live::{
     live_state_from_outcomes, live_state_from_outcomes_shadow,
 };
@@ -90,7 +90,11 @@ pub fn plan_jackett_searches(
         let Some(sweep) = job.sweep_query.as_deref().filter(|s| !s.is_empty()) else {
             return Vec::new();
         };
-        let live = live_indexers(selected_indexers, index_only_indexers, exempt_indexers);
+        let live = live_indexers(
+            &jackett_only(selected_indexers),
+            index_only_indexers,
+            exempt_indexers,
+        );
         let targets = pt_sweep_indexers(&live, pt_br_indexers, index_only_indexers);
         if targets.is_empty() {
             return Vec::new();
@@ -112,8 +116,14 @@ pub fn plan_jackett_searches(
         }];
     }
 
-    let live = live_indexers(selected_indexers, index_only_indexers, exempt_indexers);
-    // Seleção só de index-only: nada no caminho da resposta (mesmo contrato TS).
+    // O card virtual `mico` convive no `ji` mas não é do Jackett: sai do plano
+    // (o coletor nativo do Mico é quem o atende). Preservar a diferença entre
+    // "sem seleção" (agregado `/all`) e "só o Mico" (nenhuma consulta) é o que
+    // impede a seleção só-do-card de reabrir a lista inteira do operador.
+    let selected_jackett = jackett_only(selected_indexers);
+    let live = live_indexers(&selected_jackett, index_only_indexers, exempt_indexers);
+    // Seleção só de index-only/Mico: nada no caminho da resposta (mesmo
+    // contrato TS).
     if !selected_indexers.is_empty() && live.is_empty() {
         return Vec::new();
     }
@@ -284,10 +294,25 @@ impl Collector for JackettCollector {
         job: CollectJob,
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
         Box::pin(async move {
+            // Seleção da REQUEST (`ji`): vence o default do processo. Vazio no
+            // job = instalação sem seleção → lista do operador (comportamento
+            // anterior). Fonte fora dos `providers` não é consultada.
+            if !job.wants("jackett") {
+                return Ok(CollectBatch {
+                    items: Vec::new(),
+                    partial: false,
+                    live: Some(crate::orchestrator::live_state::LiveBatchState::default()),
+                });
+            }
+            let selected = if job.jackett_indexers.is_empty() {
+                &self.selected_indexers
+            } else {
+                &job.jackett_indexers
+            };
             let media = JackettMediaType::parse(&job.kind);
             let planned = plan_jackett_searches(
                 &job,
-                &self.selected_indexers,
+                selected,
                 &self.pt_br_indexers,
                 &self.isolate_indexers,
                 &self.index_only_indexers,

@@ -41,7 +41,10 @@ impl InternalRoutes for AccountRoutes {
         Box::pin(async { Err("não usado".into()) })
     }
 
-    fn search_index<'a>(&'a self, _req: SearchIndexRequest) -> RouteFuture<'a, SearchIndexResponse> {
+    fn search_index<'a>(
+        &'a self,
+        _req: SearchIndexRequest,
+    ) -> RouteFuture<'a, SearchIndexResponse> {
         Box::pin(async { Ok(SearchIndexResponse::default()) })
     }
 }
@@ -67,7 +70,10 @@ async fn conta_chega_na_primeira_resposta_sem_esperar_o_global_lento() {
     let routes = Arc::new(AccountRoutes {
         requests: Mutex::new(Vec::new()),
     });
-    let slow = StubCollector::slow(vec![item("1111111111111111111111111111111111111111")], Duration::from_secs(3));
+    let slow = StubCollector::slow(
+        vec![item("1111111111111111111111111111111111111111")],
+        Duration::from_secs(3),
+    );
     let mut cfg = config();
     cfg.selected_indexers = vec!["globaltest".into()];
     let orch = Orchestrator::new(cfg, Arc::new(MemorySwrStore::new()))
@@ -81,13 +87,18 @@ async fn conta_chega_na_primeira_resposta_sem_esperar_o_global_lento() {
     assert!(partial, "o global lento estourou a janela");
     assert!(!failed, "a conta nunca conta como falha de coleta");
     assert!(
-        items.iter().any(|i| i.info_hash.as_deref() == Some(HASH_CONTA)),
+        items
+            .iter()
+            .any(|i| i.info_hash.as_deref() == Some(HASH_CONTA)),
         "item da conta ausente da 1ª resposta: {items:?}"
     );
     let reqs = routes.requests.lock().expect("requests");
     assert_eq!(reqs.len(), 1);
     for fonte in ["jackett", "prowlarr", "torrentio", "bludv", "mico"] {
-        assert!(reqs[0].skip_sources.iter().any(|s| s == fonte), "{fonte} deveria ser pulada");
+        assert!(
+            reqs[0].skip_sources.iter().any(|s| s == fonte),
+            "{fonte} deveria ser pulada"
+        );
     }
 }
 

@@ -48,6 +48,7 @@ async fn tail_reconstroi_com_estado_final_e_reinjeta_a_reserva() {
         needs_debrid_refresh: false,
         commit_write: false,
         commit_ttl: 0,
+        effects: Vec::new(),
     };
     let completion = Some(tokio::spawn(async { vec![item(HASH)] }));
     let plan = TailPlan {

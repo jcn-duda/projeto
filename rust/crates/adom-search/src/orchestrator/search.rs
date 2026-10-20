@@ -284,6 +284,10 @@ impl Orchestrator {
             &input.kind,
             input.encoded.as_deref(),
             input.deadline_at.unwrap_or(input.now_ms),
+            &super::collect::RequestSelection::from_options(
+                &input.options,
+                self.config.mico_default,
+            ),
         );
         // A conta do debrid vira tarefa PRÓPRIA nos grupos não prioritários: a
         // primeira leitura custa ~100 ms e, dentro do `nonpriority`, esperava o

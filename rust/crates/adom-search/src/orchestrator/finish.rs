@@ -8,7 +8,7 @@ use adom_core::{commit_decision, play_disposition, CommitFacts, PlayDisposition,
 
 use crate::cache::{has_playable_stream, to_cacheable_entry, StreamsEntry};
 use crate::contract::StreamItem;
-use crate::internal_types::ReleaseEntry;
+use crate::internal_types::{EffectEntry, ReleaseEntry};
 use crate::latest_writer::LatestWriter;
 use crate::list_builder::{build_stream_list, BuildContext};
 use crate::raw_item::RawItem;
@@ -48,6 +48,9 @@ pub(super) struct FinishValue {
     pub(super) needs_debrid_refresh: bool,
     pub(super) commit_write: bool,
     pub(super) commit_ttl: i64,
+    /// Efeitos de cauda decididos por ESTA passada (`EFFECTS_RUST`). Calculados
+    /// aqui porque dependem do veredito de cache por stream; emitidos no tail.
+    pub(super) effects: Vec<EffectEntry>,
 }
 
 /// Fim da passada: entrada gravável + fatos da resposta.
@@ -60,6 +63,7 @@ pub(super) fn finish_value(
     // degradação, é ausência de pergunta.
     debrid_checked: bool,
     debrid: &DebridContext,
+    search_key: &str,
     signer: &ResolveSigner,
     config: &OrchestratorConfig,
     trace_enabled: bool,
@@ -166,6 +170,26 @@ pub(super) fn finish_value(
     // TTL <= 0 é cache desligado: não grava (mesma leitura do ramo da reserva).
     let commit_write = decision.write && decision.ttl > 0;
     let partial_entry = entry.partial;
+    // Efeitos de cauda: o payload nasce aqui porque ele lê o veredito de cache
+    // por stream; QUEM emite é o tail, atrás de `EFFECTS_RUST` (default OFF).
+    //
+    // Os dois early returns do `applyDebrid` que NÃO enfileiram nada:
+    // sem adaptador (sem serviço/chave, `:87`) e conta `unusable`/auth-quota
+    // (`:159-170`). Nos dois o Node não esquenta nem interroga nada.
+    let effects = if debrid.is_active() && !built.debrid_unusable {
+        let effect_ctx = super::effects::EffectContext {
+            adapter_id: &debrid.service,
+            api_key: &debrid.api_key,
+            imdb_id: &meta.imdb_id,
+            season: meta.season,
+            episode: meta.episode,
+            search_key,
+            work: built.work_hint.as_ref(),
+        };
+        super::effects::build_effects(&built.effect_seeds, &effect_ctx)
+    } else {
+        Vec::new()
+    };
     FinishValue {
         entry,
         entered: built.entered_raw,
@@ -175,6 +199,7 @@ pub(super) fn finish_value(
         needs_debrid_refresh,
         commit_write,
         commit_ttl: decision.ttl,
+        effects,
     }
 }
 
@@ -309,6 +334,7 @@ impl Orchestrator {
                     partial,
                     !shadow,
                     &debrid_ctx,
+                    &input.key,
                     &signer,
                     &self.config,
                     self.config.trace_enabled,
@@ -361,8 +387,14 @@ impl Orchestrator {
             now_ms: input.now_ms,
             files_by_hash: self.files_by_hash.as_ref().clone(),
             totals_by_hash: self.totals_by_hash.as_ref().clone(),
-            files_at_build: self.files_at_build.as_ref().map(|files| files.as_ref().clone()),
-            totals_at_build: self.totals_at_build.as_ref().map(|totals| totals.as_ref().clone()),
+            files_at_build: self
+                .files_at_build
+                .as_ref()
+                .map(|files| files.as_ref().clone()),
+            totals_at_build: self
+                .totals_at_build
+                .as_ref()
+                .map(|totals| totals.as_ref().clone()),
         }
     }
 

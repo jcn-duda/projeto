@@ -213,11 +213,16 @@ impl DebridFactory for StubDebrid {
 #[derive(Default)]
 pub struct RecordingTail {
     index: Mutex<Vec<IndexBatch>>,
+    effects: Mutex<Vec<EffectsBatch>>,
 }
 
 impl RecordingTail {
     pub fn index_writes(&self) -> Vec<IndexBatch> {
         self.index.lock().expect("index").clone()
+    }
+
+    pub fn effects_batches(&self) -> Vec<EffectsBatch> {
+        self.effects.lock().expect("effects").clone()
     }
 }
 
@@ -240,12 +245,14 @@ impl TailEffects for RecordingTail {
 
     fn effects<'a>(
         &'a self,
-        _batch: EffectsBatch,
+        batch: EffectsBatch,
     ) -> RouteFuture<'a, crate::internal_types::EffectsResponse> {
-        Box::pin(async {
+        Box::pin(async move {
+            let accepted = batch.effects.len() as i64;
+            self.effects.lock().expect("effects").push(batch);
             Ok(crate::internal_types::EffectsResponse {
                 ok: true,
-                accepted: 0,
+                accepted,
                 rejected: 0,
             })
         })
@@ -309,6 +316,8 @@ pub fn config() -> OrchestratorConfig {
         search_index_rescue_min_ms: 2500,
         tail_collect_ms: 25_000,
         pack_tail: true,
+        effects_enabled: false,
+        mico_default: false,
     }
 }
 

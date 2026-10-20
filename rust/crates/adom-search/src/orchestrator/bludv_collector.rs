@@ -69,6 +69,15 @@ impl Collector for BludvCollector {
         job: CollectJob,
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
         Box::pin(async move {
+            // Fonte BR independente do PROVIDER (só o kill-switch do cliente);
+            // o `wants` existe para espelhar a régua do Node por fonte.
+            if !job.wants("bludv") {
+                return Ok(CollectBatch {
+                    items: Vec::new(),
+                    partial: false,
+                    live: Some(crate::orchestrator::live_state::LiveBatchState::default()),
+                });
+            }
             // Topologia TS: bludv é tarefa BR (`priority=true`); globais e
             // late-sweep não consultam.
             if job.late_sweep || matches!(job.scope, TaskScope::Nonpriority) {
@@ -78,8 +87,11 @@ impl Collector for BludvCollector {
             if query.is_empty() {
                 return Ok(CollectBatch::default());
             }
-            // `dubbedOnly` do usuário ainda não viaja no CollectJob nesta fatia.
-            let opts = BludvSearchOpts::default();
+            // `dubbedOnly` do usuário viaja no CollectJob (o scrape filtra o
+            // botão `legendado`, como o `opts().dubbedOnly` do Node).
+            let opts = BludvSearchOpts {
+                dubbed_only: job.dubbed_only,
+            };
             let items = self
                 .client
                 .search(query, &opts)
@@ -154,6 +166,10 @@ mod tests {
             priority: true,
             deadline_at: 1_700_000_000_000,
             late_sweep: false,
+            providers: Vec::new(),
+            jackett_indexers: Vec::new(),
+            dubbed_only: false,
+            mico_default: false,
         }
     }
 
@@ -220,6 +236,10 @@ mod tests {
 
         let late = CollectJob {
             late_sweep: true,
+            providers: Vec::new(),
+            jackett_indexers: Vec::new(),
+            dubbed_only: false,
+            mico_default: false,
             ..base_job()
         };
         let batch = collector.collect(late).await.expect("ok");

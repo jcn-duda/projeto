@@ -50,6 +50,15 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Ok(raw) = std::env::var("DEBRID_RESOLVE_UNCACHED") {
         cfg.resolve_uncached = env_flag(&raw);
     }
+    // Efeitos de cauda emitidos pelo orquestrador nativo. Default OFF: com o
+    // pipeline de debrid do Node ainda decidindo, ligar duplicaria a emissão.
+    cfg.effects_enabled = std::env::var("EFFECTS_RUST")
+        .map(|raw| env_flag(&raw))
+        .unwrap_or(false);
+    // Card virtual `mico` no `ji` default (mesma env do Node).
+    cfg.mico_default = std::env::var("MICO_DEFAULT")
+        .map(|raw| env_flag(&raw))
+        .unwrap_or(false);
     cfg
 }
 

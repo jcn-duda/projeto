@@ -102,12 +102,20 @@ pub fn job(deadline_at: i64) -> CollectJob {
         priority: false,
         deadline_at,
         late_sweep: false,
+        providers: Vec::new(),
+        jackett_indexers: Vec::new(),
+        dubbed_only: false,
+        mico_default: false,
     }
 }
 
 pub fn late_job() -> CollectJob {
     CollectJob {
         late_sweep: true,
+        providers: Vec::new(),
+        jackett_indexers: Vec::new(),
+        dubbed_only: false,
+        mico_default: false,
         ..job(1_700_000_000_000)
     }
 }

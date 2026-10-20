@@ -173,6 +173,7 @@ fn run_case(
         false,
         checked,
         &debrid_ctx,
+        "streams:v21:teste",
         &signer,
         &config,
         false,

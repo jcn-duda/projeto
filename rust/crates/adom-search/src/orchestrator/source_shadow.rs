@@ -41,10 +41,10 @@
 //! (default `apachetorrent-cardigann`), como o Node, para o card isento não
 //! virar missing/extra.
 //!
-//! Limitação F2.2: a sombra envia `JACKETT_INDEXERS` do PROCESSO como override
-//! e a rota read-only ignora o `ji` do `encoded` — a seleção por REQUISIÇÃO
-//! ainda não é honrada nessa comparação. Não é divergência de fonte; é uma
-//! limitação conhecida até a F2.2.
+//! Seleção de indexers (C0b): a referência usa o `ji` da REQUEST que viaja no
+//! [`CollectJob`]; só sem `ji` (instalação sem seleção) cai no
+//! `JACKETT_INDEXERS` do processo. Os dois lados passam a consultar o mesmo
+//! conjunto dentro da mesma busca.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -219,7 +219,8 @@ fn native_collector(source: &str) -> Result<(Arc<dyn Collector>, Vec<String>), S
 
 /// O `NodeCollector` de referência da sombra: só a fonte comparada e sem
 /// efeitos (`read_only`). `skip_sources` lista todas as outras fontes do Node;
-/// `indexers` substitui o `ji` do encoded (F2.2).
+/// `indexers` é o FALLBACK do `ji` (vale só quando o job não traz seleção) —
+/// o C0b passou a mandar a seleção da request pelo próprio job.
 fn node_collector_for_source(
     routes: Arc<dyn InternalRoutes>,
     source: &str,

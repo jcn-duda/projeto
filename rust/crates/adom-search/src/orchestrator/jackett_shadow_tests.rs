@@ -72,6 +72,10 @@ fn base_job() -> CollectJob {
         priority: false,
         deadline_at: 1_700_000_000_000,
         late_sweep: false,
+        providers: Vec::new(),
+        jackett_indexers: Vec::new(),
+        dubbed_only: false,
+        mico_default: false,
     }
 }
 

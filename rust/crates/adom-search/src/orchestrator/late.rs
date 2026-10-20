@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use adom_core::{late_promotion_decision, LateAction, LateFacts};
 
-use crate::cache::to_cacheable_entry;
+use crate::cache::{has_playable_stream, to_cacheable_entry};
 use crate::latest_writer::LatestWriter;
 use crate::raw_item::RawItem;
 use crate::request::encoded_for_internal;
@@ -17,7 +17,7 @@ use super::finish::{release_entry, FinishValue, SearchInput};
 use super::live_state::{live_state_snapshot, LiveBatchState, SharedLiveState};
 use super::meta::SearchMeta;
 use super::respond::as_ms;
-use super::tail::{IndexBatch, TailJob, TailPlan};
+use super::tail::{EffectsBatch, IndexBatch, TailJob, TailPlan};
 use super::Orchestrator;
 
 impl Orchestrator {
@@ -118,12 +118,17 @@ impl Orchestrator {
                     last = self.finish(&input, &meta, &writer, phase, &build_items, false, None);
                 }
                 TailJob::PtSweep { deadline_at } => {
+                    let selection = collect::RequestSelection::from_options(
+                        &input.options,
+                        self.config.mico_default,
+                    );
                     let Some(job) = collect::sweep_job(
                         &self.config,
                         &meta,
                         &input.kind,
                         input.encoded.as_deref(),
                         deadline_at,
+                        &selection,
                     ) else {
                         continue;
                     };
@@ -162,10 +167,51 @@ impl Orchestrator {
                 eprintln!("[search] index-write tardio falhou: {err}");
             }
         }
-        // Efeitos (autofetch/warmer/auditoria/sonda/colhedor/chave de
-        // temporada): a DECISÃO ainda mora no pipeline de debrid do Node.
-        // O lote sai vazio hoje — `TailEffects::effects` fica pronto para a
-        // fatia que ligar a decisão.
+        self.emit_effects(&input, &meta, &plan.encoded, &last).await;
+    }
+
+    /// Efeitos de cauda: `dub_audit` + warmer (decididos na passada mais nova)
+    /// e o episódio seguinte da série com play. `EFFECTS_RUST` default OFF — o
+    /// pipeline de debrid do Node continua sendo quem enfileira, e ligar os
+    /// dois duplicaria a emissão. Fire-and-forget: quem já recebeu a lista não
+    /// depende disto, e falha só vira log.
+    async fn emit_effects(
+        &self,
+        input: &SearchInput,
+        meta: &SearchMeta,
+        encoded: &str,
+        last: &FinishValue,
+    ) {
+        if !self.config.effects_enabled {
+            return;
+        }
+        let mut effects = last.effects.clone();
+        if let Some(next) = super::effects::harvester_next_episode(
+            &input.kind,
+            &meta.imdb_id,
+            meta.season,
+            meta.episode,
+            has_playable_stream(&last.entry.streams),
+        ) {
+            effects.push(next);
+        }
+        if effects.is_empty() {
+            return;
+        }
+        match self
+            .tail
+            .effects(EffectsBatch {
+                encoded: encoded.to_string(),
+                effects,
+            })
+            .await
+        {
+            Ok(resp) if resp.rejected > 0 => {
+                eprintln!("[search] effects: {} rejeitado(s) pelo Node", resp.rejected)
+            }
+            Ok(_) => {}
+            Err(err) => eprintln!("[search] effects falhou: {err}"),
+        }
     }
 
     /// Sem novidade no lote tardio: promove a entrada parcial existente com as

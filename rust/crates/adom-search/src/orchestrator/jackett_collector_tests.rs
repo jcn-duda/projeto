@@ -22,6 +22,10 @@ fn base_job() -> CollectJob {
         priority: false,
         deadline_at: 1_700_000_000_000,
         late_sweep: false,
+        providers: Vec::new(),
+        jackett_indexers: Vec::new(),
+        dubbed_only: false,
+        mico_default: false,
     }
 }
 
@@ -112,6 +116,10 @@ fn inline_sweep_nao_ignora_breaker() {
 fn late_sweep_usa_ignore_breaker() {
     let job = CollectJob {
         late_sweep: true,
+        providers: Vec::new(),
+        jackett_indexers: Vec::new(),
+        dubbed_only: false,
+        mico_default: false,
         scope: TaskScope::All,
         ..base_job()
     };

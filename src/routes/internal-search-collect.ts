@@ -14,6 +14,7 @@ import type { MatchContext } from '../../types/domain.js';
 import type { AppServices } from './types.js';
 import type { InternalSearchCollaborators } from './internal-search.js';
 import { collectRaw } from '../providers/collect-orchestrator.js';
+import { collectionSelection, sourceWanted } from '../providers/source-selection.js';
 import { parseSkipSources } from './internal-search-skip.js';
 import { enrichForRust } from './internal-search-evidence.js';
 import { decodeTarget, withinDeadline, DEADLINE } from './internal-search-shared.js';
@@ -96,18 +97,29 @@ export async function handleCollect(
   if (readOnly === true && !shadowSource) {
     return res.status(400).json({ ok: false, error: 'shadow_source é obrigatório em read_only' });
   }
-  // Elegibilidade da sombra: a MESMA regra de `wants` do collectRaw (mode
-  // `both` ou o nome na lista efetiva de providers). Fonte fora da seleção
-  // devolve vazio de propósito; comparar isso com o nativo seria divergência
-  // falsa. `skip_sources` também desabilita.
-  const providers = Array.isArray(target.opts.providers) ? target.opts.providers : [];
-  const eligible = readOnly !== true || (
-    Boolean(shadowSource)
-    && !skipSet?.has(shadowSource!)
-    && (providers.includes('both') || providers.includes(shadowSource!))
+  // Override de indexers da sombra (`JACKETT_INDEXERS` do processo): só
+  // read-only; presente e inválido é 400.
+  const indexersOverride = body?.indexers === undefined
+    ? null
+    : (Array.isArray(body.indexers) && body.indexers.every((id: unknown) => typeof id === 'string')
+      ? (body.indexers as string[]).map((id) => id.trim()).filter(Boolean)
+      : undefined);
+  if (readOnly === true && indexersOverride === undefined) {
+    return res.status(400).json({ ok: false, error: 'indexers deve ser array de strings' });
+  }
+  // Elegibilidade da sombra: a MESMA régua de `wants` do collectRaw, por fonte
+  // (`source-selection.ts`). BLUDV/Mico não são tokens de `providers`, então a
+  // regra antiga (membership em `providers`) os deixava sempre `eligible:false`.
+  // Fonte fora da seleção devolve vazio de propósito; comparar isso com o
+  // nativo seria divergência falsa.
+  const selection = collectionSelection(
+    target.opts,
+    skipSet ?? new Set<string>(),
+    readOnly === true ? (indexersOverride ?? null) : null,
   );
+  const eligible = readOnly !== true || sourceWanted(shadowSource || '', selection);
   if (readOnly === true && !eligible) {
-    log.debug(`[internal] collect ${type} ${imdbId}: sombra pulada (${shadowSource} fora dos providers)`);
+    log.debug(`[internal] collect ${type} ${imdbId}: sombra pulada (${shadowSource} fora da seleção)`);
     return res.json({
       ok: true,
       task_scope: scope,
@@ -122,16 +134,6 @@ export async function handleCollect(
       breaker: {},
       eligible: false,
     });
-  }
-  // Override de indexers da sombra (`JACKETT_INDEXERS` do processo): só
-  // read-only; presente e inválido é 400.
-  const indexersOverride = body?.indexers === undefined
-    ? null
-    : (Array.isArray(body.indexers) && body.indexers.every((id: unknown) => typeof id === 'string')
-      ? (body.indexers as string[]).map((id) => id.trim()).filter(Boolean)
-      : undefined);
-  if (readOnly === true && indexersOverride === undefined) {
-    return res.status(400).json({ ok: false, error: 'indexers deve ser array de strings' });
   }
   const override = readOnly === true ? indexersOverride : null;
   const ctx = { opts: target.opts, encoded: target.encoded, replyDeadlineMs: budget };

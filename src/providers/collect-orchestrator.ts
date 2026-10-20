@@ -14,12 +14,13 @@ import { computeCollectionBudget, computePriorityGrace } from './collection-budg
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { SAFE_INDEXER_ID, stageFirstTiming } from './stream-builder.js';
+import { stageFirstTiming } from './stream-builder.js';
 import type { FirstObserverState } from './stream-builder.js';
 import { poolCovered } from './search-pool-coverage.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { createLiveIndexerState, ALL_QUERY_INDEXER } from './live-indexer-state.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
+import { collectionSelection, sourceWanted } from './source-selection.js';
 import * as frozen from '../utils/stream-frozen.js';
 export async function collectRawLive(
   query: string,
@@ -53,9 +54,9 @@ export async function collectRawLive(
    * encoded. Só vale em readOnly; no caminho de resposta é ignorado. */
   indexersOverride: string[] | null = null,
 ) {
-  const { providers } = opts();
-  const mode = providers.includes('both') ? 'both' : providers[0] || config.provider;
-  const jackettMode = mode === 'both' || providers.includes('jackett');
+  const selection = collectionSelection(opts(), skipSources, readOnly ? indexersOverride : null);
+  const { providers, mode } = selection;
+  const wants = (name: string) => sourceWanted(name, selection);
   // I0 — relógio comum de UMA invocação de coleta. Cada grupo (BR/global) mede
   // o envelope do início até os SEUS tasks assentarem (limitado ao momento em
   // que o `collectWithinWindow` devolve): mede quanto da JANELA DA RESPOSTA o
@@ -103,16 +104,9 @@ export async function collectRawLive(
     };
   }
 
-  const wants = (name: string) => !skipSources.has(name) && (mode === 'both' || providers.includes(name));
-  // Sombra read-only: a seleção é a do PROCESSO (override), não o `ji`
-  // customizado do encoded — senão o conjunto de indexers divergiria do
-  // nativo antes mesmo da comparação (limitação F2.2).
-  const selectedSource = readOnly && indexersOverride !== null
-    ? indexersOverride
-    : (opts().jackettIndexers || []);
-  const rawSelected: string[] = [...new Set(selectedSource.filter((id: any) =>
-    SAFE_INDEXER_ID.test(String(id)),
-  ))].map(String);
+  // Sombra read-only: a seleção do `ji` é a do PROCESSO (override); o caminho de
+  // resposta usa o `ji` do encoded. A régua vive em `source-selection.ts`.
+  const rawSelected: string[] = selection.rawSelected;
   // Index-only ficam fora do caminho da resposta (colhem em fundo para o
   // índice). O filtro é ANTES do plano: se o operador mandou todos os
   // selecionados embora, o resultado é NENHUMA consulta Jackett — cair no
@@ -212,14 +206,15 @@ export async function collectRawLive(
   }
   // Pool global Torrentio (Fase 1). Endpoint público, sem config/debrid; o
   // `matchContext` já carrega season/episódio da obra. A fonte entra no mesmo
-  // balde dos indexers e respeita o orçamento da coleta.
-  if (wants('torrentio') && config.torrentio.enabled) {
+  // balde dos indexers e respeita o orçamento da coleta. `sourceWanted` já
+  // embute o kill-switch do operador.
+  if (wants('torrentio')) {
     addTask(() => torrentio.search({
       type,
       imdbId,
       season: matchContext.season,
       episode: matchContext.episode,
-    }));
+    }, { readOnly }));
   }
 
   // Se misconfigurou PROVIDER, tenta jackett
@@ -244,10 +239,10 @@ export async function collectRawLive(
 
   // Card Mico: consulta por IMDb, fora do Jackett. Tarefa BR (prioritária)
   // como a do bludv — acervo dublado, pode chegar depois do prazo e entrar no
-  // passe tardio. Sem `ji` na instalação, vale o padrão do operador.
-  const wantsMico = rawSelected.length > 0 ? rawSelected.includes(mico.MICO_ID) : config.mico.default;
+  // passe tardio. Sem `ji` na instalação, vale o padrão do operador; a régua
+  // completa (jackettMode/enabled/`ji`) mora em `sourceWanted`.
   // O Mico não é do Jackett: pular o Jackett (nativo) não pode derrubá-lo.
-  if (jackettMode && wantsMico && config.mico.enabled && !skipSources.has('mico')) {
+  if (wants('mico')) {
     // Entra no estado vivo como um indexer: se o Mico cair ou não responder no
     // prazo, a reserva do acervo (📦) cobre os hashes que ele já trouxe.
     live.noteStart([mico.MICO_ID]);
@@ -260,15 +255,16 @@ export async function collectRawLive(
     }, {
       resetPassedFilter: true,
       matchContext,
+      readOnly,
       onQueryResult: (info) => live.noteResult(info),
     }), true);
   }
 
   // Fonte BR dublada, independente do PROVIDER: entra no mesmo allSettled,
   // então se o site cair ou demorar, o resto da busca sai normalmente.
-  if (config.bludv.enabled && !skipSources.has('bludv')) {
+  if (wants('bludv')) {
     // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
-    addTask(() => bludv.search(ptQuery || query), true);
+    addTask(() => bludv.search(ptQuery || query, { readOnly }), true);
   }
 
   // A conta do debrid como fonte: o que já está pronto lá entra com ⚡ sem

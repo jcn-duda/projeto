@@ -68,6 +68,14 @@ impl Collector for TorrentioCollector {
         job: CollectJob,
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
         Box::pin(async move {
+            // Fonte fora dos `providers` da request: o Node não a consultaria.
+            if !job.wants("torrentio") {
+                return Ok(CollectBatch {
+                    items: Vec::new(),
+                    partial: false,
+                    live: Some(crate::orchestrator::live_state::LiveBatchState::default()),
+                });
+            }
             // Mesma topologia do TS: torrentio entra como tarefa global
             // (`priority=false`); scope BR e late-sweep não consultam.
             if job.late_sweep || matches!(job.scope, TaskScope::Priority) {
@@ -171,6 +179,10 @@ mod tests {
             priority: false,
             deadline_at: 1_700_000_000_000,
             late_sweep: false,
+            providers: Vec::new(),
+            jackett_indexers: Vec::new(),
+            dubbed_only: false,
+            mico_default: false,
         }
     }
 
@@ -242,6 +254,10 @@ mod tests {
 
         let late = CollectJob {
             late_sweep: true,
+            providers: Vec::new(),
+            jackett_indexers: Vec::new(),
+            dubbed_only: false,
+            mico_default: false,
             ..base_job()
         };
         let batch = collector.collect(late).await.expect("ok");

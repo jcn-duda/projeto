@@ -328,3 +328,128 @@ async fn shadow_mode_nao_checa_debrid_nem_grava_store_nem_dispara_tail() {
     );
     assert_eq!(collector.calls(), 1);
 }
+
+// ── Efeitos de cauda (`EFFECTS_RUST`) ──────────────────────────────────────
+
+/// Item BR dublado em cache: é o que o `applyDebrid` interroga/ esquenta.
+fn item_br_dublado(hash: &str) -> RawItem {
+    RawItem {
+        title: Some("Filme Teste 2024 1080p WEB-DL DUBLADO".into()),
+        info_hash: Some(hash.into()),
+        seeders: Some(20.0),
+        indexer: Some("bludv".into()),
+        is_br: true,
+        ..RawItem::default()
+    }
+}
+
+/// Todos os efeitos de todos os lotes (o `season_key` sai num lote próprio).
+fn efeitos_emitidos(tail: &RecordingTail) -> Vec<crate::internal_types::EffectEntry> {
+    tail.effects_batches()
+        .into_iter()
+        .flat_map(|batch| batch.effects)
+        .collect()
+}
+
+fn achar<'a>(
+    effects: &'a [crate::internal_types::EffectEntry],
+    kind: &str,
+) -> Option<&'a crate::internal_types::EffectEntry> {
+    effects.iter().find(|effect| effect.kind == kind)
+}
+
+#[tokio::test]
+async fn effects_rust_off_nao_emite_nada() {
+    let store = Arc::new(MemorySwrStore::new());
+    let collector = StubCollector::with(vec![item_br_dublado(HASH)]);
+    let tail = Arc::new(RecordingTail::default());
+    let orch = orchestrator(config(), store, collector, &[HASH]).with_tail(tail.clone());
+    assert!(!orch.config().effects_enabled);
+
+    let _ = orch.handle(request(1_000_000)).await;
+    tokio::time::sleep(Duration::from_millis(120)).await;
+    assert!(
+        tail.effects_batches().is_empty(),
+        "default OFF: o Node continua sendo quem enfileira"
+    );
+    // O index-write do tail SEGUE rodando: só os efeitos são flagados.
+    assert!(!tail.index_writes().is_empty());
+}
+
+#[tokio::test]
+async fn effects_rust_on_emite_interrogatorio_e_warmer_no_tail() {
+    const FRIO: &str = "9876543210fedcba9876543210fedcba98765432";
+    let store = Arc::new(MemorySwrStore::new());
+    // Um ⚡ (interrogatório) e um frio (warmer): os picks do warmer excluem o
+    // que já está em cache, como no `applyDebrid`.
+    let collector = StubCollector::with(vec![item_br_dublado(HASH), item_br_dublado(FRIO)]);
+    let tail = Arc::new(RecordingTail::default());
+    let mut cfg = config();
+    cfg.effects_enabled = true;
+    let orch = orchestrator(cfg, store, collector, &[HASH]).with_tail(tail.clone());
+
+    let _ = orch.handle(request(1_000_000)).await;
+    tokio::time::sleep(Duration::from_millis(120)).await;
+
+    let effects = efeitos_emitidos(&tail);
+    let audit = achar(&effects, "dub_audit").expect("dub_audit no lote");
+    assert_eq!(audit.payload["adapter_id"], json!("alldebrid"));
+    assert_eq!(audit.payload["api_key"], json!("chave-teste"));
+    let candidates = audit.payload["candidates"].as_array().expect("array");
+    assert!(
+        candidates.iter().any(|c| c["hash"] == json!(HASH)),
+        "o ⚡ dublado é interrogado: {candidates:?}"
+    );
+    let warmer = achar(&effects, "rd_warmer").expect("rd_warmer no lote");
+    let releases = warmer.payload["releases"].as_array().expect("array");
+    assert!(
+        releases.iter().any(|r| r["infoHash"] == json!(FRIO)),
+        "o frio é aquecido: {releases:?}"
+    );
+    assert!(
+        !releases.iter().any(|r| r["infoHash"] == json!(HASH)),
+        "hash em cache não entra no warmer"
+    );
+    assert_eq!(releases[0]["isBr"], json!(true));
+}
+
+#[tokio::test]
+async fn effects_rust_on_emite_proximo_episodio_de_serie() {
+    let store = Arc::new(MemorySwrStore::new());
+    let collector = StubCollector::with(vec![item_br_dublado(HASH)]);
+    let tail = Arc::new(RecordingTail::default());
+    let mut cfg = config();
+    cfg.effects_enabled = true;
+    let orch = orchestrator(cfg, store, collector, &[HASH])
+        .with_tail(tail.clone())
+        .with_meta(Arc::new(StubMeta(SearchMeta {
+            season: Some(2),
+            episode: Some(3),
+            ..meta()
+        })));
+
+    let mut req = request(1_000_000);
+    req.kind = "series".into();
+    req.id = "tt0133093:2:3".into();
+    let resposta = orch.handle(req).await;
+    assert!(
+        !resposta.streams.is_empty(),
+        "precisa de play para enfileirar"
+    );
+    tokio::time::sleep(Duration::from_millis(120)).await;
+
+    let effects = efeitos_emitidos(&tail);
+    let next = achar(&effects, "harvester_enqueue").expect("harvester_enqueue");
+    assert_eq!(next.payload["reason"], json!("next-episode"));
+    assert_eq!(next.payload["season"], json!(2));
+    assert_eq!(next.payload["episode"], json!(4));
+    assert_eq!(next.payload["type"], json!("series"));
+    // A chave da lista por temporada sai na abertura, como no `findStreams`.
+    let key = achar(&effects, "season_key").expect("season_key");
+    assert_eq!(key.payload["season"], json!(2));
+    assert_eq!(key.payload["adapter_id"], json!("alldebrid"));
+    assert_eq!(
+        key.payload["account"],
+        json!(adom_core::account_scope(&json!("chave-teste")))
+    );
+}

@@ -236,6 +236,12 @@ pub fn finalize_streams(
     let finais: Vec<RankingStream> = limit.selected.iter().map(|&i| kept[i].clone()).collect();
     out.count("final", finais.len());
 
+    // Efeitos de cauda: o `applyDebrid` do Node os decide ANTES do
+    // `limitReservingBr` (sobre o pool pós-debrid, não sobre o corte final) —
+    // por isso a seleção roda aqui, com `kept` e o conjunto de hashes cacheados
+    // da checagem. Emitir é do orquestrador (`EFFECTS_RUST`).
+    out.effect_seeds = super::effects::collect(&kept, &cached_hashes, ctx.season, ctx.episode);
+
     // 10. Aviso se vazia — o TEXTO nasce relativo (o link é do origin).
     let mut built: Vec<BuiltStream> = finais
         .iter()

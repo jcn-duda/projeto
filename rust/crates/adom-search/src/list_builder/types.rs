@@ -304,6 +304,9 @@ pub struct BuiltList {
     pub dub_entered_debrid: usize,
     /// Funil observacional (porte do ledger P5, versão contadores).
     pub funnel: BTreeMap<String, usize>,
+    /// Efeitos de cauda que ESTE lote decidiu (dub_audit/warmer). Vazio = sem
+    /// efeito; quem emite é o orquestrador, atrás de `EFFECTS_RUST`.
+    pub effect_seeds: super::effects::EffectSeeds,
 }
 
 impl BuiltList {

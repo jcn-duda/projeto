@@ -418,5 +418,9 @@ fn hash_quebrado_na_conta_sai_antes_da_checagem() {
         .iter()
         .filter_map(|s| s.item.info_hash.as_deref())
         .collect();
-    assert_eq!(hashes, [bom], "o hash quebrado não pode ocupar vaga nem ir ao debrid");
+    assert_eq!(
+        hashes,
+        [bom],
+        "o hash quebrado não pode ocupar vaga nem ir ao debrid"
+    );
 }
