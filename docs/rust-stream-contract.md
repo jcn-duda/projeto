@@ -103,11 +103,25 @@ títulos de pack podem divergir do Node (gap de contrato).
 
 ### 0.3.3 Aviso de coleta vazia no comparador
 
-Expected sem streams ou só com avisos (`{"name": …, "notice": true}`) não é
-comparável (§9.4 item 6): a sombra **pula** (não conta `compared` nem
-`divergence`) — a 2ª request congelada pode herdar a coleta vazia/parcial da
-original enquanto a captura tem o lote. Retry não resolve: a coleta vazia é
+Expected sem streams ou só com avisos não é comparável (§9.4 item 6): a sombra
+**pula** (não conta `compared` nem `divergence`) — a 2ª request congelada pode
+herdar a coleta vazia/parcial da original enquanto a captura tem o lote. O
+envelope do aviso **perde o campo `notice`** (vira `{name, externalUrl:
+".../configure"}`), então o reconhecimento é por flag, pelo texto
+(`Procurando fontes`/`reabra em instantes`/`fora do cache`) e pelo
+`externalUrl` sem `url`/`infoHash`. Retry não resolve: a coleta vazia é
 transiente e a captura já é a melhor evidência do build.
+
+### 0.3.4 Cache hermético: o veredito vem do `apply-debrid.json`
+
+O `debrid.json` da captura pode ser de OUTRA chamada (a rota
+`/internal/debrid/check`, com a conta em quota) e o replay então marcava
+`[AD download]` onde o expected mostra `[AD⚡]`. O veredito POR HASH passa a sair
+do `apply-debrid.json` — o `name` aplicado é o veredito final que gerou o
+expected: `⚡` = em cache, prefixo `[` sem `⚡` = fora do cache com link do
+debrid, sem prefixo = P2P. A sobreposição só vale quando o lote tem algum `⚡`
+(evidência de cache fresco); sem isso vale o `debrid.json`/`calls` — capturas
+antigas do corpus não têm `⚡` e não mudam.
 
 ### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
 

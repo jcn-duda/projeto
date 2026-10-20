@@ -284,3 +284,37 @@ async fn espera_do_dir_aceita_captura_completa() {
 
     let _ = fs::remove_dir_all(&dir);
 }
+
+
+#[test]
+fn aviso_de_coleta_vazia_nao_e_comparavel() {
+    // Envelope real do aviso: o campo `notice` NÃO sobrevive à resposta; sobra
+    // o nome e o externalUrl do /configure.
+    let envelope = serde_json::json!({
+        "streams": [{
+            "name": "Procurando fontes — reabra em instantes",
+            "externalUrl": "http://127.0.0.1:7100/e30/configure"
+        }]
+    });
+    assert!(notice_only(&envelope));
+    // Com a flag também vale; lista vazia vale; lista tocável NÃO vale.
+    assert!(notice_only(&serde_json::json!({
+        "streams": [{ "name": "Nada pronto ainda", "notice": true }]
+    })));
+    assert!(notice_only(&serde_json::json!({ "streams": [] })));
+    assert!(!notice_only(&serde_json::json!({
+        "streams": [{
+            "name": "1080p BluRay",
+            "url": "/e30/resolve/abc",
+            "infoHash": "abc"
+        }]
+    })));
+    // Lista mista (tocável + aviso) é comparável: o aviso anexado não apaga o
+    // que toca.
+    assert!(!notice_only(&serde_json::json!({
+        "streams": [
+            { "name": "1080p BluRay", "url": "/e30/resolve/abc" },
+            { "name": "Procurando fontes — reabra em instantes", "externalUrl": "x/configure" }
+        ]
+    })));
+}

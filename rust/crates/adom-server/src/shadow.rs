@@ -653,19 +653,42 @@ pub fn divergent_item_count(node: &BTreeSet<String>, rust: &BTreeSet<String>) ->
     node.symmetric_difference(rust).count() as u64
 }
 
-/// Corpo do Node SEM lista comparável: nenhum stream, ou só avisos
-/// (`{"name": "...", "notice": true}`). Aviso é o `Procurando fontes` da coleta
-/// vazia/parcial — não é decisão de pipeline (§9.4 item 6).
+/// Corpo do Node SEM lista comparável: nenhum stream, ou só avisos. Aviso é o
+/// `Procurando fontes`/`Nada pronto ainda` da coleta vazia/parcial — não é
+/// decisão de pipeline (§9.4 item 6).
 pub fn notice_only(body: &Value) -> bool {
     match body.get("streams").and_then(Value::as_array) {
         None => true,
-        Some(streams) => streams.iter().all(|stream| {
-            stream
-                .get("notice")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-        }),
+        Some(streams) => streams.iter().all(is_notice_stream),
     }
+}
+
+/// O envelope do aviso perde o campo `notice`: ele sai como `{name,
+/// externalUrl: ".../configure"}`. Reconhece as três formas — flag, o texto
+/// conhecido do aviso e o link para `/configure` sem nada tocável.
+fn is_notice_stream(stream: &Value) -> bool {
+    if stream
+        .get("notice")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    let text = stream
+        .get("name")
+        .or_else(|| stream.get("title"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_lowercase();
+    if text.contains("procurando fontes")
+        || text.contains("reabra em instantes")
+        || text.contains("fora do cache")
+    {
+        return true;
+    }
+    stream.get("externalUrl").is_some()
+        && stream.get("url").is_none()
+        && stream.get("infoHash").is_none()
 }
 
 #[cfg(test)]

@@ -124,6 +124,23 @@ struct IndexValue {
 struct DebridFile {
     #[serde(default)]
     calls: Vec<DebridCall>,
+    /// Formato do record atual (`/internal/debrid/check` consolidado): hash →
+    /// veredito. Antes o replay só lia `calls[0]` e, sem esse campo, tratava
+    /// TODO hash como "não perguntado" — o expected marcado `[AD⚡]` virava
+    /// `[AD download]` no replay (Carandiru/Central/Bacurau, 2026-10-20).
+    #[serde(default)]
+    results: BTreeMap<String, DebridResult>,
+}
+
+/// Veredito POR HASH do check consolidado que gerou o expected.
+#[derive(Debug, Clone, Deserialize, Default)]
+struct DebridResult {
+    #[serde(default)]
+    cached: bool,
+    #[serde(default)]
+    known: bool,
+    #[serde(default)]
+    unusable: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -137,6 +154,9 @@ struct DebridCall {
     unusable: Option<Value>,
     #[serde(default)]
     cached: Vec<String>,
+    /// Cache hermético: o veredito POR HASH da checagem que gerou o expected.
+    #[serde(default)]
+    results: BTreeMap<String, DebridResult>,
 }
 
 struct FrozenCase {
@@ -376,7 +396,27 @@ impl FrozenCase {
             meta,
             collect,
             index,
-            debrid: debrid.calls.into_iter().next().unwrap_or_default(),
+            debrid: {
+                // O record novo grava o check CONSOLIDADO em `results`; o antigo
+                // gravava `calls`. `calls[0]` era o lote errado quando havia
+                // mais de uma chamada (prepare + check).
+                let mut call = debrid.calls.into_iter().next().unwrap_or_default();
+                // O `apply-debrid.json` é a checagem que GEROU o expected (o
+                // veredito final por stream). Só sobrepõe quando o lote tem
+                // algum `⚡` — é a evidência de que o Node viu cache fresco; sem
+                // isso (capturas antigas, tudo download) a régua anterior
+                // (`debrid.json`/`calls`) continua valendo, senão o
+                // `cacheMaxAge` vira 900 e o gate do corpus quebra.
+                let applied_verdicts = applied_debrid_verdicts(&applied);
+                if applied_verdicts.values().any(|result| result.cached) {
+                    call.results = applied_verdicts;
+                    call.known = true;
+                    call.unusable = None;
+                } else if !debrid.results.is_empty() {
+                    call.results = debrid.results;
+                }
+                call
+            },
             instant,
             files,
             totals,
@@ -527,6 +567,48 @@ fn applied_hash(item: &Value) -> Option<String> {
         .take(40)
         .collect();
     (hash.len() == 40).then(|| hash.to_ascii_lowercase())
+}
+
+/// Veredito de cache POR HASH a partir do `apply-debrid.json` — a checagem que
+/// GEROU o expected. O `debrid.json` capturado pode ser de outra chamada (a rota
+/// `/internal/debrid/check` com a conta em quota), e o replay então marcava
+/// `[AD download]` onde o Node mostrou `[AD⚡]` (Carandiru/Central/Bacurau,
+/// 2026-10-20). O `name` aplicado é o veredito final: `⚡` = em cache, prefixo
+/// `[` sem `⚡` = fora do cache com link do debrid, sem prefixo = P2P (unusable).
+fn applied_debrid_verdicts(files: &[ApplyDebridFile]) -> BTreeMap<String, DebridResult> {
+    let mut out = BTreeMap::new();
+    for file in files {
+        for item in &file.output {
+            let Some(hash) = applied_hash(item) else {
+                continue;
+            };
+            if out.contains_key(&hash) {
+                continue;
+            }
+            let name = item.get("name").and_then(Value::as_str).unwrap_or("");
+            let verdict = if name.contains('\u{26A1}') {
+                DebridResult {
+                    cached: true,
+                    known: true,
+                    unusable: None,
+                }
+            } else if name.starts_with('[') {
+                DebridResult {
+                    cached: false,
+                    known: true,
+                    unusable: None,
+                }
+            } else {
+                DebridResult {
+                    cached: false,
+                    known: false,
+                    unusable: Some(Value::String("p2p".into())),
+                }
+            };
+            out.insert(hash, verdict);
+        }
+    }
+    out
 }
 
 /// Qualidade que o Node efetivamente usou no build (`_quality` do
@@ -1050,17 +1132,33 @@ struct FrozenDebridCheck {
 
 impl DebridCheck for FrozenDebridCheck {
     fn check(&mut self, stream: &RankingStream) -> DebridAnswer {
+        let hash = stream
+            .info_hash
+            .as_deref()
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        // Cache HERMÉTICO: o veredito por hash do check consolidado que gerou o
+        // expected vence a régua global (`calls`). O `cached` do Node pode
+        // coexistir com `known:false`/`unusable` (o ⚡ veio do memo `davail` da
+        // conta) — é justamente o caso que o replay perdia.
+        if let Some(result) = self.call.results.get(&hash) {
+            if result.cached {
+                return DebridAnswer::Cached { url: None };
+            }
+            if result.known {
+                return DebridAnswer::Missing;
+            }
+            if result.unusable.is_some() {
+                return DebridAnswer::Unusable;
+            }
+            return DebridAnswer::Unknown;
+        }
         if self.call.unusable.is_some() {
             return DebridAnswer::Unusable;
         }
         if !self.call.known {
             return DebridAnswer::Unknown;
         }
-        let hash = stream
-            .info_hash
-            .as_deref()
-            .unwrap_or("")
-            .to_ascii_lowercase();
         if self.cached.contains(&hash) {
             DebridAnswer::Cached { url: None }
         } else {
