@@ -336,7 +336,8 @@ pub use fallback_bank::{
     FallbackWork, GLOBAL_MAX, PER_INDEXER_MAX,
 };
 pub use search_bank::{
-    instant_window, is_recent_release, pick_source, InstantMeta, InstantWindow, SourceRow, WorkRow,
+    instant_window, is_recent_release, parse_date_ms, pick_source, InstantMeta, InstantWindow,
+    SourceRow, WorkRow,
 };
 pub use search_finish::{
     commit_decision, debrid_refresh_satisfied, late_promotion_decision, stale_refresh_eligible,

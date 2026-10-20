@@ -11,7 +11,7 @@
 //! depois sem mudar a régua.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
@@ -204,6 +204,29 @@ pub(crate) fn set_cached(
 ) {
     if ttl_seconds > 0 {
         store.set(key, value, ttl_seconds, now_ms);
+    }
+}
+
+/// Espelho READ-ONLY de um [`MetaStore`]: lê o cache do Node (warm) e nunca
+/// grava. É o store da referência NATIVA na sombra de metadados — comparar não
+/// pode alterar o que o caminho de resposta lê depois.
+pub struct ReadOnlyMetaStore {
+    inner: Arc<dyn MetaStore>,
+}
+
+impl ReadOnlyMetaStore {
+    pub fn new(inner: Arc<dyn MetaStore>) -> Self {
+        Self { inner }
+    }
+}
+
+impl MetaStore for ReadOnlyMetaStore {
+    fn get(&self, key: &str, now_ms: i64) -> Option<CacheValue> {
+        self.inner.get(key, now_ms)
+    }
+
+    fn set(&self, _key: &str, _value: CacheValue, _ttl_seconds: u64, _now_ms: i64) {
+        // Compare-only: nenhuma escrita, nem negativa.
     }
 }
 

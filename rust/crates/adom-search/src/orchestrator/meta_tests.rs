@@ -30,6 +30,7 @@ fn query() -> MetaQuery {
         id: "tt0133093".into(),
         include_multiwork: true,
         include_home_release: false,
+        deadline_at_ms: None,
     }
 }
 
@@ -96,4 +97,68 @@ fn sem_ano_nao_ha_raiz_multiobra() {
     assert_eq!(meta.query, "Sem Ano");
     assert!(meta.multi_work_root.is_none());
     assert!(meta.titles.is_none(), "sem titles não há contexto DUAL");
+}
+
+fn serie_response(aired: Value) -> MetaResponse {
+    serde_json::from_value(json!({
+        "ok": true,
+        "type": "series",
+        "id": "tt0903747:1:2",
+        "imdb_id": "tt0903747",
+        "season": 1,
+        "episode": 2,
+        "meta": {
+            "name": "Série Teste",
+            "year": "2026",
+            "type": "series",
+            "released": "2026-08-01T00:00:00.000Z",
+            "firstAired": aired,
+            "episodeAired": {
+                "1:1": "2026-09-28T00:00:00.000Z",
+                "1:2": "2026-10-05T00:00:00.000Z"
+            }
+        },
+        "titles": { "pt": "Série Teste", "original": "Test Show", "year": "2026" },
+        "homeReleaseAt": 1_700_000_000_000i64
+    }))
+    .expect("resposta de série")
+}
+
+#[test]
+fn episode_aired_real_vira_ms_e_first_aired_segue_o_ts() {
+    let meta = meta_from_response(&serie_response(json!("2026-09-01")), &query());
+    // Só a data do EPISÓDIO alimenta as guardas de 48h/24h.
+    assert_eq!(
+        meta.episode_aired_at_ms,
+        adom_core::parse_date_ms("2026-10-05T00:00:00.000Z")
+    );
+    // `meta.firstAired ?? episodeAired[S:E]`: a estreia da OBRA vence.
+    assert_eq!(meta.first_aired.as_deref(), Some("2026-09-01"));
+    assert_eq!(meta.released.as_deref(), Some("2026-08-01T00:00:00.000Z"));
+    assert_eq!(meta.home_release_at, Some(1_700_000_000_000));
+}
+
+#[test]
+fn sem_first_aired_da_obra_vale_a_data_do_episodio() {
+    let meta = meta_from_response(&serie_response(Value::Null), &query());
+    assert_eq!(
+        meta.first_aired.as_deref(),
+        Some("2026-10-05T00:00:00.000Z")
+    );
+    assert_eq!(
+        meta.episode_aired_at_ms,
+        adom_core::parse_date_ms("2026-10-05T00:00:00.000Z")
+    );
+}
+
+#[test]
+fn episodio_sem_data_nao_inventa_guarda() {
+    let mut response = serie_response(Value::Null);
+    let mut meta = response.meta.take().expect("meta");
+    meta.as_object_mut().expect("objeto").remove("episodeAired");
+    response.meta = Some(meta);
+    let meta = meta_from_response(&response, &query());
+    assert_eq!(meta.episode_aired_at_ms, None);
+    // Sem `firstAired` da obra e sem `episodeAired`, não há data nenhuma.
+    assert_eq!(meta.first_aired, None);
 }

@@ -41,6 +41,8 @@ mod late;
 mod live_state;
 mod meta;
 mod meta_load;
+mod meta_native;
+mod meta_shadow;
 mod mico_collector;
 mod pack;
 mod prowlarr_collector;
@@ -100,6 +102,15 @@ pub use live_state::{
     SharedLiveState,
 };
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
+pub use meta_native::{
+    flag_enabled, meta_from_lookup, meta_rust_enabled, FallbackMetaSource, NativeMetaSource,
+    DEFAULT_LOOKUP_TIMEOUT_MS, META_RUST_ENV,
+};
+pub use meta_shadow::{
+    compare_meta, meta_shadow_enabled, meta_shadow_metrics_snapshot, meta_shadow_percent_from,
+    meta_shadow_timeout_ms_from, sample_includes, wrap_meta_with_shadow, MetaComparison,
+    MetaShadowMetrics, META_SHADOW_ENV, META_SHADOW_PERCENT_ENV, META_SHADOW_TIMEOUT_ENV,
+};
 pub use mico_collector::{sources_rust_includes_mico, try_mico_collector_from_env, MicoCollector};
 pub use prowlarr_collector::{
     sources_rust_includes_prowlarr, try_prowlarr_collector_from_env, ProwlarrCollector,

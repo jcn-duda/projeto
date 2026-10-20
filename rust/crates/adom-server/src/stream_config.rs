@@ -89,6 +89,24 @@ pub fn operator_search_build_from_env() -> BuildOptions {
     if let Some(n) = env_f64("MAX_STREAMS_PER_INDEXER") {
         b.max_per_indexer = n;
     }
+    // `BR_MULTIWORK_PACKS` / `SEARCH_PRE_HOME_RELEASE_CUT` são do OPERADOR (não
+    // estão no SCHEMA do usuário). Default do Node = ligado; só o literal
+    // "false" desliga (`String(env || 'true') === 'true'`).
+    b.multi_work_packs = std::env::var("BR_MULTIWORK_PACKS")
+        .map(|raw| raw.trim() != "false")
+        .unwrap_or(true);
+    b.pre_home_release_cut = std::env::var("SEARCH_PRE_HOME_RELEASE_CUT")
+        .map(|raw| raw.trim() != "false")
+        .unwrap_or(true);
+    if let Some(ms) = env_i64("SEARCH_PRE_HOME_RELEASE_MARGIN_MS") {
+        b.pre_home_release_margin_ms = ms;
+    }
+    if let Some(ms) = env_i64("SEARCH_UNAIRED_MARGIN_MS") {
+        b.unaired_margin_ms = ms;
+    }
+    if let Some(ms) = env_i64("SEARCH_PREAIR_RELEASE_MARGIN_MS") {
+        b.pre_air_margin_ms = ms;
+    }
     if let Ok(raw) = std::env::var("PREFER_DUBBED") {
         b.prefer_dubbed = env_flag(&raw);
     }

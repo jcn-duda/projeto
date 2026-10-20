@@ -142,6 +142,13 @@ pub struct MetaLookup {
     pub title_en: Option<String>,
     /// `original_title`/`original_name` do TMDB (idioma de origem).
     pub title_original: Option<String>,
+    /// Ano do TMDB (`titles.year`, `release_date`/`first_air_date` cortados em
+    /// 4). NÃO é o ano de catálogo escolhido: a query pt-BR do TS usa ESTE ano
+    /// (`buildSearchQuery({ name: titles.pt, year: titles.year })`) enquanto o
+    /// nome principal usa o ano escolhido (`catalog_year_of`). Sem o campo, o
+    /// caminho nativo divergiria quando Cinemeta e TMDB discordassem dentro da
+    /// janela de 2 anos.
+    pub titles_year: Option<String>,
     /// Aliases BR aceitos pelas travas do núcleo (máx. 2).
     #[serde(default)]
     pub aliases_br: Vec<String>,
@@ -179,6 +186,7 @@ impl MetaLookup {
             title_pt: None,
             title_en: None,
             title_original: None,
+            titles_year: None,
             aliases_br: Vec::new(),
             names: Vec::new(),
             meta_name: None,

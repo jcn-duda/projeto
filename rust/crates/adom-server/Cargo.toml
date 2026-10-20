@@ -9,6 +9,8 @@ license = "UNLICENSED"
 [dependencies]
 adom-debrid = { path = "../adom-debrid" }
 adom-search = { path = "../adom-search" }
+# Metadados nativos (C5, `META_RUST`): `MetaSources` + store do cache.db.
+adom-sources = { path = "../adom-sources" }
 adom-store = { path = "../adom-store" }
 axum = { version = "0.8", features = ["json"] }
 bytes = "1"

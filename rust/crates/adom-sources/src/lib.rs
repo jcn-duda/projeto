@@ -98,7 +98,7 @@ pub use bludv::{
 };
 pub use cache::{
     CacheValue, CollectionRead, HomeReleaseRead, MemoryMetaStore, MemoryRawStore, MetaStore,
-    RawStore,
+    RawStore, ReadOnlyMetaStore,
 };
 pub use cinemeta::CinemetaClient;
 pub use config::{

@@ -105,11 +105,18 @@ pub fn build_orchestrator() -> Orchestrator {
                 collector,
                 Some(routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>),
             );
+            // C5: `META_RUST` troca a fonte de metadados (Node é o default e o
+            // fallback); `META_RUST_SHADOW` arma a comparação compare-only.
+            let meta = stream_meta::meta_source(Some(
+                routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>
+            ));
             orch = orch
                 .with_collector(collector)
-                .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
                 .with_tail(Arc::new(NodeTailEffects::new(routes.clone())))
                 .with_internal_routes(routes);
+            if let Some(meta) = meta {
+                orch = orch.with_meta(meta);
+            }
         }
         None => {
             if !native_collectors.is_empty() {
@@ -130,6 +137,11 @@ pub fn build_orchestrator() -> Orchestrator {
                 eprintln!(
                     "[gateway] stream nativo sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
                 );
+            }
+            // C5: sem rotas internas o `META_RUST` ainda entrega metadados ao
+            // corte (Cinemeta/TMDB nativos); com a flag OFF nada muda.
+            if let Some(meta) = stream_meta::meta_source(None) {
+                orch = orch.with_meta(meta);
             }
         }
     }
@@ -250,6 +262,9 @@ fn sources_rust_label() -> String {
 #[path = "stream_config.rs"]
 mod stream_config;
 pub use stream_config::*;
+
+#[path = "stream_meta.rs"]
+mod stream_meta;
 
 /// `true` para GET/HEAD em caminho `/stream/.../*.json` (com ou sem config).
 pub fn is_native_stream(method: &Method, path: &str) -> bool {

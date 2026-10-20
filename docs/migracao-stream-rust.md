@@ -229,11 +229,12 @@ p50/p95 e a semana em `stream-shadow`.
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
-**Estado: F2.5 PARCIAL (Jackett/Prowlarr/Torrentio/Mico/BLUDV), default OFF.**
+**Estado: F2.5 PARCIAL (Jackett/Prowlarr/Torrentio/Mico/BLUDV) + C5
+(metadados nativos), default OFF.**
 `SOURCES_RUST_SHADOW` (CSV) é vazio por default e `SOURCES_RUST` segue OFF; a
 sombra de fonte compara **Jackett, Prowlarr, Torrentio, Mico e BLUDV** e **não**
-é o critério §9.4. O contrato e o recorte estão em
-`docs/rust-stream-contract.md`.
+é o critério §9.4. `META_RUST`/`META_RUST_SHADOW` também são OFF. O contrato e
+o recorte estão em `docs/rust-stream-contract.md`.
 
 **F2.1 — Jackett com `live` e sombra de fonte (`b10df543`).** `search_outcomes`
 devolve um `QueryOutcome` por indexer: `Ok`/`Empty` são resposta válida
@@ -380,6 +381,77 @@ IDENTIDADE (hashes por `_indexer`/tracker); o `live` nativo vale na produção c
 `divergence`, `items_missing`, `items_extra`, `live_divergence`, `timeout`,
 `error`, `partial_divergence`, `skipped`, `skipped_late`; `partial` diferente
 conta só em `partial_divergence` (informativa), nunca em `divergence`.
+
+**F2.6/C5 — Metadados nativos (Cinemeta/TMDB/coleção/home release), `META_RUST`
+OFF.** O orquestrador troca `NodeMetaSource` (rota interna) por
+`NativeMetaSource`: `adom_sources::MetaSources` faz o `/find` duplo (pt-BR e
+en-US no MESMO prazo), aliases BR filtrados pelo núcleo, coleção multiobra e 1º
+lançamento doméstico sob teto próprio (`min(deadline, now + cap)`). A montagem
+do `SearchMeta` é COMPARTILHADA com o caminho Node
+(`build_search_meta`/`MetaParts`): nome, aliases na ordem do
+`resolveSearchNames`, ano/`altYear` (`catalog_year_of`), query, degrau pt-BR
+(com o ANO do TMDB, não o escolhido), varredura pt, degrau do original e raiz
+multiobra saem da mesma função. Com rotas internas o Node é o **fallback**
+(nativo errado/sem nome) e o default segue sendo ele; sem rotas, o nativo vira
+a única fonte (antes a busca ficava sem metadados).
+
+**Cache = o do Node.** `MetaCacheStore` (`adom-store`) usa o MESMO
+`CACHE_DB_PATH`/`cache.db` e as MESMAS chaves/valores do Node:
+`meta:{tipo}:{imdb}` (`{name, year, type, episodes?, released?, firstAired?,
+episodeAired?, __metaV:2}` ou `{miss:true}`), `tmdb:{imdb}`
+(`{pt, original, en, br, year}` ou `{miss:true}`), `tmdbc:{imdb}` (`{info}` /
+`{info:null}` / `{miss:true}`) e `tmdbh:{imdb}` (`{at}`). Entrada no formato
+antigo é MISS (o Node também reconsulta uma vez); a cota por namespace é a do
+núcleo (`meta`/`tmdb`/`tmdbc` = 500, despejo do que expira primeiro). Restart ou
+queda não esfriam o metadado e o Node lê o que o Rust gravou.
+
+**`episodeAired` real.** `meta.episodeAired["S:E"]` vira
+`SearchMeta.episode_aired_at_ms` pelo parser determinístico do núcleo
+(`adom_core::parse_date_ms`, o mesmo do banco de magnets) nas DUAS fontes. O
+`BuildContext` recebe o campo e a guarda de pré-air (48 h) finalmente roda —
+antes `episode_aired_at_ms` era `None` fixo. `firstAired` segue o TS
+(`meta.firstAired ?? episodeAired[S:E]`) e `released`/`firstAired` vão no
+`SearchIndexRequest` (a janela recente do índice usava `null`). O 1º lançamento
+doméstico (`homeReleaseAt`) também passou a entrar no filtro de título: o
+`relevance_query` passava `None` fixo e `preHomeReleaseCut` ficava morto no
+caminho nativo. As PRECONDIÇÕES dos opt-ins agora são as do Node
+(`BR_MULTIWORK_PACKS` E sem temporada E não demo E debrid ativo; data doméstica
+só com `SEARCH_PRE_HOME_RELEASE_CUT`, sem temporada e não demo), lidas do `.env`
+em `operator_search_build_from_env`.
+
+**Sombra de metadados (`META_RUST_SHADOW`, independente de `META_RUST`).**
+Envolve a fonte primária e roda a OUTRA em `tokio::spawn` DEPOIS da resposta:
+nunca segura o cliente. Compara `name`, `names` (ordem), `year`, `altYear`,
+coleção (raiz/query), `homeReleaseAt`, `episodeAired` (ms) e as queries
+pt-BR/original/varredura; `titles` não entra (sai dos mesmos pt/original/en).
+Amostra determinística por `kind:id` (`META_RUST_SHADOW_PERCENT`, 0..=100,
+default 100) e prazo próprio (`META_RUST_SHADOW_TIMEOUT_MS`); não amostrado conta
+`meta.shadow.skipped_sample` e nem chama a referência. A referência nativa usa
+`ReadOnlyMetaStore` (lê o cache quente do Node, nunca grava). Divergência
+incrementa `meta.shadow.divergence` + `divergence_fields` + o contador do campo;
+timeout/erro da referência NÃO são divergência. Métricas: `meta.shadow.compared`,
+`divergence`, `divergence_fields`, `name/names/year/alt_year/collection/
+home_release/episode_aired/pt_query/sweep_query/original_query` + `_divergence`,
+`timeout`, `error`, `skipped`, `skipped_sample`.
+
+**Testes C5:** `adom-store` cobre roundtrip dos quatro namespaces, formato do
+Node, leitura de entrada gravada pelo Node, formato antigo → MISS, expiração +
+restart, chave de outro namespace e cota. `adom-search` cobre
+`episodeAired`/`firstAired`/home release na rota, a guarda de 48 h PONTA A PONTA
+no build (47 h fica, 49 h sai, sem data não roda), o mapeamento nativo
+(filme/série/coleção/ano), o corpus de títulos
+(`scripts/golden/corpus-search-name-helpers.json`: `meta_from_lookup` ×
+`meta_from_response` campo a campo) e a sombra (igual não conta, divergência
+conta por campo, amostra 0 pula sem chamar a referência, referência lenta não
+segura o cliente, erro/timeout não são divergência, primário com erro não
+compara).
+
+**Limitações (C5):** `first_seen` do banco de magnets continua fora (é insumo da
+F3): o pré-air da CONTA segue usando só `publishedAt` — release de conta sem
+data de publicação não é pega pela guarda de 48 h. `tmdb_id`/
+`original_language` não são persistidos (o Node também não os grava). A sombra
+compara só requisições amostradas e não substitui §9.4; paridade de metadados
+com a API real não foi medida (o corpus cobre a MONTAGEM, não a rede).
 
 **Limitações (F2.5):** `live` nativo existe para Jackett (por indexer),
 Prowlarr, Torrentio, Mico e BLUDV (por fonte). O de Prowlarr/Torrentio/BLUDV

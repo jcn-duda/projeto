@@ -117,9 +117,16 @@ fn js_date_parse_ms(text: &str) -> i64 {
     parse_date_ms(text).unwrap_or(0)
 }
 
-/// Como [`js_date_parse_ms`], mas com `None` para inválida — o dia da epoch
-/// (`1970-01-01`) É uma data válida e não pode colidir com o sentinela `0`.
-fn parse_date_ms(text: &str) -> Option<i64> {
+/// `Date.parse` do TS no subconjunto determinístico, com `None` para inválida —
+/// o dia da epoch (`1970-01-01`) É uma data válida e não pode colidir com o
+/// sentinela `0`.
+///
+/// Público porque a data de estreia do episódio (`meta.episodeAired`) chega
+/// como TEXTO do Cinemeta e a guarda de pré-air do build precisa de ms: o
+/// orquestrador usa ESTE parser em vez de um `Date.parse` próprio (ver
+/// `adom-search::orchestrator::meta`). O subconjunto aceito é o documentado no
+/// cabeçalho do módulo.
+pub fn parse_date_ms(text: &str) -> Option<i64> {
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
     // "YYYY" | "YYYY-MM" | "YYYY-MM-DD" — sempre UTC no JS.
     let parts: Vec<&str> = text.split('-').collect();

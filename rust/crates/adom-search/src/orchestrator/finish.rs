@@ -376,9 +376,12 @@ impl Orchestrator {
             debrid_resolve_uncached: self.config.resolve_uncached,
             // Sombra: NoDebridCheck responde Unknown sem ter perguntado.
             debrid_check_disabled: self.shadow_mode,
-            // Data de estreia do episódio: o parser de data fica para a fatia
-            // seguinte (ver `meta.rs`); sem ela a guarda de pré-air não roda.
-            episode_aired_at_ms: None,
+            // Data de estreia do episódio (epoch ms): liga a guarda de pré-air
+            // de 48 h e a de episódio não exibido. Vem do `episodeAired` real
+            // (Cinemeta) nas DUAS fontes de metadados.
+            episode_aired_at_ms: meta.episode_aired_at_ms,
+            // 1º lançamento doméstico (filtro de título do build).
+            home_release_at: meta.home_release_at,
             episode_counts: meta.episode_counts.clone(),
             first_seen_ms: HashMap::new(),
             executable_bases: Vec::new(),

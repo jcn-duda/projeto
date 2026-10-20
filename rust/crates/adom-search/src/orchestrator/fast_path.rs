@@ -165,8 +165,10 @@ impl Orchestrator {
             episode: meta.episode,
             names: Some(meta.names.clone()),
             year: Some(meta.year.clone()),
-            released: None,
-            first_aired: None,
+            // `matchContext.released`/`firstAired` do TS: o teto de lançamento
+            // recente do índice usa as datas REAIS da obra/episódio.
+            released: meta.released.clone(),
+            first_aired: meta.first_aired.clone(),
         };
         let resp = routes.search_index(req).await.ok()?;
         if resp.instant_eligible {

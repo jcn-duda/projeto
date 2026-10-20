@@ -97,6 +97,7 @@ impl MetaSources {
             lookup.title_pt = titles.pt.clone();
             lookup.title_en = titles.en.clone();
             lookup.title_original = titles.original.clone();
+            lookup.titles_year = titles.year.clone();
             lookup.aliases_br = titles.aliases_br.clone();
         }
 

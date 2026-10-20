@@ -110,3 +110,52 @@ impl Default for SourcesConfig {
         }
     }
 }
+
+impl SourcesConfig {
+    /// Config de produção lida do ambiente — as MESMAS envs do Node
+    /// (`src/config/providers.ts`), para o caminho nativo (`META_RUST`) não
+    /// divergir do oráculo. `TMDB_API_KEY` vazio desliga o TMDB (fail-open, como
+    /// no TS). Números inválidos caem no default, nunca em zero acidental.
+    pub fn from_env() -> Self {
+        Self::from_lookup(|key| std::env::var(key).ok())
+    }
+
+    /// Variante pura (testável sem mexer no env do processo).
+    pub fn from_lookup(lookup: impl Fn(&str) -> Option<String>) -> Self {
+        let get = |key: &str| lookup(key).map(|raw| raw.trim().to_string());
+        let num = |key: &str, default: u64| {
+            get(key)
+                .and_then(|raw| raw.parse::<f64>().ok())
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .map(|value| value as u64)
+                .unwrap_or(default)
+        };
+        let cinemeta = CinemetaConfig {
+            base_url: CINEMETA_BASE.to_string(),
+            request_timeout_ms: num("CINEMETA_TIMEOUT_MS", 2_500),
+            cache_ttl_secs: 86_400,
+            miss_ttl_secs: num("CINEMETA_MISS_TTL", 300),
+            transient_miss_ttl_secs: num("CINEMETA_TRANSIENT_MISS_TTL", 30),
+        };
+        let tmdb = TmdbConfig {
+            base_url: TMDB_BASE.to_string(),
+            api_key: get("TMDB_API_KEY").unwrap_or_default(),
+            request_timeout_ms: num("TMDB_TIMEOUT_MS", 5_000),
+            cache_ttl_secs: num("TMDB_CACHE_TTL", 604_800),
+            miss_ttl_secs: num("TMDB_MISS_TTL", 300),
+            transient_miss_ttl_secs: num("TMDB_TRANSIENT_MISS_TTL", 30),
+            collection_timeout_ms: num("TMDB_COLLECTION_TIMEOUT_MS", 2_500),
+            home_release_ttl_secs: num("SEARCH_PRE_HOME_RELEASE_TTL", 86_400),
+            // `String(env || 'true') === 'true'`: só o literal "true" liga; env
+            // ausente/vazia mantém o default do Node (ligado).
+            pre_home_release_cut: get("SEARCH_PRE_HOME_RELEASE_CUT")
+                .map(|raw| raw == "true")
+                .unwrap_or(true),
+        };
+        Self {
+            user_agent: DEFAULT_USER_AGENT.to_string(),
+            cinemeta,
+            tmdb,
+        }
+    }
+}

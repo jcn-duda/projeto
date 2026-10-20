@@ -70,6 +70,8 @@ pub fn router(state: AppState) -> Router {
 async fn metrics_snapshot(State(state): State<AppState>) -> Json<BTreeMap<String, u64>> {
     let mut snapshot = state.shadow_metrics.snapshot();
     snapshot.extend(adom_search::orchestrator::source_shadow_metrics_snapshot());
+    // Sombra de METADADOS (C5): namespace próprio `meta.shadow.*`.
+    snapshot.extend(adom_search::orchestrator::meta_shadow_metrics_snapshot());
     snapshot.extend(state.canary.metrics().snapshot());
     Json(snapshot)
 }

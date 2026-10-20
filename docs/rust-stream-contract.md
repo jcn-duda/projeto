@@ -846,7 +846,7 @@ já responde no caminho nativo quando o token `stream` está ligado — mas isso
 | 1 | fatia debrid do `defaults()` do operador no decode | **feito** no gateway (`operator_debrid_defaults_from_env`, `dd9330c4`); selo `dk` / `secret-box` segue no Node no decode completo da URL |
 | 2 | opções na chave (incl. `resolveUncached`) | **feito** no orquestrador (`OrchestratorConfig`) |
 | 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo; `MemorySwrStore` na sombra) |
-| 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | via `POST /internal/search/meta` (Node); porte puro de fontes = F2 |
+| 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | default: `POST /internal/search/meta` (Node); opt-in `META_RUST=on` usa o porte puro (`adom-sources`) com o `cache.db` do Node e Node como fallback; sombra `META_RUST_SHADOW` |
 | 5 | plano / orçamentos de coleta | decisões no núcleo; janela ainda orquestrada com I/O Node |
 | 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio\|bludv\|mico` (composição: fontes nativas + `NodeCollector` com `skip_sources`; sem `raw:v1` nessa fatia) |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | orquestrador/núcleo; **paridade BR+cotas ainda aberta** (bloqueia default do corte) |

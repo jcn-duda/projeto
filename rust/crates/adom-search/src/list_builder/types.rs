@@ -89,6 +89,9 @@ pub struct BuildOptions {
     pub indexer_priority: Vec<String>,
     /// `config.search.noticeStream`.
     pub notice_stream: bool,
+    /// `BR_MULTIWORK_PACKS` (default true; `false` é kill-switch). Gate de
+    /// PRECONDIÇÃO do metadata load e do multiobra — não é opção de usuário.
+    pub multi_work_packs: bool,
     /// `SEARCH_UNAIRED_MARGIN_MS` (24h).
     pub unaired_margin_ms: i64,
     /// `SEARCH_PREAIR_RELEASE_MARGIN_MS` (48h).
@@ -133,10 +136,14 @@ impl Default for BuildOptions {
             indexer_limits: QualityLimits::default(),
             indexer_priority: Vec::new(),
             notice_stream: true,
+            multi_work_packs: true,
             unaired_margin_ms: 24 * 60 * 60 * 1000,
             pre_air_margin_ms: 48 * 60 * 60 * 1000,
-            pre_home_release_cut: false,
-            pre_home_release_margin_ms: 0,
+            // `config.search.preHomeReleaseCut` + margem: default do Node é
+            // LIGADO com 48h (release doméstica só é cortada quando o
+            // lançamento doméstico está a mais de 48h no futuro).
+            pre_home_release_cut: true,
+            pre_home_release_margin_ms: 48 * 60 * 60 * 1000,
             title_precision_tail_cut: true,
             audio_audit: super::AudioAudit::default(),
             instant_hashes: Vec::new(),
@@ -221,6 +228,10 @@ pub struct BuildContext {
     pub debrid_check_disabled: bool,
     /// Estreia do episódio (`Date.parse(airDate)`) em ms; `None` = sem data.
     pub episode_aired_at_ms: Option<i64>,
+    /// 1º lançamento doméstico do filme (TMDB, epoch ms) — `homeReleaseAt` do
+    /// `matchContext`/`peekHomeReleaseAt` do Node. `None` = sem data (e o corte
+    /// pré-home-release não roda).
+    pub home_release_at: Option<i64>,
     /// Contagem de episódios por temporada (Cinemeta): `[(temporada, n)]`.
     pub episode_counts: Vec<(i64, i64)>,
     /// `first_seen` do banco de magnets vivo por hash (injetado).

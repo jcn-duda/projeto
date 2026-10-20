@@ -69,7 +69,10 @@ fn relevance_query(ctx: &BuildContext) -> RelevanceQuery<'_> {
         season: None,
         episode: None,
         multi_work_root: ctx.multi_work_root.as_deref(),
-        home_release_at: None,
+        // `matchContext.homeReleaseAt` do Node: o corte pré-home-release é do
+        // filtro de título. Sem a data, `pre_home_release_contradicts` é
+        // fail-open.
+        home_release_at: ctx.home_release_at,
     }
 }
 

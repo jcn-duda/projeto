@@ -10,7 +10,7 @@
 //! régua do `loadFromDisk`/`enforceQuota` do Node. O store NÃO apaga chaves de
 //! outros namespaces.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use adom_core::{prefix, quota_for};
@@ -90,12 +90,7 @@ impl RawCacheStore {
             eprintln!("[gateway] CACHE_PERSIST=false; raw:v1 só em memória");
             return Self::open_memory();
         }
-        let path = std::env::var("CACHE_DB_PATH")
-            .ok()
-            .map(|raw| raw.trim().to_string())
-            .filter(|raw| !raw.is_empty())
-            .unwrap_or_else(|| "data/cache.db".to_string());
-        Self::open(Path::new(&path))
+        Self::open(&cache_db_path())
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -225,10 +220,20 @@ fn enforce_quota(conn: &Connection, prefix: &str, quota: u64, now_ms: i64) -> Re
 
 /// `String(process.env.CACHE_PERSIST || 'true') !== 'false'` do `cache.ts`:
 /// QUALQUER valor diferente de "false" mantém o disco (inclusive vazio).
-fn cache_persist() -> bool {
+pub(crate) fn cache_persist() -> bool {
     std::env::var("CACHE_PERSIST")
         .map(|raw| !raw.trim().eq_ignore_ascii_case("false"))
         .unwrap_or(true)
+}
+
+/// `CACHE_DB_PATH` (default `data/cache.db`), compartilhado com o Node.
+pub(crate) fn cache_db_path() -> PathBuf {
+    std::env::var("CACHE_DB_PATH")
+        .ok()
+        .map(|raw| raw.trim().to_string())
+        .filter(|raw| !raw.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("data/cache.db"))
 }
 
 #[cfg(test)]
