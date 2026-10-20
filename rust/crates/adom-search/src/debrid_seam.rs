@@ -19,6 +19,15 @@
 //! de um upload real dobraria o lixo na conta. Com `shadow`, a nativa
 //! responde e o Node é chamado como REFERÊNCIA em fundo
 //! (`debrid.al.shadow.*`), sem segurar o cliente.
+//!
+//! **Feed de holds (AllDebrid):** o hold volátil do autofetch mora no Node, e a
+//! limpeza nativa exige `holds_complete` + inventário. Com `DEBRID_AL_HOLDS=on`
+//! (default OFF) o seam pergunta os fatos à rota interna
+//! `/internal/debrid/holds` ANTES da checagem nativa e os entrega ao
+//! `verdict`. Sem resposta, conta divergente ou cobertura incompleta a nativa
+//! segue READ-ONLY — nunca "completa" por omissão. O feed só vale com
+//! `DEBRID_AL_CLEANUP=on` e `DEBRID_AL_RUST=on` (no modo `shadow` a nativa é
+//! observação: não limpa).
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -28,7 +37,9 @@ use adom_core::RankingStream;
 use tokio::runtime::{Handle, Runtime};
 
 use crate::list_builder::{DebridAnswer, DebridCheck};
+use adom_debrid::alldebrid_cleanup::{account_scope, CleanupMode};
 use adom_debrid::alldebrid_mode::AlRustMode;
+use adom_debrid::holds_feed::{HoldsFacts, InternalHoldsClient};
 use adom_debrid::internal_check::InternalCheckClient;
 use adom_debrid::store::Store;
 use adom_debrid::verdict::{self, CheckOutcome, ServiceCheck};
@@ -76,6 +87,48 @@ impl FallbackCheck for NodeInternalFallback {
     }
 }
 
+/// Feed dos holds do autofetch (memória do Node) para a limpeza nativa da
+/// AllDebrid. Implementação real = [`NodeHoldsFeed`] (rota interna); testes
+/// injetam stub. Contrato: `encoded` + lote, sem apiKey (a chave mora no
+/// `encoded`).
+pub trait HoldsFeed: Send + Sync {
+    fn facts(
+        &self,
+        encoded: &str,
+        service: &str,
+        hashes: &[String],
+        deadline_at: Option<i64>,
+    ) -> Result<HoldsFacts, String>;
+}
+
+/// Cliente HTTP real da rota `/internal/debrid/holds` (loopback + token +
+/// prazo curto). Só existe com `DEBRID_AL_HOLDS=on`; sem a flag não há feed.
+pub struct NodeHoldsFeed {
+    client: InternalHoldsClient,
+}
+
+impl NodeHoldsFeed {
+    /// Do ambiente (`INTERNAL_CHECK_URL` + token interno). `None` = flag OFF,
+    /// sem token ou base fora do loopback — a nativa segue read-only.
+    pub fn from_env() -> Option<Self> {
+        Some(Self {
+            client: InternalHoldsClient::from_env()?,
+        })
+    }
+}
+
+impl HoldsFeed for NodeHoldsFeed {
+    fn facts(
+        &self,
+        encoded: &str,
+        service: &str,
+        hashes: &[String],
+        deadline_at: Option<i64>,
+    ) -> Result<HoldsFacts, String> {
+        block_on(self.client.fetch(encoded, service, hashes, deadline_at))
+    }
+}
+
 pub struct AdapterDebridCheck {
     pub service: String,
     pub api_key: String,
@@ -92,6 +145,9 @@ pub struct AdapterDebridCheck {
     pub fallback: Option<std::sync::Arc<dyn FallbackCheck>>,
     /// `DEBRID_AL_RUST` (default OFF). Só a AllDebrid lê este campo.
     pub mode: AlRustMode,
+    /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF). Só a
+    /// AllDebrid no modo `on` e com `DEBRID_AL_CLEANUP=on` o consulta.
+    pub holds: Option<std::sync::Arc<dyn HoldsFeed>>,
     /// Stub de teste: substitui a checagem nativa (sem rede).
     #[cfg(test)]
     pub local_stub: Option<std::sync::Arc<dyn Fn() -> Result<ServiceCheck, String> + Send + Sync>>,
@@ -103,6 +159,9 @@ pub struct AdapterDebridCheck {
     local_checks: usize,
     /// Contagem de chamadas à reserva (teste: 0 para serviço conhecido).
     fallback_checks: usize,
+    /// Fatos do feed entregues à nativa nesta busca (teste).
+    #[cfg(test)]
+    last_facts: Option<HoldsFacts>,
 }
 
 impl AdapterDebridCheck {
@@ -116,12 +175,15 @@ impl AdapterDebridCheck {
             store: None,
             fallback: None,
             mode: AlRustMode::Off,
+            holds: None,
             #[cfg(test)]
             local_stub: None,
             batch_hashes: Vec::new(),
             memo: None,
             local_checks: 0,
             fallback_checks: 0,
+            #[cfg(test)]
+            last_facts: None,
         }
     }
 
@@ -131,6 +193,11 @@ impl AdapterDebridCheck {
 
     pub fn fallback_checks(&self) -> usize {
         self.fallback_checks
+    }
+
+    #[cfg(test)]
+    pub fn last_facts(&self) -> Option<HoldsFacts> {
+        self.last_facts.clone()
     }
 
     /// Dispara o lote se o memo ainda estiver vazio.
@@ -217,7 +284,14 @@ impl AdapterDebridCheck {
     /// nativa só perde para o Node quando NADA foi enviado — o mesmo contrato
     /// do modo `on`.
     fn native_primary(&mut self, hashes: &[String]) -> (CheckOutcome, Option<ServiceCheck>) {
-        match self.run_local(hashes) {
+        // Fatos ANTES do upload: a nativa só apaga com a prova de cobertura do
+        // lote. Falha/ausência = read-only.
+        let facts = self.cleanup_facts(hashes);
+        #[cfg(test)]
+        {
+            self.last_facts = facts.clone();
+        }
+        match self.run_local(hashes, facts.as_ref()) {
             // Veredito fechado OU upload já enviado: não repetir no Node.
             Ok(check) if check.attempted || check.outcome.known => {
                 debrid_shadow::note_native(&check);
@@ -241,24 +315,65 @@ impl AdapterDebridCheck {
         }
     }
 
+    /// Fatos do feed para ESTA busca. Condições, todas necessárias: AllDebrid,
+    /// `DEBRID_AL_RUST=on` (no `shadow` a nativa é observação — não limpa),
+    /// `DEBRID_AL_CLEANUP=on` (sem a flag os fatos não teriam uso), feed
+    /// configurado e `encoded` presente. A conta do feed tem que ser a MESMA da
+    /// checagem; a cobertura do lote é reconferida no `verdict`.
+    fn cleanup_facts(&self, hashes: &[String]) -> Option<HoldsFacts> {
+        if self.service != "alldebrid" || self.mode != AlRustMode::On {
+            return None;
+        }
+        if !CleanupMode::from_env().is_on() {
+            return None;
+        }
+        let feed = self.holds.as_ref()?;
+        let encoded = self.encoded.as_deref().filter(|value| !value.is_empty())?;
+        let facts = match feed.facts(encoded, &self.service, hashes, self.deadline_at) {
+            Ok(facts) => facts,
+            Err(error) => {
+                debrid_shadow::note_holds_missing();
+                eprintln!("[debrid] feed de holds indisponível: {error}");
+                return None;
+            }
+        };
+        // Conta diferente = fatos do outro usuário: nunca aproveitar.
+        if facts.account != account_scope(&self.api_key) {
+            debrid_shadow::note_holds_account_mismatch();
+            return None;
+        }
+        if facts.covers(hashes) {
+            debrid_shadow::note_holds_ok();
+        } else {
+            debrid_shadow::note_holds_incomplete();
+        }
+        Some(facts)
+    }
+
     /// Checagem nativa do lote. O stub de teste evita rede.
-    fn run_local(&mut self, hashes: &[String]) -> Result<ServiceCheck, String> {
+    fn run_local(
+        &mut self,
+        hashes: &[String],
+        facts: Option<&HoldsFacts>,
+    ) -> Result<ServiceCheck, String> {
         self.local_checks += 1;
         #[cfg(test)]
         if let Some(stub) = self.local_stub.clone() {
+            let _ = facts;
             return stub();
         }
-        block_on(verdict::check_service_report(
+        block_on(verdict::check_service_report_with(
             &self.service,
             &self.api_key,
             hashes,
             self.timeout,
             self.store.as_deref(),
+            facts,
         ))
     }
 
     fn local_outcome(&mut self, hashes: &[String]) -> CheckOutcome {
-        match self.run_local(hashes) {
+        match self.run_local(hashes, None) {
             Ok(check) => {
                 debrid_shadow::note_native(&check);
                 check.outcome

@@ -161,6 +161,26 @@ pub fn note_fallback() {
     metrics::global_metrics().inc(metrics::NATIVE_FALLBACK, 1);
 }
 
+/// Feed de holds aceito e cobrindo o lote (`DEBRID_AL_HOLDS`).
+pub fn note_holds_ok() {
+    metrics::global_metrics().inc(metrics::HOLDS_OK, 1);
+}
+
+/// Feed indisponível: a nativa segue read-only nesta busca.
+pub fn note_holds_missing() {
+    metrics::global_metrics().inc(metrics::HOLDS_MISSING, 1);
+}
+
+/// Feed respondeu, mas a cobertura do lote não fechou: read-only.
+pub fn note_holds_incomplete() {
+    metrics::global_metrics().inc(metrics::HOLDS_INCOMPLETE, 1);
+}
+
+/// Fatos de outra conta: descartados (nunca limpar com prova alheia).
+pub fn note_holds_account_mismatch() {
+    metrics::global_metrics().inc(metrics::HOLDS_ACCOUNT_MISMATCH, 1);
+}
+
 /// Atalho para o snapshot do gateway.
 pub use super::debrid_al_metrics::debrid_al_metrics_snapshot;
 

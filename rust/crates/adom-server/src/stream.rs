@@ -17,7 +17,10 @@ use adom_search::orchestrator::{
     sources_rust_includes, AdapterDebridFactory, NoDebridFactory, NodeMetaSource, NodeRoutes,
     NodeTailEffects, NoopTailEffects, Orchestrator, StreamRequest,
 };
-use adom_search::{FallbackCheck, MemorySwrStore, NodeInternalFallback, StreamResponse, SwrStore};
+use adom_search::{
+    FallbackCheck, HoldsFeed, MemorySwrStore, NodeHoldsFeed, NodeInternalFallback, StreamResponse,
+    SwrStore,
+};
 use adom_store::StreamsStore;
 
 /// Default relativo ao cwd do processo (volume `docker-data/addon` → `data/`).
@@ -35,16 +38,33 @@ fn streams_db_path_from(env: Option<&str>) -> PathBuf {
     }
 }
 
-/// Abre `StreamsStore` em disco; se falhar, memória (+ log) — o boot não cai.
-pub fn open_swr_store() -> Arc<dyn SwrStore> {
-    open_swr_store_at(&streams_db_path())
+/// Store SWR do corte + handle CONCRETO do SQLite `streams.db`.
+///
+/// O orquestrador consome o `dyn SwrStore`; a API administrativa
+/// (`store_admin`) precisa dos métodos por obra/hash/trace. Os dois apontam
+/// para a MESMA instância: a invalidação vale para o SWR do processo na hora,
+/// sem reabrir arquivo (e sem duas conexões escrevendo).
+#[derive(Clone)]
+pub struct StreamStores {
+    pub swr: Arc<dyn SwrStore>,
+    /// `None` só no fallback extremo (sem SQLite): a API fica sem alvo.
+    pub streams: Option<Arc<StreamsStore>>,
 }
 
-fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
+/// Abre o `StreamsStore` de disco; se falhar, memória (+ log) — o boot não cai.
+pub fn open_stream_stores() -> StreamStores {
+    open_stream_stores_at(&streams_db_path())
+}
+
+fn open_stream_stores_at(path: &Path) -> StreamStores {
     match StreamsStore::open(path) {
         Ok(store) => {
             eprintln!("[gateway] streams store: {}", path.display());
-            Arc::new(store)
+            let store = Arc::new(store);
+            StreamStores {
+                swr: store.clone() as Arc<dyn SwrStore>,
+                streams: Some(store),
+            }
         }
         Err(err) => {
             eprintln!(
@@ -52,10 +72,19 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
                 path.display()
             );
             match StreamsStore::open_memory() {
-                Ok(store) => Arc::new(store),
+                Ok(store) => {
+                    let store = Arc::new(store);
+                    StreamStores {
+                        swr: store.clone() as Arc<dyn SwrStore>,
+                        streams: Some(store),
+                    }
+                }
                 Err(mem_err) => {
                     eprintln!("[gateway] streams store memória falhou: {mem_err}; MemorySwrStore");
-                    Arc::new(MemorySwrStore::new())
+                    StreamStores {
+                        swr: Arc::new(MemorySwrStore::new()),
+                        streams: None,
+                    }
                 }
             }
         }
@@ -69,10 +98,9 @@ fn open_swr_store_at(path: &Path) -> Arc<dyn SwrStore> {
 /// nativo; exclusão mútua (jackett > prowlarr > torrentio > bludv > mico).
 /// Meta/tail continuam no Node quando as rotas internas existem. Default OFF
 /// — corte stream segue em `POST /internal/search/collect`.
-pub fn build_orchestrator() -> Orchestrator {
-    let store = open_swr_store();
+pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
     let config = orchestrator_config_from_env();
-    let mut orch = Orchestrator::new(config, store);
+    let mut orch = Orchestrator::new(config, stores.swr);
     // `raw:v1` do BLUDV: SÓ no caminho vivo. O store é o mesmo `cache.db` que
     // o Node usa (chave/valor idênticos); a sombra nem o abre.
     let raw_store = open_bludv_raw_store();
@@ -162,7 +190,9 @@ pub fn build_orchestrator() -> Orchestrator {
             }
         );
     }
-    orch = orch.with_debrid(Arc::new(AdapterDebridFactory::new(None, fallback)));
+    orch = orch.with_debrid(Arc::new(
+        AdapterDebridFactory::new(None, fallback).with_holds(holds_feed()),
+    ));
     // Inventário nativo da conta (F3). `ACCOUNT_RUST=off` (default) mantém
     // `None`: a coleta da conta continua na tarefa Node.
     if orch.config().account_mode.uses_native() {
@@ -172,7 +202,36 @@ pub fn build_orchestrator() -> Orchestrator {
         );
         orch = orch.with_native_account();
     }
+    // F4.4a — `bad`/`lie` do banco de magnets da conta lidos DIRETO do
+    // `cache.db` (namespace `mag:v1`). Com coleta/índice nativos o item não
+    // passa pela rota de evidência do Node, e sem esta fonte hash que o play
+    // provou quebrado voltava à lista até o TTL. Rollback: `STREAM_BAD_RUST=off`.
+    if crate::store_admin::stream_bad_rust_enabled() {
+        match adom_store::MagnetDbStore::from_env() {
+            Ok(store) => {
+                eprintln!(
+                    "[gateway] poda bad/lie do cache.db (STREAM_BAD_RUST=on; rollback: STREAM_BAD_RUST=off)"
+                );
+                orch = orch.with_known_broken(Arc::new(store));
+            }
+            Err(err) => eprintln!(
+                "[gateway] cache.db indisponível para bad/lie ({err}); build segue sem a poda nativa"
+            ),
+        }
+    }
     wire_native_index(orch)
+}
+
+/// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF). Sem a flag,
+/// sem token ou base fora do loopback é `None` — e a checagem nativa da
+/// AllDebrid segue READ-ONLY (`holds_complete:false`).
+fn holds_feed() -> Option<Arc<dyn HoldsFeed>> {
+    let feed = NodeHoldsFeed::from_env()?;
+    eprintln!(
+        "[gateway] feed de holds do autofetch: DEBRID_AL_HOLDS=on \
+         (/internal/debrid/holds; a limpeza nativa só age com DEBRID_AL_CLEANUP=on)"
+    );
+    Some(Arc::new(feed))
 }
 
 /// Abre e injeta o índice/banco nativos quando `INDEX_RUST`/`BANK_RUST` pedem

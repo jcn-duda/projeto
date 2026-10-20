@@ -14,6 +14,16 @@ pub const NATIVE_KNOWN_FALSE: &str = "debrid.al.native.known_false";
 pub const NATIVE_UNUSABLE: &str = "debrid.al.native.unusable";
 /// O modo `on` caiu no fallback Node porque nenhum upload foi enviado.
 pub const NATIVE_FALLBACK: &str = "debrid.al.native.fallback";
+/// Feed de holds (`DEBRID_AL_HOLDS`): fatos aceitos e cobrindo o lote.
+pub const HOLDS_OK: &str = "debrid.al.holds.ok";
+/// Feed indisponível/erro (sem resposta, HTTP, corpo estranho): nativa
+/// read-only nesta busca.
+pub const HOLDS_MISSING: &str = "debrid.al.holds.missing";
+/// Feed respondeu, mas a cobertura do lote não fechou (ou o flag veio falso):
+/// nativa read-only (`holds_incomplete` no plano, quando houver).
+pub const HOLDS_INCOMPLETE: &str = "debrid.al.holds.incomplete";
+/// A conta do feed difere da conta da checagem: fatos descartados.
+pub const HOLDS_ACCOUNT_MISMATCH: &str = "debrid.al.holds.account_mismatch";
 
 pub const COMPARED: &str = "debrid.al.shadow.compared";
 pub const DIVERGENCE: &str = "debrid.al.shadow.divergence";
@@ -31,6 +41,10 @@ const KEYS: &[&str] = &[
     NATIVE_KNOWN_FALSE,
     NATIVE_UNUSABLE,
     NATIVE_FALLBACK,
+    HOLDS_OK,
+    HOLDS_MISSING,
+    HOLDS_INCOMPLETE,
+    HOLDS_ACCOUNT_MISMATCH,
     COMPARED,
     DIVERGENCE,
     ITEMS_MISSING,

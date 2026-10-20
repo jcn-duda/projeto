@@ -107,7 +107,7 @@ impl InternalCheckClient {
 }
 
 /// Só loopback: a rota Node recusa origem externa; o cliente não tenta.
-fn ensure_loopback(base: &str) -> Result<(), String> {
+pub(crate) fn ensure_loopback(base: &str) -> Result<(), String> {
     let rest = base
         .strip_prefix("http://")
         .or_else(|| base.strip_prefix("https://"))
@@ -135,7 +135,8 @@ fn ensure_loopback(base: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn now_ms() -> i64 {
+/// Relógio da reserva e do feed de holds (epoch ms).
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)

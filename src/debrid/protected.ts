@@ -196,6 +196,12 @@ function isCleanupProtected(hash: string, account: string, adapterId: string): b
 interface HoldAudit {
   /** Hashes do lote protegidos pelo hold volátil OU pelo `adprot` (minúsculos). */
   hashes: string[];
+  /**
+   * Hashes do lote que a auditoria REALMENTE avaliou (válidos, minúsculos, sem
+   * duplicata). É a prova de cobertura que o gateway in-process usa para
+   * aceitar `holdsComplete` sem confiar só no flag.
+   */
+  evaluated: string[];
   /** `true` só quando TODOS os hashes do lote foram avaliados nas duas camadas. */
   complete: boolean;
 }
@@ -215,8 +221,12 @@ interface HoldAudit {
  */
 function heldHashesFor(hashes: readonly string[], account: string, adapterId: string): HoldAudit {
   // `none` é o balde da chave vazia: não identifica conta, logo não prova nada.
-  if (!account || account === 'none') return { hashes: [], complete: false };
-  const found: string[] = [];
+  // Lote vazio também não prova nada (não houve o que avaliar).
+  if (!account || account === 'none' || !hashes.length) {
+    return { hashes: [], evaluated: [], complete: false };
+  }
+  const found = new Set<string>();
+  const evaluated = new Set<string>();
   let complete = true;
   for (const raw of hashes) {
     const hash = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -224,15 +234,16 @@ function heldHashesFor(hashes: readonly string[], account: string, adapterId: st
       complete = false;
       continue;
     }
+    evaluated.add(hash);
     try {
-      if (isHeld(hash, account) || isDurablyProtected(adapterId, account, hash)) found.push(hash);
+      if (isHeld(hash, account) || isDurablyProtected(adapterId, account, hash)) found.add(hash);
     } catch {
       // Leitura da camada durável falhou: o hash PODE estar protegido. Manter a
       // lista parcial e derrubar a prova é o único desfecho seguro.
       complete = false;
     }
   }
-  return { hashes: found, complete };
+  return { hashes: [...found], evaluated: [...evaluated], complete };
 }
 
 /**

@@ -9,6 +9,7 @@ import { registerInternalSearch } from './internal-search.js';
 import { registerInternalSearchIndex } from './internal-search-index.js';
 import { registerInternalSearchFallback } from './internal-search-fallback.js';
 import { registerInternalDebridCheck } from './internal-debrid-check.js';
+import { registerInternalDebridHolds } from './internal-debrid-holds.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
 import type { AddonInterface } from './addon-router.js';
@@ -74,6 +75,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // Reserva do orquestrador Rust (Fase A, passo 2): checagem de cache em lote
   // enquanto o sidecar adom-debrid não cobre (501). Mesma guarda, antes do overlay.
   registerInternalDebridCheck(app, services);
+  // Feed do hold volátil do autofetch para o seam in-process do gateway
+  // (`DEBRID_AL_HOLDS=on`). Mesma guarda e mesma posição da reserva acima.
+  registerInternalDebridHolds(app, services);
   app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({

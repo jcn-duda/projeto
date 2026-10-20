@@ -123,8 +123,9 @@ npm run docker:up / docker:logs
   `/stream-trace.json` exigem `X-Indexer-Test-Token` (só no header; sem
   `JACKETT_TEST_TOKEN` no `.env` ficam 503). Ação destrutiva exige
   `{"confirm": true}`. Painel operacional: `/painel` (10 abas).
-  **`/internal/*`** (meta/state/collect/index/index-write/effects e
-  debrid/check da busca) só existe em loopback + token; com
+  **`/internal/*`** (meta/state/collect/index/index-write/effects,
+  debrid/check da busca e debrid/holds do feed in-process) só existe em
+  loopback + token; com
   `GATEWAY=on` o gateway Rust recusa `/internal/*` antes do proxy (o Caddy
   também bloqueia). A guarda de loopback do Node **não** distingue o cliente
   atrás do proxy — a recusa tem que estar na fachada. **Desde o F4.4 o corte

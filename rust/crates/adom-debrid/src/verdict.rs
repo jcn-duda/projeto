@@ -22,11 +22,13 @@
 //! AllDebrid: a checagem é o `/magnet/upload` real (não abortável). A limpeza
 //! segura mora em `alldebrid_cleanup`: `DEBRID_AL_CLEANUP` (default OFF),
 //! hold/`adprot`, `knownBefore` e a fila com backoff. Só nasce plano com a
-//! flag **e** `holds_complete` e inventário; como este caminho (o seam
-//! in-process) não vê o hold volátil do autofetch (mora no Node), ele passa
-//! `holds_complete:false` e a nativa segue read-only. A rota interna pode
-//! entregar os fatos pelo corpo — ver `api_dispatch`. O HTTP público
-//! `/debrid/check` devolve 501 com `DEBRID_AL_RUST=off` até Fase C.
+//! flag **e** `holds_complete` e inventário. O hold volátil do autofetch mora
+//! no processo Node, então o seam in-process entrega os fatos por
+//! [`check_service_report_with`] (feed `/internal/debrid/holds`, ligado por
+//! `DEBRID_AL_HOLDS`, default OFF). Sem os fatos — ou com cobertura
+//! incompleta — o `holds_complete` fica falso e a nativa é READ-ONLY: nenhum
+//! hash sai. O HTTP público `/debrid/check` devolve 501 com
+//! `DEBRID_AL_RUST=off` até Fase C.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -40,6 +42,7 @@ use crate::alldebrid::{AllDebrid, CheckOpts};
 use crate::alldebrid_cleanup::{env_truthy, CleanupMode, CleanupPlan, DurablePeek};
 use crate::debridlink::DebridLink;
 use crate::error::DebridError;
+use crate::holds_feed::HoldsFacts;
 use crate::http::HttpClient;
 use crate::premiumize::Premiumize;
 use crate::realdebrid::RealDebrid;
@@ -128,6 +131,24 @@ pub async fn check_service_report(
     timeout: Option<Duration>,
     store: Option<&Store>,
 ) -> Result<ServiceCheck, String> {
+    check_service_report_with(service, api_key, hashes, timeout, store, None).await
+}
+
+/// Igual a [`check_service_report`], mas recebe os fatos do feed de holds do
+/// Node (AllDebrid). `None` = caminho antigo: a nativa é READ-ONLY (limpeza só
+/// com `holds_complete`, que ninguém provou).
+///
+/// Os fatos só valem com `DEBRID_AL_CLEANUP=on`; mesmo ON, [`HoldsFacts::covers`]
+/// é reconferido aqui — um `holds_complete` sem `evaluated` cobrindo o lote não
+/// autoriza nada (fail-closed).
+pub async fn check_service_report_with(
+    service: &str,
+    api_key: &str,
+    hashes: &[String],
+    timeout: Option<Duration>,
+    store: Option<&Store>,
+    facts: Option<&HoldsFacts>,
+) -> Result<ServiceCheck, String> {
     if !is_known_service(service) {
         return Err(UNKNOWN_SERVICE.to_string());
     }
@@ -157,23 +178,12 @@ pub async fn check_service_report(
         },
         "alldebrid" => {
             // `DEBRID_AL_CLEANUP` (default OFF) é a única porta para apagar.
-            // Mesmo ON, o plano só nasce com `holds_complete` — e este caminho
-            // não tem o hold volátil do autofetch (mora no Node), então hoje a
-            // nativa segue read-only aqui. A rota interna pode entregar os
-            // fatos pelo corpo (`api_dispatch`); o seam não.
+            // Mesmo ON, o plano só nasce com `holds_complete` + inventário. O
+            // hold volátil do autofetch mora no Node: ou os fatos chegam pelo
+            // feed in-process (`DEBRID_AL_HOLDS=on`), ou a nativa segue
+            // read-only — nunca "completo" por omissão.
             let cleanup = CleanupMode::from_env();
-            let opts = CheckOpts {
-                timeout,
-                cleanup,
-                drop_ready: cleanup.is_on() && env_truthy("DEBRID_DROP_READY", true),
-                drop_uncached: cleanup.is_on() && env_truthy("DEBRID_DROP_UNCACHED", true),
-                inventory_loaded: false,
-                holds_complete: false,
-                durable: cleanup
-                    .is_on()
-                    .then(|| std::sync::Arc::new(DurablePeek::from_env())),
-                ..CheckOpts::default()
-            };
+            let opts = alldebrid_opts(cleanup, timeout, facts, hashes);
             let ad = AllDebrid::new(client);
             match ad.check_cached_report(api_key, hashes, &opts).await {
                 Ok(report) => {
@@ -213,6 +223,57 @@ pub async fn check_service_report(
         outcome: into_outcome(verdict),
         attempted,
     })
+}
+
+/// `CheckOpts` da AllDebrid nesta rodada. Três estados, do mais seguro ao mais
+/// permissivo:
+///
+/// - limpeza OFF (default): read-only; fatos e `drop_*` são ignorados;
+/// - ON **sem** fatos: `inventory_loaded:false` + `holds_complete:false` — a
+///   nativa segue read-only (`holds_incomplete`), como antes do feed;
+/// - ON **com** fatos: drops do Node (ou env), inventário/`knownBefore` e held
+///   do lote; `holds_complete` só com [`HoldsFacts::covers`] (o flag do Node
+///   sozinho não autoriza).
+pub(crate) fn alldebrid_opts(
+    cleanup: CleanupMode,
+    timeout: Option<Duration>,
+    facts: Option<&HoldsFacts>,
+    hashes: &[String],
+) -> CheckOpts {
+    let mut opts = CheckOpts {
+        timeout,
+        cleanup,
+        ..CheckOpts::default()
+    };
+    if !cleanup.is_on() {
+        // READ-ONLY: nem o inventário próprio é lido (`cleanup_run` sai no
+        // primeiro portão).
+        return opts;
+    }
+    opts.durable = Some(std::sync::Arc::new(DurablePeek::from_env()));
+    match facts {
+        Some(facts) => {
+            opts.drop_ready = facts
+                .drop_ready
+                .unwrap_or_else(|| env_truthy("DEBRID_DROP_READY", true));
+            opts.drop_uncached = facts
+                .drop_uncached
+                .unwrap_or_else(|| env_truthy("DEBRID_DROP_UNCACHED", true));
+            opts.inventory_loaded = facts.inventory_loaded;
+            opts.known_before = facts.known_before_set();
+            opts.held = facts.held_set();
+            // Reconfere a cobertura do lote: `holdsComplete` sem `evaluated`
+            // cobrindo os hashes não vale nada.
+            opts.holds_complete = facts.covers(hashes);
+        }
+        None => {
+            // Sem feed: os `drop_*` do ambiente ficam como antes, mas
+            // `holds_complete:false` suprime o plano (`holds_incomplete`).
+            opts.drop_ready = env_truthy("DEBRID_DROP_READY", true);
+            opts.drop_uncached = env_truthy("DEBRID_DROP_UNCACHED", true);
+        }
+    }
+    opts
 }
 
 /// Resposta fechada de adaptador (`complete == Some(false)` é o único

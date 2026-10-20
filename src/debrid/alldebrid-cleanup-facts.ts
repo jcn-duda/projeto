@@ -19,6 +19,10 @@
  * naquela rodada. A lista `heldHashes` é completa para o LOTE porque o hold
  * volátil deste processo é o único existente hoje (o `Holds` do Rust ainda não
  * tem chamador de produção) e é chaveado por conta+hash, sem coringa.
+ *
+ * O MESMO levantamento alimenta o feed do gateway in-process
+ * (`POST /internal/debrid/holds`, ligado por `DEBRID_AL_HOLDS=on`), que leva
+ * também `account` e `evaluated` — ver `alldebridHoldsFeedFacts`.
  */
 import config from '../config.js';
 import { accountScope } from '../utils/request-key.js';
@@ -38,6 +42,19 @@ export interface CleanupFacts {
   holdsComplete: boolean;
   dropReady: boolean;
   dropUncached: boolean;
+}
+
+/**
+ * Fatos do feed in-process (`POST /internal/debrid/holds`), consumidos pelo
+ * seam do `adom-search` com `DEBRID_AL_HOLDS=on`. Além do corpo do sidecar,
+ * leva a IDENTIDADE da conta e a lista de hashes efetivamente avaliados: o Rust
+ * confere as duas antes de aceitar `holdsComplete` (não confia no flag sozinho).
+ */
+export interface HoldsFeedFacts extends CleanupFacts {
+  /** `accountScope(apiKey)` (`sha256` hex) — nunca a chave. */
+  account: string;
+  /** Hashes do lote avaliados por `isHeld || isDurablyProtected`. */
+  evaluated: string[];
 }
 
 /**
@@ -63,19 +80,53 @@ export function alldebridCheckFacts(adapterId: string, apiKey: string, hashes: r
  * @param hashes lote efetivamente consultado — só ele pode ser limpo.
  */
 export function alldebridCleanupFacts(apiKey: string, hashes: readonly string[]): CleanupFacts {
+  const facts = buildCleanupFacts(apiKey, hashes);
+  // Campos explícitos: `account`/`evaluated` são do feed in-process e NÃO
+  // entram no corpo do sidecar (contrato do `/debrid/check` inalterado).
+  return {
+    inventoryLoaded: facts.inventoryLoaded,
+    knownBefore: facts.knownBefore,
+    heldHashes: facts.heldHashes,
+    holdsComplete: facts.holdsComplete,
+    dropReady: facts.dropReady,
+    dropUncached: facts.dropUncached,
+  };
+}
+
+/**
+ * Fatos completos do feed in-process. É a MESMA auditoria do corpo do sidecar
+ * (`alldebridCleanupFacts`) + `account`/`evaluated`, para o gateway provar
+ * cobertura e identidade antes de apagar.
+ */
+export function alldebridHoldsFeedFacts(apiKey: string, hashes: readonly string[]): HoldsFeedFacts {
+  return buildCleanupFacts(apiKey, hashes);
+}
+
+function buildCleanupFacts(apiKey: string, hashes: readonly string[]): HoldsFeedFacts {
   const dropReady = config.debrid.dropReady;
   const dropUncached = config.debrid.dropUncached;
   // Chave vazia não identifica conta nem inventário: nenhum fato é provável.
   if (!apiKey) {
-    return { inventoryLoaded: false, knownBefore: [], heldHashes: [], holdsComplete: false, dropReady, dropUncached };
+    return {
+      account: '',
+      inventoryLoaded: false,
+      knownBefore: [],
+      heldHashes: [],
+      evaluated: [],
+      holdsComplete: false,
+      dropReady,
+      dropUncached,
+    };
   }
   const account = accountScope(apiKey);
   const inventory = inventoryFacts(apiKey, account);
   const holds = heldHashesFor(hashes, account, id);
   return {
+    account,
     inventoryLoaded: inventory.loaded,
     knownBefore: inventory.hashes,
     heldHashes: holds.hashes,
+    evaluated: holds.evaluated,
     holdsComplete: holds.complete,
     dropReady,
     dropUncached,
