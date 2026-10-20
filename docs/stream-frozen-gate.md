@@ -141,18 +141,13 @@ vermelho, de propósito. Um gate verde com zero casos não prova nada; o
 
 ## Estado medido (2026-10-20, 16 casos)
 
-**Node replay: 16/16.** **Rust: 13/16.** Os 3 abertos (bloqueiam o corte):
+**Node replay: 16/16.** **Rust: 16/16** (`cargo test -p adom-search --test
+stream_frozen_parity`: 1 passed, 0 failed; 3 execuções consecutivas verdes).
+Nenhum caso aberto nesta camada.
 
-- `movie-matrix`: falta `p:1` no `w` do pack multiobra; o Node admite a
-  trilogia pelo marcador de pack, o Rust ainda não.
-- `series-anime-naruto-s01e01`: seleção/ranking de pack de anime (conjunto de
-  hashes difere; o `instant` capturado não cobre o alive do banco).
-- `series-breaking-bad-s01e01`: o item de conta `6a12ce77` (S01E01-07) mantém
-  `💾` da stat base no Rust; o Node não pinta o total do pack de faixa.
-
-Os 13 exatos: Cidade de Deus, Tropa de Elite, Central do Brasil, Auto da
-Compadecida, Carandiru, Bacurau, Inception, Interstellar, Parasite, Harry
-Potter 1, Kung Fu Panda 4, GOT S08E03 e 3% S01E01.
+Os 16: Cidade de Deus, Tropa de Elite, Central do Brasil, Auto da Compadecida,
+Carandiru, Bacurau, Inception, Interstellar, Parasite, Harry Potter 1, Kung Fu
+Panda 4, Matrix, GOT S08E03, 3% S01E01, Breaking Bad S01E01 e Naruto S01E01.
 
 ## Correções que o gate já forçou no Rust
 
@@ -179,6 +174,13 @@ Potter 1, Kung Fu Panda 4, GOT S08E03 e 3% S01E01.
 - `FrozenRoutes` não remove mais `indexOnly` do recorte priority/nonpriority:
   a ordem bruta do lote `all` é a que o Node usou no dedupe (Auto da
   Compadecida).
+- `multi_work` genérico (`is_multi_work_collection(title) || admitted`) em
+  `RankingStream`/`BuiltStream`: o `p:1` do `/resolve` usa `workHint &&
+  _multiWork`, não a admissão (Matrix - Trilogia).
+- `drop_pack_text_totals` depois da anotação no `list_builder` (mesma ordem do
+  napi/TS): remove o `💾`/`size` do total de pack silencioso/faixa e guarda
+  `_packBytes` (Naruto Complete, Breaking Bad S01E01-07). Packs anotados com
+  `📦` ficam intactos.
 
 ## Lacunas declaradas (nesta fatia)
 

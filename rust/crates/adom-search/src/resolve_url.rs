@@ -9,8 +9,9 @@
 //! - **ep** = `?s=<S>&e=<E>` só com temporada E episódio; o `?` faz parte do
 //!   payload do HMAC, não é separador de URL;
 //! - **dica `w`** = JSON com `n`/`y` (dica de obra do build: nomes + ano),
-//!   `p:1` (pack multiobra admitido), `d:1` (dublado/claim) e `i` (IMDb id) —
-//!   nesta ORDEM, porque o HMAC é sobre a string, não sobre JSON canônico;
+//!   `p:1` (pack multiobra — `_multiWork` genérico OU admitido), `d:1`
+//!   (dublado/claim) e `i` (IMDb id) — nesta ORDEM, porque o HMAC é sobre a
+//!   string, não sobre JSON canônico;
 //! - **`sig`** = HMAC-SHA256 do núcleo sobre `infoHash + ep + &w=<hint>`.
 //!
 //! A URL nasce RELATIVA (sem host): o `applyNoticeOrigin` monta o host só na
@@ -47,13 +48,13 @@ impl ResolveSigner {
     ///
     /// O hash no path e no payload HMAC vai em **minúsculas** (a rota Node
     /// faz `toLowerCase` antes do verify — assinar em maiúsculas quebraria).
-    pub fn url(&self, hash: &str, dubbed: bool, multi_work_admitted: bool) -> String {
+    pub fn url(&self, hash: &str, dubbed: bool, multi_work: bool) -> String {
         let hash = hash.to_ascii_lowercase();
         let ep = match (self.season, self.episode) {
             (Some(season), Some(episode)) => format!("?s={season}&e={episode}"),
             _ => String::new(),
         };
-        let hint = self.hint_json(dubbed, multi_work_admitted);
+        let hint = self.hint_json(dubbed, multi_work);
         let sig = adom_core::sign_resolve(&hash, &ep, &hint, &self.secret);
         let mut url = String::new();
         url.push_str(&self.prefix);
@@ -74,7 +75,7 @@ impl ResolveSigner {
 
     /// Dica assinada. Vazia = sem dica (`''` no TS): obra desconhecida, sem
     /// dublado e sem pack — o payload do HMAC fica só `hash + ep`.
-    fn hint_json(&self, dubbed: bool, multi_work_admitted: bool) -> String {
+    fn hint_json(&self, dubbed: bool, multi_work: bool) -> String {
         let has_work = self.work_hint.is_some();
         let has_imdb = self.imdb_id.as_deref().is_some_and(|s| !s.is_empty());
         if !has_work && !dubbed && !has_imdb {
@@ -98,7 +99,7 @@ impl ResolveSigner {
                 Some(year) => out.push_str(&year.to_string()),
                 None => out.push_str("null"),
             }
-            if multi_work_admitted {
+            if multi_work {
                 push_key(&mut out, &mut first, "p");
                 out.push('1');
             }

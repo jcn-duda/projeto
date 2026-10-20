@@ -3,6 +3,52 @@ use super::test_common::*;
 // ── Pack multiobra ──────────────────────────────────────────────────────────
 
 #[test]
+fn marcador_generico_de_multiobra_vem_do_titulo_mesmo_sem_admissao() {
+    // `_multiWork` do Node = `isMultiWorkCollection(title) || _multiWorkAdmitted`.
+    // Sem opt-in TMDB (`multi_work_root = None`) nada é ADMITIDO, mas a coleção
+    // detectada pelo título continua levando `p:1` ao `/resolve` — é o caso
+    // "Matrix - Trilogia" do gate congelado.
+    let mut ctx = base_ctx();
+    ctx.names = vec!["The Matrix".into(), "Matrix".into()];
+    ctx.year = "1999".into();
+    ctx.debrid_available = true;
+    let opts = BuildOptions::default();
+    let mut debrid = StubDebrid::none();
+    let out = build(
+        vec![release(
+            "Matrix - Trilogia [720p DUAL]",
+            "26fa43a4ccca61d8f7cf96a106d7fe1801aed9c2",
+        )],
+        &ctx,
+        &opts,
+        &mut debrid,
+    );
+    assert_eq!(out.streams.len(), 1);
+    assert!(
+        out.streams[0].multi_work,
+        "coleção pelo título é multiobra genérica"
+    );
+    assert!(
+        !out.streams[0].multi_work_admitted,
+        "sem opt-in TMDB não há admissão"
+    );
+
+    // Título comum não ganha a marca.
+    let mut debrid = StubDebrid::none();
+    let out = build(
+        vec![release(
+            "The Matrix 1999 1080p BluRay x264",
+            "8dc393c100ef0c0d010cfefdcebe572e26c4f775",
+        )],
+        &ctx,
+        &opts,
+        &mut debrid,
+    );
+    assert_eq!(out.streams.len(), 1);
+    assert!(!out.streams[0].multi_work);
+}
+
+#[test]
 fn pack_multiobra_admitido_vai_no_caminho_critico_com_debrid_e_ano() {
     let mut ctx = base_ctx();
     // "Coleção Teste" cobre o ano? O núcleo exige coleção RECONHECIDA; usa a

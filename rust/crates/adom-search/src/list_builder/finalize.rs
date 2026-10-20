@@ -167,6 +167,7 @@ pub fn finalize_streams(
             // Prova ou promessa: as duas entram na dica `d` do `/resolve`.
             dubbed: s.dubbed.unwrap_or(false) || s.dub_claim.unwrap_or(false),
             multi_work_admitted: s.multi_work_admitted.unwrap_or(false),
+            multi_work: s.multi_work.unwrap_or(false),
         })
         .collect();
     if opts.notice_stream && built.is_empty() {
@@ -183,6 +184,7 @@ pub fn finalize_streams(
                 info_hash: None,
                 dubbed: false,
                 multi_work_admitted: false,
+                multi_work: false,
             });
         }
     }

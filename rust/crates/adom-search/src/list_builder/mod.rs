@@ -290,6 +290,21 @@ pub fn build_stream_list(
             meta: &ctx.episode_counts,
         };
         streams = annotate_pack_sizes_core(&streams, &files, &pack_opts);
+        // 7b. Pack que a anotação NÃO reduziu (sem medida exata nem média) perde
+        // o total do TEXTO: exibir a temporada inteira como tamanho do episódio
+        // é o defeito reportado. Mesmo passo do `dropPackTextTotals` do TS,
+        // que roda DEPOIS do `annotatePackSizes`: pack anotado (`📦`) e release
+        // que nomeia o episódio pedido ficam; pack de título silencioso
+        // ("Naruto Complete (001-220 + Movies)") não é reconhecido pelo
+        // `isSeasonPackRelease` e é justamente o caso que o corte cobre.
+        // A lista de arquivos é a mesma caixa vazia da anotação neste caminho.
+        streams = adom_core::drop_pack_text_totals(&adom_core::PackTextTotalsInput {
+            streams,
+            season: Some(season),
+            episode: Some(episode),
+            ..Default::default()
+        })
+        .streams;
     }
     if let Some(hint) = &work_hint {
         let files: BTreeMap<String, Vec<DebridFile>> = BTreeMap::new();

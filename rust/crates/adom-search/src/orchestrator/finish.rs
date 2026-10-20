@@ -112,7 +112,12 @@ pub(super) fn finish_value(
                 // Sem hash o `/resolve` não existe: `viaDebrid` devolve o
                 // stream como P2P antes de montar a URL (mesmo no degradado).
                 if let Some(hash) = hash {
-                    let url = signer.url(&hash, stream.dubbed, stream.multi_work_admitted);
+                    // `p:1` do `viaDebrid`: `workHint && s._multiWork`, e o
+                    // `_multiWork` do Node já é `isMultiWorkCollection(title) ||
+                    // _multiWorkAdmitted`. A marca genérica basta — exigir
+                    // admissão perderia o pack de trilogia sem opt-in TMDB.
+                    let multi_work = stream.multi_work || stream.multi_work_admitted;
+                    let url = signer.url(&hash, stream.dubbed, multi_work);
                     stream.item.url = Some(url);
                     stream.item.info_hash = None;
                     stream.item.sources = None;

@@ -3,9 +3,9 @@ pub use super::stats::{display_source, display_tracker, stats_line};
 use super::types::{self, BuildContext, BuildOptions, WorkHint};
 use crate::raw_item::RawItem;
 use adom_core::{
-    edition_from_title, is_season_pack_release, quality_from_title, stream_display_name,
-    stream_size_label, strip_quality_tag_blob, JsText, PoolStream, RankingStream,
-    StreamDisplayConfig, StreamDisplayOptions, StreamRef,
+    edition_from_title, is_multi_work_collection, is_season_pack_release, quality_from_title,
+    stream_display_name, stream_size_label, strip_quality_tag_blob, JsText, PoolStream,
+    RankingStream, StreamDisplayConfig, StreamDisplayOptions, StreamRef,
 };
 
 /// Extensões executáveis do corte de release falsa (corte 1 de
@@ -260,6 +260,11 @@ pub fn map_stream(
         tracker: display_tracker(item).map(str::to_string),
         magnet_dn: Some(magnet_dn),
         lied: item.lied.then_some(true),
+        // `_multiWork` do `toStremioStream`: coleção detectada pelo título OU
+        // pack admitido. A marca é GENÉRICA de propósito — o `/resolve` só
+        // precisa saber que o torrent pode conter mais de uma obra; quem decide
+        // se o pack pode ser oferecido é `multi_work_admitted` (playDisposition).
+        multi_work: Some(is_multi_work_collection(&title) || item.multi_work_admitted),
         multi_work_admitted: item.multi_work_admitted.then_some(true),
         // `bingeGroup` do Node (`search-names.ts`): episódios da MESMA release
         // tocam em sequência no Stremio. Sem isto o nativo omitia o campo.

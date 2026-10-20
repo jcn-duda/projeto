@@ -255,8 +255,13 @@ pub struct BuiltStream {
     pub info_hash: Option<String>,
     /// Prova/promessa de dublado: dica `d:1` do HMAC.
     pub dubbed: bool,
-    /// Pack multiobra ADMITIDO: dica `p:1` do HMAC.
+    /// Pack multiobra ADMITIDO (opt-in TMDB): decide o `playDisposition`.
     pub multi_work_admitted: bool,
+    /// Coleção multiobra GENÉRICA — o `_multiWork` do Node
+    /// (`isMultiWorkCollection(title) || _multiWorkAdmitted`). É ESTA marca que
+    /// entra na dica `p:1` do HMAC (o genérico basta; a admissão não é
+    /// pré-requisito), desde que exista dica de obra.
+    pub multi_work: bool,
 }
 
 /// Resultado do build: a lista, o estado do debrid e o funil observacional.

@@ -618,13 +618,12 @@ os itens abaixo valerem na janela:
 7. **Revisor humano** assina a amostra: os últimos 8 KiB de diffs vazios e a
    lista de casos cobertos.
 
-Estado da camada A (2026-10-20): **16 casos**, **13 exatos** (Node replay
-16/16). As 3 divergências abertas — `movie-matrix` (`p:1` de multiobra),
-`series-anime-naruto-s01e01` (seleção/ranking de pack) e
-`series-breaking-bad-s01e01` (total de pack de faixa no 💾) — estão listadas em
-`stream-frozen-gate.md` e bloqueiam o corte até a Fase 2 fechar. O comando é
-`cargo test -p adom-search --test stream_frozen_parity` (ou
-`npm run parity:frozen`); o alvo NÃO é `#[ignore]`.
+Estado da camada A (2026-10-20): **16 casos**, **16/16 Node e 16/16 Rust**
+(`cargo test -p adom-search --test stream_frozen_parity`, 3 execuções verdes).
+O comando é `cargo test -p adom-search --test stream_frozen_parity` (ou
+`npm run parity:frozen`); o alvo NÃO é `#[ignore]`. Fechar a camada A não é
+aceite do corte: a Fase 2 (BR+cotas, sombra ≥500 buscas/≥72 h, corpus e2e
+recapturado e `/resolve`) segue obrigatória.
 
 Corte é **por rota**, com canário: 5 % → 50 % → 100 %, exigindo **zero**
 divergência em cada degrau por ≥ 24 h. Regrediu, volta um degrau e a rota
