@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { MICO_ID } from './mico.js';
-import { SAFE_INDEXER_ID } from './stream-builder.js';
+import { SAFE_INDEXER_ID } from './live-indexer-state.js';
 
 /**
  * Quem a coleta consulta, POR FONTE, a partir da seleção da request.

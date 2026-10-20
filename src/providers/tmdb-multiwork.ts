@@ -6,8 +6,9 @@ import type { MultiWorkCollection } from '../../types/domain.js';
 
 /**
  * Suporte nativo a packs multiobra BR (BR_MULTIWORK_PACKS, default true; `false`
- * é o kill-switch), extraído do
- * `search-orchestrator` para não estourar o teto de linhas. Duas metades:
+ * é o kill-switch), extraído do `search-orchestrator` para não estourar o teto
+ * de linhas. Mora em `tmdb-multiwork.ts` porque a rota `/internal/search/meta`
+ * (que fica) também consome a descoberta. Duas metades:
  *
  * - `startMultiWorkDiscovery` dispara a leitura do `belongs_to_collection` do
  *   TMDB EM PARALELO com os metadados (não soma parede de tempo) e só sai com

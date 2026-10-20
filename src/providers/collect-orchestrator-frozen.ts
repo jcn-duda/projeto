@@ -7,7 +7,7 @@
 // Fica em arquivo próprio para a catraca de linhas (400): o reexport em
 // `collect-orchestrator.ts` mantém o caminho público dos callers.
 import type { MatchContext } from '../../types/domain.js';
-import type { FirstObserverState } from './stream-builder.js';
+import type { FirstObserverState } from './first-observer.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import * as frozen from '../utils/stream-frozen.js';

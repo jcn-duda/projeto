@@ -31,10 +31,10 @@ import type { MultiWorkCollection } from '../../types/domain.js';
 import { globalLieHashes } from '../utils/magnet-bank-lie.js';
 import * as frozen from '../utils/stream-frozen.js';
 
-// Indexer id vindo da config do usuario (URL) precisa validar antes de
-// entrar em query, limite por id ou desempate -- id fora do padrao e
-// descartado silenciosamente, nunca interpolado.
-export const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+// O id seguro mora em `live-indexer-state.ts` (módulo que fica): o pipeline
+// apenas o reexporta para não quebrar o caminho público.
+import { SAFE_INDEXER_ID } from './live-indexer-state.js';
+export { SAFE_INDEXER_ID };
 
 import { applyFileEvidence } from './stream-file-evidence.js';
 import { peekHomeReleaseAt } from '../utils/tmdb-home-release.js';

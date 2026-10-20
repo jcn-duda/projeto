@@ -273,6 +273,8 @@ impl DebridFactory for AdapterDebridFactory {
         check.deadline_at = ctx.deadline_at;
         check.store = self.store.clone();
         check.fallback = self.fallback.clone();
+        // `DEBRID_AL_RUST` (default OFF) só afeta a AllDebrid.
+        check.mode = adom_debrid::alldebrid_mode::AlRustMode::from_env();
         Box::new(check)
     }
 }

@@ -9,8 +9,10 @@ import { noteUserRequest } from './activity.js';
 import { raceWithDeadline } from '../utils/deadline.js';
 import { parseStremioId } from '../utils/format.js';
 import { registerSeasonSearchKey } from './autofetch-runner.js';
-import { onlyNotice, createFirstObserver, promoteFirstObserverEligible } from './stream-builder.js';
-import type { FirstObserverState } from './stream-builder.js';
+import { onlyNotice } from './stream-builder.js';
+import { createFirstObserver, promoteFirstObserverEligible } from './first-observer.js';
+import type { FirstObserverState } from './first-observer.js';
+import { hasPlayableStream } from '../utils/stream-playable.js';
 import { doSearch } from './search-orchestrator.js';
 import { debridRefreshSatisfied, staleRefreshEligible } from './search-commit.js';
 import { freshRequest } from '../utils/stream-fresh.js';
@@ -31,15 +33,9 @@ const inFlightProgress = new Map<string, { metadataDone: boolean; metadataConsum
 // impede de começar; e uma busca síncrona em voo já reescreve o cache fresco.
 const refreshing = new Map();
 
-/**
- * A lista tem play de verdade: pelo menos um stream com url ou infoHash. O
- * item de aviso carrega só name + externalUrl. O `complete` do finish e a
- * elegibilidade do SWR usam o MESMO teste, senão os critérios divergem e o
- * stale serviria uma lista que nunca deveria ter sido promovida a completa.
- */
-export function hasPlayableStream(streams: any[]) {
-  return Array.isArray(streams) && streams.some((s) => s && (s.url || s.infoHash));
-}
+// Reexporta o teste que o SWR e o finish compartilham (mora em `utils/` desde
+// que a via do índice passou a perguntar "isto toca?" sem o pipeline).
+export { hasPlayableStream };
 
 export async function findStreams({ type, id, background }: { type: string; id: string; background?: boolean }) {
   if (!background) {

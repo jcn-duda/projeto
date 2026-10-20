@@ -61,6 +61,14 @@ pub struct CheckOutcome {
     pub unusable: Option<(UnusableKind, String)>,
 }
 
+/// Veredito + se a checagem chegou a falar com o serviço. `attempted:false`
+/// libera o fallback Node sem risco de segundo upload (AllDebrid).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceCheck {
+    pub outcome: CheckOutcome,
+    pub attempted: bool,
+}
+
 /// Só os dois motivos que o núcleo considera `unusable`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnusableKind {
@@ -101,30 +109,54 @@ pub async fn check_service(
     timeout: Option<Duration>,
     store: Option<&Store>,
 ) -> Result<CheckOutcome, String> {
+    Ok(
+        check_service_report(service, api_key, hashes, timeout, store)
+            .await?
+            .outcome,
+    )
+}
+
+/// Igual a [`check_service`], mas informa se a checagem chegou a falar com o
+/// serviço (`attempted`). O `adom-search` usa isso para decidir o fallback
+/// Node da AllDebrid: sem upload enviado, é seguro perguntar de novo; depois
+/// de um upload real, um segundo só dobraria o lixo na conta.
+pub async fn check_service_report(
+    service: &str,
+    api_key: &str,
+    hashes: &[String],
+    timeout: Option<Duration>,
+    store: Option<&Store>,
+) -> Result<ServiceCheck, String> {
     if !is_known_service(service) {
         return Err(UNKNOWN_SERVICE.to_string());
     }
     let client = match HttpClient::new() {
         Ok(client) => client,
-        Err(_) => return Ok(into_outcome(unknown_verdict())),
+        Err(_) => {
+            return Ok(ServiceCheck {
+                outcome: into_outcome(unknown_verdict()),
+                attempted: false,
+            })
+        }
     };
-    let verdict = match service {
+    let (verdict, attempted) = match service {
         "premiumize" => match Premiumize::new(client)
             .check_cached(api_key, hashes, timeout)
             .await
         {
-            Ok(report) => record(report.cached, report.complete),
-            Err(err) => err_verdict(&err),
+            Ok(report) => (record(report.cached, report.complete), true),
+            Err(err) => (err_verdict(&err), true),
         },
         "torbox" => match TorBox::new(client)
             .check_cached(api_key, hashes, &[], timeout)
             .await
         {
-            Ok(report) => record(report.cached, report.complete),
-            Err(err) => err_verdict(&err),
+            Ok(report) => (record(report.cached, report.complete), true),
+            Err(err) => (err_verdict(&err), true),
         },
         "alldebrid" => {
-            // Fase C: `drop_*` permanece false — sem hold portado, ninguém apaga.
+            // Fase C: `drop_*` permanece false — sem hold portado, ninguém
+            // apaga. `attempted` decide o fallback do seam.
             let opts = CheckOpts {
                 timeout,
                 drop_ready: false,
@@ -133,11 +165,11 @@ pub async fn check_service(
                 ..CheckOpts::default()
             };
             match AllDebrid::new(client)
-                .check_cached(api_key, hashes, &opts)
+                .check_cached_report(api_key, hashes, &opts)
                 .await
             {
-                Ok(report) => record(report.cached, report.complete),
-                Err(err) => err_verdict(&err),
+                Ok(report) => (record(report.cached, report.complete), report.attempted),
+                Err(failure) => (err_verdict(&failure.error), failure.attempted),
             }
         }
         "realdebrid" => {
@@ -146,21 +178,27 @@ pub async fn check_service(
                 .check_cached(hashes, |hash| rd_ledger_known(hash, store, ledger_on));
             let verdict = record(peek.cached, peek.complete);
             rd_renew_hits(store, &verdict.cached);
-            verdict
+            (verdict, true)
         }
         // Debrid-Link não publica cache (`cacheCheck = false`): a lista vazia é
         // "não sei", NUNCA "nada em cache". `Set` aqui viraria `known:true` e
         // esconderia a lista inteira sob `cachedOnly`; o Node devolve
         // `known:false` e manda tudo pelo `/resolve` (degradado).
         _ => match DebridLink::new(client).check_cached().await {
-            Ok(_) => normalize_cache_result(CacheAnswer::Record {
-                cached: Vec::new(),
-                complete: Some(crate::debridlink::CACHE_CHECK),
-            }),
-            Err(err) => err_verdict(&err),
+            Ok(_) => (
+                normalize_cache_result(CacheAnswer::Record {
+                    cached: Vec::new(),
+                    complete: Some(crate::debridlink::CACHE_CHECK),
+                }),
+                false,
+            ),
+            Err(err) => (err_verdict(&err), false),
         },
     };
-    Ok(into_outcome(verdict))
+    Ok(ServiceCheck {
+        outcome: into_outcome(verdict),
+        attempted,
+    })
 }
 
 /// Resposta fechada de adaptador (`complete == Some(false)` é o único

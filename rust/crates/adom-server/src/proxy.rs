@@ -76,6 +76,8 @@ async fn metrics_snapshot(State(state): State<AppState>) -> Json<BTreeMap<String
     snapshot.extend(adom_search::orchestrator::account_metrics_snapshot());
     // Sombra de METADADOS (C5): namespace próprio `meta.shadow.*`.
     snapshot.extend(adom_search::orchestrator::meta_shadow_metrics_snapshot());
+    // Checagem AllDebrid nativa × Node (`DEBRID_AL_RUST`): `debrid.al.*`.
+    snapshot.extend(adom_search::orchestrator::debrid_al_metrics_snapshot());
     // Índice/banco nativos (F4.5): `index.*`/`bank.*`.
     snapshot.extend(adom_search::orchestrator::index_metrics_snapshot());
     snapshot.extend(state.canary.metrics().snapshot());

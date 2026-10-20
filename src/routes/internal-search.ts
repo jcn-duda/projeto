@@ -21,7 +21,7 @@ import type { AppServices } from './types.js';
 import { getMeta } from '../utils/cinemeta.js';
 import { getTitles } from '../utils/tmdb.js';
 import { worksForObraMany, sourcesForMany, firstSeenMany } from '../utils/magnet-bank-query.js';
-import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/search-multiwork.js';
+import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/tmdb-multiwork.js';
 import { collectRaw } from '../providers/collect-orchestrator.js';
 import { handleCollect } from './internal-search-collect.js';
 import { handleConfig } from './internal-search-config.js';

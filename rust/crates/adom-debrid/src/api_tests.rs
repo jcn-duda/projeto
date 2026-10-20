@@ -77,6 +77,55 @@ impl Drop for EnvBase {
     }
 }
 
+/// Várias envs sob a MESMA trava (dois `EnvBase` no mesmo teste travariam).
+struct EnvVars {
+    saved: Vec<(&'static str, Option<String>)>,
+    _lock: std::sync::MutexGuard<'static, ()>,
+}
+
+impl EnvVars {
+    fn set(pairs: &[(&'static str, &str)]) -> Self {
+        let _lock = crate::test_env::lock();
+        let saved = pairs
+            .iter()
+            .map(|(name, value)| {
+                let prev = std::env::var(name).ok();
+                // SAFETY: a trava única serializa os testes de env do crate.
+                unsafe { std::env::set_var(name, value) };
+                (*name, prev)
+            })
+            .collect();
+        Self { saved, _lock }
+    }
+}
+
+impl Drop for EnvVars {
+    fn drop(&mut self) {
+        for (name, prev) in &self.saved {
+            unsafe {
+                match prev {
+                    Some(value) => std::env::set_var(name, value),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
+}
+
+/// AllDebrid falso: todo upload responde `ready` para o hash pedido.
+async fn fake_alldebrid(req: Request<Body>) -> Response {
+    let path = req.uri().path().to_string();
+    let _ = req.into_body().collect().await;
+    if path.ends_with("/magnet/upload") {
+        return (
+            StatusCode::OK,
+            r#"{"status":"success","data":{"magnets":[{"hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","ready":true,"id":7}]}}"#,
+        )
+            .into_response();
+    }
+    (StatusCode::OK, r#"{"status":"success","data":{}}"#).into_response()
+}
+
 async fn local_premiumize() -> String {
     let app = Router::new().fallback(any(fake_premiumize));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -208,7 +257,12 @@ async fn torbox_check_sai_do_501_alldebrid_fica() {
         axum::serve(listener, app).await.unwrap();
     });
     let base = format!("http://{addr}");
-    let _env = EnvBase::set("TORBOX_API_BASE", &base);
+    let _env = EnvVars::set(&[
+        ("TORBOX_API_BASE", &base),
+        // Default explícito: sem a flag, AllDebrid continua 501 (F4.6 não
+        // removeu a rota Node).
+        ("DEBRID_AL_RUST", "off"),
+    ]);
     let torbox_body = format!(r#"{{"service":"torbox","apiKey":"{KEY}","hashes":["abc"]}}"#);
     let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &torbox_body).await;
     assert_eq!(status, StatusCode::OK, "torbox: {body}");
@@ -223,6 +277,54 @@ async fn torbox_check_sai_do_501_alldebrid_fica() {
     assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "alldebrid: {body}");
     assert!(body.contains("service_not_ported"));
     assert!(!body.contains(KEY));
+}
+
+#[tokio::test]
+async fn alldebrid_check_nativo_com_flag_on_e_sem_vazar_chave() {
+    let app = Router::new().fallback(any(fake_alldebrid));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let base = format!("http://{addr}");
+    let _env = EnvVars::set(&[("ALLDEBRID_API_BASE", &base), ("DEBRID_AL_RUST", "on")]);
+    let body = format!(
+        r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"timeoutMs":2000}}"#
+    );
+    let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", &body).await;
+    assert_eq!(status, StatusCode::OK, "allDebrid nativo: {raw}");
+    assert!(!raw.contains(KEY), "a chave não pode voltar no corpo");
+    let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(
+        json["cached"][0].as_str(),
+        Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    );
+    assert_eq!(json["complete"].as_bool(), Some(true));
+    assert_eq!(json["known"].as_bool(), Some(true));
+    assert_eq!(json["unusable"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn alldebrid_check_nativo_sem_chave_e_unknown() {
+    let _env = EnvVars::set(&[("DEBRID_AL_RUST", "on")]);
+    let body = r#"{"service":"alldebrid","apiKey":"","hashes":["abc"]}"#;
+    let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", body).await;
+    assert_eq!(status, StatusCode::OK);
+    let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(json["known"].as_bool(), Some(false));
+    assert_eq!(json["complete"].as_bool(), Some(false));
+}
+
+#[tokio::test]
+async fn alldebrid_shadow_nao_responde_a_rota_http() {
+    // `shadow` é modo do adom-search; a rota do sidecar continua 501 para o
+    // Node não trocar de respondedor sem querer.
+    let _env = EnvVars::set(&[("DEBRID_AL_RUST", "shadow")]);
+    let body = format!(r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["abc"]}}"#);
+    let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", &body).await;
+    assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
+    assert!(raw.contains("service_not_ported"));
 }
 
 #[tokio::test]

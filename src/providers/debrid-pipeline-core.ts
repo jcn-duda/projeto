@@ -20,8 +20,8 @@ import * as metrics from '../utils/metrics.js';
 import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from './autofetch-runner.js';
 import rdWarmer from './rd-warmer.js';
 import { queueDubAudit, collectAuditCandidates } from './dub-audit.js';
-import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCacheCheck } from './debrid-pipeline-steps.js';
-import type { FirstObserverState } from './stream-builder.js';
+import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCacheCheck } from './debrid-cache-steps.js';
+import type { FirstObserverState } from './first-observer.js';
 import { dropTrace, type StreamTraceState } from '../utils/stream-trace.js';
 import { annotateEpisodeSizes, packHashesMissingFiles } from './episode-size.js';
 import { playDisposition, playDispositions } from './debrid-play-guard.js';
@@ -31,40 +31,10 @@ import { checkCachedFrozen } from './debrid-check-frozen.js';
  * Marca quais streams já estão cacheados no debrid e troca o infoHash por um
  * link de play que passa pela nossa rota /resolve.
  */
-type WorkHintInput = { n: string[]; y: number | null } | null;
-type CacheResultSignal = {
-  known: boolean;
-  needsFullRefresh: boolean;
-  autofetchCount?: number;
-  trustDropped?: number;
-};
-// Exportado só como tipo (consumido pelo dub-audit via `import type`, que não
-// cria aresta de runtime); o barrel NÃO o reexporta — a superfície pública
-// continua sendo exatamente a do monolito.
-export interface ApplyDebridOptions {
-  season?: number | null;
-  episode?: number | null;
-  imdbId?: string | null;
-  searchKey?: string | null;
-  deadlineAt?: number | null;
-  /** Contagem de episódios por temporada (Cinemeta), para a média do pack. */
-  meta?: { episodes?: Record<string, number> } | null;
-  /**
-   * Só a passada REIVINDICADA como primeira resposta observa as métricas
-   * `search.first.*`. Refresh de SWR/background e recaches tardios vêm sem este
-   * flag, então não podem inflar a métrica.
-   */
-  observeFirstPass?: boolean;
-  /** Estado marginal do observador de primeira resposta (finalização no
-   * `onSelected` do buildStreams mantém brFound/brCached/brHidden/brVisible
-   * coerentes num único bloco). */
-  firstObserver?: FirstObserverState | null;
-  onCacheResult?: (result: CacheResultSignal) => void;
-  workHint?: WorkHintInput;
-  /** P5 — ledger observacional (criado pelo buildStreams/finish); os cortes do
-   * debrid (pré-checagem e cachedOnly) entram nele. null => sem efeito. */
-  trace?: StreamTraceState | null;
-}
+import type { ApplyDebridOptions } from './debrid-pipeline-types.js';
+// O tipo vive em `debrid-pipeline-types.ts` (sobrevive ao corte, consumido pelo
+// dub-audit). Reexportado aqui para preservar o caminho antigo até a remoção.
+export type { ApplyDebridOptions };
 
 export async function applyDebrid(input: Array<Stream | null>, {
   season, episode, imdbId, searchKey, deadlineAt, meta, observeFirstPass = false, firstObserver, onCacheResult, workHint, trace,

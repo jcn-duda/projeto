@@ -7,7 +7,7 @@
 import { getMeta } from '../utils/cinemeta.js';
 import * as tmdb from '../utils/tmdb.js';
 import * as frozen from '../utils/stream-frozen.js';
-import { startMultiWorkDiscovery, startHomeReleaseLookup } from './search-multiwork.js';
+import { startMultiWorkDiscovery, startHomeReleaseLookup } from './tmdb-multiwork.js';
 import type { MultiWorkCollection } from '../../types/domain.js';
 
 export interface SearchMetadata {

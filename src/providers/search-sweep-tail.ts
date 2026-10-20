@@ -5,7 +5,7 @@ import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { extractInfoHash } from '../utils/format.js';
-import { SAFE_INDEXER_ID } from './stream-builder.js';
+import { SAFE_INDEXER_ID } from './live-indexer-state.js';
 import { ptSweepIndexers } from './search-plan.js';
 import { jackettOnly } from './mico.js';
 import type { RawBatch } from './search-index-path.js';

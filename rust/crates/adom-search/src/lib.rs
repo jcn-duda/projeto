@@ -83,3 +83,19 @@ pub use resolve_url::{
     parse_resolve_path, resolve_play_from, resolve_secret_for, verify_resolve_play, ResolvePlay,
     ResolveSigner, ResolveVerify,
 };
+
+/// Trava ÚNICA dos testes que tocam env dentro do crate (bases de API em
+/// loopback, amostra da sombra). Sem ela, módulos de teste diferentes sujam a
+/// env uns dos outros.
+#[cfg(test)]
+pub(crate) mod test_env {
+    use std::sync::{Mutex, MutexGuard, OnceLock};
+
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    pub fn lock() -> MutexGuard<'static, ()> {
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+    }
+}

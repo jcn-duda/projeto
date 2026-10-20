@@ -76,11 +76,31 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
     }
     // AllDebrid: upload real suja a conta; sem hold/drop no sidecar o
     // rust-remote aceitaria 200 e NÃO cairia no TS. Até Fase C fica 501
-    // (fail-safe). `verdict::check_service` segue para o adom-search in-process.
+    // (fail-safe). `DEBRID_AL_RUST=on` libera a checagem nativa — read-only,
+    // sem limpeza; o default OFF preserva o caminho Node.
     if body.service == "alldebrid" {
-        return not_ported(&state, &body.service);
+        // `shadow` é modo de OBSERVAÇÃO do adom-search: a rota continua 501
+        // para o Rust não virar o respondedor por acidente.
+        if crate::alldebrid_mode::AlRustMode::from_env() != crate::alldebrid_mode::AlRustMode::On {
+            return not_ported(&state, &body.service);
+        }
+        if body.api_key.trim().is_empty() {
+            // Mesma semântica de `configured:false` da rota Node: sem chave
+            // não há serviço, e unknown é melhor que "frio" (verdadeiro).
+            state.metrics.inc("rust.debrid.api.alldebrid_no_key");
+            return json_status(
+                StatusCode::OK,
+                json!({
+                    "cached": [],
+                    "complete": false,
+                    "known": false,
+                    "unusable": Value::Null,
+                }),
+            );
+        }
+        state.metrics.inc("rust.debrid.api.alldebrid_check");
     }
-    // PM / TorBox / RD / Debrid-Link: réguas do núcleo + ledger do RD.
+    // PM / TorBox / RD / AllDebrid / Debrid-Link: réguas do núcleo + ledger do RD.
     let outcome = match crate::verdict::check_service(
         &body.service,
         &body.api_key,
@@ -93,6 +113,17 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
         Ok(outcome) => outcome,
         Err(_) => return not_ported(&state, &body.service),
     };
+    if body.service == "alldebrid" {
+        state
+            .metrics
+            .add("rust.debrid.api.alldebrid_hashes", body.hashes.len() as u64);
+        if outcome.unusable.is_some() {
+            state.metrics.inc("rust.debrid.api.alldebrid_unusable");
+        }
+        if !outcome.known {
+            state.metrics.inc("rust.debrid.api.alldebrid_unknown");
+        }
+    }
     json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
 }
 

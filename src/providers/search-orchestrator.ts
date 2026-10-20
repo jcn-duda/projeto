@@ -13,19 +13,19 @@ import * as harvester from './harvester.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { buildStreams, createFirstObserver, firstObserverClaim, stageFirstTiming } from './stream-builder.js';
-import type { FirstObserverState } from './stream-builder.js';
+import { buildStreams } from './stream-builder.js';
+import { createFirstObserver, firstObserverClaim, stageFirstTiming, type FirstObserverState } from './first-observer.js';
 import { debridRefreshSatisfied, hasPlayableStream } from './search-cache.js';
 import { commitDecision } from './search-commit.js';
 import { cloneStreamTrace, createStreamTrace, serializeTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { collectRaw } from './collect-orchestrator.js';
 import { attemptIndexFastPath, noteWouldHitIndex, rescueEmptyIndexAnswer } from './search-index-path.js';
-import { fuseIndexEnrichment } from './index-evidence.js';
+import { fuseIndexEnrichment } from './index-enrichment.js';
 import type { RawBatch } from './search-index-path.js';
 import { schedulePtSweepTail } from './search-sweep-tail.js';
 import { createTailQueue } from './tail-enqueue.js';
-import { resolveMultiWork } from './search-multiwork.js';
+import { resolveMultiWork } from './tmdb-multiwork.js';
 import { loadSearchMetadata } from './search-metadata-load.js';
 import type { MultiWorkCollection, MatchContext, RawItem } from '../../types/domain.js';
 import { collectFallbackForBuild } from './magnet-bank-fallback.js';
@@ -293,7 +293,7 @@ export async function doSearch({
         }
         // Fusão de evidência por hash (caso Mortuary): a cópia ao vivo mais
         // saudável resgata o snapshot velho em vez de ser descartada. A lógica
-        // e as travas de origem/áudio vivem em `index-evidence.ts`.
+        // e as travas de origem/áudio vivem em `index-enrichment.ts`.
         const { fresh, fused } = fuseIndexEnrichment(raw.items, enrichment.items);
         if (fresh.length) {
           log.info(`[search] enriquecimento do índice trouxe ${fresh.length} resultado(s) novo(s); recacheando`);

@@ -1,8 +1,8 @@
 //! API interna em `127.0.0.1:8710`. O token vai só no header
 //! `X-Indexer-Test-Token`. A chave do debrid chega no corpo e não é logada.
 //! `/debrid/check` via `verdict.rs` para Premiumize/TorBox/RD/Debrid-Link.
-//! AllDebrid fica 501 no HTTP público até Fase C (upload sem limpeza);
-//! `verdict::check_service` ainda atende AD in-process. Conta/arquivos AD
+//! AllDebrid fica 501 no HTTP público com `DEBRID_AL_RUST=off` (default);
+//! `on` libera a checagem nativa (read-only, sem limpeza). Conta/arquivos AD
 //! e rotas TorBox fora do check seguem 501.
 //! `/debrid/resolve` devolve o efeito e não grava estado.
 
@@ -93,6 +93,18 @@ pub fn router(cfg: &InternalConfig) -> Router {
     };
     if cfg.token.is_empty() {
         eprintln!("[debrid] sem token; API interna responde 503");
+    }
+    let al_mode = crate::alldebrid_mode::AlRustMode::from_env();
+    if al_mode == crate::alldebrid_mode::AlRustMode::On {
+        eprintln!(
+            "[debrid] checagem AllDebrid nativa em /debrid/check: DEBRID_AL_RUST=on \
+             (sem limpeza; fallback Node só antes do upload)"
+        );
+    } else if al_mode == crate::alldebrid_mode::AlRustMode::Shadow {
+        eprintln!(
+            "[debrid] DEBRID_AL_RUST=shadow: a rota /debrid/check segue 501; \
+             a comparação roda no adom-search"
+        );
     }
     // Falha de `new` não carrega chave: o cliente ainda não viu o corpo.
     let http = match HttpClient::new() {

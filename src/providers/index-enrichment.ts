@@ -10,6 +10,9 @@
 // pertencem ao post que já venceu (nada de _br/_dubbed do perdedor; quando as
 // duas cópias coexistem como streams, o dedupeByHash do ranking funde
 // `_seeders` pelo teto).
+//
+// Mora em `index-enrichment.ts` (módulo que fica): a via instantânea do banco
+// consome esta fusão e não pode depender do orquestrador TS removido.
 import { extractInfoHash } from '../utils/format.js';
 
 export function fuseIndexEnrichment(rawItems: any[], liveItems: any[]): { fresh: any[]; fused: number } {

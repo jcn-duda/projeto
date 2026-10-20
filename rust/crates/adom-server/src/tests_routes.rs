@@ -265,6 +265,9 @@ async fn metrics_expoe_canario_do_corte_zerado() {
     assert_eq!(snap[SAMPLED], 0);
     assert_eq!(snap[crate::canary::DIVERGENCE], 0);
     assert_eq!(snap[crate::canary::ERROR], 0);
+    // Namespace da checagem AllDebrid nativa × Node, zerado por padrão.
+    assert_eq!(snap["debrid.al.shadow.compared"], 0);
+    assert_eq!(snap["debrid.al.native.checks"], 0);
 }
 
 #[tokio::test]

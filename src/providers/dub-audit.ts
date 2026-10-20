@@ -12,7 +12,7 @@ import { accountScope } from '../utils/request-key.js';
 import * as protectedApi from '../debrid/protected.js';
 import { isDubLieError, isEpisodePickError } from '../debrid/common.js';
 import { invalidateStreamsForObra } from '../utils/br-gap.js';
-import type { ApplyDebridOptions } from './debrid-pipeline-core.js';
+import type { ApplyDebridOptions } from './debrid-pipeline-types.js';
 
 // Fase D da auditoria de áudio: candidatos ⚡ dublados confirmados em cache
 // nesta busca. A prova (paths reais dos vídeos) só existe no debrid; esperar

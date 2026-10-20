@@ -14,7 +14,7 @@
 // `Stream`s e chama as funções que o `applyDebrid` já chama.
 import type { Stream } from '../../types/domain.js';
 import { autoFetchCandidates, autoFetchBrDubbed } from './autofetch-runner.js';
-import { enrichInstantWithoutCacheCheck } from './debrid-pipeline-steps.js';
+import { enrichInstantWithoutCacheCheck } from './debrid-cache-steps.js';
 import debrid from '../debrid/index.js';
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';

@@ -12,7 +12,7 @@ import {
   applyDebrid, buildStreams, firstObserverStep, createFirstObserver,
   firstObserverClaim, promoteFirstObserverEligible,
 } from '../src/providers/index.js';
-import { stageFirstTiming } from '../src/providers/stream-builder.js';
+import { stageFirstTiming } from '../src/providers/first-observer.js';
 import { limitReservingBr } from '../src/utils/format.js';
 
 // Os contadores de degradação passam pelo cache de metadados; persistência

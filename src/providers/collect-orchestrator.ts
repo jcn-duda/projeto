@@ -14,8 +14,8 @@ import { computeCollectionBudget, computePriorityGrace } from './collection-budg
 import { opts } from '../runtime.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { stageFirstTiming } from './stream-builder.js';
-import type { FirstObserverState } from './stream-builder.js';
+import { stageFirstTiming } from './first-observer.js';
+import type { FirstObserverState } from './first-observer.js';
 import { poolCovered } from './search-pool-coverage.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 import { createLiveIndexerState, ALL_QUERY_INDEXER } from './live-indexer-state.js';

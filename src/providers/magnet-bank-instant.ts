@@ -38,7 +38,7 @@ import type { Candidate } from './magnet-bank-fallback.js';
 import { idxPoolCovered, poolCovered } from './search-pool-coverage.js';
 import { allowedSourceIndexer } from './allowed-source-indexer.js';
 import { audioFromTitle, looksPtBr } from '../utils/audio-quality.js';
-import { fuseIndexEnrichment } from './index-evidence.js';
+import { fuseIndexEnrichment } from './index-enrichment.js';
 import { filterRelevantRaw } from '../utils/release-filters.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import * as metrics from '../utils/metrics.js';

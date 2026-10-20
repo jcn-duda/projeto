@@ -13,7 +13,7 @@ config.seed.enabled = false;
 import * as mico from '../src/providers/mico.js';
 import jackett, { effectiveJackettIndexers } from '../src/providers/jackett.js';
 import * as indexerStatus from '../src/providers/indexer-status.js';
-import { collectRaw } from '../src/providers/search-orchestrator.js';
+import { collectRaw } from '../src/providers/collect-orchestrator.js';
 import * as runtime from '../src/runtime.js';
 import * as harvestWorker from '../src/providers/harvest-worker.js';
 import * as releaseIndex from '../src/utils/release-index.js';

@@ -24,8 +24,8 @@ import {
   firstObserverStep,
   firstObserverClaim,
   promoteFirstObserverEligible,
-} from './stream-builder-first-observer.js';
-import type { FirstObserverState } from './stream-builder-first-observer.js';
+} from './first-observer.js';
+import type { FirstObserverState } from './first-observer.js';
 import { annotateEpisodeSizes, streamSizeLabel } from './episode-size.js';
 import { isBrProbePending } from './br-probe.js';
 

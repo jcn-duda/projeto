@@ -2,7 +2,8 @@
 //!
 //! Premiumize, Debrid-Link, Real-Debrid, TorBox e AllDebrid têm adaptador.
 //! HTTP `/debrid/check` cobre PM/TB/RD/DL via `verdict.rs`; AllDebrid fica
-//! 501 até Fase C (upload sem limpeza no sidecar — fail-safe pro Node).
+//! 501 com `DEBRID_AL_RUST=off` (default) e a checagem nativa responde em
+//! `on` (read-only — sem limpeza —, então NÃO substitui a rota Node).
 //! A costura AD em `verdict::check_service` segue para o adom-search
 //! in-process. `account`/`files` limitados; link da AllDebrid existe.
 //! `/debrid/resolve` não grava magnetdb, cache nem ledger.
@@ -12,6 +13,9 @@
 
 pub mod alldebrid;
 pub mod alldebrid_clean_shadow;
+// Flag da checagem nativa da AllDebrid (`DEBRID_AL_RUST`), lida pela API
+// interna e pelo `adom-search`.
+pub mod alldebrid_mode;
 // Inventário PRONTO da conta como fonte (F3): leitura pura, sem memo/efeitos.
 pub mod account;
 pub mod api;

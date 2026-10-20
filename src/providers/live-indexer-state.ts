@@ -28,6 +28,10 @@
 /** Id sintético do ramo agregado `/all`. */
 export const ALL_QUERY_INDEXER = '*all*';
 
+/** Id de indexer vindo da config do usuário (URL): só entra em query, limite
+ * por id ou desempate depois desta validação — nunca interpolado. */
+export const SAFE_INDEXER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
 /** Motivo objetivo de uma consulta não respondida. */
 export type LiveFailReason = 'error' | 'breaker' | 'source';
 

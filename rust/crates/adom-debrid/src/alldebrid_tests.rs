@@ -201,6 +201,8 @@ fn cache_opts(loaded: bool) -> CheckOpts {
         held: HashSet::from([hash_of('b'), hash_of('d')]),
         known_before: HashSet::from([hash_of('e')]),
         blocked: HashSet::from([hash_of('f')]),
+        // Explícito: outro teste mexe em DEBRID_BATCH_SIZE (env global).
+        batch_size: Some(25),
         ..CheckOpts::default()
     }
 }
@@ -338,7 +340,7 @@ async fn status_error_classifica_auth_quota_e_deixa_o_resto_so_com_mensagem() {
 }
 
 #[tokio::test]
-async fn falha_de_delete_nao_repete() {
+async fn falha_de_delete_nao_repete_nem_derruba_o_veredito() {
     let scene = Arc::new(Mock {
         hits: Mutex::new(Vec::new()),
         upload: envelope(json!({"magnets": [{"hash": hash_of('c'), "ready": false, "id": 103}]})),
@@ -353,11 +355,14 @@ async fn falha_de_delete_nao_repete() {
         inventory_loaded: true,
         ..CheckOpts::default()
     };
-    let err = ad
+    // Igual ao Node: a limpeza é efeito colateral; falha dela não vira erro
+    // da checagem (o ⚡ já está no retorno) e não há segunda tentativa.
+    let report = ad
         .check_cached(API_KEY, &[hash_of('c')], &opts)
         .await
-        .unwrap_err();
-    assert_eq!(err.kind(), "other");
+        .unwrap();
+    assert!(report.complete);
+    assert_eq!(report.cached, Vec::<String>::new());
     let seen = hits(&scene);
     assert_eq!(
         seen.iter()

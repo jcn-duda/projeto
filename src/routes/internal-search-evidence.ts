@@ -11,7 +11,7 @@
 import type { RawItem, Stream } from '../../types/domain.js';
 import { applyFileEvidence } from '../providers/stream-file-evidence.js';
 import { stampProvenQuality } from '../providers/probed-quality.js';
-import { pruneKnownBroken } from '../providers/debrid-pipeline-steps.js';
+import { pruneKnownBroken } from '../providers/debrid-cache-steps.js';
 import { hashOf } from '../utils/magnet-bank-merge.js';
 import { accountScope } from '../utils/request-key.js';
 import debrid from '../debrid/index.js';

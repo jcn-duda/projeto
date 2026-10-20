@@ -1,3 +1,7 @@
+// Etapas de cache/debrid compartilhadas que SOBREVIVEM ao corte do pipeline TS
+// de busca: o autofetch (lote nativo) e as rotas internas de evidência/index
+// continuam consumindo `pruneKnownBroken`/`enrichInstantWithoutCacheCheck`.
+// Mesmo conteúdo do antigo `debrid-pipeline-steps.ts`, sem o nome do pipeline.
 import config from '../config.js';
 import type { DebridAdapter, Stream } from '../../types/domain.js';
 import debrid from '../debrid/index.js';
@@ -12,7 +16,7 @@ import * as releaseIndex from '../utils/release-index.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
 import { remainingCheckBudget } from '../utils/deadline.js';
-import type { FirstObserverState } from './stream-builder.js';
+import type { FirstObserverState } from './first-observer.js';
 import { dropTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
 

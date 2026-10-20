@@ -35,7 +35,7 @@ mod alldebrid_play_tests;
 #[path = "alldebrid_dub.rs"]
 mod dub;
 
-pub use check::{CacheReport, CheckOpts};
+pub use check::{CacheReport, CheckFailure, CheckOpts, MAX_HASHES};
 
 /// O `ready` do upload substitui o `/magnet/instant`, que a AllDebrid tirou.
 pub const CACHE_CHECK: bool = true;
@@ -51,6 +51,8 @@ pub(super) const CHECK_TIMEOUT: Duration = Duration::from_millis(10_000);
 pub(super) const DEFAULT_BATCH: usize = 25;
 const MAX_STATUS_WAITS: u32 = 3;
 
+/// Clonável porque cada lote da checagem roda em uma task própria.
+#[derive(Clone)]
 pub struct AllDebrid {
     client: HttpClient,
     base: String,
@@ -139,7 +141,26 @@ impl AllDebrid {
         hashes: &[String],
         opts: &CheckOpts,
     ) -> Result<CacheReport, DebridError> {
-        self.usable_base()?;
+        self.check_cached_report(api_key, hashes, opts)
+            .await
+            .map_err(|failure| failure.error)
+    }
+
+    /// Igual a `check_cached`, mas preserva `attempted`: o seam só pode cair no
+    /// fallback Node quando NENHUM upload foi enviado (segundo upload
+    /// dobraria o lixo na conta).
+    pub async fn check_cached_report(
+        &self,
+        api_key: &str,
+        hashes: &[String],
+        opts: &CheckOpts,
+    ) -> Result<CacheReport, CheckFailure> {
+        if let Err(error) = self.usable_base() {
+            return Err(CheckFailure {
+                error,
+                attempted: false,
+            });
+        }
         check::check_cached(self, api_key, hashes, opts).await
     }
 

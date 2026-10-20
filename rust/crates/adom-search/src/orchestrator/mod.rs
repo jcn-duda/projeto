@@ -33,6 +33,9 @@ mod account_shadow;
 mod collect;
 mod composite_collector;
 mod config;
+// Sombra/flag da checagem AllDebrid (F4.6): métricas `debrid.al.*`.
+pub(crate) mod debrid_al_metrics;
+pub(crate) mod debrid_shadow;
 // Payloads dos efeitos de cauda (`EFFECTS_RUST`); a seleção mora no build.
 mod effects;
 mod fallback;
@@ -109,6 +112,7 @@ pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
     NoDebridFactory, OrchestratorConfig,
 };
+pub use debrid_shadow::debrid_al_metrics_snapshot;
 pub use index_effects::{FollowUpKind, FollowUpPlan};
 pub use index_metrics::index_metrics_snapshot;
 pub use index_source::{

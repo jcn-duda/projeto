@@ -20,7 +20,7 @@ import assert from 'node:assert/strict';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
 import { peekDavail, noteUnavailable } from '../src/debrid/cache-check.js';
-import { enrichInstantWithoutCacheCheck } from '../src/providers/debrid-pipeline-steps.js';
+import { enrichInstantWithoutCacheCheck } from '../src/providers/debrid-cache-steps.js';
 import * as alldebrid from '../src/debrid/alldebrid.js';
 import { markReuploadBlocked, forgetReuploadBlock, unblockIfInventoryReady } from '../src/debrid/alldebrid-reupload.js';
 import * as inventoryMemo from '../src/debrid/inventory-memo.js';

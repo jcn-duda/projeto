@@ -12,10 +12,13 @@
 //! fallback.
 //!
 //! **Fallback Node:** quando o serviço ainda não está no despacho local
-//! (`unknown_service`) e, com a reserva configurada, SEMPRE para a AllDebrid
-//! (até a Fase C portar hold/limpeza e o davail). Serviço conhecido que
-//! devolveu `Ok(Unknown)` NÃO cai na reserva, e reserva AD que falhou NÃO cai
-//! no local (evita re-upload AD e falso "perguntar de novo").
+//! (`unknown_service`), quando não há reserva configurada e, com
+//! `DEBRID_AL_RUST=off` (default), SEMPRE para a AllDebrid. Com a flag em
+//! `on`, a AllDebrid usa a checagem nativa do `adom-debrid` e só cai no Node
+//! quando NENHUM upload foi enviado (base recusada/sem lote) — repetir depois
+//! de um upload real dobraria o lixo na conta. Com `shadow`, a nativa
+//! responde e o Node é chamado como REFERÊNCIA em fundo
+//! (`debrid.al.shadow.*`), sem segurar o cliente.
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -25,9 +28,12 @@ use adom_core::RankingStream;
 use tokio::runtime::{Handle, Runtime};
 
 use crate::list_builder::{DebridAnswer, DebridCheck};
+use adom_debrid::alldebrid_mode::AlRustMode;
 use adom_debrid::internal_check::InternalCheckClient;
 use adom_debrid::store::Store;
-use adom_debrid::verdict::{self, CheckOutcome};
+use adom_debrid::verdict::{self, CheckOutcome, ServiceCheck};
+
+use crate::orchestrator::debrid_shadow;
 
 /// A RESERVA: quem responde quando o caminho local NÃO PÔDE (serviço ainda
 /// fora do despacho). Implementação real = `NodeInternalFallback`; testes
@@ -84,6 +90,11 @@ pub struct AdapterDebridCheck {
     pub store: Option<std::sync::Arc<Store>>,
     /// Reserva só para serviço fora do despacho local.
     pub fallback: Option<std::sync::Arc<dyn FallbackCheck>>,
+    /// `DEBRID_AL_RUST` (default OFF). Só a AllDebrid lê este campo.
+    pub mode: AlRustMode,
+    /// Stub de teste: substitui a checagem nativa (sem rede).
+    #[cfg(test)]
+    pub local_stub: Option<std::sync::Arc<dyn Fn() -> Result<ServiceCheck, String> + Send + Sync>>,
     /// Hashes do lote desta busca (preenchidos por `prepare`).
     batch_hashes: Vec<String>,
     /// Veredito único do lote (local ou reserva). `None` = ainda não rodou.
@@ -104,6 +115,9 @@ impl AdapterDebridCheck {
             timeout: None,
             store: None,
             fallback: None,
+            mode: AlRustMode::Off,
+            #[cfg(test)]
+            local_stub: None,
             batch_hashes: Vec::new(),
             memo: None,
             local_checks: 0,
@@ -131,30 +145,18 @@ impl AdapterDebridCheck {
             }
         }
         if hashes.is_empty() {
-            self.memo = Some(CheckOutcome {
-                cached: Vec::new(),
-                known: false,
-                unusable: None,
-            });
+            self.memo = Some(unknown_outcome());
             return;
         }
         // Dedupe estável (ordem da 1ª aparição).
         let mut seen = HashSet::new();
         hashes.retain(|h| seen.insert(h.to_lowercase()));
 
-        // AllDebrid vai ao Node enquanto a Fase C não porta hold/limpeza: o
-        // check local é `/magnet/upload` real com `drop_*` desligado (os
-        // magnets ficavam na conta do usuário) e não tem o davail do Node,
-        // então perdia ⚡ que o Node lembra. Um só upload por busca continua
-        // valendo: quem faz é o Node; sem reserva configurada, fica o local.
-        // Reserva que falhou vira "não sei", nunca o local: o Node pode já ter
-        // feito o upload, e um segundo seria dobrar o lixo na conta.
-        if self.service == "alldebrid" && self.fallback_ready() {
-            self.memo = Some(self.run_fallback(&hashes).unwrap_or(CheckOutcome {
-                cached: Vec::new(),
-                known: false,
-                unusable: None,
-            }));
+        // AllDebrid tem caminho próprio: `DEBRID_AL_RUST=off` mantém a reserva
+        // Node (default); `on` usa a nativa com fallback só pré-upload;
+        // `shadow` usa a nativa e compara o Node em fundo.
+        if self.service == "alldebrid" {
+            self.alldebrid_memo(&hashes);
             return;
         }
 
@@ -168,24 +170,129 @@ impl AdapterDebridCheck {
                 self.store.as_deref(),
             ));
             // Serviço conhecido: Ok(Unknown) em falha — NUNCA fallback
-            // (AllDebrid não re-upload).
+            // (re-upload caro/efeito colateral).
             self.memo = Some(match outcome {
                 Ok(o) => o,
-                Err(_) => CheckOutcome {
-                    cached: Vec::new(),
-                    known: false,
-                    unusable: None,
-                },
+                Err(_) => unknown_outcome(),
             });
             return;
         }
 
         // Serviço fora do despacho local → reserva Node (um lote).
-        self.memo = Some(self.run_fallback(&hashes).unwrap_or(CheckOutcome {
-            cached: Vec::new(),
-            known: false,
-            unusable: None,
-        }));
+        self.memo = Some(self.run_fallback(&hashes).unwrap_or_else(unknown_outcome));
+    }
+
+    /// AllDebrid: a flag decide quem responde. `off` é o caminho Node de
+    /// sempre; `on` usa a nativa; `shadow` usa a nativa e compara o Node em
+    /// fundo (a resposta do cliente é a nativa, como no caminho vivo).
+    fn alldebrid_memo(&mut self, hashes: &[String]) {
+        match self.mode {
+            AlRustMode::Off => {
+                if self.fallback_ready() {
+                    // Reserva que falhou vira "não sei", NUNCA o local: o Node
+                    // pode já ter feito o upload, e um segundo dobraria o lixo
+                    // na conta (contrato anterior preservado).
+                    self.memo = Some(self.run_fallback(hashes).unwrap_or_else(unknown_outcome));
+                } else {
+                    self.memo = Some(self.local_outcome(hashes));
+                }
+            }
+            AlRustMode::On => {
+                let (outcome, _) = self.native_primary(hashes);
+                self.memo = Some(outcome);
+            }
+            AlRustMode::Shadow => {
+                let (outcome, native) = self.native_primary(hashes);
+                if let Some(native) = native {
+                    if self.fallback_ready() {
+                        self.spawn_shadow(hashes, native);
+                    }
+                }
+                self.memo = Some(outcome);
+            }
+        }
+    }
+
+    /// Resposta do caminho nativo + o veredito nativo (se ele existiu). A
+    /// nativa só perde para o Node quando NADA foi enviado — o mesmo contrato
+    /// do modo `on`.
+    fn native_primary(&mut self, hashes: &[String]) -> (CheckOutcome, Option<ServiceCheck>) {
+        match self.run_local(hashes) {
+            // Veredito fechado OU upload já enviado: não repetir no Node.
+            Ok(check) if check.attempted || check.outcome.known => {
+                debrid_shadow::note_native(&check);
+                (check.outcome.clone(), Some(check))
+            }
+            // Nada foi enviado (base recusada/lista vazia): o Node pode
+            // responder sem risco de segundo upload.
+            Ok(check) if self.fallback_ready() => {
+                debrid_shadow::note_fallback();
+                (self.run_fallback(hashes).unwrap_or(check.outcome), None)
+            }
+            Ok(check) => (check.outcome, None),
+            Err(_) if self.fallback_ready() => {
+                debrid_shadow::note_fallback();
+                (
+                    self.run_fallback(hashes).unwrap_or_else(unknown_outcome),
+                    None,
+                )
+            }
+            Err(_) => (unknown_outcome(), None),
+        }
+    }
+
+    /// Checagem nativa do lote. O stub de teste evita rede.
+    fn run_local(&mut self, hashes: &[String]) -> Result<ServiceCheck, String> {
+        self.local_checks += 1;
+        #[cfg(test)]
+        if let Some(stub) = self.local_stub.clone() {
+            return stub();
+        }
+        block_on(verdict::check_service_report(
+            &self.service,
+            &self.api_key,
+            hashes,
+            self.timeout,
+            self.store.as_deref(),
+        ))
+    }
+
+    fn local_outcome(&mut self, hashes: &[String]) -> CheckOutcome {
+        match self.run_local(hashes) {
+            Ok(check) => {
+                debrid_shadow::note_native(&check);
+                check.outcome
+            }
+            Err(_) => unknown_outcome(),
+        }
+    }
+
+    /// A referência Node roda em thread própria; o cliente já recebeu a
+    /// nativa. O conjunto comparado é limitado por
+    /// `DEBRID_AL_SHADOW_MAX_HASHES`.
+    fn spawn_shadow(&mut self, hashes: &[String], native: ServiceCheck) {
+        let Some(fallback) = self.fallback.clone() else {
+            return;
+        };
+        let Some(encoded) = self.encoded.clone().filter(|s| !s.is_empty()) else {
+            return;
+        };
+        // A referência roda depois da resposta: o deadline da busca já pode
+        // ter vencido, então ela ganha o próprio prazo.
+        let deadline_at = debrid_shadow::fresh_deadline_ms();
+        let probe = debrid_shadow::probe_hashes(hashes);
+        if probe.is_empty() {
+            return;
+        }
+        let service = self.service.clone();
+        let probe_for_call = probe.clone();
+        debrid_shadow::spawn(debrid_shadow::ReferenceConfig {
+            native: native.outcome,
+            hashes: probe,
+            reference: Box::new(move || {
+                fallback.check(&encoded, &service, &probe_for_call, deadline_at)
+            }),
+        });
     }
 
     /// A reserva Node tem tudo para ser chamada (cliente, usuário e prazo).
@@ -219,6 +326,15 @@ impl DebridCheck for AdapterDebridCheck {
             Some(outcome) => answer_of(outcome, hash),
             None => DebridAnswer::Unknown,
         }
+    }
+}
+
+/// `Unknown` honesto: sem resposta fechada não há `Missing`.
+fn unknown_outcome() -> CheckOutcome {
+    CheckOutcome {
+        cached: Vec::new(),
+        known: false,
+        unusable: None,
     }
 }
 

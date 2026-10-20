@@ -1,10 +1,12 @@
 //! Testes da costura: mapeamento veredito→resposta, lote/memo, reserva só
 //! para serviço fora do despacho, e Unknown honesto sem re-upload AD.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use adom_core::RankingStream;
-use adom_debrid::verdict::{CheckOutcome, UnusableKind};
+use adom_debrid::alldebrid_mode::AlRustMode;
+use adom_debrid::verdict::{CheckOutcome, ServiceCheck, UnusableKind};
 use tokio::runtime::{Handle, Runtime};
 
 use super::{answer_of, AdapterDebridCheck, FallbackCheck};
@@ -199,6 +201,166 @@ fn alldebrid_sem_reserva_usa_o_local_em_lote() {
     let _ = debrid.check(&stream(MISS));
     assert_eq!(debrid.local_checks(), 1, "um check local em lote");
     assert_eq!(debrid.fallback_checks(), 0);
+}
+
+fn service(
+    cached: Vec<String>,
+    known: bool,
+    unusable: Option<(&'static str, &str)>,
+    attempted: bool,
+) -> Result<ServiceCheck, String> {
+    Ok(ServiceCheck {
+        outcome: outcome(cached, known, unusable),
+        attempted,
+    })
+}
+
+fn native_stub(
+    result: Result<ServiceCheck, String>,
+) -> Arc<dyn Fn() -> Result<ServiceCheck, String> + Send + Sync> {
+    Arc::new(move || result.clone())
+}
+
+/// `DEBRID_AL_RUST=on`: a nativa responde e o Node NÃO é consultado.
+#[test]
+fn alldebrid_on_usa_nativa_e_nao_chama_o_node() {
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.mode = AlRustMode::On;
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
+    let stub = Arc::new(StubFallback::ok(outcome(vec![MISS.into()], true, None)));
+    debrid.fallback = Some(stub.clone());
+    debrid.prepare(&[HIT.into(), MISS.into()]);
+    assert_eq!(
+        debrid.check(&stream(HIT)),
+        DebridAnswer::Cached { url: None }
+    );
+    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
+    assert_eq!(debrid.local_checks(), 1);
+    assert_eq!(
+        *stub.calls.lock().unwrap(),
+        0,
+        "não repete o upload no Node"
+    );
+}
+
+/// `on` sem upload enviado (base recusada/lista vazia) → fallback Node.
+#[test]
+fn alldebrid_on_cai_no_node_so_quando_nada_foi_enviado() {
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.mode = AlRustMode::On;
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.local_stub = Some(native_stub(service(vec![], false, None, false)));
+    let stub = Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
+    debrid.fallback = Some(stub.clone());
+    debrid.prepare(&[HIT.into(), MISS.into()]);
+    assert_eq!(
+        debrid.check(&stream(HIT)),
+        DebridAnswer::Cached { url: None }
+    );
+    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
+    assert_eq!(*stub.calls.lock().unwrap(), 1);
+    assert_eq!(debrid.fallback_checks(), 1);
+}
+
+/// `on` com upload tentado e lote perdido → Unknown, NUNCA segundo upload.
+#[test]
+fn alldebrid_on_falha_pos_upload_nao_repete_no_node() {
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.mode = AlRustMode::On;
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.local_stub = Some(native_stub(service(vec![], false, None, true)));
+    let stub = Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
+    debrid.fallback = Some(stub.clone());
+    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
+    assert_eq!(*stub.calls.lock().unwrap(), 0);
+}
+
+/// Conta auth/quota na nativa: a lista volta P2P (Unusable) sem Node.
+#[test]
+fn alldebrid_on_unusable_nao_consulta_o_node() {
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.mode = AlRustMode::On;
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.local_stub = Some(native_stub(service(
+        vec![],
+        false,
+        Some(("quota", "cheio")),
+        true,
+    )));
+    let stub = Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
+    debrid.fallback = Some(stub.clone());
+    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unusable);
+    assert_eq!(*stub.calls.lock().unwrap(), 0);
+}
+
+/// `shadow`: a nativa responde (caminho vivo) e o Node é a REFERÊNCIA em
+/// fundo — o cliente não espera a comparação.
+#[test]
+fn alldebrid_shadow_responde_nativo_e_compara_em_fundo() {
+    // Amostra 0: a thread de referência não chama o Node (o par é coberto
+    // nos testes do módulo da sombra). O que importa aqui é a resposta e o
+    // disparo.
+    let _lock = crate::test_env::lock();
+    let _env = shadow_env::Saved::set(&[("DEBRID_AL_SHADOW_PERCENT", "0")]);
+    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
+    debrid.mode = AlRustMode::Shadow;
+    debrid.encoded = Some(ENCODED.into());
+    debrid.deadline_at = Some(deadline());
+    debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
+    // A referência diz outra coisa: se ela vencesse, HIT não seria Cached.
+    let stub = Arc::new(StubFallback::ok(outcome(vec![MISS.into()], true, None)));
+    debrid.fallback = Some(stub.clone());
+    debrid.prepare(&[HIT.into(), MISS.into()]);
+    assert_eq!(
+        debrid.check(&stream(HIT)),
+        DebridAnswer::Cached { url: None }
+    );
+    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
+    assert_eq!(debrid.local_checks(), 1, "a nativa é o lado vivo");
+    assert_eq!(
+        debrid.fallback_checks(),
+        0,
+        "a referência não passa pelo caminho bloqueante"
+    );
+    // Dá tempo de a thread da sombra ler a amostra 0 antes do guard restaurar
+    // a env (o teste não espera a task: o contrato é não segurar o cliente).
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+mod shadow_env {
+    pub struct Saved(Vec<(&'static str, Option<String>)>);
+
+    impl Saved {
+        pub fn set(pairs: &[(&'static str, &str)]) -> Self {
+            let saved = pairs
+                .iter()
+                .map(|(name, value)| {
+                    let prev = std::env::var(name).ok();
+                    unsafe { std::env::set_var(name, value) };
+                    (*name, prev)
+                })
+                .collect();
+            Self(saved)
+        }
+    }
+
+    impl Drop for Saved {
+        fn drop(&mut self) {
+            for (name, prev) in &self.0 {
+                unsafe {
+                    match prev {
+                        Some(value) => std::env::set_var(name, value),
+                        None => std::env::remove_var(name),
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Debrid-Link é conhecido no despacho, mas `cacheCheck=false`: o veredito é

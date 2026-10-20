@@ -17,7 +17,7 @@ import debrid from '../src/debrid/index.js';
 import jackett from '../src/providers/jackett.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import { topSeededPool } from '../src/utils/autofetch-pools.js';
-import { fuseIndexEnrichment } from '../src/providers/index-evidence.js';
+import { fuseIndexEnrichment } from '../src/providers/index-enrichment.js';
 import type { DebridAdapter } from '../types/domain.js';
 import { createTestServer, encodeConfig, withMockFetch } from './e2e/e2e-harness.js';
 

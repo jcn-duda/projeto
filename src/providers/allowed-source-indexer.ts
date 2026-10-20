@@ -4,7 +4,7 @@
 // restrito via instantânea/fallback de fontes fora da seleção.
 import config from '../config.js';
 import { opts } from '../runtime.js';
-import { SAFE_INDEXER_ID } from './stream-builder-pipeline.js';
+import { SAFE_INDEXER_ID } from './live-indexer-state.js';
 
 /** Origens que não são indexer Jackett — não entram no filtro `ji`. */
 const NON_INDEXER = new Set(['autofetch', 'bludv', 'account']);

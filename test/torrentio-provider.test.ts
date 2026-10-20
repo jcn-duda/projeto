@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
 import * as torrentio from '../src/providers/torrentio.js';
-import { collectRaw } from '../src/providers/search-orchestrator.js';
+import { collectRaw } from '../src/providers/collect-orchestrator.js';
 import { filterRelevantRaw } from '../src/utils/format.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';

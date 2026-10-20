@@ -241,6 +241,9 @@ async fn alldebrid_veredito_sem_limpeza() {
 
 #[tokio::test]
 async fn realdebrid_ledger_hit_miss_e_blocked() {
+    // O kill-switch é global: sem a trava, `realdebrid_ledger_off...` pode
+    // rodar em paralelo e derrubar o ledger deste teste (flaky).
+    let _env = EnvGuard::set(&[("DEBRID_RD_LEDGER", None)]);
     let store = store_with(&[(HIT, "hit"), (MISS, "miss"), (DARK, "blocked")]);
     // Sem rede: o ledger responde sozinho (o adapter do RD não faz HTTP na
     // checagem) e o hit ganha refresh de TTL no store.
