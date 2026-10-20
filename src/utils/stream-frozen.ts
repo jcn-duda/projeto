@@ -289,6 +289,9 @@ export async function aroundFallback<T extends { items: unknown[]; injected: num
     return captured?.value ?? ({ items: [], injected: 0, cut: {} } as unknown as T);
   }
   const value = await run();
+  // A 1ª passada é a que monta a resposta; o tail (`late`) não pode
+  // sobrescrever a reserva que o build usou.
+  if (readJson<{ key: string; value: T } | null>(file, null)) return value;
   writeJson(file, { key, value: stripSecrets(value) });
   return value;
 }
