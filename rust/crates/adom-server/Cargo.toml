@@ -7,6 +7,7 @@ description = "Gateway HTTP do Adom. Com ROUTES_RUST vazio, só faz proxy para o
 license = "UNLICENSED"
 
 [dependencies]
+adom-core = { path = "../adom-core" }
 adom-debrid = { path = "../adom-debrid" }
 adom-search = { path = "../adom-search" }
 # Metadados nativos (C5, `META_RUST`): `MetaSources` + store do cache.db.

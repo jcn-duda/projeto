@@ -30,6 +30,8 @@ services:
     environment:
       GATEWAY: "${GATEWAY:-on}"
       ROUTES_RUST: "${ROUTES_RUST:-stream}"
+      # F4.7: play nativo por debrid (default OFF; Node é o rollback).
+      RESOLVE_RUST: "${RESOLVE_RUST:-off}"
       INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
       INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
       # F4.6: mesmos defaults do compose principal (o override repete para o

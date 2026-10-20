@@ -1,5 +1,6 @@
-//! POST /debrid/resolve. Faz o que `/debrid/link` faz e, na falha do
-//! adaptador, devolve o efeito. Não grava magnetdb, cache nem ledger.
+//! POST /debrid/resolve. Faz o que `/debrid/link` faz (via `play`, os cinco
+//! adaptadores) e, na falha do adaptador, devolve o efeito. Não grava magnetdb,
+//! cache nem ledger.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,11 +15,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::AppState;
-use crate::debridlink::DebridLink;
 use crate::error::DebridError;
-use crate::http::HttpClient;
-use crate::premiumize::Premiumize;
-use crate::realdebrid::RealDebrid;
+use crate::play;
 use crate::resolve_effects::resolve_effect;
 
 const POLL_WAIT: Duration = Duration::from_millis(700);
@@ -62,8 +60,17 @@ pub(super) async fn post(State(state): State<Arc<AppState>>, raw: Bytes) -> Resp
         );
     };
     let hint = play_hint(&body.episode);
-    match resolve(&body, client, &hint).await {
-        Ok(url) => json_status(StatusCode::OK, json!({ "url": url })),
+    match play::resolve_with_wait(
+        &body.service,
+        &body.api_key,
+        &body.hash,
+        &hint,
+        client,
+        POLL_WAIT,
+    )
+    .await
+    {
+        Ok(outcome) => json_status(StatusCode::OK, json!({ "url": outcome.url })),
         Err(err) => effect_response(&state, &body.service, &err),
     }
 }
@@ -85,30 +92,6 @@ fn effect_response(state: &AppState, service: &str, err: &DebridError) -> Respon
     json_status(status, body)
 }
 
-async fn resolve(
-    body: &RequestBody,
-    client: HttpClient,
-    hint: &PlayHint,
-) -> Result<Option<String>, DebridError> {
-    match body.service.as_str() {
-        "premiumize" => {
-            Premiumize::new(client)
-                .resolve_link(&body.api_key, &body.hash, hint, None)
-                .await
-        }
-        "debridlink" => {
-            DebridLink::new(client)
-                .resolve_link(&body.api_key, &body.hash, hint, None, POLL_WAIT)
-                .await
-        }
-        _ => {
-            RealDebrid::new(client)
-                .resolve_link(&body.api_key, &body.hash, hint, None, POLL_WAIT)
-                .await
-        }
-    }
-}
-
 fn known(service: &str) -> bool {
     matches!(
         service,
@@ -117,7 +100,7 @@ fn known(service: &str) -> bool {
 }
 
 fn link_service(service: &str) -> bool {
-    matches!(service, "premiumize" | "debridlink" | "realdebrid")
+    play::known_service(service)
 }
 
 fn play_hint(raw: &Option<Value>) -> PlayHint {

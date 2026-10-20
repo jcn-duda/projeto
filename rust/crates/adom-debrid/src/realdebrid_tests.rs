@@ -63,6 +63,7 @@ pub(super) enum Scene {
     ActiveOk,
     ActiveBad,
     ActiveNan,
+    DubLie,
 }
 
 pub(super) struct Rec {
@@ -179,6 +180,10 @@ fn dispatch(mock: &Mock, method: &str, path: &str, body: &str, info_n: u32) -> R
         Scene::Ready if method == "POST" && path == "/unrestrict/link" => {
             json_ok(json!({"download": DOWNLOAD}))
         }
+        Scene::DubLie if method == "GET" && path == "/torrents" => {
+            json_ok(json!([{"id":"READY1","hash":HASH_UP,"status":"downloaded"}]))
+        }
+        Scene::DubLie if method == "GET" && path == "/torrents/info/READY1" => dub_lie_downloaded(),
         Scene::Flow if method == "GET" && path == "/torrents" => json_ok(json!([])),
         Scene::Flow if method == "POST" && path == "/torrents/addMagnet" => {
             if !body.contains(HASH) || !body.contains("KeepMe") {
@@ -249,6 +254,14 @@ fn downloaded() -> Response {
     json_ok(json!({
         "status": "downloaded",
         "files": [{"id": 2, "path": "/Film.2020.mkv", "bytes": 5000, "selected": 1}],
+        "links": [format!("https://real-debrid.com/d/{TOKEN}")]
+    }))
+}
+
+fn dub_lie_downloaded() -> Response {
+    json_ok(json!({
+        "status": "downloaded",
+        "files": [{"id": 2, "path": "/Film.1080p.WEB-DL.x264-RARBG.mkv", "bytes": 5000, "selected": 1}],
         "links": [format!("https://real-debrid.com/d/{TOKEN}")]
     }))
 }
@@ -342,6 +355,29 @@ async fn torrent_baixado_pula_add_magnet() {
             "GET /torrents".to_string(),
             "GET /torrents/info/READY1".to_string(),
             "POST /unrestrict/link".to_string(),
+        ]
+    );
+    assert_clean(&mock);
+}
+
+#[tokio::test]
+async fn dubbed_prometido_com_grupo_en_vira_dub_lie_sem_unrestrict() {
+    let (addr, mock) = listen(Scene::DubLie).await;
+    let svc = open(addr);
+    let hint = PlayHint {
+        dubbed: true,
+        ..PlayHint::default()
+    };
+    let err = svc
+        .resolve_link(KEY, HASH, &hint, None, Duration::ZERO)
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), "dub_lie");
+    assert_eq!(
+        paths(&mock),
+        vec![
+            "GET /torrents".to_string(),
+            "GET /torrents/info/READY1".to_string(),
         ]
     );
     assert_clean(&mock);

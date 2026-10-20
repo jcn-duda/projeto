@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::State;
@@ -26,6 +27,7 @@ use adom_search::orchestrator::Orchestrator;
 use crate::canary::Canary;
 use crate::config::Config;
 use crate::resolve::{self, GateDecision};
+use crate::resolve_native::{self, NativeContext, PlayResolver};
 use crate::shadow::{self, ShadowMetrics, ShadowRemount, ShadowRequest};
 use crate::stream;
 
@@ -41,10 +43,14 @@ pub struct AppState {
     pub stream_native: bool,
     /// Guarda HMAC de `/resolve` (`ROUTES_RUST=resolve`).
     pub resolve_native: bool,
+    /// Corte do play (`RESOLVE_RUST=on`): resolve o debrid no próprio gateway.
+    pub resolve_rust: bool,
     /// Após verify OK: proxy ao Node. `false` → 501 (sem play / sem debrid).
     pub resolve_proxy: bool,
     /// `RESOLVE_SECRET` — precedência sobre `dk` da URL no HMAC.
     pub resolve_secret: String,
+    /// Resolvedor do play nativo; teste injeta stub sem rede.
+    pub resolver: Arc<dyn PlayResolver>,
     pub shadow_metrics: ShadowMetrics,
     /// Store SWR + deps compartilhados entre requisições. `None` com a flag
     /// desligada (ou teste sem corte).
@@ -94,6 +100,7 @@ pub async fn run(config: Config) -> Result<(), String> {
     let shadow = config.stream_shadow;
     let stream_cut = config.stream_native;
     let resolve_cut = config.resolve_native;
+    let resolve_rust = config.resolve_rust;
     let resolve_proxy = config.resolve_proxy;
     let upstream = config.upstream.clone();
     // F4.4a: o store do corte é aberto UMA vez e compartilhado com a API
@@ -159,8 +166,10 @@ pub async fn run(config: Config) -> Result<(), String> {
         stream_shadow: config.stream_shadow,
         stream_native: stream_cut,
         resolve_native: resolve_cut,
+        resolve_rust,
         resolve_proxy,
         resolve_secret: config.resolve_secret,
+        resolver: Arc::new(resolve_native::DebridPlay::new()),
         shadow_metrics: ShadowMetrics::new(),
         orchestrator,
         shadow_remount,
@@ -174,7 +183,7 @@ pub async fn run(config: Config) -> Result<(), String> {
         .local_addr()
         .map_err(|err| format!("endereco local: {err}"))?;
     eprintln!(
-        "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_shadow={shadow} stream_native={stream_cut} resolve_native={resolve_cut} resolve_proxy={resolve_proxy}"
+        "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_shadow={shadow} stream_native={stream_cut} resolve_native={resolve_cut} resolve_rust={resolve_rust} resolve_proxy={resolve_proxy}"
     );
     axum::serve(listener, router(state))
         .await
@@ -249,6 +258,20 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
             )
                 .into_response(),
         };
+    }
+    // Corte do play: `RESOLVE_RUST=on` resolve o debrid AQUI (HMAC + adaptador).
+    // Erro do adaptador vira o status/texto do Node — não cai no proxy (segundo
+    // upload mascararia o 502 do AllDebrid, por exemplo).
+    if state.resolve_rust && resolve::is_native_resolve(req.method(), req.uri().path()) {
+        let ctx = NativeContext {
+            resolve_secret: state.resolve_secret.clone(),
+            resolver: state.resolver.clone(),
+        };
+        // Path/query viram donos: o `Request` não fica vivo através do await
+        // (o body não é `Sync` e o handler precisa de future `Send`).
+        let path = req.uri().path().to_string();
+        let query = req.uri().query().map(str::to_string);
+        return resolve_native::handle(&path, query.as_deref(), &ctx).await;
     }
     // Guarda HMAC do play: verify no Rust; play real só via proxy (strangler).
     // Nunca chama debrid aqui — evita segundo upload.

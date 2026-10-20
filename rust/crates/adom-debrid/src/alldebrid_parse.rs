@@ -91,9 +91,11 @@ fn payload_error(value: &Value) -> DebridError {
     let probe = format!("{code} {message}");
     let kind = if code_up.starts_with("AUTH_") || classify_message(&probe).kind() == "auth" {
         "auth"
-    } else if code_up.contains("MAGNET_TOO_MANY_ACTIVE")
-        || classify_message(&probe).kind() == "quota"
-    {
+    } else if code_up.contains("MAGNET_TOO_MANY") || classify_message(&probe).kind() == "quota" {
+        // `MAGNET_TOO_MANY` sem `_ACTIVE` é o teto real de 1000 magnets que a
+        // conta mediu (a doc só documenta 30 ativos). Sem esta linha ele caía
+        // em `Other` e o `/resolve` nativo devolvia 502 genérico — o teto tem
+        // que ser explícito no log/erro, não mascarado.
         "quota"
     } else {
         "other"

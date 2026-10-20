@@ -20,8 +20,12 @@ static AUTH_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static QUOTA_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)MAGNET_TOO_MANY_ACTIVE|magnets? limit reached|too many active|quota exceeded|limit reached")
-        .expect("regex de quota")
+    // `MAGNET_TOO_MANY` sem `_ACTIVE` é o teto real de 1000 magnets medido na
+    // conta; a doc da AllDebrid só documenta os 30 ativos.
+    Regex::new(
+        r"(?i)MAGNET_TOO_MANY|magnets? limit reached|too many active|quota exceeded|limit reached",
+    )
+    .expect("regex de quota")
 });
 
 static RATE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -267,6 +271,10 @@ mod tests {
     #[test]
     fn texto_de_quota_e_auth() {
         assert_eq!(classify_message("MAGNET_TOO_MANY_ACTIVE").kind(), "quota");
+        assert_eq!(
+            classify_message("Magnets limit reached (MAGNET_TOO_MANY)").kind(),
+            "quota"
+        );
         assert_eq!(classify_message("AUTH_BAD_APIKEY").kind(), "auth");
         assert_eq!(classify_message("HTTP 500").kind(), "other");
     }

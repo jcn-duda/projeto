@@ -228,7 +228,12 @@ impl TorBox {
             })
             .collect();
         let (path, size) = match pick_file(&files, hint) {
-            PickOutcome::Empty => return Ok(None),
+            PickOutcome::Empty => {
+                // O TS audita mesmo sem arquivo escolhido (lista vazia não
+                // condena, mas a ordem é a dele).
+                crate::play_audit::assert_dubbed(&files, hint)?;
+                return Ok(None);
+            }
             PickOutcome::Error {
                 code,
                 evidence,
@@ -236,6 +241,7 @@ impl TorBox {
             } => return Err(torbox_check::pick_error(code, evidence, context)),
             PickOutcome::File { path, size } => (path, size),
         };
+        crate::play_audit::assert_dubbed(&files, hint)?;
         let file_id = torbox_check::chosen_id(&remote, &path, size);
         let dl = self
             .call(

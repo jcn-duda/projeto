@@ -341,6 +341,13 @@ async fn status_error_classifica_auth_quota_e_deixa_o_resto_so_com_mensagem() {
             "cheio (MAGNET_TOO_MANY_ACTIVE)",
         ),
         (
+            // Teto real de 1000 magnets (sem `_ACTIVE`): precisa sair como quota
+            // para o `/resolve` nativo devolver 502 explícito, nunca 404.
+            r#"{"status":"error","error":{"code":"MAGNET_TOO_MANY","message":"Magnets limit reached"}}"#,
+            "quota",
+            "Magnets limit reached (MAGNET_TOO_MANY)",
+        ),
+        (
             // Igual ao `batched` do TS: erro genérico do envelope vira "nenhum lote".
             r#"{"status":"error","error":{"code":"MAGNET_NOPE","message":"ruim"}}"#,
             "other",

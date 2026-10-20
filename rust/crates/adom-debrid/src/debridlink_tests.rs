@@ -60,6 +60,7 @@ pub(super) enum Scene {
     MissingId,
     Failure,
     Mismatch,
+    DubLie,
 }
 
 pub(super) struct Rec {
@@ -161,6 +162,11 @@ fn reply(scene: Scene, path: &str, list_n: usize) -> Response {
                 "downloadPercent": 100,
                 "files": named_files("Show.S01E03.1080p.mkv", S01E03)
             })),
+            Scene::DubLie => ok(json!({
+                "id": "dl-dub",
+                "downloadPercent": 100,
+                "files": [file("Filme.1080p.WEB-DL.x264-RARBG.mkv", 1_000, DUB_LIE)]
+            })),
         };
     }
     match scene {
@@ -188,6 +194,7 @@ const SAMPLE: &str = "https://dl.test/stream/sample.mkv";
 const S01E01: &str = "https://dl.test/stream/s01e01.mkv";
 pub(super) const S01E02: &str = "https://dl.test/stream/s01e02.mkv";
 const S01E03: &str = "https://dl.test/stream/s01e03.mkv";
+const DUB_LIE: &str = "https://dl.test/stream/dub-lie.mkv";
 
 fn named_files(other: &str, url: &str) -> Value {
     Value::Array(vec![

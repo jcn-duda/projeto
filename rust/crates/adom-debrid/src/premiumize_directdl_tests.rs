@@ -82,6 +82,22 @@ async fn link_fresco_pelo_path_exato() {
 }
 
 #[tokio::test]
+async fn dubbed_prometido_com_grupo_en_vira_dub_lie_antes_do_link() {
+    let hash = hash_at("12");
+    let body = r#"{"status":"success","content":[
+        {"path":"Filme.1080p.WEB-DL.x264-RARBG.mkv","size":20000000,"link":"https://cdn.test/en"}
+    ]}"#;
+    let (addr, _) = listen(200, body, None).await;
+    let pm = open(addr);
+    let hint = PlayHint {
+        dubbed: true,
+        ..PlayHint::default()
+    };
+    let err = pm.resolve_link(KEY, &hash, &hint, None).await.unwrap_err();
+    assert_eq!(err.kind(), "dub_lie");
+}
+
+#[tokio::test]
 async fn resolve_vazio_e_sem_video() {
     let hash = hash_at("11");
     let (addr, _) = listen(200, r#"{"status":"success","content":[]}"#, None).await;

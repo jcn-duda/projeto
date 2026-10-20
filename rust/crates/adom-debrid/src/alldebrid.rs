@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use crate::error::DebridError;
 use crate::http::{Call, HttpClient};
+use crate::play_audit;
 
 #[path = "alldebrid_check.rs"]
 mod check;
@@ -31,9 +32,6 @@ mod alldebrid_tests;
 #[cfg(test)]
 #[path = "alldebrid_play_tests.rs"]
 mod alldebrid_play_tests;
-
-#[path = "alldebrid_dub.rs"]
-mod dub;
 
 pub use check::{CacheReport, CheckFailure, CheckOpts, MAX_HASHES};
 
@@ -346,7 +344,7 @@ impl AllDebrid {
             PickOutcome::File { path, size } => {
                 // A prova é o caminho do arquivo. Mentira sai antes do
                 // unlock: não abre o link, não apaga o torrent, não marca.
-                if let Err(error) = dub::reject_before_unlock(&leaves, hint) {
+                if let Err(error) = play_audit::assert_dubbed(&as_debrid(&leaves), hint) {
                     return Err(PlayError { error, files });
                 }
                 let Some(link) = leaf_link(&leaves, &path, size) else {

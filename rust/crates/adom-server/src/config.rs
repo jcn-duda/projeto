@@ -5,6 +5,9 @@
 //! `stream`): o pipeline TS do Node saiu e a rota dele responde 410/503. Para
 //! rollback de diagnóstico, `ROUTES_RUST=` (vazio) volta ao proxy puro — mas o
 //! rollback FUNCIONAL do corte é imagem/commit anterior com `GATEWAY=off`.
+//!
+//! O play `/resolve` nativo por debrid é opt-in: `RESOLVE_RUST=on`, default OFF
+//! (o Node segue dono do play; `GATEWAY_RESOLVE_PROXY` é o rollback por env).
 
 use std::net::SocketAddr;
 
@@ -29,6 +32,9 @@ pub struct Config {
     pub stream_native: bool,
     /// `ROUTES_RUST` contém `resolve`: verifica HMAC e (strangler) proxy.
     pub resolve_native: bool,
+    /// `RESOLVE_RUST=on`: `/resolve` resolve o debrid no Rust (play nativo).
+    /// Default OFF — sem a flag o comportamento é o guarda+proxy/501 de sempre.
+    pub resolve_rust: bool,
     /// Encaminha o play ao Node após o verify. `false` → 501 (sem debrid).
     pub resolve_proxy: bool,
     /// `RESOLVE_SECRET` do operador (precedência sobre `dk` da URL).
@@ -43,14 +49,23 @@ impl Config {
         let routes =
             std::env::var("ROUTES_RUST").unwrap_or_else(|_| DEFAULT_ROUTES_RUST.to_string());
         let resolve_proxy = resolve_proxy_from_env();
+        let resolve_rust = resolve_rust_from_env();
         let resolve_secret = std::env::var("RESOLVE_SECRET").unwrap_or_default();
-        Self::parse(&listen, &upstream, &routes, resolve_proxy, resolve_secret)
+        Self::parse(
+            &listen,
+            &upstream,
+            &routes,
+            resolve_rust,
+            resolve_proxy,
+            resolve_secret,
+        )
     }
 
     pub fn parse(
         listen: &str,
         upstream: &str,
         routes: &str,
+        resolve_rust: bool,
         resolve_proxy: bool,
         resolve_secret: String,
     ) -> Result<Self, String> {
@@ -72,9 +87,21 @@ impl Config {
             stream_shadow: stream_shadow(routes),
             stream_native: stream_native(routes),
             resolve_native: resolve_native(routes),
+            resolve_rust,
             resolve_proxy,
             resolve_secret,
         })
+    }
+}
+
+/// `RESOLVE_RUST`: `on`/`1`/`true`/`yes` liga; ausente/vazio/off desliga.
+pub fn resolve_rust_from_env() -> bool {
+    match std::env::var("RESOLVE_RUST") {
+        Ok(raw) => !matches!(
+            raw.trim().to_ascii_lowercase().as_str(),
+            "" | "0" | "false" | "off" | "no"
+        ),
+        Err(_) => false,
     }
 }
 

@@ -2,6 +2,7 @@ mod canary;
 mod config;
 mod proxy;
 mod resolve;
+mod resolve_native;
 mod shadow;
 mod store_admin;
 mod stream;

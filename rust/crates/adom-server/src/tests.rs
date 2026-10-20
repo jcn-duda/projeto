@@ -1,7 +1,12 @@
+use std::future::Future;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use adom_core::PlayHint;
+use adom_debrid::play::PlayOutcome;
+use adom_debrid::DebridError;
 use axum::body::Body;
 use axum::extract::State;
 use axum::routing::any;
@@ -107,8 +112,10 @@ pub(super) fn gateway_state(
         stream_shadow,
         stream_native: false,
         resolve_native: false,
+        resolve_rust: false,
         resolve_proxy: true,
         resolve_secret: String::new(),
+        resolver: Arc::new(crate::resolve_native::NoopResolver),
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: None,
         shadow_remount: None,
@@ -138,8 +145,10 @@ pub(super) fn gateway_state_native(
         stream_shadow,
         stream_native: true,
         resolve_native: false,
+        resolve_rust: false,
         resolve_proxy: true,
         resolve_secret: String::new(),
+        resolver: Arc::new(crate::resolve_native::NoopResolver),
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: Some(orch),
         // Com corte nativo a sombra do Node não monta.
@@ -161,8 +170,10 @@ pub(super) fn gateway_state_resolve(
         stream_shadow: false,
         stream_native: false,
         resolve_native: true,
+        resolve_rust: false,
         resolve_proxy: proxy_enabled,
         resolve_secret: secret.to_string(),
+        resolver: Arc::new(crate::resolve_native::NoopResolver),
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: None,
         shadow_remount: None,
@@ -171,11 +182,33 @@ pub(super) fn gateway_state_resolve(
     }
 }
 
+/// Estado com o play NATIVO ligado (`RESOLVE_RUST=on`) e o resolvedor injetado.
+pub(super) fn gateway_state_resolve_rust(
+    upstream: SocketAddr,
+    secret: &str,
+    resolver: Arc<dyn crate::resolve_native::PlayResolver>,
+) -> AppState {
+    let mut state = gateway_state_resolve(upstream, secret, true);
+    state.resolve_rust = true;
+    state.resolver = resolver;
+    state
+}
+
 pub(super) async fn spawn_gateway(upstream: SocketAddr, native_health: bool) -> SocketAddr {
     spawn_gateway_state(gateway_state(upstream, native_health, false)).await
 }
 
 pub(super) async fn call(addr: SocketAddr, req: Request<Body>) -> (StatusCode, String) {
+    let (status, _headers, body) = call_full(addr, req).await;
+    (status, body)
+}
+
+/// Como [`call`], mas devolve os headers (o `/resolve` nativo precisa do
+/// `Location` do 302).
+pub(super) async fn call_full(
+    addr: SocketAddr,
+    req: Request<Body>,
+) -> (StatusCode, http::HeaderMap, String) {
     let client = proxy::client();
     let (mut parts, body) = req.into_parts();
     let pq = parts
@@ -189,8 +222,59 @@ pub(super) async fn call(addr: SocketAddr, req: Request<Body>) -> (StatusCode, S
         .await
         .unwrap();
     let status = response.status();
+    let headers = response.headers().clone();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    (status, String::from_utf8_lossy(&bytes).into_owned())
+    (
+        status,
+        headers,
+        String::from_utf8_lossy(&bytes).into_owned(),
+    )
+}
+
+/// Resolvedor de teste: devolve o `Result` fixo e conta as chamadas.
+pub(super) struct StubResolver {
+    outcome: Result<PlayOutcome, DebridError>,
+    pub calls: AtomicU32,
+    pub seen: Mutex<Vec<(String, String, PlayHint)>>,
+}
+
+impl StubResolver {
+    pub(super) fn ok(url: &str) -> Arc<Self> {
+        Self::with(Ok(PlayOutcome {
+            url: Some(url.into()),
+            ..PlayOutcome::default()
+        }))
+    }
+
+    pub(super) fn err(error: DebridError) -> Arc<Self> {
+        Self::with(Err(error))
+    }
+
+    fn with(outcome: Result<PlayOutcome, DebridError>) -> Arc<Self> {
+        Arc::new(Self {
+            outcome,
+            calls: AtomicU32::new(0),
+            seen: Mutex::new(Vec::new()),
+        })
+    }
+}
+
+impl crate::resolve_native::PlayResolver for StubResolver {
+    fn resolve<'a>(
+        &'a self,
+        service: &'a str,
+        api_key: &'a str,
+        _info_hash: &'a str,
+        hint: &'a PlayHint,
+    ) -> Pin<Box<dyn Future<Output = Result<PlayOutcome, DebridError>> + Send + 'a>> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        self.seen
+            .lock()
+            .unwrap()
+            .push((service.to_string(), api_key.to_string(), hint.clone()));
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
 }
 
 #[test]
@@ -230,6 +314,7 @@ fn config_default_vazio_nao_liga_stream() {
         "127.0.0.1:9",
         "http://127.0.0.1:7100",
         "",
+        false,
         true,
         String::new(),
     )
@@ -238,6 +323,7 @@ fn config_default_vazio_nao_liga_stream() {
     assert!(!ok.stream_shadow);
     assert!(!ok.stream_native);
     assert!(!ok.resolve_native);
+    assert!(!ok.resolve_rust);
     assert!(ok.resolve_proxy);
 }
 

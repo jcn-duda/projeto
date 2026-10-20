@@ -1,15 +1,20 @@
-//! Prova de áudio no play da AllDebrid, no ponto do `assertDubbedFiles`.
+//! Prova de áudio no play: porte de `assertDubbedFiles` (`src/debrid/audio-audit.ts`).
 //!
-//! O rótulo do indexer não entra. A promessa vem do pedido; os caminhos dos
-//! vídeos é que decidem. Sem promessa, o unlock segue. Não marca magnet,
-//! não apaga torrent e não mexe na checagem.
+//! O adaptador já recebeu a lista de arquivos para resolver o play; só então
+//! existe prova para confrontar a promessa `dubbed` da listagem. Sem promessa,
+//! nada acontece. A decisão (marcador PT preserva, grupo EN condena) mora no
+//! núcleo (`dubbed_lie_verdict`); aqui só os filtros de "vídeo de conteúdo" e a
+//! tradução para o `DebridError::DubLie`.
+//!
+//! A ordem em cada adaptador é a do TS: o `pickFile` lança ANTES da auditoria
+//! (NoVideo/EpisodePick vencem), e a auditoria roda mesmo quando a escolha é
+//! vazia. O Real-Debrid é a exceção do TS: audita antes de refinar a escolha.
 
-use std::sync::OnceLock;
+use adom_core::{
+    dubbed_lie_verdict, is_sample, is_site_ad, is_video, DebridFile, EpisodeContext,
+    EpisodeEvidence, PlayHint,
+};
 
-use adom_core::{dubbed_lie_verdict, is_site_ad, EpisodeContext, EpisodeEvidence, PlayHint};
-use regex::Regex;
-
-use super::Leaf;
 use crate::error::DebridError;
 
 const DUB_MESSAGE: &str = "o torrent anunciado como dublado contém release em inglês";
@@ -37,13 +42,12 @@ const DEFAULT_EN: &[&str] = &[
     "fgt", "ntb", "roarb", "oxy", "bae", "drs", "huzzah", "tgx", "ethel", "yify",
 ];
 
-/// `Err(DubLie)` antes do `/link/unlock`. `Ok` deixa o play abrir o link.
-pub(super) fn reject_before_unlock(leaves: &[Leaf], hint: &PlayHint) -> Result<(), DebridError> {
-    let promised = promised_dubbed(hint);
-    if !promised {
+/// `Err(DubLie)` quando a promessa não se sustenta. `Ok` deixa o play seguir.
+pub(crate) fn assert_dubbed(files: &[DebridFile], hint: &PlayHint) -> Result<(), DebridError> {
+    if !hint.dubbed {
         return Ok(());
     }
-    let paths = content_paths(leaves);
+    let paths = content_paths(files);
     let owned_pt = marker_list("AUDIO_AUDIT_PT_MARKERS", DEFAULT_PT);
     let owned_en = marker_list("AUDIO_AUDIT_EN_GROUPS", DEFAULT_EN);
     let pt: Vec<&str> = owned_pt.iter().map(String::as_str).collect();
@@ -77,11 +81,6 @@ pub(super) fn reject_before_unlock(leaves: &[Leaf], hint: &PlayHint) -> Result<(
     })
 }
 
-/// A promessa viaja no pedido (`dubbed: true`). O seletor não lê este campo.
-fn promised_dubbed(hint: &PlayHint) -> bool {
-    hint.dubbed
-}
-
 /// `String(process.env.AUDIO_AUDIT || 'true') === 'true'`.
 fn audit_enabled() -> bool {
     match std::env::var("AUDIO_AUDIT") {
@@ -104,26 +103,74 @@ fn marker_list(key: &str, default: &[&str]) -> Vec<String> {
 }
 
 /// Vídeo de conteúdo: extensão de vídeo, sem sample e sem propaganda do site.
-fn content_paths(leaves: &[Leaf]) -> Vec<&str> {
-    leaves
+fn content_paths(files: &[DebridFile]) -> Vec<&str> {
+    files
         .iter()
-        .map(|leaf| leaf.path.as_str())
+        .map(|file| file.path.as_str())
         .filter(|path| !path.is_empty() && is_video(path) && !is_sample(path) && !is_site_ad(path))
         .collect()
 }
 
-fn is_video(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    [".mkv", ".mp4", ".avi", ".mov", ".m4v", ".ts", ".webm"]
-        .iter()
-        .any(|ext| lower.ends_with(ext))
-}
+#[cfg(test)]
+mod tests {
+    use adom_core::{DebridFile, PlayHint};
 
-fn is_sample(path: &str) -> bool {
-    sample_re().is_match(path)
-}
+    use super::*;
 
-fn sample_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"(?i)(^|[^a-z])sample([^a-z]|$)").expect("amostra de vídeo"))
+    fn file(path: &str, size: f64) -> DebridFile {
+        DebridFile {
+            path: path.into(),
+            size,
+        }
+    }
+
+    fn dubbed() -> PlayHint {
+        PlayHint {
+            dubbed: true,
+            ..PlayHint::default()
+        }
+    }
+
+    #[test]
+    fn sem_promessa_nunca_condena() {
+        let files = [file("Filme.1080p.WEB-DL.x264-RARBG.mkv", 1.0)];
+        assert!(assert_dubbed(&files, &PlayHint::default()).is_ok());
+    }
+
+    #[test]
+    fn grupo_en_sem_marcador_pt_vira_dub_lie() {
+        let files = [file("Filme.1080p.WEB-DL.x264-RARBG.mkv", 1.0)];
+        let err = assert_dubbed(&files, &dubbed()).unwrap_err();
+        assert_eq!(err.kind(), "dub_lie");
+        let (evidence, context) = err.pick_parts();
+        assert_eq!(
+            evidence.and_then(|item| item.sample.as_deref()),
+            Some("Filme.1080p.WEB-DL.x264-RARBG.mkv")
+        );
+        assert_eq!(
+            context.map(|item| item.samples.clone()),
+            Some(vec!["rarbg".into()])
+        );
+    }
+
+    #[test]
+    fn marcador_pt_preserva() {
+        let files = [file("Filme.1080p.Dublado.x264-RARBG.mkv", 1.0)];
+        assert!(assert_dubbed(&files, &dubbed()).is_ok());
+    }
+
+    #[test]
+    fn sample_e_propaganda_nao_contam_como_video() {
+        let files = [
+            file("sample.mkv", 1.0),
+            file("1XBET.COM_promo.mkv", 1.0),
+            file("Filme.1080p.Dublado.mkv", 10.0),
+        ];
+        assert!(assert_dubbed(&files, &dubbed()).is_ok());
+    }
+
+    #[test]
+    fn lista_vazia_nao_condena() {
+        assert!(assert_dubbed(&[], &dubbed()).is_ok());
+    }
 }

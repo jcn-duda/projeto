@@ -2,6 +2,8 @@
 
 use std::sync::atomic::Ordering;
 
+use adom_core::PlayHint;
+
 use super::debridlink_tests::{
     episode, harness, movie, of, play, snapshot, Scene, H1, MATRIX, S01E02, SHOW,
 };
@@ -86,6 +88,20 @@ async fn success_false_em_200_e_other() {
     assert_eq!(err.message(), "invalid api key");
     let recs = snapshot(&mock);
     assert_eq!(of(&recs, "/seedbox/add").len(), 1);
+    assert!(of(&recs, "/seedbox/list").is_empty());
+}
+
+#[tokio::test]
+async fn dubbed_prometido_com_grupo_en_vira_dub_lie() {
+    let (mock, svc, _reset) = harness(Scene::DubLie).await;
+    let hint = PlayHint {
+        dubbed: true,
+        ..PlayHint::default()
+    };
+    let err = play(&svc, &hint, None).await.unwrap_err();
+    assert_eq!(err.kind(), "dub_lie");
+    let recs = snapshot(&mock);
+    // A prova de áudio sai antes de qualquer listagem/leitura de link.
     assert!(of(&recs, "/seedbox/list").is_empty());
 }
 

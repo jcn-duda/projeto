@@ -158,6 +158,31 @@ async fn resolve_held_nao_apaga_e_sem_video_sobe_erro() {
 }
 
 #[tokio::test]
+async fn dubbed_prometido_com_grupo_en_vira_dub_lie_sem_unlock() {
+    let status = envelope(json!({"magnets": {"id": 7, "status": "Ready", "files": [{
+        "n": "Filme.1080p.WEB-DL.x264-RARBG.mkv", "s": 10, "l": "https://files.test/en"
+    }]}}));
+    let scene = mock(
+        &envelope(json!({"magnets": [{"id": 7}]})),
+        &status,
+        &envelope(json!({"link": "https://cdn.test/en"})),
+    );
+    let ad = open(listen(scene.clone()).await);
+    let hint = PlayHint {
+        dubbed: true,
+        ..PlayHint::default()
+    };
+    let err = ad
+        .resolve_link(API_KEY, &hash_of('f'), &hint, &play_opts(false, false))
+        .await
+        .unwrap_err();
+    assert_eq!(err.error.kind(), "dub_lie");
+    // A lista é gravada antes do assert (ordem do TS), mas o link não abre.
+    assert!(err.files.is_some());
+    assert!(hits(&scene).iter().all(|hit| hit.path != "/link/unlock"));
+}
+
+#[tokio::test]
 async fn resolve_frio_com_delete_que_falha_ainda_e_negativo_e_nao_derruba() {
     // O delete falha: o TS só avisa e ainda grava davail=0.
     let scene = mock_delete_fails(

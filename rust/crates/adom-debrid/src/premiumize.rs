@@ -171,17 +171,26 @@ impl Premiumize {
         magnet: Option<&str>,
     ) -> Result<Option<String>, DebridError> {
         let files = self.directdl(api_key, hash, magnet, CALL_TIMEOUT).await?;
-        match pick_file(&as_debrid(&files), hint) {
-            PickOutcome::Empty => Ok(None),
-            PickOutcome::File { path, .. } => Ok(files
-                .into_iter()
-                .find(|file| file.path == path)
-                .and_then(|file| (!file.link.is_empty()).then_some(file.link))),
+        let view = as_debrid(&files);
+        // Ordem do TS: `pickFile` lança antes da auditoria de áudio; a
+        // auditoria roda mesmo quando a escolha volta vazia.
+        match pick_file(&view, hint) {
             PickOutcome::Error {
                 code,
                 evidence,
                 context,
             } => Err(pick_error(code, evidence, context)),
+            picked => {
+                crate::play_audit::assert_dubbed(&view, hint)?;
+                match picked {
+                    PickOutcome::Empty => Ok(None),
+                    PickOutcome::File { path, .. } => Ok(files
+                        .into_iter()
+                        .find(|file| file.path == path)
+                        .and_then(|file| (!file.link.is_empty()).then_some(file.link))),
+                    PickOutcome::Error { .. } => unreachable!("erro já devolvido acima"),
+                }
+            }
         }
     }
 

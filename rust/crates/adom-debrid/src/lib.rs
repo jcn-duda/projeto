@@ -14,6 +14,9 @@
 //! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
 //! `internal_check.rs` é o cliente de RESERVA da rota `/internal/debrid/check`
 //! do Node; `holds_feed.rs` é o cliente do feed `/internal/debrid/holds`.
+//! `play.rs` é o dispatch do play nativo (`/resolve` do gateway,
+//! `RESOLVE_RUST=on`): os cinco adaptadores, com o mesmo `pickFile` e a mesma
+//! prova de áudio (`play_audit`) do TS; efeitos L1 continuam no Node.
 
 pub mod alldebrid;
 pub mod alldebrid_clean_shadow;
@@ -36,6 +39,10 @@ pub mod http;
 pub mod import;
 pub mod internal_check;
 pub mod metrics;
+/// Play nativo: dispatch por adaptador (usado pelo `/resolve` do gateway).
+pub mod play;
+/// Prova de áudio no play (`assertDubbedFiles`) compartilhada pelos adaptadores.
+pub mod play_audit;
 pub mod premiumize;
 pub mod realdebrid;
 pub mod resolve_effects;

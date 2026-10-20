@@ -349,8 +349,15 @@ fn link_for_entry(entry: &Value, hint: &PlayHint) -> Result<Option<String>, Debr
         })
         .collect();
     match pick_file(&files, hint) {
-        PickOutcome::Empty => Ok(None),
-        PickOutcome::File { path, size } => Ok(download_link(&remote, &path, size)),
+        PickOutcome::Empty => {
+            // O TS audita mesmo sem arquivo escolhido (lista vazia não condena).
+            crate::play_audit::assert_dubbed(&files, hint)?;
+            Ok(None)
+        }
+        PickOutcome::File { path, size } => {
+            crate::play_audit::assert_dubbed(&files, hint)?;
+            Ok(download_link(&remote, &path, size))
+        }
         PickOutcome::Error {
             code,
             evidence,

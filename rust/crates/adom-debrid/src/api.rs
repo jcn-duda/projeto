@@ -6,7 +6,7 @@
 //! `DEBRID_AL_CLEANUP=on` e os fatos (`holdsComplete`/`knownBefore`/`heldHashes`)
 //! no corpo; sem eles a nativa é read-only.
 //! Conta/arquivos AD e rotas TorBox fora do check seguem 501.
-//! `/debrid/resolve` devolve o efeito e não grava estado.
+//! `/debrid/resolve` usa o `play` (cinco adaptadores) e não grava estado.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;

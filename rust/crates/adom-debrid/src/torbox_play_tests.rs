@@ -2,6 +2,8 @@
 
 use std::time::{Duration, Instant};
 
+use adom_core::PlayHint;
+
 use super::torbox_tests::{listen, movie, open, Kind, Mode, H1, KEY};
 use super::AccountStatus;
 
@@ -103,6 +105,23 @@ async fn pick_sem_video_e_erro() {
         .await
         .unwrap_err();
     assert_eq!(err.kind(), "no_video");
+    let hits = mock.hits.lock().unwrap();
+    assert!(hits.iter().all(|hit| hit.path != "/torrents/requestdl"));
+}
+
+#[tokio::test]
+async fn dubbed_prometido_com_grupo_en_vira_dub_lie() {
+    let (addr, mock) = listen(Mode::Resolve(Kind::DubLie), 200, "", None).await;
+    let svc = open(addr);
+    let hint = PlayHint {
+        dubbed: true,
+        ..PlayHint::default()
+    };
+    let err = svc
+        .resolve_link(KEY, H1, &hint, None, Duration::ZERO)
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), "dub_lie");
     let hits = mock.hits.lock().unwrap();
     assert!(hits.iter().all(|hit| hit.path != "/torrents/requestdl"));
 }

@@ -79,6 +79,7 @@ pub(super) enum Kind {
     NoId,
     Stuck,
     NoVideo,
+    DubLie,
 }
 
 pub(super) struct Hit {
@@ -194,6 +195,10 @@ fn ready_movie() -> String {
     r#"{"success":true,"data":{"download_present":true,"files":[{"id":7,"short_name":"Movie.2020.mkv","name":"other.mkv","size":1000}]}}"#.to_string()
 }
 
+fn dub_lie_movie() -> String {
+    r#"{"success":true,"data":{"download_present":true,"files":[{"id":7,"short_name":"Movie.1080p.WEB-DL.x264-RARBG.mkv","name":"other.mkv","size":1000}]}}"#.to_string()
+}
+
 fn resolve_body(mock: &Mock, path: &str, kind: Kind) -> String {
     match path {
         "/torrents/createtorrent" => {
@@ -214,6 +219,7 @@ fn resolve_body(mock: &Mock, path: &str, kind: Kind) -> String {
                     r#"{"success":true,"data":{"download_finished":false,"download_present":false}}"#.to_string()
                 }
                 Kind::Happy => ready_movie(),
+                Kind::DubLie => dub_lie_movie(),
                 Kind::NoId => r#"{"success":true,"data":{}}"#.to_string(),
             }
         }

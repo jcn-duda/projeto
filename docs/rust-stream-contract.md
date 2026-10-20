@@ -32,6 +32,7 @@ O **compose padrão** já sobe o gateway (`docker-compose.yml`):
 |---|---|---|
 | `GATEWAY` | `on` | `adom-server` na 7000; Node atrás na 7100 |
 | `ROUTES_RUST` | `stream` | corte nativo do `/stream` |
+| `RESOLVE_RUST` | `off` | play nativo por debrid no `/resolve` (§0.8); OFF = Node |
 | `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | meta/collect/tail e reserva de debrid — **nunca** `:7000` (a fachada recusa `/internal/*`) |
 
 O `docker-compose.gateway.yml` virou **diagnóstico/rollback** (publica o Node
@@ -47,6 +48,12 @@ Desde o **F4.6** a checagem/limpeza da AllDebrid também é nativa por default
 rota Node `/internal/debrid/check` responde **410**; `DEBRID_AL_RUST=off` é o
 rollback de uma linha dessa fatia (a rota volta a responder). Contrato em
 [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
+
+Desde o **F4.7** o play por debrid também existe no gateway, atrás de
+`RESOLVE_RUST=on` (default **OFF** — o Node segue dono do `/resolve`, com o
+proxy como rollback). HMAC, `pickFile`, adaptadores e status/texto de erro são
+os do Node; efeitos L1 (`magnetdb`/`davail`/invalidação/ledger) continuam no
+Node. Detalhe e limites no §0.8.
 
 O canário `STREAM_CANARY_PERCENT` (§9.5) e a sombra continuam no binário como
 instrumentos **históricos**: com `ROUTES_RUST` contendo `stream-shadow` o

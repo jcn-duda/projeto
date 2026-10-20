@@ -139,6 +139,12 @@ async fn finish_resolve(
     if status_of(info) != READY {
         return Ok(None);
     }
+    // Ordem do TS (`finishResolve`): a prova de áudio roda sobre os arquivos
+    // SELECIONADOS (é o que `links` representa), antes de refinar a escolha;
+    // num pack, a mentira vence o EpisodePick.
+    let files = rd_files(info);
+    let selected: Vec<&RdFile> = files.iter().filter(|file| file.selected).collect();
+    crate::play_audit::assert_dubbed(&as_debrid_ref(&selected), hint)?;
     let Some(link) = chosen_link(info, hint)? else {
         return Ok(None);
     };
