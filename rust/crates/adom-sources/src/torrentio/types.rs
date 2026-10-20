@@ -35,6 +35,94 @@ impl TorrentioMediaType {
     }
 }
 
+/// Opções de UMA consulta ao pool (espelha o `SearchOptions` do
+/// `src/providers/torrentio.ts`).
+///
+/// O breaker do Torrentio é local e do PROCESSO: só o caminho vivo pode abrir,
+/// fechar ou resetar o circuito. A sombra de fonte é referência read-only — o
+/// estado global não decide o que ela consulta e o resultado dela não pode
+/// pintar o circuito do caminho de resposta.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TorrentioSearchOptions {
+    /// Referência da sombra: IGNORA o breaker aberto e não o abre/reseta
+    /// (mesmo contrato do `readOnly` do TS).
+    pub read_only: bool,
+}
+
+impl TorrentioSearchOptions {
+    /// Caminho de resposta: respeita e alimenta o breaker.
+    pub const LIVE: Self = Self { read_only: false };
+    /// Sombra read-only: consulta mesmo aberto, sem tocar no circuito.
+    pub const SHADOW: Self = Self { read_only: true };
+}
+
+/// Desfecho de UMA consulta ao pool (F2.3).
+///
+/// O coletor nativo precisa distinguir resposta VÁLIDA (mesmo vazia) de fonte
+/// que não respondeu para montar o `live` sem inventar sucesso — e, como o
+/// Node, NÃO pode tratar 4xx (salvo 429) como host fora. O `search()` antigo
+/// continua fail-open devolvendo `Vec`; este tipo é o caminho detalhado.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TorrentioOutcome {
+    /// Resposta 2xx com JSON (pode vir sem `streams`, como no `data?.streams`).
+    Ok(Vec<TorrentioRawItem>),
+    /// `TORRENTIO_ENABLED=false`: o Node nem monta a tarefa; nada foi prometido.
+    Disabled,
+    /// Base barrada pela guarda SSRF: configuração inválida, não consulta.
+    BlockedUrl,
+    /// Args incompletos (filme sem IMDb / série sem S/E): sem rede, como o TS.
+    NoEndpoint,
+    /// Circuito local aberto (falhas seguidas recentes): a consulta foi
+    /// PULADA pela política do breaker, sem rede.
+    BreakerOpen,
+    /// HTTP não-2xx. `429`/`5xx` alimentam o breaker; os demais 4xx pertencem à
+    /// obra e o Node não os conta como falha do host.
+    Http(u16),
+    /// Corpo 2xx que não é JSON.
+    InvalidJson,
+    /// Falha de transporte (DNS/conexão/TLS).
+    Network(String),
+    /// Prazo da consulta vencido.
+    Timeout,
+}
+
+impl TorrentioOutcome {
+    /// Itens quando a resposta foi válida; qualquer outro desfecho é `[]`
+    /// (fail-open — uma fonte fora nunca derruba a busca).
+    pub fn into_items(self) -> Vec<TorrentioRawItem> {
+        match self {
+            Self::Ok(items) => items,
+            _ => Vec::new(),
+        }
+    }
+
+    /// Rótulo curto para log.
+    pub fn label(&self) -> String {
+        match self {
+            Self::Ok(items) => format!("ok({})", items.len()),
+            Self::Disabled => "disabled".to_string(),
+            Self::BlockedUrl => "blocked-url".to_string(),
+            Self::NoEndpoint => "no-endpoint".to_string(),
+            Self::BreakerOpen => "breaker-open".to_string(),
+            Self::Http(status) => format!("http-{status}"),
+            Self::InvalidJson => "invalid-json".to_string(),
+            Self::Network(_) => "network".to_string(),
+            Self::Timeout => "timeout".to_string(),
+        }
+    }
+
+    /// `true` quando a consulta foi TENTADA e o host não respondeu — é o que o
+    /// Node trata como falha (429/5xx/rede/timeout/JSON inválido) e o que
+    /// alimenta o breaker no caminho vivo.
+    pub fn is_host_failure(&self) -> bool {
+        match self {
+            Self::Http(status) => *status == 429 || *status >= 500,
+            Self::InvalidJson | Self::Network(_) | Self::Timeout => true,
+            _ => false,
+        }
+    }
+}
+
 /// Item cru do pool público Torrentio.
 ///
 /// `file_idx` atravessa o pipeline como no TS (preservado; não consumido no

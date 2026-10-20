@@ -3,6 +3,8 @@
 //! - Sem credencial na URL; fail-open → `[]`; breaker local (429/5xx/rede).
 //! - `fileIdx` preservado; dedupe por `infoHash` (primeiro vence).
 //! - Base configurável sob guarda SSRF.
+//! - `search_outcome` devolve o desfecho tipado do coletor; o breaker só é
+//!   lido/escrito no caminho VIVO (`TorrentioSearchOptions::LIVE`).
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -15,7 +17,10 @@ use serde_json::Value;
 use super::breaker::{now_ms, Breaker};
 use super::config::TorrentioConfig;
 use super::parse::map_stream;
-use super::types::{TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs};
+use super::types::{
+    TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs,
+    TorrentioSearchOptions,
+};
 
 /// Cliente Torrentio reutilizável (HTTP + breaker compartilhado).
 #[derive(Clone)]
@@ -55,21 +60,42 @@ impl TorrentioClient {
     }
 
     /// Consulta o pool. Fail-open: sempre `Vec` (nunca `Err` para o caller).
+    /// Equivale ao caminho VIVO (`TorrentioSearchOptions::LIVE`).
     pub async fn search(&self, args: &TorrentioSearchArgs) -> Vec<TorrentioRawItem> {
+        self.search_outcome(args, TorrentioSearchOptions::LIVE)
+            .await
+            .into_items()
+    }
+
+    /// Consulta detalhada: distingue resposta válida (inclusive vazia) de
+    /// configuração e de falha declarada. O breaker só participa quando
+    /// `options.read_only` é falso — na sombra a referência ignora o circuito
+    /// aberto e NÃO o abre/reseta (contrato do `readOnly` do TS).
+    pub async fn search_outcome(
+        &self,
+        args: &TorrentioSearchArgs,
+        options: TorrentioSearchOptions,
+    ) -> TorrentioOutcome {
         if !self.config.enabled {
-            return Vec::new();
+            return TorrentioOutcome::Disabled;
         }
         if !self.config.base_url_allowed() {
             eprintln!("[torrentio] TORRENTIO_URL bloqueada pela guarda SSRF");
-            return Vec::new();
+            return TorrentioOutcome::BlockedUrl;
         }
         let Some(url) = endpoint_url(&self.config.url, args) else {
-            return Vec::new();
+            return TorrentioOutcome::NoEndpoint;
         };
         let now = now_ms();
-        if self.breaker.is_open(&self.config, now) {
-            return Vec::new();
+        if !options.read_only && self.breaker.is_open(&self.config, now) {
+            return TorrentioOutcome::BreakerOpen;
         }
+        let read_only = options.read_only;
+        let note_failure = || {
+            if !read_only {
+                self.breaker.note_failure(&self.config, now_ms());
+            }
+        };
 
         let timeout = Duration::from_millis(self.config.timeout_ms.max(1));
         let request = self
@@ -79,10 +105,10 @@ impl TorrentioClient {
             .timeout(timeout);
         let imdb = args.imdb_id.clone();
         let exchange = async move {
-            let response = request.send().await.map_err(|e| e.to_string())?;
+            let response = request.send().await?;
             let status = response.status().as_u16();
-            let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-            Ok::<_, String>((status, bytes))
+            let bytes = response.bytes().await?;
+            Ok::<_, reqwest::Error>((status, bytes))
         };
 
         match tokio::time::timeout(timeout, exchange).await {
@@ -91,34 +117,46 @@ impl TorrentioClient {
                     // 4xx (salvo rate limit) pertence à obra — não abre breaker.
                     if status < 500 && status != 429 {
                         eprintln!("[torrentio] HTTP {status} para {imdb}");
-                        return Vec::new();
+                        return TorrentioOutcome::Http(status);
                     }
-                    self.breaker.note_failure(&self.config, now_ms());
+                    note_failure();
                     eprintln!("[torrentio] falha na consulta de {imdb}: HTTP {status}");
-                    return Vec::new();
+                    return TorrentioOutcome::Http(status);
                 }
                 match serde_json::from_slice::<Value>(&bytes) {
+                    // JSON sem `streams` é resposta vazia válida: o TS lê
+                    // `Array.isArray(data?.streams) ? … : []` e conta sucesso.
                     Ok(data) => {
                         let out = collect_streams(&data);
-                        self.breaker.note_success();
-                        out
+                        if !read_only {
+                            self.breaker.note_success();
+                        }
+                        TorrentioOutcome::Ok(out)
                     }
                     Err(err) => {
-                        self.breaker.note_failure(&self.config, now_ms());
+                        note_failure();
                         eprintln!("[torrentio] falha na consulta de {imdb}: JSON inválido: {err}");
-                        Vec::new()
+                        TorrentioOutcome::InvalidJson
                     }
                 }
             }
             Ok(Err(err)) => {
-                self.breaker.note_failure(&self.config, now_ms());
-                eprintln!("[torrentio] falha na consulta de {imdb}: {err}");
-                Vec::new()
+                note_failure();
+                // O timeout do reqwest (por request) e o do envelope chegam
+                // como desfechos distintos para o `live`; os dois são falha.
+                let timed_out = err.is_timeout();
+                let text = err.to_string();
+                eprintln!("[torrentio] falha na consulta de {imdb}: {text}");
+                if timed_out {
+                    TorrentioOutcome::Timeout
+                } else {
+                    TorrentioOutcome::Network(text)
+                }
             }
             Err(_) => {
-                self.breaker.note_failure(&self.config, now_ms());
+                note_failure();
                 eprintln!("[torrentio] falha na consulta de {imdb}: timeout");
-                Vec::new()
+                TorrentioOutcome::Timeout
             }
         }
     }

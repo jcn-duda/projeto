@@ -4,24 +4,61 @@
 //! (`POST /internal/search/collect`). Espelha o padrão do
 //! [`super::ProwlarrCollector`]: pool global por IMDb, sem plano Torznab/BR.
 //!
-//! - `TaskScope::Priority` → lote vazio (não é fonte BR).
-//! - `late_sweep` → lote vazio (varredura pt-BR é caminho Jackett).
-//! - `All` / `Nonpriority` → `client.search` por IMDb (+ S/E em série); fail-open.
-//! - `fileIdx` preservado em `RawItem.extra` (cliente já trunca; não consumido
-//!   no play/HMAC nesta fase).
+//! - `TaskScope::Priority` / `late_sweep` → lote vazio, live sem falha (não é
+//!   fonte BR nem varredura pt-BR: nada foi prometido).
+//! - `All` / `Nonpriority` → `client.search_outcome` por IMDb (+ S/E em
+//!   série); fail-open.
+//!
+//! **Identidade** é a do Node (`src/providers/torrentio.ts`):
+//!
+//! - `indexer: "torrentio"` — o agregador, não o tracker interno; é dele que
+//!   nasce o `_indexer` do stream (`search-names.ts:250`) e a cota por
+//!   indexador;
+//! - `tracker` = rótulo depois do ⚙️ no `title` (`ThePirateBay`, `Torrentio`…);
+//!   sem a linha de metadados o Node cai no `indexer` — o `display_tracker` do
+//!   nativo faz a mesma queda, então `None` aqui reproduz o `⚙️ torrentio`;
+//! - título/seeders/hash são do payload, `size` passa pela régua
+//!   `known_size` (1 KB sentinela / tamanho implausível = desconhecido), como
+//!   o item cru do Node ao atravessar `/internal/search/collect`;
+//! - `fileIdx` é PRESERVADO em `RawItem.extra` (o cliente já truncou) e volta
+//!   pelo `to_wire`; não é consumido no play/HMAC nesta fase.
+//!
+//! **Live (F2.3)** é por FONTE (`"torrentio"`): o Node agrega o pool numa
+//! consulta só e não publica quais trackers responderam. `Ok` = conjuntos
+//! vazios; `Empty` = resposta válida sem item relevante (`filter_relevant_raw`)
+//! ou 4xx da obra (host vivo, obra sem release); `Failed` = consulta tentada e
+//! não respondida (429/5xx/rede/timeout/JSON inválido/breaker aberto).
+//! `pending` nunca é inventado e `all` fica `Unknown`: o agregado `error` é do
+//! ramo `/all` do Jackett, não daqui.
+//!
+//! **Breaker**: só o caminho VIVO abre/reseta o circuito. A sombra de fonte
+//! usa `TorrentioSearchOptions::SHADOW` (ignora o aberto e não alimenta) e um
+//! cliente próprio, então o circuito do caminho de resposta nunca é tocado.
 //!
 //! Fora desta fatia: composição multi-fonte, cache `raw:v1`.
 
 use std::future::Future;
 use std::pin::Pin;
 
-use adom_sources::{TorrentioClient, TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs};
+use adom_core::RelevanceItem;
+use adom_sources::{
+    TorrentioClient, TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs,
+    TorrentioSearchOptions,
+};
 use serde_json::{Map, Number, Value};
 
 use crate::internal_types::TaskScope;
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
+use crate::orchestrator::jackett_collector::process_title_precision_tail_cut;
+use crate::orchestrator::jackett_live::relevant_count;
+use crate::orchestrator::live_state::LiveBatchState;
 use crate::orchestrator::sources_rust::sources_rust_includes;
-use crate::raw_item::RawItem;
+use crate::raw_item::{known_size, RawItem};
+
+/// Chave do estado vivo da fonte. O Torrentio é UMA consulta (como o Mico e o
+/// Prowlarr): não há como atribuir falha/vazio a um tracker específico sem
+/// inventar.
+pub const TORRENTIO_LIVE_KEY: &str = "torrentio";
 
 /// `SOURCES_RUST` contém o token `torrentio` (CSV, case-insensitive).
 pub fn sources_rust_includes_torrentio() -> bool {
@@ -46,19 +83,100 @@ pub fn try_torrentio_collector_from_env() -> Option<TorrentioCollector> {
 /// Collector que fala a API pública do Torrentio (sem POST `/internal/search/collect`).
 pub struct TorrentioCollector {
     client: TorrentioClient,
+    /// Referência da sombra: ignora o breaker e não o abre/reseta.
+    shadow: bool,
 }
 
 impl TorrentioCollector {
     pub fn new(client: TorrentioClient) -> Self {
-        Self { client }
+        Self {
+            client,
+            shadow: false,
+        }
     }
 
     pub fn from_env() -> Result<Self, String> {
         Ok(Self::new(TorrentioClient::from_env()?))
     }
 
+    /// Modo sombra: `readOnly` do Node (sem breaker, sem status).
+    pub fn with_shadow(mut self, shadow: bool) -> Self {
+        self.shadow = shadow;
+        self
+    }
+
     pub fn client(&self) -> &TorrentioClient {
         &self.client
+    }
+
+    fn search_options(&self) -> TorrentioSearchOptions {
+        if self.shadow {
+            TorrentioSearchOptions::SHADOW
+        } else {
+            TorrentioSearchOptions::LIVE
+        }
+    }
+}
+
+/// Estado vivo da fonte: `all` fica `Unknown` (o agregado só existe no ramo
+/// `/all` do Jackett) e `pending` nunca é criado.
+fn live_state(failed: bool, empty: bool) -> LiveBatchState {
+    let mut state = LiveBatchState::default();
+    if failed {
+        state.failed.insert(TORRENTIO_LIVE_KEY.to_string());
+    }
+    if empty {
+        state.empty.insert(TORRENTIO_LIVE_KEY.to_string());
+    }
+    state
+}
+
+fn live_ok() -> LiveBatchState {
+    live_state(false, false)
+}
+
+fn live_empty() -> LiveBatchState {
+    live_state(false, true)
+}
+
+fn live_failed() -> LiveBatchState {
+    live_state(true, false)
+}
+
+/// Resposta válida é `Ok` quando ALGUM item passa na relevância da obra;
+/// resposta sem item relevante é `Empty` (vazio suspeito), como o `relevant: 0`
+/// do Node. A régua é a MESMA do Jackett/Prowlarr (`filter_relevant_raw`).
+fn live_from_items(items: &[TorrentioRawItem], job: &CollectJob) -> LiveBatchState {
+    if items.is_empty() {
+        return live_empty();
+    }
+    let entries: Vec<RelevanceItem> = items
+        .iter()
+        .map(|item| RelevanceItem {
+            title: Some(item.title.clone()),
+            title_pascal: None,
+            // O pool entrega `infoHash`, não magnet/guid: a relevância decide
+            // pelo título, igual ao `RawItem` do Node.
+            magnet: None,
+            magnet_uri: None,
+            guid: None,
+            // `torrentio.ts` não marca `isBr`; o build decide por `looksPtBr`.
+            is_br: false,
+        })
+        .collect();
+    let relevant = relevant_count(&entries, job, process_title_precision_tail_cut());
+    if relevant == 0 {
+        live_empty()
+    } else {
+        live_ok()
+    }
+}
+
+fn batch(items: Vec<RawItem>, live: LiveBatchState) -> CollectBatch {
+    CollectBatch {
+        items,
+        partial: false,
+        live: Some(live),
     }
 }
 
@@ -69,34 +187,51 @@ impl Collector for TorrentioCollector {
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
         Box::pin(async move {
             // Fonte fora dos `providers` da request: o Node não a consultaria.
+            // Nada foi prometido → live vazio (nunca falha sintética).
             if !job.wants("torrentio") {
-                return Ok(CollectBatch {
-                    items: Vec::new(),
-                    partial: false,
-                    live: Some(crate::orchestrator::live_state::LiveBatchState::default()),
-                });
+                return Ok(batch(Vec::new(), live_ok()));
             }
             // Mesma topologia do TS: torrentio entra como tarefa global
             // (`priority=false`); scope BR e late-sweep não consultam.
             if job.late_sweep || matches!(job.scope, TaskScope::Priority) {
-                return Ok(CollectBatch::default());
+                return Ok(batch(Vec::new(), live_ok()));
             }
+            // Obra sem IMDb/S/E válidos: o TS devolve antes do fetch.
             let Some(args) = search_args_from_job(&job) else {
-                return Ok(CollectBatch::default());
+                return Ok(batch(Vec::new(), live_ok()));
             };
-            let items = self
+            let outcome = self
                 .client
-                .search(&args)
-                .await
-                .into_iter()
-                .map(raw_from_torrentio)
-                .collect();
-            Ok(CollectBatch {
-                items,
-                partial: false,
-                // Coletor nativo: sem o contrato vivo por indexer do Node.
-                live: None,
-            })
+                .search_outcome(&args, self.search_options())
+                .await;
+            let label = outcome.label();
+            match outcome {
+                TorrentioOutcome::Ok(items) => {
+                    let live = live_from_items(&items, &job);
+                    let mapped = items.into_iter().map(raw_from_torrentio).collect();
+                    Ok(batch(mapped, live))
+                }
+                // Configuração (kill-switch / base barrada / args incompletos):
+                // a fonte nem foi consultada — o Node também não registra nada.
+                TorrentioOutcome::Disabled
+                | TorrentioOutcome::BlockedUrl
+                | TorrentioOutcome::NoEndpoint => Ok(batch(Vec::new(), live_ok())),
+                // 4xx da obra: o host está vivo (o Node não alimenta o breaker),
+                // mas esta obra não tem release no pool → vazio suspeito.
+                TorrentioOutcome::Http(status) if status < 500 && status != 429 => {
+                    eprintln!("[search] torrentio: {label} (obra sem release no pool)");
+                    Ok(batch(Vec::new(), live_empty()))
+                }
+                // 429/5xx, JSON inválido, rede, timeout e breaker aberto: a
+                // consulta foi prometida e não foi respondida.
+                failure => {
+                    debug_assert!(
+                        failure.is_host_failure() || failure == TorrentioOutcome::BreakerOpen
+                    );
+                    eprintln!("[search] torrentio: {label} (falha viva, lote vazio)");
+                    Ok(batch(Vec::new(), live_failed()))
+                }
+            }
         })
     }
 }
@@ -128,6 +263,9 @@ fn i32_of(n: Option<i64>) -> Option<i32> {
 }
 
 fn raw_from_torrentio(item: TorrentioRawItem) -> RawItem {
+    // `tracker = item.tracker || item.Tracker || item.Indexer || item.indexer`:
+    // aqui o `tracker` é o rótulo do ⚙️ (fonte indexada), vazio = sem rótulo —
+    // o `display_tracker` cai no `indexer` ("torrentio"), como o Node.
     let tracker = item
         .tracker
         .as_deref()
@@ -136,6 +274,7 @@ fn raw_from_torrentio(item: TorrentioRawItem) -> RawItem {
     let sources = tracker
         .map(|t| vec![format!("tracker:{t}")])
         .unwrap_or_default();
+    // `fileIdx` atravessa como campo público (o TS preserva inteiro).
     let mut extra = Map::new();
     if let Some(idx) = item.file_idx {
         extra.insert("fileIdx".into(), Value::Number(Number::from(idx)));
@@ -143,10 +282,13 @@ fn raw_from_torrentio(item: TorrentioRawItem) -> RawItem {
     RawItem {
         title: Some(item.title).filter(|t| !t.is_empty()),
         info_hash: Some(item.info_hash).filter(|h| !h.is_empty()),
+        // `seeders ?? 0` do TS: o pool manda 0 quando não mediu.
         seeders: Some(item.seeders),
-        size_bytes: item.size,
+        size_bytes: known_size(item.size),
         indexer: Some(item.indexer).filter(|s| !s.is_empty()),
+        tracker: tracker.map(str::to_string),
         sources,
+        // `torrentio.ts` não marca `isBr`; `looksPtBr(title)` decide no build.
         is_br: false,
         extra,
         ..RawItem::default()
@@ -154,126 +296,17 @@ fn raw_from_torrentio(item: TorrentioRawItem) -> RawItem {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::orchestrator::collect::CollectJob;
-    use crate::orchestrator::sources_rust::sources_rust_csv_includes;
-    use adom_sources::TorrentioConfig;
-    use serde_json::json;
+#[path = "torrentio_collector_support.rs"]
+mod test_support;
 
-    fn base_job() -> CollectJob {
-        CollectJob {
-            encoded: "e30".into(),
-            scope: TaskScope::All,
-            kind: "movie".into(),
-            imdb_id: "tt0133093".into(),
-            season: None,
-            episode: None,
-            year: Some(json!(1999)),
-            names: vec!["The Matrix".into()],
-            query: "The Matrix 1999".into(),
-            pt_query: Some("Matrix 1999".into()),
-            sweep_query: Some("Matrix".into()),
-            original_query: None,
-            multi_work_query: None,
-            priority: false,
-            deadline_at: 1_700_000_000_000,
-            late_sweep: false,
-            providers: Vec::new(),
-            jackett_indexers: Vec::new(),
-            dubbed_only: false,
-            mico_default: false,
-        }
-    }
+#[cfg(test)]
+#[path = "torrentio_collector_tests.rs"]
+mod tests;
 
-    #[test]
-    fn token_torrentio_no_csv() {
-        assert!(sources_rust_csv_includes("torrentio", "torrentio"));
-        assert!(sources_rust_csv_includes("jackett,torrentio", "torrentio"));
-        assert!(!sources_rust_csv_includes("jackett", "torrentio"));
-    }
+#[cfg(test)]
+#[path = "torrentio_collector_live_tests.rs"]
+mod live_tests;
 
-    #[test]
-    fn mapa_preserva_file_idx_indexer_e_sources() {
-        let raw = raw_from_torrentio(TorrentioRawItem {
-            title: "The Matrix 1999".into(),
-            info_hash: "abcd0123456789abcdef0123456789abcdef01".into(),
-            seeders: 10.0,
-            size: Some(1_000.0),
-            tracker: Some("ThePirateBay".into()),
-            indexer: "torrentio".into(),
-            file_idx: Some(2),
-        });
-        assert_eq!(raw.indexer.as_deref(), Some("torrentio"));
-        assert_eq!(raw.sources, vec!["tracker:ThePirateBay".to_string()]);
-        assert!(!raw.is_br);
-        assert_eq!(raw.extra.get("fileIdx"), Some(&json!(2)));
-        assert_eq!(
-            raw.info_hash.as_deref(),
-            Some("abcd0123456789abcdef0123456789abcdef01")
-        );
-    }
-
-    #[test]
-    fn serie_sem_se_nao_monta_args() {
-        let job = CollectJob {
-            kind: "series".into(),
-            season: None,
-            episode: Some(1),
-            ..base_job()
-        };
-        assert!(search_args_from_job(&job).is_none());
-    }
-
-    #[test]
-    fn filme_monta_args_por_imdb() {
-        let args = search_args_from_job(&base_job()).expect("args");
-        assert_eq!(args.media_type, TorrentioMediaType::Movie);
-        assert_eq!(args.imdb_id, "tt0133093");
-        assert_eq!(args.season, None);
-        assert_eq!(args.episode, None);
-    }
-
-    #[tokio::test]
-    async fn priority_e_late_sweep_nao_consultam() {
-        // fail-open sem rede se o early-return falhar
-        let cfg = TorrentioConfig {
-            enabled: false,
-            ..Default::default()
-        };
-        let client = TorrentioClient::new(cfg).expect("client");
-        let collector = TorrentioCollector::new(client);
-
-        let priority = CollectJob {
-            scope: TaskScope::Priority,
-            priority: true,
-            ..base_job()
-        };
-        let batch = collector.collect(priority).await.expect("ok");
-        assert!(batch.items.is_empty());
-
-        let late = CollectJob {
-            late_sweep: true,
-            providers: Vec::new(),
-            jackett_indexers: Vec::new(),
-            dubbed_only: false,
-            mico_default: false,
-            ..base_job()
-        };
-        let batch = collector.collect(late).await.expect("ok");
-        assert!(batch.items.is_empty());
-    }
-
-    #[tokio::test]
-    async fn disabled_fail_open_vazio() {
-        let cfg = TorrentioConfig {
-            enabled: false,
-            ..Default::default()
-        };
-        let client = TorrentioClient::new(cfg).expect("client");
-        let collector = TorrentioCollector::new(client);
-        let batch = collector.collect(base_job()).await.expect("ok");
-        assert!(batch.items.is_empty());
-        assert!(!batch.partial);
-    }
-}
+#[cfg(test)]
+#[path = "torrentio_collector_breaker_tests.rs"]
+mod breaker_tests;

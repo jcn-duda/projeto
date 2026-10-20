@@ -234,3 +234,33 @@ async fn sombra_prefere_a_selecao_da_request_ao_override_do_processo() {
         "seleção da request vence o JACKETT_INDEXERS do processo"
     );
 }
+
+/// Torrentio: a referência read-only roda SÓ ele (`skip_sources` das outras) e
+/// não manda override de `JACKETT_INDEXERS` — a fonte consulta por IMDb.
+#[tokio::test]
+async fn wrapper_da_sombra_torrentio_manda_skip_sources_sem_override() {
+    let routes = Arc::new(RecordingRoutes::default());
+    let collector = node_collector_for_source(routes.clone(), "torrentio", None);
+    collector
+        .collect(job(now_ms() + 2_000))
+        .await
+        .expect("coleta");
+    let requests = routes.seen.lock().expect("requests");
+    let request = requests.first().expect("uma requisição");
+    assert!(request.read_only, "sombra não pode ter efeitos no Node");
+    assert_eq!(request.shadow_source.as_deref(), Some("torrentio"));
+    assert_eq!(
+        request.skip_sources,
+        vec![
+            "jackett".to_string(),
+            "prowlarr".to_string(),
+            "bludv".to_string(),
+            "mico".to_string()
+        ],
+        "a referência não repete as outras fontes"
+    );
+    assert_eq!(
+        request.indexers, None,
+        "Torrentio não tem lista de JACKETT_INDEXERS"
+    );
+}

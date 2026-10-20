@@ -109,8 +109,8 @@ pub use prowlarr::{
 pub use sources::MetaSources;
 pub use tmdb::TmdbClient;
 pub use torrentio::{
-    TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs,
-    TORRENTIO_DEFAULT_URL,
+    TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioOutcome, TorrentioRawItem,
+    TorrentioSearchArgs, TorrentioSearchOptions, TORRENTIO_DEFAULT_URL,
 };
 pub use types::{
     CinemetaMeta, CollectionInfo, EpisodeAired, LookupOptions, MediaType, MetaLookup, Titles,

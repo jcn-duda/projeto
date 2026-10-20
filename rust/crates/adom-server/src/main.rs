@@ -1,3 +1,4 @@
+mod canary;
 mod config;
 mod proxy;
 mod resolve;

@@ -181,6 +181,14 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
                 .collect()
         })
         .unwrap_or_default();
+    // `fileIdx` do Torrentio: campo PÚBLICO que o Node preserva inteiro no
+    // item cru (truncado no provider). Não é consumido no build/play, mas
+    // precisa atravessar a travessia Node→Rust sem sumir (o `to_wire` do
+    // index-write devolve o que a fonte publicou).
+    let mut extra = Map::new();
+    if let Some(file_idx) = v.get("fileIdx").filter(|x| x.is_number() || x.is_string()) {
+        extra.insert("fileIdx".into(), file_idx.clone());
+    }
     RawItem {
         title: str_of(&["title"]),
         title_pascal: str_of(&["Title"]),
@@ -210,7 +218,7 @@ pub fn raw_item_from_value(v: &Value) -> RawItem {
         tracker: str_of(&["tracker", "Tracker", "Indexer"]),
         media_source: str_of(&["mediaSource"]),
         multi_work_admitted: false,
-        extra: Map::new(),
+        extra,
     }
 }
 
@@ -288,7 +296,11 @@ impl RawItem {
 /// Tamanho conhecido do item (`search-names.ts`: `UNKNOWN_SIZE_MAX` /
 /// `IMPLAUSIBLE_SIZE_MIN`). Fontes BR mandam 1 KB quando o post não publica
 /// tamanho; sem esta limpeza o nativo pintava `💾 1.00 KB` e o Node não.
-fn known_size(value: Option<f64>) -> Option<f64> {
+///
+/// Visível no crate porque o coletor NATIVO (que não passa por
+/// [`raw_item_from_value`]) também precisa desta régua — senão o tamanho só
+/// seria limpo no caminho do Node e a mesma release sairia diferente.
+pub(crate) fn known_size(value: Option<f64>) -> Option<f64> {
     const UNKNOWN_SIZE_MAX: f64 = 1024.0;
     const IMPLAUSIBLE_SIZE_MIN: f64 = 500.0 * 1024.0 * 1024.0 * 1024.0;
     value.filter(|bytes| *bytes > UNKNOWN_SIZE_MAX && *bytes < IMPLAUSIBLE_SIZE_MIN)
@@ -317,5 +329,30 @@ mod tests {
         assert_eq!(item.hash(), "abcdef0123456789abcdef0123456789abcdef01");
         item.info_hash = Some("0123456789ABCDEF0123456789ABCDEF01234567".into());
         assert_eq!(item.hash(), "0123456789abcdef0123456789abcdef01234567");
+    }
+
+    /// `fileIdx` do Torrentio (campo público do item cru) atravessa a travessia
+    /// Node→Rust e volta no `to_wire`; valor não numérico/booleano é ignorado.
+    #[test]
+    fn file_idx_do_wire_fica_no_extra_e_volta() {
+        let item = raw_item_from_value(&serde_json::json!({
+            "title": "Filme 2024",
+            "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "indexer": "torrentio",
+            "fileIdx": 3,
+        }));
+        assert_eq!(item.extra.get("fileIdx"), Some(&serde_json::json!(3)));
+        let wire = item.to_wire();
+        assert_eq!(wire.get("fileIdx"), Some(&serde_json::json!(3)));
+        assert_eq!(
+            wire.get("indexer").and_then(Value::as_str),
+            Some("torrentio")
+        );
+
+        let sem = raw_item_from_value(&serde_json::json!({
+            "title": "x",
+            "fileIdx": null,
+        }));
+        assert!(!sem.extra.contains_key("fileIdx"));
     }
 }

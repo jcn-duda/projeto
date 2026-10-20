@@ -1,11 +1,12 @@
-//! Sombra de FONTE (F2.1/F2.2): compara o coletor nativo com o `NodeCollector`
-//! para o MESMO [`CollectJob`], sem tocar store/debrid/tail/efeitos.
+//! Sombra de FONTE (F2.1/F2.2/F2.3): compara o coletor nativo com o
+//! `NodeCollector` para o MESMO [`CollectJob`], sem tocar store/debrid/tail/
+//! efeitos.
 //!
 //! Liga por `SOURCES_RUST_SHADOW` (CSV, default vazio). Fontes com sombra:
-//! `jackett` e `prowlarr`; Torrentio/BLUDV/Mico são registrados como ignorados
-//! (log de boot) e NÃO rodam sombra até a normalização de identidade. Fonte que
-//! já está em `SOURCES_RUST` também é ignorada - o corte nativo dela está
-//! ativo, não é sombra.
+//! `jackett`, `prowlarr` e `torrentio`; BLUDV/Mico são registrados como
+//! ignorados (log de boot) e NÃO rodam sombra até a normalização de identidade.
+//! Fonte que já está em `SOURCES_RUST` também é ignorada - o corte nativo dela
+//! está ativo, não é sombra.
 //!
 //! O coletor de produção responde normalmente; as comparações correm em
 //! `tokio::spawn` e só alimentam métricas/log. O lado Node roda em
@@ -18,12 +19,12 @@
 //! - `live.failed`/`pending`/`empty` e o agregado `all` (só quando AMBOS os
 //!   lados têm veredito; `Unknown` = ramo `/all` ausente, não divergência).
 //!
-//! **Live do Prowlarr não é comparado:** o `collectRawLive` do Node só emite
-//! `onQueryResult` para Jackett (por indexer) e Mico, então a referência
-//! read-only do Prowlarr sai vazia. Comparar o live nativo (por FONTE) com
-//! esse vazio daria divergência FALSA; a sombra dele compara a IDENTIDADE
-//! (hashes por `_indexer`/tracker). O `live` nativo vale na produção com
-//! `SOURCES_RUST=prowlarr`; quando o Node prometer o contrato, o flag
+//! **Live de Prowlarr/Torrentio não é comparado:** o `collectRawLive` do Node
+//! só emite `onQueryResult` para Jackett (por indexer) e Mico, então a
+//! referência read-only dessas fontes sai vazia. Comparar o live nativo (por
+//! FONTE) com esse vazio daria divergência FALSA; a sombra delas compara a
+//! IDENTIDADE (hashes por `_indexer`). O `live` nativo vale na produção com
+//! `SOURCES_RUST=prowlarr,torrentio`; quando o Node prometer o contrato, o flag
 //! `compare_live` do par liga sem mexer no coletor.
 //!
 //! `partial` NÃO é divergência de fonte: é a janela de coleta do Node. Quando
@@ -51,8 +52,10 @@ use adom_sources::now_ms;
 
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector, NodeCollector};
 use crate::orchestrator::internal_routes::InternalRoutes;
-use crate::orchestrator::jackett_collector::JackettCollector;
-use crate::orchestrator::prowlarr_collector::ProwlarrCollector;
+
+#[path = "source_shadow_native.rs"]
+mod native;
+pub(crate) use native::native_collector;
 
 #[path = "source_shadow_compare.rs"]
 mod compare;
@@ -87,7 +90,7 @@ fn sources_from_env() -> Vec<&'static str> {
     if !ignored.is_empty() {
         eprintln!(
             "[source-shadow] ignorado(s) em {SOURCE_SHADOW_ENV}: {} \
-             (sombra: jackett,prowlarr)",
+             (sombra: jackett,prowlarr,torrentio)",
             ignored.join(",")
         );
     }
@@ -155,42 +158,6 @@ pub fn wrap_collector_with_source_shadow(
         pairs,
         metrics: global_metrics().clone(),
     })
-}
-
-/// Coletor nativo da sombra + o override de indexers do `NodeCollector`.
-struct NativeShadow {
-    collector: Arc<dyn Collector>,
-    /// `Some` só para o Jackett (`JACKETT_INDEXERS` do processo); `None` para
-    /// fontes que não têm indexers (Prowlarr) — aí a referência usa o `ji` do
-    /// job, sem override.
-    indexers: Option<Vec<String>>,
-}
-
-/// Coletor nativo da sombra. O Jackett entra em modo sombra (ignora breaker e
-/// não registra status); o Prowlarr não tem breaker/status e usa o cliente
-/// normal.
-fn native_collector(source: &str) -> Result<NativeShadow, String> {
-    match source {
-        "jackett" => {
-            let collector = JackettCollector::from_env()
-                .map_err(|err| format!("JackettClient: {err}"))?
-                .with_shadow(true);
-            let indexers = collector.client().config().indexers.clone();
-            Ok(NativeShadow {
-                collector: Arc::new(collector),
-                indexers: Some(indexers),
-            })
-        }
-        "prowlarr" => {
-            let collector =
-                ProwlarrCollector::from_env().map_err(|err| format!("ProwlarrClient: {err}"))?;
-            Ok(NativeShadow {
-                collector: Arc::new(collector),
-                indexers: None,
-            })
-        }
-        other => Err(format!("fonte sem sombra: {other}")),
-    }
 }
 
 /// O `NodeCollector` de referência da sombra: só a fonte comparada e sem
@@ -394,6 +361,10 @@ mod test_support;
 #[cfg(test)]
 #[path = "source_shadow_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "source_shadow_torrentio_tests.rs"]
+mod torrentio_tests;
 
 #[cfg(test)]
 #[path = "source_shadow_metrics_tests.rs"]

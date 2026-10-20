@@ -200,8 +200,8 @@ p50/p95 e a semana em `stream-shadow`.
    antigo), vale a régua antiga. Coberto por `live_state_wiring.rs` (em
    `adom-search`); nesta rodada, `cargo test --workspace`, `clippy -D warnings`
    e `fmt` deram exit 0. O coletor **Jackett** nativo passou a emitir `live` na
-   F2.1 (`search_outcomes`); o Prowlarr passou a emitir `live` por FONTE na
-   F2.2; Torrentio/BLUDV/Mico seguem sem `live` nativo.
+   F2.1 (`search_outcomes`); o Prowlarr na F2.2 e o Torrentio na F2.3 passaram a
+   emitir `live` por FONTE; BLUDV/Mico seguem sem `live` nativo.
 3. **Paridade (pendente)**: o corpus da F0 é só `request/response` e remonta
    0/51; o critério formal §9.4 continua **não medido**. O gate operacional
    `scripts/stream-parity.mjs` cobre 16 casos do corpus (atende aos 15+),
@@ -229,10 +229,10 @@ p50/p95 e a semana em `stream-shadow`.
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
-**Estado: F2.2 PARCIAL (Prowlarr), default OFF.** `SOURCES_RUST_SHADOW` (CSV) é
-vazio por default e `SOURCES_RUST` segue OFF; a sombra de fonte compara
-**Jackett e Prowlarr** e **não** é o critério §9.4. O contrato e o recorte estão
-em `docs/rust-stream-contract.md`.
+**Estado: F2.3 PARCIAL (Jackett/Prowlarr/Torrentio), default OFF.**
+`SOURCES_RUST_SHADOW` (CSV) é vazio por default e `SOURCES_RUST` segue OFF; a
+sombra de fonte compara **Jackett, Prowlarr e Torrentio** e **não** é o
+critério §9.4. O contrato e o recorte estão em `docs/rust-stream-contract.md`.
 
 **F2.1 — Jackett com `live` e sombra de fonte (`b10df543`).** `search_outcomes`
 devolve um `QueryOutcome` por indexer: `Ok`/`Empty` são resposta válida
@@ -264,34 +264,59 @@ respondida. `all` fica **sempre `Unknown`** (o agregado só existe no ramo
 `/all` do Jackett), `pending` nunca é inventado e falha de configuração não vira
 falha viva.
 
-A sombra (`SOURCES_RUST_SHADOW=jackett,prowlarr`) roda **fire-and-forget**
-(`tokio::spawn`) e compara, por indexer, o conjunto de hashes normalizados e o
-`live` (`failed`/`pending`/`empty`/`all`); o lado Node roda em `read_only`, sem
-inventário da conta, captura no banco, status/breaker nem cache bruto. Só a
-consulta principal entra na comparação. Para o Prowlarr o `live` **não** é
-comparado: o `collectRawLive` do Node não emite `onQueryResult` para ele, então
-a referência sai vazia/`unknown` e a comparação acusaria divergência falsa em
-toda falha. A sombra dele compara a IDENTIDADE (hashes por `_indexer`/tracker);
-o `live` nativo vale na produção com `SOURCES_RUST=prowlarr`. Métricas:
-`source.shadow.compared`, `divergence`, `items_missing`, `items_extra`,
-`live_divergence`, `timeout`, `error`, `partial_divergence`, `skipped`,
-`skipped_late`; `partial` diferente conta só em `partial_divergence`
-(informativa), nunca em `divergence`.
+A sombra (`SOURCES_RUST_SHADOW=jackett,prowlarr,torrentio`) roda
+**fire-and-forget** (`tokio::spawn`) e compara, por indexer, o conjunto de
+hashes normalizados e o `live` (`failed`/`pending`/`empty`/`all`); o lado Node
+roda em `read_only`, sem inventário da conta, captura no banco, status/breaker
+nem cache bruto. Só a consulta principal entra na comparação. Para Prowlarr e
+Torrentio o `live` **não** é comparado: o `collectRawLive` do Node não emite
+`onQueryResult` para eles, então a referência sai vazia/`unknown` e a
+comparação acusaria divergência falsa em toda falha. A sombra deles compara a
+IDENTIDADE (hashes por `_indexer`); o `live` nativo vale na produção com
+`SOURCES_RUST=prowlarr,torrentio`. Métricas: `source.shadow.compared`,
+`divergence`, `items_missing`, `items_extra`, `live_divergence`, `timeout`,
+`error`, `partial_divergence`, `skipped`, `skipped_late`; `partial` diferente
+conta só em `partial_divergence` (informativa), nunca em `divergence`.
 
-**Limitações (F2.3):** `live` nativo existe para Jackett (por indexer) e
-Prowlarr (por fonte), mas o do Prowlarr não tem referência no Node e por isso
-não é comparado; Torrentio, BLUDV e Mico seguem ignorados pela sombra (sem
-identidade de indexer normalizada) e sem `live`; **paridade real não foi
+**F2.3 — Torrentio com identidade do Node, `live` e sombra.** O
+`src/providers/torrentio.ts` publica `indexer:"torrentio"` (o AGREGADOR, não o
+tracker interno), `tracker` = rótulo depois do `⚙️` na linha de metadados
+(vazio → o Node cai no `indexer`, e o `⚙️` mostra "torrentio"), `infoHash`
+minúsculo, `title` sem a linha `👤 … ⚙️`, `seeders` (`?? 0`), `size` (só quando
+> 0) e `fileIdx` truncado. O coletor nativo passou a levar **`tracker`**
+(também em `sources:["tracker:<rótulo>"]`), a limpar o `size` pela régua
+`known_size` do item cru e a preservar `fileIdx` em `RawItem.extra` (o
+`raw_item_from_value` também o guarda, então o caminho do Node não perde o
+campo). `isBr` continua `false` — o áudio vem do título no build, como nos
+demais indexadores globais.
+
+`TorrentioClient::search_outcome` distingue resposta válida (`Ok`, inclusive
+JSON sem `streams`), configuração (`Disabled`/`BlockedUrl`/`NoEndpoint`, sem
+consulta) e falha declarada (`Http(429/5xx)`, `InvalidJson`, `Network`,
+`Timeout`) mais `BreakerOpen` (consulta pulada pelo circuito); o `search()`
+antigo segue fail-open devolvendo `Vec`. **O breaker só é lido/escrito no
+caminho vivo** (`TorrentioSearchOptions::LIVE`): a sombra usa `SHADOW`, ignora
+o circuito aberto e não o abre/reseta (mesmo contrato do `readOnly` do TS, com
+cliente próprio). O `live` nativo é **por fonte** (`"torrentio"`): `Ok` =
+conjuntos vazios, `Empty` = resposta válida sem item relevante
+(`filter_relevant_raw`) ou 4xx da obra (host vivo, obra sem release — o Node
+também não alimenta o breaker em 4xx), `Failed` = 429/5xx/rede/timeout/JSON
+inválido/breaker aberto. `all` fica **sempre `Unknown`**, `pending` nunca é
+inventado e configuração não vira falha viva.
+
+**Limitações (F2.4):** `live` nativo existe para Jackett (por indexer),
+Prowlarr e Torrentio (por fonte), mas o de Prowlarr/Torrentio não tem referência
+no Node e por isso não é comparado; BLUDV e Mico seguem ignorados pela sombra
+(sem identidade de indexer normalizada) e sem `live`; **paridade real não foi
 medida** e a sombra de fonte não substitui §9.4. O `ji` por requisição já vale
 para os dois lados (C0b): `JACKETT_INDEXERS` do processo é só fallback de
 instalação sem `ji`.
 
 **Próximas partes:** metadados (Cinemeta/TMDB) e inventário da conta; depois
-Torrentio (fail-open, breaker local) → BLUDV/Mico (reusar
-`adom-resolvers`/`mico_net`) e o que hoje é 501 no `adom-debrid` (`check` de
-RD/TorBox/AllDebrid, `files`, `account`). Cada fonte migrada sai da rota
-`collect`. O Jackett mantém Torznab/JSON, globais agrupados e BR isolados em
-pt-BR (invariante 4, breaker só em `offline`).
+BLUDV/Mico (reusar `adom-resolvers`/`mico_net`) e o que hoje é 501 no
+`adom-debrid` (`check` de RD/TorBox/AllDebrid, `files`, `account`). Cada fonte
+migrada sai da rota `collect`. O Jackett mantém Torznab/JSON, globais agrupados
+e BR isolados em pt-BR (invariante 4, breaker só em `offline`).
 
 ## F3 — Estado em Rust
 

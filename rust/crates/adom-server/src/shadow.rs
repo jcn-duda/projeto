@@ -54,6 +54,31 @@ pub const ERROR: &str = "stream.shadow.error";
 
 const KEYS: &[&str] = &[COMPARED, DIVERGENCE, DIVERGENCE_ITEMS, TIMEOUT, ERROR];
 
+/// Nomes/label do mesmo comparador congelado. A sombra (§9.1) usa
+/// [`SHADOW_NAMES`]; o canário do corte (F4.2, `canary.rs`) usa os nomes
+/// `stream.canary.*` para não contaminar a janela §9.4. `skipped` é opcional
+/// porque a sombra não expõe esse contador hoje.
+#[derive(Clone, Copy)]
+pub struct FrozenMetricNames {
+    pub label: &'static str,
+    pub compared: &'static str,
+    pub divergence: &'static str,
+    pub divergence_items: &'static str,
+    pub timeout: &'static str,
+    pub error: &'static str,
+    pub skipped: Option<&'static str>,
+}
+
+pub const SHADOW_NAMES: FrozenMetricNames = FrozenMetricNames {
+    label: "shadow",
+    compared: COMPARED,
+    divergence: DIVERGENCE,
+    divergence_items: DIVERGENCE_ITEMS,
+    timeout: TIMEOUT,
+    error: ERROR,
+    skipped: None,
+};
+
 /// Contadores da sombra. Sempre expõe as chaves do §9 (zeradas até haver
 /// observação). `Clone` barato via `Arc` para o `tokio::spawn`.
 #[derive(Clone, Default)]
@@ -177,28 +202,8 @@ pub async fn observe_node_response(
 
     // 1) Caminho congelado: segunda request com `behaviorFrozen`; o `expected`
     //    é o corpo DELA (nunca o corpo normal), e só `streams` é comparado.
-    if let (Some(id), Some(base)) = (req.shadow_id.as_deref(), req.frozen_base.as_deref()) {
-        if !valid_shadow_id(id) {
-            metrics.inc(ERROR, 1);
-            return;
-        }
-        let dir = base.join(id);
-        match capture_frozen_body(&req, id).await {
-            Ok(frozen_body) => {
-                if let Err(err) = wait_frozen_case(&dir, FROZEN_DIR_WAIT).await {
-                    eprintln!("[shadow] captura congelada incompleta em {id}: {err}");
-                    metrics.inc(ERROR, 1);
-                    return;
-                }
-                observe_frozen(&dir, &frozen_body, &req, encoded, &metrics).await;
-            }
-            Err(err) => {
-                // Segunda request falhou: `error`, nunca divergência (o corpo
-                // normal não é comparável de forma honesta).
-                eprintln!("[shadow] segunda request frozen falhou em {id}: {err}");
-                metrics.inc(ERROR, 1);
-            }
-        }
+    if req.shadow_id.is_some() && req.frozen_base.is_some() {
+        observe_frozen_request(&req, encoded, &metrics, SHADOW_NAMES).await;
         return;
     }
 
@@ -381,6 +386,47 @@ fn frozen_case_ready(dir: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Executa a SEGUNDA request congelada + espera do dir + replay. Usado pela
+/// sombra (`SHADOW_NAMES`) e pelo canário do corte (`CANARY_NAMES`): o fluxo é
+/// idêntico, só mudam os nomes dos contadores e o prefixo do log.
+pub(crate) async fn observe_frozen_request(
+    req: &ShadowRequest,
+    encoded: &str,
+    metrics: &ShadowMetrics,
+    names: FrozenMetricNames,
+) {
+    let (Some(id), Some(base)) = (req.shadow_id.as_deref(), req.frozen_base.as_deref()) else {
+        return;
+    };
+    if !valid_shadow_id(id) {
+        metrics.inc(names.error, 1);
+        return;
+    }
+    let dir = base.join(id);
+    match capture_frozen_body(req, id).await {
+        Ok(frozen_body) => {
+            if let Err(err) = wait_frozen_case(&dir, FROZEN_DIR_WAIT).await {
+                eprintln!(
+                    "[{}] captura congelada incompleta em {id}: {err}",
+                    names.label
+                );
+                metrics.inc(names.error, 1);
+                return;
+            }
+            observe_frozen(&dir, &frozen_body, req, encoded, metrics, names).await;
+        }
+        Err(err) => {
+            // Segunda request falhou: `error`, nunca divergência (o corpo
+            // normal não é comparável de forma honesta).
+            eprintln!(
+                "[{}] segunda request frozen falhou em {id}: {err}",
+                names.label
+            );
+            metrics.inc(names.error, 1);
+        }
+    }
+}
+
 /// Replay do caso congelado e contagem §9.2.
 ///
 /// O chamador já esperou o dir ficar completo; falha de replay (JSON quebrado,
@@ -392,6 +438,7 @@ async fn observe_frozen(
     req: &ShadowRequest,
     encoded: &str,
     metrics: &ShadowMetrics,
+    names: FrozenMetricNames,
 ) {
     // §9.4 item 6: expected de AVISO/coleta vazia não é comparável — a 2ª
     // request congelada pode herdar o prazo/coleta vazia da original e devolver
@@ -402,17 +449,22 @@ async fn observe_frozen(
     // captura já é a melhor evidência do build.
     if notice_only(expected) {
         eprintln!(
-            "[shadow] expected de aviso/coleta vazia em {}: comparação pulada",
+            "[{}] expected de aviso/coleta vazia em {}: comparação pulada",
+            names.label,
             dir.display()
         );
+        if let Some(key) = names.skipped {
+            metrics.inc(key, 1);
+        }
         return;
     }
-    if let Err(err) = hydrate_config(dir, encoded).await {
+    if let Err(err) = hydrate_config(dir, encoded, names.label).await {
         eprintln!(
-            "[shadow] config do caso {} indisponível: {err}",
+            "[{}] config do caso {} indisponível: {err}",
+            names.label,
             dir.display()
         );
-        metrics.inc(ERROR, 1);
+        metrics.inc(names.error, 1);
         return;
     }
     let origin = req.origin.as_deref().unwrap_or("");
@@ -423,12 +475,12 @@ async fn observe_frozen(
     .await;
     let detail = match replay {
         Ok(Ok(())) => {
-            metrics.inc(COMPARED, 1);
+            metrics.inc(names.compared, 1);
             return;
         }
         Ok(Err(detail)) => detail,
         Err(_) => {
-            metrics.inc(TIMEOUT, 1);
+            metrics.inc(names.timeout, 1);
             return;
         }
     };
@@ -437,17 +489,19 @@ async fn observe_frozen(
     let items = detail.lines().filter(|line| line.starts_with('#')).count() as u64;
     if items == 0 {
         eprintln!(
-            "[shadow] replay congelado falhou em {}: {detail}",
+            "[{}] replay congelado falhou em {}: {detail}",
+            names.label,
             dir.display()
         );
-        metrics.inc(ERROR, 1);
+        metrics.inc(names.error, 1);
         return;
     }
-    metrics.inc(COMPARED, 1);
-    metrics.inc(DIVERGENCE, 1);
-    metrics.inc(DIVERGENCE_ITEMS, items);
+    metrics.inc(names.compared, 1);
+    metrics.inc(names.divergence, 1);
+    metrics.inc(names.divergence_items, items);
     eprintln!(
-        "[shadow] divergência congelada em {}: {detail}",
+        "[{}] divergência congelada em {}: {detail}",
+        names.label,
         dir.display()
     );
 }
@@ -455,7 +509,7 @@ async fn observe_frozen(
 /// Grava `inputs/config.json` com os knobs do Node para o `encoded` desta
 /// requisição. Se a rota falhar mas o arquivo já existir (o record grava o
 /// config ANTES do `/stream`), usa o arquivo — melhor que cair no remount.
-async fn hydrate_config(dir: &Path, encoded: &str) -> Result<(), String> {
+async fn hydrate_config(dir: &Path, encoded: &str, label: &str) -> Result<(), String> {
     let path = dir.join("inputs/config.json");
     match config_from_node(encoded).await {
         Ok(value) => {
@@ -465,7 +519,7 @@ async fn hydrate_config(dir: &Path, encoded: &str) -> Result<(), String> {
         Err(err) => {
             if path.is_file() {
                 eprintln!(
-                    "[shadow] /internal/search/config falhou ({err}); usando {}",
+                    "[{label}] /internal/search/config falhou ({err}); usando {}",
                     path.display()
                 );
                 return Ok(());

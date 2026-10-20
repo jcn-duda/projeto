@@ -15,6 +15,7 @@ use tokio::net::TcpListener;
 use adom_search::orchestrator::{Orchestrator, OrchestratorConfig};
 use adom_search::MemorySwrStore;
 
+use crate::canary::{Canary, SAMPLED};
 use crate::config::{native_health, resolve_native, stream_native, stream_shadow, Config};
 use crate::proxy::{self, AppState};
 use crate::shadow::{self, ShadowMetrics, COMPARED, DIVERGENCE, DIVERGENCE_ITEMS};
@@ -86,6 +87,7 @@ pub(super) fn gateway_state(
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: None,
         shadow_remount: None,
+        canary: Canary::new(0),
     }
 }
 
@@ -116,6 +118,7 @@ pub(super) fn gateway_state_native(
         orchestrator: Some(orch),
         // Com corte nativo a sombra do Node não monta.
         shadow_remount: None,
+        canary: Canary::new(0),
     }
 }
 
@@ -136,6 +139,7 @@ pub(super) fn gateway_state_resolve(
         shadow_metrics: ShadowMetrics::new(),
         orchestrator: None,
         shadow_remount: None,
+        canary: Canary::new(0),
     }
 }
 

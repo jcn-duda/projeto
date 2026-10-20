@@ -178,7 +178,7 @@ async fn erro_nao_e_divergencia() {
 }
 
 #[test]
-fn sombra_aceita_jackett_e_prowlarr() {
+fn sombra_aceita_jackett_prowlarr_e_torrentio() {
     assert_eq!(shadow_sources("jackett", "jackett"), Vec::<&str>::new());
     assert_eq!(
         shadow_sources("jackett,BLUDV , jackett", "jackett"),
@@ -197,18 +197,28 @@ fn sombra_aceita_jackett_e_prowlarr() {
     );
     assert_eq!(
         shadow_sources("torrentio,bludv,mico,desconhecida", ""),
+        vec!["torrentio"],
+        "Torrentio entrou na sombra (F2.3); BLUDV/Mico seguem fora"
+    );
+    assert_eq!(
+        shadow_sources("torrentio", "torrentio"),
         Vec::<&str>::new(),
-        "fontes sem identidade normalizada ficam fora"
+        "corte nativo do Torrentio não roda sombra"
+    );
+    assert_eq!(
+        shadow_sources("jackett,prowlarr,torrentio", ""),
+        vec!["jackett", "prowlarr", "torrentio"]
     );
     assert_eq!(shadow_sources("JACKETT", ""), vec!["jackett"]);
     assert_eq!(shadow_sources(" PROWLARR , prowlarr", ""), vec!["prowlarr"]);
+    assert_eq!(shadow_sources(" TORRENTIO ", ""), vec!["torrentio"]);
     assert_eq!(shadow_sources("", "jackett"), Vec::<&str>::new());
 }
 
 #[test]
 fn tokens_ignorados_aparecem_para_log() {
     assert_eq!(
-        ignored_shadow_tokens("jackett,BLUDV,prowlarr,desconhecida", "torrentio"),
+        ignored_shadow_tokens("jackett,BLUDV,torrentio,desconhecida", "prowlarr"),
         vec!["BLUDV".to_string(), "desconhecida".to_string()]
     );
     // Já migrado no corte nativo também é ignorado (não é sombra).
@@ -216,16 +226,26 @@ fn tokens_ignorados_aparecem_para_log() {
         ignored_shadow_tokens("prowlarr", "prowlarr"),
         vec!["prowlarr".to_string()]
     );
+    assert_eq!(
+        ignored_shadow_tokens("torrentio", "torrentio"),
+        vec!["torrentio".to_string()]
+    );
 }
 
-/// Montagem dos coletores da sombra: o Prowlarr entra SEM override de
-/// `JACKETT_INDEXERS` (não tem indexers) e o recorte segue só jackett/prowlarr.
+/// Montagem dos coletores da sombra: Prowlarr e Torrentio entram SEM override
+/// de `JACKETT_INDEXERS` (não têm indexers) e o recorte é jackett/prowlarr/
+/// torrentio.
 #[test]
-fn native_collector_monta_prowlarr_e_limita_o_recorte() {
+fn native_collector_monta_prowlarr_torrentio_e_limita_o_recorte() {
     let prowlarr = native_collector("prowlarr").expect("ProwlarrCollector monta sem chave");
     assert!(
         prowlarr.indexers.is_none(),
         "Prowlarr não tem lista de JACKETT_INDEXERS"
+    );
+    let torrentio = native_collector("torrentio").expect("TorrentioCollector monta sem config");
+    assert!(
+        torrentio.indexers.is_none(),
+        "Torrentio não tem lista de JACKETT_INDEXERS"
     );
     let jackett = native_collector("jackett").expect("JackettCollector monta");
     assert!(
@@ -233,10 +253,11 @@ fn native_collector_monta_prowlarr_e_limita_o_recorte() {
         "Jackett leva a lista do processo como fallback do ji"
     );
     assert!(
-        native_collector("torrentio").is_err(),
+        native_collector("bludv").is_err(),
         "fonte fora do recorte não monta sombra"
     );
     assert!(!has_live_reference("prowlarr"));
+    assert!(!has_live_reference("torrentio"));
     assert!(has_live_reference("jackett"));
 }
 

@@ -8,7 +8,12 @@
 //! - fora dos defaults de instalação (`default_on = false`);
 //! - base configurável sob guarda SSRF.
 //!
-//! Fora desta fatia: integração no orquestrador/`collectRaw`.
+//! `search_outcome` é o caminho do coletor: desfecho tipado (ok/HTTP/JSON/
+//! rede/timeout) e breaker SÓ no caminho vivo — a sombra read-only ignora o
+//! circuito aberto e não o abre/reseta, como o `readOnly` do TS.
+//!
+//! Fora desta fatia: integração no orquestrador/`collectRaw` (feita no
+//! `adom-search::TorrentioCollector`).
 
 mod breaker;
 mod client;
@@ -20,4 +25,7 @@ pub use breaker::{now_ms as breaker_now_ms, Breaker};
 pub use client::{endpoint_url, TorrentioClient};
 pub use config::{TorrentioConfig, TORRENTIO_DEFAULT_TIMEOUT_MS, TORRENTIO_DEFAULT_URL};
 pub use parse::{map_stream, parse_metadata, ParsedMetadata};
-pub use types::{TorrentioMediaType, TorrentioRawItem, TorrentioSearchArgs};
+pub use types::{
+    TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs,
+    TorrentioSearchOptions,
+};

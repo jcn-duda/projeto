@@ -199,6 +199,23 @@ fn shadow_metrics_snapshot_expoe_chaves_zeradas() {
 }
 
 #[tokio::test]
+async fn metrics_expoe_canario_do_corte_zerado() {
+    let (upstream, _hits) = spawn_upstream().await;
+    let gateway = spawn_gateway(upstream, false).await;
+    let metrics_req = Request::builder()
+        .uri("/metrics")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = call(gateway, metrics_req).await;
+    assert_eq!(status, StatusCode::OK);
+    let snap: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(snap[crate::canary::PERCENT], 0);
+    assert_eq!(snap[SAMPLED], 0);
+    assert_eq!(snap[crate::canary::DIVERGENCE], 0);
+    assert_eq!(snap[crate::canary::ERROR], 0);
+}
+
+#[tokio::test]
 async fn resolve_nativo_403_sem_tocar_upstream() {
     let (upstream, hits) = spawn_upstream().await;
     let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", true)).await;

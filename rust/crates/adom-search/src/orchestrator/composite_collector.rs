@@ -9,12 +9,13 @@
 //! indexer entra como agregado `error` (conservador), nunca como sucesso.
 //!
 //! PONTE ATÉ F2: os coletores nativos que ainda NÃO emitem estado
-//! (Torrentio/BLUDV/Mico) devolvem `CollectBatch { live: None }`. Enquanto eles
-//! não emitirem, a simples PRESENÇA de um lote sem contrato no composto também
+//! (BLUDV/Mico) devolvem `CollectBatch { live: None }`. Enquanto eles não
+//! emitirem, a simples PRESENÇA de um lote sem contrato no composto também
 //! sintetiza `unknown_failure` (agregado `error`, sem nomes). Sem isso, o estado
 //! `ok` do `NodeCollector` faria os indexers nativos não citados parecerem
 //! respondedores e apagaria 📦/selos que o Node preservaria. Jackett (por
-//! indexer) e Prowlarr (por fonte) já entregam `live` e não passam por aqui.
+//! indexer), Prowlarr e Torrentio (por fonte) já entregam `live` e não passam
+//! por aqui.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -55,8 +56,8 @@ fn merge_live(acc: &mut Option<LiveBatchState>, next: Option<&LiveBatchState>) {
 }
 
 /// Lote bem-sucedido SEM contrato vivo (coletor nativo que ainda não emite
-/// `live`: Torrentio/BLUDV/Mico). Não inventa nomes, mas impede que a ausência
-/// de estado vire "respondeu".
+/// `live`: BLUDV/Mico). Não inventa nomes, mas impede que a ausência de estado
+/// vire "respondeu".
 fn sem_contrato(acc: &mut Option<LiveBatchState>) {
     merge_live(acc, Some(&LiveBatchState::unknown_failure()));
 }

@@ -38,6 +38,8 @@ handler Rust a responder `/stream`. Ainda **não** está pronto para default —
 evidência de uso: conteúdo BR some da lista. Exige paridade BR+cotas (e o
 critério formal §9.4) antes de qualquer promoção. Com `stream` e
 `stream-shadow` no mesmo CSV, o corte nativo vence (`adom-server/src/proxy.rs`).
+No corte a sombra não roda; o alarme de divergência é o canário
+`STREAM_CANARY_PERCENT` (§9.5), default **0 (OFF)**.
 
 ### 0.2 Debrid com herança do `.env`
 
@@ -680,6 +682,10 @@ ainda precisam fechar antes de qualquer default.
 | `stream.shadow.error` | contador | Rust falhou (panic/erro interno); nunca conta como divergência |
 | `stream.shadow.rustMs` | observação | tempo do Rust até o corpo (alvo: ≤ prazo do Node) |
 
+No corte (`ROUTES_RUST=stream`) a sombra não roda; os nomes acima continuam
+exclusivos do modo `stream-shadow`. O instrumento equivalente no corte é
+`stream.canary.*` (§9.5), com seleção determinística e flag própria.
+
 Amostra do diff (só quando `divergence` incrementa, no máximo **1 por busca**,
 truncada em 4 KiB):
 
@@ -756,6 +762,76 @@ divergência em cada degrau por ≥ 24 h. Regrediu, volta um degrau e a rota
 continua Node. O contador `stream.shadow.divergence` **não** pode ser apagado
 depois do corte: ele vira o alarme permanente do caminho nativo.
 
+No corte (`ROUTES_RUST=stream`) a sombra não roda; o instrumento de alarme
+dessa janela é o canário do §9.5 (`stream.canary.*`). Ele **não** substitui os
+itens 1–7 acima nem decide os degraus 5 % → 50 % → 100 % — a distribuição e a
+promoção continuam manuais.
+
+### 9.5 Canário do corte nativo (`STREAM_CANARY_PERCENT`, F4.2)
+
+`ROUTES_RUST=stream` tem prioridade sobre `stream-shadow` (`proxy.rs`), então
+no corte não existe comparação rodando. O canário é o instrumento mínimo de
+alarme/amostragem para essa janela: ele reusa a comparação congelada da sombra
+e expõe contadores próprios, sem depender de o oráculo Node responder a todas
+as buscas.
+
+- **Flag**: `STREAM_CANARY_PERCENT` inteiro `0..100`, default **0 (OFF)**.
+  Só age quando `ROUTES_RUST` contém o token exato `stream`; com proxy ou
+  `stream-shadow` o valor é ignorado (`/metrics` mostra 0).
+- **Seleção determinística**: FNV-1a de 64 bits sobre o **path** da requisição
+  (`/<config>/stream/<tipo>/<id>.json`, que já inclui o segmento `encoded`) →
+  balde `hash % 100`; amostra se `balde < percentual`. O mesmo path cai sempre
+  no mesmo balde (não repete/omite entre requisições); 0 nunca amostra, 100
+  amostra todas. Query/corpo não entram no hash.
+- **Fluxo**: a resposta do cliente continua sendo a do corte; depois dela o
+  gateway dispara em `tokio::spawn` a MESMA segunda request congelada da
+  sombra (`X-Adom-Shadow-Id` + `X-Adom-Shadow-Frozen: 1`) ao Node 7100, espera
+  o caso em `STREAM_FROZEN_SHADOW_BASE/<id>` e roda
+  `frozen_gate::run_case_with_expected`, comparando só `streams`. O cliente
+  nunca é segurado e a segunda request não altera a resposta.
+- **Pré-requisitos**: `STREAM_FROZEN_MODE=shadow` +
+  `STREAM_FROZEN_SHADOW_BASE` no Node e `INTERNAL_SEARCH_URL` +
+  `JACKETT_TEST_TOKEN` no gateway (hidratação de `inputs/config.json`), os
+  mesmos da sombra. Sem base congelada o boot avisa e as amostras são puladas
+  (não há captura). O custo é uma busca frozen por amostra (~`percent`% do
+  tráfego do corte).
+- **Métricas em `/metrics`**:
+
+| Nome | Semântica |
+|---|---|
+| `stream.canary.percent` | gauge com o percentual efetivo (0..100) |
+| `stream.canary.sampled` | buscas encaminhadas à segunda request |
+| `stream.canary.compared` | comparações concluídas (denominador) |
+| `stream.canary.divergence` | 1 por busca divergente |
+| `stream.canary.divergence.items` | soma dos itens divergentes |
+| `stream.canary.timeout` | replay/segunda request estourou o prazo |
+| `stream.canary.error` | falha de captura/config/replay (nunca divergência) |
+| `stream.canary.skipped` | aviso/coleta vazia, não comparável (§9.4 item 6) |
+
+- **Alarme**: `stream.canary.divergence`/`.items` > 0 na janela é o sinal de
+  regressão do caminho nativo; `compared` é o denominador e `timeout`/`error`
+  não contam como divergência. A linha de log sai com prefixo `[canary]` e o
+  mesmo diff do replay da sombra.
+- **O que ele NÃO cobre**:
+  1. **Rollout**: não é divisão de tráfego nem promove a rota. Os degraus
+     5 % → 50 % → 100 % do §9.4 continuam manuais (e o rollback é voltar o
+     percentual/rota, não o canário).
+  2. **Critério §9.4**: não substitui cobertura ≥ 500 buscas/≥ 72 h,
+     distribuição mínima, corpus congelado e revisor humano. A amostra é
+     determinística por path — a 5 % ela pode omitir uma classe inteira
+     (série, configs com/sem `dk`) até o balde cair; não prova distribuição.
+  3. **Resposta real do corte**: compara o replay congelado, não o corpo que o
+     cliente recebeu. `cacheMaxAge`/`stale*` ficam fora (como na sombra) e
+     diferenças de SWR/fast-path/store vivo do caminho nativo não aparecem.
+  4. **Play/debrid**: não cobre `/resolve`, resolução de link nem o oráculo
+     Node para tudo — só o pipeline de `/stream` congelado.
+  5. **Persistência**: `stream.canary.*` é RAM e zera no restart; não há janela
+     persistida. O custo da segunda request é real e cresce com o percentual
+     (100 % ≈ uma busca frozen por busca do corte).
+
+**Rollback**: `STREAM_CANARY_PERCENT=0` (default) ou remover a env e reiniciar
+o gateway. A rota e a sombra `stream-shadow` não mudam.
+
 ---
 
 ## 10. O que ainda falta / o que já entrou no caminho nativo
@@ -780,7 +856,7 @@ já responde no caminho nativo quando o token `stream` está ligado — mas isso
 | 11 | `partial`/deadline + busca em fundo | **feito** no orquestrador |
 | 12 | `cacheMaxAge` / `stale*` / `Cache-Control` | parcial — ver tipo `StreamResponse` e handler nativo |
 | 13 | mapeamento de erro → status (incl. `/resolve`) | parcial no gateway; `/resolve` play no Node |
-| 14 | métricas e `stream-trace` | sombra §9; painel/`stream-trace` ainda leem o Node |
+| 14 | métricas e `stream-trace` | sombra §9; canário do corte §9.5; painel/`stream-trace` ainda leem o Node |
 | 15 | `staleRevalidate`/`staleError` no tipo | ainda estreito no contrato do crate |
 | 16 | `/internal/search/*` | **feito** meta/state/collect (e correlatos) no Node; fachada recusa `/internal/*` antes do proxy |
 

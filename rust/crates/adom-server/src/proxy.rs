@@ -23,6 +23,7 @@ use hyper_util::rt::TokioExecutor;
 
 use adom_search::orchestrator::Orchestrator;
 
+use crate::canary::Canary;
 use crate::config::Config;
 use crate::resolve::{self, GateDecision};
 use crate::shadow::{self, ShadowMetrics, ShadowRemount, ShadowRequest};
@@ -51,6 +52,9 @@ pub struct AppState {
     /// Remontador da sombra (`stream-shadow`). `None` sem token/env — observe
     /// pula sem falso divergence. Independente do `orchestrator` do corte.
     pub shadow_remount: Option<ShadowRemount>,
+    /// Canário do corte (F4.2): amostra determinística + comparação congelada
+    /// em paralelo. Default 0 (OFF); não altera a resposta.
+    pub canary: Canary,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -61,10 +65,12 @@ pub fn router(state: AppState) -> Router {
 }
 
 /// Snapshot §9 — só contadores, sem token/credencial. Inclui as métricas da
-/// sombra de FONTE (`source.shadow.*`), zeradas enquanto ela está desligada.
+/// sombra de FONTE (`source.shadow.*`), zeradas enquanto ela está desligada, e
+/// as do canário do corte (`stream.canary.*`).
 async fn metrics_snapshot(State(state): State<AppState>) -> Json<BTreeMap<String, u64>> {
     let mut snapshot = state.shadow_metrics.snapshot();
     snapshot.extend(adom_search::orchestrator::source_shadow_metrics_snapshot());
+    snapshot.extend(state.canary.metrics().snapshot());
     Json(snapshot)
 }
 
@@ -91,6 +97,19 @@ pub async fn run(config: Config) -> Result<(), String> {
     } else {
         None
     };
+    // Canário do corte: só lê a env quando o token `stream` está ligado.
+    let canary = Canary::from_env(stream_cut);
+    if canary.percent() > 0 {
+        eprintln!(
+            "[gateway] canary corte: {}% (amostra determinística por path; comparação congelada em paralelo)",
+            canary.percent()
+        );
+        if canary.frozen_base().is_none() {
+            eprintln!(
+                "[gateway] canary corte sem STREAM_FROZEN_SHADOW_BASE — amostras puladas (não há captura)"
+            );
+        }
+    }
     let state = AppState {
         client: client(),
         upstream: config.upstream,
@@ -103,6 +122,7 @@ pub async fn run(config: Config) -> Result<(), String> {
         shadow_metrics: ShadowMetrics::new(),
         orchestrator,
         shadow_remount,
+        canary,
     };
     let listener = tokio::net::TcpListener::bind(listen)
         .await
@@ -140,7 +160,17 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
     // Corte nativo TEM prioridade sobre stream-shadow: sem proxy, sem sombra.
     if state.stream_native && stream::is_native_stream(req.method(), req.uri().path()) {
         return match &state.orchestrator {
-            Some(orch) => stream::handle(orch, req).await,
+            Some(orch) => {
+                // Planeja a amostra ANTES de mover `req` para o handler. A
+                // resposta do corte sai igual; a comparação roda em
+                // `tokio::spawn` e nunca segura o cliente.
+                let canary_plan = state.canary.plan(&req, &state.upstream);
+                let response = stream::handle(orch, req).await;
+                if let Some(plan) = canary_plan {
+                    state.canary.spawn(plan);
+                }
+                response
+            }
             None => (
                 StatusCode::BAD_GATEWAY,
                 [(CONTENT_TYPE, "text/plain; charset=utf-8")],
@@ -286,7 +316,7 @@ fn shadow_origin(headers: &HeaderMap) -> Option<String> {
 /// Id curto e único por requisição sombreada (`X-Adom-Shadow-Id`). Sem
 /// dependência de uuid: timestamp + contador, hexadecimal (nome de diretório
 /// seguro e ordenável).
-fn new_shadow_id() -> String {
+pub(crate) fn new_shadow_id() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static SEQ: AtomicU64 = AtomicU64::new(0);
     let now = std::time::SystemTime::now()
@@ -303,7 +333,7 @@ fn new_shadow_id() -> String {
 /// Raiz da captura congelada (`STREAM_FROZEN_SHADOW_BASE`), vazia → `None`.
 /// Lida por requisição (env do processo, barata): o caminho congelado só age
 /// quando o Node gravou `<base>/<id>` para esta sombra.
-fn frozen_shadow_base() -> Option<PathBuf> {
+pub(crate) fn frozen_shadow_base() -> Option<PathBuf> {
     std::env::var("STREAM_FROZEN_SHADOW_BASE")
         .ok()
         .map(|raw| raw.trim().to_string())
@@ -324,7 +354,7 @@ pub fn upstream_uri(base: &Uri, path_and_query: &str) -> Result<Uri, ()> {
         .map_err(|_| ())
 }
 
-fn forward_headers(headers: &HeaderMap) -> HeaderMap {
+pub(crate) fn forward_headers(headers: &HeaderMap) -> HeaderMap {
     let extra = connection_names(headers);
     let mut out = HeaderMap::new();
     for (name, value) in headers {
