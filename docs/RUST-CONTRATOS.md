@@ -231,7 +231,7 @@ já eram LF (hash bruto == hash LF), logo dispensam o rótulo.
 | [`dump-release-labels.mjs`](../scripts/golden/dump-release-labels.mjs) + `release-labels-oracle.mjs` | `release-labels` | `npm run golden:release-labels:check` |
 | [`dump-pt-audio-guards.mjs`](../scripts/golden/dump-pt-audio-guards.mjs) | `pt-audio-guards` | `npm run golden:pt-audio-guards:check` |
 | [`dump-search-name-helpers.mjs`](../scripts/golden/dump-search-name-helpers.mjs) + `search-name-helpers-oracle.mjs` | `search-name-helpers` | `npm run golden:search-name-helpers:check` |
-| [`dump-indexer-priority.mjs`](../scripts/golden/dump-indexer-priority.mjs) | `indexer-priority` | `npm run golden:indexer-priority:check` |
+| `dump-indexer-priority.mjs` — **no branch `esm`** (removido deste branch) | `indexer-priority` | dentro de `../adom-esm`: `npm run golden:indexer-priority -- --force` (regerar) |
 | [`dump-audio-presentation.mjs`](../scripts/golden/dump-audio-presentation.mjs) + `audio-presentation-oracle.mjs` | `audio-presentation` | `npm run golden:audio-presentation:check` |
 | [`dump-audio-cleanup-verdicts.mjs`](../scripts/golden/dump-audio-cleanup-verdicts.mjs) + `audio-cleanup-verdicts-oracle.mjs` | `audio-cleanup-verdicts` | `npm run golden:audio-cleanup-verdicts:check` |
 | [`dump-stream-display.mjs`](../scripts/golden/dump-stream-display.mjs) + `stream-display-oracle.mjs` | `stream-display` (porte Rust, `dd7c7c2`) | `npm run golden:stream-display:check` |
@@ -254,10 +254,17 @@ produz `stream-quotas-extra.jsonl` (que **não** tem manifest). São pares de
 scripts npm: `golden:titles`, `golden:resolve-sign`, `golden:release-labels`,
 `golden:pt-audio-guards`, `golden:audio-cleanup-verdicts`,
 `golden:crawl-store-rules`, `golden:metric-id`, `golden:catalog-classify`,
-`golden:request-key`, `golden:search-name-helpers`, `golden:indexer-priority`,
+`golden:request-key`, `golden:search-name-helpers`,
 `golden:audio-presentation`, `golden:stream-display`, `golden:stream-relabel` e
 `golden:stream-trace`; `video-header`, `tmdb-br-aliases`, `br-pool-selection` e
 `config-encoding` rodam por linha de comando.
+
+Os oráculos de `franchise` e `indexer-priority` não vivem mais neste branch: o
+oráculo TS congelado (`franchise-base.ts` e `indexer-priority.ts`) segue no branch
+`esm`, e é de lá que se regenera — `npm run golden:titles -- --fn franchise
+--force` e `npm run golden:indexer-priority -- --force` dentro de `../adom-esm`.
+Os `.jsonl`/manifests/corpus continuam commitados aqui e são conferidos pelos
+testes Rust.
 
 Do lado Node, o teste permanente
 [`test/golden-title-normalization.test.ts`](../test/golden-title-normalization.test.ts)
@@ -317,7 +324,7 @@ existe.
 
 | Módulo | API pública | Fonte TS | Golden (casos) |
 | --- | --- | --- | --- |
-| `franchise` | `franchise_base_contradicts`, `franchise_extension_contradicts`, `name_coverage_tokens`, `is_multi_work_collection` | `franchise-base.ts` | `franchise` (415) |
+| `franchise` | `franchise_base_contradicts`, `franchise_extension_contradicts`, `name_coverage_tokens`, `is_multi_work_collection` | `franchise-base.ts` (oráculo no branch `esm`; porte em `adom-core::franchise`) | `franchise` (415) |
 | `multiwork_pack` | `admits_multi_work_pack`, `collection_root`, `collection_root_tokens`, `covers_year`, `pack_year_source` | `multiwork-pack.ts` | `multiwork-pack` (264) |
 
 **episódio**
@@ -432,7 +439,7 @@ universal.
 | Módulo | API pública | Fonte TS | Golden (casos) |
 | --- | --- | --- | --- |
 | `search_name_helpers` | `resolve_search_names`, `resolve_original_step_name`, `parse_stremio_id`, `build_search_query`, `numeral_search_variant`, `mark_debrid_name`, `matches_quality_filter` | `search-names.ts` | `search-name-helpers` (141) |
-| `indexer_priority` | `priority_map`, `compare_indexer_priority` | `indexer-priority.ts` | `indexer-priority` (70) |
+| `indexer_priority` | `priority_map`, `compare_indexer_priority` | `indexer-priority.ts` (oráculo no branch `esm`; porte em `adom-core::indexer_priority`) | `indexer-priority` (70) |
 
 As contagens acima são **do artefato** — não são meta nem prova de fase
 concluída; não extrapolar para declarar "Fase 0/1 concluída".

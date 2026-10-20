@@ -4,7 +4,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { filterRelevantRaw } from '../src/utils/format.js';
-import { franchiseBaseContradicts } from '../src/utils/franchise-base.js';
 
 const APOCALYPSE = { names: ['Resident Evil: Apocalypse', 'Resident Evil 2: Apocalipse'], year: 2004, isSeries: false };
 
@@ -28,20 +27,6 @@ test('a continuação certa continua entrando', () => {
   ]) {
     assert.equal(filterRelevantRaw([{ title }], APOCALYPSE).length, 1, title);
   }
-});
-
-test('só as DUAS evidências juntas cortam', () => {
-  const name = 'Mission: Impossible - Dead Reckoning Part One';
-  // Subtítulo abreviado com o ano certo: fica.
-  assert.equal(franchiseBaseContradicts('Mission Impossible Dead Reckoning 2023 1080p', null, name, 2023), false);
-  // Nome completo com ano do lançamento nacional (±1): fica.
-  assert.equal(franchiseBaseContradicts('Parasite 2020 1080p', null, 'Parasite', 2019), false);
-  // Sem ano de catálogo, sem ano no título ou com dois anos: não julga.
-  assert.equal(franchiseBaseContradicts('Resident Evil (2002)', null, 'Resident Evil: Apocalypse', null), false);
-  assert.equal(franchiseBaseContradicts('Resident Evil 1080p', null, 'Resident Evil: Apocalypse', 2004), false);
-  assert.equal(franchiseBaseContradicts('Resident Evil 2002-2004 Collection', null, 'Resident Evil: Apocalypse', 2004), false);
-  // Ano que faz parte do nome não é ano de release.
-  assert.equal(franchiseBaseContradicts('Blade Runner 2049 1080p', null, 'Blade Runner 2049', 2017), false);
 });
 
 test('um nome alternativo completo salva a release (a regra é por nome)', () => {

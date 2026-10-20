@@ -2919,8 +2919,9 @@ sai. Sem ano, ano da estreia ou faixa de anos ficam. Medido no magnets.db
 Em FILME, o mesmo vazamento vem do SUBTÍTULO a mais: na busca do nome nu
 ("Resident Evil", 2026), "Resident Evil Vendetta (… BD 1080p …)" — o anime de
 2017, sem ano no título — passava com ⚡ (2026-10-02).
-`franchiseExtensionContradicts` (`franchise-base.ts`, espelho da guarda de
-obra-base) corta quando o título começa pelo nome inteiro, NÃO tem ano nenhum
+`franchiseExtensionContradicts` (porte em `adom-core::franchise`; o oráculo TS
+`franchise-base.ts` fica congelado no branch `esm`, com a guarda de obra-base)
+corta quando o título começa pelo nome inteiro, NÃO tem ano nenhum
 e a palavra seguinte não é ruído, edição (Unrated, Director's Cut, Netflix…),
 pack ou palavra de outro nome da obra. Com ano no título, decidem as regras de
 ano e de `named-sequel`. Só o caminho global: release BR passa pelo
@@ -3010,7 +3011,7 @@ fire-and-forget) continua.
 | `src/debrid/*.ts` | Um adaptador por serviço |
 | `src/utils/format.ts` | Barrel pós split 5.3: reexporta os mesmos 58 nomes dos 7 submódulos (ver abaixo) |
 | `src/utils/stream-display.ts` | Coluna estreita do `name` do Stremio (`streamDisplayName`), com o selo `📦`/`👤 ~N` do fallback do banco; extraído de `search-names.ts` pela catraca |
-| `src/utils/indexer-priority.ts` | `priorityMap`/`compareIndexerPriority` |
+| `src/utils/indexer-priority.ts` (oráculo no branch `esm`) | `priorityMap`/`compareIndexerPriority`; o porte Rust fica em `adom-core::indexer_priority` |
 | `src/utils/tmdb.ts` / `cinemeta.ts` | Título pt-BR / título-ano do ecossistema Stremio |
 | `src/utils/cache.ts` | L1 memória + L2 SQLite; cotas por namespace; `getWithStale` |
 | `src/utils/cache-keys.ts` | Fonte única de versão de namespace (`NAMESPACE_VERSIONS`), prefixos legados (`raw1:`/`dinv1:`/`muri:`) e `prefix(ns)` |
