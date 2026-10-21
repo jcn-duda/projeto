@@ -20,3 +20,6 @@ export type IndexedRelease = {
 
 export type IndexEntry = { at: number; releases: IndexedRelease[]; partial?: boolean };
 export type ObraLocation = { season?: number | null; episode?: number | null };
+
+/** Evidência por ARQUIVO (não por obra): áudio, episódio, qualidade e nome vistos no torrent. */
+export type FileEvidence = { a: string; e?: 0 | 1; q: string; n: string };

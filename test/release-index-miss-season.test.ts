@@ -6,7 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 import config from '../src/config.js';
 import * as cache from '../src/utils/cache.js';
 import * as metrics from '../src/utils/metrics.js';
-import { markMissing, markMissingSeason, isMissing, isMissingQuiet } from '../src/utils/release-index-miss.js';
+import { markMissing, markMissingSeason, isMissing, isMissingQuiet } from '../src/utils/release-index.js';
 
 test('release-index-miss: markMissingSeason marca temporada e isMissing respeita para qualquer episódio da temporada', () => {
   cache.clear();

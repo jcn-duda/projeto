@@ -125,6 +125,9 @@ export function createPersistence() {
       const quotaSkipped: any[] = [];
       for (const row of rows) {
         const namespace = namespaceFor(row.key);
+        // `idx` é dono do núcleo Rust (IdxStore): o boot não o carrega no L1 e
+        // não o apaga por cota, senão removeria linhas que o Rust acabou de gravar.
+        if (namespace === 'idx') continue;
         if ((selectedCounts.get(namespace) || 0) >= quotaFor(namespace) || selected.length >= MAX_ENTRIES) {
           skipped.push(row.key);
           quotaSkipped.push(row.key);

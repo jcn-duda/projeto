@@ -18,6 +18,7 @@ import {
   namespaceFor, quotaFor, incrementNamespace as bumpNamespace, removeFromStore as dropFromStore, quotaOverflow,
 } from './cache-quotas.js';
 import { createPersistence } from './cache-db.js';
+import { clearIdxStore } from './release-index-store.js';
 
 const store = new Map();
 const namespaceCounts = new Map();
@@ -278,13 +279,19 @@ function clear() {
   // Antes do truncate, senão o despejo agendado reescreveria o banco limpo.
   pending.clear();
   persistence.clearDisk();
+  // O disco é o mesmo arquivo que o Rust lê, mas um handle em memória
+  // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa o idx também.
+  clearIdxStore();
 }
 
 /** Remove só o namespace pedido, sem esfriar os outros baldes. */
 function clearNamespace(namespace: string) {
   const wanted = String(namespace || '');
   if (!wanted) return 0;
-  return clearWhere((key) => namespaceFor(key) === wanted);
+  // `idx` é dono do Rust: o L1 não tem essas chaves e o disco é lido pelo
+  // IdxStore, então a limpeza tem de ir ao handle nativo.
+  const fromRust = wanted === 'idx' ? clearIdxStore() : 0;
+  return clearWhere((key) => namespaceFor(key) === wanted) + fromRust;
 }
 
 /**

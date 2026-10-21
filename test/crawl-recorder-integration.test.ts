@@ -93,9 +93,7 @@ describe('crawl-recorder: integração real com o acervo e o índice', () => {
     assert.equal(cutWork?.passedFilter, 0, 'cortada fica 0 — não contaminou o passed_filter');
 
     // --- Índice: obra nova nasce parcial e só com o relevante.
-    const entry = cache.peek(`${prefix('idx')}${IMDB}`) as { partial?: boolean } | null;
-    assert.ok(entry, 'índice gravou a obra');
-    assert.equal(entry!.partial, true, 'uma página não cobre a obra → partial');
+    assert.ok(releaseIndex.idxHasKey(`${prefix('idx')}${IMDB}`), 'índice gravou a obra');
     assert.equal(releaseIndex.isPartial(IMDB), true);
     const indexed = releaseIndex.lookup(IMDB);
     assert.equal(indexed.length, 1);
@@ -125,8 +123,7 @@ describe('crawl-recorder: integração real com o acervo e o índice', () => {
     };
     await recorder.record('vacatorrent', { imdb, title: 'Expresso do Amanhã', year: 2013, kind: 'movie' }, [newRelease]);
 
-    const entry = cache.peek(`${prefix('idx')}${imdb}`) as { partial?: boolean } | null;
-    assert.equal(entry!.partial, true, 'a escrita do crawler NÃO limpou o partial');
+    assert.equal(releaseIndex.isPartial(imdb), true, 'a escrita do crawler NÃO limpou o partial');
     const hashes = releaseIndex.lookup(imdb).map((r) => r.hash).sort();
     assert.deepEqual(hashes, [oldHash, newHash].sort(), 'release antiga preservada junto da nova');
   });

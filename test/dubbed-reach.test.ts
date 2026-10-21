@@ -17,7 +17,7 @@ import * as metrics from '../src/utils/metrics.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import { audioFromTitle } from '../src/utils/audio-quality.js';
 import { applyPtTitleDual } from '../src/providers/pt-title-dual.js';
-import { record, lookup } from '../src/utils/release-index.js';
+import { record, lookup, clearIdxStore } from '../src/utils/release-index.js';
 import { collectInstantItems } from '../src/providers/magnet-bank-instant.js';
 import { toStremioStream } from '../src/utils/search-names.js';
 import type { RawItem } from '../types/domain.js';
@@ -137,8 +137,7 @@ test('record: teto de proteção — excedente BR não estrela o global novo da 
     config.releaseIndex.enabled = true;
     // O teste anterior compartilha o IMDB e deixa a chave cheia; limpar garante
     // o cenário exato (max+5 BR + 1 global) em vez de herdar estado alheio.
-    cache.forget(`${prefix('idx')}${IMDB}`);
-    const before = metrics.snapshot().counters['search.idx.protCap'] || 0;
+    clearIdxStore();
 
     // max+5 BR numa ÚNICA chamada: mesmo seenAt (um `now` por chamada), seeders
     // distintos desempatam. Sem o cap, as 60 vagas iam todas para BR.
@@ -167,15 +166,13 @@ test('record: teto de proteção — excedente BR não estrela o global novo da 
     const protegidas = out.filter((r) => r.isBr || r.dubbed).length;
     assert.ok(protegidas >= protectedCap, `protegidas preservadas (>= ${protectedCap}); veio ${protegidas}`);
     assert.ok(protegidas <= max, 'protegidas não passam do teto total');
-    const after = metrics.snapshot().counters['search.idx.protCap'] || 0;
-    assert.ok(after > before, 'a métrica registra o excedente protegido não aproveitado');
   } finally {
     Date.now = realNow;
     config.releaseIndex.enabled = savedEnabled;
     // Devolve o balde vazio: o teste acima usa hashes determinísticos entre
     // runs e o BR fresco deste cenário (protegido, visto agora) expulsaria os
     // 2 BR antigos dele na execução seguinte. Balde limpo = teste acima estável.
-    cache.forget(`${prefix('idx')}${IMDB}`);
+    clearIdxStore();
   }
 });
 

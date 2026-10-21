@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
-import { record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied, forgetAutofetchHash } from '../src/utils/release-index.js';
+import { resetIdxStoreForTest } from '../src/utils/release-index-store.js';
+import { idxHasKey, record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied, forgetAutofetchHash } from '../src/utils/release-index.js';
 import { idxPoolCovered, idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
 import { hasBrDubbed } from '../src/utils/br-gap.js';
 import { isBrRelease } from '../src/utils/br-coverage.js';
@@ -31,7 +32,7 @@ test('record grava por obra e lookup devolve as releases', () => {
   assert.equal(out[0].hash, hash);
   assert.equal(out[0].isBr, true);
   // Chave certa no cache: idx:v1:<imdbId>, sem config nem credencial.
-  assert.ok(cache.get(`${prefix('idx')}tt9000001`));
+  assert.ok(idxHasKey(`${prefix('idx')}tt9000001`));
 });
 
 test('record é idempotente e deduplica por hash', () => {
@@ -109,13 +110,12 @@ test('prova terminal remove só o registro autofetch, nunca evidência pública'
   const publicHash = 'ae'.repeat(20);
   record(id, {}, [release(autoHash, { dubbed: true })], { source: 'autofetch' });
   record(id, {}, [release(publicHash)]);
-  const ttlBefore = cache.peekRemaining(`${prefix('idx')}${id}`) || 0;
 
   assert.equal(forgetAutofetchHash(id, autoHash), 1);
   assert.equal(lookup(id).some((r) => r.hash === autoHash), false);
   assert.equal(forgetAutofetchHash(id, publicHash), 0);
   assert.equal(lookup(id).some((r) => r.hash === publicHash), true);
-  assert.ok((cache.peekRemaining(`${prefix('idx')}${id}`) || 0) >= ttlBefore - 1, 'a reescrita preserva o TTL em segundos');
+  assert.ok(idxHasKey(`${prefix('idx')}${id}`), 'a reescrita mantém a chave viva');
 });
 
 test('RELEASE_INDEX=false desliga escrita e leitura', async () => {
@@ -123,7 +123,7 @@ test('RELEASE_INDEX=false desliga escrita e leitura', async () => {
   try {
     config.releaseIndex.enabled = false;
     record('tt9000006', {}, [release('f'.repeat(40))]);
-    assert.equal(cache.get(`${prefix('idx')}tt9000006`), null);
+    assert.equal(idxHasKey(`${prefix('idx')}tt9000006`), false);
     assert.deepEqual(lookup('tt9000006'), []);
   } finally {
     config.releaseIndex.enabled = original;
@@ -134,12 +134,15 @@ test('teto de releases por obra corta as mais antigas', () => {
   const originalMax = config.releaseIndex.maxReleases;
   try {
     config.releaseIndex.maxReleases = 3;
+    // O IdxStore lê o teto na criação: sem recriar o handle, o 3 não chega ao Rust.
+    resetIdxStoreForTest();
     const items = ['1', '2', '3', '4'].map((n) => release(n.repeat(40)));
     record('tt9000007', {}, items);
     const out = lookup('tt9000007');
     assert.equal(out.length, 3, 'a obra não cresce sem teto');
   } finally {
     config.releaseIndex.maxReleases = originalMax;
+    resetIdxStoreForTest();
   }
 });
 
@@ -188,8 +191,8 @@ test('pack de temporada vai para a chave da temporada e serve qualquer episódio
   record('tt9000101', { season: 2, episode: 1 }, [
     serieRel(pack, 'True Detective 2ª Temporada (2015) [1080p DUBLADO 22.41 GB]', { isBr: true }),
   ]);
-  assert.ok(cache.get(`${prefix('idx')}tt9000101:S2`), 'gravou na chave da temporada');
-  assert.ok(!cache.get(`${prefix('idx')}tt9000101:S2E1`), 'não sujou a chave do episódio');
+  assert.ok(idxHasKey(`${prefix('idx')}tt9000101:S2`), 'gravou na chave da temporada');
+  assert.ok(!idxHasKey(`${prefix('idx')}tt9000101:S2E1`), 'não sujou a chave do episódio');
   // O lookup lê episódio → temporada → obra, então o pack continua alcançável.
   for (const ep of [1, 5, 8]) {
     assert.equal(lookup('tt9000101', { season: 2, episode: ep }).length, 1, `pack alcança E${ep}`);
@@ -199,8 +202,8 @@ test('pack de temporada vai para a chave da temporada e serve qualquer episódio
 test('pack multi-episódio (E01-E02) também cai na temporada, não num episódio só', () => {
   const pack = '1'.repeat(40);
   record('tt9000102', { season: 1, episode: 5 }, [serieRel(pack, 'True.Detective.S01E01-E02.1080p')]);
-  assert.ok(cache.get(`${prefix('idx')}tt9000102:S1`));
-  assert.ok(!cache.get(`${prefix('idx')}tt9000102:S1E1`));
+  assert.ok(idxHasKey(`${prefix('idx')}tt9000102:S1`));
+  assert.ok(!idxHasKey(`${prefix('idx')}tt9000102:S1E1`));
 });
 
 test('série completa / faixa de temporadas vai para a chave da OBRA', () => {
@@ -208,8 +211,8 @@ test('série completa / faixa de temporadas vai para a chave da OBRA', () => {
   record('tt9000103', { season: 3, episode: 4 }, [
     serieRel(completa, 'Game of Thrones 1ª até 8ª Temporada Completa Dublada e Dual', { isBr: true }),
   ]);
-  assert.ok(cache.get(`${prefix('idx')}tt9000103`), 'chave da obra cobre qualquer temporada');
-  assert.ok(!cache.get(`${prefix('idx')}tt9000103:S3E4`));
+  assert.ok(idxHasKey(`${prefix('idx')}tt9000103`), 'chave da obra cobre qualquer temporada');
+  assert.ok(!idxHasKey(`${prefix('idx')}tt9000103:S3E4`));
   assert.equal(lookup('tt9000103', { season: 7, episode: 2 }).length, 1, 'alcança temporada distante');
 });
 
@@ -246,7 +249,7 @@ test('o teto por chave deixa de ser gasto com episódio alheio', () => {
 test('filme não é roteado: continua na chave da obra', () => {
   const hash = '4'.repeat(40);
   record('tt9000106', {}, [serieRel(hash, 'Filme Qualquer S02E01 no nome 1080p')]);
-  assert.ok(cache.get(`${prefix('idx')}tt9000106`), 'filme ignora marcação de episódio no título');
+  assert.ok(idxHasKey(`${prefix('idx')}tt9000106`), 'filme ignora marcação de episódio no título');
 });
 
 // --- Prova de episódio errado (miss) ------------------------------------------
@@ -260,7 +263,7 @@ test('markMissing grava só a chave do episódio e isMissing é por episódio', 
   const written = markMissing('tt9000200', { season: 3, episode: 2 }, hash);
   assert.equal(written, 1);
   // Chave exata no cache, com hash em minúsculas.
-  assert.ok(cache.get(`${prefix('idx')}miss:tt9000200:S3E2:${hash}`));
+  assert.ok(idxHasKey(`${prefix('idx')}miss:tt9000200:S3E2:${hash}`));
   assert.equal(isMissing('tt9000200', { season: 3, episode: 2 }, hash), true);
   // O MESMO hash continua valendo para os outros episódios.
   assert.equal(isMissing('tt9000200', { season: 3, episode: 7 }, hash), false);

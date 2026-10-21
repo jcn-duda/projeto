@@ -61,13 +61,6 @@ function indexItem(hash: string) {
   return { title: 'Filme Teste BluRay 1080p DUBLADO', infoHash: hash, seeders: 12, indexer: 'testindexer', isBr: true };
 }
 
-test('índice: grava a fonte de mídia que o Rust decide', () => {
-  rustCore.setCoreForTest({ ...titles(), releaseIndexMediaMerge: () => 'webdl' });
-  record('tt9200001', {}, [indexItem('4'.repeat(40))]);
-  assert.equal((lookup('tt9200001')[0] as any).mediaSource, 'webdl');
-  assert.equal(counter('rust.release_index.calls'), 1);
-});
-
 test('índice: núcleo real lê BluRay do título', () => {
   record('tt9200003', {}, [indexItem('6'.repeat(40))]);
   assert.equal((lookup('tt9200003')[0] as any).mediaSource, 'BluRay');

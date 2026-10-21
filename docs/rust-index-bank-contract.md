@@ -183,3 +183,19 @@ Diferenças conscientes:
 
 Ainda no Node: as chamadas, a F3.1b (leitura por rota) e a F3.1c (o Node para de
 gravar `idx:`). Nada deste recorte é usado pelo caminho do `/stream` ainda.
+
+## F3.1 — o Node usa o IdxStore (dono único do `idx:v14`)
+
+O Node não grava mais o `idx:` no L1 nem no SQLite: `release-index.ts` é uma
+fachada sobre o `IdxStore` (`release-index-store.ts`, síncrono, via napi). O
+boot não carrega nem apaga linhas `idx` (`cache-db.ts`); `cache.clear()` e
+`clearNamespace('idx')` chamam o Rust. `status().entries` vem da contagem do Rust.
+
+Perdas conscientes:
+- `search.idx.routed` e `search.idx.protCap` deixaram de contar: a decisão de
+  roteamento e de corte protegido agora é do Rust, que não emite métricas.
+- O rollback `INDEX_OWNER=node` do plano NÃO foi implementado: manter o caminho
+  antigo exigiria dois escritores. Reverter = commit/imagem anterior.
+- O TTL restante não é mais asserido no TS (o Rust mantém `expires_at`).
+
+Diagnóstico: `idxHasKey(key)` (exata, para testes de roteamento) e o napi `hasKey`.
