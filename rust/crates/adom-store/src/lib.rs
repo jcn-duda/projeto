@@ -13,23 +13,23 @@
 //! `data/streams.db`) e o raw via `CACHE_DB_PATH` (default `data/cache.db`).
 
 mod index_impl;
+pub use index_impl::NativeReleaseIndex;
 mod magnet_bank;
 mod magnet_db;
 mod meta;
 mod raw;
-mod release_index;
 mod streams;
 
+pub use adom_index::{
+    default_cache_db_path as default_index_cache_db_path, idx_prefix, FileEvidence, IndexEntry,
+    IndexedRelease, RecordOptions, ReleaseIndexStore, IDX_NAMESPACE,
+};
 pub use magnet_bank::{magnet_db_path, MagnetBankStore, WorkCtx};
 pub use magnet_db::{
     default_cache_db_path as default_magnet_db_cache_path, mag_prefix, mark_key, MagnetDbStore,
 };
 pub use meta::{default_cache_db_path, meta_namespace, MetaCacheStore};
 pub use raw::{default_raw_quota, is_raw_key, raw_prefix, RawCacheStore};
-pub use release_index::{
-    default_cache_db_path as default_index_cache_db_path, idx_prefix, FileEvidence, IndexEntry,
-    IndexedRelease, RecordOptions, ReleaseIndexStore, IDX_NAMESPACE,
-};
 pub use streams::{
     default_streams_quota, is_streams_key, streams_prefix, StreamsStore, TraceHit,
     STREAMS_NAMESPACE,

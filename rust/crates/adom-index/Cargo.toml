@@ -1,0 +1,16 @@
+[package]
+name = "adom-index"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Índice de releases idx:v14 (SQLite do cache.db). Crate leve: sem rede, para o .node e o gateway."
+license = "UNLICENSED"
+
+[dependencies]
+adom-core = { path = "../adom-core" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

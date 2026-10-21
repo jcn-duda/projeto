@@ -30,7 +30,25 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::raw::{cache_db_path, cache_persist};
+/// `CACHE_PERSIST=false` cai em memória (mesma regra do `raw.rs`).
+pub(crate) fn cache_persist() -> bool {
+    std::env::var("CACHE_PERSIST")
+        .map(|raw| !raw.trim().eq_ignore_ascii_case("false"))
+        .unwrap_or(true)
+}
+
+/// `CACHE_DB_PATH` (default `data/cache.db`), compartilhado com o Node.
+pub(crate) fn cache_db_path() -> PathBuf {
+    std::env::var("CACHE_DB_PATH")
+        .ok()
+        .map(|raw| raw.trim().to_string())
+        .filter(|raw| !raw.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("data/cache.db"))
+}
+
+/// Alias do `orchestrator::BankLookup` do adom-search: mesmo tipo, sem a dependência.
+pub type BankLookup<'a> = &'a dyn Fn(&[String]) -> Vec<BankRow>;
 
 // Provas laterais (miss, lied, evidência por arquivo, parcial, limpeza e
 // leituras por varredura): submódulo para enxergar `conn` e os helpers daqui.
@@ -152,6 +170,15 @@ impl ReleaseIndexStore {
 
     /// Tetos do operador (`RELEASE_INDEX_TTL`/`_MAX_RELEASES`) usados pela
     /// escrita via `ReleaseIndexSource`.
+    /// Tetos efetivos (leitura pelo wrapper de fonte do adom-store).
+    pub fn ttl(&self) -> u64 {
+        self.ttl_seconds
+    }
+
+    pub fn max_releases(&self) -> usize {
+        self.max_releases
+    }
+
     pub fn with_limits(mut self, ttl_seconds: u64, max_releases: usize) -> Self {
         self.ttl_seconds = ttl_seconds;
         self.max_releases = max_releases.max(1);
@@ -330,7 +357,7 @@ impl ReleaseIndexStore {
         ttl_seconds: u64,
         max_releases: usize,
         now_ms: i64,
-        bank: Option<adom_search::orchestrator::BankLookup<'_>>,
+        bank: Option<BankLookup<'_>>,
     ) -> Result<usize, String> {
         if ttl_seconds == 0 || !imdb_id.starts_with("tt") || items.is_empty() || max_releases == 0 {
             return Ok(0);

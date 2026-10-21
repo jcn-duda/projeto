@@ -8,6 +8,8 @@ license = "UNLICENSED"
 
 [dependencies]
 adom-core = { path = "../adom-core" }
+# Índice idx:v14 movido para o adom-index (crate leve, usado também pelo .node).
+adom-index = { path = "../adom-index" }
 # StreamsEntry + SwrStore + teto/graça — o Orchestrator já fala essa lingua.
 adom-search = { path = "../adom-search" }
 # Trait `RawStore` do `raw:v1` (o coletor BLUDV nativo a consome).

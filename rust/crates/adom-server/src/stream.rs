@@ -242,7 +242,7 @@ fn wire_native_index(orch: Orchestrator) -> Orchestrator {
     let cfg = orch.config().clone();
     let mut orch = orch;
     if cfg.index_mode.uses_native() && cfg.release_index_enabled && cfg.release_index_ttl > 0 {
-        match adom_store::ReleaseIndexStore::from_env() {
+        match adom_store::NativeReleaseIndex::from_env() {
             Ok(store) => {
                 eprintln!(
                     "[gateway] índice de releases nativo: INDEX_RUST={} (idx:v14, ttl={}s, teto={})",

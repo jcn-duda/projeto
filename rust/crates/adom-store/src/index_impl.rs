@@ -11,7 +11,7 @@ use adom_search::ReleaseEntry;
 use serde_json::Value;
 
 use crate::magnet_bank::{MagnetBankStore, WorkCtx};
-use crate::release_index::{IndexedRelease, RecordOptions, ReleaseIndexStore};
+use adom_index::{IndexedRelease, RecordOptions, ReleaseIndexStore};
 
 fn work_target(season: Option<i64>, episode: Option<i64>) -> WorkTarget {
     WorkTarget { season, episode }
@@ -35,7 +35,21 @@ fn wire(release: IndexedRelease) -> IndexedReleaseWire {
     }
 }
 
-impl ReleaseIndexSource for ReleaseIndexStore {
+/// Fonte do orquestrador sobre o índice nativo. Newtype porque a trait é do
+/// adom-search e o `ReleaseIndexStore` agora mora no adom-index (regra de órfã).
+pub struct NativeReleaseIndex(ReleaseIndexStore);
+
+impl NativeReleaseIndex {
+    pub fn from_env() -> Result<Self, String> {
+        ReleaseIndexStore::from_env().map(Self)
+    }
+
+    pub fn with_limits(self, ttl_seconds: u64, max_releases: usize) -> Self {
+        Self(self.0.with_limits(ttl_seconds, max_releases))
+    }
+}
+
+impl ReleaseIndexSource for NativeReleaseIndex {
     fn lookup(
         &self,
         imdb: &str,
@@ -43,7 +57,7 @@ impl ReleaseIndexSource for ReleaseIndexStore {
         episode: Option<i64>,
         now_ms: i64,
     ) -> Vec<IndexedReleaseWire> {
-        ReleaseIndexStore::lookup(self, imdb, work_target(season, episode), now_ms)
+        ReleaseIndexStore::lookup(&self.0, imdb, work_target(season, episode), now_ms)
             .into_iter()
             .map(wire)
             .collect()
@@ -56,7 +70,7 @@ impl ReleaseIndexSource for ReleaseIndexStore {
         episode: Option<i64>,
         now_ms: i64,
     ) -> bool {
-        ReleaseIndexStore::is_partial(self, imdb, work_target(season, episode), now_ms)
+        ReleaseIndexStore::is_partial(&self.0, imdb, work_target(season, episode), now_ms)
     }
 
     fn record(
@@ -66,7 +80,7 @@ impl ReleaseIndexSource for ReleaseIndexStore {
         bank: Option<adom_search::orchestrator::BankLookup<'_>>,
     ) -> Result<usize, String> {
         ReleaseIndexStore::record(
-            self,
+            &self.0,
             &entry.imdb,
             work_target(entry.season, entry.episode),
             &entry.items,
@@ -75,8 +89,8 @@ impl ReleaseIndexSource for ReleaseIndexStore {
                 keep_partial: false,
                 source: entry.source.as_deref(),
             },
-            self.ttl_seconds,
-            self.max_releases,
+            self.0.ttl(),
+            self.0.max_releases(),
             now_ms,
             bank,
         )

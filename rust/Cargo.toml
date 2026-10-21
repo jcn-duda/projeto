@@ -23,6 +23,9 @@ members = [
     # Fila harvest:v1:q (memória + L2 SQLite). Embrião Fase E — fora do
     # caminho /stream; ainda não pluga no gateway nem no worker Jackett.
     "crates/adom-harvest",
+    # Índice idx:v14 (SQLite do cache.db): crate leve, sem rede, compartilhado
+    # pelo gateway (adom-store) e pelo .node (adom-napi).
+    "crates/adom-index",
 ]
 resolver = "2"
 
