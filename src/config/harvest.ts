@@ -17,11 +17,13 @@ export const warmup = () => ({
   skipSlow: String(process.env.WARMUP_SKIP_SLOW || 'true') === 'true',
 });
 
-// Índice de releases por obra (`idx:v6`): o que a busca já provou existir,
+// Índice de releases por obra (`idx:v14`): o que a busca já provou existir,
 // filtrado e dedupado por hash. Compartilhado entre instalações DE PROPÓSITO —
 // guarda o que EXISTE, nunca o que está pronto em qual conta (isso é
 // davail/mag, escopados por conta). RELEASE_INDEX=false desliga a escrita E a
-// leitura; RELEASE_INDEX_TTL=0 idem.
+// leitura; RELEASE_INDEX_TTL=0 idem. Dono: Rust (`IdxStore`). INDEX_OWNER=node
+// do plano NÃO é rollback — dois escritores no mesmo cache.db; reverter =
+// commit/imagem anterior.
 export const releaseIndex = () => ({
   enabled: String(process.env.RELEASE_INDEX || 'true') === 'true',
   // Release não deixa de existir por envelhecer — quem a desqualifica é o

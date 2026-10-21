@@ -212,6 +212,8 @@ export function createPersistence() {
 
   function persist(key: string, value: unknown, expiresAt: number) {
     if (!insertStmt) return;
+    // `idx` é dono do IdxStore no mesmo cache.db: o L2 do Node não regrava.
+    if (namespaceFor(key) === 'idx') return;
     // A última escrita da chave é a que vale; o Map já substitui a anterior.
     pending.set(key, { value, expiresAt });
     scheduleFlush();

@@ -85,7 +85,7 @@ test('POST clear-cache por namespace preserva os outros namespaces', async () =>
   config.jackett.testToken = TOKEN;
   try {
     cache.set('raw:dashboard-scope', { ok: 1 }, 60);
-    cache.set('idx:dashboard-scope', { ok: 1 }, 60);
+    cache.set('davail:dashboard-scope', { ok: 1 }, 60);
     const res = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'clear-cache', confirm: true, scope: { namespace: 'raw' } },
@@ -93,7 +93,7 @@ test('POST clear-cache por namespace preserva os outros namespaces', async () =>
     assert.equal(res.status, 200);
     assert.deepEqual(res.json.scope, { kind: 'namespace', namespace: 'raw' });
     assert.equal(cache.get('raw:dashboard-scope'), null);
-    assert.deepEqual(cache.get('idx:dashboard-scope'), { ok: 1 });
+    assert.deepEqual(cache.get('davail:dashboard-scope'), { ok: 1 });
   } finally {
     cache.clear();
     config.jackett.testToken = '';

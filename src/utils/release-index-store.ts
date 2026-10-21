@@ -45,14 +45,13 @@ export type IdxStoreNapi = {
   clear(): number;
 };
 
-type IdxStoreCtor = new (dbPath: string, ttlSeconds: number, maxReleases: number) => IdxStoreNapi;
-
 let handle: IdxStoreNapi | null = null;
 
 /** Handle único do processo; cria na primeira chamada. */
 export function idxStore(): IdxStoreNapi {
   if (handle) return handle;
-  const { IdxStore } = requireCore() as unknown as { IdxStore: IdxStoreCtor };
+  const { IdxStore } = requireCore();
+  if (!IdxStore) throw new Error('[idx] núcleo sem IdxStore — recarregue o .node (cargo build -p adom-napi)');
   const dbPath = config.cache.persist ? config.cache.dbPath : ':memory:';
   handle = new IdxStore(dbPath, config.releaseIndex.ttl, config.releaseIndex.maxReleases);
   return handle;

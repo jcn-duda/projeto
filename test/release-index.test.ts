@@ -8,7 +8,7 @@ import * as cache from '../src/utils/cache.js';
 import config from '../src/config.js';
 import { prefix } from '../src/utils/cache-keys.js';
 import { resetIdxStoreForTest } from '../src/utils/release-index-store.js';
-import { idxHasKey, record, lookup, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied, forgetAutofetchHash } from '../src/utils/release-index.js';
+import { idxHasKey, record, lookup, lookupQuiet, status, markMissing, isMissing, markFileEvidence, fileEvidence, isPartial, clearPartial, markLied, forgetAutofetchHash } from '../src/utils/release-index.js';
 import { idxPoolCovered, idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
 import { hasBrDubbed } from '../src/utils/br-gap.js';
 import { isBrRelease } from '../src/utils/br-coverage.js';
@@ -31,6 +31,7 @@ test('record grava por obra e lookup devolve as releases', () => {
   assert.equal(out.length, 1);
   assert.equal(out[0].hash, hash);
   assert.equal(out[0].isBr, true);
+  assert.deepEqual(lookupQuiet('tt9000001').map((r) => r.hash), [hash]);
   // Chave certa no cache: idx:v1:<imdbId>, sem config nem credencial.
   assert.ok(idxHasKey(`${prefix('idx')}tt9000001`));
 });

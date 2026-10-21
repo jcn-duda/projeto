@@ -290,6 +290,22 @@ test('getWithStale: três estados — fresco, expirado na graça, fora da janela
   }
 });
 
+test('cache.set de chave idx não entra no L1 (dono é o Rust)', async () => {
+  const originalPersist = process.env.CACHE_PERSIST;
+  try {
+    process.env.CACHE_PERSIST = 'false';
+    const cache = await freshCache();
+    cache.set('idx:v14:should-not-land', { x: 1 }, TTL_S);
+    cache.set('idx:dashboard-scope', { ok: 1 }, TTL_S);
+    assert.equal(cache.get('idx:v14:should-not-land'), null);
+    assert.equal(cache.get('idx:dashboard-scope'), null);
+    assert.equal(cache.snapshot().namespaces.idx, undefined);
+  } finally {
+    if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
+    else process.env.CACHE_PERSIST = originalPersist;
+  }
+});
+
 test('quotaFor: cota declarada vale como está, inclusive 0', () => {
   // Com `||`, um namespace declarado com 0 (nada retido) ganhava o fallback de
   // 500 em silêncio — o oposto do pedido, e invisível para a soma do universo,

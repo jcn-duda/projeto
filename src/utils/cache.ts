@@ -229,6 +229,8 @@ function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[])
   for (const { key, value, ttlSeconds } of valid) {
     const expiresAt = Date.now() + ttlSeconds * 1000;
     const namespace = namespaceFor(key);
+    // `idx` é dono do IdxStore: o L1 do Node não pode ser segundo escritor.
+    if (namespace === 'idx') continue;
     removeFromStore(key); // reinsere no fim para a ordem refletir o uso mais recente
     store.set(key, { value, expiresAt, namespace });
     incrementNamespace(namespace);
@@ -270,6 +272,7 @@ function forgetMany(keys: string[]) {
 }
 
 function persist(key: string, value: unknown, expiresAt: number) {
+  if (namespaceFor(key) === 'idx') return;
   persistence.persist(key, value, expiresAt);
 }
 

@@ -188,8 +188,9 @@ gravar `idx:`). Nada deste recorte é usado pelo caminho do `/stream` ainda.
 
 O Node não grava mais o `idx:` no L1 nem no SQLite: `release-index.ts` é uma
 fachada sobre o `IdxStore` (`release-index-store.ts`, síncrono, via napi). O
-boot não carrega nem apaga linhas `idx` (`cache-db.ts`); `cache.clear()` e
-`clearNamespace('idx')` chamam o Rust. `status().entries` vem da contagem do Rust.
+boot não carrega nem apaga linhas `idx` (`cache-db.ts`); `cache.set`/`persist`
+recusam o namespace; `cache.clear()` e `clearNamespace('idx')` chamam o Rust.
+`status().entries` vem da contagem do Rust.
 
 Perdas conscientes:
 - `search.idx.routed` e `search.idx.protCap` deixaram de contar: a decisão de
