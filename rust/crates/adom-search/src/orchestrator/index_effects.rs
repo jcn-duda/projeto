@@ -189,11 +189,6 @@ pub fn effect_entries(
         .collect()
 }
 
-/// Plano no formato comparável (sombra × rota Node).
-pub fn plan_json(plan: &FollowUpPlan) -> Vec<Value> {
-    plan.actions.iter().map(|action| action.as_json()).collect()
-}
-
 #[cfg(test)]
 #[path = "index_effects_tests.rs"]
 mod tests;

@@ -12,18 +12,16 @@
 //! `tracker: "BLUDV"` e **não** tem `indexer`; o `_indexer` do stream nasce
 //! dele (`String(item.indexer || tracker || '').trim().toLowerCase()` →
 //! `"bludv"`) e o chip é `⚙️ BLUDV`. Fixar `indexer = "bludv"` movia o rótulo
-//! do ⚙️ para minúsculas e a chave da sombra para outro balde. `sources` fica
+//! do ⚙️ para minúsculas e a chave do cache para outro balde. `sources` fica
 //! vazio no cru (o Node publica `tracker:` a partir de `TRACKERS` no build).
 //!
-//! **Live (F2.5)** é por FONTE (`"bludv"`), como Prowlarr/Torrentio: o Node
-//! NÃO emite `live` para o BLUDV, então a sombra compara só a identidade
-//! (`compare_live:false`). `Ok` = resposta válida com item relevante; `Empty` =
-//! resposta válida sem item relevante (inclusive 4xx da obra); `Failed` =
-//! 429/5xx/rede/timeout. `pending` nunca é inventado e `all` fica `Unknown`.
+//! **Live (F2.5)** é por FONTE (`"bludv"`), como Prowlarr/Torrentio: `Ok` =
+//! resposta válida com item relevante; `Empty` = resposta válida sem item
+//! relevante (inclusive 4xx da obra); `Failed` = 429/5xx/rede/timeout.
+//! `pending` nunca é inventado e `all` fica `Unknown`.
 //!
-//! **`raw:v1`** só no caminho VIVO (`SOURCES_RUST=bludv`): a sombra monta o
-//! cliente com `shadow` e passa `read_only`, que não lê nem grava o cache
-//! bruto (o mesmo `readOnly` do `bludv.search`).
+//! **`raw:v1`** no caminho vivo (`SOURCES_RUST=bludv`): lê e grava o cache
+//! bruto normalmente.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -79,16 +77,11 @@ pub fn try_bludv_collector_from_env_with_store(
 /// Collector que raspa o WordPress BLUDV (sem POST `/internal/search/collect`).
 pub struct BludvCollector {
     client: BludvClient,
-    /// Sombra read-only: sem `raw:v1` (leitura ou escrita).
-    shadow: bool,
 }
 
 impl BludvCollector {
     pub fn new(client: BludvClient) -> Self {
-        Self {
-            client,
-            shadow: false,
-        }
+        Self { client }
     }
 
     pub fn from_env() -> Result<Self, String> {
@@ -98,12 +91,6 @@ impl BludvCollector {
     /// Store do `raw:v1` compartilhado com o Node (caminho vivo).
     pub fn with_raw_store(mut self, store: Arc<dyn RawStore>) -> Self {
         self.client = self.client.clone().with_raw_store(store);
-        self
-    }
-
-    /// Modo sombra: `readOnly` do Node (sem cache bruto, sem status).
-    pub fn with_shadow(mut self, shadow: bool) -> Self {
-        self.shadow = shadow;
         self
     }
 
@@ -195,7 +182,6 @@ impl Collector for BludvCollector {
                 // `dubbedOnly` chega pelo `RequestSelection` (o default do
                 // operador já foi aplicado ao `options` da request).
                 dubbed_only: job.dubbed_only,
-                read_only: self.shadow,
             };
             let outcome = self.client.search_outcome(query, &opts).await;
             let label = outcome.label();

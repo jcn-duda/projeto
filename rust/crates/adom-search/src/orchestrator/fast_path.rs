@@ -180,12 +180,6 @@ impl Orchestrator {
             first_aired: meta.first_aired.clone(),
         };
         let resp = routes.search_index(req).await.ok()?;
-        // Sombra do índice: o Node responde; o nativo recomputa em fundo e
-        // compara conjunto/cobertura/ordem/efeitos. NUNCA segura o cliente.
-        if self.config.index_mode == super::index_source::IndexMode::Shadow && self.index.is_some()
-        {
-            self.spawn_index_shadow(input.clone(), meta.clone(), resp.clone());
-        }
         if resp.instant_eligible {
             let mut items = mapped(resp.instant_items, |_| {});
             items.extend(mapped(resp.index_items, |i| i.from_snapshot = true));

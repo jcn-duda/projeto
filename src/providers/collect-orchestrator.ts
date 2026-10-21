@@ -47,14 +47,8 @@ export async function collectRawLive(
   /** Fontes que o coletor nativo do Rust já cobre (`SOURCES_RUST`): o Node não
    * as consulta, senão a mesma fonte entra duas vezes na lista. */
   skipSources: ReadonlySet<string> = new Set(),
-  /** Referência da sombra de fonte: coleta SEM efeitos (conta, banco, status/
-   * breaker, cache bruto). Nunca usado pelo caminho de resposta. */
-  readOnly = false,
-  /** Sombra: indexers do PROCESSO (`JACKETT_INDEXERS`) no lugar do `ji` do
-   * encoded. Só vale em readOnly; no caminho de resposta é ignorado. */
-  indexersOverride: string[] | null = null,
 ) {
-  const selection = collectionSelection(opts(), skipSources, readOnly ? indexersOverride : null);
+  const selection = collectionSelection(opts(), skipSources);
   const { providers, mode } = selection;
   const wants = (name: string) => sourceWanted(name, selection);
   // I0 — relógio comum de UMA invocação de coleta. Cada grupo (BR/global) mede
@@ -104,8 +98,6 @@ export async function collectRawLive(
     };
   }
 
-  // Sombra read-only: a seleção do `ji` é a do PROCESSO (override); o caminho de
-  // resposta usa o `ji` do encoded. A régua vive em `source-selection.ts`.
   const rawSelected: string[] = selection.rawSelected;
   // Index-only ficam fora do caminho da resposta (colhem em fundo para o
   // índice). O filtro é ANTES do plano: se o operador mandou todos os
@@ -143,7 +135,6 @@ export async function collectRawLive(
       addTask(() => jackett.search(query, type, null, {
         originalQuery: originalQuery || undefined, matchContext, imdbId,
         season: matchContext.season, episode: matchContext.episode, year: matchContext.year, resetPassedFilter: true,
-        readOnly,
         onQueryResult: (info: any) => live.noteResult(info),
       }));
     } else {
@@ -190,7 +181,6 @@ export async function collectRawLive(
             // A mesma busca principal atualiza o status deste indexer. Falha da
             // variante pt-BR não pode sobrescrever aquele resultado como offline.
             recordStatus: inlineSweep ? false : undefined,
-            readOnly,
             ...(inlineSweep ? {} : { onQueryResult: (info: any) => live.noteResult(info) }),
             // Coleta com prazo é caminho de resposta; sem prazo é cauda
             // (enriquecimento do índice, pack tardio) — desperdício vai para o
@@ -214,7 +204,7 @@ export async function collectRawLive(
       imdbId,
       season: matchContext.season,
       episode: matchContext.episode,
-    }, { readOnly }));
+    }));
   }
 
   // Se misconfigurou PROVIDER, tenta jackett
@@ -232,7 +222,6 @@ export async function collectRawLive(
     addTask(() => jackett.search(query, type, null, {
       originalQuery: originalQuery || undefined, matchContext, imdbId,
       season: matchContext.season, episode: matchContext.episode, year: matchContext.year, resetPassedFilter: true,
-      readOnly,
       onQueryResult: (info: any) => live.noteResult(info),
     }));
   }
@@ -255,7 +244,6 @@ export async function collectRawLive(
     }, {
       resetPassedFilter: true,
       matchContext,
-      readOnly,
       onQueryResult: (info) => live.noteResult(info),
     }), true);
   }
@@ -264,15 +252,13 @@ export async function collectRawLive(
   // então se o site cair ou demorar, o resto da busca sai normalmente.
   if (wants('bludv')) {
     // Sites BR indexam por título pt-BR ("Coringa", não "Joker").
-    addTask(() => bludv.search(ptQuery || query, { readOnly }), true);
+    addTask(() => bludv.search(ptQuery || query), true);
   }
 
   // A conta do debrid como fonte: o que já está pronto lá entra com ⚡ sem
   // indexer nenhum. Teto curto dentro da própria tarefa (ver account.js)
   // para a primeira leitura não segurar a resposta.
-  // Sombra read-only: a conta do debrid é inventário com efeitos (memo/cache
-  // davail) e não faz parte da comparação de fonte.
-  const accountSource = !readOnly && !skipSources.has('account') && config.debrid.inventorySource && Boolean(debrid.current());
+  const accountSource = !skipSources.has('account') && config.debrid.inventorySource && Boolean(debrid.current());
   if (accountSource) {
     addTask(() => account.search(matchContext, trace), false, 'account');
   }
@@ -290,7 +276,6 @@ export async function collectRawLive(
   // faz o passe tardio promovê-la quando os indexers fecharem.
   // No record/replay congelado ele é DESLIGADO: a captura precisa do lote
   // final, não do parcial que o cliente recebeu antes de os indexers fecharem.
-  // No shadow segue o de produção.
   const fastPathOn = !freshRequest() && config.accountFastPath.enabled && accountSource;
   // Quando o índice já cobre a obra, a primeira resposta ainda pode esperar
   // somente os BR vivos: eles são a parte que o índice não sabe atualizar. Os

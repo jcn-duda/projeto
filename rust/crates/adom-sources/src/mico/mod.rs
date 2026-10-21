@@ -9,12 +9,12 @@
 //! - dedupe por `infoHash`; magnet sem `dn=` e trackers na ordem do Node;
 //! - base configurável sob guarda SSRF;
 //! - `search_outcome` distingue `pending` no prazo do coletor (o Node também
-//!   o teria) de falha do host, e a sombra lê/ignora o breaker (`read_only`).
+//!   o teria) de falha do host.
 //!
 //! Fora desta fatia: `mico_net` do crawl (catálogo — usa `fetch_streams`),
 //! captura no magnet-bank, pintura de card (`indexerStatus`) e métricas. No
 //! coletor nativo não há captura/card/status; o breaker só existe no caminho
-//! vivo (`MicoSearchOptions::LIVE`).
+//! vivo.
 
 mod breaker;
 mod client;

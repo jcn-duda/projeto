@@ -114,8 +114,7 @@ test('index: getTitles que lança não afeta a resposta', async () => {
     });
     assert.equal(res.status, 200);
     assert.equal(calls, 0, 'nem getTitles nem qualquer fetch no caminho de índice');
-    // Índice vazio: o follow-up reportado é o `miss` do colhedor (a sombra do
-    // índice compara este plano com o que o Rust decidiu).
+    // Índice vazio: o follow-up reportado é o `miss` do colhedor.
     assert.deepEqual(res.json.effects, [{ kind: 'harvester_enqueue', reason: 'miss' }]);
   });
 });

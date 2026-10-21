@@ -16,9 +16,6 @@ fn snapshot_expoe_todas_as_chaves_zeradas() {
         INSTANT,
         BR_GAP,
         EFFECTS,
-        SHADOW_COMPARED,
-        SHADOW_DIVERGENCE,
-        BANK_SHADOW_COMPARED,
     ] {
         assert_eq!(snapshot.get(key), Some(&0), "{key} zerada no snapshot");
     }

@@ -348,9 +348,9 @@ async fn default_on_false_no_config() {
     assert!(cfg.enabled);
 }
 
-// ── Desfecho tipado (`search_outcome`) e breaker read-only ─────────────
+// ── Desfecho tipado (`search_outcome`) e breaker ───────────────────────
 
-use adom_sources::{TorrentioOutcome, TorrentioSearchOptions};
+use adom_sources::TorrentioOutcome;
 
 #[tokio::test]
 async fn outcome_disabled_sem_rede() {
@@ -360,9 +360,7 @@ async fn outcome_disabled_sem_rede() {
         ..test_config(&base)
     };
     let client = TorrentioClient::new(cfg).expect("client");
-    let out = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let out = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(out, TorrentioOutcome::Disabled);
     assert!(!out.is_host_failure());
     assert!(api.calls().is_empty());
@@ -375,9 +373,7 @@ async fn outcome_url_barrada_nao_e_falha_do_host() {
         ..test_config("http://127.0.0.1:9")
     })
     .expect("client");
-    let out = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let out = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(out, TorrentioOutcome::BlockedUrl);
     assert!(!out.is_host_failure());
 }
@@ -390,9 +386,7 @@ async fn outcome_no_endpoint_sem_rede() {
         imdb_id: String::new(),
         ..movie_args("")
     };
-    let out = client
-        .search_outcome(&sem_imdb, TorrentioSearchOptions::LIVE)
-        .await;
+    let out = client.search_outcome(&sem_imdb).await;
     assert_eq!(out, TorrentioOutcome::NoEndpoint);
     assert!(!out.is_host_failure());
     assert!(api.calls().is_empty());
@@ -404,9 +398,7 @@ async fn outcome_json_sem_streams_e_ok_vazio() {
     // `{"streams": {...}}` não é array: o TS cai em `[]` e conta SUCESSO.
     api.set_streams(json!({ "nao": "array" }));
     let client = TorrentioClient::new(test_config(&base)).expect("client");
-    let out = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let out = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(out, TorrentioOutcome::Ok(Vec::new()));
     assert!(!out.is_host_failure());
     assert_eq!(client.breaker().failures(), 0);
@@ -417,26 +409,20 @@ async fn outcome_http_400_nao_e_falha_do_host_e_429_5xx_sao() {
     let (api, base) = FakeTorrentio::start().await;
     let client = TorrentioClient::new(test_config(&base)).expect("client");
     api.set_mode(Mode::Http400);
-    let four = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let four = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(four, TorrentioOutcome::Http(400));
     assert!(!four.is_host_failure(), "4xx da obra não abre o breaker");
     assert_eq!(client.breaker().failures(), 0);
 
     api.set_mode(Mode::Http429);
-    let rate = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let rate = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(rate, TorrentioOutcome::Http(429));
     assert!(rate.is_host_failure());
     assert_eq!(client.breaker().failures(), 1);
 
     client.reset_breaker();
     api.set_mode(Mode::Http503);
-    let down = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let down = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(down, TorrentioOutcome::Http(503));
     assert!(down.is_host_failure());
     assert_eq!(client.breaker().failures(), 1);
@@ -448,9 +434,7 @@ async fn outcome_json_invalido_rede_e_timeout_sao_falha() {
     let client = TorrentioClient::new(test_config(&base)).expect("client");
 
     api.set_mode(Mode::InvalidJson);
-    let invalido = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let invalido = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(invalido, TorrentioOutcome::InvalidJson);
     assert!(invalido.is_host_failure());
 
@@ -464,9 +448,7 @@ async fn outcome_json_invalido_rede_e_timeout_sao_falha() {
         ..test_config(&tls)
     })
     .expect("client");
-    let rede = sem_host
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let rede = sem_host.search_outcome(&movie_args("tt1")).await;
     assert!(
         matches!(rede, TorrentioOutcome::Network(_)),
         "veio {rede:?}"
@@ -479,9 +461,7 @@ async fn outcome_json_invalido_rede_e_timeout_sao_falha() {
         ..test_config(&base)
     })
     .expect("client");
-    let timeout = lento
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let timeout = lento.search_outcome(&movie_args("tt1")).await;
     assert_eq!(timeout, TorrentioOutcome::Timeout);
     assert!(timeout.is_host_failure());
 }
@@ -496,82 +476,15 @@ async fn outcome_breaker_aberto_nao_vai_a_rede() {
         ..test_config(&base)
     })
     .expect("client");
-    let first = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let first = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(first, TorrentioOutcome::Http(503));
     assert_eq!(api.calls().len(), 1);
-    let blocked = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
+    let blocked = client.search_outcome(&movie_args("tt1")).await;
     assert_eq!(blocked, TorrentioOutcome::BreakerOpen);
     assert_eq!(api.calls().len(), 1, "aberto não faz rede");
     assert_eq!(
         client.breaker().failures(),
         1,
         "não incrementa sem consulta"
-    );
-}
-
-/// Sombra read-only: consulta mesmo com o circuito aberto e NÃO reseta.
-#[tokio::test]
-async fn read_only_ignora_breaker_aberto_e_nao_reseta() {
-    let (api, base) = FakeTorrentio::start().await;
-    api.set_mode(Mode::Http503);
-    let client = TorrentioClient::new(TorrentioConfig {
-        breaker_failures: 1,
-        ..test_config(&base)
-    })
-    .expect("client");
-    // Abre pelo caminho vivo.
-    let _ = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
-    assert_eq!(client.breaker().failures(), 1);
-    let bloqueado = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
-    assert_eq!(bloqueado, TorrentioOutcome::BreakerOpen);
-    assert_eq!(api.calls().len(), 1);
-
-    // Referência: consulta (ignora o aberto) e devolve o lote...
-    api.set_mode(Mode::Ok);
-    api.set_streams(json!([stream("ok", HASH_LOWER, None)]));
-    let out = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::SHADOW)
-        .await;
-    assert_eq!(out.into_items().len(), 1);
-    assert_eq!(api.calls().len(), 2, "read-only ignora o breaker");
-    // …sem fechar/resetar o circuito.
-    assert_eq!(client.breaker().failures(), 1, "read-only não reseta");
-    let ainda_bloqueado = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
-    assert_eq!(ainda_bloqueado, TorrentioOutcome::BreakerOpen);
-}
-
-/// Falha na sombra NÃO alimenta o circuito: o caminho vivo seguinte ainda
-/// consulta o host.
-#[tokio::test]
-async fn read_only_nao_abre_o_breaker() {
-    let (api, base) = FakeTorrentio::start().await;
-    api.set_mode(Mode::Http503);
-    let client = TorrentioClient::new(TorrentioConfig {
-        breaker_failures: 1,
-        ..test_config(&base)
-    })
-    .expect("client");
-    let _ = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::SHADOW)
-        .await;
-    assert_eq!(client.breaker().failures(), 0, "sombra não alimenta");
-    let vivo = client
-        .search_outcome(&movie_args("tt1"), TorrentioSearchOptions::LIVE)
-        .await;
-    assert_eq!(vivo, TorrentioOutcome::Http(503));
-    assert_eq!(
-        api.calls().len(),
-        2,
-        "vivo ainda consulta (breaker fechado)"
     );
 }

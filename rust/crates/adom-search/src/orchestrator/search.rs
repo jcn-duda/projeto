@@ -5,17 +5,15 @@ use std::sync::Arc;
 
 use adom_core::RelevanceSettings;
 use serde_json::Value;
-use tokio::sync::oneshot;
 
 use crate::collection_window::{collect_within_window, CollectTask, CollectWindowOptions};
 use crate::latest_writer::LatestWriter;
 use crate::raw_item::{raw_item_from_value, RawItem};
 
 use super::account::{
-    account_raw_items, fast_path_decision, record_fast_path, sampled, AccountMode, AccountRequest,
+    account_raw_items, fast_path_decision, record_fast_path, AccountMode, AccountRequest,
 };
 use super::account_metrics;
-use super::account_shadow::spawn_shadow_compare;
 use super::collect::{account_request_from_job, plan_jobs, CollectJob};
 use super::fast_path::{full_window, merge_fast_with_live};
 use super::finish::{bool_of, cache_max_age_for_finish, str_of, SearchInput};
@@ -295,10 +293,10 @@ impl Orchestrator {
                 self.config.mico_default,
             ),
         );
-        // Fonte da conta: Node (default), nativa (`ACCOUNT_RUST=on`) ou Node +
-        // sombra nativa (`ACCOUNT_RUST=shadow`). A tarefa é PRÓPRIA nos grupos
-        // não prioritários: a primeira leitura custa ~100 ms e, dentro do
-        // `nonpriority`, esperava o indexer global mais lento (4 s+).
+        // Fonte da conta: Node (default) ou nativa (`ACCOUNT_RUST=on`). A
+        // tarefa é PRÓPRIA nos grupos não prioritários: a primeira leitura custa
+        // ~100 ms e, dentro do `nonpriority`, esperava o indexer global mais
+        // lento (4 s+).
         let account_base = if scope != Some(true) {
             jobs.iter()
                 .find(|job| !job.priority)
@@ -307,8 +305,7 @@ impl Orchestrator {
         } else {
             None
         };
-        let account_plan =
-            account_base.and_then(|job| self.account_plan(job, &input.options, meta));
+        let account_plan = account_base.and_then(|job| self.account_plan(job, &input.options));
         // Fast-path da conta: só no modo NATIVO (o Node tem o dele dentro do
         // `collectRaw`; o nativo precisa parar a janela aqui). `ACCOUNT_FAST_PATH`
         // reproduz o kill-switch do operador.
@@ -373,7 +370,7 @@ impl Orchestrator {
                             // Falha da conta não conta como falha de coleta nem
                             // apaga a reserva 📦: o Node já a tratava como fonte
                             // neutra.
-                            match routes.collect(account_request_from_job(job)).await {
+                            match routes.collect(account_request_from_job(*job)).await {
                                 Ok(resp) => {
                                     Ok(resp.items.iter().map(raw_item_from_value).collect())
                                 }
@@ -430,45 +427,6 @@ impl Orchestrator {
                         priority: false,
                         source: Some("account".to_string()),
                     });
-                }
-            }
-            Some(AccountPlan::Shadow { job, req, label }) => {
-                if let (Some(routes), Some(source)) = (self.routes.clone(), self.account.clone()) {
-                    account_metrics::global_metrics().inc(account_metrics::NODE, 1);
-                    // O clone do lote Node viaja para a comparação por oneshot:
-                    // a sombra NÃO faz uma segunda chamada à rota e NÃO segura o
-                    // cliente (a tarefa devolve assim que o Node responde).
-                    let (tx, rx) = oneshot::channel();
-                    tasks.push(CollectTask {
-                        fut: Box::pin(async move {
-                            match routes.collect(account_request_from_job(job)).await {
-                                Ok(resp) => {
-                                    let items: Vec<RawItem> =
-                                        resp.items.iter().map(raw_item_from_value).collect();
-                                    let _ = tx.send(Ok(items.clone()));
-                                    Ok(items)
-                                }
-                                Err(err) => {
-                                    eprintln!("[search] conta do debrid falhou: {err}");
-                                    let _ = tx.send(Err(err));
-                                    Ok(Vec::new())
-                                }
-                            }
-                        }),
-                        priority: false,
-                        source: None,
-                    });
-                    spawn_shadow_compare(
-                        source,
-                        req,
-                        label,
-                        meta.clone(),
-                        self.account_settings(),
-                        rx,
-                        std::time::Duration::from_millis(
-                            self.config.account_shadow_timeout_ms.max(1) as u64,
-                        ),
-                    );
                 }
             }
         }
@@ -546,12 +504,7 @@ impl Orchestrator {
 
     /// Plano da tarefa da conta para esta busca. `None` = P2P puro / sem fonte,
     /// exatamente como o `accountSource` do TS quando não há debrid.
-    fn account_plan(
-        &self,
-        job: CollectJob,
-        options: &Value,
-        meta: &SearchMeta,
-    ) -> Option<AccountPlan> {
+    fn account_plan(&self, job: CollectJob, options: &Value) -> Option<AccountPlan> {
         let req = AccountRequest {
             service: str_of(options, "debridService"),
             api_key: str_of(options, "debridApiKey"),
@@ -560,30 +513,10 @@ impl Orchestrator {
         // não é P2P puro, mas também não é fonte.
         let known_service = adom_debrid::account::is_known_service(&req.service);
         match self.config.account_mode {
-            AccountMode::Off => self.routes.as_ref().map(|_| AccountPlan::Node(job)),
-            AccountMode::Shadow => {
-                // Sem rotas Node ou sem fonte não há par a comparar; a resposta
-                // continua a de sempre (nunca vira fonte neste modo). Conta
-                // desligada pelo operador também não gera par (o Node devolve
-                // vazio de propósito e comparar seria divergência falsa).
-                if self.routes.is_none()
-                    || self.account.is_none()
-                    || !req.is_active()
-                    || !known_service
-                    || !self.config.account_inventory_source
-                {
-                    return self.routes.as_ref().map(|_| AccountPlan::Node(job));
-                }
-                if !sampled(&meta.imdb_id, self.config.account_shadow_sample) {
-                    account_metrics::global_metrics().inc(account_metrics::SHADOW_NOT_SAMPLED, 1);
-                    return Some(AccountPlan::Node(job));
-                }
-                Some(AccountPlan::Shadow {
-                    job,
-                    label: adom_debrid::account::label_of(&req.service).to_string(),
-                    req,
-                })
-            }
+            AccountMode::Off => self
+                .routes
+                .as_ref()
+                .map(|_| AccountPlan::Node(Box::new(job))),
             AccountMode::On => {
                 if !req.is_active() || !known_service || !self.config.account_inventory_source {
                     return None;
@@ -598,23 +531,17 @@ impl Orchestrator {
                     // no Node em vez de sumir da lista.
                     account_metrics::global_metrics().inc(account_metrics::SOURCE_MISSING, 1);
                     eprintln!("[account] ACCOUNT_RUST=on sem fonte nativa; usando a tarefa Node");
-                    self.routes.as_ref().map(|_| AccountPlan::Node(job))
+                    self.routes
+                        .as_ref()
+                        .map(|_| AccountPlan::Node(Box::new(job)))
                 }
             }
         }
     }
 }
 
-/// Plano da conta para UMA coleta (Node, nativa ou Node+sombra).
+/// Plano da conta para UMA coleta (Node ou nativa).
 enum AccountPlan {
-    Node(CollectJob),
-    Native {
-        req: AccountRequest,
-        label: String,
-    },
-    Shadow {
-        job: CollectJob,
-        req: AccountRequest,
-        label: String,
-    },
+    Node(Box<CollectJob>),
+    Native { req: AccountRequest, label: String },
 }

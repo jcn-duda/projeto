@@ -1,5 +1,5 @@
 //! Matriz do eixo VIVO do coletor BLUDV (ok/empty/failed, `all=Unknown`, sem
-//! `pending`), `dubbedOnly` e `raw:v1` (vivo grava/lê; sombra não toca).
+//! `pending`), `dubbedOnly` e `raw:v1`.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -161,12 +161,12 @@ fn config(base: &str) -> BludvConfig {
     }
 }
 
-fn collector(base: &str, store: Option<Arc<RecordingStore>>, shadow: bool) -> BludvCollector {
+fn collector(base: &str, store: Option<Arc<RecordingStore>>) -> BludvCollector {
     let mut client = BludvClient::new(config(base)).expect("client");
     if let Some(store) = store {
         client = client.with_raw_store(store);
     }
-    BludvCollector::new(client).with_shadow(shadow)
+    BludvCollector::new(client)
 }
 
 fn job(names: &[&str], dubbed_only: bool) -> CollectJob {
@@ -194,11 +194,8 @@ fn job(names: &[&str], dubbed_only: bool) -> CollectJob {
     }
 }
 
-async fn collect(base: &str, shadow: bool, job: CollectJob) -> CollectBatch {
-    collector(base, None, shadow)
-        .collect(job)
-        .await
-        .expect("ok")
+async fn collect(base: &str, job: CollectJob) -> CollectBatch {
+    collector(base, None).collect(job).await.expect("ok")
 }
 
 fn assert_live_contract(batch: &CollectBatch) {
@@ -213,7 +210,7 @@ fn assert_live_contract(batch: &CollectBatch) {
 #[tokio::test]
 async fn live_ok_com_itens() {
     let (_fake, base) = start().await;
-    let batch = collect(&base, false, job(&["Matrix"], false)).await;
+    let batch = collect(&base, job(&["Matrix"], false)).await;
     assert_eq!(batch.items.len(), 2);
     assert_live_contract(&batch);
     let live = batch.live.expect("live");
@@ -226,7 +223,7 @@ async fn live_ok_com_itens() {
 #[tokio::test]
 async fn live_empty_quando_nenhum_item_relevante() {
     let (_fake, base) = start().await;
-    let batch = collect(&base, false, job(&["Outra Obra"], false)).await;
+    let batch = collect(&base, job(&["Outra Obra"], false)).await;
     assert_eq!(batch.items.len(), 2, "resposta válida ainda entrega o lote");
     assert_live_contract(&batch);
     let live = batch.live.expect("live");
@@ -238,7 +235,7 @@ async fn live_empty_quando_nenhum_item_relevante() {
 async fn live_empty_quando_site_responde_sem_botoes() {
     let (fake, base) = start().await;
     fake.set_mode(Mode::NoLinks);
-    let batch = collect(&base, false, job(&["Matrix"], false)).await;
+    let batch = collect(&base, job(&["Matrix"], false)).await;
     assert!(batch.items.is_empty());
     assert_live_contract(&batch);
     assert!(batch.live.expect("live").empty.contains(BLUDV_LIVE_KEY));
@@ -248,7 +245,7 @@ async fn live_empty_quando_site_responde_sem_botoes() {
 async fn live_failed_em_http_500() {
     let (fake, base) = start().await;
     fake.set_mode(Mode::Http500);
-    let batch = collect(&base, false, job(&["Matrix"], false)).await;
+    let batch = collect(&base, job(&["Matrix"], false)).await;
     assert!(batch.items.is_empty());
     assert_live_contract(&batch);
     let live = batch.live.expect("live");
@@ -262,7 +259,7 @@ async fn live_failed_em_timeout() {
     fake.set_mode(Mode::Hang);
     let mut j = job(&["Matrix"], false);
     j.deadline_at = adom_sources::now_ms() + 120;
-    let batch = collector(&base, None, false).collect(j).await.expect("ok");
+    let batch = collector(&base, None).collect(j).await.expect("ok");
     assert!(batch.items.is_empty());
     assert_live_contract(&batch);
     assert!(batch.live.expect("live").failed.contains(BLUDV_LIVE_KEY));
@@ -290,20 +287,19 @@ async fn desligado_nao_e_falha_viva() {
 #[tokio::test]
 async fn dubbed_only_on_e_off_no_coletor() {
     let (_fake, base) = start().await;
-    let both = collect(&base, false, job(&["Matrix"], false)).await;
+    let both = collect(&base, job(&["Matrix"], false)).await;
     assert_eq!(both.items.len(), 2);
-    let dubbed = collect(&base, false, job(&["Matrix"], true)).await;
+    let dubbed = collect(&base, job(&["Matrix"], true)).await;
     assert_eq!(dubbed.items.len(), 1);
     assert_eq!(dubbed.items[0].extra.get("audio"), Some(&json!("dublado")));
 }
 
 #[tokio::test]
-async fn raw_v1_so_no_caminho_vivo() {
+async fn raw_v1_grava_e_le_sem_rede() {
     let (fake, base) = start().await;
     let store = Arc::new(RecordingStore::default());
 
-    // Vivo: grava na primeira e lê na segunda sem voltar à rede.
-    let live = collector(&base, Some(store.clone()), false);
+    let live = collector(&base, Some(store.clone()));
     let first = live.collect(job(&["Matrix"], false)).await.expect("ok");
     assert_eq!(first.items.len(), 2);
     assert_eq!(store.sets.load(Ordering::SeqCst), 1);
@@ -311,13 +307,5 @@ async fn raw_v1_so_no_caminho_vivo() {
     let second = live.collect(job(&["Matrix"], false)).await.expect("ok");
     assert_eq!(second.items, first.items);
     assert_eq!(fake.calls().len(), calls, "hit do raw:v1 não vai à rede");
-
-    // Sombra: zera os contadores e NÃO lê nem grava.
-    let shadow_store = Arc::new(RecordingStore::default());
-    let shadow = collector(&base, Some(shadow_store.clone()), true);
-    let batch = shadow.collect(job(&["Matrix"], false)).await.expect("ok");
-    assert_eq!(batch.items.len(), 2);
-    assert_eq!(shadow_store.gets.load(Ordering::SeqCst), 0);
-    assert_eq!(shadow_store.sets.load(Ordering::SeqCst), 0);
-    assert!(shadow_store.inner.is_empty());
+    assert_eq!(store.gets.load(Ordering::SeqCst), 2, "1ª: miss; 2ª: hit");
 }

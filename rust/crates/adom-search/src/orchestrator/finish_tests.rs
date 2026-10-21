@@ -87,8 +87,8 @@ fn run(
     run_checked(service, answer, resolve_uncached, multi_work_admitted, true)
 }
 
-/// `checked=false` espelha a sombra §9.1: `NoDebridCheck` responde Unknown sem
-/// ter perguntado — nada pode virar `/resolve` (nem com o knob ligado).
+/// `checked=false` = a checagem não perguntou ao debrid: `NoDebridCheck`
+/// responde Unknown — nada pode virar `/resolve` (nem com o knob ligado).
 fn run_checked(
     service: &str,
     answer: Answer,
@@ -302,12 +302,12 @@ fn multiobra_admitida_em_cache_resolve_mesmo_sem_knob() {
 }
 
 #[test]
-fn sombra_nao_materializa_resolve_nem_com_knob() {
-    // Sombra não perguntou ao debrid: `Unknown` não é degradação e o knob de
+fn checagem_pulada_nao_materializa_resolve_nem_com_knob() {
+    // Sem perguntar ao debrid, `Unknown` não é degradação e o knob de
     // `resolveUncached` não tem veredito para aplicar.
     let streams = run_checked("alldebrid", Answer::Unknown, true, false, false);
     assert_eq!(streams.len(), 1);
-    assert_p2p(&streams[0], "sombra");
+    assert_p2p(&streams[0], "checagem pulada");
 }
 
 #[test]

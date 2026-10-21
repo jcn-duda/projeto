@@ -16,9 +16,7 @@
 //! `DEBRID_AL_RUST=off` (default), SEMPRE para a AllDebrid. Com a flag em
 //! `on`, a AllDebrid usa a checagem nativa do `adom-debrid` e só cai no Node
 //! quando NENHUM upload foi enviado (base recusada/sem lote) — repetir depois
-//! de um upload real dobraria o lixo na conta. Com `shadow`, a nativa
-//! responde e o Node é chamado como REFERÊNCIA em fundo
-//! (`debrid.al.shadow.*`), sem segurar o cliente.
+//! de um upload real dobraria o lixo na conta.
 //!
 //! **Feed de holds (AllDebrid):** o hold volátil do autofetch mora no Node, e a
 //! limpeza nativa exige `holds_complete` + inventário. Com `DEBRID_AL_HOLDS=on`
@@ -26,8 +24,7 @@
 //! `/internal/debrid/holds` ANTES da checagem nativa e os entrega ao
 //! `verdict`. Sem resposta, conta divergente ou cobertura incompleta a nativa
 //! segue READ-ONLY — nunca "completa" por omissão. O feed só vale com
-//! `DEBRID_AL_CLEANUP=on` e `DEBRID_AL_RUST=on` (no modo `shadow` a nativa é
-//! observação: não limpa).
+//! `DEBRID_AL_CLEANUP=on` e `DEBRID_AL_RUST=on`.
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -44,7 +41,7 @@ use adom_debrid::internal_check::InternalCheckClient;
 use adom_debrid::store::Store;
 use adom_debrid::verdict::{self, CheckOutcome, ServiceCheck};
 
-use crate::orchestrator::debrid_shadow;
+use crate::orchestrator::debrid_al_metrics;
 
 /// A RESERVA: quem responde quando o caminho local NÃO PÔDE (serviço ainda
 /// fora do despacho). Implementação real = `NodeInternalFallback`; testes
@@ -220,8 +217,7 @@ impl AdapterDebridCheck {
         hashes.retain(|h| seen.insert(h.to_lowercase()));
 
         // AllDebrid tem caminho próprio: `DEBRID_AL_RUST=off` mantém a reserva
-        // Node (default); `on` usa a nativa com fallback só pré-upload;
-        // `shadow` usa a nativa e compara o Node em fundo.
+        // Node (default); `on` usa a nativa com fallback só pré-upload.
         if self.service == "alldebrid" {
             self.alldebrid_memo(&hashes);
             return;
@@ -250,8 +246,7 @@ impl AdapterDebridCheck {
     }
 
     /// AllDebrid: a flag decide quem responde. `off` é o caminho Node de
-    /// sempre; `on` usa a nativa; `shadow` usa a nativa e compara o Node em
-    /// fundo (a resposta do cliente é a nativa, como no caminho vivo).
+    /// sempre; `on` usa a nativa.
     fn alldebrid_memo(&mut self, hashes: &[String]) {
         match self.mode {
             AlRustMode::Off => {
@@ -265,25 +260,14 @@ impl AdapterDebridCheck {
                 }
             }
             AlRustMode::On => {
-                let (outcome, _) = self.native_primary(hashes);
-                self.memo = Some(outcome);
-            }
-            AlRustMode::Shadow => {
-                let (outcome, native) = self.native_primary(hashes);
-                if let Some(native) = native {
-                    if self.fallback_ready() {
-                        self.spawn_shadow(hashes, native);
-                    }
-                }
-                self.memo = Some(outcome);
+                self.memo = Some(self.native_primary(hashes));
             }
         }
     }
 
-    /// Resposta do caminho nativo + o veredito nativo (se ele existiu). A
-    /// nativa só perde para o Node quando NADA foi enviado — o mesmo contrato
-    /// do modo `on`.
-    fn native_primary(&mut self, hashes: &[String]) -> (CheckOutcome, Option<ServiceCheck>) {
+    /// Resposta do caminho nativo. A nativa só perde para o Node quando NADA
+    /// foi enviado — o mesmo contrato do modo `on`.
+    fn native_primary(&mut self, hashes: &[String]) -> CheckOutcome {
         // Fatos ANTES do upload: a nativa só apaga com a prova de cobertura do
         // lote. Falha/ausência = read-only.
         let facts = self.cleanup_facts(hashes);
@@ -294,30 +278,27 @@ impl AdapterDebridCheck {
         match self.run_local(hashes, facts.as_ref()) {
             // Veredito fechado OU upload já enviado: não repetir no Node.
             Ok(check) if check.attempted || check.outcome.known => {
-                debrid_shadow::note_native(&check);
-                (check.outcome.clone(), Some(check))
+                debrid_al_metrics::note_native(&check);
+                check.outcome
             }
             // Nada foi enviado (base recusada/lista vazia): o Node pode
             // responder sem risco de segundo upload.
             Ok(check) if self.fallback_ready() => {
-                debrid_shadow::note_fallback();
-                (self.run_fallback(hashes).unwrap_or(check.outcome), None)
+                debrid_al_metrics::note_fallback();
+                self.run_fallback(hashes).unwrap_or(check.outcome)
             }
-            Ok(check) => (check.outcome, None),
+            Ok(check) => check.outcome,
             Err(_) if self.fallback_ready() => {
-                debrid_shadow::note_fallback();
-                (
-                    self.run_fallback(hashes).unwrap_or_else(unknown_outcome),
-                    None,
-                )
+                debrid_al_metrics::note_fallback();
+                self.run_fallback(hashes).unwrap_or_else(unknown_outcome)
             }
-            Err(_) => (unknown_outcome(), None),
+            Err(_) => unknown_outcome(),
         }
     }
 
     /// Fatos do feed para ESTA busca. Condições, todas necessárias: AllDebrid,
-    /// `DEBRID_AL_RUST=on` (no `shadow` a nativa é observação — não limpa),
-    /// `DEBRID_AL_CLEANUP=on` (sem a flag os fatos não teriam uso), feed
+    /// `DEBRID_AL_RUST=on`, `DEBRID_AL_CLEANUP=on` (sem a flag os fatos não
+    /// teriam uso), feed
     /// configurado e `encoded` presente. A conta do feed tem que ser a MESMA da
     /// checagem; a cobertura do lote é reconferida no `verdict`.
     fn cleanup_facts(&self, hashes: &[String]) -> Option<HoldsFacts> {
@@ -332,20 +313,20 @@ impl AdapterDebridCheck {
         let facts = match feed.facts(encoded, &self.service, hashes, self.deadline_at) {
             Ok(facts) => facts,
             Err(error) => {
-                debrid_shadow::note_holds_missing();
+                debrid_al_metrics::note_holds_missing();
                 eprintln!("[debrid] feed de holds indisponível: {error}");
                 return None;
             }
         };
         // Conta diferente = fatos do outro usuário: nunca aproveitar.
         if facts.account != account_scope(&self.api_key) {
-            debrid_shadow::note_holds_account_mismatch();
+            debrid_al_metrics::note_holds_account_mismatch();
             return None;
         }
         if facts.covers(hashes) {
-            debrid_shadow::note_holds_ok();
+            debrid_al_metrics::note_holds_ok();
         } else {
-            debrid_shadow::note_holds_incomplete();
+            debrid_al_metrics::note_holds_incomplete();
         }
         Some(facts)
     }
@@ -375,39 +356,11 @@ impl AdapterDebridCheck {
     fn local_outcome(&mut self, hashes: &[String]) -> CheckOutcome {
         match self.run_local(hashes, None) {
             Ok(check) => {
-                debrid_shadow::note_native(&check);
+                debrid_al_metrics::note_native(&check);
                 check.outcome
             }
             Err(_) => unknown_outcome(),
         }
-    }
-
-    /// A referência Node roda em thread própria; o cliente já recebeu a
-    /// nativa. O conjunto comparado é limitado por
-    /// `DEBRID_AL_SHADOW_MAX_HASHES`.
-    fn spawn_shadow(&mut self, hashes: &[String], native: ServiceCheck) {
-        let Some(fallback) = self.fallback.clone() else {
-            return;
-        };
-        let Some(encoded) = self.encoded.clone().filter(|s| !s.is_empty()) else {
-            return;
-        };
-        // A referência roda depois da resposta: o deadline da busca já pode
-        // ter vencido, então ela ganha o próprio prazo.
-        let deadline_at = debrid_shadow::fresh_deadline_ms();
-        let probe = debrid_shadow::probe_hashes(hashes);
-        if probe.is_empty() {
-            return;
-        }
-        let service = self.service.clone();
-        let probe_for_call = probe.clone();
-        debrid_shadow::spawn(debrid_shadow::ReferenceConfig {
-            native: native.outcome,
-            hashes: probe,
-            reference: Box::new(move || {
-                fallback.check(&encoded, &service, &probe_for_call, deadline_at)
-            }),
-        });
     }
 
     /// A reserva Node tem tudo para ser chamada (cliente, usuário e prazo).

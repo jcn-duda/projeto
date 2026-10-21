@@ -261,7 +261,6 @@ async fn indice_coberto_responde_com_a_marca_da_foto() {
         .native_index_scan(
             &input("movie", json!({"providers": ["jackett"]})),
             &meta(None, None),
-            false,
         )
         .await;
     assert!(!scan.is_partial);
@@ -321,7 +320,6 @@ async fn instantanea_do_banco_leva_selo_e_fallback_fetchable() {
                 json!({"providers": ["jackett"], "preferDubbed": true}),
             ),
             &meta(None, None),
-            false,
         )
         .await;
     assert!(scan.instant_eligible, "acervo cobre o pool");
@@ -368,7 +366,6 @@ async fn instantanea_com_foto_velha_nao_responde() {
         .native_index_scan(
             &input("movie", json!({"providers": ["jackett"]})),
             &meta(None, None),
-            false,
         )
         .await;
     assert!(!scan.instant_eligible);
@@ -400,7 +397,6 @@ async fn instantanea_sem_cobertura_nao_responde() {
         .native_index_scan(
             &input("movie", json!({"providers": ["jackett"]})),
             &meta(None, None),
-            false,
         )
         .await;
     assert!(!scan.instant_eligible, "sem dublado e sem swarm saudável");
@@ -427,7 +423,6 @@ async fn filtro_de_origem_corta_release_de_outro_provider() {
                 json!({"providers": ["jackett"], "jackettIndexers": ["bludv"]}),
             ),
             &meta(None, None),
-            false,
         )
         .await;
     assert!(scan.indexed.is_empty(), "torrentio fora do p:jackett");
@@ -452,7 +447,6 @@ async fn parcial_bloqueia_o_fast_path_do_indice() {
         .native_index_scan(
             &input("movie", json!({"providers": ["jackett"]})),
             &meta(None, None),
-            false,
         )
         .await;
     assert!(scan.is_partial);
@@ -489,7 +483,6 @@ async fn serie_busca_episodio_temporada_e_raiz() {
         .native_index_scan(
             &input("series", json!({"providers": ["jackett"]})),
             &series_meta,
-            false,
         )
         .await;
     assert!(scan.instant_eligible, "episódio nomeado cobre");
@@ -498,7 +491,7 @@ async fn serie_busca_episodio_temporada_e_raiz() {
 #[test]
 fn banco_marks_sao_gravados_na_escrita_do_indice() {
     // A escrita nativa é exercida no `late`; aqui garantimos que o contrato da
-    // trait de banco é chamável com o lote do índice (sombra/on).
+    // trait de banco é chamável com o lote do índice.
     let bank = FakeBank::new(Vec::new(), BTreeMap::new());
     let entered = vec![json!({"infoHash": "aa"})];
     let survivors = vec![json!({"infoHash": "aa"})];
@@ -517,27 +510,12 @@ fn banco_marks_sao_gravados_na_escrita_do_indice() {
 
 #[test]
 fn hashes_do_indice_e_do_banco_nao_se_misturam() {
-    // Guarda de regressão do comparador: hash vindo do item cru é o mesmo
-    // formato que o `bank_hash` usa no `liveHashes`.
+    // O hash vindo do item cru é o mesmo formato que o `bank_hash` usa no
+    // `liveHashes`.
     let a = crate::raw_item::raw_item_from_value(
         &json!({"infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}),
     );
     assert_eq!(a.bank_hash(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-}
-
-#[test]
-fn comparador_de_conjunto_e_ordem() {
-    let item = |hash: &str| {
-        crate::raw_item::raw_item_from_value(&json!({"infoHash": format!("{hash:0>40}")}))
-    };
-    let node = vec![item("1"), item("2")];
-    let same_other_order = vec![item("2"), item("1")];
-    assert_eq!(super::compare_hashes(&node, &same_other_order), (0, 0));
-    assert!(super::compare_order(&node, &same_other_order));
-    let extra = vec![item("1"), item("2"), item("3")];
-    assert_eq!(super::compare_hashes(&node, &extra), (0, 1));
-    let missing = vec![item("1")];
-    assert_eq!(super::compare_hashes(&node, &missing), (1, 0));
 }
 
 /// Inventário fake para o caminho `account_items` do índice nativo.
@@ -580,7 +558,6 @@ async fn conta_entra_no_caminho_do_indice_quando_ha_fonte_nativa() {
                 json!({"providers": ["jackett"], "debridService": "torbox", "debridApiKey": "k"}),
             ),
             &meta(None, None),
-            true,
         )
         .await;
     assert_eq!(scan.account_items.len(), 1);

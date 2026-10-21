@@ -1,6 +1,6 @@
 //! Testes do inventário NATIVO da conta (F3): sondas de áudio/origem, filtro
-//! de relevância, shape do item, fast-path, amostragem, memo e a integração
-//! com a janela de coleta (sem a tarefa Node da conta).
+//! de relevância, shape do item, fast-path, memo e a integração com a janela
+//! de coleta (sem a tarefa Node da conta).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -13,9 +13,9 @@ use adom_debrid::account::{AccountInventory, InventoryItem};
 use serde_json::json;
 
 use super::{
-    account_raw_items, br_origin_only, fast_path_decision, sampled, signals_of,
-    try_native_account_source, AccountInventorySource, AccountMode, AccountRequest,
-    FastPathDecision, NativeAccountConfig, NativeAccountSource,
+    account_raw_items, br_origin_only, fast_path_decision, signals_of, try_native_account_source,
+    AccountInventorySource, AccountMode, AccountRequest, FastPathDecision, NativeAccountConfig,
+    NativeAccountSource,
 };
 use crate::collection_window::BatchMeta;
 use crate::internal_types::{
@@ -232,34 +232,16 @@ fn fast_path_com_prefer_dubbed_exige_cobertura() {
 }
 
 #[test]
-fn amostragem_e_deterministica_e_limitada() {
-    assert!(!sampled("tt0133093", 0.0), "0% nunca amostra");
-    assert!(sampled("tt0133093", 1.0), "100% sempre amostra");
-    let first = sampled("tt0133093", 0.5);
-    let second = sampled("tt0133093", 0.5);
-    assert_eq!(first, second, "mesma obra, mesma decisão");
-    // A fração tem que separar alguma coisa numa lista real de ids.
-    let hits = (0..200)
-        .filter(|n| sampled(&format!("tt{n:07}"), 0.25))
-        .count();
-    assert!(
-        hits > 10 && hits < 90,
-        "amostra de 25% fora da faixa: {hits}"
-    );
-}
-
-#[test]
 fn modo_parse_e_default_off() {
     assert_eq!(AccountMode::parse(""), AccountMode::Off);
     assert_eq!(AccountMode::parse("off"), AccountMode::Off);
-    assert_eq!(AccountMode::parse("shadow"), AccountMode::Shadow);
-    assert_eq!(AccountMode::parse(" SHADOW "), AccountMode::Shadow);
     assert_eq!(AccountMode::parse("on"), AccountMode::On);
     assert_eq!(AccountMode::parse("true"), AccountMode::On);
     assert_eq!(AccountMode::parse("1"), AccountMode::On);
     assert_eq!(AccountMode::parse("qualquer"), AccountMode::Off);
+    assert_eq!(AccountMode::parse("shadow"), AccountMode::Off);
     assert!(!AccountMode::Off.uses_native());
-    assert!(AccountMode::Shadow.uses_native());
+    assert!(AccountMode::On.uses_native());
     assert!(AccountMode::On.is_on());
 }
 
@@ -268,8 +250,6 @@ fn fonte_nativa_so_e_montada_quando_o_modo_pede() {
     let mut config = OrchestratorConfig::default();
     assert!(try_native_account_source(&config).is_none());
     config.account_mode = AccountMode::On;
-    assert!(try_native_account_source(&config).is_some());
-    config.account_mode = AccountMode::Shadow;
     assert!(try_native_account_source(&config).is_some());
 }
 

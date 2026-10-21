@@ -156,7 +156,6 @@ fn failed_outcome(indexer: &str, reason: &str, record_status: bool) -> QueryOutc
         source_error: Some(reason.to_string()),
         status: IndexerStatus::Failed,
         record_status,
-        primary: true,
     }
 }
 

@@ -66,9 +66,6 @@ pub struct QueryOutcome {
     /// NÃO pode alimentar `live` nem `partial` (o Node também não emite
     /// `onQueryResult` nesse caminho).
     pub record_status: bool,
-    /// `true` só para a consulta PRINCIPAL do passo. A sombra compara só
-    /// primárias; sweep nunca mascara/ inventa falha da consulta principal.
-    pub primary: bool,
 }
 
 /// Opções de uma busca (subconjunto do `JackettSearchOptions` do TS).

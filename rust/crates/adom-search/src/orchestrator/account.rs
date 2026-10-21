@@ -10,13 +10,10 @@
 //! - **memo** local por serviço+conta (`dinv` do Node é TTL 300s; falha nunca
 //!   fica gravada);
 //! - **fast-path** (`stopWhen` do `collectRaw`: lote da conta suficiente
-//!   responde na hora);
-//! - **sombra** (`ACCOUNT_RUST=shadow`): nativo × Node em contagens/hashes, em
-//!   fundo, sem segurar o cliente.
+//!   responde na hora).
 //!
-//! `ACCOUNT_RUST` é OFF por default: `off` = caminho Node intacto; `shadow` =
-//! Node responde e o nativo só compara; `on` = o nativo responde a coleta da
-//! conta (o Node continua com as outras fontes).
+//! `ACCOUNT_RUST` é OFF por default: `off` = caminho Node intacto; `on` = o
+//! nativo responde a coleta da conta (o Node continua com as outras fontes).
 //!
 //! Rollback: `ACCOUNT_RUST=off` (ou remover a env) devolve a tarefa Node no
 //! próximo boot. Nenhum estado persistido é criado por esta fatia.
@@ -43,13 +40,8 @@ use super::config::OrchestratorConfig;
 use super::meta::SearchMeta;
 use super::respond::now_ms;
 
-/// Env do modo (`off`|`shadow`|`on`; `1/true` valem `on`).
+/// Env do modo (`off`|`on`; `1/true` valem `on`).
 pub const ENV: &str = "ACCOUNT_RUST";
-/// Fração 0..=1 das buscas que rodam a sombra (`1` = todas, `0` = desligada).
-pub const SHADOW_SAMPLE_ENV: &str = "ACCOUNT_SHADOW_SAMPLE";
-/// Default da amostra: 10% das buscas (determinístico por obra, não por sorteio
-/// por requisição — a mesma obra não oscila entre amostrada e não amostrada).
-pub const DEFAULT_SHADOW_SAMPLE: f64 = 0.1;
 /// `ACCOUNT_FAST_PATH` do Node (default ligado).
 pub const FAST_PATH_ENV: &str = "ACCOUNT_FAST_PATH";
 /// `ACCOUNT_FAST_MIN_RELEASES` do Node (default 2).
@@ -61,8 +53,6 @@ pub enum AccountMode {
     /// Caminho Node intacto (default).
     #[default]
     Off,
-    /// Node responde; o nativo só compara em fundo.
-    Shadow,
     /// Nativo responde a coleta da conta.
     On,
 }
@@ -73,7 +63,6 @@ impl AccountMode {
     pub fn parse(raw: &str) -> Self {
         match raw.trim().to_ascii_lowercase().as_str() {
             "on" | "1" | "true" | "yes" => Self::On,
-            "shadow" => Self::Shadow,
             _ => Self::Off,
         }
     }
@@ -83,13 +72,12 @@ impl AccountMode {
     }
 
     pub fn uses_native(self) -> bool {
-        !matches!(self, Self::Off)
+        matches!(self, Self::On)
     }
 
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Off => "off",
-            Self::Shadow => "shadow",
             Self::On => "on",
         }
     }
@@ -423,33 +411,9 @@ pub fn record_fast_path(decision: FastPathDecision) {
     }
 }
 
-// ── Amostragem da sombra ───────────────────────────────────────────────────
-
-/// Amostra determinística: hash estável de `id` (FNV-1a 64) em 10.000 baldes.
-/// A mesma obra cai sempre do mesmo lado — a sombra não oscila entre
-/// requisições e o custo fica previsível. Os BITS BAIXOS são os que misturam
-/// em ids sequenciais (`tt0000001`, `tt0000002`…), por isso o balde é `%`, não
-/// a razão pelo `u64::MAX` (os bits altos quase não mudam nesses ids).
-pub fn sampled(id: &str, sample: f64) -> bool {
-    const BUCKETS: u64 = 10_000;
-    // `NaN`/negativo nunca amostra; `>= 1` sempre (o clamp cobre o resto).
-    if !sample.is_finite() || sample <= 0.0 {
-        return false;
-    }
-    if sample >= 1.0 {
-        return true;
-    }
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in id.as_bytes() {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(0x100_0000_01b3);
-    }
-    (hash % BUCKETS) < (sample.clamp(0.0, 1.0) * BUCKETS as f64) as u64
-}
-
 // ── Fábrica de produção ────────────────────────────────────────────────────
 
-/// Fonte nativa do inventário quando `ACCOUNT_RUST` pede (`on`/`shadow`).
+/// Fonte nativa do inventário quando `ACCOUNT_RUST=on`.
 /// `ACCOUNT_RUST=off` devolve `None` e o orquestrador segue 100% Node.
 pub fn try_native_account_source(
     config: &OrchestratorConfig,

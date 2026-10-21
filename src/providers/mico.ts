@@ -56,10 +56,6 @@ interface SearchOptions {
   /** Obra da busca: mede quantos itens passam no filtro de título (`relevant`),
    * a mesma régua do Jackett para o "vazio suspeito". */
   matchContext?: MatchContext;
-  /** Sombra read-only (F2.1): referência SEM efeitos — não pinta card, não
-   * abre/reseta breaker e não captura no banco de magnets. `onQueryResult`
-   * continua porque é estado LOCAL da coleta (a comparação precisa dele). */
-  readOnly?: boolean;
 }
 
 const INFO_HASH = /^[0-9a-f]{40}$/i;
@@ -282,18 +278,15 @@ export async function fetchMicoStreams(
  */
 async function search(args: SearchArgs, options: SearchOptions = {}): Promise<RawItem[]> {
   const { recordStatus = true, resetPassedFilter = true, onQueryResult, matchContext } = options;
-  const readOnly = options.readOnly === true;
   if (!config.mico.enabled) return [];
   const url = endpointUrl(args);
   // Nada a perguntar (id/episódio inválido) não é falha da fonte; circuito
   // aberto é — o estado vivo precisa saber para a reserva do acervo cobrir.
-  // Sombra read-only ignora o circuito (como o Jackett): o estado global do
-  // Node não pode decidir QUEM a referência consulta.
   if (!url) {
     onQueryResult?.({ indexer: MICO_ID, responded: true });
     return [];
   }
-  if (!readOnly && breakerOpen()) {
+  if (breakerOpen()) {
     onQueryResult?.({ indexer: MICO_ID, responded: false, reason: 'breaker' });
     return [];
   }
@@ -307,7 +300,7 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
     const ms = Date.now() - started;
     // Latência de TODA tentativa (sucesso e falha): a falha também cobrou tempo.
     metrics.observe('mico.ms', ms);
-    if (recordStatus && !readOnly) indexerStatus.record(MICO_ID, { ok, ms, budgetMs: config.mico.timeout, results: items.length });
+    if (recordStatus) indexerStatus.record(MICO_ID, { ok, ms, budgetMs: config.mico.timeout, results: items.length });
     if (!ok) {
       onQueryResult?.({ indexer: MICO_ID, responded: false, reason: 'error' });
       return;
@@ -331,24 +324,21 @@ async function search(args: SearchArgs, options: SearchOptions = {}): Promise<Ra
     // evento que nunca existiu (paridade exata de efeitos colaterais).
     // 429/5xx/rede LANÇAM e caem no `catch` abaixo (`noteFailure`).
     if (ok) {
-      // Só o caminho normal prova host vivo e reseta o circuito: a referência
-      // read-only observa o estado, não o altera.
-      if (!readOnly) breakerFailures = 0;
+      // Só o caminho normal prova host vivo e reseta o circuito.
+      breakerFailures = 0;
       metrics.count('mico.items', out.length);
     }
-    if (!readOnly) {
-      captureItems(out, MICO_ID, {
-        imdbId: args.imdbId,
-        season: args.season ?? null,
-        episode: args.episode ?? null,
-        year: args.year ?? null,
-        resetPassedFilter,
-      });
-    }
+    captureItems(out, MICO_ID, {
+      imdbId: args.imdbId,
+      season: args.season ?? null,
+      episode: args.episode ?? null,
+      year: args.year ?? null,
+      resetPassedFilter,
+    });
     note(true, out);
     return out;
   } catch (err: any) {
-    if (!readOnly) noteFailure();
+    noteFailure();
     metrics.count('mico.error');
     note(false);
     log.warn(`[mico] falha na consulta de ${args.imdbId}:`, err?.message || String(err));

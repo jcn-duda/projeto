@@ -134,9 +134,8 @@ pub struct CollectResponse {
     pub live: Option<LiveSnapshot>,
     #[serde(default)]
     pub breaker: BTreeMap<String, BreakerSnapshot>,
-    /// `false` = a fonte da sombra não está nos `providers` efetivos; o lote
-    /// veio vazio de propósito e NÃO pode ser comparado. Ausente em Node
-    /// antigo vale `true` (compatibilidade).
+    /// `false` = a fonte não estava nos `providers` efetivos; o lote veio vazio
+    /// de propósito. Ausente em Node antigo vale `true` (compatibilidade).
     #[serde(default = "default_true")]
     pub eligible: bool,
 }
@@ -234,8 +233,7 @@ pub struct SearchIndexResponse {
     #[serde(default)]
     pub account_items: Vec<Value>,
     /// Follow-up que a rota Node enfileirou (`{kind, reason|mode}`), quando ela
-    /// o reporta. Só a sombra `INDEX_RUST=shadow` compara isto; Node antigo
-    /// (campo ausente) não gera divergência de conjunto.
+    /// o reporta. Node antigo (campo ausente) não gera divergência de conjunto.
     #[serde(default)]
     pub effects: Vec<Value>,
 }

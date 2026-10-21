@@ -24,8 +24,6 @@ export type BrokenScope = { season?: number | null; episode?: number | null; imd
 export type EvidenceScope = BrokenScope & {
   names?: string[];
   year?: number | string | null;
-  /** Sombra de fonte (read-only): só prova; não toca o banco de magnets. */
-  readOnly?: boolean;
 };
 
 /**
@@ -58,15 +56,14 @@ export function markKnownBroken(items: RawItem[], scope: BrokenScope = {}): RawI
 }
 
 /**
- * Anexa a prova de arquivo/qualidade do índice e, fora da sombra read-only, a
- * marca `broken`. Síncrono e sem rede: a rota devolve o lote imediatamente; a
- * decisão de chip/`_dubbed`/origem BR fica no Rust.
+ * Anexa a prova de arquivo/qualidade do índice e a marca `broken`. Síncrono e
+ * sem rede: a rota devolve o lote imediatamente; a decisão de
+ * chip/`_dubbed`/origem BR fica no Rust.
  *
  * `provenQuality` é o campo que o `RawItem` do Rust já consome: sem ele o corte
  * nativo classifica o release no balde "sem resolução" e a cota de qualidade
  * troca o BR por um global 4K (Interestelar, 2026-10-20).
  */
 export function enrichForRust(items: RawItem[], scope: EvidenceScope = {}): RawItem[] {
-  const proved = stampProvenQuality(applyFileEvidence(items), scope);
-  return scope.readOnly ? proved : markKnownBroken(proved, scope);
+  return markKnownBroken(stampProvenQuality(applyFileEvidence(items), scope), scope);
 }

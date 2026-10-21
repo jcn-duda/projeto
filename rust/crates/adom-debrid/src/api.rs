@@ -102,11 +102,6 @@ pub fn router(cfg: &InternalConfig) -> Router {
             "[debrid] checagem AllDebrid nativa em /debrid/check: DEBRID_AL_RUST=on \
              (sem limpeza; fallback Node só antes do upload)"
         );
-    } else if al_mode == crate::alldebrid_mode::AlRustMode::Shadow {
-        eprintln!(
-            "[debrid] DEBRID_AL_RUST=shadow: a rota /debrid/check segue 501; \
-             a comparação roda no adom-search"
-        );
     }
     // Falha de `new` não carrega chave: o cliente ainda não viu o corpo.
     let http = match HttpClient::new() {

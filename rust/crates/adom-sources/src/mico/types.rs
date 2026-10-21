@@ -62,31 +62,15 @@ pub struct MicoFetchOutcome {
     pub ok: bool,
 }
 
-/// Opções de UMA consulta ao Mico (espelha `SearchOptions.readOnly` do TS).
+/// Opções de UMA consulta ao Mico.
 ///
-/// O breaker é local e do PROCESSO: só o caminho vivo pode abrir/fechar o
-/// circuito. A sombra de fonte é referência read-only — o estado global não
-/// decide o que ela consulta e o resultado dela não pode alimentar o breaker.
+/// O breaker é local e do PROCESSO, alimentado pelo próprio caminho vivo.
 /// `deadline_at` é o prazo ABSOLUTO do coletor: quando a consulta não termina
 /// até ele, o Node a teria como `pending` (não falha), então o cliente devolve
 /// [`MicoOutcome::Pending`] e NÃO conta falha no circuito.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct MicoSearchOptions {
-    pub read_only: bool,
     pub deadline_at: Option<i64>,
-}
-
-impl MicoSearchOptions {
-    /// Caminho de resposta: respeita e alimenta o breaker.
-    pub const LIVE: Self = Self {
-        read_only: false,
-        deadline_at: None,
-    };
-    /// Sombra read-only: consulta mesmo com o circuito aberto, sem tocá-lo.
-    pub const SHADOW: Self = Self {
-        read_only: true,
-        deadline_at: None,
-    };
 }
 
 /// Desfecho de UMA consulta ao Mico.

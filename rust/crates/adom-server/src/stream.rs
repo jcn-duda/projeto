@@ -127,14 +127,8 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
                     all.push(node_collector);
                     Arc::new(adom_search::orchestrator::CompositeCollector::new(all))
                 };
-            // Sombra de fonte (SOURCES_RUST_SHADOW, default vazio): compare-only,
-            // não altera o lote primário nem toca store/debrid/tail/efeitos.
-            let collector = adom_search::orchestrator::wrap_collector_with_source_shadow(
-                collector,
-                Some(routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>),
-            );
             // C5: `META_RUST` troca a fonte de metadados (Node é o default e o
-            // fallback); `META_RUST_SHADOW` arma a comparação compare-only.
+            // fallback).
             let meta = stream_meta::meta_source(Some(
                 routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>
             ));
@@ -178,14 +172,10 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
     let al_mode = adom_debrid::alldebrid_mode::AlRustMode::from_env();
     if al_mode != adom_debrid::alldebrid_mode::AlRustMode::Off {
         eprintln!(
-            "[gateway] checagem AllDebrid nativa: DEBRID_AL_RUST={} ({}; \
+            "[gateway] checagem AllDebrid nativa: DEBRID_AL_RUST={} \
+             (nativa responde; fallback Node só antes de qualquer upload; \
              rollback: DEBRID_AL_RUST=off)",
-            al_mode.as_str(),
-            if al_mode == adom_debrid::alldebrid_mode::AlRustMode::Shadow {
-                "nativa responde; Node é referência em fundo — sombra faz upload extra e não limpa"
-            } else {
-                "nativa responde; fallback Node só antes de qualquer upload"
-            }
+            al_mode.as_str()
         );
     }
     orch = orch.with_debrid(Arc::new(
@@ -233,7 +223,7 @@ fn holds_feed() -> Option<Arc<dyn HoldsFeed>> {
 }
 
 /// Abre e injeta o índice/banco nativos quando `INDEX_RUST`/`BANK_RUST` pedem
-/// (`on`/`shadow`). Falha de abertura = instrumento ausente, nunca boot caído:
+/// (`on`). Falha de abertura = instrumento ausente, nunca boot caído:
 /// o modo `on` degrada para o caminho Node e a métrica
 /// `index.rust.source_missing` aparece no `/metrics`.
 fn wire_native_index(orch: Orchestrator) -> Orchestrator {

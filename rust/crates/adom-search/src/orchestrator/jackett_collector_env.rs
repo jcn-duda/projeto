@@ -9,8 +9,7 @@ pub(super) fn default_index_only_indexers() -> Vec<String> {
 }
 
 /// Default de `JACKETT_LIVE_EXEMPT_INDEXERS` no Node (apachetorrent-cardigann).
-/// A exceção vence o index-only SÓ na presença ao vivo; é o que evita o card
-/// apache virar "missing" na comparação da sombra.
+/// A exceção vence o index-only SÓ na presença ao vivo.
 pub(super) fn default_live_exempt_indexers() -> Vec<String> {
     split_csv("apachetorrent-cardigann")
 }

@@ -21,7 +21,7 @@
 //!
 //! A ordem das chaves do JSON do Node segue a ordem de construção do objeto e
 //! varia por tipo de item (P2P × debrid × aviso). O contrato fixa a forma, não
-//! a ordem: a métrica de sombra mascara ordem de lista e de chaves.
+//! a ordem de lista nem a de chaves.
 use serde::{Deserialize, Serialize};
 
 /// `behaviorHints` do Stremio; o construtor só publica `bingeGroup`.

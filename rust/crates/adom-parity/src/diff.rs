@@ -39,8 +39,7 @@ impl Diff {
         self.entries.len()
     }
 
-    /// Quantos streams divergiram (não quantos campos): é a magnitude usada
-    /// pelo contador `stream.shadow.divergence.items` do contrato.
+    /// Quantos streams divergiram (não quantos campos): é a magnitude do diff.
     pub fn divergent_streams(&self) -> usize {
         self.entries
             .iter()

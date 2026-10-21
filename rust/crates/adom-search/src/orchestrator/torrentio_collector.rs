@@ -31,9 +31,7 @@
 //! `pending` nunca é inventado e `all` fica `Unknown`: o agregado `error` é do
 //! ramo `/all` do Jackett, não daqui.
 //!
-//! **Breaker**: só o caminho VIVO abre/reseta o circuito. A sombra de fonte
-//! usa `TorrentioSearchOptions::SHADOW` (ignora o aberto e não alimenta) e um
-//! cliente próprio, então o circuito do caminho de resposta nunca é tocado.
+//! **Breaker**: o caminho vivo abre/reseta o circuito.
 //!
 //! Fora desta fatia: composição multi-fonte, cache `raw:v1`.
 
@@ -43,7 +41,6 @@ use std::pin::Pin;
 use adom_core::RelevanceItem;
 use adom_sources::{
     TorrentioClient, TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs,
-    TorrentioSearchOptions,
 };
 use serde_json::{Map, Number, Value};
 
@@ -83,38 +80,19 @@ pub fn try_torrentio_collector_from_env() -> Option<TorrentioCollector> {
 /// Collector que fala a API pública do Torrentio (sem POST `/internal/search/collect`).
 pub struct TorrentioCollector {
     client: TorrentioClient,
-    /// Referência da sombra: ignora o breaker e não o abre/reseta.
-    shadow: bool,
 }
 
 impl TorrentioCollector {
     pub fn new(client: TorrentioClient) -> Self {
-        Self {
-            client,
-            shadow: false,
-        }
+        Self { client }
     }
 
     pub fn from_env() -> Result<Self, String> {
         Ok(Self::new(TorrentioClient::from_env()?))
     }
 
-    /// Modo sombra: `readOnly` do Node (sem breaker, sem status).
-    pub fn with_shadow(mut self, shadow: bool) -> Self {
-        self.shadow = shadow;
-        self
-    }
-
     pub fn client(&self) -> &TorrentioClient {
         &self.client
-    }
-
-    fn search_options(&self) -> TorrentioSearchOptions {
-        if self.shadow {
-            TorrentioSearchOptions::SHADOW
-        } else {
-            TorrentioSearchOptions::LIVE
-        }
     }
 }
 
@@ -200,10 +178,7 @@ impl Collector for TorrentioCollector {
             let Some(args) = search_args_from_job(&job) else {
                 return Ok(batch(Vec::new(), live_ok()));
             };
-            let outcome = self
-                .client
-                .search_outcome(&args, self.search_options())
-                .await;
+            let outcome = self.client.search_outcome(&args).await;
             let label = outcome.label();
             match outcome {
                 TorrentioOutcome::Ok(items) => {

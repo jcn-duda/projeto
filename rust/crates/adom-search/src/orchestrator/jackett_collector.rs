@@ -18,9 +18,7 @@ use adom_sources::{JackettClient, JackettMediaType, JackettRawItem, QueryOutcome
 
 use crate::internal_types::TaskScope;
 use crate::orchestrator::collect::{jackett_only, CollectBatch, CollectJob, Collector};
-use crate::orchestrator::jackett_live::{
-    live_state_from_outcomes, live_state_from_outcomes_shadow,
-};
+use crate::orchestrator::jackett_live::live_state_from_outcomes;
 use crate::orchestrator::sources_rust::sources_rust_includes;
 use crate::raw_item::RawItem;
 
@@ -67,18 +65,6 @@ pub struct PlannedJackettSearch {
     pub indexers: Vec<String>,
     pub options: SearchOptions,
     pub priority: bool,
-    /// `false` = sweep (inline ou tardio): fora do live da sombra.
-    pub primary: bool,
-}
-
-/// Modo sombra: ignora o breaker (não pula fonte já aberta) e não registra
-/// status/breaker. O live da sombra é montado sem o filtro de `record_status`.
-fn shadowed(mut options: SearchOptions, shadow: bool) -> SearchOptions {
-    if shadow {
-        options.ignore_breaker = true;
-        options.record_status = Some(false);
-    }
-    options
 }
 
 /// Expande um [`CollectJob`] nas consultas Jackett (puro — sem HTTP).
@@ -93,7 +79,6 @@ pub fn plan_jackett_searches(
     isolate_indexers: &[String],
     index_only_indexers: &[String],
     exempt_indexers: &[String],
-    shadow: bool,
 ) -> Vec<PlannedJackettSearch> {
     if job.late_sweep {
         let Some(sweep) = job.sweep_query.as_deref().filter(|s| !s.is_empty()) else {
@@ -111,17 +96,13 @@ pub fn plan_jackett_searches(
         return vec![PlannedJackettSearch {
             query: sweep.to_string(),
             indexers: targets,
-            options: shadowed(
-                SearchOptions {
-                    record_status: Some(false),
-                    ignore_breaker: true,
-                    original_query: job.original_query.clone(),
-                    ..SearchOptions::default()
-                },
-                shadow,
-            ),
+            options: SearchOptions {
+                record_status: Some(false),
+                ignore_breaker: true,
+                original_query: job.original_query.clone(),
+                ..SearchOptions::default()
+            },
             priority: false,
-            primary: false,
         }];
     }
 
@@ -141,16 +122,12 @@ pub fn plan_jackett_searches(
         return vec![PlannedJackettSearch {
             query: job.query.clone(),
             indexers: Vec::new(),
-            options: shadowed(
-                SearchOptions {
-                    original_query: job.original_query.clone(),
-                    multi_work_query: job.multi_work_query.clone(),
-                    ..SearchOptions::default()
-                },
-                shadow,
-            ),
+            options: SearchOptions {
+                original_query: job.original_query.clone(),
+                multi_work_query: job.multi_work_query.clone(),
+                ..SearchOptions::default()
+            },
             priority: false,
-            primary: true,
         }];
     }
 
@@ -180,22 +157,18 @@ pub fn plan_jackett_searches(
         out.push(PlannedJackettSearch {
             query: planned.query,
             indexers: planned.indexers,
-            options: shadowed(
-                SearchOptions {
-                    // Inline: não pinta card / não alimenta breaker; NÃO ignora.
-                    record_status: if inline_sweep { Some(false) } else { None },
-                    ignore_breaker: false,
-                    fallback_query: planned.fallback,
-                    variant_query: planned.variant,
-                    franchise_query: planned.franchise,
-                    multi_work_query: planned.multi_work,
-                    original_query: planned.original,
-                    ..SearchOptions::default()
-                },
-                shadow,
-            ),
+            options: SearchOptions {
+                // Inline: não pinta card / não alimenta breaker; NÃO ignora.
+                record_status: if inline_sweep { Some(false) } else { None },
+                ignore_breaker: false,
+                fallback_query: planned.fallback,
+                variant_query: planned.variant,
+                franchise_query: planned.franchise,
+                multi_work_query: planned.multi_work,
+                original_query: planned.original,
+                ..SearchOptions::default()
+            },
             priority,
-            primary: !inline_sweep,
         });
     }
     out
@@ -210,8 +183,6 @@ pub struct JackettCollector {
     index_only_indexers: Vec<String>,
     /// `JACKETT_LIVE_EXEMPT_INDEXERS` (default apachetorrent-cardigann).
     live_exempt_indexers: Vec<String>,
-    /// Referência da sombra: sem breaker/status, live sem filtro.
-    shadow: bool,
     /// `TITLE_PRECISION_TAIL_CUT` do processo (default true, como o Node).
     title_precision_tail_cut: bool,
 }
@@ -235,7 +206,6 @@ impl JackettCollector {
             isolate_indexers: cfg.slow_indexers.clone(),
             index_only_indexers: index_only,
             live_exempt_indexers: live_exempt,
-            shadow: false,
             // Limitação: o collector é montado por env, não recebe o
             // `OrchestratorConfig`; se o processo Rust não tiver a env, o
             // default do Node (true) é usado.
@@ -273,13 +243,6 @@ impl JackettCollector {
 
     pub fn client(&self) -> &JackettClient {
         &self.client
-    }
-
-    /// Sombra de fonte: `ignore_breaker` + `record_status:false` no plano;
-    /// falhas não abrem/registram breaker e o live é comparado sem filtro.
-    pub fn with_shadow(mut self, shadow: bool) -> Self {
-        self.shadow = shadow;
-        self
     }
 
     /// Piso de precisão de título (default true; o Node lê a mesma env).
@@ -324,7 +287,6 @@ impl Collector for JackettCollector {
                 &self.isolate_indexers,
                 &self.index_only_indexers,
                 &self.live_exempt_indexers,
-                self.shadow,
             );
             if planned.is_empty() {
                 // Nenhuma consulta (ex.: só index-only): `Unknown` sem
@@ -339,25 +301,18 @@ impl Collector for JackettCollector {
             let mut handles = Vec::with_capacity(planned.len());
             for step in planned {
                 let client = self.client.clone();
-                let primary = step.primary;
                 let handle = tokio::spawn(async move {
                     client
                         .search_outcomes(&step.query, media, &step.indexers, &step.options)
                         .await
                 });
-                handles.push((primary, handle));
+                handles.push(handle);
             }
 
             let mut outcomes: Vec<QueryOutcome> = Vec::new();
-            for (primary, handle) in handles {
+            for handle in handles {
                 match handle.await {
-                    Ok(mut step_outcomes) => {
-                        // Sweep é secundário: a sombra compara só primárias.
-                        for outcome in &mut step_outcomes {
-                            outcome.primary = primary;
-                        }
-                        outcomes.extend(step_outcomes);
-                    }
+                    Ok(step_outcomes) => outcomes.extend(step_outcomes),
                     Err(err) => {
                         // JoinError: engole (fail-open), nunca propaga. Como não
                         // há outcome do passo, o estado vivo fica `Unknown` —
@@ -366,13 +321,8 @@ impl Collector for JackettCollector {
                     }
                 }
             }
-            let (live, partial) = if self.shadow {
-                // `record_status:false` é só para não registrar status; a
-                // comparação da sombra precisa destes outcomes.
-                live_state_from_outcomes_shadow(&outcomes, &job, self.title_precision_tail_cut)
-            } else {
-                live_state_from_outcomes(&outcomes, &job, self.title_precision_tail_cut)
-            };
+            let (live, partial) =
+                live_state_from_outcomes(&outcomes, &job, self.title_precision_tail_cut);
             let items = outcomes
                 .into_iter()
                 .flat_map(|outcome| outcome.items)
@@ -411,7 +361,3 @@ fn raw_from_jackett(item: JackettRawItem) -> RawItem {
 #[cfg(test)]
 #[path = "jackett_collector_tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "jackett_shadow_tests.rs"]
-mod shadow_tests;

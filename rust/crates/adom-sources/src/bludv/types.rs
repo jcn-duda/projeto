@@ -31,9 +31,6 @@ pub struct BludvSearchOpts {
     /// Filtra botões `legendado` (espelha `opts().dubbedOnly`, cujo default do
     /// Node é `BLUDV_DUBBED_ONLY` — verdadeiro).
     pub dubbed_only: bool,
-    /// Sombra read-only (F2.1/F2.4): não LÊ nem GRAVA o `raw:v1` e não tem
-    /// efeitos. A rede/parse são os mesmos do caminho vivo.
-    pub read_only: bool,
 }
 
 /// Desfecho da consulta ao BLUDV. O caminho vivo usa a variante para o estado

@@ -28,8 +28,6 @@ pub enum IndexMode {
     /// Caminho Node intacto (default).
     #[default]
     Off,
-    /// Node responde; o nativo lê em fundo e compara (compare-only).
-    Shadow,
     /// O nativo lê/escreve o índice/banco.
     On,
 }
@@ -39,7 +37,6 @@ impl IndexMode {
     pub fn parse(raw: &str) -> Self {
         match raw.trim().to_ascii_lowercase().as_str() {
             "on" | "1" | "true" | "yes" => Self::On,
-            "shadow" => Self::Shadow,
             _ => Self::Off,
         }
     }
@@ -49,13 +46,12 @@ impl IndexMode {
     }
 
     pub fn uses_native(self) -> bool {
-        !matches!(self, Self::Off)
+        matches!(self, Self::On)
     }
 
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Off => "off",
-            Self::Shadow => "shadow",
             Self::On => "on",
         }
     }

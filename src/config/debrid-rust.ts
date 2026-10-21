@@ -6,10 +6,9 @@
 // Rust, que relê a mesma env.
 
 /** Modo da checagem AllDebrid nativa — espelho de `adom_debrid::alldebrid_mode::AlRustMode`. */
-export type AlRustMode = 'off' | 'on' | 'shadow';
+export type AlRustMode = 'off' | 'on';
 
 const AL_RUST_ON = ['on', '1', 'true', 'yes', 'rust'];
-const AL_RUST_SHADOW = ['shadow', 'sombra'];
 
 /**
  * `DEBRID_AL_RUST`, com os MESMOS apelidos de `AlRustMode::parse` no Rust.
@@ -26,7 +25,6 @@ const AL_RUST_SHADOW = ['shadow', 'sombra'];
 export function alRustMode(): AlRustMode {
   const raw = String(process.env.DEBRID_AL_RUST || '').trim().toLowerCase();
   if (AL_RUST_ON.includes(raw)) return 'on';
-  if (AL_RUST_SHADOW.includes(raw)) return 'shadow';
   return 'off';
 }
 

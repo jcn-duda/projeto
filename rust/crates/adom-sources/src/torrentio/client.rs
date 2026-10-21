@@ -3,8 +3,8 @@
 //! - Sem credencial na URL; fail-open → `[]`; breaker local (429/5xx/rede).
 //! - `fileIdx` preservado; dedupe por `infoHash` (primeiro vence).
 //! - Base configurável sob guarda SSRF.
-//! - `search_outcome` devolve o desfecho tipado do coletor; o breaker só é
-//!   lido/escrito no caminho VIVO (`TorrentioSearchOptions::LIVE`).
+//! - `search_outcome` devolve o desfecho tipado do coletor; o breaker é
+//!   lido/escrito neste caminho.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -17,10 +17,7 @@ use serde_json::Value;
 use super::breaker::{now_ms, Breaker};
 use super::config::TorrentioConfig;
 use super::parse::map_stream;
-use super::types::{
-    TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs,
-    TorrentioSearchOptions,
-};
+use super::types::{TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs};
 
 /// Cliente Torrentio reutilizável (HTTP + breaker compartilhado).
 #[derive(Clone)]
@@ -60,22 +57,13 @@ impl TorrentioClient {
     }
 
     /// Consulta o pool. Fail-open: sempre `Vec` (nunca `Err` para o caller).
-    /// Equivale ao caminho VIVO (`TorrentioSearchOptions::LIVE`).
     pub async fn search(&self, args: &TorrentioSearchArgs) -> Vec<TorrentioRawItem> {
-        self.search_outcome(args, TorrentioSearchOptions::LIVE)
-            .await
-            .into_items()
+        self.search_outcome(args).await.into_items()
     }
 
     /// Consulta detalhada: distingue resposta válida (inclusive vazia) de
-    /// configuração e de falha declarada. O breaker só participa quando
-    /// `options.read_only` é falso — na sombra a referência ignora o circuito
-    /// aberto e NÃO o abre/reseta (contrato do `readOnly` do TS).
-    pub async fn search_outcome(
-        &self,
-        args: &TorrentioSearchArgs,
-        options: TorrentioSearchOptions,
-    ) -> TorrentioOutcome {
+    /// configuração e de falha declarada.
+    pub async fn search_outcome(&self, args: &TorrentioSearchArgs) -> TorrentioOutcome {
         if !self.config.enabled {
             return TorrentioOutcome::Disabled;
         }
@@ -87,15 +75,10 @@ impl TorrentioClient {
             return TorrentioOutcome::NoEndpoint;
         };
         let now = now_ms();
-        if !options.read_only && self.breaker.is_open(&self.config, now) {
+        if self.breaker.is_open(&self.config, now) {
             return TorrentioOutcome::BreakerOpen;
         }
-        let read_only = options.read_only;
-        let note_failure = || {
-            if !read_only {
-                self.breaker.note_failure(&self.config, now_ms());
-            }
-        };
+        let note_failure = || self.breaker.note_failure(&self.config, now_ms());
 
         let timeout = Duration::from_millis(self.config.timeout_ms.max(1));
         let request = self
@@ -128,9 +111,7 @@ impl TorrentioClient {
                     // `Array.isArray(data?.streams) ? … : []` e conta sucesso.
                     Ok(data) => {
                         let out = collect_streams(&data);
-                        if !read_only {
-                            self.breaker.note_success();
-                        }
+                        self.breaker.note_success();
                         TorrentioOutcome::Ok(out)
                     }
                     Err(err) => {

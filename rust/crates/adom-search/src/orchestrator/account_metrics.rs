@@ -1,10 +1,8 @@
-//! Contadores próprios do inventário nativo da conta (F3) e da sombra
-//! `ACCOUNT_RUST=shadow`.
+//! Contadores próprios do inventário nativo da conta (F3).
 //!
 //! Nada aqui depende do Node: `account.rust.*` mede a leitura nativa, o
-//! fast-path e os motivos de "não sei"; `account.shadow.*` mede só o par
-//! comparado (nativo × Node). `not_sampled` é o "skip quando não amostrado":
-//! não conta `compared` nem `divergence`.
+//! fast-path e os motivos de "não sei"; `account.node`/`account.fast_path*`
+//! medem o caminho compartilhado com o Node.
 //!
 //! Exposto em `/metrics` do gateway por [`account_metrics_snapshot`].
 
@@ -22,21 +20,11 @@ pub const UNKNOWN: &str = "account.rust.unknown";
 pub const MEMO_HIT: &str = "account.rust.memo_hit";
 /// `ACCOUNT_RUST=on` sem fonte injetada: caiu na tarefa Node (degradação).
 pub const SOURCE_MISSING: &str = "account.rust.source_missing";
-/// A tarefa Node da conta rodou (modo off, sombra ou degradação).
+/// A tarefa Node da conta rodou (modo off ou degradação).
 pub const NODE: &str = "account.node";
 pub const FAST_PATH: &str = "account.fast_path";
 /// Lote da conta suficiente mas sem cobertura de dublado pedida.
 pub const FAST_PATH_SKIPPED: &str = "account.fast_path.skipped";
-
-pub const SHADOW_COMPARED: &str = "account.shadow.compared";
-pub const SHADOW_DIVERGENCE: &str = "account.shadow.divergence";
-pub const SHADOW_ITEMS_MISSING: &str = "account.shadow.items_missing";
-pub const SHADOW_ITEMS_EXTRA: &str = "account.shadow.items_extra";
-/// Requisição fora da amostra: nenhuma leitura nativa e nenhum par.
-pub const SHADOW_NOT_SAMPLED: &str = "account.shadow.not_sampled";
-pub const SHADOW_SKIPPED: &str = "account.shadow.skipped";
-pub const SHADOW_TIMEOUT: &str = "account.shadow.timeout";
-pub const SHADOW_ERROR: &str = "account.shadow.error";
 
 const KEYS: &[&str] = &[
     FETCH,
@@ -51,14 +39,6 @@ const KEYS: &[&str] = &[
     NODE,
     FAST_PATH,
     FAST_PATH_SKIPPED,
-    SHADOW_COMPARED,
-    SHADOW_DIVERGENCE,
-    SHADOW_ITEMS_MISSING,
-    SHADOW_ITEMS_EXTRA,
-    SHADOW_NOT_SAMPLED,
-    SHADOW_SKIPPED,
-    SHADOW_TIMEOUT,
-    SHADOW_ERROR,
 ];
 
 /// Contadores do inventário da conta. `Clone` barato (`Arc<Mutex<..>>`).
@@ -89,11 +69,6 @@ impl AccountMetrics {
         let mut guard = self.counts.lock().unwrap_or_else(|err| err.into_inner());
         let entry = guard.entry(key.to_string()).or_insert(0);
         *entry = (*entry).saturating_add(by);
-    }
-
-    #[cfg(test)]
-    pub fn get(&self, key: &str) -> u64 {
-        self.snapshot().get(key).copied().unwrap_or(0)
     }
 }
 

@@ -5,7 +5,7 @@
 //!   `{items:[], ok:false}` no fetch puro / `Http(4xx)` no desfecho tipado;
 //! - `fetch_streams` sem breaker/banco (núcleo compartilhado com o crawl);
 //! - `search_outcome` devolve o desfecho tipado do coletor; o breaker só é
-//!   lido/escrito no caminho VIVO (`MicoSearchOptions::LIVE`).
+//!   lido/escrito no caminho VIVO.
 //! - base configurável sob guarda SSRF.
 
 use std::collections::HashSet;
@@ -91,17 +91,14 @@ impl MicoClient {
     }
 
     /// Consulta o addon. Fail-open: sempre `Vec` (nunca `Err` para o caller).
-    /// Equivale ao caminho VIVO (`MicoSearchOptions::LIVE`).
     pub async fn search(&self, args: &MicoSearchArgs) -> Vec<MicoRawItem> {
-        self.search_outcome(args, MicoSearchOptions::LIVE)
+        self.search_outcome(args, MicoSearchOptions::default())
             .await
             .into_items()
     }
 
     /// Consulta detalhada: distingue resposta válida (inclusive vazia) de
-    /// configuração, falha declarada e `pending` no prazo. O breaker só
-    /// participa quando `options.read_only` é falso — na sombra a referência
-    /// ignora o circuito aberto e NÃO o abre/reseta (contrato do `readOnly`).
+    /// configuração, falha declarada e `pending` no prazo.
     pub async fn search_outcome(
         &self,
         args: &MicoSearchArgs,
@@ -134,7 +131,7 @@ impl MicoClient {
             }
             None => (configured_timeout, false),
         };
-        if !options.read_only && self.breaker.is_open(&self.config, now) {
+        if self.breaker.is_open(&self.config, now) {
             return MicoOutcome::BreakerOpen;
         }
         let timeout = Duration::from_millis(timeout_ms);
@@ -146,9 +143,7 @@ impl MicoClient {
                         eprintln!("[mico] HTTP {status} para {url}");
                         return MicoOutcome::Http(status);
                     }
-                    if !options.read_only {
-                        self.breaker.note_failure(&self.config, now_ms());
-                    }
+                    self.breaker.note_failure(&self.config, now_ms());
                     let retry_ms = retry_after_ms(retry.as_deref(), now_ms());
                     eprintln!(
                         "[mico] falha na consulta de {}: HTTP {status}{}",
@@ -163,15 +158,11 @@ impl MicoClient {
                     // JSON sem `streams` é resposta vazia válida: o TS lê
                     // `Array.isArray(data?.streams) ? … : []` e conta sucesso.
                     Ok(data) => {
-                        if !options.read_only {
-                            self.breaker.note_success();
-                        }
+                        self.breaker.note_success();
                         MicoOutcome::Ok(collect_streams(&data))
                     }
                     Err(err) => {
-                        if !options.read_only {
-                            self.breaker.note_failure(&self.config, now_ms());
-                        }
+                        self.breaker.note_failure(&self.config, now_ms());
                         eprintln!(
                             "[mico] falha na consulta de {}: JSON inválido: {err}",
                             args.imdb_id
@@ -192,16 +183,12 @@ impl MicoClient {
                 {
                     return MicoOutcome::Pending;
                 }
-                if !options.read_only {
-                    self.breaker.note_failure(&self.config, now_ms());
-                }
+                self.breaker.note_failure(&self.config, now_ms());
                 eprintln!("[mico] falha na consulta de {}: timeout", args.imdb_id);
                 MicoOutcome::Timeout
             }
             Err(FetchFailure::Network(message)) => {
-                if !options.read_only {
-                    self.breaker.note_failure(&self.config, now_ms());
-                }
+                self.breaker.note_failure(&self.config, now_ms());
                 eprintln!("[mico] falha na consulta de {}: {message}", args.imdb_id);
                 MicoOutcome::Network(message)
             }

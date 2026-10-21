@@ -285,12 +285,3 @@ test('DEBRID_AL_RUST=off → rollback de uma linha: a rota volta a checar', asyn
     assert.equal(res.json.results[HASH_A].cached, true);
   });
 });
-
-test('DEBRID_AL_RUST=shadow → a rota segue viva (é a REFERÊNCIA da sombra)', async () => {
-  collaborators.adapterFor = () => stubAdapter({ checkCached: async (_apiKey, hashes) => new Set(hashes) });
-  await withAlRust('shadow', async () => {
-    const res = await post({ encoded, service: 'alldebrid', hashes: [HASH_A], deadline_at: Date.now() + 5_000 });
-    assert.equal(res.status, 200);
-    assert.equal(res.json.results[HASH_A].cached, true);
-  });
-});

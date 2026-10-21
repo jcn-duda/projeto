@@ -375,8 +375,7 @@ impl Orchestrator {
             show_uncached_br: bool_of(&input.options, "showUncachedBr"),
             // Operador, não usuário: `DEBRID_RESOLVE_UNCACHED`.
             debrid_resolve_uncached: self.config.resolve_uncached,
-            // A checagem sempre roda no modo normal; o campo permanece no
-            // `BuildContext` até a limpeza das sombras por fatia (R1b).
+            // A checagem sempre roda no modo normal.
             debrid_check_disabled: false,
             // Data de estreia do episódio (epoch ms): liga a guarda de pré-air
             // de 48 h e a de episódio não exibido. Vem do `episodeAired` real

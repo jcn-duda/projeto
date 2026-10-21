@@ -18,9 +18,8 @@
 //! - concorrência limitada por `BLUDV_CONCURRENCY` (default 6) em posts e em
 //!   links, preservando a ordem do documento.
 //!
-//! `raw:v1` (`{items}` por query) só é lido/gravado no caminho VIVO; a sombra
-//! read-only passa `read_only: true` e não tem efeitos (mesmo contrato do
-//! `bludv.search(query, { readOnly })` do Node).
+//! `raw:v1` (`{items}` por query) é lido/gravado no caminho VIVO (mesmo
+//! contrato do `bludv.search(query)` do Node).
 //!
 //! Não reusa o binário `adom-resolvers` via HTTP nesta fatia (cliente fino
 //! próprio). Parsing de posts/links é local; o resolvedor Jackett Cardigann

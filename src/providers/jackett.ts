@@ -49,15 +49,8 @@ async function search(query: string, type: string, indexersOverride: string[] | 
   // orçamento da resposta, vale consultar o indexer recém-derrubado — o
   // dublado raro mora justamente ali. O breaker é um atalho de busca AO VIVO.
   const { url, apiKey } = config.jackett;
-  // Sombra de fonte (readOnly): referência SEM efeitos. `recordStatus` desliga
-  // o card/breaker, `ignoreBreaker` impede que o estado global do Node mude
-  // QUEM é consultado, a captura fica de fora e o cache bruto não é lido nem
-  // gravado (noRawCache). `onQueryResult` continua: é estado LOCAL da coleta,
-  // usado na comparação.
-  const readOnly = options.readOnly === true;
-  const recordStatus = readOnly ? false : options.recordStatus ?? true;
-  const ignoreBreaker = readOnly ? true : options.ignoreBreaker ?? false;
-  const queryOptions = readOnly ? { ...options, noRawCache: true } : options;
+  const recordStatus = options.recordStatus ?? true;
+  const ignoreBreaker = options.ignoreBreaker ?? false;
   const indexers = effectiveJackettIndexers(indexersOverride);
   if (!apiKey) {
     log.warn('[jackett] JACKETT_API_KEY não configurada');
@@ -84,17 +77,14 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       options.onQueryResult?.({ indexer: ALL_QUERY_INDEXER, responded: true });
       // Clone total também no agregado `/all`: aqui não há `r.value.indexer`,
       // então a captura usa o indexer do próprio item (mapResults preenche com
-      // TrackerId/Tracker) e cai em 'all' quando não há nem isso. Na sombra
-      // read-only, NENHUMA escrita no banco.
-      if (!readOnly) {
-        captureItems(items, '', {
-          imdbId: options.imdbId,
-          season: options.season,
-          episode: options.episode,
-          year: options.year,
-          resetPassedFilter: options.resetPassedFilter,
-        });
-      }
+      // TrackerId/Tracker) e cai em 'all' quando não há nem isso.
+      captureItems(items, '', {
+        imdbId: options.imdbId,
+        season: options.season,
+        episode: options.episode,
+        year: options.year,
+        resetPassedFilter: options.resetPassedFilter,
+      });
       return items;
     } catch (err) {
       log.warn('[jackett]', err.message);
@@ -138,7 +128,7 @@ async function search(query: string, type: string, indexersOverride: string[] | 
   if (activeIndexers.length === 0) return [];
 
   const settled = await Promise.allSettled(
-    activeIndexers.map((i) => queryIndexer(i, query, type, null, queryOptions)),
+    activeIndexers.map((i) => queryIndexer(i, query, type, null, options)),
   );
 
   const out: any[] = [];
@@ -164,17 +154,14 @@ async function search(query: string, type: string, indexersOverride: string[] | 
       // Banco de magnets vivo: TUDO que o indexer devolveu com hash entra,
       // antes de qualquer filtro de título/episódio (o filtro decide a lista,
       // não o acervo). Vale também para hit do cache bruto — ele É o que o
-      // Jackett devolveu. Item de conta nunca passa por aqui. Sombra
-      // read-only não escreve no banco.
-      if (!readOnly) {
-        captureItems(r.value.items, r.value.indexer, {
-          imdbId: options.imdbId,
-          season: options.season,
-          episode: options.episode,
-          year: options.year,
-          resetPassedFilter: options.resetPassedFilter,
-        });
-      }
+      // Jackett devolveu. Item de conta nunca passa por aqui.
+      captureItems(r.value.items, r.value.indexer, {
+        imdbId: options.imdbId,
+        season: options.season,
+        episode: options.episode,
+        year: options.year,
+        resetPassedFilter: options.resetPassedFilter,
+      });
       if (recordStatus && !r.value.fromCache) {
         indexerStatus.record(r.value.indexer, {
           // HTTP válido NÃO significa online: o Jackett devolve 200 com o

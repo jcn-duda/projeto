@@ -229,8 +229,6 @@ impl JackettClient {
             source_error: if source_ok { None } else { source_error },
             status,
             record_status: options.record_status(),
-            // O coletor marca sweep como secundário antes de montar o live.
-            primary: true,
         }
     }
 

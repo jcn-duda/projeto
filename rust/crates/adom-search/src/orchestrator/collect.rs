@@ -366,14 +366,6 @@ pub struct NodeCollector {
     /// Fontes que o Node deve PULAR porque o coletor nativo já as cobre
     /// (`SOURCES_RUST`). Vai no corpo como `skip_sources`.
     skip_sources: Vec<String>,
-    /// Referência de sombra: nenhum efeito no Node (`read_only` no corpo).
-    read_only: bool,
-    /// Fonte comparada na sombra; a rota read-only devolve `eligible:false`
-    /// quando ela não está nos `providers` efetivos.
-    shadow_source: Option<String>,
-    /// Lista de indexers do PROCESSO (`JACKETT_INDEXERS`), usada pela sombra
-    /// no lugar do `ji` customizado do `encoded`.
-    indexers_override: Option<Vec<String>>,
     /// O orquestrador coleta a conta do debrid numa tarefa PRÓPRIA
     /// (`account_request_from_job`): o Node pula `account` nas demais, senão o
     /// inventário (~100 ms) ficaria refém do indexer global mais lento.
@@ -385,9 +377,6 @@ impl NodeCollector {
         NodeCollector {
             routes,
             skip_sources: Vec::new(),
-            read_only: false,
-            shadow_source: None,
-            indexers_override: None,
             skip_account: false,
         }
     }
@@ -404,56 +393,14 @@ impl NodeCollector {
         self
     }
 
-    /// Modo sombra: o Node não grava status/cache/banco nem lê a conta.
-    pub fn with_read_only(mut self, read_only: bool) -> Self {
-        self.read_only = read_only;
-        self
-    }
-
-    /// Fonte que a rota read-only deve checar nos `providers` efetivos.
-    pub fn with_shadow_source(mut self, source: impl Into<String>) -> Self {
-        self.shadow_source = Some(source.into());
-        self
-    }
-
-    /// Override de indexers da sombra: `JACKETT_INDEXERS` do processo. Desde o
-    /// C0b a seleção da REQUEST (no `CollectJob`) vence; este é o fallback de
-    /// instalação sem `ji`.
-    pub fn with_indexers_override(mut self, indexers: Vec<String>) -> Self {
-        self.indexers_override = Some(indexers);
-        self
-    }
-
-    /// Coleta de REFERÊNCIA: devolve também a elegibilidade da fonte. A sombra
-    /// pula a comparação (e conta `source.shadow.skipped`) quando `eligible` é
-    /// falso, em vez de tratar o vazio proposital como divergência.
-    pub async fn collect_reference(&self, job: CollectJob) -> Result<(CollectBatch, bool), String> {
-        self.collect_inner(job).await
-    }
-
-    async fn collect_inner(&self, job: CollectJob) -> Result<(CollectBatch, bool), String> {
-        // Seleção de indexers da referência read-only: a da REQUEST (o mesmo
-        // `ji` que o coletor nativo usa desde o C0b); sem ela, a lista do
-        // processo (`JACKETT_INDEXERS`) — o default de instalação.
-        let job_indexers = job.jackett_indexers.clone();
+    async fn collect_batch(&self, job: CollectJob) -> Result<CollectBatch, String> {
         let mut request = collect_request_from_job(job);
         request.skip_sources = self.skip_sources.clone();
         if self.skip_account {
             request.skip_sources.push("account".to_string());
         }
-        request.read_only = self.read_only;
-        request.shadow_source = self.shadow_source.clone();
-        request.indexers = if self.read_only {
-            if job_indexers.is_empty() {
-                self.indexers_override.clone()
-            } else {
-                Some(job_indexers)
-            }
-        } else {
-            None
-        };
         let response = self.routes.collect(request).await?;
-        let batch = CollectBatch {
+        Ok(CollectBatch {
             items: response
                 .items
                 .iter()
@@ -464,8 +411,7 @@ impl NodeCollector {
             // agregado `all` — não só o vazio suspeito. `None` (rota sem
             // `live`) segue sem provar nada.
             live: response.live.as_ref().map(LiveBatchState::from_wire),
-        };
-        Ok((batch, response.eligible))
+        })
     }
 }
 
@@ -474,7 +420,7 @@ impl Collector for NodeCollector {
         &'a self,
         job: CollectJob,
     ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
-        Box::pin(async move { self.collect_inner(job).await.map(|(batch, _)| batch) })
+        Box::pin(async move { self.collect_batch(job).await })
     }
 }
 
@@ -512,9 +458,6 @@ pub fn collect_request_from_job(job: CollectJob) -> CollectRequest {
         original_query: job.original_query,
         multi_work_query: job.multi_work_query,
         skip_sources: Vec::new(),
-        read_only: false,
-        shadow_source: None,
-        indexers: None,
     }
 }
 

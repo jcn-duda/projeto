@@ -5,26 +5,15 @@
 // instante em que a resposta precisa ter saído (`deadline_at`, epoch ms).
 // Contrato de resposta: itens crus por indexer (mesma forma do cache `raw:v1`),
 // o `LiveIndexerState` em snapshot e o estado do circuit breaker.
-//
-// `read_only` (F2.1, sombra de fonte): coleta de REFERÊNCIA sem efeitos no
-// Node — sem inventário da conta, captura no banco, status/breaker ou cache
-// bruto. Só a sombra liga; o caminho de resposta nunca.
 import type express from 'express';
 import type { MatchContext } from '../../types/domain.js';
 import type { AppServices } from './types.js';
 import type { InternalSearchCollaborators } from './internal-search.js';
 import { collectRaw } from '../providers/collect-orchestrator.js';
-import { collectionSelection, sourceWanted } from '../providers/source-selection.js';
 import { parseSkipSources } from './internal-search-skip.js';
 import { enrichForRust } from './internal-search-evidence.js';
 import { decodeTarget, withinDeadline, DEADLINE } from './internal-search-shared.js';
 import * as log from '../utils/logger.js';
-
-/** `read_only` ausente = false; presente e não booleano é erro de integração. */
-function parseReadOnly(raw: unknown): boolean | null | undefined {
-  if (raw === undefined) return undefined;
-  return typeof raw === 'boolean' ? raw : null;
-}
 
 export async function handleCollect(
   services: AppServices,
@@ -36,7 +25,7 @@ export async function handleCollect(
     task_scope?: unknown; query?: unknown; pt_query?: unknown; type?: unknown; imdb?: unknown;
     season?: unknown; episode?: unknown; year?: unknown; names?: unknown;
     sweep_query?: unknown; original_query?: unknown; multi_work_query?: unknown; deadline_at?: unknown;
-    skip_sources?: unknown; read_only?: unknown; shadow_source?: unknown; indexers?: unknown;
+    skip_sources?: unknown;
   } | undefined;
   const target = decodeTarget(services, body);
   if (!target) return res.status(400).json({ ok: false, error: 'encoded ausente ou inválido' });
@@ -89,53 +78,6 @@ export async function handleCollect(
   if (skipSet === null) {
     return res.status(400).json({ ok: false, error: 'skip_sources deve ser subconjunto de jackett, prowlarr, torrentio, bludv, mico, account' });
   }
-  const readOnly = parseReadOnly(body?.read_only);
-  if (readOnly === null) {
-    return res.status(400).json({ ok: false, error: 'read_only deve ser booleano' });
-  }
-  const shadowSource = str(body?.shadow_source);
-  if (readOnly === true && !shadowSource) {
-    return res.status(400).json({ ok: false, error: 'shadow_source é obrigatório em read_only' });
-  }
-  // Override de indexers da sombra (`JACKETT_INDEXERS` do processo): só
-  // read-only; presente e inválido é 400.
-  const indexersOverride = body?.indexers === undefined
-    ? null
-    : (Array.isArray(body.indexers) && body.indexers.every((id: unknown) => typeof id === 'string')
-      ? (body.indexers as string[]).map((id) => id.trim()).filter(Boolean)
-      : undefined);
-  if (readOnly === true && indexersOverride === undefined) {
-    return res.status(400).json({ ok: false, error: 'indexers deve ser array de strings' });
-  }
-  // Elegibilidade da sombra: a MESMA régua de `wants` do collectRaw, por fonte
-  // (`source-selection.ts`). BLUDV/Mico não são tokens de `providers`, então a
-  // regra antiga (membership em `providers`) os deixava sempre `eligible:false`.
-  // Fonte fora da seleção devolve vazio de propósito; comparar isso com o
-  // nativo seria divergência falsa.
-  const selection = collectionSelection(
-    target.opts,
-    skipSet ?? new Set<string>(),
-    readOnly === true ? (indexersOverride ?? null) : null,
-  );
-  const eligible = readOnly !== true || sourceWanted(shadowSource || '', selection);
-  if (readOnly === true && !eligible) {
-    log.debug(`[internal] collect ${type} ${imdbId}: sombra pulada (${shadowSource} fora da seleção)`);
-    return res.json({
-      ok: true,
-      task_scope: scope,
-      query,
-      imdb_id: imdbId,
-      season,
-      episode,
-      partial: false,
-      items: [],
-      by_indexer: {},
-      live: null,
-      breaker: {},
-      eligible: false,
-    });
-  }
-  const override = readOnly === true ? indexersOverride : null;
   const ctx = { opts: target.opts, encoded: target.encoded, replyDeadlineMs: budget };
 
   try {
@@ -146,8 +88,6 @@ export async function handleCollect(
         // Sem observador nem trace: a rota é o OLHO do orquestrador, não um
         // /stream — nada aqui estagia timing nem escreve índice.
         null, null, originalQuery, multiWorkQuery, skipSet ?? new Set<string>(),
-        readOnly === true,
-        override,
       ), budget));
 
     if (value === DEADLINE) {
@@ -157,15 +97,13 @@ export async function handleCollect(
     // Saem daqui a prova de ARQUIVO e a prova de QUALIDADE do arquivo
     // (`fsz`/`pickFile`); o ptTitleDual (chip/_dubbed/isBr) o Rust decide
     // in-process pelos títulos do `meta` — sem esperar TMDB na rota.
-    // `broken` (histórico ruim da conta) precisa do contexto do usuário; a sombra
-    // read-only não toca o banco de magnets (o prune pode autocorrigir `bad`).
+    // `broken` (histórico ruim da conta) precisa do contexto do usuário.
     const brokenScope = {
       season,
       episode,
       imdbId,
       names: matchContext.names,
       year: matchContext.year,
-      readOnly: readOnly === true,
     };
     value.items = await services.runtime.run(ctx, () => enrichForRust(value.items, brokenScope));
     // Itens crus agrupados por indexer — mesma unidade do cache `raw:v1`
@@ -176,23 +114,18 @@ export async function handleCollect(
       const key = String(item?.indexer || item?.Indexer || item?.tracker || '').trim() || 'sem-indexer';
       (byIndexer[key] ||= []).push(item);
     }
-    // Sombra: NÃO lê o breaker (nem devolve foto) — o estado global do Node
-    // não pode influenciar a comparação de fonte.
-    let breaker: Record<string, unknown> = {};
-    if (readOnly !== true) {
-      // O breaker é foto POR indexer: cobre quem apareceu no lote e quem o
-      // estado vivo marcou (falho/pendente/vazio) — o conjunto que o Rust
-      // precisa para decidir fallback sem uma segunda viagem.
-      const breakerIds = new Set<string>(Object.keys(byIndexer));
-      if (value.live) {
-        for (const id of value.live.failed.keys()) breakerIds.add(id);
-        for (const id of value.live.pending) breakerIds.add(id);
-        for (const id of value.live.empty) breakerIds.add(id);
-        for (const id of value.live.served) breakerIds.add(id);
-      }
-      breaker = Object.fromEntries([...breakerIds].sort().map((id) => [id, deps.breakerSnapshot(id)]));
+    // O breaker é foto POR indexer: cobre quem apareceu no lote e quem o
+    // estado vivo marcou (falho/pendente/vazio) — o conjunto que o Rust
+    // precisa para decidir fallback sem uma segunda viagem.
+    const breakerIds = new Set<string>(Object.keys(byIndexer));
+    if (value.live) {
+      for (const id of value.live.failed.keys()) breakerIds.add(id);
+      for (const id of value.live.pending) breakerIds.add(id);
+      for (const id of value.live.empty) breakerIds.add(id);
+      for (const id of value.live.served) breakerIds.add(id);
     }
-    log.debug(`[internal] collect ${type} ${imdbId} [${scope}]: ${value.items.length} item(ns), partial=${value.partial}${readOnly ? ', read-only' : ''}`);
+    const breaker = Object.fromEntries([...breakerIds].sort().map((id) => [id, deps.breakerSnapshot(id)]));
+    log.debug(`[internal] collect ${type} ${imdbId} [${scope}]: ${value.items.length} item(ns), partial=${value.partial}`);
     return res.json({
       ok: true,
       task_scope: scope,
@@ -205,8 +138,6 @@ export async function handleCollect(
       by_indexer: byIndexer,
       live: value.live ? value.live.snapshot() : null,
       breaker,
-      // Caminho de resposta (não-sombra) sempre elegível.
-      eligible: true,
     });
   } catch (err) {
     // Erro inesperado (bug, não rede — rede vira `[]` dentro do collectRaw):

@@ -5,8 +5,7 @@
 // quem responde é a checagem nativa do `adom-search` (e a reserva Node só
 // seria usada antes de qualquer upload, quando então vira `Unknown` honesto).
 // O caminho `off` continua VIVO e funcional: é o rollback de uma linha
-// (`DEBRID_AL_RUST=off`), o mesmo do Rust. No modo `shadow` a rota também
-// segue viva, porque ali o Node é a REFERÊNCIA da comparação.
+// (`DEBRID_AL_RUST=off`), o mesmo do Rust.
 //
 // Corpo: `{ encoded, service, hashes, deadline_at }`; o usuário vem no CORPO
 // (`encoded` decodificado e executado dentro de `runtime.run`) — invariante:
@@ -183,7 +182,7 @@ async function handleCheck(
  * Registra POST /internal/debrid/check no router. Mesma guarda das rotas
  * /internal/search/* (loopback + token) e mesma posição no roteador (antes do
  * overlay /:userConfig). O modo vem de `DEBRID_AL_RUST` por requisição:
- * `on` ⇒ 410 (aposentada, F4.6); `off`/`shadow` ⇒ caminho Node vivo.
+ * `on` ⇒ 410 (aposentada, F4.6); `off` ⇒ caminho Node vivo.
  */
 export function registerInternalDebridCheck(
   router: Router,

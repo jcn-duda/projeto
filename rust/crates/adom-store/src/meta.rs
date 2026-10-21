@@ -62,8 +62,6 @@ pub fn meta_namespace(key: &str) -> Option<&'static str> {
 /// Banco SQLite dos metadados (compartilhado com o `cache.db` do Node).
 pub struct MetaCacheStore {
     conn: Mutex<Connection>,
-    /// Conexão aberta como `SQLITE_OPEN_READ_ONLY`: nada de DELETE/INSERT.
-    read_only: bool,
 }
 
 impl MetaCacheStore {
@@ -79,24 +77,6 @@ impl MetaCacheStore {
             .map_err(|err| format!("schema meta store: {err}"))?;
         Ok(Self {
             conn: Mutex::new(conn),
-            read_only: false,
-        })
-    }
-
-    /// Abre o `cache.db` SEM permissão de escrita — a referência nativa da
-    /// sombra de metadados (`META_RUST_SHADOW`) lê o cache quente do Node e
-    /// nunca o altera. Banco ainda inexistente falha (o caller cai em memória).
-    pub fn open_read_only(path: &Path) -> Result<Self, String> {
-        let conn = Connection::open_with_flags(
-            path,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(|err| format!("abrir meta store (read-only): {err}"))?;
-        conn.busy_timeout(std::time::Duration::from_millis(5_000))
-            .map_err(|err| err.to_string())?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-            read_only: true,
         })
     }
 
@@ -105,7 +85,6 @@ impl MetaCacheStore {
         conn.execute_batch(SCHEMA).map_err(|err| err.to_string())?;
         Ok(Self {
             conn: Mutex::new(conn),
-            read_only: false,
         })
     }
 
@@ -119,14 +98,6 @@ impl MetaCacheStore {
         Self::open(&cache_db_path())
     }
 
-    /// Variante read-only do [`Self::from_env`] (sombra de metadados).
-    pub fn from_env_read_only() -> Result<Self, String> {
-        if !cache_persist() {
-            return Self::open_memory();
-        }
-        Self::open_read_only(&cache_db_path())
-    }
-
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|err| err.into_inner())
     }
@@ -136,9 +107,7 @@ impl MetaCacheStore {
         let row = read_row(&conn, key)?;
         let (raw, expires_at) = row;
         if expires_at <= now_ms {
-            if !self.read_only {
-                let _ = conn.execute("DELETE FROM cache WHERE key = ?1", params![key]);
-            }
+            let _ = conn.execute("DELETE FROM cache WHERE key = ?1", params![key]);
             return None;
         }
         match serde_json::from_str::<Value>(&raw) {
@@ -206,10 +175,6 @@ impl MetaStore for MetaCacheStore {
     }
 
     fn set(&self, key: &str, value: CacheValue, ttl_seconds: u64, now_ms: i64) {
-        if self.read_only {
-            // Defesa: a referência da sombra nunca pode gravar no cache vivo.
-            return;
-        }
         let Some(namespace) = meta_namespace(key) else {
             eprintln!("[gateway] meta cache: chave fora do namespace ignorada: {key}");
             return;

@@ -12,7 +12,7 @@
 //! - concorrência limitada (`BLUDV_CONCURRENCY`, default 6) em posts e links,
 //!   preservando a ordem do documento;
 //! - `raw:v1` com a MESMA chave/valor do Node (`raw:v1:bludv:d|t:<q>` e
-//!   `{items}`), lido/gravado só fora do `read_only`.
+//!   `{items}`), lido/gravado no caminho vivo.
 
 use std::sync::Arc;
 
@@ -133,7 +133,7 @@ impl BludvClient {
         }
     }
 
-    /// Desfecho tipado da consulta (caminho vivo e sombra usam o mesmo parse).
+    /// Desfecho tipado da consulta (o caminho vivo usa o mesmo parse).
     pub async fn search_outcome(&self, query: &str, opts: &BludvSearchOpts) -> BludvOutcome {
         if !self.config.enabled || query.trim().is_empty() {
             return BludvOutcome::Disabled;
@@ -151,10 +151,8 @@ impl BludvClient {
         }
 
         let cache_key = raw_cache_key(&q, opts.dubbed_only);
-        if !opts.read_only {
-            if let Some(items) = self.read_cache(&cache_key) {
-                return BludvOutcome::Ok(items);
-            }
+        if let Some(items) = self.read_cache(&cache_key) {
+            return BludvOutcome::Ok(items);
         }
 
         let deadline = now_ms() + self.config.timeout_ms as i64;
@@ -172,8 +170,7 @@ impl BludvClient {
             .collect();
         let (items, incomplete, gate_posts) = self.collect_posts(&posts, opts, deadline).await;
 
-        if !opts.read_only
-            && self.config.raw_cache_enabled()
+        if self.config.raw_cache_enabled()
             && !incomplete
             && items.len() <= self.config.raw_max_items
         {

@@ -1,6 +1,5 @@
-//! Contadores `debrid.al.*` da checagem AllDebrid nativa e da sombra
-//! (nativo × Node). Namespace próprio para o `/metrics` do gateway — não se
-//! mistura com `debrid.check.*` do Node nem com `stream.shadow.*`.
+//! Contadores `debrid.al.*` da checagem AllDebrid nativa. Namespace próprio
+//! para o `/metrics` do gateway — não se mistura com `debrid.check.*` do Node.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -25,17 +24,6 @@ pub const HOLDS_INCOMPLETE: &str = "debrid.al.holds.incomplete";
 /// A conta do feed difere da conta da checagem: fatos descartados.
 pub const HOLDS_ACCOUNT_MISMATCH: &str = "debrid.al.holds.account_mismatch";
 
-pub const COMPARED: &str = "debrid.al.shadow.compared";
-pub const DIVERGENCE: &str = "debrid.al.shadow.divergence";
-pub const ITEMS_MISSING: &str = "debrid.al.shadow.items_missing";
-pub const ITEMS_EXTRA: &str = "debrid.al.shadow.items_extra";
-pub const TIMEOUT: &str = "debrid.al.shadow.timeout";
-pub const ERROR: &str = "debrid.al.shadow.error";
-/// Não houve par (Node `known:false`/unusable, ou nativa sem veredito).
-pub const SKIPPED: &str = "debrid.al.shadow.skipped";
-/// Fora da amostra (`DEBRID_AL_SHADOW_PERCENT`).
-pub const SKIPPED_SAMPLE: &str = "debrid.al.shadow.skipped_sample";
-
 const KEYS: &[&str] = &[
     NATIVE_CHECKS,
     NATIVE_KNOWN_FALSE,
@@ -45,17 +33,9 @@ const KEYS: &[&str] = &[
     HOLDS_MISSING,
     HOLDS_INCOMPLETE,
     HOLDS_ACCOUNT_MISMATCH,
-    COMPARED,
-    DIVERGENCE,
-    ITEMS_MISSING,
-    ITEMS_EXTRA,
-    TIMEOUT,
-    ERROR,
-    SKIPPED,
-    SKIPPED_SAMPLE,
 ];
 
-/// Contadores baratos (`Arc<Mutex<..>>`), como as outras sombras.
+/// Contadores baratos (`Arc<Mutex<..>>`), como as demais métricas.
 #[derive(Clone, Default)]
 pub struct DebridAlMetrics {
     counts: Arc<Mutex<BTreeMap<String, u64>>>,
@@ -90,6 +70,43 @@ static GLOBAL: OnceLock<DebridAlMetrics> = OnceLock::new();
 
 pub(super) fn global_metrics() -> &'static DebridAlMetrics {
     GLOBAL.get_or_init(DebridAlMetrics::new)
+}
+
+/// Contabiliza uma checagem nativa do caminho vivo (`on`).
+pub fn note_native(check: &adom_debrid::verdict::ServiceCheck) {
+    let metrics = global_metrics();
+    metrics.inc(NATIVE_CHECKS, 1);
+    if check.outcome.unusable.is_some() {
+        metrics.inc(NATIVE_UNUSABLE, 1);
+    }
+    if !check.outcome.known {
+        metrics.inc(NATIVE_KNOWN_FALSE, 1);
+    }
+}
+
+/// O caminho nativo não conseguiu nem enviar o upload e caiu no Node.
+pub fn note_fallback() {
+    global_metrics().inc(NATIVE_FALLBACK, 1);
+}
+
+/// Feed de holds aceito e cobrindo o lote (`DEBRID_AL_HOLDS`).
+pub fn note_holds_ok() {
+    global_metrics().inc(HOLDS_OK, 1);
+}
+
+/// Feed indisponível: a nativa segue read-only nesta busca.
+pub fn note_holds_missing() {
+    global_metrics().inc(HOLDS_MISSING, 1);
+}
+
+/// Feed respondeu, mas a cobertura do lote não fechou: read-only.
+pub fn note_holds_incomplete() {
+    global_metrics().inc(HOLDS_INCOMPLETE, 1);
+}
+
+/// Fatos de outra conta: descartados (nunca limpar com prova alheia).
+pub fn note_holds_account_mismatch() {
+    global_metrics().inc(HOLDS_ACCOUNT_MISMATCH, 1);
 }
 
 /// Snapshot das métricas `debrid.al.*` para o `/metrics` do gateway.

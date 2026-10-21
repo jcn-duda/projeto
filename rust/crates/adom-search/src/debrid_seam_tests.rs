@@ -317,71 +317,6 @@ fn alldebrid_on_unusable_nao_consulta_o_node() {
     assert_eq!(*stub.calls.lock().unwrap(), 0);
 }
 
-/// `shadow`: a nativa responde (caminho vivo) e o Node é a REFERÊNCIA em
-/// fundo — o cliente não espera a comparação.
-#[test]
-fn alldebrid_shadow_responde_nativo_e_compara_em_fundo() {
-    // Amostra 0: a thread de referência não chama o Node (o par é coberto
-    // nos testes do módulo da sombra). O que importa aqui é a resposta e o
-    // disparo.
-    let _lock = crate::test_env::lock();
-    let _env = shadow_env::Saved::set(&[("DEBRID_AL_SHADOW_PERCENT", "0")]);
-    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.mode = AlRustMode::Shadow;
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
-    // A referência diz outra coisa: se ela vencesse, HIT não seria Cached.
-    let stub = Arc::new(StubFallback::ok(outcome(vec![MISS.into()], true, None)));
-    debrid.fallback = Some(stub.clone());
-    debrid.prepare(&[HIT.into(), MISS.into()]);
-    assert_eq!(
-        debrid.check(&stream(HIT)),
-        DebridAnswer::Cached { url: None }
-    );
-    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
-    assert_eq!(debrid.local_checks(), 1, "a nativa é o lado vivo");
-    assert_eq!(
-        debrid.fallback_checks(),
-        0,
-        "a referência não passa pelo caminho bloqueante"
-    );
-    // Dá tempo de a thread da sombra ler a amostra 0 antes do guard restaurar
-    // a env (o teste não espera a task: o contrato é não segurar o cliente).
-    std::thread::sleep(Duration::from_millis(50));
-}
-
-mod shadow_env {
-    pub struct Saved(Vec<(&'static str, Option<String>)>);
-
-    impl Saved {
-        pub fn set(pairs: &[(&'static str, &str)]) -> Self {
-            let saved = pairs
-                .iter()
-                .map(|(name, value)| {
-                    let prev = std::env::var(name).ok();
-                    unsafe { std::env::set_var(name, value) };
-                    (*name, prev)
-                })
-                .collect();
-            Self(saved)
-        }
-    }
-
-    impl Drop for Saved {
-        fn drop(&mut self) {
-            for (name, prev) in &self.0 {
-                unsafe {
-                    match prev {
-                        Some(value) => std::env::set_var(name, value),
-                        None => std::env::remove_var(name),
-                    }
-                }
-            }
-        }
-    }
-}
-
 /// Debrid-Link é conhecido no despacho, mas `cacheCheck=false`: o veredito é
 /// `known:false` (Unknown), sem reserva Node e sem rede — o Node manda tudo
 /// pelo `/resolve` degradado.
@@ -671,32 +606,6 @@ fn sem_limpeza_o_feed_nao_e_consultado() {
     debrid.prepare(&[HIT.into(), MISS.into()]);
     let _ = debrid.check(&stream(HIT));
     assert_eq!(*feed.calls.lock().unwrap(), 0, "limpeza OFF não lê holds");
-    assert!(debrid.last_facts().is_none());
-}
-
-/// `shadow` é observação: a nativa responde, mas NÃO limpa — o feed fica de
-/// fora mesmo com a limpeza ligada.
-#[test]
-fn shadow_nao_consulta_o_feed() {
-    let _env = FeedEnv::set(&[
-        ("DEBRID_AL_CLEANUP", Some("on")),
-        ("DEBRID_AL_SHADOW_PERCENT", Some("0")),
-    ]);
-    let mut debrid = AdapterDebridCheck::new("alldebrid", USER_KEY);
-    debrid.mode = AlRustMode::Shadow;
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
-    let feed = std::sync::Arc::new(StubHolds::ok(holds_facts(
-        &account_scope(USER_KEY),
-        true,
-        &[HIT, MISS],
-        &[],
-    )));
-    debrid.holds = Some(feed.clone());
-    debrid.prepare(&[HIT.into(), MISS.into()]);
-    let _ = debrid.check(&stream(HIT));
-    assert_eq!(*feed.calls.lock().unwrap(), 0);
     assert!(debrid.last_facts().is_none());
 }
 

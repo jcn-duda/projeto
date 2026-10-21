@@ -29,13 +29,11 @@ mod bludv_collector;
 // Inventário nativo da conta (F3): fonte, filtro, memo e fast-path.
 mod account;
 mod account_metrics;
-mod account_shadow;
 mod collect;
 mod composite_collector;
 mod config;
-// Sombra/flag da checagem AllDebrid (F4.6): métricas `debrid.al.*`.
+// Métricas da checagem AllDebrid nativa: `debrid.al.*`.
 pub(crate) mod debrid_al_metrics;
-pub(crate) mod debrid_shadow;
 // Payloads dos efeitos de cauda (`EFFECTS_RUST`); a seleção mora no build.
 mod effects;
 mod fallback;
@@ -53,7 +51,6 @@ mod live_state;
 mod meta;
 mod meta_load;
 mod meta_native;
-mod meta_shadow;
 mod mico_collector;
 mod native_index;
 mod pack;
@@ -61,7 +58,6 @@ mod prowlarr_collector;
 mod refresh;
 mod respond;
 mod search;
-mod source_shadow;
 mod sources_rust;
 mod tail;
 #[cfg(test)]
@@ -93,14 +89,12 @@ use finish::SearchInput;
 use respond::{as_ms, empty_response, now_ms};
 
 pub use account::{
-    account_raw_items, br_origin_only, fast_path_decision, sampled, signals_of,
-    try_native_account_source, AccountInventorySource, AccountMode, AccountRequest, AccountSignals,
-    FastPathDecision, NativeAccountConfig, NativeAccountSource, ENV as ACCOUNT_RUST_ENV,
+    account_raw_items, br_origin_only, fast_path_decision, signals_of, try_native_account_source,
+    AccountInventorySource, AccountMode, AccountRequest, AccountSignals, FastPathDecision,
+    NativeAccountConfig, NativeAccountSource, ENV as ACCOUNT_RUST_ENV,
     FAST_PATH_ENV as ACCOUNT_FAST_PATH_ENV, FAST_PATH_MIN_ENV as ACCOUNT_FAST_MIN_ENV,
-    SHADOW_SAMPLE_ENV as ACCOUNT_SHADOW_SAMPLE_ENV,
 };
 pub use account_metrics::account_metrics_snapshot;
-pub use account_shadow::spawn_shadow_compare;
 pub use bludv_collector::{
     sources_rust_includes_bludv, try_bludv_collector_from_env,
     try_bludv_collector_from_env_with_store, BludvCollector,
@@ -113,7 +107,7 @@ pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
     NoDebridFactory, OrchestratorConfig,
 };
-pub use debrid_shadow::debrid_al_metrics_snapshot;
+pub use debrid_al_metrics::debrid_al_metrics_snapshot;
 pub use index_effects::{FollowUpKind, FollowUpPlan};
 pub use index_metrics::index_metrics_snapshot;
 pub use index_source::{
@@ -135,19 +129,11 @@ pub use meta_native::{
     flag_enabled, meta_from_lookup, meta_rust_enabled, FallbackMetaSource, NativeMetaSource,
     DEFAULT_LOOKUP_TIMEOUT_MS, META_RUST_ENV,
 };
-pub use meta_shadow::{
-    compare_meta, meta_shadow_enabled, meta_shadow_metrics_snapshot, meta_shadow_percent_from,
-    meta_shadow_timeout_ms_from, sample_includes, wrap_meta_with_shadow, MetaComparison,
-    MetaShadowMetrics, META_SHADOW_ENV, META_SHADOW_PERCENT_ENV, META_SHADOW_TIMEOUT_ENV,
-};
 pub use mico_collector::{sources_rust_includes_mico, try_mico_collector_from_env, MicoCollector};
 pub use prowlarr_collector::{
     sources_rust_includes_prowlarr, try_prowlarr_collector_from_env, ProwlarrCollector,
 };
 pub use respond::{SearchOutcome, StreamRequest, NOTICE_SEARCHING};
-pub use source_shadow::{
-    source_shadow_metrics_snapshot, wrap_collector_with_source_shadow, SourceShadowMetrics,
-};
 pub use sources_rust::{
     sources_rust_csv_includes, sources_rust_csv_winner, sources_rust_includes,
     try_sources_rust_collector_from_env, try_sources_rust_collectors_from_env,
@@ -189,13 +175,13 @@ pub struct Orchestrator {
     /// anterior.
     files_at_build: Option<Arc<BTreeMap<String, Vec<DebridFile>>>>,
     totals_at_build: Option<Arc<BTreeMap<String, f64>>>,
-    /// Fonte do inventário da conta (`ACCOUNT_RUST=on`/`shadow`). `None` =
+    /// Fonte do inventário da conta (`ACCOUNT_RUST=on`). `None` =
     /// modo desligado ou fonte não injetada (o caminho Node segue igual).
     account: Option<Arc<dyn AccountInventorySource>>,
-    /// Índice de releases nativo (`INDEX_RUST=on`/`shadow`); `None` = caminho
+    /// Índice de releases nativo (`INDEX_RUST=on`); `None` = caminho
     /// Node (a leitura segue em `POST /internal/search/index`).
     index: Option<SharedIndex>,
-    /// Banco de magnets nativo (`BANK_RUST=on`/`shadow`); `None` = Node.
+    /// Banco de magnets nativo (`BANK_RUST=on`); `None` = Node.
     bank: Option<SharedBank>,
     /// Evidência `bad`/`lie` do banco de magnets da conta (`STREAM_BAD_RUST`);
     /// `None` = sem fonte (build igual ao de antes do F4.4a).
@@ -322,8 +308,8 @@ impl Orchestrator {
         self
     }
 
-    /// Monta a fonte NATIVA do inventário quando `ACCOUNT_RUST` pede
-    /// (`on`/`shadow`). `off` mantém `None` — o caminho Node fica intacto.
+    /// Monta a fonte NATIVA do inventário quando `ACCOUNT_RUST=on`. `off`
+    /// mantém `None` — o caminho Node fica intacto.
     pub fn with_native_account(mut self) -> Self {
         self.account = try_native_account_source(&self.config);
         self
@@ -346,7 +332,7 @@ impl Orchestrator {
         self
     }
 
-    /// `true` quando o índice nativo foi injetado (diagnóstico/sombra).
+    /// O índice nativo injetado, quando houver.
     pub fn index_source(&self) -> Option<&SharedIndex> {
         self.index.as_ref()
     }

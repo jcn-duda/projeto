@@ -46,22 +46,6 @@ pub(crate) fn live_state_from_outcomes(
     )
 }
 
-/// Referência da SOMBRA: o modo shadow marca `record_status:false` só para
-/// não registrar breaker/status; a comparação ainda precisa do live, então
-/// aqui NÃO se aplica o filtro de `record_status`. Só a consulta PRINCIPAL
-/// entra: sweep (inline/tardio) não pode mascarar nem inventar falha.
-pub(crate) fn live_state_from_outcomes_shadow(
-    outcomes: &[QueryOutcome],
-    job: &CollectJob,
-    title_precision_tail_cut: bool,
-) -> (LiveBatchState, bool) {
-    reduce(
-        outcomes.iter().filter(|o| o.primary),
-        job,
-        title_precision_tail_cut,
-    )
-}
-
 fn reduce<'a>(
     outcomes: impl Iterator<Item = &'a QueryOutcome>,
     job: &CollectJob,

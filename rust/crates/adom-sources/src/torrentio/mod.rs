@@ -9,8 +9,7 @@
 //! - base configurável sob guarda SSRF.
 //!
 //! `search_outcome` é o caminho do coletor: desfecho tipado (ok/HTTP/JSON/
-//! rede/timeout) e breaker SÓ no caminho vivo — a sombra read-only ignora o
-//! circuito aberto e não o abre/reseta, como o `readOnly` do TS.
+//! rede/timeout) e breaker alimentado por ele.
 //!
 //! Fora desta fatia: integração no orquestrador/`collectRaw` (feita no
 //! `adom-search::TorrentioCollector`).
@@ -25,7 +24,4 @@ pub use breaker::{now_ms as breaker_now_ms, Breaker};
 pub use client::{endpoint_url, TorrentioClient};
 pub use config::{TorrentioConfig, TORRENTIO_DEFAULT_TIMEOUT_MS, TORRENTIO_DEFAULT_URL};
 pub use parse::{map_stream, parse_metadata, ParsedMetadata};
-pub use types::{
-    TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs,
-    TorrentioSearchOptions,
-};
+pub use types::{TorrentioMediaType, TorrentioOutcome, TorrentioRawItem, TorrentioSearchArgs};

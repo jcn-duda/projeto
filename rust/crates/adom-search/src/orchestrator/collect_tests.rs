@@ -100,56 +100,12 @@ fn corpo_do_collect_carrega_skip_sources_so_quando_ha() {
         original_query: None,
         multi_work_query: None,
         skip_sources: Vec::new(),
-        read_only: false,
-        shadow_source: None,
-        indexers: None,
     };
     let sem = serde_json::to_value(&request).expect("json");
     assert!(sem.get("skip_sources").is_none());
     request.skip_sources = vec!["jackett".into(), "mico".into()];
     let com = serde_json::to_value(&request).expect("json");
     assert_eq!(com["skip_sources"], json!(["jackett", "mico"]));
-    // `read_only` só viaja quando LIGADO (caminho de resposta fica intacto).
-    assert!(sem.get("read_only").is_none());
-    request.read_only = true;
-    let ro = serde_json::to_value(&request).expect("json");
-    assert_eq!(ro["read_only"], json!(true));
-    assert!(ro.get("shadow_source").is_none());
-    request.shadow_source = Some("jackett".into());
-    let ro = serde_json::to_value(&request).expect("json");
-    assert_eq!(ro["shadow_source"], json!("jackett"));
-    assert!(ro.get("indexers").is_none());
-    request.indexers = Some(vec!["yts".into(), "bludv".into()]);
-    let ro = serde_json::to_value(&request).expect("json");
-    assert_eq!(ro["indexers"], json!(["yts", "bludv"]));
-}
-
-/// `eligible` ausente (Node antigo) vale `true`; `false` atravessa o contrato.
-#[test]
-fn elegibilidade_do_fio_tem_default_true() {
-    let wire = json!({
-        "ok": true,
-        "task_scope": "all",
-        "query": "Filme",
-        "imdb_id": "tt0000001",
-        "partial": false,
-        "items": [],
-        "breaker": {}
-    });
-    let velho: CollectResponse = serde_json::from_value(wire).expect("contrato antigo");
-    assert!(velho.eligible);
-    let wire = json!({
-        "ok": true,
-        "task_scope": "all",
-        "query": "Filme",
-        "imdb_id": "tt0000001",
-        "partial": false,
-        "items": [],
-        "breaker": {},
-        "eligible": false
-    });
-    let novo: CollectResponse = serde_json::from_value(wire).expect("contrato novo");
-    assert!(!novo.eligible);
 }
 
 /// O `live.snapshot()` que a rota interna devolve chega inteiro: as quatro

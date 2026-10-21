@@ -52,7 +52,6 @@ fn outcome_with_items(
         },
         status,
         record_status: true,
-        primary: true,
     }
 }
 
@@ -88,7 +87,6 @@ fn inline_sweep_nao_ignora_breaker() {
         &["bludv".into()],
         &[],
         &[],
-        false,
     );
     let sweeps: Vec<_> = planned
         .iter()
@@ -130,7 +128,6 @@ fn late_sweep_usa_ignore_breaker() {
         &["bludv".into()],
         &["1337x".into()],
         &[],
-        false,
     );
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].query, "Matrix");
@@ -153,7 +150,6 @@ fn priority_scope_so_br() {
         &["bludv".into()],
         &[],
         &[],
-        false,
     );
     assert!(!planned.is_empty());
     assert!(planned.iter().all(|p| p.priority));
@@ -163,15 +159,7 @@ fn priority_scope_so_br() {
 #[test]
 fn index_only_sozinho_nao_consulta() {
     let job = base_job();
-    let planned = plan_jackett_searches(
-        &job,
-        &["1337x".into()],
-        &[],
-        &[],
-        &["1337x".into()],
-        &[],
-        false,
-    );
+    let planned = plan_jackett_searches(&job, &["1337x".into()], &[], &[], &["1337x".into()], &[]);
     assert!(planned.is_empty());
 }
 
@@ -318,46 +306,6 @@ fn item_relevante_limpa_a_suspeita_de_vazio() {
     let (state, _) = live(&outcomes);
     assert!(state.empty.is_empty(), "item relevante desfaz o empty");
     assert_eq!(state.all, LiveAllState::Ok);
-}
-
-#[test]
-fn shadow_planeja_ignore_breaker_e_sem_record_status() {
-    let planned = plan_jackett_searches(
-        &base_job(),
-        &["yts".into(), "bludv".into()],
-        &["bludv".into()],
-        &["bludv".into()],
-        &[],
-        &[],
-        true,
-    );
-    assert!(!planned.is_empty());
-    for step in &planned {
-        assert!(step.options.ignore_breaker, "sombra ignora breaker");
-        assert_eq!(
-            step.options.record_status,
-            Some(false),
-            "sombra não registra breaker/status"
-        );
-    }
-}
-
-#[test]
-fn shadow_live_usa_outcome_record_status_false() {
-    let mut item_ok = outcome_with_items(
-        "yts",
-        IndexerStatus::Ok,
-        vec![item("The Matrix 1999 1080p")],
-    );
-    item_ok.record_status = false;
-    // Caminho principal: outcome secundário não alimenta live.
-    let (main, _) = live(&[item_ok.clone()]);
-    assert_eq!(main.all, LiveAllState::Unknown);
-    // Sombra: mesma consulta PRECISA aparecer na comparação.
-    let (shadow, partial) = live_state_from_outcomes_shadow(&[item_ok], &base_job(), true);
-    assert_eq!(shadow.all, LiveAllState::Ok);
-    assert!(shadow.failed.is_empty() && shadow.empty.is_empty());
-    assert!(!partial);
 }
 
 #[test]

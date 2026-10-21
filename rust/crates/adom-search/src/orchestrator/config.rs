@@ -82,8 +82,8 @@ pub struct OrchestratorConfig {
     /// Só vale quando a request não traz `jackettIndexers` (a seleção da URL
     /// vence); alimenta o `wants("mico")` do `CollectJob`.
     pub mico_default: bool,
-    /// `ACCOUNT_RUST`: `off` (default) = tarefa Node da conta; `shadow` =
-    /// nativo × Node compare-only; `on` = o inventário nativo responde.
+    /// `ACCOUNT_RUST`: `off` (default) = tarefa Node da conta; `on` = o
+    /// inventário nativo responde.
     pub account_mode: AccountMode,
     /// `DEBRID_INVENTORY_SOURCE` (default ligado, como no Node): sem ele a
     /// conta não é fonte nem no modo nativo.
@@ -103,14 +103,9 @@ pub struct OrchestratorConfig {
     pub account_inventory_max: usize,
     /// `DEBRID_INVENTORY_TTL` em segundos (default 300).
     pub account_inventory_ttl_s: i64,
-    /// `ACCOUNT_SHADOW_SAMPLE` (0..=1, default 0.1).
-    pub account_shadow_sample: f64,
-    /// `ACCOUNT_SHADOW_TIMEOUT_MS` (default 2500): teto da leitura da sombra.
-    pub account_shadow_timeout_ms: i64,
     /// `ACCOUNT_FAST_WAIT_MS` (default 450): teto da conta na via do índice.
     pub account_fast_wait_ms: i64,
-    /// `INDEX_RUST`: `off` (default) = índice lido/escrito pelo Node;
-    /// `shadow` = Node responde e o nativo compara; `on` = nativo.
+    /// `INDEX_RUST`: `off` = índice lido/escrito pelo Node; `on` = nativo.
     pub index_mode: IndexMode,
     /// `BANK_RUST`: idem para a leitura do `magnets.db` (instantânea/reserva) e
     /// a marca de `passed_filter` da escrita do índice.
@@ -133,8 +128,6 @@ pub struct OrchestratorConfig {
     /// `DEBRID_AUTO_FETCH_MIN_SEEDERS` (default 3): piso do `poolCovered` do
     /// índice/instantânea, o mesmo que o Node lê do autofetch.
     pub auto_fetch_min_seeders: f64,
-    /// `INDEX_SHADOW_SAMPLE` (0..=1, default 0.1).
-    pub index_shadow_sample: f64,
 }
 
 impl Default for OrchestratorConfig {
@@ -170,8 +163,6 @@ impl Default for OrchestratorConfig {
             account_inventory_timeout_ms: 1_500,
             account_inventory_max: 3_000,
             account_inventory_ttl_s: 300,
-            account_shadow_sample: super::account::DEFAULT_SHADOW_SAMPLE,
-            account_shadow_timeout_ms: 2_500,
             account_fast_wait_ms: 450,
             index_mode: IndexMode::Off,
             bank_mode: IndexMode::Off,
@@ -187,7 +178,6 @@ impl Default for OrchestratorConfig {
             magnet_bank_instant_max_ms: 7 * 86_400_000,
             magnet_bank_instant_fresh_max_ms: 2 * 3_600_000,
             auto_fetch_min_seeders: 3.0,
-            index_shadow_sample: 0.1,
         }
     }
 }
@@ -231,7 +221,7 @@ impl DebridCheck for NoDebridCheck {
     }
 }
 
-/// Fábrica que nunca pergunta ao debrid (sombra §9.1 / testes sem rede).
+/// Fábrica que nunca pergunta ao debrid (testes sem rede).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NoDebridFactory;
 

@@ -221,9 +221,6 @@ async fn collect_leva_deadline_e_task_scope() {
             original_query: None,
             multi_work_query: None,
             skip_sources: Vec::new(),
-            read_only: false,
-            shadow_source: None,
-            indexers: None,
         })
         .await
         .unwrap();
@@ -267,9 +264,6 @@ async fn collect_deadline_vencido_nao_chama_rede() {
             original_query: None,
             multi_work_query: None,
             skip_sources: Vec::new(),
-            read_only: false,
-            shadow_source: None,
-            indexers: None,
         })
         .await
         .unwrap_err();

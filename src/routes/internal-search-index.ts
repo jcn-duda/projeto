@@ -85,8 +85,8 @@ export function registerInternalSearchIndex(router: Router, services: AppService
 
         // Métricas `search.idx.*` ficam FORA do caminho do banco (o dado é do
         // acervo, não do índice), como no `search-index-path.ts`. O plano
-        // EMITIDO viaja na resposta (`effects`) para a sombra do índice
-        // comparar o que o nativo decidiu, não só os itens.
+        // EMITIDO viaja na resposta (`effects`) para o consumidor ver o que foi
+        // decidido, não só os itens.
         const followUpEffects = config.releaseIndex.enabled
           ? enqueueIndexFollowUp({
             indexed,

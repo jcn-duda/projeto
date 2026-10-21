@@ -182,11 +182,8 @@ async fn metrics_expoe_checagem_alldebrid_zerada() {
     assert_eq!(status, StatusCode::OK);
     let snap: Value = serde_json::from_str(&body).unwrap();
     // Namespace da checagem AllDebrid nativa × Node, zerado por padrão.
-    assert_eq!(snap["debrid.al.shadow.compared"], 0);
     assert_eq!(snap["debrid.al.native.checks"], 0);
-    // As famílias das sombras por fatia (R1b) continuam no snapshot.
-    assert!(snap.get("source.shadow.compared").is_some());
-    assert!(snap.get("meta.shadow.compared").is_some());
+    // As métricas dos caminhos nativos continuam no snapshot.
     assert!(snap.get("account.rust.fetch").is_some());
     assert!(snap.get("index.rust.lookup").is_some());
 }

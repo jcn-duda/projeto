@@ -12,8 +12,7 @@
 //!   = índice (SEM selo — o `idxReleasesToRaw` do TS não marca) + conta.
 //!
 //! O follow-up roda em TODA busca, como na rota do Node, e é emitido por
-//! `/internal/search/effects` (fire-and-forget). Em `INDEX_RUST=shadow` o
-//! caminho Node continua respondendo e o nativo só COMPARA em fundo.
+//! `/internal/search/effects` (fire-and-forget).
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -25,12 +24,11 @@ use adom_core::{
 };
 use serde_json::{json, Map, Value};
 
-use crate::internal_types::SearchIndexResponse;
-use crate::raw_item::{raw_item_from_value, RawItem};
+use crate::raw_item::RawItem;
 
-use super::account::{account_raw_items, sampled, AccountRequest};
+use super::account::{account_raw_items, AccountRequest};
 use super::finish::{bool_of, str_of, SearchInput};
-use super::index_effects::{effect_entries, follow_up_plan, plan_json, FollowUpPlan};
+use super::index_effects::{effect_entries, follow_up_plan, FollowUpPlan};
 use super::index_metrics as metrics;
 use super::index_source::{
     allowed_source_indexer, bank_limits, bank_read_window, obra_targets, IndexedReleaseWire,
@@ -41,7 +39,7 @@ use super::tail::EffectsBatch;
 use super::Orchestrator;
 
 /// Resultado da leitura nativa. Os itens das três fontes ficam SEPARADOS para a
-/// via rápida escolher as marcas e a sombra comparar cada conjunto.
+/// via rápida escolher as marcas de cada conjunto.
 #[derive(Clone, Debug, Default)]
 pub(super) struct NativeIndexOutcome {
     pub indexed: Vec<IndexedReleaseWire>,
@@ -68,7 +66,7 @@ impl Orchestrator {
         input: &SearchInput,
         meta: &SearchMeta,
     ) -> Option<super::fast_path::FastPath> {
-        let outcome = self.native_index_scan(input, meta, true).await;
+        let outcome = self.native_index_scan(input, meta).await;
         self.emit_index_follow_up(input, meta, &outcome).await;
         if outcome.instant_eligible {
             let mut items: Vec<RawItem> = outcome.instant_items.clone();
@@ -131,13 +129,11 @@ impl Orchestrator {
         });
     }
 
-    /// Leitura + decisão (sem emitir nada). `with_account=false` é a sombra,
-    /// que compara o que o Node respondeu sem uma segunda leitura da conta.
+    /// Leitura + decisão (sem emitir nada).
     pub(super) async fn native_index_scan(
         &self,
         input: &SearchInput,
         meta: &SearchMeta,
-        with_account: bool,
     ) -> NativeIndexOutcome {
         let now = now_ms();
         let mut outcome = NativeIndexOutcome::default();
@@ -218,7 +214,7 @@ impl Orchestrator {
         );
         self.count_index_metrics(&outcome, covered);
 
-        if with_account && self.config.index_mode.is_on() {
+        if self.config.index_mode.is_on() {
             outcome.account_items = self.native_account_items(input, meta).await;
         }
         outcome
@@ -473,114 +469,6 @@ impl Orchestrator {
             Err(_) => Vec::new(),
         }
     }
-
-    /// Sombra `INDEX_RUST=shadow`: compara nativo × Node sem segurar o cliente.
-    pub(super) fn spawn_index_shadow(
-        &self,
-        input: SearchInput,
-        meta: SearchMeta,
-        node: SearchIndexResponse,
-    ) {
-        let this = self.clone();
-        tokio::spawn(async move {
-            this.index_shadow_compare(input, meta, node).await;
-        });
-    }
-
-    async fn index_shadow_compare(
-        &self,
-        input: SearchInput,
-        meta: SearchMeta,
-        node: SearchIndexResponse,
-    ) {
-        let m = metrics::global_metrics();
-        if self.index.is_none() {
-            m.inc(metrics::SHADOW_SKIPPED, 1);
-            return;
-        }
-        if !sampled(&meta.imdb_id, self.config.index_shadow_sample) {
-            m.inc(metrics::SHADOW_NOT_SAMPLED, 1);
-            return;
-        }
-        let native = self
-            .native_index_scan(&input, &meta, self.account.is_some())
-            .await;
-        let node_index: Vec<RawItem> = node.index_items.iter().map(raw_item_from_value).collect();
-        let node_instant: Vec<RawItem> =
-            node.instant_items.iter().map(raw_item_from_value).collect();
-        let node_account: Vec<RawItem> =
-            node.account_items.iter().map(raw_item_from_value).collect();
-        let native_instant: Vec<RawItem> = native.instant_items.clone();
-        // Sem `BANK_RUST` nativo o lado Rust não tem como reproduzir a
-        // instantânea (o Node a calculou no processo dele) nem a evidência de
-        // BR do acervo que decide o `br-gap`: comparar isso viraria divergência
-        // falsa. Índice/cobertura/`partial` continuam comparados.
-        let bank_native = self.config.bank_mode.uses_native() && self.bank.is_some();
-        if !bank_native {
-            m.inc(metrics::SHADOW_SKIPPED, 1);
-        }
-
-        let (missing, extra) = compare_hashes(&node_index, &native.index_items);
-        let (instant_missing, instant_extra) = if bank_native {
-            compare_hashes(&node_instant, &native_instant)
-        } else {
-            (0, 0)
-        };
-        let order = compare_order(&node_index, &native.index_items)
-            | (bank_native && compare_order(&node_instant, &native_instant));
-        let coverage = node.index_covered != native.index_covered;
-        let partial = node.is_partial != native.is_partial;
-        let eligible = bank_native && node.instant_eligible != native.instant_eligible;
-        let effects = bank_native && node.effects != plan_json(&native.follow_up);
-        let account_mismatch = self.account.is_some() && {
-            let (missing, extra) = compare_hashes(&node_account, &native.account_items);
-            missing + extra > 0 || node_account.len() != native.account_items.len()
-        };
-
-        m.inc(metrics::SHADOW_COMPARED, 1);
-        m.inc(metrics::SHADOW_INDEX_MISSING, missing as u64);
-        m.inc(metrics::SHADOW_INDEX_EXTRA, extra as u64);
-        m.inc(metrics::SHADOW_INSTANT_MISSING, instant_missing as u64);
-        m.inc(metrics::SHADOW_INSTANT_EXTRA, instant_extra as u64);
-        if order {
-            m.inc(metrics::SHADOW_ORDER, 1);
-        }
-        if coverage {
-            m.inc(metrics::SHADOW_COVERAGE, 1);
-        }
-        if partial {
-            m.inc(metrics::SHADOW_PARTIAL, 1);
-        }
-        if eligible {
-            m.inc(metrics::SHADOW_INSTANT_ELIGIBLE, 1);
-        }
-        if effects {
-            m.inc(metrics::SHADOW_EFFECTS, 1);
-        }
-        if account_mismatch {
-            m.inc(metrics::SHADOW_ACCOUNT, 1);
-        }
-        let diverged = missing + extra + instant_missing + instant_extra > 0
-            || order
-            || coverage
-            || partial
-            || eligible
-            || effects
-            || account_mismatch
-            || node_index.len() != native.index_items.len()
-            || (bank_native && node_instant.len() != native_instant.len());
-        if diverged {
-            m.inc(metrics::SHADOW_DIVERGENCE, 1);
-            eprintln!(
-                "[index-shadow] divergência em {}: index node={} nativo={} (faltando={missing} sobrando={extra}) instant node={} nativo={} (faltando={instant_missing} sobrando={instant_extra}) coverage={coverage} partial={partial} eligible={eligible} effects={effects} account={account_mismatch}",
-                meta.imdb_id,
-                node_index.len(),
-                native.index_items.len(),
-                node_instant.len(),
-                native_instant.len(),
-            );
-        }
-    }
 }
 
 /// Releases do índice → pseudo-item de cobertura (`PoolCoverageItem`).
@@ -664,40 +552,6 @@ fn instant_to_raw(item: &InstantItem) -> RawItem {
         extra,
         ..RawItem::default()
     }
-}
-
-/// `(faltando no nativo, sobrando no nativo)` por hash.
-fn compare_hashes(node: &[RawItem], native: &[RawItem]) -> (usize, usize) {
-    let node_set: HashSet<String> = node
-        .iter()
-        .map(RawItem::bank_hash)
-        .filter(|hash| !hash.is_empty())
-        .collect();
-    let native_set: HashSet<String> = native
-        .iter()
-        .map(RawItem::bank_hash)
-        .filter(|hash| !hash.is_empty())
-        .collect();
-    (
-        node_set.difference(&native_set).count(),
-        native_set.difference(&node_set).count(),
-    )
-}
-
-/// Mesmo CONJUNTO com ordem diferente também é divergência (a ordem decide o
-/// desempate do build).
-fn compare_order(node: &[RawItem], native: &[RawItem]) -> bool {
-    let node_hashes: Vec<String> = node
-        .iter()
-        .map(RawItem::bank_hash)
-        .filter(|hash| !hash.is_empty())
-        .collect();
-    let native_hashes: Vec<String> = native
-        .iter()
-        .map(RawItem::bank_hash)
-        .filter(|hash| !hash.is_empty())
-        .collect();
-    node_hashes != native_hashes
 }
 
 /// Um `FollowUpKind` isolado (diagnóstico/teste).

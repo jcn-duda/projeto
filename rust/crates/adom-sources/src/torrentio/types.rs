@@ -35,27 +35,6 @@ impl TorrentioMediaType {
     }
 }
 
-/// Opções de UMA consulta ao pool (espelha o `SearchOptions` do
-/// `src/providers/torrentio.ts`).
-///
-/// O breaker do Torrentio é local e do PROCESSO: só o caminho vivo pode abrir,
-/// fechar ou resetar o circuito. A sombra de fonte é referência read-only — o
-/// estado global não decide o que ela consulta e o resultado dela não pode
-/// pintar o circuito do caminho de resposta.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct TorrentioSearchOptions {
-    /// Referência da sombra: IGNORA o breaker aberto e não o abre/reseta
-    /// (mesmo contrato do `readOnly` do TS).
-    pub read_only: bool,
-}
-
-impl TorrentioSearchOptions {
-    /// Caminho de resposta: respeita e alimenta o breaker.
-    pub const LIVE: Self = Self { read_only: false };
-    /// Sombra read-only: consulta mesmo aberto, sem tocar no circuito.
-    pub const SHADOW: Self = Self { read_only: true };
-}
-
 /// Desfecho de UMA consulta ao pool (F2.3).
 ///
 /// O coletor nativo precisa distinguir resposta VÁLIDA (mesmo vazia) de fonte

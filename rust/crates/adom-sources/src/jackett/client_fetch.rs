@@ -46,7 +46,6 @@ impl JackettClient {
                     source_ok: true,
                     source_error: None,
                     record_status: options.record_status(),
-                    primary: true,
                 }
             }
             Err(err) => {
@@ -62,7 +61,6 @@ impl JackettClient {
                     status: IndexerStatus::Failed,
                     source_error: Some(err.message),
                     record_status: options.record_status(),
-                    primary: true,
                 }
             }
         }

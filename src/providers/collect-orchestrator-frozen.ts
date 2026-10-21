@@ -28,8 +28,6 @@ export async function collectRaw(
   originalQuery: string | null = null,
   multiWorkQuery: string | null = null,
   skipSources: ReadonlySet<string> = new Set(),
-  readOnly = false,
-  indexersOverride: string[] | null = null,
 ) {
   return frozen.aroundCollect(
     {
@@ -44,7 +42,6 @@ export async function collectRaw(
     () => collectRawLive(
       query, type, imdbId, ptQuery, matchContext, onLate, sweepQuery, deadlineAt,
       taskScope, firstObserver, trace, originalQuery, multiWorkQuery, skipSources,
-      readOnly, indexersOverride,
     ),
   );
 }

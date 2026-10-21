@@ -267,17 +267,6 @@ impl Orchestrator {
             return items;
         }
         let out = collect_fallback(&core_input(resp, meta, live, live_hashes));
-        // Sombra do banco (`BANK_RUST=shadow`): o Node responde; o nativo lê as
-        // mesmas linhas em fundo e compara os conjuntos. Nunca segura o cliente.
-        if self.config.bank_mode == super::index_source::IndexMode::Shadow && self.bank.is_some() {
-            self.spawn_bank_shadow(
-                input.clone(),
-                meta.clone(),
-                items.clone(),
-                live.clone(),
-                out.items.clone(),
-            );
-        }
         if out.injected() == 0 {
             return items;
         }
@@ -413,48 +402,5 @@ impl Orchestrator {
             sources,
         })
         .items
-    }
-
-    fn spawn_bank_shadow(
-        &self,
-        input: SearchInput,
-        meta: SearchMeta,
-        items: Vec<RawItem>,
-        live: LiveBatchState,
-        node: Vec<FallbackItem>,
-    ) {
-        let this = self.clone();
-        tokio::spawn(async move {
-            let m = metrics::global_metrics();
-            if !super::account::sampled(&meta.imdb_id, this.config.index_shadow_sample) {
-                m.inc(metrics::BANK_SHADOW_NOT_SAMPLED, 1);
-                return;
-            }
-            let native = this.native_fallback_result(&input, &meta, &items, &live);
-            let node_set: HashSet<String> = node
-                .iter()
-                .map(|item| item.info_hash.to_lowercase())
-                .filter(|hash| !hash.is_empty())
-                .collect();
-            let native_set: HashSet<String> = native
-                .iter()
-                .map(|item| item.info_hash.to_lowercase())
-                .filter(|hash| !hash.is_empty())
-                .collect();
-            let missing = node_set.difference(&native_set).count();
-            let extra = native_set.difference(&node_set).count();
-            m.inc(metrics::BANK_SHADOW_COMPARED, 1);
-            m.inc(metrics::BANK_SHADOW_MISSING, missing as u64);
-            m.inc(metrics::BANK_SHADOW_EXTRA, extra as u64);
-            if missing + extra > 0 || node.len() != native.len() {
-                m.inc(metrics::BANK_SHADOW_DIVERGENCE, 1);
-                eprintln!(
-                    "[bank-shadow] divergência em {}: node={} nativo={} faltando={missing} sobrando={extra}",
-                    meta.imdb_id,
-                    node.len(),
-                    native.len()
-                );
-            }
-        });
     }
 }

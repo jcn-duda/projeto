@@ -145,8 +145,4 @@ fn efeitos_de_fio_do_plano() {
         miss[0].payload.get("season").and_then(|v| v.as_i64()),
         Some(2)
     );
-    assert_eq!(
-        plan_json(&plan(&[], false, false, false, false)),
-        vec![json!({"kind": "harvester_enqueue", "reason": "miss"})]
-    );
 }

@@ -111,7 +111,6 @@ export function noteWouldHitIndex({ query, type, providerMode, wantsJackettSweep
 
 /**
  * Efeito de follow-up do índice, na forma que a rota devolve em `effects`.
- * `INDEX_RUST=shadow` compara este plano com o que o nativo decidiu.
  */
 export type IndexFollowUpEffect =
   | { kind: 'harvester_enqueue'; reason: 'miss' | 'gap' | 'br-gap' }
@@ -126,8 +125,8 @@ export type IndexFollowUpEffect =
  * responde, mas a obra precisa continuar entrando no índice e no colhedor.
  * `countMetrics:false` mantém o funil `search.idx` fora do caminho do banco.
  *
- * Devolve o plano EMITIDO (ordem dos enfileiramentos) — a rota o expõe para a
- * sombra do índice comparar efeitos, não só itens.
+ * Devolve o plano EMITIDO (ordem dos enfileiramentos) — a rota o expõe em
+ * `effects` para o consumidor ver o que foi decidido, não só os itens.
  */
 export function enqueueIndexFollowUp(args: {
   indexed: readonly any[];

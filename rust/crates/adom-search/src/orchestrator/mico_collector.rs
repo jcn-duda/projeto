@@ -12,9 +12,7 @@
 //!   `Failed` = consulta tentada e não respondida, `Pending` = prazo do
 //!   coletor venceu antes da resposta (o Node também a teria como pendente).
 //!   `all` fica `Unknown` — o agregado só existe no ramo `/all` do Jackett.
-//! - **Sombra read-only** (`with_shadow`): ignora o circuito (não consulta o
-//!   breaker aberto nem o abre/reseta). O nativo não faz captura no banco,
-//!   card/status nem efeitos em nenhum dos modos; a diferença é só o breaker.
+//! - O nativo não faz captura no banco, card/status nem efeitos.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -59,27 +57,15 @@ pub fn try_mico_collector_from_env() -> Option<MicoCollector> {
 /// Collector que fala o addon Mico por IMDb (sem POST `/internal/search/collect`).
 pub struct MicoCollector {
     client: MicoClient,
-    /// Sombra: referência read-only — ignora o breaker e não o alimenta.
-    shadow: bool,
 }
 
 impl MicoCollector {
     pub fn new(client: MicoClient) -> Self {
-        Self {
-            client,
-            shadow: false,
-        }
+        Self { client }
     }
 
     pub fn from_env() -> Result<Self, String> {
         Ok(Self::new(MicoClient::from_env()?))
-    }
-
-    /// Sombra de fonte: o breaker/estado local fica SÓ no caminho vivo
-    /// (`SOURCES_RUST=mico`), como o `readOnly` do TS.
-    pub fn with_shadow(mut self, shadow: bool) -> Self {
-        self.shadow = shadow;
-        self
     }
 
     pub fn client(&self) -> &MicoClient {
@@ -88,7 +74,6 @@ impl MicoCollector {
 
     fn search_options(&self, job: &CollectJob) -> MicoSearchOptions {
         MicoSearchOptions {
-            read_only: self.shadow,
             // O prazo ABSOLUTO do coletor: vencido antes da resposta, a
             // consulta é `pending` (não falha), como no Node.
             deadline_at: Some(job.deadline_at),

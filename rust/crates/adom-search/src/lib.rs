@@ -61,7 +61,7 @@ pub use debrid_seam::{
 };
 pub use raw_item::RawItem;
 // Store do `raw:v1` (o gateway injeta o mesmo `cache.db` do Node no coletor
-// BLUDV nativo); a sombra nunca o recebe.
+// BLUDV nativo).
 pub use adom_sources::{MemoryRawStore, RawStore};
 
 pub use collection_window::{
@@ -88,8 +88,7 @@ pub use resolve_url::{
 };
 
 /// Trava ÚNICA dos testes que tocam env dentro do crate (bases de API em
-/// loopback, amostra da sombra). Sem ela, módulos de teste diferentes sujam a
-/// env uns dos outros.
+/// loopback). Sem ela, módulos de teste diferentes sujam a env uns dos outros.
 #[cfg(test)]
 pub(crate) mod test_env {
     use std::sync::{Mutex, MutexGuard, OnceLock};

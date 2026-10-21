@@ -320,17 +320,6 @@ async fn alldebrid_check_nativo_sem_chave_e_unknown() {
 }
 
 #[tokio::test]
-async fn alldebrid_shadow_nao_responde_a_rota_http() {
-    // `shadow` é modo do adom-search; a rota do sidecar continua 501 para o
-    // Node não trocar de respondedor sem querer.
-    let _env = EnvVars::set(&[("DEBRID_AL_RUST", "shadow")]);
-    let body = format!(r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["abc"]}}"#);
-    let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", &body).await;
-    assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
-    assert!(raw.contains("service_not_ported"));
-}
-
-#[tokio::test]
 async fn debridlink_check_vazio_e_rotas_sem_metodo_ficam_501() {
     let body = format!(r#"{{"service":"debridlink","apiKey":"{KEY}","hashes":["abc"]}}"#);
     let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", &body).await;

@@ -1,5 +1,5 @@
-//! Breaker do coletor Torrentio (vivo abre/reseta; sombra read-only ignora) e
-//! as não-consultas (priority/late_sweep/providers/disabled/args/SSRF).
+//! Breaker do coletor Torrentio (vivo abre/reseta) e as não-consultas
+//! (priority/late_sweep/providers/disabled/args/SSRF).
 
 use super::test_support::*;
 use super::*;
@@ -51,38 +51,6 @@ async fn vivo_abre_e_reseta_o_breaker() {
         0,
         "sucesso no caminho vivo reseta"
     );
-}
-
-/// Sombra: ignora o circuito aberto, consulta e NÃO abre nem reseta.
-#[tokio::test]
-async fn sombra_read_only_nao_abre_nem_reseta_o_breaker() {
-    let (base, fake) = start(Mode::Http500).await;
-    let client = TorrentioClient::new(TorrentioConfig {
-        breaker_failures: 1,
-        ..config(&base, 1_500)
-    })
-    .expect("client");
-    let shadow = TorrentioCollector::new(client).with_shadow(true);
-
-    assert_failed(&shadow.collect(base_job()).await.expect("coleta"));
-    assert_eq!(
-        shadow.client().breaker().failures(),
-        0,
-        "sombra não alimenta o breaker"
-    );
-    assert_failed(&shadow.collect(base_job()).await.expect("coleta"));
-    assert_eq!(
-        fake.hits(),
-        2,
-        "referência consulta mesmo com falhas seguidas (sem breaker aberto)"
-    );
-
-    // Sucesso na sombra também não mexe no circuito (já zerado).
-    fake.set_mode(Mode::Ok);
-    let batch = shadow.collect(base_job()).await.expect("coleta");
-    assert_eq!(batch.items.len(), 1);
-    assert_eq!(fake.hits(), 3);
-    assert_eq!(shadow.client().breaker().failures(), 0);
 }
 
 // ── Não-consultas: nada prometido, nada de falha sintética ─────────────

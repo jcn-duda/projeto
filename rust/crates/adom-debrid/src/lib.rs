@@ -19,7 +19,6 @@
 //! prova de áudio (`play_audit`) do TS; efeitos L1 continuam no Node.
 
 pub mod alldebrid;
-pub mod alldebrid_clean_shadow;
 // Limpeza segura (hold/`adprot`/`knownBefore`, plano) e fila de delete com
 // backoff. Flag `DEBRID_AL_CLEANUP` (default OFF) e kill-switch próprio.
 pub mod alldebrid_cleanup;

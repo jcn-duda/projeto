@@ -1,9 +1,7 @@
-//! Contadores próprios do índice/banco nativos (F4.5) e da sombra
-//! `INDEX_RUST=shadow`/`BANK_RUST=shadow`.
+//! Contadores próprios do índice/banco nativos (F4.5).
 //!
 //! Nada aqui depende do Node: `index.rust.*` mede a leitura/escrita nativa e o
-//! funil de cobertura; `index.shadow.*` mede só o par comparado. `not_sampled` é
-//! o "skip quando não amostrado": não conta `compared` nem `divergence`.
+//! funil de cobertura.
 //!
 //! Exposto em `/metrics` do gateway por [`index_metrics_snapshot`].
 
@@ -35,29 +33,6 @@ pub const EFFECTS: &str = "index.rust.effects";
 /// `INDEX_RUST=on` sem store injetado: caiu no caminho Node (degradação).
 pub const SOURCE_MISSING: &str = "index.rust.source_missing";
 
-pub const SHADOW_COMPARED: &str = "index.shadow.compared";
-pub const SHADOW_DIVERGENCE: &str = "index.shadow.divergence";
-pub const SHADOW_INDEX_MISSING: &str = "index.shadow.index_missing";
-pub const SHADOW_INDEX_EXTRA: &str = "index.shadow.index_extra";
-pub const SHADOW_INSTANT_MISSING: &str = "index.shadow.instant_missing";
-pub const SHADOW_INSTANT_EXTRA: &str = "index.shadow.instant_extra";
-pub const SHADOW_ORDER: &str = "index.shadow.order";
-pub const SHADOW_COVERAGE: &str = "index.shadow.coverage";
-pub const SHADOW_PARTIAL: &str = "index.shadow.partial";
-pub const SHADOW_INSTANT_ELIGIBLE: &str = "index.shadow.instant_eligible";
-pub const SHADOW_ACCOUNT: &str = "index.shadow.account";
-pub const SHADOW_EFFECTS: &str = "index.shadow.effects";
-pub const SHADOW_NOT_SAMPLED: &str = "index.shadow.not_sampled";
-pub const SHADOW_SKIPPED: &str = "index.shadow.skipped";
-pub const SHADOW_ERROR: &str = "index.shadow.error";
-
-pub const BANK_SHADOW_COMPARED: &str = "bank.shadow.compared";
-pub const BANK_SHADOW_DIVERGENCE: &str = "bank.shadow.divergence";
-pub const BANK_SHADOW_MISSING: &str = "bank.shadow.items_missing";
-pub const BANK_SHADOW_EXTRA: &str = "bank.shadow.items_extra";
-pub const BANK_SHADOW_NOT_SAMPLED: &str = "bank.shadow.not_sampled";
-pub const BANK_SHADOW_ERROR: &str = "bank.shadow.error";
-
 const KEYS: &[&str] = &[
     LOOKUP,
     HIT,
@@ -82,27 +57,6 @@ const KEYS: &[&str] = &[
     BR_GAP_SERVED,
     EFFECTS,
     SOURCE_MISSING,
-    SHADOW_COMPARED,
-    SHADOW_DIVERGENCE,
-    SHADOW_INDEX_MISSING,
-    SHADOW_INDEX_EXTRA,
-    SHADOW_INSTANT_MISSING,
-    SHADOW_INSTANT_EXTRA,
-    SHADOW_ORDER,
-    SHADOW_COVERAGE,
-    SHADOW_PARTIAL,
-    SHADOW_INSTANT_ELIGIBLE,
-    SHADOW_ACCOUNT,
-    SHADOW_EFFECTS,
-    SHADOW_NOT_SAMPLED,
-    SHADOW_SKIPPED,
-    SHADOW_ERROR,
-    BANK_SHADOW_COMPARED,
-    BANK_SHADOW_DIVERGENCE,
-    BANK_SHADOW_MISSING,
-    BANK_SHADOW_EXTRA,
-    BANK_SHADOW_NOT_SAMPLED,
-    BANK_SHADOW_ERROR,
 ];
 
 /// Contadores do índice/banco. `Clone` barato (`Arc<Mutex<..>>`).

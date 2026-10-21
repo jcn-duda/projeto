@@ -34,7 +34,7 @@
 //! | `cacheQuotaFor`           | `cache_quotas::quota_for`  | Cota de um namespace do cache       |
 //! | `cacheNamespaceFor`       | `cache_quotas::namespace_for`| Namespace de uma chave            |
 //! | `cacheQuotasDump`         | `cache_quotas` (tabela)    | Contrato inteiro das cotas em JSON  |
-//! | `releaseIndexMediaMerge`  | `merge_media_source`       | Fonte de mídia do índice (sombra)   |
+//! | `releaseIndexMediaMerge`  | `merge_media_source`       | Fonte de mídia do índice            |
 //! | `evaluateAutofetchCandidates` | módulos `autofetch_*`  | Lote da seleção de candidatos       |
 //!
 //! ## Responsabilidade

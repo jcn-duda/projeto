@@ -54,8 +54,8 @@
 //!
 //! BLUDV: identidade do Node (`tracker: "BLUDV"`, sem `indexer`/`sources`),
 //! título/qualidade/fonte/áudio pelo contexto do botão, redirect `follow` com
-//! SSRF em cada hop, concorrência limitada e `raw:v1` (`RawStore`) só no
-//! caminho vivo — a sombra read-only não lê nem grava o cache bruto.
+//! SSRF em cada hop, concorrência limitada e `raw:v1` (`RawStore`) no caminho
+//! vivo.
 //!
 //! Pendências da próxima fatia: composição multi-fonte (ex.: jackett+bludv),
 //! pré-resolve BR (já no núcleo) e captura do magnet-bank.
@@ -98,7 +98,7 @@ pub use bludv::{
 };
 pub use cache::{
     CacheValue, CollectionRead, HomeReleaseRead, MemoryMetaStore, MemoryRawStore, MetaStore,
-    RawStore, ReadOnlyMetaStore,
+    RawStore,
 };
 pub use cinemeta::CinemetaClient;
 pub use config::{
@@ -121,7 +121,7 @@ pub use sources::MetaSources;
 pub use tmdb::TmdbClient;
 pub use torrentio::{
     TorrentioClient, TorrentioConfig, TorrentioMediaType, TorrentioOutcome, TorrentioRawItem,
-    TorrentioSearchArgs, TorrentioSearchOptions, TORRENTIO_DEFAULT_URL,
+    TorrentioSearchArgs, TORRENTIO_DEFAULT_URL,
 };
 pub use types::{
     CinemetaMeta, CollectionInfo, EpisodeAired, LookupOptions, MediaType, MetaLookup, Titles,

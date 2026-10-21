@@ -370,7 +370,7 @@ async fn search_outcome_separa_ok_empty_e_http_400() {
     let client = MicoClient::new(test_config(&base)).expect("client");
     assert!(matches!(
         client
-            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::default())
             .await,
         MicoOutcome::Ok(items) if items.is_empty()
     ));
@@ -378,7 +378,7 @@ async fn search_outcome_separa_ok_empty_e_http_400() {
     api.set_streams(json!([stream("Filme 2024", HASH_LOWER)]));
     assert!(matches!(
         client
-            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::default())
             .await,
         MicoOutcome::Ok(items) if items.len() == 1
     ));
@@ -386,7 +386,7 @@ async fn search_outcome_separa_ok_empty_e_http_400() {
     api.set_mode(Mode::Http400);
     assert_eq!(
         client
-            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
+            .search_outcome(&movie_args("tt1"), MicoSearchOptions::default())
             .await,
         MicoOutcome::Http(400)
     );
@@ -398,7 +398,6 @@ async fn search_outcome_pending_quando_o_deadline_venceu() {
     let (api, base) = FakeMico::start().await;
     let client = MicoClient::new(test_config(&base)).expect("client");
     let options = MicoSearchOptions {
-        read_only: false,
         deadline_at: Some(0),
     };
     assert_eq!(
@@ -407,44 +406,6 @@ async fn search_outcome_pending_quando_o_deadline_venceu() {
     );
     assert!(api.calls().is_empty(), "pending não faz rede");
     assert_eq!(client.breaker().failures(), 0);
-}
-
-#[tokio::test]
-async fn search_outcome_shadow_ignora_o_breaker_e_nao_o_alimenta() {
-    let (api, base) = FakeMico::start().await;
-    api.set_mode(Mode::Http503);
-    let client = MicoClient::new(MicoConfig {
-        breaker_failures: 1,
-        ..test_config(&base)
-    })
-    .expect("client");
-
-    // Caminho vivo abre o circuito.
-    assert_eq!(
-        client
-            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
-            .await,
-        MicoOutcome::Http(503)
-    );
-    assert_eq!(client.breaker().failures(), 1);
-    assert_eq!(
-        client
-            .search_outcome(&movie_args("tt1"), MicoSearchOptions::LIVE)
-            .await,
-        MicoOutcome::BreakerOpen
-    );
-    assert_eq!(api.calls().len(), 1);
-
-    // Sombra consulta mesmo aberto e não mexe no contador.
-    api.set_mode(Mode::Ok);
-    assert!(matches!(
-        client
-            .search_outcome(&movie_args("tt1"), MicoSearchOptions::SHADOW)
-            .await,
-        MicoOutcome::Ok(_)
-    ));
-    assert_eq!(api.calls().len(), 2);
-    assert_eq!(client.breaker().failures(), 1);
 }
 
 #[tokio::test]

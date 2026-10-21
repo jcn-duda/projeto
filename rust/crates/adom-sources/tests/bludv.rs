@@ -1,6 +1,6 @@
 //! Cliente BLUDV contra servidor falso (axum) — busca WordPress, protetor,
 //! filtro dubbed_only, gate pulado, hop SSRF skip, redirect follow com SSRF
-//! por hop, desfecho vivo e `raw:v1` (vivo grava/lê; read-only não toca).
+//! por hop, desfecho vivo e `raw:v1` (grava/lê).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -316,13 +316,7 @@ async fn dubbed_only_filtra_legendado() {
     let (_api, base) = FakeBludv::start().await;
     let client = BludvClient::new(test_config(&base)).expect("client");
     let out = client
-        .search(
-            "Coringa",
-            &BludvSearchOpts {
-                dubbed_only: true,
-                ..BludvSearchOpts::default()
-            },
-        )
+        .search("Coringa", &BludvSearchOpts { dubbed_only: true })
         .await;
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].audio, "dublado");
@@ -491,45 +485,13 @@ async fn raw_v1_vivo_grava_e_le() {
 
     // Flag de dublado muda a chave (o scrape filtra legendado ANTES de gravar).
     let dubbed = client
-        .search(
-            "Coringa",
-            &BludvSearchOpts {
-                dubbed_only: true,
-                ..BludvSearchOpts::default()
-            },
-        )
+        .search("Coringa", &BludvSearchOpts { dubbed_only: true })
         .await;
     assert_eq!(dubbed.len(), 1);
     assert!(store
         .keys()
         .iter()
         .any(|key| key == "raw:v1:bludv:d:Coringa"));
-}
-
-/// Sombra read-only: NÃO lê nem grava `raw:v1`, mesmo com o store injetado.
-#[tokio::test]
-async fn read_only_nao_le_nem_grava_raw_v1() {
-    let (api, base) = FakeBludv::start().await;
-    api.set_mode(Mode::Clean);
-    let store = Arc::new(RecordingStore::default());
-    let client = BludvClient::new(test_config(&base))
-        .expect("client")
-        .with_raw_store(store.clone());
-
-    let out = client
-        .search(
-            "Coringa",
-            &BludvSearchOpts {
-                read_only: true,
-                ..BludvSearchOpts::default()
-            },
-        )
-        .await;
-    assert_eq!(out.len(), 2);
-    assert!(!api.calls().is_empty(), "read-only continua raspando");
-    assert_eq!(store.gets(), 0, "read-only não lê raw:v1");
-    assert_eq!(store.sets(), 0, "read-only não grava raw:v1");
-    assert!(store.keys().is_empty());
 }
 
 /// Post com portão de anúncio não vira cache cru de longa duração

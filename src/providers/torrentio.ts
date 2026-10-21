@@ -139,18 +139,10 @@ function mapStream(s: any): RawItem | null {
   };
 }
 
-interface SearchOptions {
-  /** Sombra read-only (F2.1): referência SEM efeitos. Não abre, não fecha e
-   * não consulta o breaker — o estado global do Node não decide quem a
-   * referência consulta (mesmo contrato do Jackett/Mico). */
-  readOnly?: boolean;
-}
-
-async function query(args: SearchArgs, options: SearchOptions = {}): Promise<RawItem[]> {
-  const readOnly = options.readOnly === true;
+async function query(args: SearchArgs): Promise<RawItem[]> {
   if (!config.torrentio.enabled) return [];
   const url = endpointUrl(args);
-  if (!url || (!readOnly && breakerOpen())) return [];
+  if (!url || breakerOpen()) return [];
   try {
     const res = await fetch(url, {
       headers: { Accept: 'application/json' },
@@ -176,21 +168,20 @@ async function query(args: SearchArgs, options: SearchOptions = {}): Promise<Raw
       seen.add(parsed.infoHash);
       out.push(parsed);
     }
-    if (!readOnly) noteSuccess();
+    noteSuccess();
     metrics.count('torrentio.streams', out.length);
     if (out.length) log.debug(`[torrentio] ${out.length} release(s) para ${args.imdbId}`);
     return out;
   } catch (err: any) {
     // Timeout/aborto são falha transitória; o breaker protege o host público.
-    // Na sombra a falha é só da referência: não alimenta o circuito.
-    if (!readOnly) noteFailure();
+    noteFailure();
     log.warn(`[torrentio] falha na consulta de ${args.imdbId}:`, err?.message || String(err));
     return [];
   }
 }
 
-async function search(args: SearchArgs, options: SearchOptions = {}): Promise<RawItem[]> {
-  return query(args, options);
+async function search(args: SearchArgs): Promise<RawItem[]> {
+  return query(args);
 }
 
 export { search, _resetBreaker };

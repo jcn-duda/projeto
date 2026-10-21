@@ -139,13 +139,6 @@ test('DEBRID_AL_RUST=off: a rota volta a rodar (rollback de uma linha) — 400 d
   });
 });
 
-test('DEBRID_AL_RUST=shadow: a rota segue viva (Node é a REFERÊNCIA da sombra)', async () => {
-  await withAlRust('shadow', async () => {
-    const res = await postCheck({});
-    assert.equal(res.status, 400);
-  });
-});
-
 test('sem token a guarda vence o 410 (401, nunca 410)', async () => {
   await withAlRust('on', async () => {
     const res = await server.request('POST', '/internal/debrid/check', { body: {} });

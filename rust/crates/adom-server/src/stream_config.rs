@@ -92,13 +92,6 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Some(ttl) = env_i64("DEBRID_INVENTORY_TTL") {
         cfg.account_inventory_ttl_s = ttl.max(0);
     }
-    // Amostra da sombra: 0 desliga, 1 roda todas (clamp 0..=1).
-    if let Some(sample) = env_f64("ACCOUNT_SHADOW_SAMPLE") {
-        cfg.account_shadow_sample = sample.clamp(0.0, 1.0);
-    }
-    if let Some(ms) = env_i64("ACCOUNT_SHADOW_TIMEOUT_MS") {
-        cfg.account_shadow_timeout_ms = ms.max(1);
-    }
     if let Some(ms) = env_i64("ACCOUNT_FAST_WAIT_MS") {
         cfg.account_fast_wait_ms = ms.max(1);
     }
@@ -150,9 +143,6 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
         .map(|n| n.max(1_000))
         .unwrap_or(2 * 3_600_000)
         .min(instant_max);
-    if let Some(sample) = env_f64("INDEX_SHADOW_SAMPLE") {
-        cfg.index_shadow_sample = sample.clamp(0.0, 1.0);
-    }
     // O `poolCovered` do Node usa o piso do AUTOFETCH — o MESMO número já lido
     // para o fast-path da conta.
     cfg.auto_fetch_min_seeders = cfg.account_fast_min_seeders;
