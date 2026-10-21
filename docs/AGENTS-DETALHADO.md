@@ -1792,6 +1792,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
+- **Dono do `idx:v14` (F3.1):** o Rust é o único escritor. `release-index.ts` é fachada sobre o `IdxStore` (`release-index-store.ts`, napi síncrono; store em `rust/crates/adom-index`). O Node não grava o `idx:` no L1 nem no SQLite; o boot pula o namespace em `cache-db.ts`; `clear-cache` do `idx` e `cache.clear()` chamam `clearIdxStore()`. Perdas: `search.idx.routed` e `search.idx.protCap` não contam mais (decisão de roteamento e corte protegido são do Rust). Sem `INDEX_OWNER=node`: dois escritores eram inviáveis; rollback = commit/imagem anterior. Detalhe em `docs/rust-index-bank-contract.md` (F3.1).
 - **`src/utils/release-index.ts`** guarda por obra (`idx:v14:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre
@@ -2991,7 +2992,8 @@ fire-and-forget) continua.
 | `src/providers/collection-window.ts` | Balde compartilhado + graça da primeira fonte BR + `stopWhen` (fast-path da conta) |
 | `src/providers/harvester.ts` | Colhedor: fila persistente, freio de atividade e teto horário; `harvest-inflight.ts`/`harvest-outcome.ts` fundem intenção concorrente e reencaminham um único trabalho |
 | `src/utils/harvester-live.ts` | Camada de configuração ao vivo do Colhedor e Sementes IMDb persistida em SQLite |
-| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v14`): record/lookup/status — o que faz o addon responder sem Jackett |
+| `src/utils/release-index.ts` | Índice de releases por obra (`idx:v14`): fachada sobre o `IdxStore` (Rust) — record/lookup/status; o que faz o addon responder sem Jackett |
+| `src/utils/release-index-store.ts` | Handle único do `IdxStore` (napi), criado sob demanda; `clearIdxStore()` para a limpeza do namespace |
 | `src/utils/stream-trace.ts` / `trace-recompute.ts` | Funil por item (P5): ledger observacional na entrada `streams`, recompute offline com peeks quiet |
 | `src/debrid/live-check.ts` | Live read-only TorBox/Premiumize para `/stream-trace.json?mode=live` — AllDebrid/RD hard-block |
 | `src/providers/jackett.ts` | Consulta por indexer, cache `raw`, breaker, resolução Cardigann, `isBr`/`looksPtBr` |

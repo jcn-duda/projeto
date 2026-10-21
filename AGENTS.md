@@ -278,9 +278,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
 
 - `streams:v21` (lista pronta, por config+conta, com HMAC), `raw:v1` (cru por
   indexer, sem credencial), `davail` (⚡ por hash/conta), `rdc:v2`/`rdt:v1`/`rdq:v1`
-  (RD), `idx:v14` (índice de releases), `mag` (magnetdb). Versões e cotas em
+  (RD), `idx:v14` (índice de releases; dono único: o núcleo Rust, `IdxStore`), `mag` (magnetdb). Versões e cotas em
   `cache-keys.ts` / `cache-quotas.ts`; **todo namespace versionado precisa de cota
   explícita** e a soma tem que ficar abaixo do teto global (93.000).
+- **`idx:v14` tem um dono só (o Rust).** O Node acessa por `IdxStore` (napi síncrono, `src/utils/release-index-store.ts`) e não grava o `idx:` no L1 nem no SQLite. O boot não carrega nem apaga linhas `idx`; `cache.clear()` e `clearNamespace('idx')` chamam o Rust. Não há `INDEX_OWNER=node`: rollback = commit/imagem anterior. Diagnóstico de chave exata: `idxHasKey` (no TS) e `hasKey` (napi).
 - SWR só serve lista completa, `debridKnown` e com stream **tocável** (aviso não
   conta). Hit de `raw` não pinta o card de status.
 - **Addon responde do próprio índice** quando ele cobre a obra (Jackett vira
@@ -405,12 +406,12 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 |---|---|
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
-| Busca | Gateway/orquestrador: `rust/crates/adom-search`; no Node ficou a coleta (`collect-orchestrator`, `search-plan`, `collection-window`, `search-index-path`), o índice/banco (`magnet-bank-*`, `release-index`), os metadados (`cinemeta`/`tmdb`) e o debrid (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
+| Busca | Gateway/orquestrador: `rust/crates/adom-search`; no Node ficou a coleta (`collect-orchestrator`, `search-plan`, `collection-window`, `search-index-path`), o índice/banco (`magnet-bank-*`, `release-index` → `IdxStore`, crate `adom-index`), os metadados (`cinemeta`/`tmdb`) e o debrid (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
 | Fontes | `jackett*.ts`, `prowlarr.ts`, `torrentio.ts`, `bludv.ts`, `mico.ts`, `account.ts` |
 | Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`, `harvester*.ts`, `harvest-*.ts` |
 | Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*` |
 | Debrid | `src/debrid/` (um adaptador por serviço; `alldebrid*.ts` é família; `rd-*.ts`; `file-selector.ts`; `protected.ts`) |
-| Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts`, `sign.ts`, `deadline.ts`…) |
+| Utils | `src/utils/` (`format.ts` é barrel de 7 submódulos; `cache*.ts`, `magnetdb*.ts`, `magnet-bank*.ts`, `release-index.ts` + `release-index-store.ts`, `sign.ts`, `deadline.ts`…) |
 | Clientes browser | `src/client/{configure,painel}/*.ts` (ESM nativo → `dist/src/public/client/`); `src/public/` é HTML/CSS servido cru |
 | Resolvers BR | `rust/crates/adom-resolvers` (Rust); `resolvers/` só helpers do BLUDV e tipos |
 | Tipos / testes | `types/domain.d.ts`; `test/` (`helpers/stub.ts`, `e2e/e2e-harness.ts`) |
