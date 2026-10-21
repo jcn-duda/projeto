@@ -20,8 +20,9 @@ import * as rustCore from './utils/rust-core.js';
 
 const services = { magnetdb, magnetBank };
 
-// Ponte Rust (RUST_CORE): antes de qualquer busca, para o modo valer
-// desde a primeira requisição. Off por padrão; falha ao carregar só loga.
+// Ponte Rust: carrega o núcleo no boot, antes da primeira busca, para o custo
+// do primeiro carregamento não cair numa resposta. Caminho em `RUST_CORE_PATH`;
+// falha ao carregar só loga (a busca é quem falha depois).
 rustCore.install();
 
 // Banco de magnets vivo: abre o SQLite próprio no BOOT DO PROCESSO — só quando

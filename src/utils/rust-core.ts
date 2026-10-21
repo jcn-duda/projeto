@@ -4,11 +4,8 @@
  * O núcleo é obrigatório: onde o Rust decide (ranking, 💾 de episódio, debrid,
  * índice, autofetch, `normalizeTitle`), o TS saiu do branch e o oráculo é o
  * `esm`. O boot do processo (`addon.ts`) o carrega; testes e scripts o
- * carregam sob demanda (`requireCore`, em `native-core.ts`).
- *
- * `RUST_CORE` (`off|shadow|on`) sobra só para o shadow do crawl
- * (`rust-crawl-shadow.ts`): `shadow`/`on` comparam o `parseCrawlPage` fora da
- * resposta.
+ * carregam sob demanda (`requireCore`, em `native-core.ts`). `RUST_CORE_PATH`
+ * aponta o binário; não há flag de modo.
  */
 import config from '../config.js';
 import * as log from './logger.js';
@@ -86,10 +83,6 @@ function requireCore(): NapiCore {
   return nativeCore<NapiCore>();
 }
 
-function getMode(): 'off' | 'shadow' | 'on' {
-  return config.rustCore.mode;
-}
-
 function install() {
   // O núcleo é obrigatório: o boot o carrega sempre, para o binário ausente
   // aparecer aqui e não na primeira busca, e para o custo do primeiro
@@ -111,4 +104,4 @@ function setCoreForTest(core: NapiCore | null): void {
   setNativeCore(core);
 }
 
-export { install, getCore, requireCore, getMode, setCoreForTest };
+export { install, getCore, requireCore, setCoreForTest };

@@ -192,13 +192,12 @@ export interface CrawlPageOptions extends CrawlDiscoverOptions {
    * TAP de observação (`crawl-page`): o adaptador entrega aqui o CORPO da página
    * PRIMÁRIA da obra que buscou (HTML nos sites HTML; JSON no Mico) E os LINKS
    * que o parser daquela página produziu ANTES de seguir protetor. É a unidade
-   * real do parser (página + links) usada na captura de fixture e no shadow do
-   * Rust — comparar o `CrawlWorkResult` pós-rede/protetor com um parse de página
-   * única divergiria sistematicamente.
+   * real do parser (página + links) usada na captura de fixture — o
+   * `CrawlWorkResult` é pós-rede/protetor e não serve de fixture de página.
    *
-   * OPCIONAL e fail-open: adaptador que não o chamar não gera captura/shadow.
+   * OPCIONAL e fail-open: adaptador que não o chamar não gera captura.
    * NUNCA recebe hop de protetor seguido, cookie ou header: só a página do site
-   * e os links que o parser EXTRAIU dela (podem ser URLs de protetor — o Rust
+   * e os links que o parser EXTRAIU dela (podem ser URLs de protetor — o parser
    * decide o que representar).
    */
   onPageContent?: (content: string, links?: readonly CrawlPageLink[], unit?: CrawlPageUnit) => void;
@@ -207,9 +206,8 @@ export interface CrawlPageOptions extends CrawlDiscoverOptions {
 /**
  * Resultado da MESMA unidade do conteúdo do tap, quando ele NÃO é o
  * `CrawlWorkResult` agregado. Ex.: o Mico série entrega um episódio por tap,
- * então o shadow compara o `status`/metadados DO EPISÓDIO, não os da série
- * inteira (comparar agregado com parse de um episódio divergiria sempre).
- * Ausente = usa o `CrawlWorkResult` normal (sites de uma página só).
+ * então `status`/metadados se referem AO EPISÓDIO, não à série inteira.
+ * Ausente = o conteúdo é da obra única (sites de uma página só).
  */
 export interface CrawlPageUnit {
   status?: 'done' | 'no-torrent' | 'error';
@@ -222,7 +220,7 @@ export interface CrawlPageUnit {
  * Link de PÁGINA observado pelo adaptador (saída do parser do site, ANTES de
  * seguir a cadeia de protetor). `url` pode ser URL de protetor; `magnet`/
  * `infoHash` existem quando o parser já tem o magnet (site de magnet direto,
- * Mico). É o que o shadow compara com os releases do Rust.
+ * Mico).
  */
 export interface CrawlPageLink {
   url?: string | null;

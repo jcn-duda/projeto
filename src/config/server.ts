@@ -15,18 +15,9 @@ export const server = () => ({
     level: process.env.ADDON_LOG_LEVEL || 'info',
   },
   // Ponte Rust (napi, `rust/crates/adom-napi`): o núcleo é obrigatório.
-  // `RUST_CORE` sobra só para o shadow do crawl (`rust-crawl-shadow.ts`):
-  // shadow|on comparam o parse fora da resposta; off (default) não compara.
+  // `path` é o caminho do `.node`; vazio = dist/rust/adom_napi.node, que o
+  // Dockerfile compila. Não há flag de modo.
   rustCore: {
-    mode: rustMode(process.env.RUST_CORE),
-    // Vazio = dist/rust/adom_napi.node, que o Dockerfile compila.
     path: process.env.RUST_CORE_PATH || '',
   },
 });
-
-/** Ausente usa `fallback`; presente e desconhecido vira off. */
-function rustMode(raw: unknown, fallback: 'off' | 'on' = 'off'): 'off' | 'shadow' | 'on' {
-  const v = String(raw ?? '').trim().toLowerCase();
-  if (v === '') return fallback;
-  return v === 'shadow' || v === 'on' ? v : 'off';
-}

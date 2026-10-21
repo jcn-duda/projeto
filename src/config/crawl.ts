@@ -37,11 +37,6 @@ export const crawl = () => ({
   // diretório — o limite protege o disco e mantém a fixture íntegra. 0 desliga
   // o teto (não recomendado).
   captureMaxBytes: Math.max(0, Math.trunc(num(process.env.CRAWL_CAPTURE_MAX_BYTES, 2_000_000))),
-  // Teto de bytes da página enviada ao parser Rust em SHADOW. Knob PRÓPRIO e
-  // independente do teto de captura: sem ele, `CRAWL_CAPTURE_MAX_BYTES=0`
-  // deixaria o shadow sem teto e uma página multi-MB rodaria o parser NATIVO
-  // síncrono na main thread. 0 desliga só este teto (explícito).
-  shadowMaxBytes: Math.max(0, Math.trunc(num(process.env.CRAWL_SHADOW_MAX_BYTES, 2_000_000))),
   // Pausa entre páginas: o motor faz UMA requisição por vez, sem FlareSolverr.
   delayMs: Math.max(0, num(process.env.CRAWL_DELAY_MS, 1000)),
   // Teto de REQUISIÇÕES por hora (educação com o site; bloqueio de IP custa

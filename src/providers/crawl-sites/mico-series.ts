@@ -164,8 +164,8 @@ export async function fetchSeriesWork(
     try {
       ({ items } = await fetchMicoStreams(streamUrl, config.mico.timeout, (c) => { raw = c; }));
       // Tap por EPISÓDIO (a unidade do parser do Mico é o JSON de um episódio):
-      // corpo + itens + o status DESTA unidade (não o da série agregada — o
-      // shadow compararia agregado × um episódio). O último episódio vence.
+      // corpo + itens + o status DESTA unidade, não o da série agregada. O
+      // último episódio vence.
       opts?.onPageContent?.(raw, items, { status: items.some((i) => i.magnet || i.infoHash) ? 'done' : 'no-torrent' });
     } catch (err) {
       // 429/5xx/rede num episódio: honra o Retry-After e sobe com o custo já

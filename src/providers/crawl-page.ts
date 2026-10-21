@@ -38,11 +38,11 @@ import { isSiteLevelError } from './crawl-pauses.js';
 import { parseProgress } from '../utils/crawl-store-rules.js';
 import { markPageError, processPartialSlice } from './crawl-page-partial.js';
 import { isCrawlAborted } from './crawl-recorder.js';
-import { captureCrawlPage, shadowCrawlPage, scrubCrawlPage } from '../utils/rust-crawl-shadow.js';
+import { captureCrawlPage, scrubCrawlPage } from '../utils/crawl-capture.js';
 import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import type { IdentifyResult } from './crawl-identify.js';
-import type { CrawlPageLink, CrawlPageUnit, CrawlSite, CrawlUrlRow, CrawlSeriesLimits, CrawlReleaseGroup } from './crawl-types.js';
+import type { CrawlSite, CrawlUrlRow, CrawlSeriesLimits, CrawlReleaseGroup } from './crawl-types.js';
 import type { CrawlRecorder } from './crawl-recorder.js';
 import type { RawItem } from '../../types/domain.js';
 
@@ -128,15 +128,11 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     // daqui (a recuperação do vigia é quem marca a linha presa).
     const aborted = (): boolean => opts.isAborted?.() === true;
     let result: Awaited<ReturnType<CrawlSite['fetchWork']>>;
-    // Página PRIMÁRIA da obra entregue pelo adaptador via tap opcional: alimenta
-    // a captura de fixture e o shadow do parser Rust. O ÚLTIMO tap vence — o
-    // adaptador pode entregar primeiro um recorte (só a obra) e depois a unidade
-    // completa (obra + links), que é a que interessa ao parser.
+    // Página PRIMÁRIA da obra entregue pelo adaptador via tap opcional: é o que
+    // alimenta a captura de fixture. O ÚLTIMO tap vence — o adaptador pode
+    // entregar primeiro um recorte (só a obra) e depois a unidade completa
+    // (obra + links), que é a que interessa à fixture.
     let pageContent: string | null = null;
-    let pageLinks: readonly CrawlPageLink[] | undefined;
-    // Metadados da MESMA unidade do content (quando o tap é por unidade, ex.:
-    // Mico série): o shadow compara estes, não o `result` agregado.
-    let pageUnit: CrawlPageUnit | undefined;
     try {
       // Retomada (Fase 7 v2): o progresso da linha (coluna `progress`) vai ao
       // adaptador — cards já feitos não são re-visados. A cerca também vai: o
@@ -144,7 +140,7 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
       // é descartado logo abaixo, então cortar no meio não perde nada).
       result = await site.fetchWork(row.url, {
         kind: row.kind, series: opts.series, resume: parseProgress(row.progress), isAborted: opts.isAborted,
-        onPageContent: (content, links, unit) => { if (content) { pageContent = content; pageLinks = links; pageUnit = unit; } },
+        onPageContent: (content) => { if (content) pageContent = content; },
       });
     } catch (err: unknown) {
       const message = log.errorMessage(err);
@@ -159,15 +155,12 @@ export function createPageProcessor(overrides: Partial<PageCollaborators> = {}) 
     if (aborted()) return { kind: 'error', siteLevelError: false, releases: 0, detail: 'step-timeout' };
 
     // Observação (fora da cerca e do caminho crítico): captura a fixture da
-    // página e roda o shadow do parser Rust. Só side effects — não toca a
-    // resposta TS nem a persistência; capture independe do `RUST_CORE` e o
-    // shadow é no-op com ele `off`.
+    // página. Só side effect — não toca a resposta nem a persistência, e é
+    // opt-in por `CRAWL_CAPTURE_DIR` (fail-open).
     if (pageContent) {
-      // Corpo SCRUBADO (redação determinística de token/cookie) usado tanto na
-      // fixture quanto no parse do shadow, para os dois lados verem o MESMO texto.
-      const content = scrubCrawlPage(pageContent);
-      captureCrawlPage(site.id, row.kind, row.url, content);
-      shadowCrawlPage(site.id, row.kind, row.url, content, result, pageLinks, pageUnit);
+      // Corpo SCRUBADO (redação determinística de token/cookie): a fixture
+      // guarda a ESTRUTURA que o parser lê, nunca o segredo.
+      captureCrawlPage(site.id, row.kind, row.url, scrubCrawlPage(pageContent));
     }
 
     if (result.status === 'error') {
