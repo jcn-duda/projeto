@@ -166,3 +166,20 @@ instantânea elegível, itens da conta e o plano de efeitos.
 - Node: `test/internal-search-index.test.ts` (`effects` no corpo),
   `test/internal-search-effects.test.ts` (`br_probe` inelegível → `br-gap`,
   agendado não duplica).
+
+## F3.1a — provas laterais do `idx:v14` no adom-store (Node inalterado)
+
+Portadas para `adom-store` (`release_index_prova.rs`), com as mesmas chaves e o
+mesmo JSON do Node: `markMissing`/`markMissingSeason`/`isMissing` (chaves
+`idx:v14:miss:…` e `missS:…`), `markFileEvidence`/`fileEvidence` (`file:<hash>`),
+`markLied`, `clearPartial`, `forgetAutofetchHash` e as leituras por varredura
+`snapshotWorks`/`snapshotAllWorks`.
+
+Diferenças conscientes:
+- o Node regrava com o TTL restante arredondado em segundos; o Rust mantém o
+  `expires_at` da linha (o instante de expiração não anda);
+- `isMissing`/`isMissingQuiet` viram uma função só (o Rust não promove LRU);
+- as métricas `search.idx.*` continuam no Node.
+
+Ainda no Node: as chamadas, a F3.1b (leitura por rota) e a F3.1c (o Node para de
+gravar `idx:`). Nada deste recorte é usado pelo caminho do `/stream` ainda.

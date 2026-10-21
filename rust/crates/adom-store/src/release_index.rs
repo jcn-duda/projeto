@@ -32,6 +32,12 @@ use serde_json::Value;
 
 use crate::raw::{cache_db_path, cache_persist};
 
+// Provas laterais (miss, lied, evidência por arquivo, parcial, limpeza e
+// leituras por varredura): submódulo para enxergar `conn` e os helpers daqui.
+#[path = "release_index_prova.rs"]
+mod prova;
+pub use prova::FileEvidence;
+
 const SCHEMA: &str = "
 PRAGMA journal_mode = WAL;
 PRAGMA busy_timeout = 5000;

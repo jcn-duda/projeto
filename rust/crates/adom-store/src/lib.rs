@@ -27,8 +27,8 @@ pub use magnet_db::{
 pub use meta::{default_cache_db_path, meta_namespace, MetaCacheStore};
 pub use raw::{default_raw_quota, is_raw_key, raw_prefix, RawCacheStore};
 pub use release_index::{
-    default_cache_db_path as default_index_cache_db_path, idx_prefix, IndexEntry, IndexedRelease,
-    RecordOptions, ReleaseIndexStore, IDX_NAMESPACE,
+    default_cache_db_path as default_index_cache_db_path, idx_prefix, FileEvidence, IndexEntry,
+    IndexedRelease, RecordOptions, ReleaseIndexStore, IDX_NAMESPACE,
 };
 pub use streams::{
     default_streams_quota, is_streams_key, streams_prefix, StreamsStore, TraceHit,
