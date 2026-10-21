@@ -69,6 +69,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "adom-index"
+version = "0.0.0"
+dependencies = [
+ "adom-core",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "adom-napi"
 version = "0.1.0"
 dependencies = [
@@ -167,6 +178,7 @@ name = "adom-store"
 version = "0.0.0"
 dependencies = [
  "adom-core",
+ "adom-index",
  "adom-search",
  "adom-sources",
  "rusqlite",
