@@ -29,3 +29,6 @@ prowlarr-config/
 backups-vps/
 # Workspace Rust (fatia F0): artefatos locais de build.
 rust/target/
+
+# Artefatos locais de depuracao/experimento (logs, shadow runs, probes).
+.tmp-*

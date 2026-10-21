@@ -469,21 +469,36 @@ fn open_apaga_versao_morta_e_idx_expirado() {
     }
     let store = ReleaseIndexStore::open(&path).expect("open");
     let far = NOW + 86_400_000;
-    assert!(!store.has_key("idx:v13:tt1", far), "versão morta some no open");
+    assert!(
+        !store.has_key("idx:v13:tt1", far),
+        "versão morta some no open"
+    );
     assert!(store.has_key("idx:v14:tt2", far), "v14 viva fica");
     assert!(!store.has_key("idx:v14:tt3", far), "expirado não é vivo");
     drop(store);
     let verify = rusqlite::Connection::open(&path).expect("verify");
     let stale: i64 = verify
-        .query_row("SELECT COUNT(*) FROM cache WHERE key = 'idx:v13:tt1'", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM cache WHERE key = 'idx:v13:tt1'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(stale, 0);
     let expired: i64 = verify
-        .query_row("SELECT COUNT(*) FROM cache WHERE key = 'idx:v14:tt3'", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM cache WHERE key = 'idx:v14:tt3'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(expired, 1, "expirado fica para a leitura / enforce_quota");
     let raw: i64 = verify
-        .query_row("SELECT COUNT(*) FROM cache WHERE key = 'raw:v1:keep'", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM cache WHERE key = 'raw:v1:keep'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(raw, 1, "outro namespace não é tocado");
     let _ = std::fs::remove_dir_all(&dir);
