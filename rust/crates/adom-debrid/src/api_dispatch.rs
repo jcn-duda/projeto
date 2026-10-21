@@ -17,7 +17,6 @@ use serde_json::{json, Value};
 use super::AppState;
 use crate::alldebrid::AllDebrid;
 use crate::alldebrid_cleanup::{env_truthy, CleanupMode, CleanupPlan, DurablePeek};
-use crate::alldebrid_mode::AlRustMode;
 use crate::debridlink::DebridLink;
 use crate::error::DebridError;
 use crate::http::HttpClient;
@@ -95,10 +94,9 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
     if let Some(response) = reject_unknown(&state, &body.service) {
         return response;
     }
-    // AllDebrid: upload real suja a conta; sem hold/drop no sidecar o
-    // rust-remote aceitaria 200 e NÃO cairia no TS. A checagem nativa só
-    // responde com `DEBRID_AL_RUST=on`; a limpeza nativa exige
-    // `DEBRID_AL_CLEANUP=on` + os fatos no corpo (senão é read-only).
+    // AllDebrid: upload real suja a conta, então a nativa responde aqui
+    // (incondicional desde a R3) e a limpeza exige `DEBRID_AL_CLEANUP=on` +
+    // os fatos no corpo (senão é read-only).
     if body.service == "alldebrid" {
         return check_alldebrid(&state, &body).await;
     }
@@ -124,11 +122,6 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
 /// Sem `holdsComplete` — e o Node atual não manda — o plano nasce suprimido e
 /// a checagem é read-only, como com `DEBRID_AL_CLEANUP=off`.
 async fn check_alldebrid(state: &AppState, body: &RequestBody) -> Response {
-    // `shadow` é modo de OBSERVAÇÃO do adom-search: a rota continua 501
-    // para o Rust não virar o respondedor por acidente.
-    if AlRustMode::from_env() != AlRustMode::On {
-        return not_ported(state, "alldebrid");
-    }
     if body.api_key.trim().is_empty() {
         // Mesma semântica de `configured:false` da rota Node: sem chave
         // não há serviço, e unknown é melhor que "frio" (verdadeiro).

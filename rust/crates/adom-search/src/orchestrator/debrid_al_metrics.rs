@@ -4,15 +4,13 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
-/// A checagem nativa rodou (modo `on`).
+/// A checagem nativa rodou.
 pub const NATIVE_CHECKS: &str = "debrid.al.native.checks";
 /// A nativa respondeu `known:false` (lote perdido/prazo): o ⚡ fica só onde há
 /// hit confirmado.
 pub const NATIVE_KNOWN_FALSE: &str = "debrid.al.native.known_false";
 /// A nativa respondeu `auth`/`quota` (a lista volta P2P).
 pub const NATIVE_UNUSABLE: &str = "debrid.al.native.unusable";
-/// O modo `on` caiu no fallback Node porque nenhum upload foi enviado.
-pub const NATIVE_FALLBACK: &str = "debrid.al.native.fallback";
 /// Feed de holds (`DEBRID_AL_HOLDS`): fatos aceitos e cobrindo o lote.
 pub const HOLDS_OK: &str = "debrid.al.holds.ok";
 /// Feed indisponível/erro (sem resposta, HTTP, corpo estranho): nativa
@@ -28,7 +26,6 @@ const KEYS: &[&str] = &[
     NATIVE_CHECKS,
     NATIVE_KNOWN_FALSE,
     NATIVE_UNUSABLE,
-    NATIVE_FALLBACK,
     HOLDS_OK,
     HOLDS_MISSING,
     HOLDS_INCOMPLETE,
@@ -72,7 +69,7 @@ pub(super) fn global_metrics() -> &'static DebridAlMetrics {
     GLOBAL.get_or_init(DebridAlMetrics::new)
 }
 
-/// Contabiliza uma checagem nativa do caminho vivo (`on`).
+/// Contabiliza uma checagem nativa do caminho vivo.
 pub fn note_native(check: &adom_debrid::verdict::ServiceCheck) {
     let metrics = global_metrics();
     metrics.inc(NATIVE_CHECKS, 1);
@@ -82,11 +79,6 @@ pub fn note_native(check: &adom_debrid::verdict::ServiceCheck) {
     if !check.outcome.known {
         metrics.inc(NATIVE_KNOWN_FALSE, 1);
     }
-}
-
-/// O caminho nativo não conseguiu nem enviar o upload e caiu no Node.
-pub fn note_fallback() {
-    global_metrics().inc(NATIVE_FALLBACK, 1);
 }
 
 /// Feed de holds aceito e cobrindo o lote (`DEBRID_AL_HOLDS`).

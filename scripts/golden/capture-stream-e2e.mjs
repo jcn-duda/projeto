@@ -16,7 +16,7 @@
  * ainda NÃO cobre (metadados, itens crus por indexer, cache do debrid).
  *
  * Com `--with-internal` o MESMO caso ganha também as entradas internas que o
- * orquestrador Rust consome (`inputs/`): meta, config, collect, debrid e o
+ * orquestrador Rust consome (`inputs/`): meta, config, collect e o
  * índice/banco instantâneo. O `/stream` continua sendo a resposta normal do
  * Node; as rotas internas falam com o MESMO processo (loopback, 7100), então a
  * captura precisa rodar DENTRO da rede do container:
@@ -74,17 +74,13 @@ const INTERNAL_PATHS = {
   config: '/internal/search/config',
   index: '/internal/search/index',
   collect: '/internal/search/collect',
-  debrid: '/internal/debrid/check',
 };
 /** Prazos das rotas internas (o `deadline_at` absoluto é recalculado por chamada). */
 const META_DEADLINE_MS = 60_000;
 const INDEX_DEADLINE_MS = 20_000;
 const CONFIG_DEADLINE_MS = 15_000;
 const DEFAULT_INTERNAL_DEADLINE_MS = 60_000;
-/** Teto de hashes por chamada de `/internal/debrid/check` (a rota recusa acima). */
-const MAX_DEBRID_HASHES = 500;
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
-const DEBRID_SERVICES = new Set(['realdebrid', 'torbox', 'alldebrid', 'premiumize', 'debridlink']);
 /**
  * Fixtures que SÓ o record do shadow grava e que o build do Rust consome:
  * a qualidade PROVADA pelo arquivo (`proven-quality`/`apply-debrid`), os
@@ -101,12 +97,15 @@ const SHADOW_INPUTS = [
   'fallback.json',
 ];
 
-// Lacunas que o corpus declara. As três primeiras são FECHADAS por
+// Lacunas que o corpus declara. As duas primeiras são FECHADAS por
 // `--with-internal` (para os casos capturados nesse modo); as demais seguem.
 const GAP_META = 'metadados da obra (Cinemeta/TMDB): o /stream não os devolve; capturados por /internal/search/meta com --with-internal';
 const GAP_COLLECT = 'itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: capturados por /internal/search/collect com --with-internal';
-const GAP_DEBRID = 'respostas de cache do debrid (⚡ por hash, arquivos do pack, tamanhos): capturadas por /internal/debrid/check com --with-internal';
+// A rota Node da checagem de debrid saiu na R3 (checagem nativa incondicional):
+// o corpus novo só ganha debrid pelo record do shadow ou pelo corpus congelado.
+const GAP_DEBRID = 'respostas de cache do debrid (⚡ por hash, arquivos do pack, tamanhos): a rota interna saiu na R3; inputs/debrid.json só vem do record do shadow (--shadow-dir) ou do corpus já congelado';
 const GAPS_BASE = [
+  GAP_DEBRID,
   'o segmento de config e a assinatura HMAC nunca são gravados (sig vira {{sig}}); replay exige --user-config (e30 decodifica {}) e o segredo do operador',
   'relógio: Date/ETag/age e duração de cada requisição não entram no corpus',
   'estado do acervo (banco de magnets / índice de releases) no instante da captura não é versionado',
@@ -546,42 +545,16 @@ function collectBody({ encoded, target, queries, names, year, deadlineAt }) {
   };
 }
 
-function infoHashOf(item) {
-  const raw = String(item?.infoHash || item?.info_hash || item?.magnet || '');
-  const match = /([0-9a-fA-F]{40})/.exec(raw);
-  return match ? match[1].toLowerCase() : '';
-}
-
-function uniqueHashes(items) {
-  const seen = new Set();
-  for (const item of items) {
-    const hash = infoHashOf(item);
-    if (hash) seen.add(hash);
-  }
-  return [...seen];
-}
-
-function debridResultDoc(results) {
-  const out = {};
-  for (const [hash, value] of Object.entries(results || {})) {
-    if (!value || typeof value !== 'object') continue;
-    out[hash.toLowerCase()] = {
-      cached: value.cached === true,
-      known: value.known === true,
-      ...(value.unusable ? { unusable: value.unusable } : {}),
-      ...(value.timeout ? { timeout: true } : {}),
-      ...(value.error ? { error: value.error } : {}),
-    };
-  }
-  return out;
-}
-
 /**
  * Captura as entradas internas de UM caso: meta → config → índice (index/banco
- * instantâneo) → collect → debrid. Devolve os arquivos já no formato que o
+ * instantâneo) → collect. Devolve os arquivos já no formato que o
  * `FrozenCase` do gate lê (`inputs/*.json`), sem tocar no disco.
+ *
+ * O debrid NÃO é capturado aqui: a rota Node da checagem saiu na R3 (checagem
+ * nativa incondicional). `inputs/debrid.json` só chega pelo record do shadow
+ * (`--shadow-dir`) ou pelo corpus já congelado.
  */
-async function captureInternal({ base, token, encoded, target, ctx, deadlineMs, log }) {
+async function captureInternal({ base, token, encoded, target, ctx, deadlineMs }) {
   const metaResponse = await postInternal({
     base, token, route: 'meta', timeoutMs: META_DEADLINE_MS,
     label: `[internal] meta ${target.streamId}`,
@@ -649,47 +622,6 @@ async function captureInternal({ base, token, encoded, target, ctx, deadlineMs, 
   });
   const collectItems = Array.isArray(collectResponse.items) ? collectResponse.items : [];
 
-  const hashes = [...new Set([...uniqueHashes(indexItems), ...uniqueHashes(instantItems), ...uniqueHashes(collectItems)])];
-  const service = config?.options?.debridService || config?.operator?.debrid?.service || '';
-  const debrid = { service: service || null, results: {}, calls: [] };
-  if (service && !DEBRID_SERVICES.has(service)) {
-    fail(
-      `[internal] debrid ${target.streamId}: serviço ${JSON.stringify(service)} não é aceito pela rota\n` +
-      '  /internal/debrid/check aceita realdebrid, torbox, alldebrid, premiumize ou debridlink',
-    );
-  }
-  if (service) {
-    for (let offset = 0; offset < hashes.length; offset += MAX_DEBRID_HASHES) {
-      const chunk = hashes.slice(offset, offset + MAX_DEBRID_HASHES);
-      const response = await postInternal({
-        base, token, route: 'debrid', timeoutMs: deadlineMs,
-        label: `[internal] debrid ${target.streamId}`,
-        // A rota exige `service` e `deadline_at` além de `encoded`/`hashes`
-        // (src/routes/internal-debrid-check.ts) — a forma `{encoded,hashes}` do
-        // pedido original é recusada com 400.
-        body: { encoded, service, hashes: chunk, deadline_at: Date.now() + deadlineMs },
-      });
-      debrid.results = { ...debrid.results, ...debridResultDoc(response.results) };
-      const chunkResults = response.results || {};
-      const allKnown = chunk.every((hash) => chunkResults[hash]?.known === true);
-      debrid.calls.push({
-        hashes: chunk,
-        file_hashes: [],
-        known: response.configured !== false && response.partial !== true && allKnown,
-        unusable: response.unusable ?? null,
-        cached: chunk.filter((hash) => chunkResults[hash]?.cached === true),
-      });
-      if (debrid.calls.length > 1) {
-        log(`[stream-e2e] aviso: ${chunk.length}+ hashes de debrid — o gate só usa calls[0]`);
-      }
-    }
-    if (hashes.length === 0) {
-      log('[stream-e2e] aviso: nenhum hash no índice/coleta; debrid.json fica sem chamada');
-    }
-  } else {
-    log('[stream-e2e] aviso: config sem serviço de debrid; debrid.json fica sem chamadas');
-  }
-
   const files = {
     'inputs/meta.json': {
       key: `${target.type}:${target.streamId}`,
@@ -739,7 +671,6 @@ async function captureInternal({ base, token, encoded, target, ctx, deadlineMs, 
         live: collectResponse.live ?? null,
       },
     }],
-    'inputs/debrid.json': stripTransportSecrets(debrid),
   };
   // O `_debugFind` do strip não existe: os objetos acima são JSON puro. O
   // mascaramento do que saiu do addon fecha a última porta (host/token).
@@ -778,7 +709,7 @@ function buildManifest({ manifestPath, capturedCases, casesPath, ctx, startedAt,
   for (const item of capturedCases) byId.set(item.id, item);
   const merged = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
   const notCaptured = [
-    ...(withInternal ? [] : [GAP_META, GAP_COLLECT, GAP_DEBRID]),
+    ...(withInternal ? [] : [GAP_META, GAP_COLLECT]),
     ...GAPS_BASE,
     ...(withInternal ? GAPS_INTERNAL : []),
   ];
@@ -846,7 +777,7 @@ async function main() {
       console.log(`  - ${row.id} (${row.type}) ${row.stream_id} → ${row.path}`);
     }
     console.log('[stream-e2e] NÃO capturado (ver README/manifesto):');
-    for (const gap of (args.withInternal ? [...GAPS_BASE, ...GAPS_INTERNAL] : [GAP_META, GAP_COLLECT, GAP_DEBRID, ...GAPS_BASE])) {
+    for (const gap of (args.withInternal ? [...GAPS_BASE, ...GAPS_INTERNAL] : [GAP_META, GAP_COLLECT, ...GAPS_BASE])) {
       console.log(`  · ${gap}`);
     }
     return;
@@ -877,7 +808,6 @@ async function main() {
         target,
         ctx,
         deadlineMs: args.internalDeadlineMs,
-        log: (line) => console.log(line),
       });
       for (const [name, value] of Object.entries(captured.files)) {
         files[name] = writeJson(path.join(caseDir, name), value);

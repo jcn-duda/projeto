@@ -16,8 +16,8 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 use super::{
-    holds_feed_enabled, parse_holds_response, timeout_from, HoldsFacts, InternalHoldsClient, ENV,
-    TIMEOUT_ENV,
+    holds_feed_enabled, parse_holds_response, timeout_from, HoldsFacts, InternalHoldsClient,
+    DEFAULT_BASE, ENV, TIMEOUT_ENV,
 };
 
 const TOKEN: &str = "token-interno-holds";
@@ -381,7 +381,7 @@ fn flag_default_off_e_apelidos() {
 fn from_env_exige_flag_token_e_loopback() {
     {
         let _env = EnvGuard::set(&[
-            ("INTERNAL_CHECK_URL", Some("http://127.0.0.1:7000")),
+            ("INTERNAL_CHECK_URL", Some("http://127.0.0.1:7100")),
             ("DEBRID_INTERNAL_TOKEN", Some(TOKEN)),
             ("JACKETT_TEST_TOKEN", None),
             (ENV, None),
@@ -390,7 +390,7 @@ fn from_env_exige_flag_token_e_loopback() {
     }
     {
         let _env = EnvGuard::set(&[
-            ("INTERNAL_CHECK_URL", Some("http://127.0.0.1:7000")),
+            ("INTERNAL_CHECK_URL", Some("http://127.0.0.1:7100")),
             ("DEBRID_INTERNAL_TOKEN", Some(TOKEN)),
             ("JACKETT_TEST_TOKEN", None),
             (ENV, Some("on")),
@@ -399,7 +399,7 @@ fn from_env_exige_flag_token_e_loopback() {
     }
     {
         let _env = EnvGuard::set(&[
-            ("INTERNAL_CHECK_URL", Some("http://127.0.0.1:7000")),
+            ("INTERNAL_CHECK_URL", Some("http://127.0.0.1:7100")),
             ("DEBRID_INTERNAL_TOKEN", None),
             ("JACKETT_TEST_TOKEN", None),
             (ENV, Some("on")),
@@ -421,6 +421,20 @@ fn from_env_exige_flag_token_e_loopback() {
             "fora do loopback não há feed"
         );
     }
+}
+
+#[test]
+fn a_base_default_e_a_porta_do_node_com_gateway() {
+    assert_eq!(DEFAULT_BASE, "http://127.0.0.1:7100");
+    // Sem `INTERNAL_CHECK_URL`, o feed herda o default — a 7000 é a fachada
+    // Rust e recusa `/internal/*`.
+    let _env = EnvGuard::set(&[
+        ("INTERNAL_CHECK_URL", None),
+        ("DEBRID_INTERNAL_TOKEN", Some(TOKEN)),
+        ("JACKETT_TEST_TOKEN", None),
+        (ENV, Some("on")),
+    ]);
+    assert!(InternalHoldsClient::from_env().is_some());
 }
 
 #[test]

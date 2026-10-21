@@ -142,7 +142,7 @@ struct IndexValue {
 struct DebridFile {
     #[serde(default)]
     calls: Vec<DebridCall>,
-    /// Formato do record atual (`/internal/debrid/check` consolidado): hash →
+    /// Formato do record atual (checagem Node consolidada): hash →
     /// veredito. Antes o replay só lia `calls[0]` e, sem esse campo, tratava
     /// TODO hash como "não perguntado" — o expected marcado `[AD⚡]` virava
     /// `[AD download]` no replay (Carandiru/Central/Bacurau, 2026-10-20).
@@ -629,8 +629,8 @@ fn applied_hash(item: &Value) -> Option<String> {
 }
 
 /// Veredito de cache POR HASH a partir do `apply-debrid.json` — a checagem que
-/// GEROU o expected. O `debrid.json` capturado pode ser de outra chamada (a rota
-/// `/internal/debrid/check` com a conta em quota), e o replay então marcava
+/// GEROU o expected. O `debrid.json` capturado pode ser de outra chamada (a
+/// checagem Node com a conta em quota), e o replay então marcava
 /// `[AD download]` onde o Node mostrou `[AD⚡]` (Carandiru/Central/Bacurau,
 /// 2026-10-20). O `name` aplicado é o veredito final: `⚡` = em cache, prefixo
 /// `[` sem `⚡` = fora do cache com link do debrid, sem prefixo = P2P (unusable).

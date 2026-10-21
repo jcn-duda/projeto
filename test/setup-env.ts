@@ -88,12 +88,10 @@ process.env.MAX_STREAMS_UNKNOWN = '6';
 // (`test/streams-store-native.test.ts`) apontam a URL para o dublê de fetch.
 process.env.STREAM_STORE_ADMIN_URL = 'http://127.0.0.1:1';
 
-// F4.6: o default do CORTE (compose) liga a checagem nativa da AllDebrid e
-// aposenta a rota `/internal/debrid/check` (410). A suíte fixa os três em OFF
-// para o verde não depender de quem roda: por padrão ela exercita o caminho
-// Node, e o corte tem testes próprios que LIGAM a flag
-// (`test/debrid-al-cut-default.test.ts`, `test/internal-debrid-check.test.ts`).
-process.env.DEBRID_AL_RUST = 'off';
+// F4.6/R3: a checagem nativa da AllDebrid é incondicional (a rota Node da
+// checagem saiu). A suíte fixa os dois kill-switches destrutivos em OFF para o
+// verde não depender de quem roda; os caminhos de holds e limpeza têm testes
+// próprios que LIGAM cada flag.
 process.env.DEBRID_AL_HOLDS = 'off';
 process.env.DEBRID_AL_CLEANUP = 'off';
 

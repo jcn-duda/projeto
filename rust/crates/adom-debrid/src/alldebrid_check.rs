@@ -5,7 +5,7 @@
 //! lotes de `DEBRID_BATCH_SIZE` (default 25) rodam **em paralelo**, cada um
 //! com o MESMO teto de `DEBRID_CACHE_CHECK_TIMEOUT_MS` (default 10 s); um lote
 //! que estoura vira `complete:false` sem apagar o ⚡ dos lotes que
-//! responderam. O teto da rota `/internal/debrid/check` (500 hashes) também
+//! responderam. O teto da checagem em lote (500 hashes) também
 //! vale aqui: o excedente não é enviado e conta como `complete:false` — nunca
 //! como "não está em cache". Falha de limpeza só avisa, como no Node.
 //!
@@ -31,7 +31,7 @@ use crate::alldebrid_cleanup::{
 use crate::error::now_ms;
 use crate::error::DebridError;
 
-/// Mesmo teto da rota Node (`MAX_HASHES` em `internal-debrid-check.ts`).
+/// Mesmo teto da checagem Node que esta nativa substituiu (`MAX_HASHES` = 500).
 pub const MAX_HASHES: usize = 500;
 
 #[derive(Debug, Clone, Default)]

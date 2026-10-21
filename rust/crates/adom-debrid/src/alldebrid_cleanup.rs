@@ -1,7 +1,7 @@
 //! Limpeza segura da AllDebrid — porte de `src/debrid/protected.ts` e da
 //! decisão de `src/debrid/alldebrid-check.ts`, atrás de `DEBRID_AL_CLEANUP`
 //! (default do CÓDIGO **OFF**; o default do CORTE desde o F4.6 é **ON**, junto
-//! com `DEBRID_AL_RUST=on` e `DEBRID_AL_HOLDS=on`).
+//! com `DEBRID_AL_HOLDS=on`).
 //!
 //! A checagem da AllDebrid é um `/magnet/upload` real: sem limpeza cada busca
 //! deixa dezenas de magnets na conta até estourar o teto e derrubar o ⚡. O

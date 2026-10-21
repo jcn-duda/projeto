@@ -247,10 +247,9 @@ async fn premiumize_no_loopback_nao_devolve_501() {
 }
 
 #[tokio::test]
-async fn torbox_check_sai_do_501_alldebrid_fica() {
-    // TorBox: mock em loopback (NUNCA a base real) → upstream 500 vira
-    // veredito known:false, sem "service_not_ported".
-    // AllDebrid no HTTP público: 501 até Fase C (upload sem limpeza).
+async fn torbox_e_alldebrid_respondem_no_http_sem_vazar_chave() {
+    // TorBox e AllDebrid: mock em loopback (NUNCA a base real) → upstream 500
+    // vira veredito known:false, sem "service_not_ported".
     let app = Router::new().fallback(any(async |_req: Request<Body>| {
         (StatusCode::INTERNAL_SERVER_ERROR, "fora do ar").into_response()
     }));
@@ -260,12 +259,7 @@ async fn torbox_check_sai_do_501_alldebrid_fica() {
         axum::serve(listener, app).await.unwrap();
     });
     let base = format!("http://{addr}");
-    let _env = EnvVars::set(&[
-        ("TORBOX_API_BASE", &base),
-        // Default explícito: sem a flag, AllDebrid continua 501 (F4.6 não
-        // removeu a rota Node).
-        ("DEBRID_AL_RUST", "off"),
-    ]);
+    let _env = EnvVars::set(&[("TORBOX_API_BASE", &base), ("ALLDEBRID_API_BASE", &base)]);
     let torbox_body = format!(r#"{{"service":"torbox","apiKey":"{KEY}","hashes":["abc"]}}"#);
     let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &torbox_body).await;
     assert_eq!(status, StatusCode::OK, "torbox: {body}");
@@ -277,13 +271,15 @@ async fn torbox_check_sai_do_501_alldebrid_fica() {
 
     let ad_body = format!(r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["abc"]}}"#);
     let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &ad_body).await;
-    assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "alldebrid: {body}");
-    assert!(body.contains("service_not_ported"));
+    assert_eq!(status, StatusCode::OK, "alldebrid: {body}");
+    assert!(!body.contains("service_not_ported"));
     assert!(!body.contains(KEY));
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["known"].as_bool(), Some(false));
 }
 
 #[tokio::test]
-async fn alldebrid_check_nativo_com_flag_on_e_sem_vazar_chave() {
+async fn alldebrid_check_nativo_sem_vazar_chave() {
     let app = Router::new().fallback(any(fake_alldebrid));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -291,7 +287,7 @@ async fn alldebrid_check_nativo_com_flag_on_e_sem_vazar_chave() {
         axum::serve(listener, app).await.unwrap();
     });
     let base = format!("http://{addr}");
-    let _env = EnvVars::set(&[("ALLDEBRID_API_BASE", &base), ("DEBRID_AL_RUST", "on")]);
+    let _env = EnvVars::set(&[("ALLDEBRID_API_BASE", &base)]);
     let body = format!(
         r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"timeoutMs":2000}}"#
     );
@@ -310,7 +306,6 @@ async fn alldebrid_check_nativo_com_flag_on_e_sem_vazar_chave() {
 
 #[tokio::test]
 async fn alldebrid_check_nativo_sem_chave_e_unknown() {
-    let _env = EnvVars::set(&[("DEBRID_AL_RUST", "on")]);
     let body = r#"{"service":"alldebrid","apiKey":"","hashes":["abc"]}"#;
     let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", body).await;
     assert_eq!(status, StatusCode::OK);
@@ -439,7 +434,6 @@ async fn alldebrid_limpeza_pela_rota_usa_os_fatos_do_corpo() {
     let cache_str = dir.path().join("cache.db").to_string_lossy().to_string();
     let _env = EnvVars::set(&[
         ("ALLDEBRID_API_BASE", &base),
-        ("DEBRID_AL_RUST", "on"),
         ("DEBRID_AL_CLEANUP", "on"),
         ("CACHE_DB_PATH", cache_str.as_str()),
     ]);
@@ -471,7 +465,6 @@ async fn alldebrid_limpeza_sem_holds_completos_nao_apaga() {
     let cache_str = dir.path().join("cache.db").to_string_lossy().to_string();
     let _env = EnvVars::set(&[
         ("ALLDEBRID_API_BASE", &base),
-        ("DEBRID_AL_RUST", "on"),
         ("DEBRID_AL_CLEANUP", "on"),
         ("CACHE_DB_PATH", cache_str.as_str()),
     ]);

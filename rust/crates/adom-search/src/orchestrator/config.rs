@@ -16,7 +16,7 @@ use adom_core::{QualityLimits, StreamDisplayConfig, QUALITY_KEYS, UNKNOWN_QUALIT
 use serde_json::Value;
 
 use crate::collection_window::CollectBudgets;
-use crate::debrid_seam::{AdapterDebridCheck, FallbackCheck, HoldsFeed};
+use crate::debrid_seam::{AdapterDebridCheck, HoldsFeed};
 use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
 use adom_core::RankingStream;
 
@@ -231,32 +231,23 @@ impl DebridFactory for NoDebridFactory {
     }
 }
 
-/// Fábrica de produção: os adaptadores do `adom-debrid` + a reserva Node.
+/// Fábrica de produção: os adaptadores do `adom-debrid` + o feed de holds.
 ///
-/// Default = sem store/fallback: a fábrica funciona e responde `Unknown`
+/// Default = sem store/feed: a fábrica funciona e responde `Unknown`
 /// quando o serviço não tem despacho local — degradação honesta. A produção
 /// liga os dois com [`AdapterDebridFactory::new`].
 #[derive(Default)]
 pub struct AdapterDebridFactory {
     /// Ledger do RD (`rdc:v2`); `None` deixa todo hash `Unknown`.
     pub store: Option<Arc<adom_debrid::Store>>,
-    /// Reserva interna para serviço fora do despacho local.
-    pub fallback: Option<Arc<dyn FallbackCheck>>,
     /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF): leva
     /// `holdsComplete`/`knownBefore` à limpeza nativa da AllDebrid.
     pub holds: Option<Arc<dyn HoldsFeed>>,
 }
 
 impl AdapterDebridFactory {
-    pub fn new(
-        store: Option<Arc<adom_debrid::Store>>,
-        fallback: Option<Arc<dyn FallbackCheck>>,
-    ) -> Self {
-        AdapterDebridFactory {
-            store,
-            fallback,
-            holds: None,
-        }
+    pub fn new(store: Option<Arc<adom_debrid::Store>>) -> Self {
+        AdapterDebridFactory { store, holds: None }
     }
 
     /// Liga o feed de holds (produção: `NodeHoldsFeed::from_env()`).
@@ -275,10 +266,7 @@ impl DebridFactory for AdapterDebridFactory {
         check.encoded = ctx.encoded.clone();
         check.deadline_at = ctx.deadline_at;
         check.store = self.store.clone();
-        check.fallback = self.fallback.clone();
         check.holds = self.holds.clone();
-        // `DEBRID_AL_RUST` (default OFF) só afeta a AllDebrid.
-        check.mode = adom_debrid::alldebrid_mode::AlRustMode::from_env();
         Box::new(check)
     }
 }

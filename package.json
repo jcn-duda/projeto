@@ -353,7 +353,6 @@
     "test/indexer-status.test.js",
     "test/internal-crawl-result-identify.test.js",
     "test/internal-crawl-routes.test.js",
-    "test/internal-debrid-check.test.js",
     "test/internal-search-autofetch-batch.test.js",
     "test/internal-search-broken.test.js",
     "test/internal-search-collect.test.js",

@@ -4,9 +4,8 @@
  * O que se prova aqui é a PONTE: com `DEBRID_AL_CLEANUP=on` o hold volátil do
  * autofetch e o `adprot` durável saem no corpo, o inventário sai quando existe,
  * e `holdsComplete` fecha (fail-closed) quando o lote não pode ser comprovado.
- * Com a flag OFF nada é enviado (o caminho de paridade fica idêntico). O
- * caminho Node default não é tocado — a rota `/internal/debrid/check` tem teste
- * próprio (`internal-debrid-check.test.ts`).
+ * Com a flag OFF nada é enviado (o caminho sem limpeza fica idêntico). O
+ * caminho da checagem nativa é exercitado no Rust (`debrid_seam`), não aqui.
  *
  * Sem rede real: `/magnet/status` e `/debrid/check` são dublês de `fetch`.
  */

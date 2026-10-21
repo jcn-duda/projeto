@@ -62,7 +62,7 @@ pub fn router(state: AppState) -> Router {
 /// inventário nativo da conta (`account.*`) e as do índice/banco nativos.
 async fn metrics_snapshot() -> Json<BTreeMap<String, u64>> {
     let mut snapshot = adom_search::orchestrator::account_metrics_snapshot();
-    // Checagem AllDebrid nativa × Node (`DEBRID_AL_RUST`): `debrid.al.*`.
+    // Checagem AllDebrid nativa (incondicional desde a R3): `debrid.al.*`.
     snapshot.extend(adom_search::orchestrator::debrid_al_metrics_snapshot());
     // Índice/banco nativos (F4.5): `index.*`/`bank.*`.
     snapshot.extend(adom_search::orchestrator::index_metrics_snapshot());

@@ -1,8 +1,8 @@
 // POST /internal/debrid/holds — feed dos holds do autofetch para o gateway
 // in-process (`adom-search::debrid_seam`), ligado por `DEBRID_AL_HOLDS=on`.
 //
-// POR QUE ESTA ROTA EXISTE: a checagem nativa da AllDebrid (`DEBRID_AL_RUST=on`)
-// só apaga com `holdsComplete` + inventário (`adom-debrid::alldebrid_cleanup`).
+// POR QUE ESTA ROTA EXISTE: a checagem nativa da AllDebrid (incondicional desde
+// a R3) só apaga com `holdsComplete` + inventário (`adom-debrid::alldebrid_cleanup`).
 // O hold volátil do autofetch mora NESTE processo (memória), então o seam
 // in-process não o enxerga — e a nativa ficaria read-only para sempre. O
 // caminho do sidecar (8710) já recebe os fatos no corpo do `/debrid/check`; o
@@ -10,8 +10,8 @@
 // rodar a nativa.
 //
 // CONTRATO: corpo `{ encoded, service, hashes }` (a chave NUNCA vai no JSON: o
-// `encoded` é decodificado e a chave sai do runtime do usuário, como em
-// `/internal/debrid/check`). Resposta:
+// `encoded` é decodificado e a chave sai do runtime do usuário, como nas demais
+// rotas internas). Resposta:
 // `{ ok, service, account, inventoryLoaded, knownBefore, heldHashes,
 //    evaluated, holdsComplete, dropReady, dropUncached }`.
 // O Rust confere `account == account_scope(apiKey)` e `evaluated ⊇ hashes`
@@ -34,7 +34,7 @@ import * as metrics from '../utils/metrics.js';
 import * as log from '../utils/logger.js';
 import { rejectedByGuard, decodeTarget } from './internal-search-shared.js';
 
-// Mesmo teto de `/internal/debrid/check`: o lote é de UMA obra na prática.
+// Mesmo teto do check nativo: o lote é de UMA obra na prática.
 const MAX_HASHES = 500;
 
 /** Colaboradores trocáveis em teste (mesmo padrão das outras rotas internas). */

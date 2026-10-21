@@ -1,9 +1,9 @@
 //! Fundação do debrid em Rust.
 //!
 //! Premiumize, Debrid-Link, Real-Debrid, TorBox e AllDebrid têm adaptador.
-//! HTTP `/debrid/check` cobre PM/TB/RD/DL via `verdict.rs`; AllDebrid fica
-//! 501 com `DEBRID_AL_RUST=off` (default) e a checagem nativa responde em
-//! `on`. A limpeza segura (`alldebrid_cleanup` + `alldebrid_delete`) é opt-in
+//! HTTP `/debrid/check` cobre os cinco via `verdict.rs`; a checagem da
+//! AllDebrid é nativa e INCONDICIONAL desde a R3 (não há mais rota Node).
+//! A limpeza segura (`alldebrid_cleanup` + `alldebrid_delete`) é opt-in
 //! por `DEBRID_AL_CLEANUP` e só age com `holds_complete` + inventário; sem
 //! isso a nativa é read-only. O hold volátil do autofetch mora no Node: o
 //! sidecar recebe os fatos no corpo e o seam in-process pelo feed de holds
@@ -12,8 +12,8 @@
 //! in-process. `account`/`files` limitados; link da AllDebrid existe.
 //! `/debrid/resolve` não grava magnetdb, cache nem ledger.
 //! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
-//! `internal_check.rs` é o cliente de RESERVA da rota `/internal/debrid/check`
-//! do Node; `holds_feed.rs` é o cliente do feed `/internal/debrid/holds`.
+//! `holds_feed.rs` é o cliente do feed `/internal/debrid/holds` (só ele fala
+//! com uma rota interna do Node).
 //! `play.rs` é o dispatch do play nativo (`/resolve` do gateway,
 //! `RESOLVE_RUST=on`): os cinco adaptadores, com o mesmo `pickFile` e a mesma
 //! prova de áudio (`play_audit`) do TS; efeitos L1 continuam no Node.
@@ -23,9 +23,6 @@ pub mod alldebrid;
 // backoff. Flag `DEBRID_AL_CLEANUP` (default OFF) e kill-switch próprio.
 pub mod alldebrid_cleanup;
 pub mod alldebrid_delete;
-// Flag da checagem nativa da AllDebrid (`DEBRID_AL_RUST`), lida pela API
-// interna e pelo `adom-search`.
-pub mod alldebrid_mode;
 // Inventário PRONTO da conta como fonte (F3): leitura pura, sem memo/efeitos.
 pub mod account;
 pub mod api;
@@ -36,7 +33,6 @@ pub mod error;
 pub mod holds_feed;
 pub mod http;
 pub mod import;
-pub mod internal_check;
 pub mod metrics;
 /// Play nativo: dispatch por adaptador (usado pelo `/resolve` do gateway).
 pub mod play;

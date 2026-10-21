@@ -27,8 +27,8 @@
 //! [`check_service_report_with`] (feed `/internal/debrid/holds`, ligado por
 //! `DEBRID_AL_HOLDS`, default OFF). Sem os fatos — ou com cobertura
 //! incompleta — o `holds_complete` fica falso e a nativa é READ-ONLY: nenhum
-//! hash sai. O HTTP público `/debrid/check` devolve 501 com
-//! `DEBRID_AL_RUST=off` até Fase C.
+//! hash sai. O HTTP público `/debrid/check` responde a AllDebrid como os
+//! demais serviços (incondicional desde a R3).
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

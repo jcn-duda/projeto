@@ -1,7 +1,8 @@
 //! Feed de holds do Node para o `adom-search` in-process (`DEBRID_AL_HOLDS`).
 //!
 //! Default do CÓDIGO **OFF**; o default do CORTE (`docker-compose.yml`, desde o
-//! F4.6) é **ON**, junto com `DEBRID_AL_RUST=on` e `DEBRID_AL_CLEANUP=on`.
+//! F4.6) é **ON**, junto com `DEBRID_AL_CLEANUP=on` (a checagem nativa da
+//! AllDebrid é incondicional desde a R3).
 //! OFF é o rollback de uma linha: o cliente nem é construído e a nativa segue
 //! read-only.
 //!
@@ -29,12 +30,12 @@
 //! idêntico ao anterior (read-only).
 
 use std::collections::HashSet;
-use std::time::Duration;
+use std::net::IpAddr;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
 use crate::http::{Call, HttpClient};
-use crate::internal_check::{ensure_loopback, now_ms};
 
 /// Liga o feed in-process. Default do código OFF (o corte sobe ON): OFF é o
 /// rollback de uma linha e a nativa segue read-only.
@@ -43,6 +44,10 @@ pub const ENV: &str = "DEBRID_AL_HOLDS";
 pub const TIMEOUT_ENV: &str = "DEBRID_AL_HOLDS_TIMEOUT_MS";
 /// Caminho da rota no Node.
 pub const PATH: &str = "/internal/debrid/holds";
+
+/// Default da porta do addon em loopback: com `GATEWAY=on` o Node escuta na
+/// 7100 (a 7000 é a fachada Rust, que recusa `/internal/*`).
+pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
 
 const DEFAULT_TIMEOUT_MS: u64 = 800;
 
@@ -156,9 +161,8 @@ impl InternalHoldsClient {
 
     /// Do ambiente: `DEBRID_AL_HOLDS` ligado, token interno
     /// (`DEBRID_INTERNAL_TOKEN` → `JACKETT_TEST_TOKEN`) e base
-    /// `INTERNAL_CHECK_URL` (default loopback:7000). A base é a MESMA da
-    /// reserva: em produção aponta para o Node (7100). Qualquer ausência
-    /// devolve `None` = sem feed (read-only).
+    /// `INTERNAL_CHECK_URL` (default loopback:7100). Qualquer ausência devolve
+    /// `None` = sem feed (read-only).
     pub fn from_env() -> Option<Self> {
         if !holds_feed_enabled() {
             return None;
@@ -174,7 +178,7 @@ impl InternalHoldsClient {
         let base = std::env::var("INTERNAL_CHECK_URL")
             .ok()
             .filter(|raw| !raw.trim().is_empty())
-            .unwrap_or_else(|| crate::internal_check::DEFAULT_BASE.to_string());
+            .unwrap_or_else(|| DEFAULT_BASE.to_string());
         let timeout = timeout_from(std::env::var(TIMEOUT_ENV).ok().as_deref());
         Self::new(&base, &token, timeout).ok()
     }
@@ -266,6 +270,43 @@ pub fn parse_holds_response(data: &Value) -> Result<HoldsFacts, String> {
         drop_ready: data.get("dropReady").and_then(Value::as_bool),
         drop_uncached: data.get("dropUncached").and_then(Value::as_bool),
     })
+}
+
+/// Só loopback: a rota Node recusa origem externa; o cliente não tenta.
+pub(crate) fn ensure_loopback(base: &str) -> Result<(), String> {
+    let rest = base
+        .strip_prefix("http://")
+        .or_else(|| base.strip_prefix("https://"))
+        .ok_or_else(|| format!("INTERNAL_CHECK_URL precisa de http(s): {base}"))?;
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = if let Some(inner) = authority.strip_prefix('[') {
+        inner.split(']').next().unwrap_or("")
+    } else if let Some((h, port)) = authority.rsplit_once(':') {
+        if port.chars().all(|c| c.is_ascii_digit()) {
+            h
+        } else {
+            authority
+        }
+    } else {
+        authority
+    };
+    let loopback = matches!(host, "localhost" | "127.0.0.1" | "::1")
+        || host
+            .parse::<IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false);
+    if !loopback {
+        return Err(format!("INTERNAL_CHECK_URL só aceita loopback: {base}"));
+    }
+    Ok(())
+}
+
+/// Relógio do feed (epoch ms).
+pub(crate) fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 fn required_str(data: &Value, key: &str) -> Result<String, String> {

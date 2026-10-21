@@ -65,8 +65,8 @@ before(async () => {
   config.jackett.testToken = TOKEN;
 
   const app = express();
-  // Só de teste: personifica um cliente NÃO loopback (mesmo molde de
-  // `internal-debrid-check.test.ts`).
+  // Só de teste: personifica um cliente NÃO loopback (mesmo molde das rotas
+  // internas de busca).
   app.use((req, res, next) => {
     const spoof = req.get('x-test-remote-addr');
     if (!spoof) return next();

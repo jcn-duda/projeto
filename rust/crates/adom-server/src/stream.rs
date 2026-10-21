@@ -15,10 +15,7 @@ use adom_search::orchestrator::{
     sources_rust_includes, AdapterDebridFactory, NodeRoutes, NodeTailEffects, Orchestrator,
     StreamRequest,
 };
-use adom_search::{
-    FallbackCheck, HoldsFeed, MemorySwrStore, NodeHoldsFeed, NodeInternalFallback, StreamResponse,
-    SwrStore,
-};
+use adom_search::{HoldsFeed, MemorySwrStore, NodeHoldsFeed, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
 
 /// Default relativo ao cwd do processo (volume `docker-data/addon` → `data/`).
@@ -167,19 +164,8 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
             }
         }
     }
-    let fallback: Option<Arc<dyn FallbackCheck>> =
-        NodeInternalFallback::from_env().map(|fb| Arc::new(fb) as Arc<dyn FallbackCheck>);
-    let al_mode = adom_debrid::alldebrid_mode::AlRustMode::from_env();
-    if al_mode != adom_debrid::alldebrid_mode::AlRustMode::Off {
-        eprintln!(
-            "[gateway] checagem AllDebrid nativa: DEBRID_AL_RUST={} \
-             (nativa responde; fallback Node só antes de qualquer upload; \
-             rollback: DEBRID_AL_RUST=off)",
-            al_mode.as_str()
-        );
-    }
     orch = orch.with_debrid(Arc::new(
-        AdapterDebridFactory::new(None, fallback).with_holds(holds_feed()),
+        AdapterDebridFactory::new(None).with_holds(holds_feed()),
     ));
     // Inventário nativo da conta (F3). `ACCOUNT_RUST=off` (default) mantém
     // `None`: a coleta da conta continua na tarefa Node.

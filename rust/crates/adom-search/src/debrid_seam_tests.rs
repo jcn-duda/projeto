@@ -6,12 +6,11 @@ use std::time::Duration;
 
 use adom_core::RankingStream;
 use adom_debrid::alldebrid_cleanup::account_scope;
-use adom_debrid::alldebrid_mode::AlRustMode;
 use adom_debrid::holds_feed::HoldsFacts;
 use adom_debrid::verdict::{CheckOutcome, ServiceCheck, UnusableKind};
 use tokio::runtime::{Handle, Runtime};
 
-use super::{answer_of, AdapterDebridCheck, FallbackCheck, HoldsFeed};
+use super::{answer_of, AdapterDebridCheck, HoldsFeed};
 use crate::list_builder::{DebridAnswer, DebridCheck};
 
 const HIT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -89,120 +88,15 @@ fn mapeia_cached_missing_unknown_e_unusable() {
     );
 }
 
-struct StubFallback {
-    result: Result<CheckOutcome, String>,
-    calls: std::sync::Mutex<usize>,
-    last_hashes: std::sync::Mutex<Vec<String>>,
-}
-
-impl StubFallback {
-    fn ok(outcome: CheckOutcome) -> Self {
-        Self {
-            result: Ok(outcome),
-            calls: std::sync::Mutex::new(0),
-            last_hashes: std::sync::Mutex::new(Vec::new()),
-        }
-    }
-    fn err() -> Self {
-        Self {
-            result: Err("rota interna fora".into()),
-            calls: std::sync::Mutex::new(0),
-            last_hashes: std::sync::Mutex::new(Vec::new()),
-        }
-    }
-}
-
-impl FallbackCheck for StubFallback {
-    fn check(
-        &self,
-        _encoded: &str,
-        _service: &str,
-        hashes: &[String],
-        _deadline_at: i64,
-    ) -> Result<CheckOutcome, String> {
-        *self.calls.lock().unwrap() += 1;
-        *self.last_hashes.lock().unwrap() = hashes.to_vec();
-        self.result.clone()
-    }
-}
-
-/// Serviço fora do despacho local → reserva consultada UMA vez no lote.
+/// A AllDebrid nativa checa o lote UMA vez; não há mais reserva Node.
 #[test]
-fn fallback_atende_servico_fora_do_despacho() {
-    let mut debrid = AdapterDebridCheck::new("servico-que-ficou-501", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    let stub = std::sync::Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
-    debrid.fallback = Some(stub.clone());
-    debrid.prepare(&[HIT.into(), MISS.into()]);
-    assert_eq!(
-        debrid.check(&stream(HIT)),
-        DebridAnswer::Cached { url: None }
-    );
-    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
-    assert_eq!(*stub.calls.lock().unwrap(), 1, "um lote, não N");
-    assert_eq!(stub.last_hashes.lock().unwrap().len(), 2);
-    assert_eq!(debrid.local_checks(), 0);
-    assert_eq!(debrid.fallback_checks(), 1);
-}
-
-/// Reserva em erro → Unknown, nunca Missing.
-#[test]
-fn fallback_falho_e_unknown() {
-    let mut debrid = AdapterDebridCheck::new("servico-que-ficou-501", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    debrid.fallback = Some(std::sync::Arc::new(StubFallback::err()));
-    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
-
-    let mut debrid = AdapterDebridCheck::new("servico-que-ficou-501", "chave-do-usuario");
-    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
-}
-
-/// AllDebrid com reserva Node: a checagem é do Node (davail, hold e limpeza),
-/// UM lote, zero upload local (o local não limpa a conta até a Fase C).
-#[test]
-fn alldebrid_vai_a_reserva_node_sem_upload_local() {
+fn alldebrid_usa_a_nativa_em_lote() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    let stub = std::sync::Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
-    debrid.fallback = Some(stub.clone());
-    debrid.prepare(&[HIT.into(), MISS.into()]);
-    assert_eq!(
-        debrid.check(&stream(HIT)),
-        DebridAnswer::Cached { url: None }
-    );
-    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
-    assert_eq!(*stub.calls.lock().unwrap(), 1, "um lote, não N");
-    assert_eq!(debrid.local_checks(), 0, "nenhum upload local");
-    assert_eq!(debrid.fallback_checks(), 1);
-}
-
-/// Reserva Node falhou: "não sei" (Unknown), nunca o upload local — o Node
-/// pode já ter enviado o lote, e um segundo upload dobraria o lixo na conta.
-#[test]
-fn alldebrid_reserva_falha_e_unknown_sem_upload_local() {
-    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    debrid.fallback = Some(std::sync::Arc::new(StubFallback::err()));
-    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
-    assert_eq!(debrid.local_checks(), 0);
-    assert_eq!(debrid.fallback_checks(), 1);
-}
-
-/// Sem reserva configurada (sem rota interna): o check local continua, em
-/// UM lote.
-#[test]
-fn alldebrid_sem_reserva_usa_o_local_em_lote() {
-    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.timeout = Some(Duration::from_millis(50));
+    debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
     debrid.prepare(&[HIT.into(), MISS.into()]);
     let _ = debrid.check(&stream(HIT));
     let _ = debrid.check(&stream(MISS));
-    assert_eq!(debrid.local_checks(), 1, "um check local em lote");
-    assert_eq!(debrid.fallback_checks(), 0);
+    assert_eq!(debrid.local_checks(), 1, "um check nativo em lote");
 }
 
 fn service(
@@ -223,16 +117,13 @@ fn native_stub(
     Arc::new(move || result.clone())
 }
 
-/// `DEBRID_AL_RUST=on`: a nativa responde e o Node NÃO é consultado.
+/// A nativa responde o lote e não há segundo caminho (a reserva Node saiu).
 #[test]
-fn alldebrid_on_usa_nativa_e_nao_chama_o_node() {
+fn alldebrid_usa_nativa_e_nao_tem_segundo_caminho() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.mode = AlRustMode::On;
     debrid.encoded = Some(ENCODED.into());
     debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
-    let stub = Arc::new(StubFallback::ok(outcome(vec![MISS.into()], true, None)));
-    debrid.fallback = Some(stub.clone());
     debrid.prepare(&[HIT.into(), MISS.into()]);
     assert_eq!(
         debrid.check(&stream(HIT)),
@@ -240,69 +131,24 @@ fn alldebrid_on_usa_nativa_e_nao_chama_o_node() {
     );
     assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
     assert_eq!(debrid.local_checks(), 1);
-    assert_eq!(
-        *stub.calls.lock().unwrap(),
-        0,
-        "não repete o upload no Node"
-    );
 }
 
-/// `on` sem upload enviado (base recusada/lista vazia) → fallback Node.
+/// Upload tentado e lote perdido → Unknown (nunca `Missing`, nunca segundo
+/// upload em outro caminho).
 #[test]
-fn alldebrid_on_cai_no_node_so_quando_nada_foi_enviado() {
+fn alldebrid_falha_pos_upload_e_unknown() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.mode = AlRustMode::On;
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    debrid.local_stub = Some(native_stub(service(vec![], false, None, false)));
-    let stub = Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
-    debrid.fallback = Some(stub.clone());
-    debrid.prepare(&[HIT.into(), MISS.into()]);
-    assert_eq!(
-        debrid.check(&stream(HIT)),
-        DebridAnswer::Cached { url: None }
-    );
-    assert_eq!(debrid.check(&stream(MISS)), DebridAnswer::Missing);
-    assert_eq!(*stub.calls.lock().unwrap(), 1);
-    assert_eq!(debrid.fallback_checks(), 1);
-}
-
-/// F4.6 — a reserva Node está APOSENTADA (410) no default do corte. Sem nada
-/// enviado pela nativa, o fallback ainda é tentado; o 410 vira erro e a
-/// resposta é `Unknown` honesto (nunca `Missing`, nunca segundo upload).
-#[test]
-fn alldebrid_on_reserva_aposentada_vira_unknown() {
-    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.mode = AlRustMode::On;
-    debrid.encoded = Some(ENCODED.into());
-    debrid.deadline_at = Some(deadline());
-    debrid.local_stub = Some(native_stub(service(vec![], false, None, false)));
-    debrid.fallback = Some(Arc::new(StubFallback::err()));
-    debrid.prepare(&[HIT.into()]);
-    assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
-    assert_eq!(debrid.local_checks(), 1);
-    assert_eq!(debrid.fallback_checks(), 1, "tentou a reserva uma vez");
-}
-
-/// `on` com upload tentado e lote perdido → Unknown, NUNCA segundo upload.
-#[test]
-fn alldebrid_on_falha_pos_upload_nao_repete_no_node() {
-    let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.mode = AlRustMode::On;
     debrid.encoded = Some(ENCODED.into());
     debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(vec![], false, None, true)));
-    let stub = Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
-    debrid.fallback = Some(stub.clone());
     assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
-    assert_eq!(*stub.calls.lock().unwrap(), 0);
+    assert_eq!(debrid.local_checks(), 1);
 }
 
-/// Conta auth/quota na nativa: a lista volta P2P (Unusable) sem Node.
+/// Conta auth/quota na nativa: a lista volta P2P (Unusable).
 #[test]
-fn alldebrid_on_unusable_nao_consulta_o_node() {
+fn alldebrid_unusable_vira_unusable() {
     let mut debrid = AdapterDebridCheck::new("alldebrid", "chave-do-usuario");
-    debrid.mode = AlRustMode::On;
     debrid.encoded = Some(ENCODED.into());
     debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(
@@ -311,15 +157,12 @@ fn alldebrid_on_unusable_nao_consulta_o_node() {
         Some(("quota", "cheio")),
         true,
     )));
-    let stub = Arc::new(StubFallback::ok(outcome(vec![HIT.into()], true, None)));
-    debrid.fallback = Some(stub.clone());
     assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unusable);
-    assert_eq!(*stub.calls.lock().unwrap(), 0);
 }
 
 /// Debrid-Link é conhecido no despacho, mas `cacheCheck=false`: o veredito é
-/// `known:false` (Unknown), sem reserva Node e sem rede — o Node manda tudo
-/// pelo `/resolve` degradado.
+/// `known:false` (Unknown), sem rede — o Node manda tudo pelo `/resolve`
+/// degradado.
 #[test]
 fn debridlink_local_e_unknown_sem_rede() {
     let mut debrid = AdapterDebridCheck::new("debridlink", "chave-do-usuario");
@@ -328,7 +171,6 @@ fn debridlink_local_e_unknown_sem_rede() {
     debrid.prepare(&[HIT.into()]);
     assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
     assert_eq!(debrid.local_checks(), 1);
-    assert_eq!(debrid.fallback_checks(), 0);
 }
 
 /// RD sem store (ledger indisponível) é `Unknown`, não `Missing`: o finish
@@ -339,7 +181,6 @@ fn realdebrid_sem_store_e_unknown_sem_rede() {
     debrid.prepare(&[HIT.into()]);
     assert_eq!(debrid.check(&stream(HIT)), DebridAnswer::Unknown);
     assert_eq!(debrid.local_checks(), 1);
-    assert_eq!(debrid.fallback_checks(), 0);
 }
 
 /// prepare + N checks = 1 local_checks (memo).
@@ -353,17 +194,14 @@ fn memo_um_check_para_varios_streams() {
     assert_eq!(debrid.local_checks(), 1);
 }
 
-/// Sem hash não há o que checar: Unknown, sem rede e sem reserva.
+/// Sem hash não há o que checar: Unknown, sem rede.
 #[test]
 fn stream_sem_hash_e_unknown_sem_gastar_rede() {
     let mut debrid = AdapterDebridCheck::new("torbox", "chave-do-usuario");
     debrid.encoded = Some(ENCODED.into());
     debrid.deadline_at = Some(deadline());
-    let stub = std::sync::Arc::new(StubFallback::err());
-    debrid.fallback = Some(stub.clone());
     let vazio = RankingStream::default();
     assert_eq!(debrid.check(&vazio), DebridAnswer::Unknown);
-    assert_eq!(*stub.calls.lock().unwrap(), 0);
     assert_eq!(debrid.local_checks(), 0);
 }
 
@@ -477,7 +315,6 @@ impl HoldsFeed for StubHolds {
 
 fn native_check() -> AdapterDebridCheck {
     let mut debrid = AdapterDebridCheck::new("alldebrid", USER_KEY);
-    debrid.mode = AlRustMode::On;
     debrid.encoded = Some(ENCODED.into());
     debrid.deadline_at = Some(deadline());
     debrid.local_stub = Some(native_stub(service(vec![HIT.into()], true, None, true)));
@@ -513,7 +350,6 @@ fn alldebrid_on_com_feed_completo_entrega_os_fatos() {
     let facts = debrid.last_facts().expect("fatos entregues à nativa");
     assert!(facts.covers(&[HIT.into(), MISS.into()]));
     assert_eq!(debrid.local_checks(), 1);
-    assert_eq!(debrid.fallback_checks(), 0, "nativa respondeu; Node não");
 }
 
 /// `DEBRID_AL_HOLDS=off` (sem feed) + limpeza ligada: o comportamento atual
@@ -614,7 +450,6 @@ fn sem_limpeza_o_feed_nao_e_consultado() {
 fn outro_servico_nao_consulta_o_feed() {
     let _env = FeedEnv::set(&[("DEBRID_AL_CLEANUP", Some("on"))]);
     let mut debrid = AdapterDebridCheck::new("torbox", USER_KEY);
-    debrid.mode = AlRustMode::On;
     debrid.encoded = Some(ENCODED.into());
     debrid.deadline_at = Some(deadline());
     let feed = std::sync::Arc::new(StubHolds::ok(holds_facts(
