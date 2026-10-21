@@ -201,7 +201,7 @@ pub(super) fn build_parsed_outcome(
 
 /// `INFO_HASH` do TS (`src/providers/mico.ts`): exatamente 40 dígitos hex.
 fn is_valid_info_hash(hash: &str) -> bool {
-    hash.len() == 40 && hash.bytes().all(|b| b.is_ascii_hexdigit())
+    hash.len() == 40 && hash.bytes().all(|b| b.is_ascii_hexdigit()) && !hash.bytes().all(|b| b == b'0')
 }
 
 /// `cleanTitle` do TS (`src/providers/mico.ts`): tira os sufixos `👥 N`,

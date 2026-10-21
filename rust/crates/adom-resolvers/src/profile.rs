@@ -273,6 +273,12 @@ impl ResolverProfile {
     /// Fetch com allowlist por hop, cookies da sessão e contabilidade de failover.
     /// Usa `net::fetch_follow_redirects` porque os headers colhem o `Set-Cookie`.
     async fn fetch(&self, url: &str) -> Result<String, String> {
+        let rewritten = if self.is_vaca() {
+            rewrite_dead_vaca_host(url, &self.selector.url())
+        } else {
+            url.to_string()
+        };
+        let url = rewritten.as_str();
         if self.network.uses_flare {
             return self.fetch_with_flare(url).await;
         }
@@ -340,6 +346,34 @@ impl ResolverProfile {
 /// (`apachetorrent.ts:12`). VacaTorrent usa cookies por *seed* (`vacatorrent.ts:285`).
 fn site_needs_session(site_name: &str) -> bool {
     site_name.to_lowercase().contains("apache")
+}
+
+/// Hosts mortos do Vaca respondem 200 com "Novo Endereço" e não disparam
+/// failover. O JSON da busca ainda publica esses links; o fetch vai no host vivo.
+pub(crate) fn rewrite_dead_vaca_host(url: &str, primary: &str) -> String {
+    const DEAD: &[&str] = &["vaqueirofilmes.com", "vacatorrentmov.com"];
+    let Ok(parsed) = Url::parse(url) else {
+        return url.to_string();
+    };
+    let Some(host) = parsed.host_str() else {
+        return url.to_string();
+    };
+    let host = host.strip_prefix("www.").unwrap_or(host);
+    if !DEAD.iter().any(|dead| host.eq_ignore_ascii_case(dead)) {
+        return url.to_string();
+    }
+    let Ok(primary) = Url::parse(primary) else {
+        return url.to_string();
+    };
+    let Some(live) = primary.host_str() else {
+        return url.to_string();
+    };
+    let mut out = parsed;
+    if out.set_host(Some(live)).is_err() {
+        return url.to_string();
+    }
+    let _ = out.set_scheme(primary.scheme());
+    out.to_string()
 }
 
 #[cfg(test)]

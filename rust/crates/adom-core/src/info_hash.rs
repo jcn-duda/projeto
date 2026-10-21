@@ -11,6 +11,16 @@ fn is_hex40(s: &str) -> bool {
     s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
+/// 40 zeros (e o base32 `A…A` que decodifica nisso) não é torrent: o Mico
+/// manda esse sentinela e o `/resolve` virava 502 no debrid.
+fn usable_hex(hex: String) -> Option<String> {
+    if hex.bytes().all(|b| b == b'0') {
+        None
+    } else {
+        Some(hex)
+    }
+}
+
 fn is_base32_32(s: &str) -> bool {
     s.len() == 32
         && s.bytes()
@@ -67,17 +77,40 @@ pub fn extract_info_hash(input: &str) -> Option<String> {
     }
     let raw = js_trim(input);
     if is_hex40(raw) {
-        return Some(raw.to_ascii_lowercase());
+        return usable_hex(raw.to_ascii_lowercase());
     }
     if is_base32_32(raw) {
-        return base32_to_hex(raw);
+        return base32_to_hex(raw).and_then(usable_hex);
     }
     let hash = btih_run(raw)?;
     if is_hex40(hash) {
-        return Some(hash.to_ascii_lowercase());
+        return usable_hex(hash.to_ascii_lowercase());
     }
     if hash.len() == 32 {
-        return base32_to_hex(hash);
+        return base32_to_hex(hash).and_then(usable_hex);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejeita_sentinela_tudo_zero() {
+        assert_eq!(extract_info_hash(&"0".repeat(40)), None);
+        assert_eq!(
+            extract_info_hash(&format!("magnet:?xt=urn:btih:{}", "0".repeat(40))),
+            None
+        );
+        // 32 `A` em base32 = 160 bits zero.
+        assert_eq!(extract_info_hash(&"A".repeat(32)), None);
+        assert_eq!(extract_info_hash(&"a".repeat(32)), None);
+    }
+
+    #[test]
+    fn um_nibble_nao_zero_continua_hash() {
+        let hash = format!("{}1", "0".repeat(39));
+        assert_eq!(extract_info_hash(&hash).as_deref(), Some(hash.as_str()));
+    }
 }

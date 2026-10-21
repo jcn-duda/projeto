@@ -78,6 +78,12 @@ test('/resolve rejeita hash malformado com 400', async () => {
   assert.equal(res.text, 'infoHash inválido');
 });
 
+test('/resolve rejeita hash nulo com 400', async () => {
+  const res = await server.request('GET', `/resolve/${'0'.repeat(40)}`);
+  assert.equal(res.status, 400);
+  assert.equal(res.text, 'infoHash inválido');
+});
+
 test('/resolve com debrid ativo exige assinatura: sem sig ou sig errada dá 403', async () => {
   const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
 

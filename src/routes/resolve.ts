@@ -91,7 +91,9 @@ function respondWhenRustApplied(
 function makeResolveHandler(services: AppServices) {
   return asyncRoute(async (req: express.Request, res: express.Response) => {
     const infoHash = String(req.params.infoHash || '').toLowerCase();
-    if (!/^[a-f0-9]{40}$/i.test(infoHash)) return res.status(400).send('infoHash inválido');
+    if (!/^[a-f0-9]{40}$/i.test(infoHash) || /^0+$/.test(infoHash)) {
+      return res.status(400).send('infoHash inválido');
+    }
 
     const hint = typeof req.query.w === 'string' ? req.query.w : '';
     if (services.debrid.current()) {

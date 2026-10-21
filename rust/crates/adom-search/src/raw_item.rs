@@ -334,6 +334,8 @@ mod tests {
         assert_eq!(item.hash(), "abcdef0123456789abcdef0123456789abcdef01");
         item.info_hash = Some("0123456789ABCDEF0123456789ABCDEF01234567".into());
         assert_eq!(item.hash(), "0123456789abcdef0123456789abcdef01234567");
+        item.info_hash = Some("0".repeat(40));
+        assert_eq!(item.hash(), "");
     }
 
     /// `fileIdx` do Torrentio (campo público do item cru) atravessa a travessia

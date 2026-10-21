@@ -95,3 +95,23 @@ async fn resolve_valida_a_entrada_antes_da_rede() {
     let magnet = p.resolve("MAGNET:?xt=urn:btih:abc").await.unwrap();
     assert_eq!(magnet, "magnet:?xt=urn:btih:abc");
 }
+
+#[test]
+fn vaca_fetch_troca_host_morto_pelo_vivo() {
+    let live = "https://vaqueirofilmes1.com";
+    assert_eq!(
+        rewrite_dead_vaca_host(
+            "https://vaqueirofilmes.com/pt/tv-shows/rick-e-morty/",
+            live
+        ),
+        "https://vaqueirofilmes1.com/pt/tv-shows/rick-e-morty/"
+    );
+    assert_eq!(
+        rewrite_dead_vaca_host("https://www.vacatorrentmov.com/pt/movie/x/", live),
+        "https://vaqueirofilmes1.com/pt/movie/x/"
+    );
+    assert_eq!(
+        rewrite_dead_vaca_host("https://vaqueirofilmes1.com/pt/movie/x/", live),
+        "https://vaqueirofilmes1.com/pt/movie/x/"
+    );
+}

@@ -22,6 +22,10 @@ test('extractInfoHash aceita hash puro, magnet e base32', () => {
   assert.equal(extractInfoHash(''), null);
   assert.equal(extractInfoHash(null), null);
   assert.equal(extractInfoHash('nao-eh-hash'), null);
+  // 40 zeros (e o base32 A…A) é sentinela, não torrent — vira 502 no debrid.
+  assert.equal(extractInfoHash('0'.repeat(40)), null);
+  assert.equal(extractInfoHash(`magnet:?xt=urn:btih:${'0'.repeat(40)}`), null);
+  assert.equal(extractInfoHash('A'.repeat(32)), null);
 });
 
 // O cliente Stremio só monta magnet com btih de 40 hex: base32 repassado cru

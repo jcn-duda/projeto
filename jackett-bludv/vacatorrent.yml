@@ -1,14 +1,14 @@
 ---
 id: vacatorrent
 name: Vaca Torrent
-description: "Vaca Torrent (vaqueirofilmes.com) — filmes e séries torrent em português"
+description: "Vaca Torrent (vaqueirofilmes1.com) — filmes e séries torrent em português"
 language: pt-BR
 type: public
 encoding: UTF-8
 # Uma única página mantém a resposta dentro do orçamento de 4 s do addon.
 requestDelay: 1
 links:
-  - https://vaqueirofilmes.com/
+  - https://vaqueirofilmes1.com/
 
 caps:
   categorymappings:

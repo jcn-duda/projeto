@@ -211,7 +211,9 @@ fn encode_uri_component(text: &str) -> String {
 }
 
 fn is_info_hash(text: &str) -> bool {
-    text.len() == 40 && text.bytes().all(|b| b.is_ascii_hexdigit())
+    text.len() == 40
+        && text.bytes().all(|b| b.is_ascii_hexdigit())
+        && !text.bytes().all(|b| b == b'0')
 }
 
 /// `mapStream`: item do payload → cru, ou `None` (hash inválido/título vazio).

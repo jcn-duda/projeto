@@ -286,7 +286,9 @@ fn json_i64(value: &Value) -> Option<i64> {
 }
 
 fn valid_hash(hash: &str) -> bool {
-    hash.len() == 40 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+    hash.len() == 40
+        && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+        && !hash.bytes().all(|byte| byte == b'0')
 }
 
 fn text_response(status: StatusCode, body: &str) -> Response<Body> {

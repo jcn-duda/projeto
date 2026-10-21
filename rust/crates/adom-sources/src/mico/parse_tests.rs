@@ -151,6 +151,7 @@ fn map_stream_is_br_tambem_quando_o_titulo_completo_diz_brazil() {
 fn map_stream_descarta_hash_invalido_e_titulo_vazio() {
     assert!(map_stream(&json!({ "title": "x", "infoHash": "abc" })).is_none());
     assert!(map_stream(&json!({ "title": "x", "infoHash": "z".repeat(40) })).is_none());
+    assert!(map_stream(&json!({ "title": "x", "infoHash": "0".repeat(40) })).is_none());
     assert!(map_stream(&json!({
         "title": format!("{EYES} 2"),
         "infoHash": HASH

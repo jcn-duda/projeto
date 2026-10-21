@@ -459,6 +459,15 @@ async fn resolve_rust_400_hash_invalido() {
 }
 
 #[tokio::test]
+async fn resolve_rust_400_hash_nulo() {
+    let stub = StubResolver::ok("https://cdn.test/play.mkv");
+    let (status, _headers, body) =
+        call_native(stub, "segredo", format!("/resolve/{}", "0".repeat(40))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body, "infoHash inválido");
+}
+
+#[tokio::test]
 async fn resolve_rust_404_sem_config_de_debrid() {
     let hash = "0123456789abcdef0123456789abcdef01234567";
     let segment = encode_config(&json!({ "ds": "", "dk": "" }));

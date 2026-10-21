@@ -101,7 +101,7 @@ function magnetOf(hash: string, sources: unknown): string {
 
 function mapStream(s: any): RawItem | null {
   const infoHash = String(s?.infoHash || '').trim();
-  if (!INFO_HASH.test(infoHash)) return null;
+  if (!INFO_HASH.test(infoHash) || /^0+$/i.test(infoHash)) return null;
   const full = String(s?.title || '');
   const title = cleanTitle(full.split('\n')[0] || '');
   if (!title) return null;

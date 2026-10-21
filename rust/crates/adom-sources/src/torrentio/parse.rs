@@ -172,7 +172,7 @@ pub fn map_stream(raw: &serde_json::Value) -> Option<TorrentioRawItem> {
 }
 
 fn is_info_hash(s: &str) -> bool {
-    s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit())
+    s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit()) && !s.bytes().all(|b| b == b'0')
 }
 
 fn parse_file_idx(value: Option<&serde_json::Value>) -> Option<i64> {
