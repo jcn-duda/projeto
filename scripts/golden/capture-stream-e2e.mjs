@@ -296,7 +296,7 @@ function maskValue(value, ctx) {
  * Remove transporte com credencial antes de gravar fixture interna. O
  * `downloadUrl` do Jackett carrega `jackett_apikey`; o build não o usa (o magnet
  * já veio resolvido), então gravá-lo só vazaria segredo — mesma regra de
- * `stripSecrets` do `stream-frozen-store.ts`.
+ * `stripSecrets` do antigo store do corpus congelado.
  */
 function stripTransportSecrets(value) {
   if (Array.isArray(value)) return value.map(stripTransportSecrets);
@@ -318,11 +318,11 @@ function writeJson(absPath, value) {
 
 /**
  * Copia VERBATIM um fixture gravado pelo próprio addon no dir do shadow. O
- * `stream-frozen-store` já mascara encoded/origem/sig e remove `downloadUrl`;
+ * record do shadow já mascara encoded/origem/sig e remove `downloadUrl`;
  * a varredura de credencial é o último portão antes de gravar no corpus.
  *
  * O que NÃO condena: `passkey`/`apikey=` DENTRO de `magnet:` de tracker público
- * — é dado público do torrent (o corpus `stream-frozen` também os carrega). O
+ * — é dado público do torrent (o corpus congelado também os carrega). O
  * que condena é o parâmetro do Jackett (`jackett_apikey`) ou o valor de um
  * segredo do operador presente no ambiente.
  */
@@ -892,7 +892,7 @@ async function main() {
       if (!fs.existsSync(shadowInputs)) {
         fail(
           `shadow sem captura em ${shadowInputs}\n` +
-          '  o addon precisa estar com STREAM_FROZEN_MODE=shadow e STREAM_FROZEN_SHADOW_BASE=--shadow-dir',
+          '  o addon precisa rodar uma imagem anterior ao F4.4 com o record do shadow ligado',
         );
       }
       for (const name of SHADOW_INPUTS) {

@@ -79,7 +79,6 @@
     "parity:frozen": "cargo test --manifest-path rust/Cargo.toml -p adom-search --test stream_frozen_parity -- --nocapture",
     "test:adversarial": "node dist/test/empirical-e2e-challenger.js",
     "test:ranking-challenger": "node dist/scripts/empirical-ranking-challenger.js",
-    "test:nerdfilmes": "node dist/nerdfilmes-resolver/test.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f adom"
@@ -448,7 +447,6 @@
     "test/secret-box.test.js",
     "test/short-name-tail.test.js",
     "test/sign.test.js",
-    "test/stream-fresh.test.js",
     "test/stream-trace-live.test.js",
     "test/stream-trace-recompute.test.js",
     "test/stream-trace-route.test.js",

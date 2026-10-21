@@ -39,13 +39,6 @@ services:
       DEBRID_AL_RUST: "${DEBRID_AL_RUST:-on}"
       DEBRID_AL_HOLDS: "${DEBRID_AL_HOLDS:-on}"
       DEBRID_AL_CLEANUP: "${DEBRID_AL_CLEANUP:-on}"
-      # Histórico (F4.2/F4.3): a sombra/canário comparavam com o `/stream` do
-      # Node, que está aposentado. LIGAR HOJE SÓ GERA DIVERGÊNCIA FALSA — os
-      # knobs ficam documentados e desligados; o gate é o corpus congelado.
-      STREAM_CANARY_PERCENT: "0"
-      # Harness de captura/replay (não é runtime): usado por scripts/golden.
-      STREAM_FROZEN_MODE: ""
-      STREAM_FROZEN_SHADOW_BASE: ""
     ports:
       # Só para diagnóstico no host: o Node direto (painel/rotas internas).
       - "127.0.0.1:7100:7100"

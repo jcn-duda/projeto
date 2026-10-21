@@ -10,7 +10,6 @@
  */
 import { peekFileSizes, peekTorrentTotal } from '../debrid/file-sizes.js';
 import { requireCore } from './rust-core.js';
-import * as frozen from './stream-frozen.js';
 import * as metrics from './metrics.js';
 
 export type NapiDebridFileT = { path: string; size: number };
@@ -48,11 +47,6 @@ export function buildAnnotateInput(
   const filesByHash: Record<string, NapiDebridFileT[]> = {};
   const totalsByHash: Record<string, number> = {};
   const seen = new Set<string>();
-  // A 2ª passada (pós-debrid) é a que vale para o replay padrão; a 1ª (build)
-  // também é gravada porque o Node anota duas vezes e o `📦 pack` depende do
-  // estado do memo em cada uma.
-  const atBuild = options.stage === 'build';
-  if (atBuild) frozen.markBuildPass();
   for (const raw of streams) {
     const s = raw as { infoHash?: string } | null;
     const hash = String(s?.infoHash || '').toLowerCase();
@@ -61,15 +55,10 @@ export function buildAnnotateInput(
     const files = peekFileSizes(hash);
     if (files) {
       filesByHash[hash] = files.map((f) => ({ path: String(f.path || ''), size: Number(f.size) || 0 }));
-      if (atBuild) frozen.recordFileSizesAtBuild(hash, files);
     }
     const total = peekTorrentTotal(hash);
     if (total > 0) {
       totalsByHash[hash] = total;
-      // Gate congelado: o Rust não tem o cache `tsz`; grava o total que o build
-      // usou para o replay preencher o `💾` de quem veio sem tamanho.
-      frozen.recordTorrentTotal(hash, total);
-      if (atBuild) frozen.recordTorrentTotalAtBuild(hash, total);
     }
   }
   const meta = options.meta?.episodes || {};

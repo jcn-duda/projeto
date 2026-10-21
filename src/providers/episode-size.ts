@@ -136,9 +136,8 @@ type AnnotateOptions = {
   trace?: StreamTraceState | null;
   /**
    * Passada da anotação: `build` é a de antes do debrid e `debrid` a de depois.
-   * O record congelado grava os caches `fsz`/`tsz` do estado de CADA passada —
-   * o Node anota duas vezes e o `📦 pack` só nasce na 2ª quando a 1ª já
-   * preencheu o 💾; o replay precisa do estado do `build`, não do final.
+   * O Rust anota o lote que recebe e não distingue as passadas; o campo segue
+   * no contrato do oráculo (`test/helpers/pipeline-oracle`).
    */
   stage?: 'build' | 'debrid';
 };

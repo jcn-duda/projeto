@@ -21,7 +21,6 @@ import type { StreamTraceState } from '../utils/stream-trace.js';
 import { createLiveIndexerState, ALL_QUERY_INDEXER } from './live-indexer-state.js';
 import type { LiveIndexerState } from './live-indexer-state.js';
 import { collectionSelection, sourceWanted } from './source-selection.js';
-import { freshRequest } from '../utils/stream-fresh.js';
 export async function collectRawLive(
   query: string,
   type: string,
@@ -274,9 +273,7 @@ export async function collectRawLive(
   // Fast-path da conta: inventário suficiente responde NA HORA e o resto da
   // coleta segue em fundo. A resposta sai partial de propósito — é isso que
   // faz o passe tardio promovê-la quando os indexers fecharem.
-  // No record/replay congelado ele é DESLIGADO: a captura precisa do lote
-  // final, não do parcial que o cliente recebeu antes de os indexers fecharem.
-  const fastPathOn = !freshRequest() && config.accountFastPath.enabled && accountSource;
+  const fastPathOn = config.accountFastPath.enabled && accountSource;
   // Quando o índice já cobre a obra, a primeira resposta ainda pode esperar
   // somente os BR vivos: eles são a parte que o índice não sabe atualizar. Os
   // globais ficam no enriquecimento, sem transformar um hit do índice em uma
@@ -372,6 +369,6 @@ export async function collectRawLive(
   return { items: bucket, partial: !done, completion, sweepInline, live };
 }
 
-// A fachada congelada mora em arquivo próprio (catraca de linhas); o reexport
-// preserva o caminho público `collectRaw` de todos os callers e testes.
-export { collectRaw } from './collect-orchestrator-frozen.js';
+// `collectRaw` é o nome público consumido pelas rotas internas e pelos testes;
+// o corpo real é `collectRawLive` (mesma assinatura).
+export { collectRawLive as collectRaw };

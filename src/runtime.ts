@@ -18,15 +18,6 @@ interface RuntimeContext {
   origin?: string | null;
   /** Prazo da resposta deste cliente (app com timeout maior); ausente = `config.replyDeadline`. */
   replyDeadlineMs?: number | null;
-  /**
-   * Campos do harness congelado (captura/replay `STREAM_FROZEN_*`). Saíram do
-   * runtime no F4.4 (o `/stream` do Node está aposentado): ninguém os injeta a
-   * partir de header; só scripts de captura os passam explicitamente.
-   */
-  shadowId?: string | null;
-  shadowFrozen?: boolean;
-  /** Dir do corpus congelado POR REQUISIÇÃO; vence o DIR global. */
-  frozenDir?: string | null;
 }
 type RuntimeOptions = ReturnType<typeof defaults>;
 const store = new AsyncLocalStorage<RuntimeContext>();

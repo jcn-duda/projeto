@@ -2,7 +2,6 @@ import * as cache from '../utils/cache.js';
 import { prefix } from '../utils/cache-keys.js';
 import { VIDEO_EXT, SAMPLE, isSiteAd } from './file-selector.js';
 import type { DebridFile } from './file-selector.js';
-import * as frozen from '../utils/stream-frozen.js';
 
 // Arquivos de vídeo (caminho + tamanho) por hash, para mostrar o tamanho do
 // EPISÓDIO dentro de um pack de temporada, ou do FILME dentro de uma coleção —
@@ -39,9 +38,6 @@ function recordFileSizes(infoHash: string, files: DebridFile[] | null | undefine
     }))
     .filter((file) => file.size > 0 && VIDEO_EXT.test(file.path) && !SAMPLE.test(file.path) && !isSiteAd(file.path));
   if (videos.length === 0) return;
-  // Gate congelado: o Rust não tem o memo `fsz`; o record grava a lista para o
-  // `FrozenCase` injetar no build (💾 médio de pack).
-  frozen.recordFileSizes(hash, videos);
   // Regravar renova o TTL e move a entrada para o fim do LRU do namespace.
   cache.set(keyOf(hash), videos, FILE_SIZES_TTL_SECONDS);
 }
@@ -52,10 +48,6 @@ function peekFileSizes(infoHash: string): SizedFile[] | null {
   if (!infoHash) return null;
   const value = cache.peek(keyOf(infoHash));
   const list = Array.isArray(value) && value.length > 0 ? (value as SizedFile[]) : null;
-  // Gate congelado: o build do Node lê o memo `fsz` (cache persistido); o Rust
-  // não tem esse cache, então o record precisa gravar a lista que FOI USADA,
-  // mesmo quando ela veio do cache e não de uma leitura nova do debrid.
-  if (list) frozen.recordFileSizes(infoHash, list);
   return list;
 }
 

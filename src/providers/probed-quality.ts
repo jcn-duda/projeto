@@ -6,7 +6,6 @@ import { peekFileSizes } from '../debrid/file-sizes.js';
 import { pickFile, baseName } from '../debrid/file-selector.js';
 import { peekVideoQuality, scheduleVideoProbe } from '../debrid/video-quality.js';
 import * as metrics from '../utils/metrics.js';
-import * as frozen from '../utils/stream-frozen.js';
 
 type WorkHintInput = { n: string[]; y: number | null } | null | undefined;
 
@@ -103,11 +102,6 @@ function stampProvenQuality(
     return { ...item, provenQuality: proof.quality };
   });
   if (stamped) metrics.count('search.proof.stamped', stamped);
-  // Captura congelada: grava a prova quando a ROTA roda dentro de uma captura
-  // (`frozenDir` no contexto). O caminho normal de shadow não herda o dir da
-  // 2ª request — quem grava o mapa nesse caso é o `applyProbedQuality` do build
-  // do Node; aqui é a rede de segurança para o caminho index-served.
-  frozen.recordProvenQualities(out);
   return out;
 }
 
@@ -168,10 +162,6 @@ function applyProbedQuality(
     }
     return item;
   });
-  // Gate congelado: `out` é o lote que o build REALMENTE usa — a prova do
-  // `releaseIndex` (que passou por aqui) mais a sonda acima. Grava hash →
-  // qualidade porque o índice/lote gravado antes disso não a carrega.
-  frozen.recordProvenQualities(out);
   return out;
 }
 
