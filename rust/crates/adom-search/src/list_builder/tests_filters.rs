@@ -426,8 +426,8 @@ fn hash_quebrado_na_conta_sai_antes_da_checagem() {
 }
 
 /// F4.4a — a MESMA poda, agora com a evidência lida do `cache.db` pela fonte
-/// injetada (`STREAM_BAD_RUST`): com coleta/índice nativos o item não passa
-/// pela rota de evidência do Node, então o `broken` não vem no item.
+/// injetada: com coleta/índice nativos o item não passa pela rota de evidência
+/// do Node, então o `broken` não vem no item.
 #[test]
 fn broken_hashes_da_conta_cortam_mesmo_sem_marca_no_item() {
     let mut ctx = base_ctx();

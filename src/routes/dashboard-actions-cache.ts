@@ -14,7 +14,7 @@
 //
 // A limpeza do nativo é best-effort e o resultado vai no campo `native` da
 // resposta: o operador tem que VER que o SWR do corte não foi limpo (gateway
-// antigo/sem a rota, `STREAM_STORE_RUST=off`) em vez de supor que foi.
+// antigo/sem a rota, ou ponte em backoff) em vez de supor que foi.
 import type { AppServices } from './types.js';
 import type express from 'express';
 import { streamsCacheScope } from '../utils/request-key.js';

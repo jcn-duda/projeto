@@ -263,8 +263,8 @@ pub fn build_stream_list(
     // 6b. `pruneKnownBroken` (F4.4a): o histórico `bad`/`lie` desta conta sai
     //     AQUI, antes da checagem do debrid — a mesma marca `broken` que a rota
     //     de evidência do Node põe no item, só que vinda do `cache.db` lido
-    //     pela fonte injetada (`STREAM_BAD_RUST`). Sem fonte o conjunto é vazio
-    //     e o funil segue idêntico ao do corpus.
+    //     pela fonte injetada. Sem fonte o conjunto é vazio e o funil segue
+    //     idêntico ao do corpus.
     if !ctx.broken_hashes.is_empty() {
         for stream in &mut mapped {
             let known_broken = stream

@@ -258,8 +258,8 @@ pub struct BuildContext {
     pub files_at_build: Option<BTreeMap<String, Vec<DebridFile>>>,
     pub totals_at_build: Option<BTreeMap<String, f64>>,
     /// Hashes que o PLAY desta conta já provou quebrados (`bad`/`lie` do banco
-    /// de magnets, lidos do `cache.db` pelo gateway — `STREAM_BAD_RUST`). Vazio
-    /// = sem fonte: o build não poda nada além do `broken` que vem no item.
+    /// de magnets, lidos do `cache.db` pelo gateway). Vazio = sem fonte: o build
+    /// não poda nada além do `broken` que vem no item.
     pub broken_hashes: HashSet<String>,
     /// Relógio da build (ms desde a época).
     pub now_ms: i64,

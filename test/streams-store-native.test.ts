@@ -3,10 +3,10 @@
 // O SWR do corte é do gateway Rust: estes testes provam que o Node (a) invalida
 // por obra no store nativo quando o play falha, (b) limpa tudo/só a instalação
 // no `clear-cache`, (c) lê o ledger nativo no `/stream-trace.json` e (d) não
-// deixa de fazer o caminho antigo quando a ponte está desligada ou fora do ar.
+// deixa de fazer o caminho antigo quando a ponte está fora do ar.
 //
-// A suíte pina `STREAM_STORE_RUST=off` no `setup-env` (hermetismo): quem liga a
-// ponte é o `beforeEach` local, com a URL apontada para o dublê de fetch.
+// A ponte não tem interruptor por env: o `beforeEach` aponta a URL para o
+// dublê de fetch (o `setup-env` pina uma porta fechada para o resto da suíte).
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -29,7 +29,6 @@ const URL_BASE = 'http://127.0.0.1:8711';
 const TOKEN = 'token-da-ponte';
 
 type Saved = {
-  rust: boolean;
   url: string;
   token: string;
   timeoutMs: number;
@@ -42,7 +41,6 @@ let savedToken: string;
 beforeEach(() => {
   savedConfig = { ...config.streamStore };
   savedToken = config.jackett.testToken;
-  config.streamStore.rust = true;
   config.streamStore.url = URL_BASE;
   config.streamStore.token = '';
   config.streamStore.timeoutMs = 500;
@@ -118,21 +116,23 @@ test('clear com escopo de instalação manda o sufixo do segmento', async () => 
   }
 });
 
-test('ponte desligada não chama nada e o caminho antigo continua', async () => {
-  config.streamStore.rust = false;
-  const stub = stubFetch(() => fakeResponse({ ok: true }));
+test('ponte fora do ar não impede a invalidação do L1 do Node', async () => {
+  const stub = stubFetch(() => {
+    throw new Error('conexão recusada');
+  });
   try {
     const key = `${prefix('streams')}movie:tt123:{"m":2}:account:abc`;
     cache.set(key, { streams: [] }, 60);
     const cleared = invalidateStreamsForObra('tt123');
     assert.equal(cleared, 1, 'o L1 do Node continua sendo invalidado');
     assert.equal(cache.get(key), null);
+    await flushNativeStreamStores();
+    assert.equal(stub.calls.length, 1, 'a ponte tentou e falhou em silêncio');
+
     const result = await clearNativeStreams();
-    assert.equal(result.attempted, false);
+    assert.equal(result.attempted, true, 'a falha de rede é tentativa, não desligamento');
     assert.equal(result.ok, false);
-    assert.match(String(result.error), /STREAM_STORE_RUST=off/);
-    assert.equal(await fetchNativeStreamTrace('movie', 'tt123'), null);
-    assert.equal(stub.calls.length, 0);
+    assert.match(String(result.error), /conexão recusada/);
   } finally {
     stub.restore();
   }

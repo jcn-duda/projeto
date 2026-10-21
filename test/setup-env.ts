@@ -81,13 +81,12 @@ process.env.MAX_STREAMS_480P = '6';
 process.env.MAX_STREAMS_SD = '6';
 process.env.MAX_STREAMS_UNKNOWN = '6';
 
-// Fronteira do store NATIVO de `streams:v21` (F4.4a). Em produção a ponte nasce
-// LIGADA (o corte é o default e o Node precisa invalidar/limpar/ler o
-// `streams.db`); na suíte ela fica DESLIGADA para o verde não depender de um
-// gateway local nem de porta aberta — os testes da ponte
-// (`test/streams-store-native.test.ts`) ligam no `beforeEach` e apontam a URL
-// para o dublê de fetch.
-process.env.STREAM_STORE_RUST = 'off';
+// Fronteira do store NATIVO de `streams:v21` (F4.4a). A ponte é incondicional
+// (não há mais flag de rollback), então o hermetismo vem do ENDEREÇO: a suíte
+// pina uma porta fechada em loopback, onde a falha é imediata e nenhum teste
+// depende de um gateway local nem de porta aberta — os testes da ponte
+// (`test/streams-store-native.test.ts`) apontam a URL para o dublê de fetch.
+process.env.STREAM_STORE_ADMIN_URL = 'http://127.0.0.1:1';
 
 // F4.6: o default do CORTE (compose) liga a checagem nativa da AllDebrid e
 // aposenta a rota `/internal/debrid/check` (410). A suíte fixa os três em OFF

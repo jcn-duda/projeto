@@ -15,8 +15,7 @@
 //! (`DEBRID_ALIVE_AS_CACHE`) e não é prune.
 //!
 //! A conexão é READ-ONLY: o dono da escrita é o Node. Falha de abertura vira
-//! `Err` e o gateway segue sem a fonte (`STREAM_BAD_RUST` degrada, nunca derruba
-//! a busca).
+//! `Err` e o gateway segue sem a fonte (degrada, nunca derruba a busca).
 
 use std::collections::HashSet;
 use std::path::Path;

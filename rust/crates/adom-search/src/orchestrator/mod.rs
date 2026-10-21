@@ -183,7 +183,7 @@ pub struct Orchestrator {
     index: Option<SharedIndex>,
     /// Banco de magnets nativo (`BANK_RUST=on`); `None` = Node.
     bank: Option<SharedBank>,
-    /// Evidência `bad`/`lie` do banco de magnets da conta (`STREAM_BAD_RUST`);
+    /// Evidência `bad`/`lie` do banco de magnets da conta (fonte do gateway);
     /// `None` = sem fonte (build igual ao de antes do F4.4a).
     known_broken: Option<Arc<dyn KnownBroken>>,
 }

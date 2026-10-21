@@ -22,9 +22,9 @@
 //! | `GET /streams/trace?type=&id=[&key=]` | ledger da obra (o `/stream-trace.json`) |
 //! | `GET /streams/stats` | ocupação/cota (diagnóstico e teste) |
 //!
-//! Kill-switch: `STREAM_STORE_RUST=off|false|0` não sobe a superfície e o
-//! gateway deixa de injetar a leitura de `bad`/`lie` (`STREAM_BAD_RUST`) — o
-//! Node volta a ser o único dono de invalidação/limpeza (comportamento F4.4).
+//! A superfície sobe SEMPRE que o corte nativo está de pé: não há rollback por
+//! env. Desligá-la exigiria o Node voltar a ser o dono único de invalidação e o
+//! gateway a não injetar `bad`/`lie` — o que é imagem/commit anterior, não flag.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -43,10 +43,6 @@ use adom_store::StreamsStore;
 pub const LISTEN_ENV: &str = "STREAM_STORE_ADMIN_LISTEN";
 /// Token próprio; cai para `DEBRID_INTERNAL_TOKEN` e `JACKETT_TEST_TOKEN`.
 pub const TOKEN_ENV: &str = "STREAM_STORE_ADMIN_TOKEN";
-/// Flag do lado nativo (o Node espelha a mesma).
-pub const FLAG_ENV: &str = "STREAM_STORE_RUST";
-/// Flag da leitura de `bad`/`lie` no build (rollback independente).
-pub const BAD_ENV: &str = "STREAM_BAD_RUST";
 
 pub const DEFAULT_LISTEN: &str = "127.0.0.1:8711";
 
@@ -57,35 +53,9 @@ pub struct AdminConfig {
     pub token: String,
 }
 
-/// `STREAM_STORE_RUST`: default LIGADO (o corte é o default desde o F4.4).
-/// Só `off`/`false`/`0`/`no`/`disabled` desliga.
-pub fn stream_store_rust_enabled() -> bool {
-    match std::env::var(FLAG_ENV) {
-        Ok(raw) => {
-            let value = raw.trim().to_ascii_lowercase();
-            !matches!(value.as_str(), "off" | "false" | "0" | "no" | "disabled")
-        }
-        Err(_) => true,
-    }
-}
-
-/// `STREAM_BAD_RUST`: default LIGADO; rollback separado da invalidação.
-pub fn stream_bad_rust_enabled() -> bool {
-    match std::env::var(BAD_ENV) {
-        Ok(raw) => {
-            let value = raw.trim().to_ascii_lowercase();
-            !matches!(value.as_str(), "off" | "false" | "0" | "no" | "disabled")
-        }
-        Err(_) => true,
-    }
-}
-
-/// Endereço + token. `None` = superfície desligada (flag off).
-pub fn config_from_env() -> Result<Option<AdminConfig>, String> {
-    if !stream_store_rust_enabled() {
-        eprintln!("[gateway] STREAM_STORE_RUST=off: API do streams.db desligada");
-        return Ok(None);
-    }
+/// Endereço + token. A superfície sobe sempre; só `Err` (endereço inválido ou
+/// fora de loopback) impede o bind.
+pub fn config_from_env() -> Result<AdminConfig, String> {
     let listen = std::env::var(LISTEN_ENV)
         .ok()
         .map(|raw| raw.trim().to_string())
@@ -98,10 +68,10 @@ pub fn config_from_env() -> Result<Option<AdminConfig>, String> {
         return Err(format!("API do streams.db só escuta em loopback: {listen}"));
     }
     let token = token_from_env();
-    Ok(Some(AdminConfig {
+    Ok(AdminConfig {
         listen: addr,
         token,
-    }))
+    })
 }
 
 /// `STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` → `JACKETT_TEST_TOKEN`.

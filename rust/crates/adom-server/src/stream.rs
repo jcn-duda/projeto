@@ -193,19 +193,15 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
     // F4.4a — `bad`/`lie` do banco de magnets da conta lidos DIRETO do
     // `cache.db` (namespace `mag:v1`). Com coleta/índice nativos o item não
     // passa pela rota de evidência do Node, e sem esta fonte hash que o play
-    // provou quebrado voltava à lista até o TTL. Rollback: `STREAM_BAD_RUST=off`.
-    if crate::store_admin::stream_bad_rust_enabled() {
-        match adom_store::MagnetDbStore::from_env() {
-            Ok(store) => {
-                eprintln!(
-                    "[gateway] poda bad/lie do cache.db (STREAM_BAD_RUST=on; rollback: STREAM_BAD_RUST=off)"
-                );
-                orch = orch.with_known_broken(Arc::new(store));
-            }
-            Err(err) => eprintln!(
-                "[gateway] cache.db indisponível para bad/lie ({err}); build segue sem a poda nativa"
-            ),
+    // provou quebrado voltava à lista até o TTL.
+    match adom_store::MagnetDbStore::from_env() {
+        Ok(store) => {
+            eprintln!("[gateway] poda bad/lie do cache.db ativa (mag:v1)");
+            orch = orch.with_known_broken(Arc::new(store));
         }
+        Err(err) => eprintln!(
+            "[gateway] cache.db indisponível para bad/lie ({err}); build segue sem a poda nativa"
+        ),
     }
     wire_native_index(orch)
 }

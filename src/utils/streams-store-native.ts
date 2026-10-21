@@ -12,8 +12,8 @@
 // curto, porque nenhuma dessas operações pode derrubar busca ou play. O
 // caminho antigo (limpar só o L1 do Node) continua valendo sempre.
 //
-// Import de `config` só para a flag/URL/token — nenhum ciclo: `config` não
-// conhece este módulo.
+// Import de `config` só para endereço/token/backoff — nenhum ciclo: `config`
+// não conhece este módulo.
 import config from '../config.js';
 import * as metrics from './metrics.js';
 import * as log from './logger.js';
@@ -30,6 +30,7 @@ export type NativeStreamTrace = {
 };
 
 export type NativeClearResult = {
+  /** `false` = a ponte nem tentou (backoff, ou escopo fora do store nativo). */
   attempted: boolean;
   ok: boolean;
   removed: number;
@@ -46,14 +47,9 @@ function settings() {
   return config.streamStore;
 }
 
-/** A ponte está ligada? (flag do operador; o Rust lê a MESMA env) */
-function enabled(): boolean {
-  return settings().rust !== false;
-}
-
-/** Ligada E fora do backoff de falha. */
+/** Fora do backoff de falha (não existe mais interruptor por env). */
 function available(now = Date.now()): boolean {
-  return enabled() && now >= blockedUntil;
+  return now >= blockedUntil;
 }
 
 function baseUrl(): string {
@@ -166,7 +162,6 @@ export function invalidateNativeStreamsForHash(infoHash: string): void {
  * Devolve o resultado para o painel relatar; nunca lança.
  */
 export async function clearNativeStreams(options: { suffix?: string } = {}): Promise<NativeClearResult> {
-  if (!enabled()) return { attempted: false, ok: false, removed: 0, error: 'STREAM_STORE_RUST=off' };
   if (!available()) {
     return { attempted: false, ok: false, removed: 0, error: 'ponte em backoff após falhas' };
   }
@@ -194,15 +189,15 @@ export function clearNativeStreamsSoon(options: { suffix?: string } = {}): void 
 /**
  * Ledger + estado da entrada da obra no store nativo. `key` (a mesma
  * `streamsCacheKey` do Node) tenta a chave EXATA; o Rust cai para a build mais
- * recente da obra quando ela não existe. `null` = ponte desligada/fora do ar ou
- * obra ausente — quem chama segue o caminho antigo.
+ * recente da obra quando ela não existe. `null` = ponte fora do ar ou obra
+ * ausente — quem chama segue o caminho antigo.
  */
 export async function fetchNativeStreamTrace(
   type: string,
   id: string,
   key?: string,
 ): Promise<NativeStreamTrace | null> {
-  if (!enabled() || !available()) return null;
+  if (!available()) return null;
   const query = new URLSearchParams({ type, id });
   if (key) query.set('key', key);
   try {
@@ -226,13 +221,13 @@ export async function flushNativeStreamStores(): Promise<void> {
 }
 
 /** Estado do backoff (diagnóstico/painel). */
-export function nativeStreamStoreStatus(): { enabled: boolean; available: boolean; failures: number; blockedUntil: number } {
-  return { enabled: enabled(), available: available(), failures, blockedUntil };
+export function nativeStreamStoreStatus(): { available: boolean; failures: number; blockedUntil: number } {
+  return { available: available(), failures, blockedUntil };
 }
 
 /**
  * Zera a memória do módulo (testes): backoff, contador de falhas e fila. Não
- * mexe em config — a flag/URL continuam vindo do `config`.
+ * mexe em config — endereço/token continuam vindo do `config`.
  */
 export function resetNativeStreamStore(): void {
   failures = 0;

@@ -130,9 +130,7 @@ fn spawn_store_admin(stores: &stream::StreamStores, grace_seconds: u64) {
         return;
     };
     let cfg = match crate::store_admin::config_from_env() {
-        Ok(Some(cfg)) => cfg,
-        // Flag desligada: o Node volta a ser o único dono (F4.4).
-        Ok(None) => return,
+        Ok(cfg) => cfg,
         Err(err) => {
             eprintln!("[gateway] {err}; API do streams.db não sobe");
             return;
