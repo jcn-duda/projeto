@@ -85,6 +85,7 @@ version = "0.1.0"
 dependencies = [
  "adom-core",
  "adom-crawl",
+ "adom-index",
  "napi",
  "napi-build",
  "napi-derive",

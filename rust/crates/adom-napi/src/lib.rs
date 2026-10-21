@@ -54,6 +54,8 @@ mod autofetch;
 mod bank;
 mod cache;
 mod catalog;
+mod idx_store;
+pub use idx_store::{BankRowInput, IdxStore, RecordOptionsInput};
 mod crawl;
 mod debrid;
 mod debrid_cache;
