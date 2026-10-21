@@ -424,3 +424,51 @@ fn hash_quebrado_na_conta_sai_antes_da_checagem() {
         "o hash quebrado não pode ocupar vaga nem ir ao debrid"
     );
 }
+
+/// F4.4a — a MESMA poda, agora com a evidência lida do `cache.db` pela fonte
+/// injetada (`STREAM_BAD_RUST`): com coleta/índice nativos o item não passa
+/// pela rota de evidência do Node, então o `broken` não vem no item.
+#[test]
+fn broken_hashes_da_conta_cortam_mesmo_sem_marca_no_item() {
+    let mut ctx = base_ctx();
+    let quebrado = "cc03000000000000000000000000000000000003";
+    let bom = "dd04000000000000000000000000000000000004";
+    ctx.broken_hashes = [quebrado.to_string()].into_iter().collect();
+    let opts = BuildOptions::default();
+    let mut debrid = StubDebrid::none();
+    let out = build(
+        vec![
+            RawItem {
+                is_br: true,
+                ..release("Filme.Teste.2024.1080p.BluRay.DUBLADO", quebrado)
+            },
+            RawItem {
+                is_br: true,
+                ..release("Filme.Teste.2024.720p.BluRay.DUBLADO", bom)
+            },
+        ],
+        &ctx,
+        &opts,
+        &mut debrid,
+    );
+    let hashes: Vec<_> = out
+        .streams
+        .iter()
+        .filter_map(|s| s.item.info_hash.as_deref())
+        .collect();
+    assert_eq!(hashes, [bom], "bad/lie da conta cortam antes da checagem");
+
+    // Conjunto vazio (sem fonte) não poda nada: a régua antiga continua.
+    let mut sem_fonte = base_ctx();
+    sem_fonte.broken_hashes.clear();
+    let out = build(
+        vec![RawItem {
+            is_br: true,
+            ..release("Filme.Teste.2024.1080p.BluRay.DUBLADO", quebrado)
+        }],
+        &sem_fonte,
+        &opts,
+        &mut StubDebrid::none(),
+    );
+    assert_eq!(out.streams.len(), 1, "sem fonte o hash não é cortado");
+}
