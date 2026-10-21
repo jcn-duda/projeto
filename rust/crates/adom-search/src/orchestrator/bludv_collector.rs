@@ -64,7 +64,7 @@ pub fn try_bludv_collector_from_env_with_store(
     }
 }
 
-/// Collector que raspa o WordPress BLUDV (sem POST `/internal/search/collect`).
+/// Collector que raspa o WordPress BLUDV (sem rota interna de coleta).
 pub struct BludvCollector {
     client: BludvClient,
 }

@@ -1,5 +1,6 @@
-//! Estado vivo POR indexer de UMA coleta — o snapshot do `collectRaw` que o
-//! Node devolve em `POST /internal/search/collect` (`live.snapshot()`).
+//! Estado vivo POR indexer de UMA coleta — o snapshot do `collectRaw` do Node
+//! (que a rota interna de coleta devolvia antes da R5; hoje o coletor nativo
+//! preenche).
 //!
 //! É o transporte do contrato de `src/providers/live-indexer-state.ts` para o
 //! orquestrador, com as réguas que o `clearInstantSnapshots`/fallback do Node

@@ -17,8 +17,8 @@
 //!
 //! **Feed de holds (AllDebrid):** o hold volátil do autofetch mora no Node, e a
 //! limpeza nativa exige `holds_complete` + inventário. Com `DEBRID_AL_HOLDS=on`
-//! (default OFF) o seam pergunta os fatos à rota interna
-//! `/internal/debrid/holds` ANTES da checagem nativa e os entrega ao
+//! (default OFF no código, ON no compose) o seam pergunta os fatos à rota
+//! interna `/internal/debrid/holds` ANTES da checagem nativa e os entrega ao
 //! `verdict`. Sem resposta, conta divergente ou cobertura incompleta a nativa
 //! segue READ-ONLY — nunca "completa" por omissão. O feed só vale com
 //! `DEBRID_AL_CLEANUP=on`.
@@ -91,8 +91,8 @@ pub struct AdapterDebridCheck {
     pub timeout: Option<Duration>,
     /// Ledger do RD (`rdc:v2`); `None` deixa todo hash `Unknown`.
     pub store: Option<std::sync::Arc<Store>>,
-    /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF). Só a
-    /// AllDebrid com `DEBRID_AL_CLEANUP=on` o consulta.
+    /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF no código e
+    /// ON no compose). Só a AllDebrid com `DEBRID_AL_CLEANUP=on` o consulta.
     pub holds: Option<std::sync::Arc<dyn HoldsFeed>>,
     /// Stub de teste: substitui a checagem nativa (sem rede).
     #[cfg(test)]

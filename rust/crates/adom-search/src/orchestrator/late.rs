@@ -214,10 +214,10 @@ impl Orchestrator {
     }
 
     /// Efeitos de cauda: `dub_audit` + warmer (decididos na passada mais nova)
-    /// e o episódio seguinte da série com play. `EFFECTS_RUST` default OFF — o
-    /// pipeline de debrid do Node continua sendo quem enfileira, e ligar os
-    /// dois duplicaria a emissão. Fire-and-forget: quem já recebeu a lista não
-    /// depende disto, e falha só vira log.
+    /// e o episódio seguinte da série com play. `EFFECTS_RUST` default ON no
+    /// `from_env` (`off` é o rollback) — o Node só executa as filas.
+    /// Fire-and-forget: quem já recebeu a lista não depende disto, e falha só
+    /// vira log.
     async fn emit_effects(
         &self,
         input: &SearchInput,

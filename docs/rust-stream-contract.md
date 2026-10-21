@@ -1,14 +1,17 @@
 # Contrato do `/stream` — o que o orquestrador Rust precisa reproduzir
 
 Status: **contrato F0 fixado** a partir do TypeScript. Desde o **F4.4** o corte
-nativo é o **PADRÃO** (`GATEWAY=on`, `ROUTES_RUST=stream` no
-`docker-compose.yml`): o pipeline TS de busca saiu e o `/stream` do Node
-responde **410** no modo gateway (**503** sem gateway). A sombra
-(`ROUTES_RUST=stream-shadow`) e o canário congelados do §9.4/§9.5 ficam como
-**instrumentos históricos** — a referência era o `/stream` do Node, que não
-existe mais; o gate vigente é o corpus congelado
-(`cargo test -p adom-search --test stream_frozen_parity`, 16/16) e o corpus
-e2e 51/51 (`--test stream_e2e_parity`). Nada nos §§1–8 é proposta: cada
+nativo é o **PADRÃO** e, desde o **R8**, é **fixo**: `GATEWAY=on` e
+`ROUTES_RUST=stream` moram no `docker-compose.yml` e o `entrypoint.sh` sempre
+sobe o gateway (7000) com o Node na 7100. O pipeline TS de busca saiu e o
+`/stream` do Node responde **410** (503 só no diagnóstico de proxy com
+`ROUTES_RUST` vazio/`health`). As seções §9.4/§9.5 (sombra e canário) são
+**histórico**: o código e as flags (`stream-shadow`, `STREAM_SHADOW_MODE`,
+`STREAM_CANARY_*`, `STREAM_FROZEN_*`) foram **removidos no R1**, porque a
+referência era o `/stream` do Node, que não existe mais. O gate vigente é o
+corpus congelado (`cargo test -p adom-search --test stream_frozen_parity`,
+16/16) e o corpus e2e 51/51 (`--test stream_e2e_parity`). Rollback de qualquer
+fatia é commit/imagem anterior, não env. Nada nos §§1–8 é proposta: cada
 afirmação tem `arquivo:linha` do fonte real. O orquestrador vive em
 [`rust/crates/adom-search`](../rust/crates/adom-search/src/lib.rs); a fachada
 que corta a rota é [`adom-server`](../rust/crates/adom-server/src/stream.rs).
@@ -22,31 +25,42 @@ regras que mais quebram.
 
 ---
 
-## 0. Estado operacional (F4.4 — corte nativo é o padrão)
+## 0. Estado operacional (F4.4 — corte nativo é o padrão; R8 — fixo)
 
 ### 0.1 Compose padrão e override de diagnóstico
 
-O **compose padrão** já sobe o gateway (`docker-compose.yml`):
+O **compose padrão** já sobe o gateway (`docker-compose.yml`), sem modo
+configurável:
 
-| Env | Default | Papel |
+| Env | Valor | Papel |
 |---|---|---|
-| `GATEWAY` | `on` | `adom-server` na 7000; Node atrás na 7100 |
-| `ROUTES_RUST` | `stream` | corte nativo do `/stream` |
+| `GATEWAY` | `on` (fixo) | `adom-server` na 7000; Node atrás na 7100 |
+| `ROUTES_RUST` | `stream` (fixo) | corte nativo do `/stream` |
 | `RESOLVE_RUST` | `off` | play nativo por debrid no `/resolve` (§0.8); OFF = Node |
-| `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | meta/collect/tail e reserva de debrid — **nunca** `:7000` (a fachada recusa `/internal/*`) |
+| `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | rotas internas (meta/effects/holds) — **nunca** `:7000` (a fachada recusa `/internal/*`) |
 
-O `docker-compose.gateway.yml` virou **diagnóstico/rollback** (publica o Node
-em `127.0.0.1:7100`); ele **não** é mais necessário para ligar o nativo.
-Rollback por env existe para cada fatia (`SOURCES_RUST=`, `META_RUST=off`,
-`ACCOUNT_RUST=off`, `INDEX_RUST=off`, `BANK_RUST=off`, `EFFECTS_RUST=off`,
-`DEBRID_AL_RUST=off`), mas o rollback **funcional do corte** é a
-imagem/commit anterior com `GATEWAY=off`: sem o pipeline TS, `GATEWAY=off`
-deixa o `/stream` do Node em 503.
+O `entrypoint.sh` **sempre** inicia o gateway; binário ausente é erro fatal. O
+`docker-compose.gateway.yml` é **só diagnóstico**: publica o Node em
+`127.0.0.1:7100` e não muda flag nenhuma. `ROUTES_RUST=` (vazio) e
+`ROUTES_RUST=health` continuam como **diagnóstico do proxy** (o gateway só
+encaminha; nesse caso o `/stream` do Node responde 503) — não são modo de
+busca.
 
-Desde o **F4.6** a checagem/limpeza da AllDebrid também é nativa por default
-(`DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` no compose) e a
-rota Node `/internal/debrid/check` responde **410**; `DEBRID_AL_RUST=off` é o
-rollback de uma linha dessa fatia (a rota volta a responder). Contrato em
+Rollback de **todas** as fatias (fontes, conta, índice, banco, metadados,
+AllDebrid, store, trace, crawl) é **commit/imagem anterior**. As flags de
+rollback por env (`SOURCES_RUST`, `ACCOUNT_RUST`, `INDEX_RUST`, `BANK_RUST`,
+`META_RUST`, `DEBRID_AL_RUST`, `STREAM_STORE_RUST`, `STREAM_BAD_RUST`,
+`STREAM_SHADOW_MODE`, `STREAM_CANARY_*`, `STREAM_FROZEN_*`, `GATEWAY=off`,
+`ROUTES_RUST=stream-shadow`) **não existem mais**. Continuam existindo só os
+knobs que ainda governam comportamento vivo: `EFFECTS_RUST=off` (default ON —
+desliga a emissão de efeitos, ver
+[`rust-effects-contract.md`](rust-effects-contract.md)) e `RESOLVE_RUST=on`
+(default OFF, §0.8).
+
+**R3**: a checagem/limpeza da AllDebrid é nativa e incondicional; a rota Node
+`/internal/debrid/check` foi apagada. `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP`
+FICAM como kill-switches das varreduras **destrutivas** (default do código OFF,
+compose ON): sem holds/inventário a nativa é read-only. Contrato em
 [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
 
 Desde o **F4.7** o play por debrid também existe no gateway, atrás de
@@ -55,9 +69,8 @@ proxy como rollback). HMAC, `pickFile`, adaptadores e status/texto de erro são
 os do Node; efeitos L1 (`magnetdb`/`davail`/invalidação/ledger) continuam no
 Node. Detalhe e limites no §0.8.
 
-O canário `STREAM_CANARY_PERCENT` (§9.5) e a sombra continuam no binário como
-instrumentos **históricos**: com `ROUTES_RUST` contendo `stream-shadow` o
-gateway avisa e a comparação não tem referência. Não os use como gate.
+Sombra e canário são **histórico** (§9): o código saiu no R1 e não há
+instrumento de comparação no binário.
 
 ### 0.2 Debrid com herança do `.env`
 
@@ -70,22 +83,27 @@ commit `dd9330c4`). Sem isso o orquestrador caía em `NoDebridCheck` (lista só
 smoke Docker com chave só no `.env` depende dessa herança (não confundir
 com aceite de paridade BR).
 
-### 0.3 Collect: nativo por default (F4.4); Node no rollback
+### 0.3 Collect: nativo e incondicional (F4.4; R5)
 
-- Default do corte (F4.4): `SOURCES_RUST` **ausente = as cinco fontes** no Rust.
-  Meta/índice/banco também são nativos por default; as rotas internas
-  (`POST /internal/search/*`) continuam existindo como **fallback/rollback**
-  (`SOURCES_RUST=` vazio, `META_RUST=off`, `INDEX_RUST=off`, `BANK_RUST=off`).
-  Elas precisam de `JACKETT_TEST_TOKEN` + `INTERNAL_SEARCH_URL`.
-- `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV, case-insensitive):
-  **composição** — cada fonte listada coleta no Rust e o `NodeCollector` roda o
-  resto com `skip_sources` (as fontes já migradas, que o Node pula no
-  `/internal/search/collect`).
+- As **cinco fontes** (jackett, prowlarr, torrentio, bludv, mico) e o
+  inventário da conta rodam no Rust, sem flag: `SOURCES_RUST`/`ACCOUNT_RUST` e
+  o `NodeCollector` (com `skip_sources` e `POST /internal/search/collect`)
+  saíram no R5. Gateway sem **nenhuma** fonte nativa montada é **erro de
+  boot**.
+- Metadados: o nativo é a fonte primária e o Node é **fallback vivo** por
+  `POST /internal/search/meta` (R6) — a taxa de fallback ainda não foi medida.
+- Índice e banco são nativos (R4). Falha ao abrir `idx:v14`/`magnets.db`
+  degrada **sem índice** (log `[search]`, métrica `index.rust.source_missing`),
+  nunca cai no Node.
+- `EFFECTS_RUST` (default ON) e o feed de holds são os únicos caminhos em que o
+  orquestrador ainda chama o Node.
 
 ### 0.3.1 Prova de arquivo/qualidade no item (`provenQuality`)
 
-As rotas internas devolvem o item JÁ com a prova que o build do Node usa, e é
-por aí que ela chega ao orquestrador — não há campo/rota extra no protocolo:
+A prova viaja **no próprio item** (`RawItem`), não há campo/rota extra no
+protocolo; no corte quem a popula é a via nativa do índice/banco (as rotas Node
+saíram no R4). Os nomes TS abaixo são os da derivação original, mantidos como
+referência do contrato:
 
 - `provenAudio`/`provenName` — `applyFileEvidence` (evidência do `releaseIndex`);
 - `provenQuality` — `stampProvenQuality` (`fsz` + `pickFile` + nome do arquivo
@@ -123,8 +141,8 @@ títulos de pack podem divergir do Node (gap de contrato).
 
 ### 0.3.3 Aviso de coleta vazia no comparador
 
-Expected sem streams ou só com avisos não é comparável (§9.4 item 6): a sombra
-**pula** (não conta `compared` nem `divergence`) — a 2ª request congelada pode
+Expected sem streams ou só com avisos não é comparável (§9.4 item 6, histórico):
+a comparação **pula** (não conta `compared` nem `divergence`) — a 2ª request congelada pode
 herdar a coleta vazia/parcial da original enquanto a captura tem o lote. O
 envelope do aviso **perde o campo `notice`** (vira `{name, externalUrl:
 ".../configure"}`), então o reconhecimento é por flag, pelo texto
@@ -134,8 +152,9 @@ transiente e a captura já é a melhor evidência do build.
 
 ### 0.3.4 Cache hermético: o veredito vem do `apply-debrid.json`
 
-O `debrid.json` da captura pode ser de OUTRA chamada (a rota
-`/internal/debrid/check`, com a conta em quota) e o replay então marcava
+O `debrid.json` da captura pode ser de OUTRA chamada (na época, a rota Node
+`/internal/debrid/check`, hoje apagada — a checagem é nativa desde o R3 —, com a
+conta em quota) e o replay então marcava
 `[AD download]` onde o expected mostra `[AD⚡]`. O veredito POR HASH passa a sair
 do `apply-debrid.json` — o `name` aplicado é o veredito final que gerou o
 expected: `⚡` = em cache, prefixo `[` sem `⚡` = fora do cache com link do
@@ -143,15 +162,15 @@ debrid, sem prefixo = P2P. A sobreposição só vale quando o lote tem algum `�
 (evidência de cache fresco); sem isso vale o `debrid.json`/`calls` — capturas
 antigas do corpus não têm `⚡` e não mudam.
 
-### 0.4 Store SWR: `STREAMS_DB` no nativo; memória na sombra
+### 0.4 Store SWR: `STREAMS_DB` no nativo
 
 | Modo | Store | Path |
 |---|---|---|
-| `ROUTES_RUST=stream` | `StreamsStore` (SQLite) → fallback memória se abrir falhar → último recurso `MemorySwrStore` | `STREAMS_DB` ou default `data/streams.db` (volume `docker-data/addon`) |
-| `ROUTES_RUST=stream-shadow` | **sempre** `MemorySwrStore` fresco | nunca abre `STREAMS_DB` (hit/DELETE no SQLite do nativo furaria o compare-only) |
+| corte (`ROUTES_RUST=stream`) | `StreamsStore` (SQLite) → fallback memória se abrir falhar → último recurso `MemorySwrStore` | `STREAMS_DB` ou default `data/streams.db` (volume `docker-data/addon`) |
 
-Sombra: `shadow_mode` (não grava/promove/tail em fundo) + `NoDebridFactory` +
-`NoopTailEffects` — só observa.
+A antiga sombra usava um `MemorySwrStore` fresco só para não furar o
+compare-only (hit/DELETE no SQLite do nativo). Com a sombra removida no R1,
+esse caminho não existe mais.
 
 ### 0.5 Caveat conhecido: 1ª hit a frio
 
@@ -165,21 +184,20 @@ como regressão de matching sem repetir a busca.
 
 ### 0.6 Gap de CI
 
-Nenhum workflow em `.github/workflows/` sobe o override gateway nem fixa
-`ROUTES_RUST=stream` / `stream-shadow`:
+Nenhum workflow em `.github/workflows/` exercita o corte de ponta a ponta:
 
 - `rust.yml` — crates + goldens (sem HTTP do `adom-server` com corte);
-- `docker.yml` — build da imagem (sem `docker-compose.gateway.yml`, sem smoke
-  de `/stream` nativo);
+- `docker.yml` — build da imagem (sem smoke de `/stream` nativo);
 - `ci.yml` — suíte Node.
 
-Validar sombra/corte é **manual/local**. O YAML de CI **não** entra nesta fatia
-docs. Smoke mínimo (override §0.1; Matrix `tt0133093`) — só forma HTTP, **não**
-é aceite de paridade:
+Validar o corte é **manual/local**. O YAML de CI **não** entra nesta fatia
+docs. Smoke mínimo (compose padrão §0.1; Matrix `tt0133093`) — só forma HTTP,
+**não** é aceite de paridade:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.gateway.yml \
-  up -d --build --force-recreate adom
+# O compose padrão já sobe o gateway; o override gateway.yml só publica o Node
+# em 127.0.0.1:7100 (diagnóstico) e não é necessário para este smoke.
+docker compose up -d --build --force-recreate adom
 # aguardar container healthy; depois:
 curl -sf http://127.0.0.1:7000/health                    # {"ok":true} (proxy → Node :7100)
 curl -sf -o /dev/null -w '%{http_code}\n' \
@@ -196,7 +214,8 @@ curl -sf http://127.0.0.1:7000/stream/movie/tt0133093.json | head -c 240
 manifest e que `/stream` devolve **pelo menos um stream tocável**
 (`url`/`infoHash`/`externalUrl`). Conta `dublado` só como detalhe do log —
 **não falha** se BR sumir nem compara cotas/reserva com o Node. Verde no
-script **não** autoriza `ROUTES_RUST=stream` como default.
+script **não** prova paridade BR+cotas: o corte já é o padrão (R8) e o gate é o
+corpus congelado (§0.6 e §9.4 item 5, `npm run parity:frozen` 16/16).
 
 ### 0.8 Play `/resolve`: nativo por debrid atrás de `RESOLVE_RUST` (default OFF)
 
@@ -228,8 +247,8 @@ atrás de `RESOLVE_RUST=on` (default **OFF**):
 - **HMAC/origin:** o payload (`hash + ?s=S&e=E + &w=<hint>`) e a URL relativa
   não mudaram; `manifest` e URLs de play não precisam de bump.
 
-Medido em **2026-10-20** (container `stremio-adom`, `GATEWAY=on`,
-`ROUTES_RUST=stream-shadow`, Node na 7100):
+Medido em **2026-10-20** (container `stremio-adom`, `GATEWAY=on`, Node na 7100,
+com `ROUTES_RUST=stream-shadow` — flag da época, removida no R1):
 
 - `/debrid-status.json` (loopback + `X-Indexer-Test-Token`):
   `{"service":"alldebrid","magnets":977,"ready":972,"active":5,"error":0,"cached":false,"warn":false,"warnAt":4000}`.
@@ -251,8 +270,8 @@ Medido em **2026-10-20** (container `stremio-adom`, `GATEWAY=on`,
   `bytes 0-0/1952177653`. O arquivo é tocável; o bloqueio é o teto de magnets,
   não o link.
 
-O **302** de play real já foi observado nesta sombra com a conta folgada (estado
-do operador, antes de o corpus encher a conta). Nesta medição ele **não** se
+O **302** de play real já foi observado na janela de sombra (histórica) com a
+conta folgada (estado do operador, antes de o corpus encher a conta). Nesta medição ele **não** se
 reproduz: 502 em todas as tentativas. Não prometer play por AllDebrid enquanto o
 teto não for liberado — a prova de play real exige `/resolve` devolvendo **302**
 para um link tocável.
@@ -409,7 +428,8 @@ A ordem do JSON do Node é a da construção do objeto e **varia por variante**:
   viram `undefined` e o `JSON.stringify` os omite);
 - aviso: `name`, `externalUrl` (`stream-builder.ts:356-362`).
 
-O contrato fixa a **forma**, não a ordem: a comparação de sombra mascara ordem de
+O contrato fixa a **forma**, não a ordem: a comparação da sombra (histórica)
+mascarava ordem de
 chaves e ordem da lista (§9). O struct `StreamItem` do crate foi declarado na
 ordem acima para bater byte a byte nas três variantes quando possível
 (`rust/crates/adom-search/src/contract.rs`).
@@ -693,7 +713,14 @@ genérica (nada de stack/segredo).
 
 ---
 
-## 9. Métrica de sombra: `stream.shadow.divergence`
+## 9. Sombra e canário — HISTÓRICO (removidos no R1)
+
+> **Histórico (R1):** sombra e canário foram **removidos do binário**. Não
+> existem mais `stream-shadow`, `STREAM_SHADOW_MODE`, `STREAM_CANARY_*`,
+> `STREAM_FROZEN_*` nem os contadores `stream.shadow.*`/`stream.canary.*`.
+> O gate vigente é o corpus congelado (§0.6; `npm run parity:frozen`, 16/16) e o
+> e2e 51/51 (`--test stream_e2e_parity`). Este §9 fica pela rastreabilidade da
+> janela que autorizou o corte — nada aqui é knob vigente.
 
 ### 9.1 Modo sombra
 
@@ -910,42 +937,43 @@ sem depender de o oráculo Node responder a todas as buscas.
      persistida. O custo da segunda request é real e cresce com o percentual
      (100 % ≈ uma busca fresca por busca do corte).
 
-**Rollback**: `STREAM_CANARY_PERCENT=0` (default) ou
-`STREAM_CANARY_MODE=frozen` + base congelada (o caminho F4.2 continua no
-binário). A rota e a sombra `stream-shadow` não mudam.
+**Rollback (histórico)**: `STREAM_CANARY_PERCENT=0` (default da época) ou
+`STREAM_CANARY_MODE=frozen` + base congelada (o caminho F4.2 existia no
+binário). A rota e a sombra `stream-shadow` não mudavam.
 
 ---
 
-## 10. O que ainda falta / o que já entrou no caminho nativo
+## 10. Estado do caminho nativo e pendências
 
-Estado da Fase F: **sombra default** no override gateway; corte
-`ROUTES_RUST=stream` só experimental. Fonte TS continua a régua. Código Rust
-já responde no caminho nativo quando o token `stream` está ligado — mas isso
-**não** implica aceite: falta paridade BR+cotas (§0.1 / §0.7).
+O corte é o **padrão fixo** desde o R8 (§0.1): `GATEWAY=on` +
+`ROUTES_RUST=stream` no `docker-compose.yml` e o `entrypoint.sh` sempre inicia o
+gateway (7000, Node na 7100). Rollback de qualquer fatia é **commit/imagem
+anterior**, não env. "Feito" abaixo significa no caminho nativo — não é aceite
+de paridade BR+cotas, que é dos gates (§0.6).
 
 | # | Item | Estado |
 |---|---|---|
 | 1 | fatia debrid do `defaults()` do operador no decode | **feito** no gateway (`operator_debrid_defaults_from_env`, `dd9330c4`); selo `dk` / `secret-box` segue no Node no decode completo da URL |
 | 2 | opções na chave (incl. `resolveUncached`) | **feito** no orquestrador (`OrchestratorConfig`) |
-| 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo; `MemorySwrStore` na sombra) |
-| 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | default: `POST /internal/search/meta` (Node); opt-in `META_RUST=on` usa o porte puro (`adom-sources`) com o `cache.db` do Node e Node como fallback; sombra `META_RUST_SHADOW` |
-| 5 | plano / orçamentos de coleta | decisões no núcleo; janela ainda orquestrada com I/O Node |
-| 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | default: `POST /internal/search/collect`; opt-in `SOURCES_RUST=jackett\|prowlarr\|torrentio\|bludv\|mico` (composição: fontes nativas + `NodeCollector` com `skip_sources`; sem `raw:v1` nessa fatia) |
-| 7 | pipeline de build (filtro, ranking, cotas, aviso) | orquestrador/núcleo; **paridade BR+cotas ainda aberta** (bloqueia default do corte) |
-| 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + reserva Node (`INTERNAL_CHECK_URL`); autofetch/efeitos de cauda ainda no Node |
-| 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play nativo por debrid atrás de `RESOLVE_RUST=on` (default OFF, Node é o rollback) |
+| 3 | SWR + graça + coalescing | **feito** (`SwrStore` / `STREAMS_DB` no nativo); o store em memória da sombra saiu no R1 |
+| 4 | metadados Cinemeta/TMDB (+ multiobra / data doméstica) | **nativo como fonte primária** (R6); o Node é **fallback vivo** por `POST /internal/search/meta` — a taxa de fallback ainda não foi medida |
+| 5 | plano / orçamentos de coleta | decisões no núcleo; a janela roda no nativo (R5) |
+| 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | **feito e incondicional** (R5): as cinco fontes e o inventário da conta no Rust; `SOURCES_RUST`, `NodeCollector` e `/internal/search/collect` não existem; sem fonte nativa montada o gateway não sobe |
+| 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador/núcleo; régua no corpus congelado (`parity:frozen` 16/16) e no e2e (`stream_e2e_parity` 51/51) |
+| 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + checagem nativa (R3); `INTERNAL_CHECK_URL` serve só ao feed de holds; autofetch/efeitos de cauda seguem no Node |
+| 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play nativo por debrid atrás de `RESOLVE_RUST=on` (default OFF; o Node é o rollback) |
 | 10 | host/origin e `prefix()` no egresso | **feito** no caminho nativo |
 | 11 | `partial`/deadline + busca em fundo | **feito** no orquestrador |
 | 12 | `cacheMaxAge` / `stale*` / `Cache-Control` | parcial — ver tipo `StreamResponse` e handler nativo |
-| 13 | mapeamento de erro → status (incl. `/resolve`) | parcial no gateway; `/resolve` play no Node |
-| 14 | métricas e `stream-trace` | sombra §9; canário do corte §9.5; painel/`stream-trace` ainda leem o Node |
+| 13 | mapeamento de erro → status (incl. `/resolve`) | parcial no gateway; o play do `/resolve` segue no Node por default |
+| 14 | métricas e `stream-trace` | sombra/canário saíram no R1; o alarme do nativo é a própria lista/HTTP e a métrica `index.rust.source_missing`; painel/`stream-trace` rodam no Node, que lê o store nativo pela API admin (`STREAM_STORE_ADMIN_*`, F4.4a) |
 | 15 | `staleRevalidate`/`staleError` no tipo | ainda estreito no contrato do crate |
-| 16 | `/internal/search/*` | **feito** meta/state/collect (e correlatos) no Node; fachada recusa `/internal/*` antes do proxy |
+| 16 | `/internal/search/*` | **meta** e **effects** da busca, **debrid/holds** e as rotas do sidecar (`crawl-result`, `activity`); `state/config/collect/index/index-write/fallback` e `/internal/debrid/check` **não existem**; a fachada recusa `/internal/*` antes do proxy |
 
-Override gateway: sombra (`stream-shadow`). Produção e o compose principal
-também **não** usam `ROUTES_RUST=stream` — F4 em
-[`migracao-stream-rust.md`](migracao-stream-rust.md) só depois de paridade
-BR+cotas + §9.4.
+O `docker-compose.gateway.yml` é só o **override de diagnóstico** que publica o
+Node em `127.0.0.1:7100`; não muda rota nem flag. `ROUTES_RUST=` (vazio) e
+`ROUTES_RUST=health` são diagnóstico do proxy, não modo de busca; neles o
+`/stream` do Node responde 503.
 
 ---
 
@@ -962,8 +990,8 @@ BR+cotas + §9.4.
    selada, o valor volta selado — a integração precisa chamar
    `adom_core::decode_config` com os defaults reais e o `RESOLVE_SECRET`.
 3. **Ordem das chaves** não é contrato (§2.4): o struct do crate segue a ordem
-   mais comum e o teste byte a byte cobre P2P, debrid e aviso; a sombra mascara
-   ordem.
+   mais comum e o teste byte a byte cobre P2P, debrid e aviso; a comparação da
+   sombra (histórica) mascarava a ordem.
 4. **`request_cache_key`**: não existe `request_key` em `adom-core`; o nome do
    crate é um apelido de `streams_cache_key` (§7.2).
 5. **`/stream` com `:extra`**: rejeitado por `parse_stream_path`; o Node ignora

@@ -32,15 +32,15 @@ trabalho de código é em `src/`.
   servidor**.
 - **Docker de container único, tudo em loopback** (`127.0.0.1`): nenhum hostname
   de container sobrevive. `scripts/entrypoint.sh` supervisiona caddy → jackett →
-  flaresolverr → addon; qualquer um morrer derruba o container. Healthcheck
-  quádruplo (7000, Jackett 9117, Flare 8191, API admin do Caddy 2019 **com
-  `Origin` explícito**).
+  flaresolverr → gateway (`adom-server`, 7000) → addon (Node, 7100); qualquer um
+  morrer derruba o container. Healthcheck quádruplo (7000, Jackett 9117, Flare
+  8191, API admin do Caddy 2019 **com `Origin` explícito**).
 - **Ponte Rust** (`rust/crates/adom-napi`, napi-rs): o Dockerfile compila o
   `.node` para musl (estágio `rustcore`, `-crt-static`) em `dist/rust/`; o
   `npm run build` o copia de `rust/target` depois de limpar `dist/`. O núcleo é
-  **obrigatório** (`native-core.ts`; o boot o carrega, testes sob demanda).
-  `RUST_CORE=off|shadow|on` (default off) sobra só para o **shadow do crawl**
-  (`rust-crawl-shadow.ts`).
+  **obrigatório** (`native-core.ts`; o boot o carrega, testes sob demanda) e
+  **não tem modo**: não existe `RUST_CORE=off|shadow|on`. `RUST_CORE_PATH` só
+  aponta o binário quando ele não é o empacotado (teste/CLI).
   O núcleo decide **tudo que é regra**: os **filtros** (`filterRelevantRaw`/
   `filterInventoryRelevant` e `filterSeriesEpisodeRaw`, em lote, devolvendo só
   índices e o motivo; pre-air e o enriquecimento pelo banco de magnets
@@ -89,8 +89,10 @@ trabalho de código é em `src/`.
   `esm`, que é o oráculo dos goldens): os oito **resolvers BR** são o binário
   `adom-resolvers` (portas 8700–8707, supervisionado pelo entrypoint; o
   `src/br-resolvers.ts` só lista e testa) e o **raspador dos oito cards** é o
-  sidecar `adom-sidecar` (`CRAWL_ENGINE=rust`, default). Em `resolvers/` ficou
-  só o que o provider do BLUDV e o Mico usam.
+  sidecar `adom-sidecar` (`CRAWL_ENGINE=rust`, default; `CRAWL_ENGINE=ts` FICA
+  porque a suíte depende do loop TS do Mico). Em `resolvers/` ficou só o que o
+  provider do BLUDV e o Mico usam. A captura de fixtures do crawl
+  (`captureCrawlPage`/`scrubCrawlPage`) vive em `src/utils/crawl-capture.ts`.
 - `ServerConfig.json` do Jackett vive no volume `./docker-data/jackett`;
   `FlareSolverrUrl` tem que ser `http://127.0.0.1:8191`. Definitions Cardigann
   vêm da imagem; nunca monte volume sobre elas. Cache do addon persiste em
@@ -123,28 +125,28 @@ npm run docker:up / docker:logs
   `/stream-trace.json` exigem `X-Indexer-Test-Token` (só no header; sem
   `JACKETT_TEST_TOKEN` no `.env` ficam 503). Ação destrutiva exige
   `{"confirm": true}`. Painel operacional: `/painel` (10 abas).
-  **`/internal/*`** (meta/state/collect/index/index-write/effects,
-  debrid/check da busca e debrid/holds do feed in-process) só existe em
-  loopback + token; com
-  `GATEWAY=on` o gateway Rust recusa `/internal/*` antes do proxy (o Caddy
-  também bloqueia). A guarda de loopback do Node **não** distingue o cliente
-  atrás do proxy — a recusa tem que estar na fachada. **Desde o F4.4 o corte
-  nativo é o PADRÃO**: o `docker-compose.yml` sobe `GATEWAY=on` +
-  `ROUTES_RUST=stream` (gateway na 7000, Node na 7100) e o `/stream` do Node
-  responde **410** nesse modo (**503** sem gateway) — o pipeline TS de busca
-  saiu. `docker-compose.gateway.yml` é diagnóstico/rollback (publica o 7100);
-  rollback funcional do corte é imagem/commit anterior, não env. Detalhe em
-  `docs/rust-stream-contract.md` §0.
-  **F4.6**: a checagem/limpeza da AllDebrid também é nativa por default
-  (`DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` no compose) e
-  a rota Node `/internal/debrid/check` responde **410**; `DEBRID_AL_RUST=off`
-  é o rollback de uma linha e devolve a rota ao ar (o código `off` fica).
-  Contrato em `docs/debrid-al-check-rust.md`.
-  **F4.4a**: o gateway também sobe uma API administrativa do store nativo em
+  **`/internal/*`** (meta e effects da busca, debrid/holds do feed in-process e
+  as rotas do sidecar: crawl-result e activity) só existe em loopback + token; a
+  fachada Rust recusa `/internal/*` antes do proxy (o Caddy também bloqueia). A
+  guarda de loopback do Node **não** distingue o cliente atrás do proxy — a
+  recusa tem que estar na fachada. **O corte nativo é FIXO**: o
+  `docker-compose.yml` sobe `GATEWAY=on` + `ROUTES_RUST=stream` e o
+  `entrypoint.sh` sempre inicia o gateway (7000, com o Node na 7100); o
+  `/stream` do Node responde **410**. `ROUTES_RUST=` (vazio) e
+  `ROUTES_RUST=health` são **diagnóstico do proxy** (nesse caso o `/stream` do
+  Node responde 503). `docker-compose.gateway.yml` é só o override que publica o
+  Node em `127.0.0.1:7100`; rollback de TODAS as fatias é commit/imagem
+  anterior, não env. Detalhe em `docs/rust-stream-contract.md` §0 e §R de
+  `docs/migracao-stream-rust.md`.
+  **R3**: a checagem/limpeza da AllDebrid é NATIVA e incondicional (não existe
+  `DEBRID_AL_RUST`; a rota Node `/internal/debrid/check` foi apagada).
+  `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` FICAM como kill-switches das varreduras
+  **destrutivas** (default do código OFF, compose ON; sem holds/inventário a
+  nativa é read-only). Contrato em `docs/debrid-al-check-rust.md`.
+  **F4.4a**: o gateway sobe uma API administrativa do store nativo em
   `127.0.0.1:8711` (`STREAM_STORE_ADMIN_*`, token no header) que o Node usa
   para invalidar por obra/hash, limpar no `clear-cache` e ler o
-  `/stream-trace.json`; `STREAM_STORE_RUST=off` (ou `STREAM_BAD_RUST=off` para a
-  poda `bad`/`lie` do build) é o rollback sem rebuild. Contrato em
+  `/stream-trace.json`; ela é incondicional no corte. Contrato em
   `docs/migracao-stream-rust.md` §F4 (F4.4a).
 - **Mudou regra de matching? `data/cache.db` sobrevive ao rebuild.** Zere antes
   de revalidar: `POST /dashboard-action.json {"action":"clear-cache","confirm":true}`
@@ -158,25 +160,30 @@ npm run docker:up / docker:logs
 ## Fluxo de busca (um `stream` request)
 
 Desde o F4.4 o `/stream` é do **gateway Rust** (`adom-server` → `adom-search`);
-o Node não monta mais lista. O Node fica com I/O e rede: metadados/coleta em
-fallback, índice/banco em fallback, efeitos, debrid, painel, `/resolve`,
-`/configure` e o raspador.
+o Node não monta mais lista. O Node fica com I/O e rede: metadados em
+**fallback**, efeitos, debrid do play, painel, `/resolve`, `/configure` e o
+raspador.
 
 ```
 Caddy → adom-server (:7000) → Orchestrator (adom-search)
   ├─ cache SWR nativo (data/streams.db, streams:v21) + coalescing inFlight
-  ├─ metadados: nativo (META_RUST, default) OU POST /internal/search/meta
-  ├─ coleta: fontes nativas (SOURCES_RUST, default todas) + NodeCollector com
-  │  skip_sources (jackett BR/globais, prowlarr, torrentio, bludv, mico, conta)
-  ├─ via do índice/banco: nativo (INDEX_RUST/BANK_RUST, default) OU
-  │  POST /internal/search/index, /collect, /debrid/check
+  ├─ metadados: nativo (fonte primária) + POST /internal/search/meta (fallback vivo)
+  ├─ coleta: as CINCO fontes nativas (jackett, prowlarr, torrentio, bludv, mico)
+  │  e o inventário da conta — incondicional
+  ├─ índice/banco: nativos (`adom-index`/`IdxStore`, `data/magnets.db`)
   ├─ build no núcleo (filtro → multiobra → episódio → ranking → debrid →
   │  cotas → aviso) — MESMA régua dos goldens
-  └─ efeitos (EFFECTS_RUST, default): POST /internal/search/effects
+  └─ efeitos (EFFECTS_RUST, default ON): POST /internal/search/effects
 ```
 
-O Node fora desse caminho: `POST /internal/*` (loopback+token), `/resolve`
-(HMAC + debrid), painel/config, autofetch/colhedor/raspador (workers próprios).
+Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
+caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
+`/internal/debrid/holds`, as rotas do sidecar (`/internal/crawl-result`,
+`/internal/activity`), `/resolve` (HMAC + debrid; o nativo existe atrás de
+`RESOLVE_RUST`, default OFF), painel/config,
+autofetch/colhedor/raspador (workers próprios). As rotas
+`/internal/search/state|config|collect|index|index-write|fallback` e
+`/internal/debrid/check` **não existem mais**.
 
 Pontos que mordem:
 - **Host nunca vai para o cache.** Aviso de lista vazia e URL de `/resolve` são
@@ -230,13 +237,15 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   ainda não carregado, **ninguém** (fail-safe fecha). Posse durável `adsub:v1`,
   anti-reenchimento `adrm:v1`, retenção BR `adprot:v1`. Varreduras destrutivas
   (`sweepDead`, `sweepUndubbed`, reconcile, revalidate) têm kill-switch próprio.
-  **F4.6**: a checagem/limpeza é NATIVA por default (`DEBRID_AL_RUST`/
-  `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` no compose; a rota Node
-  `/internal/debrid/check` fica 410). A nativa lê os holds do Node pelo feed
-  `/internal/debrid/holds` e só apaga com `holdsComplete` + inventário
-  (`may_delete` fail-closed); sem snapshot é read-only (`inventory_missing`).
+  **R3**: a checagem/limpeza é NATIVA e incondicional — não existe
+  `DEBRID_AL_RUST` e a rota Node `/internal/debrid/check` foi apagada. A nativa
+  lê os holds do Node pelo feed `/internal/debrid/holds` e só apaga com
+  `holdsComplete` + inventário (`may_delete` fail-closed); sem snapshot é
+  read-only (`inventory_missing`). `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` FICAM
+  como kill-switches das varreduras **destrutivas** (código OFF, compose ON).
   Conta em `MAGNET_TOO_MANY` ⇒ `unusable: quota` (lista P2P), nunca ⚡ falso.
-  Rollback: `DEBRID_AL_RUST=off`. Contrato em `docs/debrid-al-check-rust.md`.
+  Rollback da fatia: commit/imagem anterior. Contrato em
+  `docs/debrid-al-check-rust.md`.
 - **Banco de magnets por conta** (`magnetdb`): `alive`/`bad`/`lie` com TTL, só
   evidência medida, falso negativo é pior que falso positivo. `bad` só vem de
   `NoVideoError`; `lie` só do `DubLieError` (áudio EN em post PT).
@@ -246,14 +255,13 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   Os índices `magnet_last_seen` / `magnet_source_last_seen` seguram o `MAX` do
   status do painel: sem eles o poll travava o event loop por ~7 s. A via rápida
   do `/stream` é do orquestrador nativo (`adom-search/orchestrator/fast_path.rs`:
-  instantânea antes do índice coberto); no Node, `search-index-path.ts` só
-  atende a rota interna `/internal/search/index` (leitura do índice/instantânea
-  para o fallback) e o `/internal/search/collect` aceita `skip_sources`. O
-  tail dela coleta com prazo próprio (`SEARCH_TAIL_COLLECT_MS`) e, na
-  promoção, tira o 📦 de reserva/foto que a coleta ao vivo superou
-  (`merge_fast_with_live`, espelho de `dropInstantFallbacks`/`clearInstantSnapshots`).
-  As rotas `collect`/`index` anexam só a prova de arquivo (`applyFileEvidence`),
-  sem consultar metadados. O núcleo calcula `ptTitleDual` in-process com os
+  instantânea antes do índice coberto); a leitura do índice/instantânea para o
+  fallback também é nativa (R4) — as rotas Node `/internal/search/index` e
+  `/internal/search/collect` saíram junto com `search-index-path.ts` e
+  `collect-orchestrator.ts`. O tail da busca coleta com prazo próprio
+  (`SEARCH_TAIL_COLLECT_MS`) e, na promoção, tira o 📦 de reserva/foto que a
+  coleta ao vivo superou (`merge_fast_with_live`, espelho de
+  `dropInstantFallbacks`/`clearInstantSnapshots`). O núcleo calcula `ptTitleDual` in-process com os
   títulos de `SearchMeta`/`BuildContext`; `origin_is_br` combina essa evidência,
   título PT e o flag `isBr`, respeitando o veto de espelho de cena EN.
   Com a prova:
@@ -406,7 +414,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 |---|---|
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
-| Busca | Gateway/orquestrador: `rust/crates/adom-search`; no Node ficou a coleta (`collect-orchestrator`, `search-plan`, `collection-window`, `search-index-path`), o índice/banco (`magnet-bank-*`, `release-index` → `IdxStore`, crate `adom-index`), os metadados (`cinemeta`/`tmdb`) e o debrid (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
+| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`cinemeta`/`tmdb` via `/internal/search/meta`), os efeitos, o feed de holds e o debrid do play (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
 | Fontes | `jackett*.ts`, `prowlarr.ts`, `torrentio.ts`, `bludv.ts`, `mico.ts`, `account.ts` |
 | Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`, `harvester*.ts`, `harvest-*.ts` |
 | Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*` |

@@ -23,9 +23,11 @@ O **HMAC de `/resolve`** agora **tem porte commitado** (`resolve_sign`,
 (§5), embora as fatias **puras** de config e cache já estejam portadas (§3).
 
 Documentação operacional de apoio à migração TS→Rust: descreve contratos **como
-o código TS os cumpre hoje**, para servir de alvo de porte. Onde §3 afirma porte,
-a afirmação é **de artefato** (módulo + golden + teste no crate), não de adoção:
-o runtime continua TypeScript.
+o código TS os cumpria**, para servir de alvo de porte. Onde §3 afirma porte,
+a afirmação é **de artefato** (módulo + golden + teste no crate), não de adoção
+retroativa: o runtime do `/stream` já é o gateway Rust (R8); os caminhos que
+restaram no Node (`meta` fallback, `effects`, `holds`, `/resolve`, painel)
+continuam TypeScript.
 
 ## 0. Escopo e método
 
@@ -56,11 +58,13 @@ Lado Rust lido nesta revisão:
 de build (fmt/clippy/test) vêm do baseline executado em revisão de agente e
 **não** foram re-executados nesta tarefa (§3, §4). As linhas do §1 são do
 `HEAD 022ae03` e podem deslocar; o path é o link estável. Identificadores
-(funções, chaves, campos) são preservados. O runtime de produção continua
-**TypeScript**; a única ponte ativa é [`src/utils/rust-core.ts`](../src/utils/rust-core.ts),
-que instala `normalizeTitle` no [`src/addon.ts`](../src/addon.ts) sob `RUST_CORE`
-(default **off**) — nenhuma das demais funções portadas é consumida no runtime.
-**Isto é paridade de artefato, não adoção.**
+(funções, chaves, campos) são preservados. A ponte [`src/utils/rust-core.ts`](../src/utils/rust-core.ts) **não tem modo**:
+o núcleo é obrigatório e `RUST_CORE_PATH` só aponta o binário quando ele não é
+o empacotado (teste/CLI) — não existe `RUST_CORE=off|shadow|on` desde o R7.
+Este documento continua sendo a revisão de **paridade de artefato nos goldens**,
+não o mapa do pipeline: o `/stream` já é do gateway Rust (§0 de
+[`rust-stream-contract.md`](rust-stream-contract.md)) e o que restou no Node
+segue em `src/`.
 
 ## 1. Contrato HMAC de `/resolve` (VERIFICADO; porte `resolve_sign` commitado)
 
@@ -282,14 +286,20 @@ verificados pelos testes Rust e pelo `--check` manual.
 
 ## 3. Estado da migração (contexto, não contrato)
 
-Runtime de produção é **TS** (`dist/` roda; a única ponte ativa é
-`src/utils/rust-core.ts` → `normalizeTitle` no `addon.ts`, sob `RUST_CORE` off). O
-Rust de hoje é **paridade verificada no corpus, não adoção**: `rust/crates/adom-core` porta
-**56 módulos** (contagem por `mod` no `lib.rs`), quase todos **função pura**
-(texto/objeto → valor), cobertos por **54 datasets golden** e um teste por
-golden. **Não se deve ler esta lista como "pipeline migrado"**: só as unidades
-puras abaixo ganharam implementações Rust; suas versões TS não foram retiradas.
-Busca, providers, debrid, crawl e o wiring de I/O continuam em `src/` (§5).
+O runtime de `/stream` é o **gateway Rust** (`adom-server` na 7000, fixo desde
+o R8); o Node na 7100 serve o fallback de metadados, os efeitos, o feed de
+holds, o `/resolve` (default), painel/config, autofetch e o raspador. A ponte
+`src/utils/rust-core.ts` **não tem modo**: o núcleo é obrigatório e
+`RUST_CORE_PATH` só aponta o binário quando ele não é o empacotado. O mapa
+abaixo é o de **paridade dos crates** — "portado" não significa que a versão TS
+saiu; a remoção do TS que o Rust cobre é a série R (ver
+[`migracao-stream-rust.md`](migracao-stream-rust.md) §R).
+
+O `rust/crates/adom-core` porta **56 módulos** (contagem por `mod` no `lib.rs`),
+quase todos **função pura** (texto/objeto → valor), cobertos por **54 datasets
+golden** e um teste por golden. **Não se deve ler esta lista como "pipeline
+migrado"**: ela cobre as unidades puras que ganharam implementações Rust. O
+wiring de I/O do Node e o que a série R não cobriu seguem em `src/` (§5).
 
 Mapa de capacidades (módulo Rust · API pública · fonte TS · golden/casos). A
 contagem de casos é do snapshot `19b9879`: **6.182** linhas de `.jsonl` no total;

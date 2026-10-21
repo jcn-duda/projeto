@@ -160,9 +160,9 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, Str
     Ok(wire_native_index(orch))
 }
 
-/// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF). Sem a flag,
-/// sem token ou base fora do loopback é `None` — e a checagem nativa da
-/// AllDebrid segue READ-ONLY (`holds_complete:false`).
+/// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF no código e ON
+/// no compose). Sem a flag, sem token ou base fora do loopback é `None` — e a
+/// checagem nativa da AllDebrid segue READ-ONLY (`holds_complete:false`).
 fn holds_feed() -> Option<Arc<dyn HoldsFeed>> {
     let feed = NodeHoldsFeed::from_env()?;
     eprintln!(

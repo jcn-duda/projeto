@@ -64,10 +64,14 @@ Praticamente todo trabalho de código acontece no **Adom**.
 
 ### Stack Docker (o que mora no container)
 
-- `scripts/entrypoint.sh` supervisiona os 4 processos (caddy → jackett →
-  flaresolverr → addon) com `wait -n` + `pipefail`: qualquer um que morrer
-  derruba o container e o `restart: unless-stopped` recria tudo. Logs saem
-  prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`.
+- `scripts/entrypoint.sh` supervisiona caddy → jackett → flaresolverr →
+  addon (Node, 7100) com `wait -n` + `pipefail`: qualquer um que morrer
+  derruba o container e o `restart: unless-stopped` recria tudo. O gateway
+  (`adom-server`, 7000) é **sempre** iniciado, em laço próprio de reinício
+  (como o `adom-resolvers`): após 5 mortes seguidas ele derruba o container. O
+  sidecar do crawl também tem reinício próprio e **não** derruba o container.
+  Logs saem prefixados `[caddy]`, `[jackett]`, `[flaresolverr]`, `[addon]`,
+  `[gateway]`.
 - Os oito `*-resolver` **não são containers**. `src/br-resolvers.ts` importa
   **estaticamente** os oito profiles no processo do addon, cada um na própria
   porta (8700–8707), via factory com config explícita — sem ler
@@ -120,9 +124,12 @@ Praticamente todo trabalho de código acontece no **Adom**.
   de RENAME: um id que o operador escreve por decisão própria (religar o
   hdrtorrent) nunca entra ali.
 - **Indexer só sai da busca pelo Jackett, não pelo `.env`.** A lista efetiva de
-  uma busca vem do `ji` da config SELADA na URL de instalação
-  (`collect-orchestrator.ts` lê `opts().jackettIndexers`); `JACKETT_INDEXERS` do
-  `.env` é só o DEFAULT de instalações novas. Tirar um id do `.env` não muda nada
+  uma busca vem do `ji` da config SELADA na URL de instalação: o gateway Rust lê
+  `jackettIndexers` do `encoded` da request (`orchestrator/collect.rs`, com o
+  default do operador quando o `ji` não vem) e o Node aplica a mesma regra em
+  `effectiveJackettIndexers` (`src/providers/jackett.ts`) na coleta de fundo.
+  `JACKETT_INDEXERS` do `.env` é só o DEFAULT de instalações novas. Tirar um id
+  do `.env` não muda nada
   para quem já instalou — em 2026-09-17, `rutor` e `kickasstorrents-ws` seguiram
   sendo consultados depois de removidos de lá, com `tab crashed` no FlareSolverr
   e o RuTor pendurando 100s por busca numa fila serial. Para cortar de verdade,
@@ -215,13 +222,23 @@ nem versão implantada: confira esses estados separadamente no deploy.
 
 ## Arquitetura do fluxo de busca
 
-> **Nota F4.4:** a descrição abaixo é a do pipeline **Node** que existiu até o
-> F4.4. Desde o corte, o `/stream` é do gateway Rust (`adom-server` →
-> `adom-search`, com SWR em `data/streams.db`); o Node responde 410/503 nele e
-> ficou com as rotas internas, `/resolve`, painel/config, autofetch e raspador.
-> Os módulos citados (`search-cache`, `search-orchestrator`, `stream-builder*`,
-> `debrid-pipeline*`) foram removidos; o histórico fica aqui pela rastreabilidade
-> das decisões.
+> **Nota F4.4 + R0–R8:** a descrição abaixo é a do pipeline **Node** que existiu
+> até o F4.4. Desde o corte, o `/stream` é do gateway Rust (`adom-server` →
+> `adom-search`, com SWR em `data/streams.db`); o Node responde 410 nele e
+> ficou com o fallback de metadados (`POST /internal/search/meta`), os efeitos
+> (`/internal/search/effects`), o feed de holds (`/internal/debrid/holds`),
+> `/resolve`, painel/config, autofetch e raspador. As rotas
+> `/internal/search/state|config|collect|index|index-write|fallback` e
+> `/internal/debrid/check` saíram; `GATEWAY=on`/`ROUTES_RUST=stream` são fixos
+> no `docker-compose.yml` e o entrypoint sempre sobe o gateway (7000, Node na
+> 7100). Os módulos citados (`search-cache`, `search-orchestrator`,
+> `stream-builder*`, `debrid-pipeline*`) foram removidos; o histórico fica aqui
+> pela rastreabilidade das decisões.
+>
+> As fases posteriores (R0–R8) removeram do branch as flags de modo e as
+> sombras por fatia. O mapa do que saiu × o que ficou, os gates vigentes e a
+> regra de rollback (commit/imagem anterior) estão em
+> [`migracao-stream-rust.md`](migracao-stream-rust.md) §R.
 
 Um `stream` request do Stremio percorre exatamente este caminho:
 
@@ -2978,9 +2995,9 @@ fire-and-forget) continua.
 | `src/public/configure.html` | Página de configuração: HTML + CSS + um único `<script type="module" src="/client/configure/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O JS saiu do HTML para `src/client/configure/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `keys.ts` tem o `KEYS`, `view.ts` o `collect`/`render`/`presets`, `init.ts` o `apply`/`fromUrl`/boot. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/`; os testes importam o segundo emit NodeNext de `dist/src/client/` via `test/helpers/client.ts` |
 | `src/public/painel.html` | Painel de operação (superfície atual, substituiu o dashboard legado): HTML + CSS estáticos e um ÚNICO `<script type="module" src="/client/painel/entry.js">` (o `?v=<fingerprint>` é injetado no servidor). O cliente saiu de `src/public/` para `src/client/painel/*.ts` (ESM nativo, imports reais, sem AMD/loader/bundle): `entry.ts`/`app.ts` montam as dez abas (Saúde, Conta Debrid, Gate, Colhedor, Sonda BR, Chupim, Cache, Limpeza, Magnets e Diagnóstico) e a navegação por hash (`TAB_IDS`/`tabFromHash`/`selectTab`, com `#chupim`/`#colhedor` preservados), `store.ts`/`poll.ts`/`api.ts` fazem o poll de `/dashboard-status.json` e o `postAction` de `/dashboard-action.json` (além do `fetchStreamTrace`), `action.ts`/`form.ts`/`confirm.ts`/`toast.ts` concentram a UI de ação (com `useAction`/`actionFailure`) e `limpeza-model.ts`/`config-model.ts`/`diagnostico-model.ts` os modelos puros. A configuração ao vivo é o card reutilizável `view-config.ts` montado em `view-chupim.ts`/`view-colhedor.ts` (dirigido pelo schema do backend), a conta de fundo do colhedor vive em `view-harvest-debrid.ts`, o diagnóstico em `view-diagnostico.ts` e o catálogo/limpeza em `src/client/painel/limpeza/`. A aba Magnets (`view-magnets.ts`) monta o card do banco vivo (`view-magnet-bank.ts` sobre o modelo puro `bank-model.ts`), separado do estoque por conta. O browser recebe o emit de `tsconfig.client.json` em `dist/src/public/client/painel/`; os testes importam o segundo emit NodeNext de `dist/src/client/painel/` via `test/painel-*.test.ts` (sem `new Function` para ESM), com `test/painel-esm.test.ts` amarrando o grafo à allowlist |
 | `src/providers/index.ts` | Fachada pós F4.4: `autofetchStatus` (snapshot do Chupim), cobertura de pool (`poolCovered`/`idxPoolCovered`) e o observador de primeira resposta; não guarda estado próprio |
-| `src/providers/collect-orchestrator.ts` | `collectRaw`/`collectRawLive`: a coleta atendida por `POST /internal/search/collect` (fonte de rollback de `SOURCES_RUST`) |
-| `src/providers/search-index-path.ts` | `enqueueIndexFollowUp` + fast-path do índice usado pela rota interna `/internal/search/index` (rollback de `INDEX_RUST`) |
-| `src/providers/magnet-bank-instant.ts` | `collectInstantItems`/`promoteInstantTail` (instantânea e reserva 📦; `BANK_RUST` default on) |
+| ~~`src/providers/collect-orchestrator.ts`~~ | **Removido no R5.** A coleta é nativa (cinco fontes + conta); `POST /internal/search/collect` e `NodeCollector` saíram. `collection-budget`/`collection-window`/`source-selection` e `stream-file-evidence` foram junto |
+| ~~`src/providers/search-index-path.ts`~~ | **Removido no R4.** Índice/banco têm dono único no Rust; `POST /internal/search/index|index-write|fallback` saíram |
+| ~~`src/providers/magnet-bank-instant.ts`~~ | **Removido no R4.** Instantânea/reserva 📦 e a leitura do índice são nativas (`adom-search/orchestrator/fast_path.rs`, `index_source.rs`, `native_index.rs`) |
 | `src/providers/debrid-cache-steps.ts` / `dub-audit.ts` / `episode-size.ts` | Etapas de debrid que sobreviveram ao corte (pré-checagem, auditoria de áudio, anotação de tamanho) — consumidas pelo oráculo e pelo autofetch |
 | ~~`search-cache`/`search-orchestrator`/`stream-builder*`/`debrid-pipeline*`~~ | **Removidos no F4.4.** `applyDebrid`/`play-guard` vivem em `test/helpers/pipeline-oracle/` como oráculo congelado; a decisão de produção é do núcleo Rust |
 | `src/providers/autofetch-runner.ts` | Seleção de candidatos, holds/markers, `drainNext`, recheck, settle, detecção de morte |

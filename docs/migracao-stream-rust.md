@@ -8,6 +8,12 @@ typecheck` em zero, suíte Node verde e `npm run lint:lines` sem regressão.
 Este documento é o **mapa**, não a regra: em conflito com o código, o código
 vence. `AGENTS.md` continua sendo a fonte dos invariantes.
 
+> **Nota de vigência (R8):** as fatias R0–R8 removeram o TS que o Rust já
+> cobria e, com ele, as flags de modo/rollback por env. O estado vigente está
+> no [§R](#r--remoção-do-ts-r0r8) no fim deste documento; os textos das fatias
+> F0–F4 abaixo são o **histórico da execução** — onde citam flags removidas,
+> elas aparecem como registro da época, não como knob.
+
 ## Régua de aceite comum
 
 | Gate | Comando | Critério |
@@ -206,14 +212,15 @@ p50/p95 e a semana em `stream-shadow`.
    F2.4 e o BLUDV na F2.5 passaram a emitir `live` por FONTE.
 3. **Paridade (pendente)**: o corpus da F0 é só `request/response` e remonta
    0/51; o critério formal §9.4 continua **não medido**. O gate operacional
-   `scripts/stream-parity.mjs` cobre 16 casos do corpus (atende aos 15+),
-   compara conjunto EXATO de hashes e de BR, recusa Node×Node/sombra e mede
-   p50/p95 por perfil (Stremio 10 s, Dart 15 s); self-test 14/14. Nesta rodada o
+   `scripts/stream-parity.mjs` (removido no R1) cobria 16 casos do corpus
+   (atende aos 15+), comparava conjunto EXATO de hashes e de BR, recusava
+   Node×Node/sombra e media p50/p95 por perfil (Stremio 10 s, Dart 15 s);
+   self-test 14/14. Nesta rodada o
    corte real **não foi remedido**: o relato do usuário é 10/16, com 6 deltas de
    BR/hashes ainda pendentes. A validação local exercitou o gateway, mas não
    rodou esse gate contra o corte nativo; o script é ferramenta, não aceite.
-4. **Corte local experimental** `ROUTES_RUST=stream` (opt-in no override;
-   **não** é o default): o Node na 7100 vira reserva (internal +
+4. **Corte local experimental** `ROUTES_RUST=stream` (histórico da F1; desde o
+   R8 o corte é fixo no compose): o Node na 7100 vira reserva (internal +
    `/resolve`/painel). Ainda **não** pronto — evidência: BR some; exige
    paridade BR+cotas antes de qualquer promoção. Caveat: 1ª hit a frio pode
    vir só com aviso “reabra” (`49482cc7`); reabrir antes de acusar regressão
@@ -508,8 +515,8 @@ Commits `18bbc4dd` (F3.1a, provas no `adom-store`) → `62bdce6c` (crate
 
 | namespace | hoje | falta |
 |---|---|---|
-| `raw:v1` (cru por indexer) | Node é o dono no `cache.db`; o coletor BLUDV nativo (`SOURCES_RUST=bludv`) grava no MESMO arquivo via `RawStore` | um escritor só e store Rust; as outras fontes nativas não usam `raw` |
-| banco VIVO (`magnets.db`) | captura e escrita no Node (`magnet-bank*`); o Rust (`BANK_RUST`) lê em lote e grava só o veredito do filtro (`MagnetBankSource`) | captura no Rust e os índices `magnet_last_seen`/`magnet_source_last_seen` sob o mesmo dono; painel lendo do Rust |
+| `raw:v1` (cru por indexer) | Node é o dono no `cache.db`; o coletor BLUDV nativo (incondicional desde o R5) grava no MESMO arquivo via `RawStore` | um escritor só e store Rust; as outras fontes nativas não usam `raw` |
+| banco VIVO (`magnets.db`) | captura e escrita no Node (`magnet-bank*`); o Rust (nativo desde o R4) lê em lote e grava só o veredito do filtro (`MagnetBankSource`) | captura no Rust e os índices `magnet_last_seen`/`magnet_source_last_seen` sob o mesmo dono; painel lendo do Rust |
 | `davail` (⚡ por hash/conta) | o Node grava no `cache.db`; o `adom-debrid` copia uma vez na subida (`import.rs`, marcador `__debrid:import:v1`) | dono único — hoje são dois escritores que divergem depois do import |
 
 Cada um segue a receita do F3.1: provas laterais no Rust com o Node inalterado,
@@ -525,32 +532,32 @@ Aceite do corte agora é **por commit/imagem**, não por soak.
 O que mudou:
 
 - **Defaults**: `GATEWAY=on` e `ROUTES_RUST=stream` no `docker-compose.yml`
-  (Node na 7100); no gateway, `SOURCES_RUST` ausente = as cinco fontes,
-  `META_RUST`/`ACCOUNT_RUST`/`INDEX_RUST`/`BANK_RUST`/`EFFECTS_RUST` = `on`.
-  **F4.6**: `DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` = `on` — a
-  checagem nativa da AllDebrid responde e a rota Node
-  `/internal/debrid/check` fica **410**; `DEBRID_AL_RUST=off` volta à rota
-  (rollback de uma linha, Node+Rust releem a env). Cada fatia tem rollback por
-  env (off = rota interna); a limpeza nativa só apaga com `holdsComplete` +
-  inventário (`may_delete` fail-closed). Contrato em
-  [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
+  (Node na 7100); `EFFECTS_RUST` = `on` (único knob de fatia que sobrou, com
+  `off` como rollback). As flags das demais fatias (`SOURCES_RUST`,
+  `META_RUST`, `ACCOUNT_RUST`, `INDEX_RUST`, `BANK_RUST`, `DEBRID_AL_RUST`,
+  `STREAM_STORE_RUST`, `STREAM_BAD_RUST`) **não existem mais** — saíram nas
+  R2–R6 e os caminhos são incondicionais. A checagem/limpeza da AllDebrid é
+  nativa desde o R3 (a rota Node `/internal/debrid/check` foi apagada);
+  `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` ficam só como kill-switches
+  destrutivos. Rollback de qualquer fatia é commit/imagem anterior. Contrato
+  em [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
 - **Pipeline TS removido**: `search-orchestrator`, `search-cache`,
   `stream-builder*`, `debrid-pipeline*`/`debrid-play-guard`,
   `search-metadata-load`, `tail-enqueue`, `search-late-promoter`,
   `search-sweep-tail` e `search-commit`. O `/stream` do Node responde **410**
   com `GATEWAY=on`+`ROUTES_RUST=stream` e **503** sem gateway.
-- **O que ficou no Node**: rotas internas (`meta/state/collect/index/`
-  `index-write/effects/debrid check`), coleta (`collect-orchestrator`),
-  índice/banco (`release-index`, `magnet-bank-*`), metadados
-  (`cinemeta`/`tmdb`), efeitos (autofetch/warmer/auditoria/sonda/colhedor),
-  `/resolve`, painel/config e o raspador. `applyDebrid`/`play-guard` seguem só
-  como **oráculo congelado** em `test/helpers/pipeline-oracle/`.
+- **O que ficou no Node**: meta (fallback), effects, debrid/holds, as rotas do
+  sidecar, `/resolve` (default), painel/config e o raspador. Coleta, índice,
+  banco e metadados primários são nativos; as rotas
+  `state/collect/index/index-write/fallback` e `/internal/debrid/check` foram
+  apagadas nas R0–R6. `applyDebrid`/`play-guard` seguem só como **oráculo
+  congelado** em `test/helpers/pipeline-oracle/`.
 - **Testes**: os que mediam o pipeline TS saíram (190 testes); os que mediam
   decisões que o Node ainda executa foram migrados para o oráculo/`collectRaw`.
   O harness adversarial MUT-09/MUT-10 foi realinhado para o oráculo.
-- **Sombra/canário/frozen**: aposentados do runtime (código fica como
-  instrumento histórico); o `docker-compose.gateway.yml` virou
-  diagnóstico/rollback.
+- **Sombra/canário/frozen**: **removidos do código no R1** (não há
+  instrumento no binário); o `docker-compose.gateway.yml` virou só o override
+  de diagnóstico que publica o Node em `127.0.0.1:7100`.
 
 Limite honesto: sem Docker/rebuild nesta rodada, **não** há prova de boot do
 container com o gateway default. O deploy deve rodar o checklist do contrato §0
@@ -583,26 +590,28 @@ O F4.4a fechou os itens 1–3 com uma API administrativa do store nativo
    `source:'rust'`. A chave exata do segmento vai em `key`; sem ela o Rust
    escolhe a build mais recente da obra. `STREAM_TRACE=false` continua zerando
    a exposição (o `serializeTrace` do Node roda sobre o ledger do Rust).
-4. **`bad`/`lie` no build nativo.** `STREAM_BAD_RUST` (default ON) injeta em
+4. **`bad`/`lie` no build nativo.** A poda é **incondicional desde o R2**
+   (não existe `STREAM_BAD_RUST`): o build injeta em
    `BuildContext.broken_hashes` os hashes `mag:v1:{bad|lie}:<adapter>:<conta>:`
    vivos, lidos do `cache.db` por `adom-store::MagnetDbStore` (conexão
    read-only). O build marca `_broken` e o `finalize` corta antes da checagem —
    a mesma régua do `pruneKnownBroken`, agora aplicada aos itens que a coleta e
    o índice NATIVOS produzem (eles não passam pela rota de evidência do Node).
-5. **F4.6 ENTREGUE**: `DEBRID_AL_RUST`/`DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP`
-   = `on` no compose. A checagem nativa da AllDebrid responde; a rota Node
-   `/internal/debrid/check` responde 410 (rollback: `DEBRID_AL_RUST=off`, com a
-   rota voltando a responder). A conta do operador segue em `MAGNET_TOO_MANY`,
-   então o check nativo responde `unusable: quota` (mesmo estado do caminho
-   Node) e a limpeza nasce suprimida por `inventory_missing` — fail-closed, sem
-   remoção. Detalhe em [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
+5. **F4.6 → R3**: a checagem/limpeza da AllDebrid é nativa e **incondicional**;
+   a flag `DEBRID_AL_RUST` e a rota Node `/internal/debrid/check` foram
+   **apagadas**. `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` ficam como kill-switches
+   das varreduras destrutivas (default do código OFF, compose ON). A conta do
+   operador segue em `MAGNET_TOO_MANY`, então o check nativo responde
+   `unusable: quota` (mesmo estado do caminho Node) e a limpeza nasce suprimida
+   por `inventory_missing` — fail-closed, sem remoção. Detalhe em
+   [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
 
 **Contrato da API administrativa (`STREAM_STORE_ADMIN_LISTEN`, default
 `127.0.0.1:8711`)** — token `X-Indexer-Test-Token`
 (`STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` → `JACKETT_TEST_TOKEN`;
 sem token, 503). Ela é montada SÓ no processo `adom-server` com
-`ROUTES_RUST` contendo `stream` (`GATEWAY=on`), nunca na 7000 pública (o
-gateway recusa `/internal/*`) e nunca por Caddy.
+`ROUTES_RUST` contendo `stream` (fixo no compose desde o R8), nunca na 7000
+pública (o gateway recusa `/internal/*`) e nunca por Caddy.
 
 | rota | efeito |
 |---|---|
@@ -612,12 +621,11 @@ gateway recusa `/internal/*`) e nunca por Caddy.
 | `GET /streams/trace?type=&id=[&key=]` | ledger + estado da entrada da obra |
 | `GET /streams/stats` | ocupação/cota (diagnóstico) |
 
-**Rollback (sem rebuild):** `STREAM_STORE_RUST=off` nos DOIS lados — o Rust não
-sobe a API e não injeta a ponte; o Node volta a limpar só o L1 (comportamento
-F4.4) e o painel responde `native.attempted:false`. `STREAM_BAD_RUST=off`
-desliga só a poda `bad`/`lie` nativa (o build volta à régua anterior, com a
-evidência vinda apenas das rotas internas). Nenhuma das duas afeta a BUSCA: são
-invalidação/observabilidade; a lista continua sendo servida pelo orquestrador.
+**Rollback (histórico):** as flags `STREAM_STORE_RUST`/`STREAM_BAD_RUST` não
+existem mais (R2/R4): o store admin é incondicional no corte e a poda
+`bad`/`lie` também. O rollback da fatia é **commit/imagem anterior**. Nenhuma
+das duas afeta a BUSCA: são invalidação/observabilidade, e a lista continua
+sendo servida pelo orquestrador.
 
 ---
 
@@ -634,7 +642,8 @@ O que trava o quê:
   que saiu. O gate vigente é o corpus congelado (`parity:frozen`, 16/16) e o
   e2e (`stream_e2e_parity`, 51/51); não confundir smoke/`validate-docker.mjs`
   (só tocável) com paridade BR+cotas. Rollback do corte = imagem/commit
-  anterior com `GATEWAY=off`.
+  anterior (não existe `GATEWAY=off`; o override de diagnóstico não muda a
+  rota).
 - A F2.1 começou sobre a rota `collect` em `read_only`; as próximas fontes só
   avançam quando esse contrato estabilizar. Migrar fonte com a rota ainda
   mudando joga trabalho fora.
@@ -661,3 +670,66 @@ O que trava o quê:
    O `/resolve` nativo (`RESOLVE_RUST=on`, default OFF) existe e tem testes de
    contrato/fixtures; o play externo real por debrid **não** foi validado
    ponta a ponta nesta rodada (sem Docker).
+
+---
+
+## R — remoção do TS (R0–R8)
+
+Série executada depois do F4.4 para apagar do branch o que o Rust já cobria.
+Cada fatia é um commit e o branch ficou funcional em cada um. O rollback de
+**todas** é **commit/imagem anterior**, não env: nenhuma das flags de fatia
+citadas nas seções acima existe como knob hoje, e as que ainda aparecem neste
+documento são registro histórico da execução.
+
+### R.1 — O que saiu × o que ficou
+
+| Área | Saiu (fatia) | Ficou |
+|---|---|---|
+| Lixo sem chamador | `fake-release.ts`, `seed-floor.ts`, `latest-writer.ts`, `config.search.packTail`, rota `/internal/search/state` (R0) | — |
+| Corte `/stream` | modo `off`/`shadow`/`on` do `RUST_CORE`; `shadow.rs`/`canary.rs`; `STREAM_SHADOW_MODE`; `STREAM_CANARY_*`; `STREAM_FROZEN_*`; `stream-parity.mjs`/`stream-frozen*.mjs`; `utils/stream-frozen*.ts`, `stream-fresh.ts`, `collect-orchestrator-frozen.ts`, `routes/internal-search-config.ts` (R1); `shadowCrawlPage` (R7) | `/stream` do gateway na 7000 (`GATEWAY=on` + `ROUTES_RUST=stream`, fixos no compose desde o R8); o Node na 7100 responde 410 |
+| Fontes e conta | `NodeCollector`, `SOURCES_RUST`, `ACCOUNT_RUST`, `POST /internal/search/collect`, `collect-orchestrator.ts` e o plano/janela TS (R5) | as cinco fontes nativas (jackett, prowlarr, torrentio, bludv, mico) e o inventário da conta, incondicionais; gateway sem fonte nativa montada é erro de boot |
+| Índice e banco | `INDEX_RUST`, `BANK_RUST`, rotas `/internal/search/index`, `/internal/search/index-write` e `/internal/search/fallback`; `release-index`/`magnet-bank-*` TS (R4) | `idx:v14` e `magnets.db` com dono único no Rust; falha ao abrir degrada sem índice (log `[search]`, métrica `index.rust.source_missing`), nunca cai no Node |
+| Metadados | `META_RUST` (R6) | metadados nativos como fonte primária; `POST /internal/search/meta` é o fallback vivo do Node (taxa de fallback não medida) |
+| AllDebrid | `DEBRID_AL_RUST`, rota `/internal/debrid/check` (R3) | checagem/limpeza nativas e incondicionais; `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` só como kill-switches das varreduras destrutivas |
+| Store/trace | `STREAM_STORE_RUST`, `STREAM_BAD_RUST` (R2) | `STREAM_STORE_ADMIN_*` (API admin em 8711) e a poda `bad`/`lie`, incondicionais |
+| Crawl | `shadowCrawlPage` e o modo do `RUST_CORE` (R7) | `CRAWL_ENGINE=rust` default; `CRAWL_ENGINE=ts` fica porque a suíte depende do loop TS; `captureCrawlPage`/`scrubCrawlPage` em `src/utils/crawl-capture.ts`; `RUST_CORE_PATH` |
+
+### R.2 — Regra de rollback
+
+Rollback de qualquer fatia é **commit/imagem anterior**. Não há `GATEWAY=off`,
+`SOURCES_RUST=off`, `INDEX_RUST=off` nem similares; `ROUTES_RUST` vazio não é
+rollback de produção — é diagnóstico do proxy, junto com `health`. O que
+continua sendo env de operação:
+
+- `ROUTES_RUST=` (vazio) e `ROUTES_RUST=health` — **diagnóstico do proxy**
+  (nesses casos o `/stream` do Node responde 503, não 200);
+- `docker-compose.gateway.yml` — só publica o Node em `127.0.0.1:7100`;
+- `EFFECTS_RUST=off` (default ON) — desliga a emissão de efeitos;
+- `RESOLVE_RUST=on` (default OFF) — liga o play nativo (F4.7);
+- `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` — kill-switches destrutivos;
+- `STREAM_STORE_ADMIN_*`, `RUST_CORE_PATH` e `CRAWL_ENGINE`.
+
+### R.3 — Gates que ficaram
+
+| Gate | Comando | Estado |
+|---|---|---|
+| Paridade congelada | `npm run parity:frozen` (`cargo test -p adom-search --test stream_frozen_parity`) | 16/16, corpus em `rust/golden/stream-frozen/` |
+| e2e do `/stream` | `cargo test -p adom-search --test stream_e2e_parity` | 51/51, corpus em `rust/golden/stream-e2e/` |
+| Orçamento de metadados | `cargo test -p adom-search --test search_budget_metadata` | 7 testes; o porte segue parcial (ver "Verificação de ponta", item 3) |
+
+Os gates de sombra/canário (`stream.shadow.*`, `stream.canary.*`) não existem
+mais: não há oráculo Node para comparar. `validate-docker.mjs` continua sendo
+só "tem stream tocável", não paridade BR+cotas.
+
+### R.4 — O que ficou fora da remoção
+
+- **`/resolve` nativo** (F4.7): atrás de `RESOLVE_RUST=on` (default OFF); o Node
+  segue dono do play e é o rollback.
+- **Efeitos** (`EFFECTS_RUST`, default ON): o Rust emite, o Node executa as
+  filas (`/internal/search/effects`).
+- **Feed de holds** da AllDebrid (`/internal/debrid/holds`).
+- **Banco VIVO** (`magnets.db`), `raw:v1` e `davail` — caminhos que a série R
+  não moveu de dono.
+- **Rotas internas vivas**: `POST /internal/search/meta`,
+  `POST /internal/search/effects`, `POST /internal/debrid/holds`,
+  `POST /internal/crawl-result` e `GET /internal/activity`.

@@ -21,17 +21,18 @@ cada efeito dentro de `runtime.run(ctx do encoded)` — a conta do usuário vem 
 | Env | `EFFECTS_RUST` (aceita `1/true/on/yes`) |
 | Default | **ON** desde o F4.4 (env ausente = ligado; `off` desliga) |
 | Onde liga | `adom-server` (`stream_config.rs` → `OrchestratorConfig::effects_enabled`) |
-| Alcance | só o orquestrador nativo; a sombra §9.1 (histórica) continua sem tail e sem efeitos |
-| Rollback | `EFFECTS_RUST=off` (as filas do Node dedupam, mas o custo dobra) e reiniciar o gateway |
+| Alcance | só o orquestrador nativo (o pipeline TS de busca saiu no F4.4) |
+| Rollback | `EFFECTS_RUST=off` desliga a emissão (o Node continua executando as filas) e reiniciar o gateway |
 
 Com o pipeline de debrid do Node fora, não há duplicação: a emissão nativa é a
-única. Rollback por env só faz sentido se a rota interna voltar a ser dona da
-coisa (é o mesmo caminho que o Node executa quando a flag está off).
+única. `EFFECTS_RUST=off` **não** devolve a emissão ao Node — o Node não monta
+mais lista; sem o lote do Rust, os efeitos de cauda deixam de ser enfileirados.
 
 ## O que é emitido, quando
 
 Uma vez por busca, no fim da fila tardia (`orchestrator/late.rs` →
-`emit_effects`), depois do `index-write` e já fora do prazo do cliente:
+`emit_effects`), depois da escrita nativa do índice/banco (R4) e já fora do
+prazo do cliente:
 
 1. `dub_audit`, `rd_warmer` e `autofetch_batch` — vêm do lote da passada
    **mais nova** (`FinishValue.effects`, calculado no `finish` porque depende do
@@ -120,12 +121,12 @@ Prazo: não há prazo de cliente no tail; o POST usa o timeout curto do
   `autoFetchSeasonIndexMax/Keys`.
 - Fio: `orchestrator/effects.rs::season_key`, emitido em `handle`.
 
-### `harvester_enqueue` (`miss`/`gap`/`br-gap`) e `br_probe` — agora do Rust com `INDEX_RUST=on`
+### `harvester_enqueue` (`miss`/`gap`/`br-gap`) e `br_probe` — agora do Rust (R4)
 
 Estes dois eram emitidos pela rota de leitura do índice
 (`src/routes/internal-search-index.ts` → `enqueueIndexFollowUp`). Com o índice
-nativo (F4.5, `INDEX_RUST=on`) a leitura migrou junto e o orquestrador passou a
-emitir o MESMO plano por `POST /internal/search/effects`
+nativo (R4) a leitura migrou junto e o orquestrador passou a emitir o MESMO
+plano por `POST /internal/search/effects`
 (`adom-search::orchestrator::index_effects`):
 
 - `harvester_enqueue` com `reason` `miss` (índice vazio), `gap` (não cobre ou
@@ -134,11 +135,14 @@ emitir o MESMO plano por `POST /internal/search/effects`
   dublado, com o portão de plausibilidade (evidência no índice OU no acervo).
 
 As regras puras de BR-gap foram portadas para `adom_core::br_gap`; a leitura do
-`idx:v14`/`magnets.db` e os flags/rollback estão em
-[`rust-index-bank-contract.md`](rust-index-bank-contract.md). `br_probe` sem
-`BANK_RUST` nativo perde só a evidência do acervo (o índice ainda prova BR).
+`idx:v14`/`magnets.db` e os detalhes do banco estão em
+[`rust-index-bank-contract.md`](rust-index-bank-contract.md). `br_probe` sem o
+acervo (`magnets.db` ausente) perde só a evidência do banco — o índice ainda
+prova BR.
 
-Enquanto `INDEX_RUST=off`, nada muda: a rota do Node continua emitindo.
+O índice e o banco são nativos e incondicionais desde o R4: as rotas Node
+`/internal/search/index`, `/internal/search/index-write` e
+`/internal/search/fallback` foram apagadas e não há outro emissor.
 
 ### `autofetch` — Chupim (COBERTO pelo lote `autofetch_batch`)
 
@@ -179,7 +183,8 @@ Enquanto `INDEX_RUST=off`, nada muda: a rota do Node continua emitindo.
   `orchestrator/effects.rs::autofetch_batch`.
 - Kill-switches (Node, inalterados): `autoFetchBr`, pausa do painel,
   `classifyEnqueue`, orçamento/janela ociosa e `config.debrid` do operador.
-  `EFFECTS_RUST` off = o Node continua sendo o único emissor.
+  `EFFECTS_RUST=off` desliga a emissão; não há outro emissor do `/stream` — o
+  Node só executa as filas.
 - O que **não** vai no lote e continua no Node: sonda BR (`br_probe`), purga da
   fila seeds, contadores de skip, trace do Chupim, `releaseIndex`/banco de
   magnets (usados pela seleção), inventário da conta e o `debrid.enqueue` em si.

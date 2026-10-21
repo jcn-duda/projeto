@@ -164,7 +164,7 @@ pub fn plan_jackett_searches(
     out
 }
 
-/// Collector que fala Torznab direto (sem POST `/internal/search/collect`).
+/// Collector que fala Torznab direto (sem rota interna de coleta).
 pub struct JackettCollector {
     client: JackettClient,
     selected_indexers: Vec<String>,

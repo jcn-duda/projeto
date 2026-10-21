@@ -172,7 +172,8 @@ pub(super) fn finish_value(
     let commit_write = decision.write && decision.ttl > 0;
     let partial_entry = entry.partial;
     // Efeitos de cauda: o payload nasce aqui porque ele lê o veredito de cache
-    // por stream; QUEM emite é o tail, atrás de `EFFECTS_RUST` (default OFF).
+    // por stream; QUEM emite é o tail, atrás de `EFFECTS_RUST` (default ON no
+    // `from_env`; `off` é o rollback).
     //
     // Os dois early returns do `applyDebrid` que NÃO enfileiram nada:
     // sem adaptador (sem serviço/chave, `:87`) e conta `unusable`/auth-quota

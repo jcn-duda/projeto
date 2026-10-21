@@ -16,8 +16,7 @@
 //!   alvo (a obra do pedido + os packs que o título declara).
 //!
 //! Captura (`captureItems`) continua no Node: quem alimenta o acervo é a coleta
-//! viva, e o corte nativo ainda chama `/internal/search/collect` para as fontes
-//! que não têm coletor nativo. Este store NÃO inventa linha.
+//! viva (nativa desde a R5, sem rota interna). Este store NÃO inventa linha.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};

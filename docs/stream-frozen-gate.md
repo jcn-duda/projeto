@@ -1,16 +1,18 @@
 # Gate de paridade congelada do `/stream` (Fase 1)
 
-> **F4.4:** o lado Node do gate (a 1ª metade do par) foi aposentado com o
-> `/stream` do Node (410/503). O corpus congelado **continua sendo o gate**
-> rodado pelo Rust (`npm run parity:frozen` → `stream_frozen_parity`, 16/16) e
-> pelos testes de lista (`stream_e2e_parity`, 51/51); capturar casos novos exige
-> uma imagem anterior ao F4.4. O `STREAM_FROZEN_MODE`/`STREAM_CANARY_*` ficam
-> como harness histórico, não como runtime.
+> **F4.4/R1:** o lado Node do gate (a 1ª metade do par) foi aposentado com o
+> `/stream` do Node (410/503) e o harness de runtime (`STREAM_FROZEN_MODE`,
+> `STREAM_CANARY_*`, `scripts/stream-parity.mjs`) foi **removido no R1**. O
+> corpus congelado **continua sendo o gate**, rodado pelo Rust
+> (`npm run parity:frozen` → `stream_frozen_parity`, 16/16) e pelos testes de
+> lista (`stream_e2e_parity`, 51/51); capturar casos novos exige uma imagem
+> anterior ao F4.4. O texto abaixo descreve o desenho da Fase 1 e fica como
+> registro histórico, não como runtime.
 
 Este documento define a **camada A** do gate da Fase 1: uma captura determinística
 por caso, consumida pelo Node e pelo orquestrador Rust com as **mesmas entradas**.
-A camada B (ao vivo, `scripts/stream-parity.mjs`) continua rodando como tendência
-e não bloqueia.
+A camada B (ao vivo, `scripts/stream-parity.mjs`) foi **removida no R1**; o gate
+vigente é só o corpus congelado.
 
 O objetivo é separar duas coisas que hoje se misturam no `stream-parity`:
 **divergência de pipeline** (filtro, ranking, cotas, debrid, apresentação) e
@@ -105,6 +107,9 @@ porque é deles que saem `debridKnown`/`cacheMaxAge`.
 ## Determinismo
 
 A captura roda com:
+
+> **Histórico:** as envs e o fluxo abaixo descrevem o harness da Fase 1,
+> removido no R1. Nenhuma delas é knob vigente.
 
 | Env | Valor | Por quê |
 |---|---|---|

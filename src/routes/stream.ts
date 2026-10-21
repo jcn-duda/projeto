@@ -6,8 +6,7 @@
 // - 410 Gone quando o gateway nativo é o dono da rota (`GATEWAY=on` +
 //   `ROUTES_RUST` contendo `stream`) — o pedido nunca deveria chegar aqui;
 // - 503 no resto (Node servindo a 7000 sem gateway): não há pipeline local
-//   para responder. Rollback do corte é imagem/commit anterior + GATEWAY=off,
-//   não esta rota.
+//   para responder. Rollback do corte é a imagem/commit anterior, não esta rota.
 //
 // Os 410/503 são o sinal para o operador e para o teste de contrato; o corpo é
 // JSON mínimo no mesmo formato de erro das outras rotas.

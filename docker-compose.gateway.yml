@@ -1,61 +1,17 @@
-# OVERRIDE de DIAGNÓSTICO/ROLLBACK do corte nativo (`/stream` no gateway Rust).
+# OVERRIDE de DIAGNÓSTICO do corte nativo (`/stream` no gateway Rust).
 #
-# Desde o F4.4 o corte é o PADRÃO do `docker-compose.yml`:
-#   GATEWAY=on, ROUTES_RUST=stream, INTERNAL_SEARCH_URL/INTERNAL_CHECK_URL=:7100
-# e, desde o F4.6, também a checagem/limpeza da AllDebrid no Rust:
-#   DEBRID_AL_RUST=on, DEBRID_AL_HOLDS=on, DEBRID_AL_CLEANUP=on
-# (a rota Node `/internal/debrid/check` responde 410 nesse modo). Este arquivo
-# NÃO é mais necessário para ligar o nativo — ele existe para:
+# O corte nativo é o PADRÃO do `docker-compose.yml` (gateway na 7000, Node na
+# 7100). Este arquivo NÃO liga nada e não muda flag nenhuma: ele só publica o
+# Node em 127.0.0.1:7100 no host, para inspecionar o painel e as rotas
+# internas/administrativas direto. O `/stream` do Node responde 410 nesse
+# cenário — o diagnóstico de BUSCA é o `/metrics` do gateway.
 #
-# 1. DIAGNÓSTICO: publicar o Node em 127.0.0.1:7100 para inspecionar painel e
-#    rotas internas direto. Como o Node não monta mais lista (o `/stream` dele
-#    responde 410 com GATEWAY=on + ROUTES_RUST=stream), o diagnóstico de BUSCA
-#    é o `/metrics` do gateway e o corpus congelado
-#    (`cargo test -p adom-search --test stream_frozen_parity`). O `/metrics`
-#    também é onde ficam `debrid.al.native.*`, `debrid.al.holds.*` e
-#    `debrid.al.cleanup.*`.
-# 2. ROLLBACK: `DEBRID_AL_RUST=off` (rollback de UMA linha da fatia AllDebrid:
-#    a rota Node volta a responder — Node e Rust releem a env no boot). Já o
-#    rollback FUNCIONAL do `/stream` é a IMAGEM/COMMIT anterior (com
-#    `GATEWAY=off`), não uma env — o bloco comentado no fim mostra como fixar
-#    a tag anterior sem editar o compose principal. Se a rota Node for algum
-#    dia removida do branch, o rollback da fatia passa a ser essa mesma
-#    imagem/commit anterior.
-#
-# Rotas internas e reserva de debrid falam com o Node na 7100 — NUNCA :7000
-# (a fachada recusa /internal/*). Docs: docs/rust-stream-contract.md §0 e
-# docs/debrid-al-check-rust.md §3.
+# Rollback do corte é a IMAGEM/COMMIT anterior (o `/stream` do Node saiu do
+# branch); não há env de rollback. Rotas internas e a reserva de debrid falam
+# com o Node na 7100 — NUNCA :7000 (a fachada recusa /internal/*).
+# Doc: docs/rust-stream-contract.md §0.
 services:
   adom:
-    environment:
-      GATEWAY: "${GATEWAY:-on}"
-      ROUTES_RUST: "${ROUTES_RUST:-stream}"
-      # F4.7: play nativo por debrid (default OFF; Node é o rollback).
-      RESOLVE_RUST: "${RESOLVE_RUST:-off}"
-      INTERNAL_SEARCH_URL: "http://127.0.0.1:7100"
-      INTERNAL_CHECK_URL: "http://127.0.0.1:7100"
-      # F4.6: mesmos defaults do compose principal (o override repete para o
-      # arquivo ser autoexplicativo). `off` em qualquer um é o rollback por env.
-      DEBRID_AL_RUST: "${DEBRID_AL_RUST:-on}"
-      DEBRID_AL_HOLDS: "${DEBRID_AL_HOLDS:-on}"
-      DEBRID_AL_CLEANUP: "${DEBRID_AL_CLEANUP:-on}"
     ports:
       # Só para diagnóstico no host: o Node direto (painel/rotas internas).
       - "127.0.0.1:7100:7100"
-
-# ── Rollback de runtime (imagem anterior) ────────────────────────────────────
-# O `/stream` do Node não existe mais neste branch; voltar `GATEWAY=off` sem
-# trocar a imagem deixa o addon sem busca. Para reverter de verdade, crie um
-# override de rollback com a tag anterior ao F4.4:
-#
-#   services:
-#     adom:
-#       image: <registry>/stremio-adom:<tag-anterior-ao-F4.4>
-#       build: !reset null
-#       environment:
-#         GATEWAY: "off"
-#
-#   docker compose -f docker-compose.yml -f docker-compose.rollback.yml up -d
-#
-# O `docker-data/addon/cache.db` e o `magnets.db` sobrevivem ao rollback; o
-# `streams.db` (SWR nativo) simplesmente deixa de ser lido pela imagem antiga.

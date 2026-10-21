@@ -52,7 +52,7 @@ pub fn try_prowlarr_collector_from_env() -> Option<ProwlarrCollector> {
     }
 }
 
-/// Collector que fala `/api/v1/search` direto (sem POST `/internal/search/collect`).
+/// Collector que fala `/api/v1/search` direto (sem rota interna de coleta).
 pub struct ProwlarrCollector {
     client: ProwlarrClient,
 }

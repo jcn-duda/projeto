@@ -71,9 +71,8 @@ pub struct OrchestratorConfig {
     pub pack_tail: bool,
     /// `EFFECTS_RUST`: o orquestrador nativo EMITE os efeitos de cauda
     /// (dub_audit/warmer/colhedor/chave de temporada) por
-    /// `POST /internal/search/effects`. Default OFF: enquanto o pipeline de
-    /// debrid do Node decide, quem enfileira é ele — ligar os dois duplicaria
-    /// a emissão (as filas do Node dedupam, mas o custo é dobrado).
+    /// `POST /internal/search/effects`. Default ON no `from_env`; o Node só
+    /// EXECUTA as filas e `EFFECTS_RUST=off` é o rollback.
     pub effects_enabled: bool,
     /// `MICO_DEFAULT`: o card virtual `mico` entra no `ji` default do operador.
     /// Só vale quando a request não traz `jackettIndexers` (a seleção da URL
@@ -142,6 +141,7 @@ impl Default for OrchestratorConfig {
             search_index_rescue_min_ms: 2500,
             tail_collect_ms: 25_000,
             pack_tail: true,
+            // Default = testes (sem emissão); produção (`from_env`) nasce ON.
             effects_enabled: false,
             mico_default: false,
             account_inventory_source: true,
@@ -226,8 +226,9 @@ impl DebridFactory for NoDebridFactory {
 pub struct AdapterDebridFactory {
     /// Ledger do RD (`rdc:v2`); `None` deixa todo hash `Unknown`.
     pub store: Option<Arc<adom_debrid::Store>>,
-    /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF): leva
-    /// `holdsComplete`/`knownBefore` à limpeza nativa da AllDebrid.
+    /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF no código e
+    /// ON no compose): leva `holdsComplete`/`knownBefore` à limpeza nativa da
+    /// AllDebrid. Sem feed a nativa é read-only.
     pub holds: Option<Arc<dyn HoldsFeed>>,
 }
 

@@ -45,7 +45,7 @@ pub fn try_mico_collector_from_env() -> Option<MicoCollector> {
     }
 }
 
-/// Collector que fala o addon Mico por IMDb (sem POST `/internal/search/collect`).
+/// Collector que fala o addon Mico por IMDb (sem rota interna de coleta).
 pub struct MicoCollector {
     client: MicoClient,
 }

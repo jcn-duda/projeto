@@ -2,35 +2,24 @@
 
 Este documento fixa o contrato do **índice** (`idx:v14` no `cache.db`) e do
 **banco de magnets vivo** (`data/magnets.db`) lidos/escritos pelo orquestrador
-nativo (`adom-search`), atrás de `INDEX_RUST`/`BANK_RUST`. É o pré-requisito do
-corte do `/stream`: sem ele, `POST /internal/search/index` e
-`/internal/search/fallback` continuam sendo o caminho do Node para a resposta
-rápida, a reserva 📦 e a escrita do índice. **No F4.4 os dois viraram default
-`on`** — o caminho Node é o rollback por env.
+nativo (`adom-search`). O índice e o banco têm **dono único no Rust desde o R4**,
+sem flag e sem rota Node de fallback: `POST /internal/search/index`,
+`/internal/search/index-write` e `/internal/search/fallback` foram apagadas.
+Falha ao abrir o `idx:v14`/`magnets.db` degrada sem índice (log `[search]`,
+métrica `index.rust.source_missing`) e **não** cai no Node. Rollback = commit ou
+imagem anterior.
 
-## Flags e rollback
+## Sem flags; rollback por commit/imagem
 
-| Env | Valores | Default | O que faz |
-|---|---|---|---|
-| `INDEX_RUST` | `off` / `shadow` / `on` (ou `1/true/yes`) | **on** (F4.4) | `on`: o nativo lê `idx:v14`, decide cobertura/instantânea, escreve o índice e emite o follow-up. `shadow`: Node responde; o nativo recomputa em fundo e compara. `off`: rota interna do Node. |
-| `BANK_RUST` | `off` / `shadow` / `on` | **on** (F4.4) | `on`: o nativo lê o `magnets.db` (instantânea + reserva 📦) e grava `passed_filter` na escrita do índice. `shadow`: Node responde e o nativo compara. `off`: rota interna do Node. |
-| `INDEX_SHADOW_SAMPLE` | `0..=1` | `0.1` | Amostra determinística por IMDb id (FNV-1a). Fora da amostra conta só `index.shadow.not_sampled`. |
+Não há `INDEX_RUST`/`BANK_RUST` nem amostra de sombra: os caminhos são
+**incondicionais desde o R4** e o rollback é **commit/imagem anterior**. As
+chaves e o schema SQLite são os do Node, então a imagem anterior vê o mesmo
+índice/banco que o nativo gravou — nada é migrado.
 
-Rollback: `INDEX_RUST=off`/`BANK_RUST=off` (ou remover e deixar o default, que
-agora é `on`) e reiniciar o gateway. As chaves e o schema SQLite são os do
-Node, então um rollback vê o mesmo índice/banco que o nativo gravou — nada é
-migrado.
-
-Combinações:
-
-- `INDEX_RUST=on` sem store injetado → caminho Node intacto + métrica
-  `index.rust.source_missing` (degradação honesta).
-- `BANK_RUST=on` sozinho → reserva 📦 nativa; a **instantânea** exige
-  `INDEX_RUST=on` (é uma das saídas da leitura do índice).
-- A marca de `passed_filter` na escrita exige os dois.
-- `INDEX_RUST=shadow` compara instantânea/efeitos só com `BANK_RUST` nativo:
-  sem o banco, o nativo não tem como reproduzir a foto nem a evidência BR do
-  acervo, e a comparação seria divergência falsa (`index.shadow.skipped`).
+- Store ausente/inacessível → o nativo degrada **sem índice**: log `[search]` e
+  métrica `index.rust.source_missing`; não existe caminho Node.
+- A marca de `passed_filter` na escrita acompanha a escrita do índice (as duas
+  são nativas).
 
 ## Contrato do índice (`cache.db`, namespace `idx`)
 
@@ -61,15 +50,15 @@ Schema idêntico ao `src/utils/magnet-bank-rows.ts` (`magnet`, `magnet_source`,
 - Escrita: `markBankFilterOutcome` grava `passed_filter` (1/0) e `last_seen` nas
   linhas que JÁ existem, por hash e por alvo (obra do pedido + packs que o
   título declara). Fonte sem captura não cria órfão.
-- **Captura (`captureItems`) continua no Node.** Quem alimenta o acervo é a
-  coleta viva (`/internal/search/collect`); coletores nativos
-  (`SOURCES_RUST=jackett|…`) ainda não capturam.
+- **Captura (`captureItems`) continua no Node** — colhedor e aquecimento. A
+  coleta do `/stream` é nativa desde o R5 e não passa por ela; as fontes
+  nativas ainda não capturam.
 
 ## O que o nativo serve
 
 Ordem e marcas são as de `search-index-path.ts`:
 
-1. **instantânea** (`BANK_RUST=on`): janela adaptativa
+1. **instantânea**: janela adaptativa
    (`instantWindow`, núcleo) → seleção (`adom_core::select_instant`) →
    `filterRelevantRaw` → cobertura (`idxPoolCovered`). Itens do acervo saem com
    `fromFallback` (📦/~N) e `fallbackFetchable` quando `passed_filter=1` ou a
@@ -77,18 +66,17 @@ Ordem e marcas são as de `search-index-path.ts`:
 2. **índice coberto**: releases do índice com `fromSnapshot` (a foto também
    exibe 📦 até a promoção tardia) + conta. Na via NÃO-instantânea a marca é
    neutralizada, como o `idxReleasesToRaw` do Node.
-3. **conta** (`ACCOUNT_RUST=on`/`shadow`): `account.search` equivalente, com o
-   teto `ACCOUNT_FAST_WAIT_MS` (default 450 ms). Sem fonte nativa, a conta fica
-   de fora do caminho nativo (documentado; o Node continua sendo a fonte da F3
-   quando `ACCOUNT_RUST=off`).
-4. **reserva 📦** (`BANK_RUST=on`): `collectFallbackForBuild` sem HTTP, com as
+3. **conta**: `account.search` equivalente, com o
+   teto `ACCOUNT_FAST_WAIT_MS` (default 450 ms). A conta é nativa e
+   incondicional desde o R5 (gateway sem fonte nativa montada não sobe).
+4. **reserva 📦**: `collectFallbackForBuild` sem HTTP, com as
    mesmas linhas, tetos e `allowedSourceIndexer` do pedido. Vivo vence sempre.
 
 ## Efeitos do índice
 
 `enqueueIndexFollowUp` foi portado para `adom-search::orchestrator::index_effects`
 e é emitido por `POST /internal/search/effects` (202, fire-and-forget) em toda
-busca com `INDEX_RUST=on`:
+busca:
 
 - `harvester_enqueue` com `reason` `miss` (índice vazio), `gap` (não cobre ou
   parcial) e `br-gap` (sonda inelegível);
@@ -102,31 +90,24 @@ sonda inelegível enfileira a obra no colhedor com motivo `br-gap`, a mesma rede
 do TS. `EFFECTS_RUST` continua dono dos efeitos do pipeline de debrid; o
 follow-up do índice NÃO depende dele (era papel da rota de leitura).
 
-## Sombra e métricas
+## Métricas
 
 `/metrics` do gateway expõe:
 
 - `index.rust.lookup/hit/partial/miss/gap/served/recorded/record.failed/
-  bank_marked/instant/instant.skip.*/br_gap*/effects/source_missing`;
-- `index.shadow.compared/divergence/index_missing/index_extra/instant_missing/
-  instant_extra/order/coverage/partial/instant_eligible/account/effects/
-  not_sampled/skipped/error`;
-- `bank.shadow.compared/divergence/items_missing/items_extra/not_sampled`.
+  bank_marked/instant/instant.skip.*/br_gap*/effects/source_missing`.
 
-A sombra roda em `tokio::spawn` depois da resposta do Node, nunca segura o
-cliente e nunca grava. A comparação cobre conjunto, ordem, cobertura, `partial`,
-instantânea elegível, itens da conta e o plano de efeitos.
+A sombra do índice/banco foi **removida no R1**: não há mais
+`index.shadow.*`/`bank.shadow.*` nem comparação em `tokio::spawn`.
 
 ## Fora deste recorte (honesto)
 
 - **Prova de arquivo** (`applyFileEvidence`: `provenAudio`/`provenQuality`/
   `provenName`) não é anexada pelo caminho nativo do índice: o orquestrador não
-  tem o memo `fsz`/`tsz` (o `with_files_by_hash` de produção é vazio). O Node
-  continua anexando quando a rota dele responde.
+  tem o memo `fsz`/`tsz` (o `with_files_by_hash` de produção é vazio).
 - **Captura** do acervo (ver acima).
 - **Histórico ruim da conta** (`pruneKnownBroken`: `mag` bad/lie/dead/miss) não
-  é consultado pela reserva nativa: a rota do Node corta esses hashes antes da
-  checagem. A reserva nativa ainda os apresenta (o build/play decide depois).
+  é consultado pela reserva nativa: o build/play decide depois.
 - **Cota do índice**: o despejo nativo é do que expira primeiro (mesma régua dos
   stores do gateway); o `cache.set` do Node despeja o LRU mais antigo. Sob
   pressão de cota (4.000 chaves), o conjunto exato retido pode divergir.
@@ -135,11 +116,11 @@ instantânea elegível, itens da conta e o plano de efeitos.
   entrada `idx` já lida pelo processo Node pode continuar em memória até o TTL
   (30 d) ou a evicção por cota. No corte, as leituras de índice do Node ficam
   restritas a colhedor/autofetch/sonda; a busca do `/stream` lê o disco. É a
-  mesma convivência aceita por `meta:`/`raw:v1` (rollback = reiniciar o Node).
+  mesma convivência aceita por `meta:`/`raw:v1`.
   O caminho inverso não perde: o Node grava com `persist` síncrono e o Rust lê
   o arquivo.
 - **Métricas `search.idx.*`** do Node não são replicadas: o nativo tem os
-  contadores `index.rust.*`/`bank.shadow.*` no `/metrics` do gateway.
+  contadores `index.rust.*` no `/metrics` do gateway.
 - **Manutenção do índice** que não é leitura/gravação de lote: `clearPartial`,
   `markLied`, `markMissing`/`markMissingSeason`, `forgetAutofetchHash`,
   `snapshotWorks`/`snapshotAllWorks` seguem no Node (usados por colhedor,
@@ -147,10 +128,9 @@ instantânea elegível, itens da conta e o plano de efeitos.
 - **Config de painel** (`autofetchLive.effective()`, tetos editados em runtime):
   o nativo lê o `.env` no boot; divergência possível até reiniciar. Os números
   são os mesmos defaults do Node.
-- **Trace/ledger** da busca não é preenchido pelo caminho nativo do índice (a
-  rota Node também não o preenche hoje).
-- `INDEX_RUST=on` com `release_index_ttl=0`/`RELEASE_INDEX=false` não lê nem
-  escreve (mesma régua do `enabled()` do TS).
+- **Trace/ledger** da busca não é preenchido pelo caminho nativo do índice.
+- Com `release_index_ttl=0`/`RELEASE_INDEX=false` o índice não é lido nem
+  escrito (mesma régua do `enabled()` do TS).
 
 ## Testes
 
@@ -162,10 +142,9 @@ instantânea elegível, itens da conta e o plano de efeitos.
   linha existente, pack declarado, `hasBrRow`, restart).
 - `adom-search`: follow-up (miss/gap/br-gap/sonda), instântanea (janela,
   filtro, cobertura, marcas), `fast_path` (snapshot limpo), filtro de provider,
-  `partial`, série (episódio/pack/raiz), sombra (comparadores).
-- Node: `test/internal-search-index.test.ts` (`effects` no corpo),
-  `test/internal-search-effects.test.ts` (`br_probe` inelegível → `br-gap`,
-  agendado não duplica).
+  `partial`, série (episódio/pack/raiz).
+- Node: `test/internal-search-effects.test.ts` (`br_probe` inelegível →
+  `br-gap`, agendado não duplica).
 
 ## F3.1a — provas laterais do `idx:v14` no adom-store (Node inalterado)
 
@@ -182,7 +161,7 @@ Diferenças conscientes:
 - as métricas `search.idx.*` continuam no Node.
 
 A F3.1 absorveu a F3.1b/F3.1c: o Node não grava mais `idx:` e a leitura da busca
-é do orquestrador (`INDEX_RUST`) ou da rota interna, ambos via `adom-index`.
+é do orquestrador nativo; a rota interna foi apagada no R4.
 
 ## F3.1 — o Node usa o IdxStore (dono único do `idx:v14`)
 

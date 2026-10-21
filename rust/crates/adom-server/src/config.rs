@@ -1,10 +1,11 @@
 //! Leitura das envs do gateway. O default deixa o processo na 7000 apontando
-//! para o Node na 7100; quem decide subir este binário é o entrypoint.
+//! para o Node na 7100; o entrypoint sobe este binário sempre (é o caminho de
+//! produção, não um modo).
 //!
-//! Desde o F4.4 o `/stream` é NATIVO por default (`ROUTES_RUST` ausente =
-//! `stream`): o pipeline TS do Node saiu e a rota dele responde 410/503. Para
-//! rollback de diagnóstico, `ROUTES_RUST=` (vazio) volta ao proxy puro — mas o
-//! rollback FUNCIONAL do corte é imagem/commit anterior com `GATEWAY=off`.
+//! O `/stream` é NATIVO por default (`ROUTES_RUST` ausente = `stream`): o
+//! pipeline TS do Node saiu e a rota dele responde 410/503. `ROUTES_RUST=`
+//! (vazio) e `ROUTES_RUST=health` são DIAGNÓSTICO do proxy; o rollback do
+//! corte é imagem/commit anterior.
 //!
 //! O play `/resolve` nativo por debrid é opt-in: `RESOLVE_RUST=on`, default OFF
 //! (o Node segue dono do play; `GATEWAY_RESOLVE_PROXY` é o rollback por env).

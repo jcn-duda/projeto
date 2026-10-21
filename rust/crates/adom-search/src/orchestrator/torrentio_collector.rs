@@ -19,7 +19,7 @@
 //!   nativo faz a mesma queda, então `None` aqui reproduz o `⚙️ torrentio`;
 //! - título/seeders/hash são do payload, `size` passa pela régua
 //!   `known_size` (1 KB sentinela / tamanho implausível = desconhecido), como
-//!   o item cru do Node ao atravessar `/internal/search/collect`;
+//!   o item cru do Node na coleta TS (rota interna removida na R5);
 //! - `fileIdx` é PRESERVADO em `RawItem.extra` (o cliente já truncou) e volta
 //!   pelo `to_wire`; não é consumido no play/HMAC nesta fase.
 //!
@@ -68,7 +68,7 @@ pub fn try_torrentio_collector_from_env() -> Option<TorrentioCollector> {
     }
 }
 
-/// Collector que fala a API pública do Torrentio (sem POST `/internal/search/collect`).
+/// Collector que fala a API pública do Torrentio (sem rota interna de coleta).
 pub struct TorrentioCollector {
     client: TorrentioClient,
 }

@@ -2,14 +2,17 @@
  * F4.6/R3 — defaults do corte da AllDebrid e sobrevivência das rotas vizinhas.
  *
  * O que se prova aqui:
- * 1. os DEFAULTS dos dois kill-switches que ficam no `docker-compose.yml` (e no
- *    override de diagnóstico): `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` nascem
- *    `on`, com `${...:-on}` para o `off` no `.env` ser o kill-switch;
+ * 1. os DEFAULTS dos dois kill-switches DESTRUTIVOS no `docker-compose.yml`:
+ *    `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` nascem `on`, com `${...:-on}` para
+ *    o `off` no `.env` ser o kill-switch; `GATEWAY`/`ROUTES_RUST` são
+ *    LITERAIS (o gateway é o caminho de produção, não um modo);
  * 2. `/stream` e `/resolve` seguem montados com o mesmo contrato (`/stream`
  *    aposentado 503/410; `/resolve` recusa hash malformado com 400).
  *
  * A checagem nativa da AllDebrid é incondicional desde a R3: a rota Node da
- * checagem e a flag de rollback não existem mais.
+ * checagem e a flag de rollback não existem mais. O
+ * `docker-compose.gateway.yml` é só o override de diagnóstico que publica o
+ * Node na 7100.
  *
  * Sem rede: o `/resolve` recusa o hash antes do debrid e o `/stream` do Node
  * responde 503 sem GATEWAY/ROUTES_RUST.
@@ -67,15 +70,29 @@ test('docker-compose.yml: os kill-switches da AllDebrid nascem ON e o off do .en
   const compose = readRoot('docker-compose.yml');
   assert.equal(composeDefault(compose, 'DEBRID_AL_HOLDS'), 'on');
   assert.equal(composeDefault(compose, 'DEBRID_AL_CLEANUP'), 'on');
-  // O gateway é o dono do /stream (F4.4) e continua assim.
-  assert.equal(composeDefault(compose, 'GATEWAY'), 'on');
-  assert.equal(composeDefault(compose, 'ROUTES_RUST'), 'stream');
+  // O gateway é o dono do /stream e é FIXO no compose (não é modo).
+  assert.match(compose, /^\s*GATEWAY:\s*"on"$/m);
+  assert.match(compose, /^\s*ROUTES_RUST:\s*"stream"$/m);
 });
 
-test('docker-compose.gateway.yml: override repete os defaults dos kill-switches', () => {
+test('docker-compose.gateway.yml: override é só diagnóstico na 7100', () => {
   const compose = readRoot('docker-compose.gateway.yml');
-  assert.equal(composeDefault(compose, 'DEBRID_AL_HOLDS'), 'on');
-  assert.equal(composeDefault(compose, 'DEBRID_AL_CLEANUP'), 'on');
+  assert.match(compose, /127\.0\.0\.1:7100:7100/);
+  // O override não repete (nem pode reintroduzir) flag nenhuma de fatia.
+  for (const flag of [
+    'GATEWAY',
+    'ROUTES_RUST',
+    'DEBRID_AL_RUST',
+    'SOURCES_RUST',
+    'META_RUST',
+    'ACCOUNT_RUST',
+    'INDEX_RUST',
+    'BANK_RUST',
+    'STREAM_STORE_RUST',
+    'STREAM_BAD_RUST',
+  ]) {
+    assert.doesNotMatch(compose, new RegExp(`\\b${flag}\\b`), `${flag} não pertence ao override`);
+  }
 });
 
 test('.env.example documenta o default dos kill-switches', () => {

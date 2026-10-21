@@ -74,10 +74,10 @@ arquivos por etapa.
 
 1. **Captura de entradas internas** no gerador do corpus: por caso,
    `meta.json` (obra/queries), `raw.json` (lote pré-build) e idealmente
-   `debrid.json` (hashes ⚡ / unusable). As rotas internas já existem no HEAD
-   (`/internal/search/*` e `/internal/debrid/check`), mas o corpus atual **não**
-   tem nenhuma dessas fixtures: `FixtureOrchestratorSource` remonta **0/51** e o
-   replay 51/51 não é paridade de pipeline.
+   `debrid.json` (hashes ⚡ / unusable). As rotas internas que produziam essas
+   fixtures saíram na série R (R1/R3/R4/R5), e o corpus atual **não** tem
+   nenhuma delas: `FixtureOrchestratorSource` remonta **0/51** e o replay 51/51
+   não é paridade de pipeline.
 2. **Segredo HMAC / config real** alinhados ao Node da captura (`RESOLVE_SECRET`
    ou chave de debrid da sessão) — hoje o stub usa `chave-teste`; `sig` já é
    mascarado no diff, mas divergência de dica `w=` ainda conta.
