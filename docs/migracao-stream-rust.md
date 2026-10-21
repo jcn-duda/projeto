@@ -479,11 +479,41 @@ pt-BR (invariante 4, breaker só em `offline`).
 
 ## F3 — Estado em Rust
 
-**Estado:** não iniciada nesta rodada; contrato pronto em
-`docs/rust-stream-contract.md`. `raw:v1`, `idx:v14`, banco VIVO (`magnets.db`)
-e `davail` num store Rust no padrão de `adom-debrid/src/store.rs`, com
-importação única do `cache.db`. Painel e `/stream-trace.json`/
-`/dashboard-status.json` passam a ler do Rust por rota interna.
+**Estado:** F3.1 entregue (`idx:v14`); `raw:v1`, banco VIVO e `davail` ainda
+sem dono único. Alvo de cada namespace: um store Rust no padrão de
+`adom-debrid/src/store.rs`, com importação única do `cache.db`; painel e
+`/stream-trace.json`/`/dashboard-status.json` lendo do Rust.
+
+### F3.1 — `idx:v14` com dono único (entregue)
+
+Commits `18bbc4dd` (F3.1a, provas no `adom-store`) → `62bdce6c` (crate
+`adom-index`) → `6799045b`/`d8d41e88` (napi `IdxStore`) → `78f23bb5`/`f1b09818`/
+`0dd78287` (Node vira fachada).
+
+- O Rust é o único escritor. `release-index.ts` é fachada sobre o `IdxStore`
+  (`release-index-store.ts`, napi síncrono); o orquestrador (`INDEX_RUST`) e a
+  rota `/internal/search/index` leem pelo mesmo `adom-index`.
+- O Node não grava `idx:` no L1 nem no SQLite: `cache.set`/`persist`/`forget`
+  recusam o namespace; o boot não carrega, não expira e não apaga linha `idx`;
+  `cache.clear()` e `clearNamespace('idx')` chamam o Rust.
+- Prefixo morto (`idx:v13`…) some no `open` do `adom-index`; expirado, na
+  leitura e no `enforce_quota`. `status().entries` vem do Rust.
+- Perdas conscientes: `search.idx.routed`/`search.idx.protCap` não contam mais;
+  o TTL restante não é asserido no TS; **não há `INDEX_OWNER=node`** —
+  rollback = commit/imagem anterior.
+- Contrato e diferenças em [`rust-index-bank-contract.md`](rust-index-bank-contract.md)
+  (F3.1a/F3.1).
+
+### O que falta
+
+| namespace | hoje | falta |
+|---|---|---|
+| `raw:v1` (cru por indexer) | Node é o dono no `cache.db`; o coletor BLUDV nativo (`SOURCES_RUST=bludv`) grava no MESMO arquivo via `RawStore` | um escritor só e store Rust; as outras fontes nativas não usam `raw` |
+| banco VIVO (`magnets.db`) | captura e escrita no Node (`magnet-bank*`); o Rust (`BANK_RUST`) lê em lote e grava só o veredito do filtro (`MagnetBankSource`) | captura no Rust e os índices `magnet_last_seen`/`magnet_source_last_seen` sob o mesmo dono; painel lendo do Rust |
+| `davail` (⚡ por hash/conta) | o Node grava no `cache.db`; o `adom-debrid` copia uma vez na subida (`import.rs`, marcador `__debrid:import:v1`) | dono único — hoje são dois escritores que divergem depois do import |
+
+Cada um segue a receita do F3.1: provas laterais no Rust com o Node inalterado,
+depois o Node vira fachada e recusa o namespace no L1/L2.
 
 ## F4 — Corte final (F4.4 ENTREGUE, sem Docker)
 
