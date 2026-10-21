@@ -151,6 +151,7 @@ impl ReleaseIndexStore {
         let conn = Connection::open(path).map_err(|err| format!("abrir índice: {err}"))?;
         conn.execute_batch(SCHEMA)
             .map_err(|err| format!("schema do índice: {err}"))?;
+        drop_stale_idx(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
             ttl_seconds: 30 * 24 * 3600,
@@ -161,6 +162,7 @@ impl ReleaseIndexStore {
     pub fn open_memory() -> Result<Self, String> {
         let conn = Connection::open_in_memory().map_err(|err| err.to_string())?;
         conn.execute_batch(SCHEMA).map_err(|err| err.to_string())?;
+        drop_stale_idx(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
             ttl_seconds: 30 * 24 * 3600,
@@ -678,6 +680,18 @@ fn merge_release(
         source,
         media_source,
     })
+}
+
+/// Apaga `idx:` que não é a versão viva. Expirado some na leitura e no
+/// `enforce_quota`; o relógio de parede no `open` quebraria testes com `NOW` fixo.
+fn drop_stale_idx(conn: &Connection) -> Result<(), String> {
+    let live = format!("{}%", idx_prefix());
+    conn.execute(
+        "DELETE FROM cache WHERE substr(key, 1, 4) = 'idx:' AND key NOT LIKE ?1",
+        params![live],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
 }
 
 /// Fora do TTL some; acima da cota o que expira primeiro cede lugar. Escopo do

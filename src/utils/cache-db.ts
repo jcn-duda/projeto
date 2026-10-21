@@ -58,7 +58,7 @@ export function createPersistence() {
 
       insertStmt = database.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
       deleteStmt = database.prepare('DELETE FROM cache WHERE key = ?');
-      deleteExpiredStmt = database.prepare('DELETE FROM cache WHERE expires_at <= ?');
+      deleteExpiredStmt = database.prepare("DELETE FROM cache WHERE expires_at <= ? AND key NOT LIKE 'idx:%'");
       // Descarte de versão obsoleta: apaga no banco o que não bate com a versão
       // corrente, sem materializar a linha. `<ns>:%` + NOT LIKE da versão viva
       // cobre tanto o formato `<ns>:<versão>:` quanto prefixos colados no nome.
@@ -113,7 +113,7 @@ export function createPersistence() {
       // no boot — o `muri` só sai de `NAMESPACE_VERSIONS`, então o descarte
       // depende desta passada de LEGACY_PREFIXES.
       for (const [ns, version] of Object.entries(NAMESPACE_VERSIONS)) {
-        deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
+        if (ns !== 'idx') deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
       }
       for (const legacy of LEGACY_PREFIXES) deleteLegacyStmt.run(`${legacy}%`);
       // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
@@ -125,8 +125,7 @@ export function createPersistence() {
       const quotaSkipped: any[] = [];
       for (const row of rows) {
         const namespace = namespaceFor(row.key);
-        // `idx` é dono do núcleo Rust (IdxStore): o boot não o carrega no L1 e
-        // não o apaga por cota, senão removeria linhas que o Rust acabou de gravar.
+        // `idx` é dono do IdxStore: o boot não carrega e não despeja por cota.
         if (namespace === 'idx') continue;
         if ((selectedCounts.get(namespace) || 0) >= quotaFor(namespace) || selected.length >= MAX_ENTRIES) {
           skipped.push(row.key);

@@ -435,3 +435,56 @@ fn hash_curto_ou_sem_hash_nao_entra() {
     assert_eq!(record(&store, "tt9999999", movie(), &items, false, NOW), 0);
     assert!(store.lookup("tt9999999", movie(), NOW).is_empty());
 }
+
+#[test]
+fn open_apaga_versao_morta_e_idx_expirado() {
+    let dir = std::env::temp_dir().join(format!("adom-idx-hygiene-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("tmpdir");
+    let path = dir.join("cache.db");
+    {
+        let seed = rusqlite::Connection::open(&path).expect("seed");
+        seed.execute_batch(super::SCHEMA).expect("schema");
+        let far = NOW + 86_400_000;
+        seed.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params!["idx:v13:tt1", far],
+        )
+        .unwrap();
+        seed.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params!["idx:v14:tt2", far],
+        )
+        .unwrap();
+        seed.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params!["idx:v14:tt3", 1],
+        )
+        .unwrap();
+        seed.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params!["raw:v1:keep", far],
+        )
+        .unwrap();
+    }
+    let store = ReleaseIndexStore::open(&path).expect("open");
+    let far = NOW + 86_400_000;
+    assert!(!store.has_key("idx:v13:tt1", far), "versão morta some no open");
+    assert!(store.has_key("idx:v14:tt2", far), "v14 viva fica");
+    assert!(!store.has_key("idx:v14:tt3", far), "expirado não é vivo");
+    drop(store);
+    let verify = rusqlite::Connection::open(&path).expect("verify");
+    let stale: i64 = verify
+        .query_row("SELECT COUNT(*) FROM cache WHERE key = 'idx:v13:tt1'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(stale, 0);
+    let expired: i64 = verify
+        .query_row("SELECT COUNT(*) FROM cache WHERE key = 'idx:v14:tt3'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(expired, 1, "expirado fica para a leitura / enforce_quota");
+    let raw: i64 = verify
+        .query_row("SELECT COUNT(*) FROM cache WHERE key = 'raw:v1:keep'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(raw, 1, "outro namespace não é tocado");
+    let _ = std::fs::remove_dir_all(&dir);
+}

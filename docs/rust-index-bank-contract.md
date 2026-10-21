@@ -181,16 +181,18 @@ Diferenças conscientes:
 - `isMissing`/`isMissingQuiet` viram uma função só (o Rust não promove LRU);
 - as métricas `search.idx.*` continuam no Node.
 
-Ainda no Node: as chamadas, a F3.1b (leitura por rota) e a F3.1c (o Node para de
-gravar `idx:`). Nada deste recorte é usado pelo caminho do `/stream` ainda.
+A F3.1 absorveu a F3.1b/F3.1c: o Node não grava mais `idx:` e a leitura da busca
+é do orquestrador (`INDEX_RUST`) ou da rota interna, ambos via `adom-index`.
 
 ## F3.1 — o Node usa o IdxStore (dono único do `idx:v14`)
 
 O Node não grava mais o `idx:` no L1 nem no SQLite: `release-index.ts` é uma
 fachada sobre o `IdxStore` (`release-index-store.ts`, síncrono, via napi). O
-boot não carrega nem apaga linhas `idx` (`cache-db.ts`); `cache.set`/`persist`
-recusam o namespace; `cache.clear()` e `clearNamespace('idx')` chamam o Rust.
-`status().entries` vem da contagem do Rust.
+boot não carrega, não expira e não descarta versão velha de `idx` (`cache-db.ts`);
+`cache.set`/`persist`/`forget` recusam o namespace; `cache.clear()` e
+`clearNamespace('idx')` chamam o Rust. Prefixo morto (`idx:v13` etc.) some no
+`open` do `adom-index`; expirado some na leitura e no `enforce_quota`.
+`status().entries` vem do Rust.
 
 Perdas conscientes:
 - `search.idx.routed` e `search.idx.protCap` deixaram de contar: a decisão de

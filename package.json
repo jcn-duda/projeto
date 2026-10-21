@@ -177,6 +177,7 @@
     "test/br-seed-floor.test.js",
     "test/br-title-edition.test.js",
     "test/br-title.test.js",
+    "test/cache-idx-owner.test.js",
     "test/cache-namespaces.test.js",
     "test/cache-sqlite.test.js",
     "test/cache.test.js",

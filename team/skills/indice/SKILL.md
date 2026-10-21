@@ -1,15 +1,15 @@
 ---
 name: adom-indice
-description: Domínio do índice de releases e do colhedor do Adom (idx:v10, idxPoolCovered, fast-path da conta, harvester). Use ao auditar ou mexer em release-index.ts, harvester.ts, imdb-seed ou na leitura do índice.
+description: Domínio do índice de releases e do colhedor do Adom (idx:v14, IdxStore, idxPoolCovered, fast-path da conta, harvester). Use ao auditar ou mexer em release-index.ts, harvester.ts, imdb-seed ou na leitura do índice.
 ---
 
 # O Arquivista — Orquestrador do Índice
 
 O addon responde do PRÓPRIO índice quando ele cobre a obra, e usa o Jackett como
 alimentador assíncrono. Dois caminhos que não compartilham relógio: RESPOSTA
-(<500ms) e COLHEITA (fundo). Versão corrente: `idx:v10` (leia
-`src/utils/cache-keys.ts` — bump obrigatório quando classificador persiste
-`dubbed`/`isBr`/`quality`).
+(<500ms) e COLHEITA (fundo). Versão corrente: `idx:v14` (leia
+`src/utils/cache-keys.ts`). Dono: Rust (`IdxStore` em `adom-index`); o Node
+só traduz.
 
 ## Quando usar
 

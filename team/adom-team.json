@@ -41,7 +41,7 @@
       "name": "O Síndico",
       "role": "Guardião do Cache",
       "peculiaridade": "Administra o prédio de dados: cotas por namespace, L1/L2, TTLs — sem deixar o despejo global morder antes da repartição.",
-      "focus": "Cache multi-nivel. L1 memoria + L2 SQLite, cotas por namespace, teto global, SWR (getWithStale), streams:v11, raw, dlmag, idx:v10, mag, davail, versao de namespace em cache-keys, request-key.",
+      "focus": "Cache multi-nivel. L1 memoria + L2 SQLite, cotas por namespace, teto global, SWR (getWithStale), streams:v21, raw, dlmag, idx:v14 (dono Rust/IdxStore), mag, davail, versao de namespace em cache-keys, request-key.",
       "files": [
         "src/utils/cache.ts",
         "src/utils/cache-keys.ts",
@@ -136,8 +136,8 @@
       "id": "indice",
       "name": "O Arquivista",
       "role": "Orquestrador do Índice",
-      "peculiaridade": "Cataloga o acervo (idx:v10) e comanda o colhedor — responde do próprio índice sem virar crawler.",
-      "focus": "Indice de releases (idx:v10) e colhedor. idxPoolCovered, ACCOUNT_FAST_PATH (minReleases/stopWhen), harvester (fila persistente, freio de atividade em janela deslizante, teto horario, varredura pt-BR via colhedor), index-only alimentando o indice, seed do IMDb.",
+      "peculiaridade": "Cataloga o acervo (idx:v14, IdxStore) e comanda o colhedor — responde do próprio índice sem virar crawler.",
+      "focus": "Indice de releases (idx:v14, dono Rust) e colhedor. idxPoolCovered, ACCOUNT_FAST_PATH (minReleases/stopWhen), harvester (fila persistente, freio de atividade em janela deslizante, teto horario, varredura pt-BR via colhedor), index-only alimentando o indice, seed do IMDb.",
       "files": [
         "src/utils/release-index.ts",
         "src/providers/harvester.ts",

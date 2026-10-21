@@ -1792,7 +1792,7 @@ RESPOSTA (<500ms):  /stream → idx + dinv → checagem no debrid → lista
 COLHEITA (fundo):   fila de obras → Jackett com orçamento largo → filtro → idx
 ```
 
-- **Dono do `idx:v14` (F3.1):** o Rust é o único escritor. `release-index.ts` é fachada sobre o `IdxStore` (`release-index-store.ts`, napi síncrono; store em `rust/crates/adom-index`). O Node não grava o `idx:` no L1 nem no SQLite; o boot pula o namespace em `cache-db.ts`; `clear-cache` do `idx` e `cache.clear()` chamam `clearIdxStore()`. Perdas: `search.idx.routed` e `search.idx.protCap` não contam mais (decisão de roteamento e corte protegido são do Rust). Sem `INDEX_OWNER=node`: dois escritores eram inviáveis; rollback = commit/imagem anterior. Detalhe em `docs/rust-index-bank-contract.md` (F3.1).
+- **Dono do `idx:v14` (F3.1):** o Rust é o único escritor. `release-index.ts` é fachada sobre o `IdxStore` (`release-index-store.ts`, napi síncrono; store em `rust/crates/adom-index`). O Node não grava o `idx:` no L1 nem no SQLite; o boot não carrega, não expira e não descarta versão velha; `set`/`persist`/`forget` recusam o namespace; `clear-cache` do `idx` e `cache.clear()` chamam `clearIdxStore()`. Prefixo morto some no `open` do `adom-index`; expirado some na leitura e no `enforce_quota`. Perdas: `search.idx.routed` e `search.idx.protCap` não contam mais. Sem `INDEX_OWNER=node`: rollback = commit/imagem anterior. Detalhe em `docs/rust-index-bank-contract.md` (F3.1).
 - **`src/utils/release-index.ts`** guarda por obra (`idx:v14:<imdbId>[:S:E]`) o
   mínimo da release `{ hash, title, size, indexer, isBr, quality, seeders,
   seenAt }`. Invariantes: sem config/credencial na chave (compartilhado entre

@@ -253,6 +253,7 @@ function onForget(hook: ForgetHook) {
 }
 
 function forget(key: string) {
+  if (namespaceFor(key) === 'idx') return;
   const existed = store.has(key);
   persistence.forget(key, removeFromStore);
   if (existed) {
@@ -261,11 +262,13 @@ function forget(key: string) {
 }
 
 function forgetMany(keys: string[]) {
+  const owned = keys.filter((key) => namespaceFor(key) !== 'idx');
+  if (!owned.length) return;
   const existingKeys: string[] = [];
-  for (const key of keys) {
+  for (const key of owned) {
     if (store.has(key)) existingKeys.push(key);
   }
-  persistence.forgetMany(keys, removeFromStore);
+  persistence.forgetMany(owned, removeFromStore);
   for (const key of existingKeys) {
     for (const hook of forgetHooks) hook(key);
   }
