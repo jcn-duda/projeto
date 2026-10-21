@@ -33,19 +33,8 @@ impl InternalRoutes for AccountRoutes {
         })
     }
 
-    fn index_write<'a>(&'a self, _req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse> {
-        Box::pin(async { Err("não usado".into()) })
-    }
-
     fn effects<'a>(&'a self, _req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async { Err("não usado".into()) })
-    }
-
-    fn search_index<'a>(
-        &'a self,
-        _req: SearchIndexRequest,
-    ) -> RouteFuture<'a, SearchIndexResponse> {
-        Box::pin(async { Ok(SearchIndexResponse::default()) })
     }
 }
 

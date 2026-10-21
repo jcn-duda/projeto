@@ -6,8 +6,6 @@ import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalCrawlResult } from './internal-crawl-result.js';
 import { registerInternalActivity } from './internal-activity.js';
 import { registerInternalSearch } from './internal-search.js';
-import { registerInternalSearchIndex } from './internal-search-index.js';
-import { registerInternalSearchFallback } from './internal-search-fallback.js';
 import { registerInternalDebridHolds } from './internal-debrid-holds.js';
 import { originOf } from './origin.js';
 import { makeAddonRouter } from './addon-router.js';
@@ -66,11 +64,9 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   registerInternalActivity(app, services);
   // Leituras internas de busca (F1.1): o orquestrador Rust consome metadados e
   // acervo por aqui antes de assumir o /stream. Igual às anteriores, sem config.
+  // Índice e banco de magnets são NATIVOS desde o R4: as rotas Node de
+  // índice/fallback saíram, e falha de abertura degrada sem índice.
   registerInternalSearch(app, services);
-  registerInternalSearchIndex(app, services);
-  // Reserva 📦 do banco para o orquestrador Rust (F1 fallback): leitura fina
-  // do SQLite; a seleção fica no núcleo.
-  registerInternalSearchFallback(app, services);
   // Feed do hold volátil do autofetch para o seam in-process do gateway
   // (`DEBRID_AL_HOLDS=on`). Mesma guarda das rotas /internal/* acima.
   registerInternalDebridHolds(app, services);

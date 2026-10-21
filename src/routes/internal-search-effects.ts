@@ -1,23 +1,18 @@
 // Rotas internas de ESCRITA E EFEITOS da busca (Fase A, passo 2 da migração
-// strangler Node→Rust): POST /internal/search/index-write e
-// POST /internal/search/effects. É o que o orquestrador Rust (`adom-search`)
-// pede ao Node DEPOIS do `collect`: gravar o que a coleta provou e disparar os
-// efeitos de fundo que ainda moram aqui (autofetch, warmer, auditoria, sonda,
-// colhedor, chave de temporada).
+// strangler Node→Rust): POST /internal/search/effects. É o que o orquestrador
+// Rust (`adom-search`) pede ao Node DEPOIS do `collect`: disparar os efeitos de
+// fundo que ainda moram aqui (autofetch, warmer, auditoria, sonda, colhedor,
+// chave de temporada). O índice e o banco de magnets são NATIVOS desde o R4 —
+// a antiga rota `index-write` foi removida junto com os ramos Node.
 //
 // Mesmo padrão do `collect` (internal-search.ts): sem config na URL — o usuário
 // vem no CORPO (`encoded`), e o contexto é restaurado com `runtime.run` (o
-// `capture()` cobre o invariante de timer/promise pós-request). A diferença é o
-// prazo: index-write é síncrono com contagens; effects é fire-and-forget — a
-// resposta (202) NUNCA depende do efeito rodar.
+// `capture()` cobre o invariante de timer/promise pós-request). effects é
+// fire-and-forget — a resposta (202) NUNCA depende do efeito rodar.
 import express, { Router } from 'express';
 import { asyncRoute } from './async.js';
 import type { AppServices } from './types.js';
 import { rejectedByGuard, decodeTarget } from './internal-search-shared.js';
-import { record } from '../utils/release-index.js';
-import type { ObraLocation } from '../utils/release-index-types.js';
-import { markBankFilterOutcome } from '../providers/magnet-bank-hook.js';
-import type { WorkCtx } from '../utils/magnet-bank.js';
 import { enqueueAutofetch } from '../providers/autofetch-runner.js';
 import { queueRdWarmForRelevant } from '../providers/harvest-warmer.js';
 import { queueDubAudit } from '../providers/dub-audit.js';
@@ -29,10 +24,7 @@ import type { AutofetchBatchPayload } from '../providers/autofetch-batch.js';
 import * as runtime from '../runtime.js';
 import * as log from '../utils/logger.js';
 
-// Tetos de entrada: a rota recebe LOTES pós-filtro, não acervo inteiro. Sem
-// teto, um chamador bugado transformaria a escrita em varredura do disco.
-const MAX_RELEASE_ENTRIES = 200;
-const MAX_ITEMS_PER_ENTRY = 2000;
+// Teto de entrada: a rota recebe um lote de efeitos, nunca acervo inteiro.
 const MAX_EFFECTS = 100;
 /** Lote do Chupim: o pool pós-debrid é `maxResults × candidatePoolFactor`
  *  (100 × 4 no teto do SCHEMA), com folga. */
@@ -42,10 +34,6 @@ const IMDB_RE = /^tt\d+$/;
 
 /** Colaboradores trocáveis em teste (mesmo padrão do internal-search.ts). */
 export interface InternalSearchEffectsCollaborators {
-  /** Grava o lote pós-filtro no índice de releases (`releaseIndex.record`). */
-  record: typeof record;
-  /** Resultado do filtro de título na obra do banco de magnets. */
-  markBankFilterOutcome: typeof markBankFilterOutcome;
   /** Enfileira candidato do Chupim (fila persistente; worker próprio drena). */
   enqueueAutofetch: typeof enqueueAutofetch;
   /** Alimenta o warmer do RD com as releases relevantes do lote. */
@@ -60,93 +48,6 @@ export interface InternalSearchEffectsCollaborators {
   registerSeasonSearchKey: typeof registerSeasonSearchKey;
   /** Lote pós-debrid do Chupim: reconstrói os streams e roda a cascata do Node. */
   runAutofetchBatch: typeof runAutofetchBatch;
-}
-
-type ReleaseEntry = {
-  imdb: string; season: number | null; episode: number | null;
-  items: any[]; entered: any[] | null; survivors: any[] | null; source?: 'autofetch';
-};
-
-/** Forma um lote de índice do corpo; string de erro = 400 no handler. */
-function parseReleaseEntries(raw: unknown): { ok: true; entries: ReleaseEntry[] } | { ok: false; error: string } {
-  if (!Array.isArray(raw)) return { ok: false, error: 'releases deve ser array' };
-  if (raw.length > MAX_RELEASE_ENTRIES) {
-    return { ok: false, error: `releases acima do teto de ${MAX_RELEASE_ENTRIES}` };
-  }
-  const entries: ReleaseEntry[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    const item = raw[i] as Record<string, unknown>;
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      return { ok: false, error: `releases[${i}] deve ser objeto` };
-    }
-    const imdb = typeof item.imdb === 'string' ? item.imdb.trim() : '';
-    if (!IMDB_RE.test(imdb)) return { ok: false, error: `releases[${i}].imdb deve começar com tt<dígitos>` };
-    const season = typeof item.season === 'number' && Number.isInteger(item.season) ? item.season : null;
-    const episode = typeof item.episode === 'number' && Number.isInteger(item.episode) ? item.episode : null;
-    const items = item.items;
-    if (!Array.isArray(items) || items.length > MAX_ITEMS_PER_ENTRY) {
-      return { ok: false, error: `releases[${i}].items deve ser array (teto ${MAX_ITEMS_PER_ENTRY})` };
-    }
-    const entered = Array.isArray(item.entered) ? item.entered : null;
-    const survivors = Array.isArray(item.survivors) ? item.survivors : null;
-    const source = item.source === 'autofetch' ? 'autofetch' as const : undefined;
-    entries.push({ imdb, season, episode, items, entered, survivors, source });
-  }
-  return { ok: true, entries };
-}
-
-/**
- * POST /internal/search/index-write — `{ encoded, releases: [...] }` →
- * `{ ok, recorded, entries, bank_marked, failed }`.
- *
- * Cada entrada tem `imdb` (+ `season`/`episode` opcionais), `items` (o lote CRU
- * pós-`filterRelevantRaw`) e, opcionalmente, `entered`/`survivors` (o antes/depois
- * do filtro de título; ausentes, `items` vale para os dois). Idempotente por
- * chamada: o `record` faz merge por hash (mais recente vence) — repetir o lote
- * não duplica nada. NUNCA lança: falha de entrada vira `failed` na contagem e
- * o log `[internal]` fica com o detalhe; só um erro fora do laço (bug) vira 500.
- */
-async function handleIndexWrite(
-  services: AppServices,
-  deps: InternalSearchEffectsCollaborators,
-  req: express.Request,
-  res: express.Response,
-) {
-  const body = req.body as { releases?: unknown } | undefined;
-  const target = decodeTarget(services, body);
-  if (!target) return res.status(400).json({ ok: false, error: 'encoded ausente ou inválido' });
-  const parsed = parseReleaseEntries(body?.releases);
-  if (!parsed.ok) return res.status(400).json({ ok: false, error: parsed.error });
-
-  let recorded = 0;
-  let bankMarked = 0;
-  let failed = 0;
-  // Indexação é ESCRITA DE DISCO (idx + banco de magnets) e roda dentro do
-  // contexto do usuário (`runtime.run`): o banco é por conta, e o invariante é
-  // a preferência do usuário nunca vir do `.env` — mesmo fora do /stream.
-  try {
-    await services.runtime.run({ opts: target.opts, encoded: target.encoded }, async () => {
-      for (const entry of parsed.entries) {
-        try {
-          const location: ObraLocation = { season: entry.season, episode: entry.episode };
-          recorded += deps.record(entry.imdb, location, entry.items, { source: entry.source });
-          const ctx: WorkCtx = { imdbId: entry.imdb, season: entry.season, episode: entry.episode };
-          const entered = entry.entered ?? entry.items;
-          const survivors = entry.survivors ?? entry.items;
-          if (deps.markBankFilterOutcome(entered, survivors, ctx)) bankMarked += 1;
-        } catch (err) {
-          // Falha de UMA entrada não derruba o lote: contabiliza e segue.
-          failed += 1;
-          log.error(`[internal] index-write ${entry.imdb}: entrada falhou:`, err);
-        }
-      }
-    });
-    log.debug(`[internal] index-write: entries=${parsed.entries.length} recorded=${recorded} bank=${bankMarked} failed=${failed}`);
-    return res.json({ ok: true, recorded, entries: parsed.entries.length, bank_marked: bankMarked, failed });
-  } catch (err) {
-    log.error('[internal] index-write falhou:', err);
-    return res.status(500).json({ ok: false, error: 'falha interna ao gravar o índice' });
-  }
 }
 
 /** Efeito conhecido: `kind` discriminado + payload já validado por tipo. */
@@ -227,8 +128,8 @@ function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): vo
     case 'br_probe': {
       const result = deps.requestBrProbe(p as any, p.mode === 'upgrade' ? { mode: 'upgrade' } : {});
       // Sonda INELEGÍVEL (kill-switch/retry/estado) devolve `fallbackBrGap`:
-      // o follow-up do índice manda a obra ao colhedor (`br-gap`), a MESMA
-      // rede que o `enqueueIndexFollowUp` do TS preserva. Sonda agendada já
+      // o follow-up do índice (agora nativo, no Rust) manda a obra ao colhedor
+      // (`br-gap`), preservando a rede de segurança. Sonda agendada já
       // enfileirou por dentro do `requestBrProbe` — aqui não duplica.
       if (result?.fallbackBrGap) {
         deps.harvestEnqueue({
@@ -306,8 +207,6 @@ export function registerInternalSearchEffects(
   overrides: Partial<InternalSearchEffectsCollaborators> = {},
 ): void {
   const deps: InternalSearchEffectsCollaborators = {
-    record: overrides.record ?? record,
-    markBankFilterOutcome: overrides.markBankFilterOutcome ?? markBankFilterOutcome,
     enqueueAutofetch: overrides.enqueueAutofetch ?? enqueueAutofetch,
     queueRdWarmForRelevant: overrides.queueRdWarmForRelevant ?? queueRdWarmForRelevant,
     queueDubAudit: overrides.queueDubAudit ?? queueDubAudit,
@@ -317,11 +216,6 @@ export function registerInternalSearchEffects(
     runAutofetchBatch: overrides.runAutofetchBatch ?? runAutofetchBatch,
   };
   const json = express.json({ limit: '1mb' });
-
-  router.post('/internal/search/index-write', json, asyncRoute(async (req, res) => {
-    if (rejectedByGuard(services, req, res)) return;
-    await handleIndexWrite(services, deps, req, res);
-  }));
 
   router.post('/internal/search/effects', json, asyncRoute(async (req, res) => {
     if (rejectedByGuard(services, req, res)) return;

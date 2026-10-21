@@ -8,9 +8,11 @@
  *
  * - `pickSource` → `dist/src/providers/magnet-bank-fallback.js`; a saída é o
  *   ÍNDICE da fonte escolhida (`sources.indexOf`) ou "null" — o empate do
- *   `reduce` fica com a primeira, e o índice prova isso;
- * - `isRecentRelease` → `dist/src/providers/magnet-bank-instant.js`, "1"/"0";
- * - `instantWindow` → JSON do `{windowMs,lastCollection,newest,stability,fresh}`.
+ *   `reduce` fica com a primeira, e o índice prova isso.
+ *
+ * Os ops `isRecentRelease`/`instantWindow` liam `magnet-bank-instant.js`; o
+ * módulo saiu no R4 (índice/banco nativos) e o golden dele também. O import é
+ * CONDICIONAL: o corpus do `pickSource` segue vivo e não depende dele.
  *
  * `meta.year` vira STRING antes de entrar (o TS faz `String(meta.year ?? '')`),
  * e números/`null` seguem essa mesma coerção.
@@ -35,9 +37,20 @@ const load = (rel) => import(pathToFileURL(path.join(job.repo, rel)).href)
   .catch((e) => fail(`import do oráculo falhou (${rel}): ${e.message}`));
 
 const fallback = await load('dist/src/providers/magnet-bank-fallback.js');
-const instant = await load('dist/src/providers/magnet-bank-instant.js');
-for (const [mod, name] of [[fallback, 'pickSource'], [instant, 'isRecentRelease'], [instant, 'instantWindow']]) {
-  if (typeof mod[name] !== 'function') fail(`o dist não exporta ${name}`);
+if (typeof fallback.pickSource !== 'function') fail('o dist não exporta pickSource');
+// Só carrega o módulo removido se algum caso ainda pedir os ops dele: sem isso
+// o corpus do `pickSource` quebraria no import (e não usa nada do instant).
+const needsInstant = job.cases.some((c) => {
+  try {
+    const op = JSON.parse(c.input).op;
+    return op === 'isRecentRelease' || op === 'instantWindow';
+  } catch {
+    return false;
+  }
+});
+const instant = needsInstant ? await load('dist/src/providers/magnet-bank-instant.js') : null;
+if (instant && (typeof instant.isRecentRelease !== 'function' || typeof instant.instantWindow !== 'function')) {
+  fail('magnet-bank-instant não exporta isRecentRelease/instantWindow');
 }
 
 /** Coerções do TS: `String(value || '')` e `String(meta.year ?? '')`. */
@@ -56,6 +69,7 @@ function render(c) {
     return chosen === null ? 'null' : String(req.sources.indexOf(chosen));
   }
   if (req.op === 'isRecentRelease') {
+    if (!instant) fail(`op ${req.op} sem magnet-bank-instant (removido no R4)`);
     const meta = req.meta === null || req.meta === undefined ? null : {
       year: req.meta.year ?? '',
       released: req.meta.released ?? null,
@@ -64,6 +78,7 @@ function render(c) {
     return instant.isRecentRelease(meta, req.now) ? '1' : '0';
   }
   if (req.op === 'instantWindow') {
+    if (!instant) fail(`op ${req.op} sem magnet-bank-instant (removido no R4)`);
     const meta = req.meta === null || req.meta === undefined ? null : {
       year: req.meta.year ?? '',
       released: req.meta.released ?? null,

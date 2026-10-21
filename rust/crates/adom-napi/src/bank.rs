@@ -3,8 +3,8 @@
 //!
 //! O TS lê `config.magnetBank.*` e as linhas do SQLite e passa os valores; o
 //! núcleo não conhece config, banco nem relógio. Entradas e saídas cruzam como
-//! JSON, no formato que as cascas TS de `magnet-bank-instant.ts` e
-//! `magnet-bank-fallback.ts` montam.
+//! JSON, no formato que as cascas TS de `magnet-bank-fallback.ts` montam (a de
+//! `magnet-bank-instant.ts` saiu no R4; o banco/índice são nativos).
 //!
 //! # Contrato de fronteira
 //!

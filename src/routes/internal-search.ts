@@ -143,7 +143,8 @@ export function registerInternalSearch(
     await handleCollect(services, deps, req, res);
   }));
 
-  // Escrita e efeitos do orquestrador (index-write/effects) — mesmo guarda,
-  // mesma posição no roteador (antes do overlay /:userConfig).
+  // Efeitos do orquestrador (effects) — mesmo guarda, mesma posição no
+  // roteador (antes do overlay /:userConfig). A escrita do índice é nativa
+  // desde o R4: a antiga rota `index-write` saiu junto com os ramos Node.
   registerInternalSearchEffects(router, services, effectsOverrides);
 }

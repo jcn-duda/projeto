@@ -30,7 +30,6 @@ const ARTIFACT_RELS = [
   'dist/src/app.js',
   'dist/src/utils/title-normalization.js',
   'dist/src/providers/collect-orchestrator.js',
-  'dist/src/providers/magnet-bank-instant.js',
 ];
 const DEFAULT_CONTAINER = 'stremio-adom';
 const DEFAULT_OUT = 'rust/benchmarks/local-ts-baseline.json';

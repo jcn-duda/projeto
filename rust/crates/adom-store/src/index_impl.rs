@@ -1,7 +1,7 @@
 //! Implementação das traits de I/O nativo do índice (`F4.5`) sobre os stores
 //! SQLite. O `adom-search` define as traits para não depender deste crate; o
-//! `adom-server` injeta os stores no orquestrador quando `INDEX_RUST`/
-//! `BANK_RUST` pedem.
+//! `adom-server` injeta os stores no orquestrador — índice e banco são sempre
+//! nativos desde o R4.
 
 use adom_core::{BankRow, InstantSource, InstantWork, WorkTarget};
 use adom_search::orchestrator::{

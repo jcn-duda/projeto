@@ -1,8 +1,10 @@
-use super::test_support::*;
-use serde_json::json;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-// â”€â”€ Path sem /:userConfig â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+use adom_core::{InstantMagnet, InstantSource, InstantWork};
+
+use super::test_support::*;
+
+// ── Path sem /:userConfig ──────────────────────────────────────────────────
 
 #[tokio::test]
 async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
@@ -20,7 +22,7 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
         Some(1_000_000),
     )
     .expect("path sem config deve casar");
-    // URL truth: sem segmento. Corpo interno (abaixo) recebe o canÃ´nico `e30`.
+    // URL truth: sem segmento. Corpo interno (abaixo) recebe o canônico `e30`.
     assert_eq!(req.encoded, None);
     assert_eq!(req.prefix(), "");
 
@@ -45,12 +47,12 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
         );
         assert!(
             !url.starts_with(&format!("/{SEGMENT}/resolve/")),
-            "path sem config nÃ£o deve prefixar /e30 nas URLs de play: {url}"
+            "path sem config não deve prefixar /e30 nas URLs de play: {url}"
         );
     }
 }
 
-// â”€â”€ CompositeCollector com SOURCES_RUST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CompositeCollector com SOURCES_RUST ────────────────────────────────────
 
 #[tokio::test]
 async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
@@ -109,7 +111,7 @@ async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
         Some(ORIGIN),
         Some(1_000_000),
     )
-    .expect("path vÃ¡lido");
+    .expect("path válido");
 
     let resposta = orch.handle(req).await;
     let mut all_text = Vec::new();
@@ -141,204 +143,140 @@ async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
     );
 }
 
-// â”€â”€ Via do Ãndice e Via InstantÃ¢nea do Banco â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Via do Índice e Via Instantânea do Banco (nativas) ─────────────────────
 
-#[derive(Default)]
-struct StubInternalRoutes {
-    index_response: Mutex<Option<SearchIndexResponse>>,
-}
+const BANK_HASH: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-impl InternalRoutes for StubInternalRoutes {
-    fn meta<'a>(&'a self, req: MetaRequest) -> RouteFuture<'a, MetaResponse> {
-        Box::pin(async move {
-            Ok(serde_json::from_value(json!({
-                "ok": true,
-                "type": req.media_type,
-                "id": req.id,
-                "imdb_id": req.id,
-            }))
-            .expect("meta"))
-        })
-    }
-
-    fn collect<'a>(&'a self, _req: CollectRequest) -> RouteFuture<'a, CollectResponse> {
-        Box::pin(async {
-            Ok(serde_json::from_value(json!({
-                "ok": true,
-                "type": "movie",
-                "items": [],
-                "partial": false,
-            }))
-            .expect("collect"))
-        })
-    }
-
-    fn index_write<'a>(&'a self, _req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse> {
-        Box::pin(async {
-            Ok(IndexWriteResponse {
-                ok: true,
-                recorded: 1,
-                entries: 1,
-                bank_marked: 0,
-                failed: 0,
-            })
-        })
-    }
-
-    fn effects<'a>(&'a self, _req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
-        Box::pin(async {
-            Ok(EffectsResponse {
-                ok: true,
-                accepted: 0,
-                rejected: 0,
-            })
-        })
-    }
-
-    fn search_index<'a>(
-        &'a self,
-        _req: SearchIndexRequest,
-    ) -> RouteFuture<'a, SearchIndexResponse> {
-        let resp = self
-            .index_response
-            .lock()
-            .expect("index_response")
-            .clone()
-            .unwrap_or_default();
-        Box::pin(async move { Ok(resp) })
+/// Release do `idx:v14` no formato que o Node grava.
+fn index_release(hash: &str, title: &str, indexer: &str) -> IndexedReleaseWire {
+    IndexedReleaseWire {
+        hash: hash.to_string(),
+        title: title.to_string(),
+        size: Some(1_000_000),
+        indexer: indexer.to_string(),
+        tracker: None,
+        is_br: true,
+        dubbed: true,
+        quality: "1080p".to_string(),
+        seeders: 5,
+        seen_at: 0,
+        lied: false,
+        source: None,
+        media_source: None,
     }
 }
 
-#[tokio::test]
-async fn resposta_do_indice_coberta_responde_imediatamente_com_snapshot() {
-    let store = Arc::new(MemorySwrStore::new());
-    let routes = Arc::new(StubInternalRoutes {
-        index_response: Mutex::new(Some(SearchIndexResponse {
-            ok: true,
-            is_partial: false,
-            index_covered: true,
-            instant_eligible: false,
-            index_items: vec![json!({
-                "title": "Filme Teste 2024 1080p Dublado Foto",
-                "infoHash": HASH,
-                "seeders": 5.0,
-                "size": 1000000.0,
-                "indexer": "bludv",
-                "isBr": true,
-                "fromFallback": true
-            })],
-            instant_items: vec![],
-            account_items: vec![],
-            effects: vec![],
-        })),
-    });
+/// Obra elegível do `magnets.db`: `passed_filter = 1` e observada AGORA (a
+/// janela adaptativa da instantânea é medida contra o relógio real).
+fn instant_work(hash: &str, title: &str) -> InstantWork {
+    let now = crate::orchestrator::respond::now_ms();
+    InstantWork {
+        hash: hash.to_string(),
+        passed_filter: 1,
+        last_seen: now,
+        first_seen: now,
+        magnet: Some(InstantMagnet {
+            hash: hash.to_string(),
+            uri: format!("magnet:?xt=urn:btih:{hash}&dn={title}"),
+            title: title.to_string(),
+            size: 1_000,
+            is_br: true,
+            dubbed: true,
+            quality: "1080p".to_string(),
+            seeders_max: 9,
+            seeders_last: 7,
+            last_seen: now,
+            lied: false,
+        }),
+    }
+}
 
-    let collector = StubCollector::empty(); // Coletor ao vivo vazio
-    let orch = Orchestrator::new(config(), store)
-        .with_collector(collector)
-        .with_meta(Arc::new(StubMeta(meta())))
-        .with_debrid(Arc::new(StubDebrid {
-            cached: vec![HASH.into()],
-        }))
-        .with_internal_routes(routes);
-
-    let req = StreamRequest::from_path(
-        &format!("/{SEGMENT}/stream/movie/tt0133093.json"),
-        Some("Stremio/1.6"),
-        Some(ORIGIN),
-        Some(1_000_000),
-    )
-    .expect("path vÃ¡lido");
-
-    let resposta = orch.handle(req).await;
-    assert_eq!(resposta.streams.len(), 1);
-    let title = resposta.streams[0].title.as_deref().unwrap_or("");
-    assert!(
-        title.contains("Filme Teste"),
-        "stream do indice deve estar presente: {title}"
+fn instant_bank(hash: &str, title: &str) -> Arc<StubBank> {
+    let mut sources = std::collections::BTreeMap::new();
+    sources.insert(
+        hash.to_string(),
+        vec![InstantSource {
+            indexer: "bludv".into(),
+            tracker: "BLUDV".into(),
+            last_seen: crate::orchestrator::respond::now_ms(),
+            // O orquestrador recalcula a permissão a partir do pedido.
+            allowed: false,
+        }],
     );
+    StubBank::new(vec![instant_work(hash, title)], sources)
 }
 
 #[tokio::test]
-async fn resposta_instantanea_do_banco_responde_com_itens_do_acervo() {
-    let store = Arc::new(MemorySwrStore::new());
-    let routes = Arc::new(StubInternalRoutes {
-        index_response: Mutex::new(Some(SearchIndexResponse {
-            ok: true,
-            is_partial: false,
-            index_covered: false,
-            instant_eligible: true,
-            index_items: vec![],
-            instant_items: vec![json!({
-                "title": "Filme Teste 2024 1080p Dublado Acervo",
-                "infoHash": HASH,
-                "seeders": 1.0,
-                "indexer": "mico",
-                "isBr": true,
-                "fromFallback": true
-            })],
-            account_items: vec![],
-            effects: vec![],
-        })),
-    });
-
-    let collector = StubCollector::empty();
-    let orch = Orchestrator::new(config(), store)
-        .with_collector(collector)
-        .with_meta(Arc::new(StubMeta(meta())))
-        .with_debrid(Arc::new(StubDebrid {
-            cached: vec![HASH.into()],
-        }))
-        .with_internal_routes(routes);
-
-    let req = StreamRequest::from_path(
-        &format!("/{SEGMENT}/stream/movie/tt0133093.json"),
-        Some("Stremio/1.6"),
-        Some(ORIGIN),
-        Some(1_000_000),
-    )
-    .expect("path vÃ¡lido");
-
-    let resposta = orch.handle(req).await;
-    assert_eq!(resposta.streams.len(), 1);
-    let title = resposta.streams[0].title.as_deref().unwrap_or("");
-    assert!(
-        title.contains("Acervo"),
-        "stream instantÃ¢neo do banco deve estar presente: {title}"
-    );
-}
-
-/// Ãndice coberto E instantÃ¢nea elegÃ­vel ao mesmo tempo: a instantÃ¢nea vence
-/// (mesma ordem do `search-index-path.ts`) e a foto do Ã­ndice sai marcada como
-/// `fromSnapshot`, nÃ£o como reserva bloqueada.
-#[tokio::test]
-async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
-    let routes = Arc::new(StubInternalRoutes {
-        index_response: Mutex::new(Some(SearchIndexResponse {
-            ok: true,
-            is_partial: false,
-            index_covered: true,
-            instant_eligible: true,
-            index_items: vec![
-                json!({"title": "Filme Teste 2024 Foto", "infoHash": HASH, "indexer": "bludv"}),
-            ],
-            instant_items: vec![
-                json!({"title": "Filme Teste 2024 Acervo", "infoHash": HASH, "indexer": "mico", "fromFallback": true}),
-            ],
-            account_items: vec![],
-            effects: vec![],
-        })),
-    });
+async fn indice_nativo_coberto_responde_imediatamente_com_a_foto() {
+    let index = StubIndex::with(vec![index_release(
+        HASH,
+        "Filme Teste 2024 1080p Dublado Foto",
+        "bludv",
+    )]);
     let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
         .with_collector(StubCollector::empty())
         .with_meta(Arc::new(StubMeta(meta())))
-        .with_internal_routes(routes);
+        .with_debrid(Arc::new(StubDebrid {
+            cached: vec![HASH.into()],
+        }))
+        .with_index_source(index);
+
+    let resposta = orch.handle(request(1_000_000)).await;
+    assert_eq!(
+        resposta.streams.len(),
+        1,
+        "o índice coberto responde sozinho"
+    );
+    let title = resposta.streams[0].title.as_deref().unwrap_or("");
+    assert!(
+        title.contains("Filme Teste"),
+        "stream do índice deve estar presente: {title}"
+    );
+}
+
+#[tokio::test]
+async fn banco_nativo_instantaneo_responde_com_itens_do_acervo() {
+    let bank = instant_bank(BANK_HASH, "Filme Teste 2024 1080p Dublado Acervo");
+    let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
+        .with_collector(StubCollector::empty())
+        .with_meta(Arc::new(StubMeta(meta())))
+        .with_debrid(Arc::new(StubDebrid {
+            cached: vec![BANK_HASH.into()],
+        }))
+        .with_bank_source(bank);
+
+    let resposta = orch.handle(request(1_000_000)).await;
+    assert_eq!(resposta.streams.len(), 1, "o acervo responde sozinho");
+    let title = resposta.streams[0].title.as_deref().unwrap_or("");
+    assert!(
+        title.contains("Acervo"),
+        "stream instantâneo do banco deve estar presente: {title}"
+    );
+}
+
+/// Índice coberto E instantânea elegível ao mesmo tempo: a instantânea vence
+/// (mesma ordem do antigo `search-index-path.ts`) e a foto do índice sai
+/// marcada como `fromSnapshot`, não como reserva bloqueada.
+#[tokio::test]
+async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
+    // Hashes DIFERENTES: a instantânea exclui os hashes que o índice já tem.
+    let index = StubIndex::with(vec![index_release(
+        HASH,
+        "Filme Teste 2024 1080p Foto",
+        "bludv",
+    )]);
+    let bank = instant_bank(BANK_HASH, "Filme Teste 2024 1080p Dublado Acervo");
+    let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
+        .with_collector(StubCollector::empty())
+        .with_meta(Arc::new(StubMeta(meta())))
+        .with_index_source(index)
+        .with_bank_source(bank);
     let input = crate::orchestrator::finish::SearchInput {
         kind: "movie".into(),
         id: "tt0133093".into(),
-        encoded: Some("e30".into()),
+        encoded: Some(SEGMENT.into()),
         prefix: "p".into(),
-        options: json!({}),
+        options: options(),
         key: "k".into(),
         now_ms: 1_000,
         deadline_at: Some(1_000_000),
@@ -347,8 +285,8 @@ async fn via_instantanea_vence_quando_o_indice_tambem_cobre() {
     let fast = orch
         .fast_path_items(&input, &meta())
         .await
-        .expect("via rÃ¡pida");
-    assert!(fast.instant, "instantanea tem precedencia sobre o indice");
+        .expect("via rápida");
+    assert!(fast.instant, "instantânea tem precedência sobre o índice");
     let foto = fast
         .items
         .iter()

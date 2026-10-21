@@ -1,24 +1,17 @@
 // Fase 5 — alcance do dublado BR, com os títulos REAIS medidos em produção
 // (The Dead Zone / "A Hora da Zona Morta", tt0085407). Cada caso ancora um
 // commit da fase: b867c13 (dublado com `_`, contracção pt-BR e CAM lido no dn
-// do magnet), 7f5d5ef (proteção `isBr || dubbed` no corte do índice, revisada
-// depois com o teto de proteção 2/3) e efd6f2c
-// (só-colhedor index-only na via instantânea do banco).
+// do magnet) e 7f5d5ef (proteção `isBr || dubbed` no corte do índice, revisada
+// depois com o teto de proteção 2/3). O caso da via instantânea do banco
+// (efd6f2c) saiu no R4: índice e banco são NATIVOS no Rust, e o TS não tem
+// mais `collectInstantItems`.
 // Teste puro: sem rede, sem servidor, sem src/addon.ts.
-import { test, after } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
 import config from '../src/config.js';
-import * as cache from '../src/utils/cache.js';
-import { prefix } from '../src/utils/cache-keys.js';
-import * as metrics from '../src/utils/metrics.js';
-import * as bank from '../src/utils/magnet-bank.js';
 import { audioFromTitle } from '../src/utils/audio-quality.js';
 import { applyPtTitleDual } from '../src/providers/pt-title-dual.js';
 import { record, lookup, clearIdxStore } from '../src/utils/release-index.js';
-import { collectInstantItems } from '../src/providers/magnet-bank-instant.js';
 import { toStremioStream } from '../src/utils/search-names.js';
 import type { RawItem } from '../types/domain.js';
 
@@ -27,7 +20,6 @@ const TITLE_DUAL = 'A Hora Da Zona Morta 1983 720p BluRay x264 DUAL_Misso';
 const TITLES = { pt: 'Na Hora da Zona Morta', en: 'The Dead Zone', original: 'The Dead Zone' };
 
 const hex = (c: string) => c.repeat(40);
-const magnetUri = (h: string) => `magnet:?xt=urn:btih:${h}`;
 
 function raw(title: string, extra: Partial<RawItem> = {}): RawItem {
   return { title, infoHash: hex('a'), seeders: 5, ...extra };
@@ -176,74 +168,7 @@ test('record: teto de proteção — excedente BR não estrela o global novo da 
   }
 });
 
-// ─── 4. Banco instantâneo: só-colhedor index-only atravessa (efd6f2c) ───────
-
-const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mb-dubbed-reach-'));
-const tempDirs: string[] = [];
-
-test('banco instantâneo: só-colhedor (passed_filter=0) do index-only aparece; série errada cai', () => {
-  const dir = FRESH_DIR();
-  tempDirs.push(dir);
-  const saved = {
-    enabled: config.magnetBank.enabled,
-    instantEnabled: config.magnetBank.instantEnabled,
-    indexOnly: config.jackett.indexOnlyIndexers,
-  };
-  try {
-    bank.resetForTests();
-    bank.open(dir);
-    config.magnetBank.enabled = true;
-    config.magnetBank.instantEnabled = true;
-    config.jackett.indexOnlyIndexers = ['apachetorrent-cardigann'];
-
-    const ctx = { imdbId: IMDB, season: null, episode: null };
-    // Isca VIVA: um passed_filter=1 dá a `lastCollection` que a janela exige
-    // (magnet-bank-instant.ts:148). O filtro reaplicado a derruba depois —
-    // 'S01E05' num pedido de FILME morre em movie-is-series
-    // (release-filters.ts:102-132). O work é POR HASH (magnet-bank.ts:40-41),
-    // então a isca não contamina o passed_filter do posto do Apache.
-    // Título do caso ajustado? NÃO — passou como medido, sem corte de `[..]`.
-    const baitHash = hex('c');
-    bank.captureItems(
-      [{ title: 'A Hora da Zona Morta S01E05 1080p DUAL', infoHash: baitHash, magnet: magnetUri(baitHash), seeders: 5, isBr: true }],
-      'idx-global',
-      ctx,
-    );
-    bank.markFilterResult([baitHash], [baitHash], ctx);
-    // Só-colhedor REAL: captura do Apache SEM markFilterResult — nasce
-    // passed_filter=0 e a elegibilidade vem do braço index-only por FONTE
-    // (magnet-bank-instant.ts:229-232), não de uma busca viva.
-    const apacheHash = hex('d');
-    bank.captureItems(
-      [{ title: 'A Hora da Zona Morta 1983 1080p DUAL', infoHash: apacheHash, magnet: magnetUri(apacheHash), seeders: 5, isBr: true }],
-      'apachetorrent-cardigann',
-      ctx,
-    );
-    bank.flushNow();
-
-    const res = collectInstantItems({
-      type: 'movie',
-      imdbId: IMDB,
-      season: null,
-      episode: null,
-      preferDubbed: false,
-      names: ['A Hora da Zona Morta'],
-      year: 1983,
-      isSeries: false,
-    });
-    assert.equal(res.eligible, true, 'elegível pela janela viva da isca');
-    assert.equal(res.items.length, 1, 'só o sobrevivente da reaplicação sai');
-    assert.ok(res.items.some((i) => i.infoHash === apacheHash), 'só-colhedor index-only (passed_filter=0) aparece');
-    assert.ok(res.items.every((i) => i.infoHash !== baitHash), 'a série errada não aparece');
-  } finally {
-    bank.resetForTests();
-    config.magnetBank.enabled = saved.enabled;
-    config.magnetBank.instantEnabled = saved.instantEnabled;
-    config.jackett.indexOnlyIndexers = saved.indexOnly;
-  }
-});
-
-// ─── 5. CAM lido no dn= do magnet (b867c13) ─────────────────────────────────
+// ─── 4. CAM lido no dn= do magnet (b867c13) ─────────────────────────
 
 test('toStremioStream: dn com CAMRip rotula CAM; dn sem CAM não rotula', () => {
   // O título do post esconde a gravação; o dn= preserva o nome real do
@@ -265,12 +190,4 @@ test('toStremioStream: dn com CAMRip rotula CAM; dn sem CAM não rotula', () => 
   });
   assert.ok(cleanStream, 'a contraprova também tem ação');
   assert.ok(!String(cleanStream?.name || '').includes('CAM'), 'dn sem CAM não rotula');
-});
-
-// ─── Cleanup ────────────────────────────────────────────────────────────────
-
-after(() => {
-  for (const dir of tempDirs) {
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
-  }
 });

@@ -69,9 +69,7 @@ pub use contract::{BehaviorHints, StreamItem, StreamResponse};
 pub use internal_client::{InternalSearchClient, DEFAULT_BASE, DEFAULT_TIMEOUT};
 pub use internal_types::{
     BreakerSnapshot, CollectRequest, CollectResponse, EffectEntry, EffectsRequest, EffectsResponse,
-    FallbackMagnetWire, FallbackRequest, FallbackResponse, FallbackSourceWire, FallbackWorkWire,
-    IndexWriteRequest, IndexWriteResponse, LiveSnapshot, MetaRequest, MetaResponse, ReleaseEntry,
-    TaskScope,
+    LiveSnapshot, MetaRequest, MetaResponse, ReleaseEntry, TaskScope,
 };
 pub use orchestrator::{Orchestrator, OrchestratorConfig, StreamRequest};
 pub use raw_item::raw_item_from_value;

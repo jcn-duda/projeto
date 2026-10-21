@@ -1,11 +1,13 @@
 //! Porte da via do banco de magnets — `pickSource`
 //! (`src/providers/magnet-bank-fallback.ts`), `isRecentRelease` e
-//! `instantWindow` (`src/providers/magnet-bank-instant.ts`).
+//! `instantWindow` (do antigo TS `src/providers/magnet-bank-instant.ts`,
+//! removido no R4: este é o único caminho).
 //!
 //! Goldens: `rust/golden/magnet-bank-source.jsonl` (12 casos) e
-//! `rust/golden/magnet-bank-instant.jsonl` (27 casos), gerados por
-//! `node scripts/golden/dump-magnet-bank-{source,instant}.mjs` contra o TS REAL
-//! do `dist`; teste em `tests/search_bank_golden.rs`.
+//! `rust/golden/magnet-bank-instant.jsonl` (27 casos), capturados do TS REAL do
+//! `dist` pelo oráculo `scripts/golden/search-bank-oracle.mjs`; teste em
+//! `tests/search_bank_golden.rs`. O JSONL do instant segue congelado como
+//! fixture — o script npm que o re-gerava saiu com o módulo.
 //!
 //! DECISÃO DE `Date.parse`: o TS aceita muito mais que ISO-8601 (RFC 2822,
 //! "13/01/2027"…), e datetime SEM offset é interpretado no FUSO do processo —

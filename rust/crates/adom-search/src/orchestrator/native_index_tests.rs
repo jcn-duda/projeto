@@ -10,7 +10,7 @@ use crate::cache::MemorySwrStore;
 use crate::internal_types::ReleaseEntry;
 use crate::orchestrator::account::{AccountInventorySource, AccountRequest};
 use crate::orchestrator::index_source::{
-    BankFilterCtx, IndexMode, IndexedReleaseWire, MagnetBankSource, ReleaseIndexSource,
+    BankFilterCtx, IndexedReleaseWire, MagnetBankSource, ReleaseIndexSource,
 };
 use crate::orchestrator::live_state::LiveBatchState;
 use crate::orchestrator::{Orchestrator, OrchestratorConfig};
@@ -224,12 +224,8 @@ fn meta(season: Option<i64>, episode: Option<i64>) -> SearchMeta {
     }
 }
 
-fn config(index_mode: IndexMode, bank_mode: IndexMode) -> OrchestratorConfig {
-    OrchestratorConfig {
-        index_mode,
-        bank_mode,
-        ..OrchestratorConfig::default()
-    }
+fn config() -> OrchestratorConfig {
+    OrchestratorConfig::default()
 }
 
 fn orch(cfg: OrchestratorConfig, index: Option<FakeIndex>, bank: Option<FakeBank>) -> Orchestrator {
@@ -252,11 +248,7 @@ async fn indice_coberto_responde_com_a_marca_da_foto() {
         "1080p",
         "bludv",
     )];
-    let orch = orch(
-        config(IndexMode::On, IndexMode::Off),
-        Some(FakeIndex::new(indexed, false)),
-        None,
-    );
+    let orch = orch(config(), Some(FakeIndex::new(indexed, false)), None);
     let scan = orch
         .native_index_scan(
             &input("movie", json!({"providers": ["jackett"]})),
@@ -281,11 +273,7 @@ async fn fast_path_do_indice_limpa_o_selo_da_foto() {
         "1080p",
         "bludv",
     )];
-    let orch = orch(
-        config(IndexMode::On, IndexMode::Off),
-        Some(FakeIndex::new(indexed, false)),
-        None,
-    );
+    let orch = orch(config(), Some(FakeIndex::new(indexed, false)), None);
     let fast = orch
         .native_fast_path(
             &input("movie", json!({"providers": ["jackett"]})),
@@ -309,7 +297,7 @@ async fn instantanea_do_banco_leva_selo_e_fallback_fetchable() {
         sources("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
     );
     let orch = orch(
-        config(IndexMode::On, IndexMode::On),
+        config(),
         Some(FakeIndex::new(Vec::new(), false)),
         Some(bank),
     );
@@ -358,7 +346,7 @@ async fn instantanea_com_foto_velha_nao_responde() {
         sources("cccccccccccccccccccccccccccccccccccccccc"),
     );
     let orch = orch(
-        config(IndexMode::On, IndexMode::On),
+        config(),
         Some(FakeIndex::new(Vec::new(), false)),
         Some(bank),
     );
@@ -389,7 +377,7 @@ async fn instantanea_sem_cobertura_nao_responde() {
         sources("dddddddddddddddddddddddddddddddddddddddd"),
     );
     let orch = orch(
-        config(IndexMode::On, IndexMode::On),
+        config(),
         Some(FakeIndex::new(Vec::new(), false)),
         Some(bank),
     );
@@ -411,11 +399,7 @@ async fn filtro_de_origem_corta_release_de_outro_provider() {
         "1080p",
         "torrentio",
     )];
-    let orch = orch(
-        config(IndexMode::On, IndexMode::Off),
-        Some(FakeIndex::new(indexed, false)),
-        None,
-    );
+    let orch = orch(config(), Some(FakeIndex::new(indexed, false)), None);
     let scan = orch
         .native_index_scan(
             &input(
@@ -438,11 +422,7 @@ async fn parcial_bloqueia_o_fast_path_do_indice() {
         "1080p",
         "bludv",
     )];
-    let orch = orch(
-        config(IndexMode::On, IndexMode::Off),
-        Some(FakeIndex::new(indexed, true)),
-        None,
-    );
+    let orch = orch(config(), Some(FakeIndex::new(indexed, true)), None);
     let scan = orch
         .native_index_scan(
             &input("movie", json!({"providers": ["jackett"]})),
@@ -472,7 +452,7 @@ async fn serie_busca_episodio_temporada_e_raiz() {
         sources("0101010101010101010101010101010101010101"),
     );
     let orch = orch(
-        config(IndexMode::On, IndexMode::On),
+        config(),
         Some(FakeIndex::new(Vec::new(), false)),
         Some(bank),
     );
@@ -545,7 +525,7 @@ impl AccountInventorySource for FakeAccount {
 
 #[tokio::test]
 async fn conta_entra_no_caminho_do_indice_quando_ha_fonte_nativa() {
-    let mut cfg = config(IndexMode::On, IndexMode::Off);
+    let mut cfg = config();
     cfg.account_fast_path = true;
     cfg.account_inventory_source = true;
     let orch = Orchestrator::new(cfg, Arc::new(MemorySwrStore::new()))
@@ -589,7 +569,7 @@ async fn reserva_do_banco_nativo_reinjeta_item_de_indexer_falho() {
         }],
         sources(&hash),
     );
-    let orch = orch(config(IndexMode::Off, IndexMode::On), None, Some(bank));
+    let orch = orch(config(), None, Some(bank));
     let mut live = LiveBatchState::default();
     live.failed.insert("bludv".to_string());
     let items = orch

@@ -204,45 +204,38 @@ fn holds_feed() -> Option<Arc<dyn HoldsFeed>> {
     Some(Arc::new(feed))
 }
 
-/// Abre e injeta o índice/banco nativos quando `INDEX_RUST`/`BANK_RUST` pedem
-/// (`on`). Falha de abertura = instrumento ausente, nunca boot caído:
-/// o modo `on` degrada para o caminho Node e a métrica
-/// `index.rust.source_missing` aparece no `/metrics`.
+/// Abre e injeta o índice/banco nativos. Índice e banco são SEMPRE nativos
+/// (R4): falha de abertura = instrumento ausente, nunca boot caído e nunca
+/// caminho Node — o orquestrador degrada sem índice/banco (log `[search]`)
+/// e a métrica `index.rust.source_missing` aparece no `/metrics`.
 fn wire_native_index(orch: Orchestrator) -> Orchestrator {
     let cfg = orch.config().clone();
     let mut orch = orch;
-    if cfg.index_mode.uses_native() && cfg.release_index_enabled && cfg.release_index_ttl > 0 {
+    if cfg.release_index_enabled && cfg.release_index_ttl > 0 {
         match adom_store::NativeReleaseIndex::from_env() {
             Ok(store) => {
                 eprintln!(
-                    "[gateway] índice de releases nativo: INDEX_RUST={} (idx:v14, ttl={}s, teto={})",
-                    cfg.index_mode.as_str(),
-                    cfg.release_index_ttl,
-                    cfg.release_index_max_releases
+                    "[gateway] índice de releases nativo (idx:v14, ttl={}s, teto={})",
+                    cfg.release_index_ttl, cfg.release_index_max_releases
                 );
                 orch = orch.with_index_source(Arc::new(
                     store.with_limits(cfg.release_index_ttl, cfg.release_index_max_releases),
                 ));
             }
-            Err(err) => eprintln!(
-                "[gateway] idx:v14 indisponível ({err}); índice segue no Node mesmo com INDEX_RUST={}",
-                cfg.index_mode.as_str()
-            ),
+            Err(err) => {
+                eprintln!("[search] idx:v14 indisponível ({err}); seguindo sem índice nativo")
+            }
         }
     }
-    if cfg.bank_mode.uses_native() && cfg.magnet_bank_enabled {
+    if cfg.magnet_bank_enabled {
         match adom_store::MagnetBankStore::from_env() {
             Ok(store) => {
-                eprintln!(
-                    "[gateway] banco de magnets nativo: BANK_RUST={} (magnets.db)",
-                    cfg.bank_mode.as_str()
-                );
+                eprintln!("[gateway] banco de magnets nativo (magnets.db)");
                 orch = orch.with_bank_source(Arc::new(store));
             }
-            Err(err) => eprintln!(
-                "[gateway] magnets.db indisponível ({err}); banco segue no Node mesmo com BANK_RUST={}",
-                cfg.bank_mode.as_str()
-            ),
+            Err(err) => {
+                eprintln!("[search] magnets.db indisponível ({err}); seguindo sem banco nativo")
+            }
         }
     }
     orch

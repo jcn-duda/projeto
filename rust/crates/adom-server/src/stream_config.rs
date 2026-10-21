@@ -1,4 +1,4 @@
-use adom_search::orchestrator::{AccountMode, IndexMode, OrchestratorConfig};
+use adom_search::orchestrator::{AccountMode, OrchestratorConfig};
 use adom_search::BuildOptions;
 use serde_json::Value;
 
@@ -95,16 +95,6 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     if let Some(ms) = env_i64("ACCOUNT_FAST_WAIT_MS") {
         cfg.account_fast_wait_ms = ms.max(1);
     }
-    // Índice/banco nativos (F4.5). Default ON desde o F4.4: o orquestrador
-    // nativo é quem lê/escreve `idx:v14`/`magnets.db` no MESMO cache.db do Node.
-    // Rollback por env: INDEX_RUST=off / BANK_RUST=off devolve a leitura/escrita
-    // à rota interna `/internal/search/index` (Node), sem reiniciar o contrato.
-    cfg.index_mode = std::env::var("INDEX_RUST")
-        .map(|raw| IndexMode::parse(&raw))
-        .unwrap_or(IndexMode::On);
-    cfg.bank_mode = std::env::var("BANK_RUST")
-        .map(|raw| IndexMode::parse(&raw))
-        .unwrap_or(IndexMode::On);
     // Defaults do Node (`config/harvest.ts`/`config/cache.ts`).
     cfg.release_index_enabled = std::env::var("RELEASE_INDEX")
         .map(|raw| raw.trim() == "true")

@@ -15,17 +15,6 @@ import { sourceFromTitle } from '../src/utils/audio-quality.js';
 import { yearContradicts } from '../src/utils/matching-tokens.js';
 import { magnetYearContradicts } from '../src/utils/episode-matching.js';
 import { titleTokens } from '../src/utils/matching-vocabulary.js';
-import { collectInstantItems } from '../src/providers/magnet-bank-instant.js';
-import * as bank from '../src/utils/magnet-bank.js';
-import config from '../src/config.js';
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
-import * as releaseIndex from '../src/utils/release-index.js';
-import debrid from '../src/debrid/index.js';
-import * as harvestQueue from '../src/providers/harvest-queue.js';
-import * as metrics from '../src/utils/metrics.js';
-import { patch } from './helpers/stub.js';
 
 const HASH = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
@@ -175,75 +164,4 @@ test('notCam: corta item cujo título é limpo mas dn diz TELESYNC', () => {
   const dn = 'Resident.Evil.2026.1080p.TELESYNC.x264';
   assert.equal(sourceFromTitle(title), '', 'título limpo não revela CAM');
   assert.equal(sourceFromTitle(dn), 'CAM', 'dn revela TELESYNC');
-});
-
-// ─── 5. Banco instantâneo: série gravada para filme não sai ───────────────────
-
-const DAY_MS = 86400000;
-const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mb-inst-red-'));
-const hex = (c: string) => c.repeat(40);
-const magnetUri = (h: string) => `magnet:?xt=urn:btih:${h}`;
-
-const tempDirs: string[] = [];
-const saved = {
-  releaseIndex: config.releaseIndex.enabled,
-  instantEnabled: config.magnetBank.instantEnabled,
-  fallbackMaxPerIndexer: config.magnetBank.fallbackMaxPerIndexer,
-  fallbackGlobalMax: config.magnetBank.fallbackGlobalMax,
-};
-
-function seedInstant(hash: string, indexer: string, ctx: any, opts: { title?: string; uri?: string } = {}) {
-  const title = opts.title ?? 'Filme Teste 2024 1080p Dublado';
-  const uri = opts.uri ?? magnetUri(hash);
-  bank.captureItems([{ title, infoHash: hash, magnet: uri, seeders: 5, isBr: true }], indexer, ctx);
-  bank.markFilterResult([hash], [hash], ctx);
-  bank.flushNow();
-}
-
-test('banco instantâneo: série gravada para filme não sai na resposta', () => {
-  const dir = FRESH_DIR();
-  tempDirs.push(dir);
-  bank.open(dir);
-  config.releaseIndex.enabled = false;
-  config.magnetBank.instantEnabled = true;
-
-  const imdbId = 'tt35538033';
-  const ctx = { imdbId, season: null, episode: null, type: 'movie' };
-  // Grava série (S01) como passed_filter=1 para o filme
-  const seriesHash = hex('f');
-  seedInstant(seriesHash, 'apachetorrent', ctx, {
-    title: 'Resident Evil - A Série - 1ª Temporada [1080p WEBRIP LEGENDADO]',
-    uri: magnet(seriesHash, 'Resident.Evil.S01.1080p.NF.WEBRip'),
-  });
-
-  const result = collectInstantItems({
-    type: 'movie',
-    imdbId,
-    season: null,
-    episode: null,
-    names: ['Resident Evil'],
-    year: 2026,
-    isSeries: false,
-    preferDubbed: false,
-    now: Date.now(),
-  });
-
-  // A série deve ser filtrada pelo reaplicação do filtro
-  const seriesItems = result.items.filter((i: any) =>
-    String(i.title || '').includes('Série'),
-  );
-  assert.equal(seriesItems.length, 0, 'série S01 não sai na resposta do filme');
-
-  // Restore
-  bank.resetForTests();
-  bank.close();
-  config.releaseIndex.enabled = saved.releaseIndex;
-  config.magnetBank.instantEnabled = saved.instantEnabled;
-});
-
-// Cleanup
-test.after(() => {
-  for (const dir of tempDirs) {
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
-  }
 });

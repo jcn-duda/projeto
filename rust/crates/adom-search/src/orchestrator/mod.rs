@@ -15,8 +15,9 @@
 //!    requisição;
 //! 6. **fim** — `search_finish` do núcleo (`commit_decision` / promoção
 //!    tardia), `cacheMaxAge`, e o host só na resposta (`apply_notice_origin`);
-//! 7. **fila tardia** — `tokio::spawn` com o lote completo, index-write,
-//!    refresh do debrid e varredura pt-BR (efeitos por [`TailEffects`]).
+//! 7. **fila tardia** — `tokio::spawn` com o lote completo, escrita no
+//!    índice NATIVO, refresh do debrid e varredura pt-BR (efeitos por
+//!    [`TailEffects`]).
 //!
 //! Corte EXTERNO: a busca corre numa task própria; o cliente espera
 //! `reply_ms` e, se o prazo vencer, recebe `partial` com o aviso
@@ -112,7 +113,7 @@ pub use index_effects::{FollowUpKind, FollowUpPlan};
 pub use index_metrics::index_metrics_snapshot;
 pub use index_source::{
     allowed_source_indexer, bank_limits, bank_read_window, obra_targets, BankFilterCtx, BankLookup,
-    IndexMode, IndexedReleaseWire, MagnetBankSource, ReleaseIndexSource, SharedBank, SharedIndex,
+    IndexedReleaseWire, MagnetBankSource, ReleaseIndexSource, SharedBank, SharedIndex,
 };
 pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
 pub use jackett_collector::{
@@ -158,8 +159,8 @@ pub struct Orchestrator {
     tail: Arc<dyn TailEffects>,
     in_flight: Arc<InFlight<Arc<SearchOutcome>>>,
     refreshing: Arc<Mutex<HashSet<String>>>,
-    /// Rotas internas do Node (`/internal/search/*`), para leitura de metadados,
-    /// índice de releases e banco instantâneo.
+    /// Rotas internas do Node (`/internal/search/*`), para metadados, coleta e
+    /// efeitos. Índice/banco são NATIVOS desde o R4: não há rota Node.
     routes: Option<Arc<dyn InternalRoutes>>,
     /// Lista de arquivos por hash (o memo `fsz` do Node): o `💾` de pack/item
     /// que o tracker não publicou e o fill pós-debrid saem daqui. O Node lê o
@@ -178,14 +179,20 @@ pub struct Orchestrator {
     /// Fonte do inventário da conta (`ACCOUNT_RUST=on`). `None` =
     /// modo desligado ou fonte não injetada (o caminho Node segue igual).
     account: Option<Arc<dyn AccountInventorySource>>,
-    /// Índice de releases nativo (`INDEX_RUST=on`); `None` = caminho
-    /// Node (a leitura segue em `POST /internal/search/index`).
+    /// Índice de releases nativo (`idx:v14`); `None` = sem store (a busca
+    /// degrada sem via rápida, log `[search]`). SEMPRE nativo desde o R4.
     index: Option<SharedIndex>,
-    /// Banco de magnets nativo (`BANK_RUST=on`); `None` = Node.
+    /// Banco de magnets nativo (`magnets.db`); `None` = sem store (degradação
+    /// sem instantânea/reserva). SEMPRE nativo desde o R4.
     bank: Option<SharedBank>,
     /// Evidência `bad`/`lie` do banco de magnets da conta (fonte do gateway);
     /// `None` = sem fonte (build igual ao de antes do F4.4a).
     known_broken: Option<Arc<dyn KnownBroken>>,
+    /// Lote da via rápida já decidido FORA do processo — só o replay congelado
+    /// (`frozen_gate`) usa. Substituiu a rota Node `search/index`: sem ela, o
+    /// gate injeta o lote capturado VERBATIM (com as anotações do build) em vez
+    /// de re-derivá-lo das fontes nativas. `None` em produção.
+    frozen_fast_path: Option<fast_path::FastPath>,
 }
 
 /// Collector que falha sempre: default do crate até a integração injetar o
@@ -236,6 +243,7 @@ impl Orchestrator {
             index: None,
             bank: None,
             known_broken: None,
+            frozen_fast_path: None,
         }
     }
 
@@ -320,13 +328,13 @@ impl Orchestrator {
         self.account.as_ref()
     }
 
-    /// Injeta o índice de releases nativo (`INDEX_RUST`).
+    /// Injeta o índice de releases nativo.
     pub fn with_index_source(mut self, index: SharedIndex) -> Self {
         self.index = Some(index);
         self
     }
 
-    /// Injeta o banco de magnets nativo (`BANK_RUST`).
+    /// Injeta o banco de magnets nativo.
     pub fn with_bank_source(mut self, bank: SharedBank) -> Self {
         self.bank = Some(bank);
         self

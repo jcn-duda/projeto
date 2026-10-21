@@ -1,9 +1,12 @@
 //! Gate de paridade CONGELADA do `/stream` (Fase 1, `docs/stream-frozen-gate.md`).
 //!
 //! Lê `rust/golden/stream-frozen/<caso>/` e monta o orquestrador REAL com as
-//! rotas internas substituídas pela captura: `FrozenRoutes` (meta/collect/index/
-//! fallback) e `FrozenDebridFactory` (veredito de cache por hash). Nenhuma rede,
-//! nenhum SQLite, nenhum relógio de parede.
+//! rotas internas substituídas pela captura: `FrozenRoutes` (meta/collect) e
+//! `FrozenDebridFactory` (veredito de cache por hash). O índice e o banco são
+//! NATIVOS desde o R4 (não há mais rota Node): o lote do `inputs/index.json` é
+//! entregue VERBATIM à via rápida (`with_frozen_fast_path`), com as anotações
+//! de prova que o build do Node aplicou. Nenhuma rede, nenhum SQLite, nenhum
+//! relógio de parede.
 //!
 //! O alvo é `expected/node-response.json`, produzido pelo Node a partir das
 //! MESMAS entradas. Diferença aqui é divergência de pipeline; ruído de coleta
@@ -19,8 +22,7 @@ use serde_json::Value;
 use adom_core::StreamDisplayConfig;
 
 use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, IndexWriteRequest,
-    IndexWriteResponse, MetaRequest, MetaResponse, SearchIndexRequest, SearchIndexResponse,
+    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
 };
 use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
 use crate::orchestrator::collect::NodeCollector;
@@ -32,6 +34,7 @@ use crate::orchestrator::meta::NodeMetaSource;
 use crate::orchestrator::respond::StreamRequest;
 use crate::orchestrator::tail::NoopTailEffects;
 use crate::orchestrator::Orchestrator;
+use crate::raw_item::{raw_item_from_value, RawItem};
 use crate::MemorySwrStore;
 use crate::StreamResponse;
 use adom_core::RankingStream;
@@ -123,19 +126,35 @@ struct FallbackValue {
     items: Vec<Value>,
 }
 
+/// `inputs/index.json`: o lote que o Node passou ao build. Na via instantânea
+/// ele é a MESCLA `índice + banco + conta`, com cada item já marcado pela
+/// origem (`fromSnapshot`/`fromFallback`/`fromAccount`); fora dela é o lote cru
+/// do índice. É o lote FINAL do build do Node, com as anotações de prova que só
+/// ele tem (`provenQuality`/`provenAudio`/`provenName`/`mediaSource`): desde o
+/// R4 não existe rota Node de índice, então o gate entrega esse lote VERBATIM à
+/// via rápida (ver `Orchestrator::with_frozen_fast_path`).
 #[derive(Debug, Deserialize)]
 struct IndexFile {
+    #[serde(default)]
     value: IndexValue,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct IndexValue {
     #[serde(rename = "servedFromIndex", default)]
     served_from_index: bool,
     #[serde(default)]
     instant: bool,
+    /// `null` em caso sem lote (`movie-fake-id-guard`).
     #[serde(default)]
     raw: Option<BatchFile>,
+}
+
+/// Lote congelado da via rápida, já anotado.
+struct FrozenBatch {
+    items: Vec<Value>,
+    instant: bool,
+    index_covered: bool,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -185,7 +204,6 @@ struct FrozenCase {
     request: RequestFile,
     meta: MetaResponse,
     collect: Vec<CollectFile>,
-    index: SearchIndexResponse,
     debrid: DebridCall,
     /// Conjunto `instant` exato do sort (quando o record o capturou).
     instant: Vec<String>,
@@ -199,6 +217,8 @@ struct FrozenCase {
     build_totals: Option<BTreeMap<String, f64>>,
     /// Itens da reserva 📦 que o Node injetou (`None` = caso sem o arquivo).
     fallback: Option<Vec<Value>>,
+    /// Lote do índice/instantânea da captura (`inputs/index.json`), já anotado.
+    index: Option<FrozenBatch>,
     /// title/size finais por hash (do `apply-debrid.json`).
     applied_fields: BTreeMap<String, AppliedFields>,
     options: Value,
@@ -241,39 +261,6 @@ impl FrozenCase {
             home_release_at: meta_file.get("homeReleaseAt").and_then(Value::as_i64),
         };
         let mut collect: Vec<CollectFile> = read_optional(&dir.join("inputs/collect.json"))?;
-        let index_value: Option<IndexFile> = read_optional(&dir.join("inputs/index.json"))?;
-        let mut index = index_value
-            .map(|file| {
-                let raw = file.value.raw.unwrap_or_default();
-                // O `raw` gravado é o lote que o Node passou ao build. Na via
-                // INSTANTÂNEA ele é a MESCLA `índice + banco + conta` nessa
-                // ordem, com cada item já marcado pelo provider (`fromSnapshot`
-                // no do índice, `fromAccount` no da conta). O `fast_path` do
-                // Rust re-marca `index_items` com `from_snapshot` e
-                // `account_items` com `from_account`: mandar a lista inteira em
-                // `index_items` pintava de 📦/`~N` também o item da CONTA (o
-                // Node o mostra com seeder medido) e apagava a diferença de
-                // origem. Em `instant_items` o `fast_path` não toca nas marcas:
-                // o lote entra com a ordem e as flags do Node, exatamente como
-                // no build dele.
-                let items = raw.items;
-                let (index_items, instant_items) = if file.value.instant {
-                    (Vec::new(), items)
-                } else {
-                    (items, Vec::new())
-                };
-                SearchIndexResponse {
-                    ok: true,
-                    is_partial: raw.partial,
-                    index_covered: file.value.served_from_index,
-                    instant_eligible: file.value.instant,
-                    index_items,
-                    instant_items,
-                    account_items: Vec::new(),
-                    effects: Vec::new(),
-                }
-            })
-            .unwrap_or_default();
         // A qualidade PROVADA pelo ARQUIVO (sonda do play + evidência do
         // `releaseIndex`) é decisão do BUILD, não do post: o índice e o lote
         // crus são gravados ANTES dela e só trazem o rótulo do post. O record
@@ -345,6 +332,21 @@ impl FrozenCase {
             });
         let applied: Vec<ApplyDebridFile> = read_optional(&dir.join("inputs/apply-debrid.json"))?;
         let applied_fields = applied_fields(&applied);
+        // Lote congelado do índice/instantânea (`inputs/index.json`). Desde o R4
+        // não existe rota Node de índice: este lote — já com as marcas de origem
+        // e o recorte final do build do Node — é o que a via rápida recebe. As
+        // anotações de prova abaixo repõem o que a captura não grava (o lote é
+        // fotografado ANTES de `applyFileEvidence`/qualidade provada).
+        let index_file: Option<IndexFile> = read_optional(&dir.join("inputs/index.json"))?;
+        let mut index_batch: Option<FrozenBatch> = index_file.map(|file| {
+            let value = file.value;
+            let raw = value.raw.unwrap_or_default();
+            FrozenBatch {
+                items: raw.items,
+                instant: value.instant,
+                index_covered: value.served_from_index,
+            }
+        });
         // O `apply-debrid.json` também guarda a LISTA PRÉ-DEBRID do Node (a
         // chave da chamada): é o lote que sobreviveu aos filtros/sort do Node.
         // Replay usa essa lista como recorte quando existe — a captura não tem
@@ -353,25 +355,28 @@ impl FrozenCase {
         // TorrentDos/Apache BR e ausentes TPB/Lime/AllDebrid).
         let pre_debrid = pre_debrid_hashes(&applied);
         if let Some(allowed) = &pre_debrid {
-            retain_index_hashes(&mut index, allowed);
             for entry in &mut collect {
                 retain_item_hashes(&mut entry.response.items, allowed);
+            }
+            if let Some(batch) = &mut index_batch {
+                retain_item_hashes(&mut batch.items, allowed);
             }
         }
         let applied_q = applied_qualities(&applied);
         if proven.is_empty() {
             // Captura antiga (sem o arquivo): o `_quality` do `applyDebrid` é o
             // `provenQuality` que o Node passou ao build. Só o ÍNDICE — o lote
-            // da coleta nunca carrega prova de arquivo (ela vem das rotas
-            // internas, já aplicada), e repor `_quality` ali muda o desempate
-            // do dedupe (Auto da Compadecida: a fonte CAM vem do item perdedor
-            // com qualidade conhecida; com `_quality` no vencedor o merge para
-            // de relabelar).
-            annotate_proven_quality_index(&mut index, &applied_q);
+            // da coleta nunca carrega prova de arquivo e repor `_quality` ali
+            // muda o desempate do dedupe.
+            if let Some(batch) = &mut index_batch {
+                annotate_proven_quality_applied(&mut batch.items, &applied_q);
+            }
         } else {
             // O arquivo novo é o contrato: vale para o índice E para o lote cru
             // (a prova também corrige item que veio da coleta).
-            annotate_index(&mut index, &proven, &applied_q);
+            if let Some(batch) = &mut index_batch {
+                annotate_proven_quality(&mut batch.items, &proven, &applied_q);
+            }
             for entry in &mut collect {
                 annotate_proven_quality(&mut entry.response.items, &proven, &applied_q);
             }
@@ -385,7 +390,9 @@ impl FrozenCase {
         // `_dubbed` o rótulo vem da lista de arquivos (raro: `Dual` sem prova PT
         // renderiza sem chip).
         let proofs = applied_audio_proofs(&applied, &raw_files);
-        annotate_audio_proof(&mut index, &proofs);
+        if let Some(batch) = &mut index_batch {
+            annotate_audio_proof_items(&mut batch.items, &proofs);
+        }
         for entry in &mut collect {
             annotate_audio_proof_items(&mut entry.response.items, &proofs);
         }
@@ -399,7 +406,9 @@ impl FrozenCase {
         // record (capturas antigas já a têm).
         let media_sources = applied_media_sources(&applied);
         if !media_sources.is_empty() {
-            annotate_media_source_index(&mut index, &media_sources);
+            if let Some(batch) = &mut index_batch {
+                annotate_media_source_items(&mut batch.items, &media_sources);
+            }
             for entry in &mut collect {
                 annotate_media_source_items(&mut entry.response.items, &media_sources);
             }
@@ -418,8 +427,8 @@ impl FrozenCase {
             .transpose()?
             .and_then(|file| file.value)
             .map(|value| value.items);
-        // Conjunto `instant` real do sort; ausente em capturas antigas → cai no
-        // recorte de `fromAccount` (aproximação).
+        // Índice/instantânea da captura: lote VERBATIM da via rápida (R4).
+        let index_batch = index_batch;
         // Conjunto `instant` real do sort; ausente em capturas antigas → cai no
         // recorte de `fromAccount` (aproximação).
         let instant: Vec<String> = read_optional(&dir.join("inputs/instant.json"))?;
@@ -438,7 +447,6 @@ impl FrozenCase {
             request,
             meta,
             collect,
-            index,
             debrid: {
                 // O record novo grava o check CONSOLIDADO em `results`; o antigo
                 // gravava `calls`. `calls[0]` era o lote errado quando havia
@@ -479,6 +487,7 @@ impl FrozenCase {
             build_files,
             build_totals,
             fallback,
+            index: index_batch,
             applied_fields,
             options: config.get("options").cloned().unwrap_or(Value::Null),
             operator: config.get("operator").cloned().unwrap_or(Value::Null),
@@ -515,6 +524,27 @@ impl FrozenCase {
             }
         }
         set.into_iter().collect()
+    }
+
+    /// Lote da via rápida do replay: o batch capturado VERBATIM. Substituiu a
+    /// rota Node `search/index` (removida no R4) — as fontes nativas são
+    /// wire-shaped (`IndexedReleaseWire`/`InstantWork`/`InventoryItem`) e não
+    /// carregam a prova POR ITEM que o build do Node já aplicou
+    /// (`provenQuality`/`provenAudio`/`provenName`/`mediaSource`). Fora da via
+    /// instantânea o `fast_path` neutraliza `fromSnapshot`, como em produção;
+    /// `None` = nem instantânea nem índice coberto (a coleta ao vivo segue).
+    fn fast_path_lote(&self) -> Option<(bool, Vec<RawItem>)> {
+        let batch = self.index.as_ref()?;
+        if !batch.instant && !batch.index_covered {
+            return None;
+        }
+        let mut items: Vec<RawItem> = batch.items.iter().map(raw_item_from_value).collect();
+        if !batch.instant {
+            for item in &mut items {
+                item.from_snapshot = false;
+            }
+        }
+        Some((batch.instant, items))
     }
 
     #[allow(clippy::field_reassign_with_default)] // harness de teste: espelha o config do operador campo a campo
@@ -590,7 +620,6 @@ impl FrozenCase {
         FrozenRoutes {
             meta: self.meta,
             collect: self.collect,
-            index: self.index,
             fallback: self.fallback,
             pt_br: string_list(&self.operator["jackett"]["ptBr"]),
         }
@@ -699,12 +728,6 @@ fn retain_item_hashes(items: &mut Vec<Value>, allowed: &BTreeSet<String>) {
     items.retain(|item| batch_item_hash(item).is_some_and(|hash| allowed.contains(&hash)));
 }
 
-fn retain_index_hashes(index: &mut SearchIndexResponse, allowed: &BTreeSet<String>) {
-    retain_item_hashes(&mut index.index_items, allowed);
-    retain_item_hashes(&mut index.instant_items, allowed);
-    retain_item_hashes(&mut index.account_items, allowed);
-}
-
 /// title/size finais por hash da PRIMEIRA chamada do `applyDebrid` (a passada
 /// da resposta). O replay pode ficar na média quando a lista `fsz` só chegou
 /// depois do build; o título do apply já é o do Node.
@@ -766,9 +789,6 @@ fn applied_qualities(files: &[ApplyDebridFile]) -> BTreeMap<String, String> {
 /// `720p` no título; repor `SD` nela a cortava no filtro de resolução que o Node
 /// não aplicou. Já em Game of Thrones S08E03 a prova (`1080p`) vence o título
 /// mentiroso (`720p`) e o `_quality` confirma — o item recebe a prova.
-///
-/// Contrato que falta no record (lado Node, fora deste escopo): gravar a prova
-/// POR ITEM, como já se faz com `provenAudio` — ver [`applied_audio_proofs`].
 fn annotate_proven_quality(
     items: &mut [Value],
     recorded: &BTreeMap<String, String>,
@@ -796,47 +816,21 @@ fn annotate_proven_quality(
     }
 }
 
-/// A qualidade provada vale para as TRÊS listas do índice (índice/instantâneo/
-/// conta): a captura instantânea mescla as origens e o item pode cair em
-/// qualquer uma delas.
-fn annotate_index(
-    index: &mut SearchIndexResponse,
-    recorded: &BTreeMap<String, String>,
-    applied: &BTreeMap<String, String>,
-) {
-    for items in [
-        &mut index.index_items,
-        &mut index.instant_items,
-        &mut index.account_items,
-    ] {
-        annotate_proven_quality(items, recorded, applied);
-    }
-}
-
 /// Caminho de captura ANTIGA (sem `proven-quality.json`): repõe o mapa
-/// `_quality` no índice sem confirmação — é o próprio `_quality` a fonte.
-fn annotate_proven_quality_index(
-    index: &mut SearchIndexResponse,
-    qualities: &BTreeMap<String, String>,
-) {
-    for items in [
-        &mut index.index_items,
-        &mut index.instant_items,
-        &mut index.account_items,
-    ] {
-        for item in items.iter_mut() {
-            if item.get("provenQuality").is_some() {
-                continue;
-            }
-            let Some(hash) = batch_item_hash(item) else {
-                continue;
-            };
-            let Some(quality) = qualities.get(&hash) else {
-                continue;
-            };
-            if let Some(map) = item.as_object_mut() {
-                map.insert("provenQuality".into(), Value::String(quality.clone()));
-            }
+/// `_quality` sem confirmação — é o próprio `_quality` a fonte.
+fn annotate_proven_quality_applied(items: &mut [Value], qualities: &BTreeMap<String, String>) {
+    for item in items {
+        if item.get("provenQuality").is_some() {
+            continue;
+        }
+        let Some(hash) = batch_item_hash(item) else {
+            continue;
+        };
+        let Some(quality) = qualities.get(&hash) else {
+            continue;
+        };
+        if let Some(map) = item.as_object_mut() {
+            map.insert("provenQuality".into(), Value::String(quality.clone()));
         }
     }
 }
@@ -998,16 +992,6 @@ fn annotate_audio_proof_items(items: &mut [Value], proofs: &BTreeMap<String, Aud
     }
 }
 
-fn annotate_audio_proof(index: &mut SearchIndexResponse, proofs: &BTreeMap<String, AudioProof>) {
-    for items in [
-        &mut index.index_items,
-        &mut index.instant_items,
-        &mut index.account_items,
-    ] {
-        annotate_audio_proof_items(items, proofs);
-    }
-}
-
 /// `files.json` é `{ "<hash>": [{path,size}] }`; hash minúsculo é o contrato do
 /// record — normalizar impede que um corpus escrito à mão perca o casamento em
 /// silêncio. Lista vazia/ inválida não é medida e fica de fora.
@@ -1109,26 +1093,11 @@ fn annotate_media_source_items(items: &mut [Value], sources: &BTreeMap<String, S
     }
 }
 
-/// Vale para as TRÊS listas do índice (as origens são mescladas no instantâneo).
-fn annotate_media_source_index(
-    index: &mut SearchIndexResponse,
-    sources: &BTreeMap<String, String>,
-) {
-    for items in [
-        &mut index.index_items,
-        &mut index.instant_items,
-        &mut index.account_items,
-    ] {
-        annotate_media_source_items(items, sources);
-    }
-}
-
 // ── rotas congeladas ────────────────────────────────────────────────────────
 
 struct FrozenRoutes {
     meta: MetaResponse,
     collect: Vec<CollectFile>,
-    index: SearchIndexResponse,
     /// Itens da reserva 📦 injetados pelo Node neste caso.
     fallback: Option<Vec<Value>>,
     pt_br: Vec<String>,
@@ -1216,18 +1185,6 @@ impl InternalRoutes for FrozenRoutes {
         })
     }
 
-    fn index_write<'a>(&'a self, _req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse> {
-        Box::pin(async {
-            Ok(IndexWriteResponse {
-                ok: true,
-                recorded: 0,
-                entries: 0,
-                bank_marked: 0,
-                failed: 0,
-            })
-        })
-    }
-
     fn effects<'a>(&'a self, _req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async {
             Ok(EffectsResponse {
@@ -1236,13 +1193,6 @@ impl InternalRoutes for FrozenRoutes {
                 rejected: 0,
             })
         })
-    }
-
-    fn search_index<'a>(
-        &'a self,
-        _req: SearchIndexRequest,
-    ) -> RouteFuture<'a, SearchIndexResponse> {
-        Box::pin(async move { Ok(self.index.clone()) })
     }
 
     fn fallback_injected<'a>(&'a self) -> RouteFuture<'a, Option<Vec<Value>>> {
@@ -1408,8 +1358,9 @@ async fn replay(
     let build_files = frozen.build_files.clone();
     let build_totals = frozen.build_totals.clone();
     let applied_fields = frozen.applied_fields.clone();
+    let fast_path = frozen.fast_path_lote();
     let routes: Arc<dyn InternalRoutes> = Arc::new(frozen.routes());
-    let orchestrator = Orchestrator::new(config, Arc::new(MemorySwrStore::new()))
+    let mut orchestrator = Orchestrator::new(config, Arc::new(MemorySwrStore::new()))
         .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
         .with_collector(Arc::new(
             NodeCollector::new(routes.clone()).with_skip_account(true),
@@ -1420,6 +1371,9 @@ async fn replay(
         .with_totals_by_hash(totals)
         .with_build_pass(build_files, build_totals)
         .with_tail(Arc::new(NoopTailEffects));
+    if let Some((instant, items)) = fast_path {
+        orchestrator = orchestrator.with_frozen_fast_path(instant, items);
+    }
     let request = StreamRequest {
         kind,
         id,

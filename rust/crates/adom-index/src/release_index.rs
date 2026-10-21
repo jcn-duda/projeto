@@ -5,7 +5,7 @@
 //! sai dele quando a obra está coberta) e a escrita é o que alimenta o colhedor
 //! entre buscas. O Rust lê/grava as mesmas chaves (`idx:v14:<imdb>[:S<n>][E<n>]`)
 //! e o mesmo valor `{at, partial, releases[]}`, então Node e Rust enxergam o
-//! MESMO índice — inclusive em rollback (`INDEX_RUST=off`) e em restart.
+//! MESMO índice — inclusive em restart (o índice é sempre nativo desde o R4).
 //!
 //! Regras do `record` portadas: merge por hash (mais recente vence), roteamento
 //! da release pela temporada/episódio que o título (ou o `dn=` do magnet)

@@ -1,5 +1,7 @@
 // Filtro de origem compartilhada (idx / magnet-bank) pela config do pedido:
-// torrentio/`ji`, tracker preservado no índice, e exclusão em instant/fallback.
+// torrentio/`ji`, tracker preservado no índice. R4: os casos da via rápida
+// (`attemptIndexFastPath`) e da instantânea TS (`collectInstantItems`) saíram
+// com os módulos; a reserva (`collectFallbackItems`) e o filtro continuam.
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
@@ -8,16 +10,11 @@ import fs from 'node:fs';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as bank from '../src/utils/magnet-bank.js';
-import * as cache from '../src/utils/cache.js';
 import * as releaseIndex from '../src/utils/release-index.js';
-import * as harvestQueue from '../src/providers/harvest-queue.js';
-import debrid from '../src/debrid/index.js';
 import { allowedSourceIndexer } from '../src/providers/allowed-source-indexer.js';
-import { attemptIndexFastPath } from '../src/providers/search-index-path.js';
-import { collectInstantItems } from '../src/providers/magnet-bank-instant.js';
 import { collectFallbackItems } from '../src/providers/magnet-bank-fallback.js';
 import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
-import { patch, testOpts, stubFetch } from './helpers/stub.js';
+import { testOpts } from './helpers/stub.js';
 
 const hex = (c: string) => c.repeat(40);
 const magnet = (h: string) => `magnet:?xt=urn:btih:${h}`;
@@ -26,8 +23,6 @@ const movieCtx = (imdb: string) => ({ imdbId: imdb, season: null, episode: null 
 const tempDirs: string[] = [];
 const saved = {
   releaseIndex: config.releaseIndex.enabled,
-  jackettApiKey: config.jackett.apiKey,
-  instantEnabled: config.magnetBank.instantEnabled,
   fallbackEnabled: config.magnetBank.fallbackEnabled,
 };
 
@@ -46,22 +41,15 @@ beforeEach(() => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'src-filter-'));
   tempDirs.push(dir);
   bank.open(dir);
-  cache.clear();
-  harvestQueue.clearQueue();
   config.releaseIndex.enabled = true;
   config.magnetBank.enabled = true;
-  config.magnetBank.instantEnabled = true;
   config.magnetBank.fallbackEnabled = true;
-  config.jackett.apiKey = 'fake-key';
 });
 
 after(() => {
   bank.resetForTests();
-  harvestQueue.clearQueue();
   config.releaseIndex.enabled = saved.releaseIndex;
-  config.magnetBank.instantEnabled = saved.instantEnabled;
   config.magnetBank.fallbackEnabled = saved.fallbackEnabled;
-  config.jackett.apiKey = saved.jackettApiKey;
   for (const dir of tempDirs) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
   }
@@ -168,118 +156,6 @@ test('record preserva tracker sem rebaixar para vazio', () => {
   }]);
   assert.equal(releaseIndex.lookup(imdb)[0].tracker, 'ThePirateBay', 'vazio não apaga prior');
   assert.equal(idxReleasesToRaw(releaseIndex.lookup(imdb))[0].tracker, 'ThePirateBay');
-});
-
-test('attemptIndexFastPath: p=jackett não devolve torrentio nem conta na cobertura', async () => {
-  const imdb = 'tt9100002';
-  const torrentioHash = hex('b');
-  const kickassHash = hex('c');
-  // Só torrentio cobriria sozinho; kickass também cobre — filtra torrentio e mantém kickass.
-  releaseIndex.record(imdb, {}, [
-    {
-      title: 'Filme Teste 2024 1080p Dublado',
-      infoHash: torrentioHash,
-      seeders: 50,
-      indexer: 'torrentio',
-      tracker: 'ThePirateBay',
-      isBr: true,
-    },
-    {
-      title: 'Filme Teste 2024 1080p Dublado',
-      infoHash: kickassHash,
-      seeders: 40,
-      indexer: 'kickasstorrents-to',
-      isBr: true,
-    },
-  ]);
-  config.magnetBank.instantEnabled = false;
-  const restoreInventory = patch(debrid as any, 'inventory', async () => []);
-  const stub = stubFetch((url) => {
-    if (url.includes('/api/v2.0/indexers/')) {
-      return { ok: true, status: 200, json: async () => ({ Results: [] }) };
-    }
-    return { ok: true, status: 200, json: async () => ({}) };
-  });
-  try {
-    const out = await withOpts(
-      { providers: ['jackett'], jackettIndexers: ['kickasstorrents-to', 'thepiratebay'] },
-      () => attemptIndexFastPath({
-        query: 'Filme Teste 2024',
-        type: 'movie',
-        id: imdb,
-        imdbId: imdb,
-        season: null,
-        episode: null,
-        ptQuery: null,
-        matchContext: { names: ['Filme Teste'], year: 2024, isSeries: false, season: null, episode: null },
-        sweepQuery: null,
-        deadlineAt: Date.now() + 8000,
-        isDemo: false,
-      } as any),
-    );
-    assert.equal(out.servedFromIndex, true);
-    const hashes = (out.raw?.items || []).map((i: any) => String(i.infoHash || '').toLowerCase());
-    assert.ok(hashes.includes(kickassHash), 'kickass do índice entra');
-    assert.equal(hashes.includes(torrentioHash), false, 'torrentio filtrado com p=jackett');
-    const indexers = (out.raw?.items || []).map((i: any) => i.indexer);
-    assert.equal(indexers.includes('torrentio'), false);
-  } finally {
-    restoreInventory();
-    stub.restore();
-    config.magnetBank.instantEnabled = saved.instantEnabled;
-  }
-});
-
-test('attemptIndexFastPath: só torrentio no idx com p=jackett não cobre', async () => {
-  const imdb = 'tt9100003';
-  releaseIndex.record(imdb, {}, [{
-    title: 'Filme Teste 2024 1080p Dublado',
-    infoHash: hex('d'),
-    seeders: 50,
-    indexer: 'torrentio',
-    isBr: true,
-  }]);
-  config.magnetBank.instantEnabled = false;
-  const restoreInventory = patch(debrid as any, 'inventory', async () => []);
-  const stub = stubFetch(() => ({ ok: true, status: 200, json: async () => ({ Results: [] }) }));
-  try {
-    const out = await withOpts(
-      { providers: ['jackett'], jackettIndexers: ['kickasstorrents-to'] },
-      () => attemptIndexFastPath({
-        query: 'Filme Teste 2024',
-        type: 'movie',
-        id: imdb,
-        imdbId: imdb,
-        season: null,
-        episode: null,
-        ptQuery: null,
-        matchContext: { names: ['Filme Teste'], year: 2024, isSeries: false, season: null, episode: null },
-        sweepQuery: null,
-        deadlineAt: Date.now() + 8000,
-        isDemo: false,
-      } as any),
-    );
-    assert.equal(out.servedFromIndex, false, 'torrentio filtrado → cobertura some');
-    assert.equal(out.raw, null);
-  } finally {
-    restoreInventory();
-    stub.restore();
-    config.magnetBank.instantEnabled = saved.instantEnabled;
-  }
-});
-
-test('collectInstantItems: fonte fora do ji é ignorada', () => {
-  const imdb = 'tt9100004';
-  seedBank(hex('e'), 'thepiratebay', imdb);
-  seedBank(hex('f'), 'kickasstorrents-to', imdb);
-  const blocked = withOpts(
-    { providers: ['jackett'], jackettIndexers: ['kickasstorrents-to'] },
-    () => collectInstantItems({ type: 'movie', imdbId: imdb, season: null, episode: null, preferDubbed: false }),
-  );
-  assert.equal(blocked.eligible, true);
-  assert.equal(blocked.items.length, 1);
-  assert.equal(blocked.items[0].indexer, 'kickasstorrents-to');
-  assert.equal(blocked.items[0].infoHash, hex('f'));
 });
 
 test('collectFallbackItems: fonte fora do ji é ignorada', () => {

@@ -159,24 +159,21 @@ impl Orchestrator {
         }
 
         // O índice grava o lote pós-filtro da passada mais nova (idempotente
-        // por hash; o TS grava a cada build). Vazio = nada a escrever.
+        // por hash; o TS grava a cada build). Vazio = nada a escrever. A
+        // escrita é SEMPRE nativa (R4): não há mais rota `index-write`.
         if !last.filtered.is_empty() || !last.entered.is_empty() {
             let batch = IndexBatch {
                 encoded: plan.encoded.clone(),
                 releases: vec![release_entry(&meta, &last.entered, &last.filtered)],
             };
-            if self.config.index_mode.is_on() && self.index.is_some() {
-                self.write_native_index(batch);
-            } else if let Err(err) = self.tail.index_write(batch).await {
-                eprintln!("[search] index-write tardio falhou: {err}");
-            }
+            self.write_native_index(batch);
         }
         self.emit_effects(&input, &meta, &plan.encoded, &last).await;
     }
 
-    /// `POST /internal/search/index-write` sem HTTP: `releaseIndex.record` no
-    /// `cache.db` e (com `BANK_RUST=on`) a marca de `passed_filter` no
-    /// `magnets.db`. Falha de UMA entrada não derruba o lote, como na rota.
+    /// `releaseIndex.record` no `idx:v14` sem HTTP e a marca de `passed_filter`
+    /// no `magnets.db`. Falha de UMA entrada não derruba o lote. Sem banco
+    /// aberto, a gravação do índice segue e só a marca degrada (contada).
     fn write_native_index(&self, batch: IndexBatch) {
         let Some(index) = self.index.as_ref() else {
             return;
@@ -198,9 +195,6 @@ impl Orchestrator {
                     metrics::global_metrics().inc(metrics::RECORD_FAILED, 1);
                     eprintln!("[search] índice nativo {} falhou: {err}", entry.imdb);
                 }
-            }
-            if !self.config.bank_mode.is_on() {
-                continue;
             }
             let Some(bank) = self.bank.as_ref() else {
                 metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);

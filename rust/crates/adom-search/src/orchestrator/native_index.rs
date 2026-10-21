@@ -1,9 +1,9 @@
-//! Leitura NATIVA do índice/banco para a via rápida do `/stream` (F4.5).
+//! Leitura NATIVA do índice/banco para a via rápida do `/stream` (R4).
 //!
-//! Substitui, atrás de `INDEX_RUST`/`BANK_RUST`, o que a rota
-//! `POST /internal/search/index` fazia: lookup do `idx:v14`, via instantânea do
-//! `magnets.db`, itens da conta e o follow-up (`enqueueIndexFollowUp`). A ORDEM
-//! e as MARCAS são as do TS:
+//! Substituiu a rota Node de leitura do índice (removida no R4): lookup do
+//! `idx:v14`, via
+//! instantânea do `magnets.db`, itens da conta e o follow-up do índice.
+//! A ORDEM e as MARCAS são as do TS:
 //!
 //! - instantânea → `fromFallback` (📦/~N) nos itens do acervo;
 //! - índice → `fromSnapshot` (a foto também exibe 📦 até a promoção tardia);
@@ -106,7 +106,7 @@ impl Orchestrator {
         meta: &SearchMeta,
         outcome: &NativeIndexOutcome,
     ) {
-        if !self.config.index_mode.is_on() || !self.config.release_index_enabled {
+        if !self.config.release_index_enabled {
             return;
         }
         let effects = effect_entries(
@@ -138,55 +138,55 @@ impl Orchestrator {
         let now = now_ms();
         let mut outcome = NativeIndexOutcome::default();
         let enabled = self.config.release_index_enabled && self.config.release_index_ttl > 0;
-        let Some(index) = self.index.as_ref() else {
-            if self.config.index_mode.is_on() {
-                metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
-            }
-            return outcome;
-        };
-        if !enabled {
-            return outcome;
-        }
-        metrics::global_metrics().inc(metrics::LOOKUP, 1);
-
-        let extracted = index.lookup(&meta.imdb_id, meta.season, meta.episode, now);
-        outcome.indexed = extracted
-            .into_iter()
-            .filter(|release| {
-                release.source.as_deref() == Some("autofetch")
-                    || allowed_source_indexer(
-                        &release.indexer,
-                        &input.options,
-                        &self.config.index_only_indexers,
-                        &self.config.selected_indexers,
+        let mut covered = false;
+        let mut autofetch_seeded = false;
+        if let Some(index) = self.index.as_ref() {
+            if enabled {
+                metrics::global_metrics().inc(metrics::LOOKUP, 1);
+                let extracted = index.lookup(&meta.imdb_id, meta.season, meta.episode, now);
+                outcome.indexed = extracted
+                    .into_iter()
+                    .filter(|release| {
+                        release.source.as_deref() == Some("autofetch")
+                            || allowed_source_indexer(
+                                &release.indexer,
+                                &input.options,
+                                &self.config.index_only_indexers,
+                                &self.config.selected_indexers,
+                            )
+                    })
+                    .collect();
+                outcome.is_partial = !outcome.indexed.is_empty()
+                    && index.is_partial(&meta.imdb_id, meta.season, meta.episode, now);
+                let coverage_items: Vec<PoolCoverageItem> =
+                    outcome.indexed.iter().map(release_to_coverage).collect();
+                covered = !outcome.indexed.is_empty()
+                    && !outcome.is_partial
+                    && idx_pool_covered(
+                        &coverage_items,
+                        meta.season,
+                        meta.episode,
+                        self.config.auto_fetch_min_seeders,
                     )
-            })
-            .collect();
-        outcome.is_partial = !outcome.indexed.is_empty()
-            && index.is_partial(&meta.imdb_id, meta.season, meta.episode, now);
-        let coverage_items: Vec<PoolCoverageItem> =
-            outcome.indexed.iter().map(release_to_coverage).collect();
-        let covered = !outcome.indexed.is_empty()
-            && !outcome.is_partial
-            && idx_pool_covered(
-                &coverage_items,
-                meta.season,
-                meta.episode,
-                self.config.auto_fetch_min_seeders,
-            )
-            .covered;
-        let autofetch_seeded = outcome
-            .indexed
-            .iter()
-            .any(|release| release.source.as_deref() == Some("autofetch"));
-        outcome.index_covered = !outcome.is_partial && (covered || autofetch_seeded);
-        outcome.index_items = outcome
-            .indexed
-            .iter()
-            .map(|release| release_to_raw(release, true))
-            .collect();
+                    .covered;
+                autofetch_seeded = outcome
+                    .indexed
+                    .iter()
+                    .any(|release| release.source.as_deref() == Some("autofetch"));
+                outcome.index_covered = !outcome.is_partial && (covered || autofetch_seeded);
+                outcome.index_items = outcome
+                    .indexed
+                    .iter()
+                    .map(|release| release_to_raw(release, true))
+                    .collect();
+            }
+        } else {
+            metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
+            eprintln!("[search] idx:v14 indisponível; seguindo sem índice nativo");
+        }
 
-        // Via instantânea (banco), antes do fast-path do índice.
+        // Via instantânea (banco), antes do fast-path do índice. Independe do
+        // `idx:v14`: só o `magnets.db` aberto já responde a via rápida.
         let indexed_snapshot = outcome.indexed.clone();
         self.fill_instant(
             &input.options,
@@ -214,9 +214,7 @@ impl Orchestrator {
         );
         self.count_index_metrics(&outcome, covered);
 
-        if self.config.index_mode.is_on() {
-            outcome.account_items = self.native_account_items(input, meta).await;
-        }
+        outcome.account_items = self.native_account_items(input, meta).await;
         outcome
     }
 
@@ -266,10 +264,12 @@ impl Orchestrator {
         indexed: &[IndexedReleaseWire],
         outcome: &mut NativeIndexOutcome,
     ) {
-        if !self.config.bank_mode.is_on() || !self.config.magnet_bank_enabled {
+        if !self.config.magnet_bank_enabled {
             return;
         }
         let Some(bank) = self.bank.as_ref() else {
+            metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
+            eprintln!("[search] magnets.db indisponível; seguindo sem instantânea");
             return;
         };
         if !self.config.magnet_bank_instant_enabled {

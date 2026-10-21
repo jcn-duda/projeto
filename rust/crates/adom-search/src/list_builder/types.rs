@@ -307,8 +307,9 @@ pub struct BuiltList {
     /// Dica de obra para o pickFile no play (só filme): `n`/`y`.
     pub work_hint: Option<WorkHint>,
     /// Lote cru que SOBREVIVEU ao filtro de título (antes de episódio/ranking).
-    /// É a matéria-prima do `releaseIndex.record` (`/internal/search/index-write`):
-    /// gravar o lote pré-filtro encheria o índice de release irrelevante.
+    /// É a matéria-prima da gravação no `IdxStore` (`idx:v14`): gravar o lote
+    /// pré-filtro encheria o índice de release irrelevante. (A rota Node de
+    /// escrita do índice saiu no R4.)
     pub filtered_raw: Vec<crate::raw_item::RawItem>,
     /// Lote cru ANTES do filtro de título — o `entered` do banco de magnets
     /// (antes/depois do filtro, para a marca de veredito).

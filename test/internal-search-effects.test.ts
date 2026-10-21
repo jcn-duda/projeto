@@ -1,9 +1,11 @@
 // Testes das rotas internas em lote do orquestrador Rust:
-// POST /internal/search/index-write e POST /internal/search/effects.
+// POST /internal/search/effects.
 // Molde de `internal-search-collect.test.ts`: app mínimo com colaboradores
 // trocados por stubs determinísticos (o teste prova o FIO da rota, não o
 // Jackett/debrid). O caminho 403 usa o middleware de personificação de
 // `remoteAddress`, que não existe em produção — a guarda real lê o socket.
+// A antiga rota `index-write` saiu no R4 (índice/banco são nativos); os testes
+// dela foram removidos junto com os stubs `record`/`markBankFilterOutcome`.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -21,17 +23,9 @@ const encoded = encodeConfig({ ds: 'torbox' });
 /** Stubs determinísticos que registram as chamadas recebidas. */
 function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; seen: Record<string, any[]> } {
   const seen: Record<string, any[]> = {
-    record: [], mark: [], autofetch: [], warmer: [], audit: [], probe: [], harvest: [], seasonKey: [],
+    autofetch: [], warmer: [], audit: [], probe: [], harvest: [], seasonKey: [],
   };
   const deps: Partial<InternalSearchEffectsCollaborators> = {
-    record: (imdb: string, location: any, items: any[], opts: any = {}) => {
-      seen.record.push({ imdb, location, items, opts });
-      return items.length; // conta "gravada" = tamanho do lote
-    },
-    markBankFilterOutcome: (entered: any, survivors: any, ctx: any) => {
-      seen.mark.push({ entered, survivors, ctx });
-      return true;
-    },
     enqueueAutofetch: (candidate: any, request: any) => {
       seen.autofetch.push({ candidate, request, opts: runtime.opts().debridService });
       return true;
@@ -88,120 +82,22 @@ async function flushTimers() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Guarda (loopback + token) — as duas rotas
+// Guarda (loopback + token)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-test('index-write e effects: fora do loopback → 403', async () => {
+test('effects: fora do loopback → 403', async () => {
   const opts = { headers: { 'X-Indexer-Test-Token': TOKEN, 'x-test-remote-addr': '203.0.113.9' } };
-  assert.equal((await server.request('POST', '/internal/search/index-write', { ...opts, body: { encoded, releases: [] } })).status, 403);
   assert.equal((await server.request('POST', '/internal/search/effects', { ...opts, body: { encoded, effects: [] } })).status, 403);
 });
 
-test('index-write e effects: 401 sem token e com token errado', async () => {
-  const bodies = [
-    ['/internal/search/index-write', { encoded, releases: [] }],
-    ['/internal/search/effects', { encoded, effects: [] }],
-  ] as const;
-  for (const [path, body] of bodies) {
-    const sem = await server.request('POST', path, { body });
-    assert.equal(sem.status, 401, path);
-    const errado = await server.request('POST', path, {
-      headers: { 'X-Indexer-Test-Token': 'token-errado' }, body,
-    });
-    assert.equal(errado.status, 401, path);
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// index-write
-// ═══════════════════════════════════════════════════════════════════════════════
-
-test('index-write: 400 sem encoded e com releases ruim', async () => {
-  const semEncoded = await server.request('POST', '/internal/search/index-write', {
-    headers: { 'X-Indexer-Test-Token': TOKEN },
-    body: { releases: [] },
+test('effects: 401 sem token e com token errado', async () => {
+  const body = { encoded, effects: [] };
+  const sem = await server.request('POST', '/internal/search/effects', { body });
+  assert.equal(sem.status, 401);
+  const errado = await server.request('POST', '/internal/search/effects', {
+    headers: { 'X-Indexer-Test-Token': 'token-errado' }, body,
   });
-  assert.equal(semEncoded.status, 400);
-  for (const releases of ['não-array', [{ imdb: 'tt1' }], [{ imdb: 'tt0000001', items: 'não-array' }]]) {
-    const res = await server.request('POST', '/internal/search/index-write', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { encoded, releases },
-    });
-    assert.equal(res.status, 400, JSON.stringify(releases));
-  }
-});
-
-test('index-write: grava o lote e responde contagens', async () => {
-  const { deps, seen } = stubEffects();
-  const app2 = express();
-  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
-  const server2 = await createTestServer(app2);
-  try {
-    const items = [itemOf(HASH_A)];
-    const res = await server2.request('POST', '/internal/search/index-write', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: {
-        encoded,
-        releases: [
-          { imdb: 'tt0000001', items },
-          { imdb: 'tt0000002', season: 2, episode: 3, items, entered: [items[0]], survivors: [] },
-        ],
-      },
-    });
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.json, { ok: true, recorded: 2, entries: 2, bank_marked: 2, failed: 0 });
-    // record recebeu a obra e a localização (S2E3 na segunda entrada).
-    assert.equal(seen.record[0].imdb, 'tt0000001');
-    assert.equal(seen.record[1].location.season, 2);
-    assert.equal(seen.record[1].location.episode, 3);
-    assert.equal(seen.record[1].items[0].infoHash, HASH_A);
-    // markBankFilterOutcome usa entered/survivors quando vêm; senão o próprio items.
-    assert.deepEqual(seen.mark[0].entered, items);
-    assert.deepEqual(seen.mark[0].survivors, items);
-    assert.deepEqual(seen.mark[1].survivors, []);
-    assert.deepEqual(seen.mark[1].ctx, { imdbId: 'tt0000002', season: 2, episode: 3 });
-    // Idempotente: repetir o mesmo lote devolve o MESMO contrato (o stub do
-    // record é puro; a rota não acumula estado próprio entre chamadas).
-    const deNovo = await server2.request('POST', '/internal/search/index-write', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { encoded, releases: [{ imdb: 'tt0000001', items }] },
-    });
-    assert.equal(deNovo.status, 200);
-    assert.deepEqual(deNovo.json, { ok: true, recorded: 1, entries: 1, bank_marked: 1, failed: 0 });
-  } finally {
-    await server2.close();
-  }
-});
-
-test('index-write: entrada que lança vira failed na contagem, lote segue', async () => {
-  const { deps } = stubEffects();
-  const original = deps.record!;
-  deps.record = (imdb: any, location: any, items: any[], opts: any) => {
-    if (imdb === 'tt9999999') throw new Error('boom');
-    return original(imdb, location, items, opts);
-  };
-  const app2 = express();
-  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
-  const server2 = await createTestServer(app2);
-  try {
-    const res = await server2.request('POST', '/internal/search/index-write', {
-      headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: {
-        encoded,
-        releases: [
-          { imdb: 'tt9999999', items: [itemOf(HASH_A)] },
-          { imdb: 'tt0000001', items: [itemOf(HASH_A)] },
-        ],
-      },
-    });
-    assert.equal(res.status, 200);
-    assert.equal(res.json.ok, true);
-    assert.equal(res.json.failed, 1);
-    assert.equal(res.json.recorded, 1);
-    assert.equal(res.json.entries, 2);
-  } finally {
-    await server2.close();
-  }
+  assert.equal(errado.status, 401);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -276,8 +172,8 @@ test('effects: efeito desconhecido/malformado é rejeitado, o lote segue', async
 
 test('effects: br_probe inelegível manda a obra ao colhedor (br-gap)', async () => {
   // A sonda pode recusar por kill-switch/retry/estado: o follow-up do índice
-  // não perde a obra — ela vai ao colhedor com motivo br-gap, como o
-  // `enqueueIndexFollowUp` faz no processo Node.
+  // não perde a obra — ela vai ao colhedor com motivo br-gap, como o follow-up
+  // nativo do Rust preserva.
   const { deps, seen } = stubEffects();
   deps.requestBrProbe = (work: any) => {
     seen.probe.push(work);

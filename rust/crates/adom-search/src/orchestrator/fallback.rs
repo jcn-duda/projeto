@@ -3,8 +3,8 @@
 //! Espelho de `collectFallbackForBuild` (`search-orchestrator.ts`): a decisão
 //! de QUANDO consultar (`live.needsFallback()`) e o que fazer com o resultado
 //! (anexar ao lote, sem tocar no lote canônico) é a mesma; a seleção pura mora
-//! em `adom-core::fallback_bank`, e a leitura do SQLite continua no Node por
-//! `POST /internal/search/fallback`.
+//! em `adom-core::fallback_bank` e a leitura do SQLite é NATIVA (`magnets.db`,
+//! ver `MagnetBankSource`). Não há mais rota Node de fallback.
 //!
 //! Regra de ouro do TS que este módulo preserva: o lote VIVO é a autoridade.
 //! `liveHashes` é calculado sobre os itens DESTA build e o núcleo corta a
@@ -12,8 +12,7 @@
 //! sempre devolvida como cópia para o build — nunca é gravada no `Vec` canônico,
 //! senão a próxima reconstrução a trataria como item vivo.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::time::Duration;
+use std::collections::{BTreeMap, HashSet};
 
 use serde_json::Map;
 
@@ -22,7 +21,6 @@ use adom_core::{
     WorkTarget,
 };
 
-use crate::internal_types::FallbackRequest;
 use crate::raw_item::{raw_item_from_value, RawItem};
 
 use super::finish::SearchInput;
@@ -30,41 +28,7 @@ use super::index_metrics as metrics;
 use super::index_source::{allowed_source_indexer, bank_limits, bank_read_window, obra_targets};
 use super::live_state::LiveBatchState;
 use super::meta::SearchMeta;
-use super::respond::now_ms;
 use super::Orchestrator;
-
-/// Teto da chamada da reserva. A rota só lê SQLite no loopback; se não
-/// responder rápido, o prazo do cliente vale mais que a reserva.
-const FALLBACK_CALL_CAP_MS: i64 = 1_500;
-/// Abaixo disso não sobra tempo útil para a leitura: nem chama a rota.
-const FALLBACK_CALL_FLOOR_MS: i64 = 100;
-/// Folga para o build/resposta antes do prazo absoluto do cliente. Também
-/// absorve a margem de rede do `timeout_until` do cliente HTTP.
-const FALLBACK_DEADLINE_MARGIN_MS: i64 = 250;
-
-/// Orçamento da chamada da reserva a partir do prazo ABSOLUTO da busca.
-///
-/// - `None` (passe tardio, sem cliente esperando): usa o teto curto.
-/// - Com prazo: `restante − margem`, limitado ao teto. Restante insuficiente
-///   devolve `None` — fail-open imediato, sem gastar o prazo que resta.
-///
-/// A decisão usa relógio de parede (o mesmo do `deadline_at`), não
-/// `input.now_ms`, que é a foto do INÍCIO da requisição: metadados e coleta já
-/// consumiram parte do orçamento.
-fn fallback_call_budget(deadline_at: Option<i64>, now: i64) -> Option<Duration> {
-    let budget_ms = match deadline_at {
-        None => FALLBACK_CALL_CAP_MS,
-        Some(deadline_at) => {
-            let remaining = deadline_at.saturating_sub(now);
-            let usable = remaining.saturating_sub(FALLBACK_DEADLINE_MARGIN_MS);
-            if usable < FALLBACK_CALL_FLOOR_MS {
-                return None;
-            }
-            usable.min(FALLBACK_CALL_CAP_MS)
-        }
-    };
-    Some(Duration::from_millis(budget_ms as u64))
-}
 
 /// `toRawItem` do TS. `dubbed`/`quality` viajam em `extra`: `dubbed` alimenta
 /// o `_bankDub` (evidência do classificador) e `fallbackFetchable` é copiado
@@ -99,76 +63,10 @@ fn raw_item_from_fallback(item: &FallbackItem) -> RawItem {
     }
 }
 
-fn core_input(
-    resp: crate::internal_types::FallbackResponse,
-    meta: &SearchMeta,
-    live: &LiveBatchState,
-    live_hashes: BTreeSet<String>,
-) -> FallbackInput {
-    let works = resp
-        .works
-        .iter()
-        .filter(|work| !work.magnet.as_ref().is_some_and(|magnet| magnet.broken))
-        .map(|work| FallbackWork {
-            hash: work.hash.clone(),
-            passed_filter: work.passed_filter,
-            last_seen: work.last_seen,
-            magnet: work.magnet.as_ref().map(|magnet| FallbackMagnet {
-                hash: magnet.hash.clone(),
-                uri: magnet.uri.clone(),
-                title: magnet.title.clone(),
-                size: magnet.size,
-                is_br: magnet.is_br,
-                dubbed: magnet.dubbed,
-                quality: magnet.quality.clone(),
-                seeders_max: magnet.seeders_max,
-                seeders_last: magnet.seeders_last,
-                last_seen: magnet.last_seen,
-                lied: magnet.lied,
-            }),
-        })
-        .collect();
-    let sources = resp
-        .sources
-        .iter()
-        .map(|(hash, list)| {
-            (
-                hash.clone(),
-                list.iter()
-                    .map(|source| FallbackSource {
-                        indexer: source.indexer.clone(),
-                        tracker: source.tracker.clone(),
-                        last_seen: source.last_seen,
-                        allowed: source.allowed,
-                    })
-                    .collect(),
-            )
-        })
-        .collect();
-    FallbackInput {
-        enabled: resp.enabled,
-        fallback_enabled: resp.fallback_enabled,
-        imdb_id: meta.imdb_id.clone(),
-        work_target: WorkTarget {
-            season: meta.season,
-            episode: meta.episode,
-        },
-        live_hashes: live_hashes.into_iter().collect(),
-        failed: live.failed_indexers().into_iter().collect(),
-        suspect: live.suspect_indexers().into_iter().collect(),
-        all_failed: live.all.failed(),
-        per_indexer_max: resp.per_indexer_max,
-        global_max: resp.global_max,
-        br_indexers: resp.br_indexers,
-        index_only_indexers: resp.index_only_indexers,
-        works,
-        sources,
-    }
-}
-
 impl Orchestrator {
-    /// Devolve o lote vivo com a reserva 📦 anexada. Fail-open: banco fora,
-    /// rota ausente ou nada elegível devolvem o lote original.
+    /// Devolve o lote vivo com a reserva 📦 anexada. Fail-open: banco fora ou
+    /// nada elegível devolvem o lote original. A leitura é SEMPRE nativa (R4);
+    /// não há mais rota Node de fallback.
     ///
     /// Chamar em TODA build relevante (resposta, lote tardio, refresh de debrid
     /// e pack), com o estado vivo daquele instante — nunca uma foto congelada
@@ -186,96 +84,41 @@ impl Orchestrator {
         if !live.needs_fallback() {
             return items;
         }
-        // Banco nativo (`BANK_RUST=on`): a leitura do SQLite e o `collect_fallback`
-        // do núcleo rodam in-process; a rota Node nem é chamada.
-        if self.config.bank_mode.is_on() {
-            if self.bank.is_some() {
-                let out = self.native_fallback_result(input, meta, &items, live);
-                if out.is_empty() {
-                    return items;
-                }
-                eprintln!(
-                    "[search] reserva do banco (nativo): {} item(ns) para {}",
-                    out.len(),
-                    meta.imdb_id
-                );
-                items.extend(out.iter().map(raw_item_from_fallback));
-                return items;
-            }
-            metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
-        }
-        let Some(routes) = self.routes.as_ref() else {
-            return items;
-        };
         // Replay congelado: o caso grava o RESULTADO da reserva
         // (`collectFallbackForBuild`), não as linhas do banco. Injetar os itens
         // gravados é o mesmo `[...items, ...fallback.items]` do Node; sem isto
         // a reserva inteira some (e os itens vivos que ela venceria mudam de
         // posição). O atalho só existe nesse modo (`None` em produção).
-        if let Ok(Some(recorded)) = routes.fallback_injected().await {
-            if recorded.is_empty() {
-                return items;
+        if let Some(routes) = self.routes.as_ref() {
+            if let Ok(Some(recorded)) = routes.fallback_injected().await {
+                if recorded.is_empty() {
+                    return items;
+                }
+                let mut out = items;
+                out.extend(recorded.iter().map(raw_item_from_value));
+                return out;
             }
-            let mut out = items;
-            out.extend(recorded.iter().map(raw_item_from_value));
-            return out;
         }
-        let live_hashes: BTreeSet<String> = items
-            .iter()
-            .map(RawItem::bank_hash)
-            .filter(|hash| !hash.is_empty())
-            .collect();
-        let now = now_ms();
-        let Some(budget) = fallback_call_budget(input.deadline_at, now) else {
+        // Banco nativo: a leitura do SQLite e o `collect_fallback` do núcleo
+        // rodam in-process. Sem banco aberto, degrada sem reserva 📦.
+        if self.bank.is_none() {
+            metrics::global_metrics().inc(metrics::SOURCE_MISSING, 1);
             eprintln!(
-                "[search] reserva do banco sem prazo útil para {}; seguindo sem",
+                "[search] magnets.db indisponível; seguindo sem reserva para {}",
                 meta.imdb_id
             );
             return items;
-        };
-        let deadline_at = now.saturating_add(budget.as_millis() as i64);
-        let req = FallbackRequest {
-            encoded: crate::request::encoded_for_internal(input.encoded.as_deref()),
-            media_type: input.kind.clone(),
-            imdb: meta.imdb_id.clone(),
-            season: meta.season,
-            episode: meta.episode,
-            failed: live.failed_indexers(),
-            suspect: live.suspect_indexers(),
-            all_failed: live.all.failed(),
-            live_hashes: live_hashes.clone(),
-            deadline_at: Some(deadline_at),
-        };
-        let resp = match tokio::time::timeout(budget, routes.fallback(req)).await {
-            Ok(Ok(resp)) => resp,
-            Ok(Err(err)) => {
-                eprintln!("[search] reserva do banco indisponível; seguindo sem: {err}");
-                return items;
-            }
-            Err(_) => {
-                // A reserva é ACESSÓRIA: corta a chamada e devolve o lote vivo.
-                // O cliente HTTP também recebe o `deadline_at`, mas o timeout
-                // aqui é a garantia final (um dublê/rota pode ignorá-lo).
-                eprintln!(
-                    "[search] reserva do banco excedeu {}ms; seguindo sem",
-                    budget.as_millis()
-                );
-                return items;
-            }
-        };
-        if !resp.ok {
-            return items;
         }
-        let out = collect_fallback(&core_input(resp, meta, live, live_hashes));
-        if out.injected() == 0 {
+        let out = self.native_fallback_result(input, meta, &items, live);
+        if out.is_empty() {
             return items;
         }
         eprintln!(
-            "[search] reserva do banco: {} item(ns) para {}",
-            out.injected(),
+            "[search] reserva do banco (nativo): {} item(ns) para {}",
+            out.len(),
             meta.imdb_id
         );
-        items.extend(out.items.iter().map(raw_item_from_fallback));
+        items.extend(out.iter().map(raw_item_from_fallback));
         items
     }
 

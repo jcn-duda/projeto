@@ -1,7 +1,7 @@
 //! Regra PURA da seleção da via instantânea do banco de magnets.
 //!
-//! Porte da parte sem I/O de `collectInstantItems`
-//! (`src/providers/magnet-bank-instant.ts`): a leitura do SQLite
+//! Porte da parte sem I/O do antigo `collectInstantItems`
+//! (`src/providers/magnet-bank-instant.ts`, removido no R4): a leitura do SQLite
 //! (`worksForObraMany`/`sourcesForMany`) e a janela adaptativa
 //! (`adom_core::search_bank::instant_window`) ficam FORA; aqui entram as linhas
 //! já lidas e os fatos da requisição, e saem os itens que o build consome com o

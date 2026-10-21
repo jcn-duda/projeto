@@ -4,9 +4,9 @@
 //! O `/resolve` do Node grava `mag:v1:{bad|lie}:<adapter>:<account>:<hash>`
 //! (`src/utils/magnetdb.ts`). Até o F4.4a o build nativo lia essa evidência só
 //! indiretamente: as rotas internas de evidência marcavam `broken` nos itens que
-//! o NODE coletava — com a coleta/índice nativos (`SOURCES_RUST`/`INDEX_RUST`)
-//! o item nunca passava por lá e o hash que o play provou quebrado (sem vídeo ou
-//! com áudio EN num post PT) voltava à lista até o TTL.
+//! o NODE coletava — com a coleta/índice nativos o item nunca passava por lá e o
+//! hash que o play provou quebrado (sem vídeo ou com áudio EN num post PT)
+//! voltava à lista até o TTL.
 //!
 //! Aqui a evidência é lida DIRETO do `cache.db`, com as MESMAS chaves e a mesma
 //! régua do `pruneKnownBroken` (`debrid-cache-steps.ts`): só `bad` e `lie`,

@@ -1,9 +1,13 @@
-//! As quatro rotas internas que o orquestrador consome, atrás de uma trait.
+//! As rotas internas que o orquestrador ainda consome, atrás de uma trait.
 //!
 //! Em produção o adaptador é [`NodeRoutes`], sobre o `InternalSearchClient`
 //! (loopback + `X-Indexer-Test-Token` + `encoded` no corpo). Em teste é um
-//! stub que devolve metadados/coleta/escrita gravados — nenhuma chamada de
+//! stub que devolve metadados/coleta/efeitos gravados — nenhuma chamada de
 //! rede, nenhum servidor.
+//!
+//! Índice de releases e banco de magnets NÃO passam mais por aqui (R4): são
+//! nativos (`IdxStore`/`MagnetBankStore`). O único resíduo do Node é o replay
+//! congelado (`fallback_injected`), que injeta o RESULTADO gravado do caso.
 //!
 //! Por que uma trait e não o cliente direto: os testes do orquestrador não
 //! podem depender de um Node no ar, e a fronteira do strangler é justamente
@@ -15,9 +19,7 @@ use std::sync::Arc;
 
 use crate::internal_client::InternalSearchClient;
 use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, FallbackRequest,
-    FallbackResponse, IndexWriteRequest, IndexWriteResponse, MetaRequest, MetaResponse,
-    SearchIndexRequest, SearchIndexResponse,
+    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
 };
 
 /// Futuro das rotas internas (boxed: trait object estável sem `async_trait`).
@@ -27,23 +29,15 @@ pub type RouteFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, String>> + S
 pub trait InternalRoutes: Send + Sync {
     fn meta<'a>(&'a self, req: MetaRequest) -> RouteFuture<'a, MetaResponse>;
     fn collect<'a>(&'a self, req: CollectRequest) -> RouteFuture<'a, CollectResponse>;
-    fn index_write<'a>(&'a self, req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse>;
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse>;
-    fn search_index<'a>(&'a self, req: SearchIndexRequest) -> RouteFuture<'a, SearchIndexResponse>;
-
-    /// Linhas do banco vivo para a reserva 📦. Default vazio: um dublê sem a
-    /// rota continua funcionando (a reserva some, nunca a busca inteira).
-    fn fallback<'a>(&'a self, _req: FallbackRequest) -> RouteFuture<'a, FallbackResponse> {
-        Box::pin(async { Ok(FallbackResponse::default()) })
-    }
 
     /// Itens da reserva 📦 JÁ CALCULADOS pelo Node (`collectFallbackForBuild`).
     ///
     /// `None` = sem atalho (produção e dublês): o núcleo decide a reserva a
-    /// partir das linhas de [`Self::fallback`]. O replay congelado usa
-    /// `Some(items)` porque o caso grava o RESULTADO (`inputs/fallback.json`),
-    /// não as linhas do banco — sem isto a reserva some da lista e todo item
-    /// dela perde o selo 📦 (medido: dragon-ball-z, dahmer, naruto).
+    /// partir do banco NATIVO. O replay congelado usa `Some(items)` porque o
+    /// caso grava o RESULTADO (`inputs/fallback.json`), não as linhas do banco
+    /// — sem isto a reserva some da lista e todo item dela perde o selo 📦
+    /// (medido: dragon-ball-z, dahmer, naruto).
     fn fallback_injected<'a>(&'a self) -> RouteFuture<'a, Option<Vec<serde_json::Value>>> {
         Box::pin(async { Ok(None) })
     }
@@ -78,19 +72,7 @@ impl InternalRoutes for NodeRoutes {
         Box::pin(async move { self.client.collect(&req).await })
     }
 
-    fn index_write<'a>(&'a self, req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse> {
-        Box::pin(async move { self.client.index_write(&req).await })
-    }
-
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async move { self.client.effects(&req).await })
-    }
-
-    fn search_index<'a>(&'a self, req: SearchIndexRequest) -> RouteFuture<'a, SearchIndexResponse> {
-        Box::pin(async move { self.client.search_index(&req).await })
-    }
-
-    fn fallback<'a>(&'a self, req: FallbackRequest) -> RouteFuture<'a, FallbackResponse> {
-        Box::pin(async move { self.client.fallback(&req).await })
     }
 }

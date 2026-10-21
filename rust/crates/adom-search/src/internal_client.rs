@@ -1,11 +1,12 @@
 //! Cliente HTTP das rotas internas de busca do Node
-//! (`POST /internal/search/{meta,state,collect,index-write,effects}`).
+//! (`POST /internal/search/{meta,collect,effects}`).
 //!
-//! Rede ainda no Node: o orquestrador Rust fala em loopback com token no
-//! **header** (`X-Indexer-Test-Token`) e a config do usuário no **corpo**
-//! (`encoded`) — invariante: preferência nunca vem do `.env`; o Node restaura
-//! via `runtime.run`. Falha de rede/HTTP/parse → `Err` — NUNCA panic; a busca
-//! não pode cair.
+//! Índice/banco NÃO passam mais por aqui (R4): são nativos. Rede ainda no
+//! Node: o orquestrador Rust fala em loopback com token no **header**
+//! (`X-Indexer-Test-Token`) e a config do usuário no **corpo** (`encoded`) —
+//! invariante: preferência nunca vem do `.env`; o Node restaura via
+//! `runtime.run`. Falha de rede/HTTP/parse → `Err` — NUNCA panic; a busca não
+//! pode cair.
 
 use std::net::IpAddr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -16,17 +17,14 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, FallbackRequest,
-    FallbackResponse, IndexWriteRequest, IndexWriteResponse, MetaRequest, MetaResponse,
-    SearchIndexRequest, SearchIndexResponse,
+    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
 };
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
 pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
-/// Teto HTTP de meta/state/index-write/effects/fallback. Collect **não** usa
-/// este teto: o timeout HTTP é `remaining + COLLECT_GRACE_MS` até o
-/// `deadline_at` absoluto (espelha o Node; collect longo pode passar de 15s).
-/// Fallback segue o mesmo padrão quando o pedido traz `deadline_at`.
+/// Teto HTTP de meta/effects. Collect **não** usa este teto: o timeout HTTP é
+/// `remaining + COLLECT_GRACE_MS` até o `deadline_at` absoluto (espelha o Node;
+/// collect longo pode passar de 15s).
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(15_000);
 /// Folga de rede depois do prazo absoluto do collect (o Node já cortou).
 const COLLECT_GRACE_MS: u64 = 250;
@@ -82,37 +80,9 @@ impl InternalSearchClient {
         self.post_ok("/internal/search/collect", req, timeout).await
     }
 
-    /// POST `/internal/search/index-write` — grava índice + marca banco.
-    pub async fn index_write(&self, req: &IndexWriteRequest) -> Result<IndexWriteResponse, String> {
-        self.post_ok("/internal/search/index-write", req, self.timeout)
-            .await
-    }
-
     /// POST `/internal/search/effects` — fire-and-forget; espera **202**.
     pub async fn effects(&self, req: &EffectsRequest) -> Result<EffectsResponse, String> {
         self.post_ok("/internal/search/effects", req, self.timeout)
-            .await
-    }
-
-    /// POST `/internal/search/index` — leitura do índice de releases e banco instantâneo.
-    pub async fn search_index(
-        &self,
-        req: &SearchIndexRequest,
-    ) -> Result<SearchIndexResponse, String> {
-        self.post_ok("/internal/search/index", req, self.timeout)
-            .await
-    }
-
-    /// POST `/internal/search/fallback` — linhas do banco para a reserva 📦.
-    /// A seleção fica no núcleo; a rota só lê o SQLite e a config do pedido.
-    /// Com `deadline_at`, o timeout HTTP é o restante (padrão do collect), nunca
-    /// o teto fixo de 15s: a reserva é acessório e não pode segurar a resposta.
-    pub async fn fallback(&self, req: &FallbackRequest) -> Result<FallbackResponse, String> {
-        let timeout = match req.deadline_at {
-            Some(deadline_at) => timeout_until(deadline_at)?,
-            None => self.timeout,
-        };
-        self.post_ok("/internal/search/fallback", req, timeout)
             .await
     }
 

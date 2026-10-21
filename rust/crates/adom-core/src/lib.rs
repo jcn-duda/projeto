@@ -341,8 +341,8 @@ pub use release_labels::{compact_audio, edition_from_title, source_from_title};
 pub use play_disposition::{play_disposition, PlayDisposition, PlayFacts};
 pub use reply_budget::remaining_check_budget;
 pub use request_key::{account_scope, streams_cache_key, streams_cache_scope};
-// Via do banco de magnets (porte de `magnet-bank-fallback.ts` e
-// `magnet-bank-instant.ts`): a reserva e a janela da via instantânea.
+// Via do banco de magnets (porte de `magnet-bank-fallback.ts` e do antigo
+// `magnet-bank-instant.ts`, removido no R4): a reserva e a janela instantânea.
 pub use fallback_bank::{
     collect_fallback, FallbackInput, FallbackItem, FallbackMagnet, FallbackResult, FallbackSource,
     FallbackWork, GLOBAL_MAX, PER_INDEXER_MAX,

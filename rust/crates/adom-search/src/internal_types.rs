@@ -2,11 +2,12 @@
 //!
 //! Espelham o JSON real de `src/routes/internal-search*.ts`. Campos opacos
 //! (meta Cinemeta, RawItem cru, payloads de efeito) ficam em `Value` — o glue
-//! não reparseia o domínio; o orquestrador decide depois.
+//! não reparseia o domínio; o orquestrador decide depois. Índice/banco não
+//! viajam mais pelo fio (R4): `ReleaseEntry` só alimenta a escrita NATIVA.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// Escopo de coleta (`collectRaw` taskScope).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,7 +141,7 @@ pub struct CollectResponse {
     pub eligible: bool,
 }
 
-// ── index-write ─────────────────────────────────────────────────────────────
+// ── índice nativo ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReleaseEntry {
@@ -156,21 +157,6 @@ pub struct ReleaseEntry {
     pub survivors: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct IndexWriteRequest {
-    pub encoded: String,
-    pub releases: Vec<ReleaseEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct IndexWriteResponse {
-    pub ok: bool,
-    pub recorded: i64,
-    pub entries: i64,
-    pub bank_marked: i64,
-    pub failed: i64,
 }
 
 // ── effects ─────────────────────────────────────────────────────────────────
@@ -193,151 +179,4 @@ pub struct EffectsResponse {
     pub ok: bool,
     pub accepted: i64,
     pub rejected: i64,
-}
-
-// ── index (leitura do releaseIndex e via instantânea do banco) ─────────────
-
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct SearchIndexRequest {
-    pub encoded: String,
-    #[serde(rename = "type")]
-    pub media_type: String,
-    pub imdb: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub season: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub episode: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub names: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub year: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub released: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub first_aired: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct SearchIndexResponse {
-    pub ok: bool,
-    #[serde(default)]
-    pub is_partial: bool,
-    #[serde(default)]
-    pub index_covered: bool,
-    #[serde(default)]
-    pub instant_eligible: bool,
-    #[serde(default)]
-    pub index_items: Vec<Value>,
-    #[serde(default)]
-    pub instant_items: Vec<Value>,
-    #[serde(default)]
-    pub account_items: Vec<Value>,
-    /// Follow-up que a rota Node enfileirou (`{kind, reason|mode}`), quando ela
-    /// o reporta. Node antigo (campo ausente) não gera divergência de conjunto.
-    #[serde(default)]
-    pub effects: Vec<Value>,
-}
-
-// ── fallback (reserva 📦 do banco para uma build) ───────────────────────────
-
-/// Fatos da build que a leitura do banco precisa. A seleção em si fica no
-/// núcleo (`adom_core::fallback_bank`); aqui só viajam as chaves.
-#[derive(Debug, Clone, Serialize)]
-pub struct FallbackRequest {
-    pub encoded: String,
-    #[serde(rename = "type")]
-    pub media_type: String,
-    pub imdb: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub season: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub episode: Option<i64>,
-    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
-    pub failed: BTreeSet<String>,
-    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
-    pub suspect: BTreeSet<String>,
-    #[serde(default)]
-    pub all_failed: bool,
-    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
-    pub live_hashes: BTreeSet<String>,
-    /// Prazo ABSOLUTO desta chamada (epoch ms). O Node ignora o campo; o
-    /// cliente HTTP usa o restante como timeout, como no `/collect`. Sem ele
-    /// (passe tardio) vale o teto curto de `with_fallback`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deadline_at: Option<i64>,
-}
-
-/// Linhas do banco para a obra, já recortadas pela janela de leitura.
-#[derive(Debug, Clone, Deserialize)]
-pub struct FallbackWorkWire {
-    pub hash: String,
-    #[serde(default)]
-    pub passed_filter: i64,
-    #[serde(default)]
-    pub last_seen: i64,
-    #[serde(default)]
-    pub magnet: Option<FallbackMagnetWire>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct FallbackMagnetWire {
-    pub hash: String,
-    #[serde(default)]
-    pub uri: String,
-    #[serde(default)]
-    pub title: String,
-    #[serde(default)]
-    pub size: i64,
-    #[serde(default)]
-    pub is_br: bool,
-    #[serde(default)]
-    pub dubbed: bool,
-    #[serde(default)]
-    pub quality: String,
-    #[serde(default)]
-    pub seeders_max: i64,
-    #[serde(default)]
-    pub seeders_last: i64,
-    #[serde(default)]
-    pub last_seen: i64,
-    #[serde(default)]
-    pub lied: bool,
-    /// Histórico ruim da CONTA (bad/lie/dead/miss): a reserva não reapresenta.
-    #[serde(default)]
-    pub broken: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct FallbackSourceWire {
-    pub indexer: String,
-    #[serde(default)]
-    pub tracker: String,
-    #[serde(default)]
-    pub last_seen: i64,
-    #[serde(default)]
-    pub allowed: bool,
-}
-
-/// Config efetiva do operador + linhas. `enabled`/`fallback_enabled` deixam o
-/// núcleo decidir sem uma segunda leitura de config.
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct FallbackResponse {
-    #[serde(default)]
-    pub ok: bool,
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub fallback_enabled: bool,
-    #[serde(default)]
-    pub per_indexer_max: i64,
-    #[serde(default)]
-    pub global_max: i64,
-    #[serde(default)]
-    pub br_indexers: Vec<String>,
-    #[serde(default)]
-    pub index_only_indexers: Vec<String>,
-    #[serde(default)]
-    pub works: Vec<FallbackWorkWire>,
-    #[serde(default)]
-    pub sources: BTreeMap<String, Vec<FallbackSourceWire>>,
 }

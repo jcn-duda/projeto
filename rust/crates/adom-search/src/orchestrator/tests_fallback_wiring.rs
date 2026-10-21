@@ -1,7 +1,7 @@
-//! Wiring da reserva 📦: a rota interna de banco é chamada em TODA build
-//! relevante e só quando o estado vivo pede (falha/pending/suspeito). Cobre a
-//! primeira resposta e a reconstrução tardia com o estado FINAL — o ponto que
-//! o `collectFallbackForBuild` do Node garante e que não pode ser “uma vez só
+//! Wiring da reserva 📦: o banco NATIVO é consultado em TODA build relevante
+//! e só quando o estado vivo pede (falha/pending/suspeito). Cobre a primeira
+//! resposta e a reconstrução tardia com o estado FINAL — o ponto que o
+//! `collectFallbackForBuild` do Node garante e que não pode ser “uma vez só
 //! antes de assentar”.
 
 use std::sync::Arc;
@@ -13,8 +13,12 @@ use crate::orchestrator::finish::SearchInput;
 #[tokio::test]
 async fn primeira_resposta_reinjeta_reserva_do_indexer_falho() {
     let store = Arc::new(MemorySwrStore::new());
-    let routes = FallbackRoutes::new(fallback_response());
-    let orch = Orchestrator::new(config(), store)
+    let bank = fallback_bank();
+    // A instantânea da via rápida também lê o banco; aqui o alvo é a leitura
+    // da RESERVA no fallback, então ela fica desligada.
+    let mut cfg = config();
+    cfg.magnet_bank_instant_enabled = false;
+    let orch = Orchestrator::new(cfg, store)
         .with_collector(Arc::new(LiveCollector {
             items: vec![item(HASH)],
             live: live(&["bludv"], &[], &[]),
@@ -23,7 +27,7 @@ async fn primeira_resposta_reinjeta_reserva_do_indexer_falho() {
         .with_debrid(Arc::new(StubDebrid {
             cached: vec![HASH.into(), FALLBACK_HASH.into()],
         }))
-        .with_internal_routes(routes.clone());
+        .with_bank_source(bank.clone());
 
     let response = orch.handle(request(wall_now_ms())).await;
     let titles: Vec<&str> = response
@@ -35,24 +39,16 @@ async fn primeira_resposta_reinjeta_reserva_do_indexer_falho() {
         titles.iter().any(|title| title.contains("(Banco)")),
         "a reserva 📦 precisa entrar na primeira resposta: {titles:?}"
     );
-
-    let calls = routes.calls();
-    assert_eq!(calls.len(), 1, "uma consulta por build");
-    assert!(calls[0].failed.contains("bludv"));
-    assert!(
-        calls[0].live_hashes.contains(HASH),
-        "o hash vivo precisa ir como exclusão"
-    );
+    assert_eq!(bank.reads(), 1, "uma leitura por build");
 }
 
 #[tokio::test]
 async fn raw_item_da_reserva_preserva_flags_no_extra() {
-    let routes = FallbackRoutes::new(fallback_response());
     let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
         .with_collector(StubCollector::empty())
         .with_meta(Arc::new(StubMeta(meta())))
         .with_debrid(Arc::new(StubDebrid { cached: vec![] }))
-        .with_internal_routes(routes);
+        .with_bank_source(fallback_bank());
 
     let input = SearchInput {
         kind: "movie".into(),
@@ -68,7 +64,7 @@ async fn raw_item_da_reserva_preserva_flags_no_extra() {
         .with_fallback(&input, &meta(), vec![], Some(&live(&["bludv"], &[], &[])))
         .await;
 
-    assert_eq!(items.len(), 1, "a rota devolve uma reserva elegível");
+    assert_eq!(items.len(), 1, "o banco devolve uma reserva elegível");
     let item = &items[0];
     assert!(item.from_fallback);
     assert_eq!(
@@ -89,38 +85,39 @@ async fn raw_item_da_reserva_preserva_flags_no_extra() {
 }
 
 #[tokio::test]
-async fn sem_falha_nao_consulta_a_rota_de_banco() {
-    let routes = FallbackRoutes::new(fallback_response());
-    let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
+async fn sem_falha_nao_consulta_o_banco() {
+    let bank = fallback_bank();
+    let mut cfg = config();
+    cfg.magnet_bank_instant_enabled = false;
+    let orch = Orchestrator::new(cfg, Arc::new(MemorySwrStore::new()))
         .with_collector(StubCollector::with(vec![item(HASH)]))
         .with_meta(Arc::new(StubMeta(meta())))
         .with_debrid(Arc::new(StubDebrid {
             cached: vec![HASH.into()],
         }))
-        .with_internal_routes(routes.clone());
+        .with_bank_source(bank.clone());
 
     orch.handle(request(1_000_000)).await;
-    assert!(
-        routes.calls().is_empty(),
-        "sem estado vivo que peça reserva, a rota nem é chamada"
+    assert_eq!(
+        bank.reads(),
+        0,
+        "sem estado vivo que peça reserva, o banco nem é lido"
     );
 }
 
 #[tokio::test]
-async fn rota_com_erro_mantem_o_lote_vivo() {
-    let routes = FallbackRoutes::failing("banco fora");
+async fn banco_ausente_mantem_o_lote_vivo() {
     let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
         .with_collector(StubCollector::empty())
         .with_meta(Arc::new(StubMeta(meta())))
-        .with_debrid(Arc::new(StubDebrid { cached: vec![] }))
-        .with_internal_routes(routes.clone());
+        .with_debrid(Arc::new(StubDebrid { cached: vec![] }));
     let input = SearchInput {
         kind: "movie".into(),
         id: "tt0133093".into(),
         encoded: Some(SEGMENT.into()),
         prefix: String::new(),
         options: options(),
-        key: "fallback-error".into(),
+        key: "fallback-missing".into(),
         now_ms: wall_now_ms(),
         deadline_at: None,
     };
@@ -132,25 +129,25 @@ async fn rota_com_erro_mantem_o_lote_vivo() {
             Some(&live(&["bludv"], &[], &[])),
         )
         .await;
-    assert_eq!(out.len(), 1, "erro da rota é fail-open");
+    assert_eq!(out.len(), 1, "sem banco aberto é degradação, não perda");
     assert_eq!(out[0].hash(), HASH);
 }
 
 #[tokio::test]
-async fn rota_ok_false_mantem_o_lote_vivo() {
-    let routes = FallbackRoutes::not_ok();
+async fn banco_sem_linhas_mantem_o_lote_vivo() {
+    let bank = Arc::new(StubBank::default());
     let orch = Orchestrator::new(config(), Arc::new(MemorySwrStore::new()))
         .with_collector(StubCollector::empty())
         .with_meta(Arc::new(StubMeta(meta())))
         .with_debrid(Arc::new(StubDebrid { cached: vec![] }))
-        .with_internal_routes(routes);
+        .with_bank_source(bank.clone());
     let input = SearchInput {
         kind: "movie".into(),
         id: "tt0133093".into(),
         encoded: Some(SEGMENT.into()),
         prefix: String::new(),
         options: options(),
-        key: "fallback-not-ok".into(),
+        key: "fallback-empty".into(),
         now_ms: wall_now_ms(),
         deadline_at: None,
     };
@@ -162,6 +159,11 @@ async fn rota_ok_false_mantem_o_lote_vivo() {
             Some(&live(&["bludv"], &[], &[])),
         )
         .await;
-    assert_eq!(out.len(), 1, "ok:false também é fail-open");
+    assert_eq!(out.len(), 1, "banco vazio é fail-open");
     assert_eq!(out[0].hash(), HASH);
+    assert_eq!(
+        bank.reads(),
+        1,
+        "a leitura aconteceu, só não rendeu reserva"
+    );
 }

@@ -59,7 +59,7 @@ test('trava regressao (1): allowedSourceIndexer continua true para apachetorrent
   });
 });
 
-test('trava regressao (2): a elegibilidade index-only do magnet-bank-instant continua valendo para o apache', () => {
+test('trava regressao (2): a elegibilidade index-only do banco de magnets continua valendo para o apache', () => {
   const indexOnlySet = new Set(config.jackett.indexOnlyIndexers.map((id) => String(id).trim().toLowerCase()));
   assert.ok(
     indexOnlySet.has('apachetorrent-cardigann'),

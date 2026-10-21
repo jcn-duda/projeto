@@ -5,7 +5,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use adom_core::{RankingStream, StreamDisplayConfig};
+use adom_core::{
+    BankRow, InstantSource, InstantWork, RankingStream, StreamDisplayConfig, WorkTarget,
+};
 use serde_json::{json, Value};
 
 pub use crate::cache::MemorySwrStore;
@@ -212,37 +214,16 @@ impl DebridFactory for StubDebrid {
 
 #[derive(Default)]
 pub struct RecordingTail {
-    index: Mutex<Vec<IndexBatch>>,
     effects: Mutex<Vec<EffectsBatch>>,
 }
 
 impl RecordingTail {
-    pub fn index_writes(&self) -> Vec<IndexBatch> {
-        self.index.lock().expect("index").clone()
-    }
-
     pub fn effects_batches(&self) -> Vec<EffectsBatch> {
         self.effects.lock().expect("effects").clone()
     }
 }
 
 impl TailEffects for RecordingTail {
-    fn index_write<'a>(
-        &'a self,
-        batch: IndexBatch,
-    ) -> RouteFuture<'a, crate::internal_types::IndexWriteResponse> {
-        Box::pin(async move {
-            self.index.lock().expect("index").push(batch);
-            Ok(crate::internal_types::IndexWriteResponse {
-                ok: true,
-                recorded: 1,
-                entries: 1,
-                bank_marked: 0,
-                failed: 0,
-            })
-        })
-    }
-
     fn effects<'a>(
         &'a self,
         batch: EffectsBatch,
@@ -256,6 +237,133 @@ impl TailEffects for RecordingTail {
                 rejected: 0,
             })
         })
+    }
+}
+
+/// Índice nativo de teste: `lookup` devolve as releases configuradas e
+/// `record` guarda os lotes para asserção.
+#[derive(Default)]
+pub struct StubIndex {
+    pub releases: Vec<IndexedReleaseWire>,
+    pub partial: bool,
+    records: Mutex<Vec<ReleaseEntry>>,
+}
+
+impl StubIndex {
+    pub fn with(releases: Vec<IndexedReleaseWire>) -> Arc<Self> {
+        Arc::new(StubIndex {
+            releases,
+            ..StubIndex::default()
+        })
+    }
+
+    pub fn recorded(&self) -> Vec<ReleaseEntry> {
+        self.records.lock().expect("records").clone()
+    }
+}
+
+impl ReleaseIndexSource for StubIndex {
+    fn lookup(
+        &self,
+        _imdb: &str,
+        _season: Option<i64>,
+        _episode: Option<i64>,
+        _now: i64,
+    ) -> Vec<IndexedReleaseWire> {
+        self.releases.clone()
+    }
+
+    fn is_partial(
+        &self,
+        _imdb: &str,
+        _season: Option<i64>,
+        _episode: Option<i64>,
+        _now: i64,
+    ) -> bool {
+        self.partial
+    }
+
+    fn record(
+        &self,
+        entry: &ReleaseEntry,
+        _now: i64,
+        _bank: Option<BankLookup<'_>>,
+    ) -> Result<usize, String> {
+        self.records.lock().expect("records").push(entry.clone());
+        Ok(entry.items.len())
+    }
+}
+
+/// Banco nativo de teste: linhas de obra + fontes fixas, com contador de
+/// leituras para provar quando a reserva foi (ou não) consultada.
+#[derive(Default)]
+pub struct StubBank {
+    pub works: Vec<InstantWork>,
+    pub sources: std::collections::BTreeMap<String, Vec<InstantSource>>,
+    pub br_row: bool,
+    reads: AtomicUsize,
+}
+
+impl StubBank {
+    pub fn new(
+        works: Vec<InstantWork>,
+        sources: std::collections::BTreeMap<String, Vec<InstantSource>>,
+    ) -> Arc<Self> {
+        Arc::new(StubBank {
+            works,
+            sources,
+            ..StubBank::default()
+        })
+    }
+
+    pub fn reads(&self) -> usize {
+        self.reads.load(Ordering::SeqCst)
+    }
+}
+
+impl MagnetBankSource for StubBank {
+    fn works_for_obra_many(
+        &self,
+        _imdb: &str,
+        _targets: &[WorkTarget],
+        _limit_per_target: usize,
+        _max_total: usize,
+        _indexers: Option<&[String]>,
+    ) -> Vec<InstantWork> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        self.works.clone()
+    }
+
+    fn sources_for_many(
+        &self,
+        hashes: &[String],
+    ) -> std::collections::BTreeMap<String, Vec<InstantSource>> {
+        hashes
+            .iter()
+            .filter_map(|hash| {
+                self.sources
+                    .get(hash)
+                    .map(|list| (hash.clone(), list.clone()))
+            })
+            .collect()
+    }
+
+    fn bank_rows_many(&self, _hashes: &[String]) -> Vec<BankRow> {
+        Vec::new()
+    }
+
+    fn mark_filter_outcome(
+        &self,
+        _entered: &[Value],
+        _survivors: &[Value],
+        _ctx: &BankFilterCtx,
+        _now: i64,
+    ) -> bool {
+        true
+    }
+
+    fn has_br_row(&self, _imdb: &str, _targets: &[WorkTarget]) -> bool {
+        self.br_row
     }
 }
 

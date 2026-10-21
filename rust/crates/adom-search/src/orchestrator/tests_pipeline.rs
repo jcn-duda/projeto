@@ -238,8 +238,10 @@ async fn corte_de_prazo_parcial_continua_em_fundo_e_grava_no_store() {
     let store = Arc::new(MemorySwrStore::new());
     let collector = StubCollector::slow(vec![item(HASH)], Duration::from_millis(120));
     let tail = Arc::new(RecordingTail::default());
-    let orch =
-        orchestrator(config, store.clone(), collector.clone(), &[HASH]).with_tail(tail.clone());
+    let index = StubIndex::with(Vec::new());
+    let orch = orchestrator(config, store.clone(), collector.clone(), &[HASH])
+        .with_tail(tail.clone())
+        .with_index_source(index.clone());
     let key = entry_key(&orch);
 
     let resposta = orch.handle(request(now)).await;
@@ -253,10 +255,7 @@ async fn corte_de_prazo_parcial_continua_em_fundo_e_grava_no_store() {
     // A resposta saiu ANTES da coleta terminar: store vazio e fila tardia
     // ainda não disparou (nada de esperar o fundo dentro da resposta).
     assert!(store.get_with_stale(&key, 300, now as u64).is_none());
-    assert!(
-        tail.index_writes().is_empty(),
-        "fila tardia fora da resposta"
-    );
+    assert!(index.recorded().is_empty(), "fila tardia fora da resposta");
 
     // O passe tardio termina em fundo e grava a lista COMPLETA.
     let mut entry = None;
@@ -274,19 +273,17 @@ async fn corte_de_prazo_parcial_continua_em_fundo_e_grava_no_store() {
     assert!(!entry.partial, "coleta encerrada = entrada completa");
     assert_eq!(entry.debrid_known, Some(true));
 
-    // Fila tardia: index-write entregue DEPOIS da resposta, pelo TailEffects.
+    // Fila tardia: gravação no índice NATIVO DEPOIS da resposta.
     for _ in 0..80 {
-        if !tail.index_writes().is_empty() {
+        if !index.recorded().is_empty() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    let writes = tail.index_writes();
+    let writes = index.recorded();
     assert_eq!(writes.len(), 1);
-    assert_eq!(writes[0].encoded, SEGMENT);
-    assert_eq!(writes[0].releases.len(), 1);
-    assert_eq!(writes[0].releases[0].imdb, "tt0133093");
-    assert!(!writes[0].releases[0].items.is_empty());
+    assert_eq!(writes[0].imdb, "tt0133093");
+    assert!(!writes[0].items.is_empty());
     assert_eq!(collector.calls(), 1);
 }
 
@@ -320,21 +317,32 @@ fn achar<'a>(
 }
 
 #[tokio::test]
-async fn effects_rust_off_nao_emite_nada() {
+async fn effects_rust_off_nao_emite_efeitos_de_cauda() {
     let store = Arc::new(MemorySwrStore::new());
     let collector = StubCollector::with(vec![item_br_dublado(HASH)]);
     let tail = Arc::new(RecordingTail::default());
-    let orch = orchestrator(config(), store, collector, &[HASH]).with_tail(tail.clone());
+    let index = StubIndex::with(Vec::new());
+    let orch = orchestrator(config(), store, collector, &[HASH])
+        .with_tail(tail.clone())
+        .with_index_source(index.clone());
     assert!(!orch.config().effects_enabled);
 
     let _ = orch.handle(request(1_000_000)).await;
     tokio::time::sleep(Duration::from_millis(120)).await;
+    let kinds: Vec<String> = tail
+        .effects_batches()
+        .into_iter()
+        .flat_map(|batch| batch.effects)
+        .map(|effect| effect.kind)
+        .collect();
     assert!(
-        tail.effects_batches().is_empty(),
-        "default OFF: o Node continua sendo quem enfileira"
+        kinds
+            .iter()
+            .all(|kind| kind == "harvester_enqueue" || kind == "br_probe"),
+        "default OFF: só o follow-up do índice pode sair: {kinds:?}"
     );
-    // O index-write do tail SEGUE rodando: só os efeitos são flagados.
-    assert!(!tail.index_writes().is_empty());
+    // A gravação no índice NATIVO SEGUE rodando: só os efeitos são flagados.
+    assert!(!index.recorded().is_empty());
 }
 
 #[tokio::test]

@@ -1,10 +1,10 @@
-// Regressão do enriquecimento das rotas internas (`collect`/`index`): só a
-// prova de ARQUIVO (`applyFileEvidence`) é anexada no caminho de resposta. O
-// `ptTitleDual` é decisão in-process do build Rust (`SearchMeta.titles` →
-// `BuildContext.titles`), então a rota NÃO consulta `getTitles` nem espera TMDB.
+// Regressão do enriquecimento da rota interna `collect`: só a prova de ARQUIVO
+// (`applyFileEvidence`) é anexada no caminho de resposta. O `ptTitleDual` é
+// decisão in-process do build Rust (`SearchMeta.titles` → `BuildContext.titles`),
+// então a rota NÃO consulta `getTitles` nem espera TMDB.
 //
-// O teste da rota `index` vive em `internal-search-index.test.ts`; aqui ficam os
-// dois cenários do `collect` (promessa que nunca assenta e getTitles que lança).
+// R4: a antiga rota `index` saiu (índice é nativo); aqui ficam os dois cenários
+// do `collect` (promessa que nunca assenta e getTitles que lança).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';

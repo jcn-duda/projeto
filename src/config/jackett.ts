@@ -142,7 +142,7 @@ export const jackett = () => ({
   ),
   // Exceção de PRESENÇA no plano ao vivo: indexers que continuam sendo
   // index-only para todos os outros fins (allowedSourceIndexer não filtra por ji,
-  // magnet-bank-instant aceita passed_filter=0, colhedor dedica timeout de 35s),
+  // o banco NATIVO aceita passed_filter=0, colhedor dedica timeout de 35s),
   // mas que PASSAM a ser consultados na resposta ao vivo.
   //
   // Medição de 2026-09-20 (15 amostras frias):

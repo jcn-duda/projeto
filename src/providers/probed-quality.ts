@@ -64,16 +64,16 @@ function yearOf(value: number | string | null | undefined): number | null {
 }
 
 /**
- * Prova de qualidade para o consumidor NATIVO (`/internal/search/index` e
- * `/internal/search/collect`): o item sai com `provenQuality` — o campo que o
- * `RawItem` do Rust já lê (`map_stream` usa antes do título) e que decide o
+ * Prova de qualidade para o consumidor NATIVO (`/internal/search/collect`; a
+ * antiga rota `index` saiu no R4): o item sai com `provenQuality` — o campo que
+ * o `RawItem` do Rust já lê (`map_stream` usa antes do título) e que decide o
  * balde de qualidade do `limit_reserving_br`.
  *
  * Sem a prova, o índice manda o release com o rótulo do POST ("sem resolução")
  * e o corte nativo perde a vaga BR que o Node mantém (Interestelar: BR `f320`
  * trocado por 4K global, medido em 2026-10-20). A fonte é a MESMA do build:
  * `fsz` + `pickFile` + nome/medição do arquivo — nada é inventado e nenhuma
- * sonda nova é agendada aqui (agendar é do build do Node, não da rota).
+ * sonda nova é agendada aqui (agendar é do build do `collect`, não do índice).
  */
 function stampProvenQuality(
   items: RawItem[],

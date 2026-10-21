@@ -30,7 +30,8 @@ pub const BR_GAP_BANK_EVIDENCE: &str = "index.rust.br_gap.bank_evidence";
 pub const BR_GAP_NO_EVIDENCE: &str = "index.rust.br_gap.no_evidence";
 pub const BR_GAP_SERVED: &str = "index.rust.br_gap.served";
 pub const EFFECTS: &str = "index.rust.effects";
-/// `INDEX_RUST=on` sem store injetado: caiu no caminho Node (degradação).
+/// `idx:v14`/`magnets.db` sem store injetado: degradação SEM índice/banco
+/// (não existe mais caminho Node).
 pub const SOURCE_MISSING: &str = "index.rust.source_missing";
 
 const KEYS: &[&str] = &[

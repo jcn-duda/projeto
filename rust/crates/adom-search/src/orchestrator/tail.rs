@@ -4,9 +4,9 @@
 //! busca, disparada em `tokio::spawn` depois que a resposta já foi montada.
 //! Os três trabalhos do TS estão nomeados:
 //!
-//! - **enriquecimento do índice** — o que a coleta provou vai para
-//!   `POST /internal/search/index-write` (release index + marca no banco de
-//!   magnets). É o único que roda em TODA busca;
+//! - **enriquecimento do índice** — o que a coleta provou vai para o índice
+//!   NATIVO (`IdxStore`, com a marca no `magnets.db`). É o único que roda em
+//!   TODA busca;
 //! - **refresh do debrid** — quando a checagem saiu `Unknown`, reconstrói a
 //!   lista sem prazo de cliente (`finish` de novo) e reescreve o cache;
 //! - **varredura pt-BR** nos globais — quando a coleta foi PARCIAL (o inline
@@ -24,10 +24,7 @@
 
 use std::sync::Arc;
 
-use crate::internal_types::{
-    EffectEntry, EffectsRequest, EffectsResponse, IndexWriteRequest, IndexWriteResponse,
-    ReleaseEntry,
-};
+use crate::internal_types::{EffectEntry, EffectsRequest, EffectsResponse, ReleaseEntry};
 use crate::orchestrator::internal_routes::{InternalRoutes, RouteFuture};
 use crate::orchestrator::meta::SearchMeta;
 
@@ -47,11 +44,10 @@ pub struct EffectsBatch {
 
 /// Efeitos tardios do Node. Produção: [`NodeTailEffects`]; teste: gravador.
 pub trait TailEffects: Send + Sync {
-    fn index_write<'a>(&'a self, batch: IndexBatch) -> RouteFuture<'a, IndexWriteResponse>;
     fn effects<'a>(&'a self, batch: EffectsBatch) -> RouteFuture<'a, EffectsResponse>;
 }
 
-/// Produção: `index-write` + `effects` pelas rotas internas.
+/// Produção: `effects` pelas rotas internas.
 pub struct NodeTailEffects {
     routes: Arc<dyn InternalRoutes>,
 }
@@ -63,17 +59,6 @@ impl NodeTailEffects {
 }
 
 impl TailEffects for NodeTailEffects {
-    fn index_write<'a>(&'a self, batch: IndexBatch) -> RouteFuture<'a, IndexWriteResponse> {
-        Box::pin(async move {
-            self.routes
-                .index_write(IndexWriteRequest {
-                    encoded: batch.encoded,
-                    releases: batch.releases,
-                })
-                .await
-        })
-    }
-
     fn effects<'a>(&'a self, batch: EffectsBatch) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async move {
             self.routes
@@ -91,18 +76,6 @@ impl TailEffects for NodeTailEffects {
 pub struct NoopTailEffects;
 
 impl TailEffects for NoopTailEffects {
-    fn index_write<'a>(&'a self, _batch: IndexBatch) -> RouteFuture<'a, IndexWriteResponse> {
-        Box::pin(async {
-            Ok(IndexWriteResponse {
-                ok: true,
-                recorded: 0,
-                entries: 0,
-                bank_marked: 0,
-                failed: 0,
-            })
-        })
-    }
-
     fn effects<'a>(&'a self, _batch: EffectsBatch) -> RouteFuture<'a, EffectsResponse> {
         Box::pin(async {
             Ok(EffectsResponse {

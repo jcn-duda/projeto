@@ -21,7 +21,6 @@ use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
 use adom_core::RankingStream;
 
 use super::account::AccountMode;
-use super::index_source::IndexMode;
 
 /// Defaults do operador (`src/config/*.ts`) que governam a resposta.
 #[derive(Debug, Clone)]
@@ -105,11 +104,6 @@ pub struct OrchestratorConfig {
     pub account_inventory_ttl_s: i64,
     /// `ACCOUNT_FAST_WAIT_MS` (default 450): teto da conta na via do índice.
     pub account_fast_wait_ms: i64,
-    /// `INDEX_RUST`: `off` = índice lido/escrito pelo Node; `on` = nativo.
-    pub index_mode: IndexMode,
-    /// `BANK_RUST`: idem para a leitura do `magnets.db` (instantânea/reserva) e
-    /// a marca de `passed_filter` da escrita do índice.
-    pub bank_mode: IndexMode,
     /// `RELEASE_INDEX`/`RELEASE_INDEX_TTL`/`RELEASE_INDEX_MAX_RELEASES`.
     pub release_index_enabled: bool,
     pub release_index_ttl: u64,
@@ -164,8 +158,6 @@ impl Default for OrchestratorConfig {
             account_inventory_max: 3_000,
             account_inventory_ttl_s: 300,
             account_fast_wait_ms: 450,
-            index_mode: IndexMode::Off,
-            bank_mode: IndexMode::Off,
             release_index_enabled: true,
             release_index_ttl: 30 * 24 * 3600,
             release_index_max_releases: 60,

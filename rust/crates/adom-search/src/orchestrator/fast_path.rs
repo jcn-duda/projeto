@@ -1,21 +1,19 @@
 //! Vias rápidas do `/stream` nativo: instantânea do banco vivo e índice
-//! coberto. A DECISÃO (qual via, quais itens) é do Node, em
-//! `POST /internal/search/index`; aqui só se monta a lista da resposta.
+//! coberto. A leitura e a decisão são NATIVAS (`idx:v14`/`magnets.db`, ver
+//! `native_index.rs`); não há mais rota Node de índice. Falha de abertura
+//! degrada SEM via rápida (a coleta ao vivo segue), nunca cai no Node.
 
 use std::collections::BTreeSet;
 
-use serde_json::Value;
-
-use crate::internal_types::SearchIndexRequest;
 use crate::orchestrator::live_state::LiveBatchState;
-use crate::raw_item::{raw_item_from_value, RawItem};
-use crate::request::encoded_for_internal;
+use crate::raw_item::RawItem;
 
 use super::finish::{is_demo, SearchInput};
 use super::meta::SearchMeta;
 use super::Orchestrator;
 
 /// Lista de uma das vias rápidas.
+#[derive(Clone)]
 pub(super) struct FastPath {
     /// `true` = instantânea do banco (a coleta ao vivo inteira vai ao tail);
     /// `false` = índice coberto (BR prioritário inline, globais no tail).
@@ -126,18 +124,18 @@ pub(super) async fn full_window(
     }
 }
 
-fn mapped(values: Vec<Value>, mark: impl Fn(&mut RawItem)) -> Vec<RawItem> {
-    values
-        .iter()
-        .map(|v| {
-            let mut item = raw_item_from_value(v);
-            mark(&mut item);
-            item
-        })
-        .collect()
-}
-
 impl Orchestrator {
+    /// Injeta o lote da via rápida já decidido (replay congelado). Substituiu a
+    /// rota Node `search/index`: o gate entrega o lote capturado VERBATIM — com
+    /// as anotações de qualidade/áudio/fonte que o build do Node aplicou — em
+    /// vez de re-derivá-lo de `idx:v14`/`magnets.db`, que são wire-shaped e não
+    /// carregam prova por item. Produção nunca chama (o campo fica `None`).
+    #[doc(hidden)]
+    pub fn with_frozen_fast_path(mut self, instant: bool, items: Vec<RawItem>) -> Self {
+        self.frozen_fast_path = Some(FastPath { instant, items });
+        self
+    }
+
     /// Entrada da coleta do tail: o prazo da resposta vira o do tail
     /// (`tail_collect_ms`), senão os globais lentos não chegam à promoção.
     pub(super) fn tail_input(&self, input: &SearchInput) -> SearchInput {
@@ -146,8 +144,8 @@ impl Orchestrator {
         tail
     }
 
-    /// `None` = nenhuma via rápida (sem rota interna, demo, erro ou obra fora
-    /// do acervo): a coleta ao vivo segue como antes.
+    /// `None` = nenhuma via rápida (demo, índice indisponível, erro ou obra
+    /// fora do acervo): a coleta ao vivo segue como antes.
     pub(super) async fn fast_path_items(
         &self,
         input: &SearchInput,
@@ -156,57 +154,18 @@ impl Orchestrator {
         if is_demo(&input.options) {
             return None;
         }
-        // Índice/banco nativos (F4.5): `INDEX_RUST=on` lê o `cache.db`/
-        // `magnets.db` no processo e emite o follow-up; sem store injetado cai
-        // no caminho Node (degradação honesta, contada).
-        if self.config.index_mode.is_on() {
-            if self.index.is_some() {
-                return self.native_fast_path(input, meta).await;
-            }
-            super::index_metrics::global_metrics().inc(super::index_metrics::SOURCE_MISSING, 1);
+        // Replay congelado: o lote capturado substitui a leitura nativa (a
+        // decisão de QUAL via já veio no próprio lote).
+        if let Some(frozen) = &self.frozen_fast_path {
+            return Some(frozen.clone());
         }
-        let routes = self.routes.as_ref()?;
-        let req = SearchIndexRequest {
-            encoded: encoded_for_internal(input.encoded.as_deref()),
-            media_type: input.kind.clone(),
-            imdb: meta.imdb_id.clone(),
-            season: meta.season,
-            episode: meta.episode,
-            names: Some(meta.names.clone()),
-            year: Some(meta.year.clone()),
-            // `matchContext.released`/`firstAired` do TS: o teto de lançamento
-            // recente do índice usa as datas REAIS da obra/episódio.
-            released: meta.released.clone(),
-            first_aired: meta.first_aired.clone(),
-        };
-        let resp = routes.search_index(req).await.ok()?;
-        if resp.instant_eligible {
-            let mut items = mapped(resp.instant_items, |_| {});
-            items.extend(mapped(resp.index_items, |i| i.from_snapshot = true));
-            items.extend(mapped(resp.account_items, |i| i.from_account = true));
-            return Some(FastPath {
-                instant: true,
-                items,
-            });
+        // Índice e banco nativos são os ÚNICOS caminhos (R4). Sem store, o
+        // `native_index_scan`/`fill_instant` já degrada com log `[search]` — a
+        // coleta ao vivo segue e NUNCA há fallback para a rota Node.
+        if self.index.is_none() && self.bank.is_none() {
+            return None;
         }
-        if resp.index_covered {
-            // LIMPA `from_snapshot`: na via do índice NÃO-instantânea o Node faz
-            // `raw.items.unshift(...idxReleasesToRaw(indexed), ...accountItems)`
-            // (`search-index-path.ts`) e o `idxReleasesToRaw` não põe marca
-            // nenhuma — o 📦/`~N` é só da FOTO do instantâneo. A rota interna
-            // devolve os itens do índice já com `fromSnapshot: true` (é correto
-            // para a instantânea), então aqui a marca é NEUTRALIZADA em vez de
-            // só não ser posta; sem isso toda resposta do índice saía com 📦 e
-            // seeder `~` que o Node não tem (medido: bacurau, obscuro, swat —
-            // 7-9 itens por caso).
-            let mut items = mapped(resp.index_items, |i| i.from_snapshot = false);
-            items.extend(mapped(resp.account_items, |i| i.from_account = true));
-            return Some(FastPath {
-                instant: false,
-                items,
-            });
-        }
-        None
+        self.native_fast_path(input, meta).await
     }
 }
 

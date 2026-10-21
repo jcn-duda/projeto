@@ -6,20 +6,6 @@ fn allowed(indexer: &str, options: &serde_json::Value) -> bool {
 }
 
 #[test]
-fn modo_off_e_o_default_e_parse_nao_liga_por_acidente() {
-    assert_eq!(IndexMode::default(), IndexMode::Off);
-    assert_eq!(IndexMode::parse(""), IndexMode::Off);
-    assert_eq!(IndexMode::parse("talvez"), IndexMode::Off);
-    assert_eq!(IndexMode::parse("on"), IndexMode::On);
-    assert_eq!(IndexMode::parse("1"), IndexMode::On);
-    assert_eq!(IndexMode::parse("true"), IndexMode::On);
-    assert_eq!(IndexMode::parse("SHADOW"), IndexMode::Off);
-    assert!(!IndexMode::Off.uses_native());
-    assert!(IndexMode::On.uses_native());
-    assert!(IndexMode::On.is_on());
-}
-
-#[test]
 fn origens_nao_indexer_passam_sempre() {
     let options = json!({"providers": ["jackett"]});
     assert!(allowed("", &options));

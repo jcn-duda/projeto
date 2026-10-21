@@ -1,4 +1,4 @@
-//! Contrato do ÍNDICE e do BANCO DE MAGNETS nativos (F4.5).
+//! Contrato do ÍNDICE e do BANCO DE MAGNETS nativos (R4).
 //!
 //! A DECISÃO (quais releases o índice tem, qual a foto instantânea, quando
 //! consultar a reserva) continua no orquestrador; aqui ficam as duas traits de
@@ -11,8 +11,8 @@
 //!
 //! Os tipos de fio são os do núcleo (`InstantWork`/`InstantSource`/`BankRow`,
 //! `WorkTarget`) mais [`IndexedReleaseWire`], que espelha o JSON persistido pelo
-//! Node. Nada aqui abre arquivo: as flags (`INDEX_RUST`/`BANK_RUST`) escolhem a
-//! implementação no `adom-server`; sem store injetado, o caminho Node segue.
+//! Node. Nada aqui abre arquivo: o `adom-server` injeta os stores sempre;
+//! falha de abertura degrada sem índice/banco, nunca cai no Node.
 
 use std::sync::Arc;
 
@@ -21,41 +21,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::internal_types::ReleaseEntry;
-
-/// Modo de uma via nativa (índice ou banco). `Off` é o default: nada muda.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum IndexMode {
-    /// Caminho Node intacto (default).
-    #[default]
-    Off,
-    /// O nativo lê/escreve o índice/banco.
-    On,
-}
-
-impl IndexMode {
-    /// Parse da env. Desconhecido/vazio = `Off`, nunca liga por acidente.
-    pub fn parse(raw: &str) -> Self {
-        match raw.trim().to_ascii_lowercase().as_str() {
-            "on" | "1" | "true" | "yes" => Self::On,
-            _ => Self::Off,
-        }
-    }
-
-    pub fn is_on(self) -> bool {
-        matches!(self, Self::On)
-    }
-
-    pub fn uses_native(self) -> bool {
-        matches!(self, Self::On)
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Off => "off",
-            Self::On => "on",
-        }
-    }
-}
 
 /// Uma release do índice (`idx:v14`), campo a campo como o Node grava.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

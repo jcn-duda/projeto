@@ -19,8 +19,7 @@ use super::{
 };
 use crate::collection_window::BatchMeta;
 use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, IndexWriteRequest,
-    IndexWriteResponse, MetaRequest, MetaResponse, SearchIndexRequest, SearchIndexResponse,
+    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
 };
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
 use crate::orchestrator::config::OrchestratorConfig;
@@ -481,18 +480,7 @@ impl InternalRoutes for CountingRoutes {
         Box::pin(async move { Ok(response) })
     }
 
-    fn index_write<'a>(&'a self, _req: IndexWriteRequest) -> RouteFuture<'a, IndexWriteResponse> {
-        Box::pin(async { Err("não usado".into()) })
-    }
-
     fn effects<'a>(&'a self, _req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
-        Box::pin(async { Err("não usado".into()) })
-    }
-
-    fn search_index<'a>(
-        &'a self,
-        _req: SearchIndexRequest,
-    ) -> RouteFuture<'a, SearchIndexResponse> {
         Box::pin(async { Err("não usado".into()) })
     }
 }
