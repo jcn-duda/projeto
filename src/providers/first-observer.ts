@@ -21,9 +21,8 @@ export interface FirstObserverState {
   /** Duração em ms do passo de metadados (Cinemeta+TMDB). Seta-se uma vez; null
    * até o estagio acontecer. */
   pendingMetadata: number | null;
-  /** Soma dos envelopes de coleta GLOBAL entre invocações sequenciais de
-   * collectRaw (busca por episódio + fallback de pack). null até a primeira
-   * coleta global com prazo. */
+  /** Soma dos envelopes de coleta GLOBAL entre passes sequenciais (busca por
+   * episódio + fallback de pack). null até a primeira coleta global com prazo. */
   pendingGlobal: number | null;
   /** Soma dos envelopes de coleta BR (mesma semântica de acumulação). */
   pendingBr: number | null;
@@ -55,8 +54,8 @@ export function createFirstObserver(eligible: boolean): FirstObserverState {
  * SEM emitir métrica sozinho: os valores só são comitados no `finish` da
  * resposta first, no MESMO denominador de `search.first.responses`. `metadata`
  * e `debrid` SETAM (são passos únicos); `global` e `br` ACUMULAM entre
- * invocações sequenciais de `collectRaw` (episódio + fallback de pack), porque
- * cada invocação é um envelope do início ao fim daquela coleta.
+ * passes de coleta (episódio + fallback de pack), porque cada passe é um
+ * envelope do início ao fim daquela coleta.
  *
  * Estaga mesmo com `eligible` false de propósito: uma execução de prefetch
  * (background) pode ser promovida a foreground pelo coalescing ANTES do

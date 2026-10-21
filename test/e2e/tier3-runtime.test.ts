@@ -16,7 +16,6 @@ import * as format from '../../src/utils/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
-import { collectWithinWindow } from '../../src/providers/collection-window.js';
 import { accountScope } from '../../src/utils/request-key.js';
 import type { DebridAdapter } from '../../types/domain.js';
 
@@ -242,75 +241,6 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     assert.ok(String(titles[0]).includes('NerdFilmes'), 'Highest priority indexer nerdfilmes is 1st');
     assert.ok(String(titles[1]).includes('Bludv'), 'Second priority indexer bludv is 2nd');
     assert.ok(String(titles[2]).includes('1337x'), 'Global indexer is 3rd');
-  });
-
-  // ---------------------------------------------------------------------------
-  // INTERACTION 3: Search Deadline Budget + Slow BR Indexer + Late-Pass Cache Write
-  // ---------------------------------------------------------------------------
-
-  test('3A: Search Deadline Budget: Fast global results return partial=true; background slow BR updates cache with partial=false', async () => {
-    const fastStream = makeRawStream('Fast.Global.Movie.1080p', { isBr: false });
-    const slowBrStream = makeRawStream('Slow.BR.Dublado.Movie.1080p', { isBr: true });
-
-    const fastTask = Promise.resolve([fastStream]);
-    const slowBrTask = (async () => {
-      await sleep(100);
-      return [slowBrStream];
-    })();
-
-    let latePassCalled = false;
-    let latePassStreams: unknown[] = [];
-    let latePassPartial: boolean | null = null;
-
-    const collected = await collectWithinWindow(
-      [
-        { promise: fastTask, priority: false },
-        { promise: slowBrTask, priority: true },
-      ],
-      {
-        budgetMs: 40,
-        priorityGraceMs: 0,
-        onBatch: (batch, allItems) => {},
-      },
-    );
-
-    assert.equal(collected.done, false, 'Initial collection timed out as expected');
-    assert.equal(collected.items.length, 1, 'Initial bucket contains only fast stream');
-
-    // Simulate the onLate handler attached in doSearch
-    const completionPromise = collected.completion.then(() => {
-      latePassCalled = true;
-      latePassStreams = [...collected.items];
-      latePassPartial = false;
-    });
-
-    await completionPromise;
-
-    assert.equal(latePassCalled, true, 'Late pass executed after slow task finished');
-    assert.equal(latePassStreams.length, 2, 'Late pass contains both fast and slow streams');
-    assert.equal(latePassPartial, false, 'Late pass marks result as complete');
-  });
-
-  test('3B: Grace window (brPartialGrace) includes slow BR provider in initial batch if finished within grace period', async () => {
-    const fastStream = makeRawStream('Fast.Movie.1080p', { isBr: false });
-    const slowBrStream = makeRawStream('Grace.BR.Dublado.1080p', { isBr: true });
-
-    const fastTask = sleep(10).then(() => [fastStream]);
-    const slowBrTask = sleep(40).then(() => [slowBrStream]);
-
-    const collected = await collectWithinWindow(
-      [
-        { promise: fastTask, priority: false },
-        { promise: slowBrTask, priority: true },
-      ],
-      {
-        budgetMs: 25,
-        priorityGraceMs: 50, // Total allowance: 75ms. 40ms fits comfortably.
-      },
-    );
-
-    assert.equal(collected.prioritySeen, true, 'Priority BR task completed during grace window');
-    assert.equal(collected.items.length, 2, 'Both streams included in initial result');
   });
 
   // ---------------------------------------------------------------------------

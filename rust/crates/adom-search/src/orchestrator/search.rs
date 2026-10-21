@@ -8,13 +8,11 @@ use serde_json::Value;
 
 use crate::collection_window::{collect_within_window, CollectTask, CollectWindowOptions};
 use crate::latest_writer::LatestWriter;
-use crate::raw_item::{raw_item_from_value, RawItem};
+use crate::raw_item::RawItem;
 
-use super::account::{
-    account_raw_items, fast_path_decision, record_fast_path, AccountMode, AccountRequest,
-};
+use super::account::{account_raw_items, fast_path_decision, record_fast_path, AccountRequest};
 use super::account_metrics;
-use super::collect::{account_request_from_job, plan_jobs, CollectJob};
+use super::collect::plan_jobs;
 use super::fast_path::{full_window, merge_fast_with_live};
 use super::finish::{bool_of, cache_max_age_for_finish, str_of, SearchInput};
 use super::live_state::{
@@ -293,24 +291,18 @@ impl Orchestrator {
                 self.config.mico_default,
             ),
         );
-        // Fonte da conta: Node (default) ou nativa (`ACCOUNT_RUST=on`). A
-        // tarefa é PRÓPRIA nos grupos não prioritários: a primeira leitura custa
-        // ~100 ms e, dentro do `nonpriority`, esperava o indexer global mais
-        // lento (4 s+).
-        let account_base = if scope != Some(true) {
-            jobs.iter()
-                .find(|job| !job.priority)
-                .or(jobs.first())
-                .cloned()
-        } else {
+        // Fonte da conta: SEMPRE a nativa. A tarefa é PRÓPRIA nos grupos não
+        // prioritários: a primeira leitura custa ~100 ms e, dentro do
+        // `nonpriority`, esperava o indexer global mais lento (4 s+).
+        let account_plan = if scope == Some(true) {
             None
+        } else {
+            self.account_plan(&input.options)
         };
-        let account_plan = account_base.and_then(|job| self.account_plan(job, &input.options));
-        // Fast-path da conta: só no modo NATIVO (o Node tem o dele dentro do
-        // `collectRaw`; o nativo precisa parar a janela aqui). `ACCOUNT_FAST_PATH`
-        // reproduz o kill-switch do operador.
-        let fast_path_on = self.config.account_mode.is_on()
-            && self.config.account_fast_path
+        // Fast-path da conta: só quando a conta VAI entrar (fonte nativa já
+        // injetada); sem fonte não há lote para parar a janela. O
+        // `ACCOUNT_FAST_PATH` reproduz o kill-switch do operador.
+        let fast_path_on = self.config.account_fast_path
             && matches!(&account_plan, Some(AccountPlan::Native { .. }));
         let jobs: Vec<_> = jobs
             .into_iter()
@@ -362,29 +354,6 @@ impl Orchestrator {
             .collect();
         match account_plan {
             None => {}
-            Some(AccountPlan::Node(job)) => {
-                if let Some(routes) = self.routes.clone() {
-                    account_metrics::global_metrics().inc(account_metrics::NODE, 1);
-                    tasks.push(CollectTask {
-                        fut: Box::pin(async move {
-                            // Falha da conta não conta como falha de coleta nem
-                            // apaga a reserva 📦: o Node já a tratava como fonte
-                            // neutra.
-                            match routes.collect(account_request_from_job(*job)).await {
-                                Ok(resp) => {
-                                    Ok(resp.items.iter().map(raw_item_from_value).collect())
-                                }
-                                Err(err) => {
-                                    eprintln!("[search] conta do debrid falhou: {err}");
-                                    Ok(Vec::new())
-                                }
-                            }
-                        }),
-                        priority: false,
-                        source: None,
-                    });
-                }
-            }
             Some(AccountPlan::Native { req, label }) => {
                 if let Some(source) = self.account.clone() {
                     let meta = meta.clone();
@@ -502,9 +471,10 @@ impl Orchestrator {
         }
     }
 
-    /// Plano da tarefa da conta para esta busca. `None` = P2P puro / sem fonte,
-    /// exatamente como o `accountSource` do TS quando não há debrid.
-    fn account_plan(&self, job: CollectJob, options: &Value) -> Option<AccountPlan> {
+    /// Plano da tarefa da conta para esta busca. `None` = P2P puro / serviço
+    /// desconhecido / sem fonte injetada, como o antigo `accountSource` do TS
+    /// quando não há debrid.
+    fn account_plan(&self, options: &Value) -> Option<AccountPlan> {
         let req = AccountRequest {
             service: str_of(options, "debridService"),
             api_key: str_of(options, "debridApiKey"),
@@ -512,36 +482,24 @@ impl Orchestrator {
         // `debrid.current()` do Node: serviço DESCONHECIDO não tem adaptador —
         // não é P2P puro, mas também não é fonte.
         let known_service = adom_debrid::account::is_known_service(&req.service);
-        match self.config.account_mode {
-            AccountMode::Off => self
-                .routes
-                .as_ref()
-                .map(|_| AccountPlan::Node(Box::new(job))),
-            AccountMode::On => {
-                if !req.is_active() || !known_service || !self.config.account_inventory_source {
-                    return None;
-                }
-                if self.account.is_some() {
-                    Some(AccountPlan::Native {
-                        label: adom_debrid::account::label_of(&req.service).to_string(),
-                        req,
-                    })
-                } else {
-                    // Degradação honesta: sem fonte injetada, a conta continua
-                    // no Node em vez de sumir da lista.
-                    account_metrics::global_metrics().inc(account_metrics::SOURCE_MISSING, 1);
-                    eprintln!("[account] ACCOUNT_RUST=on sem fonte nativa; usando a tarefa Node");
-                    self.routes
-                        .as_ref()
-                        .map(|_| AccountPlan::Node(Box::new(job)))
-                }
-            }
+        if !req.is_active() || !known_service || !self.config.account_inventory_source {
+            return None;
         }
+        if self.account.is_none() {
+            // Degradação honesta: sem fonte injetada, a conta não entra em vez
+            // de voltar para a tarefa Node (a coleta do Node não existe mais).
+            account_metrics::global_metrics().inc(account_metrics::SOURCE_MISSING, 1);
+            eprintln!("[account] sem fonte nativa de inventário; a conta fica fora desta busca");
+            return None;
+        }
+        Some(AccountPlan::Native {
+            label: adom_debrid::account::label_of(&req.service).to_string(),
+            req,
+        })
     }
 }
 
-/// Plano da conta para UMA coleta (Node ou nativa).
+/// Plano da conta para UMA coleta (só a fonte nativa existe).
 enum AccountPlan {
-    Node(Box<CollectJob>),
     Native { req: AccountRequest, label: String },
 }

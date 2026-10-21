@@ -1,8 +1,8 @@
-//! Collect opt-in via `adom_sources::TorrentioClient` (`SOURCES_RUST=torrentio`).
+//! Collect nativo via `adom_sources::TorrentioClient`.
 //!
-//! Default OFF: produção continua em [`super::NodeCollector`]
-//! (`POST /internal/search/collect`). Espelha o padrão do
-//! [`super::ProwlarrCollector`]: pool global por IMDb, sem plano Torznab/BR.
+//! Monta sempre que o cliente sobe; falha de boot → log e a fonte fica fora.
+//! Espelha o padrão do [`super::ProwlarrCollector`]: pool global por IMDb, sem
+//! plano Torznab/BR.
 //!
 //! - `TaskScope::Priority` / `late_sweep` → lote vazio, live sem falha (não é
 //!   fonte BR nem varredura pt-BR: nada foi prometido).
@@ -49,7 +49,6 @@ use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
 use crate::orchestrator::jackett_collector::process_title_precision_tail_cut;
 use crate::orchestrator::jackett_live::relevant_count;
 use crate::orchestrator::live_state::LiveBatchState;
-use crate::orchestrator::sources_rust::sources_rust_includes;
 use crate::raw_item::{known_size, RawItem};
 
 /// Chave do estado vivo da fonte. O Torrentio é UMA consulta (como o Mico e o
@@ -57,21 +56,13 @@ use crate::raw_item::{known_size, RawItem};
 /// inventar.
 pub const TORRENTIO_LIVE_KEY: &str = "torrentio";
 
-/// `SOURCES_RUST` contém o token `torrentio` (CSV, case-insensitive).
-pub fn sources_rust_includes_torrentio() -> bool {
-    sources_rust_includes("torrentio")
-}
-
-/// Monta o collector só quando o env pediu Torrentio nativo. Falha de boot do
-/// cliente → `None` + log (degrada para o caller usar NodeCollector).
+/// Monta o collector Torrentio. Falha de boot do cliente → `None` + log (a
+/// fonte fica fora; o gateway só falha se NENHUMA fonte nativa montar).
 pub fn try_torrentio_collector_from_env() -> Option<TorrentioCollector> {
-    if !sources_rust_includes_torrentio() {
-        return None;
-    }
     match TorrentioCollector::from_env() {
         Ok(c) => Some(c),
         Err(err) => {
-            eprintln!("[search] SOURCES_RUST=torrentio mas TorrentioClient falhou: {err}");
+            eprintln!("[search] Torrentio nativa indisponível: {err}");
             None
         }
     }

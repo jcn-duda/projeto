@@ -1,4 +1,4 @@
-use adom_search::orchestrator::{AccountMode, OrchestratorConfig};
+use adom_search::orchestrator::OrchestratorConfig;
 use adom_search::BuildOptions;
 use serde_json::Value;
 
@@ -60,14 +60,9 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     cfg.mico_default = std::env::var("MICO_DEFAULT")
         .map(|raw| env_flag(&raw))
         .unwrap_or(false);
-    // Inventário nativo da conta (F3). Default ON desde o F4.4: o nativo é a
-    // fonte no corte. Rollback: ACCOUNT_RUST=off — a tarefa volta à rota
-    // interna `/internal/search/collect` (o Node segue dono do inventário).
-    cfg.account_mode = std::env::var("ACCOUNT_RUST")
-        .map(|raw| AccountMode::parse(&raw))
-        .unwrap_or(AccountMode::On);
+    // Inventário nativo da conta (F3): é a ÚNICA fonte da conta no corte.
     // `DEBRID_INVENTORY_SOURCE` (default true, como no Node): desligado, a
-    // conta não é fonte nem no modo nativo.
+    // conta não é fonte.
     cfg.account_inventory_source = std::env::var("DEBRID_INVENTORY_SOURCE")
         .map(|raw| env_flag(&raw))
         .unwrap_or(true);

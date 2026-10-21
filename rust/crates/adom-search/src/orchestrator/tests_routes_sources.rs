@@ -52,13 +52,13 @@ async fn path_sem_config_manda_encoded_canonico_em_meta_e_collect() {
     }
 }
 
-// ── CompositeCollector com SOURCES_RUST ────────────────────────────────────
+// ── CompositeCollector com fontes nativas ──────────────────────────────────
 
 #[tokio::test]
-async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
+async fn composite_collector_preserva_todas_as_fontes_nativas() {
     let store = Arc::new(MemorySwrStore::new());
 
-    // Simulador da fonte nativa (ex: Jackett em Rust)
+    // Simulador de uma fonte nativa (ex: Jackett em Rust)
     let native_jackett: Arc<dyn Collector> = StubCollector::with_always(vec![RawItem {
         indexer: Some("jackett".into()),
         title: Some("Filme Teste 2024 1080p Dublado Jackett".into()),
@@ -69,7 +69,7 @@ async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
         ..RawItem::default()
     }]);
 
-    // Simulador do NodeCollector (traz BLUDV, Mico e conta)
+    // Segundo coletor nativo (BLUDV/Mico empacotados juntos)
     let node_collector: Arc<dyn Collector> = StubCollector::with_always(vec![
         RawItem {
             indexer: Some("bludv".into()),
@@ -124,14 +124,14 @@ async fn composite_collector_preserva_fontes_do_node_com_sources_rust() {
         all_text
             .iter()
             .any(|t| t.contains("BLUDV") || t.contains("bludv")),
-        "BLUDV vindo do Node deve estar presente na resposta: {:?}",
+        "BLUDV da fonte nativa deve estar presente na resposta: {:?}",
         all_text
     );
     assert!(
         all_text
             .iter()
             .any(|t| t.contains("Mico") || t.contains("mico")),
-        "Mico vindo do Node deve estar presente na resposta: {:?}",
+        "Mico da fonte nativa deve estar presente na resposta: {:?}",
         all_text
     );
     assert!(

@@ -19,8 +19,8 @@ const DIAGNOSTIC_TIMEOUT = 30000;
 /**
  * Lista efetiva de indexers que `search` vai consultar. Fonte ÚNICA da regra do
  * ramo agregado: `override == null` usa a config do operador; lista vazia é que
- * cai no `/all`. Exportada para o `collectRaw` marcar pending/allFailed com a
- * MESMA regra real (não com um palpite sobre `opts().jackettIndexers`).
+ * cai no `/all`. Exportada para os consumidores Node (diagnóstico e testes)
+ * usarem a MESMA regra real (não um palpite sobre `opts().jackettIndexers`).
  */
 export function effectiveJackettIndexers(indexersOverride: string[] | null): string[] {
   // O card virtual `mico` convive no `ji` com os ids do Jackett, mas não existe

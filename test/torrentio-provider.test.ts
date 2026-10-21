@@ -8,12 +8,7 @@ import assert from 'node:assert/strict';
 
 import config from '../src/config.js';
 import * as torrentio from '../src/providers/torrentio.js';
-import { collectRaw } from '../src/providers/collect-orchestrator.js';
 import { filterRelevantRaw } from '../src/utils/format.js';
-import * as runtime from '../src/runtime.js';
-import * as metrics from '../src/utils/metrics.js';
-import { createFirstObserver } from '../src/providers/index.js';
-import jackett from '../src/providers/jackett.js';
 import { stubFetch } from './helpers/stub.js';
 import type { RawItem } from '../types/domain.js';
 
@@ -143,96 +138,6 @@ test('dedupe por hash: o mesmo infoHash só sai uma vez', async () => {
     assert.equal(new Set(out.map((i) => i.infoHash)).size, 2);
   } finally {
     stub.restore();
-  }
-});
-
-test('collectRaw inclui torrentio no fan-out selecionado pela config selada', async () => {
-  const originalEnabled = config.torrentio.enabled;
-  const payload = [stream('Guardians of the Galaxy Vol. 3 (2023) 1080p')];
-  const stub = stubFetch((url) => {
-    assert.match(url, /torrentio.*\/stream\/movie\/tt6791350\.json$/);
-    return okPayload(payload);
-  });
-  const requestOpts = {
-    ...runtime.normalize(null),
-    providers: ['torrentio'],
-    debridService: '',
-    debridApiKey: '',
-  };
-  try {
-    metrics.reset();
-    config.torrentio.enabled = true;
-    const observer = createFirstObserver(true);
-    const result = await runtime.run({ opts: requestOpts, encoded: 'torrentio-fanout' }, () =>
-      collectRaw(
-        'Guardians of the Galaxy Vol. 3 2023',
-        'movie',
-        'tt6791350',
-        null,
-        { names: ['Guardians of the Galaxy Vol. 3'], year: 2023, isSeries: false, season: null, episode: null },
-        null,
-        null,
-        Date.now() + 3000,
-        undefined,
-        observer,
-      ));
-    assert.equal(result.items.length, 1);
-    assert.equal(result.items[0].indexer, 'torrentio');
-    assert.equal(stub.calls.length, 1);
-    assert.ok(observer.pendingGlobal != null, 'Torrentio estagia o envelope global');
-    assert.equal(observer.pendingBr, null, 'sem provider BR não há envelope BR');
-    assert.deepEqual(metrics.snapshot().timers, {}, 'coleta só estagia; o finish é quem emite timers');
-  } finally {
-    config.torrentio.enabled = originalEnabled;
-    stub.restore();
-    torrentio._resetBreaker();
-    metrics.reset();
-  }
-});
-
-test('collectRaw classifica task Jackett BR sem contaminar o envelope global', async () => {
-  const originalSearch = jackett.search;
-  const originalInventorySource = config.debrid.inventorySource;
-  jackett.search = async () => [{
-    title: 'Zumbilândia 2009 720p DUBLADO',
-    infoHash: '0'.repeat(40),
-    seeders: 1,
-    tracker: 'torrentdosfilmesv2',
-    indexer: 'torrentdosfilmesv2',
-    isBr: true,
-  }];
-  config.debrid.inventorySource = false;
-  const requestOpts = {
-    ...runtime.normalize(null),
-    providers: ['jackett'],
-    jackettIndexers: ['torrentdosfilmesv2'],
-    debridService: '',
-    debridApiKey: '',
-  };
-  try {
-    metrics.reset();
-    const observer = createFirstObserver(true);
-    const result = await runtime.run({ opts: requestOpts, encoded: 'jackett-br-timing' }, () =>
-      collectRaw(
-        'Zombieland 2009',
-        'movie',
-        'tt1156398',
-        'Zumbilândia 2009',
-        { names: ['Zombieland', 'Zumbilândia'], year: 2009, isSeries: false, season: null, episode: null },
-        null,
-        null,
-        Date.now() + 3000,
-        undefined,
-        observer,
-      ));
-    assert.equal(result.items.length, 1);
-    assert.ok(observer.pendingBr != null, 'indexer pt-BR estagia o envelope BR');
-    assert.equal(observer.pendingGlobal, null, 'sem task global não há envelope global');
-    assert.deepEqual(metrics.snapshot().timers, {}, 'coleta BR também não emite antes do finish');
-  } finally {
-    jackett.search = originalSearch;
-    config.debrid.inventorySource = originalInventorySource;
-    metrics.reset();
   }
 });
 

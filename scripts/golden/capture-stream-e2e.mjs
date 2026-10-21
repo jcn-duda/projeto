@@ -16,10 +16,12 @@
  * ainda NÃO cobre (metadados, itens crus por indexer, cache do debrid).
  *
  * Com `--with-internal` o MESMO caso ganha também as entradas internas que o
- * orquestrador Rust consome (`inputs/`): meta, config, collect e o
- * índice/banco instantâneo. O `/stream` continua sendo a resposta normal do
- * Node; as rotas internas falam com o MESMO processo (loopback, 7100), então a
- * captura precisa rodar DENTRO da rede do container:
+ * orquestrador Rust consome (`inputs/`): meta e config. O `/stream` continua
+ * sendo a resposta normal do Node; as rotas internas falam com o MESMO processo
+ * (loopback, 7100), então a captura precisa rodar DENTRO da rede do container.
+ * Desde o R4/R5 não há rota Node de índice nem de coleta: o lote do índice e os
+ * itens crus só entram pelo record do shadow (`--shadow-dir`) ou pelo corpus já
+ * congelado:
  *
  *   docker run --rm --network container:stremio-adom \
  *     -v "$PWD:/repo:ro" -v "$PWD/.tmp-e2e-pilot:/out" \
@@ -45,7 +47,8 @@
  *   `{{sig}}`;
  * - `Host` não é gravado; só headers de resposta relevantes e determinísticos
  *   (`content-type`, `cache-control`), nunca `Date`;
- * - itens crus perdem `downloadUrl` (carrega o `jackett_apikey`);
+ * - itens crus do record do shadow já vêm sem `downloadUrl` (carregava o
+ *   `jackett_apikey`);
  * - `request.json`/`response.json`/`inputs/*` não têm timestamp: a data ISO
  *   fica SÓ no manifesto (provenance, por caso quando há merge).
  *
@@ -72,14 +75,10 @@ const RESPONSE_HEADERS = ['content-type', 'cache-control'];
 const INTERNAL_PATHS = {
   meta: '/internal/search/meta',
   config: '/internal/search/config',
-  index: '/internal/search/index',
-  collect: '/internal/search/collect',
 };
-/** Prazos das rotas internas (o `deadline_at` absoluto é recalculado por chamada). */
+/** Prazos das rotas internas. */
 const META_DEADLINE_MS = 60_000;
-const INDEX_DEADLINE_MS = 20_000;
 const CONFIG_DEADLINE_MS = 15_000;
-const DEFAULT_INTERNAL_DEADLINE_MS = 60_000;
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 /**
  * Fixtures que SÓ o record do shadow grava e que o build do Rust consome:
@@ -97,10 +96,10 @@ const SHADOW_INPUTS = [
   'fallback.json',
 ];
 
-// Lacunas que o corpus declara. As duas primeiras são FECHADAS por
-// `--with-internal` (para os casos capturados nesse modo); as demais seguem.
+// Lacunas que o corpus declara. A primeira é FECHADA por `--with-internal`
+// (para os casos capturados nesse modo); a coleta segue lacuna desde o R5.
 const GAP_META = 'metadados da obra (Cinemeta/TMDB): o /stream não os devolve; capturados por /internal/search/meta com --with-internal';
-const GAP_COLLECT = 'itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: capturados por /internal/search/collect com --with-internal';
+const GAP_COLLECT = 'itens crus por indexer (antes de filtro/ranking/debrid) e o cache raw:v1: a coleta é nativa desde o R5 e não tem rota; só entram pelo record do shadow (--shadow-dir) ou pelo corpus já congelado';
 // A rota Node da checagem de debrid saiu na R3 (checagem nativa incondicional):
 // o corpus novo só ganha debrid pelo record do shadow ou pelo corpus congelado.
 const GAP_DEBRID = 'respostas de cache do debrid (⚡ por hash, arquivos do pack, tamanhos): a rota interna saiu na R3; inputs/debrid.json só vem do record do shadow (--shadow-dir) ou do corpus já congelado';
@@ -114,7 +113,7 @@ const GAPS_BASE = [
 /** Lacunas que o modo interno ACRESCENTA (o que ele ainda não fecha). */
 const GAPS_INTERNAL = [
   'inputs internos só existem para casos capturados com --with-internal; os demais seguem com request/response apenas',
-  '--shadow-dir copia proven-quality/apply-debrid/files/instant/fallback e as versões exatas de index/debrid do record; sem ele, inputs/index.json é derivado de /internal/search/index e a qualidade provada NÃO é capturável (o item provado volta como "sem resolução" no replay)',
+  '--shadow-dir copia proven-quality/apply-debrid/files/instant/fallback e as versões exatas de index/debrid do record; sem ele não há inputs/index.json (a rota Node de índice saiu no R4) e a qualidade provada NÃO é capturável (o item provado volta como "sem resolução" no replay)',
   'o record do shadow não grava config.json (o gateway o hidrata): inputs/config.json continua vindo de /internal/search/config',
   'as fixtures internas vêm de chamadas próprias DEPOIS do /stream: dependem do cache raw:v1/davail quente para descrever a mesma lista (sem ele o diff acusa ruído de coleta, não pipeline)',
 ];
@@ -138,7 +137,6 @@ function parseArgs(argv) {
     userAgent: DEFAULT_UA,
     withInternal: false,
     internalBase: null,
-    internalDeadlineMs: DEFAULT_INTERNAL_DEADLINE_MS,
     shadowDir: null,
     merge: false,
   };
@@ -159,12 +157,7 @@ function parseArgs(argv) {
     else if (arg === '--with-internal') args.withInternal = true;
     else if (arg === '--internal-base') args.internalBase = need(arg, argv[++i]);
     else if (arg === '--shadow-dir') args.shadowDir = need(arg, argv[++i]);
-    else if (arg === '--internal-deadline-ms') {
-      const raw = need(arg, argv[++i]);
-      const value = Number(raw);
-      if (!Number.isFinite(value) || value <= 0) fail('--internal-deadline-ms precisa ser inteiro positivo (ms)');
-      args.internalDeadlineMs = value;
-    } else fail(`flag desconhecida: ${arg}`);
+    else fail(`flag desconhecida: ${arg}`);
   }
   return args;
 }
@@ -289,23 +282,6 @@ function maskValue(value, ctx) {
     return out;
   }
   return value;
-}
-
-/**
- * Remove transporte com credencial antes de gravar fixture interna. O
- * `downloadUrl` do Jackett carrega `jackett_apikey`; o build não o usa (o magnet
- * já veio resolvido), então gravá-lo só vazaria segredo — mesma regra de
- * `stripSecrets` do antigo store do corpus congelado.
- */
-function stripTransportSecrets(value) {
-  if (Array.isArray(value)) return value.map(stripTransportSecrets);
-  if (!value || typeof value !== 'object') return value;
-  const out = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (key === 'downloadUrl') continue;
-    out[key] = stripTransportSecrets(item);
-  }
-  return out;
 }
 
 /** JSON determinístico: 2 espaços + newline final (mesmo padrão dos goldens). */
@@ -454,107 +430,17 @@ async function postInternal({ base, token, route, body, timeoutMs, label }) {
   return parsed;
 }
 
-/** `catalogYearOf` do `search-names.ts`: divergência > 2 anos troca pelo TMDB. */
-function catalogYearOf(metaYear, tmdbYear) {
-  const meta = Number(String(metaYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  const tmdb = Number(String(tmdbYear ?? '').match(/(?:19|20)\d{2}/)?.[0] || 0);
-  if (meta && tmdb && Math.abs(meta - tmdb) > 2) return tmdbYear ?? null;
-  return metaYear || tmdbYear || null;
-}
-
-/** `buildSearchQuery` do `search-names.ts` (nome + ano, ou nome + SxxEyy). */
-function buildSearchQuery(meta, { season, episode }) {
-  const name = meta?.name || meta?.title || '';
-  const year = meta?.year ? String(meta.year).slice(0, 4) : '';
-  if (season != null && episode != null) {
-    const s = String(season).padStart(2, '0');
-    const e = String(episode).padStart(2, '0');
-    return `${name} S${s}E${e}`.trim();
-  }
-  return [name, year].filter(Boolean).join(' ').trim();
-}
-
-/** Aproximação do `normalizeTitle` só para decidir se o degrau original existe. */
-function comparableTitle(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-/** `resolveOriginalStepName`: degrau só quando o original difere do primário. */
-function originalStepName(original, primary) {
-  if (!original || !primary) return null;
-  return comparableTitle(original) !== comparableTitle(primary) ? original : null;
-}
-
 /**
- * `dedupeNames` do núcleo sem o `normalizeTitle` completo: dedupe por caixa e
- * espaço. Aproximação consciente — `names` só decide degraus de cascata na
- * coleta; o diff da lista pega qualquer diferença que importe.
- */
-function dedupeNames(names) {
-  const seen = new Set();
-  const out = [];
-  for (const raw of names) {
-    if (typeof raw !== 'string') continue;
-    const name = raw.trim();
-    if (!name) continue;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(name);
-  }
-  return out;
-}
-
-/**
- * `ptSweepQueryFor` (raiz pt-BR da varredura) sem o núcleo: mesmo gate estrito
- * (`pt === original` → sem varredura) e o corte de subtítulo mais comum
- * (`:`/` - `) quando a cabeça tem 2+ palavras. Aproximação: `franchise_root`
- * também remove marcador de sequência no fim, o que não é replicado aqui.
- */
-function sweepQueryFor(titles) {
-  const pt = typeof titles?.pt === 'string' ? titles.pt.trim() : '';
-  if (!pt || pt === titles?.original) return null;
-  const head = pt.split(/\s*[:：]\s*|\s+-\s+/)[0].trim();
-  return (head.split(/\s+/).length >= 2 ? head : pt) || null;
-}
-
-/** Corpo do collect: os MESMOS campos que o orquestrador Rust manda. */
-function collectBody({ encoded, target, queries, names, year, deadlineAt }) {
-  const [, seasonRaw, episodeRaw] = target.streamId.split(':');
-  const season = seasonRaw != null ? Number(seasonRaw) : null;
-  const episode = episodeRaw != null ? Number(episodeRaw) : null;
-  return {
-    encoded,
-    task_scope: 'all',
-    query: queries.query,
-    ...(queries.ptQuery ? { pt_query: queries.ptQuery } : {}),
-    type: target.type,
-    imdb: target.streamId.split(':')[0],
-    ...(season != null ? { season } : {}),
-    ...(episode != null ? { episode } : {}),
-    ...(year != null ? { year } : {}),
-    ...(names.length > 0 ? { names } : {}),
-    ...(queries.sweepQuery ? { sweep_query: queries.sweepQuery } : {}),
-    ...(queries.originalQuery ? { original_query: queries.originalQuery } : {}),
-    deadline_at: deadlineAt,
-  };
-}
-
-/**
- * Captura as entradas internas de UM caso: meta → config → índice (index/banco
- * instantâneo) → collect. Devolve os arquivos já no formato que o
- * `FrozenCase` do gate lê (`inputs/*.json`), sem tocar no disco.
+ * Captura as entradas internas que ainda têm rota em UM caso: meta → config.
+ * Devolve os arquivos já no formato que o `FrozenCase` do gate lê
+ * (`inputs/*.json`), sem tocar no disco.
  *
- * O debrid NÃO é capturado aqui: a rota Node da checagem saiu na R3 (checagem
- * nativa incondicional). `inputs/debrid.json` só chega pelo record do shadow
- * (`--shadow-dir`) ou pelo corpus já congelado.
+ * Índice, coleta e debrid NÃO são capturados aqui: as rotas Node saíram nos
+ * R3/R4/R5 (coleta e índice são nativos; a checagem de debrid é incondicional).
+ * `inputs/index.json`, `inputs/debrid.json` e `inputs/collect.json` só chegam
+ * pelo record do shadow (`--shadow-dir`) ou pelo corpus já congelado.
  */
-async function captureInternal({ base, token, encoded, target, ctx, deadlineMs }) {
+async function captureInternal({ base, token, encoded, target, ctx }) {
   const metaResponse = await postInternal({
     base, token, route: 'meta', timeoutMs: META_DEADLINE_MS,
     label: `[internal] meta ${target.streamId}`,
@@ -566,61 +452,12 @@ async function captureInternal({ base, token, encoded, target, ctx, deadlineMs }
       include_home_release: true,
     },
   });
-  const meta = metaResponse.meta || {};
-  const titles = metaResponse.titles || {};
-  const [, seasonRaw, episodeRaw] = target.streamId.split(':');
-  const season = seasonRaw != null ? Number(seasonRaw) : null;
-  const episode = episodeRaw != null ? Number(episodeRaw) : null;
-  const primaryName = meta?.name || titles.en || titles.original || titles.pt || metaResponse.imdb_id;
-  const year = catalogYearOf(meta?.year, titles.year);
-  const names = dedupeNames([meta?.name, titles.en, titles.pt, titles.original, ...(titles.br || [])]);
-  const queries = {
-    query: buildSearchQuery({ name: primaryName, year }, { season, episode }),
-    ptQuery: titles.pt && titles.pt !== titles.original
-      ? buildSearchQuery({ name: titles.pt, year: titles.year }, { season, episode })
-      : null,
-    originalQuery: originalStepName(titles.original, primaryName),
-    sweepQuery: sweepQueryFor(titles),
-  };
-  if (!queries.query) fail(`[internal] meta ${target.streamId}: sem título para montar a query`);
 
   const config = await postInternal({
     base, token, route: 'config', timeoutMs: CONFIG_DEADLINE_MS,
     label: `[internal] config ${target.streamId}`,
     body: { encoded },
   });
-
-  const released = typeof meta?.released === 'string' ? meta.released : null;
-  const firstAired = typeof meta?.firstAired === 'string'
-    ? meta.firstAired
-    : (season != null && episode != null ? meta?.episodeAired?.[`${season}:${episode}`] ?? null : null);
-  const indexResponse = await postInternal({
-    base, token, route: 'index', timeoutMs: INDEX_DEADLINE_MS,
-    label: `[internal] index ${target.streamId}`,
-    body: {
-      encoded,
-      type: target.type,
-      imdb: metaResponse.imdb_id,
-      ...(season != null ? { season } : {}),
-      ...(episode != null ? { episode } : {}),
-      ...(names.length > 0 ? { names } : {}),
-      ...(year != null ? { year } : {}),
-      ...(released ? { released } : {}),
-      ...(firstAired ? { first_aired: firstAired } : {}),
-    },
-  });
-  const indexItems = Array.isArray(indexResponse.index_items) ? indexResponse.index_items : [];
-  const instantItems = Array.isArray(indexResponse.instant_items) ? indexResponse.instant_items : [];
-
-  const collectResponse = await postInternal({
-    base, token, route: 'collect', timeoutMs: deadlineMs,
-    label: `[internal] collect ${target.streamId}`,
-    body: collectBody({
-      encoded, target, queries, names, year,
-      deadlineAt: Date.now() + deadlineMs,
-    }),
-  });
-  const collectItems = Array.isArray(collectResponse.items) ? collectResponse.items : [];
 
   const files = {
     'inputs/meta.json': {
@@ -631,51 +468,11 @@ async function captureInternal({ base, token, encoded, target, ctx, deadlineMs }
       homeReleaseAt: metaResponse.homeReleaseAt ?? null,
     },
     'inputs/config.json': config,
-    // O gate lê `value.{servedFromIndex,instant,raw}`; o Node registra o lote
-    // mesclado (índice + banco) em `raw.items`, e o Rust marca cada item de
-    // `raw.items` como foto (`fromSnapshot`) na via rápida.
-    'inputs/index.json': {
-      key: `index:${target.type}:${metaResponse.imdb_id}`,
-      value: {
-        servedFromIndex: indexResponse.index_covered === true,
-        instant: indexResponse.instant_eligible === true,
-        raw: {
-          items: [
-            ...indexItems,
-            ...instantItems.map((item) => (
-              item && typeof item === 'object' && item.fromFallback === undefined
-                ? { ...item, fromFallback: true }
-                : item
-            )),
-          ],
-          partial: indexResponse.is_partial === true,
-          sweepInline: false,
-          instant: indexResponse.instant_eligible === true,
-          live: null,
-        },
-      },
-    },
-    'inputs/collect.json': [{
-      key: {
-        imdb: metaResponse.imdb_id,
-        type: target.type,
-        season,
-        episode,
-        scope: 'all',
-        query: queries.query,
-        pt_query: queries.ptQuery,
-      },
-      response: {
-        items: stripTransportSecrets(collectItems),
-        partial: collectResponse.partial === true,
-        live: collectResponse.live ?? null,
-      },
-    }],
   };
-  // O `_debugFind` do strip não existe: os objetos acima são JSON puro. O
-  // mascaramento do que saiu do addon fecha a última porta (host/token).
+  // Os objetos acima são JSON puro; o mascaramento do que saiu do addon fecha a
+  // última porta (host/token).
   for (const key of Object.keys(files)) files[key] = maskValue(files[key], ctx);
-  return { files, meta: metaResponse, collect: collectResponse, index: indexResponse };
+  return { files };
 }
 
 // ── manifesto ──────────────────────────────────────────────────────────────
@@ -709,7 +506,8 @@ function buildManifest({ manifestPath, capturedCases, casesPath, ctx, startedAt,
   for (const item of capturedCases) byId.set(item.id, item);
   const merged = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
   const notCaptured = [
-    ...(withInternal ? [] : [GAP_META, GAP_COLLECT]),
+    ...(withInternal ? [] : [GAP_META]),
+    GAP_COLLECT,
     ...GAPS_BASE,
     ...(withInternal ? GAPS_INTERNAL : []),
   ];
@@ -777,7 +575,7 @@ async function main() {
       console.log(`  - ${row.id} (${row.type}) ${row.stream_id} → ${row.path}`);
     }
     console.log('[stream-e2e] NÃO capturado (ver README/manifesto):');
-    for (const gap of (args.withInternal ? [...GAPS_BASE, ...GAPS_INTERNAL] : [GAP_META, GAP_COLLECT, ...GAPS_BASE])) {
+    for (const gap of (args.withInternal ? [GAP_COLLECT, ...GAPS_BASE, ...GAPS_INTERNAL] : [GAP_META, GAP_COLLECT, ...GAPS_BASE])) {
       console.log(`  · ${gap}`);
     }
     return;
@@ -807,7 +605,6 @@ async function main() {
         encoded: args.userConfig,
         target,
         ctx,
-        deadlineMs: args.internalDeadlineMs,
       });
       for (const [name, value] of Object.entries(captured.files)) {
         files[name] = writeJson(path.join(caseDir, name), value);

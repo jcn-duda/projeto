@@ -11,7 +11,7 @@ const NON_INDEXER = new Set(['autofetch', 'bludv', 'account']);
 
 /**
  * A release/fonte com este `indexer` pode entrar na resposta desta instalação?
- * Lê `opts()` do pedido (mesma noção de `wants` do collect-orchestrator).
+ * Lê `opts()` do pedido (mesma noção de `wants` da coleta nativa).
  */
 export function allowedSourceIndexer(indexer: string): boolean {
   const id = String(indexer || '').trim();

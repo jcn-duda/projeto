@@ -1,8 +1,8 @@
 //! Inventário NATIVO da conta do debrid como fonte (F3) e o fast-path da conta.
 //!
 //! O Node segue dono de `account.ts`, do memo `dinv`, do `davail`, do hold e do
-//! autofetch. Esta fatia porta o mínimo para a busca não depender da tarefa
-//! Node do inventário:
+//! autofetch. Esta fatia porta o mínimo para a busca não depender de nenhuma
+//! tarefa Node do inventário:
 //!
 //! - **leitura** (`adom_debrid::account`) com veredito `known`/`unusable`;
 //! - **filtro** de relevância da conta (`filter_inventory_relevant` do núcleo,
@@ -12,11 +12,9 @@
 //! - **fast-path** (`stopWhen` do `collectRaw`: lote da conta suficiente
 //!   responde na hora).
 //!
-//! `ACCOUNT_RUST` é OFF por default: `off` = caminho Node intacto; `on` = o
-//! nativo responde a coleta da conta (o Node continua com as outras fontes).
-//!
-//! Rollback: `ACCOUNT_RUST=off` (ou remover a env) devolve a tarefa Node no
-//! próximo boot. Nenhum estado persistido é criado por esta fatia.
+//! A fonte nativa é a ÚNICA da conta: não há mais modo `off`/`on` nem tarefa
+//! Node. `ACCOUNT_FAST_PATH`/`ACCOUNT_FAST_MIN_*` continuam como kill-switch e
+//! limiares do operador. Nenhum estado persistido é criado por esta fatia.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -40,48 +38,10 @@ use super::config::OrchestratorConfig;
 use super::meta::SearchMeta;
 use super::respond::now_ms;
 
-/// Env do modo (`off`|`on`; `1/true` valem `on`).
-pub const ENV: &str = "ACCOUNT_RUST";
 /// `ACCOUNT_FAST_PATH` do Node (default ligado).
 pub const FAST_PATH_ENV: &str = "ACCOUNT_FAST_PATH";
 /// `ACCOUNT_FAST_MIN_RELEASES` do Node (default 2).
 pub const FAST_PATH_MIN_ENV: &str = "ACCOUNT_FAST_MIN_RELEASES";
-
-/// Modo da fonte da conta.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum AccountMode {
-    /// Caminho Node intacto (default).
-    #[default]
-    Off,
-    /// Nativo responde a coleta da conta.
-    On,
-}
-
-impl AccountMode {
-    /// Parse do valor da env. Desconhecido (ou vazio) = `Off`, nunca "liga por
-    /// acidente".
-    pub fn parse(raw: &str) -> Self {
-        match raw.trim().to_ascii_lowercase().as_str() {
-            "on" | "1" | "true" | "yes" => Self::On,
-            _ => Self::Off,
-        }
-    }
-
-    pub fn is_on(self) -> bool {
-        matches!(self, Self::On)
-    }
-
-    pub fn uses_native(self) -> bool {
-        matches!(self, Self::On)
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Off => "off",
-            Self::On => "on",
-        }
-    }
-}
 
 /// Identidade da conta para UMA leitura (chave nunca vai para log).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,7 +58,7 @@ impl AccountRequest {
 }
 
 /// Fonte do inventário. Abstração pequena para o teste injetar fixture e para
-/// o modo `off` não tocar a rede.
+/// a busca degradar sem rede quando não há fonte.
 pub trait AccountInventorySource: Send + Sync {
     fn inventory<'a>(
         &'a self,
@@ -413,14 +373,11 @@ pub fn record_fast_path(decision: FastPathDecision) {
 
 // ── Fábrica de produção ────────────────────────────────────────────────────
 
-/// Fonte nativa do inventário quando `ACCOUNT_RUST=on`.
-/// `ACCOUNT_RUST=off` devolve `None` e o orquestrador segue 100% Node.
+/// Fonte nativa do inventário. É a única fonte da conta: o orquestrador a
+/// injeta sempre que o serviço da request é conhecido e a leitura está ligada.
 pub fn try_native_account_source(
     config: &OrchestratorConfig,
 ) -> Option<Arc<dyn AccountInventorySource>> {
-    if !config.account_mode.uses_native() {
-        return None;
-    }
     Some(Arc::new(NativeAccountSource::new(
         NativeAccountConfig::from_orchestrator(config),
     )))

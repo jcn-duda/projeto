@@ -34,10 +34,9 @@
 //! só sob `is_br`), breaker só em offline, `Link` com
 //! `is_safe_download_url` + redirect manual, e falha → `[]` / outcome honesto.
 //! Config via `JACKETT_URL` (default loopback `:9117`) e `JACKETT_API_KEY`
-//! (nunca em log). Collect do orquestrador: opt-in
-//! `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (collectors em
-//! `adom-search`; exclusão mútua jackett > prowlarr > torrentio > bludv > mico);
-//! default OFF = `POST /internal/search/collect`.
+//! (nunca em log). A coleta é NATIVA: o orquestrador monta sempre Jackett,
+//! Prowlarr, Torrentio, BLUDV e Mico (collectors em `adom-search`; exclusão
+//! mútua jackett > prowlarr > torrentio > bludv > mico), sem env de seleção.
 //!
 //! ## Fase B — Prowlarr + Torrentio + BLUDV + Mico
 //!
@@ -45,12 +44,12 @@
 //! `src/providers/prowlarr.ts` e `torrentio.ts`. Prowlarr: `/api/v1/search`,
 //! fail-open, chave fora de log, base loopback com guarda SSRF. Torrentio:
 //! pool público, fail-open, breaker local, `fileIdx` preservado, fora dos
-//! defaults de instalação. Collect opt-in via `SOURCES_RUST` (acima).
+//! defaults de instalação. Coleta sempre nativa (sem opt-in).
 //!
 //! Módulos [`bludv`] e [`mico`]: busca por título (WordPress + protetor) e
 //! busca por IMDb (addon Stremio), respectivamente. Fail-open → `[]`; gate
 //! BLUDV pulado no caminho de busca; Mico com breaker local. Collectors
-//! `BludvCollector` / `MicoCollector` no orquestrador (opt-in CSV).
+//! `BludvCollector` / `MicoCollector` montados sempre pelo orquestrador.
 //!
 //! BLUDV: identidade do Node (`tracker: "BLUDV"`, sem `indexer`/`sources`),
 //! título/qualidade/fonte/áudio pelo contexto do botão, redirect `follow` com

@@ -1,9 +1,8 @@
-//! Collect opt-in via `adom_sources::ProwlarrClient` (`SOURCES_RUST=prowlarr`).
+//! Collect nativo via `adom_sources::ProwlarrClient`.
 //!
-//! Default OFF: produção continua em [`super::NodeCollector`]
-//! (`POST /internal/search/collect`). Espelha o padrão do
-//! [`super::JackettCollector`], sem plano Torznab/BR/breaker — o Prowlarr do
-//! TS (`prowlarr.search(query)`) é uma única consulta global.
+//! Monta sempre que o cliente sobe; falha de boot → log e a fonte fica fora.
+//! Espelha o padrão do [`super::JackettCollector`], sem plano Torznab/BR/breaker
+//! — o Prowlarr do TS (`prowlarr.search(query)`) é uma única consulta global.
 //!
 //! - `TaskScope::Priority` → lote vazio (não é fonte BR).
 //! - `late_sweep` → lote vazio (varredura pt-BR é caminho Jackett; sem
@@ -22,7 +21,7 @@
 //! timeout). `pending` nunca é inventado e `all` fica `Unknown`: o agregado
 //! `error` é do ramo `/all` do Jackett, não daqui.
 //!
-//! Fora desta fatia: composição multi-fonte, cache `raw:v1`.
+//! Fora desta fatia: cache `raw:v1`.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -35,28 +34,19 @@ use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
 use crate::orchestrator::jackett_collector::process_title_precision_tail_cut;
 use crate::orchestrator::jackett_live::relevant_count;
 use crate::orchestrator::live_state::LiveBatchState;
-use crate::orchestrator::sources_rust::sources_rust_includes;
 use crate::raw_item::RawItem;
 
 /// Chave do estado vivo da fonte. O Prowlarr é UMA consulta (como o Mico):
 /// não há como atribuir falha/vazio a um tracker específico sem inventar.
 pub const PROWLARR_LIVE_KEY: &str = "prowlarr";
 
-/// `SOURCES_RUST` contém o token `prowlarr` (CSV, case-insensitive).
-pub fn sources_rust_includes_prowlarr() -> bool {
-    sources_rust_includes("prowlarr")
-}
-
-/// Monta o collector só quando o env pediu Prowlarr nativo. Falha de boot do
-/// cliente → `None` + log (degrada para o caller usar NodeCollector).
+/// Monta o collector Prowlarr. Falha de boot do cliente → `None` + log (a fonte
+/// fica fora; o gateway só falha se NENHUMA fonte nativa montar).
 pub fn try_prowlarr_collector_from_env() -> Option<ProwlarrCollector> {
-    if !sources_rust_includes_prowlarr() {
-        return None;
-    }
     match ProwlarrCollector::from_env() {
         Ok(c) => Some(c),
         Err(err) => {
-            eprintln!("[search] SOURCES_RUST=prowlarr mas ProwlarrClient falhou: {err}");
+            eprintln!("[search] Prowlarr nativa indisponível: {err}");
             None
         }
     }

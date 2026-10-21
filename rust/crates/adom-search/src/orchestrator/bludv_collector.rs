@@ -1,8 +1,8 @@
-//! Collect opt-in via `adom_sources::BludvClient` (`SOURCES_RUST=bludv`).
+//! Collect nativo via `adom_sources::BludvClient`.
 //!
-//! Default OFF: produção continua em [`super::NodeCollector`]
-//! (`POST /internal/search/collect`). BLUDV é fonte BR (WordPress + protetor):
-//! no TS entra como tarefa prioritária (`addTask(..., true)`).
+//! Monta sempre que o cliente sobe; falha de boot → log e a fonte fica fora.
+//! BLUDV é fonte BR (WordPress + protetor): no TS entra como tarefa prioritária
+//! (`addTask(..., true)`).
 //!
 //! - `TaskScope::Nonpriority` → lote vazio, live sem falha (não é fonte global).
 //! - `late_sweep` → lote vazio (varredura pt-BR é caminho Jackett).
@@ -20,8 +20,7 @@
 //! relevante (inclusive 4xx da obra); `Failed` = 429/5xx/rede/timeout.
 //! `pending` nunca é inventado e `all` fica `Unknown`.
 //!
-//! **`raw:v1`** no caminho vivo (`SOURCES_RUST=bludv`): lê e grava o cache
-//! bruto normalmente.
+//! **`raw:v1`** no caminho vivo: lê e grava o cache bruto normalmente.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -36,20 +35,14 @@ use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
 use crate::orchestrator::jackett_collector::process_title_precision_tail_cut;
 use crate::orchestrator::jackett_live::relevant_count;
 use crate::orchestrator::live_state::LiveBatchState;
-use crate::orchestrator::sources_rust::sources_rust_includes;
 use crate::raw_item::{known_size, RawItem};
 
 /// Chave do estado vivo da fonte. UMA consulta WordPress: não há como atribuir
 /// falha/vazio a um card específico sem inventar.
 pub const BLUDV_LIVE_KEY: &str = "bludv";
 
-/// `SOURCES_RUST` contém o token `bludv` (CSV, case-insensitive).
-pub fn sources_rust_includes_bludv() -> bool {
-    sources_rust_includes("bludv")
-}
-
-/// Monta o collector só quando o env pediu BLUDV nativo. Falha de boot do
-/// cliente → `None` + log (degrada para o caller usar NodeCollector).
+/// Monta o collector BLUDV. Falha de boot do cliente → `None` + log (a fonte
+/// fica fora; o gateway só falha se NENHUMA fonte nativa montar).
 pub fn try_bludv_collector_from_env() -> Option<BludvCollector> {
     try_bludv_collector_from_env_with_store(None)
 }
@@ -59,16 +52,13 @@ pub fn try_bludv_collector_from_env() -> Option<BludvCollector> {
 pub fn try_bludv_collector_from_env_with_store(
     raw_store: Option<Arc<dyn RawStore>>,
 ) -> Option<BludvCollector> {
-    if !sources_rust_includes_bludv() {
-        return None;
-    }
     match BludvCollector::from_env() {
         Ok(collector) => Some(match raw_store {
             Some(store) => collector.with_raw_store(store),
             None => collector,
         }),
         Err(err) => {
-            eprintln!("[search] SOURCES_RUST=bludv mas BludvClient falhou: {err}");
+            eprintln!("[search] BLUDV nativa indisponível: {err}");
             None
         }
     }
@@ -253,7 +243,6 @@ pub(crate) fn raw_from_bludv(item: BludvRawItem) -> RawItem {
 mod tests {
     use super::*;
     use crate::orchestrator::collect::CollectJob;
-    use crate::orchestrator::sources_rust::sources_rust_csv_includes;
     use adom_sources::BludvConfig;
     use serde_json::json;
 
@@ -280,13 +269,6 @@ mod tests {
             dubbed_only: false,
             mico_default: false,
         }
-    }
-
-    #[test]
-    fn token_bludv_no_csv() {
-        assert!(sources_rust_csv_includes("bludv", "bludv"));
-        assert!(sources_rust_csv_includes("jackett,bludv", "bludv"));
-        assert!(!sources_rust_csv_includes("jackett", "bludv"));
     }
 
     #[test]

@@ -1,8 +1,8 @@
 //! Contadores próprios do inventário nativo da conta (F3).
 //!
 //! Nada aqui depende do Node: `account.rust.*` mede a leitura nativa, o
-//! fast-path e os motivos de "não sei"; `account.node`/`account.fast_path*`
-//! medem o caminho compartilhado com o Node.
+//! fast-path e os motivos de "não sei"; `account.fast_path*` mede o
+//! fast-path compartilhado.
 //!
 //! Exposto em `/metrics` do gateway por [`account_metrics_snapshot`].
 
@@ -18,10 +18,9 @@ pub const UNUSABLE_QUOTA: &str = "account.rust.unusable_quota";
 /// `known:false` sem `unusable` (rede/prazo/rate limit): "não sei".
 pub const UNKNOWN: &str = "account.rust.unknown";
 pub const MEMO_HIT: &str = "account.rust.memo_hit";
-/// `ACCOUNT_RUST=on` sem fonte injetada: caiu na tarefa Node (degradação).
+/// Serviço ativo/sem conta, mas NENHUMA fonte nativa injetada: a conta fica
+/// fora da busca (degradação honesta).
 pub const SOURCE_MISSING: &str = "account.rust.source_missing";
-/// A tarefa Node da conta rodou (modo off ou degradação).
-pub const NODE: &str = "account.node";
 pub const FAST_PATH: &str = "account.fast_path";
 /// Lote da conta suficiente mas sem cobertura de dublado pedida.
 pub const FAST_PATH_SKIPPED: &str = "account.fast_path.skipped";
@@ -36,7 +35,6 @@ const KEYS: &[&str] = &[
     UNKNOWN,
     MEMO_HIT,
     SOURCE_MISSING,
-    NODE,
     FAST_PATH,
     FAST_PATH_SKIPPED,
 ];

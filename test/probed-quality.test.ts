@@ -8,10 +8,7 @@ import * as cache from '../src/utils/cache.js';
 import { recordFileSizes, clearFileSizes } from '../src/debrid/file-sizes.js';
 import { videoQualityKey } from '../src/debrid/video-quality.js';
 import { applyProbedQuality } from '../src/providers/probed-quality.js';
-// `applyFileEvidence` sobreviveu ao pipeline (a rota interna de índice/coleta
-// ainda anexa a prova de arquivo); o módulo é o mesmo, sem o builder.
-import { applyFileEvidence } from '../src/providers/stream-file-evidence.js';
-import { toStremioStream, UNKNOWN_QUALITY } from '../src/utils/format.js';
+import { toStremioStream } from '../src/utils/format.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import { recordFileEvidence } from '../src/debrid/audio-audit.js';
 import type { RawItem } from '../types/domain.js';
@@ -77,15 +74,6 @@ test('sem medição e sem AllDebrid ativo, o item segue intacto e nada é agenda
   } finally {
     clearFileSizes();
   }
-});
-
-test('evidência de arquivo "sem resolução" não sobrescreve a resolução do título', () => {
-  if (!releaseIndex.status().enabled) return;
-  const hash = 'f7'.repeat(20);
-  releaseIndex.markFileEvidence(hash, { a: '', q: UNKNOWN_QUALITY, n: 'arquivo.mkv' });
-  const [out] = applyFileEvidence([{ title: 'Filme 2009 1080p BluRay', infoHash: hash, seeders: 5 } as RawItem]);
-  assert.equal(out.provenQuality, undefined);
-  assert.equal(toStremioStream(out)!._quality, '1080p');
 });
 
 test('play de coleção não grava resolução nem nome do maior filme como prova do hash', () => {

@@ -20,8 +20,6 @@ use crate::debrid_seam::{AdapterDebridCheck, HoldsFeed};
 use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
 use adom_core::RankingStream;
 
-use super::account::AccountMode;
-
 /// Defaults do operador (`src/config/*.ts`) que governam a resposta.
 #[derive(Debug, Clone)]
 pub struct OrchestratorConfig {
@@ -81,14 +79,11 @@ pub struct OrchestratorConfig {
     /// Só vale quando a request não traz `jackettIndexers` (a seleção da URL
     /// vence); alimenta o `wants("mico")` do `CollectJob`.
     pub mico_default: bool,
-    /// `ACCOUNT_RUST`: `off` (default) = tarefa Node da conta; `on` = o
-    /// inventário nativo responde.
-    pub account_mode: AccountMode,
     /// `DEBRID_INVENTORY_SOURCE` (default ligado, como no Node): sem ele a
-    /// conta não é fonte nem no modo nativo.
+    /// conta não é fonte.
     pub account_inventory_source: bool,
     /// `ACCOUNT_FAST_PATH` (default ligado): lote da conta suficiente responde
-    /// na hora. Só tem efeito com `account_mode = on`.
+    /// na hora.
     pub account_fast_path: bool,
     /// `ACCOUNT_FAST_MIN_RELEASES` (default 2).
     pub account_fast_min_releases: usize,
@@ -149,7 +144,6 @@ impl Default for OrchestratorConfig {
             pack_tail: true,
             effects_enabled: false,
             mico_default: false,
-            account_mode: AccountMode::Off,
             account_inventory_source: true,
             account_fast_path: true,
             account_fast_min_releases: 2,

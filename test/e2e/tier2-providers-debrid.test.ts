@@ -19,7 +19,6 @@ import * as protectedHashes from '../../src/debrid/protected.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import prowlarr from '../../src/providers/prowlarr.js';
 import * as brResolvers from '../../src/br-resolvers.js';
-import { collectWithinWindow } from '../../src/providers/collection-window.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
 import type { Stream } from '../../types/domain.js';
 
@@ -38,40 +37,6 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
 
   // =========================================================================
   describe('Feature 8: Search & Late-Pass Budget Optimization', () => {
-    it('F08-BND-01: collectWithinWindow returns done=false when slow provider exceeds deadline', async () => {
-      const fastTask = {
-        promise: new Promise((r) => setTimeout(() => r([{ title: 'Fast Stream' }]), 10)),
-        priority: false,
-      };
-      const slowTask = {
-        promise: new Promise((r) => setTimeout(() => r([{ title: 'Slow Stream' }]), 200)),
-        priority: false,
-      };
-
-      const bucket = await collectWithinWindow([fastTask, slowTask], { budgetMs: 50 });
-      assert.ok(bucket.items.length >= 1);
-      assert.equal(bucket.items[0].title, 'Fast Stream');
-      assert.equal(bucket.done, false);
-      assert.ok(bucket.completion instanceof Promise);
-      await bucket.completion;
-    });
-
-    it('F08-BND-02: Fast providers completing within budget return done=true', async () => {
-      const t1 = {
-        promise: new Promise((r) => setTimeout(() => r([{ title: 'Stream 1' }]), 5)),
-        priority: false,
-      };
-      const t2 = {
-        promise: new Promise((r) => setTimeout(() => r([{ title: 'Stream 2' }]), 10)),
-        priority: false,
-      };
-
-      const bucket = await collectWithinWindow([t1, t2], { budgetMs: 100 });
-      assert.equal(bucket.items.length, 2);
-      assert.equal(bucket.done, true);
-    });
-
-
     it('F08-BND-04: raceWithDeadline returns fallback value on timeout', async () => {
       const slowTask = new Promise((r) => setTimeout(() => r('done'), 100));
       const result = await raceWithDeadline(slowTask, 10, () => 'timed-out');

@@ -1,25 +1,11 @@
-// Identidade ESTRUTURAL da varredura pt-BR inline (follow-up).
+// Identidade ESTRUTURAL da varredura pt-BR inline.
 //
-// Bug corrigido: `collectRaw` decidia `inlineSweep` por texto
-// (`planned.query === sweepQuery`), e a task BR ISOLADA cuja query coincide com
-// a raiz da varredura (filme sem ano: `ptQuery === sweepQuery`) era tratada
-// como varredura — perdia `recordStatus`/`onQueryResult` e não alimentava o
-// fallback do banco vivo. A marca agora é o campo `sweep` do plano.
-//
-// Sem rede: `jackett.search` é dublê; a consulta principal FALHA de propósito
-// para provar que só ela alimenta o estado vivo.
+// A marca de varredura é o campo `sweep` do plano, nunca a igualdade de texto
+// (`ptQuery === sweepQuery`): a BR isolada com a mesma query da varredura
+// continua principal e não vira varredura.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import config from '../src/config.js';
-import jackett from '../src/providers/jackett.js';
 import { planJackettQueries } from '../src/providers/search-plan.js';
-import { collectRaw } from '../src/providers/collect-orchestrator.js';
-import * as runtime from '../src/runtime.js';
-import { patch, testOpts } from './helpers/stub.js';
-
-const matchContext = () => ({
-  names: ['The Crow'], year: null, isSeries: false, season: null, episode: null,
-});
 
 test('plano: BR isolada com ptQuery === sweepQuery NÃO é marcada como sweep', () => {
   const plan = planJackettQueries(
@@ -56,96 +42,4 @@ test('plano: grouped vazio (todas as selecionadas BR) não cria varredura', () =
   assert.equal(plan.some((t) => t.sweep === true), false, 'sem globais não há varredura agrupada');
   assert.ok(plan.every((t) => t.indexers.length === 1 && !('sweep' in t)), 'nenhuma isolada é varredura');
   assert.ok(plan.every((t) => t.query === 'O Corvo'));
-});
-
-test('collectRaw: BR principal alimenta status/fallback; varredura inline não contamina', async () => {
-  const savedPtBr = config.jackett.ptBrIndexers;
-  const savedIndexers = config.jackett.indexers;
-  config.jackett.ptBrIndexers = ['bludv-cardigann'];
-  config.jackett.indexers = ['thepiratebay', 'bludv-cardigann'];
-
-  const calls: Array<{ query: string; indexers: string[]; recordStatus: unknown; hasOnResult: boolean }> = [];
-  const userOpts = testOpts({
-    providers: ['jackett'],
-    jackettIndexers: ['thepiratebay', 'bludv-cardigann'],
-    debridService: '',
-    debridApiKey: '',
-  });
-  const restore = patch(jackett, 'search', async (query: string, _type: string, indexers: string[] | null, options: any) => {
-    const ids = indexers || [];
-    calls.push({
-      query,
-      indexers: ids,
-      recordStatus: options?.recordStatus,
-      hasOnResult: typeof options?.onQueryResult === 'function',
-    });
-    // Toda consulta falha: só a principal pode marcar o indexer como falho.
-    options?.onQueryResult?.({ indexer: ids[0], responded: false, reason: 'error' });
-    return [];
-  });
-  try {
-    const raw: any = await runtime.run({ opts: userOpts, encoded: 'cfg-sweep-id' }, () => collectRaw(
-      'The Crow', 'movie', 'tt123', 'O Corvo', matchContext() as any,
-      null, 'O Corvo', null,
-    ));
-
-    const br = calls.find((c) => c.indexers.includes('bludv-cardigann'));
-    const sweep = calls.find((c) => c.query === 'O Corvo' && c.indexers.includes('thepiratebay'));
-    assert.ok(br, 'a BR isolada foi consultada');
-    assert.equal(br.recordStatus, undefined, 'BR principal mantém o status default');
-    assert.equal(br.hasOnResult, true, 'BR principal alimenta o estado vivo');
-    assert.ok(sweep, 'a varredura agrupada foi consultada');
-    assert.equal(sweep.recordStatus, false, 'varredura inline não registra status');
-    assert.equal(sweep.hasOnResult, false, 'varredura inline não contamina o estado vivo');
-    // A falha da BR principal dispara o fallback mesmo com a query idêntica à
-    // da varredura: era exatamente isso que a inferência por texto escondia.
-    assert.equal(raw.live.failedIndexers().has('bludv-cardigann'), true, 'falha da BR vira candidato do fallback');
-    assert.equal(raw.sweepInline, true, 'a varredura agrupada foi anexada e liga sweepInline');
-  } finally {
-    restore();
-    config.jackett.ptBrIndexers = savedPtBr;
-    config.jackett.indexers = savedIndexers;
-  }
-});
-
-test('collectRaw: grouped vazio (só BR) não liga sweepInline e não perde a principal', async () => {
-  const savedPtBr = config.jackett.ptBrIndexers;
-  const savedIndexers = config.jackett.indexers;
-  config.jackett.ptBrIndexers = ['bludv-cardigann'];
-  config.jackett.indexers = ['bludv-cardigann'];
-
-  const calls: Array<{ query: string; indexers: string[]; recordStatus: unknown; hasOnResult: boolean }> = [];
-  const userOpts = testOpts({
-    providers: ['jackett'],
-    jackettIndexers: ['bludv-cardigann'],
-    debridService: '',
-    debridApiKey: '',
-  });
-  const restore = patch(jackett, 'search', async (query: string, _type: string, indexers: string[] | null, options: any) => {
-    const ids = indexers || [];
-    calls.push({
-      query,
-      indexers: ids,
-      recordStatus: options?.recordStatus,
-      hasOnResult: typeof options?.onQueryResult === 'function',
-    });
-    options?.onQueryResult?.({ indexer: ids[0], responded: false, reason: 'error' });
-    return [];
-  });
-  try {
-    const raw: any = await runtime.run({ opts: userOpts, encoded: 'cfg-sweep-all-br' }, () => collectRaw(
-      'The Crow', 'movie', 'tt124', 'O Corvo', matchContext() as any,
-      null, 'O Corvo', null,
-    ));
-    assert.equal(raw.sweepInline, false, 'sem globais a varredura inline não rodou');
-    assert.equal(calls.length, 1, 'só a BR principal é consultada');
-    assert.deepEqual(calls[0].indexers, ['bludv-cardigann']);
-    assert.equal(calls[0].recordStatus, undefined, 'principal mantém o status default');
-    assert.equal(calls[0].hasOnResult, true, 'principal alimenta o estado vivo');
-    assert.equal(raw.live.failedIndexers().has('bludv-cardigann'), true, 'e o fallback');
-  } finally {
-    restore();
-    config.jackett.ptBrIndexers = savedPtBr;
-    config.jackett.indexers = savedIndexers;
-  }
 });

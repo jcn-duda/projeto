@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::orchestrator::collect::CollectJob;
-use crate::orchestrator::sources_rust::sources_rust_csv_includes;
 use adom_sources::{MicoConfig, MICO_ID};
 use serde_json::json;
 
@@ -38,13 +37,6 @@ fn disabled_collector() -> MicoCollector {
         ..Default::default()
     };
     MicoCollector::new(MicoClient::new(cfg).expect("client"))
-}
-
-#[test]
-fn token_mico_no_csv() {
-    assert!(sources_rust_csv_includes("mico", "mico"));
-    assert!(sources_rust_csv_includes("jackett,mico", "mico"));
-    assert!(!sources_rust_csv_includes("jackett", "mico"));
 }
 
 #[test]

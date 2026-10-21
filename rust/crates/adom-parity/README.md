@@ -87,7 +87,7 @@ arquivos por etapa.
 4. **`--replay --orchestrator`** (ou flag equivalente) no binário: hoje
    `--replay` só usa `ReplaySource`; a remontagem fixture é exercida nos testes.
 5. **Fontes reais** (Jackett / rotas `/internal/search/*`): os coletores
-   nativos opt-in existem em `adom-search` (`SOURCES_RUST`), mas este crate não
+   nativos existem em `adom-search`, mas este crate não
    os liga no runner e não toca `adom-server` / `adom-debrid`.
 6. **SWR / acervo / passe tardio** no golden: o corpus é uma foto da 1ª
    resposta; estado de cache e fila tardia ficam fora até o gerador os medir.

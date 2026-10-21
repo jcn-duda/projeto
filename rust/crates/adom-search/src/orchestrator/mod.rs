@@ -91,18 +91,15 @@ use respond::{as_ms, empty_response, now_ms};
 
 pub use account::{
     account_raw_items, br_origin_only, fast_path_decision, signals_of, try_native_account_source,
-    AccountInventorySource, AccountMode, AccountRequest, AccountSignals, FastPathDecision,
-    NativeAccountConfig, NativeAccountSource, ENV as ACCOUNT_RUST_ENV,
-    FAST_PATH_ENV as ACCOUNT_FAST_PATH_ENV, FAST_PATH_MIN_ENV as ACCOUNT_FAST_MIN_ENV,
+    AccountInventorySource, AccountRequest, AccountSignals, FastPathDecision, NativeAccountConfig,
+    NativeAccountSource, FAST_PATH_ENV as ACCOUNT_FAST_PATH_ENV,
+    FAST_PATH_MIN_ENV as ACCOUNT_FAST_MIN_ENV,
 };
 pub use account_metrics::account_metrics_snapshot;
 pub use bludv_collector::{
-    sources_rust_includes_bludv, try_bludv_collector_from_env,
-    try_bludv_collector_from_env_with_store, BludvCollector,
+    try_bludv_collector_from_env, try_bludv_collector_from_env_with_store, BludvCollector,
 };
-pub use collect::{
-    plan_jobs, CollectBatch, CollectJob, Collector, NodeCollector, RequestSelection,
-};
+pub use collect::{plan_jobs, CollectBatch, CollectJob, Collector, RequestSelection};
 pub use composite_collector::CompositeCollector;
 pub use config::{
     build_options_from, AdapterDebridFactory, DebridContext, DebridFactory, NoDebridCheck,
@@ -117,8 +114,7 @@ pub use index_source::{
 };
 pub use internal_routes::{InternalRoutes, NodeRoutes, RouteFuture};
 pub use jackett_collector::{
-    plan_jackett_searches, sources_rust_includes_jackett, try_jackett_collector_from_env,
-    JackettCollector, PlannedJackettSearch,
+    plan_jackett_searches, try_jackett_collector_from_env, JackettCollector, PlannedJackettSearch,
 };
 pub use known_broken::KnownBroken;
 pub use live_state::{
@@ -130,22 +126,14 @@ pub use meta_native::{
     flag_enabled, meta_from_lookup, meta_rust_enabled, FallbackMetaSource, NativeMetaSource,
     DEFAULT_LOOKUP_TIMEOUT_MS, META_RUST_ENV,
 };
-pub use mico_collector::{sources_rust_includes_mico, try_mico_collector_from_env, MicoCollector};
-pub use prowlarr_collector::{
-    sources_rust_includes_prowlarr, try_prowlarr_collector_from_env, ProwlarrCollector,
-};
+pub use mico_collector::{try_mico_collector_from_env, MicoCollector};
+pub use prowlarr_collector::{try_prowlarr_collector_from_env, ProwlarrCollector};
 pub use respond::{SearchOutcome, StreamRequest, NOTICE_SEARCHING};
-pub use sources_rust::{
-    sources_rust_csv_includes, sources_rust_csv_winner, sources_rust_includes,
-    try_sources_rust_collector_from_env, try_sources_rust_collectors_from_env,
-    try_sources_rust_native_from_env, try_sources_rust_native_from_env_with_bludv_store,
-};
+pub use sources_rust::try_native_collectors_with_bludv_store;
 pub use tail::{
     EffectsBatch, IndexBatch, NodeTailEffects, NoopTailEffects, TailEffects, TailJob, TailPlan,
 };
-pub use torrentio_collector::{
-    sources_rust_includes_torrentio, try_torrentio_collector_from_env, TorrentioCollector,
-};
+pub use torrentio_collector::{try_torrentio_collector_from_env, TorrentioCollector};
 pub use trace::{new_trace, TraceInput, TraceRecord, TraceResponseFacts};
 
 /// O orquestrador. Clonável e barato: tudo atrás de `Arc`.
@@ -159,8 +147,8 @@ pub struct Orchestrator {
     tail: Arc<dyn TailEffects>,
     in_flight: Arc<InFlight<Arc<SearchOutcome>>>,
     refreshing: Arc<Mutex<HashSet<String>>>,
-    /// Rotas internas do Node (`/internal/search/*`), para metadados, coleta e
-    /// efeitos. Índice/banco são NATIVOS desde o R4: não há rota Node.
+    /// Rotas internas do Node (`/internal/search/*`), para metadados e
+    /// efeitos. Coleta, índice e banco são NATIVOS: não há rota Node.
     routes: Option<Arc<dyn InternalRoutes>>,
     /// Lista de arquivos por hash (o memo `fsz` do Node): o `💾` de pack/item
     /// que o tracker não publicou e o fill pós-debrid saem daqui. O Node lê o
@@ -176,8 +164,8 @@ pub struct Orchestrator {
     /// anterior.
     files_at_build: Option<Arc<BTreeMap<String, Vec<DebridFile>>>>,
     totals_at_build: Option<Arc<BTreeMap<String, f64>>>,
-    /// Fonte do inventário da conta (`ACCOUNT_RUST=on`). `None` =
-    /// modo desligado ou fonte não injetada (o caminho Node segue igual).
+    /// Fonte do inventário da conta. `None` = fonte não injetada (a conta
+    /// fica fora da busca; nunca há tarefa Node).
     account: Option<Arc<dyn AccountInventorySource>>,
     /// Índice de releases nativo (`idx:v14`); `None` = sem store (a busca
     /// degrada sem via rápida, log `[search]`). SEMPRE nativo desde o R4.
@@ -195,8 +183,9 @@ pub struct Orchestrator {
     frozen_fast_path: Option<fast_path::FastPath>,
 }
 
-/// Collector que falha sempre: default do crate até a integração injetar o
-/// `NodeCollector`. A busca responde lista vazia + aviso — nunca 500.
+/// Collector que falha sempre: default do crate até a integração
+/// (`adom-server`) injetar os coletores nativos. A busca responde lista vazia
+/// + aviso — nunca 500.
 struct UnavailableCollector;
 
 impl Collector for UnavailableCollector {
@@ -295,16 +284,7 @@ impl Orchestrator {
         self
     }
 
-    /// Liga coleta/metadados/efeitos no cliente HTTP das rotas internas.
-    pub fn with_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
-        self.collector = Arc::new(NodeCollector::new(routes.clone()).with_skip_account(true));
-        self.meta = Arc::new(NodeMetaSource::new(routes.clone()));
-        self.tail = Arc::new(NodeTailEffects::new(routes.clone()));
-        self.routes = Some(routes);
-        self
-    }
-
-    /// Injeta explicitamente as rotas internas (ex.: quando collector é composto).
+    /// Injeta explicitamente as rotas internas (metadados/efeitos/tail).
     pub fn with_internal_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
         self.routes = Some(routes);
         self
@@ -316,14 +296,14 @@ impl Orchestrator {
         self
     }
 
-    /// Monta a fonte NATIVA do inventário quando `ACCOUNT_RUST=on`. `off`
-    /// mantém `None` — o caminho Node fica intacto.
+    /// Monta a fonte NATIVA do inventário. É a única fonte da conta; sem ela
+    /// (não chamado) a conta fica fora da busca.
     pub fn with_native_account(mut self) -> Self {
         self.account = try_native_account_source(&self.config);
         self
     }
 
-    /// Fonte atual do inventário (`None` = modo desligado/sem injeção).
+    /// Fonte atual do inventário (`None` = sem injeção).
     pub fn account_source(&self) -> Option<&Arc<dyn AccountInventorySource>> {
         self.account.as_ref()
     }

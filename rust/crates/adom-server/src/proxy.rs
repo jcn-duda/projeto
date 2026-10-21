@@ -89,9 +89,12 @@ pub async fn run(config: Config) -> Result<(), String> {
     } else {
         None
     };
+    // Falha de boot da coleta nativa (nenhuma fonte montada) é erro VISÍVEL:
+    // `main` loga e sai — nunca queda silenciosa para uma lista vazia.
     let orchestrator = stores
         .as_ref()
-        .map(|stores| stream::build_orchestrator_from(stores.clone()));
+        .map(|stores| stream::build_orchestrator_from(stores.clone()))
+        .transpose()?;
     if let (Some(stores), Some(orch)) = (stores.as_ref(), orchestrator.as_ref()) {
         spawn_store_admin(stores, orch.config().stale_grace_seconds);
     }

@@ -1,9 +1,8 @@
-//! Collect opt-in via `adom_sources::JackettClient` (`SOURCES_RUST=jackett`).
+//! Collect nativo via `adom_sources::JackettClient`.
 //!
-//! Default OFF: produção continua em [`super::NodeCollector`]
-//! (`POST /internal/search/collect`). Prowlarr tem collector irmão
-//! (`SOURCES_RUST=prowlarr` / `torrentio` / `bludv` / `mico`); exclusão mútua
-//! em [`super::sources_rust`].
+//! É a fonte Torznab do `/stream`: monta sempre que o cliente sobe; falha de
+//! boot → log e a fonte fica fora. Prowlarr/Torrentio/BLUDV/Mico têm collectors
+//! irmãos; [`super::sources_rust`] compõe os que montaram.
 //!
 //! Guardrail do Maestro: varredura **inline** (`sweep:true` no plano) usa
 //! `record_status:false` e **não** `ignore_breaker`; a varredura **tardia**
@@ -19,7 +18,6 @@ use adom_sources::{JackettClient, JackettMediaType, JackettRawItem, QueryOutcome
 use crate::internal_types::TaskScope;
 use crate::orchestrator::collect::{jackett_only, CollectBatch, CollectJob, Collector};
 use crate::orchestrator::jackett_live::live_state_from_outcomes;
-use crate::orchestrator::sources_rust::sources_rust_includes;
 use crate::raw_item::RawItem;
 
 #[path = "jackett_collector_env.rs"]
@@ -38,21 +36,13 @@ pub(crate) fn process_title_precision_tail_cut() -> bool {
         .unwrap_or(true)
 }
 
-/// `SOURCES_RUST` contém o token `jackett` (CSV, case-insensitive).
-pub fn sources_rust_includes_jackett() -> bool {
-    sources_rust_includes("jackett")
-}
-
-/// Monta o collector só quando o env pediu Jackett nativo. Falha de boot do
-/// cliente → `None` + log (degrada para o caller usar NodeCollector).
+/// Monta o collector Jackett. Falha de boot do cliente → `None` + log (a fonte
+/// fica fora; o gateway só falha se NENHUMA fonte nativa montar).
 pub fn try_jackett_collector_from_env() -> Option<JackettCollector> {
-    if !sources_rust_includes_jackett() {
-        return None;
-    }
     match JackettCollector::from_env() {
         Ok(c) => Some(c),
         Err(err) => {
-            eprintln!("[search] SOURCES_RUST=jackett mas JackettClient falhou: {err}");
+            eprintln!("[search] Jackett nativa indisponível: {err}");
             None
         }
     }

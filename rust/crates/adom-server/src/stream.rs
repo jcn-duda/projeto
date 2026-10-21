@@ -1,7 +1,8 @@
 //! Corte nativo de `/stream` (`ROUTES_RUST` contém o token exato `stream`).
 //!
-//! A rede de coleta/metadados mora no Node via `POST /internal/search/*`
-//! (`InternalSearchClient` / `NodeRoutes`).
+//! A COLETA é 100% nativa (`adom-sources`): Jackett, Prowlarr, Torrentio,
+//! BLUDV e Mico. Metadados/efeitos/tail continuam no Node via
+//! `POST /internal/search/*` (`InternalSearchClient` / `NodeRoutes`).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -12,8 +13,8 @@ use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
-    sources_rust_includes, AdapterDebridFactory, NodeRoutes, NodeTailEffects, Orchestrator,
-    StreamRequest,
+    AdapterDebridFactory, Collector, CompositeCollector, InternalRoutes, NodeRoutes,
+    NodeTailEffects, Orchestrator, StreamRequest,
 };
 use adom_search::{HoldsFeed, MemorySwrStore, NodeHoldsFeed, StreamResponse, SwrStore};
 use adom_store::StreamsStore;
@@ -86,51 +87,42 @@ fn open_stream_stores_at(path: &Path) -> StreamStores {
     }
 }
 
-/// Monta o orquestrador de produção: store SWR compartilhado, coleta via
-/// rotas internas (se `JACKETT_TEST_TOKEN` existir) e debrid com reserva Node.
+/// Monta o orquestrador de produção: store SWR compartilhado, coletores
+/// NATIVOS e debrid com reserva Node.
 ///
-/// Opt-in `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV): collect
-/// nativo; exclusão mútua (jackett > prowlarr > torrentio > bludv > mico).
-/// Meta/tail continuam no Node quando as rotas internas existem. Default OFF
-/// — corte stream segue em `POST /internal/search/collect`.
-pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
+/// Falha de boot: se NENHUMA fonte nativa montar, devolve `Err` — o gateway
+/// recusa subir em vez de responder lista vazia para sempre. Fonte que falha
+/// sozinha loga `[search] <fonte> nativa indisponível` e fica fora (reduz
+/// resultado, nunca derruba a busca). Meta/tail continuam no Node quando as
+/// rotas internas existem; `META_RUST` troca a fonte de metadados.
+pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, String> {
     let config = orchestrator_config_from_env();
     let mut orch = Orchestrator::new(config, stores.swr);
     // `raw:v1` do BLUDV: SÓ no caminho vivo. O store é o mesmo `cache.db` que
     // o Node usa (chave/valor idênticos).
     let raw_store = open_bludv_raw_store();
-    let native =
-        adom_search::orchestrator::try_sources_rust_native_from_env_with_bludv_store(raw_store);
-    let skip_sources: Vec<String> = native.iter().map(|(t, _)| t.to_string()).collect();
-    let native_collectors: Vec<Arc<dyn adom_search::orchestrator::Collector>> =
-        native.into_iter().map(|(_, c)| c).collect();
+    let native = adom_search::orchestrator::try_native_collectors_with_bludv_store(raw_store);
+    if native.is_empty() {
+        return Err(
+            "nenhuma fonte nativa montada (Jackett/Prowlarr/Torrentio/BLUDV/Mico): \
+             collect indisponível"
+                .to_string(),
+        );
+    }
+    eprintln!("[gateway] collect nativo: {} fonte(s)", native.len());
+    let collector: Arc<dyn Collector> = if native.len() == 1 {
+        native.into_iter().next().expect("lista com uma fonte")
+    } else {
+        Arc::new(CompositeCollector::new(native))
+    };
+    orch = orch.with_collector(collector);
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            let node_collector = Arc::new(
-                adom_search::orchestrator::NodeCollector::new(routes.clone())
-                    .with_skip_sources(skip_sources.clone())
-                    .with_skip_account(true),
-            );
-            let collector: Arc<dyn adom_search::orchestrator::Collector> =
-                if native_collectors.is_empty() {
-                    node_collector
-                } else {
-                    eprintln!(
-                        "[gateway] collect composto via adom-sources ({}) + NodeCollector",
-                        sources_rust_label()
-                    );
-                    let mut all = native_collectors;
-                    all.push(node_collector);
-                    Arc::new(adom_search::orchestrator::CompositeCollector::new(all))
-                };
             // C5: `META_RUST` troca a fonte de metadados (Node é o default e o
             // fallback).
-            let meta = stream_meta::meta_source(Some(
-                routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>
-            ));
+            let meta = stream_meta::meta_source(Some(routes.clone() as Arc<dyn InternalRoutes>));
             orch = orch
-                .with_collector(collector)
                 .with_tail(Arc::new(NodeTailEffects::new(routes.clone())))
                 .with_internal_routes(routes);
             if let Some(meta) = meta {
@@ -138,25 +130,7 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
             }
         }
         None => {
-            if !native_collectors.is_empty() {
-                eprintln!(
-                    "[gateway] {} sem rotas Node — collect nativo; meta/tail indisponíveis",
-                    sources_rust_label()
-                );
-                let collector: Arc<dyn adom_search::orchestrator::Collector> =
-                    if native_collectors.len() == 1 {
-                        native_collectors[0].clone()
-                    } else {
-                        Arc::new(adom_search::orchestrator::CompositeCollector::new(
-                            native_collectors,
-                        ))
-                    };
-                orch = orch.with_collector(collector);
-            } else {
-                eprintln!(
-                    "[gateway] stream nativo sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
-                );
-            }
+            eprintln!("[gateway] sem rotas Node — meta/tail indisponíveis");
             // C5: sem rotas internas o `META_RUST` ainda entrega metadados ao
             // corte (Cinemeta/TMDB nativos); com a flag OFF nada muda.
             if let Some(meta) = stream_meta::meta_source(None) {
@@ -167,15 +141,9 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
     orch = orch.with_debrid(Arc::new(
         AdapterDebridFactory::new(None).with_holds(holds_feed()),
     ));
-    // Inventário nativo da conta (F3). `ACCOUNT_RUST=off` (default) mantém
-    // `None`: a coleta da conta continua na tarefa Node.
-    if orch.config().account_mode.uses_native() {
-        eprintln!(
-            "[gateway] inventário da conta nativo: ACCOUNT_RUST={}",
-            orch.config().account_mode.as_str()
-        );
-        orch = orch.with_native_account();
-    }
+    // Inventário nativo da conta (F3): é a ÚNICA fonte da conta no corte.
+    eprintln!("[gateway] inventário da conta nativo");
+    orch = orch.with_native_account();
     // F4.4a — `bad`/`lie` do banco de magnets da conta lidos DIRETO do
     // `cache.db` (namespace `mag:v1`). Com coleta/índice nativos o item não
     // passa pela rota de evidência do Node, e sem esta fonte hash que o play
@@ -189,7 +157,7 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
             "[gateway] cache.db indisponível para bad/lie ({err}); build segue sem a poda nativa"
         ),
     }
-    wire_native_index(orch)
+    Ok(wire_native_index(orch))
 }
 
 /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF). Sem a flag,
@@ -241,13 +209,10 @@ fn wire_native_index(orch: Orchestrator) -> Orchestrator {
     orch
 }
 
-/// Store do `raw:v1` compartilhado com o Node (`data/cache.db`), aberto só
-/// quando o coletor BLUDV nativo está pedido. Falha de abertura → `None`
-/// (o caminho vivo segue sem cache bruto; a busca nunca cai).
+/// Store do `raw:v1` compartilhado com o Node (`data/cache.db`), consumido
+/// pelo coletor BLUDV nativo. Falha de abertura → `None` (o caminho vivo segue
+/// sem cache bruto; a busca nunca cai).
 fn open_bludv_raw_store() -> Option<Arc<dyn adom_search::RawStore>> {
-    if !sources_rust_includes("bludv") {
-        return None;
-    }
     match adom_store::RawCacheStore::from_env() {
         Ok(store) => {
             eprintln!(
@@ -260,21 +225,6 @@ fn open_bludv_raw_store() -> Option<Arc<dyn adom_search::RawStore>> {
             eprintln!("[gateway] raw:v1 indisponível ({err}); BLUDV sem cache bruto");
             None
         }
-    }
-}
-
-/// Rótulo de log dos collectors nativos ativos.
-fn sources_rust_label() -> String {
-    let mut active = Vec::new();
-    for token in ["jackett", "prowlarr", "torrentio", "bludv", "mico"] {
-        if sources_rust_includes(token) {
-            active.push(token);
-        }
-    }
-    if active.is_empty() {
-        "SOURCES_RUST".to_string()
-    } else {
-        format!("SOURCES_RUST={}", active.join("+"))
     }
 }
 

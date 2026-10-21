@@ -2,25 +2,24 @@
 //!
 //! Em produção o adaptador é [`NodeRoutes`], sobre o `InternalSearchClient`
 //! (loopback + `X-Indexer-Test-Token` + `encoded` no corpo). Em teste é um
-//! stub que devolve metadados/coleta/efeitos gravados — nenhuma chamada de
-//! rede, nenhum servidor.
+//! stub que devolve metadados/efeitos gravados — nenhuma chamada de rede,
+//! nenhum servidor.
 //!
-//! Índice de releases e banco de magnets NÃO passam mais por aqui (R4): são
-//! nativos (`IdxStore`/`MagnetBankStore`). O único resíduo do Node é o replay
-//! congelado (`fallback_injected`), que injeta o RESULTADO gravado do caso.
+//! Coleta, índice de releases e banco de magnets NÃO passam mais por aqui: são
+//! nativos (`Collector`/`IdxStore`/`MagnetBankStore`). O único resíduo do Node é
+//! o replay congelado (`fallback_injected`), que injeta o RESULTADO gravado do
+//! caso.
 //!
 //! Por que uma trait e não o cliente direto: os testes do orquestrador não
 //! podem depender de um Node no ar, e a fronteira do strangler é justamente
-//! esta — enquanto a coleta não migra, o "lado Node" é substituível.
+//! esta — o "lado Node" de metadados/efeitos é substituível.
 
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::internal_client::InternalSearchClient;
-use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
-};
+use crate::internal_types::{EffectsRequest, EffectsResponse, MetaRequest, MetaResponse};
 
 /// Futuro das rotas internas (boxed: trait object estável sem `async_trait`).
 pub type RouteFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, String>> + Send + 'a>>;
@@ -28,7 +27,6 @@ pub type RouteFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, String>> + S
 /// `POST /internal/search/*` do Node.
 pub trait InternalRoutes: Send + Sync {
     fn meta<'a>(&'a self, req: MetaRequest) -> RouteFuture<'a, MetaResponse>;
-    fn collect<'a>(&'a self, req: CollectRequest) -> RouteFuture<'a, CollectResponse>;
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse>;
 
     /// Itens da reserva 📦 JÁ CALCULADOS pelo Node (`collectFallbackForBuild`).
@@ -66,10 +64,6 @@ impl NodeRoutes {
 impl InternalRoutes for NodeRoutes {
     fn meta<'a>(&'a self, req: MetaRequest) -> RouteFuture<'a, MetaResponse> {
         Box::pin(async move { self.client.meta(&req).await })
-    }
-
-    fn collect<'a>(&'a self, req: CollectRequest) -> RouteFuture<'a, CollectResponse> {
-        Box::pin(async move { self.client.collect(&req).await })
     }
 
     fn effects<'a>(&'a self, req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {

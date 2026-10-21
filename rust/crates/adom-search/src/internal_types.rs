@@ -2,14 +2,14 @@
 //!
 //! Espelham o JSON real de `src/routes/internal-search*.ts`. Campos opacos
 //! (meta Cinemeta, RawItem cru, payloads de efeito) ficam em `Value` — o glue
-//! não reparseia o domínio; o orquestrador decide depois. Índice/banco não
-//! viajam mais pelo fio (R4): `ReleaseEntry` só alimenta a escrita NATIVA.
+//! não reparseia o domínio; o orquestrador decide depois. Índice/banco/coleta
+//! não viajam mais pelo fio: `ReleaseEntry` só alimenta a escrita NATIVA e
+//! `LiveSnapshot` só sobrevive como contrato de replay do gate congelado.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::collections::BTreeMap;
 
-/// Escopo de coleta (`collectRaw` taskScope).
+/// Escopo de coleta (`priority`/`nonpriority`/`all`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskScope {
@@ -77,14 +77,9 @@ pub struct MetaResponse {
 
 // ── collect ─────────────────────────────────────────────────────────────────
 
-#[path = "collect_request.rs"]
-mod collect_request;
-pub use collect_request::CollectRequest;
-
-fn default_true() -> bool {
-    true
-}
-
+/// Estado vivo POR indexer do lote (`live.snapshot()`), preservado só para o
+/// replay do gate congelado. `None` = fonte sem contrato vivo: ausência NUNCA
+/// prova sucesso.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LiveSnapshot {
     #[serde(default)]
@@ -95,50 +90,6 @@ pub struct LiveSnapshot {
     pub empty: Vec<String>,
     #[serde(default)]
     pub all: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct BreakerSnapshot {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub tripped: bool,
-    #[serde(default)]
-    pub state: String,
-    #[serde(default, rename = "failStreak")]
-    pub fail_streak: i64,
-    #[serde(default, rename = "failuresRequired")]
-    pub failures_required: i64,
-    #[serde(default, rename = "cooldownMs")]
-    pub cooldown_ms: i64,
-    #[serde(default, rename = "cooldownRemainingMs")]
-    pub cooldown_remaining_ms: i64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CollectResponse {
-    pub ok: bool,
-    pub task_scope: String,
-    pub query: String,
-    pub imdb_id: String,
-    #[serde(default)]
-    pub season: Option<i64>,
-    #[serde(default)]
-    pub episode: Option<i64>,
-    pub partial: bool,
-    /// Lote cru completo (`RawItem` no fio — Value opaco).
-    #[serde(default)]
-    pub items: Vec<Value>,
-    #[serde(default)]
-    pub by_indexer: BTreeMap<String, Vec<Value>>,
-    #[serde(default)]
-    pub live: Option<LiveSnapshot>,
-    #[serde(default)]
-    pub breaker: BTreeMap<String, BreakerSnapshot>,
-    /// `false` = a fonte não estava nos `providers` efetivos; o lote veio vazio
-    /// de propósito. Ausente em Node antigo vale `true` (compatibilidade).
-    #[serde(default = "default_true")]
-    pub eligible: bool,
 }
 
 // ── índice nativo ────────────────────────────────────────────────────────────

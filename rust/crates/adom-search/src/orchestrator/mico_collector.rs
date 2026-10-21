@@ -1,8 +1,8 @@
-//! Collect opt-in via `adom_sources::MicoClient` (`SOURCES_RUST=mico`).
+//! Collect nativo via `adom_sources::MicoClient`.
 //!
-//! Default OFF: produção continua em [`super::NodeCollector`]
-//! (`POST /internal/search/collect`). Mico é card virtual BR (consulta por
-//! IMDb): no TS entra como tarefa prioritária junto do BLUDV.
+//! Monta sempre que o cliente sobe; falha de boot → log e a fonte fica fora.
+//! Mico é card virtual BR (consulta por IMDb): no TS entra como tarefa
+//! prioritária junto do BLUDV.
 //!
 //! - `TaskScope::Nonpriority` → lote vazio (não é fonte global).
 //! - `late_sweep` → lote vazio (varredura pt-BR é caminho Jackett).
@@ -28,27 +28,18 @@ use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
 use crate::orchestrator::jackett_collector::process_title_precision_tail_cut;
 use crate::orchestrator::jackett_live::relevant_count;
 use crate::orchestrator::live_state::LiveBatchState;
-use crate::orchestrator::sources_rust::sources_rust_includes;
 use crate::raw_item::{known_size, RawItem};
 
 /// Chave do estado vivo da fonte (uma consulta só, como Prowlarr/Torrentio).
 pub const MICO_LIVE_KEY: &str = "mico";
 
-/// `SOURCES_RUST` contém o token `mico` (CSV, case-insensitive).
-pub fn sources_rust_includes_mico() -> bool {
-    sources_rust_includes("mico")
-}
-
-/// Monta o collector só quando o env pediu Mico nativo. Falha de boot do
-/// cliente → `None` + log (degrada para o caller usar NodeCollector).
+/// Monta o collector Mico. Falha de boot do cliente → `None` + log (a fonte
+/// fica fora; o gateway só falha se NENHUMA fonte nativa montar).
 pub fn try_mico_collector_from_env() -> Option<MicoCollector> {
-    if !sources_rust_includes_mico() {
-        return None;
-    }
     match MicoCollector::from_env() {
         Ok(c) => Some(c),
         Err(err) => {
-            eprintln!("[search] SOURCES_RUST=mico mas MicoClient falhou: {err}");
+            eprintln!("[search] Mico nativa indisponível: {err}");
             None
         }
     }

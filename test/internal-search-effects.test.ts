@@ -1,6 +1,6 @@
 // Testes das rotas internas em lote do orquestrador Rust:
 // POST /internal/search/effects.
-// Molde de `internal-search-collect.test.ts`: app mínimo com colaboradores
+// Molde de `internal-search-routes.test.ts`: app mínimo com colaboradores
 // trocados por stubs determinísticos (o teste prova o FIO da rota, não o
 // Jackett/debrid). O caminho 403 usa o middleware de personificação de
 // `remoteAddress`, que não existe em produção — a guarda real lê o socket.

@@ -7,7 +7,7 @@
 //!
 //! `raw:v1` (coletor BLUDV nativo) usa o MESMO `cache.db` do Node e a mesma
 //! chave/valor (`raw:v1:bludv:d|t:<q>` / `{"items":[…]}`): é o cache bruto
-//! compartilhado, lido/gravado só no caminho vivo (`SOURCES_RUST=bludv`).
+//! compartilhado, lido/gravado só no caminho vivo (coletor BLUDV nativo).
 //!
 //! O gateway (`adom-server`) abre o streams via `STREAMS_DB` (default
 //! `data/streams.db`) e o raw via `CACHE_DB_PATH` (default `data/cache.db`).

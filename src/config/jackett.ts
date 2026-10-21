@@ -80,7 +80,7 @@ export const jackett = () => ({
   ptSweepGlobal: String(process.env.JACKETT_PT_SWEEP_GLOBAL || 'true') === 'true',
   // Orçamento TOTAL (busca + resolução de magnets) dos que raspam site e
   // seguem protetor de link. PODE passar do REPLY_DEADLINE_MS: a resposta não
-  // espera por eles (collectRaw devolve o que chegou e o passe tardio
+  // espera por eles (a coleta nativa devolve o que chegou e o passe tardio
   // recacheia o lote completo). Abaixo de ~15s a busca FRIA não caberia — a
   // raspagem sozinha leva 5-6s e ainda faltam os saltos do protetor, e um
   // corte no meio disso descartava o indexer inteiro por falta de infoHash.

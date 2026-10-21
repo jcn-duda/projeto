@@ -5,26 +5,23 @@
 //!
 //! - **grupo BR/prioritário separado dos globais** — é a tarefa que ganha a
 //!   graça `BR_PARTIAL_GRACE_MS` quando só os globais chegaram (Disclosure Day);
-//! - **`task_scope`** é o seletor que a rota interna do Node entende
-//!   (`priority`/`nonpriority`/`all`), então uma tarefa por grupo espelha o
-//!   `collectRaw` sem repetir a consulta;
+//! - **`task_scope`** é o seletor do grupo (`priority`/`nonpriority`/`all`),
+//!   então uma tarefa por grupo espelha o plano sem repetir a consulta;
 //! - **prazo ABSOLUTO** (`deadline_at`, epoch ms) é o da RESPOSTA; quem subtrai
 //!   a reserva de debrid é a janela (`collection_budget`), não o job. Passar a
 //!   sobra já descontada faria o Node descontar de novo.
 //!
-//! A coleta em si é INJETADA ([`Collector`]): produção fala
-//! `POST /internal/search/collect`; teste usa stub. Falha de qualquer tarefa
-//! vira lote vazio + erro observado — nunca derruba a busca.
+//! A coleta em si é INJETADA ([`Collector`]): produção monta os coletores
+//! nativos; teste usa stub. Falha de qualquer tarefa vira lote vazio + erro
+//! observado — nunca derruba a busca.
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use adom_core::{live_indexers, plan_jackett_queries};
 use serde_json::Value;
 
-use crate::internal_types::{CollectRequest, TaskScope};
-use crate::orchestrator::internal_routes::InternalRoutes;
+use crate::internal_types::TaskScope;
 use crate::orchestrator::live_state::LiveBatchState;
 use crate::orchestrator::meta::SearchMeta;
 use crate::raw_item::RawItem;
@@ -358,107 +355,6 @@ pub fn sweep_job(
         dubbed_only: selection.dubbed_only,
         mico_default: selection.mico_default,
     })
-}
-
-/// Produção: `POST /internal/search/collect` (loopback + token + `encoded`).
-pub struct NodeCollector {
-    routes: Arc<dyn InternalRoutes>,
-    /// Fontes que o Node deve PULAR porque o coletor nativo já as cobre
-    /// (`SOURCES_RUST`). Vai no corpo como `skip_sources`.
-    skip_sources: Vec<String>,
-    /// O orquestrador coleta a conta do debrid numa tarefa PRÓPRIA
-    /// (`account_request_from_job`): o Node pula `account` nas demais, senão o
-    /// inventário (~100 ms) ficaria refém do indexer global mais lento.
-    skip_account: bool,
-}
-
-impl NodeCollector {
-    pub fn new(routes: Arc<dyn InternalRoutes>) -> Self {
-        NodeCollector {
-            routes,
-            skip_sources: Vec::new(),
-            skip_account: false,
-        }
-    }
-
-    /// A conta sai por tarefa separada (ver `skip_account`).
-    pub fn with_skip_account(mut self, skip: bool) -> Self {
-        self.skip_account = skip;
-        self
-    }
-
-    /// Fontes migradas para Rust: o Node não as consulta de novo.
-    pub fn with_skip_sources(mut self, sources: Vec<String>) -> Self {
-        self.skip_sources = sources;
-        self
-    }
-
-    async fn collect_batch(&self, job: CollectJob) -> Result<CollectBatch, String> {
-        let mut request = collect_request_from_job(job);
-        request.skip_sources = self.skip_sources.clone();
-        if self.skip_account {
-            request.skip_sources.push("account".to_string());
-        }
-        let response = self.routes.collect(request).await?;
-        Ok(CollectBatch {
-            items: response
-                .items
-                .iter()
-                .map(crate::raw_item::raw_item_from_value)
-                .collect(),
-            partial: response.partial,
-            // Contrato vivo completo do Node: failed, pending, empty e o
-            // agregado `all` — não só o vazio suspeito. `None` (rota sem
-            // `live`) segue sem provar nada.
-            live: response.live.as_ref().map(LiveBatchState::from_wire),
-        })
-    }
-}
-
-impl Collector for NodeCollector {
-    fn collect<'a>(
-        &'a self,
-        job: CollectJob,
-    ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
-        Box::pin(async move { self.collect_batch(job).await })
-    }
-}
-
-/// Fontes de indexer que o Node pula para coletar SÓ a conta do debrid.
-const NON_ACCOUNT_SOURCES: [&str; 5] = ["jackett", "prowlarr", "torrentio", "bludv", "mico"];
-
-/// Corpo da coleta só-da-conta: o mesmo `collectRaw`, com todas as fontes de
-/// indexer puladas. Sobra apenas a tarefa `account`.
-pub fn account_request_from_job(job: CollectJob) -> CollectRequest {
-    let mut request = collect_request_from_job(job);
-    request.task_scope = Some(TaskScope::All);
-    request.sweep_query = None;
-    request.skip_sources = NON_ACCOUNT_SOURCES.iter().map(|s| s.to_string()).collect();
-    request
-}
-
-/// Corpo de `POST /internal/search/collect` a partir do job.
-///
-/// Isolado para o teste exercer o contrato sem HTTP: `type` = movie|series,
-/// `task_scope` = all|priority|nonpriority (não misturar).
-pub fn collect_request_from_job(job: CollectJob) -> CollectRequest {
-    CollectRequest {
-        encoded: job.encoded,
-        query: job.query,
-        media_type: job.kind,
-        imdb: job.imdb_id,
-        deadline_at: job.deadline_at,
-        task_scope: Some(job.scope),
-        pt_query: job.pt_query,
-        season: job.season,
-        episode: job.episode,
-        year: job.year,
-        names: Some(job.names).filter(|names| !names.is_empty()),
-        sweep_query: job.sweep_query,
-        original_query: job.original_query,
-        multi_work_query: job.multi_work_query,
-        skip_sources: Vec::new(),
-    }
 }
 
 #[cfg(test)]

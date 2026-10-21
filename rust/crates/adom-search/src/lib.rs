@@ -3,18 +3,15 @@
 //! Já fixa o que dá sem I/O de fonte (caminho, chave SWR, contrato JSON), o
 //! **BUILD da lista** (`list_builder`) e a **orquestração** (`orchestrate`:
 //! meta → collect → build, com SWR/`inFlight` opcionais). O glue HTTP das
-//! rotas internas (`internal_client`) alimenta o orquestrador enquanto a rede
-//! ainda mora no TypeScript.
+//! rotas internas (`internal_client`) alimenta metadados/efeitos; a coleta é
+//! 100% nativa (Jackett/Prowlarr/Torrentio/BLUDV/Mico).
 //!
 //! O que este crate **NÃO faz** (de propósito, nesta fatia):
 //!
 //! - **não abre o socket HTTP**: o handler mora no `adom-server` (corte
 //!   `ROUTES_RUST=stream`); este crate só orquestra;
-//! - **coleta default ainda é Node** (`POST /internal/search/collect`);
-//!   opt-in `SOURCES_RUST=jackett|prowlarr|torrentio|bludv|mico` (CSV; exclusão
-//!   mútua — jackett > prowlarr > torrentio > bludv > mico; sem composição
-//!   multi-fonte nesta fatia) pluga collector nativo; metadados seguem nas
-//!   rotas `/internal/search/*`;
+//! - **não fala com a coleta do Node**: coletores nativos são a única fonte do
+//!   lote; metadados/efeitos seguem nas rotas `/internal/search/*`;
 //! - **não decide prazo sozinho**: recebe os milissegundos (Stremio × app) e
 //!   no collect manda `deadline_at` absoluto;
 //! - **não reproduz os defaults do operador**: `decode_user_config` aplica o
@@ -68,8 +65,8 @@ pub use collection_window::{
 pub use contract::{BehaviorHints, StreamItem, StreamResponse};
 pub use internal_client::{InternalSearchClient, DEFAULT_BASE, DEFAULT_TIMEOUT};
 pub use internal_types::{
-    BreakerSnapshot, CollectRequest, CollectResponse, EffectEntry, EffectsRequest, EffectsResponse,
-    LiveSnapshot, MetaRequest, MetaResponse, ReleaseEntry, TaskScope,
+    EffectEntry, EffectsRequest, EffectsResponse, LiveSnapshot, MetaRequest, MetaResponse,
+    ReleaseEntry, TaskScope,
 };
 pub use orchestrator::{Orchestrator, OrchestratorConfig, StreamRequest};
 pub use raw_item::raw_item_from_value;

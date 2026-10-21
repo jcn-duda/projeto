@@ -8,9 +8,8 @@
 //!   default — serviço do operador);
 //! - API key nunca em log nem em `Debug`.
 //!
-//! Collect do orquestrador: `adom-search::ProwlarrCollector` com
-//! `SOURCES_RUST=prowlarr` (default OFF; exclusão mútua jackett > prowlarr >
-//! torrentio > bludv > mico).
+//! Collect do orquestrador: `adom-search::ProwlarrCollector`, montado sempre no
+//! boot; fonte que falha na montagem loga e fica fora.
 
 mod client;
 mod config;

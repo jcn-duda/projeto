@@ -13,8 +13,6 @@ config.seed.enabled = false;
 import * as mico from '../src/providers/mico.js';
 import jackett, { effectiveJackettIndexers } from '../src/providers/jackett.js';
 import * as indexerStatus from '../src/providers/indexer-status.js';
-import { collectRaw } from '../src/providers/collect-orchestrator.js';
-import * as runtime from '../src/runtime.js';
 import * as harvestWorker from '../src/providers/harvest-worker.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import { stubFetch } from './helpers/stub.js';
@@ -206,45 +204,6 @@ test('card: entra no catálogo como BR e nunca vira consulta ao Jackett', async 
     } finally {
       stub.restore();
       config.jackett.apiKey = savedKey;
-    }
-  });
-});
-
-test('collectRaw: ji só com o card consulta o Mico e não o Jackett', async () => {
-  await withMico(async () => {
-    const savedKey = config.jackett.apiKey;
-    const savedBludv = config.bludv.enabled;
-    config.jackett.apiKey = 'test-key';
-    config.bludv.enabled = false;
-    const stub = stubFetch((url) => {
-      assert.match(url, /mico-leao.*\/stream\/movie\/tt7286456\.json$/, 'só o Mico é consultado');
-      return ok([{ title: 'Coringa 2019 1080p Dublado 👥 7', infoHash: H1 }]);
-    });
-    const requestOpts = {
-      ...runtime.normalize(null),
-      providers: ['jackett'],
-      jackettIndexers: ['mico'],
-      debridService: '',
-      debridApiKey: '',
-    };
-    try {
-      const result = await runtime.run({ opts: requestOpts, encoded: 'mico-card' }, () =>
-        collectRaw(
-          'Joker 2019',
-          'movie',
-          'tt7286456',
-          'Coringa 2019',
-          { names: ['Joker', 'Coringa'], year: 2019, isSeries: false, season: null, episode: null } as any,
-          null,
-          null,
-          Date.now() + 3000,
-        ));
-      assert.equal(stub.calls.length, 1);
-      assert.deepEqual(result.items.map((i: any) => i.indexer), ['mico']);
-    } finally {
-      stub.restore();
-      config.jackett.apiKey = savedKey;
-      config.bludv.enabled = savedBludv;
     }
   });
 });

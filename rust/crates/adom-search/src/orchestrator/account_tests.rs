@@ -1,6 +1,6 @@
 //! Testes do inventário NATIVO da conta (F3): sondas de áudio/origem, filtro
 //! de relevância, shape do item, fast-path, memo e a integração com a janela
-//! de coleta (sem a tarefa Node da conta).
+//! de coleta. A conta é SEMPRE nativa: não há modo nem tarefa Node.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -14,17 +14,13 @@ use serde_json::json;
 
 use super::{
     account_raw_items, br_origin_only, fast_path_decision, signals_of, try_native_account_source,
-    AccountInventorySource, AccountMode, AccountRequest, FastPathDecision, NativeAccountConfig,
+    AccountInventorySource, AccountRequest, FastPathDecision, NativeAccountConfig,
     NativeAccountSource,
 };
 use crate::collection_window::BatchMeta;
-use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
-};
 use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
 use crate::orchestrator::config::OrchestratorConfig;
 use crate::orchestrator::finish::SearchInput;
-use crate::orchestrator::internal_routes::{InternalRoutes, RouteFuture};
 use crate::orchestrator::meta::SearchMeta;
 use crate::orchestrator::Orchestrator;
 use crate::MemorySwrStore;
@@ -231,25 +227,12 @@ fn fast_path_com_prefer_dubbed_exige_cobertura() {
 }
 
 #[test]
-fn modo_parse_e_default_off() {
-    assert_eq!(AccountMode::parse(""), AccountMode::Off);
-    assert_eq!(AccountMode::parse("off"), AccountMode::Off);
-    assert_eq!(AccountMode::parse("on"), AccountMode::On);
-    assert_eq!(AccountMode::parse("true"), AccountMode::On);
-    assert_eq!(AccountMode::parse("1"), AccountMode::On);
-    assert_eq!(AccountMode::parse("qualquer"), AccountMode::Off);
-    assert_eq!(AccountMode::parse("shadow"), AccountMode::Off);
-    assert!(!AccountMode::Off.uses_native());
-    assert!(AccountMode::On.uses_native());
-    assert!(AccountMode::On.is_on());
-}
-
-#[test]
-fn fonte_nativa_so_e_montada_quando_o_modo_pede() {
-    let mut config = OrchestratorConfig::default();
-    assert!(try_native_account_source(&config).is_none());
-    config.account_mode = AccountMode::On;
-    assert!(try_native_account_source(&config).is_some());
+fn fonte_nativa_e_sempre_montada() {
+    let config = OrchestratorConfig::default();
+    assert!(
+        try_native_account_source(&config).is_some(),
+        "a fonte nativa é a única; não há modo para desligar"
+    );
 }
 
 // ── Memo do inventário (servidor falso em loopback) ────────────────────────
@@ -440,51 +423,6 @@ impl Collector for StubCollector {
     }
 }
 
-#[derive(Default)]
-struct CountingRoutes {
-    collect_calls: AtomicUsize,
-    last_skip_sources: Mutex<Vec<String>>,
-}
-
-impl CountingRoutes {
-    fn empty_collect(&self) -> CollectResponse {
-        CollectResponse {
-            ok: true,
-            task_scope: "all".into(),
-            query: String::new(),
-            imdb_id: String::new(),
-            season: None,
-            episode: None,
-            partial: false,
-            items: Vec::new(),
-            by_indexer: Default::default(),
-            live: None,
-            breaker: Default::default(),
-            eligible: true,
-        }
-    }
-}
-
-impl InternalRoutes for CountingRoutes {
-    fn meta<'a>(&'a self, _req: MetaRequest) -> RouteFuture<'a, MetaResponse> {
-        Box::pin(async { Err("não usado".into()) })
-    }
-
-    fn collect<'a>(&'a self, req: CollectRequest) -> RouteFuture<'a, CollectResponse> {
-        self.collect_calls.fetch_add(1, Ordering::SeqCst);
-        *self
-            .last_skip_sources
-            .lock()
-            .unwrap_or_else(|err| err.into_inner()) = req.skip_sources.clone();
-        let response = self.empty_collect();
-        Box::pin(async move { Ok(response) })
-    }
-
-    fn effects<'a>(&'a self, _req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
-        Box::pin(async { Err("não usado".into()) })
-    }
-}
-
 fn input() -> SearchInput {
     SearchInput {
         kind: "movie".into(),
@@ -502,24 +440,18 @@ fn input() -> SearchInput {
 }
 
 fn orchestrator(
-    mode: AccountMode,
     fast_path: bool,
     source: Option<Arc<StubInventory>>,
-    routes: Arc<CountingRoutes>,
     delay: Duration,
 ) -> Orchestrator {
-    // Um indexer selecionado garante o job base da conta (o `account_base` do
-    // collect sai do primeiro job não prioritário).
     let config = OrchestratorConfig {
-        account_mode: mode,
         account_fast_path: fast_path,
         selected_indexers: vec!["indexer-x".into()],
         sweep_enabled: false,
         ..OrchestratorConfig::default()
     };
     let orchestrator = Orchestrator::new(config, Arc::new(MemorySwrStore::new()))
-        .with_collector(Arc::new(StubCollector { delay }))
-        .with_internal_routes(routes);
+        .with_collector(Arc::new(StubCollector { delay }));
     match source {
         Some(source) => orchestrator.with_account_source(source),
         None => orchestrator,
@@ -527,38 +459,19 @@ fn orchestrator(
 }
 
 #[tokio::test]
-async fn modo_on_usa_a_fonte_nativa_e_nao_chama_a_conta_do_node() {
-    let routes = Arc::new(CountingRoutes::default());
-    let orch = orchestrator(
-        AccountMode::On,
-        false,
-        Some(stub_inventory()),
-        routes.clone(),
-        Duration::ZERO,
-    );
+async fn conta_nativa_entrega_itens_sem_rota_node() {
+    let orch = orchestrator(false, Some(stub_inventory()), Duration::ZERO);
     let (items, _partial, completion, _failed, _live) = orch
         .collect_scoped(&input(), &meta(&["Matrix"], 1999, None, None), None)
         .await;
     let all = completion.expect("completion").await.expect("lote");
     assert!(items.iter().any(|item| item.from_account));
     assert!(all.iter().any(|item| item.from_account));
-    assert_eq!(
-        routes.collect_calls.load(Ordering::SeqCst),
-        0,
-        "modo on não delega a conta ao Node"
-    );
 }
 
 #[tokio::test]
-async fn servico_desconhecido_nao_vira_fonte_nem_no_modo_on() {
-    let routes = Arc::new(CountingRoutes::default());
-    let orch = orchestrator(
-        AccountMode::On,
-        true,
-        Some(stub_inventory()),
-        routes.clone(),
-        Duration::ZERO,
-    );
+async fn servico_desconhecido_nao_vira_fonte_nativa() {
+    let orch = orchestrator(true, Some(stub_inventory()), Duration::ZERO);
     let mut input = input();
     input.options = json!({
         "debridService": "servico-x",
@@ -572,50 +485,11 @@ async fn servico_desconhecido_nao_vira_fonte_nem_no_modo_on() {
         items.iter().all(|item| !item.from_account),
         "serviço sem adaptador não tem inventário (debrid.current() nulo)"
     );
-    assert_eq!(routes.collect_calls.load(Ordering::SeqCst), 0);
-}
-
-#[tokio::test]
-async fn modo_off_mantem_a_tarefa_node_da_conta() {
-    let routes = Arc::new(CountingRoutes::default());
-    let orch = orchestrator(
-        AccountMode::Off,
-        false,
-        None,
-        routes.clone(),
-        Duration::ZERO,
-    );
-    let (_items, _partial, completion, _failed, _live) = orch
-        .collect_scoped(&input(), &meta(&["Matrix"], 1999, None, None), None)
-        .await;
-    let _ = completion.expect("completion").await;
-    assert_eq!(
-        routes.collect_calls.load(Ordering::SeqCst),
-        1,
-        "default continua no Node"
-    );
-    let skip = routes
-        .last_skip_sources
-        .lock()
-        .unwrap_or_else(|err| err.into_inner())
-        .clone();
-    assert_eq!(
-        skip,
-        vec!["jackett", "prowlarr", "torrentio", "bludv", "mico"],
-        "a tarefa Node da conta pula as fontes de indexer"
-    );
 }
 
 #[tokio::test]
 async fn fast_path_responde_antes_da_coleta_lenta() {
-    let routes = Arc::new(CountingRoutes::default());
-    let orch = orchestrator(
-        AccountMode::On,
-        true,
-        Some(stub_inventory()),
-        routes,
-        Duration::from_millis(300),
-    );
+    let orch = orchestrator(true, Some(stub_inventory()), Duration::from_millis(300));
     let start = Instant::now();
     let (_items, _partial, completion, _failed, _live) = orch
         .collect_scoped(&input(), &meta(&["Matrix"], 1999, None, None), None)
@@ -631,14 +505,7 @@ async fn fast_path_responde_antes_da_coleta_lenta() {
 
 #[tokio::test]
 async fn fast_path_desligado_espera_a_coleta() {
-    let routes = Arc::new(CountingRoutes::default());
-    let orch = orchestrator(
-        AccountMode::On,
-        false,
-        Some(stub_inventory()),
-        routes,
-        Duration::from_millis(150),
-    );
+    let orch = orchestrator(false, Some(stub_inventory()), Duration::from_millis(150));
     let start = Instant::now();
     let (_items, _partial, completion, _failed, _live) = orch
         .collect_scoped(&input(), &meta(&["Matrix"], 1999, None, None), None)

@@ -1,7 +1,6 @@
 use super::*;
 use crate::orchestrator::collect::CollectJob;
 use crate::orchestrator::live_state::LiveAllState;
-use crate::orchestrator::sources_rust::sources_rust_csv_includes;
 use adom_sources::ProwlarrConfig;
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -38,13 +37,6 @@ fn base_job() -> CollectJob {
         dubbed_only: false,
         mico_default: false,
     }
-}
-
-#[test]
-fn token_prowlarr_no_csv() {
-    assert!(sources_rust_csv_includes("prowlarr", "prowlarr"));
-    assert!(sources_rust_csv_includes("jackett,prowlarr", "prowlarr"));
-    assert!(!sources_rust_csv_includes("jackett", "prowlarr"));
 }
 
 /// O `_indexer`/`_tracker` do Node vêm do `tracker`; NUNCA de "prowlarr".

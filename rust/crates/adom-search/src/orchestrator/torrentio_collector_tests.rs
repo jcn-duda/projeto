@@ -10,14 +10,6 @@ use serde_json::json;
 use super::test_support::*;
 use super::*;
 use crate::orchestrator::live_state::LiveAllState;
-use crate::orchestrator::sources_rust::sources_rust_csv_includes;
-
-#[test]
-fn token_torrentio_no_csv() {
-    assert!(sources_rust_csv_includes("torrentio", "torrentio"));
-    assert!(sources_rust_csv_includes("jackett,torrentio", "torrentio"));
-    assert!(!sources_rust_csv_includes("jackett", "torrentio"));
-}
 
 /// `indexer:"torrentio"` (agregador), `tracker` do ⚙️, hash minúsculo,
 /// título/seeders/tamanho do payload e `fileIdx` preservado — o mesmo objeto

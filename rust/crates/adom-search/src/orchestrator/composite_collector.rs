@@ -1,21 +1,17 @@
-//! Coletor composto: combina collectors nativos (Rust) com o `NodeCollector`.
+//! Coletor composto: combina os collectors NATIVOS (Rust).
 //!
-//! Permite que fontes migradas para Rust (ex.: Jackett, Torrentio) rodem nativamente
-//! enquanto fontes não migradas e o inventário da conta continuam sendo colhidos
-//! via `NodeCollector` (`POST /internal/search/collect`).
-//!
-//! Os lotes são somados em paralelo, preservando os itens por indexer. O
-//! estado vivo é fundido por união; falha de subcoletor sem contrato por
-//! indexer entra como agregado `error` (conservador), nunca como sucesso.
+//! Fontes migradas (Jackett, Prowlarr, Torrentio, BLUDV, Mico) rodam nativas e
+//! são somadas em paralelo, preservando os itens por indexer. O estado vivo é
+//! fundido por união; falha de subcoletor sem contrato por indexer entra como
+//! agregado `error` (conservador), nunca como sucesso.
 //!
 //! PONTE ATÉ F2: os coletores nativos que ainda NÃO emitem estado
 //! (BLUDV/Mico) devolvem `CollectBatch { live: None }`. Enquanto eles não
 //! emitirem, a simples PRESENÇA de um lote sem contrato no composto também
 //! sintetiza `unknown_failure` (agregado `error`, sem nomes). Sem isso, o estado
-//! `ok` do `NodeCollector` faria os indexers nativos não citados parecerem
-//! respondedores e apagaria 📦/selos que o Node preservaria. Jackett (por
-//! indexer), Prowlarr e Torrentio (por fonte) já entregam `live` e não passam
-//! por aqui.
+//! `ok` de outra fonte faria os indexers nativos não citados parecerem
+//! respondedores e apagaria 📦/selos. Jackett (por indexer), Prowlarr e
+//! Torrentio (por fonte) já entregam `live` e não passam por aqui.
 
 use std::future::Future;
 use std::pin::Pin;

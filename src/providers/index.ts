@@ -5,8 +5,8 @@
 //
 // - `autofetchStatus`: snapshot do Chupim para o `/dashboard-status.json`;
 // - cobertura de pool: leitura pura usada por rotas internas e testes;
-// - observador da primeira resposta: tipo/helpers compartilhados com a coleta
-//   (`/internal/search/collect`) — a contagem em si agora é do núcleo.
+// - observador da primeira resposta: tipo/helpers compartilhados com os
+//   módulos de debrid que ainda os consomem — a contagem em si é do núcleo.
 import { autofetchRunnerStatus } from './autofetch-runner.js';
 import {
   firstObserverStep, createFirstObserver, firstObserverClaim, promoteFirstObserverEligible,

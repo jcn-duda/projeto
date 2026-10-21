@@ -10,13 +10,6 @@ process.env.CACHE_PERSIST = 'false';
 
 import config from '../src/config.js';
 import { liveIndexers, ptSweepIndexers } from '../src/providers/search-plan.js';
-import * as metrics from '../src/utils/metrics.js';
-import * as cache from '../src/utils/cache.js';
-import * as runtime from '../src/runtime.js';
-// O `/stream` do Node saiu no F4.4; a decisão de index-only que este teste cobra
-// é a da COLETA (`collectRaw`), que continua sendo a executada pelas rotas
-// internas do orquestrador nativo.
-import { collectRaw } from '../src/providers/collect-orchestrator.js';
 
 test('default JACKETT_INDEX_ONLY_INDEXERS inclui 1337x', () => {
   assert.ok(config.jackett.indexOnlyIndexers.includes('1337x'), '1337x é index-only por default');
@@ -54,50 +47,4 @@ test('ptSweepIndexers exclui index-only (mesmo filtro da varredura tardia e do c
     ptSweepIndexers(['thepiratebay', '1337x'], ['bludv-cardigann']),
     ['thepiratebay', '1337x'],
   );
-});
-
-// Integração: busca com o usuário selecionando APENAS o 1337x não reabre o
-// agregado /all do Jackett — cair no /all reabriria a porta que o filtro
-// index-only acabou de fechar (e o /all responde no ritmo do indexer mais
-// lento, exatamente o que se quer isolar).
-test('todos index-only selecionados: nenhuma consulta Jackett, sem fallback /all', async () => {
-  cache.clear();
-  metrics.reset();
-  const realFetch = globalThis.fetch;
-  const chamadas: string[] = [];
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const url = String(input);
-    chamadas.push(url);
-    if (url.includes('cinemeta')) {
-      return new Response(JSON.stringify({ meta: { name: 'Big Buck Bunny', year: '2008', type: 'movie' } }), { status: 200 });
-    }
-    if (url.includes('themoviedb.org')) {
-      return new Response(JSON.stringify({ movie_results: [] }), { status: 404 });
-    }
-    return new Response('', { status: 404 });
-  }) as typeof globalThis.fetch;
-  try {
-    const matchContext = {
-      names: ['Big Buck Bunny'], year: 2008, isSeries: false,
-      season: null, episode: null, released: null, firstAired: null,
-    };
-    await runtime.run(
-      {
-        opts: { ...runtime.normalize(null), providers: ['jackett'], jackettIndexers: ['1337x'] },
-        encoded: 'idxonly-1337x-all',
-      },
-      () => collectRaw(
-        'Big Buck Bunny 2008', 'movie', 'tt1254207', null, matchContext as any,
-        null, null, Date.now() + 5000,
-      ),
-    );
-    const jackettCalls = chamadas.filter((u) => u.includes('/api/v2.0/indexers/'));
-    assert.equal(jackettCalls.length, 0, 'nenhuma consulta Jackett na busca ao vivo');
-    const counter = metrics.snapshot().counters['search.indexonly.all'] || 0;
-    assert.equal(counter, 1, 'a obra segue para o colhedor pelo caminho de sempre');
-  } finally {
-    globalThis.fetch = realFetch;
-    cache.clear();
-    metrics.reset();
-  }
 });

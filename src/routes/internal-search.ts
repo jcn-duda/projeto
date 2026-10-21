@@ -1,6 +1,7 @@
 // Rotas internas de BUSCA (fatia F1.1) — POST /internal/search/meta. São as
 // leituras que o orquestrador Rust (`rust/crates/adom-search`) consome como
-// fallback do caminho nativo: metadados (Cinemeta+TMDB).
+// fallback do caminho nativo: metadados (Cinemeta+TMDB). A COLETA não passa
+// mais por aqui: desde o R5 ela é 100% nativa no gateway Rust.
 //
 // SEM config na URL: montada ANTES de /:userConfig em register.ts, junto das
 // rotas do sidecar (`internal-crawl-result`/`internal-activity`). O usuário vem
@@ -20,9 +21,6 @@ import type { AppServices } from './types.js';
 import { getMeta } from '../utils/cinemeta.js';
 import { getTitles } from '../utils/tmdb.js';
 import { startMultiWorkDiscovery, startHomeReleaseLookup } from '../providers/tmdb-multiwork.js';
-import { collectRaw } from '../providers/collect-orchestrator.js';
-import { handleCollect } from './internal-search-collect.js';
-import { breakerSnapshot } from '../providers/jackett-breaker.js';
 import { parseStremioId } from '../utils/format.js';
 import * as log from '../utils/logger.js';
 // Guarda/prazo compartilhados e as rotas de escrita/efeitos vivem nos irmãos
@@ -39,10 +37,6 @@ export { isLoopbackAddress } from './internal-search-shared.js';
 export interface InternalSearchCollaborators {
   getMeta: typeof getMeta;
   getTitles: typeof getTitles;
-  /** Coleta por taskScope (mesma assinatura do `collectRaw`); trocável em teste. */
-  collectRaw: typeof collectRaw;
-  /** Foto do circuit breaker por indexer; trocável em teste. */
-  breakerSnapshot: typeof breakerSnapshot;
 }
 
 /**
@@ -128,19 +122,12 @@ export function registerInternalSearch(
   const deps: InternalSearchCollaborators = {
     getMeta: overrides.getMeta ?? getMeta,
     getTitles: overrides.getTitles ?? getTitles,
-    collectRaw: overrides.collectRaw ?? collectRaw,
-    breakerSnapshot: overrides.breakerSnapshot ?? breakerSnapshot,
   };
   const json = express.json({ limit: '256kb' });
 
   router.post('/internal/search/meta', json, asyncRoute(async (req, res) => {
     if (rejectedByGuard(services, req, res)) return;
     await handleMeta(services, deps, req, res);
-  }));
-
-  router.post('/internal/search/collect', json, asyncRoute(async (req, res) => {
-    if (rejectedByGuard(services, req, res)) return;
-    await handleCollect(services, deps, req, res);
   }));
 
   // Efeitos do orquestrador (effects) — mesmo guarda, mesma posição no

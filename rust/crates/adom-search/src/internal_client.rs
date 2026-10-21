@@ -1,7 +1,7 @@
 //! Cliente HTTP das rotas internas de busca do Node
-//! (`POST /internal/search/{meta,collect,effects}`).
+//! (`POST /internal/search/{meta,effects}`).
 //!
-//! Índice/banco NÃO passam mais por aqui (R4): são nativos. Rede ainda no
+//! Índice/banco e coleta NÃO passam mais por aqui: são nativos. Rede ainda no
 //! Node: o orquestrador Rust fala em loopback com token no **header**
 //! (`X-Indexer-Test-Token`) e a config do usuário no **corpo** (`encoded`) —
 //! invariante: preferência nunca vem do `.env`; o Node restaura via
@@ -9,25 +9,19 @@
 //! pode cair.
 
 use std::net::IpAddr;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use adom_debrid::{Call, HttpClient};
 use reqwest::Method;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
-};
+use crate::internal_types::{EffectsRequest, EffectsResponse, MetaRequest, MetaResponse};
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
 pub const DEFAULT_BASE: &str = "http://127.0.0.1:7100";
-/// Teto HTTP de meta/effects. Collect **não** usa este teto: o timeout HTTP é
-/// `remaining + COLLECT_GRACE_MS` até o `deadline_at` absoluto (espelha o Node;
-/// collect longo pode passar de 15s).
+/// Teto HTTP de meta/effects.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(15_000);
-/// Folga de rede depois do prazo absoluto do collect (o Node já cortou).
-const COLLECT_GRACE_MS: u64 = 250;
 
 #[derive(Clone)]
 pub struct InternalSearchClient {
@@ -70,14 +64,6 @@ impl InternalSearchClient {
     pub async fn meta(&self, req: &MetaRequest) -> Result<MetaResponse, String> {
         self.post_ok("/internal/search/meta", req, self.timeout)
             .await
-    }
-
-    /// POST `/internal/search/collect` — um `taskScope` com prazo ABSOLUTO.
-    /// O timeout HTTP é `remaining + COLLECT_GRACE_MS` (sem teto de 15s);
-    /// já vencido devolve `Err` sem ir à rede (espelha o 400 do Node).
-    pub async fn collect(&self, req: &CollectRequest) -> Result<CollectResponse, String> {
-        let timeout = timeout_until(req.deadline_at)?;
-        self.post_ok("/internal/search/collect", req, timeout).await
     }
 
     /// POST `/internal/search/effects` — fire-and-forget; espera **202**.
@@ -136,17 +122,6 @@ impl InternalSearchClient {
     }
 }
 
-/// Timeout HTTP do collect a partir de `deadline_at` (epoch ms).
-/// Sem `min(DEFAULT_TIMEOUT)` — o prazo absoluto manda. Já vencido → Err.
-fn timeout_until(deadline_at_ms: i64) -> Result<Duration, String> {
-    let remaining = deadline_at_ms.saturating_sub(now_ms());
-    if remaining <= 0 {
-        return Err("deadline_at já venceu".into());
-    }
-    let budget = Duration::from_millis((remaining as u64).saturating_add(COLLECT_GRACE_MS));
-    Ok(budget.max(Duration::from_millis(1)))
-}
-
 /// Só loopback: token + encoded não saem para host externo (espelha
 /// `InternalCheckClient` em adom-debrid).
 fn ensure_loopback(base: &str) -> Result<(), String> {
@@ -175,13 +150,6 @@ fn ensure_loopback(base: &str) -> Result<(), String> {
         return Err(format!("INTERNAL_SEARCH_URL só aceita loopback: {base}"));
     }
     Ok(())
-}
-
-fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

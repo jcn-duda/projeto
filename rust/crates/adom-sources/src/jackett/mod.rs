@@ -15,9 +15,9 @@
 //! - **Falha**: rede/timeout/HTTP → `[]` ou [`QueryOutcome`] honesto; nunca
 //!   panic. A API key nunca entra em log nem em `Debug`.
 //!
-//! Integração no collect: `adom-search::JackettCollector` com
-//! `SOURCES_RUST=jackett` (default OFF). Fora desta fatia: cache `raw:v1`,
-//! pré-resolve BR do núcleo e captura do banco de magnets.
+//! Integração no collect: `adom-search::JackettCollector`, montado sempre no
+//! boot; fonte que falha na montagem loga e fica fora. Fora desta fatia: cache
+//! `raw:v1`, pré-resolve BR do núcleo e captura do banco de magnets.
 
 mod breaker;
 mod client;

@@ -64,8 +64,8 @@ function yearOf(value: number | string | null | undefined): number | null {
 }
 
 /**
- * Prova de qualidade para o consumidor NATIVO (`/internal/search/collect`; a
- * antiga rota `index` saiu no R4): o item sai com `provenQuality` — o campo que
+ * Prova de qualidade para o consumidor NATIVO (a coleta roda no gateway Rust
+ * desde o R5): o item sai com `provenQuality` — o campo que
  * o `RawItem` do Rust já lê (`map_stream` usa antes do título) e que decide o
  * balde de qualidade do `limit_reserving_br`.
  *

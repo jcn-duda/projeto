@@ -13,7 +13,9 @@
 //! ficou de fora por construção.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -21,15 +23,14 @@ use serde_json::Value;
 
 use adom_core::StreamDisplayConfig;
 
-use crate::internal_types::{
-    CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, MetaRequest, MetaResponse,
-};
+use crate::internal_types::{EffectsRequest, EffectsResponse, MetaRequest, MetaResponse};
 use crate::list_builder::{BuildOptions, DebridAnswer, DebridCheck};
-use crate::orchestrator::collect::NodeCollector;
+use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
 use crate::orchestrator::config::{
     build_options_from, DebridContext, DebridFactory, OrchestratorConfig,
 };
 use crate::orchestrator::internal_routes::{InternalRoutes, RouteFuture};
+use crate::orchestrator::live_state::LiveBatchState;
 use crate::orchestrator::meta::NodeMetaSource;
 use crate::orchestrator::respond::StreamRequest;
 use crate::orchestrator::tail::NoopTailEffects;
@@ -1143,46 +1144,43 @@ impl FrozenRoutes {
     }
 }
 
+/// Coletor de REPLAY do corpus: entrega o lote gravado do caso com a mesma
+/// forma que o antigo coletor Node produzia (itens, `partial` e `live`),
+/// sem HTTP. O gate mede o orquestrador REAL; só a fronteira de coleta é
+/// substituída pelo dado congelado.
+struct ReplayCollector {
+    routes: Arc<FrozenRoutes>,
+}
+
+impl ReplayCollector {
+    fn new(routes: Arc<FrozenRoutes>) -> Self {
+        ReplayCollector { routes }
+    }
+}
+
+impl Collector for ReplayCollector {
+    fn collect<'a>(
+        &'a self,
+        job: CollectJob,
+    ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
+        Box::pin(async move {
+            let batch = self
+                .routes
+                .batch(job.scope.as_str(), job.season, job.episode);
+            Ok(CollectBatch {
+                items: batch.items.iter().map(raw_item_from_value).collect(),
+                partial: batch.partial,
+                // Contrato vivo completo (failed/pending/empty/aggregate);
+                // `None` no caso segue sem provar nada.
+                live: batch.live.as_ref().map(LiveBatchState::from_wire),
+            })
+        })
+    }
+}
+
 impl InternalRoutes for FrozenRoutes {
     fn meta<'a>(&'a self, _req: MetaRequest) -> RouteFuture<'a, MetaResponse> {
         Box::pin(async move { Ok(self.meta.clone()) })
-    }
-
-    fn collect<'a>(&'a self, req: CollectRequest) -> RouteFuture<'a, CollectResponse> {
-        Box::pin(async move {
-            let scope = req
-                .task_scope
-                .map(|scope| match scope {
-                    crate::internal_types::TaskScope::All => "all",
-                    crate::internal_types::TaskScope::Priority => "priority",
-                    crate::internal_types::TaskScope::Nonpriority => "nonpriority",
-                })
-                .unwrap_or("all");
-            let mut by_indexer: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-            let batch = self.batch(scope, req.season, req.episode);
-            for item in &batch.items {
-                let indexer = item
-                    .get("indexer")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_string();
-                by_indexer.entry(indexer).or_default().push(item.clone());
-            }
-            Ok(CollectResponse {
-                ok: true,
-                task_scope: scope.to_string(),
-                query: req.query,
-                imdb_id: req.imdb,
-                season: req.season,
-                episode: req.episode,
-                partial: batch.partial,
-                items: batch.items,
-                by_indexer,
-                live: batch.live,
-                breaker: BTreeMap::new(),
-                eligible: true,
-            })
-        })
     }
 
     fn effects<'a>(&'a self, _req: EffectsRequest) -> RouteFuture<'a, EffectsResponse> {
@@ -1359,12 +1357,11 @@ async fn replay(
     let build_totals = frozen.build_totals.clone();
     let applied_fields = frozen.applied_fields.clone();
     let fast_path = frozen.fast_path_lote();
-    let routes: Arc<dyn InternalRoutes> = Arc::new(frozen.routes());
+    let frozen_routes = Arc::new(frozen.routes());
+    let routes: Arc<dyn InternalRoutes> = frozen_routes.clone();
     let mut orchestrator = Orchestrator::new(config, Arc::new(MemorySwrStore::new()))
         .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
-        .with_collector(Arc::new(
-            NodeCollector::new(routes.clone()).with_skip_account(true),
-        ))
+        .with_collector(Arc::new(ReplayCollector::new(frozen_routes)))
         .with_internal_routes(routes)
         .with_debrid(Arc::new(debrid))
         .with_files_by_hash(files)

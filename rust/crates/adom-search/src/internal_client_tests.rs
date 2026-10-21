@@ -1,8 +1,7 @@
 //! Servidor falso (axum) — prova token no header, `encoded` no body, parse
 //! do shape real e HTTP erro ≠ sucesso. Nunca panic no cliente.
-
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use axum::body::Body;
 use axum::extract::State;
@@ -15,8 +14,8 @@ use serde_json::{json, Value};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-use super::{InternalSearchClient, DEFAULT_TIMEOUT};
-use crate::internal_types::{CollectRequest, MetaRequest, TaskScope};
+use super::InternalSearchClient;
+use crate::internal_types::MetaRequest;
 
 const TOKEN: &str = "tok-internal-search";
 const ENCODED: &str = "eyJwIjoiamFja2V0dCJ9";
@@ -63,27 +62,6 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
             "meta": { "name": "Filme", "year": "2024", "type": "movie" },
             "titles": { "pt": "Filme", "en": "Movie", "original": null, "br": [], "year": "2024" },
         }),
-        "/internal/search/collect" => json!({
-            "ok": true,
-            "task_scope": "priority",
-            "query": "Filme",
-            "imdb_id": "tt0000001",
-            "season": null,
-            "episode": null,
-            "partial": true,
-            "items": [{ "title": "Filme 2024", "infoHash": "a".repeat(40), "indexer": "bludv", "isBr": true }],
-            "by_indexer": {
-                "bludv": [{ "title": "Filme 2024", "infoHash": "a".repeat(40), "indexer": "bludv", "isBr": true }]
-            },
-            "live": { "failed": ["thepiratebay"], "pending": [], "empty": ["eztv"], "all": "ok" },
-            "breaker": {
-                "bludv": {
-                    "enabled": true, "tripped": false, "state": "fechado",
-                    "failStreak": 0, "failuresRequired": 3,
-                    "cooldownMs": 0, "cooldownRemainingMs": 0
-                }
-            }
-        }),
         "/internal/search/effects" => {
             return (
                 StatusCode::ACCEPTED,
@@ -99,7 +77,6 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
 async fn serve(seen: Arc<Seen>) -> String {
     let app = Router::new()
         .route("/internal/search/meta", post(catch_all))
-        .route("/internal/search/collect", post(catch_all))
         .route("/internal/search/effects", post(catch_all))
         .with_state(seen);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -112,13 +89,6 @@ async fn serve(seen: Arc<Seen>) -> String {
 
 fn client(base: &str) -> InternalSearchClient {
     InternalSearchClient::new(base, TOKEN, Duration::from_millis(2_000)).unwrap()
-}
-
-fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 #[tokio::test]
@@ -150,78 +120,6 @@ async fn meta_manda_token_no_header_e_encoded_no_body() {
 }
 
 #[tokio::test]
-async fn collect_leva_deadline_e_task_scope() {
-    let seen = Arc::new(Seen::default());
-    let base = serve(seen.clone()).await;
-    let deadline = now_ms() + 5_000;
-    let res = client(&base)
-        .collect(&CollectRequest {
-            encoded: ENCODED.into(),
-            query: "Filme".into(),
-            media_type: "movie".into(),
-            imdb: "tt0000001".into(),
-            deadline_at: deadline,
-            task_scope: Some(TaskScope::Priority),
-            pt_query: Some("Filme".into()),
-            season: None,
-            episode: None,
-            year: Some(json!(2024)),
-            names: None,
-            sweep_query: None,
-            original_query: None,
-            multi_work_query: None,
-            skip_sources: Vec::new(),
-        })
-        .await
-        .unwrap();
-    let body = seen.bodies.lock().await.first().cloned().unwrap();
-    assert_eq!(body["encoded"], json!(ENCODED));
-    assert_eq!(
-        body["type"],
-        json!("movie"),
-        "Node valida type=movie|series"
-    );
-    assert_eq!(body["task_scope"], json!("priority"));
-    assert_eq!(body["deadline_at"], json!(deadline));
-    assert!(res.partial);
-    assert_eq!(res.task_scope, "priority");
-    assert_eq!(res.items.len(), 1);
-    assert!(res.by_indexer.contains_key("bludv"));
-    assert_eq!(
-        res.live.as_ref().map(|l| l.failed.clone()),
-        Some(vec!["thepiratebay".into()])
-    );
-}
-
-#[tokio::test]
-async fn collect_deadline_vencido_nao_chama_rede() {
-    let seen = Arc::new(Seen::default());
-    let base = serve(seen.clone()).await;
-    let err = client(&base)
-        .collect(&CollectRequest {
-            encoded: ENCODED.into(),
-            query: "Filme".into(),
-            media_type: "movie".into(),
-            imdb: "tt0000001".into(),
-            deadline_at: now_ms() - 1_000,
-            task_scope: None,
-            pt_query: None,
-            season: None,
-            episode: None,
-            year: None,
-            names: None,
-            sweep_query: None,
-            original_query: None,
-            multi_work_query: None,
-            skip_sources: Vec::new(),
-        })
-        .await
-        .unwrap_err();
-    assert!(err.contains("deadline"), "{err}");
-    assert!(seen.bodies.lock().await.is_empty());
-}
-
-#[tokio::test]
 async fn http_erro_nao_vira_sucesso() {
     let seen = Arc::new(Seen::default());
     *seen.status.lock().await = 503;
@@ -239,20 +137,5 @@ async fn http_erro_nao_vira_sucesso() {
     assert!(
         err.contains("503") || err.contains("boom") || err.contains("HTTP"),
         "{err}"
-    );
-}
-
-#[test]
-fn collect_timeout_nao_capa_em_default() {
-    let deadline = now_ms() + 60_000;
-    let budget = super::timeout_until(deadline).unwrap();
-    assert!(
-        budget > DEFAULT_TIMEOUT,
-        "collect deve respeitar deadline longo sem min(15s): {budget:?}"
-    );
-    // remaining (~60s) + grace; margem larga só contra jitter de relógio
-    assert!(
-        budget >= Duration::from_millis(55_000),
-        "budget ≈ remaining+grace: {budget:?}"
     );
 }
