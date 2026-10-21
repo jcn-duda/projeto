@@ -22,7 +22,7 @@ use serde_json::Value;
 /// instalação veio com config na URL.
 ///
 /// `kind`/`id` são os do protocolo (`movie`/`series` e `tt…` ou `tt…:s:e`),
-/// **crus**: percent-decode é do roteador HTTP, não deste parser.
+/// já com o percent-encoding desfeito (o `:` do id de série chega `%3A`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StreamTarget {
     pub kind: String,
@@ -64,23 +64,26 @@ fn is_config_segment(segment: &str) -> bool {
 ///
 /// Rejeições deliberadas (sem panic): caminho vazio, query/fragmento (o parser
 /// recebe PATH, não URL), `.json` ausente, tipo ou id vazios, segmentos extras
-/// (`/:extra.json`, que esta fatia ainda não lê) e `%` não decodificado.
+/// (`/:extra.json`, que esta fatia ainda não lê) e percent-encoding malformado.
+///
+/// O `uri().path()` do hyper chega CRU e o Stremio/app mandam o id de série
+/// como `tt…%3A1%3A1`: cada segmento é decodificado aqui, como o
+/// `decodeURIComponent` que o Express aplica aos parâmetros. Sem isso o gateway
+/// não reconhecia a rota e repassava a série ao Node, que responde 410.
 pub fn parse_stream_path(path: &str) -> Option<StreamTarget> {
     // PATH puro: o roteador já separou a query. Aceitar `?`/`#` aqui
     // esconderia um chamador passando URL inteira e mudaria o alvo em silêncio.
     if path.contains('?') || path.contains('#') || !path.starts_with('/') {
         return None;
     }
-    let mut raw: Vec<&str> = Vec::new();
+    let mut decoded: Vec<String> = Vec::new();
     for segment in path[1..].split('/') {
         if segment.is_empty() {
             return None;
         }
-        raw.push(segment);
+        decoded.push(percent_decode_segment(segment)?);
     }
-    if raw.iter().any(|s| s.contains('%')) {
-        return None;
-    }
+    let raw: Vec<&str> = decoded.iter().map(String::as_str).collect();
 
     let (encoded, rest) = match raw.as_slice() {
         // `["stream", type, "<id>.json"]`
@@ -103,6 +106,34 @@ pub fn parse_stream_path(path: &str) -> Option<StreamTarget> {
         id: id.to_string(),
         encoded: encoded.map(str::to_string),
     })
+}
+
+/// `%XX` → byte, depois UTF-8. Malformado (hex inválido, `%` truncado, UTF-8
+/// quebrado) é `None`, como o 400 do Express. `%2F`/`%3F`/`%23` decodificados
+/// também são `None`: virariam separador de caminho/URL num id que vai para a
+/// chave de cache e para as rotas internas.
+fn percent_decode_segment(segment: &str) -> Option<String> {
+    if !segment.contains('%') {
+        return Some(segment.to_string());
+    }
+    let bytes = segment.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let hex = std::str::from_utf8(bytes.get(i + 1..i + 3)?).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    let text = String::from_utf8(out).ok()?;
+    if text.contains(['/', '?', '#']) {
+        return None;
+    }
+    Some(text)
 }
 
 /// Decodifica o segmento base64url em `Value`, como `runtime.decode`.
@@ -195,7 +226,10 @@ mod tests {
             "/stream//tt1.json",                   // tipo vazio
             "/stream/movie/.json",                 // id vazio
             "/stream/movie/tt1.json?x=1",          // query no parser de PATH
-            "/stream/movie/tt%31.json",            // percent-encoding não decodificado
+            "/stream/movie/tt%3.json",             // `%` truncado
+            "/stream/movie/tt%ZZ1.json",           // hex inválido
+            "/stream/movie/tt%FF.json",            // UTF-8 quebrado
+            "/stream/movie/tt%2F1.json",           // `/` codificado no id
             "/con fig/stream/movie/tt1.json",      // config com espaço
             "/stream/stream/movie/tt1.json",       // 4 segmentos sem config válida
         ] {
@@ -207,6 +241,28 @@ mod tests {
     fn caminho_aceita_id_com_dois_pontos() {
         let target = parse_stream_path("/stream/series/tt0903747:1:1.json").unwrap();
         assert_eq!(target.id, "tt0903747:1:1");
+    }
+
+    /// Stremio e o app mandam o `:` da série como `%3A` (e o hyper não
+    /// decodifica): sem decodificar aqui a série caía no Node e voltava 410.
+    #[test]
+    fn caminho_decodifica_dois_pontos_codificados() {
+        for path in [
+            "/stream/series/tt2356777%3A1%3A1.json",
+            "/stream/series/tt2356777%3a1%3a1.json",
+        ] {
+            let target = parse_stream_path(path).expect("deveria casar");
+            assert_eq!(target.id, "tt2356777:1:1", "{path}");
+        }
+        let target =
+            parse_stream_path("/eyJwIjoiamFja2V0dCJ9/stream/series/tt2356777%3A1%3A1.json")
+                .unwrap();
+        assert_eq!(target.encoded.as_deref(), Some("eyJwIjoiamFja2V0dCJ9"));
+        assert_eq!(target.id, "tt2356777:1:1");
+        assert_eq!(
+            parse_stream_path("/stream/movie/tt%31.json").unwrap().id,
+            "tt1"
+        );
     }
 
     #[test]

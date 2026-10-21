@@ -30,6 +30,17 @@ async fn stream_nativo_responde_sem_tocar_o_upstream() {
     let (status, _) = call(gateway, req).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(hits.0.load(Ordering::SeqCst), 0);
+
+    // Série com `:` codificado (como Stremio e app mandam) também corta: antes
+    // caía no upstream e o Node respondia 410.
+    let req = Request::builder()
+        .uri("/e30/stream/series/tt2356777%3A1%3A1.json")
+        .header(HOST, "publico.example")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = call(gateway, req).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
