@@ -1,9 +1,9 @@
 //! Metadados da obra (Cinemeta + TMDB + coleção multiobra) — a matéria-prima
 //! do plano de busca e do build.
 //!
-//! A rede é do Node (`POST /internal/search/meta`, rota da F1.1) por DEFAULT;
-//! com `META_RUST` ligado quem responde é o `NativeMetaSource` (clientes puros
-//! de `adom-sources`). O que este módulo faz é a PARTE PURA do `doSearch`:
+//! A rede é do `NativeMetaSource` (clientes puros de `adom-sources`); o Node
+//! (`POST /internal/search/meta`, rota da F1.1) é o FALLBACK. O que este módulo
+//! faz é a PARTE PURA do `doSearch`:
 //! `resolveSearchNames`, `buildSearchQuery`, o degrau do título original, a
 //! query da varredura pt-BR e o `resolveMultiWork` — todas funções do núcleo,
 //! chamadas aqui na mesma ordem do TS (`search-orchestrator.ts:101-119`).
@@ -151,12 +151,13 @@ pub struct MetaQuery {
     pub deadline_at_ms: Option<i64>,
 }
 
-/// Fonte de metadados injetada. Produção: [`NodeMetaSource`]; testes: stub.
+/// Fonte de metadados injetada. Produção: `NativeMetaSource`, com
+/// [`NodeMetaSource`] de FALLBACK; testes: stub.
 pub trait MetaSource: Send + Sync {
     fn resolve<'a>(&'a self, req: MetaQuery) -> RouteFuture<'a, SearchMeta>;
 }
 
-/// Produção: a rota interna do Node.
+/// FALLBACK de produção: a rota interna do Node.
 pub struct NodeMetaSource {
     routes: Arc<dyn InternalRoutes>,
 }

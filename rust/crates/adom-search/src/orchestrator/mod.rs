@@ -123,8 +123,7 @@ pub use live_state::{
 };
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
 pub use meta_native::{
-    flag_enabled, meta_from_lookup, meta_rust_enabled, FallbackMetaSource, NativeMetaSource,
-    DEFAULT_LOOKUP_TIMEOUT_MS, META_RUST_ENV,
+    meta_from_lookup, FallbackMetaSource, NativeMetaSource, DEFAULT_LOOKUP_TIMEOUT_MS,
 };
 pub use mico_collector::{try_mico_collector_from_env, MicoCollector};
 pub use prowlarr_collector::{try_prowlarr_collector_from_env, ProwlarrCollector};

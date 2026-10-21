@@ -12,7 +12,7 @@
 //!   E sem temporada E não demo. A data alimenta o corte pré-home-release do
 //!   filtro de título.
 //!
-//! A flag `META_RUST` decide QUEM responde; a montagem é a mesma
+//! Quem responde é o nativo, com o Node de FALLBACK; a montagem é a mesma
 //! ([`super::meta::build_search_meta`]).
 
 use serde_json::Value;

@@ -145,16 +145,6 @@ fn query_pt_usa_o_ano_do_tmdb_nao_o_ano_escolhido() {
     assert_eq!(meta.pt_query.as_deref(), Some("Duna 2021"));
 }
 
-#[test]
-fn flag_meta_rust_e_off_por_padrao() {
-    assert!(!flag_enabled(""));
-    assert!(!flag_enabled("off"));
-    assert!(flag_enabled("on"));
-    assert!(flag_enabled("TRUE"));
-    assert!(flag_enabled("1"));
-    assert!(flag_enabled("yes"));
-}
-
 // ── Fallback Node ──────────────────────────────────────────────────────────
 
 struct Stub {

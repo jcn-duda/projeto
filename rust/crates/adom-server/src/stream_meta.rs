@@ -1,37 +1,34 @@
 //! Montagem da fonte de metadados do `/stream` nativo (C5).
 //!
-//! Default: `NodeMetaSource` (rota interna), como antes. `META_RUST` troca a
-//! fonte pela implementação pura de `adom-sources`, com o Node como FALLBACK
-//! (rede fora/título não resolvido) e o `cache.db` do Node como store — os
+//! O nativo (`adom-sources`) é SEMPRE a fonte primária: clientes puros de
+//! Cinemeta/TMDB + coleção/data, com o `cache.db` do Node como store — os
 //! valores são gravados no MESMO formato (`meta:`, `tmdb:`, `tmdbc:`, `tmdbh:`),
 //! então reinício/queda não esfriam metadados nem mudam o que o Node lê.
 //!
-//! Rollback: `META_RUST=` (vazio/OFF) volta ao Node. A flag não altera o
-//! caminho Node default nem a rota interna `/internal/search/meta`.
+//! Com rotas internas o Node entra como FALLBACK (rede fora/título não
+//! resolvido) via [`FallbackMetaSource`] — ele fica até haver medida da taxa de
+//! fallback. Sem rotas, o nativo responde sozinho.
 
 use std::sync::Arc;
 
 use adom_search::orchestrator::{
-    meta_rust_enabled, FallbackMetaSource, InternalRoutes, MetaSource, NativeMetaSource,
-    NodeMetaSource,
+    FallbackMetaSource, InternalRoutes, MetaSource, NativeMetaSource, NodeMetaSource,
 };
 use adom_sources::{MemoryMetaStore, MetaSources, MetaStore, SourcesConfig};
 use adom_store::MetaCacheStore;
 
 /// Fonte de produção do `/stream`.
 ///
-/// `None` = nem Node nem nativo (o `Orchestrator` mantém o `IdOnlyMeta`, que
-/// nunca inventa consulta).
+/// Nativo primeiro; com rotas internas o Node responde só quando o nativo falha
+/// (ou volta sem nome). `None` = nenhuma fonte montou (o `Orchestrator` mantém o
+/// `IdOnlyMeta`, que nunca inventa consulta).
 pub fn meta_source(routes: Option<Arc<dyn InternalRoutes>>) -> Option<Arc<dyn MetaSource>> {
-    let node: Option<Arc<dyn MetaSource>> = routes
-        .clone()
-        .map(|routes| Arc::new(NodeMetaSource::new(routes)) as Arc<dyn MetaSource>);
-    if !meta_rust_enabled() {
-        return node;
-    }
-
+    let node: Option<Arc<dyn MetaSource>> =
+        routes.map(|routes| Arc::new(NodeMetaSource::new(routes)) as Arc<dyn MetaSource>);
     let Some(native) = native_source() else {
-        eprintln!("[gateway] META_RUST ligado, mas a fonte nativa não montou; usando Node");
+        if node.is_some() {
+            eprintln!("[gateway] metadados nativos não montaram; usando Node");
+        }
         return node;
     };
     let Some(node) = node else {

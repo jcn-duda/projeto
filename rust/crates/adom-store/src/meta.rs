@@ -1,7 +1,7 @@
 //! Persistência SQLite dos metadados (`meta:`, `tmdb:`, `tmdbc:`, `tmdbh:`) no
 //! MESMO `cache.db` do Node.
 //!
-//! O caminho nativo (`META_RUST`) não pode viver de memória: meta/títulos que
+//! O caminho nativo dos metadados não pode viver de memória: meta/títulos que
 //! sobrevivem ao restart são a diferença entre a primeira busca depois de uma
 //! queda pagar Cinemeta + TMDB de novo (e o título pt-BR, que destrava os
 //! indexadores BR, chegar atrasado) ou nascer quente. Mais importante: os

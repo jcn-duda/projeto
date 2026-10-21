@@ -113,8 +113,8 @@ impl Default for SourcesConfig {
 
 impl SourcesConfig {
     /// Config de produção lida do ambiente — as MESMAS envs do Node
-    /// (`src/config/providers.ts`), para o caminho nativo (`META_RUST`) não
-    /// divergir do oráculo. `TMDB_API_KEY` vazio desliga o TMDB (fail-open, como
+    /// (`src/config/providers.ts`), para o caminho nativo não divergir do
+    /// oráculo. `TMDB_API_KEY` vazio desliga o TMDB (fail-open, como
     /// no TS). Números inválidos caem no default, nunca em zero acidental.
     pub fn from_env() -> Self {
         Self::from_lookup(|key| std::env::var(key).ok())

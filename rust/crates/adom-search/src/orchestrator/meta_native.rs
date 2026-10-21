@@ -1,5 +1,5 @@
-//! Fonte NATIVA de metadados (`META_RUST`, default OFF) — os clientes puros de
-//! `adom-sources` no lugar de `POST /internal/search/meta`.
+//! Fonte NATIVA de metadados — os clientes puros de `adom-sources` no lugar de
+//! `POST /internal/search/meta`.
 //!
 //! Contrato com o caminho Node:
 //!
@@ -17,8 +17,9 @@
 //! - **fail-open**: `lookup` nunca devolve erro; campo sem resposta fica `None`.
 //!   O `Orchestrator` ainda cobre o caso de erro com o `SearchMeta::from_id`.
 //!
-//! O que a flag NÃO muda: a fonte Node continua sendo o default e o
-//! [`FallbackMetaSource`] a usa quando o nativo falha (ou volta sem nome).
+//! O Node segue no caminho como FALLBACK: o [`FallbackMetaSource`] o chama
+//! quando o nativo falha (ou volta sem nome) — a rede de segurança fica até
+//! haver medida da taxa de fallback.
 
 use std::sync::Arc;
 
@@ -31,29 +32,9 @@ use super::meta::{
     build_search_meta, first_year, MetaParts, MetaQuery, MetaSource, MetaTitles, SearchMeta,
 };
 
-/// Env que liga a fonte nativa de metadados.
-pub const META_RUST_ENV: &str = "META_RUST";
-
 /// Prazo do lookup quando a requisição não traz deadline (passe tardio): teto
 /// curto, nunca maior que o orçamento de uma busca normal.
 pub const DEFAULT_LOOKUP_TIMEOUT_MS: i64 = 5_000;
-
-/// `env` truthy (`1|true|on|yes`), como o `env_flag` do Node.
-pub fn flag_enabled(raw: &str) -> bool {
-    matches!(
-        raw.trim().to_ascii_lowercase().as_str(),
-        "1" | "true" | "on" | "yes"
-    )
-}
-
-/// `META_RUST` ligado? **Ausente = ON** (default do F4.4: o nativo é a fonte e
-/// a rota interna do Node é o fallback). `META_RUST=` (vazio), `off`, `0` ou
-/// qualquer valor não-flag devolvem o caminho de referência (rollback por env).
-pub fn meta_rust_enabled() -> bool {
-    std::env::var(META_RUST_ENV)
-        .map(|raw| flag_enabled(&raw))
-        .unwrap_or(true)
-}
 
 /// Fonte nativa: `MetaSources` (Cinemeta + TMDB + coleção/data) já montados com
 /// store injetado (SQLite `cache.db` em produção, memória nos testes).

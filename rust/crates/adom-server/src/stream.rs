@@ -93,8 +93,8 @@ fn open_stream_stores_at(path: &Path) -> StreamStores {
 /// Falha de boot: se NENHUMA fonte nativa montar, devolve `Err` — o gateway
 /// recusa subir em vez de responder lista vazia para sempre. Fonte que falha
 /// sozinha loga `[search] <fonte> nativa indisponível` e fica fora (reduz
-/// resultado, nunca derruba a busca). Meta/tail continuam no Node quando as
-/// rotas internas existem; `META_RUST` troca a fonte de metadados.
+/// resultado, nunca derruba a busca). Metadados são nativos, com o Node de
+/// FALLBACK; os efeitos de cauda continuam no Node quando as rotas existem.
 pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, String> {
     let config = orchestrator_config_from_env();
     let mut orch = Orchestrator::new(config, stores.swr);
@@ -119,8 +119,8 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, Str
     match NodeRoutes::from_env() {
         Some(routes) => {
             let routes = Arc::new(routes);
-            // C5: `META_RUST` troca a fonte de metadados (Node é o default e o
-            // fallback).
+            // C5: fonte nativa de metadados, com o Node de FALLBACK (rede
+            // fora/título não resolvido).
             let meta = stream_meta::meta_source(Some(routes.clone() as Arc<dyn InternalRoutes>));
             orch = orch
                 .with_tail(Arc::new(NodeTailEffects::new(routes.clone())))
@@ -130,9 +130,9 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, Str
             }
         }
         None => {
-            eprintln!("[gateway] sem rotas Node — meta/tail indisponíveis");
-            // C5: sem rotas internas o `META_RUST` ainda entrega metadados ao
-            // corte (Cinemeta/TMDB nativos); com a flag OFF nada muda.
+            eprintln!("[gateway] sem rotas Node — tail indisponível; metadados só nativos");
+            // C5: sem rotas internas o nativo é a única fonte de metadados
+            // (Cinemeta/TMDB); não há para onde cair.
             if let Some(meta) = stream_meta::meta_source(None) {
                 orch = orch.with_meta(meta);
             }
