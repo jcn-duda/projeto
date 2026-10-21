@@ -290,45 +290,6 @@ async fn corte_de_prazo_parcial_continua_em_fundo_e_grava_no_store() {
     assert_eq!(collector.calls(), 1);
 }
 
-// ── Sombra §9.1 (compare-only) ─────────────────────────────────────────────
-
-#[tokio::test]
-async fn shadow_mode_nao_checa_debrid_nem_grava_store_nem_dispara_tail() {
-    let store = Arc::new(MemorySwrStore::new());
-    let collector = StubCollector::with(vec![item(HASH)]);
-    let tail = Arc::new(RecordingTail::default());
-    // StubDebrid marcaria o hash como cached → URL /resolve; shadow_mode força
-    // NoDebridCheck e ignora a fábrica.
-    let orch = orchestrator(config(), store.clone(), collector.clone(), &[HASH])
-        .with_tail(tail.clone())
-        .with_shadow_mode(true);
-    assert!(orch.shadow_mode());
-
-    let resposta = orch.handle(request(1_000_000)).await;
-    assert_eq!(resposta.streams.len(), 1);
-    assert!(
-        resposta.streams[0].info_hash.is_some(),
-        "sem debrid o stream fica P2P (infoHash)"
-    );
-    assert!(
-        resposta.streams[0].url.is_none(),
-        "shadow_mode não materializa /resolve"
-    );
-
-    let key = entry_key(&orch);
-    assert!(
-        store.get_with_stale(&key, 300, 1_000_000).is_none(),
-        "shadow_mode não grava SWR"
-    );
-
-    tokio::time::sleep(Duration::from_millis(80)).await;
-    assert!(
-        tail.index_writes().is_empty(),
-        "shadow_mode não dispara index-write / effects"
-    );
-    assert_eq!(collector.calls(), 1);
-}
-
 // ── Efeitos de cauda (`EFFECTS_RUST`) ──────────────────────────────────────
 
 /// Item BR dublado em cache: é o que o `applyDebrid` interroga/ esquenta.

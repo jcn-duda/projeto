@@ -267,9 +267,6 @@ impl Orchestrator {
     /// regras do núcleo (`late_promotion_decision`). `live` é o estado FINAL da
     /// coleta; a decisão só lê `has_any_failure`/`needs_fallback`, como o TS.
     fn promote_late(&self, input: &SearchInput, live: Option<&LiveBatchState>) {
-        if self.shadow_mode {
-            return;
-        }
         let now = input.now_ms;
         // `cache.get` do TS: entrada expirada some (graça 0).
         let Some(hit) = self.store.get_with_stale(&input.key, 0, as_ms(now)) else {

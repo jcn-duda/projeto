@@ -15,7 +15,7 @@ use crate::raw_item::RawItem;
 use crate::request::encoded_for_internal;
 use crate::resolve_url::ResolveSigner;
 
-use super::config::{build_options_from, DebridContext, NoDebridCheck, OrchestratorConfig};
+use super::config::{build_options_from, DebridContext, OrchestratorConfig};
 use super::meta::SearchMeta;
 use super::respond::as_ms;
 use super::trace::{self, new_trace};
@@ -59,7 +59,7 @@ pub(super) fn finish_value(
     built: crate::list_builder::BuiltList,
     meta: &SearchMeta,
     partial: bool,
-    // A checagem rodou? Sombra (§9.1) suprime o debrid: `Unknown` não é
+    // A checagem rodou? Sem debrid ativo ninguém pergunta: `Unknown` não é
     // degradação, é ausência de pergunta.
     debrid_checked: bool,
     debrid: &DebridContext,
@@ -318,23 +318,17 @@ impl Orchestrator {
         let store = self.store.clone();
         let key = input.key.clone();
         let now = input.now_ms;
-        let shadow = self.shadow_mode;
         let (value, _commit) = writer.run(
             phase,
             || {
-                // Sombra: nunca pergunta ao debrid (nem via fábrica injetada).
-                let mut check: Box<dyn crate::list_builder::DebridCheck + Send> = if shadow {
-                    Box::new(NoDebridCheck)
-                } else {
-                    self.debrid.make(&debrid_ctx)
-                };
+                let mut check = self.debrid.make(&debrid_ctx);
                 let built =
                     build_stream_list(items, &ctx, &opts, &mut *check, &self.config.display);
                 finish_value(
                     built,
                     meta,
                     partial,
-                    !shadow,
+                    true,
                     &debrid_ctx,
                     &input.key,
                     &signer,
@@ -345,9 +339,6 @@ impl Orchestrator {
             },
             |value: &FinishValue| !value.entry.streams.is_empty(),
             |value: &FinishValue| {
-                if shadow {
-                    return;
-                }
                 if value.commit_write {
                     let entry = to_cacheable_entry(&value.entry);
                     store.set(&key, &entry, value.commit_ttl.max(0) as u64, as_ms(now));
@@ -384,8 +375,9 @@ impl Orchestrator {
             show_uncached_br: bool_of(&input.options, "showUncachedBr"),
             // Operador, não usuário: `DEBRID_RESOLVE_UNCACHED`.
             debrid_resolve_uncached: self.config.resolve_uncached,
-            // Sombra: NoDebridCheck responde Unknown sem ter perguntado.
-            debrid_check_disabled: self.shadow_mode,
+            // A checagem sempre roda no modo normal; o campo permanece no
+            // `BuildContext` até a limpeza das sombras por fatia (R1b).
+            debrid_check_disabled: false,
             // Data de estreia do episódio (epoch ms): liga a guarda de pré-air
             // de 48 h e a de episódio não exibido. Vem do `episodeAired` real
             // (Cinemeta) nas DUAS fontes de metadados.

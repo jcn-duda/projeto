@@ -172,9 +172,6 @@ pub struct Orchestrator {
     tail: Arc<dyn TailEffects>,
     in_flight: Arc<InFlight<Arc<SearchOutcome>>>,
     refreshing: Arc<Mutex<HashSet<String>>>,
-    /// `true` = sombra §9.1: sem debrid, sem gravar SWR, sem fila tardia /
-    /// index-write / effects / refresh em fundo. Só produz corpo para comparar.
-    shadow_mode: bool,
     /// Rotas internas do Node (`/internal/search/*`), para leitura de metadados,
     /// índice de releases e banco instantâneo.
     routes: Option<Arc<dyn InternalRoutes>>,
@@ -244,7 +241,6 @@ impl Orchestrator {
             tail: Arc::new(NoopTailEffects),
             in_flight: Arc::new(InFlight::new()),
             refreshing: Arc::new(Mutex::new(HashSet::new())),
-            shadow_mode: false,
             routes: None,
             files_by_hash: Arc::new(BTreeMap::new()),
             totals_by_hash: Arc::new(BTreeMap::new()),
@@ -305,16 +301,9 @@ impl Orchestrator {
         self
     }
 
-    /// Liga o modo sombra (§9.1): compare-only — sem efeitos colaterais.
-    pub fn with_shadow_mode(mut self, enabled: bool) -> Self {
-        self.shadow_mode = enabled;
-        self
-    }
-
     /// Liga coleta/metadados/efeitos no cliente HTTP das rotas internas.
     pub fn with_routes(mut self, routes: Arc<dyn InternalRoutes>) -> Self {
-        self.collector =
-            Arc::new(NodeCollector::new(routes.clone()).with_skip_account(!self.shadow_mode));
+        self.collector = Arc::new(NodeCollector::new(routes.clone()).with_skip_account(true));
         self.meta = Arc::new(NodeMetaSource::new(routes.clone()));
         self.tail = Arc::new(NodeTailEffects::new(routes.clone()));
         self.routes = Some(routes);
@@ -384,11 +373,6 @@ impl Orchestrator {
         &self.config
     }
 
-    /// `true` quando montado para sombra compare-only (§9.1).
-    pub fn shadow_mode(&self) -> bool {
-        self.shadow_mode
-    }
-
     /// Quantas buscas estão coalescendo agora (snapshot do painel).
     pub fn searches_in_flight(&self) -> usize {
         self.in_flight.len()
@@ -420,8 +404,7 @@ impl Orchestrator {
             .get_with_stale(&key, self.config.stale_grace_seconds, as_ms(now));
         match swr_lookup(hit) {
             SwrLookup::Serve { entry, revalidate } => {
-                // Sombra não revalida em fundo (não grava cache / não CHAMa debrid).
-                if revalidate && !self.shadow_mode {
+                if revalidate {
                     self.spawn_stale_refresh(key.clone(), req.clone(), options.clone());
                 }
                 return self.respond_entry(&entry, &req);
@@ -470,7 +453,7 @@ impl Orchestrator {
     /// registra a chave da lista por temporada ANTES de olhar o cache — o hit
     /// do SWR também registra. Fire-and-forget: a resposta nunca espera.
     fn emit_season_key(&self, req: &StreamRequest, options: &Value, key: &str) {
-        if !self.config.effects_enabled || self.shadow_mode || req.kind != "series" {
+        if !self.config.effects_enabled || req.kind != "series" {
             return;
         }
         let parsed = adom_core::parse_stremio_id(&req.id);

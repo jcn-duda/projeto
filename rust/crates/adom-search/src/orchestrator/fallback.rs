@@ -269,10 +269,7 @@ impl Orchestrator {
         let out = collect_fallback(&core_input(resp, meta, live, live_hashes));
         // Sombra do banco (`BANK_RUST=shadow`): o Node responde; o nativo lê as
         // mesmas linhas em fundo e compara os conjuntos. Nunca segura o cliente.
-        if self.config.bank_mode == super::index_source::IndexMode::Shadow
-            && !self.shadow_mode
-            && self.bank.is_some()
-        {
+        if self.config.bank_mode == super::index_source::IndexMode::Shadow && self.bank.is_some() {
             self.spawn_bank_shadow(
                 input.clone(),
                 meta.clone(),

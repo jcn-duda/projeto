@@ -6,8 +6,7 @@ use serde_json::json;
 #[tokio::test]
 async fn stream_nativo_responde_sem_tocar_o_upstream() {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway =
-        spawn_gateway_state(gateway_state_native(upstream, false, stub_orchestrator())).await;
+    let gateway = spawn_gateway_state(gateway_state_native(upstream, stub_orchestrator())).await;
 
     let req = Request::builder()
         .uri("/stream/movie/tt0133093.json")
@@ -44,84 +43,9 @@ async fn stream_nativo_responde_sem_tocar_o_upstream() {
 }
 
 #[tokio::test]
-async fn canario_direto_compara_corte_com_node_sem_captura() {
-    use std::time::Duration;
-
-    use crate::canary::{
-        Canary, Mode, COMPARED, DIRECT, DIVERGENCE, NATIVE_CUT, NATIVE_NOTICE, SAMPLED,
-    };
-
-    let (upstream, hits) = spawn_stream_upstream().await;
-    let mut state = gateway_state_native(upstream, false, stub_orchestrator());
-    // Direct sem base congelada: o canário não pode exigir STREAM_FROZEN_*.
-    state.canary = Canary::with_mode(100, Mode::Direct, None);
-    let metrics = state.canary.metrics().clone();
-    let gateway = spawn_gateway_state(state).await;
-
-    let req = Request::builder()
-        .uri("/stream/movie/tt0133093.json")
-        .header(HOST, "publico.example")
-        .body(Body::empty())
-        .unwrap();
-    let (status, body) = call(gateway, req).await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(body.contains("streams"), "corpo do corte: {body}");
-
-    // A comparação roda em tokio::spawn: espera o contador fechar.
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
-    loop {
-        if metrics.snapshot()[COMPARED] == 1 {
-            break;
-        }
-        assert!(
-            tokio::time::Instant::now() < deadline,
-            "canário direto não comparou: {:?}",
-            metrics.snapshot()
-        );
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
-    assert_eq!(
-        hits.0.load(Ordering::SeqCst),
-        1,
-        "uma segunda request ao Node"
-    );
-    let snap = metrics.snapshot();
-    assert_eq!(snap[DIRECT], 1);
-    assert_eq!(snap[SAMPLED], 1);
-    assert_eq!(snap[COMPARED], 1);
-    // O stub do corte responde sem lista e o Node com uma: divergência real.
-    assert_eq!(snap[DIVERGENCE], 1);
-    assert_eq!(snap[NATIVE_CUT], 1, "contador nativo roda sem Node");
-    assert_eq!(snap[NATIVE_NOTICE], 1);
-}
-
-#[tokio::test]
-async fn metrics_preserva_contadores_da_sombra_ao_mesclar_o_canario() {
-    let (upstream, _hits) = spawn_upstream().await;
-    let state = gateway_state(upstream, false, true);
-    state.shadow_metrics.inc(COMPARED, 2);
-    state.shadow_metrics.inc(DIVERGENCE, 1);
-    let gateway = spawn_gateway_state(state).await;
-
-    let req = Request::builder()
-        .uri("/metrics")
-        .body(Body::empty())
-        .unwrap();
-    let (status, body) = call(gateway, req).await;
-    assert_eq!(status, StatusCode::OK);
-    let snap: Value = serde_json::from_str(&body).unwrap();
-    // O snapshot do canário é mesclado DEPOIS; ele não pode semear
-    // `stream.shadow.*` com zero (regressão da janela §9.4).
-    assert_eq!(snap[COMPARED], 2);
-    assert_eq!(snap[DIVERGENCE], 1);
-    assert_eq!(snap[crate::canary::PERCENT], 0);
-}
-
-#[tokio::test]
 async fn stream_nativo_path_nao_stream_continua_proxy() {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway =
-        spawn_gateway_state(gateway_state_native(upstream, false, stub_orchestrator())).await;
+    let gateway = spawn_gateway_state(gateway_state_native(upstream, stub_orchestrator())).await;
 
     let req = Request::builder()
         .uri("/manifest.json")
@@ -136,32 +60,9 @@ async fn stream_nativo_path_nao_stream_continua_proxy() {
 }
 
 #[tokio::test]
-async fn stream_nativo_tem_prioridade_sobre_shadow() {
-    let (upstream, hits) = spawn_upstream().await;
-    let state = gateway_state_native(upstream, true, stub_orchestrator());
-    let metrics = state.shadow_metrics.clone();
-    let gateway = spawn_gateway_state(state).await;
-
-    let req = Request::builder()
-        .uri("/stream/movie/tt0133093.json")
-        .header(HOST, "publico.example")
-        .body(Body::empty())
-        .unwrap();
-    let (status, body) = call(gateway, req).await;
-    assert_eq!(status, StatusCode::OK);
-    let json: Value = serde_json::from_str(&body).unwrap();
-    assert!(json.get("streams").is_some());
-    // Sem proxy → sombra do Node não roda.
-    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
-    tokio::task::yield_now().await;
-    assert_eq!(metrics.get(DIVERGENCE), 0);
-    assert_eq!(metrics.get(DIVERGENCE_ITEMS), 0);
-}
-
-#[tokio::test]
 async fn stream_nativo_false_ainda_proxy() {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state(upstream, false, false)).await;
+    let gateway = spawn_gateway_state(gateway_state(upstream, false)).await;
     let req = Request::builder()
         .uri("/stream/movie/tt0133093.json")
         .header(HOST, "publico.example")
@@ -232,22 +133,8 @@ fn config_rejeita_upstream_sem_host() {
     )
     .unwrap();
     assert!(ok.native_health);
-    assert!(!ok.stream_shadow);
     assert!(!ok.stream_native);
     assert!(!ok.resolve_rust);
-
-    let shadow = Config::parse(
-        "127.0.0.1:9",
-        "http://127.0.0.1:7100",
-        "health,stream-shadow",
-        false,
-        true,
-        String::new(),
-    )
-    .unwrap();
-    assert!(shadow.native_health);
-    assert!(shadow.stream_shadow);
-    assert!(!shadow.stream_native);
 
     let native = Config::parse(
         "127.0.0.1:9",
@@ -258,7 +145,6 @@ fn config_rejeita_upstream_sem_host() {
         String::new(),
     )
     .unwrap();
-    assert!(!native.stream_shadow);
     assert!(native.stream_native);
 
     let resolve = Config::parse(
@@ -284,16 +170,8 @@ fn gateway_on_so_com_valor_exato() {
     assert!(!crate::gateway_on("ON"));
 }
 
-#[test]
-fn shadow_metrics_snapshot_expoe_chaves_zeradas() {
-    let snap = ShadowMetrics::new().snapshot();
-    assert_eq!(snap.get(DIVERGENCE), Some(&0));
-    assert_eq!(snap.get(DIVERGENCE_ITEMS), Some(&0));
-    assert_eq!(snap.get(shadow::COMPARED), Some(&0));
-}
-
 #[tokio::test]
-async fn metrics_expoe_canario_do_corte_zerado() {
+async fn metrics_expoe_checagem_alldebrid_zerada() {
     let (upstream, _hits) = spawn_upstream().await;
     let gateway = spawn_gateway(upstream, false).await;
     let metrics_req = Request::builder()
@@ -303,13 +181,14 @@ async fn metrics_expoe_canario_do_corte_zerado() {
     let (status, body) = call(gateway, metrics_req).await;
     assert_eq!(status, StatusCode::OK);
     let snap: Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(snap[crate::canary::PERCENT], 0);
-    assert_eq!(snap[SAMPLED], 0);
-    assert_eq!(snap[crate::canary::DIVERGENCE], 0);
-    assert_eq!(snap[crate::canary::ERROR], 0);
     // Namespace da checagem AllDebrid nativa × Node, zerado por padrão.
     assert_eq!(snap["debrid.al.shadow.compared"], 0);
     assert_eq!(snap["debrid.al.native.checks"], 0);
+    // As famílias das sombras por fatia (R1b) continuam no snapshot.
+    assert!(snap.get("source.shadow.compared").is_some());
+    assert!(snap.get("meta.shadow.compared").is_some());
+    assert!(snap.get("account.rust.fetch").is_some());
+    assert!(snap.get("index.rust.lookup").is_some());
 }
 
 #[tokio::test]

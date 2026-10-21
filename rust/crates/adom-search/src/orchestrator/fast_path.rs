@@ -182,9 +182,7 @@ impl Orchestrator {
         let resp = routes.search_index(req).await.ok()?;
         // Sombra do índice: o Node responde; o nativo recomputa em fundo e
         // compara conjunto/cobertura/ordem/efeitos. NUNCA segura o cliente.
-        if self.config.index_mode == super::index_source::IndexMode::Shadow
-            && !self.shadow_mode
-            && self.index.is_some()
+        if self.config.index_mode == super::index_source::IndexMode::Shadow && self.index.is_some()
         {
             self.spawn_index_shadow(input.clone(), meta.clone(), resp.clone());
         }

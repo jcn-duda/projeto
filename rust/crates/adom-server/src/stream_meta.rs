@@ -27,9 +27,7 @@ use adom_store::MetaCacheStore;
 /// Fonte de produção do `/stream`.
 ///
 /// `None` = nem Node nem nativo (o `Orchestrator` mantém o `IdOnlyMeta`, que
-/// nunca inventa consulta). `shadow_mode` (sombra §9.1) NÃO liga a sombra de
-/// metadados: ela comparararia nativo × nativo, e o corpo do `/stream` da
-/// sombra precisa continuar sendo o do Node.
+/// nunca inventa consulta).
 pub fn meta_source(routes: Option<Arc<dyn InternalRoutes>>) -> Option<Arc<dyn MetaSource>> {
     let node: Option<Arc<dyn MetaSource>> = routes
         .clone()

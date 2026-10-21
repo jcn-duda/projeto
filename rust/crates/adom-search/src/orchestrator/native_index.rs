@@ -69,9 +69,7 @@ impl Orchestrator {
         meta: &SearchMeta,
     ) -> Option<super::fast_path::FastPath> {
         let outcome = self.native_index_scan(input, meta, true).await;
-        if !self.shadow_mode {
-            self.emit_index_follow_up(input, meta, &outcome).await;
-        }
+        self.emit_index_follow_up(input, meta, &outcome).await;
         if outcome.instant_eligible {
             let mut items: Vec<RawItem> = outcome.instant_items.clone();
             items.extend(outcome.index_items.iter().cloned());

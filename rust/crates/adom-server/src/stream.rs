@@ -1,21 +1,19 @@
 //! Corte nativo de `/stream` (`ROUTES_RUST` contém o token exato `stream`).
 //!
-//! Prioridade sobre `stream-shadow`: com o corte ligado o cliente NÃO passa pelo
-//! Node nem pela sombra. A rede de coleta/metadados ainda mora no Node via
-//! `POST /internal/search/*` (`InternalSearchClient` / `NodeRoutes`).
+//! A rede de coleta/metadados mora no Node via `POST /internal/search/*`
+//! (`InternalSearchClient` / `NodeRoutes`).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::body::Body;
 use axum::response::IntoResponse;
-use bytes::Bytes;
 use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, USER_AGENT};
 use http::{HeaderMap, Method, Request, Response, StatusCode};
 
 use adom_search::orchestrator::{
-    sources_rust_includes, AdapterDebridFactory, NoDebridFactory, NodeMetaSource, NodeRoutes,
-    NodeTailEffects, NoopTailEffects, Orchestrator, StreamRequest,
+    sources_rust_includes, AdapterDebridFactory, NodeRoutes, NodeTailEffects, Orchestrator,
+    StreamRequest,
 };
 use adom_search::{
     FallbackCheck, HoldsFeed, MemorySwrStore, NodeHoldsFeed, NodeInternalFallback, StreamResponse,
@@ -102,7 +100,7 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Orchestrator {
     let config = orchestrator_config_from_env();
     let mut orch = Orchestrator::new(config, stores.swr);
     // `raw:v1` do BLUDV: SÓ no caminho vivo. O store é o mesmo `cache.db` que
-    // o Node usa (chave/valor idênticos); a sombra nem o abre.
+    // o Node usa (chave/valor idênticos).
     let raw_store = open_bludv_raw_store();
     let native =
         adom_search::orchestrator::try_sources_rust_native_from_env_with_bludv_store(raw_store);
@@ -300,77 +298,6 @@ fn open_bludv_raw_store() -> Option<Arc<dyn adom_search::RawStore>> {
     }
 }
 
-/// Store da sombra: memória fresca — nunca [`open_swr_store`] / `STREAMS_DB`.
-fn new_shadow_swr_store() -> Arc<dyn SwrStore> {
-    Arc::new(MemorySwrStore::new())
-}
-
-/// Orquestrador da sombra (§9.1): compare-only.
-///
-/// - store **isolado em memória** — nunca abre `STREAMS_DB` (SWR hit / DELETE
-///   de `get_with_stale` no SQLite do nativo furaria o compare-only);
-/// - `shadow_mode` — não grava SWR, não promove, não revalida/tail em fundo;
-/// - `NoDebridFactory` — sem check de debrid (nem reserva Node);
-/// - `NoopTailEffects` — sem index-write / effects (mesmo com `with_routes`).
-///
-/// Não devolve nada ao cliente; o proxy só observa o corpo.
-pub fn build_shadow_orchestrator() -> Orchestrator {
-    let store = new_shadow_swr_store();
-    let mut orch = Orchestrator::new(orchestrator_config_from_env(), store)
-        .with_shadow_mode(true)
-        .with_debrid(Arc::new(NoDebridFactory));
-    let native = adom_search::orchestrator::try_sources_rust_native_from_env();
-    let skip_sources: Vec<String> = native.iter().map(|(t, _)| t.to_string()).collect();
-    let native_collectors: Vec<Arc<dyn adom_search::orchestrator::Collector>> =
-        native.into_iter().map(|(_, c)| c).collect();
-    match NodeRoutes::from_env() {
-        Some(routes) => {
-            let routes = Arc::new(routes);
-            let node_collector = Arc::new(
-                adom_search::orchestrator::NodeCollector::new(routes.clone())
-                    .with_skip_sources(skip_sources.clone()),
-            );
-            let collector: Arc<dyn adom_search::orchestrator::Collector> =
-                if native_collectors.is_empty() {
-                    node_collector
-                } else {
-                    let mut all = native_collectors;
-                    all.push(node_collector);
-                    Arc::new(adom_search::orchestrator::CompositeCollector::new(all))
-                };
-            let collector = adom_search::orchestrator::wrap_collector_with_source_shadow(
-                collector,
-                Some(routes.clone() as Arc<dyn adom_search::orchestrator::InternalRoutes>),
-            );
-            orch = orch
-                .with_collector(collector)
-                .with_meta(Arc::new(NodeMetaSource::new(routes.clone())))
-                .with_tail(Arc::new(NoopTailEffects))
-                .with_internal_routes(routes);
-        }
-        None => {
-            if !native_collectors.is_empty() {
-                let collector: Arc<dyn adom_search::orchestrator::Collector> =
-                    if native_collectors.len() == 1 {
-                        native_collectors[0].clone()
-                    } else {
-                        Arc::new(adom_search::orchestrator::CompositeCollector::new(
-                            native_collectors,
-                        ))
-                    };
-                orch = orch
-                    .with_collector(collector)
-                    .with_tail(Arc::new(NoopTailEffects));
-            } else {
-                eprintln!(
-                    "[gateway] stream-shadow sem INTERNAL_SEARCH_URL/JACKETT_TEST_TOKEN — coleta indisponível"
-                );
-            }
-        }
-    }
-    wire_native_index(orch)
-}
-
 /// Rótulo de log dos collectors nativos ativos.
 fn sources_rust_label() -> String {
     let mut active = Vec::new();
@@ -399,15 +326,9 @@ pub fn is_native_stream(method: &Method, path: &str) -> bool {
         && adom_search::parse_stream_path(path).is_some()
 }
 
-/// Responde o `/stream` pelo orquestrador e devolve também o corpo JSON REAL
-/// (GET) — o canário direto compara esse corpo com o Node e os contadores
-/// nativos o leem sem reserializar. HEAD devolve `None` (sem corpo). Nunca
-/// panic: falha de parse → 502; falha de coleta vira lista/aviso 200 (contrato
-/// do orquestrador).
-pub async fn handle_with_body(
-    orch: &Orchestrator,
-    req: Request<Body>,
-) -> (Response<Body>, Option<Bytes>) {
+/// Responde o `/stream` pelo orquestrador. Nunca panic: falha de parse → 502;
+/// falha de coleta vira lista/aviso 200 (contrato do orquestrador).
+pub async fn handle(orch: &Orchestrator, req: Request<Body>) -> Response<Body> {
     let method = req.method().clone();
     let path = req.uri().path().to_string();
     let headers = req.headers().clone();
@@ -417,22 +338,21 @@ pub async fn handle_with_body(
     let Some(stream_req) =
         StreamRequest::from_path(&path, user_agent.as_deref(), origin.as_deref(), None)
     else {
-        return (bad_gateway(), None);
+        return bad_gateway();
     };
 
     let response = orch.handle(stream_req).await;
     stream_http_response(&method, &response)
 }
 
-fn stream_http_response(method: &Method, body: &StreamResponse) -> (Response<Body>, Option<Bytes>) {
+fn stream_http_response(method: &Method, body: &StreamResponse) -> Response<Body> {
     let json = match serde_json::to_vec(body) {
         Ok(bytes) => bytes,
         Err(err) => {
             eprintln!("[gateway] serialize stream: {err}");
-            return (bad_gateway(), None);
+            return bad_gateway();
         }
     };
-    let payload = Bytes::from(json);
     let mut response = Response::builder()
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, "application/json; charset=utf-8")
@@ -446,11 +366,9 @@ fn stream_http_response(method: &Method, body: &StreamResponse) -> (Response<Bod
                 .unwrap_or_else(|_| Response::new(Body::from("bad_gateway")))
         });
     if *method == Method::GET {
-        *response.body_mut() = Body::from(payload.clone());
-        (response, Some(payload))
-    } else {
-        (response, None)
+        *response.body_mut() = Body::from(json);
     }
+    response
 }
 
 fn cache_control(max_age: u32) -> String {
@@ -481,9 +399,6 @@ fn header_str(headers: &HeaderMap, name: http::header::HeaderName) -> Option<Str
 }
 
 /// Espelha `originOf` do Node: `PUBLIC_URL` do operador, senão Host validado.
-///
-/// `pub(crate)` para a sombra: o replay congelado tem que mascarar o MESMO
-/// origin que o Node escreveu no corpo (Host puro divergiria com `PUBLIC_URL`).
 pub(crate) fn request_origin(headers: &HeaderMap) -> Option<String> {
     if let Ok(url) = std::env::var("PUBLIC_URL") {
         let trimmed = url.trim().trim_end_matches('/');

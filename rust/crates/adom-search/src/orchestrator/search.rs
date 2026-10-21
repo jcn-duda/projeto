@@ -219,27 +219,20 @@ impl Orchestrator {
         );
 
         // Fila tardia: o lote COMPLETO chega depois da resposta; o index-write
-        // e o refresh/vassourda vão com ele. Sombra §9.1: aborta o completion e
-        // NÃO dispara tail (sem SWR/index/effects/debrid em fundo).
-        if self.shadow_mode {
-            if let Some(handle) = completion {
-                handle.abort();
-            }
-        } else {
-            let tail_items = items.clone();
-            let plan = self.tail_plan(&input, &meta, &first, partial);
-            if !plan.is_empty() || completion.is_some() {
-                let this = self.clone();
-                let writer = writer.clone();
-                let tail_first = first.clone();
-                tokio::spawn(async move {
-                    this.run_tail(
-                        input, meta, tail_first, tail_items, partial, plan, completion, tail_live,
-                        writer,
-                    )
-                    .await;
-                });
-            }
+        // e o refresh/vassourda vão com ele.
+        let tail_items = items.clone();
+        let plan = self.tail_plan(&input, &meta, &first, partial);
+        if !plan.is_empty() || completion.is_some() {
+            let this = self.clone();
+            let writer = writer.clone();
+            let tail_first = first.clone();
+            tokio::spawn(async move {
+                this.run_tail(
+                    input, meta, tail_first, tail_items, partial, plan, completion, tail_live,
+                    writer,
+                )
+                .await;
+            });
         }
         let cache_max_age = cache_max_age_for_finish(&first, collect_failed, &self.config);
         Arc::new(SearchOutcome {
@@ -306,7 +299,7 @@ impl Orchestrator {
         // sombra nativa (`ACCOUNT_RUST=shadow`). A tarefa é PRÓPRIA nos grupos
         // não prioritários: a primeira leitura custa ~100 ms e, dentro do
         // `nonpriority`, esperava o indexer global mais lento (4 s+).
-        let account_base = if !self.shadow_mode && scope != Some(true) {
+        let account_base = if scope != Some(true) {
             jobs.iter()
                 .find(|job| !job.priority)
                 .or(jobs.first())

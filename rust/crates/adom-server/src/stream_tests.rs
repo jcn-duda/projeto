@@ -21,27 +21,6 @@ fn streams_db_path_env_vence_default() {
 }
 
 #[test]
-fn new_shadow_swr_store_memoria_vazia_nao_abre_disco() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let path = dir.path().join("streams.db");
-    let prev = std::env::var("STREAMS_DB").ok();
-    // SAFETY: teste serial local; restaura STREAMS_DB ao sair.
-    std::env::set_var("STREAMS_DB", &path);
-    let store = new_shadow_swr_store();
-    assert_eq!(store.len(), 0);
-    let orch = build_shadow_orchestrator();
-    assert!(orch.shadow_mode());
-    assert!(
-        !path.exists(),
-        "shadow não deve chamar open_swr_store / criar STREAMS_DB"
-    );
-    match prev {
-        Some(v) => std::env::set_var("STREAMS_DB", v),
-        None => std::env::remove_var("STREAMS_DB"),
-    }
-}
-
-#[test]
 fn open_swr_store_at_tempfile_abre() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("streams.db");

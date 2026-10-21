@@ -16,18 +16,13 @@ use http::Uri;
 /// Default de `ROUTES_RUST` quando a env está ausente: o corte nativo.
 pub const DEFAULT_ROUTES_RUST: &str = "stream";
 
-/// Tokens de `ROUTES_RUST` (CSV). `health` liga o nativo; `stream-shadow` arma
-/// a observação em paralelo (HISTÓRICO: a referência Node do `/stream` está
-/// aposentada — ver `docs/rust-stream-contract.md`); `stream` (token exato)
-/// corta `/stream` no Rust (prioridade sobre a sombra); `resolve` arma a guarda
-/// HMAC do play.
+/// Tokens de `ROUTES_RUST` (CSV). `health` liga o nativo; `stream` (token
+/// exato) corta `/stream` no Rust; `resolve` arma a guarda HMAC do play.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen: SocketAddr,
     pub upstream: Uri,
     pub native_health: bool,
-    /// `ROUTES_RUST` contém `stream-shadow`: Node responde; Rust observa.
-    pub stream_shadow: bool,
     /// `ROUTES_RUST` contém `stream`: corte nativo via `adom-search`.
     pub stream_native: bool,
     /// `ROUTES_RUST` contém `resolve`: verifica HMAC e (strangler) proxy.
@@ -84,7 +79,6 @@ impl Config {
             listen,
             upstream,
             native_health: native_health(routes),
-            stream_shadow: stream_shadow(routes),
             stream_native: stream_native(routes),
             resolve_native: resolve_native(routes),
             resolve_rust,
@@ -109,11 +103,7 @@ pub fn native_health(routes: &str) -> bool {
     has_route_token(routes, "health")
 }
 
-pub fn stream_shadow(routes: &str) -> bool {
-    has_route_token(routes, "stream-shadow")
-}
-
-/// Token exato `stream` — não confunde com `stream-shadow`.
+/// Token exato `stream`.
 pub fn stream_native(routes: &str) -> bool {
     has_route_token(routes, "stream")
 }
