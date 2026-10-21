@@ -24,11 +24,12 @@ test('sanitizeMagnet: btih divergente é recusado', () => {
 });
 
 test('sanitizeMagnet: btih base32 é aceito quando casa com o hash hex', () => {
-  // Base32 de 20 bytes zero -> os 40 hex '0'. extractInfoHash normaliza o
+  // Base32 '7'×32 são 160 bits 1 -> os 40 hex 'f'. extractInfoHash normaliza o
   // btih do magnet, então a URI só entra se o hash da chave for o hex equivalente.
-  const b32 = 'A'.repeat(32);
+  // (O par 'A'×32/'0'×40 saiu de cena: hash todo-zero é sentinela recusada.)
+  const b32 = '7'.repeat(32);
   const uri = `magnet:?xt=urn:btih:${b32}&dn=Base32.Movie&tr=${encodeURIComponent('udp://custom.tracker.org:1337/announce')}`;
-  const result = sanitizeMagnet(uri, '0'.repeat(40));
+  const result = sanitizeMagnet(uri, 'f'.repeat(40));
   assert.ok(result, 'base32 que casa com o hex deve ser aceito');
   assert.ok(result!.includes('dn=Base32.Movie'), 'dn preservado');
   assert.equal(sanitizeMagnet(uri, 'a'.repeat(40)), null, 'hash divergente do hex recusa');

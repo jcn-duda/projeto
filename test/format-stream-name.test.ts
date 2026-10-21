@@ -231,7 +231,7 @@ test('quatro releases 4K do mesmo filme não podem sair com a linha idêntica', 
     ['I Am Legend 2007 UHD BluRay 2160p HDR10 DV HEVC DTS HD MA 5 1 x26', 12],
   ];
   const nomes = releases.map(([title, seeders], i) =>
-    stremioStream({ title, infoHash: String(i).repeat(40).slice(0, 40), seeders }).name,
+    stremioStream({ title, infoHash: String(i + 1).repeat(40).slice(0, 40), seeders }).name,
   );
 
   assert.deepEqual(nomes, [
