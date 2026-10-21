@@ -97,10 +97,6 @@ export const budgets = () => ({
 });
 
 export const search = () => ({
-  // Pack da temporada no passe tardio de TODA busca de série: tracker titula
-  // pack sem SxxEyy e a query do episódio nunca o acha. Fica no tail porque
-  // duas varreduras de Jackett em série não cabem no deadline da resposta.
-  packTail: String(process.env.SEARCH_PACK_TAIL || 'true') === 'true',
   // Episódio datado pelo Cinemeta a mais que isto no futuro: pack da
   // temporada publicado antes dele não pode contê-lo e sai da lista (só fica
   // release que nomeia o episódio). A margem cobre fuso e a estreia no

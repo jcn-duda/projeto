@@ -370,7 +370,7 @@ async fn gateway_recusa_internal_sem_tocar_o_upstream() {
         "/internal",
         "/internal/",
         "/internal/search/meta",
-        "/internal/search/state?x=1",
+        "/internal/rota-qualquer?x=1",
     ] {
         let req = Request::builder()
             .method("POST")

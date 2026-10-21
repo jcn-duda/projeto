@@ -20,7 +20,6 @@ import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
 import prowlarr from '../../src/providers/prowlarr.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import { collectWithinWindow } from '../../src/providers/collection-window.js';
-import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
 import type { Stream } from '../../types/domain.js';
 
@@ -72,22 +71,6 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.equal(bucket.done, true);
     });
 
-    it('F08-BND-03: latestWriter suppresses stale background updates from earlier search phases', async () => {
-      const writes: unknown[] = [];
-      const build = async (input: any) => input;
-      const commit = async (val: any) => writes.push(val);
-      const writer = createLatestWriter(build, commit);
-
-      const phase0 = writer.phase();
-      writer.advance();
-      const phase1 = writer.phase();
-
-      await writer('stale-data', phase0);
-      await writer(['fresh-data'], phase1);
-
-      assert.equal(writes.length, 1);
-      assert.deepEqual(writes[0], ['fresh-data']);
-    });
 
     it('F08-BND-04: raceWithDeadline returns fallback value on timeout', async () => {
       const slowTask = new Promise((r) => setTimeout(() => r('done'), 100));

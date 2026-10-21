@@ -34,7 +34,6 @@ import prowlarr from '../../src/providers/prowlarr.js';
 import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import * as searchPlan from '../../src/providers/search-plan.js';
-import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import type { Stream } from '../../types/domain.js';
 
 const TEST_HASH_1 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';

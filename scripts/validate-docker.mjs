@@ -211,14 +211,6 @@ await check('POST /internal/search/meta de dentro (orquestrador) → 200 ok', as
   return 'meta/titles lidos';
 });
 
-await check('POST /internal/search/state de dentro (orquestrador) → 200 ok (lote vazio)', async () => {
-  const res = insideContainer('/internal/search/state', { encoded: VALID_ENCODED, obra_keys: [], hashes: [] });
-  expect(res.status === 200, `status ${res.status} :: ${res.text.slice(0, 120)}`);
-  const body = jsonOf(res);
-  expect(body.ok === true && typeof body.obras === 'object', 'resposta sem obras{}');
-  return 'acervo lido em lote';
-});
-
 // 8. Caminho inexistente segue para o Node (404 do addon, não 502 do proxy).
 await check('GET /rota-que-nao-existe → 404 (proxy vivo, não 502)', async () => {
   const res = await req('/rota-que-nao-existe');

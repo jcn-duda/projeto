@@ -19,9 +19,9 @@
 //!   corte pré-home-release do filtro de título.
 //!
 //! O que segue de fora, com o motivo:
-//! - **`first_seen` do banco de magnets**: vem de `/internal/search/state` (ou
-//!   do `magnets.db`), que o orquestrador ainda não lê — o pré-air da conta usa
-//!   só `publishedAt`. É insumo da F3, não do metadado.
+//! - **`first_seen` do banco de magnets**: o orquestrador ainda não lê o
+//!   `magnets.db` — o pré-air da conta usa só `publishedAt`. É insumo da F3,
+//!   não do metadado.
 
 use std::sync::Arc;
 

@@ -74,31 +74,6 @@ pub struct MetaResponse {
     pub home_release_at: Option<i64>,
 }
 
-// ── state ───────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize)]
-pub struct StateRequest {
-    pub encoded: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub obra_keys: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub hashes: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct StateResponse {
-    pub ok: bool,
-    /// Chave EXATA da `obra_key` pedida; sem linha → `[]`.
-    #[serde(default)]
-    pub obras: BTreeMap<String, Vec<Value>>,
-    /// Hash ausente omitido.
-    #[serde(default)]
-    pub sources: BTreeMap<String, Vec<Value>>,
-    /// Epoch ms; hash ausente omitido.
-    #[serde(default, rename = "firstSeen")]
-    pub first_seen: BTreeMap<String, i64>,
-}
-
 // ── collect ─────────────────────────────────────────────────────────────────
 
 #[path = "collect_request.rs"]

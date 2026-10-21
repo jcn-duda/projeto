@@ -17,7 +17,6 @@ import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
 import { collectWithinWindow } from '../../src/providers/collection-window.js';
-import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import { accountScope } from '../../src/utils/request-key.js';
 import type { DebridAdapter } from '../../types/domain.js';
 

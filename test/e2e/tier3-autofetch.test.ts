@@ -17,7 +17,6 @@ import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
 import { collectWithinWindow } from '../../src/providers/collection-window.js';
-import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import { accountScope } from '../../src/utils/request-key.js';
 import type { DebridAdapter } from '../../types/domain.js';
 
@@ -291,40 +290,6 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     assert.ok(episodeFiltered.some((r) => r.title?.includes('1ª Temporada')));
   });
 
-  test('5B: Multi-Season Pack Fallback across search phases with createLatestWriter', async () => {
-    let committedValue: any = null;
-
-    const finish = createLatestWriter(
-      async ({ items }) => ({ streams: items }),
-      (result) => {
-        committedValue = result;
-      },
-    );
-
-    const phase0 = finish.phase();
-
-    // Simulate Phase 0: Episode search returned empty
-    await finish({ items: [] }, phase0);
-    assert.deepEqual(committedValue.streams, []);
-
-    // Advance to Phase 1: Pack search fallback
-    const phase1 = finish.advance();
-    assert.notEqual(phase1, phase0);
-
-    const packStreams = [
-      makeRawStream('Fallout S01 Complete Pack 1080p', { isBr: true }),
-    ];
-
-    // Commit Phase 1 results
-    await finish({ items: packStreams }, phase1);
-    assert.equal(committedValue.streams.length, 1);
-    assert.equal(committedValue.streams[0].title, 'Fallout S01 Complete Pack 1080p');
-
-    // Attempted late write from stale Phase 0 is ignored
-    const staleStreams = [makeRawStream('Stale Episode Result', { isBr: false })];
-    await finish({ items: staleStreams }, phase0);
-    assert.equal(committedValue.streams[0].title, 'Fallout S01 Complete Pack 1080p', 'Phase 0 write did not overwrite Phase 1');
-  });
 
   // ---------------------------------------------------------------------------
   // INTERACTION 6: SQLite WAL Persistence + Cache Invalidation + In-Flight Coalescing

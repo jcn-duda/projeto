@@ -18,7 +18,7 @@ use serde_json::Value;
 use crate::internal_types::{
     CollectRequest, CollectResponse, EffectsRequest, EffectsResponse, FallbackRequest,
     FallbackResponse, IndexWriteRequest, IndexWriteResponse, MetaRequest, MetaResponse,
-    SearchIndexRequest, SearchIndexResponse, StateRequest, StateResponse,
+    SearchIndexRequest, SearchIndexResponse,
 };
 
 /// Com `GATEWAY=on` o Node escuta em 7100 (gateway Rust na 7000 pública).
@@ -71,12 +71,6 @@ impl InternalSearchClient {
     /// POST `/internal/search/meta` — Cinemeta+TMDB (+opt-in multiwork/home).
     pub async fn meta(&self, req: &MetaRequest) -> Result<MetaResponse, String> {
         self.post_ok("/internal/search/meta", req, self.timeout)
-            .await
-    }
-
-    /// POST `/internal/search/state` — acervo em lote (obras/sources/firstSeen).
-    pub async fn state(&self, req: &StateRequest) -> Result<StateResponse, String> {
-        self.post_ok("/internal/search/state", req, self.timeout)
             .await
     }
 

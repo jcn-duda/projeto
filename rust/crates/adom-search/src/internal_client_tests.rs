@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 use super::{InternalSearchClient, DEFAULT_TIMEOUT};
 use crate::internal_types::{
     CollectRequest, EffectEntry, EffectsRequest, FallbackRequest, IndexWriteRequest, MetaRequest,
-    ReleaseEntry, StateRequest, TaskScope,
+    ReleaseEntry, TaskScope,
 };
 
 const TOKEN: &str = "tok-internal-search";
@@ -76,17 +76,6 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
             "meta": { "name": "Filme", "year": "2024", "type": "movie" },
             "titles": { "pt": "Filme", "en": "Movie", "original": null, "br": [], "year": "2024" },
         }),
-        "/internal/search/state" => json!({
-            "ok": true,
-            "obras": {
-                "tt0000001": [{
-                    "work": { "hash": "a".repeat(40), "imdb": "tt0000001" },
-                    "magnet": null
-                }]
-            },
-            "sources": {},
-            "firstSeen": { "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 1_700_000_000_000i64 }
-        }),
         "/internal/search/collect" => json!({
             "ok": true,
             "task_scope": "priority",
@@ -141,7 +130,6 @@ async fn catch_all(State(seen): State<Arc<Seen>>, req: Request<Body>) -> Respons
 async fn serve(seen: Arc<Seen>) -> String {
     let app = Router::new()
         .route("/internal/search/meta", post(catch_all))
-        .route("/internal/search/state", post(catch_all))
         .route("/internal/search/collect", post(catch_all))
         .route("/internal/search/index-write", post(catch_all))
         .route("/internal/search/effects", post(catch_all))
@@ -209,29 +197,6 @@ async fn meta_manda_token_no_header_e_encoded_no_body() {
     assert!(res.ok);
     assert_eq!(res.imdb_id, "tt0000001");
     assert_eq!(res.meta.as_ref().unwrap()["name"], json!("Filme"));
-}
-
-#[tokio::test]
-async fn state_parseia_shape_real() {
-    let seen = Arc::new(Seen::default());
-    let base = serve(seen.clone()).await;
-    let res = client(&base)
-        .state(&StateRequest {
-            encoded: ENCODED.into(),
-            obra_keys: vec!["tt0000001".into()],
-            hashes: vec!["a".repeat(40)],
-        })
-        .await
-        .unwrap();
-    let body = seen.bodies.lock().await.first().cloned().unwrap();
-    assert_eq!(body["encoded"], json!(ENCODED));
-    assert_eq!(body["obra_keys"][0], json!("tt0000001"));
-    assert!(res.ok);
-    assert_eq!(res.obras.get("tt0000001").map(|v| v.len()), Some(1));
-    assert_eq!(
-        res.first_seen.get(&"a".repeat(40)).copied(),
-        Some(1_700_000_000_000)
-    );
 }
 
 #[tokio::test]
@@ -331,22 +296,6 @@ async fn http_erro_nao_vira_sucesso() {
         err.contains("503") || err.contains("boom") || err.contains("HTTP"),
         "{err}"
     );
-}
-
-#[tokio::test]
-async fn encoded_vazio_recusado_antes_da_rede() {
-    let seen = Arc::new(Seen::default());
-    let base = serve(seen.clone()).await;
-    let err = client(&base)
-        .state(&StateRequest {
-            encoded: "".into(),
-            obra_keys: Vec::new(),
-            hashes: Vec::new(),
-        })
-        .await
-        .unwrap_err();
-    assert!(err.contains("encoded"), "{err}");
-    assert!(seen.bodies.lock().await.is_empty());
 }
 
 #[test]

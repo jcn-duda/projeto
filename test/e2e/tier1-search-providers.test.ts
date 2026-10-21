@@ -34,7 +34,6 @@ import prowlarr from '../../src/providers/prowlarr.js';
 import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import * as searchPlan from '../../src/providers/search-plan.js';
-import { createLatestWriter } from '../../src/utils/latest-writer.js';
 import type { Stream } from '../../types/domain.js';
 
 const TEST_HASH_1 = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
@@ -156,16 +155,6 @@ describe('Feature 8: Search & Late-Pass Budget Optimization', () => {
     assert.equal(response.cacheMaxAge, 0, 'Busca parcial deve instruir cliente a não cachear');
   });
 
-  it('8.3: Conclusão em background executa late pass e entrega resultado consolidado', async () => {
-    let committed = null;
-    const writer = createLatestWriter(
-      async (input) => ({ streams: input }),
-      async (result) => { committed = result; }
-    );
-
-    await writer(['stream-episode']);
-    assert.deepEqual(committed, { streams: ['stream-episode'] });
-  });
 
   it('8.4: Coalescing via inFlight impede disparo de buscas concorrentes redundantes', async () => {
     const inFlight = new Map();
@@ -199,21 +188,6 @@ describe('Feature 8: Search & Late-Pass Budget Optimization', () => {
     assert.deepEqual(s2, s3);
   });
 
-  it('8.5: createLatestWriter rejeita revisões antigas de sobrescreverem novas', async () => {
-    const history: unknown[] = [];
-    const writer = createLatestWriter(
-      async (input) => input,
-      async (value) => history.push(value)
-    );
-
-    await writer('phase-0-rev-1');
-    writer.advance();
-    await writer('phase-1-rev-1');
-    // Tentativa tardia com fase antiga sem resultado útil
-    await writer([], 0);
-
-    assert.deepEqual(history, ['phase-0-rev-1', 'phase-1-rev-1']);
-  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════
