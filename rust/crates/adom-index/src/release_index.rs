@@ -309,6 +309,42 @@ impl ReleaseIndexStore {
     }
 
     /// `releaseIndex.isPartial` — qualquer das três chaves marcada bloqueia.
+    /// Existência exata de uma chave viva (diagnóstico e testes de roteamento).
+    pub fn has_key(&self, key: &str, now_ms: i64) -> bool {
+        let conn = self.lock();
+        conn.query_row(
+            "SELECT 1 FROM cache WHERE key = ?1 AND expires_at >= ?2",
+            params![key, now_ms],
+            |_| Ok(()),
+        )
+        .is_ok()
+    }
+
+    /// Apaga todo o namespace `idx` (clear-cache do painel e `cache.clear()` dos testes).
+    pub fn clear_all(&self) -> Result<usize, String> {
+        let base = idx_prefix();
+        let conn = self.lock();
+        conn.execute(
+            "DELETE FROM cache WHERE substr(key, 1, length(?1)) = ?1",
+            params![base],
+        )
+        .map_err(|err| err.to_string())
+    }
+
+    /// Linhas vivas do namespace `idx` (diagnóstico do painel: `status().entries`).
+    pub fn count_live(&self, now_ms: i64) -> Result<usize, String> {
+        let base = idx_prefix();
+        let conn = self.lock();
+        let total: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM cache WHERE substr(key, 1, length(?1)) = ?1 AND expires_at >= ?2",
+                params![base, now_ms],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        Ok(total.max(0) as usize)
+    }
+
     pub fn is_partial(&self, imdb_id: &str, location: WorkTarget, now_ms: i64) -> bool {
         if !imdb_id.starts_with("tt") {
             return false;

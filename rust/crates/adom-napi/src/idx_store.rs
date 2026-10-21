@@ -46,12 +46,39 @@ pub struct IdxStore {
 #[napi]
 impl IdxStore {
     /// Abre (ou cria) o `cache.db` em `dbPath`, com os tetos do operador.
+    /// `:memory:` sobe só em memória (`CACHE_PERSIST=false`).
     #[napi(constructor)]
     pub fn new(db_path: String, ttl_seconds: i64, max_releases: i64) -> napi::Result<Self> {
-        let inner = ReleaseIndexStore::open(Path::new(&db_path))
+        let base = if db_path == ":memory:" {
+            ReleaseIndexStore::open_memory()
+        } else {
+            ReleaseIndexStore::open(Path::new(&db_path))
+        };
+        let inner = base
             .map_err(erro)?
             .with_limits(ttl_seconds.max(0) as u64, max_releases.max(1) as usize);
         Ok(Self { inner })
+    }
+
+    /// Existência exata de uma chave viva do namespace (diagnóstico e testes).
+    #[napi]
+    pub fn has_key(&self, key: String, now_ms: i64) -> bool {
+        self.inner.has_key(&key, now_ms)
+    }
+
+    /// Apaga o namespace `idx` inteiro; devolve quantas linhas saíram.
+    #[napi]
+    pub fn clear(&self) -> napi::Result<i64> {
+        self.inner.clear_all().map(|n| n as i64).map_err(erro)
+    }
+
+    /// Linhas vivas do namespace `idx` (o `status().entries` do painel).
+    #[napi]
+    pub fn entries(&self, now_ms: i64) -> napi::Result<i64> {
+        self.inner
+            .count_live(now_ms)
+            .map(|n| n as i64)
+            .map_err(erro)
     }
 
     /// Releases da obra (episódio → temporada → raiz), dedupe por hash.
