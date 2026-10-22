@@ -223,12 +223,17 @@ export function mergeWork(prev: WorkRow | null, mark: WorkMark, now: number): Wo
 
 /**
  * Item bruto → linhas de captura. Devolve null para item sem hash, item de
- * CONTA (`fromAccount`) e item de FALLBACK (`fromFallback`): o inventário é
- * conhecimento da credencial e o fallback é reserva derivada do próprio banco —
- * nenhum dos dois é observação nova do site e ambos se perpetuariam (Etapa 4).
+ * CONTA (`fromAccount`), item de FALLBACK (`fromFallback`) e FOTO do índice
+ * (`fromSnapshot`): o inventário é conhecimento da credencial, o fallback é
+ * reserva derivada do próprio banco e a foto é o que o índice já sabia —
+ * nenhum dos três é observação nova do site e todos se perpetuariam (Etapa 4).
+ *
+ * A guarda de `fromSnapshot` é a SEGUNDA camada: o Rust já a aplica em
+ * `magnet_capture`, mas capturar a foto renovaria `lastSeen`/`seedersLast` no
+ * `mergeMagnet` e o banco passaria a "provar" frescor que não houve.
  */
 export function inputFromItem(item: RawItem, groupIndexer: string): { magnet: MagnetInput; source: SourceInput } | null {
-  if (!item || item.fromAccount || item.fromFallback) return null;
+  if (!item || item.fromAccount || item.fromFallback || item.fromSnapshot) return null;
   const hash = hashOf(item);
   if (!hash) return null;
   const rawMagnet = magnetUriOf(item);

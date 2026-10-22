@@ -134,6 +134,25 @@ fn ignora_conta_reserva_sem_hash_e_repetido() {
 }
 
 #[test]
+fn foto_do_indice_nao_vira_observacao() {
+    // A via instantânea responde e o indexer falha: o item do índice
+    // (`fromSnapshot`) chega ao `full`. Capturá-lo renovaria `lastSeen` e
+    // sobrescreveria `seedersLast` no `mergeMagnet` — frescor que não houve.
+    let vivo = item_of(1, Some("bludv"), None);
+    let mut foto = item_of(2, Some("bludv"), None);
+    foto.from_snapshot = true;
+
+    let effects = magnet_capture(&[vivo, foto], "tt0133093", None, None, &json!("2024"));
+
+    assert_eq!(effects.len(), 1, "só o balde do item vivo");
+    let items = payload_items(&effects[0]);
+    assert_eq!(items.len(), 1, "a foto do índice não é observação do site");
+    assert_eq!(items[0]["infoHash"], json!(hash(1)));
+    // `to_wire` só emite a marca quando verdadeira: o fio nunca leva a foto.
+    assert_eq!(items[0]["fromSnapshot"], Value::Null);
+}
+
+#[test]
 fn sem_item_capturavel_nao_emite_efeito() {
     let mut conta = item_of(1, Some("alldebrid"), None);
     conta.from_account = true;
@@ -166,4 +185,54 @@ fn lotes_respeitam_o_teto_de_bytes_do_corpo() {
         let body = serde_json::to_vec(&batch).expect("json");
         assert!(body.len() < 1024 * 1024);
     }
+}
+
+#[test]
+fn lotes_respeitam_o_teto_de_100_efeitos_por_post() {
+    // 250 efeitos minúsculos: o corte por bytes nunca dispara, o de CONTAGEM
+    // sim. A rota Node responde 400 acima de `MAX_EFFECTS=100`.
+    let effects: Vec<EffectEntry> = (1..=250)
+        .map(|n| {
+            entry(
+                "magnet_capture",
+                json!({ "items": [], "indexer": format!("grupo{n}") }),
+            )
+        })
+        .collect();
+
+    let batches = batches_for_transport(effects, EFFECTS_BODY_MAX_BYTES);
+    let tamanhos: Vec<usize> = batches.iter().map(Vec::len).collect();
+    assert_eq!(tamanhos, vec![100, 100, 50], "100/100/50, nada descartado");
+}
+
+#[test]
+fn teto_de_contagem_vale_junto_com_o_de_bytes() {
+    // Cada efeito carrega ~700 bytes: com teto de corpo generoso o corte que
+    // manda é o de contagem (100); com teto de bytes apertado é o de bytes.
+    // Nos dois casos nada se perde e nenhum POST passa do `MAX_EFFECTS`.
+    let effects: Vec<EffectEntry> = (1..=250)
+        .map(|n| {
+            entry(
+                "magnet_capture",
+                json!({ "items": [{ "infoHash": hash(n), "title": "x".repeat(600) }] }),
+            )
+        })
+        .collect();
+
+    let generoso = batches_for_transport(effects.clone(), 100_000);
+    assert_eq!(
+        generoso.iter().map(Vec::len).collect::<Vec<_>>(),
+        vec![100, 100, 50],
+        "o teto de contagem corta antes do de bytes"
+    );
+
+    let apertado = batches_for_transport(effects, 5_000);
+    assert!(apertado
+        .iter()
+        .all(|batch| batch.len() <= EFFECTS_PER_BATCH_MAX));
+    assert_eq!(
+        apertado.iter().map(Vec::len).sum::<usize>(),
+        250,
+        "o corte por bytes não descarta efeito"
+    );
 }

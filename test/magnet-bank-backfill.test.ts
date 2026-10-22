@@ -25,6 +25,17 @@ test('captura: dubbed e quality saem do título, com a régua do índice', () =>
   assert.equal(classifiedDubbed('Joker 2019 1080p Dublado PT-BR', false), true);
 });
 
+test('captura: foto do índice não vira observação do banco vivo', () => {
+  const base = { title: 'Filme Teste 1080p', infoHash: hex('c'), seeders: 10 };
+  // Segunda camada da guarda: a foto (`fromSnapshot`) é o que o índice já sabia.
+  // Capturá-la renovaria `lastSeen`/`seedersLast` no `mergeMagnet` e o banco
+  // passaria a "provar" frescor que não houve, autoperpetuando a reserva.
+  assert.equal(inputFromItem({ ...base, fromSnapshot: true } as any, 'bludv'), null);
+  assert.equal(inputFromItem({ ...base, fromFallback: true } as any, 'bludv'), null);
+  assert.equal(inputFromItem({ ...base, fromAccount: true } as any, 'bludv'), null);
+  assert.ok(inputFromItem(base as any, 'bludv'), 'o item vivo continua entrando');
+});
+
 test('migração: preenche o vazio, não rebaixa dublado, e a segunda passada é no-op', { skip: !sqlite }, async () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mbb-')), 'magnets.db');
   const db = new sqlite.DatabaseSync(file);

@@ -275,10 +275,11 @@ fn item_json(item: &AutofetchItem) -> Value {
 /// `indexer: None` + `tracker: "BLUDV"`: mandar o grupo vazio jogaria tudo no
 /// balde `all` e a fonte sumiria do acervo.
 ///
-/// `fromAccount` NUNCA entra (guardrail do índice) e `fromFallback` é reserva
-/// derivada do próprio banco — os dois se perpetuariam. Item sem hash não é
-/// observação do site. O corte em [`MAGNET_CAPTURE_CHUNK`] é do transporte: o
-/// banco em si aceita o lote inteiro.
+/// `fromAccount` NUNCA entra (guardrail do índice), `fromFallback` é reserva
+/// derivada do próprio banco e `fromSnapshot` é a FOTO do índice: nenhum dos
+/// três é observação do site e todos se perpetuariam. Item sem hash também não
+/// é observação. O corte em [`MAGNET_CAPTURE_CHUNK`] é do transporte: o banco
+/// em si aceita o lote inteiro.
 pub fn magnet_capture(
     items: &[RawItem],
     imdb_id: &str,
@@ -289,7 +290,11 @@ pub fn magnet_capture(
     let mut groups: BTreeMap<String, Vec<&RawItem>> = BTreeMap::new();
     let mut seen: HashSet<String> = HashSet::new();
     for item in items {
-        if item.from_account || item.from_fallback {
+        // A foto do índice não é observação do site: capturá-la faria o
+        // `mergeMagnet` do Node renovar `lastSeen` e sobrescrever `seedersLast`
+        // com o número da época do índice — o banco passaria a "provar" um
+        // frescor que não houve e autoperpetuaria a reserva do índice.
+        if item.from_account || item.from_fallback || item.from_snapshot {
             continue;
         }
         let hash = item.bank_hash();
@@ -341,10 +346,17 @@ fn capture_group(item: &RawItem) -> String {
     }
 }
 
-/// Lotes prontos para o POST: o gargalo da rota é o TAMANHO do corpo
-/// (`express.json({limit:'1mb'})`), não a contagem de efeitos (`MAX_EFFECTS`).
-/// Efeito que sozinho passa do teto vai sozinho — a rota responde 413 e o tail
-/// só loga, como toda falha de efeito.
+/// Teto de EFEITOS por POST — o mesmo `MAX_EFFECTS=100` da rota Node
+/// (`src/routes/internal-search-effects.ts`), que responde 400 acima disto.
+/// Vale junto com [`EFFECTS_BODY_MAX_BYTES`]: sem este corte, um lote
+/// patológico (efeitos minúsculos e muitos) perderia a captura inteira em
+/// silêncio, porque a rota recusa o corpo todo.
+pub const EFFECTS_PER_BATCH_MAX: usize = 100;
+
+/// Lotes prontos para o POST: dois gargalos da rota, o TAMANHO do corpo
+/// (`express.json({limit:'1mb'})`) e a CONTAGEM de efeitos
+/// ([`EFFECTS_PER_BATCH_MAX`]). Efeito que sozinho passa do teto de bytes vai
+/// sozinho — a rota responde 413 e o tail só loga, como toda falha de efeito.
 pub fn batches_for_transport(effects: Vec<EffectEntry>, max_bytes: usize) -> Vec<Vec<EffectEntry>> {
     let mut out: Vec<Vec<EffectEntry>> = Vec::new();
     let mut current: Vec<EffectEntry> = Vec::new();
@@ -353,7 +365,9 @@ pub fn batches_for_transport(effects: Vec<EffectEntry>, max_bytes: usize) -> Vec
         let size = serde_json::to_vec(&effect)
             .map(|body| body.len())
             .unwrap_or(0);
-        if !current.is_empty() && bytes.saturating_add(size) > max_bytes {
+        if !current.is_empty()
+            && (current.len() >= EFFECTS_PER_BATCH_MAX || bytes.saturating_add(size) > max_bytes)
+        {
             out.push(std::mem::take(&mut current));
             bytes = 0;
         }
