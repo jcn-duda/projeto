@@ -24,6 +24,7 @@ import { alldebridLinkFacts } from './rust-link-facts.js';
 import { alldebridCheckFacts } from './alldebrid-cleanup-facts.js';
 import { takeResolveEffect, type RustResolveEffect } from './rust-resolve-apply.js';
 import { applyPlayEffects } from './rust-play-effects.js';
+import { pullNativeMetrics } from '../utils/native-metrics.js';
 
 class RustWriteError extends Error {
   isRustWriteError = true;
@@ -363,28 +364,21 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
   return out;
 }
 
-async function pullMetrics(overrides: Partial<RemoteOptions> = {}): Promise<Record<string, number>> {
-  if (!config.debrid.rustServices.length) return {};
-  const opts = remoteOptions(overrides);
-  if (!opts.token) return { 'rust.debrid.metrics.unreachable': 1 };
-  try {
-    const res = await opts.fetchImpl(`${opts.baseUrl}/metrics`, {
-      headers: {
-        Accept: 'application/json',
-        'X-Indexer-Test-Token': opts.token,
-      },
-      signal: AbortSignal.timeout(300),
-    });
-    if (!res.ok) return { 'rust.debrid.metrics.unreachable': 1 };
-    const body = await res.json() as Record<string, unknown>;
-    const out: Record<string, number> = {};
-    for (const [key, value] of Object.entries(body)) {
-      if (key.startsWith('rust.debrid.') && typeof value === 'number') out[key] = value;
-    }
-    return out;
-  } catch {
-    return { 'rust.debrid.metrics.unreachable': 1 };
+/**
+ * Recorte `rust.debrid.*` para o `/metrics.json`. Não gateia mais por
+ * `rustServices` (o adaptador nativo existe independente do corte de busca) e
+ * lê a 8710 pelo leitor comum das duas superfícies — com token só quando
+ * configurado e fail-open. Sem a 8710, o marcador `unreachable` substitui a
+ * ausência, como antes.
+ */
+async function pullMetrics(): Promise<Record<string, number>> {
+  const native = await pullNativeMetrics();
+  if (!native || !native.sources.debrid) return { 'rust.debrid.metrics.unreachable': 1 };
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(native.counters)) {
+    if (key.startsWith('rust.debrid.')) out[key] = value;
   }
+  return out;
 }
 
 export { RustWriteError, remoteOptions, wrap, pullMetrics };

@@ -20,6 +20,7 @@ import { cacheBase, rawCache, cache, catalog, magnetBank } from './config/cache.
 import { debrid } from './config/debrid.js';
 import { debridRust } from './config/debrid-rust.js';
 import { streamStore } from './config/stream-store.js';
+import { nativeMetrics } from './config/native-metrics.js';
 import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
 import { crawl } from './config/crawl.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
@@ -54,6 +55,8 @@ const config = {
   debridRust: debridRust(),
   // Ponte com o store nativo `streams.db` (invalidação/clear/trace).
   streamStore: streamStore(),
+  // Métricas do gateway Rust que o painel lê (7000 sem token; 8710 com token).
+  nativeMetrics: nativeMetrics(),
   // searchTimeout, replyDeadline, debridReserve, debridCheckFloor
   ...budgets(),
   search: search(),

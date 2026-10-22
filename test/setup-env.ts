@@ -88,6 +88,15 @@ process.env.MAX_STREAMS_UNKNOWN = '6';
 // (`test/streams-store-native.test.ts`) apontam a URL para o dublê de fetch.
 process.env.STREAM_STORE_ADMIN_URL = 'http://127.0.0.1:1';
 
+// Fase 0.7: o painel lê as métricas do gateway Rust. Mesmo hermetismo do store
+// nativo — portas fechadas em loopback, falha imediata, nenhum teste depende de
+// um gateway/sidecar local. Os testes do painel apontam `config.nativeMetrics`
+// para o próprio dublê. A 8710 (sidecar) é pinada junto porque `pullMetrics`
+// passou a lê-la sem o gate de `rustServices`; sem o pin, uma máquina com o
+// sidecar vivo faria o `/metrics.json` da suíte ler métricas reais.
+process.env.GATEWAY_METRICS_URL = 'http://127.0.0.1:1';
+process.env.DEBRID_INTERNAL_URL = 'http://127.0.0.1:1';
+
 // F4.6/R3: a checagem nativa da AllDebrid é incondicional (a rota Node da
 // checagem saiu). A suíte fixa os dois kill-switches destrutivos em OFF para o
 // verde não depender de quem roda; os caminhos de holds e limpeza têm testes

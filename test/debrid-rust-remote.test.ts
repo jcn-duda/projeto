@@ -335,3 +335,23 @@ test('play AllDebrid pelo Rust grava davail=0 do frio e a prova dos arquivos', a
     config.debrid.availNegTtl = savedTtl;
   }
 });
+
+test('pullMetrics devolve só `rust.debrid.*` e marca unreachable sem a 8710', async () => {
+  const { pullMetrics } = await import('../src/debrid/rust-remote.js');
+  const saved = { fetch: globalThis.fetch, native: config.nativeMetrics };
+  const reply = (body: Record<string, number>) => (async () => new Response(JSON.stringify(body), {
+    status: 200, headers: { 'content-type': 'application/json' },
+  })) as unknown as typeof fetch;
+  try {
+    config.nativeMetrics = {
+      gatewayUrl: 'http://gw.local', debridUrl: 'http://db.local', token: 'tok', timeoutMs: 100,
+    };
+    globalThis.fetch = reply({ 'index.rust.hit': 3, 'rust.debrid.check.hit': 9 });
+    assert.deepEqual(await pullMetrics(), { 'rust.debrid.check.hit': 9 }, 'índice da 7000 não vaza no recorte legado');
+    globalThis.fetch = (async () => { throw new Error('fora'); }) as unknown as typeof fetch;
+    assert.deepEqual(await pullMetrics(), { 'rust.debrid.metrics.unreachable': 1 });
+  } finally {
+    globalThis.fetch = saved.fetch;
+    config.nativeMetrics = saved.native;
+  }
+});

@@ -1,7 +1,8 @@
 import type { AppServices } from './types.js';
 import * as brCoverage from '../utils/br-coverage.js';
 import { indexerFallbackMetricKey } from '../utils/metric-id.js';
-import { releaseIndexStatus, jackettServiceFlag, type MetricSnapshot } from './dashboard-status-helpers.js';
+import { releaseIndexStatus, jackettServiceFlag, panelMetrics, searchFirstBlock, type MetricSnapshot } from './dashboard-status-helpers.js';
+import { pullNativeMetrics, type NativeMetrics } from '../utils/native-metrics.js';
 import { crawlBlock } from './dashboard-crawl-block.js';
 
 export const ALL_BLOCKS = [
@@ -153,6 +154,11 @@ export async function computeStatusPayload(
     return memoMetrics;
   };
 
+  // Leitura nativa memoizada (Fase 0.7): as duas superfícies do Rust vão em
+  // paralelo com prazo curto e fail-open. `null` = nenhuma respondeu.
+  let memoNative: Promise<NativeMetrics | null> | null = null;
+  const getNative = () => (memoNative ??= pullNativeMetrics());
+
   // Lazy loaders memoizados por ciclo de requisição
   let memoAccount: Promise<any> | null = null;
   const getAccount = () => {
@@ -211,22 +217,15 @@ export async function computeStatusPayload(
     };
   }
 
-  // Bloco: searchFirst (KPI I0). Usa a mesma foto do general quando ele roda.
+  // Bloco: searchFirst (KPI I0). Sem produtor nativo, o bloco se declara NÃO
+  // MEDIDO — ver `searchFirstBlock`.
   if (isReq('searchFirst')) {
-    const counters = getMetrics().counters;
-    out.searchFirst = {
-      responses: counters['search.first.responses'] || 0,
-      brFound: counters['search.first.brFound'] || 0,
-      brCached: counters['search.first.brCached'] || 0,
-      brHidden: counters['search.first.brHidden'] || 0,
-      brVisible: counters['search.first.brVisible'] || 0,
-      brLate: counters['search.first.brLate'] || 0,
-    };
+    out.searchFirst = searchFirstBlock(getMetrics().counters);
   }
 
-  // Bloco: metrics
+  // Bloco: metrics — `native` é ADITIVO: sem fonte Rust, a chave não existe.
   if (isReq('metrics')) {
-    out.metrics = getMetrics();
+    out.metrics = panelMetrics(getMetrics(), await getNative());
   }
 
   // Bloco: cache
@@ -265,9 +264,9 @@ export async function computeStatusPayload(
     };
   }
 
-  // Bloco: releaseIndex
+  // Bloco: releaseIndex — valores nativos (`index.rust.*`) vencem quando medidos.
   if (isReq('releaseIndex')) {
-    out.releaseIndex = releaseIndexStatus(services, getMetrics().counters);
+    out.releaseIndex = releaseIndexStatus(services, getMetrics().counters, await getNative());
   }
 
   // Bloco: harvest

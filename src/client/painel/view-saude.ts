@@ -136,14 +136,20 @@ export function ViewSaude({ general, debrid, conta, searchFirst, indexers, onSel
       <${IndexadoresCard} indexers=${indexers} onSelectIndexer=${onSelectIndexer} />
 
       <${Card} title="Primeira Resposta (I0)">
-        <${StatNumber}
-          value=${searchFirst?.brVisible ?? 0}
-          target=${searchFirst?.responses ?? 0}
-          label="BR entregues no cold"
-        />
-        <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">
-          BR encontrado: ${searchFirst?.brFound ?? 0} · Em cache: ${searchFirst?.brCached ?? 0}
-        </p>
+        ${searchFirst?.available === false ? html`
+          <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">
+            NÃO MEDIDO — ${searchFirst?.reason || 'sem fonte nativa para o primeiro resultado'}
+          </p>
+        ` : html`
+          <${StatNumber}
+            value=${searchFirst?.brVisible ?? 0}
+            target=${searchFirst?.responses ?? 0}
+            label="BR entregues no cold"
+          />
+          <p style="color: var(--muted); margin: 0; font-size: var(--font-floor);">
+            BR encontrado: ${searchFirst?.brFound ?? 0} · Em cache: ${searchFirst?.brCached ?? 0}
+          </p>
+        `}
       </${Card}>
     </div>
   `;

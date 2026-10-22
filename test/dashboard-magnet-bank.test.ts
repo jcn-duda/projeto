@@ -1,6 +1,8 @@
 // Etapa 5 — superfície HTTP das ações do banco vivo no /dashboard-action.json
 // (`magnet-bank-summary` / `magnet-bank-search`), do bloco `magnetBank` do
 // /dashboard-status.json e do indicador `fallbackServed` por indexer.
+// Fase 0.7 — o mesmo /dashboard-status.json expõe `metrics.native` (leitura das
+// duas superfícies do gateway Rust) e o card I0 se declara NÃO MEDIDO.
 //
 // Sem rede: o catálogo de indexers é alimentado pelo fallback do .env (apiKey
 // vazio) e a conta não é tocada. O banco vivo é aberto em MEMÓRIA.
@@ -9,6 +11,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
+import http from 'node:http';
 process.env.CACHE_PERSIST = 'false';
 import { createApp } from '../src/app.js';
 import config from '../src/config.js';
@@ -81,6 +84,27 @@ function post(body: any) {
 function get(query: string) {
   return server.request('GET', `/dashboard-status.json${query}`, {
     headers: { 'X-Indexer-Test-Token': TOKEN },
+  });
+}
+
+/**
+ * Dublê das superfícies `/metrics` do Rust (7000 sem token, 8710 com token).
+ * Porta efêmera em loopback: o teste vê o corpo e o header que chegou de fato.
+ */
+function metricsStub(body: () => Record<string, number>, sink?: { headers?: http.IncomingHttpHeaders }) {
+  return new Promise<{ url: string; close: () => Promise<void> }>((resolve) => {
+    const srv = http.createServer((req, res) => {
+      if (sink) sink.headers = req.headers;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(body()));
+    });
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address() as { port: number };
+      resolve({
+        url: `http://127.0.0.1:${port}`,
+        close: () => new Promise<void>((done) => srv.close(() => done())),
+      });
+    });
   });
 }
 
@@ -215,4 +239,81 @@ test('bloco indexers normaliza o mesmo balde que o produtor (id que muda)', asyn
 
   // A leitura é HISTÓRICO, não o estado online: o campo é separado de `status`.
   assert.equal('status' in row, true, 'o status de saúde continua no próprio campo');
+});
+
+test('painel: gateway fora não inventa metrics.native e o KPI I0 se declara não medido', async () => {
+  const savedNative = config.nativeMetrics;
+  config.nativeMetrics = {
+    gatewayUrl: 'http://127.0.0.1:1',
+    debridUrl: 'http://127.0.0.1:1',
+    token: 'tok-fantasma',
+    timeoutMs: 120,
+  };
+  try {
+    const res = await get('?blocos=metrics,searchFirst,releaseIndex');
+    assert.equal(res.status, 200, 'painel fail-open com o gateway fora');
+    assert.equal('native' in res.json.metrics, false, 'sem fonte: `native` ausente, nunca zero');
+    // Contrato antigo intacto (só recebeu campo novo quando há fonte).
+    assert.equal(typeof res.json.metrics.counters, 'object');
+    assert.equal(typeof res.json.metrics.uptimeS, 'number');
+    assert.equal('hits' in res.json.releaseIndex, true);
+    assert.equal(res.json.releaseIndex.source, 'node');
+    // I0: campos antigos continuam, mas o card sabe que não há medição.
+    assert.equal(res.json.searchFirst.available, false);
+    assert.equal(res.json.searchFirst.source, 'nativo-ausente');
+    assert.equal(typeof res.json.searchFirst.responses, 'number');
+  } finally {
+    config.nativeMetrics = savedNative;
+  }
+});
+
+test('painel: metrics.native lê as DUAS fontes e releaseIndex prefere o nativo', async () => {
+  const gatewaySeen: { headers?: http.IncomingHttpHeaders } = {};
+  const debridSeen: { headers?: http.IncomingHttpHeaders } = {};
+  const gateway = await metricsStub(() => ({
+    'account.rust.ok': 1,
+    'index.rust.hit': 42,
+    'index.rust.miss': 7,
+    'index.rust.served': 3,
+  }), gatewaySeen);
+  const debridStub = await metricsStub(() => ({
+    'rust.debrid.check.hit': 9,
+    'debrid.al.cleanup': 2,
+  }), debridSeen);
+  const savedNative = config.nativeMetrics;
+  config.nativeMetrics = {
+    gatewayUrl: gateway.url,
+    debridUrl: debridStub.url,
+    token: 'tok-native-8710',
+    timeoutMs: 500,
+  };
+  try {
+    const res = await get('?blocos=metrics,releaseIndex,searchFirst');
+    assert.equal(res.status, 200);
+    const native = res.json.metrics.native;
+    assert.ok(native, 'native presente quando alguma fonte respondeu');
+    assert.deepEqual(native.sources, { gateway: true, debrid: true });
+    assert.equal(native.counters['index.rust.hit'], 42);
+    assert.equal(native.counters['account.rust.ok'], 1);
+    assert.equal(native.counters['rust.debrid.check.hit'], 9);
+    assert.equal(native.counters['debrid.al.cleanup'], 2);
+    assert.equal(typeof native.pulledAt, 'string');
+    // O contrato antigo continua no mesmo lugar, agora com `native` ao lado.
+    assert.equal(typeof res.json.metrics.counters, 'object');
+    // Token só na 8710; a 7000 é pública.
+    assert.equal(gatewaySeen.headers?.['x-indexer-test-token'], undefined);
+    assert.equal(debridSeen.headers?.['x-indexer-test-token'], 'tok-native-8710');
+    // releaseIndex: o nativo vence o contador do Node (que está congelado).
+    assert.equal(res.json.releaseIndex.hits, 42);
+    assert.equal(res.json.releaseIndex.misses, 7);
+    assert.equal(res.json.releaseIndex.servedReleases, 3);
+    assert.equal(res.json.releaseIndex.source, 'nativo');
+    assert.equal(typeof res.json.releaseIndex.wouldHit, 'number', 'campo sem fonte nativa segue do Node');
+    // I0 continua não medido mesmo com o gateway vivo: o Rust não o porta.
+    assert.equal(res.json.searchFirst.available, false);
+  } finally {
+    config.nativeMetrics = savedNative;
+    await gateway.close();
+    await debridStub.close();
+  }
 });
