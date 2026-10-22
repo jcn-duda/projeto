@@ -336,11 +336,22 @@ async fn effects_rust_off_nao_emite_efeitos_de_cauda() {
         .map(|effect| effect.kind)
         .collect();
     assert!(
-        kinds
-            .iter()
-            .all(|kind| kind == "harvester_enqueue" || kind == "br_probe"),
-        "default OFF: só o follow-up do índice pode sair: {kinds:?}"
+        kinds.iter().all(|kind| kind == "harvester_enqueue"
+            || kind == "br_probe"
+            || kind == "magnet_capture"),
+        "default OFF: só o follow-up do índice e a captura do banco vivo saem: {kinds:?}"
     );
+    // A captura do banco VIVO tem gate PRÓPRIO (`MAGNET_BANK`): desligar os
+    // efeitos de cauda não pode congelar o acervo que a coleta nativa viu.
+    assert!(
+        kinds.iter().any(|kind| kind == "magnet_capture"),
+        "a captura não depende de EFFECTS_RUST: {kinds:?}"
+    );
+    let lote = efeitos_emitidos(&tail);
+    let captura = achar(&lote, "magnet_capture").expect("magnet_capture");
+    assert_eq!(captura.payload["resetPassedFilter"], json!(false));
+    assert_eq!(captura.payload["indexer"], json!("bludv"));
+    assert_eq!(captura.payload["imdbId"], json!("tt0133093"));
     // A gravação no índice NATIVO SEGUE rodando: só os efeitos são flagados.
     assert!(!index.recorded().is_empty());
 }

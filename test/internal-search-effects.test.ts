@@ -6,6 +6,8 @@
 // `remoteAddress`, que não existe em produção — a guarda real lê o socket.
 // A antiga rota `index-write` saiu no R4 (índice/banco são nativos); os testes
 // dela foram removidos junto com os stubs `record`/`markBankFilterOutcome`.
+// `magnet_capture` é o outro lado do fio da coleta NATIVA do tail: o lote que o
+// Rust viu chega aqui e vira `captureItems` com `resetPassedFilter: false`.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
@@ -23,7 +25,7 @@ const encoded = encodeConfig({ ds: 'torbox' });
 /** Stubs determinísticos que registram as chamadas recebidas. */
 function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; seen: Record<string, any[]> } {
   const seen: Record<string, any[]> = {
-    autofetch: [], warmer: [], audit: [], probe: [], harvest: [], seasonKey: [],
+    autofetch: [], warmer: [], audit: [], probe: [], harvest: [], seasonKey: [], capture: [],
   };
   const deps: Partial<InternalSearchEffectsCollaborators> = {
     enqueueAutofetch: (candidate: any, request: any) => {
@@ -41,6 +43,10 @@ function stubEffects(): { deps: Partial<InternalSearchEffectsCollaborators>; see
     },
     registerSeasonSearchKey: (adapterId: string, account: string, imdb: string, season: number, cacheKey: string) => {
       seen.seasonKey.push({ adapterId, account, imdb, season, cacheKey });
+    },
+    captureItems: (items: readonly any[], indexer: string, ctx: any) => {
+      seen.capture.push({ items, indexer, ctx });
+      return true;
     },
   };
   return { deps, seen };
@@ -230,6 +236,100 @@ test('effects: br_probe agendado NÃO duplica a colheita', async () => {
     await flushTimers();
     assert.equal(seen.probe.length, 1);
     assert.equal(seen.harvest.length, 0, 'quem enfileira é o próprio requestBrProbe');
+  } finally {
+    await server2.close();
+  }
+});
+
+/** Lote da coleta NATIVA (`magnet_capture`) com a forma que o Rust emite. */
+function captureEffect(overrides: Record<string, unknown> = {}, items: any[] = [itemOf(HASH_A)]) {
+  return {
+    kind: 'magnet_capture',
+    payload: {
+      items, indexer: 'bludv', imdbId: 'tt0133093',
+      season: null, episode: null, year: '1999', resetPassedFilter: false,
+      ...overrides,
+    },
+  };
+}
+
+test('effects: magnet_capture alimenta o banco vivo com o grupo indexer||tracker', async () => {
+  const { deps, seen } = stubEffects();
+  const app2 = express();
+  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
+  const server2 = await createTestServer(app2);
+  try {
+    const res = await server2.request('POST', '/internal/search/effects', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: {
+        encoded,
+        effects: [
+          // Série: o Rust já resolve o grupo e manda em `indexer`.
+          captureEffect({ season: 2, episode: 3 }),
+          // Segunda camada: sem `indexer`, o `tracker` do BLUDV é o grupo.
+          captureEffect({ indexer: '', tracker: 'BLUDV' }),
+        ],
+      },
+    });
+    assert.equal(res.status, 202);
+    assert.deepEqual(res.json, { ok: true, accepted: 2, rejected: 0 });
+    await flushTimers();
+    assert.equal(seen.capture.length, 2);
+
+    const serie = seen.capture[0];
+    assert.deepEqual(serie.items, [itemOf(HASH_A)], 'o item cru da coleta nativa atravessa');
+    assert.equal(serie.indexer, 'bludv');
+    // A captura registra o que foi visto; nunca reabre o filtro da obra.
+    assert.equal(serie.ctx.resetPassedFilter, false);
+    assert.equal(serie.ctx.imdbId, 'tt0133093');
+    assert.equal(serie.ctx.season, 2);
+    assert.equal(serie.ctx.episode, 3);
+    assert.equal(serie.ctx.year, '1999');
+
+    const bludv = seen.capture[1];
+    assert.equal(bludv.indexer, 'BLUDV', 'sem indexer, o tracker vira o grupo');
+    assert.equal(bludv.ctx.season, null);
+  } finally {
+    await server2.close();
+  }
+});
+
+test('effects: magnet_capture malformado é recusado sem derrubar a rota', async () => {
+  const { deps, seen } = stubEffects();
+  const app2 = express();
+  registerInternalSearch(app2 as unknown as express.Router, buildServices(), {}, deps);
+  const server2 = await createTestServer(app2);
+  try {
+    const res = await server2.request('POST', '/internal/search/effects', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: {
+        encoded,
+        effects: [
+          // Reabrir o filtro nunca é trabalho da captura.
+          captureEffect({ resetPassedFilter: true }),
+          // Acima do recorte do Rust: recusado, nunca truncado em silêncio.
+          captureEffect({}, Array.from({ length: 201 }, (_, i) => itemOf(String(i).padStart(40, 'b')))),
+          captureEffect({}, []),
+          captureEffect({ season: '2' }),
+          captureEffect({ imdbId: 'nao-e-imdb' }),
+          // O válido do MESMO lote continua passando.
+          captureEffect(),
+        ],
+      },
+    });
+    assert.equal(res.status, 202);
+    assert.equal(res.json.accepted, 1);
+    assert.equal(res.json.rejected, 5);
+    await flushTimers();
+    assert.equal(seen.capture.length, 1, 'só o efeito válido chega ao banco');
+
+    // A rota continua de pé depois do lote ruim.
+    const deNovo = await server2.request('POST', '/internal/search/effects', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { encoded, effects: [{ kind: 'magnet_capture', payload: 'não-objeto' }] },
+    });
+    assert.equal(deNovo.status, 202);
+    assert.equal(deNovo.json.rejected, 1);
   } finally {
     await server2.close();
   }

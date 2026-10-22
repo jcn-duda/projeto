@@ -1,6 +1,6 @@
 //! EFEITOS DE CAUDA: o payload de fio do que o `applyDebrid` do Node enfileira
 //! hoje (`autofetch`, `rd-warmer`, `dub-audit`, `br-probe`, `harvester`,
-//! `season_key`).
+//! `season_key`) mais a captura do banco VIVO (`magnet_capture`).
 //!
 //! O transporte é a rota interna `POST /internal/search/effects` (202,
 //! fire-and-forget) e os `kind`s são os que `src/routes/internal-search-effects.ts`
@@ -19,16 +19,23 @@
 //!   (`search-orchestrator.ts:315`);
 //! - `season_key` — LRU de temporadas com pack pronto (`search-cache.ts:70`);
 //! - `autofetch_batch` — lote pós-debrid que o Node entrega a
-//!   `autoFetchCandidates`/`autoFetchBrDubbed` (`debrid-pipeline-core.ts:130,213`).
+//!   `autoFetchCandidates`/`autoFetchBrDubbed` (`debrid-pipeline-core.ts:130,213`);
+//! - `magnet_capture` — o lote que a coleta NATIVA viu vai ao
+//!   `captureItems` do Node (`magnet-bank.ts:237`): desde o F4.4 o `/stream` é
+//!   do gateway e o banco VIVO (`data/magnets.db`) ficava sem o que a busca
+//!   nativa viu — o fallback 📦 e a URI rica do play perdiam acervo.
 //!
 //! Fora desta fatia, com o contrato exato que falta, em
 //! `docs/rust-effects-contract.md`: `br_probe` e o `harvester_enqueue` de
 //! `miss`/`gap`/`br-gap` da via do índice.
 
+use std::collections::{BTreeMap, HashSet};
+
 use serde_json::{json, Map, Value};
 
 use crate::internal_types::EffectEntry;
 use crate::list_builder::{AutofetchItem, EffectSeeds, WorkHint};
+use crate::raw_item::RawItem;
 
 /// Fatos da requisição que os payloads carregam (nunca segredo em log).
 #[derive(Debug, Clone)]
@@ -57,6 +64,17 @@ fn entry(kind: &str, payload: Value) -> EffectEntry {
         payload,
     }
 }
+
+/// Itens por efeito de captura do acervo vivo.
+///
+/// O recorte é do TRANSPORTE, não do banco: a rota Node aceita
+/// `express.json({limit:'1mb'})` e `MAX_EFFECTS=100` — o gargalo é o tamanho do
+/// JSON, então cada efeito carrega no máximo 200 itens (~100 KB).
+pub const MAGNET_CAPTURE_CHUNK: usize = 200;
+
+/// Teto de corpo por POST dos efeitos. Abaixo do `limit: '1mb'` da rota com
+/// folga para o envelope (`encoded`) e os demais efeitos do lote.
+pub const EFFECTS_BODY_MAX_BYTES: usize = 512 * 1024;
 
 /// `collectAuditCandidates` + `queueDubAudit` (`debrid-pipeline-core.ts:311,382`).
 pub fn dub_audit(seeds: &EffectSeeds, ctx: &EffectContext<'_>) -> Option<EffectEntry> {
@@ -249,6 +267,105 @@ fn item_json(item: &AutofetchItem) -> Value {
     Value::Object(out)
 }
 
+/// Captura do banco VIVO (`data/magnets.db`): o lote que a coleta NATIVA viu
+/// vira `captureItems(items, indexer, ctx)` no Node (`magnet-bank.ts:237`).
+///
+/// O agrupamento é `indexer || tracker` — é o `_indexer` do build e o que o
+/// `inputFromItem` espera (`magnet-bank-merge.ts:240`). O BLUDV publica
+/// `indexer: None` + `tracker: "BLUDV"`: mandar o grupo vazio jogaria tudo no
+/// balde `all` e a fonte sumiria do acervo.
+///
+/// `fromAccount` NUNCA entra (guardrail do índice) e `fromFallback` é reserva
+/// derivada do próprio banco — os dois se perpetuariam. Item sem hash não é
+/// observação do site. O corte em [`MAGNET_CAPTURE_CHUNK`] é do transporte: o
+/// banco em si aceita o lote inteiro.
+pub fn magnet_capture(
+    items: &[RawItem],
+    imdb_id: &str,
+    season: Option<i64>,
+    episode: Option<i64>,
+    year: &Value,
+) -> Vec<EffectEntry> {
+    let mut groups: BTreeMap<String, Vec<&RawItem>> = BTreeMap::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for item in items {
+        if item.from_account || item.from_fallback {
+            continue;
+        }
+        let hash = item.bank_hash();
+        if hash.is_empty() || !seen.insert(hash) {
+            continue;
+        }
+        groups.entry(capture_group(item)).or_default().push(item);
+    }
+    let mut out = Vec::new();
+    for (group, group_items) in groups {
+        for chunk in group_items.chunks(MAGNET_CAPTURE_CHUNK) {
+            let wire: Vec<Value> = chunk.iter().map(|item| item.to_wire()).collect();
+            out.push(entry(
+                "magnet_capture",
+                json!({
+                    "items": wire,
+                    "indexer": group,
+                    "imdbId": imdb_id,
+                    "season": season,
+                    "episode": episode,
+                    "year": year,
+                    // A captura REGISTRA o que foi visto; reabrir o filtro é
+                    // trabalho de outra operação (`markFilterResult`).
+                    "resetPassedFilter": false,
+                }),
+            ));
+        }
+    }
+    out
+}
+
+/// Grupo da captura: `indexer || tracker`, minúsculo e cortado como o
+/// `inputFromItem` do Node; vazio cai em `all` (o default dele).
+fn capture_group(item: &RawItem) -> String {
+    let raw = item
+        .indexer
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .or(item
+            .tracker
+            .as_deref()
+            .filter(|value| !value.trim().is_empty()))
+        .unwrap_or("");
+    let group: String = raw.trim().to_lowercase().chars().take(64).collect();
+    if group.is_empty() {
+        "all".into()
+    } else {
+        group
+    }
+}
+
+/// Lotes prontos para o POST: o gargalo da rota é o TAMANHO do corpo
+/// (`express.json({limit:'1mb'})`), não a contagem de efeitos (`MAX_EFFECTS`).
+/// Efeito que sozinho passa do teto vai sozinho — a rota responde 413 e o tail
+/// só loga, como toda falha de efeito.
+pub fn batches_for_transport(effects: Vec<EffectEntry>, max_bytes: usize) -> Vec<Vec<EffectEntry>> {
+    let mut out: Vec<Vec<EffectEntry>> = Vec::new();
+    let mut current: Vec<EffectEntry> = Vec::new();
+    let mut bytes = 0usize;
+    for effect in effects {
+        let size = serde_json::to_vec(&effect)
+            .map(|body| body.len())
+            .unwrap_or(0);
+        if !current.is_empty() && bytes.saturating_add(size) > max_bytes {
+            out.push(std::mem::take(&mut current));
+            bytes = 0;
+        }
+        bytes = bytes.saturating_add(size);
+        current.push(effect);
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    out
+}
+
 /// Lote da resposta/tail: `autofetch_batch` + `dub_audit` + `rd_warmer` do lote
 /// pós-debrid.
 pub fn build_effects(seeds: &EffectSeeds, ctx: &EffectContext<'_>) -> Vec<EffectEntry> {
@@ -268,3 +385,7 @@ pub fn build_effects(seeds: &EffectSeeds, ctx: &EffectContext<'_>) -> Vec<Effect
 #[cfg(test)]
 #[path = "effects_tests.rs"]
 mod effects_tests;
+
+#[cfg(test)]
+#[path = "magnet_capture_tests.rs"]
+mod magnet_capture_tests;

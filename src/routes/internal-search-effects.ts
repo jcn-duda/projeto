@@ -2,8 +2,9 @@
 // strangler Node→Rust): POST /internal/search/effects. É o que o orquestrador
 // Rust (`adom-search`) pede ao Node DEPOIS do `collect`: disparar os efeitos de
 // fundo que ainda moram aqui (autofetch, warmer, auditoria, sonda, colhedor,
-// chave de temporada). O índice e o banco de magnets são NATIVOS desde o R4 —
-// a antiga rota `index-write` foi removida junto com os ramos Node.
+// chave de temporada) e capturar no banco VIVO o que a coleta NATIVA viu
+// (`magnet_capture`). O índice e a leitura do banco de magnets são NATIVOS
+// desde o R4 — a antiga rota `index-write` foi removida junto com os ramos Node.
 //
 // Mesmo padrão do `collect` (internal-search.ts): sem config na URL — o usuário
 // vem no CORPO (`encoded`), e o contexto é restaurado com `runtime.run` (o
@@ -21,6 +22,9 @@ import * as harvestQueue from '../providers/harvest-queue.js';
 import { registerSeasonSearchKey } from '../providers/autofetch-season-index.js';
 import { runAutofetchBatch } from '../providers/autofetch-batch.js';
 import type { AutofetchBatchPayload } from '../providers/autofetch-batch.js';
+import { captureItems } from '../utils/magnet-bank.js';
+import type { WorkCtx } from '../utils/magnet-bank.js';
+import type { RawItem } from '../../types/domain.js';
 import * as runtime from '../runtime.js';
 import * as log from '../utils/logger.js';
 
@@ -29,8 +33,17 @@ const MAX_EFFECTS = 100;
 /** Lote do Chupim: o pool pós-debrid é `maxResults × candidatePoolFactor`
  *  (100 × 4 no teto do SCHEMA), com folga. */
 const MAX_AUTOFETCH_ITEMS = 400;
+/** Itens por efeito de captura do banco VIVO. É o MESMO recorte do
+ *  `MAGNET_CAPTURE_CHUNK` do Rust (`orchestrator/effects.rs`): o teto existe
+ *  pelo tamanho do corpo (`express.json({limit:'1mb'})`), não pelo acervo. */
+const MAX_CAPTURE_ITEMS = 200;
 
 const IMDB_RE = /^tt\d+$/;
+
+/** `season`/`episode` do payload: número, `null` ou ausente (o Rust manda `null`). */
+function isNullableNumber(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'number';
+}
 
 /** Colaboradores trocáveis em teste (mesmo padrão do internal-search.ts). */
 export interface InternalSearchEffectsCollaborators {
@@ -48,6 +61,8 @@ export interface InternalSearchEffectsCollaborators {
   registerSeasonSearchKey: typeof registerSeasonSearchKey;
   /** Lote pós-debrid do Chupim: reconstrói os streams e roda a cascata do Node. */
   runAutofetchBatch: typeof runAutofetchBatch;
+  /** Banco VIVO: registra no `magnets.db` o que a coleta NATIVA viu. */
+  captureItems: typeof captureItems;
 }
 
 /** Efeito conhecido: `kind` discriminado + payload já validado por tipo. */
@@ -96,6 +111,26 @@ function parseEffects(raw: unknown): { accepted: Effect[]; rejected: number } {
           return typeof payload.adapter_id === 'string' && typeof payload.account === 'string'
             && typeof payload.imdb === 'string' && IMDB_RE.test(payload.imdb)
             && typeof payload.season === 'number' && typeof payload.cache_key === 'string';
+        case 'magnet_capture': {
+          // Captura do banco VIVO. O recorte de 200 é do Rust e existe pelo
+          // TAMANHO do corpo (`limit:'1mb'`): payload maior é rejeitado, nunca
+          // truncado em silêncio.
+          const items = payload.items;
+          if (!Array.isArray(items) || items.length === 0 || items.length > MAX_CAPTURE_ITEMS) return false;
+          // `resetPassedFilter` só pode vir FALSE: reabrir o filtro da obra é
+          // operação de outro caminho (`markFilterResult`), nunca da captura.
+          if (payload.resetPassedFilter !== false) return false;
+          if (typeof payload.indexer !== 'string') return false;
+          if (payload.tracker !== undefined && typeof payload.tracker !== 'string') return false;
+          if (typeof payload.imdbId !== 'string') return false;
+          if (payload.imdbId !== '' && !IMDB_RE.test(payload.imdbId)) return false;
+          if (!isNullableNumber(payload.season) || !isNullableNumber(payload.episode)) return false;
+          if (payload.year !== undefined && payload.year !== null
+            && typeof payload.year !== 'string' && typeof payload.year !== 'number') return false;
+          // Forma grosseira do item: o sanitize de verdade (`inputFromItem`)
+          // roda na drenagem do banco e recusa o que não tiver hash.
+          return items.every((item) => Boolean(item) && typeof item === 'object' && !Array.isArray(item));
+        }
         default:
           return false; // kind desconhecido: rejeitado, nunca lança
       }
@@ -151,6 +186,25 @@ function runEffect(deps: InternalSearchEffectsCollaborators, effect: Effect): vo
         Number(p.season), String(p.cache_key),
       );
       return;
+    case 'magnet_capture': {
+      // O grupo chega JÁ resolvido do Rust (`indexer || tracker`); o fallback
+      // aqui é a segunda camada — o BLUDV publica `indexer: None` +
+      // `tracker: "BLUDV"` e cair no balde `all` sumiria com a fonte.
+      const group = String(p.indexer || p.tracker || '');
+      // `resetPassedFilter: false` é FORÇADO (não lido do payload): a captura
+      // registra o que a coleta VIU e nunca reabre o filtro da obra.
+      const ctx: WorkCtx = {
+        imdbId: String(p.imdbId || ''),
+        season: typeof p.season === 'number' ? p.season : null,
+        episode: typeof p.episode === 'number' ? p.episode : null,
+        year: typeof p.year === 'string' || typeof p.year === 'number' ? p.year : null,
+        resetPassedFilter: false,
+      };
+      const accepted = deps.captureItems(p.items as RawItem[], group, ctx);
+      // Fila cheia = lote descartado: log e segue, o banco nunca segura a busca.
+      if (!accepted) log.debug('[internal] magnet_capture: fila do banco vivo cheia');
+      return;
+    }
   }
 }
 
@@ -214,6 +268,7 @@ export function registerInternalSearchEffects(
     harvestEnqueue: overrides.harvestEnqueue ?? harvestQueue.enqueue,
     registerSeasonSearchKey: overrides.registerSeasonSearchKey ?? registerSeasonSearchKey,
     runAutofetchBatch: overrides.runAutofetchBatch ?? runAutofetchBatch,
+    captureItems: overrides.captureItems ?? captureItems,
   };
   const json = express.json({ limit: '1mb' });
 
