@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 
-import { isSafeDownloadUrl } from '../src/utils/net-safety.js';
+import { isSafeDownloadUrl, isLoopbackBase } from '../src/utils/net-safety.js';
 
 test('Link de download bloqueia SSRF para destinos locais literais (IPv4, IPv6, ULA, Link-Local, IPv4-Mapped)', () => {
   // --- Protocolos não autorizados ---
@@ -108,4 +108,47 @@ test('Link de download bloqueia SSRF para destinos locais literais (IPv4, IPv6, 
   assert.equal(isSafeDownloadUrl('http://192.168.1.1/file', true), true);
   assert.equal(isSafeDownloadUrl('http://[fe80::1]/file', true), true);
   assert.equal(isSafeDownloadUrl('file:///etc/passwd', true), false);
+});
+
+// --- isLoopbackBase: destino do token interno (marcas/holds, Fase 0.3) ---
+//
+// A régua é a do `adom_debrid::holds_feed::ensure_loopback`: só loopback, e
+// `http`/`https`. Fora daqui a fonte interna é PULADA (o header com o token
+// nunca é montado), então falso positivo vira vazamento de credencial.
+test('isLoopbackBase aceita só loopback literal (http/https)', () => {
+  for (const base of [
+    'http://127.0.0.1:7100',
+    'http://127.0.0.1:8710/',
+    // O parser do WHATWG normaliza IPv4 curto para dotted-quad.
+    'http://127.1:7100',
+    'http://127.10.20.30:7100',
+    'https://127.0.0.1:7100',
+    'http://localhost:7100',
+    'http://LOCALHOST:7100/internal/debrid/marked',
+    'http://[::1]:7100',
+  ]) {
+    assert.equal(isLoopbackBase(base), true, base);
+  }
+});
+
+test('isLoopbackBase recusa host externo, IPv4 público e esquema não-http', () => {
+  for (const base of [
+    'http://example.com:8710',
+    'http://10.0.0.5:8710',
+    'http://192.168.1.10:8710',
+    'http://169.254.169.254/latest/meta-data',
+    'http://0.0.0.0:8710',
+    'http://[::2]:8710',
+    // Domínio que apenas PARECE loopback (o clássico bypass de "startsWith").
+    'http://127.0.0.1.example.com:8710',
+    'http://127.0.0.1.nip.io:8710',
+    // Sem esquema, esquema estranho e lixo: sem canal, sem token.
+    '127.0.0.1:8710',
+    'ftp://127.0.0.1:8710',
+    'file:///etc/passwd',
+    '',
+    '   ',
+  ]) {
+    assert.equal(isLoopbackBase(base), false, base);
+  }
 });

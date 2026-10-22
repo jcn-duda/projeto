@@ -20,6 +20,7 @@ import * as metrics from '../src/utils/metrics.js';
 import { resetCatalogCache } from '../src/providers/jackett-catalog.js';
 import { safeMetricId, indexerFallbackMetricKey } from '../src/utils/metric-id.js';
 import { DASHBOARD_ACTIONS, DESTRUCTIVE_ACTIONS } from '../src/routes/dashboard-actions.js';
+import { pullNativeMetrics } from '../src/utils/native-metrics.js';
 import { createTestServer } from './e2e/e2e-harness.js';
 
 const FRESH_DIR = () => fs.mkdtempSync(path.join(os.tmpdir(), 'dash-bank-'));
@@ -315,5 +316,48 @@ test('painel: metrics.native lê as DUAS fontes e releaseIndex prefere o nativo'
     config.nativeMetrics = savedNative;
     await gateway.close();
     await debridStub.close();
+  }
+});
+
+// O header da 8710 é credencial de rota INTERNA: `DEBRID_INTERNAL_URL` só vira
+// canal quando o destino é loopback (a MESMA régua do `ensure_loopback` do
+// Rust). Env trocada para host externo desliga a fonte — nada de token viajando.
+test('pullNativeMetrics: destino fora do loopback não recebe o token (fonte pulada)', async () => {
+  const savedNative = config.nativeMetrics;
+  const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+  const fetchImpl = (async (url: string, init?: { headers?: Record<string, string> }) => {
+    calls.push({ url: String(url), headers: init?.headers || {} });
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as unknown as typeof fetch;
+  try {
+    // Host externo: nenhuma requisição, nenhum header.
+    config.nativeMetrics = {
+      gatewayUrl: '', debridUrl: 'http://example.com:8710', token: 'tok-segredo', timeoutMs: 100,
+    };
+    assert.equal(await pullNativeMetrics({ fetchImpl }), null, 'sem fonte: `null`, nunca zero inventado');
+    assert.equal(calls.length, 0, 'host externo não é tentado');
+
+    // Loopback: o header sai como sempre (a 7000 nem entra nesta leitura).
+    config.nativeMetrics = {
+      gatewayUrl: '', debridUrl: 'http://127.0.0.1:8710', token: 'tok-segredo', timeoutMs: 100,
+    };
+    const native = await pullNativeMetrics({ fetchImpl });
+    assert.ok(native, '8710 em loopback respondeu');
+    assert.deepEqual(native.sources, { gateway: false, debrid: true });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, 'http://127.0.0.1:8710/metrics');
+    assert.equal(calls[0].headers['X-Indexer-Test-Token'], 'tok-segredo');
+
+    // A 7000 é pública e NÃO passa pela régua: host externo segue sem token.
+    config.nativeMetrics = {
+      gatewayUrl: 'http://example.com:7000', debridUrl: '', token: 'tok-segredo', timeoutMs: 100,
+    };
+    const publicNative = await pullNativeMetrics({ fetchImpl });
+    assert.equal(publicNative?.sources.gateway, true, 'a 7000 não depende de loopback');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].url, 'http://example.com:7000/metrics');
+    assert.equal(calls[1].headers['X-Indexer-Test-Token'], undefined, 'a 7000 nunca leva token');
+  } finally {
+    config.nativeMetrics = savedNative;
   }
 });

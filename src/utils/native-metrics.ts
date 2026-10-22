@@ -13,6 +13,7 @@
  * Fail-open: nada aqui lança, e o prazo é curto.
  */
 import config from '../config.js';
+import { isLoopbackBase } from './net-safety.js';
 
 export type NativeMetricsSource = 'gateway' | 'debrid';
 
@@ -93,8 +94,11 @@ async function readCounters(
 /**
  * Lê as duas superfícies em paralelo. `null` quando NENHUMA respondeu — é o
  * sinal para o painel omitir `metrics.native` (nada de zero inventado).
- * A 8710 só é tentada com token: sem ele a rota responde 503/401 e a leitura
- * seria só custo.
+ * A 8710 só é tentada com token E destino em loopback: o header
+ * `X-Indexer-Test-Token` é credencial de rota interna e não sai da máquina.
+ * `DEBRID_INTERNAL_URL` apontando para host externo (ou URL inválida) desliga
+ * a fonte em vez de vazar o token — fail-open, sem header e sem log de token.
+ * A 7000 é pública: segue sem token e sem essa restrição.
  */
 export async function pullNativeMetrics(options: NativeMetricsOptions = {}): Promise<NativeMetrics | null> {
   const settings = config.nativeMetrics;
@@ -105,12 +109,15 @@ export async function pullNativeMetrics(options: NativeMetricsOptions = {}): Pro
   const token = settings.token || config.jackett.testToken || '';
   const gatewayUrl = base(settings.gatewayUrl);
   const debridUrl = base(settings.debridUrl);
+  // Leitura do destino ANTES de montar o header: fora do loopback a fonte é
+  // pulada (a 8710 é local por definição; env trocada não vira canal externo).
+  const debridReady = Boolean(token) && Boolean(debridUrl) && isLoopbackBase(debridUrl);
 
   const [gateway, debrid] = await Promise.all([
     gatewayUrl
       ? readCounters(`${gatewayUrl}/metrics`, { accept: 'application/json' }, timeoutMs, fetchImpl)
       : Promise.resolve(null),
-    token && debridUrl
+    debridReady
       ? readCounters(
         `${debridUrl}/metrics`,
         { accept: 'application/json', 'X-Indexer-Test-Token': token },
