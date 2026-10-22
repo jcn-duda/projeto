@@ -39,7 +39,7 @@ use adom_core::{
 use serde_json::{json, Value};
 
 use crate::alldebrid::{AllDebrid, CheckOpts};
-use crate::alldebrid_cleanup::{env_truthy, CleanupMode, CleanupPlan, DurablePeek};
+use crate::alldebrid_cleanup::{account_scope, env_truthy, CleanupMode, CleanupPlan, DurablePeek};
 use crate::debridlink::DebridLink;
 use crate::error::DebridError;
 use crate::holds_feed::HoldsFacts;
@@ -183,7 +183,10 @@ pub async fn check_service_report_with(
             // feed in-process (`DEBRID_AL_HOLDS=on`), ou a nativa segue
             // read-only — nunca "completo" por omissão.
             let cleanup = CleanupMode::from_env();
-            let opts = alldebrid_opts(cleanup, timeout, facts, hashes);
+            // O leitor do `cache.db` do Node serve dois papéis nesta checagem:
+            // filtro de upload (`adrm`, sempre) e guarda durável da limpeza.
+            let durable = DurablePeek::from_env();
+            let opts = alldebrid_opts(cleanup, timeout, facts, hashes, api_key, &durable);
             let ad = AllDebrid::new(client);
             match ad.check_cached_report(api_key, hashes, &opts).await {
                 Ok(report) => {
@@ -228,29 +231,39 @@ pub async fn check_service_report_with(
 /// `CheckOpts` da AllDebrid nesta rodada. Três estados, do mais seguro ao mais
 /// permissivo:
 ///
-/// - limpeza OFF (default): read-only; fatos e `drop_*` são ignorados;
+/// - limpeza OFF (default): read-only para APAGAR; fatos e `drop_*` são
+///   ignorados. O filtro de upload (`adrm`) continua valendo;
 /// - ON **sem** fatos: `inventory_loaded:false` + `holds_complete:false` — a
 ///   nativa segue read-only (`holds_incomplete`), como antes do feed;
 /// - ON **com** fatos: drops do Node (ou env), inventário/`knownBefore` e held
 ///   do lote; `holds_complete` só com [`HoldsFacts::covers`] (o flag do Node
 ///   sozinho não autoriza).
+///
+/// `durable` é o leitor do `cache.db` do Node e é lido ANTES do early return:
+/// o `adrm:v1` (anti-reenchimento) é filtro de UPLOAD, leitura read-only sem
+/// efeito colateral, e vale mesmo com a limpeza desligada — sem ele a checagem
+/// re-sobe ao `/magnet/upload` o hash que a limpeza apagou de propósito. Só o
+/// `CheckOpts.durable` (a guarda `adprot`/`adsub` da limpeza) depende da flag.
 pub(crate) fn alldebrid_opts(
     cleanup: CleanupMode,
     timeout: Option<Duration>,
     facts: Option<&HoldsFacts>,
     hashes: &[String],
+    api_key: &str,
+    durable: &DurablePeek,
 ) -> CheckOpts {
     let mut opts = CheckOpts {
         timeout,
         cleanup,
+        blocked: durable.blocked_hashes(&account_scope(api_key), now_ms()),
         ..CheckOpts::default()
     };
     if !cleanup.is_on() {
-        // READ-ONLY: nem o inventário próprio é lido (`cleanup_run` sai no
-        // primeiro portão).
+        // READ-ONLY para apagar: nem o inventário próprio é lido (`cleanup_run`
+        // sai no primeiro portão) e o `adprot`/`adsub` não entra no `CheckOpts`.
         return opts;
     }
-    opts.durable = Some(std::sync::Arc::new(DurablePeek::from_env()));
+    opts.durable = Some(std::sync::Arc::new(durable.clone()));
     match facts {
         Some(facts) => {
             opts.drop_ready = facts

@@ -23,8 +23,8 @@ use tokio::net::TcpListener;
 
 use crate::alldebrid::AllDebrid;
 use crate::alldebrid_cleanup::{
-    account_scope, adprot_key, adsub_key, hold, remember_submitted, reset_submitted, CleanupMode,
-    CleanupSuppressed, DropVerdict, DurablePeek, Holds, Inventory,
+    account_scope, adprot_key, adrm_key, adsub_key, hold, remember_submitted, reset_submitted,
+    CleanupMode, CleanupSuppressed, DropVerdict, DurablePeek, Holds, Inventory,
 };
 use crate::alldebrid_delete::{delete_with_backoff, DeleteConfig, DeleteStop};
 use crate::http::HttpClient;
@@ -776,5 +776,48 @@ fn chave_da_protecao_bate_com_o_node() {
     assert_eq!(
         adsub_key(&account, "ABCD"),
         format!("adsub:v1:{account}:abcd")
+    );
+    // `adrm` NÃO leva segmento de adaptador (`alldebrid-reupload.ts::key`).
+    assert_eq!(
+        adrm_key(&account, "ABCD"),
+        format!("adrm:v1:{account}:abcd")
+    );
+}
+
+/// Anti-reenchimento (`adrm:v1`): a checagem só enxerga o bloqueio VIVO da
+/// própria conta. Expirado, de outra conta ou de outro namespace não entra —
+/// a fonte é read-only, então nada aqui pode gravar/apagar.
+#[test]
+fn blocked_hashes_so_devolve_adrm_vivo_da_propria_conta() {
+    let account = account_scope("ad-adrm-conta");
+    let outra = account_scope("ad-adrm-outra");
+    let now = crate::error::now_ms() as i64;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cache.db");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);",
+        )
+        .unwrap();
+        let rows = [
+            (adrm_key(&account, &hash_of('a')), now + 60_000),
+            (adrm_key(&account, &hash_of('b')), now - 1_000),
+            (adrm_key(&outra, &hash_of('c')), now + 60_000),
+            (adsub_key(&account, &hash_of('d')), now + 60_000),
+        ];
+        for (key, expires_at) in rows {
+            conn.execute(
+                "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+                rusqlite::params![key, expires_at],
+            )
+            .unwrap();
+        }
+    }
+    let peek = DurablePeek::new(path);
+    assert_eq!(
+        peek.blocked_hashes(&account, now),
+        HashSet::from([hash_of('a')]),
+        "só o adrm vivo desta conta bloqueia o upload"
     );
 }

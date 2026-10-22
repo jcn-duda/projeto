@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use tokio::net::TcpListener;
 
 use super::{alldebrid_opts, check_service, is_cached, outcome_json, UnusableKind};
-use crate::alldebrid_cleanup::CleanupMode;
+use crate::alldebrid_cleanup::{account_scope, adrm_key, CleanupMode, DurablePeek};
 use crate::holds_feed::HoldsFacts;
 use crate::store::Store;
 use crate::verdict::{rd_gate_enabled, rd_ledger_enabled, rd_oracle_enabled};
@@ -389,12 +389,39 @@ fn batch() -> Vec<String> {
     BATCH.iter().map(|h| (*h).to_string()).collect()
 }
 
+/// Leitor de um `cache.db` que não existe: sem `adrm`, sem `adprot`/`adsub`.
+/// Caminho relativo ao crate (cwd do `cargo test`) e nunca criado.
+fn no_peek() -> DurablePeek {
+    DurablePeek::new("cache.db.inexistente")
+}
+
+/// `cache.db` mínimo do Node (`src/utils/cache-db-open.ts`) com `expires_at`
+/// explícito por chave.
+fn cache_db(dir: &std::path::Path, rows: &[(&str, i64)]) -> std::path::PathBuf {
+    let path = dir.join("cache.db");
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);",
+    )
+    .unwrap();
+    for (key, expires_at) in rows {
+        conn.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params![key, expires_at],
+        )
+        .unwrap();
+    }
+    path
+}
+
 /// Limpeza OFF (default): read-only de verdade — fatos e drops ignorados, nem
-/// inventário nem `DurablePeek` são montados.
+/// inventário nem guarda durável são montados. O filtro de upload (`adrm`) é a
+/// exceção: leitura read-only que vale SEMPRE.
 #[test]
 fn alldebrid_opts_limpeza_off_ignora_fatos() {
     let facts = holds_facts(true, &BATCH);
-    let opts = alldebrid_opts(CleanupMode::Off, None, Some(&facts), &batch());
+    let peek = no_peek();
+    let opts = alldebrid_opts(CleanupMode::Off, None, Some(&facts), &batch(), KEY, &peek);
     assert!(!opts.cleanup.is_on());
     assert!(!opts.drop_ready);
     assert!(!opts.drop_uncached);
@@ -402,7 +429,11 @@ fn alldebrid_opts_limpeza_off_ignora_fatos() {
     assert!(!opts.holds_complete);
     assert!(opts.known_before.is_empty());
     assert!(opts.held.is_empty());
-    assert!(opts.durable.is_none(), "flag OFF não abre o cache.db");
+    assert!(
+        opts.durable.is_none(),
+        "flag OFF não entrega a guarda `adprot`/`adsub` à limpeza"
+    );
+    assert!(opts.blocked.is_empty(), "sem cache.db não há bloqueio");
 }
 
 /// Limpeza ON sem feed: comportamento anterior preservado (read-only por
@@ -413,7 +444,8 @@ fn alldebrid_opts_sem_fatos_continua_read_only() {
         ("DEBRID_DROP_READY", None),
         ("DEBRID_DROP_UNCACHED", Some("false")),
     ]);
-    let opts = alldebrid_opts(CleanupMode::On, None, None, &batch());
+    let peek = no_peek();
+    let opts = alldebrid_opts(CleanupMode::On, None, None, &batch(), KEY, &peek);
     assert!(opts.drop_ready, "default do ambiente é true");
     assert!(!opts.drop_uncached, "env manda quando não há fato");
     assert!(!opts.inventory_loaded);
@@ -426,11 +458,14 @@ fn alldebrid_opts_sem_fatos_continua_read_only() {
 #[test]
 fn alldebrid_opts_fatos_completos_autorizam_o_plano() {
     let facts = holds_facts(true, &BATCH);
+    let peek = no_peek();
     let opts = alldebrid_opts(
         CleanupMode::On,
         Some(Duration::from_millis(123)),
         Some(&facts),
         &batch(),
+        KEY,
+        &peek,
     );
     assert_eq!(opts.timeout, Some(Duration::from_millis(123)));
     assert!(!opts.drop_ready);
@@ -447,7 +482,8 @@ fn alldebrid_opts_fatos_completos_autorizam_o_plano() {
 #[test]
 fn alldebrid_opts_fatos_incompletos_nao_autorizam() {
     let partial = holds_facts(true, &[HIT]);
-    let opts = alldebrid_opts(CleanupMode::On, None, Some(&partial), &batch());
+    let peek = no_peek();
+    let opts = alldebrid_opts(CleanupMode::On, None, Some(&partial), &batch(), KEY, &peek);
     assert!(!opts.holds_complete, "evaluated não cobre o lote");
     // O que foi provado (held/inventário) continua indo: protege mais, nunca
     // menos.
@@ -455,8 +491,98 @@ fn alldebrid_opts_fatos_incompletos_nao_autorizam() {
     assert!(opts.inventory_loaded);
 
     let lying = holds_facts(false, &BATCH);
-    let opts = alldebrid_opts(CleanupMode::On, None, Some(&lying), &batch());
+    let opts = alldebrid_opts(CleanupMode::On, None, Some(&lying), &batch(), KEY, &peek);
     assert!(!opts.holds_complete, "flag falso do Node nunca vira prova");
+}
+
+/// O `blocked` vem do `adrm:v1` do `cache.db` do Node e vale MESMO com a
+/// limpeza OFF — é filtro de upload, não guarda da limpeza. O expirado não
+/// bloqueia (o TTL de 3 dias é quem manda) e o `durable` da limpeza continua
+/// `None` até a flag ligar.
+#[test]
+fn alldebrid_opts_blocked_vem_do_adrm_com_limpeza_off() {
+    let account = account_scope(KEY);
+    let now = crate::error::now_ms() as i64;
+    let vivo = adrm_key(&account, HIT);
+    let expirado = adrm_key(&account, MISS);
+    let dir = tempfile::tempdir().unwrap();
+    let path = cache_db(
+        dir.path(),
+        &[(&vivo, now + 60_000), (&expirado, now - 1_000)],
+    );
+    let peek = DurablePeek::new(path);
+    let opts = alldebrid_opts(CleanupMode::Off, None, None, &batch(), KEY, &peek);
+    assert!(opts.blocked.contains(HIT), "adrm vivo sai do upload");
+    assert!(!opts.blocked.contains(MISS), "adrm expirado não bloqueia");
+    assert!(opts.durable.is_none(), "a guarda da limpeza segue OFF");
+
+    let opts = alldebrid_opts(CleanupMode::On, None, None, &batch(), KEY, &peek);
+    assert!(
+        opts.blocked.contains(HIT),
+        "o mesmo bloqueio vale com a limpeza ON"
+    );
+    assert!(opts.durable.is_some(), "ON entrega a guarda à limpeza");
+}
+
+/// Prova de ponta: o hash com `adrm` vivo NÃO chega ao `/magnet/upload` (que é
+/// a própria consulta de cache) — o mock conta o que trafegou.
+#[tokio::test]
+async fn adrm_tira_o_hash_do_upload_mesmo_com_limpeza_off() {
+    let body = json!({
+        "status": "success",
+        "data": { "magnets": [{ "hash": MISS, "ready": true, "id": 12 }] }
+    })
+    .to_string();
+    let (up, app) = upstream(200, &body);
+    let base = serve(app).await;
+    let account = account_scope(KEY);
+    let now = crate::error::now_ms() as i64;
+    let vivo = adrm_key(&account, HIT);
+    let expirado = adrm_key(&account, DARK);
+    let dir = tempfile::tempdir().unwrap();
+    let path = cache_db(
+        dir.path(),
+        &[(&vivo, now + 60_000), (&expirado, now - 1_000)],
+    );
+    let cache_str = path.to_string_lossy().to_string();
+    let _env = EnvGuard::set(&[
+        ("ALLDEBRID_API_BASE", Some(&base)),
+        ("CACHE_DB_PATH", Some(cache_str.as_str())),
+        ("DEBRID_AL_CLEANUP", None),
+    ]);
+    let outcome = check_service(
+        "alldebrid",
+        KEY,
+        &[HIT.into(), DARK.into(), MISS.into()],
+        Some(Duration::from_millis(2_000)),
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(
+        is_cached(&outcome, MISS),
+        "o hash livre foi perguntado e é ⚡"
+    );
+    assert!(
+        !is_cached(&outcome, HIT),
+        "bloqueado não é ⚡: ele nem foi ao upload"
+    );
+    let queries: Vec<String> = up
+        .hits
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(_, query)| query.clone())
+        .collect();
+    assert!(
+        queries.iter().all(|query| !query.contains(HIT)),
+        "o hash com `adrm` vivo não pode ir ao /magnet/upload: {queries:?}"
+    );
+    assert!(
+        queries.iter().any(|query| query.contains(DARK)),
+        "`adrm` expirado não bloqueia (o hash volta ao upload): {queries:?}"
+    );
+    assert!(queries.iter().any(|query| query.contains(MISS)));
 }
 
 /// A checagem com fatos atravessa `check_service_report_with` sem mexer no

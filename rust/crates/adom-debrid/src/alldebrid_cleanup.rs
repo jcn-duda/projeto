@@ -14,7 +14,9 @@
 //!   fato `held` entregue pelo chamador;
 //! - **durável** — `adprot:v1:alldebrid:<conta>:<hash>` no `cache.db` (retenção
 //!   BR do autofetch). Lido em modo read-only por [`DurablePeek`]; o `adsub:v1`
-//!   do mesmo banco marca o que o addon subiu (e pode sair).
+//!   do mesmo banco marca o que o addon subiu (e pode sair) e o `adrm:v1` marca
+//!   o que a limpeza apagou DE PROPÓSITO — filtro de UPLOAD, nunca veto de
+//!   delete: ele só tira o hash do `/magnet/upload` da checagem.
 //!
 //! `knownBefore` é o snapshot da conta ANTES do upload: o que já era do usuário
 //! não sai. O Rust carrega o próprio snapshot por `/magnet/status` (TTL
@@ -304,12 +306,30 @@ fn adsub_prefix(account: &str) -> String {
     format!("adsub:v1:{account}:")
 }
 
+/// Anti-reenchimento da AllDebrid (Fase 8, item 8.14): hash que a limpeza
+/// apagou DE PROPÓSITO não volta ao `/magnet/upload`. **Sem** segmento de
+/// adapter de propósito (≠ `adprot:v1:alldebrid:...`): só a AllDebrid marca e
+/// a leitura de outra conta simplesmente não encontra registro — é o mesmo
+/// `key()` de `markReuploadBlocked` no Node.
+pub fn adrm_key(account: &str, hash: &str) -> String {
+    format!("adrm:v1:{account}:{}", hash.trim().to_lowercase())
+}
+
+fn adrm_prefix(account: &str) -> String {
+    format!("adrm:v1:{account}:")
+}
+
 /// Leitor read-only do `cache.db` (o mesmo arquivo que o Node mantém em WAL).
 /// Abre sob demanda, uma vez; erro de abertura/consulta devolve "não protegido"
 /// (o fail-safe da limpeza é `holds_complete` + inventário, não este banco).
+///
+/// Clonável porque a checagem usa o MESMO leitor para dois papéis: o filtro de
+/// upload (`adrm`, vale sempre) e a guarda durável da limpeza (`adprot`/`adsub`,
+/// só com `DEBRID_AL_CLEANUP=on`). A conexão é compartilhada pelo `Arc`.
+#[derive(Clone)]
 pub struct DurablePeek {
     path: PathBuf,
-    conn: Mutex<Option<rusqlite::Connection>>,
+    conn: Arc<Mutex<Option<rusqlite::Connection>>>,
 }
 
 impl fmt::Debug for DurablePeek {
@@ -324,7 +344,7 @@ impl DurablePeek {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
-            conn: Mutex::new(None),
+            conn: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -387,7 +407,26 @@ impl DurablePeek {
 
     /// Todos os `adsub` vivos da conta numa consulta (usado pelo inventário).
     pub fn owned_hashes(&self, account: &str, now: i64) -> HashSet<String> {
-        let prefix = adsub_prefix(account);
+        self.prefixed_hashes(&adsub_prefix(account), now)
+    }
+
+    /// Hashes desta conta que a limpeza apagou de propósito (`adrm:v1`) e que a
+    /// checagem NÃO pode re-subir.
+    ///
+    /// É filtro de UPLOAD, não de play: o hash sai da chamada do
+    /// `/magnet/upload` (que é a própria consulta de cache) para a conta não
+    /// reencher com o que acabou de sair. Fonte read-only — abrir/consultar este
+    /// banco não grava, não expira e não toca na conta. Banco ausente/ilegível
+    /// devolve vazio: sem prova do bloqueio, o hash volta a ser consultado (o
+    /// fail-safe aqui é o lado do reenchimento, nunca o de esconder ⚡ real).
+    pub fn blocked_hashes(&self, account: &str, now: i64) -> HashSet<String> {
+        self.prefixed_hashes(&adrm_prefix(account), now)
+    }
+
+    /// Hashes vivos com `prefix` (`<namespace>:v1:<conta>:`), numa consulta — o
+    /// MESMO SQL do `owned_hashes`, de propósito: um só lugar para a régua de
+    /// TTL do `cache.db` do Node.
+    fn prefixed_hashes(&self, prefix: &str, now: i64) -> HashSet<String> {
         self.with_conn(|conn| {
             let mut stmt = conn
                 .prepare(
@@ -400,7 +439,7 @@ impl DurablePeek {
                 .ok()?;
             Some(
                 rows.filter_map(Result::ok)
-                    .filter_map(|key| key.strip_prefix(&prefix).map(str::to_lowercase))
+                    .filter_map(|key| key.strip_prefix(prefix).map(str::to_lowercase))
                     .filter(|hash| !hash.is_empty())
                     .collect(),
             )

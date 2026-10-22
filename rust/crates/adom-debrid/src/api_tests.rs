@@ -506,3 +506,103 @@ async fn alldebrid_limpeza_sem_holds_completos_nao_apaga() {
         "sem a prova dos holds do autofetch, ninguém sai"
     );
 }
+
+// ── Anti-reenchimento (`adrm:v1`) pela rota ─────────────────────────────────
+
+/// AllDebrid falso que CONTA os uploads e guarda a query (o que trafegou).
+struct UploadScene {
+    uploads: AtomicUsize,
+    last_query: std::sync::Mutex<Option<String>>,
+}
+
+async fn fake_alldebrid_upload(
+    State(scene): State<Arc<UploadScene>>,
+    req: Request<Body>,
+) -> Response {
+    let path = req.uri().path().to_string();
+    let query = req.uri().query().unwrap_or("").to_string();
+    let _ = req.into_body().collect().await;
+    if path.ends_with("/magnet/upload") {
+        scene.uploads.fetch_add(1, Ordering::SeqCst);
+        *scene.last_query.lock().unwrap() = Some(query);
+        return (
+            StatusCode::OK,
+            r#"{"status":"success","data":{"magnets":[{"hash":"cccccccccccccccccccccccccccccccccccccccc","ready":true,"id":99}]}}"#,
+        )
+            .into_response();
+    }
+    (StatusCode::OK, r#"{"status":"success","data":{}}"#).into_response()
+}
+
+/// `cache.db` mínimo do Node com as chaves dadas (todas vivas).
+fn cache_db_with(dir: &std::path::Path, keys: &[String]) -> PathBuf {
+    let path = dir.join("cache.db");
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);",
+    )
+    .unwrap();
+    let expires = crate::error::now_ms() as i64 + 60_000;
+    for key in keys {
+        conn.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params![key, expires],
+        )
+        .unwrap();
+    }
+    path
+}
+
+/// O hash com `adrm:v1` vivo NÃO chega ao `/magnet/upload` da checagem — que é
+/// a própria consulta de cache. Vale com a limpeza OFF (é filtro de upload) e
+/// o hash livre segue sendo perguntado normalmente.
+#[tokio::test]
+async fn alldebrid_adrm_nao_sobe_hash_bloqueado_pela_rota() {
+    let scene = Arc::new(UploadScene {
+        uploads: AtomicUsize::new(0),
+        last_query: std::sync::Mutex::new(None),
+    });
+    let app = Router::new()
+        .fallback(any(fake_alldebrid_upload))
+        .with_state(scene.clone());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let base = format!("http://{addr}");
+    let blocked = "a".repeat(40);
+    let free = "c".repeat(40);
+    let account = crate::alldebrid_cleanup::account_scope(KEY);
+    let dir = tempfile::tempdir().unwrap();
+    let path = cache_db_with(
+        dir.path(),
+        &[crate::alldebrid_cleanup::adrm_key(&account, &blocked)],
+    );
+    let cache_str = path.to_string_lossy().to_string();
+    let _env = EnvVars::set(&[
+        ("ALLDEBRID_API_BASE", &base),
+        ("CACHE_DB_PATH", cache_str.as_str()),
+        ("DEBRID_AL_CLEANUP", "off"),
+    ]);
+    let body = format!(
+        r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["{blocked}","{free}"],"timeoutMs":2000}}"#
+    );
+    let (status, raw) = call("segredo", Some("segredo"), "/debrid/check", &body).await;
+    assert_eq!(status, StatusCode::OK, "{raw}");
+    let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(json["known"].as_bool(), Some(true));
+    assert_eq!(json["cached"].as_array().map(|rows| rows.len()), Some(1));
+    assert_eq!(json["cached"][0].as_str(), Some(free.as_str()));
+    assert_eq!(
+        scene.uploads.load(Ordering::SeqCst),
+        1,
+        "só o hash livre foi ao upload"
+    );
+    let query = scene.last_query.lock().unwrap().clone().unwrap_or_default();
+    assert!(
+        !query.contains(&blocked),
+        "o hash bloqueado não pode ir ao /magnet/upload: {query}"
+    );
+    assert!(query.contains(&free), "o hash livre precisa ir: {query}");
+}

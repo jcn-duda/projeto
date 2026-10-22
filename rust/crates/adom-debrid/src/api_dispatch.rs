@@ -16,9 +16,9 @@ use serde_json::{json, Value};
 
 use super::AppState;
 use crate::alldebrid::AllDebrid;
-use crate::alldebrid_cleanup::{env_truthy, CleanupMode, CleanupPlan, DurablePeek};
+use crate::alldebrid_cleanup::{account_scope, env_truthy, CleanupMode, CleanupPlan, DurablePeek};
 use crate::debridlink::DebridLink;
-use crate::error::DebridError;
+use crate::error::{now_ms, DebridError};
 use crate::http::HttpClient;
 use crate::premiumize::Premiumize;
 use crate::realdebrid::RealDebrid;
@@ -143,6 +143,12 @@ async fn check_alldebrid(state: &AppState, body: &RequestBody) -> Response {
         Err(response) => return *response,
     };
     let cleanup = CleanupMode::from_env();
+    // O leitor read-only do `cache.db` do Node tem dois papéis: filtro de UPLOAD
+    // (`adrm:v1`, vale sempre) e guarda durável da limpeza (`adprot`/`adsub`,
+    // só com a flag). O `blocked` tira do `/magnet/upload` o hash que a limpeza
+    // apagou de propósito — sem ele a conta reenche a cada busca.
+    let durable = DurablePeek::from_env();
+    let account = account_scope(&body.api_key);
     let opts = crate::alldebrid::CheckOpts {
         timeout: body.timeout_ms.map(Duration::from_millis),
         batch_size: None,
@@ -160,9 +166,9 @@ async fn check_alldebrid(state: &AppState, body: &RequestBody) -> Response {
         inventory_loaded: body.inventory_loaded,
         known_before: body.known_before.iter().cloned().collect::<HashSet<_>>(),
         held: body.held_hashes.iter().cloned().collect::<HashSet<_>>(),
-        blocked: HashSet::new(),
+        blocked: durable.blocked_hashes(&account, now_ms() as i64),
         holds_complete: body.holds_complete,
-        durable: cleanup.is_on().then(|| Arc::new(DurablePeek::from_env())),
+        durable: cleanup.is_on().then(|| Arc::new(durable)),
         kill_switch: None,
     };
     let ad = AllDebrid::new(client);
