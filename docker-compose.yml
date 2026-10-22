@@ -31,15 +31,10 @@ services:
       PORT: 7000
       # O gateway Rust é o caminho de PRODUÇÃO do `/stream` e não é modo
       # configurável: o entrypoint sobe `adom-server` na 7000 e o Node só na
-      # 7100 (rotas internas/painel/play). Desligar o gateway não é modo de
-      # busca — rollback funcional é a imagem/commit anterior.
+      # 7100 (rotas internas/painel/efeitos do play). Desligar o gateway não é
+      # modo de busca — rollback funcional é a imagem/commit anterior.
       GATEWAY: "on"
       ROUTES_RUST: "stream"
-      # F4.7: play por debrid no Rust. Default OFF — o `/resolve` continua no
-      # Node e `GATEWAY_RESOLVE_PROXY=on` é o caminho de rollback sem rebuild.
-      # `RESOLVE_RUST=on` exige `RESOLVE_SECRET` OU a chave no segmento da URL
-      # (a mesma regra do HMAC do Node).
-      RESOLVE_RUST: "${RESOLVE_RUST:-off}"
       # R3: a checagem/cache da AllDebrid é NATIVA e incondicional. HOLDS e
       # CLEANUP são os kill-switches das varreduras DESTRUTIVAS:
       #   DEBRID_AL_HOLDS=on ...... feed in-process dos holds (`/internal/debrid/holds`):

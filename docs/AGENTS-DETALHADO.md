@@ -227,7 +227,7 @@ nem versão implantada: confira esses estados separadamente no deploy.
 > `adom-search`, com SWR em `data/streams.db`); o Node responde 410 nele e
 > ficou com o fallback de metadados (`POST /internal/search/meta`), os efeitos
 > (`/internal/search/effects`), o feed de holds (`/internal/debrid/holds`),
-> `/resolve`, painel/config, autofetch e raspador. As rotas
+> os efeitos do play (`/internal/resolve/*`), painel/config, autofetch e raspador. As rotas
 > `/internal/search/state|config|collect|index|index-write|fallback` e
 > `/internal/debrid/check` saíram; `GATEWAY=on`/`ROUTES_RUST=stream` são fixos
 > no `docker-compose.yml` e o entrypoint sempre sobe o gateway (7000, Node na
@@ -578,7 +578,8 @@ falso negativo (descartar magnet bom) é pior que falso positivo.
   `sortAndLimit` o remove antes de `preferDubbed`, prioridade de indexador,
   seeders e desempate ⚡ — com ou sem `dubbedOnly` (a chave `d` do usuário).
   A mesma escrita destrava a retenção
-  `adprot` do hash e marca `markLied` no índice de releases (`resolve.ts`) — o
+  `adprot` do hash e marca `markLied` no índice de releases (efeitos do play
+  nativo, gravados no Node) — o
   post que mentiu uma vez não reconquista a vaga BR pela janela do `alive`.
 
   **Antes do play, o `dn=` já desmente a PROMESSA** (`dnContradictsDubClaim`,
@@ -2972,7 +2973,7 @@ fire-and-forget) continua.
 | `src/routes/services.ts` | `buildServices()`: monta o `AppServices` (config, debrid, cache, metrics, jackett, …) que os handlers de rota recebem |
 | `src/routes/register.ts` | `registerRoutes()` — único ponto que monta as rotas (contrato de ordem: router do addon sem config, específicas, depois router com config) |
 | `src/routes/stream.ts` | `createStreamHandler`: o handler de `/stream` por cima do `findStreams` |
-| `src/routes/resolve.ts` / `public.ts` / `diagnostics.ts` / `stream-trace.ts` | `makeResolveHandler` (`/resolve`), `makePublicHandlers` (`/configure`, `/painel`, `/defaults.json`, `/seal-config`, os assets do painel pela allowlist **fechada** `PAGE_ASSETS` (HTML/CSS/imagens) e os módulos ESM dos clientes de `/configure` e `/painel` pela allowlist `CLIENT_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). O entry do cliente, com o `?v=` corrente, é `immutable`; os filhos importados sem query saem `no-cache` e revalidam por ETag/304. A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`) |
+| `src/routes/public.ts` / `diagnostics.ts` / `stream-trace.ts` / `internal-resolve.ts` | `makePublicHandlers` (`/configure`, `/painel`, `/defaults.json`, `/seal-config`, os assets do painel pela allowlist **fechada** `PAGE_ASSETS` (HTML/CSS/imagens) e os módulos ESM dos clientes de `/configure` e `/painel` pela allowlist `CLIENT_ASSETS` — nome vindo da URL abriria traversal. O HTML sai da memória com `?v=<hash do conteúdo>` injetado nas referências, e por isso o asset pode ir com `maxAge` de 30d: a URL muda quando o arquivo muda, o que elimina o skew de deploy (HTML novo × módulo velho do cache). O entry do cliente, com o `?v=` corrente, é `immutable`; os filhos importados sem query saem `no-cache` e revalidam por ETag/304. A rota casa pelo path — o `?v=` não entra na allowlist), `makeDiagnosticHandlers` (`/metrics.json`, `/dashboard-status.json`, `/dashboard-action.json`, `/test-indexer.json`, `/test-resolver.json`, `/debrid-status.json`, `/stream-trace.json`); `registerInternalResolve` (fatos e efeitos do play nativo) |
 | `src/routes/addon-router.ts` | Router do protocolo Stremio que substituiu o `stremio-addon-sdk` no runtime (6.1): `createAddonInterface` + `makeAddonRouter` (manifest, `/stream`, CORS, `Cache-Control`). Lê o último segmento **cru** de `req.url`: `req.params` vem decodificado e quebraria a divisão dos extras |
 | `src/routes/origin.ts` / `async.ts` / `state.ts` / `types.ts` | `originOf`/`streamsNeedRevalidation`; `asyncRoute` (wrapper do Express 4); `prefetchInFlight`; `AppServices`/`HandlerFactory` |
 | `src/app.ts` | Fábrica Express (`createApp()`): manifest, `createStreamHandler`, `registerRoutes` — só compõe; reexporta `asyncRoute`, `originOf`, `streamsNeedRevalidation` |

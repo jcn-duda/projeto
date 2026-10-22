@@ -6,16 +6,18 @@
  *    `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` nascem `on`, com `${...:-on}` para
  *    o `off` no `.env` ser o kill-switch; `GATEWAY`/`ROUTES_RUST` são
  *    LITERAIS (o gateway é o caminho de produção, não um modo);
- * 2. `/stream` e `/resolve` seguem montados com o mesmo contrato (`/stream`
- *    aposentado 503/410; `/resolve` recusa hash malformado com 400).
+ * 2. o `/stream` do Node segue montado com o mesmo contrato (aposentado
+ *    503/410). O `/resolve` NÃO é do Node: quem atende o cliente é o gateway
+ *    (7000, `resolve_native` sem flag) e o Node só grava os efeitos/fatos por
+ *    `/internal/resolve/*`.
  *
  * A checagem nativa da AllDebrid é incondicional desde a R3: a rota Node da
  * checagem e a flag de rollback não existem mais. O
  * `docker-compose.gateway.yml` é só o override de diagnóstico que publica o
  * Node na 7100.
  *
- * Sem rede: o `/resolve` recusa o hash antes do debrid e o `/stream` do Node
- * responde 503 sem GATEWAY/ROUTES_RUST.
+ * Sem rede: o `/stream` do Node responde 503 sem GATEWAY/ROUTES_RUST (o
+ * `/resolve` nem passa por este processo).
  */
 import './setup-env.js';
 import { test, before, after } from 'node:test';
@@ -102,7 +104,7 @@ test('.env.example documenta o default dos kill-switches', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 2. O corte não toca /stream nem /resolve
+// 2. O corte não toca o /stream
 // ═══════════════════════════════════════════════════════════════════════════════
 
 test('/manifest.json continua respondendo', async () => {
@@ -117,10 +119,4 @@ test('/stream do Node segue APOSENTADO (503/410), nunca lista vazia', async () =
   const res = await server.request('GET', '/stream/movie/tt1254207.json');
   assert.equal(res.status, 503);
   assert.ok(res.json.err);
-});
-
-test('/resolve segue montado: hash malformado → 400 (antes de debrid/assinatura)', async () => {
-  const res = await server.request('GET', '/resolve/nao-eh-hash');
-  assert.equal(res.status, 400);
-  assert.match(res.text, /hash/i);
 });

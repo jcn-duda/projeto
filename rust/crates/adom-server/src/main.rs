@@ -1,6 +1,5 @@
 mod config;
 mod proxy;
-mod resolve;
 mod resolve_bridge;
 mod resolve_hint;
 mod resolve_native;
@@ -34,7 +33,8 @@ async fn run_gateway() {
             std::process::exit(1);
         }
     };
-    // Falha da API não derruba a 7000: painel, /stream e play seguem no Node.
+    // Falha da API não derruba a 7000: painel e rotas do Node seguem no proxy.
+    // (O `/stream` e o `/resolve` já são deste processo.)
     match adom_debrid::api::config_from_env() {
         Ok(internal) => {
             tokio::spawn(async move {

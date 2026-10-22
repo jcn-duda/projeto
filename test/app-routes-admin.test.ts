@@ -1,33 +1,11 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 process.env.CACHE_PERSIST = 'false';
 import express from 'express';
 import { createApp, asyncRoute } from '../src/app.js';
 import config from '../src/config.js';
 import debrid from '../src/debrid/index.js';
-import { BlockedError, WorkPickError, EpisodePickError, NoVideoError, DubLieError } from '../src/debrid/common.js';
-import * as magnetdb from '../src/utils/magnetdb.js';
-import * as releaseIndex from '../src/utils/release-index.js';
-import type { DebridAdapter } from '../types/domain.js';
-import * as cache from '../src/utils/cache.js';
-import { prefix } from '../src/utils/cache-keys.js';
-import { accountScope } from '../src/utils/request-key.js';
 import { createTestServer, encodeConfig, withMockFetch, fakeResponse } from './e2e/e2e-harness.js';
-
-const FAKE_ADAPTER = {
-  id: 'fakebrid',
-  label: 'FakeBridge',
-  short: 'FK',
-  cacheCheck: true,
-  keyUrl: null as unknown as string,
-  checkCached: async () => new Set<string>(),
-  resolveLink: async () => 'https://fake.test/dl/video.mp4',
-} as DebridAdapter;
-
-function hmacSig(secret: any, payload: any) {
-  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
-}
 
 let server: any;
 const saved: Record<string, string> = {};
@@ -44,13 +22,11 @@ before(async () => {
   config.jackett.testToken = '';
   config.jackett.apiKey = 'test-jackett-key';
   config.debrid.publicUrl = 'https://addon.teste';
-  debrid.BY_ID.set(FAKE_ADAPTER.id, FAKE_ADAPTER);
   const { app } = createApp();
   server = await createTestServer(app);
 });
 after(async () => {
   await server.close();
-  debrid.BY_ID.delete(FAKE_ADAPTER.id);
   config.debrid.service = saved.debridService;
   config.debrid.apiKey = saved.debridApiKey;
   config.debrid.resolveSecret = saved.resolveSecret;
@@ -220,31 +196,6 @@ test('/debrid-status.json: debrid pendurado solta o assento no prazo e a monitor
   }
 });
 
-test('/resolve: BlockedError devolve 451 legal sem gravar bad ou alive', async () => {
-  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
-  const hashBlocked = '3'.repeat(40);
-  const sig = hmacSig('fake-key', hashBlocked);
-  const originalResolve = FAKE_ADAPTER.resolveLink;
-
-  // A lista pronta é a única "prova" que sobrevive quando o bloqueio só
-  // aparece no play: sem invalidar o namespace, o card [RD⚡] morto
-  // continuaria sendo servido até o fim do TTL.
-  cache.set('streams:v11:teste-bloqueio-451', { streams: [{ name: 'x', infoHash: hashBlocked }] }, 900);
-  assert.ok(cache.get('streams:v11:teste-bloqueio-451'), 'precondição: entrada de streams existe');
-
-  try {
-    FAKE_ADAPTER.resolveLink = async () => { throw new BlockedError('HTTP 451 — infringing_file'); };
-    const res = await server.request('GET', `/${cfg}/resolve/${hashBlocked}?sig=${sig}`);
-    assert.equal(res.status, 451);
-    assert.equal(res.text, 'o debrid bloqueou este conteúdo por motivo legal');
-    assert.equal(magnetdb.isBad('fakebrid', 'fake-key', hashBlocked), false, '451 não prova ausência de vídeo');
-    assert.equal(magnetdb.isAlive('fakebrid', 'fake-key', hashBlocked), false, '451 nunca é play resolvido');
-    assert.equal(cache.get('streams:v11:teste-bloqueio-451'), null, 'o play bloqueado invalidou a lista pronta');
-  } finally {
-    FAKE_ADAPTER.resolveLink = originalResolve;
-  }
-});
-
 test('router do protocolo preserva CORS e responde preflight sem chegar à busca', async () => {
   const manifest = await server.request('GET', '/manifest.json');
   assert.equal(manifest.headers.get('access-control-allow-origin'), '*');
@@ -262,12 +213,6 @@ test('rotas globais não caem sob o overlay', async () => {
   const manifest = await server.request('GET', '/manifest.json');
   assert.equal(manifest.status, 200);
   assert.equal(manifest.json.id, config.addonId);
-
-  // Se o decode do overlay viesse antes desta rota, "resolve" seria tratado
-  // como config inválida e responderia 404, não a validação do infoHash.
-  const resolve = await server.request('GET', '/resolve/nao-eh-hash');
-  assert.equal(resolve.status, 400);
-  assert.equal(resolve.text, 'infoHash inválido');
 });
 
 test('segmento inválido não vira overlay válido', async () => {
@@ -275,118 +220,9 @@ test('segmento inválido não vira overlay válido', async () => {
   assert.equal(res.status, 404);
 });
 
-test('overlay válido preserva manifest e resolve configurados', async () => {
+test('overlay válido preserva o manifest configurado', async () => {
   const userConfig = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
   const manifest = await server.request('GET', `/${userConfig}/manifest.json`);
   assert.equal(manifest.status, 200);
   assert.equal(manifest.json.id, config.addonId);
-
-  const resolve = await server.request('GET', `/${userConfig}/resolve/nao-eh-hash`);
-  assert.equal(resolve.status, 400);
-  assert.equal(resolve.text, 'infoHash inválido');
-});
-
-test('/resolve: DubLieError destrava a proteção durável da conta/adapter do play', async () => {
-  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
-  const hashLie = '4'.repeat(40);
-  const account = accountScope('fake-key');
-  const markerKey = `${prefix('adprot')}fakebrid:${account}:${hashLie}`;
-  // Sem `i` na dica: lie grava, mas streams de OUTRA obra não são tocados.
-  const otherStreamsKey = `${prefix('streams')}movie:tt8800099:{}:account:a`;
-  const sig = hmacSig('fake-key', hashLie);
-  const originalResolve = FAKE_ADAPTER.resolveLink;
-
-  try {
-    // Pré-condição: registro durável retido (o que o autofetch do AllDebrid
-    // deixaria). A rota destrava pelo adapter/conta EFETIVOS do play — aqui,
-    // o adaptador fake registrado no registry real.
-    cache.set(markerKey, { acceptedAt: Date.now(), readyAt: null }, 3600);
-    assert.ok(cache.peek(markerKey), 'precondição: retenção durável de pé');
-    cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: hashLie }] }, 900);
-    assert.ok(cache.peek(otherStreamsKey), 'precondição: streams de outra obra existem');
-
-    FAKE_ADAPTER.resolveLink = async () => {
-      throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
-    };
-    const res = await server.request('GET', `/${cfg}/resolve/${hashLie}?sig=${sig}`);
-    assert.equal(res.status, 404);
-    assert.equal(res.text, 'o torrent anunciado como dublado contém conteúdo em inglês');
-    assert.equal(cache.get(markerKey), null, 'a prova de release EN destrava a retenção no play');
-    assert.equal(magnetdb.isLie('fakebrid', 'fake-key', hashLie), true, 'a mentira também vai para o banco de magnets');
-    assert.ok(cache.peek(otherStreamsKey), 'sem i na dica: streams de outra obra permanecem');
-
-    // Sem registro, a rota segue respondendo igual (idempotente: nada a limpar).
-    const res2 = await server.request('GET', `/${cfg}/resolve/${hashLie}?sig=${sig}`);
-    assert.equal(res2.status, 404);
-  } finally {
-    FAKE_ADAPTER.resolveLink = originalResolve;
-    cache.forget(markerKey);
-    cache.forget(otherStreamsKey);
-  }
-});
-
-test('/resolve: DubLieError com i na dica invalida streams da obra', async () => {
-  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
-  const hashLie = '5'.repeat(40);
-  const imdbId = 'tt8800101';
-  const hint = JSON.stringify({ n: ['Filme Mentiroso'], y: 2024, d: 1, i: imdbId });
-  const sig = hmacSig('fake-key', `${hashLie}&w=${hint}`);
-  const obraStreamsKey = `${prefix('streams')}series:${imdbId}:S1:E1:{}:account:a`;
-  const otherStreamsKey = `${prefix('streams')}movie:tt8800102:{}:account:a`;
-  const originalResolve = FAKE_ADAPTER.resolveLink;
-
-  try {
-    cache.set(obraStreamsKey, { streams: [{ name: 'mentira', infoHash: hashLie }] }, 900);
-    cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: 'a'.repeat(40) }] }, 900);
-    assert.ok(cache.peek(obraStreamsKey), 'precondição: streams da obra existem');
-    assert.ok(cache.peek(otherStreamsKey), 'precondição: streams de outra obra existem');
-
-    FAKE_ADAPTER.resolveLink = async () => {
-      throw new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' });
-    };
-    const res = await server.request(
-      'GET',
-      `/${cfg}/resolve/${hashLie}?w=${encodeURIComponent(hint)}&sig=${sig}`,
-    );
-    assert.equal(res.status, 404);
-    assert.equal(res.text, 'o torrent anunciado como dublado contém conteúdo em inglês');
-    assert.equal(magnetdb.isLie('fakebrid', 'fake-key', hashLie), true, 'lie gravado no banco');
-    assert.equal(cache.peek(obraStreamsKey), null, 'streams da obra da dica foram invalidados');
-    assert.ok(cache.peek(otherStreamsKey), 'streams de outra obra intactos');
-  } finally {
-    FAKE_ADAPTER.resolveLink = originalResolve;
-    cache.forget(obraStreamsKey);
-    cache.forget(otherStreamsKey);
-  }
-});
-
-test('/resolve: EpisodePickError com i na dica invalida streams da obra', async () => {
-  const cfg = encodeConfig({ ds: 'fakebrid', dk: 'fake-key' });
-  const hashMiss = '6'.repeat(40);
-  const imdbId = 'tt8800103';
-  const hint = JSON.stringify({ n: ['Serie Pack'], y: 2020, i: imdbId });
-  const sig = hmacSig('fake-key', `${hashMiss}?s=4&e=1&w=${hint}`);
-  const obraStreamsKey = `${prefix('streams')}series:${imdbId}:S4:E1:{}:account:a`;
-  const otherStreamsKey = `${prefix('streams')}movie:tt8800104:{}:account:a`;
-  const originalResolve = FAKE_ADAPTER.resolveLink;
-  try {
-    cache.set(obraStreamsKey, { streams: [{ name: 'pack errado', infoHash: hashMiss }] }, 900);
-    cache.set(otherStreamsKey, { streams: [{ name: 'outra', infoHash: 'a'.repeat(40) }] }, 900);
-    FAKE_ADAPTER.resolveLink = async () => {
-      throw new EpisodePickError({
-        wantedSeason: 4, wantedEpisode: 1, declaredSeasons: [4], declaredEpisodes: [3], sample: 'Serie.S04E03.mkv',
-      });
-    };
-    const res = await server.request(
-      'GET', `/${cfg}/resolve/${hashMiss}?s=4&e=1&w=${encodeURIComponent(hint)}&sig=${sig}`,
-    );
-    assert.equal(res.status, 404);
-    assert.equal(res.text, 'este episódio não foi encontrado no pack');
-    assert.equal(cache.peek(obraStreamsKey), null, 'streams da obra invalidados');
-    assert.ok(cache.peek(otherStreamsKey), 'outra obra intacta');
-  } finally {
-    FAKE_ADAPTER.resolveLink = originalResolve;
-    cache.forget(obraStreamsKey);
-    cache.forget(otherStreamsKey);
-  }
 });

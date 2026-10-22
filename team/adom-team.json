@@ -159,7 +159,8 @@
         "src/utils/secret-box.ts",
         "src/utils/sign.ts",
         "src/routes/register.ts",
-        "src/routes/resolve.ts",
+        "src/routes/internal-resolve.ts",
+        "rust/crates/adom-server/src/resolve_native.rs",
         "src/routes/diagnostics.ts"
       ],
       "guards": "Nunca expor credencial. Host forjado pode envenenar cache (aplica origin na resposta). Destinatarios locais no resolve sao SSRF salvo quando o operador explicitamente usa resolvedor privado (JACKETT_ALLOW_PRIVATE_DOWNLOAD_IPS)."

@@ -120,7 +120,6 @@
     "test/allowed-source-indexer.test.js",
     "test/app-deadline.test.js",
     "test/app-routes-admin.test.js",
-    "test/app-routes-resolve.test.js",
     "test/app-routes.test.js",
     "test/audio-cleanup-classifiers.test.js",
     "test/audio-cleanup-dub-guards.test.js",

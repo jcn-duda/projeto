@@ -1,23 +1,21 @@
-//! `/resolve` nativo por debrid (`RESOLVE_RUST=on`).
+//! `/resolve` nativo por debrid — a rota do gateway, sem flag (fase C do F4.7).
+//! O rollback não é env: é o commit/imagem anterior (padrão do R8).
 //!
-//! O HMAC é o mesmo do Node (`infoHash + ?s=S&e=E + &w=<hint>`); a config da
-//! URL (`/<segmento>/resolve/<hash>`) é decodificada com o mesmo `decode_config`
-//! do núcleo para achar `debridService`/`debridApiKey`. A resolução em si é do
-//! `adom_debrid::play` (um adaptador por serviço) e o erro vira o MESMO status/
-//! texto do `src/routes/resolve.ts`.
+//! O HMAC é o mesmo do Node (`infoHash + ?s=S&e=E + &w=<hint>`); a config da URL
+//! (`/<segmento>/resolve/<hash>`) usa o mesmo `decode_config` do núcleo para achar
+//! `debridService`/`debridApiKey`. A resolução é do `adom_debrid::play` (um
+//! adaptador por serviço) e o erro vira o MESMO status/texto do handler TS que
+//! saiu na fase C.
 //!
 //! Sem adaptador (P2P puro, serviço desconhecido ou sem chave) o Node devolve
-//! `null` do `current()` e responde 404 "ainda baixando" — a rota nativa copia
-//! isso em vez de inventar 500.
+//! `null` de `current()` e responde 404 "ainda baixando" — a rota copia isso.
 //!
 //! Os efeitos do play (`magnetdb`, `davail`, prova de arquivo, índice, ledger
 //! do RD e a invalidação das listas) moram no Node: a rota os manda pela ponte
 //! (`resolve_bridge`, `/internal/resolve/*`). No erro ela espera a gravação
 //! antes de responder; no sucesso o 302 sai na hora.
 
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use adom_core::{decode_config, PlayHint, WorkHint};
 use adom_debrid::alldebrid::PlayError;
@@ -25,16 +23,22 @@ use adom_debrid::play::{self, PlayOutcome};
 use adom_debrid::resolve_effects::resolve_effect;
 use adom_debrid::{DebridError, HttpClient};
 use adom_search::{resolve_play_from, verify_resolve_play, ResolvePlay, ResolveVerify};
-use axum::body::Body;
-use axum::response::IntoResponse;
+use axum::{body::Body, response::IntoResponse};
 use http::header::{CONTENT_TYPE, LOCATION};
-use http::{HeaderValue, Response, StatusCode};
+use http::{HeaderValue, Method, Response, StatusCode};
 use serde_json::Value;
 
 use crate::resolve_bridge::{error_payload, ok_payload, EffectTarget, PlayBridge};
 use crate::resolve_hint::{ep_parts, hint_imdb, parse_hint_json};
 
 pub type PlayFuture<'a> = Pin<Box<dyn Future<Output = Result<PlayOutcome, PlayError>> + Send + 'a>>;
+
+/// `/resolve` (com ou sem segmento de config) em GET/HEAD — não confunde com
+/// futuros `resolve-*`.
+pub fn is_native_resolve(method: &Method, path: &str) -> bool {
+    (*method == Method::GET || *method == Method::HEAD)
+        && adom_search::parse_resolve_path(path).is_some()
+}
 
 /// Resolve o play; trait para o teste da rota não tocar debrid. `held` é o
 /// hold do autofetch (só a AllDebrid o lê para decidir se apaga o frio).
@@ -318,7 +322,7 @@ fn still_downloading() -> Response<Body> {
     not_found("o torrent ainda está baixando no debrid")
 }
 
-/// Mesmo status/texto do `routes/resolve.ts`; `resolve_effect` é a régua única.
+/// Mesmo status/texto do handler TS que saiu; `resolve_effect` é a régua única.
 fn error_response(effect: &Value, info_hash: &str, err: &DebridError) -> Response<Body> {
     let status = effect
         .get("status")

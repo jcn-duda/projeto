@@ -233,9 +233,9 @@ p50/p95 e a semana em `stream-shadow`.
    o multiobra. O drop acontece antes de
    `limit_reserving_br`, e `fallback` é lido da lista FINAL (depois do drop e do
    corte); `DebridLink` entra como `known:false`; URLs e HMAC foram testadas nos
-   cinco serviços. O `/resolve` nativo por debrid existe atrás de
-   `RESOLVE_RUST=on` (default OFF, Node é o rollback); o play externo real
-   continua **não** validado ponta a ponta (sem Docker nesta rodada).
+   cinco serviços. O `/resolve` nativo por debrid é **incondicional** (fase C do
+   F4.7: sem `RESOLVE_RUST`, rollback = commit/imagem anterior); o play externo
+   real continua **não** validado ponta a ponta (sem Docker nesta rodada).
 
 ## F2 — Fontes e metadados em Rust (uma por commit, cada uma com sombra)
 
@@ -667,7 +667,7 @@ O que trava o quê:
 5. Play: `/resolve` de um item de cada debrid pela lista gerada no Rust (o HMAC
    tem que valer). No orquestrador Rust, `finish`/`finalize` já aplicam
    `play_disposition` e as URLs/HMAC foram testadas offline nos cinco serviços.
-   O `/resolve` nativo (`RESOLVE_RUST=on`, default OFF) existe e tem testes de
+   O `/resolve` é nativo e incondicional (fase C) e tem testes de
    contrato/fixtures; o play externo real por debrid **não** foi validado
    ponta a ponta nesta rodada (sem Docker).
 
@@ -705,7 +705,6 @@ continua sendo env de operação:
   (nesses casos o `/stream` do Node responde 503, não 200);
 - `docker-compose.gateway.yml` — só publica o Node em `127.0.0.1:7100`;
 - `EFFECTS_RUST=off` (default ON) — desliga a emissão de efeitos;
-- `RESOLVE_RUST=on` (default OFF) — liga o play nativo (F4.7);
 - `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP` — kill-switches destrutivos;
 - `STREAM_STORE_ADMIN_*`, `RUST_CORE_PATH` e `CRAWL_ENGINE`.
 
@@ -723,8 +722,6 @@ só "tem stream tocável", não paridade BR+cotas.
 
 ### R.4 — O que ficou fora da remoção
 
-- **`/resolve` nativo** (F4.7): atrás de `RESOLVE_RUST=on` (default OFF); o Node
-  segue dono do play e é o rollback.
 - **Efeitos** (`EFFECTS_RUST`, default ON): o Rust emite, o Node executa as
   filas (`/internal/search/effects`).
 - **Feed de holds** da AllDebrid (`/internal/debrid/holds`).
@@ -734,9 +731,9 @@ só "tem stream tocável", não paridade BR+cotas.
   `POST /internal/search/effects`, `POST /internal/debrid/holds`,
   `POST /internal/crawl-result` e `GET /internal/activity`.
 
-## F4.7 — `/resolve` nativo (fase A entregue, `RESOLVE_RUST` ainda OFF no compose)
+## F4.7 — `/resolve` nativo (fases A e C entregues; incondicional)
 
-**Fase A (`536f3c63`)**: com `RESOLVE_RUST=on` o gateway resolve o play E grava
+**Fase A (`536f3c63`)**: o gateway resolve o play E grava
 o que ele prova. O efeito sai pronto do núcleo (`resolve_effect`) e o Node o
 aplica pela rota `POST /internal/resolve/effects` (loopback + token), com os
 mesmos helpers do modo `DEBRID_RUST_SERVICES` (`applyResolveEffects`,
@@ -759,12 +756,15 @@ Observado: um 502 passageiro (`kind=other`) na AllDebrid, que resolveu na
 tentativa seguinte — suspeita de corrida com a limpeza nativa da busca, não
 confirmada (o gateway só loga o tipo do erro).
 
-**Falta para aposentar o `/resolve` do Node (fase C)**:
+**Fase C (concluída)**: o `/resolve` é nativo e incondicional no gateway. O
+handler Node (`src/routes/resolve.ts`), o `respondWhenRustApplied` e o proxy
+(`GATEWAY_RESOLVE_PROXY`) foram removidos; o gateway não encaminha mais o play
+ao Node. Os `resolveLink`/`rust-remote` do Node FICAM: o `dub-audit` os usa.
+Rollback passou a ser **commit/imagem anterior** — não há env que devolva a
+rota ao Node.
+
+Pendências de validação (não bloqueiam a fase C):
 1. Teste real na TorBox; na Premiumize, o caso fora do cache (exige config sem
    `cachedOnly`).
 2. Sem vídeo, dublagem falsa e episódio ausente só têm teste por fixture e de
    rota; validar no real quando aparecer um caso.
-3. `RESOLVE_RUST=on` como default do compose; depois apagar o handler de
-   `src/routes/resolve.ts`, `respondWhenRustApplied` e o proxy
-   `GATEWAY_RESOLVE_PROXY`. Os `resolveLink` TS e o `rust-remote` FICAM: o
-   `dub-audit` do Node os usa.

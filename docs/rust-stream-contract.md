@@ -36,7 +36,6 @@ configurável:
 |---|---|---|
 | `GATEWAY` | `on` (fixo) | `adom-server` na 7000; Node atrás na 7100 |
 | `ROUTES_RUST` | `stream` (fixo) | corte nativo do `/stream` |
-| `RESOLVE_RUST` | `off` | play nativo por debrid no `/resolve` (§0.8); OFF = Node |
 | `INTERNAL_SEARCH_URL` / `INTERNAL_CHECK_URL` | `http://127.0.0.1:7100` | rotas internas (meta/effects/holds) — **nunca** `:7000` (a fachada recusa `/internal/*`) |
 
 O `entrypoint.sh` **sempre** inicia o gateway; binário ausente é erro fatal. O
@@ -54,8 +53,8 @@ rollback por env (`SOURCES_RUST`, `ACCOUNT_RUST`, `INDEX_RUST`, `BANK_RUST`,
 `ROUTES_RUST=stream-shadow`) **não existem mais**. Continuam existindo só os
 knobs que ainda governam comportamento vivo: `EFFECTS_RUST=off` (default ON —
 desliga a emissão de efeitos, ver
-[`rust-effects-contract.md`](rust-effects-contract.md)) e `RESOLVE_RUST=on`
-(default OFF, §0.8).
+[`rust-effects-contract.md`](rust-effects-contract.md)). O play não tem knob:
+`/resolve` é nativo e incondicional (§0.8).
 
 **R3**: a checagem/limpeza da AllDebrid é nativa e incondicional; a rota Node
 `/internal/debrid/check` foi apagada. `DEBRID_AL_HOLDS`/`DEBRID_AL_CLEANUP`
@@ -63,11 +62,11 @@ FICAM como kill-switches das varreduras **destrutivas** (default do código OFF,
 compose ON): sem holds/inventário a nativa é read-only. Contrato em
 [`debrid-al-check-rust.md`](debrid-al-check-rust.md).
 
-Desde o **F4.7** o play por debrid também existe no gateway, atrás de
-`RESOLVE_RUST=on` (default **OFF** — o Node segue dono do `/resolve`, com o
-proxy como rollback). HMAC, `pickFile`, adaptadores e status/texto de erro são
-os do Node; efeitos L1 (`magnetdb`/`davail`/invalidação/ledger) continuam no
-Node. Detalhe e limites no §0.8.
+Desde o **F4.7** (fase C) o play por debrid é **nativo e incondicional** no
+gateway: não há flag, o Node não monta a rota e não há proxy de rollback. HMAC,
+`pickFile`, adaptadores e status/texto de erro são os do Node; efeitos L1
+(`magnetdb`/`davail`/invalidação/ledger) continuam sendo GRAVADOS pelo Node
+pelas rotas internas. Detalhe e limites no §0.8.
 
 Sombra e canário são **histórico** (§9): o código saiu no R1 e não há
 instrumento de comparação no binário.
@@ -217,33 +216,32 @@ manifest e que `/stream` devolve **pelo menos um stream tocável**
 script **não** prova paridade BR+cotas: o corte já é o padrão (R8) e o gate é o
 corpus congelado (§0.6 e §9.4 item 5, `npm run parity:frozen` 16/16).
 
-### 0.8 Play `/resolve`: nativo por debrid atrás de `RESOLVE_RUST` (default OFF)
+### 0.8 Play `/resolve`: nativo e incondicional
 
-O handler de play do **Node** (`src/routes/resolve.ts`) continua sendo o
-caminho de produção. A fatia F4.7 adicionou o play nativo por debrid no gateway,
-atrás de `RESOLVE_RUST=on` (default **OFF**):
+O play por debrid é resolvido **no gateway**, sem flag e sem proxy: o handler
+Node (`src/routes/resolve.ts`) e o `respondWhenRustApplied` saíram na fase C, e
+não há env que devolva a rota ao Node — rollback é **commit/imagem anterior**.
 
-- **OFF (default):** comportamento histórico. Sem token, a 7000 encaminha
-  `/resolve` ao Node (7100). Com `ROUTES_RUST` incluindo `resolve`, o gateway
-  valida o HMAC (`resolve_play_from` + `verify_resolve_play`) e, com
-  `GATEWAY_RESOLVE_PROXY` ligado (default), encaminha ao Node; com o proxy
-  desligado (`GATEWAY_RESOLVE_PROXY=off`) devolve **501**.
-- **ON:** o gateway resolve o debrid no Rust (`adom_debrid::play`), com o mesmo
-  HMAC, o mesmo `pickFile` e o mesmo status/texto de erro do Node: 400
-  hash inválido, 403 assinatura inválida, 404 "ainda está baixando" (sem link),
-  404 NoVideo/DubLie/EpisodePick/WorkPick, 429 rate limit, 451 bloqueio legal e
-  502 para o resto. A config do usuário sai do segmento da URL (`ds`/`dk`) com
-  o default do operador; sem adaptador (`current()` null) a rota devolve o
-  mesmo 404 do Node e não exige HMAC. Nada é encaminhado ao Node.
+- O gateway valida o HMAC (`resolve_play_from` + `verify_resolve_play`) e
+  resolve no Rust (`adom_debrid::play`), com o mesmo `pickFile` e o mesmo
+  status/texto de erro do Node: 400 hash inválido, 403 assinatura inválida,
+  404 "ainda está baixando" (sem link), 404 NoVideo/DubLie/EpisodePick/WorkPick,
+  429 rate limit, 451 bloqueio legal e 502 para o resto. Nada é encaminhado ao
+  Node.
+- A config do usuário sai do segmento da URL (`ds`/`dk`) com o default do
+  operador; sem adaptador (`current()` null) a rota devolve o mesmo 404 do Node
+  e não exige HMAC. `RESOLVE_SECRET` segue como segredo do HMAC (precede o `dk`
+  da URL).
 - **AllDebrid no teto:** o `/magnet/upload` recusa com `MAGNET_TOO_MANY` e o
   nativo devolve **502** explícito (`kind=quota`), sem mascarar em 404 nem cair
   no proxy — um segundo upload pioraria a conta.
 - **Efeitos L1** (`magnetdb`/`davail`, invalidação do `streams.db`, ledger/memo
-  do RD) continuam no Node e **não** são aplicados pelo play nativo. O 302 e os
-  erros são fiéis; a observabilidade pós-play não.
-- **Rollback:** `RESOLVE_RUST=off` (ou remover a env) devolve o `/resolve` ao
-  Node sem rebuild. O `resolve_proxy`/`GATEWAY_RESOLVE_PROXY` atuais ficam
-  intactos.
+  do RD) continuam sendo **GRAVADOS pelo Node**: o gateway manda para
+  `POST /internal/resolve/effects` (loopback + token) e, no erro, espera a
+  gravação antes de responder; o hold do autofetch da AllDebrid vem de
+  `POST /internal/resolve/facts`. Sem token interno o play responde, mas não
+  grava nada (log no boot). O 302 e os erros são nativos; a observabilidade
+  pós-play é do Node.
 - **HMAC/origin:** o payload (`hash + ?s=S&e=E + &w=<hint>`) e a URL relativa
   não mudaram; `manifest` e URLs de play não precisam de bump.
 
@@ -498,7 +496,7 @@ payload = `${infoHash}${ep}${hint ? `&w=${hint}` : ''}`
 HMAC-SHA256(chave, payload) → hex minúsculo
 ```
 
-- `infoHash` minúsculo (o verificador baixa antes: `src/routes/resolve.ts:85-86`).
+- `infoHash` minúsculo (o verificador baixa antes: `resolve_native.rs`, `resolve_play_from`).
 - `ep` é fragmento literal, **sem** `&` inicial: vazio para filme,
   `?s=<S>&e=<E>` para episódio (`src/providers/debrid-pipeline-core.ts:250`).
   O `?` faz parte do payload, não é separador de URL.
@@ -507,11 +505,11 @@ HMAC-SHA256(chave, payload) → hex minúsculo
 ### 4.2 Dica `w` (JSON, ordem de inserção preservada)
 
 Campos possíveis (`src/providers/debrid-pipeline-core.ts:261-268`, lidos em
-`src/routes/resolve.ts:96-107`):
+`rust/crates/adom-server/src/resolve_hint.rs`):
 
 | Campo | Significado |
 |---|---|
-| `n` | lista de nomes da obra (até 4 no consumo, `resolve.ts:102`) |
+| `n` | lista de nomes da obra (até 4 no consumo, `resolve_hint.rs`) |
 | `y` | ano (`null` é JSON `null` dentro do objeto) |
 | `p: 1` | pack multiobra BR (`BR_MULTIWORK_PACKS`), nunca P2P inteiro |
 | `d: 1` | promessa de dublado (claim/prova/`_bankDub`) |
@@ -520,7 +518,7 @@ Campos possíveis (`src/providers/debrid-pipeline-core.ts:261-268`, lidos em
 A ordem das chaves importa: o HMAC é sobre a string, não sobre JSON canônico.
 O `w` na URL é `encodeURIComponent(hintJson)` **depois** de assinar
 (`debrid-pipeline-core.ts:278-283`); o Express entrega `req.query.w` já
-decodificado e a verificação assina o valor cru (`resolve.ts:88`).
+decodificado e a verificação assina o valor cru (`resolve_hint.rs`).
 
 ### 4.3 Chave
 
@@ -541,11 +539,12 @@ config, senão o debrid do usuário some na hora de tocar.
 
 ### 4.5 Verificação e resposta
 
-`src/routes/resolve.ts:84-94`: hash precisa casar `/^[a-f0-9]{40}$/i` (senão
-**400**); a checagem HMAC só roda **quando há debrid** (`services.debrid.current()`),
-e falha → **403** `assinatura inválida`. Status do play: **302** para o link,
-**404** (sem vídeo / episódio ausente / ainda baixando), **429** (rate limit),
-**451** (bloqueio legal), **502** (falha do debrid) — `resolve.ts:109-233`.
+`resolve_native.rs` (`valid_hash` + `verify_resolve_play`): hash precisa casar
+`/^[a-f0-9]{40}$/i` (senão **400**); a checagem HMAC só roda **quando há debrid**
+(`services.debrid.current()`), e falha → **403** `assinatura inválida`. Status do
+play: **302** para o link, **404** (sem vídeo / episódio ausente / ainda
+baixando), **429** (rate limit), **451** (bloqueio legal), **502** (falha do
+debrid) — a régua única é `adom_debrid::resolve_effect`.
 
 O router do `/stream` usa **307** para `response.redirect` (não usado hoje pelo
 handler) — `src/routes/addon-router.ts:123-125`.
@@ -684,8 +683,8 @@ equivalência — **não** existe uma segunda fórmula a inventar.
 - Coalescing: `inFlight` por chave (`search-cache.ts:120-156`); refresh SWR em
   mapa separado (`refreshing`, `:30`, `:213-238`).
 - Registrar a chave por temporada para o autofetch (`search-cache.ts:64-70`).
-- Invalidação por obra: `invalidateStreamsForObra` (`src/utils/br-gap.ts`, usado
-  em `resolve.ts` após 451/mentira/episódio ausente).
+- Invalidação por obra: `invalidateStreamsForObra` (`src/utils/br-gap.ts`, nos
+  efeitos do play nativo após 451/mentira/episódio ausente).
 
 ---
 
@@ -700,10 +699,10 @@ equivalência — **não** existe uma segunda fórmula a inventar.
 | `id` que não começa com `tt` | **200** `{"streams":[],"partial":false}` → `cacheMaxAge: 0` | `src/providers/search-cache.ts:46-48` |
 | Prazo estourado | **200** aviso/lista vazia + `cacheMaxAge: 0` | `search-cache.ts:160-177`, `stream.ts:47-49` |
 | `redirect` no response | **307** | `addon-router.ts:123-125` |
-| `/resolve` com hash inválido | **400** texto | `src/routes/resolve.ts:86` |
-| `/resolve` sem HMAC válido (com debrid) | **403** `assinatura inválida` | `resolve.ts:89-94` |
-| `/resolve` sem link / sem vídeo / episódio ausente | **404** | `resolve.ts:117-121`, `:137-152`, `:203-229` |
-| `/resolve` rate limit / bloqueio legal / falha | **429** / **451** / **502** | `resolve.ts:157-167`, `:231-232` |
+| `/resolve` com hash inválido | **400** texto | `resolve_native.rs`, `valid_hash` |
+| `/resolve` sem HMAC válido (com debrid) | **403** `assinatura inválida` | `resolve_native.rs`, `verify_resolve_play` |
+| `/resolve` sem link / sem vídeo / episódio ausente | **404** | `resolve_native.rs` + `adom_debrid::resolve_effect` |
+| `/resolve` rate limit / bloqueio legal / falha | **429** / **451** / **502** | `resolve_native.rs` + `adom_debrid::resolve_effect` |
 | `OPTIONS` | **204** (CORS) | `addon-router.ts:64-71` |
 
 Observação de contrato: **o `/stream` quase não usa status de erro** — o cliente
@@ -961,11 +960,11 @@ de paridade BR+cotas, que é dos gates (§0.6).
 | 6 | coleta Jackett/Prowlarr/Torrentio/BLUDV/Mico/… + `raw:v1` | **feito e incondicional** (R5): as cinco fontes e o inventário da conta no Rust; `SOURCES_RUST`, `NodeCollector` e `/internal/search/collect` não existem; sem fonte nativa montada o gateway não sobe |
 | 7 | pipeline de build (filtro, ranking, cotas, aviso) | **feito** no orquestrador/núcleo; régua no corpus congelado (`parity:frozen` 16/16) e no e2e (`stream_e2e_parity` 51/51) |
 | 8 | debrid (`applyDebrid`, ⚡, HMAC na URL) | **feito** com adaptadores + checagem nativa (R3); `INTERNAL_CHECK_URL` serve só ao feed de holds; autofetch/efeitos de cauda seguem no Node |
-| 9 | assinatura `/resolve` no servidor | guarda HMAC nativa opt-in (`ROUTES_RUST=resolve`); play nativo por debrid atrás de `RESOLVE_RUST=on` (default OFF; o Node é o rollback) |
+| 9 | assinatura `/resolve` no servidor | **feito**: guarda HMAC + play nativo por debrid, incondicionais; o handler Node e o proxy saíram e o rollback é commit/imagem anterior |
 | 10 | host/origin e `prefix()` no egresso | **feito** no caminho nativo |
 | 11 | `partial`/deadline + busca em fundo | **feito** no orquestrador |
 | 12 | `cacheMaxAge` / `stale*` / `Cache-Control` | parcial — ver tipo `StreamResponse` e handler nativo |
-| 13 | mapeamento de erro → status (incl. `/resolve`) | parcial no gateway; o play do `/resolve` segue no Node por default |
+| 13 | mapeamento de erro → status (incl. `/resolve`) | parcial no gateway; o play do `/resolve` é nativo desde a fase C (linha 9) |
 | 14 | métricas e `stream-trace` | sombra/canário saíram no R1; o alarme do nativo é a própria lista/HTTP e a métrica `index.rust.source_missing`; painel/`stream-trace` rodam no Node, que lê o store nativo pela API admin (`STREAM_STORE_ADMIN_*`, F4.4a) |
 | 15 | `staleRevalidate`/`staleError` no tipo | ainda estreito no contrato do crate |
 | 16 | `/internal/search/*` | **meta** e **effects** da busca, **debrid/holds** e as rotas do sidecar (`crawl-result`, `activity`); `state/config/collect/index/index-write/fallback` e `/internal/debrid/check` **não existem**; a fachada recusa `/internal/*` antes do proxy |

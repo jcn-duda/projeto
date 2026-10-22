@@ -7,8 +7,8 @@
 //! (vazio) e `ROUTES_RUST=health` são DIAGNÓSTICO do proxy; o rollback do
 //! corte é imagem/commit anterior.
 //!
-//! O play `/resolve` nativo por debrid é opt-in: `RESOLVE_RUST=on`, default OFF
-//! (o Node segue dono do play; `GATEWAY_RESOLVE_PROXY` é o rollback por env).
+//! O play `/resolve` nativo por debrid NÃO tem flag (fase C do F4.7): é o
+//! caminho único do gateway, e o rollback também é imagem/commit anterior.
 
 use std::net::SocketAddr;
 
@@ -18,7 +18,7 @@ use http::Uri;
 pub const DEFAULT_ROUTES_RUST: &str = "stream";
 
 /// Tokens de `ROUTES_RUST` (CSV). `health` liga o nativo; `stream` (token
-/// exato) corta `/stream` no Rust; `resolve` arma a guarda HMAC do play.
+/// exato) corta `/stream` no Rust.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen: SocketAddr,
@@ -26,13 +26,6 @@ pub struct Config {
     pub native_health: bool,
     /// `ROUTES_RUST` contém `stream`: corte nativo via `adom-search`.
     pub stream_native: bool,
-    /// `ROUTES_RUST` contém `resolve`: verifica HMAC e (strangler) proxy.
-    pub resolve_native: bool,
-    /// `RESOLVE_RUST=on`: `/resolve` resolve o debrid no Rust (play nativo).
-    /// Default OFF — sem a flag o comportamento é o guarda+proxy/501 de sempre.
-    pub resolve_rust: bool,
-    /// Encaminha o play ao Node após o verify. `false` → 501 (sem debrid).
-    pub resolve_proxy: bool,
     /// `RESOLVE_SECRET` do operador (precedência sobre `dk` da URL).
     pub resolve_secret: String,
 }
@@ -44,25 +37,14 @@ impl Config {
             .unwrap_or_else(|_| "http://127.0.0.1:7100".to_string());
         let routes =
             std::env::var("ROUTES_RUST").unwrap_or_else(|_| DEFAULT_ROUTES_RUST.to_string());
-        let resolve_proxy = resolve_proxy_from_env();
-        let resolve_rust = resolve_rust_from_env();
         let resolve_secret = std::env::var("RESOLVE_SECRET").unwrap_or_default();
-        Self::parse(
-            &listen,
-            &upstream,
-            &routes,
-            resolve_rust,
-            resolve_proxy,
-            resolve_secret,
-        )
+        Self::parse(&listen, &upstream, &routes, resolve_secret)
     }
 
     pub fn parse(
         listen: &str,
         upstream: &str,
         routes: &str,
-        resolve_rust: bool,
-        resolve_proxy: bool,
         resolve_secret: String,
     ) -> Result<Self, String> {
         let listen: SocketAddr = listen
@@ -81,22 +63,8 @@ impl Config {
             upstream,
             native_health: native_health(routes),
             stream_native: stream_native(routes),
-            resolve_native: resolve_native(routes),
-            resolve_rust,
-            resolve_proxy,
             resolve_secret,
         })
-    }
-}
-
-/// `RESOLVE_RUST`: `on`/`1`/`true`/`yes` liga; ausente/vazio/off desliga.
-pub fn resolve_rust_from_env() -> bool {
-    match std::env::var("RESOLVE_RUST") {
-        Ok(raw) => !matches!(
-            raw.trim().to_ascii_lowercase().as_str(),
-            "" | "0" | "false" | "off" | "no"
-        ),
-        Err(_) => false,
     }
 }
 
@@ -107,22 +75,6 @@ pub fn native_health(routes: &str) -> bool {
 /// Token exato `stream`.
 pub fn stream_native(routes: &str) -> bool {
     has_route_token(routes, "stream")
-}
-
-/// Token exato `resolve`.
-pub fn resolve_native(routes: &str) -> bool {
-    has_route_token(routes, "resolve")
-}
-
-/// `GATEWAY_RESOLVE_PROXY`: default ligado; `off`/`false`/`0` desliga.
-pub fn resolve_proxy_from_env() -> bool {
-    match std::env::var("GATEWAY_RESOLVE_PROXY") {
-        Ok(raw) => {
-            let v = raw.trim().to_ascii_lowercase();
-            !matches!(v.as_str(), "0" | "false" | "off" | "no")
-        }
-        Err(_) => true,
-    }
 }
 
 fn has_route_token(routes: &str, token: &str) -> bool {

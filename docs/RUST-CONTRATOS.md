@@ -35,7 +35,8 @@ Fontes lidas (existem no checkout; links relativos):
 
 - [`src/utils/sign.ts`](../src/utils/sign.ts) — `signResolve`/`verifyResolve`
 - [`src/providers/debrid-pipeline-core.ts`](../src/providers/debrid-pipeline-core.ts) — produtor da URL/`sig`
-- [`src/routes/resolve.ts`](../src/routes/resolve.ts) — consumidor
+- [`rust/crates/adom-server/src/resolve_native.rs`](../rust/crates/adom-server/src/resolve_native.rs) — consumidor
+  (o `src/routes/resolve.ts` saiu na fase C do F4.7)
 - [`src/runtime.ts`](../src/runtime.ts) — `opts().debridApiKey`, `prefix()`
 - [`src/config/debrid.ts`](../src/config/debrid.ts) — `resolveSecret`
 
@@ -77,7 +78,7 @@ payload = `${infoHash}${ep}${hint ? `&w=${hint}` : ''}`
 ```
 
 - `infoHash` — 40 hex, **minúsculo** (produtor usa `s.infoHash`; verificador
-  baixa para minúsculo antes, `resolve.ts:37`).
+  baixa para minúsculo antes, `resolve_native.rs`).
 - `ep` — fragmento literal; ver §1.2.
 - `hint` — JSON cru (string); quando **presente** acrescenta `&w=<json>`; quando
   ausente, **nada** (nem separador).
@@ -92,7 +93,7 @@ Produtor (`debrid-pipeline-core.ts:250`):
 const ep = season != null && episode != null ? `?s=${season}&e=${episode}` : '';
 ```
 
-Verificador (`resolve.ts:42`) reconstrói com a **mesma** regra a partir dos
+Verificador (`resolve_native.rs`) reconstrói com a **mesma** regra a partir dos
 valores já parseados da query. Filme: `ep === ''`. S/E: `ep` **inclui o `?` à
 frente** (`?s=<season>&e=<episode>`) — o `?` é **byte do payload assinado**, não
 separador de URL. Montagem da URL (`debrid-pipeline-core.ts:279-280`):

@@ -1,5 +1,5 @@
 //! Leitura da URL do play: `?s=S&e=E` e a dica `w` assinada pelo build. Mesma
-//! régua do `src/routes/resolve.ts` (comparações estritas do TS). Separado do
+//! régua do handler TS que saiu na fase C (comparações estritas). Separado do
 //! `resolve_native.rs` pela catraca de 400 linhas.
 
 use serde_json::Value;

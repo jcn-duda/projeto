@@ -1,4 +1,4 @@
-// Rotas internas do `/resolve` nativo do gateway (`RESOLVE_RUST=on`).
+// Rotas internas do `/resolve` nativo do gateway (incondicional).
 //
 // POR QUE EXISTEM: o play é do Rust, mas o que o play PROVA (magnet vivo, sem
 // vídeo, dublagem falsa, episódio ausente, bloqueio legal, arquivos do torrent)

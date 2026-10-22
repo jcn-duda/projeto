@@ -162,8 +162,8 @@ npm run docker:up / docker:logs
 
 Desde o F4.4 o `/stream` é do **gateway Rust** (`adom-server` → `adom-search`);
 o Node não monta mais lista. O Node fica com I/O e rede: metadados em
-**fallback**, efeitos, debrid do play, painel, `/resolve`, `/configure` e o
-raspador.
+**fallback**, efeitos do play (aplicação), debrid do `dub-audit`, painel,
+`/configure` e o raspador.
 
 ```
 Caddy → adom-server (:7000) → Orchestrator (adom-search)
@@ -180,12 +180,11 @@ Caddy → adom-server (:7000) → Orchestrator (adom-search)
 Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
 `/internal/debrid/holds`, as rotas do sidecar (`/internal/crawl-result`,
-`/internal/activity`), `/resolve` (HMAC + debrid; o nativo existe atrás de
-`RESOLVE_RUST`, default OFF — com ele o gateway resolve o play e o Node só
-GRAVA os efeitos por `/internal/resolve/effects`, esperados antes da resposta
-de erro; o hold da AllDebrid vem de `/internal/resolve/facts`, e sem resposta o
-play não apaga o frio), painel/config,
-autofetch/colhedor/raspador (workers próprios). As rotas
+`/internal/activity`), painel/config, autofetch/colhedor/raspador (workers
+próprios). O `/resolve` é nativo e incondicional no gateway (HMAC + debrid); o
+Node só GRAVA os efeitos por `/internal/resolve/effects`, esperados antes da
+resposta de erro, e o hold da AllDebrid vem de `/internal/resolve/facts` (sem
+resposta o play não apaga o frio). As rotas
 `/internal/search/state|config|collect|index|index-write|fallback` e
 `/internal/debrid/check` **não existem mais**.
 
@@ -418,7 +417,7 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 |---|---|
 | Processo / app / rotas | `src/addon.ts`, `src/app.ts`, `src/routes/*` (`register.ts` é o único ponto de montagem; `addon-router.ts` é o protocolo Stremio) |
 | Config | `src/config.ts` + `src/config/*` (operador); `src/runtime.ts` (usuário) |
-| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`cinemeta`/`tmdb` via `/internal/search/meta`), os efeitos, o feed de holds e o debrid do play (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
+| Busca | Gateway/orquestrador: `rust/crates/adom-search` (fontes, conta, índice/banco e metadados nativos); no Node ficou o fallback de metadados (`cinemeta`/`tmdb` via `/internal/search/meta`), os efeitos, o feed de holds e o debrid do `dub-audit` (`applyDebrid` só no oráculo de teste `test/helpers/pipeline-oracle/`) |
 | Fontes | `jackett*.ts`, `prowlarr.ts`, `torrentio.ts`, `bludv.ts`, `mico.ts`, `account.ts` |
 | Autofetch / colhedor | `autofetch-*.ts`, `br-probe.ts`, `harvester*.ts`, `harvest-*.ts` |
 | Raspador | `src/providers/crawl-*.ts`, `crawl-sites/*` |

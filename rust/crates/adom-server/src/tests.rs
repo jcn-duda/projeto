@@ -18,7 +18,7 @@ use tokio::net::TcpListener;
 use adom_search::orchestrator::{Orchestrator, OrchestratorConfig};
 use adom_search::MemorySwrStore;
 
-use crate::config::{native_health, resolve_native, stream_native, Config};
+use crate::config::{native_health, stream_native, Config};
 use crate::proxy::{self, AppState};
 
 #[derive(Clone)]
@@ -77,9 +77,6 @@ pub(super) fn gateway_state(upstream: SocketAddr, native_health: bool) -> AppSta
         upstream: format!("http://{upstream}").parse().unwrap(),
         native_health,
         stream_native: false,
-        resolve_native: false,
-        resolve_rust: false,
-        resolve_proxy: true,
         resolve_secret: String::new(),
         resolver: Arc::new(crate::resolve_native::NoopResolver),
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
@@ -102,9 +99,6 @@ pub(super) fn gateway_state_native(upstream: SocketAddr, orch: Orchestrator) -> 
         upstream: format!("http://{upstream}").parse().unwrap(),
         native_health: false,
         stream_native: true,
-        resolve_native: false,
-        resolve_rust: false,
-        resolve_proxy: true,
         resolve_secret: String::new(),
         resolver: Arc::new(crate::resolve_native::NoopResolver),
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
@@ -112,36 +106,22 @@ pub(super) fn gateway_state_native(upstream: SocketAddr, orch: Orchestrator) -> 
     }
 }
 
+/// Estado do `/resolve` (nativo sempre); o resolvedor é injetado pelo teste.
 pub(super) fn gateway_state_resolve(
     upstream: SocketAddr,
     secret: &str,
-    proxy_enabled: bool,
+    resolver: Arc<dyn crate::resolve_native::PlayResolver>,
 ) -> AppState {
     AppState {
         client: proxy::client(),
         upstream: format!("http://{upstream}").parse().unwrap(),
         native_health: false,
         stream_native: false,
-        resolve_native: true,
-        resolve_rust: false,
-        resolve_proxy: proxy_enabled,
         resolve_secret: secret.to_string(),
-        resolver: Arc::new(crate::resolve_native::NoopResolver),
+        resolver,
         bridge: Arc::new(crate::resolve_bridge::NoBridge),
         orchestrator: None,
     }
-}
-
-/// Estado com o play NATIVO ligado (`RESOLVE_RUST=on`) e o resolvedor injetado.
-pub(super) fn gateway_state_resolve_rust(
-    upstream: SocketAddr,
-    secret: &str,
-    resolver: Arc<dyn crate::resolve_native::PlayResolver>,
-) -> AppState {
-    let mut state = gateway_state_resolve(upstream, secret, true);
-    state.resolve_rust = true;
-    state.resolver = resolver;
-    state
 }
 
 pub(super) async fn spawn_gateway(upstream: SocketAddr, native_health: bool) -> SocketAddr {
@@ -237,34 +217,18 @@ fn health_so_com_token_exato() {
 }
 
 #[test]
-fn stream_e_resolve_parseados_sem_confundir() {
+fn stream_token_exato_sem_confundir() {
     assert!(!stream_native(""));
     assert!(!stream_native("health"));
     assert!(stream_native("stream"));
     assert!(stream_native("health,stream"));
-
-    assert!(!resolve_native(""));
-    assert!(!resolve_native("stream"));
-    assert!(resolve_native("resolve"));
-    assert!(resolve_native("health,resolve,stream"));
 }
 
 #[test]
 fn config_default_vazio_nao_liga_stream() {
-    let ok = Config::parse(
-        "127.0.0.1:9",
-        "http://127.0.0.1:7100",
-        "",
-        false,
-        true,
-        String::new(),
-    )
-    .unwrap();
+    let ok = Config::parse("127.0.0.1:9", "http://127.0.0.1:7100", "", String::new()).unwrap();
     assert!(!ok.native_health);
     assert!(!ok.stream_native);
-    assert!(!ok.resolve_native);
-    assert!(!ok.resolve_rust);
-    assert!(ok.resolve_proxy);
 }
 
 #[tokio::test]

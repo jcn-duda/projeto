@@ -14,7 +14,8 @@ import { prefix } from '../src/utils/cache-keys.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import * as rdLedger from '../src/debrid/rd-ledger.js';
-import { BlockedError, EpisodePickError } from '../src/debrid/common.js';
+import { accountScope } from '../src/utils/request-key.js';
+import { BlockedError, DubLieError, EpisodePickError } from '../src/debrid/common.js';
 import { applyResolveEffects, type ResolveApplyContext } from '../src/debrid/rust-resolve-apply.js';
 
 const API_KEY = 'chave-de-teste-resolve-apply';
@@ -25,6 +26,7 @@ const HASH_BARE = 'd4'.repeat(20);
 const HASH_CONTROL = 'e5'.repeat(20);
 const IMDB_HIT = 'tt424242';
 const IMDB_MISS = 'tt424243';
+const IMDB_LIE = 'tt424244';
 
 function counter(name: string): number {
   const counters = metrics.snapshot().counters as Record<string, number>;
@@ -158,4 +160,28 @@ test('EpisodePickError sem prova não invalida cache nem marca índice', () => {
   assert.equal(stub.cleared.length, 0);
   assert.equal(stub.counts.length, 0);
   assert.equal(magnetdb.isBad('premiumize', API_KEY, HASH_BARE), false);
+});
+
+// Era coberto pela rota Node do `/resolve` (apagada na fase 2): o play que
+// provou release EN grava `lie`, destrava o `adprot` da conta e invalida a
+// obra da dica. Os dois casos da rota viraram este — mesmo efeito, sem HTTP.
+test('DubLieError marca lie, destrava o adprot da conta e invalida a obra', () => {
+  assert.equal(config.magnetDb.enabled, true);
+  const hash = 'a7'.repeat(20);
+  const key = streamKey(IMDB_LIE, 1, 1);
+  const markerKey = `${prefix('adprot')}alldebrid:${accountScope(API_KEY)}:${hash}`;
+  cache.set(markerKey, { acceptedAt: Date.now(), readyAt: null }, 3600);
+  cache.set(key, { streams: ['tocavel'] }, 60);
+  assert.ok(cache.peek(markerKey), 'precondição: retenção durável de pé');
+
+  const stub = stubServices();
+  applyResolveEffects(
+    new DubLieError({ videoCount: 1, matchedGroup: 'WEB', sample: 'Movie.2024.1080p.WEB.mkv' }),
+    ctx('alldebrid', hash, stub.services, IMDB_LIE, 1, 1),
+  );
+
+  assert.equal(magnetdb.isLie('alldebrid', API_KEY, hash), true, 'a mentira vai para o banco de magnets');
+  assert.equal(cache.get(markerKey), null, 'a prova de release EN destrava a proteção durável');
+  assert.equal(cache.get(key), null, 'streams da obra da dica foram invalidados');
+  assert.ok(stub.counts.includes('resolve.streamsInvalidated.lie'));
 });

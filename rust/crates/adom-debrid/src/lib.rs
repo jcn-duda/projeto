@@ -16,8 +16,8 @@
 //! internas do Node: `/internal/debrid/holds` (fatos do hold) e
 //! `/internal/debrid/marked` (devolução de `adsub`/`adrm`, dono único do
 //! `cache.db`).
-//! `play.rs` é o dispatch do play nativo (`/resolve` do gateway,
-//! `RESOLVE_RUST=on`): os cinco adaptadores, com o mesmo `pickFile` e a mesma
+//! `play.rs` é o dispatch do play nativo (`/resolve` do gateway, incondicional):
+//! os cinco adaptadores, com o mesmo `pickFile` e a mesma
 //! prova de áudio (`play_audit`) do TS; efeitos L1 continuam no Node.
 
 pub mod alldebrid;

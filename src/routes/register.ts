@@ -1,7 +1,6 @@
 import express from 'express';
 import { makePublicHandlers } from './public.js';
 import { makeDiagnosticHandlers } from './diagnostics.js';
-import { makeResolveHandler } from './resolve.js';
 import { makeMagnetBankTransferHandlers } from './magnet-bank-transfer.js';
 import { registerInternalCrawlResult } from './internal-crawl-result.js';
 import { registerInternalActivity } from './internal-activity.js';
@@ -22,7 +21,6 @@ import type { AppServices } from './types.js';
 function registerRoutes(app: express.Express, services: AppServices, addonInterface: AddonInterface) {
   const publicHandlers = makePublicHandlers(services);
   const diagnosticHandlers = makeDiagnosticHandlers(services);
-  const resolveHandler = makeResolveHandler(services);
   const bankTransfer = makeMagnetBankTransferHandlers(services);
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
@@ -75,9 +73,10 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   // Devolução das marcas da limpeza NATIVA da AllDebrid (`adsub`/`adrm`): o
   // Rust apaga/sube e o Node, dono único do `cache.db`, grava. Mesma guarda.
   registerInternalDebridMarked(app, services);
-  // Efeitos e fatos do `/resolve` nativo do gateway (`RESOLVE_RUST=on`).
+  // Efeitos e fatos do play nativo. O `/resolve` NÃO é montado aqui: quem
+  // atende o cliente é o gateway (7000, `resolve_native` sem flag); o Node só
+  // grava os efeitos e responde os fatos por `/internal/resolve/*`.
   registerInternalResolve(app, services);
-  app.get('/resolve/:infoHash', resolveHandler);
 
   app.use((req, _res, next) => services.runtime.run({
     origin: originOf(req),
@@ -109,7 +108,6 @@ function registerRoutes(app: express.Express, services: AppServices, addonInterf
   app.get('/:userConfig/stream-trace.json', diagnosticHandlers.streamTrace);
   app.get('/:userConfig/magnet-bank-export', bankTransfer.exportBank);
   app.post('/:userConfig/magnet-bank-import', bankTransfer.importBank);
-  app.get('/:userConfig/resolve/:infoHash', resolveHandler);
   app.use('/:userConfig', makeAddonRouter(addonInterface));
 }
 

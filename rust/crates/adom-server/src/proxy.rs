@@ -2,7 +2,8 @@
 //! partir dele. Sem retry e sem prazo curto — o play e o portão passam de 30s.
 //!
 //! Com `ROUTES_RUST` contendo `stream`, o `/stream` é cortado no Rust
-//! (orquestrador) e não chega ao upstream.
+//! (orquestrador) e não chega ao upstream. O `/resolve` é nativo SEMPRE (fase C
+//! do F4.7): não tem flag nem proxy de rollback.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -23,7 +24,6 @@ use hyper_util::rt::TokioExecutor;
 use adom_search::orchestrator::Orchestrator;
 
 use crate::config::Config;
-use crate::resolve::{self, GateDecision};
 use crate::resolve_bridge::PlayBridge;
 use crate::resolve_native::{self, NativeContext, PlayResolver};
 use crate::stream;
@@ -37,12 +37,6 @@ pub struct AppState {
     pub native_health: bool,
     /// Corte nativo: quando true e há orquestrador, `/stream` não vai ao Node.
     pub stream_native: bool,
-    /// Guarda HMAC de `/resolve` (`ROUTES_RUST=resolve`).
-    pub resolve_native: bool,
-    /// Corte do play (`RESOLVE_RUST=on`): resolve o debrid no próprio gateway.
-    pub resolve_rust: bool,
-    /// Após verify OK: proxy ao Node. `false` → 501 (sem play / sem debrid).
-    pub resolve_proxy: bool,
     /// `RESOLVE_SECRET` — precedência sobre `dk` da URL no HMAC.
     pub resolve_secret: String,
     /// Resolvedor do play nativo; teste injeta stub sem rede.
@@ -80,9 +74,6 @@ pub async fn run(config: Config) -> Result<(), String> {
     let listen = config.listen;
     let native = config.native_health;
     let stream_cut = config.stream_native;
-    let resolve_cut = config.resolve_native;
-    let resolve_rust = config.resolve_rust;
-    let resolve_proxy = config.resolve_proxy;
     let upstream = config.upstream.clone();
     // F4.4a: o store do corte é aberto UMA vez e compartilhado com a API
     // administrativa (`streams.db`), para a invalidação do Node valer para o
@@ -106,16 +97,10 @@ pub async fn run(config: Config) -> Result<(), String> {
         upstream: config.upstream,
         native_health: config.native_health,
         stream_native: stream_cut,
-        resolve_native: resolve_cut,
-        resolve_rust,
-        resolve_proxy,
         resolve_secret: config.resolve_secret,
         resolver: Arc::new(resolve_native::DebridPlay::new()),
-        bridge: if resolve_rust {
-            crate::resolve_bridge::from_env()
-        } else {
-            Arc::new(crate::resolve_bridge::NoBridge)
-        },
+        // O play é sempre nativo: a ponte com o Node é o caminho de produção.
+        bridge: crate::resolve_bridge::from_env(),
         orchestrator,
     };
     let listener = tokio::net::TcpListener::bind(listen)
@@ -125,7 +110,7 @@ pub async fn run(config: Config) -> Result<(), String> {
         .local_addr()
         .map_err(|err| format!("endereco local: {err}"))?;
     eprintln!(
-        "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_native={stream_cut} resolve_native={resolve_cut} resolve_rust={resolve_rust} resolve_proxy={resolve_proxy}"
+        "[gateway] escutando {bound} upstream {upstream} health_nativo={native} stream_native={stream_cut} resolve_nativo=sempre"
     );
     axum::serve(listener, router(state))
         .await
@@ -185,10 +170,10 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
                 .into_response(),
         };
     }
-    // Corte do play: `RESOLVE_RUST=on` resolve o debrid AQUI (HMAC + adaptador).
-    // Erro do adaptador vira o status/texto do Node — não cai no proxy (segundo
-    // upload mascararia o 502 do AllDebrid, por exemplo).
-    if state.resolve_rust && resolve::is_native_resolve(req.method(), req.uri().path()) {
+    // `/resolve` é nativo SEMPRE (fase C do F4.7): HMAC + adaptador AQUI, sem
+    // flag. Erro do adaptador vira o status/texto do Node — não cai no proxy
+    // (segundo upload mascararia o 502 do AllDebrid, por exemplo).
+    if resolve_native::is_native_resolve(req.method(), req.uri().path()) {
         let ctx = NativeContext {
             resolve_secret: state.resolve_secret.clone(),
             resolver: state.resolver.clone(),
@@ -199,17 +184,6 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
         let path = req.uri().path().to_string();
         let query = req.uri().query().map(str::to_string);
         return resolve_native::handle(&path, query.as_deref(), &ctx).await;
-    }
-    // Guarda HMAC do play: verify no Rust; play real só via proxy (strangler).
-    // Nunca chama debrid aqui — evita segundo upload.
-    if state.resolve_native && resolve::is_native_resolve(req.method(), req.uri().path()) {
-        let (path, query) = resolve::path_and_query(&req);
-        match resolve::decide(path, query, &state.resolve_secret, state.resolve_proxy) {
-            GateDecision::BadHash => return resolve::bad_hash_response(),
-            GateDecision::Forbidden => return resolve::forbidden_response(),
-            GateDecision::NotImplemented => return resolve::not_implemented_response(),
-            GateDecision::Proxy => { /* cai no forward abaixo */ }
-        }
     }
     match forward(&state, req).await {
         Ok(response) => response,

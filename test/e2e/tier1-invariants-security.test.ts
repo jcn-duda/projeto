@@ -5,7 +5,6 @@ process.env.CACHE_PERSIST = 'false';
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -239,27 +238,6 @@ describe('Feature 13: E2E Testing Suite (Tiers 1-4)', () => {
     assert.ok(res.json.services.length >= 5);
   });
 
-  it('13.4: Endpoint /resolve/:infoHash com assinatura válida responde redirect 302', async () => {
-    const userCfg = encodeConfig({ ds: 'premiumize', dk: 'test-pm-key' });
-    const sig = crypto.createHmac('sha256', 'test-pm-key').update(TEST_HASH_1).digest('hex');
-
-    await withMockFetch(
-      {
-        match: 'premiumize.me/api/transfer/directdl',
-        handler: () =>
-          fakeResponse({
-            status: 'success',
-            content: [{ path: 'Video.mp4', link: 'https://pm.test/dl/Video.mp4', size: 1000 }],
-          }),
-      },
-      async () => {
-        const res = await server.request('GET', `/${userCfg}/resolve/${TEST_HASH_1}?sig=${sig}`);
-        assert.equal(res.status, 302);
-        assert.equal(res.headers.get('location'), 'https://pm.test/dl/Video.mp4');
-      }
-    );
-  });
-
   it('13.5: Endpoint /configure e /:userConfig/configure entregam página HTML', async () => {
     const res1 = await server.request('GET', '/configure');
     assert.equal(res1.status, 200);
@@ -291,30 +269,6 @@ describe('Feature 14: Final E2E Pass & Adversarial Hardening (Tier 5)', () => {
     const res = await server.request('GET', '/@invalid-base64-segment!@/manifest.json');
     assert.equal(res.status, 404);
     assert.equal(res.text, 'configuração inválida');
-  });
-
-  it('14.2: InfoHash com comprimento inválido ou caracteres estranhos responde HTTP 400', async () => {
-    const resShort = await server.request('GET', '/resolve/shortHash123');
-    assert.equal(resShort.status, 400);
-    assert.equal(resShort.text, 'infoHash inválido');
-
-    const resNonHex = await server.request('GET', '/resolve/0123456789abcdefghijklmnopqrstuvwxyz0123');
-    assert.equal(resNonHex.status, 400);
-    assert.equal(resNonHex.text, 'infoHash inválido');
-  });
-
-  it('14.3: Assinatura HMAC adulterada ou ausente no /resolve com debrid ativo responde HTTP 403', async () => {
-    const userCfg = encodeConfig({ ds: 'realdebrid', dk: 'rd-secret-key' });
-
-    const resNoSig = await server.request('GET', `/${userCfg}/resolve/${TEST_HASH_1}`);
-    assert.equal(resNoSig.status, 403);
-    assert.equal(resNoSig.text, 'assinatura inválida');
-
-    const validSig = crypto.createHmac('sha256', 'rd-secret-key').update(TEST_HASH_1).digest('hex');
-    const tamperedSig = validSig.slice(0, -1) + (validSig.endsWith('0') ? '1' : '0');
-    const resTampered = await server.request('GET', `/${userCfg}/resolve/${TEST_HASH_1}?sig=${tamperedSig}`);
-    assert.equal(resTampered.status, 403);
-    assert.equal(resTampered.text, 'assinatura inválida');
   });
 
   it('14.4: Acesso ao endpoint /metrics.json sem cabeçalho X-Indexer-Test-Token responde HTTP 401', async () => {

@@ -122,43 +122,35 @@ fn upstream_uri_preserva_query() {
 
 #[test]
 fn config_rejeita_upstream_sem_host() {
-    assert!(Config::parse("127.0.0.1:9", "http://", "", false, true, String::new()).is_err());
+    assert!(Config::parse("127.0.0.1:9", "http://", "", String::new()).is_err());
     let ok = Config::parse(
         "127.0.0.1:9",
         "http://127.0.0.1:7100",
         "health",
-        false,
-        true,
         String::new(),
     )
     .unwrap();
     assert!(ok.native_health);
     assert!(!ok.stream_native);
-    assert!(!ok.resolve_rust);
 
     let native = Config::parse(
         "127.0.0.1:9",
         "http://127.0.0.1:7100",
         "stream",
-        false,
-        true,
         String::new(),
     )
     .unwrap();
     assert!(native.stream_native);
 
+    // `RESOLVE_SECRET` é o único campo do play: a rota não tem token/flag.
     let resolve = Config::parse(
         "127.0.0.1:9",
         "http://127.0.0.1:7100",
         "resolve",
-        true,
-        false,
         "sec".into(),
     )
     .unwrap();
-    assert!(resolve.resolve_native);
-    assert!(resolve.resolve_rust);
-    assert!(!resolve.resolve_proxy);
+    assert!(!resolve.stream_native);
     assert_eq!(resolve.resolve_secret, "sec");
 }
 
@@ -188,72 +180,7 @@ async fn metrics_expoe_checagem_alldebrid_zerada() {
     assert!(snap.get("index.rust.lookup").is_some());
 }
 
-#[tokio::test]
-async fn resolve_nativo_403_sem_tocar_upstream() {
-    let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", true)).await;
-    let hash = "0123456789abcdef0123456789abcdef01234567";
-    let req = Request::builder()
-        .uri(format!("/resolve/{hash}?sig=deadbeef"))
-        .body(Body::empty())
-        .unwrap();
-    let (status, body) = call(gateway, req).await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(body, "assinatura inválida");
-    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
-}
-
-#[tokio::test]
-async fn resolve_nativo_501_com_proxy_desligado() {
-    use adom_search::ResolveSigner;
-    let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", false)).await;
-    let hash = "0123456789abcdef0123456789abcdef01234567";
-    let signer = ResolveSigner {
-        prefix: String::new(),
-        secret: "segredo".into(),
-        ..ResolveSigner::default()
-    };
-    let url = signer.url(hash, false, false);
-    let req = Request::builder().uri(url).body(Body::empty()).unwrap();
-    let (status, body) = call(gateway, req).await;
-    assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
-    assert!(body.contains("proxy desligado"), "corpo: {body}");
-    assert_eq!(hits.0.load(Ordering::SeqCst), 0);
-}
-
-#[tokio::test]
-async fn resolve_nativo_proxy_apos_verify_ok() {
-    use adom_search::ResolveSigner;
-    let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", true)).await;
-    let hash = "0123456789abcdef0123456789abcdef01234567";
-    let signer = ResolveSigner {
-        prefix: String::new(),
-        secret: "segredo".into(),
-        ..ResolveSigner::default()
-    };
-    let url = signer.url(hash, false, false);
-    let req = Request::builder()
-        .uri(url)
-        .header(HOST, "publico.example")
-        .body(Body::empty())
-        .unwrap();
-    let (status, body) = call(gateway, req).await;
-    assert_eq!(status, StatusCode::OK);
-    let json: Value = serde_json::from_str(&body).unwrap();
-    assert!(
-        json["pq"]
-            .as_str()
-            .unwrap()
-            .starts_with(&format!("/resolve/{hash}")),
-        "pq: {}",
-        json["pq"]
-    );
-    assert_eq!(hits.0.load(Ordering::SeqCst), 1);
-}
-
-// ── `/resolve` NATIVO (`RESOLVE_RUST=on`) ──────────────────────────────────
+// ── `/resolve` NATIVO (sem flag: é o caminho único do gateway) ─────────────
 
 fn config_segment(service: &str, key: &str) -> String {
     encode_config(&json!({ "ds": service, "dk": key }))
@@ -282,7 +209,7 @@ async fn call_native(
     url: String,
 ) -> (StatusCode, http::HeaderMap, String) {
     let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state_resolve_rust(upstream, secret, resolver)).await;
+    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, secret, resolver)).await;
     let req = Request::builder()
         .uri(url)
         .header(HOST, "publico.example")
@@ -298,7 +225,7 @@ async fn call_native(
 }
 
 #[tokio::test]
-async fn resolve_rust_302_para_o_link_do_adaptador() {
+async fn resolve_nativo_302_para_o_link_do_adaptador() {
     let hash = "0123456789abcdef0123456789abcdef01234567";
     let stub = StubResolver::ok("https://cdn.test/play.mkv");
     let url = signed_url("segredo", "premiumize", "chave-do-usuario", hash, false);
@@ -315,7 +242,7 @@ async fn resolve_rust_302_para_o_link_do_adaptador() {
 }
 
 #[tokio::test]
-async fn resolve_rust_403_com_hmac_errado_nao_chama_adaptador() {
+async fn resolve_nativo_403_com_hmac_errado_nao_chama_adaptador() {
     let hash = "0123456789abcdef0123456789abcdef01234567";
     let stub = StubResolver::ok("https://cdn.test/play.mkv");
     // Assinado com OUTRO segredo: o verify do gateway tem que recusar antes.
@@ -327,7 +254,7 @@ async fn resolve_rust_403_com_hmac_errado_nao_chama_adaptador() {
 }
 
 #[tokio::test]
-async fn resolve_rust_400_hash_invalido() {
+async fn resolve_nativo_400_hash_invalido() {
     let stub = StubResolver::ok("https://cdn.test/play.mkv");
     let (status, _headers, body) = call_native(stub, "segredo", "/resolve/aa".into()).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -335,7 +262,7 @@ async fn resolve_rust_400_hash_invalido() {
 }
 
 #[tokio::test]
-async fn resolve_rust_400_hash_nulo() {
+async fn resolve_nativo_400_hash_nulo() {
     let stub = StubResolver::ok("https://cdn.test/play.mkv");
     let (status, _headers, body) =
         call_native(stub, "segredo", format!("/resolve/{}", "0".repeat(40))).await;
@@ -344,7 +271,7 @@ async fn resolve_rust_400_hash_nulo() {
 }
 
 #[tokio::test]
-async fn resolve_rust_404_sem_config_de_debrid() {
+async fn resolve_nativo_404_sem_config_de_debrid() {
     let hash = "0123456789abcdef0123456789abcdef01234567";
     let segment = encode_config(&json!({ "ds": "", "dk": "" }));
     let stub = StubResolver::ok("https://cdn.test/play.mkv");
@@ -356,7 +283,7 @@ async fn resolve_rust_404_sem_config_de_debrid() {
 }
 
 #[tokio::test]
-async fn resolve_rust_erros_fieis_do_contrato_node() {
+async fn resolve_nativo_erros_fieis_do_contrato_node() {
     use adom_core::{EpisodeContext, PickCode};
     use adom_debrid::DebridError;
 
@@ -418,7 +345,7 @@ async fn resolve_rust_erros_fieis_do_contrato_node() {
 }
 
 #[tokio::test]
-async fn resolve_rust_alldebrid_magnet_too_many_e_502_explicito() {
+async fn resolve_nativo_alldebrid_magnet_too_many_e_502_explicito() {
     let hash = "0123456789abcdef0123456789abcdef01234567";
     let stub = StubResolver::err(DebridError::Quota(
         "Magnets limit reached (MAGNET_TOO_MANY)".into(),
@@ -432,7 +359,7 @@ async fn resolve_rust_alldebrid_magnet_too_many_e_502_explicito() {
 }
 
 #[tokio::test]
-async fn resolve_rust_hint_w_e_s_e_chegam_ao_adaptador() {
+async fn resolve_nativo_hint_w_e_s_e_chegam_ao_adaptador() {
     let hash = "0123456789abcdef0123456789abcdef01234567";
     let stub = StubResolver::ok("https://cdn.test/play.mkv");
     let url = signed_url("segredo", "torbox", "chave", hash, true);
@@ -448,25 +375,4 @@ async fn resolve_rust_hint_w_e_s_e_chegam_ao_adaptador() {
         Some(vec!["Filme".into()])
     );
     assert_eq!(hint.work.as_ref().and_then(|work| work.year), Some(2024));
-}
-
-#[tokio::test]
-async fn resolve_rust_desligado_continua_proxy_do_node() {
-    // Sem a flag o caminho é o de sempre: guarda HMAC + proxy (rollback).
-    use adom_search::ResolveSigner;
-    let hash = "0123456789abcdef0123456789abcdef01234567";
-    let (upstream, hits) = spawn_upstream().await;
-    let gateway = spawn_gateway_state(gateway_state_resolve(upstream, "segredo", true)).await;
-    let signer = ResolveSigner {
-        prefix: String::new(),
-        secret: "segredo".into(),
-        ..ResolveSigner::default()
-    };
-    let url = signer.url(hash, false, false);
-    let req = Request::builder().uri(url).body(Body::empty()).unwrap();
-    let (status, body) = call(gateway, req).await;
-    assert_eq!(status, StatusCode::OK);
-    let json: Value = serde_json::from_str(&body).unwrap();
-    assert!(json["pq"].as_str().unwrap().starts_with("/resolve/"));
-    assert_eq!(hits.0.load(Ordering::SeqCst), 1);
 }

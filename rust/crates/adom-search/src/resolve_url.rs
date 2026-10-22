@@ -167,7 +167,7 @@ pub fn encode_uri_component(text: &str) -> String {
     out
 }
 
-// ── Verificação do play (espelho de `sign.ts` + `routes/resolve.ts`) ────────
+// ── Verificação do play (espelho de `sign.ts` + `resolve_native.rs`) ────────
 
 /// Play já separado do path + query. Sem host: o HMAC nunca o inclui.
 #[derive(Debug, Clone, PartialEq, Eq)]
