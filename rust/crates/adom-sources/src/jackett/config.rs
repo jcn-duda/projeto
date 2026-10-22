@@ -5,6 +5,8 @@
 
 use std::fmt;
 
+use super::config_file::{jackett_config_dir_from_env, resolve_jackett_indexers};
+
 /// Base padrão no container único (Jackett em loopback).
 pub const JACKETT_DEFAULT_URL: &str = "http://127.0.0.1:9117";
 
@@ -72,12 +74,16 @@ impl JackettConfig {
             .trim_end_matches('/')
             .to_string();
         let api_key = env_trim("JACKETT_API_KEY").unwrap_or_default();
+        // Sem a env, o default é o estado do Jackett no volume (leitura LOCAL no
+        // boot) — o "modo automático" do TS. Vazio nos dois lados = `/all`.
+        let indexers = resolve_jackett_indexers(
+            std::env::var("JACKETT_INDEXERS").ok().as_deref(),
+            &jackett_config_dir_from_env(),
+        );
         Self {
             url,
             api_key,
-            indexers: env_trim("JACKETT_INDEXERS")
-                .map(|list| split_indexers(&list))
-                .unwrap_or_default(),
+            indexers,
             pt_br_indexers: env_trim("JACKETT_PT_BR_INDEXERS")
                 .map(|list| split_indexers(&list))
                 .unwrap_or_else(default_pt_br_indexers),
@@ -177,7 +183,7 @@ fn env_u64(key: &str) -> Option<u64> {
     env_trim(key)?.parse().ok()
 }
 
-fn split_indexers(raw: &str) -> Vec<String> {
+pub(super) fn split_indexers(raw: &str) -> Vec<String> {
     raw.split(|c: char| c == ',' || c.is_whitespace())
         .map(str::trim)
         .filter(|s| !s.is_empty())

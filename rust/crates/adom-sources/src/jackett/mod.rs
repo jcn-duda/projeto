@@ -22,6 +22,7 @@
 mod breaker;
 mod client;
 mod config;
+mod config_file;
 mod download;
 mod query;
 mod results;
@@ -30,6 +31,11 @@ mod types;
 pub use breaker::{now_ms as breaker_now_ms, Breaker, BreakerSnapshot};
 pub use client::JackettClient;
 pub use config::{JackettConfig, JACKETT_DEFAULT_URL, JACKETT_USER_AGENT};
+pub use config_file::{
+    jackett_config_dir_from_env, jackett_indexers_from_config_dir,
+    jackett_indexers_from_server_config, resolve_jackett_indexers, JACKETT_CONFIG_DIR_DEFAULT,
+    JACKETT_CONFIG_DIR_ENV,
+};
 pub use download::{download_url_allowed, is_jackett_download_link, resolve_download_magnet};
 pub use query::{budget_for, shape_for, shape_search_query};
 pub use results::{

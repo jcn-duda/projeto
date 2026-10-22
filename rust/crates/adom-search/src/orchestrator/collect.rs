@@ -231,7 +231,8 @@ pub fn plan_jobs(
     selection: &RequestSelection,
 ) -> Vec<CollectJob> {
     // Seleção da REQUEST (como o gate congelado); sem `ji` nela, cai no default
-    // do operador (`config.selected_indexers`, vazio na produção de hoje).
+    // do operador (`config.selected_indexers` — com `JACKETT_INDEXERS` vazio, a
+    // lista automática do volume do Jackett).
     let request_indexers = selection.jackett_selection(&config.selected_indexers);
     // Index-only ficam fora do caminho da resposta (colhem em fundo no Node).
     // O card virtual `mico` não é do Jackett: nunca vira consulta Torznab.

@@ -1,5 +1,6 @@
 use adom_search::orchestrator::OrchestratorConfig;
 use adom_search::BuildOptions;
+use adom_sources::jackett::{jackett_config_dir_from_env, resolve_jackett_indexers};
 use serde_json::Value;
 
 pub fn orchestrator_config_from_env() -> OrchestratorConfig {
@@ -133,9 +134,10 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
     cfg.auto_fetch_min_seeders = cfg.account_fast_min_seeders;
     // Listas de indexers do operador (`src/config/jackett.ts`). O índice/banco
     // nativo precisa delas para `allowedSourceIndexer` (isenção dos index-only),
-    // elegibilidade da instantânea, BR-gap e `brSource` da reserva. `ji` vazio
-    // continua vazio: o catálogo automático do Jackett não é replicado aqui.
-    cfg.selected_indexers = indexer_list(std::env::var("JACKETT_INDEXERS").ok().as_deref(), "");
+    // elegibilidade da instantânea, BR-gap e `brSource` da reserva.
+    // `JACKETT_INDEXERS` vazio → os indexers habilitados no VOLUME do Jackett
+    // (modo automático do TS, `syncAutoIndexers`), lidos do disco no boot.
+    cfg.selected_indexers = operator_jackett_indexers();
     cfg.pt_br_indexers = indexer_list(
         std::env::var("JACKETT_PT_BR_INDEXERS").ok().as_deref(),
         "bludv-cardigann,comandotorrents,nerdfilmes,torrentdosfilmesv2,vacatorrent,redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann",
@@ -149,6 +151,34 @@ pub fn orchestrator_config_from_env() -> OrchestratorConfig {
         "redetorrent-cardigann,apachetorrent-cardigann,hdrtorrent-cardigann,magnetdownload,1337x",
     );
     cfg
+}
+
+/// Indexers do operador: `JACKETT_INDEXERS` vence; vazia/ausente cai nos
+/// indexers HABILITADOS do volume do Jackett (leitura local, no boot).
+///
+/// O coletor Jackett resolve a mesma lista por `JackettConfig::from_env` — as
+/// duas leituras são de boot, nunca por requisição; o log sai só aqui.
+fn operator_jackett_indexers() -> Vec<String> {
+    let raw = std::env::var("JACKETT_INDEXERS").ok();
+    let from_env = raw.as_deref().is_some_and(|value| !value.trim().is_empty());
+    let dir = jackett_config_dir_from_env();
+    let ids = resolve_jackett_indexers(raw.as_deref(), &dir);
+    if from_env {
+        return ids;
+    }
+    if ids.is_empty() {
+        eprintln!(
+            "[gateway] JACKETT_INDEXERS vazio e nenhum indexer em {}; a busca cai no agregado /all",
+            dir.display()
+        );
+    } else {
+        eprintln!(
+            "[gateway] JACKETT_INDEXERS vazio: {} indexers automáticos pelo volume do Jackett ({})",
+            ids.len(),
+            ids.join(", ")
+        );
+    }
+    ids
 }
 
 /// CSV de indexers (`indexerList` do Node): trim, descarta vazios. `raw` vazio
