@@ -309,23 +309,19 @@ export const debrid = () => ({
   // configurar deliberadamente a fonte.
   rdOracle: {
     enabled: String(process.env.DEBRID_RD_ORACLE || 'true') === 'true',
-    timeoutMs: Math.max(1, num(process.env.DEBRID_RD_ORACLE_TIMEOUT_MS, 800)),
-    maxHashes: Math.min(500, Math.max(1, Math.trunc(num(process.env.DEBRID_RD_ORACLE_MAX_HASHES, 100)))),
     // Vazio por padrão: endpoint público canonico só vira destino depois que o
     // operador o define (e ainda assim exige credencial efetiva). Documentado
     // no .env.example; o valor canônico pode ser reposto ali. Limite 500/hash.
     stremthruUrl: (process.env.DEBRID_RD_ORACLE_STREMTHRU_URL || '').replace(/\/$/, ''),
     stremthruToken: process.env.DEBRID_RD_ORACLE_STREMTHRU_TOKEN || '',
-    stremthruStore: process.env.DEBRID_RD_ORACLE_STREMTHRU_STORE || 'realdebrid',
     torrentio: String(process.env.DEBRID_RD_ORACLE_TORRENTIO || 'false') === 'true',
     // O URL canônico permanece como default, mas isso NÃO vale por envio: o
     // flag `torrentio` nasce false e é o opt-in. Só com ele true a fonte é
     // consultada (e só com credencial efetiva a chamada vai à rede).
     torrentioUrl: (process.env.DEBRID_RD_ORACLE_TORRENTIO_URL || 'https://torrentio.strem.fun').replace(/\/$/, ''),
-    // Vazio usa a chave efetiva da instalação (a mesma recebida por rdOracle.check),
+    // Vazio usa a chave efetiva da instalação (a mesma que o gate recebe),
     // nunca a do operador por engano.
     torrentioKey: process.env.DEBRID_RD_ORACLE_TORRENTIO_KEY || '',
-    torrentioTtl: Math.max(0, num(process.env.DEBRID_RD_ORACLE_TORRENTIO_TTL, 21600)),
   },
   // Governador por conta das escritas no Real-Debrid. false preserva o fluxo
   // anterior, inclusive o gap e o cooldown próprios da sonda.

@@ -22,7 +22,6 @@ use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 use crate::http::HttpClient;
-use crate::import::{self, ImportReport};
 use crate::metrics::Metrics;
 use crate::store::Store;
 
@@ -35,15 +34,13 @@ mod api_resolve;
 pub struct InternalConfig {
     pub listen: SocketAddr,
     pub token: String,
-    pub debrid_db: PathBuf,
     pub cache_db: PathBuf,
-    pub import: bool,
 }
 
 struct AppState {
     token: String,
     metrics: Metrics,
-    #[allow(dead_code)]
+    /// Leitor do ledger (`rdc:v2`) usado pelo `/debrid/check` do RD.
     store: Option<Store>,
     http: Option<HttpClient>,
 }
@@ -65,30 +62,25 @@ pub fn config_from_env() -> Result<InternalConfig, String> {
     if token.is_empty() {
         token = std::env::var("JACKETT_TEST_TOKEN").unwrap_or_default();
     }
-    let import = std::env::var("DEBRID_RUST_IMPORT").unwrap_or_default() == "on";
     Ok(InternalConfig {
         listen: parse_listen(&listen)?,
         token,
-        debrid_db: std::env::var("DEBRID_DB_PATH")
-            .unwrap_or_else(|_| "data/debrid.db".into())
-            .into(),
+        // Único banco do debrid: o `cache.db` do Node. O `debrid.db` da
+        // fundação saiu com o import (era cópia de uma vez só).
         cache_db: std::env::var("CACHE_DB_PATH")
             .unwrap_or_else(|_| "data/cache.db".into())
             .into(),
-        import,
     })
 }
 
 pub fn router(cfg: &InternalConfig) -> Router {
-    let store = match Store::open(&cfg.debrid_db) {
-        Ok(store) => {
-            if cfg.import {
-                log_import(import::import_once(&cfg.debrid_db, &cfg.cache_db));
-            }
-            Some(store)
-        }
+    // Leitor READ-ONLY do `cache.db`: o ledger `rdc:v2` do Real-Debrid mora
+    // lá, e é a mesma fonte do gateway. Sem ele a checagem do RD não tem o
+    // que ler e todo hash sai `Unknown` — honesto, nunca "nada em cache".
+    let store = match Store::open_cache_db(&cfg.cache_db) {
+        Ok(store) => Some(store),
         Err(err) => {
-            eprintln!("[debrid] debrid.db indisponivel: {err}");
+            eprintln!("[debrid] ledger rdc:v2 indisponivel: {err}");
             None
         }
     };
@@ -134,14 +126,6 @@ pub async fn serve(cfg: InternalConfig) -> Result<(), String> {
     axum::serve(listener, app)
         .await
         .map_err(|err| format!("API interna encerrou: {err}"))
-}
-
-fn log_import(result: Result<ImportReport, String>) {
-    match result {
-        Ok(report) if report.already => eprintln!("[debrid] import já feito"),
-        Ok(report) => eprintln!("[debrid] import copiou {}", report.copied),
-        Err(err) => eprintln!("[debrid] import falhou: {err}"),
-    }
 }
 
 async fn auth(

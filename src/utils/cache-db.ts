@@ -20,7 +20,7 @@ import { MAX_ENTRIES, namespaceFor, quotaFor } from './cache-quotas.js';
 import { openWithRecovery } from './cache-db-open.js';
 
 /** Pontos de contato com o L1, dono do store (cache.ts fornece as amarras). */
-export interface CacheDbHooks {
+interface CacheDbHooks {
   store: Map<string, any>;
   removeFromStore(key: string): boolean;
   incrementNamespace(namespace: string): void;

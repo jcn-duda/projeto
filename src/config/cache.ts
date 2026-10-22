@@ -10,12 +10,6 @@ export const cacheBase = () => ({
   // um refresh de fundo a reconstrói. Só vale para lista completa com debrid
   // conferido e stream tocável. 0 volta à semântica dura (expirou = busca nova).
   streamStaleGrace: num(process.env.STREAM_STALE_GRACE_SECONDS, 300),
-  // TTL da lista que CONTÉM item de fallback do banco de magnets (Etapa 4): a
-  // reserva é foto do acervo, não medição viva — nunca ganha o TTL cheio nem é
-  // promovida a completa enquanto o indexer falho não responder. Curto para a
-  // próxima abertura já reconsultar o vivo (o handler força cacheMaxAge 0 via
-  // `partial`, que a entrada de fallback também carrega).
-  fallbackStreamsTtl: Math.max(0, num(process.env.FALLBACK_STREAMS_TTL, 120)),
 });
 
 export const rawCache = () => ({

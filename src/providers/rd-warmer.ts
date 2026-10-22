@@ -98,27 +98,22 @@ function noteQueries(count: number): void {
 
 /**
  * Credencial RD observada numa requisição real. A config selada na URL do app
- * nunca chega ao `.env`, então sem isto o warmer fica permanentemente inerte
- * numa instalação que só configura o debrid pelo link de instalação — e sem
- * nenhum log dizendo por quê.
+ * nunca chega ao `.env`, então este era o caminho que destravava o warmer numa
+ * instalação configurada só pelo link de instalação.
  *
  * Vive SÓ em memória do processo: nunca é persistida no cache nem logada.
+ * Fase 1 do corte TS: o único escritor era o `noteCredential`, chamado apenas
+ * pelo `applyDebrid` (que saiu do `src/` no F4.4). Sem escritor, o ramo
+ * `sessao` de `resolveApiKeySource` fica inalcançável; ele permanece aqui
+ * porque `status()` e o painel tipam essa união — remover o ramo é outra
+ * fatia, não esta.
  */
 let notedApiKey = '';
-
-/** Registra a chave RD efetiva de uma requisição que de fato usou Real-Debrid. */
-function noteCredential(apiKey: string): void {
-  const key = String(apiKey || '');
-  if (!key || key === notedApiKey) return;
-  const first = !notedApiKey;
-  notedApiKey = key;
-  if (first) log.info('[rd-warmer] credencial RD vista numa requisição; aquecimento habilitado');
-}
 
 /**
  * Chave para o aquecimento e a origem dela. Painel é fonte ÚNICA: RD liga,
  * AllDebrid desliga mesmo com `.env` RD; sem override, `.env` com gate de
- * operador; senão, a última credencial RD vista numa requisição.
+ * operador; senão, a credencial de sessão — hoje sem escritor (ver `notedApiKey`).
  */
 function resolveApiKeySource(): { apiKey: string | null; source: 'panel' | 'env' | 'sessao' | 'none' } {
   const warm = harvesterDebrid.resolveWarm();
@@ -127,7 +122,7 @@ function resolveApiKeySource(): { apiKey: string | null; source: 'panel' | 'env'
   return notedApiKey ? { apiKey: notedApiKey, source: 'sessao' } : { apiKey: null, source: 'none' };
 }
 
-/** Real-Debrid está em uso aqui, seja pelo `.env`, painel ou pela URL. */
+/** Real-Debrid está em uso aqui, seja pelo `.env`, painel ou sessão. */
 function rdInPlay(): boolean {
   return config.debrid.rdWarm.enabled ? Boolean(resolveApiKeySource().apiKey) : false;
 }
@@ -393,5 +388,5 @@ function reset(): void {
   cache.forget(HOUR_KEY);
 }
 
-export { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, noteCredential, rdInPlay };
-export default { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, noteCredential, rdInPlay };
+export { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, rdInPlay };
+export default { enqueue, tick, start, drain, setPaused, status, reset, scanBlockedRdBads, rdInPlay };

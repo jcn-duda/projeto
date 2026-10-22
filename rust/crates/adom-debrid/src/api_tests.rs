@@ -17,16 +17,12 @@ use super::{router, InternalConfig};
 const KEY: &str = "nao-logar";
 
 fn cfg(token: &str) -> InternalConfig {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("debrid.db");
-    // O tempdir precisa sobreviver ao router: vaza de propósito neste teste.
-    std::mem::forget(dir);
     InternalConfig {
         listen: "127.0.0.1:0".parse().unwrap(),
         token: token.to_string(),
-        debrid_db: path,
+        // Ausente de propósito: sem ledger o RD responde `unknown`, e o boot
+        // da API não cria arquivo nenhum.
         cache_db: PathBuf::from("data/cache.db.ausente"),
-        import: false,
     }
 }
 

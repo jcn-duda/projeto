@@ -1169,30 +1169,17 @@ sustentam isso:
   ledger ANTES da rede (dedupe) — hash já resolvido não paga chamada. Convive
   com o `mag:alive` (por conta, play que funcionou naquela credencial).
   Kill-switch: `DEBRID_RD_LEDGER=false`.
-- **`rd-oracle.ts` — oráculo multi-fonte.** Consulta as fontes habilitadas
-  (StremThru `GET /v0/store/torz/check?hash=<csv>`, lotes de `maxHashes`, com
-  headers `X-StremThru-Store-Name`/`X-StremThru-Store-Authorization`; e
-  Torrentio `/…/stream/<type>/<id>.json`) em paralelo, com `Promise.allSettled`
-  + fail-open e **um deadline único** para a chamada toda (não multiplica por
-  lote/fonte): cada lote StremThru usa só o restante e **não inicia lote depois
-  do prazo**; o Torrentio usa o mesmo restante. O segmento de config do
-  Torrentio é **texto puro** `realdebrid=<key>` (não base64url), e a extração de
-  hash **só aceita hash do conjunto pedido** — o token apiKey no path também é
-  40-hex, e o antigo "primeiro 40-hex" confundia a chave com o hash real. Hit
-  exige o marcador `[RD+]` exato no `name` (não `[RD]`; `[RD download]` é miss
-  autoritativo). Fusão **true-wins**: `true` de qualquer fonte vence; `false` só
-  da fonte que enumera com autoridade — item **não listado** pelo Torrentio
-  (nem via `infoHash` nem via URL do conjunto pedido) é **desconhecido**, nunca
-  miss (o acervo BR dublado que interessa é justamente o que o Torrentio não
-  indexa). A chamada do Torrentio é cacheada por título (`rdt:v1:trt:`, TTL ~6h)
-  para não bater em infra de terceiro a cada busca. **Fontes opt-in por padrão**:
-  o oráculo liga (`enabled` true), mas `stremthruUrl` nasce **vazio** e
-  `torrentio` nasce **`false`** — nenhuma credencial sai para terceiro sem
-  endpoint/flag explícito (o URL do Torrentio permanece como default apenas para
-  documentar o alvo; o `false` é o opt-in). Habilitada a fonte, token/key
-  explícitos têm precedência; vazios, usam a apiKey efetiva da instalação
-  recebida por `rdOracle.check` — atenção: isso envia a chave à fonte (terceiro
-  a vê). `available()` exige fonte realmente utilizável com credencial efetiva.
+- **`rd-oracle.ts` — gate de disponibilidade.** O despachante TS (`check`/
+  `checkStremthru`/`checkTorrentio`) saiu na Fase 1 do corte "mais Rust, menos
+  TS": o único chamador era o `applyDebrid`, que deixou o `src/` no F4.4. O que
+  sobra é `available()`, consultado pelo registry para decidir se o RD promete
+  `cacheCheck` dinâmico. **Fontes opt-in por padrão**: o gate liga (`enabled`
+  true), mas `stremthruUrl` nasce **vazio** e `torrentio` nasce **`false`** —
+  nenhuma credencial sai para terceiro sem endpoint/flag explícito (o URL do
+  Torrentio permanece como default apenas para documentar o alvo; o `false` é o
+  opt-in). Habilitada a fonte, token/key explícitos têm precedência; vazios,
+  usam a apiKey efetiva da instalação — atenção: isso envia a chave à fonte
+  (terceiro a vê). `available()` exige fonte realmente utilizável.
   No `docker-compose.yml` o StremThru é **opt-in por profile**
   (`profiles: ["stremthru"]`): só sobe com `COMPOSE_PROFILES=stremthru` no
   `.env`, e a URL `http://stremthru:8080` mora no MESMO interruptor — as duas

@@ -280,25 +280,12 @@ continua por conta e registra um play que funcionou naquela credencial). O
 oráculo consulta o ledger ANTES de ir à rede (dedupe); hash já resolvido não
 paga chamada.
 
-**Oráculo (`rd-oracle.ts`).** Despachante com `Promise.allSettled` + fail-open
-(erro devolve `Map` vazio, nunca lança) sobre as fontes habilitadas em paralelo,
-com **um deadline único** para a chamada toda (não soma por lote/fonte): cada
-lote StremThru usa só o restante e não inicia lote depois do prazo; o Torrentio
-usa o mesmo restante. Fusão **true-wins**: `true` de qualquer fonte vence;
-`false` só conta de fonte que enumera com autoridade — StremThru (item presente
-sem `cached`) e Torrentio (listado com hash do conjunto pedido, sem o marcador
-`[RD+]` exato). Hash **não listado** pelo Torrentio — ou cuja URL pertence a um
-hash que não pedimos — é **desconhecido**, nunca miss: o acervo BR dublado que
-interessa é justamente o que o Torrentio não indexa, e tratar como miss
-envenenaria o ledger. O segmento de config do Torrentio é **texto puro**
-`realdebrid=<key>` (não base64url), e a extração de hash **só aceita hash do
-conjunto pedido**: o token apiKey no path também é 40-hex, e o antigo "primeiro
-40-hex" confundia a chave com o hash real. A chamada do Torrentio é cacheada por
-título (`rdt:v1:trt:<type>:<id>`, TTL ~6h) para não virar uma chamada por busca
-repetida contra infra de terceiro. **Ativado por padrão**: token/key explícitos
-das fontes têm precedência; vazios, usam a apiKey efetiva da instalação (que vai
-às fontes — terceiros a veem). `available()` exige fonte realmente utilizável
-com credencial efetiva; sem uma, o RD honesto não promete `cacheCheck`.
+**Gate do oráculo (`rd-oracle.ts`).** O despachante TS saiu na Fase 1 do corte
+"mais Rust, menos TS" (o único chamador era o `applyDebrid`, que deixou o
+`src/`). Sobrou `available()`: exige fonte realmente utilizável com credencial
+efetiva; sem uma, o RD honesto não promete `cacheCheck`. **Ativado por padrão**:
+token/key explícitos das fontes têm precedência; vazios, usam a apiKey efetiva
+da instalação.
 
 **Governador de escrita (`rd-gate.ts`).** O RD tem teto de 250 req/min e
 bruteforce = bloqueio por tempo indefinido; o gate serializa as escritas **por

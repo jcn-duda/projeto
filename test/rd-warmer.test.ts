@@ -284,42 +284,6 @@ test('rd-warmer: confirmação de ⚡ promove entrada [RD download] para [RD⚡]
   }
 });
 
-test('rd-warmer: credencial vinda da URL destrava o aquecimento sem .env', async () => {
-  // A config selada na URL do app nunca chega ao .env. Exigir
-  // config.debrid.service === 'realdebrid' deixava a F3 inteira inerte numa
-  // instalação que só configura o debrid pelo link de instalação.
-  config.debrid.service = 'alldebrid';
-  config.debrid.apiKey = '';
-  rdWarmer.reset();
-  assert.equal(rdWarmer.rdInPlay(), false, 'sem .env e sem requisição, nada aquece');
-
-  rdWarmer.noteCredential('chave-rd-da-url');
-  assert.equal(rdWarmer.rdInPlay(), true, 'chave vista numa requisição RD habilita o warmer');
-
-  const mock = mockFetch((url, init) => {
-    if (String(init?.method || 'GET').toUpperCase() === 'DELETE') return jsonOk({}, 204);
-    if (url.pathname.endsWith('/torrents/addMagnet')) return jsonOk({ id: 'T-URL' });
-    if (url.pathname.includes('/torrents/info/')) return jsonOk({ status: 'downloaded', files: [], links: [] });
-    throw new Error(`URL inesperada: ${url.pathname}`);
-  });
-  try {
-    rdWarmer.enqueue([H3], 100);
-    await rdWarmer.tick();
-    assert.equal(rdLedger.peek(H3), 'hit', 'a sonda rodou com a credencial da requisição');
-  } finally {
-    mock.restore();
-  }
-});
-
-test('rd-warmer: .env do operador tem precedência sobre a credencial da URL', () => {
-  config.debrid.service = 'realdebrid';
-  config.debrid.apiKey = 'chave-do-operador';
-  config.debrid.allowEnvKey = true;
-  rdWarmer.reset();
-  rdWarmer.noteCredential('chave-da-url');
-  assert.equal(rdWarmer.rdInPlay(), true);
-});
-
 test('rd-warmer: 451 deixa ledger blocked e magnetdb bad=false; segunda tentativa não re-sonda', async () => {
   config.debrid.rdLedger.enabled = true;
   let addCalls = 0;

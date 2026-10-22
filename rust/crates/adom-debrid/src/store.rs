@@ -1,13 +1,32 @@
-//! `debrid.db`: mesma forma do `cache.db` (`key`, `value`, `expires_at`).
-//! A tabela se chama `cache` para o export ser uma cópia, não uma tradução.
-//! Um namespace por prefixo; cota estoura apagando o que expira primeiro.
+//! Estado do debrid: LEITOR read-only do `cache.db` do Node — é lá que mora o
+//! ledger do Real-Debrid (`rdc:v2`) — mais a instância em memória dos testes.
+//! Mesma forma do arquivo do Node (`key`, `value`, `expires_at`) e a mesma
+//! tabela `cache`, para a leitura ser leitura, não tradução.
+//!
+//! O `debrid.db` da fundação ("dono" destes namespaces, alimentado pelo
+//! import) saiu: era um instantâneo de uma vez só e deixava todo hash do RD
+//! `Unknown` — quem escreve o arquivo compartilhado é o Node.
 
 use std::path::Path;
 use std::sync::Mutex;
 
 use rusqlite::{params, Connection, OpenFlags};
 
-use crate::import::OWNED_PREFIXES;
+/// Namespaces que este banco conhece; as versões são as de
+/// `src/utils/cache-keys.ts`. Guarda de escrita: `put` recusa chave de fora,
+/// porque um `streams:v21:` gravado aqui seria lixo permanente.
+const WRITABLE_PREFIXES: &[&str] = &[
+    "davail:v1:",
+    "mag:v1:",
+    "mag_meta:v1:",
+    "rdc:v2:",
+    "rdt:v1:",
+    "rdq:v1:",
+    "adsub:v1:",
+    "adrm:v1:",
+    "adprot:v1:",
+    "autofetch:v3:",
+];
 
 const SCHEMA: &str = "
 PRAGMA journal_mode = WAL;
@@ -20,23 +39,6 @@ CREATE TABLE IF NOT EXISTS cache (
 CREATE INDEX IF NOT EXISTS cache_expires ON cache (expires_at);
 ";
 
-/// Cotas dos namespaces que este banco passa a possuir. Os números são os de
-/// `src/utils/cache-quotas.ts` — capacidade, não prazo.
-pub fn default_quotas() -> &'static [(&'static str, u64)] {
-    &[
-        ("davail:v1:", 1000),
-        ("mag:v1:", 50000),
-        ("mag_meta:v1:", 1),
-        ("rdc:v2:", 14000),
-        ("rdq:v1:", 500),
-        ("rdt:v1:", 2500),
-        ("autofetch:v3:", 4000),
-        ("adprot:v1:", 2000),
-        ("adsub:v1:", 1000),
-        ("adrm:v1:", 500),
-    ]
-}
-
 pub struct Store {
     conn: Mutex<Connection>,
     quotas: Vec<(&'static str, u64)>,
@@ -48,30 +50,9 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn open(path: &Path) -> Result<Self, String> {
-        Self::open_with_quotas(path, default_quotas())
-    }
-
-    pub fn open_with_quotas(path: &Path, quotas: &[(&'static str, u64)]) -> Result<Self, String> {
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|err| format!("pasta do debrid.db: {err}"))?;
-            }
-        }
-        let conn = Connection::open(path).map_err(|err| format!("abrir debrid.db: {err}"))?;
-        conn.execute_batch(SCHEMA)
-            .map_err(|err| format!("schema debrid.db: {err}"))?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-            quotas: quotas.to_vec(),
-            read_only: false,
-        })
-    }
-
     /// Leitor READ-ONLY do `cache.db` do Node (padrão F3.1: mesmo arquivo,
     /// mesmas chaves, Node é a fachada). O ledger `rdc:v2` do Real-Debrid
-    /// mora lá; o `debrid.db` é outro arquivo e deixava todo hash `Unknown`.
+    /// mora lá; o antigo `debrid.db` deixava todo hash `Unknown`.
     pub fn open_cache_db(path: &Path) -> Result<Self, String> {
         if !path.exists() {
             return Err(format!("cache.db ausente: {}", path.display()));
@@ -146,23 +127,6 @@ impl Store {
         Ok(())
     }
 
-    pub fn put_internal(&self, key: &str, value: &str, expires_at: i64) -> Result<(), String> {
-        if self.read_only {
-            return Err("cache.db do Node é somente leitura".into());
-        }
-        if !key.starts_with("__debrid:") {
-            return Err("chave interna precisa do prefixo __debrid:".into());
-        }
-        let conn = self.lock();
-        conn.execute(
-            "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at",
-            params![key, value, expires_at],
-        )
-        .map_err(|err| err.to_string())?;
-        Ok(())
-    }
-
     pub fn contains(&self, key: &str) -> Result<bool, String> {
         let conn = self.lock();
         let n: i64 = conn
@@ -173,23 +137,6 @@ impl Store {
             )
             .map_err(|err| err.to_string())?;
         Ok(n > 0)
-    }
-
-    pub fn rows_with_prefix(&self, prefix: &str) -> Result<Vec<(String, String, i64)>, String> {
-        let conn = self.lock();
-        let mut stmt = conn
-            .prepare(
-                "SELECT key, value, expires_at FROM cache
-                 WHERE substr(key, 1, length(?1)) = ?1 ORDER BY key",
-            )
-            .map_err(|err| err.to_string())?;
-        let rows = stmt
-            .query_map(params![prefix], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })
-            .map_err(|err| err.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|err| err.to_string())
     }
 
     fn quota_for(&self, prefix: &str) -> Option<u64> {
@@ -205,7 +152,7 @@ pub fn is_writable_key(key: &str) -> bool {
 }
 
 pub fn prefix_of(key: &str) -> Option<&'static str> {
-    OWNED_PREFIXES
+    WRITABLE_PREFIXES
         .iter()
         .copied()
         .find(|prefix| key.starts_with(prefix))

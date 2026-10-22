@@ -10,12 +10,10 @@ import { reuploadBlocked } from '../debrid/alldebrid-reupload.js';
 import { accountScope } from '../utils/request-key.js';
 import * as magnetdb from '../utils/magnetdb.js';
 import * as rdLedger from '../debrid/rd-ledger.js';
-import * as rdOracle from '../debrid/rd-oracle.js';
 import * as autofetch from './autofetch.js';
 import * as releaseIndex from '../utils/release-index.js';
 import * as log from '../utils/logger.js';
 import * as metrics from '../utils/metrics.js';
-import { remainingCheckBudget } from '../utils/deadline.js';
 import type { FirstObserverState } from './first-observer.js';
 import { dropTrace } from '../utils/stream-trace.js';
 import type { StreamTraceState } from '../utils/stream-trace.js';
@@ -160,45 +158,6 @@ export function pruneKnownBroken(
     log.info(`[debrid] ${droppedBad + droppedDead + droppedLie + droppedMiss} magnet(s) com histórico ruim descartado(s) antes da checagem (${droppedBad} bad, ${droppedDead} dead, ${droppedLie} lie, ${droppedMiss} miss)`);
   }
   return { streams: kept, trustDropped: droppedBad + droppedDead + droppedLie + droppedMiss };
-}
-
-/**
- * Sonda do oráculo RD antes da checagem do adaptador: grava os veredictos no
- * ledger global para o `checkCached` poder afirmar `complete` sem rede extra.
- */
-export async function probeRdOracle(
-  hashes: string[],
-  { adapter, season, episode, imdbId, deadlineAt, apiKey }: {
-    adapter: DebridAdapter;
-    season?: number | null;
-    episode?: number | null;
-    imdbId?: string | null;
-    deadlineAt?: number | null;
-    apiKey: string;
-  },
-): Promise<void> {
-  // O RD não expõe mais instantAvailability. O oráculo consulta fontes que
-  // conhecem o CDN e registra somente as respostas autoritativas no ledger;
-  // hash ausente no Torrentio continua desconhecido, nunca vira miss.
-  if (!(adapter.id === 'realdebrid' && adapter.cacheCheck && imdbId && hashes.length > 0)) return;
-  const oracleBudget = remainingCheckBudget(deadlineAt, Date.now(), config.debrid.checkFormatMargin);
-  if (!(oracleBudget == null || oracleBudget > 0)) return;
-  const limit = Math.min(hashes.length, 500);
-  const oracleHashes = [...new Set(hashes.map((hash) => String(hash).toLowerCase()))].slice(0, limit);
-  const type = season != null || episode != null ? 'series' as const : 'movie' as const;
-  const id = type === 'series' ? `${imdbId}:${season ?? 0}:${episode ?? 0}` : imdbId;
-  const verdicts = await rdOracle.check({
-    hashes: oracleHashes,
-    type,
-    id,
-    timeoutMs: oracleBudget == null ? config.debrid.rdOracle.timeoutMs : Math.min(oracleBudget, config.debrid.rdOracle.timeoutMs),
-  }, apiKey);
-  const hits: string[] = [];
-  for (const [hash, cachedByOracle] of verdicts) {
-    if (cachedByOracle) hits.push(hash);
-    else rdLedger.noteMiss(hash);
-  }
-  if (hits.length) rdLedger.noteHit(hits);
 }
 
 /** Resultado da complementação de ⚡ para adaptador sem `cacheCheck`. */

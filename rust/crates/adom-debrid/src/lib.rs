@@ -34,7 +34,6 @@ pub mod error;
 /// (`DEBRID_AL_HOLDS`, default OFF) — rota `/internal/debrid/holds` do Node.
 pub mod holds_feed;
 pub mod http;
-pub mod import;
 /// Devolução das marcas da limpeza nativa (`adsub`/`adrm`) ao Node — rota
 /// `/internal/debrid/marked`. Fail-open; gate em `DEBRID_AL_CLEANUP=on`.
 pub mod marks_feed;
@@ -52,7 +51,6 @@ pub mod verdict;
 
 pub use error::DebridError;
 pub use http::{Call, HttpClient};
-pub use import::{export_owned, import_once, OWNED_PREFIXES};
 pub use metrics::Metrics;
 pub use store::Store;
 

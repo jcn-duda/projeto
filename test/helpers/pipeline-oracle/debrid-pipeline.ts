@@ -30,7 +30,7 @@ import * as metrics from '../../../src/utils/metrics.js';
 import { autoFetchCandidates, releaseAllHolds, autoFetchBrDubbed } from '../../../src/providers/autofetch-runner.js';
 import rdWarmer from '../../../src/providers/rd-warmer.js';
 import { queueDubAudit, collectAuditCandidates } from '../../../src/providers/dub-audit.js';
-import { countFirstBr, pruneKnownBroken, probeRdOracle, enrichInstantWithoutCacheCheck } from '../../../src/providers/debrid-cache-steps.js';
+import { countFirstBr, pruneKnownBroken, enrichInstantWithoutCacheCheck } from '../../../src/providers/debrid-cache-steps.js';
 import type { FirstObserverState } from '../../../src/providers/first-observer.js';
 import { dropTrace, type StreamTraceState } from '../../../src/utils/stream-trace.js';
 import { annotateEpisodeSizes, packHashesMissingFiles } from '../../../src/providers/episode-size.js';
@@ -121,9 +121,6 @@ export async function applyDebrid(input: Array<Stream | null>, {
     checkStarted,
     config.debrid.checkFormatMargin,
   );
-  await probeRdOracle(hashes, { adapter, season, episode, imdbId, deadlineAt, apiKey: trustApiKey });
-  // A etapa do oráculo também consome o deadline: recalcula o teto antes de
-  // chamar o adapter, para não transformar o último milissegundo em atraso HTTP.
   const adapterTimeoutMs = remainingCheckBudget(deadlineAt, Date.now(), config.debrid.checkFormatMargin);
   // Packs sem lista de arquivos no memo: quem sabe listar lê na mesma checagem.
   const fileHashes = packHashesMissingFiles(streams, season);
@@ -200,9 +197,6 @@ export async function applyDebrid(input: Array<Stream | null>, {
   });
   // Warmer RD em fundo (F3): enfileira os top-N desconhecidos sem rede nem atraso na resposta.
   if (config.debrid.rdWarm.enabled && (adapter.id === 'realdebrid' || config.debrid.service === 'realdebrid')) {
-    // A config selada na URL nunca chega ao .env; sem registrar a chave vista
-    // aqui, o warmer ficaria inerte nesta instalacao.
-    if (adapter.id === 'realdebrid' && trustApiKey) rdWarmer.noteCredential(trustApiKey);
     const cachedSet = new Set([...cached].map((h) => String(h).toLowerCase()));
     const topN = 10;
     const warmable = streams.filter((s) => !s._multiWorkAdmitted && !s._fromFallback);

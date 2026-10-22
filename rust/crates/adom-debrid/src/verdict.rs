@@ -5,9 +5,9 @@
 //! `{cached, known, unusable?}` pelo `adom-core::debrid_cache_verdict`. A
 //! chave do serviço chega do caller (config do usuário), nunca hardcoded.
 //!
-//! Real-Debrid: a consulta é o LEDGER (`rdc:v2`, lido do `debrid.db` via
-//! `peek_state` do núcleo) — hit cacheia, miss adia, blocked NÃO condena
-//! (falso negativo é pior). Kill-switches:
+//! Real-Debrid: a consulta é o LEDGER (`rdc:v2`, lido do `cache.db` do Node
+//! por um `Store` read-only, via `peek_state` do núcleo) — hit cacheia, miss
+//! adia, blocked NÃO condena (falso negativo é pior). Kill-switches:
 //!
 //! - `DEBRID_RD_LEDGER=off`: todo hash vira unknown (`known:false`), e o
 //!   veredito sai `Unknown` de verdade — nunca "nada em cache";

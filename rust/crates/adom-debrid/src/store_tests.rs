@@ -47,5 +47,4 @@ fn leitor_do_cache_db_nao_escreve_nem_apaga_expirado() {
     assert!(store.get("rdc:v2:velho", 5).unwrap().is_none());
     assert!(store.contains("rdc:v2:velho").unwrap());
     assert!(store.put("rdc:v2:hit", "x", 10, 0).is_err());
-    assert!(store.put_internal("__debrid:x", "1", 10).is_err());
 }
