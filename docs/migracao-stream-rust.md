@@ -733,3 +733,38 @@ só "tem stream tocável", não paridade BR+cotas.
 - **Rotas internas vivas**: `POST /internal/search/meta`,
   `POST /internal/search/effects`, `POST /internal/debrid/holds`,
   `POST /internal/crawl-result` e `GET /internal/activity`.
+
+## F4.7 — `/resolve` nativo (fase A entregue, `RESOLVE_RUST` ainda OFF no compose)
+
+**Fase A (`536f3c63`)**: com `RESOLVE_RUST=on` o gateway resolve o play E grava
+o que ele prova. O efeito sai pronto do núcleo (`resolve_effect`) e o Node o
+aplica pela rota `POST /internal/resolve/effects` (loopback + token), com os
+mesmos helpers do modo `DEBRID_RUST_SERVICES` (`applyResolveEffects`,
+`applyPlayEffects`, `markAlive`). No erro o gateway espera a gravação (e o
+flush do store nativo) antes do 404; no sucesso o 302 sai na hora. Na
+AllDebrid o hold do autofetch vem de `POST /internal/resolve/facts` (antes era
+`held:true` fixo); sem resposta, o play não apaga o frio. O `i` da dica volta a
+ser lido. Prazo da ponte: `RESOLVE_EFFECTS_TIMEOUT_MS` (2 s).
+
+**Teste real (Docker local, 2026-10-22)**:
+
+| debrid | casos | resultado |
+|---|---|---|
+| AllDebrid | filme ⚡, pack S1E1, frio protegido pelo Chupim, frio sem hold | 302 + link 206; arquivo do episódio certo; protegido ficou na conta; sem hold apagou e gravou `davail=0` |
+| Premiumize | 2 filmes ⚡, pack S1E1, 1 filme dublado | 302 + link MKV (`1a45dfa3`); `S01E01` escolhido no pack; +1 efeito por play |
+| TorBox | — | **pendente** (falta a URL de instalação) |
+| Real-Debrid, Debrid-Link | — | só fixtures |
+
+Observado: um 502 passageiro (`kind=other`) na AllDebrid, que resolveu na
+tentativa seguinte — suspeita de corrida com a limpeza nativa da busca, não
+confirmada (o gateway só loga o tipo do erro).
+
+**Falta para aposentar o `/resolve` do Node (fase C)**:
+1. Teste real na TorBox; na Premiumize, o caso fora do cache (exige config sem
+   `cachedOnly`).
+2. Sem vídeo, dublagem falsa e episódio ausente só têm teste por fixture e de
+   rota; validar no real quando aparecer um caso.
+3. `RESOLVE_RUST=on` como default do compose; depois apagar o handler de
+   `src/routes/resolve.ts`, `respondWhenRustApplied` e o proxy
+   `GATEWAY_RESOLVE_PROXY`. Os `resolveLink` TS e o `rust-remote` FICAM: o
+   `dub-audit` do Node os usa.
