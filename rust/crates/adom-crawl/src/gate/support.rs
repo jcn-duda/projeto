@@ -163,6 +163,33 @@ pub(super) async fn node_recusa_primeira(entregues: Entregues) -> String {
     bind_node(app).await
 }
 
+/// Node falso que recusa TODA entrega (500), como o `catalogo-sem-nomes` de
+/// uma obra que o catálogo não nomeia; conta as tentativas recebidas.
+pub(super) async fn node_recusa_sempre(recebidas: Arc<AtomicUsize>) -> String {
+    let app = Router::new()
+        .route(
+            "/internal/activity",
+            get(|| async { Json(serde_json::json!({ "recent": false })) }),
+        )
+        .route(
+            "/internal/crawl-result",
+            post(|State(n): State<Arc<AtomicUsize>>| async move {
+                n.fetch_add(1, Ordering::SeqCst);
+                StatusCode::INTERNAL_SERVER_ERROR
+            }),
+        )
+        .with_state(recebidas);
+    bind_node(app).await
+}
+
+/// Vence o recuo de uma linha (o relógio do teste não espera minutos).
+pub(super) fn vencer_recuo(caminho: &str, key: &str) {
+    let db = CrawlStore::open(caminho).expect("abrir para vencer");
+    db.conn()
+        .execute("UPDATE crawl_url SET next_at = 0 WHERE url_key = ?1", [key])
+        .expect("vencer recuo");
+}
+
 async fn bind_node(app: Router) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

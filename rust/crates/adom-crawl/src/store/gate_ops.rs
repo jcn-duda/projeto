@@ -51,11 +51,11 @@ impl CrawlStore {
                     g.gate, g.title, g.year, g.imdb, g.kind \
              FROM crawl_url u \
              JOIN crawl_gate g ON g.site = u.site AND g.url_key = u.url_key \
-             WHERE u.status = 'gate-pending' \
+             WHERE u.status = 'gate-pending' AND u.next_at <= ?2 \
              ORDER BY u.checked_at, u.url_key \
              LIMIT ?1",
         )?;
-        let rows = stmt.query_map(params![limit as i64], |row| {
+        let rows = stmt.query_map(params![limit as i64, now_ms()], |row| {
             Ok(GateRow {
                 row: row_from_sqlite(row)?,
                 gate: row.get(14)?,
@@ -69,8 +69,27 @@ impl CrawlStore {
         Ok(collected?)
     }
 
-    /// Apaga o registro do portÃ£o de um post (pago com sucesso e gravado no
-    /// acervo). A linha do post jÃ¡ saiu de `gate-pending` via `mark_result`.
+    /// Recuo de uma ENTREGA que falhou (o Node recusou o resultado): a linha
+    /// segue `gate-pending` — sem veneno, o portão continua pago — mas só volta
+    /// ao lote em `next_at`. Sem isso, um post que o Node recusa sempre (obra
+    /// sem nome no catálogo) era reenviado a cada rodada do executor.
+    pub fn defer_gate_delivery(
+        &self,
+        site: &str,
+        url_key: &str,
+        next_at: i64,
+        error: &str,
+    ) -> Result<(), StoreError> {
+        self.conn().execute(
+            "UPDATE crawl_url SET tries=tries+1, next_at=?3, error=?4 \
+             WHERE site=?1 AND url_key=?2 AND status='gate-pending'",
+            params![site, url_key, next_at, error],
+        )?;
+        Ok(())
+    }
+
+    /// Apaga o registro do portão de um post (pago com sucesso e gravado no
+    /// acervo). A linha do post já saiu de `gate-pending` via `mark_result`.
     pub fn clear_gate(&self, site: &str, url_key: &str) -> Result<(), StoreError> {
         self.conn().execute(
             "DELETE FROM crawl_gate WHERE site = ?1 AND url_key = ?2",

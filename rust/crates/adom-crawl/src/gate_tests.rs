@@ -225,8 +225,16 @@ async fn pagamento_nao_se_repete_quando_a_entrega_falha() {
     let report = ex.run_round().await.expect("primeira rodada");
     assert_eq!(report.paid, 0);
     assert_eq!(chamadas.load(Ordering::SeqCst), 1, "um pagamento");
+    let (status, tries, next_at) = ler_linha(&caminho, "post-1");
+    assert_eq!(status, "gate-pending", "segue pendente, sem veneno");
+    assert_eq!(tries, 1, "a entrega recusada conta");
+    assert!(next_at > now_ms(), "a re-entrega espera o recuo");
 
-    // 2ª rodada: re-entrega do magnet durável — SEM novo pagamento.
+    // Dentro do recuo a linha nem entra no lote.
+    assert_eq!(ex.run_round().await.expect("rodada no recuo").claimed, 0);
+
+    // Recuo vencido: re-entrega do magnet durável — SEM novo pagamento.
+    vencer_recuo(&caminho, "post-1");
     let report2 = ex.run_round().await.expect("segunda rodada");
     assert_eq!(report2.paid, 1);
     assert_eq!(
@@ -238,6 +246,50 @@ async fn pagamento_nao_se_repete_quando_a_entrega_falha() {
     let (status, _, _) = ler_linha(&caminho, "post-1");
     assert_eq!(status, "done", "fechada pela re-entrega");
     assert!(db_gate_vazia(&caminho), "pendência resolvida");
+}
+
+/// Entrega recusada SEMPRE (obra sem nome no catálogo): cada recusa recua o
+/// dobro da anterior e o post não volta ao lote antes do prazo — nada de laço
+/// de re-entrega a cada rodada.
+#[tokio::test]
+async fn entrega_recusada_sempre_recua_sem_laco() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let caminho = dir.path().join("crawl.db").to_str().unwrap().to_string();
+    semear_gate(&caminho, "post-1", GATE);
+
+    let recebidas = Arc::new(AtomicUsize::new(0));
+    let node = node_recusa_sempre(recebidas.clone()).await;
+    let chamadas = Arc::new(AtomicUsize::new(0));
+    let ex = executor(
+        &caminho,
+        &node,
+        falso(chamadas.clone(), false),
+        Arc::new(FlareFake { ocupado: false }),
+        4,
+    );
+    let base = MotorConfig::default().retry_base_ms as i64;
+
+    let antes = now_ms();
+    ex.run_round().await.expect("1ª rodada");
+    let (_, tries1, next1) = ler_linha(&caminho, "post-1");
+    assert_eq!(tries1, 1);
+    assert!(next1 - antes >= base, "1º recuo = base");
+
+    // Rodadas seguidas dentro do recuo: nenhuma entrega nova ao Node.
+    for _ in 0..5 {
+        assert_eq!(ex.run_round().await.expect("rodada no recuo").claimed, 0);
+    }
+    assert_eq!(recebidas.load(Ordering::SeqCst), 1, "uma entrega só");
+
+    vencer_recuo(&caminho, "post-1");
+    let antes2 = now_ms();
+    ex.run_round().await.expect("rodada após o recuo");
+    let (status, tries2, next2) = ler_linha(&caminho, "post-1");
+    assert_eq!(status, "gate-pending", "recua, não envenena");
+    assert_eq!(tries2, 2);
+    assert!(next2 - antes2 >= 2 * base, "2º recuo dobra");
+    assert_eq!(recebidas.load(Ordering::SeqCst), 2);
+    assert_eq!(chamadas.load(Ordering::SeqCst), 1, "portão pago uma vez só");
 }
 
 /// Faixa Flare ocupada: a rodada é pulada inteira e o pagamento não enfileira.

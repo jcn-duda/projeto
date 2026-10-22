@@ -12,7 +12,9 @@
 //! Dedupe por portão: o magnet obtido é gravado durável no `crawl_state`
 //! (`gate-magnet:<gate>`) ANTES da entrega; se a entrega falhar, a rodada
 //! seguinte re-entrega SEM pagar de novo. Pendência nunca vira veneno: erro do
-//! resolver não toca `tries` nem backoff — o post segue `gate-pending`.
+//! resolver não toca `tries` nem backoff — o post segue `gate-pending`. Já a
+//! ENTREGA recusada pelo Node recua (`error_backoff_ms` do motor) antes de
+//! voltar ao lote: a re-entrega não gasta teto, então sem recuo virava laço.
 //!
 //! A resolução usa o RESOLVER LOCAL ([`HttpGateResolver`], porta 8700 do
 //! bludv, modo bloqueante `wait=1`). Ao resolver, a release é gravada no
@@ -20,6 +22,7 @@
 //! — commit diferido.
 
 mod config;
+mod defer;
 mod resolver;
 
 pub use config::GateExecutorConfig;
@@ -250,13 +253,7 @@ impl GateExecutor {
         if let Some(magnet) = pago_antes {
             return match self.deliver(g, &magnet).await {
                 Ok(()) => RowOutcome::Paid,
-                Err(e) => {
-                    eprintln!(
-                        "[gate] {} {}: re-entrega falhou: {e}",
-                        g.row.site, g.row.url_key
-                    );
-                    RowOutcome::Pending
-                }
+                Err(e) => self.defer_delivery(g, "re-entrega", &e).await,
             };
         }
 
@@ -301,15 +298,10 @@ impl GateExecutor {
                 RowOutcome::Paid
             }
             Err(e) => {
-                // Magnet pago e durável: a entrega falhou, tente de novo na
-                // próxima rodada (re-entrega, sem novo pagamento).
-                eprintln!(
-                    "[gate] {} {}: entrega após pagamento falhou: {e}",
-                    g.row.site, g.row.url_key
-                );
-                let mut rt = self.state.lock().await;
-                rt.spent_this_hour = rt.spent_this_hour.saturating_add(1);
-                RowOutcome::Pending
+                // Magnet pago e durável: a re-entrega (sem novo pagamento)
+                // espera o recuo.
+                self.state.lock().await.spent_this_hour += 1;
+                self.defer_delivery(g, "entrega após pagamento", &e).await
             }
         }
     }
