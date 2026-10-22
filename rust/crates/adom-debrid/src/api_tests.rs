@@ -459,6 +459,28 @@ async fn alldebrid_limpeza_pela_rota_usa_os_fatos_do_corpo() {
 }
 
 #[tokio::test]
+async fn torbox_link_nao_devolve_501() {
+    // O 8710 precisa despachar o play do TorBox: antes caía em 501 e a chave
+    // só voltava ao TS. O mock responde 500 (nunca a base real) — o que se
+    // prova aqui é que a rota CHAMA o adaptador e não vaza a credencial.
+    let app = Router::new().fallback(any(async |_req: Request<Body>| {
+        (StatusCode::INTERNAL_SERVER_ERROR, "fora do ar").into_response()
+    }));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let base = format!("http://{addr}");
+    let _env = EnvVars::set(&[("TORBOX_API_BASE", &base)]);
+    let body = format!(r#"{{"service":"torbox","apiKey":"{KEY}","hash":"abc"}}"#);
+    let (status, raw) = call("segredo", Some("segredo"), "/debrid/link", &body).await;
+    assert_ne!(status, StatusCode::NOT_IMPLEMENTED, "torbox link: {raw}");
+    assert!(!raw.contains("service_not_ported"));
+    assert!(!raw.contains(KEY));
+}
+
+#[tokio::test]
 async fn alldebrid_limpeza_sem_holds_completos_nao_apaga() {
     let (base, scene) = local_cleanup_alldebrid().await;
     let dir = tempfile::tempdir().unwrap();

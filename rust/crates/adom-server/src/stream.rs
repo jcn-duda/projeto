@@ -139,7 +139,7 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, Str
         }
     }
     orch = orch.with_debrid(Arc::new(
-        AdapterDebridFactory::new(None).with_holds(holds_feed()),
+        AdapterDebridFactory::new(rd_ledger_store()).with_holds(holds_feed()),
     ));
     // Inventário nativo da conta (F3): é a ÚNICA fonte da conta no corte.
     eprintln!("[gateway] inventário da conta nativo");
@@ -158,6 +158,30 @@ pub fn build_orchestrator_from(stores: StreamStores) -> Result<Orchestrator, Str
         ),
     }
     Ok(wire_native_index(orch))
+}
+
+/// Store do ledger do Real-Debrid (`rdc:v2`) no MESMO `cache.db` do Node,
+/// aberto READ-ONLY. Sem ele o `verdict` não tem de onde ler e todo hash do
+/// RD sai `Unknown` — a lista perde o ⚡ sem nenhum erro.
+///
+/// A leitura é só leitura de propósito: o L1 do Node é a autoridade do
+/// arquivo, não relê o disco depois do boot e o flush sobrescreveria a linha
+/// do gateway. Quem renova o hit continua sendo o Node (warmer/play).
+fn rd_ledger_store() -> Option<Arc<adom_debrid::Store>> {
+    let path = adom_store::default_cache_db_path();
+    match adom_debrid::Store::open_cache_db(&path) {
+        Ok(store) => {
+            eprintln!(
+                "[gateway] ledger RD (rdc:v2) lido do cache.db: {}",
+                path.display()
+            );
+            Some(Arc::new(store))
+        }
+        Err(err) => {
+            eprintln!("[gateway] rdc:v2 indisponível ({err}); RD segue unknown");
+            None
+        }
+    }
 }
 
 /// Feed dos holds do autofetch (`DEBRID_AL_HOLDS`, default OFF no código e ON

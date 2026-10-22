@@ -22,6 +22,7 @@ use crate::error::DebridError;
 use crate::http::HttpClient;
 use crate::premiumize::Premiumize;
 use crate::realdebrid::RealDebrid;
+use crate::torbox::TorBox;
 
 #[path = "api_alldebrid.rs"]
 mod api_alldebrid;
@@ -294,10 +295,9 @@ pub(super) async fn files(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
 }
 
 fn link_service(service: &str) -> bool {
-    matches!(
-        service,
-        "premiumize" | "debridlink" | "realdebrid" | "alldebrid"
-    )
+    // Mesma lista do `/debrid/resolve` (`play::known_service`): um serviço a
+    // mais aqui sem braço no `resolve` mandaria a chave ao adaptador errado.
+    crate::play::known_service(service)
 }
 
 async fn resolve(
@@ -313,6 +313,11 @@ async fn resolve(
         }
         "debridlink" => {
             DebridLink::new(client)
+                .resolve_link(&body.api_key, &body.hash, hint, None, POLL_WAIT)
+                .await
+        }
+        "torbox" => {
+            TorBox::new(client)
                 .resolve_link(&body.api_key, &body.hash, hint, None, POLL_WAIT)
                 .await
         }

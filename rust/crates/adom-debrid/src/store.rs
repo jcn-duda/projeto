@@ -40,6 +40,11 @@ pub fn default_quotas() -> &'static [(&'static str, u64)] {
 pub struct Store {
     conn: Mutex<Connection>,
     quotas: Vec<(&'static str, u64)>,
+    /// Leitor do arquivo compartilhado com o Node (`cache.db`): `get` não
+    /// apaga expirado e `put` é recusado. Sem isto o Rust seria um segundo
+    /// dono do arquivo, e o L1 do Node (que não relê o disco) sobrescreveria
+    /// ou apagaria a linha na próxima evicção.
+    read_only: bool,
 }
 
 impl Store {
@@ -60,6 +65,23 @@ impl Store {
         Ok(Self {
             conn: Mutex::new(conn),
             quotas: quotas.to_vec(),
+            read_only: false,
+        })
+    }
+
+    /// Leitor READ-ONLY do `cache.db` do Node (padrão F3.1: mesmo arquivo,
+    /// mesmas chaves, Node é a fachada). O ledger `rdc:v2` do Real-Debrid
+    /// mora lá; o `debrid.db` é outro arquivo e deixava todo hash `Unknown`.
+    pub fn open_cache_db(path: &Path) -> Result<Self, String> {
+        if !path.exists() {
+            return Err(format!("cache.db ausente: {}", path.display()));
+        }
+        let conn = open_readonly(path)?;
+        Ok(Self {
+            conn: Mutex::new(conn),
+            // Sem quota: o Rust nunca evicta no arquivo do Node.
+            quotas: Vec::new(),
+            read_only: true,
         })
     }
 
@@ -69,6 +91,7 @@ impl Store {
         Ok(Self {
             conn: Mutex::new(conn),
             quotas: quotas.to_vec(),
+            read_only: false,
         })
     }
 
@@ -91,14 +114,20 @@ impl Store {
             return Ok(None);
         };
         if expires_at <= now_ms {
-            conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
-                .map_err(|err| err.to_string())?;
+            // Leitor não escreve: apagar aqui seria evicção no arquivo do Node.
+            if !self.read_only {
+                conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
+                    .map_err(|err| err.to_string())?;
+            }
             return Ok(None);
         }
         Ok(Some(value))
     }
 
     pub fn put(&self, key: &str, value: &str, expires_at: i64, now_ms: i64) -> Result<(), String> {
+        if self.read_only {
+            return Err("cache.db do Node é somente leitura".into());
+        }
         if !is_writable_key(key) {
             return Err(format!("chave fora dos namespaces do debrid: {key}"));
         }
@@ -118,6 +147,9 @@ impl Store {
     }
 
     pub fn put_internal(&self, key: &str, value: &str, expires_at: i64) -> Result<(), String> {
+        if self.read_only {
+            return Err("cache.db do Node é somente leitura".into());
+        }
         if !key.starts_with("__debrid:") {
             return Err("chave interna precisa do prefixo __debrid:".into());
         }
