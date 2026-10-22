@@ -22,7 +22,10 @@ import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
 import config from '../src/config.js';
 import { buildServices } from '../src/routes/services.js';
 import { registerInternalDebridHolds } from '../src/routes/internal-debrid-holds.js';
+import { registerInternalDebridMarked } from '../src/routes/internal-debrid-marked.js';
 import { accountScope } from '../src/utils/request-key.js';
+import * as cache from '../src/utils/cache.js';
+import { prefix } from '../src/utils/cache-keys.js';
 import { id as alldebridId } from '../src/debrid/alldebrid-api.js';
 import { hold, release, protectBr, unprotect } from '../src/debrid/protected.js';
 import { warmInventory } from '../src/debrid/alldebrid-inventory.js';
@@ -83,6 +86,7 @@ before(async () => {
   registerInternalDebridHolds(app as unknown as express.Router, services, {
     apiKeyOf: () => apiKeyOf(),
   });
+  registerInternalDebridMarked(app as unknown as express.Router, services);
   server = await createTestServer(app);
 });
 
@@ -241,6 +245,115 @@ test('encoded sem chave de debrid → fatos fail-closed (ninguém prova nada)', 
   } finally {
     apiKeyOf = () => KEY;
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Marcas da limpeza NATIVA (`POST /internal/debrid/marked`)
+//
+// O Rust sobe (`/magnet/upload`) e apaga (fila) pela conta; aqui se prova que a
+// devolução grava as MESMAS chaves do caminho TS — `adsub` para o que subiu e
+// `adrm` (com a blindagem BR de 8.4 na escrita) para o que saiu de propósito.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const adsubKey = (account: string, hash: string) => `${prefix('adsub')}${account}:${hash}`;
+const adrmKey = (account: string, hash: string) => `${prefix('adrm')}${account}:${hash}`;
+const postMarked = (body: unknown, headers: Record<string, string> = {}) =>
+  server.request('POST', '/internal/debrid/marked', {
+    headers: { 'X-Indexer-Test-Token': TOKEN, ...headers },
+    body,
+  });
+
+/** Mesmo pin do `alldebrid-reupload.test.ts`: o verde não depende do `.env`. */
+function withReuploadBlock(fn: () => Promise<void>): Promise<void> {
+  const saved = { block: config.debrid.reuploadBlock, ttl: config.debrid.alldebridReuploadBlockTtlMs };
+  config.debrid.reuploadBlock = true;
+  config.debrid.alldebridReuploadBlockTtlMs = 3 * 24 * 3600 * 1000;
+  return fn().finally(() => {
+    config.debrid.reuploadBlock = saved.block;
+    config.debrid.alldebridReuploadBlockTtlMs = saved.ttl;
+  });
+}
+
+test('marked: fora do loopback com token certo → 403; sem token → 401', async () => {
+  const body = { service: 'alldebrid', apiKey: KEY, submitted: [newHash()], removed: [] };
+  const out = await postMarked(body, { 'x-test-remote-addr': '203.0.113.9' });
+  assert.equal(out.status, 403);
+  const noToken = await server.request('POST', '/internal/debrid/marked', { body });
+  assert.equal(noToken.status, 401);
+});
+
+test('marked: corpo inválido → 400 (serviço, chave, hash, listas e teto)', async () => {
+  const hash = newHash();
+  const ok = { service: 'alldebrid', apiKey: KEY, submitted: [hash], removed: [] };
+  assert.equal((await postMarked({})).status, 400);
+  assert.equal((await postMarked({ ...ok, service: 'torbox' })).status, 400);
+  assert.equal((await postMarked({ ...ok, apiKey: '' })).status, 400);
+  assert.equal((await postMarked({ ...ok, submitted: [hash.slice(0, 39)] })).status, 400);
+  assert.equal((await postMarked({ ...ok, submitted: hash })).status, 400);
+  assert.equal((await postMarked({ ...ok, submitted: [], removed: [{ hash: 'zz' }] })).status, 400);
+  // Lista vazia nos dois lados não é "nada a fazer": é corpo inválido.
+  assert.equal((await postMarked({ ...ok, submitted: [], removed: [] })).status, 400);
+  assert.equal((await postMarked({
+    ...ok,
+    submitted: Array.from({ length: 501 }, newHash),
+  })).status, 400);
+});
+
+test('marked: submitted grava adsub; removed purga adsub e grava adrm com nome', async () => {
+  const account = accountScope(KEY);
+  const subiu = newHash();
+  const saiu = newHash();
+  const nome = 'Old Movie 2019 TrueFrench 1080p WEBRip x264';
+  await withReuploadBlock(async () => {
+    try {
+      // Primeira leva: o hash SUBIU (a prova de criação veio do Rust).
+      const first = await postMarked({ service: 'alldebrid', apiKey: KEY, submitted: [subiu], removed: [] });
+      assert.equal(first.status, 202);
+      assert.deepEqual(first.json, { ok: true, service: 'alldebrid', submitted: 1, removed: 0 });
+      assert.notEqual(cache.peek(adsubKey(account, subiu)), null, 'posse gravada em adsub:v1');
+      assert.equal(cache.peek(adrmKey(account, subiu)), null, 'quem subiu não vira bloqueado');
+
+      // Segunda leva: a limpeza REMOVEU (o `DeleteReport` confirmou) — um dos
+      // hashes é o mesmo que subiu, para provar a purga da posse.
+      const second = await postMarked({
+        service: 'alldebrid',
+        apiKey: KEY,
+        submitted: [],
+        removed: [{ hash: saiu, name: nome }, { hash: subiu.toUpperCase() }],
+      });
+      assert.equal(second.status, 202);
+      assert.deepEqual(second.json, { ok: true, service: 'alldebrid', submitted: 0, removed: 2 });
+      const adrm = cache.peek(adrmKey(account, saiu)) as { at?: number; name?: string } | null;
+      assert.equal(adrm?.name, nome, 'nome da release preservado (blindagem BR do Node)');
+      assert.equal(cache.peek(adsubKey(account, subiu)), null, 'removido de propósito perde a posse');
+      assert.notEqual(cache.peek(adrmKey(account, subiu)), null, 'hash confirmado (caixa alta normalizada) vira adrm');
+    } finally {
+      for (const hash of [subiu, saiu]) {
+        cache.forget(adsubKey(account, hash));
+        cache.forget(adrmKey(account, hash));
+      }
+    }
+  });
+});
+
+test('marked: nome de origem BR nunca vira adrm (blindagem 8.4)', async () => {
+  const account = accountScope(KEY);
+  const br = newHash();
+  await withReuploadBlock(async () => {
+    try {
+      const out = await postMarked({
+        service: 'alldebrid',
+        apiKey: KEY,
+        submitted: [],
+        removed: [{ hash: br, name: 'Coração de Vingança 2019 Dublado 1080p' }],
+      });
+      // O aceite é do canal; quem absolve é a escrita, como no caminho TS.
+      assert.equal(out.status, 202);
+      assert.equal(cache.peek(adrmKey(account, br)), null, 'origem BR é absolvida na escrita');
+    } finally {
+      cache.forget(adrmKey(account, br));
+    }
+  });
 });
 
 test('corpo do sidecar (/debrid/check) segue sem account/evaluated', async () => {

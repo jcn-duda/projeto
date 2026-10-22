@@ -666,12 +666,15 @@ impl CleanupGate {
     }
 }
 
-/// Destino de uma remoção: `id` é o que a API apaga; `hash` fica para o
-/// diagnóstico (e para o `adrm` quando ele for portado).
+/// Destino de uma remoção: `id` é o que a API apaga; `hash`/`name` são o que o
+/// Node precisa para gravar o `adrm` (`name` também alimenta a blindagem BR do
+/// 8.4 e o diagnóstico do operador).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CleanTarget {
     pub id: String,
     pub hash: String,
+    /// Nome da release no `/magnet/upload`; `None` quando a API não mandou.
+    pub name: Option<String>,
 }
 
 /// Por que a limpeza não vai rodar nesta checagem.
@@ -738,6 +741,31 @@ impl CleanupPlan {
             .collect()
     }
 
+    /// Cruza o relatório REAL da fila com os alvos do plano: só o id que a API
+    /// confirmou sair vira marca devolvida ao Node. Falha de delete fica de
+    /// fora — o magnet continua na conta e o `adrm` o esconderia da checagem
+    /// à toa. Dedupe por hash (o mesmo magnet pode ter sido alvo de dois lotes).
+    pub fn removed_marks(
+        &self,
+        report: &crate::alldebrid_delete::DeleteReport,
+    ) -> Vec<crate::marks_feed::RemovedMark> {
+        let gone: HashSet<&str> = report.removed.iter().map(String::as_str).collect();
+        let mut marks: Vec<crate::marks_feed::RemovedMark> = Vec::new();
+        for target in self.ready.iter().chain(self.uncached.iter()) {
+            if !gone.contains(target.id.as_str()) {
+                continue;
+            }
+            if marks.iter().any(|mark| mark.hash == target.hash) {
+                continue;
+            }
+            marks.push(crate::marks_feed::RemovedMark {
+                hash: target.hash.clone(),
+                name: target.name.clone(),
+            });
+        }
+        marks
+    }
+
     /// Executa o plano na fila com backoff (fire-and-forget no chamador).
     pub async fn run(
         &self,
@@ -773,6 +801,17 @@ impl CleanupPlan {
                 None => String::new(),
             }
         );
+        // O Node é o dono único do `cache.db`: devolve só o que a fila PROVOU
+        // removido para ele gravar o `adrm` (anti-reenchimento). Fail-open e
+        // fora do prazo — a resposta já saiu.
+        let removed = self.removed_marks(&report);
+        if !removed.is_empty() {
+            crate::marks_feed::spawn(crate::marks_feed::MarkedBatch {
+                api_key: api_key.to_string(),
+                submitted: Vec::new(),
+                removed,
+            });
+        }
         Some(report)
     }
 }
@@ -806,6 +845,9 @@ pub fn classify_drop(
         return DropVerdict::Delete(CleanTarget {
             id: id.to_string(),
             hash: hash.to_lowercase(),
+            // O nome só existe na resposta do upload; quem tiver o dado
+            // (o lote) preenche depois.
+            name: None,
         });
     }
     if protected {

@@ -12,8 +12,10 @@
 //! in-process. `account`/`files` limitados; link da AllDebrid existe.
 //! `/debrid/resolve` não grava magnetdb, cache nem ledger.
 //! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
-//! `holds_feed.rs` é o cliente do feed `/internal/debrid/holds` (só ele fala
-//! com uma rota interna do Node).
+//! `holds_feed.rs` e `marks_feed.rs` são os ÚNICOS que falam com rotas
+//! internas do Node: `/internal/debrid/holds` (fatos do hold) e
+//! `/internal/debrid/marked` (devolução de `adsub`/`adrm`, dono único do
+//! `cache.db`).
 //! `play.rs` é o dispatch do play nativo (`/resolve` do gateway,
 //! `RESOLVE_RUST=on`): os cinco adaptadores, com o mesmo `pickFile` e a mesma
 //! prova de áudio (`play_audit`) do TS; efeitos L1 continuam no Node.
@@ -33,6 +35,9 @@ pub mod error;
 pub mod holds_feed;
 pub mod http;
 pub mod import;
+/// Devolução das marcas da limpeza nativa (`adsub`/`adrm`) ao Node — rota
+/// `/internal/debrid/marked`. Fail-open; gate em `DEBRID_AL_CLEANUP=on`.
+pub mod marks_feed;
 pub mod metrics;
 /// Play nativo: dispatch por adaptador (usado pelo `/resolve` do gateway).
 pub mod play;

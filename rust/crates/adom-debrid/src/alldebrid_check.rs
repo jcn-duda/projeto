@@ -91,6 +91,8 @@ impl CheckFailure {
 #[derive(Default)]
 struct Piece {
     cached: Vec<String>,
+    /// Hashes que o upload ACEITOU e o snapshot provou novos (posse `adsub`).
+    submitted: Vec<String>,
     ready: Vec<crate::alldebrid_cleanup::CleanTarget>,
     uncached: Vec<crate::alldebrid_cleanup::CleanTarget>,
     protected: usize,
@@ -122,6 +124,7 @@ impl CleanupRun {
 #[derive(Default)]
 struct Folded {
     cached: Vec<String>,
+    submitted: Vec<String>,
     ready: Vec<crate::alldebrid_cleanup::CleanTarget>,
     uncached: Vec<crate::alldebrid_cleanup::CleanTarget>,
     protected: usize,
@@ -154,11 +157,21 @@ pub(super) async fn check_cached(
     let send = &send[..send.len().min(MAX_HASHES)];
     let size = batch_size(opts);
     let timeout = timeout_of(opts);
-    let folded = match batches(ad, api_key, send, size, timeout, &gate).await {
+    let mut folded = match batches(ad, api_key, send, size, timeout, &gate).await {
         Ok(folded) => folded,
         // Erro de lote não gera plano: sem upload não há o que limpar.
         Err(error) => return Err(CheckFailure::new(error, attempted)),
     };
+    // A posse (`adsub`) mora no `cache.db` do Node: devolve o que esta checagem
+    // SUBIU e que o snapshot provou novo. Fora do prazo da resposta, fail-open.
+    let submitted = std::mem::take(&mut folded.submitted);
+    if !submitted.is_empty() {
+        crate::marks_feed::spawn(crate::marks_feed::MarkedBatch {
+            api_key: api_key.to_string(),
+            submitted,
+            removed: Vec::new(),
+        });
+    }
     let plan = gate.cleanup.as_ref().map(|run| {
         let mut plan = run.plan.clone();
         plan.ready = folded.ready;
@@ -360,6 +373,11 @@ async fn upload_batch(
                 .is_some_and(|snapshot| !snapshot.contains(&hash))
             {
                 remember_submitted(&run.account, &hash);
+                // A prova de criação é DAQUI (o hash não estava no snapshot):
+                // o Node grava a posse sem repetir a conta.
+                if !piece.submitted.contains(&hash) {
+                    piece.submitted.push(hash.clone());
+                }
             }
             let flagged = if ready {
                 run.gate.drop_ready
@@ -373,7 +391,15 @@ async fn upload_batch(
                 continue;
             };
             match classify_drop(&run.gate, run.inventory.as_deref(), &hash, &id, now) {
-                DropVerdict::Delete(target) => {
+                DropVerdict::Delete(mut target) => {
+                    // O nome viaja com o alvo até o `adrm` do Node: é por ele
+                    // que a origem BR é reconhecida e NUNCA marcada (8.4).
+                    target.name = magnet
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|name| !name.is_empty())
+                        .map(str::to_string);
                     let list = if ready {
                         &mut piece.ready
                     } else {
@@ -404,6 +430,11 @@ fn fold(parts: Vec<Result<Piece, DebridError>>) -> Result<Folded, DebridError> {
                 for hash in piece.cached {
                     if !folded.cached.contains(&hash) {
                         folded.cached.push(hash);
+                    }
+                }
+                for hash in piece.submitted {
+                    if !folded.submitted.contains(&hash) {
+                        folded.submitted.push(hash);
                     }
                 }
                 for target in piece.ready {

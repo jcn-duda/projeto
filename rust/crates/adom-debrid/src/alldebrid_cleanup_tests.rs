@@ -30,6 +30,9 @@ use crate::alldebrid_delete::{delete_with_backoff, DeleteConfig, DeleteStop};
 use crate::http::HttpClient;
 
 const KEY: &str = "ad-cleanup-key";
+const MARKS_TOKEN: &str = "tok-marcas-limpeza";
+/// Nome que o `/magnet/upload` dublê devolve; viaja até o `adrm` do Node.
+const UPLOAD_NAME: &str = "Alvo da limpeza 2024 1080p";
 
 fn hash_of(ch: char) -> String {
     ch.to_string().repeat(40)
@@ -148,6 +151,8 @@ async fn respond(State(scene): State<Arc<Scene>>, req: Request<Body>) -> Respons
                     "hash": hash,
                     "ready": scene.ready.contains(&first),
                     "id": id_of(&hash),
+                    // Nome da release: vai com o alvo até o `adrm` do Node.
+                    "name": UPLOAD_NAME,
                 })
             })
             .collect();
@@ -821,3 +826,8 @@ fn blocked_hashes_so_devolve_adrm_vivo_da_propria_conta() {
         "só o adrm vivo desta conta bloqueia o upload"
     );
 }
+
+/// Devolução das marcas da limpeza nativa ao Node (`/internal/debrid/marked`).
+/// Filho deste módulo: reaproveita as fixtures do servidor falso da AllDebrid.
+#[path = "alldebrid_marks_tests.rs"]
+mod marked;
