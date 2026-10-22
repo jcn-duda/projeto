@@ -60,6 +60,13 @@ pub struct CheckOpts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CacheReport {
     pub cached: Vec<String>,
+    /// Hashes que o anti-reenchimento (`adrm`) tirou do `/magnet/upload` nesta
+    /// rodada, lower-case e sem repetição. NÃO é veredito: o Rust não tem o
+    /// inventário PRONTO da conta (memo `dinv` do Node), então `cached` NÃO os
+    /// inclui. O Node consome esta lista para o escape do `adrm` — hash que o
+    /// inventário prova pronto volta a ter ⚡ e perde o marcador; sem prova,
+    /// nada muda (`alldebrid-reupload.ts::unblockIfInventoryReady`).
+    pub blocked: Vec<String>,
     /// `false` = algum lote não respondeu (ou o teto cortou hashes): o que não
     /// está em `cached` é "não perguntado", não "frio".
     pub complete: bool,
@@ -143,14 +150,24 @@ pub(super) async fn check_cached(
         blocked: lower_set(&opts.blocked),
         cleanup: cleanup_run(ad, api_key, opts, &account),
     });
-    let send: Vec<String> = hashes
-        .iter()
-        .filter(|hash| {
-            let lower = hash.to_lowercase();
-            !lower.is_empty() && !gate.blocked.contains(&lower)
-        })
-        .cloned()
-        .collect();
+    // Partição do lote: hash vazio sai da conta e hash bloqueado sai do upload,
+    // mas fica registrado — o Node precisa dele para tentar o escape do `adrm`
+    // (a prova de "pronto" mora no inventário dele).
+    let mut blocked: Vec<String> = Vec::new();
+    let mut send: Vec<String> = Vec::with_capacity(hashes.len());
+    for hash in hashes {
+        let lower = hash.to_lowercase();
+        if lower.is_empty() {
+            continue;
+        }
+        if gate.blocked.contains(&lower) {
+            if !blocked.contains(&lower) {
+                blocked.push(lower);
+            }
+            continue;
+        }
+        send.push(hash.clone());
+    }
     let attempted = !send.is_empty();
     // Teto: o excedente não vai ao serviço e o veredito sai incompleto.
     let overflow = send.len() > MAX_HASHES;
@@ -191,6 +208,7 @@ pub(super) async fn check_cached(
     let deleted = plan.as_ref().map(CleanupPlan::ids).unwrap_or_default();
     Ok(CacheReport {
         cached: folded.cached,
+        blocked,
         complete: folded.complete && !overflow,
         deleted,
         attempted,

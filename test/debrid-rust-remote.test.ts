@@ -344,7 +344,8 @@ test('pullMetrics devolve só `rust.debrid.*` e marca unreachable sem a 8710', a
   })) as unknown as typeof fetch;
   try {
     config.nativeMetrics = {
-      gatewayUrl: 'http://gw.local', debridUrl: 'http://db.local', token: 'tok', timeoutMs: 100,
+      // A 8710 só recebe o token em loopback; o fetch é dublê, nada sai daqui.
+      gatewayUrl: 'http://gw.local', debridUrl: 'http://127.0.0.1:8710', token: 'tok', timeoutMs: 100,
     };
     globalThis.fetch = reply({ 'index.rust.hit': 3, 'rust.debrid.check.hit': 9 });
     assert.deepEqual(await pullMetrics(), { 'rust.debrid.check.hit': 9 }, 'índice da 7000 não vaza no recorte legado');
@@ -353,5 +354,46 @@ test('pullMetrics devolve só `rust.debrid.*` e marca unreachable sem a 8710', a
   } finally {
     globalThis.fetch = saved.fetch;
     config.nativeMetrics = saved.native;
+  }
+});
+
+// Fase 0.2 (`adrm`): `blocked` do outcome nativo só vira ⚡ com PROVA no `dinv`.
+test('escape do adrm no caminho nativo: só o inventário PRONTO devolve o ⚡', async () => {
+  const { wrap } = await import('../src/debrid/rust-remote.js');
+  const adrm = await import('../src/debrid/alldebrid-reupload.js');
+  const memo = await import('../src/debrid/inventory-memo.js');
+  const { accountScope } = await import('../src/utils/request-key.js');
+  const adapter = debrid.BY_ID.get('alldebrid');
+  if (!adapter) throw new Error('alldebrid ausente');
+  const key = 'chave-de-teste-adrm-nativo';
+  const account = accountScope(key);
+  const provado = 'a'.repeat(40);
+  const semProva = 'b'.repeat(40);
+  const saved = { block: config.debrid.reuploadBlock, ttl: config.debrid.alldebridReuploadBlockTtlMs, cleanup: config.debridRust.alCleanup };
+  Object.assign(config.debrid, { reuploadBlock: true, alldebridReuploadBlockTtlMs: 3600_000 });
+  config.debridRust.alCleanup = false; // sem fatos: o teste mede o escape
+  const reply = (async () => new Response(JSON.stringify({ cached: [], blocked: [provado, semProva], complete: true }), { status: 200 })) as unknown as typeof fetch;
+  const native = wrap(adapter, { token: 'tok', fetchImpl: reply });
+  const unblocked = () => metrics.snapshot().counters['rust.debrid.check.unblockedByInventory'] || 0;
+  try {
+    for (const hash of [provado, semProva]) assert.equal(adrm.markReuploadBlocked(account, hash, 'Some.Movie.2024.1080p.WEB-DL.mkv'), true);
+    // Memo frio: sem prova o ⚡ não nasce e a marca fica.
+    const antes = unblocked();
+    const frio = await native.checkCached(key, [provado, semProva]);
+    assert.equal(hasHash(frio, provado) || hasHash(frio, semProva), false, 'memo frio não inventa ⚡');
+    assert.equal(adrm.reuploadBlocked(account, provado), true, 'sem prova a marca fica');
+    assert.equal(unblocked(), antes, 'sem prova não conta destrave');
+    // Só `provado` reaparece PRONTO no inventário da conta (memo dinv).
+    memo.store('alldebrid', key, [{ title: 'Some.Movie.2024', infoHash: provado, size: 1 }]);
+    const quente = await native.checkCached(key, [provado, semProva]);
+    assert.equal(hasHash(quente, provado), true, 'pronto no dinv entra no cached');
+    assert.equal(hasHash(quente, semProva), false, 'hash sem prova segue escondido');
+    assert.equal(adrm.reuploadBlocked(account, provado), false, 'adrm expurgado com prova');
+    assert.equal(adrm.reuploadBlocked(account, semProva), true, 'marca do outro intacta');
+    assert.equal(unblocked(), antes + 1, 'um destrave por hash provado');
+  } finally {
+    for (const hash of [provado, semProva]) { memo.forget('alldebrid', key, hash); adrm.forgetReuploadBlock(account, hash); }
+    Object.assign(config.debrid, { reuploadBlock: saved.block, alldebridReuploadBlockTtlMs: saved.ttl });
+    config.debridRust.alCleanup = saved.cleanup;
   }
 });

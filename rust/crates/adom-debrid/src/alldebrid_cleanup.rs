@@ -36,7 +36,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::fmt::Write as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -57,9 +57,20 @@ pub const KILL_ENV: &str = "DEBRID_AL_CLEANUP_KILL";
 pub const PREEXISTING_TTL_ENV: &str = "ALLDEBRID_PREEXISTING_TTL_MS";
 /// Caminho do `cache.db` do Node (proteção durável `adprot`/`adsub`).
 pub const CACHE_DB_ENV: &str = "CACHE_DB_PATH";
+/// Kill-switch do anti-reenchimento (`adrm`) — a MESMA env do Node
+/// (`src/config/debrid.ts::reuploadBlock`, default `true`). Rust e Node leem o
+/// mesmo `.env`: `DEBRID_REUPLOAD_BLOCK=false` desliga a marcação e o filtro de
+/// upload nos DOIS lados, sem depender da versão do binário nativo.
+pub const REUPLOAD_BLOCK_ENV: &str = "DEBRID_REUPLOAD_BLOCK";
+/// TTL do `adrm` — a MESMA env do Node
+/// (`alldebridReuploadBlockTtlMs`, default 3 dias). `0` desliga gravação E
+/// leitura, também nos dois lados (rollback de uma linha no `.env`).
+pub const REUPLOAD_TTL_ENV: &str = "ALLDEBRID_REUPLOAD_BLOCK_TTL_MS";
 
 const DEFAULT_PREEXISTING_TTL_MS: u64 = 300_000;
 const DEFAULT_CACHE_DB: &str = "data/cache.db";
+/// `3 * 24 * 3600 * 1000` do Node.
+const DEFAULT_REUPLOAD_TTL_MS: f64 = 259_200_000.0;
 
 // ── Flag / kill-switch ──────────────────────────────────────────────────────
 
@@ -118,6 +129,47 @@ pub fn env_truthy(name: &str, default: bool) -> bool {
             "on" | "1" | "true" | "yes"
         ),
         Err(_) => default,
+    }
+}
+
+/// `enabled()` do `alldebrid-reupload.ts`: o anti-reenchimento só existe com a
+/// flag ligada **e** TTL > 0. As envs são as MESMAS do processo Node — os dois
+/// lados leem o mesmo `.env`, então um rollback de uma linha desliga o filtro
+/// nativo junto. Antes só o Node checava: `DEBRID_REUPLOAD_BLOCK=false` parava
+/// de marcar e o Rust continuava tirando o hash do `/magnet/upload`.
+pub fn reupload_block_enabled() -> bool {
+    reupload_block_enabled_from(
+        std::env::var(REUPLOAD_BLOCK_ENV).ok().as_deref(),
+        std::env::var(REUPLOAD_TTL_ENV).ok().as_deref(),
+    )
+}
+
+/// Regra pura (sem env global): usada pelos testes e pelo `enabled()`.
+fn reupload_block_enabled_from(flag: Option<&str>, ttl: Option<&str>) -> bool {
+    reupload_flag_from(flag) && reupload_ttl_ms_from(ttl) > 0.0
+}
+
+/// `String(process.env.DEBRID_REUPLOAD_BLOCK || 'true') === 'true'`.
+fn reupload_flag_from(raw: Option<&str>) -> bool {
+    match raw {
+        None => true,
+        Some("") => true,
+        Some(text) => text == "true",
+    }
+}
+
+/// `Math.max(0, num(process.env.ALLDEBRID_REUPLOAD_BLOCK_TTL_MS, 3d))`:
+/// `Number('')` é 0 (desliga), valor não numérico cai no default e negativo
+/// vira 0 pela comparação `> 0.0`.
+fn reupload_ttl_ms_from(raw: Option<&str>) -> f64 {
+    match raw {
+        None => DEFAULT_REUPLOAD_TTL_MS,
+        Some("") => 0.0,
+        Some(text) => text
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite())
+            .unwrap_or(DEFAULT_REUPLOAD_TTL_MS),
     }
 }
 
@@ -319,6 +371,26 @@ fn adrm_prefix(account: &str) -> String {
     format!("adrm:v1:{account}:")
 }
 
+/// Aviso ÚNICO (sem spam) de `cache.db` ausente: cada checagem cria um
+/// `DurablePeek` novo, então a flag não pode ser por instância. O arquivo é o
+/// MESMO do Node (`CACHE_DB_PATH`), logo sem banco o anti-reenchimento (`adrm`)
+/// vira no-op nos dois lados — daí o aviso em vez do silêncio.
+fn warn_missing_cache_db(path: &Path) {
+    static WARNED: OnceLock<()> = OnceLock::new();
+    warn_missing_cache_db_once(path, &WARNED, |msg| eprintln!("{msg}"));
+}
+
+/// Corpo com a trava injetada: o teste mede "uma vez só" com um `OnceLock`
+/// próprio, sem depender do estado acumulado do processo.
+fn warn_missing_cache_db_once(path: &Path, latch: &OnceLock<()>, emit: impl Fn(&str)) {
+    latch.get_or_init(|| {
+        emit(&format!(
+            "[alldebrid] cache.db ausente em {}: anti-reenchimento (adrm) vira NO-OP e a guarda durável (adprot/adsub) fica sem fonte até o banco existir",
+            path.display()
+        ));
+    });
+}
+
 /// Leitor read-only do `cache.db` (o mesmo arquivo que o Node mantém em WAL).
 /// Abre sob demanda, uma vez; erro de abertura/consulta devolve "não protegido"
 /// (o fail-safe da limpeza é `holds_complete` + inventário, não este banco).
@@ -361,6 +433,9 @@ impl DurablePeek {
         let mut guard = self.conn.lock().unwrap_or_else(|err| err.into_inner());
         if guard.is_none() {
             if !self.path.exists() {
+                // Fail-open continua (o hash volta a ser consultado), mas em
+                // silêncio o anti-reenchimento sumiria sem ninguém notar.
+                warn_missing_cache_db(&self.path);
                 return None;
             }
             // Leitura curta: a classificação roda no lote da checagem (worker
@@ -419,7 +494,18 @@ impl DurablePeek {
     /// banco não grava, não expira e não toca na conta. Banco ausente/ilegível
     /// devolve vazio: sem prova do bloqueio, o hash volta a ser consultado (o
     /// fail-safe aqui é o lado do reenchimento, nunca o de esconder ⚡ real).
+    ///
+    /// O kill-switch/TTL (`enabled()` do Node, MESMAS envs) é conferido ANTES
+    /// de abrir o banco: desligado ou TTL 0 devolve vazio sem I/O.
     pub fn blocked_hashes(&self, account: &str, now: i64) -> HashSet<String> {
+        self.blocked_hashes_when(account, now, reupload_block_enabled())
+    }
+
+    /// Miolo do filtro com a flag explícita — testes sem env global.
+    fn blocked_hashes_when(&self, account: &str, now: i64, enabled: bool) -> HashSet<String> {
+        if !enabled {
+            return HashSet::new();
+        }
         self.prefixed_hashes(&adrm_prefix(account), now)
     }
 

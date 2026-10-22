@@ -351,18 +351,29 @@ fn outcome_json_carrega_known_e_unusable() {
         known: true,
         unusable: None,
     };
-    let json = outcome_json(&outcome);
+    // `blocked` é transporte da checagem: sempre presente, mesmo vazio.
+    let json = outcome_json(&outcome, &[]);
     assert_eq!(json["known"], json!(true));
     assert_eq!(json["complete"], json!(true));
     assert_eq!(json["cached"][0], json!(HIT));
     assert_eq!(json["unusable"], Value::Null);
+    assert_eq!(json["blocked"], json!([]));
+
+    let json = outcome_json(&outcome, &[MISS.into()]);
+    assert_eq!(json["blocked"][0], json!(MISS), "filtrados saem no corpo");
+    assert_eq!(json["known"], json!(true), "blocked não mexe em known");
+    assert_eq!(
+        json["complete"],
+        json!(true),
+        "blocked não mexe em complete"
+    );
 
     let outcome = super::CheckOutcome {
         cached: Vec::new(),
         known: false,
         unusable: Some((UnusableKind::Quota, "limite".into())),
     };
-    let json = outcome_json(&outcome);
+    let json = outcome_json(&outcome, &[]);
     assert_eq!(json["unusable"]["reason"], json!("quota"));
     assert!(!json.to_string().contains(KEY));
 }

@@ -268,6 +268,8 @@ async fn torbox_e_alldebrid_respondem_no_http_sem_vazar_chave() {
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["known"].as_bool(), Some(false));
     assert_eq!(json["unusable"], serde_json::Value::Null);
+    // `blocked` é transporte: sempre presente, vazio nos serviços sem `adrm`.
+    assert_eq!(json["blocked"], serde_json::json!([]));
 
     let ad_body = format!(r#"{{"service":"alldebrid","apiKey":"{KEY}","hashes":["abc"]}}"#);
     let (status, body) = call("segredo", Some("segredo"), "/debrid/check", &ad_body).await;
@@ -276,6 +278,11 @@ async fn torbox_e_alldebrid_respondem_no_http_sem_vazar_chave() {
     assert!(!body.contains(KEY));
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["known"].as_bool(), Some(false));
+    assert_eq!(
+        json["blocked"],
+        serde_json::json!([]),
+        "erro sem filtro não gera blocked"
+    );
 }
 
 #[tokio::test]
@@ -302,6 +309,10 @@ async fn alldebrid_check_nativo_sem_vazar_chave() {
     assert_eq!(json["complete"].as_bool(), Some(true));
     assert_eq!(json["known"].as_bool(), Some(true));
     assert_eq!(json["unusable"], serde_json::Value::Null);
+    assert!(
+        json["blocked"].is_array(),
+        "blocked sempre presente no outcome"
+    );
 }
 
 #[tokio::test]
@@ -312,6 +323,11 @@ async fn alldebrid_check_nativo_sem_chave_e_unknown() {
     let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
     assert_eq!(json["known"].as_bool(), Some(false));
     assert_eq!(json["complete"].as_bool(), Some(false));
+    assert_eq!(
+        json["blocked"],
+        serde_json::json!([]),
+        "sem chave não há hash filtrado"
+    );
 }
 
 #[tokio::test]

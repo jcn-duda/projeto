@@ -114,7 +114,7 @@ pub(super) async fn check(State(state): State<Arc<AppState>>, raw: Bytes) -> Res
         Ok(outcome) => outcome,
         Err(_) => return not_ported(&state, &body.service),
     };
-    json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
+    json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome, &[]))
 }
 
 /// AllDebrid nativa. A rota entrega os fatos da limpeza (`inventoryLoaded`,
@@ -131,6 +131,7 @@ async fn check_alldebrid(state: &AppState, body: &RequestBody) -> Response {
             StatusCode::OK,
             json!({
                 "cached": [],
+                "blocked": [],
                 "complete": false,
                 "known": false,
                 "unusable": Value::Null,
@@ -193,7 +194,10 @@ async fn check_alldebrid(state: &AppState, body: &RequestBody) -> Response {
             }
             let outcome = crate::verdict::cached_outcome(report.cached, report.complete);
             count_outcome(state, &outcome);
-            json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
+            json_status(
+                StatusCode::OK,
+                crate::verdict::outcome_json(&outcome, &report.blocked),
+            )
         }
         Err(failure) => {
             // Auth/quota viram `unusable` (a lista volta P2P); rate limit sai
@@ -201,7 +205,7 @@ async fn check_alldebrid(state: &AppState, body: &RequestBody) -> Response {
             // depois de um upload real (segundo upload dobraria o lixo).
             let outcome = crate::verdict::error_outcome(&failure.error);
             count_outcome(state, &outcome);
-            json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome))
+            json_status(StatusCode::OK, crate::verdict::outcome_json(&outcome, &[]))
         }
     }
 }

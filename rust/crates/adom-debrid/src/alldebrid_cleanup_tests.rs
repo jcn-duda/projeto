@@ -827,6 +827,97 @@ fn blocked_hashes_so_devolve_adrm_vivo_da_propria_conta() {
     );
 }
 
+/// Kill-switch/TTL do anti-reenchimento: as MESMAS envs do Node
+/// (`DEBRID_REUPLOAD_BLOCK`/`ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`). Desligado ou TTL
+/// 0 devolve conjunto vazio SEM abrir o banco — rollback de uma linha no Node
+/// também desliga o filtro nativo.
+#[test]
+fn blocked_hashes_respeita_kill_switch_e_ttl_do_node() {
+    use super::{reupload_block_enabled_from, reupload_flag_from, reupload_ttl_ms_from};
+
+    // `enabled()` do `alldebrid-reupload.ts`, caso a caso.
+    assert!(
+        reupload_block_enabled_from(None, None),
+        "default: ligado, 3d"
+    );
+    assert!(!reupload_block_enabled_from(Some("false"), None));
+    assert!(
+        reupload_block_enabled_from(Some(""), None),
+        "vazio = default true"
+    );
+    assert!(!reupload_block_enabled_from(Some("true"), Some("0")));
+    assert!(!reupload_block_enabled_from(Some("true"), Some("")));
+    assert!(!reupload_block_enabled_from(Some("true"), Some("-1")));
+    assert!(reupload_block_enabled_from(Some("true"), Some("86400000")));
+    // Valor não numérico cai no default do Node (`num`), nunca em 0.
+    assert_eq!(reupload_ttl_ms_from(Some("abc")), 259_200_000.0);
+    assert_eq!(reupload_ttl_ms_from(None), 259_200_000.0);
+    assert!(reupload_flag_from(None));
+    assert!(!reupload_flag_from(Some("yes")), "Node compara '=== true'");
+
+    let account = account_scope("ad-adrm-switch");
+    let now = crate::error::now_ms() as i64;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cache.db");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, expires_at INTEGER NOT NULL);",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, '{}', ?2)",
+            rusqlite::params![adrm_key(&account, &hash_of('a')), now + 60_000],
+        )
+        .unwrap();
+    }
+    let peek = DurablePeek::new(path);
+    assert_eq!(
+        peek.blocked_hashes_when(&account, now, false),
+        HashSet::new(),
+        "kill-switch/TTL 0 desliga a leitura do adrm"
+    );
+    assert_eq!(
+        peek.blocked_hashes_when(&account, now, true),
+        HashSet::from([hash_of('a')]),
+        "ligado, o adrm vivo volta a filtrar"
+    );
+}
+
+/// `cache.db` ausente continua fail-open, mas NÃO silencioso: sai UM aviso por
+/// processo (não um por checagem, que viraria spam) dizendo que o `adrm` virou
+/// no-op. A trava é injetada para o teste não depender do estado do processo.
+#[test]
+fn cache_db_ausente_avisa_uma_vez_e_segue_fail_open() {
+    use std::cell::{Cell, RefCell};
+    use std::sync::OnceLock;
+
+    let latch = OnceLock::new();
+    let calls = Cell::new(0);
+    let seen = RefCell::new(String::new());
+    let emit = |msg: &str| {
+        calls.set(calls.get() + 1);
+        seen.borrow_mut().push_str(msg);
+    };
+    let path = Path::new("nao-existe/cache.db");
+    for _ in 0..3 {
+        super::warn_missing_cache_db_once(path, &latch, emit);
+    }
+    assert_eq!(calls.get(), 1, "o aviso sai uma vez por processo");
+    let text = seen.borrow().clone();
+    assert!(text.contains("cache.db ausente"), "{text}");
+    assert!(text.contains("adrm"), "{text}");
+    assert!(text.contains("NO-OP"), "{text}");
+    assert!(latch.get().is_some(), "a trava fica marcada");
+
+    // Fail-open intacto: sem banco, nada é bloqueado.
+    let peek = DurablePeek::new(path);
+    let now = crate::error::now_ms() as i64;
+    assert!(peek
+        .blocked_hashes(&account_scope("ad-sem-banco"), now)
+        .is_empty());
+}
+
 /// Devolução das marcas da limpeza nativa ao Node (`/internal/debrid/marked`).
 /// Filho deste módulo: reaproveita as fixtures do servidor falso da AllDebrid.
 #[path = "alldebrid_marks_tests.rs"]

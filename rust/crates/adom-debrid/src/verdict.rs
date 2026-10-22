@@ -446,9 +446,16 @@ fn now_ms() -> i64 {
 }
 
 /// JSON da resposta da rota `/debrid/check` (mesma forma para os 5 serviços).
-pub fn outcome_json(outcome: &CheckOutcome) -> Value {
+///
+/// `blocked` sempre sai no corpo (vazio inclusive): são os hashes que o
+/// anti-reenchimento (`adrm`) tirou do `/magnet/upload` na AllDebrid — o Node
+/// usa a lista para o escape "pronto no inventário" e os demais serviços nunca
+/// têm o que devolver. `known`/`complete` continuam intocados: bloqueado não é
+/// "frio conhecido" nem ausência de resposta.
+pub fn outcome_json(outcome: &CheckOutcome, blocked: &[String]) -> Value {
     json!({
         "cached": outcome.cached,
+        "blocked": blocked,
         "complete": outcome.known,
         "known": outcome.known,
         "unusable": match &outcome.unusable {

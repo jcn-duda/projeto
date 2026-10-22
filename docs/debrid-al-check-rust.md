@@ -31,6 +31,7 @@ Caminho real da busca (`cache-check.checkCached` → adaptador
 | Teto | a rota interna recusava > **500** hashes | 500 primeiros enviados; excedente ⇒ `complete:false` (não é "frio") |
 | Timeout | `DEBRID_CACHE_CHECK_TIMEOUT_MS` (default **10000**) por lote, mesmo teto | idem, env; lote estourado ⇒ `complete:false` com o hit parcial preservado |
 | `cached` | `magnet.ready === true` (hash lower-case) | idem |
+| `blocked` | `filterReuploadBlocked` tira do upload e o escape `unblockIfInventoryReady` devolve ⚡ só com prova `dinv` | campo **sempre presente** no outcome (vazio inclusive) listando o filtrado; `known`/`complete` intactos; a adoção é do Node |
 | `known` | `complete = failures === 0` (lotes) | idem; `known:false` nunca vira "nada em cache" |
 | `unusable` | auth (`AUTH_*`, 401/403) e quota (`MAGNET_TOO_MANY*`) | mesmas réguas no `unwrap_payload`/`from_http`; rate limit **não** é unusable |
 | Falha de lote | `allSettled`; todos falharam ⇒ auth/quota/rate do conjunto, senão "nenhum lote" | idem (agora inclui rate limit com `retry_after`) |
@@ -42,7 +43,9 @@ Caminho real da busca (`cache-check.checkCached` → adaptador
 O `debrid_seam` / `FrozenDebridCheck` consomem apenas
 `{cached, known, unusable}`. `answer_of` já preserva ⚡ de hit parcial
 (`known:false` com `cached` não vazio) e transforma o resto em `Unknown`
-(nunca `Missing`).
+(nunca `Missing`). O campo `blocked` do outcome é **transporte** para o Node
+(não entra no veredito do seam): ele existe para o escape
+`unblockIfInventoryReady` do `rust-remote.ts` — ver §2.
 
 ## 2. Caminho nativo
 
@@ -55,7 +58,13 @@ O `debrid_seam` / `FrozenDebridCheck` consomem apenas
   (segundo upload dobraria o lixo na conta).
 - A rota HTTP `/debrid/check` do sidecar (8710) responde a AllDebrid como os
   demais serviços, incondicionalmente. Sem chave responde `200` com
-  `{known:false, complete:false}`.
+  `{known:false, complete:false, blocked:[]}`.
+- **Escape do `adrm` (⚡ real):** o outcome carrega `blocked` (hashes que o
+  filtro tirou do `/magnet/upload`, sempre presente). O `rust-remote.ts` lê o
+  campo e, por hash, chama `unblockIfInventoryReady` (memo `dinv`, que só tem
+  itens PRONTOS): com prova o hash volta ao `cached` e a marca é expurgada;
+  sem memo/frio ou hash ausente, NADA muda (falha ao provar nunca destrava). É
+  o mesmo escape do caminho TS (`alldebrid-check.ts`), agora também no nativo.
 - A rota Node `/internal/debrid/check` foi **apagada no R3**; nenhum caminho
   do Node responde checagem de cache.
 
@@ -72,7 +81,9 @@ O `debrid_seam` / `FrozenDebridCheck` consomem apenas
 | `DEBRID_AL_CLEANUP_BACKOFF_MS` | `400,800,1600` | idem | espera por tentativa na fila de delete |
 | `DEBRID_AL_CLEANUP_CONCURRENCY` | `4` | `4` | workers por execução de delete (1..8) |
 | `ALLDEBRID_PREEXISTING_TTL_MS` | `300000` | idem | TTL do snapshot `knownBefore` próprio; `0` desliga (fail-safe) |
-| `CACHE_DB_PATH` | `data/cache.db` | idem | leitura read-only de `adprot`/`adsub` |
+| `DEBRID_REUPLOAD_BLOCK` | vazio (= `true`) | `true` | kill-switch do anti-reenchimento (`adrm`), **compartilhado Node/Rust**: `false` desliga marcação E leitura nos dois lados |
+| `ALLDEBRID_REUPLOAD_BLOCK_TTL_MS` | `259200000` (3d) | idem | validade do `adrm`; `0` desliga gravação E leitura (rollback de uma linha, também no filtro nativo) |
+| `CACHE_DB_PATH` | `data/cache.db` | idem | leitura read-only de `adprot`/`adsub`/`adrm` |
 
 A checagem em si **não tem rollback por env**: ela é incondicional. Rollback da
 fatia é **commit/imagem anterior** (a rota e o código do Node não existem mais
@@ -187,7 +198,14 @@ real com a conta fora de quota. Roteiro:
   `holds_incomplete`, hold do chamador + registro volátil, `adprot` durável,
   `adsub`/`submitted` no inventário, preexistente, `dropReady`/`dropUncached`,
   fila com backoff/segunda rodada, quota/auth, `Retry-After`, gate por conta e
-  a rota com `holdsComplete`/`knownBefore` no corpo.
+  a rota com `holdsComplete`/`knownBefore` no corpo. Inclui o kill-switch/TTL
+  do `adrm` (`DEBRID_REUPLOAD_BLOCK`/`ALLDEBRID_REUPLOAD_BLOCK_TTL_MS`: flag
+  OFF ou TTL 0 ⇒ `blocked_hashes` vazio) e o aviso único de `cache.db`
+  ausente (fail-open preservado).
+- `cargo test -p adom-debrid --lib` (`adrm`) — hash bloqueado não vai ao
+  `/magnet/upload`, não tenta upload e aparece em `report.blocked`, com
+  `known`/`complete` intactos; `outcome_json` sempre emite `blocked` (vazio
+  inclusive).
 - `cargo test -p adom-debrid --lib` (holds) — parsing estrito da rota
   (`account`/`evaluated`/`holdsComplete` obrigatórios, corpo antigo recusado),
   `covers` fail-closed (lote/casing/hash vazio/conta), cliente (token no
@@ -215,6 +233,10 @@ real com a conta fora de quota. Roteiro:
   `:-on`, `off` como kill-switch), `GATEWAY`/`ROUTES_RUST` literais, override de
   diagnóstico sem flag nenhuma, `/stream` aposentado (503/410) e `/resolve`
   recusando hash malformado com 400.
+- `test/debrid-rust-remote.test.ts` (Node) — escape do `adrm` no caminho
+  nativo: outcome `{cached:[], blocked:[h], complete:true}` com memo `dinv`
+  frio não inventa ⚡ e mantém a marca; com o hash PRONTO no memo ele entra no
+  `cached` e a marca é expurgada (só para o hash provado).
 - Captura congelada (`rust/golden/stream-e2e/inputs/debrid.json`): o corpus
   commitado já tem o veredito por hash. A rota Node que o gerava não existe
   mais (R3); recapturar do zero exigiria uma fonte equivalente, e o replay não

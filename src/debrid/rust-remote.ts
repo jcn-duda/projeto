@@ -22,6 +22,7 @@ import {
 } from './common.js';
 import { alldebridLinkFacts } from './rust-link-facts.js';
 import { alldebridCheckFacts } from './alldebrid-cleanup-facts.js';
+import { adoptBlockedReady } from './rust-check-blocked.js';
 import { takeResolveEffect, type RustResolveEffect } from './rust-resolve-apply.js';
 import { applyPlayEffects } from './rust-play-effects.js';
 import { pullNativeMetrics } from '../utils/native-metrics.js';
@@ -312,7 +313,13 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
       fileWaitTimeoutMs: checkOpts?.fileWaitTimeoutMs,
       ...(facts ?? {}),
     });
-    if (remote.ok) return asCheck(remote.json);
+    if (remote.ok) {
+      const result = asCheck(remote.json);
+      // ⚡ que o filtro nativo escondeu: só com prova de PRONTO no inventário da
+      // conta o hash volta ao `cached` e a marca `adrm` é expurgada.
+      adoptBlockedReady(adapter.id, apiKey, remote.json, result.cached);
+      return result;
+    }
     // 501 = ainda não portado: o TS é a implementação, não uma segunda pergunta.
     if (remote.status === 501) return adapter.checkCached(apiKey, hashes, checkOpts);
     const kind = playKind(remote);

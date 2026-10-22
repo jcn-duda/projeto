@@ -329,20 +329,36 @@ async fn lote_quebrado_nao_derruba_o_hit_do_outro_e_todos_quebrados_e_erro() {
 }
 
 #[tokio::test]
-async fn bloqueado_nao_e_enviado_e_nao_tenta_upload() {
+async fn bloqueado_nao_e_enviado_e_o_resto_sobe() {
     let (ad, scene) = open_scene(Behavior::AllReady, Duration::ZERO).await;
     let opts = super::CheckOpts {
         blocked: HashSet::from([hash_of('a')]),
         ..opts(25, 1_000)
     };
-    let report = ad
+    // Lote 100% bloqueado: nada sobe e o vazio conhecido continua verdadeiro.
+    let sozinho = ad
         .check_cached_report(API_KEY, &[hash_of('a')], &opts)
         .await
         .unwrap();
-    assert!(report.cached.is_empty());
-    assert!(report.complete, "vazio conhecido, não 'não sei'");
-    assert!(!report.attempted);
+    assert!(sozinho.cached.is_empty());
+    assert_eq!(sozinho.blocked, vec![hash_of('a')]);
+    assert!(sozinho.complete, "vazio conhecido, não 'não sei'");
+    assert!(!sozinho.attempted);
     assert!(upload_hits(&scene).is_empty());
+
+    // Misturado: só o não bloqueado vai ao `/magnet/upload`; o filtrado volta no
+    // relatório para o escape do Node (prova de pronto no inventário).
+    let misto = ad
+        .check_cached_report(API_KEY, &[hash_of('a'), hash_of('b')], &opts)
+        .await
+        .unwrap();
+    assert_eq!(misto.cached, vec![hash_of('b')]);
+    assert_eq!(misto.blocked, vec![hash_of('a')]);
+    assert!(misto.complete);
+    assert!(misto.attempted);
+    let uploads = upload_hits(&scene);
+    assert_eq!(uploads.len(), 1);
+    assert_eq!(uploads[0].hashes, vec![hash_of('b')], "bloqueado não sobe");
 }
 
 #[tokio::test]
