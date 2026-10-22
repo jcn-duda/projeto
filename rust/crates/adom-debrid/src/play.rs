@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use adom_core::PlayHint;
 
-use crate::alldebrid::{AllDebrid, PlayFile, ResolveOpts};
+use crate::alldebrid::{AllDebrid, PlayError, PlayFile, ResolveOpts};
 use crate::debridlink::DebridLink;
 use crate::error::DebridError;
 use crate::http::HttpClient;
@@ -73,6 +73,24 @@ pub async fn resolve_with_wait(
     client: HttpClient,
     poll_wait: Duration,
 ) -> Result<PlayOutcome, DebridError> {
+    resolve_held(service, api_key, info_hash, hint, client, poll_wait, true)
+        .await
+        .map_err(|failure| failure.error)
+}
+
+/// Dispatch completo do `/resolve` nativo: `held` é o fato do Node (o hold do
+/// autofetch; só a AllDebrid o usa para decidir se apaga o frio) e a falha
+/// leva os `files` que o adaptador já leu — a prova de áudio da dublagem falsa
+/// o Node grava mesmo com o play recusado.
+pub async fn resolve_held(
+    service: &str,
+    api_key: &str,
+    info_hash: &str,
+    hint: &PlayHint,
+    client: HttpClient,
+    poll_wait: Duration,
+    held: bool,
+) -> Result<PlayOutcome, PlayError> {
     match service {
         "premiumize" => {
             let url = Premiumize::new(client)
@@ -99,18 +117,17 @@ pub async fn resolve_with_wait(
             Ok(PlayOutcome::from_url(url))
         }
         "alldebrid" => {
-            // O hold volátil do autofetch mora no Node; sem ele, `held: true`
-            // é o lado seguro (não apaga o download de ninguém). O frio só é
-            // removido com `DEBRID_DROP_UNCACHED` ligado, como no TS.
+            // O hold volátil do autofetch mora no Node; sem o fato, `held:
+            // true` é o lado seguro (não apaga o download de ninguém). O frio
+            // só é removido com `DEBRID_DROP_UNCACHED` ligado, como no TS.
             let opts = ResolveOpts {
                 poll_wait,
                 drop_uncached: drop_uncached_env(),
-                held: true,
+                held,
             };
             let played = AllDebrid::new(client)
                 .resolve_link(api_key, info_hash, hint, &opts)
-                .await
-                .map_err(|failure| failure.error)?;
+                .await?;
             Ok(PlayOutcome {
                 url: played.url,
                 unavailable: played.unavailable,

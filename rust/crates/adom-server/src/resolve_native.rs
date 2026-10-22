@@ -10,14 +10,17 @@
 //! `null` do `current()` e responde 404 "ainda baixando" — a rota nativa copia
 //! isso em vez de inventar 500.
 //!
-//! Efeitos L1 (`magnetdb`, `davail`, invalidação do `streams.db`, ledger do RD)
-//! continuam no Node: esta rota só responde o play. Ver o relatório da F4.
+//! Os efeitos do play (`magnetdb`, `davail`, prova de arquivo, índice, ledger
+//! do RD e a invalidação das listas) moram no Node: a rota os manda pela ponte
+//! (`resolve_bridge`, `/internal/resolve/*`). No erro ela espera a gravação
+//! antes de responder; no sucesso o 302 sai na hora.
 
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
 use adom_core::{decode_config, PlayHint, WorkHint};
+use adom_debrid::alldebrid::PlayError;
 use adom_debrid::play::{self, PlayOutcome};
 use adom_debrid::resolve_effects::resolve_effect;
 use adom_debrid::{DebridError, HttpClient};
@@ -28,7 +31,13 @@ use http::header::{CONTENT_TYPE, LOCATION};
 use http::{HeaderValue, Response, StatusCode};
 use serde_json::Value;
 
-/// Resolve o play; trait para o teste da rota não tocar debrid.
+use crate::resolve_bridge::{error_payload, ok_payload, EffectTarget, PlayBridge};
+use crate::resolve_hint::{ep_parts, hint_imdb, parse_hint_json};
+
+pub type PlayFuture<'a> = Pin<Box<dyn Future<Output = Result<PlayOutcome, PlayError>> + Send + 'a>>;
+
+/// Resolve o play; trait para o teste da rota não tocar debrid. `held` é o
+/// hold do autofetch (só a AllDebrid o lê para decidir se apaga o frio).
 pub trait PlayResolver: Send + Sync {
     fn resolve<'a>(
         &'a self,
@@ -36,7 +45,8 @@ pub trait PlayResolver: Send + Sync {
         api_key: &'a str,
         info_hash: &'a str,
         hint: &'a PlayHint,
-    ) -> Pin<Box<dyn Future<Output = Result<PlayOutcome, DebridError>> + Send + 'a>>;
+        held: bool,
+    ) -> PlayFuture<'a>;
 }
 
 /// Implementação real: `adom_debrid::play` com a espera de produção.
@@ -65,12 +75,22 @@ impl PlayResolver for DebridPlay {
         api_key: &'a str,
         info_hash: &'a str,
         hint: &'a PlayHint,
-    ) -> Pin<Box<dyn Future<Output = Result<PlayOutcome, DebridError>> + Send + 'a>> {
+        held: bool,
+    ) -> PlayFuture<'a> {
         Box::pin(async move {
             let Some(client) = self.client.clone() else {
-                return Err(DebridError::other("cliente http indisponivel"));
+                return Err(DebridError::other("cliente http indisponivel").into());
             };
-            play::resolve(service, api_key, info_hash, hint, client).await
+            play::resolve_held(
+                service,
+                api_key,
+                info_hash,
+                hint,
+                client,
+                play::POLL_WAIT,
+                held,
+            )
+            .await
         })
     }
 }
@@ -87,7 +107,8 @@ impl PlayResolver for NoopResolver {
         _api_key: &'a str,
         _info_hash: &'a str,
         _hint: &'a PlayHint,
-    ) -> Pin<Box<dyn Future<Output = Result<PlayOutcome, DebridError>> + Send + 'a>> {
+        _held: bool,
+    ) -> PlayFuture<'a> {
         Box::pin(async { Ok(PlayOutcome::default()) })
     }
 }
@@ -119,6 +140,7 @@ impl DebridConfig {
 pub struct NativeContext {
     pub resolve_secret: String,
     pub resolver: Arc<dyn PlayResolver>,
+    pub bridge: Arc<dyn PlayBridge>,
 }
 
 /// Defaults do operador: a instalação sem config herda `DEBRID_SERVICE`/`_KEY`.
@@ -202,21 +224,48 @@ pub async fn handle(path: &str, query: Option<&str>, ctx: &NativeContext) -> Res
         ResolveVerify::Forbidden | ResolveVerify::Unsigned => return forbidden(),
     }
     let hint = play_hint(&play);
+    let encoded = play.encoded.clone().unwrap_or_default();
+    let held = config.service != "alldebrid" || ctx.bridge.held(&encoded, &play.info_hash).await;
+    let imdb = hint_imdb(&play.hint);
+    let target = EffectTarget {
+        encoded: &encoded,
+        service: &config.service,
+        hash: &play.info_hash,
+        imdb: &imdb,
+        season: hint.season,
+        episode: hint.episode,
+    };
     match ctx
         .resolver
-        .resolve(&config.service, &config.api_key, &play.info_hash, &hint)
+        .resolve(
+            &config.service,
+            &config.api_key,
+            &play.info_hash,
+            &hint,
+            held,
+        )
         .await
     {
-        Ok(outcome) => match outcome.url {
-            Some(url) => redirect(&url),
-            None => still_downloading(),
-        },
-        Err(err) => error_response(&config.service, &play.info_hash, &err),
+        Ok(outcome) => {
+            // O 302 não espera a gravação (vivo/arquivos não mudam a lista).
+            let payload = ok_payload(&target, &outcome);
+            let bridge = ctx.bridge.clone();
+            tokio::spawn(async move { bridge.apply(payload).await });
+            match outcome.url {
+                Some(url) => redirect(&url),
+                None => still_downloading(),
+            }
+        }
+        Err(failure) => {
+            let effect = resolve_effect(&config.service, &failure.error);
+            if let Some(payload) = error_payload(&target, &effect, failure.files.as_deref()) {
+                ctx.bridge.apply(payload).await;
+            }
+            error_response(&effect, &play.info_hash, &failure.error)
+        }
     }
 }
 
-/// `?s=<S>&e=<E>` (só existe quando os dois vieram). Números inválidos viram
-/// `None`, como o `Number(x)` com `NaN` não casa o seletor.
 fn play_hint(play: &ResolvePlay) -> PlayHint {
     let (season, episode) = ep_parts(&play.ep);
     let (names, year, pack, dubbed) = parse_hint_json(&play.hint);
@@ -226,62 +275,6 @@ fn play_hint(play: &ResolvePlay) -> PlayHint {
         episode,
         work,
         dubbed,
-    }
-}
-
-fn ep_parts(ep: &str) -> (Option<i64>, Option<i64>) {
-    let Some(rest) = ep.strip_prefix("?s=") else {
-        return (None, None);
-    };
-    let Some((season, episode)) = rest.split_once("&e=") else {
-        return (None, None);
-    };
-    (season.parse().ok(), episode.parse().ok())
-}
-
-/// Dica `w` do build: `{n:[...], y:ano, p:1, d:1}` — nomes limitados a 4, como
-/// o `.slice(0, 4)` do Node.
-fn parse_hint_json(raw: &str) -> (Vec<String>, Option<i64>, bool, bool) {
-    if raw.is_empty() {
-        return (Vec::new(), None, false, false);
-    }
-    let Ok(Value::Object(map)) = serde_json::from_str::<Value>(raw) else {
-        return (Vec::new(), None, false, false);
-    };
-    let names = map
-        .get("n")
-        .and_then(Value::as_array)
-        .map(|list| {
-            list.iter()
-                .take(4)
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default();
-    let year = map.get("y").and_then(json_i64).filter(|year| *year != 0);
-    let pack = is_one(map.get("p"));
-    let dubbed = is_one(map.get("d"));
-    (names, year, pack, dubbed)
-}
-
-fn is_one(value: Option<&Value>) -> bool {
-    // `parsed.p === 1` / `parsed.d === 1` no TS: comparação ESTRITA. A dica é
-    // gerada pelo build com número 1; string `"1"` não liga (e um hint forjado
-    // assinado pelo próprio usuário não pode divergir do Node).
-    match value {
-        Some(Value::Number(number)) => number.as_i64() == Some(1) || number.as_f64() == Some(1.0),
-        _ => false,
-    }
-}
-
-fn json_i64(value: &Value) -> Option<i64> {
-    match value {
-        Value::Number(number) => number
-            .as_i64()
-            .or_else(|| number.as_f64().filter(|n| n.is_finite()).map(|n| n as i64)),
-        Value::String(text) => text.trim().parse().ok(),
-        _ => None,
     }
 }
 
@@ -326,8 +319,7 @@ fn still_downloading() -> Response<Body> {
 }
 
 /// Mesmo status/texto do `routes/resolve.ts`; `resolve_effect` é a régua única.
-fn error_response(service: &str, info_hash: &str, err: &DebridError) -> Response<Body> {
-    let effect = resolve_effect(service, err);
+fn error_response(effect: &Value, info_hash: &str, err: &DebridError) -> Response<Body> {
     let status = effect
         .get("status")
         .and_then(Value::as_u64)
@@ -364,32 +356,6 @@ mod tests {
         assert!(!allow_env_key_from(Some("1")));
         assert!(!allow_env_key_from(Some("false")));
         assert!(!allow_env_key_from(Some("TRUE")));
-    }
-
-    #[test]
-    fn hint_w_estrito_como_o_node() {
-        let (names, year, pack, dubbed) =
-            parse_hint_json(r#"{"n":["Filme"],"y":2024,"p":1,"d":1}"#);
-        assert_eq!(names, vec!["Filme"]);
-        assert_eq!(year, Some(2024));
-        assert!(pack);
-        assert!(dubbed);
-        // `"1"` string não liga `p`/`d` (o TS compara `=== 1`).
-        let (_, _, pack, dubbed) = parse_hint_json(r#"{"n":["Filme"],"p":"1","d":"1"}"#);
-        assert!(!pack);
-        assert!(!dubbed);
-        // Dica ilegível é ausente, nunca erro de rota.
-        assert_eq!(
-            parse_hint_json("não-json"),
-            (Vec::new(), None, false, false)
-        );
-    }
-
-    #[test]
-    fn s_e_so_existem_juntos() {
-        assert_eq!(ep_parts("?s=2&e=5"), (Some(2), Some(5)));
-        assert_eq!(ep_parts(""), (None, None));
-        assert_eq!(ep_parts("?s=abc&e=5"), (None, Some(5)));
     }
 
     #[test]

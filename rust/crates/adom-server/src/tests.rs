@@ -1,6 +1,4 @@
-use std::future::Future;
 use std::net::SocketAddr;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -84,6 +82,7 @@ pub(super) fn gateway_state(upstream: SocketAddr, native_health: bool) -> AppSta
         resolve_proxy: true,
         resolve_secret: String::new(),
         resolver: Arc::new(crate::resolve_native::NoopResolver),
+        bridge: Arc::new(crate::resolve_bridge::NoBridge),
         orchestrator: None,
     }
 }
@@ -108,6 +107,7 @@ pub(super) fn gateway_state_native(upstream: SocketAddr, orch: Orchestrator) -> 
         resolve_proxy: true,
         resolve_secret: String::new(),
         resolver: Arc::new(crate::resolve_native::NoopResolver),
+        bridge: Arc::new(crate::resolve_bridge::NoBridge),
         orchestrator: Some(orch),
     }
 }
@@ -127,6 +127,7 @@ pub(super) fn gateway_state_resolve(
         resolve_proxy: proxy_enabled,
         resolve_secret: secret.to_string(),
         resolver: Arc::new(crate::resolve_native::NoopResolver),
+        bridge: Arc::new(crate::resolve_bridge::NoBridge),
         orchestrator: None,
     }
 }
@@ -215,13 +216,14 @@ impl crate::resolve_native::PlayResolver for StubResolver {
         api_key: &'a str,
         _info_hash: &'a str,
         hint: &'a PlayHint,
-    ) -> Pin<Box<dyn Future<Output = Result<PlayOutcome, DebridError>> + Send + 'a>> {
+        _held: bool,
+    ) -> crate::resolve_native::PlayFuture<'a> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.seen
             .lock()
             .unwrap()
             .push((service.to_string(), api_key.to_string(), hint.clone()));
-        let outcome = self.outcome.clone();
+        let outcome = self.outcome.clone().map_err(Into::into);
         Box::pin(async move { outcome })
     }
 }

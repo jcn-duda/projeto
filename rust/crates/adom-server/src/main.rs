@@ -1,6 +1,8 @@
 mod config;
 mod proxy;
 mod resolve;
+mod resolve_bridge;
+mod resolve_hint;
 mod resolve_native;
 mod store_admin;
 mod stream;

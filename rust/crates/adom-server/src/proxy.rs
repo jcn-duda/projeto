@@ -24,6 +24,7 @@ use adom_search::orchestrator::Orchestrator;
 
 use crate::config::Config;
 use crate::resolve::{self, GateDecision};
+use crate::resolve_bridge::PlayBridge;
 use crate::resolve_native::{self, NativeContext, PlayResolver};
 use crate::stream;
 
@@ -46,6 +47,8 @@ pub struct AppState {
     pub resolve_secret: String,
     /// Resolvedor do play nativo; teste injeta stub sem rede.
     pub resolver: Arc<dyn PlayResolver>,
+    /// Ponte dos efeitos/fatos do play com o Node (`/internal/resolve/*`).
+    pub bridge: Arc<dyn PlayBridge>,
     /// Store SWR + deps compartilhados entre requisições. `None` com a flag
     /// desligada (ou teste sem corte).
     pub orchestrator: Option<Orchestrator>,
@@ -108,6 +111,11 @@ pub async fn run(config: Config) -> Result<(), String> {
         resolve_proxy,
         resolve_secret: config.resolve_secret,
         resolver: Arc::new(resolve_native::DebridPlay::new()),
+        bridge: if resolve_rust {
+            crate::resolve_bridge::from_env()
+        } else {
+            Arc::new(crate::resolve_bridge::NoBridge)
+        },
         orchestrator,
     };
     let listener = tokio::net::TcpListener::bind(listen)
@@ -184,6 +192,7 @@ async fn dispatch(State(state): State<AppState>, req: Request<Body>) -> Response
         let ctx = NativeContext {
             resolve_secret: state.resolve_secret.clone(),
             resolver: state.resolver.clone(),
+            bridge: state.bridge.clone(),
         };
         // Path/query viram donos: o `Request` não fica vivo através do await
         // (o body não é `Sync` e o handler precisa de future `Send`).

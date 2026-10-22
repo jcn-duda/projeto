@@ -70,6 +70,23 @@ export function takeResolveEffect(value: unknown): RustResolveEffect | undefined
   };
 }
 
+/**
+ * Efeito PLANO de `adom_debrid::resolve_effects::resolve_effect`
+ * (`{mark, unprotect, invalidate, index, noteBlocked}`), o que o `/resolve`
+ * nativo do gateway manda para a rota interna. Passa pela mesma validação do
+ * formato aninhado: campo desconhecido devolve `undefined`.
+ */
+export function effectFromRustJson(value: unknown): RustResolveEffect | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const flat = value as { mark?: unknown; unprotect?: unknown; invalidate?: unknown; index?: unknown; noteBlocked?: unknown };
+  return takeResolveEffect({
+    magnet: { mark: flat.mark ?? null, unprotect: flat.unprotect },
+    cache: { invalidate: flat.invalidate },
+    index: { index: flat.index ?? null },
+    noteBlocked: flat.noteBlocked,
+  });
+}
+
 function evidenceOf(err: unknown): { declaredEpisodes?: unknown } | undefined {
   if (!err || typeof err !== 'object' || !('evidence' in err)) return undefined;
   const evidence = (err as { evidence?: unknown }).evidence;

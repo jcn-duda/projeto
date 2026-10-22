@@ -125,8 +125,9 @@ npm run docker:up / docker:logs
   `/stream-trace.json` exigem `X-Indexer-Test-Token` (só no header; sem
   `JACKETT_TEST_TOKEN` no `.env` ficam 503). Ação destrutiva exige
   `{"confirm": true}`. Painel operacional: `/painel` (10 abas).
-  **`/internal/*`** (meta e effects da busca, debrid/holds do feed in-process e
-  as rotas do sidecar: crawl-result e activity) só existe em loopback + token; a
+  **`/internal/*`** (meta e effects da busca, debrid/holds do feed in-process,
+  resolve/facts e resolve/effects do play nativo e as rotas do sidecar:
+  crawl-result e activity) só existe em loopback + token; a
   fachada Rust recusa `/internal/*` antes do proxy (o Caddy também bloqueia). A
   guarda de loopback do Node **não** distingue o cliente atrás do proxy — a
   recusa tem que estar na fachada. **O corte nativo é FIXO**: o
@@ -180,7 +181,10 @@ Gateway sem NENHUMA fonte nativa montada é **erro de boot**. O Node fora desse
 caminho: `POST /internal/search/meta` (fallback), `/internal/search/effects`,
 `/internal/debrid/holds`, as rotas do sidecar (`/internal/crawl-result`,
 `/internal/activity`), `/resolve` (HMAC + debrid; o nativo existe atrás de
-`RESOLVE_RUST`, default OFF), painel/config,
+`RESOLVE_RUST`, default OFF — com ele o gateway resolve o play e o Node só
+GRAVA os efeitos por `/internal/resolve/effects`, esperados antes da resposta
+de erro; o hold da AllDebrid vem de `/internal/resolve/facts`, e sem resposta o
+play não apaga o frio), painel/config,
 autofetch/colhedor/raspador (workers próprios). As rotas
 `/internal/search/state|config|collect|index|index-write|fallback` e
 `/internal/debrid/check` **não existem mais**.

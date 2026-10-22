@@ -351,6 +351,7 @@
     "test/internal-crawl-routes.test.js",
     "test/internal-search-autofetch-batch.test.js",
     "test/internal-search-effects.test.js",
+    "test/internal-resolve.test.js",
     "test/internal-search-routes.test.js",
     "test/jackett-breaker.test.js",
     "test/jackett-catalog.test.js",
