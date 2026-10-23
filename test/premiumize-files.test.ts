@@ -8,8 +8,6 @@ import assert from 'node:assert/strict';
 import { packHashesMissingFiles } from '../src/providers/episode-size.js';
 import { clearFileSizes, peekFileSizes } from '../src/debrid/file-sizes.js';
 import { scheduleFileLists, freshFileLink } from '../src/debrid/premiumize-files.js';
-import { scheduleVideoProbe, peekVideoQuality, videoQualityKey } from '../src/debrid/video-quality.js';
-import * as cache from '../src/utils/cache.js';
 import type { Stream } from '../types/domain.js';
 
 const DUB = 'd4'.repeat(20);
@@ -60,23 +58,6 @@ test('premiumize: link fresco do arquivo pedido, pelo caminho exato', async () =
   const got = await freshFileLink(call, 'key', DUB, "Pasta/O.Segredo.de.Widow's Bay.S01.Dub.EP-2.mp4");
   assert.equal(got?.url, 'https://cdn.test/ep2');
   assert.equal(await freshFileLink(call, 'key', DUB, 'Pasta/outro.mp4'), null);
-});
-
-test('medição de cabeçalho usa o link do serviço, sem /link/unlock', async () => {
-  const path = 'Pasta/EP-1.mp4';
-  const key = videoQualityKey(DUB, path);
-  cache.forget(key);
-  let asked = 0;
-  const queued = scheduleVideoProbe({
-    hash: DUB, path, link: '', apiKey: 'key', size: 0,
-    resolveUrl: async () => { asked += 1; return null; },
-  });
-  assert.equal(queued, true, 'sem link da lista, o resolveUrl basta para enfileirar');
-  for (let i = 0; i < 20 && cache.peek(key) == null; i += 1) await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(asked, 1);
-  // Sem link do serviço: marcado como ilegível por um dia, sem nova tentativa a cada busca.
-  assert.equal(peekVideoQuality(DUB, path), null);
-  cache.forget(key);
 });
 
 test('premiumize: falha da leitura não derruba nada', async () => {

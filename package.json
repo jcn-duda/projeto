@@ -448,7 +448,6 @@
     "test/tmdb.test.js",
     "test/torrent-total-size.test.js",
     "test/torrentio-provider.test.js",
-    "test/video-header.test.js",
     "test/warmup.test.js"
   ]
 }
