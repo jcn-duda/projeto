@@ -260,8 +260,3 @@ export function maybeEvictFallbacks(input: EvictFallbackInput): Promise<void> {
     }
   });
 }
-
-/** Estado volátil para diagnóstico/testes; nunca expõe obra nem conta cruas. */
-export function evictInFlightCount(): number {
-  return inFlight.size;
-}

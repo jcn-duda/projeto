@@ -4,8 +4,8 @@ import * as metrics from '../src/utils/metrics.js';
 import {
   firstObserverStep, createFirstObserver,
   firstObserverClaim, promoteFirstObserverEligible,
-} from '../src/providers/index.js';
-import { stageFirstTiming } from '../src/providers/first-observer.js';
+} from './helpers/pipeline-oracle/index.js';
+import { stageFirstTiming } from './helpers/pipeline-oracle/first-observer.js';
 import { limitReservingBr } from './helpers/pipeline-oracle/format.js';
 
 test('limitReservingBr observa os BR selecionados ANTES de limpar os campos internos', () => {

@@ -22,6 +22,8 @@ testes e do harness adversarial (MUT-09 branding, MUT-10 `resolveUncached`).
   correspondente no `src/` virou `debrid-apply-types.ts` por causa do rename).
 - `debrid-check-frozen.ts` = cópia de `src/providers/debrid-check-frozen.ts`
   (removido do `src/` no F4.4; só o `applyDebrid` o consumia).
+- `first-observer.ts` = cópia de `src/providers/first-observer.ts` (removido do
+  `src/` depois do F4.4: só o `applyDebrid` do oráculo e os testes o usavam).
 - `index.ts` = barrel da superfície pública do oráculo.
 
 O corpo das funções é idêntico ao original (mesma ordem de ramos, mesmos

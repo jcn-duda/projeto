@@ -4,7 +4,7 @@
 // rust). O F4.4 remove `debrid-pipeline*`; o oráculo dos testes não pode
 // depender desse arquivo. Os dois `import type` apontam para módulos que
 // sobrevivem ao corte (observabilidade e trace), e são apagados em runtime.
-import type { FirstObserverState } from '../../../src/providers/first-observer.js';
+import type { FirstObserverState } from './first-observer.js';
 import type { StreamTraceState } from '../../../src/utils/stream-trace.js';
 
 type WorkHintInput = { n: string[]; y: number | null } | null;

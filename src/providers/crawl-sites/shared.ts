@@ -111,17 +111,6 @@ export function withRequestCost(err: unknown, cost: number): Error {
   return e;
 }
 
-/**
- * Comentário HTML fora com a semântica do navegador: `<!--` sem fecho engole o
- * resto do documento. É a régua do CONTEÚDO da obra (tipo, IMDb, magnets) —
- * marcação comentada não é a página que o visitante vê. A contagem de cards da
- * listagem NÃO usa esta: lá um `<!--` órfão encolheria a contagem e forjaria
- * "fim de acervo" (ver `hdrtorrents-discovery.ts`).
- */
-export function stripHtmlComments(html: string | null | undefined): string {
-  return String(html || '').replace(/<!--[\s\S]*?(?:-->|$)/g, ' ');
-}
-
 const IMDB_WIDGET_PATH_RE = /\/(?:ref_|list|listicle)(?:[/?]|$)/i;
 
 /**

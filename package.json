@@ -305,8 +305,6 @@
     "test/episode-size-meta-update.test.js",
     "test/episode-size.test.js",
     "test/esm-cache-tests-guard.test.js",
-    "test/fallback-chupim-bank-dub.test.js",
-    "test/fallback-chupim-fetchable.test.js",
     "test/format-audio-quality.test.js",
     "test/format-episode.test.js",
     "test/format-filter-movie.test.js",

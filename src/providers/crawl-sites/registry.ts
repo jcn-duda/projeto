@@ -110,11 +110,6 @@ export function adapterIds(): string[] {
   return SITE_TABLE.filter(hasAdapter).map((entry) => entry.id);
 }
 
-/** Entrada da tabela de um id; `null` quando o id nem existe na tabela. */
-export function tableEntry(siteId: string): SiteEntry | null {
-  return TABLE.get(String(siteId || '')) ?? null;
-}
-
 /**
  * Foto do site para o status do painel: rótulo e se HÁ adaptador nesta rodada.
  * Id fora da tabela devolve `known: false` — o operador vê "site desconhecido"
@@ -142,14 +137,6 @@ export function setFactoryForTest(factory: ((id: string) => CrawlSite | null) | 
 /** Site ativo memoizado (o status do painel o usa como "site ativo"). */
 export function active(): { site: CrawlSite | null; id: string } {
   return { site: activeSite, id: activeSiteId };
-}
-
-/** Esquece o memo (reset de teste). */
-export function forgetAll(): void {
-  memo.clear();
-  warned.clear();
-  activeSite = null;
-  activeSiteId = '';
 }
 
 /** True quando o objeto tem o par de métodos que o motor consome. */
@@ -231,5 +218,3 @@ export async function ensureSite(siteId: string): Promise<CrawlSite | null> {
   }
 }
 
-/** Compat com o nome antigo (o motor consome `ensureSite`). */
-export const ensureActiveSite = ensureSite;

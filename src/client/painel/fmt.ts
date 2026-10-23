@@ -34,8 +34,3 @@ export function formatAgeFromTimestamp(ts: number | null | undefined): string {
   const elapsed = Math.max(0, Date.now() - ms);
   return formatDurationMs(elapsed);
 }
-
-export function formatPercent(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '—';
-  return `${Math.round(value)}%`;
-}

@@ -684,7 +684,8 @@ TorBox, Premiumize, Debrid-Link) seguem usando ela no `resolveLink`/`enqueue`. A
   `passed_filter` da busca no stream-builder — é o filtro de TÍTULO, não o de
   episódio.
 
-**Fallback do acervo (Etapa 4).** `live-indexer-state.ts` acompanha o
+**Fallback do acervo (Etapa 4).** (Registro histórico: desde o F4.4 a
+reserva é do orquestrador Rust e o TS abaixo saiu do `src/`.) `live-indexer-state.ts` acompanha o
 `onQueryResult` das consultas PRINCIPAIS do Jackett (a varredura pt-BR e o
 caminho de fundo ficam de fora, de propósito): `error`/`breaker`/`source` marcam
 o indexer como falho e **pendente NO PRAZO também conta como falho**; quando a
@@ -706,7 +707,8 @@ palpite do site; qualquer resposta com item relevante na mesma coleta desfaz a
 suspeita, e a foto instantânea de indexer suspeito segue 📦. Métrica
 `fallback.items.suspectEmpty`.
 
-`collectFallbackForBuild` (chamado no `finish` do `search-orchestrator`) só
+`collectFallbackForBuild` (chamado no `finish` do `search-orchestrator`; o TS
+saiu do `src/` depois do F4.4, a reserva é do orquestrador Rust) só
 consulta o banco quando o estado vivo aponta falha ou vazio suspeito. Em filme alvo é a obra raiz;
 em série são até três alvos — o episódio pedido, o pack da temporada e a série
 completa —, a mesma cobertura que o `release-work.ts` gravou. A leitura filtra
@@ -3046,14 +3048,13 @@ fire-and-forget) continua.
 | `src/utils/magnet-bank.ts` | Fachada do banco VIVO (clone permanente do Jackett): `captureItems`/`markFilterResult`, fila assíncrona, `lookup`/`findByWork`/`findByIndexer`, `status()` memoizado por `MAGNET_BANK_STATUS_TTL_MS`, `openIfEnabled`/`close` (flush+checkpoint) e `inspectHash` |
 | `src/utils/magnet-bank-rows.ts` / `magnet-bank-schema.ts` | Linhas e engines (`sqliteEngine` lazy via `createRequire`, WAL; `memoryEngine` em `magnet-bank-memory.ts`) + tipos/codec (`render*`/`parse*`). Extraídos de `magnet-bank.ts` pela catraca de 400 linhas |
 | `src/utils/magnet-bank-merge.ts` | Regras PURAS do banco: `hashOf`, `inputFromItem`, `mergeMagnet`/`mergeSource`/`mergeWork`, `workTuple`, `parseSeeders`, `isRicherUri` |
-| `src/utils/magnet-bank-query.ts` / `magnet-bank-search.ts` | Consultas em LOTE do fallback (`worksForObraMany`/`sourcesForMany`, sem N+1) e busca READ-ONLY do painel (hash/título/recentes, allowlist de campos, teto 100) |
+| `src/utils/magnet-bank-query.ts` / `magnet-bank-search.ts` | Consultas em LOTE por obra (`obraTargets`/`worksForObraMany`/`bankHasBrRow`, sem N+1; a sonda do autofetch) e busca READ-ONLY do painel (hash/título/recentes, allowlist de campos, teto 100) |
 | `src/utils/magnet-bank-lie.ts` | Lie GLOBAL (união de `mag:v1:lie:` de qualquer conta) que promove `lied` no merge do banco |
 | `src/utils/magnet-uri.ts` | Regras puras da URI do post: `sanitizeMagnet` (valida `xt=urn:btih:`, remove credencial, teto de 2048 B, piso de `TRACKERS`, devolve `null` se equivale ao padrão) e `defaultMagnet`; alimenta o banco, não mais o cache |
 | `src/utils/release-work.ts` | `releaseWorkTargets`: em quais obras (pedido + pack/série declarada) uma release é recuperável — mesma régua do `destinoDe` do índice |
 | `src/utils/metric-id.ts` | `safeMetricId`/`indexerFallbackMetricKey`: fonte única da chave `fallback.indexer.<id>` entre produtor e painel |
-| `src/providers/live-indexer-state.ts` | Estado vivo de falha por indexer da coleta (`error`/`breaker`/`source`, `pending` conta como falho, `*all*` agregado) e `mergeLiveIndexerStates` |
+| `src/providers/live-indexer-state.ts` | Só as constantes `ALL_QUERY_INDEXER` (`*all*`) e `SAFE_INDEXER_ID`; o estado vivo de falha por coleta saiu com o fallback TS (é do orquestrador Rust) |
 | `src/providers/magnet-bank-hook.ts` | Ponte stream-builder → banco: hashes não-conta/não-fallback e `targetsFor` escrevem o `passed_filter` da obra |
-| `src/providers/magnet-bank-fallback.ts` | Reserva da Etapa 4: seleção por indexer falho/`allFailed`, live-dedupe, tetos por indexer/global, selo `fromFallback` e métricas `fallback.*` |
 | `jackett-bludv/*.yml` | Definitions Cardigann dos indexers BR |
 | `resolvers/` | Núcleo comum dos resolvers (**TypeScript/ESM puro**, sem `package.json` na pasta). Config explícita: `env-config.ts` (monta a config por chamada; único ponto que lê env dos knobs do profile) e `shim-instance.ts` (Proxy lazy genérico dos shims). `is-main.ts` (helper import-safe de `import.meta.url` × `argv[1]`, com fallback Windows, que substitui `require.main === module`). Processo: `runtime.ts`, `site-selector.ts` (failover de host, knobs injetáveis), `cache.ts`, `http-server.ts`, `flare.ts` (defaults de env só como fallback de quem chama sem opções). Rede e segurança: `transport.ts` (`followProtectedUrl` — laço único para quem usa protetor), `protector.ts` (allowlist de host), `nested-url.ts`. Conteúdo: `text.ts`, `matching.ts`, `search-posts.ts`, `torznab.ts`, `concurrency.ts`, `release-rules.ts`, `release-format.ts`, `magnet-extract.ts`, `types.ts`. Perfis por site em `profiles/*.ts` (cada um exporta `createResolver`/`DEFAULTS`/`META`) |
 | `*-resolver/` | Shims de compatibilidade/standalone (**TypeScript/ESM**, sem `package.json` de override): `<nome>/server.ts` constrói uma instância lazy de `../resolvers/profiles/<nome>.js` (via `shim-instance.ts`) e a publica como `export default` (o shape que todos os consumidores já importavam); no modo processo-separado lê env explicitamente no ponto de entrada e sobe com `isMain(import.meta.url)`. Os `server.d.ts` foram removidos — a implementação TS é o contrato; `nerdfilmes-resolver/test.ts` e `torrentdosfilmes-resolver/smoke-test.ts` também são compilados pelo tsc |

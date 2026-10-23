@@ -291,13 +291,6 @@ export function noteBrProbePreempted(workInput: BrProbeWork): void {
   writePending(work);
 }
 
-/** Limpeza pontual (teste/painel): esquece o estado da obra. */
-export function clearBrProbe(workInput: BrProbeWork): void {
-  const work = normalize(workInput);
-  if (!work) return;
-  cache.forget(probeKey(work));
-}
-
 /**
  * Helper LIMITADO de teste: grava um registro cru. A chave é derivada da
  * identidade pública; nenhum caminho de produção usa isto.

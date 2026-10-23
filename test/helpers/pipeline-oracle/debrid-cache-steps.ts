@@ -10,7 +10,7 @@ import * as autofetch from '../../../src/providers/autofetch.js';
 import * as releaseIndex from '../../../src/utils/release-index.js';
 import * as log from '../../../src/utils/logger.js';
 import * as metrics from '../../../src/utils/metrics.js';
-import type { FirstObserverState } from '../../../src/providers/first-observer.js';
+import type { FirstObserverState } from './first-observer.js';
 import { dropTrace } from '../../../src/utils/stream-trace.js';
 import type { StreamTraceState } from '../../../src/utils/stream-trace.js';
 

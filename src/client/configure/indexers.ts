@@ -62,10 +62,6 @@ export function renderIndexerStatus(item: any): void {
   if (text) text.textContent = statusText(status);
 }
 
-export function renderIndexerStatuses(): void {
-  state.jackettIndexers.forEach(renderIndexerStatus);
-}
-
 export function setIndexerStatus(id: string, status: any): void {
   for (let i = 0; i < state.jackettIndexers.length; i++) {
     if (state.jackettIndexers[i].id === id) {

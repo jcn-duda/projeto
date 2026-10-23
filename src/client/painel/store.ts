@@ -79,12 +79,6 @@ export function setPainelToken(token: string): void {
   }
 }
 
-export function setPainelRefreshRate(refreshRateS: number): void {
-  state = { ...state, refreshRateS };
-  writeStored(REFRESH_KEY, String(refreshRateS));
-  notify();
-}
-
 export function setPainelLoading(loading: boolean): void {
   state = { ...state, loading };
   notify();

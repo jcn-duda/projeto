@@ -4,15 +4,11 @@
 // (painel, rotas internas do orquestrador Rust) ainda consomem:
 //
 // - `autofetchStatus`: snapshot do Chupim para o `/dashboard-status.json`;
-// - cobertura de pool: leitura pura usada por rotas internas e testes;
-// - observador da primeira resposta: tipo/helpers compartilhados com os
-//   módulos de debrid que ainda os consomem — a contagem em si é do núcleo.
+// - cobertura de índice (`idxPoolCovered`): leitura pura do colhedor e do
+//   br-gap. O observador da primeira resposta e o `poolCovered` saíram: o
+//   primeiro foi para o oráculo de teste, o segundo não tinha chamador.
 import { autofetchRunnerStatus } from './autofetch-runner.js';
-import {
-  firstObserverStep, createFirstObserver, firstObserverClaim, promoteFirstObserverEligible,
-} from './first-observer.js';
-import type { FirstObserverState } from './first-observer.js';
-import { idxPoolCovered, poolCovered } from './search-pool-coverage.js';
+import { idxPoolCovered } from './search-pool-coverage.js';
 
 /**
  * Snapshot local dos lotes; nunca devolve searchKey nem configuração do usuário.
@@ -24,8 +20,4 @@ function autofetchStatus() {
   return autofetchRunnerStatus();
 }
 
-export {
-  autofetchStatus, idxPoolCovered, poolCovered, firstObserverStep, createFirstObserver,
-  firstObserverClaim, promoteFirstObserverEligible,
-};
-export type { FirstObserverState };
+export { autofetchStatus, idxPoolCovered };

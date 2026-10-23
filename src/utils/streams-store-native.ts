@@ -139,23 +139,6 @@ export function invalidateNativeStreamsForObra(imdbId: string): void {
   );
 }
 
-/** Idem, por hash (item que o play provou quebrado). */
-export function invalidateNativeStreamsForHash(infoHash: string): void {
-  const target = String(infoHash || '').trim().toLowerCase();
-  if (!/^[a-f0-9]{40}$/.test(target) || !available()) return;
-  track(
-    request('/streams/invalidate', { body: { hash: target } })
-      .then((json) => {
-        noteSuccess();
-        const removed = Number((json as { removed?: unknown })?.removed);
-        if (Number.isFinite(removed) && removed > 0) {
-          metrics.count('stream.store.invalidated', removed);
-        }
-      })
-      .catch((err) => noteFailure('invalidate por hash', err)),
-  );
-}
-
 /**
  * Limpa o store nativo: tudo (escopo global) ou só o escopo de uma instalação
  * (`suffix` = `:<streamsCacheScope>`, o MESMO sufixo das chaves nativas).

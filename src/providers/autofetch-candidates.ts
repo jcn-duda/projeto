@@ -15,10 +15,9 @@ import { noteSkip } from './autofetch-gates.js';
 import { pickSeedsPool, purgeSeedsQueue } from './autofetch-seeds-pool.js';
 import { requestBrProbe, probeBlocksSeeds } from './br-probe.js';
 import { hasBrEvidence, hasBrDubbed } from '../utils/br-gap.js';
-import { bankHasBrRow } from '../utils/magnet-bank-query.js';
+import { bankHasBrRow, obraTargets } from '../utils/magnet-bank-query.js';
 import * as releaseIndex from '../utils/release-index.js';
 import { toQueueCandidate } from './autofetch-fallback.js';
-import { obraTargets } from './magnet-bank-fallback.js';
 import {
   filterSeedsUniverse,
   seedsSelectionBlock,

@@ -1,6 +1,7 @@
 /**
  * Casca fina de `search-pool-coverage` — a decisão vive em
- * `adom_core::search_pool_coverage` (napi `poolCovered`/`idxPoolCovered`).
+ * `adom_core::search_pool_coverage` (napi `idxPoolCovered`; o `poolCovered` do
+ * núcleo segue no napi, sem chamador no Node desde que o build saiu do TS).
  *
  * POR QUÊ (as decisões medidas que o núcleo preserva):
  *
@@ -27,12 +28,6 @@ import { nativeCore } from '../utils/native-core.js';
 
 /** Superfície do núcleo que esta casca consome. */
 interface PoolCoverageCore {
-  poolCovered(
-    itemsJson: string,
-    season: number | null,
-    requireDubbed: boolean,
-    minSeeders: number,
-  ): boolean;
   idxPoolCovered(
     releasesJson: string,
     season: number | null,
@@ -43,24 +38,6 @@ interface PoolCoverageCore {
 
 function core(): PoolCoverageCore {
   return nativeCore<PoolCoverageCore>();
-}
-
-/**
- * Normaliza releases (do índice ou itens crus/debrid) e verifica se cobrem os
- * requisitos de pool.
- */
-export function poolCovered(
-  items: any[],
-  { season = null, requireDubbed = false }: { season?: number | null; requireDubbed?: boolean } = {},
-) {
-  // Guarda de forma (não de regra): a função TS é tolerante a não-array.
-  if (!Array.isArray(items) || items.length === 0) return false;
-  return core().poolCovered(
-    JSON.stringify(items),
-    season ?? null,
-    requireDubbed,
-    autofetchLive.effective().autoFetchMinSeeders,
-  );
 }
 
 /**

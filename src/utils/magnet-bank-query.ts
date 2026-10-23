@@ -1,10 +1,24 @@
-// Consultas em LOTE do banco de magnets para o fallback (Etapa 4). Extraído de
-// `magnet-bank.ts` pela catraca de 400 linhas: `findByWork` fazia getMagnet por
-// linha (N+1) no caminho da resposta; aqui uma query de works por alvo + UMA
-// query de magnets/fontes para todos os hashes, com corte cedo.
+// Consultas em LOTE do banco de magnets por obra. Extraído de `magnet-bank.ts`
+// pela catraca de 400 linhas: uma query de works por alvo + UMA query de
+// magnets para todos os hashes, com corte cedo. Quem consome hoje é a sonda
+// dirigida do autofetch (`bankHasBrRow`); o fallback 📦 da busca é do Rust.
 import { readEngine, isOpen } from './magnet-bank.js';
-import type { MagnetRow, SourceRow, WorkRow } from './magnet-bank.js';
+import type { MagnetRow, WorkRow } from './magnet-bank.js';
 import { workTuple } from './magnet-bank-merge.js';
+
+/**
+ * Obras a consultar para o pedido. Filme: só a raiz (season/episode nulos).
+ * Série: episódio pedido, pack da temporada e série completa — o pack achado
+ * numa busca de episódio fica recuperável para os demais (release-work.ts).
+ */
+export function obraTargets(type: string, season: number | null, episode: number | null) {
+  if (type === 'movie' || season == null) return [{ season: null, episode: null }];
+  const out: Array<{ season: number | null; episode: number | null }> = [];
+  if (episode != null) out.push({ season, episode });
+  out.push({ season, episode: null });
+  out.push({ season: null, episode: null });
+  return out;
+}
 
 const clampLimit = (limit: number): number => Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
 
@@ -44,44 +58,5 @@ export function bankHasBrRow(
     return worksForObraMany(imdb, targets, 200, 300).some(({ magnet }) => Number(magnet?.isBr) === 1);
   } catch {
     return false;
-  }
-}
-
-/** Fontes de VÁRIOS hashes em UMA consulta, agrupadas por hash. */
-export function sourcesForMany(hashes: readonly string[]): Map<string, SourceRow[]> {
-  const out = new Map<string, SourceRow[]>();
-  const e = readEngine();
-  if (!e) return out;
-  for (const row of e.listSourcesMany(hashes)) {
-    const list = out.get(row.hash);
-    if (list) list.push(row);
-    else out.set(row.hash, [row]);
-  }
-  return out;
-}
-
-/** `first_seen` (ms) de VÁRIOS hashes numa leitura; fail-open (vazio). */
-export function firstSeenMany(hashes: readonly string[]): Map<string, number> {
-  const e = readEngine();
-  if (!e || hashes.length === 0) return new Map();
-  try {
-    return new Map(e.listMagnetsMany(hashes).filter((m) => m.firstSeen > 0).map((m) => [m.hash, m.firstSeen]));
-  } catch {
-    return new Map();
-  }
-}
-
-/**
- * Títulos executáveis já vistos para a obra (`.exe`/`.scr`/…), para o corte do
- * irmão de release falsa. Leitura pura e fail-open: banco fechado ou erro
- * devolvem vazio e o corte fica só com o lote da busca.
- */
-export function executableTitlesForObra(imdb: string, limit = 50): string[] {
-  const e = readEngine();
-  if (!e || !imdb) return [];
-  try {
-    return e.listExecutableTitles(String(imdb), clampLimit(limit));
-  } catch {
-    return [];
   }
 }

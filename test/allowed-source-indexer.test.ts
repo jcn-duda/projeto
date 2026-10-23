@@ -1,7 +1,8 @@
 // Filtro de origem compartilhada (idx / magnet-bank) pela config do pedido:
 // torrentio/`ji`, tracker preservado no índice. R4: os casos da via rápida
 // (`attemptIndexFastPath`) e da instantânea TS (`collectInstantItems`) saíram
-// com os módulos; a reserva (`collectFallbackItems`) e o filtro continuam.
+// com os módulos; a reserva TS (`collectFallbackItems`) saiu depois, junto com
+// o fallback 📦 do build Node. O filtro continua.
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
@@ -12,13 +13,10 @@ import * as runtime from '../src/runtime.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import * as releaseIndex from '../src/utils/release-index.js';
 import { allowedSourceIndexer } from '../src/providers/allowed-source-indexer.js';
-import { collectFallbackItems } from '../src/providers/magnet-bank-fallback.js';
 import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
 import { testOpts } from './helpers/stub.js';
 
 const hex = (c: string) => c.repeat(40);
-const magnet = (h: string) => `magnet:?xt=urn:btih:${h}`;
-const movieCtx = (imdb: string) => ({ imdbId: imdb, season: null, episode: null });
 
 const tempDirs: string[] = [];
 const saved = {
@@ -28,12 +26,6 @@ const saved = {
 
 function withOpts<T>(over: Record<string, unknown>, fn: () => T): T {
   return runtime.run({ opts: testOpts(over), encoded: 'src-filter' }, fn);
-}
-
-function seedBank(hash: string, indexer: string, imdb: string, title = 'Filme Teste 2024 1080p Dublado') {
-  bank.captureItems([{ title, infoHash: hash, magnet: magnet(hash), seeders: 5, isBr: true }], indexer, movieCtx(imdb));
-  bank.markFilterResult([hash], [hash], movieCtx(imdb));
-  bank.flushNow();
 }
 
 beforeEach(() => {
@@ -156,24 +148,4 @@ test('record preserva tracker sem rebaixar para vazio', () => {
   }]);
   assert.equal(releaseIndex.lookup(imdb)[0].tracker, 'ThePirateBay', 'vazio não apaga prior');
   assert.equal(idxReleasesToRaw(releaseIndex.lookup(imdb))[0].tracker, 'ThePirateBay');
-});
-
-test('collectFallbackItems: fonte fora do ji é ignorada', () => {
-  const imdb = 'tt9100005';
-  seedBank(hex('1'), 'thepiratebay', imdb);
-  seedBank(hex('2'), 'kickasstorrents-to', imdb);
-  const fb = withOpts(
-    { providers: ['jackett'], jackettIndexers: ['kickasstorrents-to'] },
-    () => collectFallbackItems({
-      type: 'movie',
-      imdbId: imdb,
-      season: null,
-      episode: null,
-      liveHashes: new Set(),
-      failedIndexers: new Set(['thepiratebay', 'kickasstorrents-to']),
-      allFailed: false,
-    }),
-  );
-  assert.equal(fb.injected, 1);
-  assert.equal(fb.items[0].indexer, 'kickasstorrents-to');
 });

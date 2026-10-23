@@ -14,3 +14,7 @@ export type {
   PlayDispositionSingleOptions,
 } from './debrid-play-guard.js';
 export type { ApplyDebridOptions } from './types.js';
+export {
+  createFirstObserver, firstObserverClaim, firstObserverStep, promoteFirstObserverEligible, stageFirstTiming,
+} from './first-observer.js';
+export type { FirstObserverState } from './first-observer.js';
