@@ -1,4 +1,4 @@
-use super::Store;
+use super::{is_writable_key, Store};
 
 #[test]
 fn ttl_esconde_expirado_e_cota_apaga_o_mais_cedo() {
@@ -47,4 +47,31 @@ fn leitor_do_cache_db_nao_escreve_nem_apaga_expirado() {
     assert!(store.get("rdc:v2:velho", 5).unwrap().is_none());
     assert!(store.contains("rdc:v2:velho").unwrap());
     assert!(store.put("rdc:v2:hit", "x", 10, 0).is_err());
+}
+
+/// O dono do `davail` é o NODE (Fase 4.0.1): contra o arquivo compartilhado o
+/// `put` é recusado — `WRITABLE_PREFIXES` só governa a instância em MEMÓRIA dos
+/// testes. Sem este teste, um `put` novo passaria despercebido e o Rust viraria
+/// segundo escritor do namespace.
+#[test]
+fn davail_no_arquivo_do_node_e_somente_leitura() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("cache.db");
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "CREATE TABLE cache (
+                 key TEXT PRIMARY KEY,
+                 value TEXT NOT NULL,
+                 expires_at INTEGER NOT NULL
+             );",
+        )
+        .unwrap();
+    let store = Store::open_cache_db(&path).unwrap();
+    // A lista conhece o namespace (é o que a memória aceita)...
+    assert!(is_writable_key("davail:v1:a"));
+    // ...mas o arquivo do Node não: recusa e não cria linha.
+    let err = store.put("davail:v1:a", "1", 10, 0).unwrap_err();
+    assert!(err.contains("somente leitura"), "{err}");
+    assert!(!store.contains("davail:v1:a").unwrap());
 }
