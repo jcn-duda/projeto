@@ -94,7 +94,19 @@ Ainda aberto, com o motivo real:
 - **Fase 4.1(b)(c) e 4.3** — ponte de leitura do `davail` (`br-coverage`/painel) e mover a
   escrita junto com `mag:v1`: dependem da Fase 3 (a escrita sai da mesma função da checagem).
   O WIP não é mais bloqueio: `RUST_OWNED`/`isForeignKey` já estão no HEAD.
-  A generalização `idx`→`idx`+`streams` segue no `stash@{1}` e depende de remover o `rd-probe`.
+  Medição: **não há uma única leitura/escrita de `davail` no Rust** (`grep davail rust/crates` vazio),
+  então a ponte de leitura não tem fonte nativa e a escrita continua no Node até a Fase 3.4.
+- **Fase 4.2(c) — `streams:v21` como Rust-owned** (tentado e revertido nesta rodada): generalizar
+  `RUST_OWNED` para `['idx','streams']`, apagar `rd-probe`/`debrid-rd-probe` e entregar
+  `br-gap`/`rd-warmer` à ponte nativa **quebra 15 testes de caminhos vivos** e revela uma dívida
+  real: `recomputeOffline` do `/stream-trace.json` só alcança entrada do L1 de `streams`, e desde o
+  F4.4a ninguém escreve esse L1 — o recompute já é inalcançável em produção e o branch nativo
+  (`fetchNativeStreamTrace`) não recomputa. Os 15: `stream-trace-route` (9), `stream-trace-live` (2),
+  `dashboard-actions` (clear-cache por instalação), `debrid-rust-resolve-apply` (EpisodePickError),
+  `autofetch-recheck` (LRU do índice), `autofetch-season-fill`, `e2e/tier2-cache-storage`.
+  Antes de retomar: (1) fazer o branch nativo do trace recomputar quando `found && trace == null`
+  usando `native.searchMeta`; (2) trocar os canários de L1 (`cache.set(streamsKey)`) por mock da ponte
+  (`/streams/trace`, `/streams/invalidate`, `/streams/clear`); (3) só então apagar `rd-probe`.
 - **Fase 4.4** — o CAS fechou o lost update; declarar um único executor de `magnet_work` e o
   ensaio de restauração continuam **bloqueados por push**.
 - **Fases 5–7** — colhedor, Mico e o fundo no Rust: em andamento. No `adom-harvest` já
