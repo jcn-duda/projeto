@@ -6,11 +6,13 @@
 //! - Freio de tráfego injetável ([`TrafficSense`]): busy → skip (sem Jackett).
 //! - Teto horário: contador simples por balde UTC (`now_ms / 3_600_000`).
 //! - Trabalho real via [`HarvestDrain`] (sync stub; sem gateway / Jackett).
-//!
-//! Não cobre ainda: `takeProbe` sob tráfego, inflight coalescing, seed IMDb.
+//! - O tick abre/fecha o slot em voo ([`crate::inflight`]) em volta do drain;
+//!   `takeProbe` sob tráfego e seed IMDb ainda não.
 
 use crate::hour::HourMeter;
+use crate::inflight::HarvestIntent;
 use crate::queue::HarvestQueue;
+use crate::reason::entry_identity;
 use crate::types::HarvestEntry;
 
 /// Config injetável do worker (fatia de `harvesterLive.effective()`).
@@ -185,9 +187,7 @@ impl HarvestWorker {
     }
 
     /// Um ciclo: freio → teto → `take_head` → [`HarvestDrain::drain_one`].
-    ///
-    /// Entrada consumida da fila permanece fora dela (requeue é do caller /
-    /// outcome futuro). Sem Jackett, sem gateway.
+    /// A entrada consumida fica fora da fila (requeue é do caller); sem Jackett.
     pub fn tick(
         &mut self,
         queue: &mut HarvestQueue,
@@ -220,8 +220,12 @@ impl HarvestWorker {
         };
 
         self.in_flight = true;
+        let identity = entry_identity(&entry);
+        let inflight = queue.inflight_mut();
+        inflight.begin(&identity, HarvestIntent::from_entry(&entry));
         let outcome = drain.drain_one(&entry);
         self.note_queries(outcome.queries, now_ms);
+        queue.inflight_mut().end(&identity);
         self.in_flight = false;
 
         TickOutcome::Drained { entry, outcome }
@@ -377,5 +381,20 @@ mod tests {
         worker.hydrate_hour(1, next_hour);
         assert_eq!(worker.queries_this_hour(next_hour), 1);
         assert_eq!(worker.queries_this_hour(NOW), 0);
+    }
+
+    #[test]
+    fn tick_encerra_o_slot_da_obra_colhida() {
+        let mut queue = queue_with(&["tt0111161"]);
+        let head = queue.preview(1)[0].clone();
+        let identity = entry_identity(&head);
+        let inflight = queue.inflight_mut();
+        inflight.begin(&identity, HarvestIntent::from_entry(&head));
+
+        let mut worker = worker_capped(120);
+        let mut drain = |_e: &HarvestEntry| DrainOutcome::ok_with_queries(1);
+        assert!(worker.tick(&mut queue, &false, &mut drain, NOW).did_drain());
+        // O `end` do tick casa a identidade da entrada colhida.
+        assert!(!queue.inflight().is_inflight(&identity));
     }
 }

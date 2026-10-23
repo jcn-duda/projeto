@@ -20,6 +20,7 @@ sem Docker.
 | Consumo | `takeHead` / `takeProbe` | `take_head` / `take_probe` |
 | L2 | `cache.get` / `cache.set(QUEUE_KEY, …)` | `HarvestStore::load` / `save` |
 | Dedupe 12h | `queueDedupeKey` / `wasRecentlyQueued` / `markRecentlyQueued` | `seen_key` / `was_recently_queued` / `mark_recently_queued` (`seen.rs`) |
+| Coalescing em voo | `harvest-inflight` (`begin`/`end`/`coalesce`/`pendingIntent`) | `HarvestInflight` (`inflight.rs`), slot dentro da fila |
 | Balde horário | `HOUR_KEY` / `hourBucketTtlSeconds` / `hydrateCurrentHour` | `hour_key` / `hour_ttl_seconds` / `load_hour` / `save_hour` + `HarvestWorker::hydrate_hour` (`hour.rs`) |
 | Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
 | Prioridade | `prioritizeQueue` + `hasBrDubbed(lookupQuiet)` | `prioritize` + trait `BrEvidence` (stub/callback; índice real ainda não) |
@@ -125,10 +126,31 @@ worker.note_queries(queries, now_ms);
 save_hour(&store, worker.queries_this_hour(now_ms), now_ms)?;
 ```
 
+## Coalescing em voo
+
+Enquanto o tick colhe uma obra, `HarvestQueue::enqueue` da MESMA obra não
+cria segunda entrada: devolve `coalesced` e funde a intenção no slot
+(`HarvestInflight`), como no `harvest-inflight.ts`.
+
+- Precedência só **sobe** (`reason_priority`); `br_probe` é OR-aderente.
+- A intenção FULL (não-dirigida) fica à parte: um run dirigido cobre só o
+  subset index-only∩pt-BR e não satisfaz um pedido de colheita inteira.
+- O tick abre o slot com a cabeça consumida e o fecha em `end`; obra diferente
+  nunca casa e nunca derruba o slot.
+- `priority_at` só acompanha `br-gap`; fora da janela o campo fica ausente.
+
+```rust
+use adom_harvest::{HarvestIntent, HarvestQueue};
+
+queue.inflight_mut().begin(&identity, HarvestIntent::from_entry(&entry));
+let out = queue.enqueue(HarvestRequest::movie("tt0111161", "br-gap"));
+assert_eq!(out.reason, EnqueueReason::Coalesced); // nada novo na fila
+queue.inflight().pending(&identity); // intenção efetiva após o drain
+```
+
 ## O que NÃO está aqui (Fase E real)
 
 - Ponte do `BrEvidence` para o índice real (`lookupQuiet` / `hasBrDubbed`).
-- Coalescing in-flight (`harvest-inflight`) — só flag `in_flight` no worker.
 - `takeProbe` sob tráfego (embrião: busy = skip inteiro).
 - Seed IMDb, sonda `brProbe` completa, Jackett, painel, gateway.
 

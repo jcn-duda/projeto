@@ -165,3 +165,30 @@ fn load_from_prioriza_quando_evidence_fornecida() {
     plain.load_from(&store, clock_fixed(), None).unwrap();
     assert_eq!(plain.preview(2)[0].imdb_id, "tt5000001");
 }
+
+#[test]
+fn enqueue_em_voo_coalesce_sem_criar_entrada() {
+    let mut queue = q(10);
+    let entry = match queue.enqueue(HarvestRequest::movie("tt0111161", "miss")) {
+        EnqueueOutcome { accepted: true, .. } => queue.take_head().unwrap(),
+        other => panic!("esperado aceite, got {other:?}"),
+    };
+
+    let identity = crate::reason::entry_identity(&entry);
+    queue
+        .inflight_mut()
+        .begin(&identity, HarvestIntent::from_entry(&entry));
+    let out = queue.enqueue(HarvestRequest::movie("tt0111161", "br-gap"));
+    assert_eq!(out.reason, EnqueueReason::Coalesced);
+    assert_eq!(queue.depth(), 0);
+
+    // A intenção mais forte foi fundida no slot em voo.
+    let pending = queue.inflight().pending(&identity).unwrap();
+    assert_eq!(pending.reason, "br-gap");
+
+    // Outra obra não coalesce e entra na fila normalmente.
+    queue.inflight_mut().end(&identity);
+    let other = queue.enqueue(HarvestRequest::movie("tt0068646", "miss"));
+    assert_eq!(other.reason, EnqueueReason::Queued);
+    assert_eq!(queue.depth(), 1);
+}

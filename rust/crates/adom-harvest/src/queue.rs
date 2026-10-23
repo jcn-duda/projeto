@@ -4,10 +4,11 @@
 //! [`crate::store::HarvestStore`] via [`HarvestQueue::load_from`] /
 //! [`HarvestQueue::save_to`] (espelho de `load`/`persist` + `cache.set` no TS).
 //! Priorização BR: [`HarvestQueue::prioritize`] / [`crate::prioritize`].
-//! Sem coalescing in-flight; o dedupe 12h mora em [`crate::seen`].
+//! Coalescing in-flight em [`crate::inflight`]; dedupe 12h em [`crate::seen`].
 
 use adom_core::prefix;
 
+use crate::inflight::{HarvestInflight, HarvestIntent};
 use crate::prioritize::{prioritize, BrEvidence, PrioritizeConfig};
 use crate::reason::{entry_identity, is_promotion, is_valid_imdb_id};
 use crate::store::HarvestStore;
@@ -76,6 +77,7 @@ pub struct HarvestQueue {
     entries: Vec<HarvestEntry>,
     config: HarvestQueueConfig,
     now_ms: ClockMs,
+    inflight: HarvestInflight,
 }
 
 impl HarvestQueue {
@@ -84,6 +86,7 @@ impl HarvestQueue {
             entries: Vec::new(),
             config,
             now_ms: system_now_ms,
+            inflight: HarvestInflight::new(),
         }
     }
 
@@ -92,6 +95,7 @@ impl HarvestQueue {
             entries: Vec::new(),
             config,
             now_ms,
+            inflight: HarvestInflight::new(),
         }
     }
 
@@ -116,6 +120,14 @@ impl HarvestQueue {
     /// Snapshot do array (para `save` / diagnóstico).
     pub fn entries(&self) -> &[HarvestEntry] {
         &self.entries
+    }
+
+    pub fn inflight(&self) -> &HarvestInflight {
+        &self.inflight
+    }
+
+    pub fn inflight_mut(&mut self) -> &mut HarvestInflight {
+        &mut self.inflight
     }
 
     /// Substitui o array em memória (após `HarvestStore::load`).
@@ -248,6 +260,16 @@ impl HarvestQueue {
                 existing.priority_at = Some(now);
             }
             return EnqueueOutcome::accepted(EnqueueReason::Promoted);
+        }
+
+        // Coalescing em voo: MESMA obra colhida agora — funde a intenção na
+        // execução corrente em vez de criar segunda entrada. Ordem do TS: depois
+        // de duplicata/promoção e antes do dedupe (pedido forte não é engolido).
+        if self
+            .inflight
+            .coalesce(&identity, &HarvestIntent::from_entry(&full))
+        {
+            return EnqueueOutcome::accepted(EnqueueReason::Coalesced);
         }
 
         // Sem priorização BR: obra nova empurra a mais velha (semântica

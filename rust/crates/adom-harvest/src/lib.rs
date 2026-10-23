@@ -26,14 +26,16 @@
 //! | [`HarvestQueue`] | Memória: enqueue / take_head / prioritize / load_from |
 //! | [`HarvestStore`] | L2 SQLite (WAL): `open` / `open_memory` / `load` / `save` |
 //! | [`seen_key`] / [`was_recently_queued`] | Dedupe 12h por obra+motivo |
+//! | [`HarvestInflight`] / [`HarvestIntent`] | Coalescing da obra em voo (slot único) |
 //! | [`hour_key`] / [`load_hour`] / [`save_hour`] | Balde horário durável (`harvest:v1:hour`) |
 //! | [`HarvestWorker`] / [`tick`](HarvestWorker::tick) | Ciclo: freio + teto + `take_head` + drain |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
-//! Ponte do `BrEvidence`, coalescing inflight, `take_probe` sob tráfego e o
-//! resto da Fase E: **ainda não** — ver `README.md`.
+//! Ponte do `BrEvidence`, `take_probe` sob tráfego e o resto da Fase E:
+//! **ainda não** — ver `README.md`.
 
 mod hour;
+mod inflight;
 mod prioritize;
 mod queue;
 mod reason;
@@ -46,6 +48,7 @@ pub use hour::{
     hour_bucket, hour_key, hour_ttl_seconds, load_hour, save_hour, HourMeter, StoredHour, HOUR_KEY,
     HOUR_MS,
 };
+pub use inflight::{HarvestInflight, HarvestIntent, PendingFull, PendingIntent};
 pub use prioritize::{
     br_evidence_rank, prioritize, priority_tier, BrEvidence, PrioritizeConfig, StubBrEvidence,
 };
