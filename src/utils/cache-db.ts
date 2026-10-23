@@ -15,7 +15,7 @@ import path from 'node:path';
 import config from '../config.js';
 import * as log from './logger.js';
 import * as metrics from './metrics.js';
-import { NAMESPACE_VERSIONS, LEGACY_PREFIXES } from './cache-keys.js';
+import { NAMESPACE_VERSIONS, LEGACY_PREFIXES, RUST_OWNED, RUST_OWNED_PREFIXES, isRustOwned, isForeignKey } from './cache-keys.js';
 import { MAX_ENTRIES, namespaceFor, quotaFor } from './cache-quotas.js';
 import { openWithRecovery } from './cache-db-open.js';
 
@@ -38,12 +38,17 @@ export function createPersistence() {
   let selectValueStmt: any = null;
   let clearStmt: any = null;
 
-  // Escrita em LOTE: antes cada cache.set pagava um INSERT síncrono (commit no
-  // WAL) no caminho de busca, e o passe tardio gravava várias chaves em
-  // sequência. A chave é marcada aqui e despejada no próximo tick numa transação
-  // só — mesmo racional do forgetMany. Queda do processo perde só o lote do tick
-  // corrente: aceitável porque o L2 é best-effort e o passe tardio reconstrói o
-  // resultado na busca seguinte.
+  // Prefixos que a poda do Node NUNCA apaga: donos com ciclo próprio no arquivo.
+  const ownedGuards = [
+    ...[...RUST_OWNED].map((ns) => `${ns}:%`),
+    ...RUST_OWNED_PREFIXES.map((owned) => `${owned}%`),
+  ];
+  const guardSql = ownedGuards.map(() => ' AND key NOT LIKE ?').join('');
+
+  // Escrita em LOTE: a chave é marcada aqui e despejada no próximo tick numa
+  // transação só (mesmo racional do forgetMany). Queda do processo perde o
+  // lote do tick corrente — aceitável, o L2 é best-effort e o passe tardio
+  // reconstrói na busca seguinte.
   const pending = new Map();
   let flushScheduled: ReturnType<typeof setImmediate> | null = null;
 
@@ -58,10 +63,10 @@ export function createPersistence() {
 
       insertStmt = database.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
       deleteStmt = database.prepare('DELETE FROM cache WHERE key = ?');
-      deleteExpiredStmt = database.prepare("DELETE FROM cache WHERE expires_at <= ? AND key NOT LIKE 'idx:%'");
-      // Descarte de versão obsoleta: apaga no banco o que não bate com a versão
-      // corrente, sem materializar a linha. `<ns>:%` + NOT LIKE da versão viva
-      // cobre tanto o formato `<ns>:<versão>:` quanto prefixos colados no nome.
+      // Expirado: o Node poda só o próprio L2 (`ownedGuards`).
+      deleteExpiredStmt = database.prepare(`DELETE FROM cache WHERE expires_at <= ?${guardSql}`);
+      // Descarte de versão obsoleta: `<ns>:%` + NOT LIKE da versão viva cobre
+      // `<ns>:<versão>:` e prefixos colados no nome, sem materializar a linha.
       deleteStaleStmt = database.prepare('DELETE FROM cache WHERE key LIKE ? AND key NOT LIKE ?');
       deleteLegacyStmt = database.prepare('DELETE FROM cache WHERE key LIKE ?');
       // Índice leve: decide QUEM sobe sem trazer os valores gordos junto. Um LIMIT
@@ -105,15 +110,11 @@ export function createPersistence() {
       const now = Date.now();
       // Expirado DENTRO da janela de graça sobe junto: ele ainda é servível pelo
       // SWR. Sem deslocar o corte, todo restart matava as entradas em revalidação.
-      deleteExpiredStmt.run(now - maxGraceMs());
-      // Versão de namespace é fonte única (cache-keys.js): apaga no banco, ANTES de
-      // listar, tudo que não bate com a versão corrente — é mais barato apagar do
-      // que carregar para descartar em JS, e a versão morta não ocupa cota até
-      // expirar. Prefixos aposentados (raw1:/dinv1:/muri:) somem do mesmo jeito
-      // no boot — o `muri` só sai de `NAMESPACE_VERSIONS`, então o descarte
-      // depende desta passada de LEGACY_PREFIXES.
+      deleteExpiredStmt.run(now - maxGraceMs(), ...ownedGuards);
+      // Versão de namespace é fonte única (cache-keys.js): apaga no banco o que
+      // não bate com a versão corrente, sem materializar a linha. LEGACY abaixo.
       for (const [ns, version] of Object.entries(NAMESPACE_VERSIONS)) {
-        if (ns !== 'idx') deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
+        if (!isRustOwned(ns)) deleteStaleStmt.run(`${ns}:%`, `${ns}:${version}:%`);
       }
       for (const legacy of LEGACY_PREFIXES) deleteLegacyStmt.run(`${legacy}%`);
       // TTL longo não pode monopolizar o L1 depois do restart: cada namespace
@@ -125,8 +126,8 @@ export function createPersistence() {
       const quotaSkipped: any[] = [];
       for (const row of rows) {
         const namespace = namespaceFor(row.key);
-        // `idx` é dono do IdxStore: o boot não carrega e não despeja por cota.
-        if (namespace === 'idx') continue;
+        // RUST_OWNED não sobe no boot: sem valor gordo, sem cota.
+        if (isRustOwned(namespace) || isForeignKey(row.key)) continue;
         if ((selectedCounts.get(namespace) || 0) >= quotaFor(namespace) || selected.length >= MAX_ENTRIES) {
           skipped.push(row.key);
           quotaSkipped.push(row.key);
@@ -211,8 +212,8 @@ export function createPersistence() {
 
   function persist(key: string, value: unknown, expiresAt: number) {
     if (!insertStmt) return;
-    // `idx` é dono do IdxStore no mesmo cache.db: o L2 do Node não regrava.
-    if (namespaceFor(key) === 'idx') return;
+    // RUST_OWNED vive no mesmo cache.db: o L2 do Node não regrava.
+    if (isRustOwned(namespaceFor(key)) || isForeignKey(key)) return;
     // A última escrita da chave é a que vale; o Map já substitui a anterior.
     pending.set(key, { value, expiresAt });
     scheduleFlush();

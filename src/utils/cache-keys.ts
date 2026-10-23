@@ -186,6 +186,26 @@ const LEGACY_PREFIXES = Object.freeze(['raw1:', 'dinv1:', 'muri:', 'tsj:']);
 
 const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSIONS[ns]}:`;
 
+// Dono ÚNICO por namespace: `idx` é do IdxStore, no MESMO cache.db. O Node não
+// lê nem grava esse namespace no L1/L2 — segundo escritor deixa o disco
+// incoerente com o handle nativo (rollback é commit/imagem anterior).
+const RUST_OWNED = Object.freeze(['idx']);
+
+// Dono por PREFIXO dentro de namespace compartilhado: `raw:v1` é do gateway no
+// BLUDV (chave e arquivo iguais) e do Node no Jackett. Sem esta guarda o
+// `forget` do Node apaga a linha fresca do Rust e o boot sobe cópia velha.
+const RUST_OWNED_PREFIXES = Object.freeze([`${prefix('raw')}bludv:`]);
+
+const isRustOwned = (namespace: string) => RUST_OWNED.includes(String(namespace || ''));
+
+const isForeignKey = (key: string) => {
+  const wanted = String(key || '');
+  return RUST_OWNED_PREFIXES.some((owned) => wanted.startsWith(owned));
+};
+
 const magMetaCountsKey = () => `${prefix('mag_meta')}counts`;
 
-export { NAMESPACE_VERSIONS, LEGACY_PREFIXES, prefix, magMetaCountsKey };
+export {
+  NAMESPACE_VERSIONS, LEGACY_PREFIXES, RUST_OWNED, RUST_OWNED_PREFIXES,
+  isRustOwned, isForeignKey, prefix, magMetaCountsKey,
+};

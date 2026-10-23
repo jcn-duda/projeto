@@ -18,6 +18,7 @@ import {
   namespaceFor, quotaFor, incrementNamespace as bumpNamespace, removeFromStore as dropFromStore, quotaOverflow,
 } from './cache-quotas.js';
 import { createPersistence } from './cache-db.js';
+import { isRustOwned, isForeignKey } from './cache-keys.js';
 import { clearIdxStore } from './release-index-store.js';
 
 const store = new Map();
@@ -99,6 +100,8 @@ function snapshot() {
 }
 
 function get(key: string) {
+  // Chave de outro dono não existe no L1 do Node: nem miss, nem métrica.
+  if (isForeignKey(key)) return null;
   const hit = store.get(key);
   if (!hit) {
     // O contador por namespace diz QUAL balde está pagando rede de novo; o
@@ -188,6 +191,7 @@ function peekRemaining(key: string): number | null {
  * do painel nem reordenar o cache. Expirada/ausente devolve null (não apaga).
  */
 function peek(key: string): unknown {
+  if (isForeignKey(key)) return null;
   const hit = store.get(key);
   if (!hit) return null;
   if (hit.expiresAt && Date.now() > hit.expiresAt) return null;
@@ -229,8 +233,9 @@ function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[])
   for (const { key, value, ttlSeconds } of valid) {
     const expiresAt = Date.now() + ttlSeconds * 1000;
     const namespace = namespaceFor(key);
-    // `idx` é dono do IdxStore: o L1 do Node não pode ser segundo escritor.
-    if (namespace === 'idx') continue;
+    // RUST_OWNED e o prefixo BLUDV do `raw` têm dono único: segundo escritor
+    // no L1 faria o `forget`/prune do Node apagar a linha fresca do gateway.
+    if (isRustOwned(namespace) || isForeignKey(key)) continue;
     removeFromStore(key); // reinsere no fim para a ordem refletir o uso mais recente
     store.set(key, { value, expiresAt, namespace });
     incrementNamespace(namespace);
@@ -253,7 +258,7 @@ function onForget(hook: ForgetHook) {
 }
 
 function forget(key: string) {
-  if (namespaceFor(key) === 'idx') return;
+  if (isRustOwned(namespaceFor(key)) || isForeignKey(key)) return;
   const existed = store.has(key);
   persistence.forget(key, removeFromStore);
   if (existed) {
@@ -262,7 +267,7 @@ function forget(key: string) {
 }
 
 function forgetMany(keys: string[]) {
-  const owned = keys.filter((key) => namespaceFor(key) !== 'idx');
+  const owned = keys.filter((key) => !isRustOwned(namespaceFor(key)) && !isForeignKey(key));
   if (!owned.length) return;
   const existingKeys: string[] = [];
   for (const key of owned) {
@@ -275,7 +280,7 @@ function forgetMany(keys: string[]) {
 }
 
 function persist(key: string, value: unknown, expiresAt: number) {
-  if (namespaceFor(key) === 'idx') return;
+  if (isRustOwned(namespaceFor(key)) || isForeignKey(key)) return;
   persistence.persist(key, value, expiresAt);
 }
 
@@ -294,8 +299,9 @@ function clear() {
 function clearNamespace(namespace: string) {
   const wanted = String(namespace || '');
   if (!wanted) return 0;
-  // `idx` é dono do Rust: o L1 não tem essas chaves e o disco é lido pelo
-  // IdxStore, então a limpeza tem de ir ao handle nativo.
+  // RUST_OWNED não passa pelo L1: `idx` tem handle nativo (o IdxStore lê o
+  // mesmo cache.db). `raw` é compartilhado: o clearWhere abaixo só alcança as
+  // chaves do Node (jackett) — o prefixo BLUDV nunca entra no L1.
   const fromRust = wanted === 'idx' ? clearIdxStore() : 0;
   return clearWhere((key) => namespaceFor(key) === wanted) + fromRust;
 }
