@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { sortAndLimit, dedupeByHash } from '../test/helpers/pipeline-oracle/format.js';
+import { sortAndLimit, dedupeByHash } from './helpers/pipeline-oracle/format.js';
 import { selectQualityCandidates } from '../src/utils/stream-quotas-candidate.js';
 import { UNKNOWN_QUALITY } from '../src/utils/audio-quality.js';
 import type { StreamCandidate } from '../types/domain.js';

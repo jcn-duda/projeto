@@ -58,7 +58,7 @@ const stale = [...listed].filter((file) => !fs.existsSync(path.join(root, file.r
 // a remoção.
 const HARNESS_FILES = [
   'test/empirical-e2e-challenger.ts',
-  'scripts/empirical-ranking-challenger.ts',
+  'test/empirical-ranking-challenger.ts',
 ];
 
 const allScripts = Object.values(_require(path.join(root, 'package.json')).scripts as Record<string, string>).join(' ');
