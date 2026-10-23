@@ -5,7 +5,8 @@
  * portado). Prazo vencido, rede e 5xx devolvem cache incompleto: o tempo da
  * resposta já foi gasto, e na AllDebrid a checagem é um upload de verdade.
  * Chave recusada, cota e rate limit sobem como o erro do TypeScript, sem
- * segunda pergunta. O play nunca chama o adaptador TypeScript.
+ * segunda pergunta — na checagem, na conta e na lista de arquivos. O play nunca
+ * chama o adaptador TypeScript.
  */
 import config from '../config.js';
 import * as metrics from '../utils/metrics.js';
@@ -24,6 +25,7 @@ import { alldebridLinkFacts } from './rust-link-facts.js';
 import { alldebridCheckFacts } from './alldebrid-cleanup-facts.js';
 import { adoptBlockedReady } from './rust-check-blocked.js';
 import { takeResolveEffect, type RustResolveEffect } from './rust-resolve-apply.js';
+import { isAccountRefusal, playKind } from './rust-remote-kinds.js';
 import { applyPlayEffects } from './rust-play-effects.js';
 import { pullNativeMetrics } from '../utils/native-metrics.js';
 
@@ -58,20 +60,6 @@ type RemoteFailure = {
 type RemoteResult =
   | { ok: true; json: unknown }
   | RemoteFailure;
-
-/** Status de play_status → kind. 401 do token interno fica de fora. */
-const PLAY_KIND_BY_STATUS: Record<number, string> = {
-  422: 'no_video',
-  409: 'episode_pick',
-  412: 'work_pick',
-  406: 'dub_lie',
-  451: 'blocked',
-  403: 'auth',
-  402: 'quota',
-  429: 'rate_limit',
-};
-
-const PLAY_KINDS = new Set(Object.values(PLAY_KIND_BY_STATUS));
 
 function remoteOptions(overrides: Partial<RemoteOptions> = {}): RemoteOptions {
   const base = process.env.DEBRID_INTERNAL_URL || 'http://127.0.0.1:8710';
@@ -156,19 +144,6 @@ function redact(message: string, secrets: readonly string[]): string {
 function withMessage(error: Error, message: string | undefined): Error {
   if (message) error.message = message;
   return error;
-}
-
-function namedKind(kind: string | undefined, error: string | undefined): string | undefined {
-  if (kind && PLAY_KINDS.has(kind)) return kind;
-  if (error && PLAY_KINDS.has(error)) return error;
-  return undefined;
-}
-
-function playKind(remote: RemoteFailure): string | undefined {
-  const named = namedKind(remote.kind, remote.error);
-  if (named) return named;
-  if (remote.kind || remote.error || remote.status == null) return undefined;
-  return PLAY_KIND_BY_STATUS[remote.status];
 }
 
 function finiteNumber(value: unknown): number | undefined {
@@ -342,15 +317,23 @@ function wrap(adapter: DebridAdapter, overrides: Partial<RemoteOptions> = {}): D
     const accountStatus = adapter.accountStatus.bind(adapter);
     out.accountStatus = async (apiKey) => {
       const remote = await post(opts, '/debrid/account', { service: adapter.id, apiKey });
-      if (!remote.ok) return accountStatus(apiKey);
-      return remote.json as Awaited<ReturnType<typeof accountStatus>>;
+      if (remote.ok) return remote.json as Awaited<ReturnType<typeof accountStatus>>;
+      // Conta recusada não ganha segunda pergunta: o gateway já falou com o serviço.
+      if (isAccountRefusal(remote)) throw playError(remote, [apiKey, opts.token]);
+      if (remote.status !== 501) metrics.count('rust.debrid.account.unreachable');
+      return accountStatus(apiKey);
     };
   }
   if (typeof adapter.fileLink === 'function') {
     const fileLink = adapter.fileLink.bind(adapter);
     out.fileLink = async (apiKey, hash, path) => {
       const remote = await post(opts, '/debrid/files', { service: adapter.id, apiKey, hash, path });
-      if (!remote.ok) return fileLink(apiKey, hash, path);
+      if (!remote.ok) {
+        // Mesma régua da conta: recusa do serviço sobe; 501/rede usam o TS.
+        if (isAccountRefusal(remote)) throw playError(remote, [apiKey, opts.token]);
+        if (remote.status !== 501) metrics.count('rust.debrid.files.unreachable');
+        return fileLink(apiKey, hash, path);
+      }
       const body = remote.json as { url?: unknown; size?: unknown } | null;
       if (!body || typeof body.url !== 'string') return null;
       return { url: body.url, size: Number(body.size) || 0 };

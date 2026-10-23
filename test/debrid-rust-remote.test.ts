@@ -2,50 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import config from '../src/config.js';
-import * as runtime from '../src/runtime.js';
+import { abortDelay, errorCode, errorMessage, hasHash, unreachableCount, withPremiumize } from './helpers/rust-remote-stub.js';
 import debrid from '../src/debrid/index.js';
-import { EpisodePickError, isBlockedError, isNoVideoError } from '../src/debrid/common.js';
+import { AuthError, EpisodePickError, isBlockedError, isNoVideoError } from '../src/debrid/common.js';
 import { RustWriteError } from '../src/debrid/rust-remote.js';
 import * as metrics from '../src/utils/metrics.js';
 
 const TEST_KEY = 'chave-de-teste-rust';
-
-function errorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
-  const code = error.code;
-  return typeof code === 'string' ? code : undefined;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '';
-}
-
-function hasHash(result: Set<string> | { cached: Set<string> }, hash: string): boolean {
-  return result instanceof Set ? result.has(hash) : result.cached.has(hash);
-}
-
-/** Delta, não reset: o contador é global e outros testes do processo acumulam. */
-function unreachableCount(): number {
-  return metrics.snapshot().counters['rust.debrid.check.unreachable'] || 0;
-}
-
-/**
- * `AbortSignal.timeout` não expõe a duração (o símbolo interno só diz que
- * há prazo). O abort é o relógio: ~1,5s cabe; os 6s do DEBRID_TIMEOUT_MS não.
- */
-function abortDelay(signal: AbortSignal | undefined, ceilingMs: number): Promise<number> {
-  if (!signal) return Promise.reject(new Error('fetch sem AbortSignal'));
-  const started = Date.now();
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`signal não abortou em ${ceilingMs}ms`)), ceilingMs);
-    signal.addEventListener('abort', () => { clearTimeout(timer); resolve(Date.now() - started); }, { once: true });
-  });
-}
-
-function withPremiumize<T>(fn: () => T, apiKey = 'k'): T {
-  const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: apiKey };
-  return runtime.run({ opts }, fn);
-}
 
 config.jackett.testToken = config.jackett.testToken || 'token-de-teste';
 
@@ -380,6 +343,49 @@ test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () =
     assert.equal(tsChecks, 0, 'envelope 200 nunca cai no checkCached do TS');
   } finally {
     adapter.checkCached = saved.check;
+    globalThis.fetch = saved.fetch;
+    config.debrid.rustServices = saved.services;
+  }
+});
+
+// Fase 3.1: conta e arquivos não repetem a pergunta quando o serviço já recusou.
+test('conta e arquivos: recusa sobe sem segunda pergunta; 501 e queda caem no TS', async () => {
+  const adapter = debrid.BY_ID.get('premiumize');
+  if (!adapter) throw new Error('premiumize ausente');
+  const saved = { services: config.debrid.rustServices.slice(), account: adapter.accountStatus, fileLink: adapter.fileLink, fetch: globalThis.fetch };
+  const counter = (name: string) => metrics.snapshot().counters[name] || 0;
+  let tsAccount = 0;
+  let tsFiles = 0;
+  try {
+    config.debrid.rustServices = ['premiumize'];
+    adapter.accountStatus = async () => { tsAccount += 1; return { magnets: 3 }; };
+    adapter.fileLink = async () => { tsFiles += 1; return { url: 'http://ts.example/f', size: 9 }; };
+    const reply = (status: number, body: unknown) =>
+      (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+    const current = (tag: string) => {
+      const wrapped = withPremiumize(() => debrid.current(), `chave-${tag}`);
+      if (!wrapped) throw new Error('sem adaptador');
+      return wrapped;
+    };
+    globalThis.fetch = reply(403, { kind: 'auth', message: 'invalid key' });
+    await assert.rejects(() => current('a').accountStatus!('k-a'), (err: unknown) => err instanceof AuthError);
+    await assert.rejects(() => current('b').fileLink!('k-b', 'hash', 'a.mp4'), (err: unknown) => err instanceof AuthError);
+    assert.deepEqual([tsAccount, tsFiles], [0, 0], 'recusa do serviço não vira segunda pergunta');
+    globalThis.fetch = reply(501, { error: 'service_not_ported' });
+    assert.deepEqual(await current('c').accountStatus!('k-c'), { magnets: 3 });
+    assert.deepEqual(await current('d').fileLink!('k-d', 'hash', 'a.mp4'), { url: 'http://ts.example/f', size: 9 });
+    assert.deepEqual([tsAccount, tsFiles], [1, 1], '501 continua caindo no TS');
+    globalThis.fetch = reply(502, { error: 'other' });
+    const accountBefore = counter('rust.debrid.account.unreachable');
+    const filesBefore = counter('rust.debrid.files.unreachable');
+    await current('e').accountStatus!('k-e');
+    await current('f').fileLink!('k-f', 'hash', 'a.mp4');
+    assert.equal(counter('rust.debrid.account.unreachable') - accountBefore, 1, 'queda da conta é medida');
+    assert.equal(counter('rust.debrid.files.unreachable') - filesBefore, 1, 'queda dos arquivos é medida');
+    assert.deepEqual([tsAccount, tsFiles], [2, 2], 'sem veredito o TS responde uma vez');
+  } finally {
+    adapter.accountStatus = saved.account;
+    adapter.fileLink = saved.fileLink;
     globalThis.fetch = saved.fetch;
     config.debrid.rustServices = saved.services;
   }
