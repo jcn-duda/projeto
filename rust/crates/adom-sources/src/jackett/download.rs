@@ -12,6 +12,7 @@ use reqwest::redirect::Policy;
 use reqwest::{Client, Url};
 
 use super::config::JackettConfig;
+use crate::redact::redact_secrets;
 
 /// Exceção SSRF: origem do Jackett + path `/dl/<indexer>/` (não qualquer path
 /// admin). Mesma régua de `isJackettDownloadLink` no TS.
@@ -82,7 +83,10 @@ pub async fn resolve_download_magnet(
 ) -> Option<String> {
     if !download_url_allowed(url, cfg) {
         let preview: String = url.chars().take(160).collect();
-        eprintln!("[jackett] URL de download bloqueada por segurança: {preview}");
+        eprintln!(
+            "[jackett] URL de download bloqueada por segurança: {}",
+            redact_secrets(&preview)
+        );
         return None;
     }
     let timeout = Duration::from_millis(budget_ms.min(cfg.download_timeout_ms).max(1));
@@ -93,7 +97,10 @@ pub async fn resolve_download_magnet(
     let response = match request.send().await {
         Ok(r) => r,
         Err(err) => {
-            eprintln!("[jackett] download: falha de rede: {err}");
+            eprintln!(
+                "[jackett] download: falha de rede: {}",
+                redact_secrets(&err.to_string())
+            );
             return None;
         }
     };
@@ -110,7 +117,10 @@ pub async fn resolve_download_magnet(
     let body = match response.text().await {
         Ok(t) => t,
         Err(err) => {
-            eprintln!("[jackett] download: corpo: {err}");
+            eprintln!(
+                "[jackett] download: corpo: {}",
+                redact_secrets(&err.to_string())
+            );
             return None;
         }
     };

@@ -86,6 +86,7 @@ mod http;
 pub mod jackett;
 pub mod mico;
 pub mod prowlarr;
+mod redact;
 mod sources;
 mod tmdb;
 pub mod torrentio;

@@ -12,6 +12,8 @@ use reqwest::header::ACCEPT;
 use reqwest::{Client, Url};
 use serde_json::Value;
 
+use crate::redact::redact_secrets;
+
 /// Relógio do crate em epoch ms (o mesmo `Date.now()` do TS).
 pub fn now_ms() -> i64 {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
@@ -173,7 +175,10 @@ impl Http {
                 }
             }
             Ok(Err(err)) => {
-                eprintln!("[sources] {label}: falha de rede: {err}");
+                eprintln!(
+                    "[sources] {label}: falha de rede: {}",
+                    redact_secrets(&err.to_string())
+                );
                 JsonFetch::failed()
             }
             Err(_) => {
