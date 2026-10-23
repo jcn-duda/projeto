@@ -55,8 +55,8 @@ export const catalog = () => ({
 
 // Banco de magnets VIVO (clone permanente): SQLite próprio em data/magnets.db,
 // sem cota, sem TTL e sem bump de namespace — é acervo, não cache. Os flags de
-// fila valem já na Etapa 2; os de fallback ficam declarados aqui para o knob
-// existir no `.env` antes da feature (Etapa 4), sem nenhum caminho os consumir.
+// fila valem já na Etapa 2. O fallback 📦 NÃO mora aqui: é do gateway Rust, que
+// lê `MAGNET_BANK_FALLBACK*` direto da env em `adom-server/src/stream_config.rs`.
 export const magnetBank = () => {
   // Janela adaptativa da resposta instantânea: `clamp(estabilidade ÷ 2, min, max)`
   // e teto curto para lançamento recente. Os locais existem para o max nunca
@@ -95,14 +95,6 @@ export const magnetBank = () => {
     // teto não é memória: é o limite de um upload que ninguém pediu. 2 GiB
     // cabe um acervo ~20× o da VPS medido em 2026-09-29 (90 MB).
     importMaxBytes: Math.max(1024, num(process.env.MAGNET_BANK_IMPORT_MAX_BYTES, 2 * 1024 ** 3)),
-    /** Fallback quando o indexer falha (Etapa 4). */
-    fallbackEnabled: String(process.env.MAGNET_BANK_FALLBACK || 'true') !== 'false',
-    // Teto por indexer falho (1..40). O item de fallback é reserva; acima disso a
-    // conta do debrid vira depósito de candidato que o vivo provavelmente já tem.
-    fallbackMaxPerIndexer: Math.min(40, Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_MAX, 40)))),
-    // Teto GLOBAL da reserva (1..500): sem ele, N indexers falhos × 40 encheriam o
-    // lote e a checagem do debrid. Conservador por default (igual ao por-indexer).
-    fallbackGlobalMax: Math.min(500, Math.max(1, Math.trunc(num(process.env.MAGNET_BANK_FALLBACK_GLOBAL_MAX, 40)))),
     // Resposta instantânea (Onda): quando a foto do acervo é confiável pela
     // janela adaptativa, a abertura sai do banco e a coleta ao vivo inteira roda
     // no tail. Kill-switch explícito; os tetos de itens são os mesmos do fallback

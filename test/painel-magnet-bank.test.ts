@@ -330,24 +330,36 @@ test('indexerRows lê fallbackServed sem confundir com o estado online', () => {
   assert.match(label!, /boot/);
   assert.match(label!, /não é o status online/);
 
+  // Sem `fallbackServed` (o bloco publica `null` desde que o contador perdeu o
+  // produtor) NÃO vira 0: 0 passaria por medida. O modelo carrega "não medido".
   const [semMemoria] = indexerRows([{ id: 'x', status: { state: 'online' } }]);
-  assert.equal(semMemoria.servedFromMemory, 0);
-  assert.equal(indexerMemoryLabel(semMemoria), null, 'zero não gera indicador');
+  assert.equal(semMemoria.servedFromMemory, null);
+  const semMedidaLabel = indexerMemoryLabel(semMemoria);
+  assert.ok(semMedidaLabel, 'não medido tem texto próprio');
+  assert.match(semMedidaLabel!, /não medid/);
+
+  const [zero] = indexerRows([{ id: 'y', status: { state: 'online' }, fallbackServed: 0 }]);
+  assert.equal(zero.servedFromMemory, 0);
+  assert.equal(indexerMemoryLabel(zero), null, 'zero MEDIDO não gera indicador');
 
   const vnode = ViewSaude({
     general: { ok: true, services: {} },
     indexers: [
       { id: 'bludv', label: 'Bludv', status: { state: 'online', ms: 120 }, fallbackServed: 4 },
       { id: 'tpb', label: 'TPB', status: { state: 'online', ms: 80 }, fallbackServed: 0 },
+      { id: 'sem', label: 'SemMedida', status: { state: 'online', ms: 70 }, fallbackServed: null },
     ],
   });
   const chips = chipButtons(vnode);
-  assert.equal(chips.length, 2);
+  assert.equal(chips.length, 3);
   const bludv = chips.find((c) => textOf(c).includes('Bludv'))!;
   assert.match(textOf(bludv), /MEM\s+4/, 'a cobertura de memória aparece no chip');
   assert.match(String(bludv.props.title), /não é o status online/, 'tooltip separa histórico de saúde');
   const tpb = chips.find((c) => textOf(c).includes('TPB'))!;
-  assert.doesNotMatch(textOf(tpb), /MEM/, 'sem cobertura não inventa badge');
+  assert.doesNotMatch(textOf(tpb), /MEM/, 'zero medido não inventa badge');
+  const semMedida = chips.find((c) => textOf(c).includes('SemMedida'))!;
+  assert.match(textOf(semMedida), /MEM NÃO MEDIDO/, 'null aparece como não medido, não some nem vira 0');
+  assert.match(String(semMedida.props.title), /não medid/, 'tooltip diz que a métrica não tem produtor');
 });
 
 test('wiring: app entrega o bloco magnetBank à aba Magnets', async () => {

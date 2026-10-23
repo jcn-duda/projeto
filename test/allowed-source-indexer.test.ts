@@ -21,7 +21,6 @@ const hex = (c: string) => c.repeat(40);
 const tempDirs: string[] = [];
 const saved = {
   releaseIndex: config.releaseIndex.enabled,
-  fallbackEnabled: config.magnetBank.fallbackEnabled,
 };
 
 function withOpts<T>(over: Record<string, unknown>, fn: () => T): T {
@@ -35,13 +34,11 @@ beforeEach(() => {
   bank.open(dir);
   config.releaseIndex.enabled = true;
   config.magnetBank.enabled = true;
-  config.magnetBank.fallbackEnabled = true;
 });
 
 after(() => {
   bank.resetForTests();
   config.releaseIndex.enabled = saved.releaseIndex;
-  config.magnetBank.fallbackEnabled = saved.fallbackEnabled;
   for (const dir of tempDirs) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
   }

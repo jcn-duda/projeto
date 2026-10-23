@@ -1,6 +1,5 @@
 import type { AppServices } from './types.js';
 import * as brCoverage from '../utils/br-coverage.js';
-import { indexerFallbackMetricKey } from '../utils/metric-id.js';
 import { releaseIndexStatus, jackettServiceFlag, panelMetrics, searchFirstBlock, type MetricSnapshot } from './dashboard-status-helpers.js';
 import { pullNativeMetrics, type NativeMetrics } from '../utils/native-metrics.js';
 import { crawlBlock } from './dashboard-crawl-block.js';
@@ -310,16 +309,14 @@ export async function computeStatusPayload(
   // Bloco: indexers
   if (isReq('indexers')) {
     const indexers = await getIndexers();
-    // `fallbackServed` vem do contador `fallback.indexer.<id>` (desde o boot):
-    // quantas vezes o banco vivo SERVIU aquele indexer quando ele falhou. É
-    // histórico acumulado, NÃO o estado online — o painel mostra num badge
-    // próprio para não confundir as duas leituras.
-    const counters = getMetrics().counters;
     out.indexers = indexers.map((indexer: any) => ({
       ...indexer,
       breaker: services.jackett.breakerSnapshot(indexer.id),
       flagSlow: indexer.status == null ? null : indexer.status.state === 'slow',
-      fallbackServed: counters[indexerFallbackMetricKey(indexer.id)] || 0,
+      // `fallbackServed` vinha do contador `fallback.indexer.<id>`, que não tem
+      // produtor (o fallback 📦 é do gateway e não conta por indexer). Ausência
+      // é "não medido" — nunca 0, que passaria por medida.
+      fallbackServed: null,
     }));
   }
 

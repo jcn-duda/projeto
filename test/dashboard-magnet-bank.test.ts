@@ -1,6 +1,6 @@
 // Etapa 5 — superfície HTTP das ações do banco vivo no /dashboard-action.json
 // (`magnet-bank-summary` / `magnet-bank-search`), do bloco `magnetBank` do
-// /dashboard-status.json e do indicador `fallbackServed` por indexer.
+// /dashboard-status.json e do `fallbackServed` declarado NÃO MEDIDO por indexer.
 // Fase 0.7 — o mesmo /dashboard-status.json expõe `metrics.native` (leitura das
 // duas superfícies do gateway Rust) e o card I0 se declara NÃO MEDIDO.
 //
@@ -219,26 +219,28 @@ test('magnet-bank-summary é memoizado e o flush derruba o memo', async () => {
   assert.deepEqual(a.json, b.json);
 });
 
-test('bloco indexers normaliza o mesmo balde que o produtor (id que muda)', async () => {
-  // Id CRU com espaço e barra: a normalização NÃO é no-op.
+test('bloco indexers declara fallbackServed NÃO MEDIDO (sem produtor do contador)', async () => {
+  // A chave `fallback.indexer.<id>` continua definida (paridade com
+  // `adom_core::metric_id`), e o id cru normaliza para o mesmo balde.
   assert.equal(safeMetricId('Bank Test/ID'), 'bank_test_id');
   assert.equal(indexerFallbackMetricKey('Bank Test/ID'), 'fallback.indexer.bank_test_id');
 
   config.jackett.apiKey = '';
-  // O catálogo entrega o id JÁ normalizado; o produtor escreve pelo id cru.
   config.jackett.indexers = ['bank_test_id'];
   config.jackett.ptBrIndexers = [];
   config.jackett.slowIndexers = [];
   resetCatalogCache();
+  // Nem com um valor no balde o bloco pode publicar medida: sem produtor, a
+  // contagem é resíduo — publicar 5 afirmaria um histórico que ninguém escreve.
   metrics.count(indexerFallbackMetricKey('Bank Test/ID'), 5);
 
   const res = await get('?blocos=indexers');
   assert.equal(res.status, 200);
   const row = res.json.indexers.find((indexer: any) => indexer.id === 'bank_test_id');
-  assert.ok(row, 'o indexer semeado aparece no catálogo de fallback');
-  assert.equal(row.fallbackServed, 5, 'o consumidor lê o balde normalizado do produtor');
+  assert.ok(row, 'o indexer semeado aparece no catálogo');
+  assert.equal(row.fallbackServed, null, 'sem produtor: não medido, nunca 0');
 
-  // A leitura é HISTÓRICO, não o estado online: o campo é separado de `status`.
+  // A leitura seria HISTÓRICO, não o estado online: o campo é separado de `status`.
   assert.equal('status' in row, true, 'o status de saúde continua no próprio campo');
 });
 

@@ -23,8 +23,14 @@ function IndexerChip({ row, onSelect }: { row: SaudeIndexerRow; onSelect?: (id: 
   // O indicador de memória é HISTÓRICO de cobertura (contador desde o boot) e
   // entra no title com a ressalva explícita — não é o estado online, que
   // continua no badge de estado. Sem a distinção, um indexer ONLINE coberto no
-  // passado pareceria inconsistente.
+  // passado pareceria inconsistente. Sem contador (o produtor saiu do build),
+  // `null` vira "NÃO MEDIDO": sumir esconderia a lacuna e 0 passaria por medida.
   const memoryTitle = indexerMemoryLabel(row);
+  const memoryBadge = row.servedFromMemory == null
+    ? html`<span class="painel-badge painel-badge-neutral" title=${memoryTitle || ''}>MEM NÃO MEDIDO</span>`
+    : row.servedFromMemory > 0
+      ? html`<span class="painel-badge painel-badge-neutral" title=${memoryTitle || ''}>MEM ${row.servedFromMemory}</span>`
+      : null;
   const title = [
     row.id,
     row.stateLabel,
@@ -44,7 +50,7 @@ function IndexerChip({ row, onSelect }: { row: SaudeIndexerRow; onSelect?: (id: 
       <span class=${'painel-badge painel-badge-' + row.variant}>${row.stateLabel}</span>
       ${row.ms != null ? html`<span class="painel-chip-ms">${row.ms} ms</span>` : null}
       ${row.breakerOpen ? html`<span class="painel-badge painel-badge-err">CIRCUITO</span>` : null}
-      ${row.servedFromMemory > 0 ? html`<span class="painel-badge painel-badge-neutral" title=${memoryTitle || ''}>MEM ${row.servedFromMemory}</span>` : null}
+      ${memoryBadge}
     </button>
   `;
 }
