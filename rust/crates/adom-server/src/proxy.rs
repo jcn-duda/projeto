@@ -63,6 +63,8 @@ async fn metrics_snapshot() -> Json<BTreeMap<String, u64>> {
     snapshot.extend(adom_search::orchestrator::debrid_al_metrics_snapshot());
     // Índice/banco nativos (F4.5): `index.*`/`bank.*`.
     snapshot.extend(adom_search::orchestrator::index_metrics_snapshot());
+    // Metadados nativos × fallback Node (Fase 2): `meta.*`.
+    snapshot.extend(adom_search::orchestrator::meta_metrics_snapshot());
     Json(snapshot)
 }
 

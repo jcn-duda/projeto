@@ -26,10 +26,9 @@
 //! (mesmo cache ≤ 60 s e host fora dele). Nunca 500: falha de collector vira
 //! lista vazia + aviso, como o handler do Node (`stream.ts`).
 
-mod bludv_collector;
-// Inventário nativo da conta (F3): fonte, filtro, memo e fast-path.
-mod account;
+mod account; // Inventário nativo da conta (F3): fonte, filtro, memo e fast-path.
 mod account_metrics;
+mod bludv_collector;
 mod collect;
 mod composite_collector;
 mod config;
@@ -51,6 +50,7 @@ mod late;
 mod live_state;
 mod meta;
 mod meta_load;
+mod meta_metrics; // `meta.*`: metadados nativos × fallback Node (Fase 2).
 mod meta_native;
 mod mico_collector;
 mod native_index;
@@ -122,6 +122,7 @@ pub use live_state::{
     SharedLiveState,
 };
 pub use meta::{meta_from_response, MetaQuery, MetaSource, NodeMetaSource, SearchMeta};
+pub use meta_metrics::{meta_metrics_snapshot, MetaMetrics};
 pub use meta_native::{
     meta_from_lookup, FallbackMetaSource, NativeMetaSource, DEFAULT_LOOKUP_TIMEOUT_MS,
 };
@@ -182,9 +183,8 @@ pub struct Orchestrator {
     frozen_fast_path: Option<fast_path::FastPath>,
 }
 
-/// Collector que falha sempre: default do crate até a integração
-/// (`adom-server`) injetar os coletores nativos. A busca responde lista vazia
-/// + aviso — nunca 500.
+/// Collector que falha sempre: default do crate até a integração (`adom-server`)
+/// injetar os coletores nativos. A busca responde lista vazia + aviso — nunca 500.
 struct UnavailableCollector;
 
 impl Collector for UnavailableCollector {

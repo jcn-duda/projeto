@@ -19,7 +19,8 @@
 //!
 //! O Node segue no caminho como FALLBACK: o [`FallbackMetaSource`] o chama
 //! quando o nativo falha (ou volta sem nome) — a rede de segurança fica até
-//! haver medida da taxa de fallback.
+//! haver medida da taxa de fallback. A taxa é medida em `meta.*`
+//! ([`super::meta_metrics`]); nada aqui muda de comportamento por causa dela.
 
 use std::sync::Arc;
 
@@ -31,6 +32,7 @@ use super::internal_routes::RouteFuture;
 use super::meta::{
     build_search_meta, first_year, MetaParts, MetaQuery, MetaSource, MetaTitles, SearchMeta,
 };
+use super::meta_metrics::{self, MetaMetrics};
 
 /// Prazo do lookup quando a requisição não traz deadline (passe tardio): teto
 /// curto, nunca maior que o orçamento de uma busca normal.
@@ -99,29 +101,98 @@ impl MetaSource for NativeMetaSource {
 /// Fallback do caminho nativo: usa o Node quando o nativo falha ou volta sem
 /// nome (nunca deve acontecer, mas falha de rede não pode zerar a busca). Se o
 /// Node também falhar, devolve o parcial do nativo quando houver.
+///
+/// A instrumentação (`meta.*`) só MEDE: a ordem, as chamadas e o valor
+/// devolvido são exatamente os de antes dela.
 pub struct FallbackMetaSource {
     primary: Arc<dyn MetaSource>,
     fallback: Arc<dyn MetaSource>,
+    /// Contadores `meta.*` (a global em produção; instância local no teste).
+    metrics: MetaMetrics,
 }
 
 impl FallbackMetaSource {
     pub fn new(primary: Arc<dyn MetaSource>, fallback: Arc<dyn MetaSource>) -> Self {
-        Self { primary, fallback }
+        Self::with_metrics(primary, fallback, meta_metrics::global_metrics().clone())
     }
+
+    /// Instância própria de métricas: os testes não disputam a global entre
+    /// casos paralelos.
+    pub fn with_metrics(
+        primary: Arc<dyn MetaSource>,
+        fallback: Arc<dyn MetaSource>,
+        metrics: MetaMetrics,
+    ) -> Self {
+        Self {
+            primary,
+            fallback,
+            metrics,
+        }
+    }
+
+    /// Contadores desta instância (diagnóstico/teste).
+    pub fn metrics(&self) -> &MetaMetrics {
+        &self.metrics
+    }
+}
+
+/// Título "de verdade": não vazio e diferente do próprio IMDb. É a régua do
+/// `meta.native.incomplete` — `meta_from_lookup` cai no IMDb quando os títulos
+/// faltaram, então `name` vazio não é a única forma de metadado incompleto.
+fn has_real_title(meta: &SearchMeta) -> bool {
+    let name = meta.name.trim();
+    !name.is_empty() && name != meta.imdb_id.trim()
 }
 
 impl MetaSource for FallbackMetaSource {
     fn resolve<'a>(&'a self, req: MetaQuery) -> RouteFuture<'a, SearchMeta> {
         Box::pin(async move {
+            self.metrics.inc(meta_metrics::RESOLVE_TOTAL, 1);
             match self.primary.resolve(req.clone()).await {
-                Ok(meta) if !meta.name.trim().is_empty() => Ok(meta),
-                Ok(meta) => match self.fallback.resolve(req).await {
-                    Ok(fallback) => Ok(fallback),
-                    Err(_) => Ok(meta),
-                },
+                // Gate INALTERADO (nome vazio): `name == imdb_id` devolve o
+                // primário sem chamar o Node — só a contagem o distingue.
+                Ok(meta) if !meta.name.trim().is_empty() => {
+                    if has_real_title(&meta) {
+                        self.metrics.inc(meta_metrics::NATIVE_OK, 1);
+                    } else {
+                        self.metrics.inc(meta_metrics::NATIVE_INCOMPLETE, 1);
+                    }
+                    Ok(meta)
+                }
+                Ok(meta) => {
+                    self.metrics.inc(meta_metrics::NATIVE_INCOMPLETE, 1);
+                    match self.fallback.resolve(req).await {
+                        Ok(fallback) if has_real_title(&fallback) => {
+                            self.metrics.inc(meta_metrics::FALLBACK_USED, 1);
+                            Ok(fallback)
+                        }
+                        Ok(fallback) => {
+                            self.metrics.inc(meta_metrics::FALLBACK_EMPTY, 1);
+                            Ok(fallback)
+                        }
+                        Err(_) => {
+                            self.metrics.inc(meta_metrics::FALLBACK_ERROR, 1);
+                            Ok(meta)
+                        }
+                    }
+                }
                 Err(err) => {
+                    self.metrics.inc(meta_metrics::NATIVE_ERROR, 1);
                     eprintln!("[search] metadados nativos falharam ({err}); usando Node");
-                    self.fallback.resolve(req).await
+                    match self.fallback.resolve(req).await {
+                        Ok(fallback) if has_real_title(&fallback) => {
+                            self.metrics.inc(meta_metrics::FALLBACK_USED, 1);
+                            Ok(fallback)
+                        }
+                        Ok(fallback) => {
+                            self.metrics.inc(meta_metrics::FALLBACK_EMPTY, 1);
+                            Ok(fallback)
+                        }
+                        Err(err) => {
+                            self.metrics.inc(meta_metrics::FALLBACK_ERROR, 1);
+                            Err(err)
+                        }
+                    }
                 }
             }
         })
