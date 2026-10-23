@@ -70,11 +70,12 @@ commit/imagem anterior (nada de knob por env em caminho de leitura).
 | Fase 3.1 (item 3) | `e9049660` | `accountStatus`/`fileLink` não perguntam duas vezes: recusa sobe, 501/rede usam o TS |
 | Fase 5 (dedupe) | `faabecb8` | `harvest:v1:seen:<sha256>` no crate: chave e TTL do TS, ler não renova, gravar só após o aceite |
 | Fase 5 (balde horário) | `7bb95fec` | `harvest:v1:hour` durável: `{hour, count}`, TTL até o fim da hora + 60 s, hidrata só a hora corrente |
+| Fase 5 (inflight) | `f1a4a5e0` | slot único no `HarvestQueue`: enqueue da mesma obra devolve `coalesced`; tick abre/fecha |
 
 Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2956 testes, 2942 pass / 14 fail** (as 14 da baseline do WIP, zero novas) · `lint:lines` 0 acima do teto ·
 `check-rust-lines.mjs` (740 fontes, baseline 45) · `cargo fmt --check` ·
 `cargo clippy -D warnings` em `adom-store`, `adom-debrid` e `adom-harvest` · `cargo test -p adom-store` (42),
-`-p adom-debrid` (193) e `-p adom-harvest` (44).
+`-p adom-debrid` (193) e `-p adom-harvest` (50).
 
 Ainda aberto, com o motivo real:
 
@@ -94,9 +95,9 @@ Ainda aberto, com o motivo real:
 - **Fase 4.4** — o CAS fechou o lost update; declarar um único executor de `magnet_work` e o
   ensaio de restauração continuam **bloqueados por push**.
 - **Fases 5–7** — colhedor, Mico e o fundo no Rust: em andamento. No `adom-harvest` já
-  existem fila/L2, priorização BR com `BrEvidence`, tick, o dedupe 12h e o balde horário
-  durável (`harvest:v1:hour`); faltam a ponte do `BrEvidence` para o índice, o coalescing
-  in-flight, o `takeProbe` sob tráfego e a transferência da fila com consumidor parado.
+  existem fila/L2, priorização BR com `BrEvidence`, tick, o dedupe 12h, o balde horário
+  durável (`harvest:v1:hour`) e o coalescing em voo; faltam a ponte do `BrEvidence` para
+  o índice, o `takeProbe` sob tráfego e a transferência da fila com consumidor parado.
 
 ---
 
@@ -660,8 +661,8 @@ Antes de apagar `jackett*.ts`/`search-plan.ts`/`bludv.ts`/`harvest-*`/`harvester
 - portar a coordenação da sonda BR (`br-probe` decide `pending` pela fila);
 - trocar os contratos vivos de diagnóstico/painel e o `peekRawFor` local do
   `trace-recompute` (sem virar busca de rede);
-- dedupe 12h, balde horário durável, `inflight`, `BrEvidence` e `idxPoolCovered` no
-  `adom-harvest`;
+- dedupe 12h, balde horário durável, coalescing em voo, `BrEvidence` e `idxPoolCovered`
+  no `adom-harvest`;
 - transferir a fila (`harvest:v1:q`) com consumidor antigo parado e órfãos
   recuperados; replay idempotente;
 - **só então** apagar por ausência comprovada de consumidor.
