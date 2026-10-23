@@ -48,7 +48,7 @@ commit/imagem anterior (nada de knob por env em caminho de leitura).
 | Efeito colateral | `cargo test`, `clippy`, `fmt`, `catraca` e `cargo audit` ficam **PULADOS** |
 | Catraca `.rs` (400 linhas) | **45 fontes acima do teto**, maior `rust/crates/adom-search/src/orchestrator/frozen_gate.rs` = 1973 |
 | Suíte Node | `npm test`: 2957 testes, **2943 pass / 14 fail** — todas nas áreas do WIP do usuário (season fill, clear-cache por instalação, `/stream-trace.json`, `mode=live`, `tier1`) |
-| WIP do usuário | `package.json`, `rd-probe.ts` (deletado), `rd-warmer.ts`, `br-gap.ts`, `cache*.ts` e 12 testes — **não é nosso; não commitar sem decisão dele** |
+| WIP do usuário | `package.json`, `rd-probe.ts` (deletado), `rd-warmer.ts`, `br-gap.ts`, `cache*.ts` e 12 testes — **preservado em `stash@{1}`** (código) e `stash@{0}` (teste `debrid-rd-instant-probe`); working tree de código limpo |
 | `fallback.indexer.*` | não existe mais produtor (nem Node nem Rust incrementam) → `fallbackServed` do painel é 0 por construção |
 | `config.magnetBank.fallback*` | 3 chaves declaradas em `src/config/cache.ts`, **zero leitores** |
 
@@ -71,18 +71,18 @@ commit/imagem anterior (nada de knob por env em caminho de leitura).
 | Fase 5 (dedupe) | `faabecb8` | `harvest:v1:seen:<sha256>` no crate: chave e TTL do TS, ler não renova, gravar só após o aceite |
 | Fase 5 (balde horário) | `7bb95fec` | `harvest:v1:hour` durável: `{hour, count}`, TTL até o fim da hora + 60 s, hidrata só a hora corrente |
 | Fase 5 (inflight) | `f1a4a5e0` | slot único no `HarvestQueue`: enqueue da mesma obra devolve `coalesced`; tick abre/fecha |
+| Fase 4.2(b) | `4a9e01a8` | o Node trata `raw:v1:bludv:` como prefixo ESTRANGEIRO no L1/L2: `get`/`set`/`setMany`/`forget`/`persist`, boot e poda do expirado |
 | Fase 5 (`takeProbe`) | `072f8fc3` | sob tráfego o tick consome só `br_probe`; sem sonda, `SkippedBusy` sem tocar na cabeça |
 
-Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2956 testes, 2942 pass / 14 fail** (as 14 da baseline do WIP, zero novas) · `lint:lines` 0 acima do teto ·
+Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2965 testes, 2965 pass / 0 fail** (WIP fora do working tree; ver stashes abaixo) · `lint:lines` 758 fontes, 0 acima do teto ·
 `check-rust-lines.mjs` (741 fontes, baseline 45) · `cargo fmt --check` ·
 `cargo clippy -D warnings` em `adom-store`, `adom-debrid` e `adom-harvest` · `cargo test -p adom-store` (42),
 `-p adom-debrid` (193) e `-p adom-harvest` (49).
 
+O WIP de `cache*`/`br-gap`/`rd-warmer`/`rd-probe` (e o teste novo de sonda) foi **preservado em dois stashes** antes da fatia 4.2(b) — `stash@{1}` (código) e `stash@{0}` (teste `debrid-rd-instant-probe`). O working tree de código está limpo; `.cursor/`, `.codex/`, `plugins/` e `docker-compose.override.yml` seguem intocados.
+
 Ainda aberto, com o motivo real:
 
-- **Fase 4.2(b)** — tratar `raw:v1:bludv:` como prefixo ESTRANGEIRO no L1/L2 do Node:
-  **bloqueado pelo WIP não commitado** de `src/utils/cache.ts`/`cache-keys.ts` (o `RUST_OWNED`
-  do usuário já generaliza `idx`→`idx`+`streams`; o guarda **por prefixo** entra depois dele).
 - **Fase 3.1 (matriz)** — `/debrid/files` só Premiumize, e a medição mostra `adapter.fileLink`
   **sem chamador vivo** em `src/` (só o teste e o `rust-remote` que o embrulha): portar para os
   outros serviços não teria consumidor. Debrid-Link segue 501 nas duas rotas; decidir se `files`
@@ -92,7 +92,9 @@ Ainda aberto, com o motivo real:
 - **Fase 2.3/2.4** — medir ~1 semana em produção e só então remover `FallbackMetaSource`:
   **bloqueado por push**.
 - **Fase 4.1(b)(c) e 4.3** — ponte de leitura do `davail` (`br-coverage`/painel) e mover a
-  escrita junto com `mag:v1`: dependem da Fase 3 e do mesmo WIP de `cache*`.
+  escrita junto com `mag:v1`: dependem da Fase 3 (a escrita sai da mesma função da checagem).
+  O WIP não é mais bloqueio: `RUST_OWNED`/`isForeignKey` já estão no HEAD.
+  A generalização `idx`→`idx`+`streams` segue no `stash@{1}` e depende de remover o `rd-probe`.
 - **Fase 4.4** — o CAS fechou o lost update; declarar um único executor de `magnet_work` e o
   ensaio de restauração continuam **bloqueados por push**.
 - **Fases 5–7** — colhedor, Mico e o fundo no Rust: em andamento. No `adom-harvest` já
@@ -615,12 +617,12 @@ Mitigação imediata, sem trocar dono: `UPDATE` monotônico/CAS em
    usa `cache.peek`, que é L1 do Node); (c) só então mover a escrita, junto com
    `mag:v1` (`4.0.3`), porque saem da mesma função.
    Rollback: reverter o commit; o dado é TTL de 15 min/2 min, não há migração.
-2. **`raw:v1` — parar um escritor antes de declarar dono.** (a) Node para de
+2. **`raw:v1` — parar um escritor antes de declarar dono.** (a) ✅ `e0b32cec`: o Node parou de
    escrever `raw:v1:bludv:*` (`bludv.ts:234`) — o Rust já cobre a mesma chave
-   (`client.rs:183-185`); (b) só depois o Node trata o prefixo `raw:v1:bludv:`
-   como estrangeiro (bloqueio explícito no L1/L2, como `RUST_OWNED` em
-   `cache.ts:234`/`:257`, mas **por prefixo** — `RUST_OWNED` é por namespace e
-   `raw` é compartilhado por BLUDV e Jackett); (c) `raw:v1:jackett:*` fica no
+   (`client.rs:183-185`); (b) ✅ `4a9e01a8`: o Node trata o prefixo `raw:v1:bludv:`
+   como estrangeiro (**por prefixo** — `RUST_OWNED` é por namespace e `raw` é
+   compartilhado por BLUDV e Jackett): `get`/`peek`/`set`/`setMany`/`forget`/
+   `forgetMany`/`persist`, boot e poda do expirado; (c) `raw:v1:jackett:*` fica no
    Node até a Fase 5, porque o coletor Jackett nativo ignora o store
    (`sources_rust.rs:25-27`). Sem (a), qualquer "dono único" é falso.
    Rollback: imagem anterior; as linhas expiram em ≤ 30 min e o schema é o
