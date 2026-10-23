@@ -19,6 +19,7 @@ sem Docker.
 | Precedência | `reasonPriority` / `isPromotion` | `reason_priority` / `is_promotion` |
 | Consumo | `takeHead` / `takeProbe` | `take_head` / `take_probe` |
 | L2 | `cache.get` / `cache.set(QUEUE_KEY, …)` | `HarvestStore::load` / `save` |
+| Dedupe 12h | `queueDedupeKey` / `wasRecentlyQueued` / `markRecentlyQueued` | `seen_key` / `was_recently_queued` / `mark_recently_queued` (`seen.rs`) |
 | Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
 | Prioridade | `prioritizeQueue` + `hasBrDubbed(lookupQuiet)` | `prioritize` + trait `BrEvidence` (stub/callback; índice real ainda não) |
 | Ciclo | `harvester.tick` / `harvestWorker` | `HarvestWorker::tick` + `TrafficSense` + `HarvestDrain` |
@@ -80,10 +81,27 @@ let ordered = prioritize(&entries, &PrioritizeConfig::default(), &ev, now_ms);
 `load_from(..., Some(&evidence))` aplica a mesma ordem após ler o L2.
 Sem evidência (`None`), a ordem do disco é preservada.
 
+## Dedupe 12h
+
+`harvest:v1:seen:<sha256(obraIdentity:reason)>`, valor `"1"`, TTL de 12h —
+mesmo contrato do `harvest-queue.ts`. Duas regras que o teste fixa:
+
+- **Ler não renova**: `was_recently_queued` só consulta (e apaga o expirado).
+- **Gravar é depois do aceite**: `mark_recently_queued` é chamado pelo
+  chamador quando o pedido entra na fila — gravar antes engolia a promoção de
+  motivo (`miss` → `br-gap`) como duplicata.
+
+```rust
+use adom_harvest::{mark_recently_queued, was_recently_queued, HarvestStore};
+
+if !was_recently_queued(&store, &entry, now_ms)? {
+    mark_recently_queued(&store, &entry, now_ms)?;
+}
+```
+
 ## O que NÃO está aqui (Fase E real)
 
 - Ponte do `BrEvidence` para o índice real (`lookupQuiet` / `hasBrDubbed`).
-- Dedupe 12h (`harvest:v1:seen:<sha>`).
 - Coalescing in-flight (`harvest-inflight`) — só flag `in_flight` no worker.
 - `takeProbe` sob tráfego (embrião: busy = skip inteiro).
 - Persistência L2 do balde horário (`harvest:v1:hour`).

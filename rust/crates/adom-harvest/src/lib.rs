@@ -25,14 +25,16 @@
 //! | [`prioritize`] / [`BrEvidence`] | Reordenação com evidência BR injetável |
 //! | [`HarvestQueue`] | Memória: enqueue / take_head / prioritize / load_from |
 //! | [`HarvestStore`] | L2 SQLite (WAL): `open` / `open_memory` / `load` / `save` |
+//! | [`seen_key`] / [`was_recently_queued`] | Dedupe 12h por obra+motivo |
 //! | [`HarvestWorker`] / [`tick`](HarvestWorker::tick) | Ciclo: freio + teto + `take_head` + drain |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
-//! Dedupe 12h e coalescing inflight: **ainda não** — ver `README.md`.
+//! Coalescing inflight e o resto da Fase E: **ainda não** — ver `README.md`.
 
 mod prioritize;
 mod queue;
 mod reason;
+mod seen;
 mod store;
 mod types;
 mod worker;
@@ -46,6 +48,9 @@ pub use queue::{
 pub use reason::{
     entry_identity, is_promotion, is_recent_br_gap, is_valid_imdb_id, obra_identity,
     reason_priority, BR_GAP_PRIORITY_WINDOW_MS,
+};
+pub use seen::{
+    entry_seen_key, mark_recently_queued, seen_key, was_recently_queued, DEDUPE_TTL_SECONDS,
 };
 pub use store::{HarvestStore, DEFAULT_ENTRY_TTL_SECONDS};
 pub use types::{EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestMediaType, HarvestRequest};

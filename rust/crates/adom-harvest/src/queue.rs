@@ -4,7 +4,7 @@
 //! [`crate::store::HarvestStore`] via [`HarvestQueue::load_from`] /
 //! [`HarvestQueue::save_to`] (espelho de `load`/`persist` + `cache.set` no TS).
 //! Priorização BR: [`HarvestQueue::prioritize`] / [`crate::prioritize`].
-//! Sem coalescing in-flight, sem dedupe 12h.
+//! Sem coalescing in-flight; o dedupe 12h mora em [`crate::seen`].
 
 use adom_core::prefix;
 

@@ -112,6 +112,39 @@ impl HarvestStore {
         Ok(())
     }
 
+    /// `cache.set(chave, valor, ttl)` das chaves auxiliares (`seen:`, `hour:`).
+    pub fn put_value(
+        &self,
+        key: &str,
+        value: &str,
+        ttl_seconds: u64,
+        now_ms: i64,
+    ) -> Result<(), String> {
+        let expires_at = now_ms.saturating_add((ttl_seconds as i64).saturating_mul(1000));
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO cache (key, value, expires_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at",
+            params![key, value, expires_at],
+        )
+        .map_err(|err| err.to_string())?;
+        Ok(())
+    }
+
+    /// `cache.get(chave)`: expirado sai da leitura e é apagado (como o Node).
+    pub fn get_value(&self, key: &str, now_ms: i64) -> Result<Option<String>, String> {
+        let conn = self.lock();
+        let Some((value, expires_at)) = read_row(&conn, key)? else {
+            return Ok(None);
+        };
+        if expires_at <= now_ms {
+            conn.execute("DELETE FROM cache WHERE key = ?1", params![key])
+                .map_err(|err| err.to_string())?;
+            return Ok(None);
+        }
+        Ok(Some(value))
+    }
+
     /// Há linha viva para `harvest:v1:q`? (diagnóstico / testes).
     pub fn has_queue(&self, now_ms: i64) -> Result<bool, String> {
         let conn = self.lock();
