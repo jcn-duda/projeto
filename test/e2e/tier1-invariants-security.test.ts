@@ -29,7 +29,6 @@ import * as format from '../../src/utils/format.js';
 import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
-import prowlarr from '../../src/providers/prowlarr.js';
 import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import * as searchPlan from '../../src/providers/search-plan.js';

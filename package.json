@@ -447,7 +447,6 @@
     "test/tmdb-english-title.test.js",
     "test/tmdb.test.js",
     "test/torrent-total-size.test.js",
-    "test/torrentio-provider.test.js",
     "test/warmup.test.js"
   ]
 }

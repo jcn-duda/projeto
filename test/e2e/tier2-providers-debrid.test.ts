@@ -17,7 +17,6 @@ import debrid from '../../src/debrid/index.js';
 import * as debridCommon from '../../src/debrid/common.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
-import prowlarr from '../../src/providers/prowlarr.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import { raceWithDeadline, remainingCheckBudget } from '../../src/utils/deadline.js';
 import type { Stream } from '../../types/domain.js';
@@ -74,106 +73,6 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       assert.equal(execs, 1);
       assert.deepEqual(r1, r2);
       assert.deepEqual(r2, r3);
-    });
-  });
-
-  // =========================================================================
-  // Feature 9: Prowlarr Provider Resilience & Unit Testing
-  // =========================================================================
-  describe('Feature 9: Prowlarr Provider Resilience & Unit Testing', () => {
-    it('F09-BND-01: Prowlarr search returns empty array on empty query or missing API key', async () => {
-      const emptyRes = await prowlarr.search('');
-      assert.deepEqual(emptyRes, []);
-    });
-
-    it('F09-BND-02: Handles HTTP 500/502/504 responses gracefully returning empty array', async () => {
-      const origFetch = global.fetch;
-      const origApiKey = config.prowlarr.apiKey;
-      config.prowlarr.apiKey = 'test-key';
-      try {
-        global.fetch = (async () => ({
-          ok: false,
-          status: 502,
-          text: async () => 'Bad Gateway',
-        })) as unknown as typeof globalThis.fetch;
-        const res = await prowlarr.search('Test Query');
-        assert.deepEqual(res, []);
-      } finally {
-        global.fetch = origFetch;
-        config.prowlarr.apiKey = origApiKey;
-      }
-    });
-
-    it('F09-BND-03: Handles malformed JSON response from Prowlarr returning empty array', async () => {
-      const origFetch = global.fetch;
-      const origApiKey = config.prowlarr.apiKey;
-      config.prowlarr.apiKey = 'test-key';
-      try {
-        global.fetch = (async () => ({
-          ok: true,
-          status: 200,
-          json: async () => {
-            throw new Error('Unexpected token in JSON');
-          },
-        })) as unknown as typeof globalThis.fetch;
-        const res = await prowlarr.search('Test Query');
-        assert.deepEqual(res, []);
-      } finally {
-        global.fetch = origFetch;
-        config.prowlarr.apiKey = origApiKey;
-      }
-    });
-
-    it('F09-BND-04: Correctly maps valid Torznab items from Prowlarr payload', async () => {
-      const origFetch = global.fetch;
-      const origApiKey = config.prowlarr.apiKey;
-      config.prowlarr.apiKey = 'test-key';
-      try {
-        global.fetch = (async () => ({
-          ok: true,
-          status: 200,
-          json: async () => [
-            {
-              title: 'Movie 2024 1080p',
-              magnetUrl: 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567',
-              infoHash: '0123456789abcdef0123456789abcdef01234567',
-              seeders: 42,
-              size: 2147483648,
-              indexer: '1337x',
-            },
-          ],
-        })) as unknown as typeof globalThis.fetch;
-        const res = await prowlarr.search('Movie 2024');
-        assert.equal(res.length, 1);
-        assert.equal(res[0].title, 'Movie 2024 1080p');
-        assert.equal(res[0].infoHash, '0123456789abcdef0123456789abcdef01234567');
-        assert.equal(res[0].seeders, 42);
-        assert.equal(res[0].tracker, '1337x');
-      } finally {
-        global.fetch = origFetch;
-        config.prowlarr.apiKey = origApiKey;
-      }
-    });
-
-    it('F09-BND-05: Network timeout / AbortSignal triggering returns empty array', async () => {
-      const origFetch = global.fetch;
-      const origApiKey = config.prowlarr.apiKey;
-      config.prowlarr.apiKey = 'test-key';
-      try {
-        global.fetch = async () => {
-          throw new Error('The operation was aborted');
-        };
-        const res = await prowlarr.search('Movie 2024');
-        assert.deepEqual(res, []);
-      } finally {
-        global.fetch = origFetch;
-        config.prowlarr.apiKey = origApiKey;
-      }
-    });
-
-    it('F09-BND-06: Prowlarr provider exports correct name identifier', () => {
-      assert.equal(prowlarr.name, 'prowlarr');
-      assert.equal(typeof prowlarr.search, 'function');
     });
   });
 

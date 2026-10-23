@@ -30,7 +30,6 @@ import * as format from '../../src/utils/format.js';
 import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
-import prowlarr from '../../src/providers/prowlarr.js';
 import debrid from '../../src/debrid/index.js';
 import * as protectedHashes from '../../src/debrid/protected.js';
 import * as searchPlan from '../../src/providers/search-plan.js';
@@ -188,105 +187,6 @@ describe('Feature 8: Search & Late-Pass Budget Optimization', () => {
     assert.deepEqual(s2, s3);
   });
 
-});
-
-// ════════════════════════════════════════════════════════════════════════════════
-// FEATURE 9: Prowlarr Provider Resilience & Unit Testing
-// ════════════════════════════════════════════════════════════════════════════════
-describe('Feature 9: Prowlarr Provider Resilience & Unit Testing', () => {
-  it('9.1: Retorna array vazio imediatamente se PROWLARR_API_KEY não estiver configurada', async () => {
-    const savedKey = config.prowlarr.apiKey;
-    config.prowlarr.apiKey = '';
-
-    try {
-      const results = await prowlarr.search('Test Query');
-      assert.deepEqual(results, []);
-    } finally {
-      config.prowlarr.apiKey = savedKey;
-    }
-  });
-
-  it('9.2: Converte resposta JSON válida do Prowlarr em objetos RawStream padronizados', async () => {
-    const mockData = [
-      {
-        title: 'Prowlarr Movie 2024 1080p',
-        magnetUrl: 'magnet:?xt=urn:btih:' + TEST_HASH_1,
-        infoHash: TEST_HASH_1,
-        seeders: 45,
-        size: 1024 * 1024 * 1500,
-        indexer: '1337x',
-      },
-    ];
-
-    await withMockFetch(
-      { match: '/api/v1/search', handler: () => fakeResponse(mockData) },
-      async () => {
-        const savedKey = config.prowlarr.apiKey;
-        config.prowlarr.apiKey = 'test-key';
-        try {
-          const results = await prowlarr.search('Prowlarr Movie');
-          assert.equal(results.length, 1);
-          assert.equal(results[0].title, 'Prowlarr Movie 2024 1080p');
-          assert.equal(results[0].infoHash, TEST_HASH_1);
-          assert.equal(results[0].seeders, 45);
-          assert.equal(results[0].tracker, '1337x');
-        } finally {
-          config.prowlarr.apiKey = savedKey;
-        }
-      }
-    );
-  });
-
-  it('9.3: Tolera payload JSON que não seja array retornando lista vazia', async () => {
-    await withMockFetch(
-      { match: '/api/v1/search', handler: () => fakeResponse({ error: 'Unauthorized', status: 401 }) },
-      async () => {
-        const savedKey = config.prowlarr.apiKey;
-        config.prowlarr.apiKey = 'test-key';
-        try {
-          const results = await prowlarr.search('Prowlarr Movie');
-          assert.deepEqual(results, []);
-        } finally {
-          config.prowlarr.apiKey = savedKey;
-        }
-      }
-    );
-  });
-
-  it('9.4: Trata erros HTTP 500 do servidor Prowlarr defensivamente sem lançar exceção', async () => {
-    await withMockFetch(
-      { match: '/api/v1/search', handler: () => fakeResponse('Internal Server Error', { status: 500 }) },
-      async () => {
-        const savedKey = config.prowlarr.apiKey;
-        config.prowlarr.apiKey = 'test-key';
-        try {
-          const results = await prowlarr.search('Crash Test');
-          assert.deepEqual(results, []);
-        } finally {
-          config.prowlarr.apiKey = savedKey;
-        }
-      }
-    );
-  });
-
-  it('9.5: Trata cancelamentos e falhas de rede com retorno de lista vazia', async () => {
-    await withMockFetch(
-      {
-        match: '/api/v1/search',
-        handler: () => { throw new Error('Network connection timeout'); },
-      },
-      async () => {
-        const savedKey = config.prowlarr.apiKey;
-        config.prowlarr.apiKey = 'test-key';
-        try {
-          const results = await prowlarr.search('Timeout Test');
-          assert.deepEqual(results, []);
-        } finally {
-          config.prowlarr.apiKey = savedKey;
-        }
-      }
-    );
-  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════════

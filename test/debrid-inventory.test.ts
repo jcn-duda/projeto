@@ -11,13 +11,11 @@ import { filterRelevantRaw as relevantRaw, filterInventoryRelevant } from '../sr
 // O pipeline TS de busca saiu (F4.4); a decisão de debrid que sobrevive aos
 // testes mora no oráculo congelado (`applyDebrid` do Node × núcleo nativo).
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
-import * as account from '../src/providers/account.js';
-import type { InventoryItem, RawItem, Stream } from '../types/domain.js';
-import { createStreamTrace } from '../src/utils/stream-trace.js';
+import type { InventoryItem, Stream } from '../types/domain.js';
 
 process.env.CACHE_PERSIST = 'false';
 
-// A conta do debrid como fonte de streams: o que o usuário JÁ tem pronto entra na
+// O inventário da conta do debrid: o que o usuário JÁ tem pronto entra na
 // busca com ⚡, sem depender de indexer. Contratos: o adaptador filtra não-prontos
 // e filename===hash; o registry memoiza por serviço+conta sem vazar entre scopes;
 // falha não fica cacheada; o teto de itens é respeitado; item de inventário é
@@ -350,38 +348,6 @@ test('applyDebrid preserva o pack de franquia da conta e o entrega via /resolve'
     assert.ok(streams[0].url, 'item pronto da conta sai pelo /resolve (com ⚡)');
   } finally {
     debrid.checkCached = originalCheck;
-  }
-});
-
-test('account.search avalia itens pt-BR com matchesBrTitle (invariante 5)', async () => {
-  cache.clear();
-  const api = mockAllDebridStatus({
-    magnetsOf: () => [
-      { id: 1, hash: H1, status: 'Ready', filename: 'Coringa (2019) 1080p Dublado', ready: true }, // obra correta dublada
-      { id: 2, hash: H2, status: 'Ready', filename: 'Coringa: Delírio a Dois (2024) 1080p Dublado', ready: true }, // sequência cortada por ano/prefixo
-    ],
-  });
-  try {
-    const ctx = { names: ['Joker', 'Coringa'], year: 2019, isSeries: false };
-    const trace = createStreamTrace();
-    const items = await runWith<RawItem[]>(
-      {
-        opts: { ...runtime.defaults(), debridService: 'alldebrid', debridApiKey: KEY_A },
-        encoded: 'seginv2',
-      },
-      () => account.search(ctx, trace),
-    );
-    assert.equal(items.length, 1);
-    assert.equal(items[0].infoHash as string, H1);
-    assert.equal(items[0].isBr, true);
-    assert.equal(trace.stages['account.read'], 2);
-    assert.equal(trace.stages['account.kept'], 1);
-    assert.equal(trace.items.length, 1);
-    assert.equal(trace.items[0].reason, 'account-title');
-    assert.match(trace.items[0].label, /Delírio a Dois/);
-  } finally {
-    api.restore();
-    cache.clear();
   }
 });
 
