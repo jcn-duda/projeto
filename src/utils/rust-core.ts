@@ -19,7 +19,6 @@ import type { AutofetchCore } from './rust-autofetch.js';
 import type { RankingCore } from './rust-stream-ranking.js';
 import type { EpisodeSizeCore } from './rust-episode-size.js';
 import type { RelevanceCore } from './rust-relevance.js';
-import type { EpisodeFilterCore } from './rust-episode-filter.js';
 import type { IdxStoreNapi } from './release-index-store.js';
 
 export type CrawlPageParsedNapi = {
@@ -71,7 +70,7 @@ export type CrawlCore = {
 
 export type IdxStoreCtor = new (dbPath: string, ttlSeconds: number, maxReleases: number) => IdxStoreNapi;
 
-export type NapiCore = { normalizeTitle(title: string): string; IdxStore?: IdxStoreCtor } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore> & Partial<EpisodeFilterCore>;
+export type NapiCore = { normalizeTitle(title: string): string; IdxStore?: IdxStoreCtor } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<RankingCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore>;
 
 /** Núcleo já carregado (boot ou primeira chamada); null antes disso. */
 function getCore(): NapiCore | null {
