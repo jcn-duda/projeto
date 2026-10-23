@@ -12,104 +12,8 @@ use http_body_util::BodyExt;
 use tokio::net::TcpListener;
 use tower::ServiceExt;
 
-use super::{router, InternalConfig};
-
-const KEY: &str = "nao-logar";
-
-fn cfg(token: &str) -> InternalConfig {
-    InternalConfig {
-        listen: "127.0.0.1:0".parse().unwrap(),
-        token: token.to_string(),
-        // Ausente de propósito: sem ledger o RD responde `unknown`, e o boot
-        // da API não cria arquivo nenhum.
-        cache_db: PathBuf::from("data/cache.db.ausente"),
-    }
-}
-
-async fn call(token: &str, header: Option<&str>, path: &str, body: &str) -> (StatusCode, String) {
-    let app = router(&cfg(token));
-    let mut builder = Request::builder()
-        .method("POST")
-        .uri(path)
-        .header("content-type", "application/json");
-    if let Some(value) = header {
-        builder = builder.header("x-indexer-test-token", value);
-    }
-    let response = app
-        .oneshot(builder.body(Body::from(body.to_string())).unwrap())
-        .await
-        .unwrap();
-    let status = response.status();
-    let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    (status, String::from_utf8_lossy(&bytes).into_owned())
-}
-
-struct EnvBase {
-    name: &'static str,
-    prev: Option<String>,
-    // Trava ÚNICA do crate: outros módulos de teste também mexem na env.
-    _lock: std::sync::MutexGuard<'static, ()>,
-}
-
-impl EnvBase {
-    fn set(name: &'static str, value: &str) -> Self {
-        let lock = crate::test_env::lock();
-        let prev = std::env::var(name).ok();
-        // SAFETY: a trava única serializa os testes de env do crate.
-        unsafe { std::env::set_var(name, value) }
-        Self {
-            name,
-            prev,
-            _lock: lock,
-        }
-    }
-}
-
-impl Drop for EnvBase {
-    fn drop(&mut self) {
-        unsafe {
-            match &self.prev {
-                Some(value) => std::env::set_var(self.name, value),
-                None => std::env::remove_var(self.name),
-            }
-        }
-    }
-}
-
-/// Várias envs sob a MESMA trava (dois `EnvBase` no mesmo teste travariam).
-struct EnvVars {
-    saved: Vec<(&'static str, Option<String>)>,
-    _lock: std::sync::MutexGuard<'static, ()>,
-}
-
-impl EnvVars {
-    fn set(pairs: &[(&'static str, &str)]) -> Self {
-        let _lock = crate::test_env::lock();
-        let saved = pairs
-            .iter()
-            .map(|(name, value)| {
-                let prev = std::env::var(name).ok();
-                // SAFETY: a trava única serializa os testes de env do crate.
-                unsafe { std::env::set_var(name, value) };
-                (*name, prev)
-            })
-            .collect();
-        Self { saved, _lock }
-    }
-}
-
-impl Drop for EnvVars {
-    fn drop(&mut self) {
-        for (name, prev) in &self.saved {
-            unsafe {
-                match prev {
-                    Some(value) => std::env::set_var(name, value),
-                    None => std::env::remove_var(name),
-                }
-            }
-        }
-    }
-}
+use super::api_test_support::{call, cfg, EnvBase, EnvVars, KEY};
+use super::router;
 
 /// AllDebrid falso: todo upload responde `ready` para o hash pedido.
 async fn fake_alldebrid(req: Request<Body>) -> Response {
@@ -352,9 +256,11 @@ async fn debridlink_check_vazio_e_rotas_sem_metodo_ficam_501() {
     let json: serde_json::Value = serde_json::from_str(&raw).unwrap();
     assert_eq!(json["known"].as_bool(), Some(false));
 
+    // Debrid-Link não tem `accountStatus` no TS: essas DUAS rotas seguem 501.
+    // AllDebrid/TorBox na conta têm teste próprio (`api_account_tests`).
     for path in ["/debrid/account", "/debrid/files"] {
         let (status, raw) = call("segredo", Some("segredo"), path, &body).await;
-        assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(status, StatusCode::NOT_IMPLEMENTED, "{path}: {raw}");
         assert!(raw.contains("service_not_ported"));
         assert!(!raw.contains(KEY));
     }

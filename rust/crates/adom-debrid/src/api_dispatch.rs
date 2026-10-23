@@ -24,6 +24,9 @@ use crate::premiumize::Premiumize;
 use crate::realdebrid::RealDebrid;
 use crate::torbox::TorBox;
 
+#[path = "api_account.rs"]
+mod api_account;
+
 #[path = "api_alldebrid.rs"]
 mod api_alldebrid;
 
@@ -340,37 +343,15 @@ async fn resolve(
 }
 
 async fn account_of(state: &AppState, body: &RequestBody) -> Option<Response> {
-    let client = match body.service.as_str() {
-        "premiumize" | "realdebrid" => match http(state) {
-            Ok(client) => client,
-            Err(response) => return Some(*response),
-        },
-        // Debrid-Link não tem account_status.
-        _ => return None,
+    // Debrid-Link não tem account_status no TS: a rota segue 501.
+    if !api_account::supported(&body.service) {
+        return None;
+    }
+    let client = match http(state) {
+        Ok(client) => client,
+        Err(response) => return Some(*response),
     };
-    Some(match body.service.as_str() {
-        "premiumize" => {
-            let result = Premiumize::new(client).account_status(&body.api_key).await;
-            finish(
-                state,
-                body,
-                result,
-                |status| json!({ "limitUsed": status.limit_used, "premiumUntil": status.premium_until }),
-            )
-        }
-        _ => {
-            let result = RealDebrid::new(client).account_status(&body.api_key).await;
-            finish(state, body, result, |status| {
-                json!({
-                    "magnets": status.magnets,
-                    "ready": status.ready,
-                    "active": status.active,
-                    "error": status.error,
-                    "premiumUntil": status.premium_until,
-                })
-            })
-        }
-    })
+    Some(api_account::status(state, body, client).await)
 }
 
 fn finish<T>(

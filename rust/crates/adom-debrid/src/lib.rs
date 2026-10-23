@@ -9,7 +9,8 @@
 //! sidecar recebe os fatos no corpo e o seam in-process pelo feed de holds
 //! (`holds_feed`, `DEBRID_AL_HOLDS`, default OFF).
 //! A costura AD em `verdict::check_service` segue para o adom-search
-//! in-process. `account`/`files` limitados; link da AllDebrid existe.
+//! in-process. `account` cobre os quatro adaptadores que publicam
+//! `accountStatus`; `files` só o Premiumize e o link da AllDebrid existe.
 //! `/debrid/resolve` não grava magnetdb, cache nem ledger.
 //! Com `DEBRID_RUST_SERVICES` vazio o Node não chama esta API.
 //! `holds_feed.rs` e `marks_feed.rs` são os ÚNICOS que falam com rotas

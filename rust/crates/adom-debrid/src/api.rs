@@ -4,7 +4,8 @@
 //! incluído (nativo e incondicional desde a R3). A limpeza só roda com
 //! `DEBRID_AL_CLEANUP=on` e os fatos (`holdsComplete`/`knownBefore`/`heldHashes`)
 //! no corpo; sem eles a nativa é read-only.
-//! Conta/arquivos AD e rotas TorBox fora do check seguem 501.
+//! Conta cobre os quatro serviços com `accountStatus`; `/debrid/files` só
+//! Premiumize e Debrid-Link segue 501 nas duas.
 //! `/debrid/resolve` usa o `play` (cinco adaptadores) e não grava estado.
 
 use std::net::SocketAddr;
@@ -173,6 +174,10 @@ async fn metrics(State(state): State<Arc<AppState>>) -> Json<serde_json::Map<Str
     }
     Json(map)
 }
+
+#[cfg(test)]
+#[path = "api_test_support.rs"]
+mod api_test_support;
 
 #[cfg(test)]
 #[path = "api_tests.rs"]
