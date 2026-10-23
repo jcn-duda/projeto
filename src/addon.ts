@@ -7,7 +7,6 @@ import * as log from './utils/logger.js';
 import * as metrics from './utils/metrics.js';
 import debrid from './debrid/index.js';
 import { createApp } from './app.js';
-import warmup from './warmup.js';
 import harvester from './providers/harvester.js';
 import rdWarmer from './providers/rd-warmer.js';
 import brCoverage from './utils/br-coverage.js';
@@ -94,11 +93,10 @@ const server = app.listen(config.port, config.host, () => {
     log.info('Para torrents de verdade: configure .env (PROVIDER=jackett|prowlarr|both)');
     log.info('');
   }
-  // Lista automática: warmup e colhedor leem `config.jackett.indexers`, que só
-  // existe depois do primeiro catálogo vivo (espera limitada a 60s).
+  // Lista automática: o colhedor lê `config.jackett.indexers`, que só existe
+  // depois do primeiro catálogo vivo (espera limitada a 60s).
   const afterIndexers = config.jackett.indexersAuto ? catalogReady : Promise.resolve();
   afterIndexers.then(() => {
-    warmup.start().catch((err) => log.warn('[warmup] falha no boot:', err?.message || err));
     harvester.start();
   });
   rdWarmer.start();

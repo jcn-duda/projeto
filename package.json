@@ -74,6 +74,7 @@
     "test": "node dist/scripts/run-tests.js",
     "test:complete": "node dist/scripts/check-test-list.js",
     "lint:lines": "node dist/scripts/check-line-budget.js",
+    "lint:lines:rust": "node scripts/check-rust-lines.mjs",
     "parity:frozen": "cargo test --manifest-path rust/Cargo.toml -p adom-search --test stream_frozen_parity -- --nocapture",
     "test:adversarial": "node dist/test/empirical-e2e-challenger.js",
     "test:ranking-challenger": "node dist/test/empirical-ranking-challenger.js",
@@ -444,7 +445,6 @@
     "test/tmdb-br-aliases.test.js",
     "test/tmdb-english-title.test.js",
     "test/tmdb.test.js",
-    "test/torrent-total-size.test.js",
-    "test/warmup.test.js"
+    "test/torrent-total-size.test.js"
   ]
 }

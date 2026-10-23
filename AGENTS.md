@@ -28,7 +28,7 @@ trabalho de código é em `src/`.
 - **Só duas deps de produção** (`express`, `dotenv`). HTTP é `fetch`, HTML é
   regex. Não adicione dependência sem necessidade real.
 - `src/app.ts` = fábrica Express (`createApp()`, o que os testes importam).
-  `src/addon.ts` = processo (listen, warmup, shutdown) — **importá-lo sobe o
+  `src/addon.ts` = processo (listen, workers, shutdown) — **importá-lo sobe o
   servidor**.
 - **Docker de container único, tudo em loopback** (`127.0.0.1`): nenhum hostname
   de container sobrevive. `scripts/entrypoint.sh` supervisiona caddy → jackett →

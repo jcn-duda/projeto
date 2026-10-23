@@ -1,21 +1,10 @@
-import { list, num } from './helpers.js';
+import { num } from './helpers.js';
 
 // Fábricas (não objetos prontos): módulo ESM é cacheado, e cada re-avaliação
 // do compositor src/config.ts (ex.: bust de cache nos testes) precisa reler o
 // process.env — a chamada re-executa, o objeto de módulo não.
-// Coleta em fundo: warmup, índice de releases, fast-path da conta, colhedor,
-// sementes IMDb e Fase 3 (cobertura BR ⚡).
-export const warmup = () => ({
-  // Catálogo curado para aquecer raw antes do primeiro usuário. O operador
-  // pode substituir a lista pelo perfil real de consumo da instância.
-  enabled: String(process.env.WARMUP_ENABLED || 'true') === 'true',
-  titles: list(process.env.WARMUP_TITLES || 'tt7286456:movie,tt11198330:movie,tt1630029:movie,tt11126994:series,tt3581920:series,tt2861424:series'),
-  concurrency: num(process.env.WARMUP_CONCURRENCY, 2),
-  indexerDelayMs: num(process.env.WARMUP_INDEXER_DELAY_MS, 250),
-  timeoutMs: num(process.env.WARMUP_TIMEOUT_MS, 600000),
-  // BR/slow têm orçamento de 20s; no boot o padrão aquece só globais.
-  skipSlow: String(process.env.WARMUP_SKIP_SLOW || 'true') === 'true',
-});
+// Coleta em fundo: índice de releases, fast-path da conta, colhedor, sementes
+// IMDb e Fase 3 (cobertura BR ⚡).
 
 // Índice de releases por obra (`idx:v14`): o que a busca já provou existir,
 // filtrado e dedupado por hash. Compartilhado entre instalações DE PROPÓSITO —
@@ -47,9 +36,9 @@ export const accountFastPath = () => ({
   waitMs: num(process.env.ACCOUNT_FAST_WAIT_MS, 450),
 });
 
-// Colhedor: generalização do warmup. Fila de obras colhidas em fundo, com
-// orçamento largo (ninguém está esperando) e freio de atividade em janela
-// deslizante — colher só enquanto ninguém usa há N minutos.
+// Colhedor: fila de obras colhidas em fundo, com orçamento largo (ninguém
+// está esperando) e freio de atividade em janela deslizante — colher só
+// enquanto ninguém usa há N minutos.
 export const harvest = () => ({
   enabled: String(process.env.HARVEST_ENABLED || 'true') === 'true',
   // Varredura "<título> dublado" nos globais quando o título pt é igual ao

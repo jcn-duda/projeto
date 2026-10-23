@@ -246,7 +246,7 @@ test('atividade recente trava o colhedor (janela deslizante)', () => {
   assert.equal(activity.recentUserTraffic(10 * 60_000), false);
   activity.noteUserRequest();
   assert.equal(activity.recentUserTraffic(10_000), true, 'tráfego dentro da janela trava');
-  assert.equal(activity.hasUserTraffic(), true, 'marca de boot continua valendo para o warmup');
+  assert.equal(activity.hasUserTraffic(), true, 'marca de boot continua valendo para o trabalho de fundo');
 });
 
 test('sliceSweepFatia rotaciona o ponto de partida da fatia parcial', () => {

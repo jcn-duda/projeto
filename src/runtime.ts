@@ -271,7 +271,7 @@ function capture() {
  * Origin da requisição corrente: o endereço que o cliente usou para falar com o
  * addon. Por definição é um endereço que ele alcança, então é o origin honesto
  * para montar o `externalUrl` do aviso de lista vazia sem config nenhuma. Fora
- * de request (warmup, teste, chamada interna) devolve `null`.
+ * de request (teste, chamada interna) devolve `null`.
  */
 function origin() {
   return store.getStore()?.origin || null;

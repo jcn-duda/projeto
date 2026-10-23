@@ -21,7 +21,7 @@ import { debrid } from './config/debrid.js';
 import { debridRust } from './config/debrid-rust.js';
 import { streamStore } from './config/stream-store.js';
 import { nativeMetrics } from './config/native-metrics.js';
-import { warmup, releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
+import { releaseIndex, accountFastPath, harvest, seed, f3 } from './config/harvest.js';
 import { crawl } from './config/crawl.js';
 import { magnetDb, audioAudit, notify } from './config/audit.js';
 
@@ -29,7 +29,6 @@ const config = {
   // port, host, addonName, addonId, version, provider, logging
   ...server(),
   jackett: jackett(),
-  warmup: warmup(),
   releaseIndex: releaseIndex(),
   accountFastPath: accountFastPath(),
   harvest: harvest(),
