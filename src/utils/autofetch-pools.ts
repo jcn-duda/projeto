@@ -7,7 +7,7 @@ import {
   hasPtSigns,
 } from './audio-quality.js';
 import { isSeasonPackRelease } from './episode-matching.js';
-import { streamQuality } from './stream-quotas.js';
+import { streamQuality } from './stream-quotas-candidate.js';
 
 interface PoolsOptions {
   season?: number | null;

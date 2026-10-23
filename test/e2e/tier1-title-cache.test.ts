@@ -27,6 +27,7 @@ import {
 import config from '../../src/config.js';
 import * as runtime from '../../src/runtime.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
@@ -187,7 +188,7 @@ describe('Feature 5: Title Matching & Deduplication Verification', () => {
       _dubbed: true,
     };
 
-    const deduped = format.dedupeByHash([streamGlobal, streamBr]);
+    const deduped = oracleFormat.dedupeByHash([streamGlobal, streamBr]);
     assert.equal(deduped.length, 1);
     assert.equal(deduped[0]._seeders, 100, 'Deve manter o maior número de seeders');
     assert.equal(deduped[0]._br, false, 'Origem do perdedor não prova a do magnet global');

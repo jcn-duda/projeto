@@ -79,9 +79,12 @@ trabalho de código é em `src/`.
   carrega code unit UTF-16 órfã** (surrogate sozinho vira U+FFFD). O `JsText`
   do núcleo preserva o órfão (é o contrato de `stream-relabel`/`stream-trace`);
   quem perde é só a travessia Node↔Rust, e por isso esses checks não rodam no
-  shim local. É também por isso que `stream_display`/`stream_relabel` **seguem
-  no TS** até o F1: o orquestrador in-process consome o porte sem atravessar a
-  fronteira de string.
+  shim local. O orquestrador in-process consome o porte de
+  `stream_display`/`stream_relabel` sem atravessar a fronteira de string; a
+  casca TS deles (com `dedupeByHash`/`sortAndLimit`, `limitBy*`/
+  `limitReservingBr` e o `toStremioStream`) saiu de `src/` na fase 1 e vive só
+  no oráculo de teste (`test/helpers/pipeline-oracle/format.ts`), que chama o
+  núcleo pelo napi.
   Por chamada o napi é ~2× mais lento que o TS (travessia de string): o ganho de
   velocidade só existe com API em lote.
   Código Rust quebrado no working tree quebra a imagem.

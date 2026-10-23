@@ -13,6 +13,7 @@ import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
@@ -242,7 +243,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       makeRawStream('Movie.2024.1080p.DUBLADO.Nacional', { isBr: true, provenAudio: 'Dublado', sizeBytes: 3.5 * 1024 ** 3 }), // Compliant BR dubbed
     ];
 
-    const streams = format.sortAndLimit(rawStreams.map(format.toStremioStream), {
+    const streams = oracleFormat.sortAndLimit(rawStreams.map(oracleFormat.toStremioStream), {
       minSeeders: 1,
       maxResults: 10,
       preferDubbed: true,
@@ -250,7 +251,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       maxSizeGb: 5,
     });
 
-    const filtered = format.limitReservingBr(streams, {
+    const filtered = oracleFormat.limitReservingBr(streams, {
       brReservedSlots: 4,
       maxResults: 1,
       brOnly: true,
@@ -267,7 +268,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       makeRawStream('Movie.2024.720p.Global.Seeds50', { seeders: 50, isBr: false }),
     ];
 
-    const sorted = format.sortAndLimit(rawStreams.map(format.toStremioStream), {
+    const sorted = oracleFormat.sortAndLimit(rawStreams.map(oracleFormat.toStremioStream), {
       minSeeders: 1,
       maxResults: 10,
       brReservedSlots: 1,
@@ -275,7 +276,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     });
 
     // brFirst = false: Global 1080p is 1st, BR 1080p is 2nd via reservation
-    const limitedNoBrFirst = format.limitReservingBr(sorted, {
+    const limitedNoBrFirst = oracleFormat.limitReservingBr(sorted, {
       brReservedSlots: 1,
       maxResults: 3,
       brFirst: false,
@@ -286,7 +287,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     assert.ok(String(limitedNoBrFirst[2]!.title).includes('Movie.2024.720p.Global.Seeds50'));
 
     // brFirst = true: BR 1080p is lifted to index 0
-    const limitedWithBrFirst = format.limitReservingBr(sorted, {
+    const limitedWithBrFirst = oracleFormat.limitReservingBr(sorted, {
       brReservedSlots: 1,
       maxResults: 3,
       brFirst: true,
@@ -300,7 +301,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const rawStreams = [
       makeRawStream('Movie.1080p.A', { infoHash: makeHash('dyn_budget', 1) }),
       makeRawStream('Movie.1080p.B', { infoHash: makeHash('dyn_budget', 2) }),
-    ].map(format.toStremioStream);
+    ].map(oracleFormat.toStremioStream);
 
     const userOpts = {
       ...runtime.defaults(),

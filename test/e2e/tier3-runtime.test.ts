@@ -13,6 +13,7 @@ import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
@@ -140,7 +141,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
           [format.UNKNOWN_QUALITY]: decoded.maxUnknown,
         };
 
-        const sorted = format.sortAndLimit(rawStreams.map(format.toStremioStream), {
+        const sorted = oracleFormat.sortAndLimit(rawStreams.map(oracleFormat.toStremioStream), {
           minSeeders: 1,
           maxResults: 20,
           qualityLimits,
@@ -148,7 +149,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
         });
 
         const afterDebrid = await applyDebrid(sorted, {} as any);
-        return format.limitReservingBr(afterDebrid, {
+        return oracleFormat.limitReservingBr(afterDebrid, {
           brReservedSlots: decoded.brReservedSlots,
           maxResults: 10,
           qualityLimits,
@@ -220,7 +221,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       makeRawStream('Movie 1080p Bludv 2', { tracker: 'bludv', seeders: 1, isBr: true }),
     ];
 
-    const streams = format.sortAndLimit(rawStreams.map(format.toStremioStream), {
+    const streams = oracleFormat.sortAndLimit(rawStreams.map(oracleFormat.toStremioStream), {
       minSeeders: 1,
       maxResults: 6,
       indexerPriority: ['nerdfilmes', 'bludv'] as never[],
@@ -228,7 +229,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       brFirst: true,
     });
 
-    const limited = format.limitReservingBr(streams, {
+    const limited = oracleFormat.limitReservingBr(streams, {
       brReservedSlots: 1,
       maxResults: 3,
       maxPerIndexer: 1,

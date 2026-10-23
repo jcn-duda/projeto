@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { record, lookup } from '../src/utils/release-index.js';
 import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
-import { toStremioStream } from '../src/utils/search-names.js';
-import { sortAndLimit } from '../src/utils/stream-ranking.js';
+import { toStremioStream } from './helpers/pipeline-oracle/format.js';
+import { sortAndLimit } from './helpers/pipeline-oracle/format.js';
 
 test('índice grava mediaSource CAM do magnet e toStremioStream rotula sem URI', () => {
   const hash = 'c1'.repeat(20);

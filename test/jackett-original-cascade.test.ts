@@ -14,7 +14,8 @@ import jackett from '../src/providers/jackett.js';
 import * as cache from '../src/utils/cache.js';
 import * as indexerStatus from '../src/providers/indexer-status.js';
 import * as metrics from '../src/utils/metrics.js';
-import { toStremioStream, pickBrDubbedCandidates, pickAnyDubbedCandidates } from '../src/utils/format.js';
+import { pickBrDubbedCandidates, pickAnyDubbedCandidates } from '../src/utils/format.js';
+import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 
 const HASH = 'a'.repeat(40);
 const MAGNET = 'magnet:?xt=urn:btih:' + HASH + '&dn=Release';

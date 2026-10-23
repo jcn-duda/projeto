@@ -26,6 +26,7 @@ import {
 import config from '../../src/config.js';
 import * as runtime from '../../src/runtime.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import * as cache from '../../src/utils/cache.js';
 import * as brResolvers from '../../src/br-resolvers.js';
 import * as jackettCatalog from '../../src/providers/jackett-catalog.js';
@@ -147,7 +148,7 @@ describe('Feature 12: Architecture & Invariants Preservation', () => {
     const globalStream2 = { name: 'Global 2', _seeders: 90, _quality: '1080p', _br: false };
     const brStream = { name: 'BR Dublado', _seeders: 1, _quality: '1080p', _br: true };
 
-    const selected = format.limitReservingBr([globalStream1, globalStream2, brStream] as unknown as Stream[], {
+    const selected = oracleFormat.limitReservingBr([globalStream1, globalStream2, brStream] as unknown as Stream[], {
       maxResults: 2,
       brReservedSlots: 1,
     });

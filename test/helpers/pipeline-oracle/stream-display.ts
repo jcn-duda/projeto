@@ -1,8 +1,10 @@
+// Movido de src/utils/stream-display.ts na fase 1: sem chamador em produção desde o corte do
+// /stream (F4.4); vive só para o oráculo congelado e os testes dele.
 // Coluna estreita do Stremio (nome do stream). Extraído de `search-names.ts`
 // pela catraca de 400 linhas; a fábrica (`toStremioStream`) segue lá.
-import config from '../config.js';
-import { opts } from '../runtime.js';
-import { UNKNOWN_QUALITY, compactAudio, compactTracker, looksPtBr } from './audio-quality.js';
+import config from '../../../src/config.js';
+import { opts } from '../../../src/runtime.js';
+import { UNKNOWN_QUALITY, compactAudio, compactTracker, looksPtBr } from '../../../src/utils/audio-quality.js';
 
 interface StreamDisplayOptions {
   title?: string;

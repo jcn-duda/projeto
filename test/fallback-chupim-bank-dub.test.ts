@@ -23,7 +23,7 @@ import { toQueueCandidate } from '../src/providers/autofetch-fallback.js';
 import { resetObraForTest } from '../src/providers/autofetch-obra.js';
 import { verifyResolve } from '../src/utils/sign.js';
 import { toRawItem } from '../src/providers/magnet-bank-fallback.js';
-import { toStremioStream } from '../src/utils/search-names.js';
+import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 import { brDubbedPool } from '../src/utils/autofetch-pools.js';
 import { uncachedBrHashes } from '../src/utils/autofetch-picks.js';
 import type { DebridAdapter } from '../types/domain.js';

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import { pickBrDubbedCandidate, pickBrDubbedCandidates, pickBrDubbedByTargetQualities, pickAnyDubbedCandidates, uncachedBrHashes, dedupeByHash, pickTopSeededCandidates } from '../src/utils/format.js';
+import { pickBrDubbedCandidate, pickBrDubbedCandidates, pickBrDubbedByTargetQualities, pickAnyDubbedCandidates, uncachedBrHashes, pickTopSeededCandidates } from '../src/utils/format.js';
+import { dedupeByHash } from './helpers/pipeline-oracle/format.js';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import debrid from '../src/debrid/index.js';

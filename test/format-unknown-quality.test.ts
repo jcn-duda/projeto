@@ -3,13 +3,8 @@
 // Extraído de test/format-audio-quality.test.ts (teto 400 linhas).
 import { test } from 'node:test';
 import assert from 'node:assert';
-import {
-  qualityFromTitle,
-  sortAndLimit,
-  toStremioStream,
-  UNKNOWN_QUALITY,
-  QUALITY_KEYS,
-} from '../src/utils/format.js';
+import { qualityFromTitle, UNKNOWN_QUALITY, QUALITY_KEYS } from '../src/utils/format.js';
+import { sortAndLimit, toStremioStream } from './helpers/pipeline-oracle/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 
 const HASH = 'a'.repeat(40);

@@ -12,7 +12,7 @@ import * as cache from '../src/utils/cache.js';
 import * as runtime from '../src/runtime.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { toRawItem } from '../src/providers/magnet-bank-fallback.js';
-import { toStremioStream } from '../src/utils/search-names.js';
+import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 import { brDubbedPool, fallbackBlocked } from '../src/utils/autofetch-pools.js';
 import type { Stream, DebridAdapter } from '../types/domain.js';
 

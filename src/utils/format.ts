@@ -55,18 +55,13 @@ export {
   QUALITY_KEYS,
   streamQuality,
   selectQualityCandidates,
-  limitByIndexer,
-  limitByQuality,
-  limitReservingBr,
-} from './stream-quotas.js';
+} from './stream-quotas-candidate.js';
 
 export {
   TRACKERS,
-  streamDisplayName,
   markDebridName,
   matchesQualityFilter,
   passesQualityFilter,
-  toStremioStream,
   resolveSearchNames,
   resolveOriginalStepName,
   parseStremioId,
@@ -75,8 +70,6 @@ export {
 } from './search-names.js';
 
 export {
-  dedupeByHash,
-  sortAndLimit,
   pickBrDubbedCandidate,
   pickBrDubbedCandidates,
   pickBrDubbedByTargetQualities,

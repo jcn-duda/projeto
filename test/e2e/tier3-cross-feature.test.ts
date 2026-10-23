@@ -13,6 +13,7 @@ import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
@@ -112,7 +113,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       makeRawStream('Movie.2024.1080p.DUBLADO.Nacional', { infoHash: brHash, seeders: 1, isBr: true }),
     ];
 
-    const streams = format.sortAndLimit(rawList.map(format.toStremioStream), {
+    const streams = oracleFormat.sortAndLimit(rawList.map(oracleFormat.toStremioStream), {
       minSeeders: 1,
       maxResults: 10,
       brReservedSlots: 2,
@@ -140,7 +141,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     try {
       const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
         const afterDebrid = await applyDebrid(streams, {} as any);
-        return format.limitReservingBr(afterDebrid, {
+        return oracleFormat.limitReservingBr(afterDebrid, {
           brReservedSlots: 2,
           maxResults: 5,
           brFirst: true,
@@ -167,7 +168,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       makeRawStream('Movie.2024.1080p.English', { infoHash: globalHash, seeders: 50, isBr: false }),
     ];
 
-    const streams = format.sortAndLimit(rawList.map(format.toStremioStream), {
+    const streams = oracleFormat.sortAndLimit(rawList.map(oracleFormat.toStremioStream), {
       minSeeders: 1,
       maxResults: 10,
       brReservedSlots: 2,
@@ -193,7 +194,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     try {
       const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
         const afterDebrid = await applyDebrid(streams, {} as any);
-        return format.limitReservingBr(afterDebrid, {
+        return oracleFormat.limitReservingBr(afterDebrid, {
           brReservedSlots: 2,
           maxResults: 5,
         });
@@ -221,7 +222,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       makeRawStream('Movie.2024.1080p.English', { infoHash: globalHash, seeders: 50, isBr: false }),
     ];
 
-    const streams = format.sortAndLimit(rawList.map(format.toStremioStream), {
+    const streams = oracleFormat.sortAndLimit(rawList.map(oracleFormat.toStremioStream), {
       minSeeders: 1,
       maxResults: 10,
       brReservedSlots: 2,
@@ -248,7 +249,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     try {
       const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'pm-conf' }, async () => {
         const afterDebrid = await applyDebrid(streams, {} as any);
-        return format.limitReservingBr(afterDebrid, {
+        return oracleFormat.limitReservingBr(afterDebrid, {
           brReservedSlots: 1,
           maxResults: 5,
         });
@@ -278,7 +279,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
       makeRawStream('Movie.2024.1080p.English', { infoHash: globalHash, seeders: 100, isBr: false }),
     ];
 
-    const streams = format.sortAndLimit(rawList.map(format.toStremioStream), {
+    const streams = oracleFormat.sortAndLimit(rawList.map(oracleFormat.toStremioStream), {
       minSeeders: 1,
       maxResults: 10,
       brReservedSlots: 1,
@@ -296,7 +297,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     const result = await runWith<TestStream[]>({ opts: userOpts, encoded: 'rd-conf' }, async () => {
       const afterDebrid = await applyDebrid(streams, {} as any);
-      return format.limitReservingBr(afterDebrid, {
+      return oracleFormat.limitReservingBr(afterDebrid, {
         brReservedSlots: 1,
         maxResults: 5,
         brFirst: true,

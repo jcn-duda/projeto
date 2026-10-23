@@ -10,6 +10,7 @@ import config from '../../src/config.js';
 import * as runtime from '../../src/runtime.js';
 import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import * as sign from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { createDiagnosticGate, authorized } from '../../src/utils/diagnostic-guard.js';
@@ -126,11 +127,11 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
         isBr: true,
       };
 
-      const converted = format.toStremioStream(rawStream) as Stream;
+      const converted = oracleFormat.toStremioStream(rawStream) as Stream;
       assert.equal(converted._br, true);
       assert.ok(converted._quality);
 
-      const finalized = format.limitReservingBr([converted], {
+      const finalized = oracleFormat.limitReservingBr([converted], {
         brReservedSlots: 6,
         maxResults: 10,
         brOnly: false,
@@ -154,7 +155,7 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
         seeders: 1,
         isBr: true,
       };
-      const stream = format.toStremioStream(brItem) as Stream;
+      const stream = oracleFormat.toStremioStream(brItem) as Stream;
       assert.equal(stream._seeders, 1);
       assert.equal(stream._br, true);
     });

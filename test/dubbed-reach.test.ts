@@ -12,7 +12,7 @@ import config from '../src/config.js';
 import { audioFromTitle } from '../src/utils/audio-quality.js';
 import { applyPtTitleDual } from '../src/providers/pt-title-dual.js';
 import { record, lookup, clearIdxStore } from '../src/utils/release-index.js';
-import { toStremioStream } from '../src/utils/search-names.js';
+import { toStremioStream } from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';
 
 const IMDB = 'tt0085407';

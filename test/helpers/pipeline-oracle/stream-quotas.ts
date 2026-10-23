@@ -1,15 +1,17 @@
-import type { Stream, StreamCandidate } from '../../types/domain.js';
-import { dropTrace } from './stream-trace.js';
-import type { StreamTraceState, TraceReason } from './stream-trace.js';
+// Movido de src/utils/stream-quotas.ts na fase 1: sem chamador em produção desde o corte do
+// /stream (F4.4); vive só para o oráculo congelado e os testes dele.
+import type { Stream, StreamCandidate } from '../../../types/domain.js';
+import { dropTrace } from '../../../src/utils/stream-trace.js';
+import type { StreamTraceState, TraceReason } from '../../../src/utils/stream-trace.js';
 import {
   QUALITY_KEYS,
   streamQuality,
   quotaStreamInput,
   selectQualityCandidates,
-} from './stream-quotas-candidate.js';
-import type { QualityLimits } from './stream-quotas-candidate.js';
-import { nativeCore } from './native-core.js';
-import { coreJson } from './native-json.js';
+} from '../../../src/utils/stream-quotas-candidate.js';
+import type { QualityLimits } from '../../../src/utils/stream-quotas-candidate.js';
+import { nativeCore } from '../../../src/utils/native-core.js';
+import { coreJson } from '../../../src/utils/native-json.js';
 
 /**
  * Funções do CORTE FINAL no `.node` (camelCase do napi-rs). A decisão inteira

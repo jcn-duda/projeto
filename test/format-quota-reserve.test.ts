@@ -5,10 +5,8 @@
 // a reserva.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import {
-  selectQualityCandidates,
-  limitReservingBr,
-} from '../src/utils/format.js';
+import { selectQualityCandidates } from '../src/utils/format.js';
+import { limitReservingBr } from './helpers/pipeline-oracle/format.js';
 import type { Stream } from '../types/domain.js';
 
 // `limitReservingBr` declara `Stream[]`, mas os lotes de cota aqui são minimais

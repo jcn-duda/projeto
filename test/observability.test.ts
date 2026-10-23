@@ -14,7 +14,7 @@ import {
 } from '../src/providers/index.js';
 import { applyDebrid } from './helpers/pipeline-oracle/index.js';
 import { stageFirstTiming } from '../src/providers/first-observer.js';
-import { limitReservingBr } from '../src/utils/format.js';
+import { limitReservingBr } from './helpers/pipeline-oracle/format.js';
 
 // Os contadores de degradação passam pelo cache de metadados; persistência
 // desligada para não tocar o data/cache.db real.

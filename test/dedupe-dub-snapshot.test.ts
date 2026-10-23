@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { toStremioStream, dedupeByHash } from '../src/utils/format.js';
+import { toStremioStream, dedupeByHash } from './helpers/pipeline-oracle/format.js';
 
 const HASH_A = 'a'.repeat(40);
 

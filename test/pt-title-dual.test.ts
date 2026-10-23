@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { applyPtTitleDual } from '../src/providers/pt-title-dual.js';
-import { toStremioStream, sortAndLimit } from '../src/utils/format.js';
+import { toStremioStream, sortAndLimit } from './helpers/pipeline-oracle/format.js';
 import type { RawItem } from '../types/domain.js';
 
 const HASH = 'a'.repeat(40);

@@ -1,7 +1,9 @@
+// Movido de src/utils/stream-relabel.ts na fase 1: sem chamador em produção desde o corte do
+// /stream (F4.4); vive só para o oráculo congelado e os testes dele.
 // Remontagem do nome do vencedor do dedupe (herança BR/áudio/fonte).
 // Extraído de `stream-ranking.ts` pelo orçamento de 400 linhas.
-import { audioFromTitle, sourceFromTitle, editionFromTitle } from './audio-quality.js';
-import { streamDisplayName } from './search-names.js';
+import { audioFromTitle, sourceFromTitle, editionFromTitle } from '../../../src/utils/audio-quality.js';
+import { streamDisplayName } from './stream-display.js';
 
 /**
  * Reescreve a linha do vencedor BR quando o perdedor traz metadados melhores.

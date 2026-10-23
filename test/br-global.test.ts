@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 // Dublado em tracker global: classificação por TÍTULO (não por indexer),
 // detecção de pack multi-obra e o merge que preserva a origem BR quando a
 // varredura pt-BR devolve o mesmo hash titulado em português.
-import { looksPtBr, isMultiWorkCollection, toStremioStream, dedupeByHash, matchesBrTitle } from '../src/utils/format.js';
+import { looksPtBr, isMultiWorkCollection, matchesBrTitle } from '../src/utils/format.js';
+import { toStremioStream, dedupeByHash } from './helpers/pipeline-oracle/format.js';
 
 const HASH_A = 'a'.repeat(40);
 

@@ -25,7 +25,7 @@ import * as harvestWorker from '../src/providers/harvest-worker.js';
 import * as harvesterLive from '../src/utils/harvester-live.js';
 import { idxReleasesToRaw } from '../src/providers/search-pool-coverage.js';
 import { hasBrDubbed } from '../src/utils/br-gap.js';
-import { sortAndLimit, toStremioStream } from '../src/utils/format.js';
+import { sortAndLimit, toStremioStream } from './helpers/pipeline-oracle/format.js';
 import { stubFetch } from './helpers/stub.js';
 import type { RawItem } from '../types/domain.js';
 

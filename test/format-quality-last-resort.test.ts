@@ -4,7 +4,7 @@
 // linhas; o cenário é o mesmo (lógica pura de format.js, sem rede).
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { toStremioStream, sortAndLimit } from '../src/utils/format.js';
+import { toStremioStream, sortAndLimit } from './helpers/pipeline-oracle/format.js';
 import type { RawItem, Stream } from '../types/domain.js';
 import * as metrics from '../src/utils/metrics.js';
 

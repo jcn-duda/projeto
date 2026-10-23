@@ -13,6 +13,7 @@ import * as held from '../../src/debrid/protected.js';
 import * as autofetch from '../../src/providers/autofetch.js';
 import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import { signResolve, verifyResolve } from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { applyDebrid } from '../helpers/pipeline-oracle/index.js';
@@ -107,7 +108,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const streams = [
       makeRawStream('Movie.2024.1080p.DUBLADO.Nacional', { infoHash: brCandidateHash, isBr: true, provenAudio: 'Dublado' }),
       makeRawStream('Movie.2024.1080p.English', { infoHash: globalUncachedHash, isBr: false }),
-    ].map(format.toStremioStream);
+    ].map(oracleFormat.toStremioStream);
 
     const userOpts = {
       ...runtime.defaults(),
@@ -173,7 +174,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
 
     const streams = [
       makeRawStream('Movie.2024.1080p.DUBLADO', { infoHash: brCandidateHash, isBr: true, _dubbed: true }),
-    ].map(format.toStremioStream);
+    ].map(oracleFormat.toStremioStream);
 
     const userOpts = {
       ...runtime.defaults(),
@@ -218,7 +219,7 @@ describe('Tier 3: Cross-Feature Combinations & System Interactions', () => {
     const streams = [
       makeRawStream('Movie.2024.1080p.DUBLADO.Cached', { infoHash: cachedBrHash, isBr: true, _dubbed: true }),
       makeRawStream('Movie.2024.1080p.DUBLADO.Uncached', { infoHash: uncachedBrHash, isBr: true, _dubbed: true }),
-    ].map(format.toStremioStream);
+    ].map(oracleFormat.toStremioStream);
 
     const userOpts = {
       ...runtime.defaults(),

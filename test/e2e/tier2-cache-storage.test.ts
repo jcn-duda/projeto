@@ -10,6 +10,7 @@ import config from '../../src/config.js';
 import * as runtime from '../../src/runtime.js';
 import * as cache from '../../src/utils/cache.js';
 import * as format from '../../src/utils/format.js';
+import * as oracleFormat from '../helpers/pipeline-oracle/format.js';
 import * as sign from '../../src/utils/sign.js';
 import * as secretBox from '../../src/utils/secret-box.js';
 import { createDiagnosticGate, authorized } from '../../src/utils/diagnostic-guard.js';
@@ -72,12 +73,12 @@ describe('Tier 2 Boundary & Corner Cases E2E Test Suite', () => {
       const hexLower = '0123456789abcdef0123456789abcdef01234567';
 
       const items = [
-        format.toStremioStream({ infoHash: hexLower, seeders: 10, title: 'Item Lower' }),
-        format.toStremioStream({ infoHash: hexLower.toUpperCase(), seeders: 50, title: 'Item Upper' }),
-        format.toStremioStream({ magnet: `magnet:?xt=urn:btih:${hexLower}`, seeders: 20, title: 'Item Magnet' }),
+        oracleFormat.toStremioStream({ infoHash: hexLower, seeders: 10, title: 'Item Lower' }),
+        oracleFormat.toStremioStream({ infoHash: hexLower.toUpperCase(), seeders: 50, title: 'Item Upper' }),
+        oracleFormat.toStremioStream({ magnet: `magnet:?xt=urn:btih:${hexLower}`, seeders: 20, title: 'Item Magnet' }),
       ];
 
-      const deduped = format.dedupeByHash(items);
+      const deduped = oracleFormat.dedupeByHash(items);
       assert.equal(deduped.length, 1);
       assert.equal(deduped[0]._seeders, 50);
     });

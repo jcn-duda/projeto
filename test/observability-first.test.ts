@@ -6,7 +6,7 @@ import {
   firstObserverClaim, promoteFirstObserverEligible,
 } from '../src/providers/index.js';
 import { stageFirstTiming } from '../src/providers/first-observer.js';
-import { limitReservingBr } from '../src/utils/format.js';
+import { limitReservingBr } from './helpers/pipeline-oracle/format.js';
 
 test('limitReservingBr observa os BR selecionados ANTES de limpar os campos internos', () => {
   metrics.reset();

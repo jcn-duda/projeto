@@ -6,7 +6,7 @@ process.env.CACHE_PERSIST = 'false';
 // Escolha do que baixar + proteção do hash: as duas peças que decidem se algo é
 // escrito na conta do usuário. Testadas sem rede, com objetos de stream mínimos.
 import { pickBrDubbedCandidate, hasCachedBrDubbed, hasCachedAnyDubbed, canAutoFetchBr, pickTopSeededCandidates } from '../src/utils/format.js';
-import { sortAndLimit, toStremioStream, limitReservingBr } from '../src/utils/format.js';
+import { sortAndLimit, toStremioStream, limitReservingBr } from './helpers/pipeline-oracle/format.js';
 import * as held from '../src/debrid/protected.js';
 import * as autofetch from '../src/providers/autofetch.js';
 import type { DebridAdapter } from '../types/domain.js';

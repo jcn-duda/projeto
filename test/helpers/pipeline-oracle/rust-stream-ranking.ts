@@ -1,3 +1,5 @@
+// Movido de src/utils/rust-stream-ranking.ts na fase 1: sem chamador em produção desde o corte do
+// /stream (F4.4); vive só para o oráculo congelado e os testes dele.
 /**
  * Ranking de streams em Rust (`evaluateStreamRanking` e `dedupeByHashNapi`,
  * `rust/crates/adom-napi/src/ranking.rs`): dedupe por hash + sortAndLimit do
@@ -5,10 +7,10 @@
  * oráculo é o `esm`); aqui só se monta a entrada e se aplica a saída — os
  * cortes voltam como `drops` e entram no trace pelo `pushTraceDrops`.
  */
-import { requireCore } from './rust-core.js';
-import * as metrics from './metrics.js';
-import { pushTraceDrops } from './stream-trace.js';
-import type { StreamTraceState } from './stream-trace.js';
+import { requireCore } from '../../../src/utils/rust-core.js';
+import * as metrics from '../../../src/utils/metrics.js';
+import { pushTraceDrops } from '../../../src/utils/stream-trace.js';
+import type { StreamTraceState } from '../../../src/utils/stream-trace.js';
 
 /** Entrada do napi (o `SortOptions` do TS com `instant` materializado). */
 export type RankingInputNapi = {

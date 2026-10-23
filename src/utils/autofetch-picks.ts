@@ -11,7 +11,7 @@ import {
   fallbackBlocked,
 } from './autofetch-pools.js';
 import type { PoolsOptions, AutofetchTargetQuality } from './autofetch-pools.js';
-import { streamQuality } from './stream-quotas.js';
+import { streamQuality } from './stream-quotas-candidate.js';
 import { nativeCore } from './native-core.js';
 import { coreJson } from './native-json.js';
 

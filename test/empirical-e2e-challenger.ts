@@ -97,7 +97,7 @@ const mutations = [
     // A regra do dedupe é do Rust (o TS saiu do branch): o mutante desliga a
     // chamada ao núcleo na ponte, e a lista volta sem fundir o mesmo hash.
     name: 'MUT-02: Skip Rust dedupeByHash (rust-stream-ranking.js)',
-    file: 'dist/src/utils/rust-stream-ranking.js',
+    file: 'dist/test/helpers/pipeline-oracle/rust-stream-ranking.js',
     target: 'const out = rankingCore().dedupeByHashNapi({ streams, indexerPriority });',
     replacement: 'const out = { streams: streams.slice().reverse(), drops: [] }; // MUTATED',
     // Capturado pelo tier1-title-cache (5.5): o dedupe do mesmo hash exige o ganhador de 100 seeders.
@@ -152,7 +152,7 @@ const mutations = [
     // o payload. O mutante inverte o `brFirst` que CRUZA para a ponte — o
     // efeito continua observável no tier3.
     name: 'MUT-08: Invert brFirst no payload do limitReservingBr (stream-quotas.js)',
-    file: 'dist/src/utils/stream-quotas.js',
+    file: 'dist/test/helpers/pipeline-oracle/stream-quotas.js',
     target: 'brFirst,\n',
     replacement: 'brFirst: !brFirst, // MUTATED\n',
     // Capturado pelo tier3-pipeline (8B): compara brFirst=false vs true no mesmo pool e exige o BR no índice 0.

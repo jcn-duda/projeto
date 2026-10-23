@@ -5,12 +5,8 @@
 // limitByIndexer com overrides individuais.
 import { test } from 'node:test';
 import assert from 'node:assert';
-import {
-  limitByQuality,
-  selectQualityCandidates,
-  limitReservingBr,
-  limitByIndexer,
-} from '../src/utils/format.js';
+import { selectQualityCandidates } from '../src/utils/format.js';
+import { limitByQuality, limitReservingBr, limitByIndexer } from './helpers/pipeline-oracle/format.js';
 import type { Stream } from '../types/domain.js';
 
 // `limitReservingBr` declara `Stream[]`, mas os lotes de cota aqui são minimais

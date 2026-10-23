@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 
 process.env.CACHE_PERSIST = 'false';
 
-import { sortAndLimit, toStremioStream, limitReservingBr } from '../src/utils/format.js';
+import { sortAndLimit, toStremioStream, limitReservingBr } from './helpers/pipeline-oracle/format.js';
 import * as runtime from '../src/runtime.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as held from '../src/debrid/protected.js';
