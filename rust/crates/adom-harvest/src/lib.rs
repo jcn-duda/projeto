@@ -31,8 +31,8 @@
 //! | [`HarvestWorker`] / [`tick`](HarvestWorker::tick) | Ciclo: freio + teto + `take_head` + drain |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
-//! Ponte do `BrEvidence`, `take_probe` sob tráfego e o resto da Fase E:
-//! **ainda não** — ver `README.md`.
+//! Ponte do `BrEvidence`, seed IMDb e o resto da Fase E: **ainda não** — ver
+//! `README.md`.
 
 mod hour;
 mod inflight;

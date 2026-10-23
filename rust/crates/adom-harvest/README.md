@@ -17,7 +17,7 @@ sem Docker.
 | Resultado enqueue | `EnqueueOutcome` | `EnqueueOutcome` |
 | Identidade | `obraIdentity` | `obra_identity` |
 | Precedência | `reasonPriority` / `isPromotion` | `reason_priority` / `is_promotion` |
-| Consumo | `takeHead` / `takeProbe` | `take_head` / `take_probe` |
+| Consumo | `takeHead` / `takeProbe` | `take_head` / `take_probe` / `take_next(busy)` |
 | L2 | `cache.get` / `cache.set(QUEUE_KEY, …)` | `HarvestStore::load` / `save` |
 | Dedupe 12h | `queueDedupeKey` / `wasRecentlyQueued` / `markRecentlyQueued` | `seen_key` / `was_recently_queued` / `mark_recently_queued` (`seen.rs`) |
 | Coalescing em voo | `harvest-inflight` (`begin`/`end`/`coalesce`/`pendingIntent`) | `HarvestInflight` (`inflight.rs`), slot dentro da fila |
@@ -41,7 +41,8 @@ let mut drain = |_e| DrainOutcome::ok_with_queries(1);
 let out = worker.tick(&mut queue, &StubTraffic { busy: false }, &mut drain, now_ms);
 ```
 
-- Freio: `TrafficSense::is_busy()` ⇒ `SkippedBusy` (sem consumir fila).
+- Freio: `TrafficSense::is_busy()` ⇒ só `take_next(true)` (`take_probe`);
+  sem sonda na fila ⇒ `SkippedBusy` sem consumir nada.
 - Teto: `queries_this_hour` / `note_queries` por balde UTC; `>= max_per_hour` ⇒ skip.
 - Drain sync stub — async / Jackett ficam para depois.
 
@@ -151,7 +152,6 @@ queue.inflight().pending(&identity); // intenção efetiva após o drain
 ## O que NÃO está aqui (Fase E real)
 
 - Ponte do `BrEvidence` para o índice real (`lookupQuiet` / `hasBrDubbed`).
-- `takeProbe` sob tráfego (embrião: busy = skip inteiro).
 - Seed IMDb, sonda `brProbe` completa, Jackett, painel, gateway.
 
 ## Testes

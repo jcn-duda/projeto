@@ -211,6 +211,15 @@ impl HarvestQueue {
         Some(self.entries.remove(idx))
     }
 
+    /// Seleção do tick: sob tráfego só a sonda dirigida sai.
+    pub fn take_next(&mut self, busy: bool) -> Option<HarvestEntry> {
+        if busy {
+            self.take_probe()
+        } else {
+            self.take_head()
+        }
+    }
+
     /// Enfileira. Fogo-e-esquece no contrato público; o retorno existe para a
     /// sonda saber se o pedido virou trabalho.
     pub fn enqueue(&mut self, req: HarvestRequest) -> EnqueueOutcome {

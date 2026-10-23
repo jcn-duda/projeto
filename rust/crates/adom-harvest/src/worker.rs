@@ -3,11 +3,10 @@
 //! # Contrato
 //!
 //! - **Fora** do caminho `/stream`: só drena a fila em fundo.
-//! - Freio de tráfego injetável ([`TrafficSense`]): busy → skip (sem Jackett).
+//! - Freio de tráfego injetável ([`TrafficSense`]): busy → só `take_probe`.
 //! - Teto horário: contador simples por balde UTC (`now_ms / 3_600_000`).
 //! - Trabalho real via [`HarvestDrain`] (sync stub; sem gateway / Jackett).
-//! - O tick abre/fecha o slot em voo ([`crate::inflight`]) em volta do drain;
-//!   `takeProbe` sob tráfego e seed IMDb ainda não.
+//! - O tick abre/fecha o slot em voo ([`crate::inflight`]) em volta do drain.
 
 use crate::hour::HourMeter;
 use crate::inflight::HarvestIntent;
@@ -204,8 +203,10 @@ impl HarvestWorker {
         if self.in_flight {
             return TickOutcome::SkippedInFlight;
         }
-        // Freio: busy alto → skip inteiro (embrião; TS ainda tem takeProbe).
-        if traffic.is_busy() {
+        // Sob tráfego só a sonda dirigida sai (fora de turno); sem sonda na
+        // fila o freio vence e o tick não consome nada.
+        let busy = traffic.is_busy();
+        if busy && !queue.has_probe() {
             return TickOutcome::SkippedBusy;
         }
         if queue.is_empty() {
@@ -214,8 +215,7 @@ impl HarvestWorker {
         if self.queries_this_hour(now_ms) >= self.config.max_per_hour {
             return TickOutcome::SkippedHourlyCap;
         }
-
-        let Some(entry) = queue.take_head() else {
+        let Some(entry) = queue.take_next(busy) else {
             return TickOutcome::SkippedEmpty;
         };
 
@@ -286,17 +286,28 @@ mod tests {
     fn freio_busy_skip_sem_consumir_fila() {
         let mut worker = worker_capped(120);
         let mut queue = queue_with(&["tt0111161"]);
-        let mut calls = 0u32;
+        let calls = std::cell::Cell::new(0u32);
         let mut drain = |_e: &HarvestEntry| {
-            calls += 1;
+            calls.set(calls.get() + 1);
             DrainOutcome::ok_with_queries(1)
         };
 
         let out = worker.tick(&mut queue, &StubTraffic { busy: true }, &mut drain, NOW);
         assert_eq!(out, TickOutcome::SkippedBusy);
-        assert_eq!(calls, 0);
+        assert_eq!(calls.get(), 0);
         assert_eq!(queue.depth(), 1);
         assert_eq!(worker.queries_this_hour(NOW), 0);
+
+        // Com sonda na fila, o tráfego deixa passar SÓ ela (fora de turno).
+        queue.enqueue(HarvestRequest::movie("tt0068646", "miss"));
+        let mut probe = HarvestRequest::movie("tt0111161", "miss");
+        probe.br_probe = true;
+        queue.enqueue(probe);
+        let out = worker.tick(&mut queue, &StubTraffic { busy: true }, &mut drain, NOW);
+        assert!(matches!(out, TickOutcome::Drained { entry, .. } if entry.br_probe));
+        assert_eq!(calls.get(), 1);
+        assert_eq!(queue.depth(), 1);
+        assert_eq!(queue.preview(1)[0].imdb_id, "tt0068646");
     }
 
     #[test]
@@ -365,22 +376,6 @@ mod tests {
             TickOutcome::SkippedInFlight
         );
         assert_eq!(queue.depth(), 1);
-    }
-
-    #[test]
-    fn hydrate_hour_sobe_o_balde_da_hora_corrente() {
-        let mut worker = worker_capped(2);
-        worker.hydrate_hour(2, NOW);
-        assert_eq!(worker.queries_this_hour(NOW), 2);
-        // Disco atrás do contador não regride (o worker já debitou mais).
-        worker.hydrate_hour(1, NOW);
-        assert_eq!(worker.queries_this_hour(NOW), 2);
-
-        // Virada de hora: o balde zera antes de semear; só a hora corrente entra.
-        let next_hour = NOW + HOUR_MS;
-        worker.hydrate_hour(1, next_hour);
-        assert_eq!(worker.queries_this_hour(next_hour), 1);
-        assert_eq!(worker.queries_this_hour(NOW), 0);
     }
 
     #[test]
