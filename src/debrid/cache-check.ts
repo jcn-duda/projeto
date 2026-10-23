@@ -32,7 +32,12 @@ type CacheCheckResult = {
   known: boolean;
   unusable?: { reason: string; message: string };
 };
-type AdapterCacheResponse = Set<string> | { cached: Set<string>; complete?: boolean };
+type AdapterCacheResponse = Set<string> | {
+  cached: Set<string>;
+  complete?: boolean;
+  /** 200 da checagem nativa: conta recusada/no teto — veredito, não exceção. */
+  unusable?: { reason?: string; message?: string } | null;
+};
 
 function trackCheckedHashes(infoHashes: string[]) {
   const now = Date.now();
@@ -110,6 +115,12 @@ function failureReason(err: unknown) {
 }
 
 function normalizeCacheResult(adapter: DebridAdapter, result: AdapterCacheResponse): CacheCheckResult {
+  // 200 nativo com `unusable` (auth/quota) é conta recusada, não "não sei" mudo.
+  const refused = result instanceof Set ? undefined : result?.unusable;
+  if (refused) {
+    const reason = refused.reason === 'quota' ? 'quota' : 'auth';
+    return unusable(adapter, reason, new Error(refused.message || refused.reason));
+  }
   const cached = new Set<string>(result instanceof Set ? result : result.cached);
   const complete = result instanceof Set ? true : result?.complete !== false;
   if (!complete) {

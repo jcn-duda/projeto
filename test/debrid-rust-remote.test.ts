@@ -38,15 +38,12 @@ function abortDelay(signal: AbortSignal | undefined, ceilingMs: number): Promise
   const started = Date.now();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`signal não abortou em ${ceilingMs}ms`)), ceilingMs);
-    signal.addEventListener('abort', () => {
-      clearTimeout(timer);
-      resolve(Date.now() - started);
-    }, { once: true });
+    signal.addEventListener('abort', () => { clearTimeout(timer); resolve(Date.now() - started); }, { once: true });
   });
 }
 
-function withPremiumize<T>(fn: () => T): T {
-  const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: 'k' };
+function withPremiumize<T>(fn: () => T, apiKey = 'k'): T {
+  const opts = { ...runtime.defaults(), debridService: 'premiumize', debridApiKey: apiKey };
   return runtime.run({ opts }, fn);
 }
 
@@ -163,34 +160,16 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
     assert.equal(unreachableCount(), unreachableBefore501, 'HTTP 501 não conta a checagem como inacessível');
 
     const playCases: { status: number; body: { kind: string; message: string }; check: (err: unknown) => void }[] = [
-      {
-        status: 422,
-        body: { kind: 'no_video', message: 'o torrent não contém nenhum arquivo de vídeo' },
-        check(err) {
-          assert.equal(isNoVideoError(err), true);
-          assert.equal(errorCode(err), 'NO_VIDEO');
-        },
-      },
-      {
-        status: 409,
-        body: { kind: 'episode_pick', message: `episódio ${TEST_KEY}` },
-        check(err) { assert.equal(errorCode(err), 'EPISODE_PICK'); },
-      },
-      {
-        status: 406,
-        body: { kind: 'dub_lie', message: `dublagem ${TEST_KEY}` },
-        check(err) { assert.equal(errorCode(err), 'DUB_LIE'); },
-      },
-      {
-        status: 451,
-        body: { kind: 'blocked', message: `bloqueado ${TEST_KEY}` },
-        check(err) { assert.equal(isBlockedError(err), true); },
-      },
-      {
-        status: 412,
-        body: { kind: 'work_pick', message: `obra ${TEST_KEY}` },
-        check(err) { assert.equal(errorCode(err), 'WORK_PICK'); },
-      },
+      { status: 422, body: { kind: 'no_video', message: 'o torrent não contém nenhum arquivo de vídeo' },
+        check(err) { assert.equal(isNoVideoError(err), true); assert.equal(errorCode(err), 'NO_VIDEO'); } },
+      { status: 409, body: { kind: 'episode_pick', message: `episódio ${TEST_KEY}` },
+        check(err) { assert.equal(errorCode(err), 'EPISODE_PICK'); } },
+      { status: 406, body: { kind: 'dub_lie', message: `dublagem ${TEST_KEY}` },
+        check(err) { assert.equal(errorCode(err), 'DUB_LIE'); } },
+      { status: 451, body: { kind: 'blocked', message: `bloqueado ${TEST_KEY}` },
+        check(err) { assert.equal(isBlockedError(err), true); } },
+      { status: 412, body: { kind: 'work_pick', message: `obra ${TEST_KEY}` },
+        check(err) { assert.equal(errorCode(err), 'WORK_PICK'); } },
     ];
     for (const spec of playCases) {
       links = 0;
@@ -208,24 +187,10 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
 
     links = 0;
     const episodePlay = useFetch((async () => new Response(JSON.stringify({
-      error: 'episode_pick',
-      kind: 'episode_pick',
-      message: `episódio ausente ${TEST_KEY}`,
-      evidence: {
-        wantedSeason: 2,
-        wantedEpisode: 5,
-        declaredSeasons: [2],
-        declaredEpisodes: [4, 6],
-        sample: 'Serie.S02E04.mkv',
-      },
-      context: {
-        videoCount: 3,
-        samples: ['Serie.S02E04.mkv', 'Serie.S02E06.mkv'],
-      },
-    }), {
-      status: 409,
-      headers: { 'content-type': 'application/json' },
-    })) as typeof fetch);
+      error: 'episode_pick', kind: 'episode_pick', message: `episódio ausente ${TEST_KEY}`,
+      evidence: { wantedSeason: 2, wantedEpisode: 5, declaredSeasons: [2], declaredEpisodes: [4, 6], sample: 'Serie.S02E04.mkv' },
+      context: { videoCount: 3, samples: ['Serie.S02E04.mkv', 'Serie.S02E06.mkv'] },
+    }), { status: 409, headers: { 'content-type': 'application/json' } })) as typeof fetch);
     await assert.rejects(() => episodePlay.resolveLink(TEST_KEY, 'abc'), (err: unknown) => {
       assert.ok(err instanceof EpisodePickError);
       if (!(err instanceof EpisodePickError)) return false;
@@ -241,28 +206,16 @@ test('flag vazia fica no TS; 501 lê no TS e não reescreve; 200 não chama o TS
 
     const remoteMisses: string[] = [];
     const missCases: { label: string; hash: string; respond: () => Promise<Response> }[] = [
-      {
-        label: 'rede',
-        hash: 'h-net',
-        respond: () => Promise.reject(new Error('rede caiu')),
-      },
-      {
-        label: 'HTTP 500',
-        hash: 'h-500',
+      { label: 'rede', hash: 'h-net', respond: () => Promise.reject(new Error('rede caiu')) },
+      { label: 'HTTP 500', hash: 'h-500',
         respond: async () => new Response(JSON.stringify({ error: 'other', kind: 'other', message: 'falhou' }), {
-          status: 500,
-          headers: { 'content-type': 'application/json' },
-        }),
-      },
+          status: 500, headers: { 'content-type': 'application/json' } }) },
     ];
     for (const spec of missCases) {
       checks = 0;
       fetches = 0;
       const beforeUnreachable = unreachableCount();
-      const miss = useFetch((async () => {
-        fetches += 1;
-        return spec.respond();
-      }) as typeof fetch);
+      const miss = useFetch((async () => { fetches += 1; return spec.respond(); }) as typeof fetch);
       // Dois hashes na rede: o contador é da checagem, não de cada hash.
       const hashes = spec.label === 'rede' ? [spec.hash, 'h-net-extra'] : [spec.hash];
       const result = await miss.checkCached(TEST_KEY, hashes);
@@ -395,5 +348,39 @@ test('escape do adrm no caminho nativo: só o inventário PRONTO devolve o ⚡',
     for (const hash of [provado, semProva]) { memo.forget('alldebrid', key, hash); adrm.forgetReuploadBlock(account, hash); }
     Object.assign(config.debrid, { reuploadBlock: saved.block, alldebridReuploadBlockTtlMs: saved.ttl });
     config.debridRust.alCleanup = saved.cleanup;
+  }
+});
+
+// Fase 3.2 do plano: o 200 da 8710 com `unusable` é conta recusada, não "não sei".
+test('envelope 200 com unusable vira conta recusada, sem cair no TS', async () => {
+  const adapter = debrid.BY_ID.get('premiumize');
+  if (!adapter) throw new Error('premiumize ausente');
+  const saved = { services: config.debrid.rustServices.slice(), check: adapter.checkCached, fetch: globalThis.fetch };
+  const counter = (name: string) => metrics.snapshot().counters[name] || 0;
+  const reply = (body: unknown) => (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
+  // Chave e hash únicos: davail e memo de checagem casam por conta+hash.
+  const run = (tag: string) => withPremiumize(() => debrid.checkCached([`${tag}${'0'.repeat(39)}`]), tag);
+  let tsChecks = 0;
+  try {
+    config.debrid.rustServices = ['premiumize'];
+    adapter.checkCached = async (_key, hashes) => { tsChecks += 1; return new Set(hashes); };
+    globalThis.fetch = reply({ cached: [], known: false, complete: false, unusable: { reason: 'auth', message: 'invalid key' } });
+    const authBefore = counter('debrid.auth.invalid');
+    const auth = await run('chave-unusable-9a');
+    assert.deepEqual([auth.known, auth.cached.size, auth.unusable?.reason], [false, 0, 'auth']);
+    assert.equal(counter('debrid.auth.invalid') - authBefore, 1, 'métrica de credencial recusada');
+    globalThis.fetch = reply({ cached: [], known: false, complete: false, unusable: { reason: 'quota', message: 'MAGNET_TOO_MANY' } });
+    const quotaBefore = counter('debrid.quota.exceeded');
+    const quota = await run('chave-unusable-9b');
+    assert.deepEqual([quota.known, quota.unusable?.reason], [false, 'quota']);
+    assert.equal(counter('debrid.quota.exceeded') - quotaBefore, 1, 'métrica de conta no teto');
+    globalThis.fetch = reply({ cached: [], known: true, complete: true });
+    const plain = await run('chave-unusable-9c');
+    assert.deepEqual([plain.known, plain.cached.size, plain.unusable], [true, 0, undefined], 'sem unusable nada regrediu');
+    assert.equal(tsChecks, 0, 'envelope 200 nunca cai no checkCached do TS');
+  } finally {
+    adapter.checkCached = saved.check;
+    globalThis.fetch = saved.fetch;
+    config.debrid.rustServices = saved.services;
   }
 });

@@ -277,10 +277,18 @@ function playError(remote: RemoteFailure, secrets: readonly string[]): Error {
   return error;
 }
 
-function asCheck(json: unknown): { cached: Set<string>; complete: boolean } {
-  const body = json && typeof json === 'object' ? json as { cached?: unknown; complete?: unknown } : {};
+/** `unusable` do envelope nativo: só motivo textual classifica (`null` = sem recusa). */
+function asUnusable(value: unknown): { reason: string; message: string } | undefined {
+  const raw = value && typeof value === 'object' ? value as { reason?: unknown; message?: unknown } : {};
+  const reason = textField(raw.reason);
+  return reason ? { reason, message: textField(raw.message) ?? reason } : undefined;
+}
+
+function asCheck(json: unknown): { cached: Set<string>; complete: boolean; unusable?: { reason: string; message: string } } {
+  const body = json && typeof json === 'object' ? json as { cached?: unknown; complete?: unknown; unusable?: unknown } : {};
   const hashes = Array.isArray(body.cached) ? body.cached.map((hash) => String(hash)) : [];
-  return { cached: new Set(hashes), complete: body.complete !== false };
+  const unusable = asUnusable(body.unusable);
+  return { cached: new Set(hashes), complete: body.complete !== false, ...(unusable ? { unusable } : {}) };
 }
 
 function unchecked(): { cached: Set<string>; complete: false } {
