@@ -34,6 +34,10 @@ export type WorkRow = {
   firstSeen: number;
   lastSeen: number;
   passedFilter: number;
+  /** NÃO é coluna: é o `last_seen` lido nesta leva, o "esperado" do CAS da
+   * escrita. O upsert só reescreve `passed_filter` quando a linha do disco não
+   * andou desde essa leitura (outro processo gravou entre o read e o write). */
+  readLastSeen?: number;
 };
 
 export type Batch = { magnets: MagnetRow[]; sources: SourceRow[]; works: WorkRow[] };

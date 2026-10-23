@@ -144,7 +144,16 @@ function sqliteEngine(dbPath: string): Engine | null {
     `);
     const magnetStmt = db.prepare(`INSERT OR REPLACE INTO magnet (${MAGNET_COLUMNS.join(', ')}) VALUES (${MAGNET_COLUMNS.map(() => '?').join(', ')})`);
     const sourceStmt = db.prepare(`INSERT OR REPLACE INTO magnet_source (${SOURCE_COLUMNS.join(', ')}) VALUES (${SOURCE_COLUMNS.map(() => '?').join(', ')})`);
-    const workStmt = db.prepare(`INSERT OR REPLACE INTO magnet_work (${WORK_COLUMNS.join(', ')}) VALUES (${WORK_COLUMNS.map(() => '?').join(', ')})`);
+    // Obra: upsert com CAS (`readLastSeen`) em vez de `INSERT OR REPLACE` — o
+    // gateway grava a MESMA linha no MESMO arquivo e a substituição apagava o
+    // `passed_filter` que ele marcou depois da leitura desta leva (Fase 4.0.4).
+    const workStmt = db.prepare(
+      `INSERT INTO magnet_work (${WORK_COLUMNS.join(', ')}) VALUES (${WORK_COLUMNS.map(() => '?').join(', ')})`
+      + ' ON CONFLICT (hash, imdb, season, episode) DO UPDATE SET'
+      + ' first_seen = MIN(magnet_work.first_seen, excluded.first_seen),'
+      + ' last_seen = MAX(magnet_work.last_seen, excluded.last_seen),'
+      + ' passed_filter = CASE WHEN ? IS NULL OR magnet_work.last_seen <= ? THEN excluded.passed_filter ELSE magnet_work.passed_filter END',
+    );
     const getMagnetStmt = db.prepare('SELECT * FROM magnet WHERE hash = ?');
     const getSourceStmt = db.prepare('SELECT * FROM magnet_source WHERE hash = ? AND indexer = ?');
     const getWorkStmt = db.prepare('SELECT * FROM magnet_work WHERE hash = ? AND imdb = ? AND season = ? AND episode = ?');
@@ -280,7 +289,7 @@ function sqliteEngine(dbPath: string): Engine | null {
         try {
           for (const row of batch.magnets) magnetStmt.run(...renderMagnet(row));
           for (const row of batch.sources) sourceStmt.run(...renderSource(row));
-          for (const row of batch.works) workStmt.run(...renderWork(row));
+          for (const row of batch.works) workStmt.run(...renderWork(row), row.readLastSeen ?? null, row.readLastSeen ?? null);
           // Hook de teste: a falha entra DEPOIS dos INSERTs e ANTES do COMMIT,
           // então o ROLLBACK é exercitado de verdade (sem cast/mock de engine).
           if (consumeFailNextWrite()) throw new Error('falha de escrita injetada (teste)');

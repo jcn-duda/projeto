@@ -141,6 +141,33 @@ fn marca_passed_filter_so_em_linha_existente() {
 }
 
 #[test]
+fn marca_atrasada_nao_regride_a_linha_mais_nova() {
+    let store = MagnetBankStore::open_memory().expect("memória");
+    let imdb = "tt1000006";
+    seed_magnet(&store, &h(1), "Filme 1080p", false, 1, 100);
+    seed_work(&store, &h(1), imdb, -1, -1, 0, 100);
+    let ctx = WorkCtx {
+        imdb_id: imdb.to_string(),
+        season: None,
+        episode: None,
+    };
+    let entered = vec![json!({"infoHash": h(1)})];
+    assert!(store.mark_filter_outcome(&entered, &entered, &ctx, 500));
+    // Lote com carimbo ANTERIOR ao da linha (o Node grava `Date.now()` do seu
+    // próprio relógio depois de ler): não reescreve o veredito nem recua
+    // `last_seen`. É o CAS que fecha o lost update da Fase 4.0.4.
+    assert!(store.mark_filter_outcome(&entered, &[], &ctx, 400));
+    let works = store
+        .works_for_obra_many(imdb, &[movie()], 100, 300, None)
+        .expect("obras");
+    assert_eq!(
+        works[0].passed_filter, 1,
+        "observação antiga não derruba a marca nova"
+    );
+    assert_eq!(works[0].last_seen, 500, "last_seen só avança");
+}
+
+#[test]
 fn marca_o_pack_da_temporada_quando_o_titulo_declara() {
     let store = MagnetBankStore::open_empty_memory();
     let imdb = "tt1000004";

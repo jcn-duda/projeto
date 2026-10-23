@@ -205,6 +205,11 @@ export function mergeSource(prev: SourceRow | null, input: SourceInput, now: num
  * Upsert da obra. `passed_filter` é SOBRESCRITO: o valor já chega resolvido
  * pelo coalescing da leva (captura = 0; resultado do filtro = 0/1). OR aqui
  * tornaria a marca permanente e a queda 1→0 impossível.
+ *
+ * `readLastSeen` viaja junto porque quem grava não é o único escritor: o
+ * gateway tem o mesmo SQLite aberto e marca `magnet_work` no fim da busca. O
+ * upsert usa esse valor como CAS — se a linha andou depois desta leitura, só
+ * `last_seen` avança e o veredito alheio fica.
  */
 export function mergeWork(prev: WorkRow | null, mark: WorkMark, now: number): WorkRow {
   if (!prev) {
@@ -216,9 +221,10 @@ export function mergeWork(prev: WorkRow | null, mark: WorkMark, now: number): Wo
       firstSeen: now,
       lastSeen: now,
       passedFilter: mark.passedFilter,
+      readLastSeen: 0,
     };
   }
-  return { ...prev, lastSeen: now, passedFilter: mark.passedFilter };
+  return { ...prev, lastSeen: now, passedFilter: mark.passedFilter, readLastSeen: prev.lastSeen };
 }
 
 /**

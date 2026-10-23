@@ -334,8 +334,8 @@ impl MagnetBankStore {
 
     /// `markBankFilterOutcome`: grava `passed_filter` 1/0 e `last_seen` nas
     /// linhas que JÁ existem (fonte sem captura não cria órfão), por hash e por
-    /// alvo. Devolve `true` quando o lote foi aplicado (o boolean de
-    /// `markFilterResult`).
+    /// alvo, e devolve o boolean de `markFilterResult`. MONOTÔNICA (CAS contra o
+    /// lote atrasado do Node): `last_seen` só avança, `passed_filter` só cede.
     pub fn mark_filter_outcome(
         &self,
         entered: &[Value],
@@ -363,8 +363,8 @@ impl MagnetBankStore {
             for (season, episode) in list {
                 let passed = if surviving.contains(hash) { 1 } else { 0 };
                 let result = tx.execute(
-                    "UPDATE magnet_work SET passed_filter = ?1, last_seen = ?2 \
-                     WHERE hash = ?3 AND imdb = ?4 AND season = ?5 AND episode = ?6",
+                    "UPDATE magnet_work SET passed_filter = CASE WHEN last_seen <= ?2 THEN ?1 ELSE passed_filter END, \
+                     last_seen = MAX(last_seen, ?2) WHERE hash = ?3 AND imdb = ?4 AND season = ?5 AND episode = ?6",
                     params![passed, now_ms, hash, ctx.imdb_id, season, episode],
                 );
                 if result.is_err() {

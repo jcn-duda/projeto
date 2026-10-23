@@ -12,6 +12,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import config from '../src/config.js';
 import * as bank from '../src/utils/magnet-bank.js';
+import { engine } from '../src/utils/magnet-bank-rows.js';
 import * as metrics from '../src/utils/metrics.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as cache from '../src/utils/cache.js';
@@ -235,4 +236,30 @@ test('lie global: recém-marcado é visto, OR em linha existente, expirado é ig
   bank.captureItems([{ title: 'Y', infoHash: expired, lied: false, magnet: magnet(expired) }], 'x', {});
   bank.flushNow();
   assert.equal(bank.lookup(expired)!.lied, 0, 'lie expirado não conta');
+});
+
+// Os dois processos montam `data/magnets.db`: o gateway marca `magnet_work` no
+// fim da busca e o Node grava a obra no lote de captura, com o valor que leu
+// ANTES e carimbo do próprio relógio. Sem CAS, o lote atrasado apagava a marca
+// (lost update medido na matriz da Fase 4.0.4).
+test('work: lote atrasado do Node não apaga a marca do gateway (CAS por last_seen)', (t) => {
+  bank.resetForTests();
+  bank.open(path.join(FRESH_DIR(), 'magnets.db'));
+  const e = engine();
+  if (e.kind !== 'sql') return t.skip('node:sqlite ausente: engine de memória não tem dois escritores');
+  const h = hex('c');
+  const work = (lastSeen: number, passedFilter: number, readLastSeen?: number) => ({
+    hash: h, imdb: 'tt424242', season: -1, episode: -1, firstSeen: 10, lastSeen, passedFilter, readLastSeen,
+  });
+
+  // Estado que o gateway deixou: veredito 1 numa linha recente.
+  e.writeBatch({ magnets: [], sources: [], works: [work(9000, 1)] });
+  // Lote que leu antes (readLastSeen = 500) e chega depois: só `last_seen` avança.
+  e.writeBatch({ magnets: [], sources: [], works: [work(9500, 0, 500)] });
+  assert.equal(e.getWork(h, 'tt424242', -1, -1)?.passedFilter, 1, 'veredito alheio sobrevive');
+  assert.equal(e.getWork(h, 'tt424242', -1, -1)?.lastSeen, 9500, 'last_seen só avança');
+
+  // Leitura em dia (readLastSeen = o que está no disco): a escrita vale.
+  e.writeBatch({ magnets: [], sources: [], works: [work(9600, 0, 9500)] });
+  assert.equal(e.getWork(h, 'tt424242', -1, -1)?.passedFilter, 0, 'leitura em dia reescreve');
 });
