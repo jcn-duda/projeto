@@ -7,14 +7,11 @@
 //! - Teto horário: contador simples por balde UTC (`now_ms / 3_600_000`).
 //! - Trabalho real via [`HarvestDrain`] (sync stub; sem gateway / Jackett).
 //!
-//! Não cobre ainda: `takeProbe` sob tráfego, inflight coalescing, seed IMDb,
-//! persistência do balde horário no L2.
+//! Não cobre ainda: `takeProbe` sob tráfego, inflight coalescing, seed IMDb.
 
+use crate::hour::HourMeter;
 use crate::queue::HarvestQueue;
 use crate::types::HarvestEntry;
-
-/// Ms por balde horário civil UTC (mesmo corte do TS: `Date.now()/3_600_000`).
-pub const HOUR_MS: i64 = 3_600_000;
 
 /// Config injetável do worker (fatia de `harvesterLive.effective()`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,19 +122,12 @@ impl TickOutcome {
     }
 }
 
-/// Balde horário em memória (sem L2 — embrião).
-#[derive(Debug, Clone, Copy, Default)]
-struct HourBucket {
-    hour: i64,
-    count: u32,
-}
-
 /// Worker do ciclo: freio + teto + `take_head` + drain.
 pub struct HarvestWorker {
     config: HarvestWorkerConfig,
     paused: bool,
     in_flight: bool,
-    hour: HourBucket,
+    hour: HourMeter,
 }
 
 impl HarvestWorker {
@@ -146,7 +136,7 @@ impl HarvestWorker {
             config,
             paused: false,
             in_flight: false,
-            hour: HourBucket::default(),
+            hour: HourMeter::default(),
         }
     }
 
@@ -176,22 +166,22 @@ impl HarvestWorker {
 
     /// Consultas no balde da hora de `now_ms` (espelho de `queriesThisHour`).
     pub fn queries_this_hour(&mut self, now_ms: i64) -> u32 {
-        self.sync_hour(now_ms);
-        self.hour.count
+        self.hour.count(now_ms)
     }
 
     /// Anota consultas no balde (espelho de `noteQueries` sem persistir L2).
     pub fn note_queries(&mut self, count: u32, now_ms: i64) {
-        if count == 0 {
-            return;
-        }
-        self.sync_hour(now_ms);
-        self.hour.count = self.hour.count.saturating_add(count);
+        self.hour.note(count, now_ms);
+    }
+
+    /// Semeia o balde com o L2 (`hydrateCurrentHour` do TS).
+    pub fn hydrate_hour(&mut self, count: u32, now_ms: i64) {
+        self.hour.hydrate(count, now_ms);
     }
 
     /// Zera o Map — testes simulam processo novo.
     pub fn clear_hour_buckets(&mut self) {
-        self.hour = HourBucket::default();
+        self.hour.clear();
     }
 
     /// Um ciclo: freio → teto → `take_head` → [`HarvestDrain::drain_one`].
@@ -236,23 +226,12 @@ impl HarvestWorker {
 
         TickOutcome::Drained { entry, outcome }
     }
-
-    fn sync_hour(&mut self, now_ms: i64) {
-        let hour = hour_bucket(now_ms);
-        if self.hour.hour != hour {
-            self.hour = HourBucket { hour, count: 0 };
-        }
-    }
-}
-
-/// Índice do balde horário UTC a partir de epoch ms.
-pub fn hour_bucket(now_ms: i64) -> i64 {
-    now_ms.div_euclid(HOUR_MS)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hour::HOUR_MS;
     use crate::queue::{HarvestQueue, HarvestQueueConfig};
     use crate::types::HarvestRequest;
 
@@ -385,10 +364,18 @@ mod tests {
     }
 
     #[test]
-    fn hour_bucket_bate_com_corte_ts() {
-        assert_eq!(hour_bucket(0), 0);
-        assert_eq!(hour_bucket(HOUR_MS - 1), 0);
-        assert_eq!(hour_bucket(HOUR_MS), 1);
-        assert_eq!(hour_bucket(NOW), NOW.div_euclid(HOUR_MS));
+    fn hydrate_hour_sobe_o_balde_da_hora_corrente() {
+        let mut worker = worker_capped(2);
+        worker.hydrate_hour(2, NOW);
+        assert_eq!(worker.queries_this_hour(NOW), 2);
+        // Disco atrás do contador não regride (o worker já debitou mais).
+        worker.hydrate_hour(1, NOW);
+        assert_eq!(worker.queries_this_hour(NOW), 2);
+
+        // Virada de hora: o balde zera antes de semear; só a hora corrente entra.
+        let next_hour = NOW + HOUR_MS;
+        worker.hydrate_hour(1, next_hour);
+        assert_eq!(worker.queries_this_hour(next_hour), 1);
+        assert_eq!(worker.queries_this_hour(NOW), 0);
     }
 }

@@ -26,11 +26,14 @@
 //! | [`HarvestQueue`] | Memória: enqueue / take_head / prioritize / load_from |
 //! | [`HarvestStore`] | L2 SQLite (WAL): `open` / `open_memory` / `load` / `save` |
 //! | [`seen_key`] / [`was_recently_queued`] | Dedupe 12h por obra+motivo |
+//! | [`hour_key`] / [`load_hour`] / [`save_hour`] | Balde horário durável (`harvest:v1:hour`) |
 //! | [`HarvestWorker`] / [`tick`](HarvestWorker::tick) | Ciclo: freio + teto + `take_head` + drain |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
-//! Coalescing inflight e o resto da Fase E: **ainda não** — ver `README.md`.
+//! Ponte do `BrEvidence`, coalescing inflight, `take_probe` sob tráfego e o
+//! resto da Fase E: **ainda não** — ver `README.md`.
 
+mod hour;
 mod prioritize;
 mod queue;
 mod reason;
@@ -39,6 +42,10 @@ mod store;
 mod types;
 mod worker;
 
+pub use hour::{
+    hour_bucket, hour_key, hour_ttl_seconds, load_hour, save_hour, HourMeter, StoredHour, HOUR_KEY,
+    HOUR_MS,
+};
 pub use prioritize::{
     br_evidence_rank, prioritize, priority_tier, BrEvidence, PrioritizeConfig, StubBrEvidence,
 };
@@ -55,6 +62,6 @@ pub use seen::{
 pub use store::{HarvestStore, DEFAULT_ENTRY_TTL_SECONDS};
 pub use types::{EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestMediaType, HarvestRequest};
 pub use worker::{
-    hour_bucket, DrainOutcome, HarvestDrain, HarvestWorker, HarvestWorkerConfig, StubTraffic,
-    TickOutcome, TrafficSense, HOUR_MS,
+    DrainOutcome, HarvestDrain, HarvestWorker, HarvestWorkerConfig, StubTraffic, TickOutcome,
+    TrafficSense,
 };

@@ -20,6 +20,7 @@ sem Docker.
 | Consumo | `takeHead` / `takeProbe` | `take_head` / `take_probe` |
 | L2 | `cache.get` / `cache.set(QUEUE_KEY, …)` | `HarvestStore::load` / `save` |
 | Dedupe 12h | `queueDedupeKey` / `wasRecentlyQueued` / `markRecentlyQueued` | `seen_key` / `was_recently_queued` / `mark_recently_queued` (`seen.rs`) |
+| Balde horário | `HOUR_KEY` / `hourBucketTtlSeconds` / `hydrateCurrentHour` | `hour_key` / `hour_ttl_seconds` / `load_hour` / `save_hour` + `HarvestWorker::hydrate_hour` (`hour.rs`) |
 | Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
 | Prioridade | `prioritizeQueue` + `hasBrDubbed(lookupQuiet)` | `prioritize` + trait `BrEvidence` (stub/callback; índice real ainda não) |
 | Ciclo | `harvester.tick` / `harvestWorker` | `HarvestWorker::tick` + `TrafficSense` + `HarvestDrain` |
@@ -99,12 +100,36 @@ if !was_recently_queued(&store, &entry, now_ms)? {
 }
 ```
 
+## Balde horário durável
+
+`harvest:v1:hour` guarda `{hour, count}` da hora civil UTC. Sem ele, restart
+ou deploy zera o teto da hora e o colhedor pode estourar `HARVEST_MAX_HOUR` de
+novo — risco de ban no indexer.
+
+- **TTL**: até o fim do balde + 60 s, mínimo 60 (`hour_ttl_seconds`).
+- **Leitura**: só aceita a hora corrente e `count > 0` (`load_hour`); JSON
+  podre ou hora velha devolvem `None`.
+- **Semeio**: `HarvestWorker::hydrate_hour` nunca regride o contador — o disco
+  só completa o que o processo ainda não debitou.
+- Gravar continua sendo do chamador (o worker não tem store), como no TS, onde
+  `noteQueries` hidrata antes de somar e faz `cache.set`.
+
+```rust
+use adom_harvest::{load_hour, save_hour, HarvestStore};
+
+if let Some(stored) = load_hour(&store, now_ms)? {
+    worker.hydrate_hour(stored.count, now_ms);
+}
+// após o drain:
+worker.note_queries(queries, now_ms);
+save_hour(&store, worker.queries_this_hour(now_ms), now_ms)?;
+```
+
 ## O que NÃO está aqui (Fase E real)
 
 - Ponte do `BrEvidence` para o índice real (`lookupQuiet` / `hasBrDubbed`).
 - Coalescing in-flight (`harvest-inflight`) — só flag `in_flight` no worker.
 - `takeProbe` sob tráfego (embrião: busy = skip inteiro).
-- Persistência L2 do balde horário (`harvest:v1:hour`).
 - Seed IMDb, sonda `brProbe` completa, Jackett, painel, gateway.
 
 ## Testes
