@@ -186,7 +186,12 @@ async function search(query: string) {
   // acontece DENTRO do scrape (collectFromPost), então sem a flag na chave um
   // usuário receberia a lista já cortada do outro. TTL BR: é a fonte mais cara
   // (raspa WordPress + dois saltos de protetor por botão) e a que menos muda.
-  const { ttlBr, emptyTtl, maxItems } = config.rawCache;
+  //
+  // Quem GRAVA `raw:v1:bludv:` é o gateway, no `/stream` (mesma chave, mesmo
+  // arquivo); aqui só se lê. Com dois escritores, o `forget` de uma cópia
+  // vencida no L1 do Node apagava a linha fresca do Rust — e o Node nem enxerga
+  // o que o outro processo gravou, porque `cache.get` lê só o L1 (Fase 4.0.2).
+  const { ttlBr, maxItems } = config.rawCache;
   const rawKey = `${prefix('raw')}bludv:${opts().dubbedOnly ? 'd' : 't'}:${q}`;
   if (ttlBr > 0 && maxItems > 0) {
     const hit = cache.get(rawKey);
@@ -204,19 +209,16 @@ async function search(query: string) {
     // "N post(s) → 0 magnet(s)" não diz se o site mudou de protetor ou só não
     // tem o título procurado.
     let gatePosts = 0;
-    let incomplete = false;
     const chunks = await mapLimit(
       posts,
       config.bludv.concurrency,
       async (post) => {
         try {
           return await collectFromPost(post, deadlineAt, () => {
-            incomplete = true;
             gatePosts++;
             log.warn('[bludv] portão de anúncio ativo —', post.url);
           });
         } catch (err) {
-          incomplete = true;
           if (isBludvAdGate(err) && !gatePosts) {
             gatePosts++;
             log.warn('[bludv] portão de anúncio ativo —', post.url);
@@ -228,11 +230,6 @@ async function search(query: string) {
       { onItemError: 'drop' },
     );
     const items = chunks.flat();
-    if (!incomplete && ttlBr > 0 && maxItems > 0 && items.length <= maxItems) {
-      // Vazio usa o TTL curto: site fora/rate-limit não pode congelar a
-      // resposta. Falha (catch) continua sem cache — retry na próxima busca.
-      cache.set(rawKey, { items }, items.length === 0 ? emptyTtl : ttlBr);
-    }
     log.info(
       `[bludv] ${posts.length} post(s) → ${items.length} magnet(s)` +
         (gatePosts > 0 ? ` [portão de anúncio em ${gatePosts}/${posts.length} post(s)]` : ''),
