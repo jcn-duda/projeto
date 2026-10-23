@@ -68,11 +68,12 @@ commit/imagem anterior (nada de knob por env em caminho de leitura).
 | Fase 4.2(a) | `e0b32cec` | o Node para de escrever `raw:v1:bludv:*`; o gateway fica dono da chave |
 | Fase 4.1(a) | `3837c087` | teste fixa o dono do `davail`: contra o arquivo do Node, `put` recusa |
 | Fase 3.1 (item 3) | `e9049660` | `accountStatus`/`fileLink` não perguntam duas vezes: recusa sobe, 501/rede usam o TS |
+| Fase 5 (dedupe) | `faabecb8` | `harvest:v1:seen:<sha256>` no crate: chave e TTL do TS, ler não renova, gravar só após o aceite |
 
 Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2956 testes, 2942 pass / 14 fail** (as 14 da baseline do WIP, zero novas) · `lint:lines` 0 acima do teto ·
-`check-rust-lines.mjs` (738 fontes, baseline 45) · `cargo fmt --check` ·
-`cargo clippy -D warnings` em `adom-store` e `adom-debrid` · `cargo test -p adom-store` (42) e
-`-p adom-debrid` (193).
+`check-rust-lines.mjs` (739 fontes, baseline 45) · `cargo fmt --check` ·
+`cargo clippy -D warnings` em `adom-store`, `adom-debrid` e `adom-harvest` · `cargo test -p adom-store` (42),
+`-p adom-debrid` (193) e `-p adom-harvest` (39).
 
 Ainda aberto, com o motivo real:
 
@@ -91,7 +92,10 @@ Ainda aberto, com o motivo real:
   escrita junto com `mag:v1`: dependem da Fase 3 e do mesmo WIP de `cache*`.
 - **Fase 4.4** — o CAS fechou o lost update; declarar um único executor de `magnet_work` e o
   ensaio de restauração continuam **bloqueados por push**.
-- **Fases 5–7** — colhedor, Mico e o fundo no Rust: não iniciadas.
+- **Fases 5–7** — colhedor, Mico e o fundo no Rust: em andamento. No `adom-harvest` já
+  existem fila/L2, priorização BR com `BrEvidence`, tick e o dedupe 12h; faltam a ponte do
+  `BrEvidence` para o índice, o coalescing in-flight, o `takeProbe` sob tráfego, a persistência
+  do balde horário (`harvest:v1:hour`) e a transferência da fila com consumidor parado.
 
 ---
 
