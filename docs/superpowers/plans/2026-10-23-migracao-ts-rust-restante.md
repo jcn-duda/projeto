@@ -67,8 +67,9 @@ commit/imagem anterior (nada de knob por env em caminho de leitura).
 | Fase 4.0.5 (mitigação) | `ec0c1420` | `magnet_work` sem lost update: `UPDATE` monotônico no Rust + upsert com CAS (`readLastSeen`) no Node |
 | Fase 4.2(a) | `e0b32cec` | o Node para de escrever `raw:v1:bludv:*`; o gateway fica dono da chave |
 | Fase 4.1(a) | `3837c087` | teste fixa o dono do `davail`: contra o arquivo do Node, `put` recusa |
+| Fase 3.1 (item 3) | `e9049660` | `accountStatus`/`fileLink` não perguntam duas vezes: recusa sobe, 501/rede usam o TS |
 
-Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2955 testes, 2941 pass / 14 fail** (as 14 da baseline do WIP, zero novas) · `lint:lines` 0 acima do teto ·
+Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2956 testes, 2942 pass / 14 fail** (as 14 da baseline do WIP, zero novas) · `lint:lines` 0 acima do teto ·
 `check-rust-lines.mjs` (738 fontes, baseline 45) · `cargo fmt --check` ·
 `cargo clippy -D warnings` em `adom-store` e `adom-debrid` · `cargo test -p adom-store` (42) e
 `-p adom-debrid` (193).
@@ -78,8 +79,10 @@ Ainda aberto, com o motivo real:
 - **Fase 4.2(b)** — tratar `raw:v1:bludv:` como prefixo ESTRANGEIRO no L1/L2 do Node:
   **bloqueado pelo WIP não commitado** de `src/utils/cache.ts`/`cache-keys.ts` (o `RUST_OWNED`
   do usuário já generaliza `idx`→`idx`+`streams`; o guarda **por prefixo** entra depois dele).
-- **Fase 3.1 (resto da matriz)** — `/debrid/files` só Premiumize e Debrid-Link 501 nas duas
-  rotas; fechar exige decidir se `files` migra.
+- **Fase 3.1 (matriz)** — `/debrid/files` só Premiumize, e a medição mostra `adapter.fileLink`
+  **sem chamador vivo** em `src/` (só o teste e o `rust-remote` que o embrulha): portar para os
+  outros serviços não teria consumidor. Debrid-Link segue 501 nas duas rotas; decidir se `files`
+  sai no corte da Fase 3.4.
 - **Fase 3.3/3.4** — canário AllDebrid e apagar corpos Node de `checkCached`/`resolveLink`/
   `fileLink`/`accountStatus`: **bloqueado por push + autorização**.
 - **Fase 2.3/2.4** — medir ~1 semana em produção e só então remover `FallbackMetaSource`:
