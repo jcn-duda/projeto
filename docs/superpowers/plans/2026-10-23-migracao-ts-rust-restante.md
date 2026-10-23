@@ -54,9 +54,47 @@ commit/imagem anterior (nada de knob por env em caminho de leitura).
 
 ---
 
+## Execução (branch `rust`, 2026-10-23) — commitado, sem push
+
+| fatia | commit | o que fechou |
+|---|---|---|
+| Fase 0.1 + 0.2 | `89bdc467` | passo de golden tolerante no CI; catraca `.rs` vira ratchet (`scripts/check-rust-lines.mjs` + `rust/.line-budget.json`) e o heredoc Python saiu |
+| Fase 1.1 | `ce6af184` | `warmup` apagado: arquivo, chamada no boot, fábrica, chaves do `.env.example`, teste e entrada em `testFiles` |
+| Fase 1.2 + 1.3 | `74bbc940` | knobs mortos do `config.cache` fora; `fallbackServed` publica `null` (não medido) no bloco e no painel |
+| Fase 2.1–2.2 | `696e0d9d` | `meta.fallback.*` e `meta.native.incomplete` no `meta_metrics` e nos `/metrics` do gateway |
+| Fase 3.2 | `1b827c78` | `asCheck` lê `unusable` do envelope 200 (auth/quota): não vira "desconhecido" |
+| Fase 3.1 | `19e22795` | `/debrid/account` cobre os quatro serviços com `accountStatus`; Debrid-Link segue 501 |
+| Fase 4.0.5 (mitigação) | `ec0c1420` | `magnet_work` sem lost update: `UPDATE` monotônico no Rust + upsert com CAS (`readLastSeen`) no Node |
+| Fase 4.2(a) | `e0b32cec` | o Node para de escrever `raw:v1:bludv:*`; o gateway fica dono da chave |
+| Fase 4.1(a) | `3837c087` | teste fixa o dono do `davail`: contra o arquivo do Node, `put` recusa |
+
+Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2955 testes, 2941 pass / 14 fail** (as 14 da baseline do WIP, zero novas) · `lint:lines` 0 acima do teto ·
+`check-rust-lines.mjs` (738 fontes, baseline 45) · `cargo fmt --check` ·
+`cargo clippy -D warnings` em `adom-store` e `adom-debrid` · `cargo test -p adom-store` (42) e
+`-p adom-debrid` (193).
+
+Ainda aberto, com o motivo real:
+
+- **Fase 4.2(b)** — tratar `raw:v1:bludv:` como prefixo ESTRANGEIRO no L1/L2 do Node:
+  **bloqueado pelo WIP não commitado** de `src/utils/cache.ts`/`cache-keys.ts` (o `RUST_OWNED`
+  do usuário já generaliza `idx`→`idx`+`streams`; o guarda **por prefixo** entra depois dele).
+- **Fase 3.1 (resto da matriz)** — `/debrid/files` só Premiumize e Debrid-Link 501 nas duas
+  rotas; fechar exige decidir se `files` migra.
+- **Fase 3.3/3.4** — canário AllDebrid e apagar corpos Node de `checkCached`/`resolveLink`/
+  `fileLink`/`accountStatus`: **bloqueado por push + autorização**.
+- **Fase 2.3/2.4** — medir ~1 semana em produção e só então remover `FallbackMetaSource`:
+  **bloqueado por push**.
+- **Fase 4.1(b)(c) e 4.3** — ponte de leitura do `davail` (`br-coverage`/painel) e mover a
+  escrita junto com `mag:v1`: dependem da Fase 3 e do mesmo WIP de `cache*`.
+- **Fase 4.4** — o CAS fechou o lost update; declarar um único executor de `magnet_work` e o
+  ensaio de restauração continuam **bloqueados por push**.
+- **Fases 5–7** — colhedor, Mico e o fundo no Rust: não iniciadas.
+
+---
+
 ## Fase 0 — Base confiável (executar agora)
 
-### Task 0.1: destravar o job Rust no CI
+### Task 0.1: destravar o job Rust no CI — ✅ feito (`89bdc467`)
 
 **Files:**
 - Modify: `.github/workflows/rust.yml:121-129`
@@ -99,7 +137,7 @@ git add .github/workflows/rust.yml
 git commit -m "refactor(ci): golden ausente no esm avisa em vez de pular o job Rust"
 ```
 
-### Task 0.2: catraca `.rs` vira ratchet com baseline
+### Task 0.2: catraca `.rs` vira ratchet com baseline — ✅ feito (`89bdc467`)
 
 **Files:**
 - Create: `scripts/check-rust-lines.mjs`
@@ -250,7 +288,7 @@ instalação (908), Tier 2 e2e (1320), `mode=live` (2397, 2398), `/stream-trace.
 
 ## Fase 1 — Limpeza barata (executar agora, em paralelo à Fase 0)
 
-### Task 1.1: apagar o warmup
+### Task 1.1: apagar o warmup — ✅ feito (`ce6af184`)
 
 **Files:**
 - Delete: `src/warmup.ts`
@@ -305,7 +343,7 @@ git rm --cached test/warmup.test.ts
 git commit -m "refactor(fase1): apaga o warmup do boot (raw do Jackett nao alimenta a busca nativa)"
 ```
 
-### Task 1.2: apagar `config.magnetBank.fallback*`
+### Task 1.2: apagar `config.magnetBank.fallback*` — ✅ feito (`74bbc940`)
 
 **Files:**
 - Modify: `src/config/cache.ts:98-105`
@@ -343,7 +381,7 @@ git add src/config/cache.ts .env.example
 git commit -m "refactor(fase1): remove knobs mortos do fallback do banco de magnets"
 ```
 
-### Task 1.3: `fallbackServed` para de mentir 0
+### Task 1.3: `fallbackServed` para de mentir 0 — ✅ feito (`74bbc940`)
 
 **Files:**
 - Modify: `src/routes/dashboard-status-blocks.ts:311-324`
@@ -421,9 +459,184 @@ vira miss por auth/quota; nenhuma chamada dupla ao serviço.
 
 ## Fase 4 — F3: estado com dono único
 
-Ordem por risco: `davail` → `raw:v1` → `magnets.db`. Cada namespace precisa de
-**matriz de propriedade**: dono de execução (não só de linguagem) → consumidores
-→ TTL/cota → invalidação → limpeza → transferência → rollback.
+### Fase 4.0 — matriz de propriedade (medida em 2026-10-23)
+
+Medido no checkout com `rg -n` e leitura de código, não de memória. O WIP não
+commitado de `cache*` foi lido e **não** é base de decisão: ele generaliza
+`RUST_OWNED` de `idx` para `idx`+`streams` (`src/utils/cache-keys.ts:190-192`) e
+ainda afirma `raw` no L1 do Node (`test/cache-namespaces.test.ts:317`) — é o
+mecanismo que o corte vai reusar, não o estado final.
+
+Duas definições que a matriz usa:
+
+- **dono de execução** = processo com o timer/rota/loop que chama a escrita.
+  "Dono de linguagem" não basta: os dois processos montam o mesmo volume
+  (`docker-data/addon`) e escrevem nos mesmos arquivos.
+- **dois escritores** = os dois processos gravam a MESMA chave/linha do MESMO
+  arquivo. Namespace diferente no mesmo SQLite não é conflito.
+
+Veredito: `davail` **dono único (Node)** · `raw:v1` **dois escritores** ·
+`mag:v1`/`mag_meta:v1` **dono único (Node)** · `data/magnets.db` **dois
+escritores**.
+
+> Correção de escopo que a medição impõe: o item 3 do plano (`magnets.db`)
+> junta dois stores diferentes. `mag:v1`/`mag_meta:v1` moram no `cache.db`
+> (versão, TTL, cota); `data/magnets.db` é arquivo próprio, permanente, sem
+> namespace nem TTL nem cota (`src/config/cache.ts:75`;
+> `rust/crates/adom-store/src/magnet_bank.rs:512-519`). Abaixo são seções
+> separadas porque o corte de um não é o corte do outro.
+
+#### 4.0.1 `davail:v1` — dono único (processo Node)
+
+Chave `davail:v1:<adapter>:<accountScope>:<hash>` (`src/debrid/cache-check.ts:145-147`;
+`accountScope` = sha256 da apiKey, `src/utils/request-key.ts:9-12`).
+
+| chave/prefixo | dono de execução | escritores | leitores | TTL/cota | limpeza |
+|---|---|---|---|---|---|
+| `davail:v1:*` | **Node** — `cache-check.ts` roda no addon; nenhuma rota, timer ou loop do gateway grava o namespace | `cache-check.ts:158` (`noteAvailable`, valor 1), `:193` (`noteUnavailable`, valor 0), `:377`/`:380` → `:383` (`setMany` do lote pós-rede). Gatilhos: autofetch (`autofetch-recheck.ts:234` chama `debrid.checkCached`; `:285` chama `noteAvailable`) e efeito de play (`internal-resolve.ts:83` → `rust-play-effects.ts:50-53`); play AllDebrid no Node grava igual (`alldebrid-play.ts:25-26`) | `cache-check.ts:304` (positivo serve sem rede → ⚡/`cachedForAutofetch` do Chupim); `src/utils/br-coverage.ts:118-121` (`releaseStatus`: 1=hit, 0=miss → `catalog-scan.ts:109` e painel `dashboard-status-blocks.ts:289`); `debrid-cache-steps.ts:139` (`peekDavail` 0 fresco **veta** o atalho `DEBRID_ALIVE_AS_CACHE`) | `DEBRID_AVAIL_POS_TTL` 900 s (`src/config/debrid.ts:98`), `DEBRID_AVAIL_NEG_TTL` 120 s (`:101`); cota 1.000 (`src/utils/cache-quotas.ts:70`; espelho `rust/crates/adom-core/src/cache_quotas.rs:58`) | TTL + LRU da própria cota (`src/utils/cache.ts:30-47`, prune a cada 10 min em `:341`), purga de expirado/versão no boot (`src/utils/cache-db.ts:102-135`) e `maintain` a cada 15 min (`:276`). Kill-switch: TTL 0 desliga escrita e leitura (`cache-check.ts:157`, `:192`, `:297`, `:300`, `:369`) |
+
+**Sem dois escritores — evidência, não suposição.** `rg -n "davail" rust/crates --glob "*.rs"`
+devolve 28 linhas em 16 arquivos e **nenhuma escrita de produção**: comentários
+(`adom-search/src/orchestrator/account.rs:3` — "O Node segue dono … do
+`davail`"; `adom-debrid/src/alldebrid.rs:91`; `resolve_native.rs:13-16`),
+testes (`adom-debrid/src/store_tests.rs:5-13`, todos em `open_memory`) e as
+tabelas de chave/cota (`adom-core/src/cache_keys.rs:52`,
+`cache_quotas.rs:58`). O store do gateway no arquivo real abre READ-ONLY
+(`adom-debrid/src/store.rs:56-66`) e `put` recusa (`:109-111`); `davail:v1:`
+consta em `WRITABLE_PREFIXES` (`:19`), mas essa lista só governa o store em
+memória dos testes (`store_tests.rs:5`). O comentário de replay
+(`frozen_gate.rs:1231-1234`) também não lê o namespace.
+
+**Nuance que muda o corte.** O `/stream` nativo não consulta `davail` (R3: a
+checagem é nativa, `adom-debrid/src/verdict.rs`; `/internal/debrid/check` foi
+apagado). O namespace serve hoje três consumidores: o autofetch — único chamador
+vivo de `debrid.checkCached` em `src/` (`autofetch-recheck.ts:234`; `rg`
+"debrid.checkCached" em `src/providers|src/routes|src/utils` só acha esse), o
+play (negativo de 120 s) e o painel/coverage. Transferir a escrita sem levar os
+três é troca de dono sem consumidor.
+
+#### 4.0.2 `raw:v1` — dois escritores
+
+| chave/prefixo | dono de execução | escritores | leitores | TTL/cota | limpeza |
+|---|---|---|---|---|---|
+| `raw:v1:bludv:{d\|t}:<q>` | **Rust** no `/stream` (`adom-server/src/stream.rs:103` → `:239-247`) **e Node** no harvester (`harvest-worker.ts:264` → `bludv.ts:234`) | Rust: `bludv/client.rs:183-185` (`set`), `raw.rs:135-141` (INSERT ON CONFLICT + `enforce_quota`). Node: `bludv.ts:190` (chave), `:234` (`cache.set`) | Rust: `bludv/client.rs:206-218` (`get`, que **apaga expirado**: `raw.rs:107`). Node: `bludv.ts:192` (`cache.get`, só L1) | Node `RAW_CACHE_TTL` 900 s / `TTL_BR` 1800 s / `EMPTY_TTL` 120 s (`src/config/cache.ts:19-29`); Rust lê as MESMAS envs (`adom-sources/src/bludv/config.rs:85-87`); cota 800 nos dois (`cache-quotas.ts:67`; `raw.rs:42-44`) | TTL + LRU da cota no Node (`cache.ts:30-47`, `:341`) e `enforce_quota` no Rust (`raw.rs:141`) — os dois despejam no MESMO arquivo |
+| `raw:v1:jackett:<indexer>:<type>:<q>` | **Node** (`jackett.ts:131` → `jackett-query-indexer.ts:194`; chamado pelo harvester em `harvest-worker.ts:229` e `harvest-sweep.ts:110`) | `jackett-query-indexer.ts:134` (chave), `:194` (`cache.set`) | `jackett-query-indexer.ts:136` (`cache.get`); `jackett-query.ts:78-83` (`peekRawFor` → `cache.peek`) alimentando `trace-recompute.ts:88` | idem acima | idem acima |
+
+**Dois escritores (conflito real, mesmo arquivo e mesma chave):**
+
+- **Chave idêntica.** Rust monta `raw:v1:bludv:{d|t}:<q>`
+  (`bludv/client.rs:504-509`, com teste afirmando a string em `:588-594`) e o
+  Node monta a mesma em `bludv.ts:190`. `sources_rust.rs:25-27` confirma que o
+  store só é injetado no BLUDV (`:41`), então o `raw` do Jackett é Node-only.
+- **Node apaga linha do Rust.** `raw` não está em `RUST_OWNED`
+  (`cache-keys.ts:190`), então `cache.forget` não bloqueia: `cache.ts:256-263`
+  → `cache-db.ts:219-229` roda `DELETE FROM cache WHERE key = ?`. Pior: `get`
+  expirado chama `forget` (`cache.ts:111-112`), então uma cópia velha no L1 do
+  Node **deleta a linha fresca que o Rust acabou de gravar** com a mesma chave.
+- **Cegueira nos dois sentidos.** `cache.get` lê só L1 (`cache.ts:102-127`) e o
+  L2 só é lido no boot (`cache-db.ts:102-135`); linha escrita pelo Rust fica
+  invisível ao Node até reiniciar. No outro sentido, o Rust não vê o L1 do Node
+  e reescreve a chave quando o TTL do disco expira.
+- **Não há env que separe os dois.** `RAW_CACHE_TTL_BR`/`RAW_CACHE_MAX_ITEMS`
+  desligam o cache nos dois processos (`src/config/cache.ts:15-29` ×
+  `bludv/config.rs:85-98`), então o corte não pode ser kill-switch de env: é
+  mudança de código (ou o Node para de escrever a metade BLUDV, ou o Rust para
+  de receber o store).
+- **Precedente que prova o perigo.** `rdc:v2` mora no mesmo arquivo e é
+  read-only no Rust exatamente por isto: "o L1 do Node é a autoridade do
+  arquivo, não relê o disco depois do boot e o flush sobrescreveria a linha do
+  gateway" (`stream.rs:163-169`; `store.rs:45-49`). `raw:v1` é o mesmo desenho
+  **sem** a guarda.
+
+#### 4.0.3 `mag:v1` / `mag_meta:v1` — dono único (processo Node)
+
+| chave/prefixo | dono de execução | escritores | leitores | TTL/cota | limpeza |
+|---|---|---|---|---|---|
+| `mag:v1:{alive\|bad\|lie}:<adapter>:<scope>:<hash>` | **Node** (`src/utils/magnetdb.ts`) | `magnetdb.ts:112` (`setMany` de `markAlive`), `:150` (`cache.set` de `markBad`) + `:154` (`cache.forget` do alive), `:207` (`cache.set` de `markLie`), `:189-195` (`forgetBadKey`) | `magnetdb.ts:127` (`isAlive` → ⚡ por histórico em `debrid-cache-steps.ts:145`), `:166` (`isBad`), `:220` (`isLie`), `:228-236` (`peek*`), `:265` (`status` do painel); Rust lê só `bad`/`lie` read-only (`adom-store/src/magnet_db.rs:31`, `:74-79`, ligado em `stream.rs:151-159`) | `MAGNET_ALIVE_TTL` 7 d, `MAGNET_BAD_TTL` 24 h, `MAGNET_LIE_TTL` 7 d (`src/config/audit.ts:14-19`); cota `mag` 50.000 (`cache-quotas.ts:79`) | TTL + LRU da cota; `markBad` apaga o alive do mesmo hash (`magnetdb.ts:151-154`). Sem purga própria: expira e cai no `prune`/boot |
+| `mag_meta:v1:counts` | **Node** (`magnetdb-persist.ts`) | `magnetdb-persist.ts:54-64` (`cache.set` no `setImmediate` de `:69`) | `magnetdb-persist.ts:132` (`cache.peek` na retomada) | TTL `max(aliveTtl, 7 d)` (`:64`); cota 1 (`cache-quotas.ts:81`) | Sobrescrita do próprio agregado; nenhuma remoção dedicada |
+
+Sem dois escritores: o Rust abre `data/cache.db`/`mag:v1` com
+`SQLITE_OPEN_READ_ONLY` (`magnet_db.rs:74-79`) e não há `put` de `mag` em
+produção — `WRITABLE_PREFIXES` (`adom-debrid/src/store.rs:20-21`) só vale para
+`open_memory` (`:69-77`), usado por testes (`store_tests.rs:18`). Risco real é o
+oposto: **o corte de `davail` arrasta este namespace**, porque `checkCached`
+grava os dois na mesma função (`cache-check.ts:383` e `:388`) e o `noteAvailable`
+também grava `davail=1` e `markAlive` juntos (`:158` e `:162`).
+
+#### 4.0.4 `data/magnets.db` — dois escritores (`magnet_work`)
+
+| chave/prefixo | dono de execução | escritores | leitores | TTL/cota | limpeza |
+|---|---|---|---|---|---|
+| `magnet`, `magnet_source` (PK `hash`/`hash+indexer`) | **Node** (`src/utils/magnet-bank.ts` → `magnet-bank-rows.ts:276-292`) | `magnet-bank.ts:237` (`captureItems`), `:225` (`writeBatch` com as três tabelas) | leitura nativa do Rust (`magnet_bank.rs:153-156`, `:303-327`) para instantânea/`pickSource` | **sem TTL e sem cota** (acervo permanente) | Nenhuma automática. `DELETE FROM magnet` existe só em `clearRows` (`magnet-bank-rows.ts:196-198`), chamado por `resetForTests` (`:379-382`) |
+| `magnet_work` (`hash+imdb+season+episode`) | **Rust** no fim da busca (`late.rs:215`) **e Node** na fila de captura/filtro (`magnet-bank.ts:222`) | Rust: `magnet_bank.rs:339-376` (`UPDATE … SET passed_filter = ?1, last_seen = ?2` em transação). Node: `magnet-bank.ts:243` (`markFilterResult`) e `:237` (`captureItems`), incluindo o efeito `magnet_capture` que o Rust emite (`late.rs:236` → `internal-search-effects.ts:203`) e o crawler (`crawl-recorder.ts:141`) | O próprio Rust lê para instantânea/filtro (`magnet_bank.rs:153-156`, `:186-188`) e o Node lê no `applyOps` (`magnet-bank.ts:150`, `:202`) | **sem TTL e sem cota** | idem: nada apaga em produção |
+
+**Dois escritores (lost update vivo):**
+
+- Rust grava `passed_filter`/`last_seen` com `UPDATE` incondicional dentro de
+  transação (`magnet_bank.rs:365-369`), sem CAS nem guarda de `last_seen`.
+- Node grava a MESMA linha **sobrescrevendo** `passed_filter` com o valor lido
+  antes: `applyOps` resolve `mark.passedFilter` em `magnet-bank.ts:150`/`:202` e
+  `mergeWork` faz `{ ...prev, passedFilter: mark.passedFilter }`
+  (`magnet-bank-merge.ts:205-221` — o comentário `:205` diz "é SOBRESCRITO").
+- A ordem é de propósito, e é o que cria a janela: no mesmo request o Rust marca
+  primeiro (`late.rs:215`) e só então pede a captura ao Node com
+  `resetPassedFilter:false` (`late.rs:171-175`, `internal-search-effects.ts:194-201`).
+  Se a fila do Node atrasar (é `setTimeout(run, 0)`, `magnet-bank.ts:68-73`), a
+  captura lê antes da marca e regrava o valor velho por cima.
+- Não há TTL nem cota para amortecer: o valor errado fica até alguém regravar.
+
+#### 4.0.5 Corte proposto (ordem, rollback, bloqueio)
+
+A ordem `davail` → `raw:v1` → `magnets.db` **continua segura** como ordem de
+corte (fácil → difícil), mas ela **não** é a ordem de gravidade: o lost update de
+`magnet_work` está vivo hoje (`4.0.4`) e não deve esperar o corte de `raw:v1`.
+Mitigação imediata, sem trocar dono: `UPDATE` monotônico/CAS em
+`magnet_bank.rs:365-369` (só avança `last_seen`, e `passed_filter` só com
+`last_seen <= ?`) + `mergeWork` do Node condicionado a `last_seen` — é o aceite
+"leitura–merge–gravação atômica" sem transferência.
+
+1. **`davail` — declarar dono, não transferir.** Transferir = implementar
+   `noteAvailable`/`noteUnavailable`/davail-positivo no Rust **e** apagar as
+   três escritas do Node (`cache-check.ts:158`, `:193`, `:383`) na mesma
+   entrega; manter os dois é o bug que a fase quer evitar. Ordem interna:
+   (a) fixar o dono por teste (Rust recusa `put` de `davail` no store de
+   arquivo — hoje só vale para memória); (b) dar ao painel/`br-coverage` uma
+   ponte de leitura antes de qualquer mudança de processo (`br-coverage.ts:118`
+   usa `cache.peek`, que é L1 do Node); (c) só então mover a escrita, junto com
+   `mag:v1` (`4.0.3`), porque saem da mesma função.
+   Rollback: reverter o commit; o dado é TTL de 15 min/2 min, não há migração.
+2. **`raw:v1` — parar um escritor antes de declarar dono.** (a) Node para de
+   escrever `raw:v1:bludv:*` (`bludv.ts:234`) — o Rust já cobre a mesma chave
+   (`client.rs:183-185`); (b) só depois o Node trata o prefixo `raw:v1:bludv:`
+   como estrangeiro (bloqueio explícito no L1/L2, como `RUST_OWNED` em
+   `cache.ts:234`/`:257`, mas **por prefixo** — `RUST_OWNED` é por namespace e
+   `raw` é compartilhado por BLUDV e Jackett); (c) `raw:v1:jackett:*` fica no
+   Node até a Fase 5, porque o coletor Jackett nativo ignora o store
+   (`sources_rust.rs:25-27`). Sem (a), qualquer "dono único" é falso.
+   Rollback: imagem anterior; as linhas expiram em ≤ 30 min e o schema é o
+   mesmo, então não há migração a desfazer.
+   **Bloqueado por push:** medir a taxa de hit do `raw` BLUDV depois de (a) —
+   precisa de tráfego e do volume de produção.
+3. **`mag:v1`/`mag_meta:v1` — junto com `davail`, não depois.** Mesma função
+   (`cache-check.ts:388`), mesmo play (`magnetdb.ts:112`). O Rust já é
+   read-only; o corte é só apagar a escrita Node quando a checagem migrar.
+   Rollback: reverter o commit (TTL 7 d/24 h, sem migração).
+4. **`magnets.db` — por último, e por transação, não por transferência.**
+   (a) CAS nos dois lados (`magnet_bank.rs:365-369` + `magnet-bank-merge.ts:205`);
+   (b) declarar um único executor de `magnet_work` — o Rust já marca no fim da
+   busca e o Node só precisa parar de sobrescrever; (c) `magnet`/`magnet_source`
+   continuam Node-only (o Rust não cria linha, `magnet_bank.rs:335-337`) e podem
+   ficar para a Fase 5. **Não transferir as três tabelas juntas.**
+   Rollback: backup do `magnets.db` com os dois produtores parados e drenados —
+   restaurar SQLite **não** desfaz exclusão no debrid, mas aqui não há debrid
+   envolvido; a perda aceitável é a janela de `last_seen` do lote.
+   **Bloqueado por push:** ensaio de restauração em cópia isolada e canário do
+   CAS com tráfego real.
+
+O que **não** muda com esta matriz: `streams:v21`/`idx:v14` seguem Rust-owned
+(`cache-keys.ts:190-192`; ponte da admin API em `streams-store-native.ts:9`/`:147`),
+e o `magnetdb`/`davail` continuam no caminho de efeito do play
+(`internal-resolve.ts:83`) até a Fase 3 fechar.
 
 Aceite por namespace:
 - leitura–merge–gravação atômica (CAS/transação ou dono único de execução);
