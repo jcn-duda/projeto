@@ -22,16 +22,17 @@
 //!
 //! **`raw:v1`** no caminho vivo: lê e grava o cache bruto normalmente.
 
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use adom_core::RelevanceItem;
-use adom_sources::{BludvClient, BludvOutcome, BludvRawItem, BludvSearchOpts, RawStore};
+use adom_sources::{BludvClient, BludvRawItem, RawStore};
 use serde_json::{Map, Value};
 
+#[cfg(test)]
 use crate::internal_types::TaskScope;
-use crate::orchestrator::collect::{CollectBatch, CollectJob, Collector};
+use crate::orchestrator::collect::CollectJob;
+#[cfg(test)]
+use crate::orchestrator::collect::{CollectBatch, Collector};
 use crate::orchestrator::jackett_collector::process_title_precision_tail_cut;
 use crate::orchestrator::jackett_live::relevant_count;
 use crate::orchestrator::live_state::LiveBatchState;
@@ -116,7 +117,7 @@ pub(crate) fn live_failed() -> LiveBatchState {
 /// Resposta válida é `Ok` quando ALGUM item passa na relevância da obra;
 /// sem item relevante é `Empty` (vazio suspeito), como o `relevant: 0` do TS.
 /// A régua é a mesma do Jackett/Prowlarr (`filter_relevant_raw`).
-fn live_from_items(items: &[BludvRawItem], job: &CollectJob) -> LiveBatchState {
+pub(super) fn live_from_items(items: &[BludvRawItem], job: &CollectJob) -> LiveBatchState {
     if items.is_empty() {
         return live_empty();
     }
@@ -140,72 +141,8 @@ fn live_from_items(items: &[BludvRawItem], job: &CollectJob) -> LiveBatchState {
     }
 }
 
-fn batch(items: Vec<RawItem>, live: LiveBatchState) -> CollectBatch {
-    CollectBatch {
-        items,
-        partial: false,
-        live: Some(live),
-    }
-}
-
-impl Collector for BludvCollector {
-    fn collect<'a>(
-        &'a self,
-        job: CollectJob,
-    ) -> Pin<Box<dyn Future<Output = Result<CollectBatch, String>> + Send + 'a>> {
-        Box::pin(async move {
-            // Fonte BR independente do PROVIDER (só o kill-switch do cliente);
-            // o `wants` existe para espelhar a régua do Node por fonte.
-            if !job.wants("bludv") {
-                return Ok(batch(Vec::new(), live_ok()));
-            }
-            // Topologia TS: bludv é tarefa BR (`priority=true`); globais e
-            // late-sweep não consultam.
-            if job.late_sweep || matches!(job.scope, TaskScope::Nonpriority) {
-                return Ok(batch(Vec::new(), live_ok()));
-            }
-            let query = br_query(&job);
-            if query.is_empty() {
-                return Ok(batch(Vec::new(), live_ok()));
-            }
-            let opts = BludvSearchOpts {
-                // `dubbedOnly` chega pelo `RequestSelection` (o default do
-                // operador já foi aplicado ao `options` da request).
-                dubbed_only: job.dubbed_only,
-            };
-            let outcome = self.client.search_outcome(query, &opts).await;
-            let label = outcome.label();
-            match outcome {
-                BludvOutcome::Ok(items) => {
-                    let live = live_from_items(&items, &job);
-                    let mapped = items.into_iter().map(raw_from_bludv).collect();
-                    Ok(batch(mapped, live))
-                }
-                // Configuração (kill-switch / base barrada / consulta vazia):
-                // a fonte nem foi consultada — o Node também não registra nada.
-                BludvOutcome::Disabled | BludvOutcome::BlockedUrl => {
-                    Ok(batch(Vec::new(), live_ok()))
-                }
-                // 4xx da obra/site: o host está vivo; sem release para esta
-                // obra → vazio suspeito (nunca falha sintética).
-                BludvOutcome::Http(status) if status < 500 && status != 429 => {
-                    eprintln!("[search] bludv: {label} (obra sem release no site)");
-                    Ok(batch(Vec::new(), live_empty()))
-                }
-                // 429/5xx, rede, timeout e redirect inválido: a consulta foi
-                // prometida e não foi respondida.
-                failure => {
-                    debug_assert!(failure.is_host_failure());
-                    eprintln!("[search] bludv: {label} (falha viva, lote vazio)");
-                    Ok(batch(Vec::new(), live_failed()))
-                }
-            }
-        })
-    }
-}
-
 /// Sites BR indexam por título pt-BR (`ptQuery || query` no TS).
-fn br_query(job: &CollectJob) -> &str {
+pub(super) fn br_query(job: &CollectJob) -> &str {
     job.pt_query
         .as_deref()
         .map(str::trim)

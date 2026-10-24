@@ -1,3 +1,4 @@
+use super::write::hash_of;
 use super::*;
 use serde_json::json;
 

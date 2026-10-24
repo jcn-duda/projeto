@@ -2,7 +2,7 @@
 
 pub use crate::list_builder::*;
 pub use crate::raw_item::RawItem;
-pub use adom_core::StreamDisplayConfig;
+pub use adom_core::{RankingStream, StreamDisplayConfig};
 
 pub fn base_ctx() -> BuildContext {
     BuildContext {
