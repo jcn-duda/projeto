@@ -77,6 +77,8 @@ fn feed_torznab_com_a_data_do_golden() {
                 link: link.clone(),
                 index,
                 count: links.len(),
+                seeders: None,
+                leechers: None,
             })
             .collect();
         // Todos os itens de um post carregam o mesmo pubDate: ele sai ou do

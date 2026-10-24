@@ -12,9 +12,9 @@
       "files": [
         "src/utils/deadline.ts",
         "src/config.ts",
-        "src/providers/search-orchestrator.ts",
-        "src/providers/collection-window.ts",
-        "test/search-budget-metadata.test.ts"
+        "rust/crates/adom-search/src/orchestrator",
+        "rust/crates/adom-search/src/collection_window.rs",
+        "test/app-deadline.test.ts"
       ],
       "guards": "Confira se alguma etapa de rede nova no caminho GLOBAL fugiu do orcamento, e se a graca BR respeita DEBRID_CHECK_FLOOR_MS. Compare doc (AGENTS.md item 1) x implementacao."
     },
@@ -31,8 +31,7 @@
         "src/utils/episode-matching.ts",
         "src/utils/title-normalization.ts",
         "test/br-title.test.ts",
-        "test/br-prefilter.test.ts",
-        "test/br-parsers.test.ts"
+        "test/br-corpus.test.ts"
       ],
       "guards": "Origem BR e CAMPO (isBr), nunca regex de titulo no lugar do flag. As duas varreduas pt-BR (inline vs tardia) NAO podem ser uniformizadas (so a tardia tem ignoreBreaker)."
     },
@@ -46,8 +45,8 @@
         "src/utils/cache.ts",
         "src/utils/cache-keys.ts",
         "src/utils/request-key.ts",
-        "src/utils/latest-writer.ts",
-        "src/providers/search-cache.ts",
+        "rust/crates/adom-search/src/latest_writer.rs",
+        "rust/crates/adom-search/src/cache.rs",
         "test/cache.test.ts"
       ],
       "guards": "A SOMA das cotas deve ser < teto global (84000), senao volta o despejo global antes da reparticao. SWR so serve o que o finish promoveria (partial:false + debridKnown + tocael). Item de aviso (notice) nao conta como tocael."
@@ -79,7 +78,7 @@
       "files": [
         "src/providers/autofetch.ts",
         "src/providers/autofetch-runner.ts",
-        "src/providers/debrid-pipeline.ts",
+        "rust/crates/adom-search/src/debrid_seam.rs",
         "src/debrid/protected.ts",
         "src/debrid/audio-audit.ts"
       ],
@@ -95,7 +94,7 @@
         "src/utils/magnetdb.ts",
         "src/debrid/index.ts",
         "src/utils/stream-ranking.ts",
-        "src/providers/debrid-pipeline.ts"
+        "rust/crates/adom-search/src/debrid_seam.rs"
       ],
       "guards": "So evidencia MEDIDA entra. bad so de NoVideoError. bad vence alive. Falso negativo (descartar magnet bom) e pior que falso positivo. dead (recheck autofetch) e bad (play sem video) ficam SEPARADOS."
     },
@@ -124,10 +123,10 @@
       "peculiaridade": "Rege o plano de busca: isola BR/slow, rege o breaker, calibra varredura pt-BR inline × tardia.",
       "focus": "Plano de busca: isolar BR/slow, coletar no balde compartilhado + graca BR, breaker (failStreak/cooldown), index-only vs slow, pt-sweep inline vs tardia (ignoreBreaker), resolver downloads Cardigann, catalog/status TTL.",
       "files": [
-        "src/providers/search-plan.ts",
-        "src/providers/collection-window.ts",
+        "rust/crates/adom-core/src/search_plan.rs",
+        "rust/crates/adom-search/src/collection_window.rs",
         "src/providers/indexer-status.ts",
-        "src/providers/jackett.ts",
+        "rust/crates/adom-sources/src/jackett",
         "src/providers/jackett-catalog.ts"
       ],
       "guards": "Globais cabem no orcamento, BR NAO (orcamento proprio 20s, pode passar do deadline). slow/degraded nao abrem o circuito; somente offline em N amostras. /test-indexer.json ignora o breaker (e quem repara). Strip de acento/ano so nos BR."
@@ -137,13 +136,15 @@
       "name": "O Arquivista",
       "role": "Orquestrador do Índice",
       "peculiaridade": "Cataloga o acervo (idx:v14, IdxStore) e comanda o colhedor — responde do próprio índice sem virar crawler.",
-      "focus": "Indice de releases (idx:v14, dono Rust) e colhedor. idxPoolCovered, ACCOUNT_FAST_PATH (minReleases/stopWhen), harvester (fila persistente, freio de atividade em janela deslizante, teto horario, varredura pt-BR via colhedor), index-only alimentando o indice, seed do IMDb.",
+      "focus": "Indice de releases (idx:v14, dono Rust) e colhedor. idxPoolCovered, ACCOUNT_FAST_PATH (minReleases/stopWhen), colhedor nativo (adom-harvest + adom-server::harvest: fila persistente, freio de atividade em janela deslizante, teto horario, varredura pt-BR), index-only alimentando o indice, seed do IMDb.",
       "files": [
         "src/utils/release-index.ts",
-        "src/providers/harvester.ts",
+        "rust/crates/adom-harvest",
+        "rust/crates/adom-server/src/harvest",
+        "docs/harvest-native-contract.md",
+        "src/config/harvest.ts",
         "src/providers/imdb-seed.ts",
-        "src/providers/search-orchestrator.ts",
-        "src/providers/account.ts"
+        "src/debrid/account-status.ts"
       ],
       "guards": "Contagem pura nunca decide (temporada so legendado nao barra busca BR dublada). fromAccount NUNCA entra no indice. Colhedor respeita teto horario e nao pode virar crawler. Hit do indice nao pinta card de status."
     },

@@ -124,6 +124,11 @@ impl NetworkDrain {
         }
     }
 
+    /// Pausa entre indexers (`harvestIndexerDelayMs` do painel).
+    pub(crate) fn set_indexer_delay(&mut self, delay_ms: u64) {
+        self.settings.delay_ms = delay_ms;
+    }
+
     /// Evidência BR viável da última obra (consumida pelo desfecho da sonda).
     pub(crate) fn take_found(&mut self) -> bool {
         std::mem::take(&mut self.last_found)

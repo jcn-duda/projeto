@@ -71,6 +71,8 @@ test('POST /dashboard-action.json harvester-pause comuta estado de pausa no gate
     assert.equal(resPause.status, 200);
     assert.equal(resPause.json.ok, true);
     assert.equal(resPause.json.paused, true);
+    // O gateway relê `cfg:v1:harvester` no boot: sem o overlay a pausa some no restart.
+    assert.equal(harvesterLive.isPaused(), true, 'a pausa é gravada no overlay');
 
     const resResume = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -80,6 +82,7 @@ test('POST /dashboard-action.json harvester-pause comuta estado de pausa no gate
     assert.equal(resResume.json.ok, true);
     assert.equal(resResume.json.paused, false);
     assert.equal(stub.calls.length, 2, 'as duas ordens foram ao gateway');
+    assert.equal(harvesterLive.isPaused(), false, 'a retomada também vai ao overlay');
   } finally {
     stub.restore();
     config.jackett.testToken = '';
@@ -124,8 +127,21 @@ test('POST /dashboard-action.json harvester-clear-queue exige confirm e limpa a 
   }
 });
 
+/** Dublê do `POST /harvest/config`: guarda o corpo e ecoa o efetivo. */
+function stubHarvestConfig(applied = true) {
+  const bodies: Record<string, unknown>[] = [];
+  const stub = stubFetch((url, init) => {
+    if (!url.endsWith('/harvest/config')) return { ok: false, status: 404, json: async () => ({}) };
+    const body = JSON.parse(String(init?.body || '{}'));
+    bodies.push(body);
+    return { ok: true, status: 200, json: async () => ({ ok: true, applied, paused: body.paused === true }) };
+  });
+  return { stub, bodies };
+}
+
 test('POST /dashboard-action.json harvest-config-set valida e aplica clamps', async () => {
   config.jackett.testToken = TOKEN;
+  const { stub, bodies } = stubHarvestConfig();
   try {
     const invalidKey = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
@@ -151,13 +167,39 @@ test('POST /dashboard-action.json harvest-config-set valida e aplica clamps', as
     assert.equal(validPatch.json.effective.harvestQueueMax, 50);
     assert.equal(validPatch.json.effective.seedEnabled, false);
     assert.ok(validPatch.json.overriddenKeys.includes('harvestMaxPerHour'));
+    // O ajuste chega ao gateway (antes ficava só no Node e o colhedor nativo o ignorava).
+    assert.equal(validPatch.json.nativeApplied, true);
+    assert.equal(bodies.length, 1, 'o patch inválido não vai à ponte');
+    assert.deepEqual(bodies[0], { harvestMaxPerHour: 300, harvestQueueMax: 50, seedEnabled: false });
   } finally {
+    stub.restore();
+    config.jackett.testToken = '';
+  }
+});
+
+test('harvest-config-set: gateway fora salva o overlay e avisa nativeApplied:false', async () => {
+  config.jackett.testToken = TOKEN;
+  const stub = stubFetch(() => {
+    throw new Error('ECONNREFUSED');
+  });
+  try {
+    const res = await server.request('POST', '/dashboard-action.json', {
+      headers: { 'X-Indexer-Test-Token': TOKEN },
+      body: { action: 'harvest-config-set', patch: { harvestIntervalMs: 120000 } },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.json.ok, true, 'o disco é a fonte do boot do gateway: o ajuste vale');
+    assert.equal(res.json.nativeApplied, false, 'mas o painel sabe que o colhedor de pé não o recebeu');
+    assert.equal(harvesterLive.effective().harvestIntervalMs, 120000);
+  } finally {
+    stub.restore();
     config.jackett.testToken = '';
   }
 });
 
 test('POST /dashboard-action.json harvest-config-reset exige confirm e restaura .env', async () => {
   config.jackett.testToken = TOKEN;
+  const { stub, bodies } = stubHarvestConfig();
   try {
     harvesterLive.set({ harvestMaxPerHour: 400 });
 
@@ -174,7 +216,10 @@ test('POST /dashboard-action.json harvest-config-reset exige confirm e restaura 
     assert.equal(comConfirm.status, 200);
     assert.equal(comConfirm.json.ok, true);
     assert.equal(comConfirm.json.effective.harvestMaxPerHour, config.harvest.maxPerHour);
+    assert.equal(comConfirm.json.nativeApplied, true);
+    assert.deepEqual(bodies.at(-1), {}, 'reset manda o gateway de volta ao .env dele');
   } finally {
+    stub.restore();
     config.jackett.testToken = '';
   }
 });

@@ -51,6 +51,10 @@ pub fn rules_for(site_name: &str) -> SearchRules {
             keep_season: true,
             ..base
         },
+        // A busca do TGx é lazy (o magnet só sai no `/resolve`): devolver a
+        // página inteira não custa requisição a mais. Com o teto BR de 5 um
+        // indexer global entregava só os 5 uploads mais recentes.
+        "torrentgalaxy" => SearchRules::new(50),
         "hdrtorrents" => SearchRules {
             keep_season: true,
             ..base

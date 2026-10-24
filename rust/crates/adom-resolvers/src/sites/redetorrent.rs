@@ -159,6 +159,8 @@ impl SiteOutput for Rede {
                 link,
                 index,
                 count,
+                seeders: None,
+                leechers: None,
             })
             .collect()
     }

@@ -34,6 +34,12 @@ pub struct SearchItem {
     pub link: ResolverLink,
     pub index: usize,
     pub count: usize,
+    /// Saúde publicada pelo site (só o TorrentGalaxy tem: os BR não publicam
+    /// seeders). `None` = desconhecido — o card cai no placeholder neutro.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seeders: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leechers: Option<u32>,
 }
 
 /// `encodeURIComponent` do JS: escapa tudo menos `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.

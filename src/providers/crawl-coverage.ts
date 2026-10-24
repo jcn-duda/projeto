@@ -1,8 +1,15 @@
-// Quais cards do Jackett o RASPADOR já cobre — o colhedor pula esses
+// Quais cards do Jackett o RASPADOR já cobre — o colhedor TS pulava esses
 // (2026-09-30). Raspador e colhedor alimentam o mesmo acervo, e para os sites BR
 // o raspador lê o catálogo INTEIRO direto no site, enquanto o colhedor consulta
 // o mesmo site pelo Jackett obra por obra (FlareSolverr, até 90 s nos lentos).
 // Trabalho em dobro — mas só depois que o raspador ficou EM DIA com o site.
+//
+// ATENÇÃO: desde a Fase 5 não há consumidor de PRODUÇÃO deste módulo (quem
+// chamava era o `harvest-worker.ts` do Node). O colhedor é o nativo
+// (`adom-harvest`) e ele não lê `crawl_state`: as réguas abaixo seguem válidas
+// e testadas (`test/crawl-coverage.test.ts`), mas hoje nada as aplica. Quem
+// portar o skip para o Rust precisa trazer estas réguas junto — `coverHarvest`
+// e `coverMaxPending` de `config.crawl` só voltam a valer lá.
 //
 // Coberto = TUDO isto (a ausência de qualquer prova devolve o card ao colhedor):
 //  - motor ligado, site ligado e FORA de simulação — em dry-run nada é gravado;
@@ -56,11 +63,10 @@ export function crawlCoveredIndexers(now = Date.now()): Set<string> {
 
 /**
  * O RASPADOR cobre `siteId` para O KIND `kind` agora. Caminho NOVO e separado
- * de `crawlCoveredIndexers` (este é baseado em FILME e alimenta o filtro de
- * indexers Jackett em `harvest-worker.ts` — mantido intacto): aplica os MESMOS
- * gates, mas a carga inicial é a do KIND (`initialLoadDoneFor`). Usado SÓ pelo
- * skip do Mico no colhedor, para que a SÉRIE não seja pulada só porque o cursor
- * de FILME andou (série desligada ou em falha total → nenhum `cursor:tv_show`).
+ * de `crawlCoveredIndexers` (este é baseado em FILME): aplica os MESMOS gates,
+ * mas a carga inicial é a do KIND (`initialLoadDoneFor`). A distinção existe
+ * para que a SÉRIE não seja pulada só porque o cursor de FILME andou (série
+ * desligada ou em falha total → nenhum `cursor:tv_show`).
  */
 export function crawlCoversKind(siteId: string, kind: CrawlKind, now = Date.now()): boolean {
   const key = `${siteId}\u0000${kind}`;

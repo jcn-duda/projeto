@@ -172,8 +172,8 @@ export const jackett = () => ({
   // Circuit breaker: indexer offline em N amostras seguidas deixa de
   // receber orçamento de busca (20s nos BR) até a falha esfriar — busca
   // real nunca conserta fonte morta, só queima prazo. slow/degraded não
-  // quebram o circuito; o diagnóstico (/test-indexer.json) ignora o
-  // breaker, porque é ele quem repara a fonte.
+  // quebram o circuito; o diagnóstico do Node foi aposentado (410) e quem
+  // mede a fonte é a admin do gateway, não uma busca.
   breakerEnabled: String(process.env.JACKETT_BREAKER_ENABLED || 'true') === 'true',
   breakerFailures: num(process.env.JACKETT_BREAKER_FAILURES, 3),
   breakerCooldown: num(process.env.JACKETT_BREAKER_COOLDOWN_MS, 5 * 60_000),

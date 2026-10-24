@@ -30,7 +30,7 @@ rede é o drain do `adom-server`.
 | Flush | `load()` / `persist()` | `HarvestQueue::load_from` / `save_to` |
 | Prioridade | `prioritizeQueue` + `hasBrDubbed(lookupQuiet)` | `prioritize` + trait `BrEvidence` (stub/callback; índice real ainda não) |
 | Ciclo | `harvester.tick` / `harvestWorker` | `HarvestWorker::tick` + `TrafficSense` + `HarvestDrain` |
-| Ciclo com rede | `harvester.tick` (await do Jackett) | `HarvestWorker::tick_async` + `HarvestDrainAsync` |
+| Ciclo com rede | `harvester.tick` (await do Jackett) | `begin`/`finish` + `HarvestDrainAsync` (ou `tick_async` tudo-em-um) |
 
 ### Ciclo tick
 
@@ -55,6 +55,9 @@ let out = worker.tick(&mut queue, &StubTraffic { busy: false }, &mut drain, now_
 - Teto: `queries_this_hour` / `note_queries` por balde UTC; `>= max_per_hour` ⇒ skip.
 - Slot em voo: `open_slot` (`begin` + flag) antes do drain e `close_slot`
   (`note_queries` + `end` + flag) depois — inclusive quando o drain falha.
+- `begin`/`finish` são as metades públicas do ciclo: `begin` devolve `TickStart`
+  (`Skip` ou `Run { entry, identity }`) e `finish` debita/fecha. É o que permite
+  soltar o lock da fila durante a rede.
 - Drain **sync** (`HarvestDrain`) para stub/teste; o cliente Jackett não mora
   aqui.
 
@@ -62,9 +65,11 @@ let out = worker.tick(&mut queue, &StubTraffic { busy: false }, &mut drain, now_
 
 O gateway (`adom-server`) drena a fila com rede no meio: implementa
 `HarvestDrainAsync` (future **boxed** só para o trait continuar chamável por
-`&mut dyn`) e chama `tick_async`. A semântica é a do `tick`: skip devolve o
-mesmo `TickOutcome` **sem tocar na fila**; drenar abre o slot da obra em voo,
-debita `outcome.queries`, fecha o slot e devolve `Drained { entry, outcome }`.
+`&mut dyn`) e chama `begin` → `drain_one` → `finish`, soltando o lock da fila
+entre as duas metades. A semântica é a do `tick`: skip devolve o mesmo
+`TickOutcome` **sem tocar na fila**; drenar abre o slot da obra em voo, debita
+`outcome.queries` e fecha o slot. `tick_async` é a porta tudo-em-um equivalente
+(mesmo `Drained { entry, outcome }`), usada nos testes.
 
 ```rust
 use std::future::Future;
@@ -108,7 +113,7 @@ Guardrails (iguais ao Arquivista):
    ainda não portado; mora no release-index).
 4. `fromAccount` **nunca** entra no índice (fora do escopo desta fila).
 5. Gateway **não** drena no caminho da resposta — só em fundo, via
-   `tick_async`.
+   `begin`/`finish` na thread do loop.
 
 ## Persistência L2
 

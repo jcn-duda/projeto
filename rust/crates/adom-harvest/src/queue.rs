@@ -103,6 +103,12 @@ impl HarvestQueue {
         self.config.enabled = enabled;
     }
 
+    /// Troca a config inteira (a do painel chega com o processo de pé). O teto
+    /// novo só barra enqueue futuro: a fila que já passou dele não é cortada.
+    pub fn set_config(&mut self, config: HarvestQueueConfig) {
+        self.config = config;
+    }
+
     /// Toggle lido pelo chamador (sonda: sem fila ligada não há trabalho).
     pub fn is_enabled(&self) -> bool {
         self.config.enabled

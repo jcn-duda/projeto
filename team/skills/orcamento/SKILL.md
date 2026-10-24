@@ -35,9 +35,9 @@ fatia fixa de `replyDeadline`.
 
 - `src/utils/deadline.ts`
 - `src/config.ts`
-- `src/providers/search-orchestrator.ts`
-- `src/providers/collection-window.ts`
-- `test/search-budget-metadata.test.ts`
+- `rust/crates/adom-search/src/orchestrator/`
+- `rust/crates/adom-search/src/collection_window.rs`
+- `rust/crates/adom-search/tests/search_budget_metadata.rs`
 
 ## Guardrails
 

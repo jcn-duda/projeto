@@ -260,6 +260,27 @@ export async function pauseNativeHarvest(paused: boolean): Promise<boolean | nul
   }
 }
 
+/**
+ * Empurra os overrides do painel (`harvesterLive.overrides()`) ao gateway, que
+ * os aplica sobre o `.env` dele. `true` = aplicado; `false` = colhedor nativo
+ * desligado; `null` = ponte fora. O disco (`cfg:v1:harvester`) segue sendo a
+ * fonte do boot, então uma falha aqui só atrasa o efeito até o restart.
+ */
+export async function pushNativeHarvestConfig(overrides: Record<string, unknown>): Promise<boolean | null> {
+  if (!available()) return null;
+  try {
+    const json = (await request('/harvest/config', { body: overrides })) as { applied?: unknown; paused?: unknown };
+    noteSuccess();
+    const applied = json?.applied === true;
+    if (applied && snapshot) snapshot.paused = json?.paused === true;
+    return applied;
+  } catch (err) {
+    noteFailure('config');
+    log.warn(`[harvest] config nativa do colhedor falhou: ${log.errorMessage(err)}`);
+    return null;
+  }
+}
+
 /** Drena à mão até `max` obras. Devolve quantas saíram. */
 export async function drainNativeHarvest(max = 5): Promise<number> {
   if (!available()) return 0;

@@ -119,7 +119,10 @@ trabalho de código é em `src/`.
   0,22–0,61 s); FlareSolverr passa mas custa 2,7–3,8 s (não serve ao caminho
   quente). O site virou card local `torrentgalaxy-cardigann`, servido pelo
   resolver Rust na 8708; o stock fica estacionado e o id é **renomeado** para o
-  novo (não some da lista).
+  novo (não some da lista). Por ser **global P2P**, o card NÃO segue as regras
+  dos BR: devolve a página inteira (`max_posts` 50, a busca é lazy), publica os
+  seeders reais da listagem (`div.seeders`; 0 = morto, sem dado = neutro 1) e
+  mantém os pontos do nome de cena (`DDP5.1`, `H.264`).
 - **`wolfmax4k` foi estacionado, não consertado.** O Wolftorrent exige Turnstile
   (`POST /api/descargas` → 403 sem token) e o download final é blob cifrado
   (`enlacito.com`): sem browser não há magnet, e o FlareSolverr não resolve o
@@ -345,13 +348,15 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   drena a fila `harvest:v1:q` no MESMO `data/cache.db` do Node (schema `cache`
   idêntico, zero migração) com Jackett, metadados, índice e banco nativos — as
   mesmas fontes do `/stream`. Guardas no tick: desligado → pausado → inflight →
-  tráfego recente (só sonda) → fila vazia → teto `HARVEST_MAX_PER_HOUR`. Fila,
+  tráfego recente (só sonda) → fila vazia → teto `HARVEST_MAX_HOUR`. Fila,
   dedupe 12h (`harvest:v1:seen:<sha>`), balde horário (`harvest:v1:hour`) e
   `br-probe` são do Rust; o namespace `harvest` é **RUST_OWNED** no Node (não
   carrega no L1, não grava no SQLite). O painel e os efeitos falam pela admin do
-  gateway (`GET /harvest`, `POST /harvest/enqueue|pause|drain|clear`,
+  gateway (`GET /harvest`, `POST /harvest/enqueue|pause|drain|clear|config`,
   `GET /harvest/pending?imdbId=`, loopback `127.0.0.1:8711`, token no header) via
-  `src/utils/harvest-native.ts`. Rollback = commit/imagem anterior; não há
+  `src/utils/harvest-native.ts`. A config ao vivo do painel (`cfg:v1:harvester`,
+  overrides sobre o `.env`) é do Node: o gateway a lê no boot e recebe cada
+  mudança por `POST /harvest/config`; a pausa do painel também grava nela. Rollback = commit/imagem anterior; não há
   `HARVEST_OWNER=node`.
 - **Mico Leão Dublado** é card virtual de indexer (consultado por IMDb, fora do
   Jackett) e também o 9º site do raspador.

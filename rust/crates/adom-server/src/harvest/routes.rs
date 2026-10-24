@@ -6,6 +6,7 @@
 //! | `GET /harvest` | snapshot da fila/worker (mesmo formato do painel) |
 //! | `POST /harvest/enqueue` | enfileira uma obra (dedupe 12 h incluso) |
 //! | `POST /harvest/pause` | pausa/retoma o ciclo |
+//! | `POST /harvest/config` | aplica os overrides do painel (`live.rs`) |
 //! | `POST /harvest/drain` | pede até N drains AGORA (via loop) |
 //! | `POST /harvest/clear` | limpa a fila (o balde horário NÃO zera) |
 //! | `GET /harvest/pending` | a obra está na fila? é sonda? |
@@ -33,6 +34,7 @@ pub(crate) fn router() -> Router<Arc<AdminState>> {
         .route("/harvest", get(status_now))
         .route("/harvest/enqueue", post(enqueue))
         .route("/harvest/pause", post(pause))
+        .route("/harvest/config", post(apply_config))
         .route("/harvest/drain", post(drain))
         .route("/harvest/clear", post(clear))
         .route("/harvest/pending", get(pending))
@@ -61,10 +63,13 @@ async fn status_now(State(state): State<Arc<AdminState>>) -> Response {
     let config = handle.config();
     Json(json!({
         "ok": true,
-        "enabled": true,
+        // A thread existe (`.env`); `enabled` é o efetivo, com o painel.
+        "enabled": config.enabled,
         "paused": status.paused,
         "intervalMs": config.interval_ms,
         "maxPerHour": config.max_per_hour,
+        "idleWindowMs": config.idle_window_ms,
+        "queueMax": config.queue_max,
         "queriesThisHour": status.queries_this_hour,
         "depth": status.depth,
         "inflight": status.inflight,
@@ -144,6 +149,33 @@ async fn pause(State(state): State<Arc<AdminState>>, Json(body): Json<Value>) ->
         None => false,
     };
     Json(json!({ "ok": true, "paused": applied })).into_response()
+}
+
+/// `POST /harvest/config` — o objeto de overrides do painel (o mesmo que o
+/// Node grava em `cfg:v1:harvester`; `{}` = tudo no `.env`). Devolve o efetivo.
+async fn apply_config(State(state): State<Arc<AdminState>>, Json(body): Json<Value>) -> Response {
+    let Some(handle) = state.harvest.as_ref() else {
+        return Json(json!({ "ok": true, "applied": false })).into_response();
+    };
+    if !body.is_object() {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(json!({ "ok": false, "error": "overrides devem ser um objeto" })),
+        )
+            .into_response();
+    }
+    let config = handle.apply_live(&body);
+    Json(json!({
+        "ok": true,
+        "applied": true,
+        "enabled": config.enabled,
+        "paused": handle.status().paused,
+        "intervalMs": config.interval_ms,
+        "maxPerHour": config.max_per_hour,
+        "idleWindowMs": config.idle_window_ms,
+        "queueMax": config.queue_max,
+    }))
+    .into_response()
 }
 
 /// `POST /harvest/drain` — `{"max":5}`; o loop executa (o handler não roda o

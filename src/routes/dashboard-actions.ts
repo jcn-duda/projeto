@@ -16,7 +16,7 @@ import { crawlPause, crawlSimulate, crawlReprocessErrors, crawlReprocessNoWork, 
 import { maxFromBody } from './dashboard-actions-shared.js';
 // Ações do colhedor NATIVO (pausa/drenagem/limpeza): a fila, o worker e o
 // balde horário vivem no gateway Rust e o Node só repassa pela ponte.
-import { harvestPause, harvestDrain, harvestClearQueue } from './dashboard-actions-harvest.js';
+import { harvestPause, harvestDrain, harvestClearQueue, harvestConfigSet, harvestConfigReset } from './dashboard-actions-harvest.js';
 
 type ActionDeps = {
   services: AppServices;
@@ -73,23 +73,9 @@ const ACTIONS: Record<string, ActionHandler> = {
     return res.json({ ok: true, action, config: services.harvesterLive.snapshot() });
   },
 
-  'harvest-config-set': ({ services, req, res, action }) => {
-    const patch = req.body?.patch;
-    const outcome = services.harvesterLive.set(patch);
-    if (!outcome.ok) {
-      return res.status(400).json({ ok: false, error: 'validation_error', errors: outcome.errors });
-    }
-    services.metrics.count('dashboard.harvest.config.set');
-    services.log.info(`[dashboard] config do colhedor atualizada: ${outcome.overriddenKeys.join(', ')}`);
-    return res.json({ action, ...outcome });
-  },
-
-  'harvest-config-reset': ({ services, res, action }) => {
-    const effective = services.harvesterLive.reset();
-    services.metrics.count('dashboard.harvest.config.reset');
-    services.log.info('[dashboard] config do colhedor restaurada aos padrões do .env');
-    return res.json({ ok: true, action, effective });
-  },
+  // Config ao vivo: o Node grava o overlay e a ponte o aplica no gateway.
+  'harvest-config-set': harvestConfigSet,
+  'harvest-config-reset': harvestConfigReset,
 
   // Conta de fundo do colhedor: ações em dashboard-actions-harvest-debrid.js
   // (o teste da chave reutiliza o `debrid-account-test` do despacho).

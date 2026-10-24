@@ -9,16 +9,18 @@ Você valida o caminho do Jackett no addon Stremio deste repositório. Seu produ
 
 ## O terreno
 
-O código é TypeScript em `src/`, compilado para `dist/` — é o `dist/` que roda. Se o `src/` mudou, `npm run build` antes de qualquer sonda (o build limpa `dist/` antes do `tsc`; build vermelho deixa `dist/` ausente ou incompleto).
+O código que vale é o **Rust** em `rust/crates/` (o gateway é quem busca); o Node (`src/`) só serve painel, config e I/O. `dist/` só importa para as rotas do Node. Se mexeu em `rust/`, `cargo build --release` (ou a imagem) antes da sonda.
 
 | peça | onde |
 |---|---|
-| fachada `search`, shaping de query (`shapeSearchQuery`) | `src/providers/jackett.ts` (+ `jackett-query.ts`, `jackett-query-indexer.ts`) |
-| `mapResults` e `isBr` do item | `src/providers/jackett-results.ts` |
-| breaker por indexer | `src/providers/jackett-breaker.ts` |
-| plano de queries, alvos e query da varredura pt-BR | `src/providers/search-plan.ts` (`ptSweepIndexers`, `ptSweepQuery`) |
-| orquestração, coleta e varredura tardia | `src/providers/search-orchestrator.ts`, `collect-orchestrator.ts`, `search-sweep-tail.ts` |
-| classificação de título, BR/dublado, pack multi-obra | barrel `src/utils/format.ts` (`filterRelevantRaw` em `release-filters.ts`, `looksPtBr` em `audio-quality.ts`, `isMultiWorkCollection` em `release-name-matching.ts`) |
+| cliente Jackett (busca, breaker, Cardigann) | `rust/crates/adom-sources/src/jackett/` |
+| shaping de query (`shape_search_query`) | `rust/crates/adom-sources/` (núcleo) + chamada no orquestrador |
+| mapa de resultados e `isBr` do item | `rust/crates/adom-search/src/orchestrator/jackett_collector.rs` |
+| plano de queries e alvos (puro) | `rust/crates/adom-core/src/search_plan.rs` |
+| coleta, janela e varredura tardia | `rust/crates/adom-search/src/orchestrator/` (`collect.rs`, `late.rs`) + `rust/crates/adom-search/src/collection_window.rs` |
+| orquestração e coleta | `rust/crates/adom-search/src/orchestrator/` |
+| classificação de título, BR/dublado, pack multi-obra | `rust/crates/adom-core` (`release_filters`, `audio_quality`, `release_name_matching`) |
+| colheita de fundo | `rust/crates/adom-harvest` + `adom-server::harvest` (`docs/harvest-native-contract.md`) |
 | status por indexer | `src/providers/indexer-status.ts` |
 | chaves `JACKETT_*` | `src/config/jackett.ts` e `.env.example` |
 
@@ -40,47 +42,46 @@ Conceitos que você precisa ter na ponta da língua antes de opinar: indexers BR
 curl -s -o /dev/null -w "jackett:%{http_code}\n" --max-time 5 http://127.0.0.1:9117/UI/Dashboard
 ```
 
-**Sondar o provider direto (sem subir servidor).** É o jeito mais rápido de isolar "o indexer não devolve" de "o pipeline descarta". Rode da raiz do repo (o `config` lê o `.env` dali):
+**Sondar o caminho nativo (colhedor).** Depois da Fase 5 não existe provider TS para importar: a coleta e a colheita rodam no gateway. A sonda é a API administrativa do store nativo — loopback `127.0.0.1:8711` (`STREAM_STORE_ADMIN_LISTEN`), rotas em `rust/crates/adom-server/src/harvest/routes.rs`, token só no header. A ordem do token é a mesma dos dois lados: `STREAM_STORE_ADMIN_TOKEN` → `DEBRID_INTERNAL_TOKEN` → `JACKETT_TEST_TOKEN` (`rust/crates/adom-server/src/store_admin.rs:84`). Rode da raiz do repo:
 ```bash
-node --input-type=module -e "
-const { default: jackett } = await import('./dist/src/providers/jackett.js');
-const { ptSweepIndexers, ptSweepQuery } = await import('./dist/src/providers/search-plan.js');
-const { filterRelevantRaw, looksPtBr, isMultiWorkCollection } = await import('./dist/src/utils/format.js');
-const { default: config } = await import('./dist/src/config.js');
-const targets = ptSweepIndexers(config.jackett.indexers, config.jackett.ptBrIndexers, config.jackett.indexOnlyIndexers);
-const mc = { names: ['<titulo pt>', '<titulo original>'], year: <ano>, isSeries: false };
-const r = await jackett.search('<query>', 'movie', targets, { recordStatus: false, ignoreBreaker: true });
-const rel = filterRelevantRaw(r, mc);
-const dub = rel.filter((i) => looksPtBr(i.title || ''));
-console.log('bruto', r.length, '| passa no titulo', rel.length, '| dublado', dub.length);
-for (const i of dub) console.log(' *', (i.title || '').slice(0, 80), '| pack?', isMultiWorkCollection(i.title || ''), '| seeds', i.seeders, '|', i.indexer);
-" 2>&1 | grep -v ExperimentalWarning
-```
-Sempre `recordStatus:false` — sua sondagem não pode sujar o card de status nem o breaker do usuário.
+TOKEN=$(grep '^STREAM_STORE_ADMIN_TOKEN=' .env | cut -d= -f2- | tr -d '\r')
+[ -z "$TOKEN" ] && TOKEN=$(grep '^DEBRID_INTERNAL_TOKEN=' .env | cut -d= -f2- | tr -d '\r')
+[ -z "$TOKEN" ] && TOKEN=$(grep '^JACKETT_TEST_TOKEN=' .env | cut -d= -f2- | tr -d '\r')
+ADMIN=http://127.0.0.1:8711
 
-**Comparar formatos de query.** Buscador de tracker global casa por palavras: subtítulo e ano derrubam o recall. Rode a mesma busca com o título completo, sem ano, e com `ptSweepQuery(titlePt)` (a raiz da franquia) e mostre a tabela de rendimento.
+# estado da fila/worker: queriesThisHour, depth, inflight, preview, last, counters
+curl -s -H "X-Indexer-Test-Token: $TOKEN" "$ADMIN/harvest"
+
+# enfileirar UMA obra e drenar agora (o drain monta as queries pelo metadado)
+curl -s -H "X-Indexer-Test-Token: $TOKEN" -H 'content-type: application/json' \
+  -d '{"imdbId":"tt0079945","type":"movie","reason":"probe"}' "$ADMIN/harvest/enqueue"
+curl -s -H "X-Indexer-Test-Token: $TOKEN" -H 'content-type: application/json' \
+  -d '{"max":1}' "$ADMIN/harvest/drain"
+```
+A evidência sai do `GET /harvest`: `last[]` (`ok`, `queries`, `reason`, `at`) e `counters.drained`/`failed`. Três limites medidos no código, que mudam o diagnóstico: a sonda é por **obra** (IMDb), não por texto livre — o drain monta `query`/`pt_query`/`original_query` a partir do metadado (`drain.rs:5-7`); ele roda com `record_status: Some(false)` e `ignore_breaker: false` (`drain.rs:331`) num `JackettClient` com breaker **próprio** (`client.rs:46`, `drain.rs:90`), então não suja o card e **não repara** breaker aberto do `/stream`; e sem índice nativo o drain devolve `ok` com 0 consultas (`drain.rs:12`).
+
+**Comparar formatos de query.** Buscador de tracker global casa por palavras: subtítulo e ano derrubam o recall. O shaping é puro e mora no Rust: `shape_search_query` (`rust/crates/adom-sources/src/jackett/query.rs`) e a raiz de franquia (`pt_sweep_query`) em `rust/crates/adom-core/src/search_plan.rs`. Os casos já assentados estão em `rust/crates/adom-sources/tests/jackett.rs` (`G.O.R.A.` × `yts` × `bludv`); para uma tabela de rendimento, exercite a função contra um corpus real — não há mais caminho TS para isso.
 
 **Medir falso positivo de uma regra de título.** Monte dois corpora — um de franquias (onde a regra deve pegar) e um de filme único / edição especial (onde ela não pode pegar) —, deduplique por `normalizeTitle` (também no barrel `format.js`) e conte os dois lados. Regra sem o segundo corpus é chute: `saga` parecia ótima até "A Saga Crepúsculo" e "F9: The Fast Saga" aparecerem; `collection` parecia ótima até 271 "Criterion Collection" de filme único aparecerem.
 
-**Ponta a ponta com servidor isolado**
+**Ponta a ponta (pelo gateway)**
+O `/stream` é do gateway (`adom-server`, `:7000`). O do Node (`:7100`, ou `PORT` rodando solto) responde **410** com `GATEWAY=on` + `ROUTES_RUST=stream` e **503** sem eles — nenhum dos dois lista stream (`src/routes/stream.ts:16`), então medir lista no Node não mede nada.
 ```bash
-npm run build
-(PORT=7010 PUBLIC_URL=http://127.0.0.1:7010 CACHE_PERSIST=false BR_RESOLVERS_EMBEDDED=false nohup node dist/src/addon.js > /tmp/addon.log 2>&1 &) ; sleep 5
-curl -s --max-time 120 "http://127.0.0.1:7010/stream/movie/tt0079945.json" -o /tmp/st.json
+curl -s --max-time 20 "http://127.0.0.1:7000/stream/movie/tt0079945.json" -o /tmp/st.json
 ```
-A **primeira** requisição costuma sair parcial (o deadline corta e a coleta segue em background); a **segunda**, alguns segundos depois, lê o cache já completo e é a que vale para julgar a lista. Para ver onde cada release caiu no funil, leia o ledger da busca (offline, não refaz a busca):
+A **primeira** requisição costuma sair parcial (o deadline corta e a coleta segue em background); a **segunda**, alguns segundos depois, lê o cache SWR já completo e é a que vale para julgar a lista. Para ver onde cada release caiu no funil, leia o ledger da busca no Node (offline, não refaz a busca):
 ```bash
-TOKEN=$(grep '^JACKETT_TEST_TOKEN=' .env | cut -d= -f2- | tr -d '\r')
-curl -s -H "X-Indexer-Test-Token: $TOKEN" "http://127.0.0.1:7010/stream-trace.json?type=movie&id=tt0079945"
+curl -s -H "X-Indexer-Test-Token: $TOKEN" "http://127.0.0.1:7100/stream-trace.json?type=movie&id=tt0079945"
 ```
 
 **Métricas** (o token sai do `.env`, nunca do relatório; só no header, nunca `?token=`):
 ```bash
-curl -s -H "X-Indexer-Test-Token: $TOKEN" http://127.0.0.1:7010/metrics.json
+curl -s -H "X-Indexer-Test-Token: $TOKEN" http://127.0.0.1:7100/metrics.json
 ```
+(o `metrics.json` é do Node: `7100` no compose, `PORT` se rodar solto.)
 `search.pt-sweep.run` sem `.found` = varredura consultou e voltou vazia. `.found` alto com `.known` = achou, mas tudo já estava listado. `.hit` = trouxe hash novo. `.sem-hash` = achou release sem hash resolvível. `.inline` = execuções pelo caminho inline. `search.late` mostra quanto a coleta durou depois da resposta.
 
-**Um indexer específico:** `curl -H "X-Indexer-Test-Token: $TOKEN" "http://127.0.0.1:7010/test-indexer.json?id=<indexer>"` percorre o mesmo caminho da busca real e ignora o breaker (é ele quem repara o card).
+**Um indexer específico:** a rota antiga (`/test-indexer.json`) responde **410** desde a Fase 5 (`src/routes/diagnostics.ts:60`) — não existe mais busca Jackett no Node para medir, e ela também não reparava breaker do gateway. Meça pelo colhedor nativo (receita acima) ou leia o bloco `indexers` da aba Saúde do painel.
 
 **Indexer atrás de Cloudflare.** A fila do FlareSolverr aparece no log do container, e um espelho pode ser testado direto nele:
 ```bash

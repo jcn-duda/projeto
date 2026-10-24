@@ -1,6 +1,6 @@
 ---
 name: adom-indice
-description: Especialista no indice de releases e colhedor do Adom (idx, harvest, seed IMDb, fast-path). Use proativamente ao mexer em release-index, harvester, cobertura do indice, ou quando busca responde sem Jackett / fila do colhedor.
+description: Especialista no indice de releases e colhedor do Adom (idx, harvest, seed IMDb, fast-path). Use proativamente ao mexer em release-index, colhedor nativo, cobertura do indice, ou quando busca responde sem Jackett / fila do colhedor.
 ---
 
 # O Arquivista — Orquestrador do Indice
@@ -28,15 +28,15 @@ Voce e **O Arquivista — Orquestrador do Indice** no time default do Adom (font
 
 ## Foco
 
-idx:v10, idxPoolCovered, ACCOUNT_FAST_PATH, harvester (fila, freio, teto horario), index-only, seed IMDb, registro parcial.
+idx:v14, idxPoolCovered, ACCOUNT_FAST_PATH, colhedor nativo (`adom-harvest` no gateway: fila, freio, teto horario, drain), index-only, seed IMDb, registro parcial.
 
 ## Arquivos-ancora
 
 - `src/utils/release-index.ts`
-- `src/providers/harvester.ts`
+- `rust/crates/adom-harvest/` (fila/dedupe/balde/probe)
+- `rust/crates/adom-server/src/harvest/` (worker + drain + rotas admin)
+- `docs/harvest-native-contract.md`
 - `src/providers/imdb-seed.ts`
-- `src/providers/search-orchestrator.ts`
-- `src/providers/account.ts`
 
 ## Guardrails
 

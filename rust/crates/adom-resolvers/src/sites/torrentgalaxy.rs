@@ -46,9 +46,10 @@ pub static TORRENTGALAXY: TorrentGalaxy = TorrentGalaxy;
 /// Milissegundos de um dia (divisor do epoch em ms).
 const DAY_MS: i64 = 86_400_000;
 
-/// Separadores do nome do release: o TGx publica com pontos ("Batman.Knightfall.
-/// Part.1") e o `_` do slug.
-static RE_SEP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[._]+").expect("separadores"));
+/// Separador do slug. O PONTO fica: é o nome de cena ("DDP5.1", "H.264",
+/// "7.1"), que o núcleo lê com os pontos, e o casamento local
+/// (`matches_resolver_query`) já trata pontuação como separador.
+static RE_SEP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"_+").expect("separadores"));
 static RE_SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").expect("espaços"));
 
 /// Magnet do TGx: `magnet:?xt=urn:btih:<hash>&dn=…&tr=…`. O hash é 40 hex ou
@@ -65,9 +66,9 @@ static RE_REL_UNIT: LazyLock<Regex> = LazyLock::new(|| {
 static RE_DDMMYYYY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(\d{2})/(\d{2})/(\d{4})$").expect("data do torrentgalaxy"));
 
-/// Título do release: pontos e sublinhados viram espaço (o resto é
+/// Título do release: entidades decodificadas e `_` vira espaço; o resto é
 /// preservado — o TGx já publica o nome com qualidade e fonte, que o
-/// `clean_post_title` do núcleo BR apagaria).
+/// `clean_post_title` do núcleo BR apagaria.
 pub fn clean_title(title: &str) -> String {
     let decoded = decode_entities(title);
     let spaced = RE_SEP.replace_all(&decoded, " ");
@@ -250,6 +251,13 @@ fn card_row(self_url: &str, item: &SearchItem) -> String {
         escape_html(&title),
         escape_html(size)
     );
+    // Saúde só quando o site publicou: sem a div o Cardigann usa o `default`.
+    if let Some(seeders) = item.seeders {
+        row.push_str(&format!("\n    <div class=\"seeders\">{seeders}</div>"));
+    }
+    if let Some(leechers) = item.leechers {
+        row.push_str(&format!("\n    <div class=\"leechers\">{leechers}</div>"));
+    }
     if let Some(date) = item.post.date.as_deref().filter(|d| !d.is_empty()) {
         row.push_str(&format!(
             "\n    <div class=\"date\">{}</div>",

@@ -142,6 +142,13 @@ function persist(): void {
   }
 }
 
+/** Overrides crus (o que está em `cfg:v1:harvester`) — o corpo que o gateway
+ * aplica sobre o `.env` dele. Cópia: quem recebe não muta o estado. */
+export function overrides(): Partial<HarvesterLiveConfig> {
+  initIfNeeded();
+  return { ...inMemoryOverrides };
+}
+
 export interface HarvesterConfigSnapshot {
   effective: HarvesterEffectiveConfig;
   envDefaults: Omit<HarvesterLiveConfig, 'paused' | 'pausedSince'>;
@@ -172,6 +179,7 @@ export default {
   setPaused,
   set,
   reset,
+  overrides,
   onConfigChange,
   schema,
   snapshot,

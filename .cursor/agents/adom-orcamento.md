@@ -34,9 +34,12 @@ Cadeia REPLY_DEADLINE_MS, DEBRID_RESERVE_MS, BR_PARTIAL_GRACE_MS, DEBRID_CHECK_F
 
 - `src/utils/deadline.ts`
 - `src/config.ts`
-- `src/providers/search-orchestrator.ts`
-- `src/providers/collection-window.ts`
-- `test/search-budget-metadata.test.ts`
+- `rust/crates/adom-search/src/orchestrator/search.rs` (cadeia da coleta)
+- `rust/crates/adom-search/src/collection_window.rs` +
+  `collection_window_budgets.rs` (janela e orçamento; o TS `collection-window.ts`
+  saiu na Fase 5)
+- `rust/crates/adom-search/tests/search_budget_metadata.rs` (substituiu
+  `test/search-budget-metadata.test.ts`)
 
 ## Guardrails
 

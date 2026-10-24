@@ -127,14 +127,16 @@ pub fn parse_rows(html: &str, base_url: &str) -> Vec<TgRow> {
 fn parse_row(chunk: &str, base_url: &str) -> Option<TgRow> {
     let (title, href) = title_anchor(chunk)?;
     let url = Url::parse(base_url).ok()?.join(&href).ok()?.to_string();
-    let (seeders, leechers) = health_of(chunk).unwrap_or((0, 0));
+    // `Some(0)` é dado (torrent morto), não ausência: só a célula sem número
+    // vira `None` e cai no placeholder do card.
+    let health = health_of(chunk);
     Some(TgRow {
         title,
         url,
         size: size_of(chunk),
         date: relative_date_of(chunk),
-        seeders: (seeders > 0).then_some(seeders),
-        leechers: (leechers > 0).then_some(leechers),
+        seeders: health.map(|(seeders, _)| seeders),
+        leechers: health.map(|(_, leechers)| leechers),
         poster: poster_of(chunk),
         category: category_of(chunk),
     })

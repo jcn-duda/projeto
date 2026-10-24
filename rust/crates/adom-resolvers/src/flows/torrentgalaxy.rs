@@ -77,6 +77,9 @@ pub async fn search_items(
             },
             index: 0,
             count: 1,
+            // Global P2P: o ranking e o piso de seeders precisam do número real.
+            seeders: row.seeders,
+            leechers: row.leechers,
         });
     }
     Ok(items)

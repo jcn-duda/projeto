@@ -32,15 +32,15 @@ Isolar BR/slow, balde + graca BR, breaker, index-only vs slow, pt-sweep inline v
 
 ## Arquivos-ancora
 
-- `src/providers/search-plan.ts`
-- `src/providers/collection-window.ts`
+- `rust/crates/adom-search/src/orchestrator/` (plano de queries, coleta, sweep)
+- `rust/crates/adom-sources/src/jackett/` (cliente, breaker, Cardigann)
+- `rust/crates/adom-search/src/collection_window.rs` (janela e orçamento da coleta)
 - `src/providers/indexer-status.ts`
-- `src/providers/jackett.ts`
 - `src/providers/jackett-catalog.ts`
 
 ## Guardrails
 
-Globais cabem no orcamento; BR tem orcamento proprio. slow/degraded nao abrem circuito. /test-indexer.json ignora breaker. Strip de acento/ano so nos BR. pt-sweep inline NAO usa ignoreBreaker.
+Globais cabem no orcamento; BR tem orcamento proprio. slow/degraded nao abrem circuito. `/test-indexer.json` responde 410 (a coleta e nativa; a sonda viva e `POST /harvest/drain` na admin do gateway, que nao repara o breaker). Strip de acento/ano so nos BR. pt-sweep inline NAO usa ignoreBreaker.
 
 ## Formato de saida
 

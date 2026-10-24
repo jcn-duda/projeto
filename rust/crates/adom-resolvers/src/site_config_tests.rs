@@ -39,3 +39,14 @@ fn site_desconhecido_cai_no_default() {
     assert!(!config.uses_flare);
     assert!(!config.user_agent.is_empty());
 }
+
+/// A busca do TGx é lazy: a página inteira (50 linhas) sai sem requisição a
+/// mais. O teto BR de 5 deixava um indexer global com os 5 uploads mais novos.
+#[test]
+fn torrentgalaxy_devolve_a_pagina_inteira() {
+    assert_eq!(
+        crate::search_select::rules_for("torrentgalaxy").max_posts,
+        50
+    );
+    assert_eq!(crate::search_select::rules_for("bludv").max_posts, 5);
+}

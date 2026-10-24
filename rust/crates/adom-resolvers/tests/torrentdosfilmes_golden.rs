@@ -69,6 +69,8 @@ fn feed_torznab_com_a_data_do_golden() {
                 link: link.clone(),
                 index,
                 count: links.len(),
+                seeders: None,
+                leechers: None,
             })
             .collect();
         // A data do golden vem do relógio congelado do oráculo: todos os itens

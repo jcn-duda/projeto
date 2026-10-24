@@ -277,9 +277,8 @@ test('ações warm-pause, warm-resume e warm-drain operam sobre o rdWarmer', asy
 });
 
 // ---------------------------------------------------------------------------
-// Teste direto dos resolvedores BR (GET /test-resolver.json): mesmo esqueleto
-// de token do test-indexer, mas o alvo é o resolvedor embutido — o probe fala
-// com a porta local do card, então o fetch mockado é o da porta do resolver.
+// Teste direto dos resolvedores BR (GET /test-resolver.json): esqueleto de token
+// igual ao do test-indexer, mas o alvo é o resolvedor embutido (fetch da porta local).
 // ---------------------------------------------------------------------------
 
 test('GET /test-resolver.json: 503 sem token, 401 com token errado e ?token= rejeitado', async () => {
@@ -399,4 +398,3 @@ test('GET /test-resolver.json: 502 do resolvedor vira ok:false com o corpo do er
     config.jackett.testToken = '';
   }
 });
-

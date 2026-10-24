@@ -124,6 +124,8 @@ pub fn check_posts(site: &dyn SiteOutput, golden: &Value) {
                 link: link.clone(),
                 index,
                 count: want.len(),
+                seeders: None,
+                leechers: None,
             })
             .collect();
         if let Some(html) = entry["html"].as_str() {

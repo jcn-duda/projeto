@@ -18,7 +18,7 @@ o filtro pré-checagem do `applyDebrid` e o desempate `instant` do `sortAndLimit
 - `src/utils/magnetdb.ts`
 - `src/debrid/index.ts`
 - `src/utils/stream-ranking.ts`
-- `src/providers/debrid-pipeline.ts`
+- `rust/crates/adom-search/src/debrid_seam.rs`
 
 ## Guardrails
 

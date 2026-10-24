@@ -14,25 +14,30 @@ use adom_harvest::TrafficSense;
 #[derive(Clone)]
 pub struct StreamTraffic {
     last_stream_ms: Arc<AtomicI64>,
-    idle_window_ms: i64,
+    /// Atômico porque a janela é knob do painel (`harvestIdleWindowMs`).
+    idle_window_ms: Arc<AtomicI64>,
 }
 
 impl StreamTraffic {
     pub fn new(last_stream_ms: Arc<AtomicI64>, idle_window_ms: i64) -> Self {
         Self {
             last_stream_ms,
-            idle_window_ms: idle_window_ms.max(0),
+            idle_window_ms: Arc::new(AtomicI64::new(idle_window_ms.max(0))),
         }
+    }
+
+    pub fn set_idle_window(&self, idle_window_ms: i64) {
+        self.idle_window_ms
+            .store(idle_window_ms.max(0), Ordering::Relaxed);
     }
 }
 
 impl TrafficSense for StreamTraffic {
     fn is_busy(&self) -> bool {
         let last = self.last_stream_ms.load(Ordering::Relaxed);
+        let window = self.idle_window_ms.load(Ordering::Relaxed);
         // `0` = nunca houve `/stream` neste processo; sem janela não há freio.
-        last > 0
-            && self.idle_window_ms > 0
-            && adom_sources::now_ms().saturating_sub(last) < self.idle_window_ms
+        last > 0 && window > 0 && adom_sources::now_ms().saturating_sub(last) < window
     }
 }
 
@@ -61,6 +66,15 @@ mod tests {
     fn janela_zero_desliga_o_freio() {
         let last = Arc::new(AtomicI64::new(adom_sources::now_ms()));
         let traffic = StreamTraffic::new(last, 0);
+        assert!(!traffic.is_busy());
+    }
+
+    #[test]
+    fn janela_do_painel_vale_sem_restart() {
+        let last = Arc::new(AtomicI64::new(adom_sources::now_ms()));
+        let traffic = StreamTraffic::new(last, 600_000);
+        assert!(traffic.is_busy());
+        traffic.set_idle_window(0);
         assert!(!traffic.is_busy());
     }
 }

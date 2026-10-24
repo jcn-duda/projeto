@@ -81,6 +81,8 @@ pub trait SiteOutput: Send + Sync {
                 link,
                 index,
                 count,
+                seeders: None,
+                leechers: None,
             })
             .collect()
     }

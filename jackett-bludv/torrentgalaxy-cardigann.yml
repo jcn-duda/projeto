@@ -95,11 +95,16 @@ search:
         - name: dateparse
           args: "dd/MM/yyyy"
     seeders:
-      # O resolver não publica seeds. Um valor neutro permite que clientes com
-      # MIN_SEEDERS=1 não descartem a release antes de consultar o swarm.
-      text: 1
+      # O TGx é GLOBAL P2P e publica a saúde na listagem: o resolver a repassa
+      # em `div.seeders` (0 = morto, e tem que sair 0). Sem a div (célula sem
+      # número), o neutro 1 evita que MIN_SEEDERS=1 descarte às cegas.
+      selector: "div.seeders"
+      optional: true
+      default: 1
     leechers:
-      text: 0
+      selector: "div.leechers"
+      optional: true
+      default: 0
     downloadvolumefactor:
       text: 0
     uploadvolumefactor:

@@ -2,8 +2,8 @@
  * Handle ÚNICO do índice de releases (`idx:v14`) no núcleo Rust (`IdxStore`,
  * `adom-napi/src/idx_store.rs`, sobre o `adom-index`). O Rust é o dono do
  * namespace: lê e grava o MESMO `cache.db`, e o Node chama de forma síncrona,
- * então uma leitura logo depois de uma escrita já vê o que foi gravado (o
- * `harvest-worker` depende disso).
+ * então uma leitura logo depois de uma escrita — de qualquer um dos dois lados
+ * — já vê o que foi gravado.
  *
  * Com `CACHE_PERSIST=false` o handle sobe em memória (`:memory:`), como o
  * resto do cache. O clear do namespace (clear-cache, `cache.clear()`) passa

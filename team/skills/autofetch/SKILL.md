@@ -19,7 +19,7 @@ só log.
 
 - `src/providers/autofetch.ts`
 - `src/providers/autofetch-runner.ts`
-- `src/providers/debrid-pipeline.ts`
+- `rust/crates/adom-search/src/debrid_seam.rs`
 - `src/debrid/protected.ts`
 
 ## Guardrails (invariante 6)

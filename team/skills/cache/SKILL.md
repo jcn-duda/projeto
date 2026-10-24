@@ -10,7 +10,7 @@ despejo global morder antes da repartição por namespace.
 
 ## Quando usar
 
-- Ao mexer em `cache.ts`, `cache-keys.ts`, `request-key.ts`, `latest-writer.ts`.
+- Ao mexer em `cache.ts`, `cache-keys.ts`, `request-key.ts` e em `latest_writer.rs` (Rust).
 - Ao revisar cotas, teto global, SWR (`getWithStale`) ou TTLs de namespace.
 - Ao verificar se a conta de memória do container 3g ainda fecha com as cotas.
 
@@ -30,8 +30,8 @@ linhas. Cota `mag=50000`, teto global `84000` (soma das cotas ~82550 — teto
 - `src/utils/cache-keys.ts`
 - `src/utils/cache-quotas.ts`
 - `src/utils/request-key.ts`
-- `src/utils/latest-writer.ts`
-- `src/providers/search-cache.ts`
+- `rust/crates/adom-search/src/latest_writer.rs`
+- `rust/crates/adom-search/src/cache.rs`
 - `test/cache.test.ts`
 
 ## Guardrails

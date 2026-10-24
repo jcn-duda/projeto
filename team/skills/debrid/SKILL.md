@@ -65,7 +65,7 @@ Três coisas que só se aprende errando:
   `adsub`), `-cleanup` (gate único `deleteMagnets`), `-reupload` (`adrm`),
   `-evict`, `-reconcile`, `-play`. `alldebrid.ts` é só fachada
 - `premiumize.ts`, `realdebrid.ts`, `torbox.ts`, `debridlink.ts`
-- `src/providers/account.ts`
+- `src/debrid/account-status.ts`
 
 ## Guardrails
 

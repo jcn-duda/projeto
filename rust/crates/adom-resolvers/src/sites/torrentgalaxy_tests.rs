@@ -101,6 +101,8 @@ fn cartao_tem_o_formato_do_cardigann() {
         },
         index: 0,
         count: 1,
+        seeders: None,
+        leechers: None,
     };
     let html = TORRENTGALAXY.search_page_html("http://127.0.0.1:8708", &[item]);
     assert!(html.contains("<div class=\"posts\">"), "falta div.posts");
@@ -118,12 +120,49 @@ fn cartao_tem_o_formato_do_cardigann() {
     assert!(html.contains("<div class=\"description\">Movies</div>"));
 }
 
-/// O título do TGx vem com pontos ("Batman.Knightfall.Part.1"); o cartão
-/// publica com espaços.
+/// O nome de cena chega ao Jackett COM os pontos: trocar por espaço
+/// deformava "DDP5.1" em "DDP5 1" e "H.264" em "H 264". Só o `_` do slug sai.
 #[test]
-fn titulo_com_pontos_vira_espaco() {
+fn titulo_preserva_o_nome_de_cena() {
     assert_eq!(
-        clean_title("Batman.Knightfall.Part.1.Knightfall.2026.1080p.WEBRip"),
-        "Batman Knightfall Part 1 Knightfall 2026 1080p WEBRip"
+        clean_title("Batman.Knightfall.2026.1080p.WEBRip.DDP5.1.H.264-NeoNoir"),
+        "Batman.Knightfall.2026.1080p.WEBRip.DDP5.1.H.264-NeoNoir"
     );
+    assert_eq!(
+        clean_title("Show_Name &amp; Co  S01E02"),
+        "Show Name & Co S01E02"
+    );
+}
+
+/// Global P2P: a saúde publicada vai ao cartão (o Cardigann lê `div.seeders`).
+/// `Some(0)` é torrent morto e TEM que sair como 0; sem dado, nenhuma div —
+/// e o `default` do yml cobre.
+#[test]
+fn cartao_publica_os_seeders_do_site() {
+    let item = |seeders: Option<u32>, leechers: Option<u32>| SearchItem {
+        post: SitePost {
+            title: "Batman 2026 1080p".to_string(),
+            url: "https://torrentgalaxy.one/post-detail/1/x/".to_string(),
+            poster: None,
+            date: None,
+            year: None,
+            kind: None,
+        },
+        link: ResolverLink::default(),
+        index: 0,
+        count: 1,
+        seeders,
+        leechers,
+    };
+    let vivo =
+        TORRENTGALAXY.search_page_html("http://127.0.0.1:8708", &[item(Some(1026), Some(168))]);
+    assert!(vivo.contains("<div class=\"seeders\">1026</div>"));
+    assert!(vivo.contains("<div class=\"leechers\">168</div>"));
+    let morto = TORRENTGALAXY.search_page_html("http://127.0.0.1:8708", &[item(Some(0), Some(0))]);
+    assert!(
+        morto.contains("<div class=\"seeders\">0</div>"),
+        "morto não vira 1"
+    );
+    let sem_dado = TORRENTGALAXY.search_page_html("http://127.0.0.1:8708", &[item(None, None)]);
+    assert!(!sem_dado.contains("class=\"seeders\""));
 }
