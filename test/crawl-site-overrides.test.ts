@@ -16,8 +16,6 @@ const { siteConfigOf, cadenceDelayMs, withCadence } = await import('../src/utils
 const { PROBE_STATE_KEY, verdictFor, probeGate, probeGateOpen } = await import('../src/providers/crawl-probe-gate.js');
 const { idleFractionOf, createSiteRuntime } = await import('../src/providers/crawl-site-runtime.js');
 const registry = await import('../src/providers/crawl-sites/registry.js');
-import type { CrawlDiscovery, CrawlSite, CrawlWorkResult } from '../src/providers/crawl-types.js';
-import type { RawItem } from '../types/domain.d.ts';
 
 const savedCrawl = { ...config.crawl };
 
@@ -55,35 +53,6 @@ function freshCrawl(overrides: Record<string, unknown> = {}): void {
 }
 
 const movie = (url: string) => ({ url, lastmod: '2026-01-01', kind: 'movie' as const });
-
-function item(seed: string): RawItem {
-  const hash = (seed.replace(/\W/g, '') + '0'.repeat(40)).slice(0, 40).padEnd(40, '0');
-  return {
-    title: `Obra ${seed} (2000) 1080p DUBLADO`, magnet: `magnet:?xt=urn:btih:${hash}`,
-    indexer: 'a', tracker: 'Fake', isBr: true, seeders: 1, size: 1000,
-  };
-}
-
-/** Adaptador dublê por site: `discover` semeia, `fetchWork` entrega 1 release. */
-function fakeSite(id: string, over: Partial<CrawlSite> = {}): CrawlSite {
-  return {
-    id,
-    label: `Site ${id.toUpperCase()}`,
-    discover: async (): Promise<CrawlDiscovery> => ({
-      urls: [movie(`/${id}/a`), movie(`/${id}/b`)], complete: true, failures: [],
-    }),
-    fetchWork: async (url: string) => ({
-      url, status: 'done', imdb: 'tt1000000', title: 'Obra', year: 2000,
-      type: 'movie', releases: [item(url)],
-    }),
-    ...over,
-  };
-}
-
-/** Registro dublê: dois sites, ids fora da tabela BR (o motor não exige). */
-function useSites(sites: Record<string, CrawlSite>): void {
-  crawler._setSitesForTest((id) => sites[id] ?? null);
-}
 
 /** Veredito GO no formato do codec da sonda (o gate é o consumidor real). */
 function goVerdict(site: string, over: Record<string, unknown> = {}): string {
@@ -161,13 +130,10 @@ describe('crawl multi-site: config efetiva por site (trava de segurança)', () =>
 });
 
 describe('crawl multi-site: gate da sonda (veredito GO é o único que libera)', () => {
-  test('sem veredito o site fica barrado quando o gate é exigido', async () => {
+  test('sem veredito o site fica barrado quando o gate é exigido', () => {
     freshCrawl({ requireProbe: true });
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
-    crawler._forceDiscoveryForTest();
-    for (let i = 0; i < 3; i += 1) await crawler.tick();
-    assert.equal(store.engine().counters('a').total, 0, 'sem amostra o site não discovery');
-    assert.equal(statusOf('a')?.skipReason, 'probe');
+    // Quem respeita o gate na rotação é o sidecar; o card mostra o bloqueio.
+    assert.equal(statusOf('a')?.probe?.required, true);
     assert.equal(statusOf('a')?.probe?.ok, false);
     assert.equal(statusOf('a')?.probe?.blockedBy, 'sem-veredito');
   });
@@ -190,17 +156,13 @@ describe('crawl multi-site: gate da sonda (veredito GO é o único que libera)', (
     assert.equal(verdictFor('a', 'GO'), null, 'GO maiúsculo solto (codec antigo) não libera');
   });
 
-  test('GO gravado no crawl_state libera o site na rotação', async () => {
+  test('GO gravado no crawl_state libera o site no card', () => {
     freshCrawl({ requireProbe: true });
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
     store.engine().setState('a', PROBE_STATE_KEY, goVerdict('a', {
       rates: { valid: 0.95, magnet: 0.8, identify: 0.7, magnetsPerPage: 1.4 },
       reasons: ['no-work-dominante'],
     }));
-    crawler._forceDiscoveryForTest();
-    await crawler.tick();
-    assert.equal(store.engine().counters('a').total, 2, 'site medido entra na rotação');
-    assert.equal(store.engine().counters('b').total, 0, 'site sem veredito continua barrado');
+    assert.equal(statusOf('b')?.probe?.ok, false, 'site sem veredito continua barrado');
     assert.equal(statusOf('a')?.probe?.verdict, 'go');
     assert.equal(statusOf('a')?.probe?.ok, true);
     assert.equal(statusOf('a')?.probe?.sample, 40);
@@ -243,32 +205,20 @@ describe('crawl multi-site: gate da sonda (veredito GO é o único que libera)', (
     assert.equal(parcial.counts?.sample, 39);
   });
 
-  test('gate desligado não barra ninguém (compat com antes da Fase 8)', async () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
-    crawler._forceDiscoveryForTest();
-    // Serial: item vencido tem precedência sobre descoberta, então a fila de `a`
-    // (2 páginas) é servida antes da descoberta de `b` — e fechar a rodada de
-    // `a` consome um tick sem rede (comportamento herdado do motor de site único).
-    for (let i = 0; i < 6; i += 1) await crawler.tick();
-    assert.equal(store.engine().counters('a').total, 2);
-    assert.equal(store.engine().counters('b').total, 2);
+  test('gate desligado não barra ninguém (compat com antes da Fase 8)', () => {
     assert.equal(statusOf('a')?.probe?.required, false);
+    assert.equal(statusOf('b')?.probe?.required, false);
   });
 });
 
 describe('crawl multi-site: estado isolado por site', () => {
-  test('pausa e teto de um site não mexem no vizinho', async () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
+  test('pausa de um site não mexe no vizinho', () => {
     const paused = crawler.setPaused(true, 'a');
     assert.equal(paused.ok, true);
     assert.equal(paused.paused, true);
-    live.setSiteOverride('b', { maxPerHour: 1 });
-    crawler._forceDiscoveryForTest();
-    for (let i = 0; i < 3; i += 1) await crawler.tick();
-    assert.equal(store.engine().counters('a').total, 0, 'site pausado não trabalha');
     assert.equal(statusOf('a')?.paused, true);
-    assert.equal(statusOf('a')?.skipReason, 'pausado');
-    assert.ok(store.engine().counters('b').total > 0, 'vizinho segue rodando');
+    assert.equal(statusOf('b')?.paused, false, 'o vizinho não herda a pausa');
+    assert.equal(crawler.setPaused(false, 'a').paused, false, 'religar devolve o site');
   });
 
   test('pausa de site inexistente é recusada (não cria runtime fantasma)', () => {
@@ -276,75 +226,39 @@ describe('crawl multi-site: estado isolado por site', () => {
     assert.equal(out.ok, false);
     assert.ok(out.error);
   });
-
-  test('pausa automática (streak do site) é isolada por site', async () => {
-    freshCrawl({ errorPauseStreak: 2 });
-    const broken: CrawlSite = {
-      id: 'a', label: 'A quebrado',
-      discover: async (): Promise<CrawlDiscovery> => ({ urls: [movie('/a1'), movie('/a2')], complete: true, failures: [] }),
-      fetchWork: async (url: string): Promise<CrawlWorkResult> => ({ url, status: 'error', error: 'HTTP 403 Forbidden' }),
-    };
-    useSites({ a: broken, b: fakeSite('b') });
-    crawler._forceDiscoveryForTest();
-    for (let i = 0; i < 8; i += 1) await crawler.tick();
-    assert.equal(statusOf('a')?.autoPause?.reason, 'error-streak');
-    assert.equal(statusOf('a')?.skipReason, 'auto-pausa');
-    assert.ok(store.engine().counters('b').total > 0, 'o outro site não herdou a pausa');
-    assert.equal(statusOf('b')?.autoPause, null);
-  });
-
-  test('ciclo e cursor são por site', async () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
-    crawler._forceDiscoveryForTest();
-    for (let i = 0; i < 8; i += 1) await crawler.tick();
-    const ca = store.engine().counters('a');
-    const cb = store.engine().counters('b');
-    assert.equal(ca.total, 2);
-    assert.equal(cb.total, 2);
-    assert.ok(store.engine().latestRun('a'), 'cada site tem a sua rodada');
-    assert.ok(store.engine().latestRun('b'));
-  });
 });
 
 describe('crawl multi-site: status (topo é o site ativo, card é por site)', () => {
   test('um card por site CONFIGURADO, com rótulo e disponibilidade do adaptador', () => {
     freshCrawl({ sites: ['a', 'b', 'bludv-cardigann'] });
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
     const status = crawler.status();
     assert.deepEqual(status.sitesConfigured, ['a', 'b', 'bludv-cardigann']);
     assert.equal(status.sites.length, 3, 'site configurado sem adaptador também aparece');
     const bludv = status.sites.find((s) => s.id === 'bludv-cardigann');
     assert.equal(bludv?.site.known, true, 'id da tabela BR é reconhecido');
-    // `adapter` vem do REGISTRY (`crawl-status.ts` monta o card de lá), não do
-    // mapa `useSites` deste teste: o BLUDV entrou na tabela de adaptadores no
-    // COMMIT 1 da Fase 8, então o card diz `true` mesmo com a instância injetada
-    // sendo a falsa de `a`/`b`.
+    // `adapter` vem do REGISTRY: o BLUDV é do sidecar Rust, então o card diz `true`.
     assert.equal(bludv?.site.adapter, true, 'o card do BLUDV tem adaptador (registry)');
     assert.equal(bludv?.site.label, 'BLUDV');
     assert.equal(registry.siteInfo('nao-existe').known, false);
   });
 
-  test('topo reflete o site ATIVO e o teto agregado é do processo', async () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
-    crawler._forceDiscoveryForTest();
-    for (let i = 0; i < 8; i += 1) await crawler.tick();
+  test('topo reflete o primeiro site e o teto agregado é do processo', () => {
     const status = crawler.status();
     const active = status.sites.find((s) => s.id === status.site);
     assert.ok(active, 'o topo aponta para um card real');
     assert.deepEqual(status.cursors, active?.cursors, 'cursor do topo é o do site ativo');
     assert.equal(status.dryRun, active?.dryRun, 'dryRun do topo é o do site ativo');
     assert.equal(status.maxPerHourTotal, 1000, 'teto agregado do processo');
-    assert.ok((status.pagesThisHourTotal ?? 0) >= 2, 'custo agregado inclui as descobertas');
+    assert.equal(status.pagesThisHourTotal, 0, 'o custo por hora é contado pelo sidecar (foto `sidecar`)');
   });
 
-  test('ETA sem ociosidade medida é null (não promete hora inventada)', async () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
-    crawler._forceDiscoveryForTest();
-    await crawler.tick();
+  test('ETA sem custo medido no Node é null (não promete hora inventada)', () => {
+    store.engine().upsertUrls('a', [movie('/a1'), movie('/a2')], 1);
     const card = statusOf('a');
     assert.equal(card?.pendingRemaining, 2, 'a fila do site existe');
-    assert.equal(card?.etaHours, null, 'sem amostra de ociosidade, ETA é indisponível');
-    assert.equal(card?.etaBasis, 'sem-ociosidade-medida');
+    assert.equal(card?.etaHours, null, 'sem custo medido, ETA é indisponível');
+    // O custo por página é medido pelo sidecar (foto `sidecar` do bloco).
+    assert.equal(card?.etaBasis, 'sem-custo-medido');
   });
 
   test('ETA com ociosidade medida é ajustado pela fração', () => {
@@ -357,7 +271,6 @@ describe('crawl multi-site: status (topo é o site ativo, card é por site)', () =
 
 describe('crawl multi-site: ações por site', () => {
   test('simulate rejeita site fora de CRAWL_SITES sem tocar a fila', async () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
     store.engine().upsertUrls('a', [movie('/a/1')], 1);
     const out = await crawler.simulate(5, 'site-fantasma');
     assert.equal(out.ok, false);
@@ -365,30 +278,13 @@ describe('crawl multi-site: ações por site', () => {
     assert.equal(store.engine().counters('a').byStatus.inflight, 0);
   });
 
-  test('simulate por site roda no site pedido e devolve a fila', async () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
+  test('simulate por site sem adaptador TS responde sem-adaptador e não toca a fila', async () => {
     store.engine().upsertUrls('b', [movie('/b/1')], 1);
     const out = await crawler.simulate(5, 'b');
-    assert.equal(out.ok, true);
-    assert.equal(out.site, 'b');
-    assert.equal(out.pages, 1);
-    assert.equal(store.engine().getUrl('b', '/b/1')?.status, 'pending', 'simulação não consome');
-  });
-
-  test('"Zerar site" limpa a fila e PRESERVA o veredito da sonda', () => {
-    useSites({ a: fakeSite('a'), b: fakeSite('b') });
-    store.engine().upsertUrls('a', [movie('/a/1')], 1);
-    store.engine().startRun('a', 'initial', '', 1);
-    store.engine().setState('a', PROBE_STATE_KEY, goVerdict('a'));
-    const out = crawler.resetSite('a');
-    assert.equal(out.ok, true);
-    assert.equal(store.engine().counters('a').total, 0, 'fila do site apagada');
-    assert.equal(store.engine().getState('a', PROBE_STATE_KEY), goVerdict('a'), 'veredito preservado (medição cara)');
-  });
-
-  test('"Zerar site" recusa site não configurado', () => {
-    const out = crawler.resetSite('nao-configurado');
     assert.equal(out.ok, false);
-    assert.ok(out.error);
+    assert.equal(out.reason, 'sem-adaptador');
+    assert.equal(out.site, 'b');
+    assert.equal(out.pages, 0);
+    assert.equal(store.engine().getUrl('b', '/b/1')?.status, 'pending', 'simulação não consome');
   });
 });

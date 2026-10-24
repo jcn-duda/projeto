@@ -80,13 +80,6 @@ jobs:
         working-directory: .
         run: npm ci && npm run build
 
-      - name: Goldens do raspador contra TypeScript puro
-        working-directory: .
-        env:
-          RUST_CORE: 'off'
-          DOTENV_CONFIG_PATH: test/fixtures/env-empty
-        run: npm run golden:crawl-policy:check
-
       # Os parsers TS dos oito sites saíram deste branch (o Rust os substitui);
       # o oráculo deles é o TypeScript do branch `esm`, num worktree ao lado.
       - name: Oráculo dos parsers (TypeScript do branch esm)
@@ -102,6 +95,16 @@ jobs:
           RUST_CORE: 'off'
           DOTENV_CONFIG_PATH: test/fixtures/env-empty
         run: npm run golden:crawl-parsers:check
+
+      # A política do raspador (ciclo, ritmo, despacho, seleção, pausas) saiu
+      # deste branch com o loop TS: o oráculo dela é o TypeScript do esm, e o
+      # corpus/.jsonl são os mesmos dos dois lados.
+      - name: Golden da política do raspador contra o TypeScript do esm
+        working-directory: ../adom-esm
+        env:
+          RUST_CORE: 'off'
+          DOTENV_CONFIG_PATH: test/fixtures/env-empty
+        run: npm run golden:crawl-policy:check
 
       # O normalizeTitle TS também saiu deste branch: o golden de títulos é
       # conferido contra o oráculo do esm (o cargo test confere o Rust contra

@@ -13,7 +13,6 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const cache = await import('../src/utils/cache.js');
 const { identifyWork, selectCandidate } = await import('../src/providers/crawl-identify.js');
-const { parseOriginalTitle } = await import('../src/providers/crawl-sites/shared.js');
 const { stubFetch } = await import('./helpers/stub.js');
 const { normalizeTitle } = await import('../src/utils/title-normalization.js');
 
@@ -37,60 +36,6 @@ function forget(titles: string[], ids: number[] = []): void {
   for (const t of titles) cache.forget(`tmdb:search:movie:${normalizeTitle(t)}`);
   for (const id of ids) cache.forget(`tmdb:ext:movie:${id}`);
 }
-
-describe('parseOriginalTitle: o span do NerdFilmes', () => {
-  test('extrai o original sem o rótulo, com entidade decodificada', () => {
-    const html = '<h1 class="movie-title">7 Dogs (2026)</h1><span class="movie-original"> Título original: 7 كلاب </span>';
-    assert.equal(parseOriginalTitle(html), '7 كلاب');
-    assert.equal(
-      parseOriginalTitle('<span class="movie-original">T&iacute;tulo original: Mike &#038; Nick</span>'),
-      'Mike & Nick',
-    );
-  });
-
-  test('ficha do WordPress BR (Comando/TorrentDosFilmes): com e sem acento, `:` dentro ou fora do negrito', () => {
-    // Recortes reais (2026-09-28).
-    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Sick of Myself<br /> <strong>IMDb</strong>'), 'Sick of Myself');
-    assert.equal(parseOriginalTitle('<b>Título Original</b>: Colors of Love<br /> <strong>IMDb</strong>'), 'Colors of Love');
-    assert.equal(parseOriginalTitle('<strong>Título Original</strong>: Antibirth<br />'), 'Antibirth');
-    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Dr. No<br /> <b>3D:</b> SIM'), 'Dr. No');
-    // Dois nomes não dizem QUAL é o original ("Paradox" é o inglês e casou outro
-    // filme): nome nenhum.
-    assert.equal(parseOriginalTitle('<b>Titulo Original:</b> Paradox / Sha po lang: taam long<br />'), null);
-    assert.equal(parseOriginalTitle('<b>Título Original:</b> Dans la brume / Just a Breath Away<br />'), null);
-    assert.equal(parseOriginalTitle('<b>T&iacute;tulo Original:</b> Nakitai Watashi wa Neko wo Kaburu<br />'),
-      'Nakitai Watashi wa Neko wo Kaburu');
-  });
-
-  test('ficha repetida no alt da imagem: corta no rótulo colado e na aspa', () => {
-    // Recortes reais (Comando/TorrentDosFilmes, 2026-09-28): o `alt` repete a
-    // ficha sem quebras e o valor vinha colado no rótulo seguinte.
-    assert.equal(parseOriginalTitle('<img alt="Título Original: The SimpsonsLançamento: 1989Gênero: Animação" />'), 'The Simpsons');
-    assert.equal(parseOriginalTitle('<img alt="Título Original: Small Axe IMDb: 7,8/10 Ano de Lançamento: 2021" />'), 'Small Axe');
-    assert.equal(parseOriginalTitle('<img alt="Titulo Original: Peaky Blinders IMDb: 8,8/10 Gênero: Crime Lançamento S06: 2022" />'), 'Peaky Blinders');
-    // Nome que CONTÉM palavra de rótulo sem `:` fica inteiro.
-    assert.equal(parseOriginalTitle('<b>Título Original:</b> The Audio Diaries<br />'), 'The Audio Diaries');
-    // Comando (2026-09-29): "Título Brasileiro:" e "Produtores:" também são
-    // rótulo de ficha colado. "Ano" SOZINHO não entra: sem borda de palavra, ele
-    // cortaria um original como "The Piano: …" no "ano:".
-    assert.equal(
-      parseOriginalTitle('<b>Título Original:</b> The Powerpuff GirlsTítulo Brasileiro: As Meninas SuperpoderosasProdutores: Hanna-Barbera<br />'),
-      'The Powerpuff Girls',
-    );
-    assert.equal(parseOriginalTitle('<b>Título Original:</b> The Piano: Lessons<br />'), 'The Piano: Lessons');
-  });
-
-  test('o span do NerdFilmes vence a ficha quando os dois existem', () => {
-    const html = '<span class="movie-original">Título original: 7 كلاب</span><b>Título Original:</b> Outro<br>';
-    assert.equal(parseOriginalTitle(html), '7 كلاب');
-  });
-
-  test('ausente, vazio ou comentado é null (o Vaca não publica)', () => {
-    assert.equal(parseOriginalTitle('<h1>Garota Exemplar (2014)</h1>'), null);
-    assert.equal(parseOriginalTitle('<span class="movie-original">Título original: </span>'), null);
-    assert.equal(parseOriginalTitle('<!-- <span class="movie-original">Título original: X</span> -->'), null);
-  });
-});
 
 describe('selectCandidate: desempate pelo original declarado', () => {
   const besta = movieHit(601, 'A Besta', 'La bête', '2024-02-07');

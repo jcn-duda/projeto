@@ -1,6 +1,6 @@
 // Bloco `crawl` do /dashboard-status.json. Extraído de dashboard-status-blocks.ts
-// pela catraca de 400 linhas. Cobre o caminho TS (crawler.status) e o caminho
-// Rust (sidecar HTTP na porta do CRAWL_SIDECAR_PORT).
+// pela catraca de 400 linhas: o `crawler.status()` (cards do `crawl.db`) com a
+// foto do sidecar Rust (HTTP na porta do CRAWL_SIDECAR_PORT) ao lado.
 import type { AppServices } from './types.js';
 
 /** Foto do sidecar Rust (`GET /status`); `error` quando não respondeu. */
@@ -23,8 +23,7 @@ async function sidecarStatus(services: AppServices): Promise<Record<string, unkn
 /**
  * Bloco crawl. O painel lê SEMPRE o formato do `crawler.status()` (cards,
  * catálogo, contadores do `crawl.db`, config ao vivo) — é o mesmo banco que o
- * sidecar Rust escreve. Com `CRAWL_ENGINE=rust` a foto do sidecar vai junto em
- * `sidecar`; devolver só ela deixava o painel "DESLIGADO" e "Nenhum site em
+ * sidecar Rust escreve. A foto do sidecar vai junto em `sidecar`; devolver só ela deixava o painel "DESLIGADO" e "Nenhum site em
  * CRAWL_SITES" com o raspador rodando (formato diferente: `site_id`, sem
  * `enabled`). Falha do sidecar é aberta: o resto do bloco segue.
  */
@@ -33,7 +32,6 @@ export async function crawlBlock(
   configSnapshot: unknown,
 ): Promise<Record<string, unknown>> {
   const base = { ...services.crawler.status(), config: configSnapshot };
-  if (services.config.crawl.crawlEngine !== 'rust') return { ...base, engine: 'ts' };
   const sidecar = await sidecarStatus(services);
   return {
     ...base,

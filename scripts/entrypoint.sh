@@ -285,24 +285,23 @@ run '[flaresolverr]' env PORT=8191 python3 -u /app/flaresolverr/flaresolverr.py
 # direto (o Caddy responde 403 em /internal no vhost público).
 export CRAWL_NODE_URL=http://127.0.0.1:7100
 
-# Sidecar do raspador Rust (default; CRAWL_ENGINE=ts desliga — aí só o Mico,
-# que é do motor TS, continua sendo raspado).
+# Sidecar do raspador Rust: dono dos nove sites (o loop TS saiu), sobe sempre.
+# O `CRAWL_ENGINE=rust` é a trava do próprio binário (`adom_sidecar.rs`), não
+# um knob de operação.
 # O sidecar NÃO entra no `wait -n` abaixo: ele tem reinício próprio ou fica
 # fora do supervisionamento. O `wait -n` continua supervisionando só
 # caddy+jackett+flaresolverr+addon.
-if [ "${CRAWL_ENGINE:-rust}" = "rust" ]; then
-    echo "[entrypoint] iniciando sidecar adom-crawl (CRAWL_ENGINE=rust)"
-    CRAWL_ENGINE=rust /app/dist/rust/adom-sidecar &
-    SIDECAR_PID=$!
-    # Aguarda sidecar ficar pronto (healthcheck)
-    for i in $(seq 1 10); do
-        if curl -sf http://127.0.0.1:${CRAWL_SIDECAR_PORT:-7077}/health > /dev/null 2>&1; then
-            echo "[entrypoint] sidecar pronto"
-            break
-        fi
-        sleep 1
-    done
-fi
+echo "[entrypoint] iniciando sidecar adom-crawl"
+CRAWL_ENGINE=rust /app/dist/rust/adom-sidecar &
+SIDECAR_PID=$!
+# Aguarda sidecar ficar pronto (healthcheck)
+for i in $(seq 1 10); do
+    if curl -sf http://127.0.0.1:${CRAWL_SIDECAR_PORT:-7077}/health > /dev/null 2>&1; then
+        echo "[entrypoint] sidecar pronto"
+        break
+    fi
+    sleep 1
+done
 
 # Laço de supervisão do adom-resolvers — só rodado com BR_RESOLVER_RUST não vazio.
 #

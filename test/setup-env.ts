@@ -112,15 +112,6 @@ process.env.DEBRID_AL_CLEANUP = 'off';
 // dos pins acima: o verde da suíte não pode depender de quem roda.
 process.env.RESOLVE_SECRET = '';
 
-// Motor do raspador PINADO no modo TS: a suíte inteira do motor (crawler,
-// steps, dispatch, séries) exercita o loop TS como DONO. Com o `.env` do
-// operador em CRAWL_ENGINE=rust, o roteamento single-owner do `tick()`
-// restringiria os sites aos own_pace e ~19 arquivos virariam vermelhos sem
-// nada ter mudado neles. O modo rust tem caso próprio
-// (crawler-rust-own-pace.test.ts), que sobrescreve `config.crawl.crawlEngine`
-// no próprio caso.
-process.env.CRAWL_ENGINE = 'ts';
-
 // Núcleo Rust: onde ele decide o TS saiu, e o boot do processo o carrega antes
 // da primeira busca. Aqui o `.node` é aquecido do mesmo jeito (sem importar
 // `config`, que precisa ler o env que cada teste ajusta): o `requireCore` cai

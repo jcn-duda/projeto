@@ -18,7 +18,6 @@ import config from '../src/config.js';
 import * as bank from '../src/utils/magnet-bank.js';
 import * as metrics from '../src/utils/metrics.js';
 import { resetCatalogCache } from '../src/providers/jackett-catalog.js';
-import { safeMetricId, indexerFallbackMetricKey } from '../src/utils/metric-id.js';
 import { DASHBOARD_ACTIONS, DESTRUCTIVE_ACTIONS } from '../src/routes/dashboard-actions.js';
 import { pullNativeMetrics } from '../src/utils/native-metrics.js';
 import { createTestServer } from './e2e/e2e-harness.js';
@@ -220,10 +219,8 @@ test('magnet-bank-summary é memoizado e o flush derruba o memo', async () => {
 });
 
 test('bloco indexers declara fallbackServed NÃO MEDIDO (sem produtor do contador)', async () => {
-  // A chave `fallback.indexer.<id>` continua definida (paridade com
-  // `adom_core::metric_id`), e o id cru normaliza para o mesmo balde.
-  assert.equal(safeMetricId('Bank Test/ID'), 'bank_test_id');
-  assert.equal(indexerFallbackMetricKey('Bank Test/ID'), 'fallback.indexer.bank_test_id');
+  // A chave `fallback.indexer.<id>` é do `adom_core::metric_id` (o golden
+  // `metric-id` mede a normalização contra o oráculo do esm).
 
   config.jackett.apiKey = '';
   config.jackett.indexers = ['bank_test_id'];
@@ -232,7 +229,7 @@ test('bloco indexers declara fallbackServed NÃO MEDIDO (sem produtor do contado
   resetCatalogCache();
   // Nem com um valor no balde o bloco pode publicar medida: sem produtor, a
   // contagem é resíduo — publicar 5 afirmaria um histórico que ninguém escreve.
-  metrics.count(indexerFallbackMetricKey('Bank Test/ID'), 5);
+  metrics.count('fallback.indexer.bank_test_id', 5);
 
   const res = await get('?blocos=indexers');
   assert.equal(res.status, 200);

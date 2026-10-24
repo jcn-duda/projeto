@@ -89,23 +89,16 @@ export const crawlSimulate: CrawlAction = async ({ services, req, res, action })
 
 export const crawlReprocessErrors: CrawlAction = async ({ services, req, res, action }) => {
   // Mesmo tratamento das outras ações por site: id sem espaços nas bordas.
-  const site = typeof req.body?.site === 'string' ? req.body.site.trim() : undefined;
-  // Fase C4: encaminha ao sidecar quando o motor é Rust.
-  if (config.crawl.crawlEngine === 'rust') {
-    const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site: site || '' });
-    if (!fwd.ok) {
-      services.metrics.count('dashboard.crawl.reprocess.sidecar-error');
-      return res.status(502).json({ ok: false, action, error: fwd.sidecarError });
-    }
-    services.metrics.count('dashboard.crawl.reprocess');
-    services.log.info(`[dashboard] erros reprocessados (sidecar Rust): ${site || 'global'}`);
-    return res.json({ action, ...fwd.result });
+  const site = typeof req.body?.site === 'string' ? req.body.site.trim() : '';
+  // O sidecar Rust é o dono do `crawl.db` dos nove sites: a ação vai a ele.
+  const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site });
+  if (!fwd.ok) {
+    services.metrics.count('dashboard.crawl.reprocess.sidecar-error');
+    return res.status(502).json({ ok: false, action, error: fwd.sidecarError });
   }
-  const result = services.crawler.reprocessErrors(site);
-  if (!result.ok) return rejectReprocess(services, res, action, result);
   services.metrics.count('dashboard.crawl.reprocess');
-  services.log.info(`[dashboard] erros da raspagem reprocessados: ${result.requeued} URL(s) (${result.site})`);
-  return res.json({ action, ...result });
+  services.log.info(`[dashboard] erros reprocessados (sidecar Rust): ${site || 'global'}`);
+  return res.json({ action, ...fwd.result });
 };
 
 /** Site recusado pelo motor: 400 com o motivo, nunca "0 URL(s)" em HTTP 200 —
@@ -133,25 +126,15 @@ export const crawlReprocessNoWork: CrawlAction = ({ services, req, res, action }
 
 export const crawlReset: CrawlAction = async ({ services, req, res, action }) => {
   const site = typeof req.body?.site === 'string' ? req.body.site.trim() : '';
-  // Fase C4: encaminha ao sidecar quando o motor é Rust.
-  if (config.crawl.crawlEngine === 'rust') {
-    const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site });
-    if (!fwd.ok) {
-      services.metrics.count('dashboard.crawl.reset.sidecar-error');
-      return res.status(502).json({ ok: false, action, error: fwd.sidecarError });
-    }
-    services.metrics.count('dashboard.crawl.reset');
-    services.log.warn(`[dashboard] site da raspagem zerado (sidecar Rust): ${site || '(global)'}`);
-    return res.json({ action, ...fwd.result });
-  }
-  const result = services.crawler.resetSite(site);
-  if (!result.ok) {
-    services.metrics.count('dashboard.crawl.reset.rejected');
-    return res.status(400).json({ action, ...result });
+  // O sidecar Rust é o dono do `crawl.db` dos nove sites: a ação vai a ele.
+  const fwd = await forwardToSidecar(services, action, { confirm: Boolean(req.body?.confirm), site });
+  if (!fwd.ok) {
+    services.metrics.count('dashboard.crawl.reset.sidecar-error');
+    return res.status(502).json({ ok: false, action, error: fwd.sidecarError });
   }
   services.metrics.count('dashboard.crawl.reset');
-  services.log.warn(`[dashboard] site da raspagem zerado: ${result.site} (${result.urls} URL(s))`);
-  return res.json({ action, ...result });
+  services.log.warn(`[dashboard] site da raspagem zerado (sidecar Rust): ${site || '(global)'}`);
+  return res.json({ action, ...fwd.result });
 };
 
 export const crawlConfigGet: CrawlAction = ({ services, res, action }) => {

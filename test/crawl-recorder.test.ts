@@ -1,7 +1,6 @@
-// Política de pausa, processador de página e recorder da raspagem (Fase 3).
-// Separado de `crawler.test.ts` pela catraca de 400 linhas: aqui ficam os
-// módulos que NÃO precisam do motor — pura política, identificação injetada e
-// o fio da gravação real (fábrica com dublês).
+// Política de pausa e recorder da raspagem (Fase 3). O recorder é o que o
+// `/internal/crawl-result` usa para gravar o que o sidecar Rust raspou; o
+// processador de página TS saiu com o loop (o sidecar lê e identifica).
 import { test, describe, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -10,10 +9,8 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const store = await import('../src/utils/crawl-store.js');
 const { createCrawlRecorder } = await import('../src/providers/crawl-recorder.js');
-const { createPageProcessor } = await import('../src/providers/crawl-page.js');
 const { isSiteLevelError, maxLastmod, CrawlPausePolicy } =
   await import('../src/providers/crawl-pauses.js');
-import type { CrawlDiscovery, CrawlSite, CrawlUrlRow } from '../src/providers/crawl-types.js';
 import type { RawItem } from '../types/domain.js';
 
 const savedCrawl = { ...config.crawl };
@@ -29,27 +26,12 @@ after(() => {
   Object.assign(config.crawl, savedCrawl);
 });
 
-const movie = (url: string, lastmod = '2026-01-01') => ({ url, lastmod, kind: 'movie' as const });
-
 /** Magnet determinístico e hex para o seed (40 chars). */
 function item(seed: string, title = 'Fake Obra'): RawItem {
   const hash = (seed.replace(/\W/g, '') + '0'.repeat(40)).slice(0, 40).padEnd(40, '0');
   return {
     title: `${title} (2000) 1080p DUBLADO`, magnet: `magnet:?xt=urn:btih:${hash}`,
     indexer: 'fake', tracker: 'Fake', isBr: true, seeders: 1, size: 1000,
-  };
-}
-
-function fakeSite(over: Partial<CrawlSite> = {}): CrawlSite {
-  return {
-    id: 'fake',
-    label: 'Fake',
-    discover: async (): Promise<CrawlDiscovery> => ({ urls: [], complete: true, failures: [] }),
-    fetchWork: async (url: string) => ({
-      url, status: 'done', imdb: 'tt1000000', title: 'Fake Obra', year: 2000,
-      type: 'movie', releases: [item(url)],
-    }),
-    ...over,
   };
 }
 
@@ -75,51 +57,6 @@ describe('crawl-pauses: política pura', () => {
     assert.equal(policy.observePage('/a', { kind: 'done', releases: 2 }, limits), null);
     assert.equal(policy.observePage('/a', { kind: 'no-torrent' }, limits), null, '1º evento');
     assert.equal(policy.observePage('/a', { kind: 'no-torrent' }, limits), 'layout', '2º evento pausa');
-  });
-});
-
-describe('crawl-page: identificação (Vaca + crawl-identify)', () => {
-  test('done sem IMDb ancora via identifyWork; unavailable→erro; unidentified→no-work', async () => {
-    store.engine().upsertUrls('fake', [movie('/id'), movie('/un'), movie('/none')], 1);
-    const site = fakeSite({
-      fetchWork: async (url) => ({
-        url, status: 'done', imdb: null,
-        title: url.includes('id') ? 'ID' : url.includes('un') ? 'UNAVAIL' : 'NONE',
-        year: 2000, type: 'movie', releases: [item(url)],
-      }),
-    });
-    const identify = async ({ title }: { title: string }) => {
-      if (title === 'ID') return { outcome: 'identified' as const, imdb: 'tt999', reason: 'casamento-unico' };
-      if (title === 'UNAVAIL') return { outcome: 'unavailable' as const, imdb: null, reason: 'tmdb-indisponivel' };
-      return { outcome: 'unidentified' as const, imdb: null, reason: 'nome-sem-casamento' };
-    };
-    const process = createPageProcessor({ identify });
-    const outId = await process(site, store.engine().getUrl('fake', '/id') as CrawlUrlRow);
-    // config dryRun=true default do teste: página lida fica `simulated` (com a
-    // obra identificada preservada), nunca `done` — nada foi gravado.
-    assert.equal(outId.kind, 'simulated');
-    assert.equal(store.engine().getUrl('fake', '/id')?.status, 'simulated');
-    assert.equal(store.engine().getUrl('fake', '/id')?.imdb, 'tt999');
-    const outUn = await process(site, store.engine().getUrl('fake', '/un') as CrawlUrlRow);
-    assert.equal(outUn.kind, 'error');
-    assert.equal(store.engine().getUrl('fake', '/un')?.status, 'error');
-    const outNone = await process(site, store.engine().getUrl('fake', '/none') as CrawlUrlRow);
-    assert.equal(outNone.kind, 'no-work');
-    assert.equal(store.engine().getUrl('fake', '/none')?.status, 'no-work');
-  });
-
-  test('no-torrent não gasta identificação e vira no-torrent', async () => {
-    let identified = 0;
-    const process = createPageProcessor({
-      identify: async () => { identified += 1; return { outcome: 'unidentified', imdb: null, reason: 'x' }; },
-    });
-    store.engine().upsertUrls('fake', [movie('/s')], 1);
-    const site = fakeSite({
-      fetchWork: async (url) => ({ url, status: 'no-torrent', imdb: null, title: 'Só streaming', year: 2000, type: 'movie' }),
-    });
-    const out = await process(site, store.engine().getUrl('fake', '/s') as CrawlUrlRow);
-    assert.equal(out.kind, 'no-torrent');
-    assert.equal(identified, 0, 'página sem magnet não consulta o TMDB');
   });
 });
 

@@ -26,11 +26,9 @@ const store = await import('../src/utils/crawl-store.js');
 const metrics = await import('../src/utils/metrics.js');
 const { prefix } = await import('../src/utils/cache-keys.js');
 const { createCrawlRecorder } = await import('../src/providers/crawl-recorder.js');
-const { createPageProcessor } = await import('../src/providers/crawl-page.js');
 const { flushNativeStreamStores } = await import('../src/utils/streams-store-native.js');
 const { createStreamsBridge } = await import('./helpers/streams-bridge.js');
 import type { RawItem } from '../types/domain.js';
-import type { CrawlDiscovery, CrawlSite, CrawlUrlRow } from '../src/providers/crawl-types.js';
 
 const saved = {
   magnetBank: config.magnetBank.enabled,
@@ -138,35 +136,21 @@ describe('crawl-recorder: integração real com o acervo e o índice', () => {
     assert.deepEqual(hashes, [oldHash, newHash].sort(), 'release antiga preservada junto da nova');
   });
 
-  test('falha de flush do acervo não marca a página done (erro retentável)', async () => {
+  test('falha de flush do acervo vira erro retentável e NÃO grava no índice', async () => {
     const imdb = 'tt7700003';
     const hash = 'e'.repeat(40);
-    config.crawl.enabled = true;
-    config.crawl.dryRun = false;
     metrics.reset();
-
-    store.engine().upsertUrls('fake', [{ url: '/x', lastmod: '', kind: 'movie' }], 1);
-    const row = store.engine().takeNext('fake', 10) as CrawlUrlRow;
-    const site: CrawlSite = {
-      id: 'fake',
-      label: 'Fake',
-      discover: async (): Promise<CrawlDiscovery> => ({ urls: [], complete: true, failures: [] }),
-      fetchWork: async (url: string) => ({
-        url, status: 'done', imdb, title: 'Expresso do Amanhã', year: 2013, type: 'movie',
-        releases: [{
-          title: 'Expresso do Amanhã (2013) 1080p DUBLADO', magnet: magnet(hash),
-          indexer: 'vacatorrent', tracker: 'Vaca Torrent', isBr: true, seeders: 1, size: 1000,
-        }],
-      }),
-    };
-
     const recorder = createCrawlRecorder({ buildContext: async () => CONTEXT });
-    const process = createPageProcessor({ record: (siteId, obra, rel) => recorder.record(siteId, obra, rel) });
     bank.failNextWriteForTests();
-
-    const outcome = await process(site, row, { dryRun: false });
-    assert.equal(outcome.kind, 'error', 'flush falho vira erro retentável');
-    assert.equal(store.engine().getUrl('fake', '/x')?.status, 'error', 'a URL NÃO ficou done');
+    // O `/internal/crawl-result` devolve a rejeição ao sidecar, que marca a
+    // página como erro retentável (a URL não fica `done`).
+    await assert.rejects(
+      recorder.record('vacatorrent', { imdb, title: 'Expresso do Amanhã', year: 2013, kind: 'movie' }, [{
+        title: 'Expresso do Amanhã (2013) 1080p DUBLADO', magnet: magnet(hash),
+        indexer: 'vacatorrent', tracker: 'Vaca Torrent', isBr: true, seeders: 1, size: 1000,
+      }]),
+      /magnetbank-flush-falhou/,
+    );
     assert.equal(releaseIndex.lookup(imdb).length, 0, 'índice não recebeu o lote que não persistiu');
     assert.ok((metrics.snapshot().counters['crawl.record.flushFailed'] ?? 0) >= 1, 'métrica própria de falha');
   });
@@ -177,31 +161,17 @@ describe('crawl-recorder: integração real com o acervo e o índice', () => {
     const prevMax = config.magnetBank.queueMax;
     // needed=2 (capture+filter) com queueMax=1 → drop ANTES de qualquer push.
     config.magnetBank.queueMax = 1;
-    config.crawl.enabled = true;
-    config.crawl.dryRun = false;
     metrics.reset();
     try {
-      store.engine().upsertUrls('fake', [{ url: '/q', lastmod: '', kind: 'movie' }], 1);
-      const row = store.engine().takeNext('fake', 10) as CrawlUrlRow;
-      const site: CrawlSite = {
-        id: 'fake',
-        label: 'Fake',
-        discover: async (): Promise<CrawlDiscovery> => ({ urls: [], complete: true, failures: [] }),
-        fetchWork: async (url: string) => ({
-          url, status: 'done', imdb, title: 'Expresso do Amanhã', year: 2013, type: 'movie',
-          releases: [{
-            title: 'Expresso do Amanhã (2013) 1080p DUBLADO', magnet: magnet(hash),
-            indexer: 'vacatorrent', tracker: 'Vaca Torrent', isBr: true, seeders: 1, size: 1000,
-          }],
-        }),
-      };
-
       const recorder = createCrawlRecorder({ buildContext: async () => CONTEXT });
-      const process = createPageProcessor({ record: (siteId, obra, rel) => recorder.record(siteId, obra, rel) });
-      const outcome = await process(site, row, { dryRun: false });
-
-      assert.equal(outcome.kind, 'error', 'drop de fila é erro retentável');
-      assert.equal(store.engine().getUrl('fake', '/q')?.status, 'error', 'a URL NÃO ficou done');
+      await assert.rejects(
+        recorder.record('vacatorrent', { imdb, title: 'Expresso do Amanhã', year: 2013, kind: 'movie' }, [{
+          title: 'Expresso do Amanhã (2013) 1080p DUBLADO', magnet: magnet(hash),
+          indexer: 'vacatorrent', tracker: 'Vaca Torrent', isBr: true, seeders: 1, size: 1000,
+        }]),
+        /magnetbank-queue-dropped/,
+        'drop de fila é erro retentável',
+      );
       assert.equal(releaseIndex.lookup(imdb).length, 0, 'índice não recebeu lote descartado');
       assert.ok((metrics.snapshot().counters['crawl.record.queueDropped'] ?? 0) >= 1);
       assert.ok((metrics.snapshot().counters['magnetbank.queue.dropped'] ?? 0) >= 1);

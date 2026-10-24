@@ -7,8 +7,6 @@ import config from '../src/config.js';
 import { jackett } from '../src/config/jackett.js';
 import { liveIndexers } from '../src/providers/search-plan.js';
 import { probeIndexers, probeEnabled } from '../src/providers/br-probe.js';
-import { allowedSourceIndexer } from '../src/providers/allowed-source-indexer.js';
-import * as runtime from '../src/runtime.js';
 
 test('liveIndexers com exempt mantem o apache e ainda remove o 1337x', () => {
   const selecionados = ['thepiratebay', '1337x', 'apachetorrent-cardigann', 'redetorrent-cardigann'];
@@ -39,24 +37,6 @@ test('probeIndexers subtrai os isentos e continua nao-vazio, probeEnabled contin
   assert.ok(targets.includes('hdrtorrent-cardigann'), 'hdrtorrent-cardigann continua na sonda');
   assert.ok(targets.length > 0, 'intersecao nao-vazia');
   assert.equal(probeEnabled(), true, 'probeEnabled continua true');
-});
-
-test('trava regressao (1): allowedSourceIndexer continua true para apachetorrent com ji que nao o inclui', () => {
-  const customOpts = {
-    ...runtime.normalize(null),
-    providers: ['jackett'],
-    jackettIndexers: ['thepiratebay'],
-  };
-  runtime.run({ opts: customOpts, encoded: 'test-ji-no-apache' }, () => {
-    assert.equal(
-      allowedSourceIndexer('apachetorrent-cardigann'),
-      true,
-      'apache continua permitido mesmo quando o ji nao o inclui (semantica index-only preservada)',
-    );
-    assert.equal(allowedSourceIndexer('hdrtorrent-cardigann'), true);
-    assert.equal(allowedSourceIndexer('thepiratebay'), true);
-    assert.equal(allowedSourceIndexer('yts'), false);
-  });
 });
 
 test('trava regressao (2): a elegibilidade index-only do banco de magnets continua valendo para o apache', () => {

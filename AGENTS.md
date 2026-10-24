@@ -91,11 +91,12 @@ trabalho de código é em `src/`.
 - **Onde o Rust já substituiu o TS, o TS saiu** (a versão TS segue no branch
   `esm`, que é o oráculo dos goldens): os oito **resolvers BR** são o binário
   `adom-resolvers` (portas 8700–8707, supervisionado pelo entrypoint; o
-  `src/br-resolvers.ts` só lista e testa) e o **raspador dos oito cards** é o
-  sidecar `adom-sidecar` (`CRAWL_ENGINE=rust`, default; `CRAWL_ENGINE=ts` FICA
-  porque a suíte depende do loop TS do Mico). Em `resolvers/` ficou só o que o
-  provider do BLUDV e o Mico usam. A captura de fixtures do crawl
-  (`captureCrawlPage`/`scrubCrawlPage`) vive em `src/utils/crawl-capture.ts`.
+  `src/br-resolvers.ts` só lista e testa) e o **raspador dos nove sites** (oito
+  cards + Mico) é o sidecar `adom-sidecar`, que o entrypoint sempre sobe. O loop
+  TS do crawl, o adaptador TS do Mico, a sonda CLI de 40 e o knob `CRAWL_ENGINE`
+  saíram; o `crawler.ts` é só fachada do painel (status, pausa, "reprocessar sem
+  obra"; "reprocessar erros" e "zerar" vão ao sidecar). Em `resolvers/` ficou
+  só o que o provider do BLUDV e o Mico usam.
 - `ServerConfig.json` do Jackett vive no volume `./docker-data/jackett`;
   `FlareSolverrUrl` tem que ser `http://127.0.0.1:8191`. Definitions Cardigann
   vêm da imagem; nunca monte volume sobre elas. Cache do addon persiste em
@@ -315,9 +316,10 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
 única), cada site no seu ritmo, só com o app ocioso.
 
 - Registro fechado (`crawl-sites/registry.ts`): 8 cards do Jackett + Mico.
-  **Os 8 cards são do sidecar Rust** (`rust/crates/adom-crawl`, `rust: true` no
-  registro; o motor TS nunca os toca); em TS só o Mico. As regras abaixo sobre
-  descoberta, réguas e séries valem para o Rust (porte fiel do TS do `esm`).
+  **Os nove são do sidecar Rust** (`rust/crates/adom-crawl`, `rust: true` no
+  registro); não há motor TS. As regras abaixo sobre descoberta, réguas e
+  séries valem para o Rust (porte fiel do TS do `esm`, oráculo do golden
+  `crawl-policy`).
 - Duas formas de descoberta: **sitemap** (Vaca, Nerd, TDF, Comando, Rede, BLUDV)
   e **listagem paginada** (HDR, Apache; fim por contagem, âncora só no
   incremental, `lastmod` vazio de propósito). Mico: paginação simples (filtro de
@@ -356,8 +358,11 @@ paralelo limitado (`CRAWL_MAX_PARALLEL`, default 3; Flare-sites numa faixa
   sai em `unlocated` e só vira S1 se a obra tem UMA temporada no TMDB
   (`tvSeasonCount`, decidido no `crawl-page`). HDR: ficha `TVSeries` pedida
   como filme é lida como série agregada.
-- **A sonda de 40 é o portão** de entrada de um site novo (Wilson ≥ 50%); ela
-  mede também a régua do adaptador. Veredito é opt-in por `--write`.
+- **A sonda de 40 é o portão** de entrada de um site novo (Wilson ≥ 50%); o
+  CLI TS (`probe:crawl-site`) saiu com o último adaptador TS. Hoje o gate só lê
+  o veredito gravado; o `adom-crawl probe` lê UMA URL, não a amostra de 40.
+  Cuidado: o "Zerar site" do sidecar apaga o `crawl_state` inteiro, veredito
+  incluído (o TS o preservava).
 - **Vaca (`vacatorrent`)**: o fetch do crawl é `fetchTextCrawl` do profile — direto
   primeiro (reusa a sessão quente) e **FlareSolverr só com desafio do Cloudflare**
   (domínio `vaqueirofilmes1.com` desafia o fetch direto frio; antes isso pausava o

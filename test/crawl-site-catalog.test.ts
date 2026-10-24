@@ -15,7 +15,6 @@ const registry = await import('../src/providers/crawl-sites/registry.js');
 const { siteCatalog, siteHealth, CRAWL_HEALTH_WINDOW_MS } = await import('../src/providers/crawl-site-catalog.js');
 const indexerStatus = await import('../src/providers/indexer-status.js');
 const schema = await import('../src/utils/crawler-live-schema.js');
-import type { CrawlDiscovery, CrawlSite } from '../src/providers/crawl-types.js';
 
 const savedCrawl = { ...config.crawl };
 
@@ -38,17 +37,6 @@ after(() => {
   store.resetForTests();
   Object.assign(config.crawl, savedCrawl);
 });
-
-function fakeSite(id: string): CrawlSite {
-  return {
-    id,
-    label: `Site ${id}`,
-    discover: async (): Promise<CrawlDiscovery> => ({
-      urls: [{ url: `https://x.test/${id}/a`, lastmod: '2026-01-01', kind: 'movie' }], complete: true, failures: [],
-    }),
-    fetchWork: async (url: string) => ({ url, status: 'no-torrent' as const, releases: [] }),
-  };
-}
 
 describe('crawl catálogo: sites fora do .env', () => {
   test('site do catálogo nasce DESLIGADO; o do .env nasce ligado', () => {
@@ -193,29 +181,25 @@ describe('crawl catálogo: status e motor', () => {
     assert.equal(crawler.status().catalog.length, registry.SITE_TABLE.length, 'o status do painel carrega o catálogo');
   });
 
-  test('site Rust ligado pelo painel ganha card, mas o motor TS não o raspa', async () => {
-    crawler._setSitesForTest((id) => fakeSite(id));
+  test('site Rust ligado pelo painel ganha card, e o Node não mexe na fila dele', () => {
     Object.assign(config.crawl, { sites: [] });
     crawler.start();
     assert.equal(crawler.status().sites.length, 0, 'nada no .env, nada ligado');
     live.setSiteOverride('nerdfilmes', { enabled: true });
     assert.deepEqual(crawler.status().sites.map((s) => s.id), ['nerdfilmes']);
-    crawler._forceDiscoveryForTest();
-    for (let i = 0; i < 4; i += 1) await crawler.tick();
-    // Os oito cards do Jackett são do sidecar Rust: o motor TS nunca os toca.
-    assert.equal(store.engine().counters('nerdfilmes').total, 0, 'o motor TS não raspa site do sidecar');
+    // Os nove sites são do sidecar Rust: o Node só mostra o card.
+    assert.equal(store.engine().counters('nerdfilmes').total, 0, 'o Node não raspa site do sidecar');
   });
 
   test('ações por site aceitam o site ligado pelo painel (fora do CRAWL_SITES)', () => {
     // O bug: o NerdFilmes ligado no painel devolvia "0 URL(s)" com HTTP 200 em
-    // Reprocessar/Zerar, porque a validação olhava só o `.env`.
+    // Reprocessar/Zerar, porque a validação olhava só o `.env`. "Reprocessar
+    // erros" e "Zerar" agora vão ao sidecar; a ação local que sobra é esta.
     live.setSiteOverride('nerdfilmes', { enabled: true });
     store.engine().upsertUrls('nerdfilmes', [{ url: 'https://x.test/a', lastmod: '', kind: 'movie' }], 1);
     store.engine().markResult('nerdfilmes', 'https://x.test/a', { status: 'no-work', imdb: null, releases: 0 }, 1);
     const noWork = crawler.reprocessNoWork('nerdfilmes');
     assert.deepEqual({ ok: noWork.ok, requeued: noWork.requeued }, { ok: true, requeued: 1 });
-    assert.equal(crawler.reprocessErrors('nerdfilmes').ok, true);
-    assert.equal(crawler.resetSite('nerdfilmes').ok, true);
   });
 
   test('site fora do motor é recusado com motivo, nunca "0" mudo', () => {

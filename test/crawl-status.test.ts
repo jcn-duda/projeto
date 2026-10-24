@@ -15,8 +15,6 @@ const crawler = await import('../src/providers/crawler.js');
 const live = await import('../src/utils/crawler-live.js');
 const { PROBE_STATE_KEY } = await import('../src/providers/crawl-probe-gate.js');
 const { buildCrawlerStatus, buildSiteStatus, legacyView, STATUS_LIST_LIMIT } = await import('../src/providers/crawl-status.js');
-import type { CrawlDiscovery, CrawlSite } from '../src/providers/crawl-types.js';
-import type { RawItem } from '../types/domain.js';
 
 const savedCrawl = { ...config.crawl };
 
@@ -40,28 +38,6 @@ function freshCrawl(overrides: Record<string, unknown> = {}): void {
 }
 
 const movie = (url: string, lastmod = '2026-01-01') => ({ url, lastmod, kind: 'movie' as const });
-
-function item(seed: string): RawItem {
-  const hash = (seed.replace(/\W/g, '') + '0'.repeat(40)).slice(0, 40).padEnd(40, '0');
-  return {
-    title: `Fake (2000) 1080p DUBLADO`, magnet: `magnet:?xt=urn:btih:${hash}`,
-    indexer: 'fake', tracker: 'Fake', isBr: true, seeders: 1, size: 1000,
-  };
-}
-
-/** Site dublê: `/done` rende release; `/nostream` é só streaming. */
-function fakeSite(): CrawlSite {
-  return {
-    id: 'fake',
-    label: 'Fake Site',
-    discover: async (): Promise<CrawlDiscovery> => ({
-      urls: [movie('/done'), movie('/nostream')], complete: true, failures: [],
-    }),
-    fetchWork: async (url: string) => (url === '/nostream'
-      ? { url, status: 'no-torrent' as const, imdb: null, releases: [] }
-      : { url, status: 'done' as const, imdb: 'tt1000000', title: 'Fake', year: 2000, type: 'movie' as const, releases: [item(url)] }),
-  };
-}
 
 beforeEach(() => {
   crawler._resetForTest();
@@ -123,16 +99,18 @@ describe('crawl-store: consultas de leitura e ações', () => {
 describe('crawler: status por site (Fase 4)', () => {
   test('card do site: fase, progresso, magnets, listas e ETA', async () => {
     freshCrawl(); // delay 0 → ritmo = teto por hora (1000 páginas/h)
-    crawler._setSitesForTest(() => fakeSite());
-    crawler._forceDiscoveryForTest();
-    await crawler.tick(); // descoberta (semeia /done e /nostream)
-    await crawler.tick(); // página /done
+    // O sidecar é quem raspa: aqui o estado é semeado direto no `crawl.db`
+    // (o mesmo banco que ele escreve) — /done lida em dry-run, /nostream na fila.
+    store.engine().upsertUrls('fake', [movie('/done'), movie('/nostream')], 1);
+    const claimed = store.engine().takeNext('fake', 2);
+    assert.equal(claimed?.url, '/done');
+    store.engine().markResult('fake', '/done', { status: 'simulated', imdb: 'tt1000000', releases: 1 }, 3);
 
     const status = crawler.status();
     assert.equal(status.sitesConfigured[0], 'fake');
     const site = status.sites.find((s) => s.id === 'fake');
     assert.ok(site, 'card do site existe');
-    assert.equal(site?.label, 'Fake Site');
+    assert.equal(site?.label, 'fake', 'id fora da tabela: o rótulo é o próprio id');
     assert.equal(site?.total, 2);
     assert.equal(site?.byStatus.simulated, 1); // motor em dryRun:true
     assert.equal(site?.simulatedAwaiting, 1, 'painel recebe o N de simuladas aguardando gravação');
@@ -140,7 +118,7 @@ describe('crawler: status por site (Fase 4)', () => {
     assert.equal(site?.progressPercent, 0);
     assert.equal(site?.magnetsFound, 1);
     assert.ok(site ? site.ratePerHour >= 1 : false);
-    assert.equal(site?.etaHours, 0, 'uma página restante (simulated) em 1000/h arredonda para 0');
+    assert.equal(site?.etaHours, null, 'o custo por página é medido pelo sidecar: sem ele o ETA honesto é null');
     assert.equal(site?.recentWorks.length, 0, 'sem gravação não há obra "feita" no histórico');
     assert.deepEqual(site?.noWork, []);
   });
@@ -219,50 +197,17 @@ describe('crawler: status por site (Fase 4)', () => {
     );
   });
 
-  test('simulate NÃO consome a fila nem grava estado (dry-run/noPersist)', async () => {
+  test('simulate sem adaptador TS: responde sem-adaptador e não toca a fila', async () => {
     store.engine().upsertUrls('fake', [movie('/done'), movie('/nostream')], 1);
-    crawler._setSitesForTest(() => fakeSite());
     const before = store.engine().counters('fake');
-    const result = await crawler.simulate(20);
-    assert.equal(result.ok, true);
-    assert.equal(result.pages, 2);
-    assert.equal(result.results.length, 2);
-    assert.ok(result.results.some((r) => r.kind === 'simulated' && r.releases === 1));
-    const after = store.engine().counters('fake');
-    assert.deepEqual(after.byStatus, before.byStatus, 'status da fila inalterado');
-    assert.equal(after.total, before.total);
-    // As URLs voltaram a `pending` (a simulação não consome a página).
-    assert.equal(store.engine().getUrl('fake', '/done')?.status, 'pending');
-  });
-});
-
-describe('crawl-actions: simulação nunca deixa inflight órfão', () => {
-  test('adaptador falhando após takeNext devolve a URL reclamada à fila', async () => {
-    store.engine().upsertUrls('fake', [movie('/a'), movie('/b')], 1);
-    crawler._setSitesForTest(() => ({
-      id: 'fake',
-      label: 'Fake',
-      discover: async (): Promise<CrawlDiscovery> => ({ urls: [], complete: true, failures: [] }),
-      fetchWork: async () => { throw new Error('adaptador fora do ar'); },
-    } as CrawlSite));
-
-    const result = await crawler.simulate(20);
-    assert.equal(result.ok, true);
-    assert.equal(result.pages, 2);
-    const counters = store.engine().counters('fake');
-    assert.equal(counters.byStatus.inflight, 0, 'nenhuma URL fica inflight (órfã)');
-    assert.equal(counters.byStatus.pending, 2, 'as duas voltam à fila');
-  });
-
-  test('sem adaptador: nenhuma URL é reclamada e a fila fica intacta', async () => {
-    store.engine().upsertUrls('fake', [movie('/a')], 1);
-    crawler._setSitesForTest(() => null);
     const result = await crawler.simulate(20);
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'sem-adaptador');
-    const counters = store.engine().counters('fake');
-    assert.equal(counters.byStatus.inflight, 0);
-    assert.equal(counters.byStatus.pending, 1);
+    assert.equal(result.site, 'fake');
+    assert.equal(result.pages, 0);
+    const after = store.engine().counters('fake');
+    assert.deepEqual(after.byStatus, before.byStatus, 'status da fila inalterado');
+    assert.equal(after.byStatus.inflight, 0, 'nenhuma URL é reclamada');
   });
 });
 

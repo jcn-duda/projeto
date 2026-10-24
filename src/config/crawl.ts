@@ -130,13 +130,7 @@ export const crawl = () => ({
   // afirmar que cobriu. Dimensionado contra o teto por hora acima: 20 páginas
   // × 20 cards = 400 URLs por rodada, e o acervo inteiro leva ~5 rodadas.
   listingMaxPagesPerRound: Math.max(1, Math.trunc(num(process.env.CRAWL_LISTING_MAX_PAGES_PER_ROUND, 20))),
-  // Motor do raspador: 'rust' (default, sidecar) ou 'ts' (LEGADO). Desde a
-  // Fase 6 os nove sites — oito do Jackett + o Mico — têm adaptador no sidecar
-  // e nenhum tem adaptador TS: com 'ts' o sidecar não sobe e o TS não raspa
-  // nada. O knob fica porque as rotas do painel ainda escolhem o caminho das
-  // ações (proxy do sidecar × execução local) e um adaptador TS futuro o usa.
-  crawlEngine: process.env.CRAWL_ENGINE === 'ts' ? 'ts' as const : 'rust' as const,
-  // Porta do sidecar Rust (quando CRAWL_ENGINE=rust). O sidecar escuta em
+  // Porta do sidecar Rust do raspador (dono dos nove sites). Ele escuta em
   // 127.0.0.1:<porta> e responde /status e /action.
   sidecarPort: Math.max(1, Math.trunc(num(process.env.CRAWL_SIDECAR_PORT, 7077))),
   // Prazo da foto do sidecar no /dashboard-status.json (ms): sidecar travado

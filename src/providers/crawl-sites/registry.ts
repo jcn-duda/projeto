@@ -1,35 +1,17 @@
-// Registro de adaptadores do motor de raspagem (Fase 8: MULTI-SITE). Extraído
-// de `crawler.ts` pela catraca de linhas: quem SABE resolver o site e quem
-// memoiza o adaptador de cada site. Sem estado de ritmo/fila aqui: isso é do
-// motor.
-//
-// A TABELA é explícita e fechada: os oito cards BR do Jackett mais o addon
-// Mico Leão Dublado (nove no total). Os NOVE são raspados pelo sidecar Rust
-// (`adom-crawl`); a máquina de módulo/export continua existindo como escape
-// para um adaptador TS futuro e para o dublê de teste, mas nenhuma entrada da
-// tabela a usa hoje. Nenhuma varredura por `Object.values` chamando função
-// desconhecida — e site sem entrada aparece como indisponível no status em vez
-// de sumir (o operador precisa ver "sem adaptador" como diagnóstico).
-//
-// A memoização é um MAPA por id (o motor alterna entre sites na mesma rotação;
-// resolver o módulo a cada passo custaria um import por página). O "site
-// ativo" continua exposto para o status legado do topo.
-import * as log from '../../utils/logger.js';
-import type { CrawlSite } from '../crawl-types.js';
-
-type SiteModule = Record<string, unknown>;
+// Tabela dos sites do raspador (Fase 8: MULTI-SITE). Fechada e explícita: os
+// oito cards BR do Jackett mais o addon Mico Leão Dublado (nove no total),
+// todos raspados pelo sidecar Rust (`adom-crawl`). A máquina de adaptador TS
+// (módulo/export resolvido por import dinâmico, memo e fábrica de teste) saiu
+// com o loop TS: não sobrou site com adaptador TS. Site fora da tabela aparece
+// como desconhecido no status em vez de sumir.
 
 /** Uma entrada da tabela: onde o site está e como ele se apresenta. */
 export interface SiteEntry {
   id: string;
   label: string;
-  /** Módulo do adaptador; `null` = sem adaptador NESTA RODADA. */
-  module: (() => Promise<SiteModule>) | null;
-  /** Export nomeado que devolve o `CrawlSite` (ou a fábrica dele). */
-  exportName: string | null;
   /** Observação para o status (por que não há adaptador, por exemplo). */
   note?: string;
-  /** Adaptador no sidecar Rust (`adom-crawl`): o motor TS nunca o processa. */
+  /** Adaptador no sidecar Rust (`adom-crawl`). */
   rust?: boolean;
   /**
    * Ritmo PRÓPRIO: o adaptador tem limitador interno e não usa Jackett nem
@@ -40,7 +22,7 @@ export interface SiteEntry {
 }
 
 /** Site raspado pelo sidecar Rust: sem módulo TS, mas com adaptador (lá). */
-const RUST = { module: null, exportName: null, rust: true, note: 'raspado pelo sidecar Rust' } as const;
+const RUST = { rust: true, note: 'raspado pelo sidecar Rust' } as const;
 
 /**
  * TABELA DOS SITES BR. O `id` é o do CARD do Jackett — é ele que amarra o item
@@ -68,15 +50,9 @@ export const SITE_TABLE: SiteEntry[] = [
 
 const TABLE = new Map<string, SiteEntry>(SITE_TABLE.map((entry) => [entry.id, entry]));
 
-let testSiteFactory: ((id: string) => CrawlSite | null) | null = null;
-const memo = new Map<string, CrawlSite>();
-const warned = new Set<string>();
-let activeSite: CrawlSite | null = null;
-let activeSiteId = '';
-
-/** Há adaptador, em TS (módulo) ou no sidecar Rust. */
+/** Há adaptador (no sidecar Rust). */
 function hasAdapter(entry: SiteEntry): boolean {
-  return Boolean((entry.module && entry.exportName) || entry.rust);
+  return entry.rust === true;
 }
 
 /** O site é raspado pelo sidecar Rust (ver `SiteEntry.rust`)? */
@@ -117,97 +93,3 @@ export function siteInfo(siteId: string): {
   const has = hasAdapter(entry);
   return { id, label: entry.label, known: true, adapter: has, note: has ? null : (entry.note ?? 'sem adaptador') };
 }
-
-/** Injeta fábrica de teste (o motor nunca toca o site real nos testes). */
-export function setFactoryForTest(factory: ((id: string) => CrawlSite | null) | null): void {
-  testSiteFactory = factory;
-  memo.clear();
-  warned.clear();
-  activeSite = null;
-  activeSiteId = '';
-}
-
-/** Site ativo memoizado (o status do painel o usa como "site ativo"). */
-export function active(): { site: CrawlSite | null; id: string } {
-  return { site: activeSite, id: activeSiteId };
-}
-
-/** True quando o objeto tem o par de métodos que o motor consome. */
-function isCrawlSite(value: unknown): value is CrawlSite {
-  if (!value || typeof value !== 'object') return false;
-  const site = value as { discover?: unknown; fetchWork?: unknown };
-  return typeof site.discover === 'function' && typeof site.fetchWork === 'function';
-}
-
-/**
- * Extrai o `CrawlSite` pelo NOME do export declarado na tabela. Aceita o objeto
- * pronto e a fábrica (sem argumentos). Export desconhecido ou incompatível é
- * `null` com aviso — nunca uma chamada cega em export desconhecido.
- */
-function siteFromModule(mod: SiteModule, exportName: string): CrawlSite | null {
-  const value = mod[exportName];
-  if (isCrawlSite(value)) return value;
-  if (typeof value === 'function') {
-    try {
-      const built = (value as () => unknown)();
-      if (isCrawlSite(built)) return built;
-    } catch (err: unknown) {
-      log.warn(`[crawl] ${exportName}() falhou:`, log.errorMessage(err));
-    }
-  }
-  return null;
-}
-
-function warnOnce(siteId: string, message: string, isError: boolean): void {
-  if (warned.has(siteId)) return;
-  warned.add(siteId);
-  if (isError) log.error(message);
-  else log.warn(message);
-}
-
-/**
- * Garante o adaptador de um site (resolve uma vez e memoiza por id).
- * `null` é sempre EXPLICITO: id fora da tabela, sem adaptador nesta rodada, ou
- * módulo/import quebrado. O motor marca o site como `sem-adaptador` e o painel
- * mostra o motivo no card.
- */
-export async function ensureSite(siteId: string): Promise<CrawlSite | null> {
-  const id = String(siteId || '');
-  if (!id) return null;
-  const cached = memo.get(id);
-  if (cached) {
-    activeSite = cached;
-    activeSiteId = id;
-    return cached;
-  }
-  try {
-    let site: CrawlSite | null = null;
-    if (testSiteFactory) {
-      site = testSiteFactory(id);
-    } else {
-      const entry = TABLE.get(id);
-      if (!entry) {
-        warnOnce(id, `[crawl] site fora da tabela BR: ${id}`, false);
-        return null;
-      }
-      if (!entry.module || !entry.exportName) {
-        warnOnce(id, `[crawl] site sem adaptador nesta rodada: ${id} (${entry.note ?? 'pendente'})`, false);
-        return null;
-      }
-      site = siteFromModule(await entry.module(), entry.exportName);
-    }
-    if (!site) {
-      warnOnce(id, `[crawl] adaptador sem CrawlSite exportado: ${id}`, false);
-      return null;
-    }
-    memo.set(id, site);
-    warned.delete(id);
-    activeSite = site;
-    activeSiteId = id;
-    return site;
-  } catch (err: unknown) {
-    warnOnce(id, `[crawl] adaptador ${id} indisponível: ${log.errorMessage(err)}`, true);
-    return null;
-  }
-}
-

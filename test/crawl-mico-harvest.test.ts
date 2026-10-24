@@ -22,7 +22,6 @@ const cache = await import('../src/utils/cache.js');
 const { _resetCoverageMemoForTest } = await import('../src/providers/crawl-coverage.js');
 const { CURSOR_STATE_KEY } = await import('../src/providers/crawl-cursor.js');
 const harvestWorker = await import('../src/providers/harvest-worker.js');
-const micoCrawl = await import('../src/providers/crawl-sites/mico.js');
 
 const savedCrawl = { ...config.crawl };
 const savedMico = { ...config.mico };
@@ -47,7 +46,6 @@ beforeEach(() => {
     coverHarvest: true, coverMaxPending: 50, dbPath: savedCrawl.dbPath,
   });
   Object.assign(config.mico, { enabled: true, harvest: true, crawlMinGapMs: 0 });
-  micoCrawl._resetThrottleForTest();
   config.jackett.indexers = [];
   config.tmdb.apiKey = '';
   config.bludv.enabled = false;
@@ -61,7 +59,6 @@ after(() => {
   config.jackett.indexers = savedJackett;
   config.tmdb.apiKey = savedTmdb;
   config.bludv.enabled = savedBludv;
-  micoCrawl._resetThrottleForTest();
 });
 
 /** Dublê: stream do Mico devolve vazio (a obra existe, só não tem torrent). */
