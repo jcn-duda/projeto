@@ -3883,7 +3883,19 @@ o orçamento com a resposta.
   advisories `GHSA-x5fp-wj9c-mxmx` e `GHSA-4mjr-xmp4-gh2g` sem migrar
   Express de major. Preserve o lockfile e valide suíte + audit de produção
   ao atualizar ou remover o override.
-- **`overrides.proxy-addr` é o único dos três que NÃO fecha um buraco deste
+- **`overrides.body-parser` fecha um DoS ALCANÇÁVEL, numa rota pública.**
+  `GHSA-27r3-jxmh-p828` (alto, `<1.20.9`): bytes de lixo DEPOIS do corpo
+  comprimido fazem o parser gastar CPU/memória além do `limit` declarado. Aqui
+  isso NÃO é teórico — o `POST /seal-config` é público (o Caddy o libera junto
+  com `/configure`) e usa `express.text({ type: () => true, limit: '16kb' })`,
+  com `inflate` no default `true`: corpo gzip malformado entra pelo caminho
+  vulnerável sem token nenhum. As outras duas rotas de corpo
+  (`/dashboard-action.json`, `/internal/crawl-result`) pedem token, mas a
+  pública basta. O Express 4.22.2 pede `~1.20.5`, faixa que já admite o
+  `1.20.9` corrigido; o override o fixa em toda a árvore (mesma major, sem
+  migrar Express, sem virar dependência direta). Preserve o lockfile e valide
+  suíte + `npm audit --omit=dev` ao atualizar ou remover.
+- **`overrides.proxy-addr` é o único dos quatro que NÃO fecha um buraco deste
   addon** — e é honesto dizer por quê. O `GHSA-jqcg-44mw-7w3h` (crítico,
   `<=2.0.7`) é spoofing de IP via subrede confiada em IPv4 mapeado em IPv6
   (`::ffff:a.b.c.d`): quem confia num proxy aceitaria o `X-Forwarded-For`
