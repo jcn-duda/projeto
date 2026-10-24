@@ -1,7 +1,9 @@
-// Dono único no MESMO cache.db: `idx` (IdxStore) e o prefixo `raw:v1:bludv:`
-// (gateway no `/stream`) não podem ter o Node como segundo escritor. Sem a
-// guarda, o `get` expirado do L1 chama `forget` e o DELETE apaga a linha fresca
-// que o Rust acabou de gravar — e o boot seguinte sobe a cópia velha.
+// Dono único no MESMO cache.db: `idx`, `raw` (RawStore do napi) e `streams`
+// não podem ter o Node como segundo escritor. Sem a guarda, o `get` expirado
+// do L1 chama `forget` e o DELETE apaga a linha fresca que o Rust acabou de
+// gravar — e o boot seguinte sobe a cópia velha. Desde a F3 o `raw` é
+// RUST_OWNED pelo namespace INTEIRO (o escritor TS do Jackett saiu; a leitura
+// do diagnóstico vai pela ponte napi).
 import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -22,7 +24,7 @@ let cacheSeq = 0;
 const openCache = (tag: string): Promise<any> =>
   import(`${CACHE_URL}?${tag}=${Date.now()}-${cacheSeq++}`);
 
-test('raw:v1:bludv é do gateway; raw:v1:jackett e idx seguem o contrato do Node', {
+test('raw:v1 é do gateway inteiro (bludv e jackett); idx segue o contrato do Node', {
   skip: !hasNodeSqlite && 'node:sqlite ausente',
 }, async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'adom-foreign-'));
@@ -42,28 +44,28 @@ test('raw:v1:bludv é do gateway; raw:v1:jackett e idx seguem o contrato do Node
     const db = new DatabaseSync(dbPath);
     const insert = db.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
     insert.run('raw:v1:bludv:d:matrix', JSON.stringify({ items: ['gateway'] }), expiry);
-    insert.run('raw:v1:jackett:bludv:movie:matrix', JSON.stringify({ items: ['node'] }), expiry);
+    insert.run('raw:v1:jackett:bludv:movie:matrix', JSON.stringify({ items: ['gateway'] }), expiry);
     insert.run('idx:v14:tt0133093', JSON.stringify({ rows: [] }), expiry);
     db.close();
 
     const cache = await openCache('fresh');
     assert.equal(cache.peek('raw:v1:bludv:d:matrix'), null, 'linha do gateway não sobe no L1');
-    assert.deepEqual(cache.get('raw:v1:jackett:bludv:movie:matrix'), { items: ['node'] });
+    assert.equal(cache.get('raw:v1:jackett:bludv:movie:matrix'), null, 'jackett também é do gateway');
     assert.equal(cache.get('idx:v14:tt0133093'), null, 'idx continua sem L1');
 
-    cache.forget('raw:v1:bludv:d:matrix');
+    cache.forget('raw:v1:jackett:bludv:movie:matrix');
     cache.set('raw:v1:bludv:d:novo', { items: ['node'] }, 600);
     assert.equal(cache.has('raw:v1:bludv:d:novo'), false, 'set do Node recusa a chave do gateway');
     cache.close();
 
     const db2 = new DatabaseSync(dbPath);
     const rows = db2
-      .prepare("SELECT key FROM cache WHERE key LIKE 'raw:v1:bludv:%' ORDER BY key")
+      .prepare("SELECT key FROM cache WHERE key LIKE 'raw:v1:%' ORDER BY key")
       .all() as { key: string }[];
     db2.close();
     assert.deepEqual(
       rows.map((row) => row.key),
-      ['raw:v1:bludv:d:matrix'],
+      ['raw:v1:bludv:d:matrix', 'raw:v1:jackett:bludv:movie:matrix'],
       'nem forget nem set do Node tocam o L2 do gateway',
     );
   } finally {

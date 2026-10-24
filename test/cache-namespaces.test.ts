@@ -102,7 +102,7 @@ test('cotas: split RD (rdc ledger, rdq fila, rdt Torrentio) preserva a folga do 
   }
 });
 
-test('estouro de raw despeja só o próprio namespace e preserva outro balde', async () => {
+test('raw é dono no gateway: o set do Node recusa o namespace inteiro e não monta balde', async () => {
   const originalPersist = process.env.CACHE_PERSIST;
   try {
     process.env.CACHE_PERSIST = 'false';
@@ -110,15 +110,16 @@ test('estouro de raw despeja só o próprio namespace e preserva outro balde', a
     const RAW_QUOTA = cache.QUOTAS.raw;
 
     cache.set('davail:v1:premiumize:tt-vizinho:h', { available: true }, TTL_S);
-    for (let i = 0; i < RAW_QUOTA; i += 1) {
+    // A cota de raw (800) passou a ser aplicada pelo RawCacheStore no gateway
+    // (`raw_tests.rs`); no Node nem a primeira linha entra — segundo escritor
+    // deixaria o `forget`/prune apagar linha fresca do Rust.
+    for (let i = 0; i < RAW_QUOTA + 1; i += 1) {
       cache.set(`raw:v1:jackett:yts:movie:t-${i}`, { items: [] }, TTL_S);
     }
-    cache.set('raw:v1:jackett:yts:movie:overflow', { items: ['overflow'] }, TTL_S);
 
     assert.deepEqual(cache.get('davail:v1:premiumize:tt-vizinho:h'), { available: true });
-    assert.equal(cache.get('raw:v1:jackett:yts:movie:t-0'), null, 'LRU de raw sai na própria cota');
-    assert.deepEqual(cache.get('raw:v1:jackett:yts:movie:overflow'), { items: ['overflow'] });
-    assert.equal(cache.snapshot().namespaces.raw.entries, RAW_QUOTA);
+    assert.equal(cache.get('raw:v1:jackett:yts:movie:t-0'), null, 'linha raw não sobe no L1');
+    assert.equal(cache.snapshot().namespaces.raw, undefined, 'balde raw não é montado no Node');
   } finally {
     if (originalPersist === undefined) delete process.env.CACHE_PERSIST;
     else process.env.CACHE_PERSIST = originalPersist;
@@ -152,16 +153,16 @@ test('hit/miss por namespace: contadores globais ganham o sufixo do balde', asyn
     const cache = await freshCache();
     metrics.reset();
 
-    cache.set('raw:v1:jackett:yts:movie:coringa', { itens: [] }, TTL_S);
-    assert.deepEqual(cache.get('raw:v1:jackett:yts:movie:coringa'), { itens: [] });
-    cache.get('raw:v1:jackett:yts:movie:faltante');
+    cache.set('davail:v1:premiumize:tt-coringa:h', { itens: [] }, TTL_S);
+    assert.deepEqual(cache.get('davail:v1:premiumize:tt-coringa:h'), { itens: [] });
+    cache.get('davail:v1:premiumize:tt-faltante:h');
     cache.get('sem-prefixo');
 
     const counters = metrics.snapshot().counters;
     assert.equal(counters['cache.hit'], 1, 'contador global de hit preservado');
-    assert.equal(counters['cache.hit.raw'], 1, 'hit ganha o sufixo do namespace');
+    assert.equal(counters['cache.hit.davail'], 1, 'hit ganha o sufixo do namespace');
     assert.equal(counters['cache.miss'], 2, 'contador global de miss preservado');
-    assert.equal(counters['cache.miss.raw'], 1, 'miss ganha o sufixo do namespace');
+    assert.equal(counters['cache.miss.davail'], 1, 'miss ganha o sufixo do namespace');
     assert.equal(counters['cache.miss.__default'], 1, 'chave sem prefixo cai no balde padrão');
   } finally {
     metrics.reset();

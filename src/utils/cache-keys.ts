@@ -189,12 +189,16 @@ const prefix = (ns: keyof typeof NAMESPACE_VERSIONS) => `${ns}:${NAMESPACE_VERSI
 // Dono ÚNICO por namespace, declarado pelo DONO DE EXECUÇÃO (quem tem o timer
 // ou a rota que grava):
 //   `idx`     — IdxStore do gateway, no MESMO cache.db;
-//   `streams` — `data/streams.db` do gateway (F4.4a), o SWR do corte.
+//   `streams` — `data/streams.db` do gateway (F4.4a), o SWR do corte;
+//   `raw`     — RawCacheStore do gateway (F3, dono único): o escritor TS do
+//               Jackett saiu e o leitor do diagnóstico lê pela ponte napi
+//               (`raw-store-native.ts`), como o idx.
 // O Node não lê nem grava esses namespaces no L1/L2 — segundo escritor deixa o
 // disco incoerente com o handle nativo (rollback é commit/imagem anterior). A
-// superfície do Node é só a ponte administrativa (`streams-store-native.ts`):
-// a leitura do L1 nasce vazia e cai nela; escrita e invalidação vão por ela.
-const RUST_OWNED = Object.freeze(['idx', 'streams']);
+// superfície do Node é só a ponte (`streams-store-native.ts` /
+// `raw-store-native.ts`): a leitura do L1 nasce vazia e cai nela; escrita e
+// invalidação vão por ela.
+const RUST_OWNED = Object.freeze(['idx', 'streams', 'raw']);
 
 // Dono por PREFIXO dentro de namespace compartilhado: `raw:v1` é do gateway no
 // BLUDV (chave e arquivo iguais) e do Node no Jackett. Sem esta guarda o

@@ -20,6 +20,7 @@ import {
 import { createPersistence } from './cache-db.js';
 import { isRustOwned, isForeignKey } from './cache-keys.js';
 import { clearIdxStore } from './release-index-store.js';
+import { clearRawStore } from './raw-store-native.js';
 
 const store = new Map();
 const namespaceCounts = new Map();
@@ -233,8 +234,8 @@ function setMany(entries: { key: string; value: unknown; ttlSeconds: number }[])
   for (const { key, value, ttlSeconds } of valid) {
     const expiresAt = Date.now() + ttlSeconds * 1000;
     const namespace = namespaceFor(key);
-    // RUST_OWNED e o prefixo BLUDV do `raw` têm dono único: segundo escritor
-    // no L1 faria o `forget`/prune do Node apagar a linha fresca do gateway.
+    // RUST_OWNED tem dono único: segundo escritor no L1 faria o `forget`/prune
+    // do Node apagar a linha fresca do gateway.
     if (isRustOwned(namespace) || isForeignKey(key)) continue;
     removeFromStore(key); // reinsere no fim para a ordem refletir o uso mais recente
     store.set(key, { value, expiresAt, namespace });
@@ -291,18 +292,18 @@ function clear() {
   pending.clear();
   persistence.clearDisk();
   // O disco é o mesmo arquivo que o Rust lê, mas um handle em memória
-  // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa o idx também.
+  // (`CACHE_PERSIST=false`) não é tocado pelo truncate: limpa idx e raw também.
   clearIdxStore();
+  clearRawStore();
 }
 
 /** Remove só o namespace pedido, sem esfriar os outros baldes. */
 function clearNamespace(namespace: string) {
   const wanted = String(namespace || '');
   if (!wanted) return 0;
-  // RUST_OWNED não passa pelo L1: `idx` tem handle nativo (o IdxStore lê o
-  // mesmo cache.db). `raw` é compartilhado: o clearWhere abaixo só alcança as
-  // chaves do Node (jackett) — o prefixo BLUDV nunca entra no L1.
-  const fromRust = wanted === 'idx' ? clearIdxStore() : 0;
+  // RUST_OWNED não passa pelo L1: `idx` e `raw` têm handle nativo (IdxStore e
+  // RawStore leem o mesmo cache.db) — o clear deles é inteiro no Rust.
+  const fromRust = wanted === 'idx' ? clearIdxStore() : wanted === 'raw' ? clearRawStore() : 0;
   return clearWhere((key) => namespaceFor(key) === wanted) + fromRust;
 }
 

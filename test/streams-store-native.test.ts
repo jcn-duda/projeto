@@ -210,7 +210,7 @@ test('painel: clear-cache global limpa o nativo e relata o que aconteceu', async
   });
   const server = await createTestServer();
   try {
-    cache.set('raw:ponte-probe', { ok: 1 }, 60);
+    cache.set('davail:ponte-probe', { ok: 1 }, 60);
     const res = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
       body: { action: 'clear-cache', confirm: true },

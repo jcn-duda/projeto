@@ -238,7 +238,9 @@ test(
 // `raw1:` e `dinv1:` eram a versão colada no nome; hoje vivem como `raw:v1:` e
 // `dinv:v1:`. Elas NÃO caem no loop de namespace versionado (`raw1:...` não
 // casa `LIKE 'raw:%'`), então a limpeza precisa do loop de LEGACY_PREFIXES —
-// sem ele o lixo órfão ficaria no banco até expirar, ocupando cota.
+// sem ele o lixo órfão ficaria no banco até expirar, ocupando cota. A linha
+// `raw:v1` fica como prova extra: dono no gateway (RUST_OWNED), ela não sobe no
+// L1 e a poda do boot não a toca.
 const LEGACY_PREFIX_DISCARD_SCRIPT = [
   "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
@@ -249,13 +251,13 @@ const LEGACY_PREFIX_DISCARD_SCRIPT = [
   'const now = Date.now();',
   "insert.run('raw1:jackett:yts:movie:tt-x', JSON.stringify({ items: ['legado'] }), now + 900000);",
   "insert.run('dinv1:alldebrid:acc', JSON.stringify({ ready: true }), now + 900000);",
-  "insert.run('raw:v1:jackett:yts:movie:tt-y', JSON.stringify({ items: ['novo'] }), now + 900000);",
+  "insert.run('raw:v1:jackett:yts:movie:tt-y', JSON.stringify({ items: ['gateway'] }), now + 900000);",
   'seed.close();',
   '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  // O formato novo é o que o código lê; os legados são lixo a ser varrido.
-  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-y'), { items: ['novo'] }, 'raw:v1 sobe do disco');",
+  // Os legados são lixo a ser varrido; o raw:v1 é do gateway e não entra no L1.
+  "assert.strictEqual(cache.get('raw:v1:jackett:yts:movie:tt-y'), null, 'raw:v1 (dono no gateway) nao sobe no L1');",
   "assert.strictEqual(cache.get('raw1:jackett:yts:movie:tt-x'), null, 'raw1 nao entra no L1');",
   "assert.strictEqual(cache.get('dinv1:alldebrid:acc'), null, 'dinv1 nao entra no L1');",
   '',
@@ -265,21 +267,19 @@ const LEGACY_PREFIX_DISCARD_SCRIPT = [
   "const dinv1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'dinv1:%'\").all();",
   "assert.strictEqual(dinv1Rows.length, 0, 'prefixo legado dinv1 apagado do disco');",
   "const rawV1Rows = dbVerify.prepare(\"SELECT key FROM cache WHERE key LIKE 'raw:v1:%'\").all();",
-  "assert.strictEqual(rawV1Rows.length, 1, 'raw:v1 continua no disco');",
+  "assert.strictEqual(rawV1Rows.length, 1, 'raw:v1 continua no disco (a poda do Node nao toca dono estrangeiro)');",
   'dbVerify.close();',
 ].join('\n');
 
 test(
-  'prefixos aposentados no disco: raw1:/dinv1: somem do SQLite no boot, raw:v1 permanece',
+  'prefixos aposentados no disco: raw1:/dinv1: somem do SQLite no boot, raw:v1 permanece intacto',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(LEGACY_PREFIX_DISCARD_SCRIPT),
 );
 
-// A cota do balde de resultado bruto foi renomeada de `raw1` para `raw` junto
-// com a chave versionada. Se o loadFromDisk usasse o nome velho, a cota `raw`
-// (800) não existiria e as 810 linhas cairiam na cota padrão (500) — jogando
-// 310 fora. O teste também reabre o banco: as excedentes têm que sair do disco
-// via forgetMany(skipped), senão o próximo restart repete o trabalho.
+// A cota de 800 do `raw` agora é aplicada pelo RawCacheStore no gateway
+// (`raw_tests.rs`); o boot do Node não pode mais tocá-la: dono único no Rust
+// significa NENHUMA linha sobe no L1 e NENHUMA sai do disco — nem excedente.
 const RAW_QUOTA_RENAME_SCRIPT = [
   "import assert from 'node:assert';",
   'delete process.env.CACHE_PERSIST;',
@@ -297,22 +297,17 @@ const RAW_QUOTA_RENAME_SCRIPT = [
   '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  // A seleção vem do TTL mais longo para o mais curto: as 10 de expires_at
-  // menor (i=0..9) são as excedentes que saem da cota de 800.
-  "assert.strictEqual(cache.snapshot().namespaces.raw.entries, 800, 'o balde raw respeita a própria cota de 800');",
-  "assert.strictEqual(cache.snapshot().namespaces.raw.maxEntries, 800, 'a cota configurada para raw é 800');",
-  "assert.strictEqual(cache.snapshot().namespaces.__default, undefined, 'nenhuma linha caiu no balde padrão');",
-  "assert.strictEqual(cache.get('raw:v1:jackett:yts:movie:tt-0'), null, 'a excedente de menor TTL nao entra');",
-  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-809'), { n: 809 }, 'a de maior TTL entra inteira');",
+  "assert.strictEqual(cache.snapshot().namespaces.raw, undefined, 'raw nao monta balde no L1 do Node');",
+  "assert.strictEqual(cache.get('raw:v1:jackett:yts:movie:tt-0'), null, 'nenhuma linha raw sobe no L1');",
   '',
   'const dbVerify = new DatabaseSync(process.env.CACHE_DB_PATH);',
   "const countRow = dbVerify.prepare(\"SELECT COUNT(*) as cnt FROM cache WHERE key LIKE 'raw:v1:%'\").get();",
-  "assert.strictEqual(countRow.cnt, 800, 'as excedentes foram apagadas do disco também');",
+  "assert.strictEqual(countRow.cnt, 810, 'o boot do Node nao poda o namespace do gateway');",
   'dbVerify.close();',
 ].join('\n');
 
 test(
-  'cota do rename raw1→raw: 810 linhas viram 800 no L1 e no disco no boot',
+  'cota do raw é do gateway: o boot do Node não sobe nem poda uma linha que seja',
   { skip: !hasNodeSqlite && 'node:sqlite indisponível — teste requer Node 22+' },
   () => runIsolatedCacheTest(RAW_QUOTA_RENAME_SCRIPT),
 );
@@ -330,14 +325,14 @@ const PK_VALUE_INTEGRITY_SCRIPT = [
   "const insert = seed.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');",
   'const now = Date.now();',
   "const complexo = { titulo: 'Coringa', ano: 2019, tags: ['dublado', 'dual'], notas: [9.5, 8, 7.25], nested: { a: [1, 2, 3], b: 'x' }, nulo: null, flag: true };",
-  "insert.run('raw:v1:jackett:yts:movie:tt-complexa', JSON.stringify(complexo), now + 900000);",
-  "insert.run('raw:v1:jackett:yts:movie:tt-simples', JSON.stringify({ lista: ['a', 'b', 'c'] }), now + 900001);",
+  "insert.run('davail:v1:premiumize:tt-complexa:h', JSON.stringify(complexo), now + 900000);",
+  "insert.run('davail:v1:premiumize:tt-simples:h', JSON.stringify({ lista: ['a', 'b', 'c'] }), now + 900001);",
   'seed.close();',
   '',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-complexa'), complexo, 'objeto aninhado volta inteiro via PK');",
-  "assert.deepStrictEqual(cache.get('raw:v1:jackett:yts:movie:tt-simples'), { lista: ['a', 'b', 'c'] }, 'objeto simples volta inteiro');",
+  "assert.deepStrictEqual(cache.get('davail:v1:premiumize:tt-complexa:h'), complexo, 'objeto aninhado volta inteiro via PK');",
+  "assert.deepStrictEqual(cache.get('davail:v1:premiumize:tt-simples:h'), { lista: ['a', 'b', 'c'] }, 'objeto simples volta inteiro');",
 ].join('\n');
 
 test(
@@ -351,8 +346,8 @@ const MAINTAIN_SCRIPT = [
   'delete process.env.CACHE_PERSIST;',
   `const cache = await import(${JSON.stringify(CACHE_URL)});`,
   '',
-  "cache.set('raw:v1:test-maintain-1', { data: 'test1' }, 3600);",
-  "cache.set('raw:v1:test-maintain-2', { data: 'test2' }, 3600);",
+  "cache.set('davail:v1:premiumize:tt-maintain-1:h', { data: 'test1' }, 3600);",
+  "cache.set('davail:v1:premiumize:tt-maintain-2:h', { data: 'test2' }, 3600);",
   'const res = cache.maintain();',
   "assert.strictEqual(res.checkpointed, true, 'checkpoint passivo executado');",
   "assert.strictEqual(res.optimized, true, 'optimize executado');",

@@ -63,7 +63,8 @@ test('POST clear-cache com confirm: true esvazia o cache e devolve a contagem', 
   config.jackett.testToken = TOKEN;
   try {
     await withMockFetch([], async () => {
-      cache.set('raw:dashboard-probe', { ok: 1 }, 60);
+      // `raw:` é RUST_OWNED (o set do Node recusa); a semente usa um balde do Node.
+      cache.set('davail:dashboard-probe', { ok: 1 }, 60);
       assert.ok(cache.size() > 0, 'sembrado antes de limpiar');
 
       const res = await server.request('POST', '/dashboard-action.json', {
@@ -85,16 +86,18 @@ test('POST clear-cache com confirm: true esvazia o cache e devolve a contagem', 
 test('POST clear-cache por namespace preserva os outros namespaces', async () => {
   config.jackett.testToken = TOKEN;
   try {
-    cache.set('raw:dashboard-scope', { ok: 1 }, 60);
+    // `raw:` é RUST_OWNED e não entra no L1: o recorte por namespace usa dois
+    // baldes do Node (davail apagado, meta preservado).
     cache.set('davail:dashboard-scope', { ok: 1 }, 60);
+    cache.set('meta:dashboard-scope', { ok: 1 }, 60);
     const res = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'clear-cache', confirm: true, scope: { namespace: 'raw' } },
+      body: { action: 'clear-cache', confirm: true, scope: { namespace: 'davail' } },
     });
     assert.equal(res.status, 200);
-    assert.deepEqual(res.json.scope, { kind: 'namespace', namespace: 'raw' });
-    assert.equal(cache.get('raw:dashboard-scope'), null);
-    assert.deepEqual(cache.get('davail:dashboard-scope'), { ok: 1 });
+    assert.deepEqual(res.json.scope, { kind: 'namespace', namespace: 'davail' });
+    assert.equal(cache.get('davail:dashboard-scope'), null);
+    assert.deepEqual(cache.get('meta:dashboard-scope'), { ok: 1 });
   } finally {
     cache.clear();
     config.jackett.testToken = '';
@@ -134,13 +137,13 @@ test('POST clear-cache por instalação apaga somente streams do segmento corren
 test('POST clear-cache rejeita escopo inválido sem apagar entradas', async () => {
   config.jackett.testToken = TOKEN;
   try {
-    cache.set('raw:dashboard-invalid-scope', { ok: 1 }, 60);
+    cache.set('davail:dashboard-invalid-scope', { ok: 1 }, 60);
     const res = await server.request('POST', '/dashboard-action.json', {
       headers: { 'X-Indexer-Test-Token': TOKEN },
-      body: { action: 'clear-cache', confirm: true, scope: { namespace: '../raw' } },
+      body: { action: 'clear-cache', confirm: true, scope: { namespace: '../davail' } },
     });
     assert.equal(res.status, 400);
-    assert.deepEqual(cache.get('raw:dashboard-invalid-scope'), { ok: 1 });
+    assert.deepEqual(cache.get('davail:dashboard-invalid-scope'), { ok: 1 });
   } finally {
     cache.clear();
     config.jackett.testToken = '';

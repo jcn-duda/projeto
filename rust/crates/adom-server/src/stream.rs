@@ -237,7 +237,7 @@ fn wire_native_index(orch: Orchestrator) -> Orchestrator {
 /// pelo coletor BLUDV nativo. Falha de abertura → `None` (o caminho vivo segue
 /// sem cache bruto; a busca nunca cai).
 fn open_bludv_raw_store() -> Option<Arc<dyn adom_search::RawStore>> {
-    match adom_store::RawCacheStore::from_env() {
+    match adom_store::raw_store_from_env() {
         Ok(store) => {
             eprintln!(
                 "[gateway] raw:v1 BLUDV no cache.db do Node (cota {})",

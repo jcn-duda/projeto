@@ -56,6 +56,9 @@ mod cache;
 mod catalog;
 mod idx_store;
 pub use idx_store::{BankRowInput, IdxStore, RecordOptionsInput};
+// Handle do `raw:v1` (dono único Rust, F3): leitura do diagnóstico e clear.
+mod raw_store;
+pub use raw_store::RawStore;
 mod crawl;
 mod debrid;
 mod debrid_cache;

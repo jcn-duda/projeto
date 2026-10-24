@@ -77,11 +77,29 @@ fn recusa_chave_de_outro_namespace() {
 }
 
 #[test]
-fn trait_ignora_erro_de_io_em_vez_de_panicar() {
-    let store = RawCacheStore::open_memory().expect("store");
-    // Trait: chave alheia vira no-op (log), nunca panic.
-    RawStore::set(&store, "streams:v21:x", &json!({}), 10, 1);
+fn clear_all_apaga_somente_o_namespace_raw() {
+    let store = RawCacheStore::open_memory_with_quota(4).expect("store");
+    store
+        .set_raw(&key("a"), &json!({"items": []}), 60, 1_000)
+        .expect("set a");
+    store
+        .set_raw("raw:v1:jackett:x:movie:q", &json!({"items": []}), 60, 1_000)
+        .expect("set jackett");
+    // Linha de outro namespace no MESMO arquivo: o clear não pode alcançá-la.
+    let conn = store.conn.lock().unwrap_or_else(|err| err.into_inner());
+    conn.execute(
+        "INSERT INTO cache (key, value, expires_at) VALUES ('streams:v21:x', '{}', 9999999999999)",
+        [],
+    )
+    .expect("insere linha alheia");
+    drop(conn);
+    assert_eq!(store.len().expect("len"), 2);
+    assert_eq!(store.clear_all().expect("clear"), 2);
     assert_eq!(store.len().expect("len"), 0);
-    RawStore::set(&store, &key("ok"), &json!({"items": []}), 10, 1);
-    assert!(RawStore::get(&store, &key("ok"), 2).is_some());
+    let conn = store.conn.lock().unwrap_or_else(|err| err.into_inner());
+    let restante: i64 = conn
+        .query_row("SELECT COUNT(*) FROM cache", [], |row| row.get(0))
+        .expect("conta");
+    drop(conn);
+    assert_eq!(restante, 1, "a linha de outro namespace continua");
 }

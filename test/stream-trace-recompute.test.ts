@@ -10,10 +10,10 @@ import assert from 'node:assert/strict';
 process.env.CACHE_PERSIST = 'false';
 
 import * as cache from '../src/utils/cache.js';
+import { rawSetForTest } from '../src/utils/raw-store-native.js';
 import * as magnetdb from '../src/utils/magnetdb.js';
 import * as runtime from '../src/runtime.js';
 import * as config from '../src/config.js';
-import jackett from '../src/providers/jackett.js';
 import { recomputeOffline, collectLocalMaterial } from '../src/utils/trace-recompute.js';
 import { withMockFetch } from './e2e/e2e-harness.js';
 import { createStreamsBridge } from './helpers/streams-bridge.js';
@@ -32,6 +32,11 @@ const RUN = (fn: () => unknown) => runtime.run(
   { opts: { ...OPTS, jackettIndexers: ['torrentleech'] }, encoded: 'diag' },
   fn,
 );
+
+/** Chave do raw como o escritor legado gravava (`jackett-query.rawKeysFor`). */
+function rawKey(indexer: string, query: string, type = 'movie'): string {
+  return `raw:v1:jackett:${indexer}:${type}:${query}`;
+}
 
 test('sem nomes o recompute responde no-names (nunca inventa filtro de título)', () => {
   const out = RUN(() => recomputeOffline('tt123', { season: null, episode: null }, [], null)) as ReturnType<typeof recomputeOffline>;
@@ -53,9 +58,9 @@ test('matéria-prima do raw quente vira itens com now tocável', async () => {
   try {
     await withMockFetch([], async () => {
       // Semeia DENTRO do mock (ele faz cache.clear() na entrada): a chave é a
-      // que a busca usaria (rawKeysFor).
-      const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
-      cache.set(key, [{ title: 'Filme.2020.1080p.DUAL', infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x', size: 1024 }], 900);
+      // do formato legado do escritor (rawKey).
+      const key = rawKey('torrentleech', 'Filme 2020');
+      rawSetForTest(key, [{ title: 'Filme.2020.1080p.DUAL', infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x', size: 1024 }], 900);
       const out = RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020)) as ReturnType<typeof recomputeOffline>;
       assert.equal(out.built, true);
       assert.ok(out.basis.includes('raw'), `basis deveria incluir raw: ${out.basis}`);
@@ -73,8 +78,8 @@ test('label do recompute usa a MESMA defesa do trace (magnet/hash + teto 60)', a
     await withMockFetch([], async () => {
       const hash = 'a'.repeat(40);
       const sujo = `Filme 2020 ${hash} magnet:?xt=urn:btih:${hash}&dn=Filme [${hash}] ${'X'.repeat(200)}`;
-      const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
-      cache.set(key, [{ title: sujo, infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' }], 900);
+      const key = rawKey('torrentleech', 'Filme 2020');
+      rawSetForTest(key, [{ title: sujo, infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' }], 900);
       const out = RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020)) as ReturnType<typeof recomputeOffline>;
       assert.equal(out.built, true);
       const label = out.items[0].label;
@@ -93,9 +98,9 @@ test('estado atual reflete bad do magnetdb (quiet) — e é now, não causa', as
   const restore = IDX();
   try {
     cache.clear();
-    const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
+    const key = rawKey('torrentleech', 'Filme 2020');
     const rel = { title: 'Filme.2020.1080p.DUAL', infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' };
-    cache.set(key, [rel], 900);
+    rawSetForTest(key, [rel], 900);
     magnetdb.markBad('premiumize', 'chave-diag', 'f'.repeat(40));
     try {
       const out = RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020)) as ReturnType<typeof recomputeOffline>;
@@ -113,8 +118,8 @@ test('o recompute é ZERO rede (fetch stub conta 0 chamadas)', async () => {
   const restore = IDX();
   try {
     await withMockFetch([], async (mockFetch) => {
-      const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
-      cache.set(key, [{ title: 'Filme', infoHash: 'f'.repeat(40), seeders: 1, indexer: 'x' }], 900);
+      const key = rawKey('torrentleech', 'Filme 2020');
+      rawSetForTest(key, [{ title: 'Filme', infoHash: 'f'.repeat(40), seeders: 1, indexer: 'x' }], 900);
       RUN(() => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020));
       assert.equal(mockFetch.calls.length, 0, 'recompute nunca sai à rede');
     });
@@ -127,8 +132,8 @@ test('o recompute NÃO reescreve a entrada streams', () => {
   const restore = IDX();
   try {
     cache.clear();
-    const key = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
-    cache.set(key, [{ title: 'Filme', infoHash: 'f'.repeat(40), seeders: 1, indexer: 'x' }], 900);
+    const key = rawKey('torrentleech', 'Filme 2020');
+    rawSetForTest(key, [{ title: 'Filme', infoHash: 'f'.repeat(40), seeders: 1, indexer: 'x' }], 900);
     // A entrada mora no `streams.db` (F4.2(c)): o contrato de leitura pura se
     // prova pela ponte — recompute não pede clear/invalidate e não escreve L1.
     const cacheKey = 'streams:v21:diag:tt123:{}:account:none';
@@ -152,11 +157,11 @@ test('collectLocalMaterial deduplica por hash entre origens', () => {
   const restore = IDX();
   try {
     cache.clear();
-    const k1 = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme 2020', 'movie')[0];
-    const k2 = jackett.rawKeysFor(config.default.jackett.indexers, 'Filme', 'movie')[0];
+    const k1 = rawKey('torrentleech', 'Filme 2020');
+    const k2 = rawKey('torrentleech', 'Filme');
     const rel = { title: 'Filme.2020', infoHash: 'f'.repeat(40), seeders: 2, indexer: 'x' };
-    cache.set(k1, [rel], 900);
-    cache.set(k2, [{ ...rel, seeders: 9 }], 900);
+    rawSetForTest(k1, [rel], 900);
+    rawSetForTest(k2, [{ ...rel, seeders: 9 }], 900);
     const { items } = RUN(() => collectLocalMaterial('tt123', { season: null, episode: null, names: ['Filme'], year: 2020 })) as { items: unknown[] };
     assert.equal(items.length, 1, 'mesmo hash de duas queries entra uma vez');
   } finally {
@@ -172,8 +177,8 @@ test('N3: o recompute lê a LISTA EFETIVA do usuário (opts), não a do operador
   try {
     cache.clear();
     // Semeia SÓ na chave do indexer CUSTOM do usuário.
-    const key = jackett.rawKeysFor(['custom-br'], 'Filme 2020', 'movie')[0];
-    cache.set(key, [{ title: 'Filme.2020', infoHash: 'f'.repeat(40), seeders: 3, indexer: 'x' }], 900);
+    const key = rawKey('custom-br', 'Filme 2020');
+    rawSetForTest(key, [{ title: 'Filme.2020', infoHash: 'f'.repeat(40), seeders: 3, indexer: 'x' }], 900);
     const out = runtime.run(
       { opts: { ...OPTS, jackettIndexers: ['custom-br'] }, encoded: 'diag' },
       () => recomputeOffline('tt123', { season: null, episode: null }, ['Filme'], 2020),

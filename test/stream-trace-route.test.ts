@@ -18,8 +18,8 @@ import { createApp } from '../src/app.js';
 import config from '../src/config.js';
 import * as runtime from '../src/runtime.js';
 import * as cache from '../src/utils/cache.js';
+import { rawSetForTest } from '../src/utils/raw-store-native.js';
 import { streamsCacheKey } from '../src/utils/request-key.js';
-import jackett from '../src/providers/jackett.js';
 import { createTestServer, encodeConfig } from './e2e/e2e-harness.js';
 import { createStreamsBridge, type BridgeEntry, type StreamsBridge } from './helpers/streams-bridge.js';
 
@@ -361,8 +361,9 @@ test('/stream-trace.json: ramo NATIVO sem trace recomputa com o searchMeta do st
   try {
     const hash = 'a'.repeat(40);
     const sujo = `Filme 2020 ${hash} magnet:?xt=urn:btih:${hash}&dn=Filme [${hash}] ${'X'.repeat(200)}`;
-    const rawKey = jackett.rawKeysFor(['torrentleech'], 'Filme 2020', 'movie')[0];
-    cache.set(rawKey, [{ title: sujo, infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' }], 900);
+    // Chave do raw no formato legado do escritor (`raw:v1:jackett:<idx>:<type>:<query>`).
+    const rawKey = 'raw:v1:jackett:torrentleech:movie:Filme 2020';
+    rawSetForTest(rawKey, [{ title: sujo, infoHash: 'f'.repeat(40), seeders: 4, indexer: 'x' }], 900);
     const res = await server.request('GET', '/stream-trace.json?type=movie&id=tt333', {
       headers: { 'X-Indexer-Test-Token': bridge.token },
     });

@@ -20,7 +20,9 @@ import config from '../config.js';
 import { opts } from '../runtime.js';
 import * as releaseIndex from './release-index.js';
 import * as inventoryMemo from '../debrid/inventory-memo.js';
-import jackett from '../providers/jackett.js';
+import { rawPeek } from './raw-store-native.js';
+import { prefix } from './cache-keys.js';
+import { stripDiacritics, collapseAcronyms } from './title-normalization.js';
 import * as magnetdb from './magnetdb.js';
 import * as autofetch from '../providers/autofetch.js';
 import { accountScope } from './request-key.js';
@@ -46,6 +48,49 @@ export interface RecomputeOutcome {
 }
 
 export const RECOMPUTE_MAX_ITEMS = 300; // mesmo teto do trace serializado
+
+/**
+ * Chave do cache bruto — a MESMA que a busca gravava
+ * (`raw:v1:jackett:<indexer>:<type>:<query moldada>`): BR perde acento e o
+ * episódio do token (o `Sxx` fica, o resolver precisa dele), global colapsa
+ * sigla com ponto e indexer `bareTitle` perde o ano do fim. A moldura vivia em
+ * `providers/jackett-query.ts`, que sai com a pilha TS do Jackett; fica aqui
+ * porque só o diagnóstico a lê agora — mexer numa é mexer na outra enquanto
+ * houver linha no `raw:v1`.
+ */
+function rawKeyFor(indexer: string, query: string, type: string): string {
+  const original = String(query || '');
+  let shaped = original;
+  if (config.jackett.ptBrIndexers.includes(indexer)) {
+    shaped = shaped.replace(/\bS(\d{1,2})E\d{1,3}\b/gi, 'S$1');
+    shaped = stripDiacritics(shaped);
+  } else {
+    shaped = collapseAcronyms(shaped);
+  }
+  if (config.jackett.bareTitleIndexers.includes(indexer)) {
+    shaped = shaped.replace(/\s+(?:19|20)\d{2}\s*$/, ' ');
+  }
+  shaped = shaped.replace(/\s+/g, ' ').trim();
+  // Mesma guarda do escritor: a moldagem nunca devolve SÓ o token de temporada.
+  const searchQuery = /^S\d{1,2}$/i.test(shaped) ? original : (shaped || original);
+  return `${prefix('raw')}jackett:${indexer}:${type}:${searchQuery}`;
+}
+
+/**
+ * Leitura QUIET das linhas `raw:v1` da obra: o escritor grava o ENVELOPE
+ * `{ items }` (o array cru é o shape legado de antes do P5). Desde a Fase 5 o
+ * namespace `raw` é RUST_OWNED: o L1 do Node nasce vazio e quem lê é a ponte
+ * napi (`rawPeek`, mesmo `cache.db`, sem promover LRU nem contar hit/miss).
+ */
+function readRawFor(indexers: string[], query: string, type: string): RawItem[] {
+  const out: RawItem[] = [];
+  for (const indexer of indexers) {
+    const hit = rawPeek(rawKeyFor(indexer, query, type));
+    const items = Array.isArray(hit) ? hit : (hit as { items?: unknown } | null)?.items;
+    if (Array.isArray(items)) out.push(...(items as RawItem[]));
+  }
+  return out;
+}
 
 /** Junta matéria-prima local (idx quente + raw quente + inventário), com
  * dedupe por hash, e devolve o que dá para explicar. `names` vazios =>
@@ -76,7 +121,7 @@ export function collectLocalMaterial(
   }
 
   // 2) Cache bruto do Jackett (raw:v1) pelas queries da obra — SÓ o que a
-  //    busca realmente consultaria (mesma moldura de chave do rawKeysFor).
+  //    busca realmente consultaria (mesma moldura de chave do `rawKeyFor`).
   //    Usa a LISTA EFETIVA da instalação (opts().jackettIndexers), não a do
   //    operador: instalação com lista customizada consultou outra coisa, e o
   //    balde bruto precisa bater com o funil real.
@@ -85,7 +130,7 @@ export function collectLocalMaterial(
   const queries = names.filter(Boolean).map((n) => (year ? `${n} ${year}` : n));
   if (queries.length > 0 && indexers.length > 0) {
     for (const q of queries) {
-      for (const item of jackett.peekRawFor(indexers, q, type)) push(item, 'raw');
+      for (const item of readRawFor(indexers, q, type)) push(item, 'raw');
     }
   }
 

@@ -19,6 +19,7 @@ import type { AutofetchCore } from './rust-autofetch.js';
 import type { EpisodeSizeCore } from './rust-episode-size.js';
 import type { RelevanceCore } from './rust-relevance.js';
 import type { IdxStoreNapi } from './release-index-store.js';
+import type { RawStoreNapi } from './raw-store-native.js';
 
 export type CrawlPageParsedNapi = {
   url: string;
@@ -69,7 +70,9 @@ export type CrawlCore = {
 
 export type IdxStoreCtor = new (dbPath: string, ttlSeconds: number, maxReleases: number) => IdxStoreNapi;
 
-export type NapiCore = { normalizeTitle(title: string): string; IdxStore?: IdxStoreCtor } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore>;
+export type RawStoreCtor = new (dbPath: string) => RawStoreNapi;
+
+export type NapiCore = { normalizeTitle(title: string): string; IdxStore?: IdxStoreCtor; RawStore?: RawStoreCtor } & Partial<CrawlCore> & Partial<PickCore> & Partial<CacheCore> & Partial<RdCore> & Partial<CleanCore> & Partial<ReleaseIndexCore> & Partial<AutofetchCore> & Partial<EpisodeSizeCore> & Partial<RelevanceCore>;
 
 /** Núcleo já carregado (boot ou primeira chamada); null antes disso. */
 function getCore(): NapiCore | null {
