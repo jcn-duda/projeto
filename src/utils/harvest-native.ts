@@ -122,7 +122,10 @@ function noteSuccess(): void {
   blockedUntil = 0;
 }
 
-async function request(path: string, init: { method?: string; body?: unknown } = {}): Promise<unknown> {
+async function request(
+  path: string,
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
+): Promise<unknown> {
   const opts = settings();
   const headers: Record<string, string> = {
     'x-indexer-test-token': token(),
@@ -130,7 +133,7 @@ async function request(path: string, init: { method?: string; body?: unknown } =
   };
   if (init.body !== undefined) headers['content-type'] = 'application/json';
   const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-    ? AbortSignal.timeout(Math.max(1, Number(opts.timeoutMs) || 2000))
+    ? AbortSignal.timeout(Math.max(1, Number(init.timeoutMs ?? opts.timeoutMs) || 2000))
     : undefined;
   const res = await fetch(`${baseUrl()}${path}`, {
     method: init.method || 'POST',
@@ -302,18 +305,42 @@ export async function pushNativeHarvestConfig(overrides: Record<string, unknown>
   }
 }
 
-/** Drena à mão até `max` obras. Devolve quantas saíram. */
-export async function drainNativeHarvest(max = 5): Promise<number> {
-  if (!available()) return 0;
+export type NativeHarvestDrain = {
+  drained: number;
+  /** O prazo da ponte venceu com o gateway ainda drenando: não é falha. */
+  timedOut: boolean;
+};
+
+/** O `AbortSignal.timeout` rejeita com `TimeoutError` (DOMException). */
+function isTimeout(err: unknown): boolean {
+  return err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+}
+
+/**
+ * Drena à mão até `max` obras. O gateway só responde DEPOIS de drenar, então
+ * o pedido tem prazo próprio (`drainTimeoutMs`), e vencê-lo NÃO pausa a ponte:
+ * o loop do gateway segue drenando, e pausar bloquearia os enqueues de miss
+ * das buscas por 30 s (o "colhedor indisponível" falso do botão Drenar).
+ */
+export async function drainNativeHarvest(max = 5): Promise<NativeHarvestDrain> {
+  if (!available()) return { drained: 0, timedOut: false };
   try {
-    const json = (await request('/harvest/drain', { body: { max } })) as { drained?: unknown };
+    const json = (await request('/harvest/drain', {
+      body: { max },
+      timeoutMs: settings().drainTimeoutMs,
+    })) as { drained?: unknown };
     noteSuccess();
     const drained = Number(json?.drained);
-    return Number.isFinite(drained) && drained > 0 ? drained : 0;
+    return { drained: Number.isFinite(drained) && drained > 0 ? drained : 0, timedOut: false };
   } catch (err) {
+    if (isTimeout(err)) {
+      metrics.count('harvest.bridge.drain_timeout');
+      log.info('[harvest] drain nativo segue no gateway depois do prazo da ponte');
+      return { drained: 0, timedOut: true };
+    }
     noteFailure('drain');
     log.warn(`[harvest] drain nativo falhou: ${log.errorMessage(err)}`);
-    return 0;
+    return { drained: 0, timedOut: false };
   }
 }
 

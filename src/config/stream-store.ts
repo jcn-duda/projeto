@@ -11,6 +11,7 @@
 export const streamStore = () => {
   const timeoutMs = Number(process.env.STREAM_STORE_ADMIN_TIMEOUT_MS);
   const backoffMs = Number(process.env.STREAM_STORE_RUST_BACKOFF_MS);
+  const drainTimeoutMs = Number(process.env.HARVEST_DRAIN_BRIDGE_TIMEOUT_MS);
   return {
     url: (process.env.STREAM_STORE_ADMIN_URL || 'http://127.0.0.1:8711').trim(),
     // Token próprio; sem ele, os mesmos fallbacks do lado Rust
@@ -20,5 +21,10 @@ export const streamStore = () => {
     // Depois de falhar em sequência, o cliente sossega (evita martelar um
     // gateway antigo/sem a rota a cada busca).
     backoffMs: Number.isFinite(backoffMs) && backoffMs >= 0 ? backoffMs : 30000,
+    // O `POST /harvest/drain` só responde DEPOIS de drenar (uma obra consulta
+    // ~20 indexers com pausa entre eles: dezenas de segundos). Com os 2 s das
+    // outras rotas o botão "Drenar" nunca respondia. Fica abaixo dos 300 s do
+    // `requestTimeout` do servidor HTTP do Node, que cortaria a ação antes.
+    drainTimeoutMs: Number.isFinite(drainTimeoutMs) && drainTimeoutMs > 0 ? drainTimeoutMs : 270_000,
   };
 };

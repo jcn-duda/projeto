@@ -8,6 +8,7 @@ import {
 } from '../utils/format.js';
 import debrid from '../debrid/index.js';
 import * as held from '../debrid/protected.js';
+import { reuploadBlocked, unblockIfInventoryReady } from '../debrid/alldebrid-reupload.js';
 import { accountScope } from '../utils/request-key.js';
 import { opts } from '../runtime.js';
 import * as autofetch from './autofetch.js';
@@ -108,8 +109,20 @@ export function autoFetchCandidates(
   const account = accountScope(debridApiKey);
   const policy = seedsPolicyConfig();
 
+  // Hash apagado DE PROPÓSITO da conta (`adrm`, a limpeza o condenou) não é
+  // candidato: o `enqueue` o recusa, e escolhê-lo prendia o Chupim no mesmo
+  // hash a cada busca sem nunca chegar ao próximo viável (medido em
+  // 2026-10-24: Lanterns S01E08 parado num pack russo morto com um 1080p de
+  // 3522 seeds na fila). Mesma exceção do enqueue: pronto no inventário destrava.
+  const reuploadBlockedHere = (s: Stream) => {
+    if (!s.infoHash || !reuploadBlocked(account, s.infoHash)) return false;
+    if (unblockIfInventoryReady(debridApiKey, account, s.infoHash)) return false;
+    metrics.count('autofetch.reupload-blocked-skipped');
+    return true;
+  };
   // Torrent morto na blacklist é ignorado antes de montar os pools
-  const liveStreams = streams.filter((s) => !s.infoHash || !autofetch.isDead(adapter!.id, account, s.infoHash));
+  const liveStreams = streams.filter((s) => (!s.infoHash || !autofetch.isDead(adapter!.id, account, s.infoHash))
+    && !reuploadBlockedHere(s));
   const live = autofetchLive.effective();
 
   // Espelho do waiver do piso em sortAndLimit: o waiver existe para o item

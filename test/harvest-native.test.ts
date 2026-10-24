@@ -221,9 +221,34 @@ test('pause/drain/clear: o painel lê o retorno do gateway, não um número inve
   });
   try {
     assert.equal(await pauseNativeHarvest(true), true);
-    assert.equal(await drainNativeHarvest(5), 3);
+    assert.deepEqual(await drainNativeHarvest(5), { drained: 3, timedOut: false });
     assert.equal(await clearNativeHarvest(), 2);
     assert.deepEqual(JSON.parse(String(stub.calls[1].options?.body)), { max: 5 });
+  } finally {
+    stub.restore();
+  }
+});
+
+test('drain: prazo próprio, e vencê-lo não pausa a ponte (o gateway segue drenando)', async () => {
+  // O gateway só responde depois de drenar; com o prazo de 2 s das outras rotas
+  // o botão nunca respondia e o timeout pausava a ponte por 30 s, levando junto
+  // os enqueues de miss das buscas.
+  const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+  const stub = stubFetch((rawUrl) => {
+    if (rawUrl.endsWith('/harvest/drain')) throw timeout;
+    if (rawUrl.endsWith('/harvest/enqueue')) return json({ accepted: true, reason: 'queued' });
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  try {
+    assert.ok(config.streamStore.drainTimeoutMs > config.streamStore.timeoutMs, 'o drain tem prazo maior que as rotas curtas');
+    assert.deepEqual(await drainNativeHarvest(1), { drained: 0, timedOut: true });
+    assert.deepEqual(await drainNativeHarvest(1), { drained: 0, timedOut: true });
+    assert.equal(
+      enqueueNativeHarvest({ imdbId: 'tt0107953', type: 'movie', reason: 'miss' }),
+      true,
+      'dois drains longos seguidos não colocam a ponte em backoff',
+    );
+    await flushPendingHarvest();
   } finally {
     stub.restore();
   }

@@ -28,12 +28,7 @@ import { stubFetch } from './helpers/stub.js';
 const URL_BASE = 'http://127.0.0.1:8711';
 const TOKEN = 'token-da-ponte';
 
-type Saved = {
-  url: string;
-  token: string;
-  timeoutMs: number;
-  backoffMs: number;
-};
+type Saved = typeof config.streamStore;
 
 let savedConfig: Saved;
 let savedToken: string;

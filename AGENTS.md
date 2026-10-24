@@ -321,7 +321,10 @@ o resto do código não conhece serviço específico. Resolução só no **play*
   pools `br > any > seeds`, cobertura por qualidade-alvo, teto por obra,
   recheck com detecção de torrent morto, fila persistente, sonda dirigida
   `br-probe`, evicção de fallbacks (OFF por padrão). `hold` **antes** da
-  checagem, marker só após o aceite; nunca no caminho da resposta.
+  checagem, marker só após o aceite; nunca no caminho da resposta. Hash com
+  marca `adrm` (apagado de propósito) sai dos candidatos ANTES dos pools,
+  como o morto — senão o Chupim parava nele a cada busca (o `enqueue` recusa)
+  e nunca tentava o próximo viável.
 - Instalação sem config herda a chave do `.env` — numa instância pública use
   `DEBRID_ALLOW_ENV_KEY=false` (+ `DEBRID_OPERATOR_ENV_ACCOUNT=true` para o painel).
 - Serviço novo: adaptador + entrada em `ADAPTERS`; o seletor da página se

@@ -141,6 +141,7 @@
     "test/autofetch-panel.test.js",
     "test/autofetch-pickers.test.js",
     "test/autofetch-policy.test.js",
+    "test/autofetch-reupload-blocked.test.js",
     "test/autofetch-progress.test.js",
     "test/autofetch-queue.test.js",
     "test/autofetch-recheck.test.js",

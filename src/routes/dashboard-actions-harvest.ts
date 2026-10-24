@@ -66,8 +66,17 @@ export async function harvestPause({ services, req, res, action }: ActionDeps): 
 /** `harvester-drain` — sem `max` no corpo vale o HARVEST_DRAIN_MAX_WORKS do gateway. */
 export async function harvestDrain({ services, req, res, action }: ActionDeps): Promise<express.Response> {
   const before = harvestStatusSnapshot();
-  const drained = await drainNativeHarvest(maxFromBody(req));
+  const { drained, timedOut } = await drainNativeHarvest(maxFromBody(req));
   const after = await refreshHarvestStatus();
+  if (timedOut) {
+    // O gateway segue drenando; o poll do painel mostra a fila andando.
+    services.metrics.count('dashboard.harvest.drain_running');
+    return res.json({
+      ok: true, action, drained: 0, running: true,
+      note: 'drenagem segue no gateway; a fila atualiza no próximo poll',
+      queueRemaining: after?.depth ?? null, paused: after?.paused ?? false,
+    });
+  }
   if (drained <= 0 && (!refreshLanded(before, after) || !harvestNativeOnline())) {
     services.metrics.count('dashboard.harvest.unavailable');
     services.log.warn('[dashboard] drenagem do colhedor nativo indisponível');
