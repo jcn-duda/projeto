@@ -275,7 +275,6 @@
     "test/debrid-rd-list.test.js",
     "test/debrid-rd-oracle-sources.test.js",
     "test/debrid-rd-oracle.test.js",
-    "test/debrid-rd-probe.test.js",
     "test/debrid-refresh.test.js",
     "test/debrid-resolve-uncached.test.js",
     "test/debrid-rust-link-facts.test.js",
@@ -446,6 +445,7 @@
     "test/tmdb-br-aliases.test.js",
     "test/tmdb-english-title.test.js",
     "test/tmdb.test.js",
-    "test/torrent-total-size.test.js"
+    "test/torrent-total-size.test.js",
+    "test/warm-cache-contract.test.js"
   ]
 }

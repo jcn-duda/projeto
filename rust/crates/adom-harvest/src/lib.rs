@@ -28,6 +28,7 @@
 //! | [`seen_key`] / [`was_recently_queued`] | Dedupe 12h por obra+motivo |
 //! | [`HarvestInflight`] / [`HarvestIntent`] | Coalescing da obra em voo (slot único) |
 //! | [`hour_key`] / [`load_hour`] / [`save_hour`] | Balde horário durável (`harvest:v1:hour`) |
+//! | [`BrProbe`] / [`probe_key`] | Sonda BR: estados, lease e `pending` a partir da fila |
 //! | [`HarvestWorker`] / [`tick`](HarvestWorker::tick) | Ciclo: freio + teto + `take_head` + drain |
 //! | [`queue_key`] | `harvest:v1:q` (via `adom-core::prefix`) |
 //!
@@ -37,6 +38,7 @@
 mod hour;
 mod inflight;
 mod prioritize;
+mod probe;
 mod queue;
 mod reason;
 mod seen;
@@ -52,6 +54,10 @@ pub use inflight::{HarvestInflight, HarvestIntent, PendingFull, PendingIntent};
 pub use prioritize::{
     br_evidence_rank, prioritize, priority_tier, BrEvidence, PrioritizeConfig, StubBrEvidence,
 };
+pub use probe::{
+    probe_identity, probe_key, BrProbe, DEFAULT_PROBE_TTL_SECONDS, PENDING_LEASE_MS,
+    PROBE_NAMESPACE, RETRY_MS,
+};
 pub use queue::{
     queue_key, HarvestQueue, HarvestQueueConfig, HARVEST_NAMESPACE, QUEUE_KEY, QUEUE_SUFFIX,
 };
@@ -63,7 +69,10 @@ pub use seen::{
     entry_seen_key, mark_recently_queued, seen_key, was_recently_queued, DEDUPE_TTL_SECONDS,
 };
 pub use store::{HarvestStore, DEFAULT_ENTRY_TTL_SECONDS};
-pub use types::{EnqueueOutcome, EnqueueReason, HarvestEntry, HarvestMediaType, HarvestRequest};
+pub use types::{
+    BrProbeRecord, BrProbeState, BrProbeWork, EnqueueOutcome, EnqueueReason, HarvestEntry,
+    HarvestMediaType, HarvestRequest, ProbeConfig, ProbeFinal, RequestProbeResult,
+};
 pub use worker::{
     DrainOutcome, HarvestDrain, HarvestWorker, HarvestWorkerConfig, StubTraffic, TickOutcome,
     TrafficSense,

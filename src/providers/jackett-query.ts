@@ -78,6 +78,10 @@ export function rawKeysFor(indexers: string[], query: string, type: string) {
 export function peekRawFor(indexers: string[], query: string, type: string): RawItem[] {
   return rawKeysFor(indexers, query, type).flatMap((key) => {
     const hit = cache.peek(key);
-    return Array.isArray(hit) ? (hit as RawItem[]) : [];
+    // O escritor (`queryIndexer`) grava o ENVELOPE `{ items }`; o array cru é
+    // o shape legado de antes do P5. Aceitar só um dos dois devolvia [] em
+    // produção e o recompute perdia a base `raw` em silêncio.
+    const items = Array.isArray(hit) ? hit : (hit as { items?: unknown } | null)?.items;
+    return Array.isArray(items) ? (items as RawItem[]) : [];
   });
 }

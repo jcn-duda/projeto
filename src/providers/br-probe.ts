@@ -274,10 +274,16 @@ export function finalizeBrProbe(workInput: BrProbeWork, state: Exclude<BrProbeSt
   const work = normalize(workInput);
   if (!work) return;
   writeRecord(work, { state, at: Date.now() });
-  const cleared = invalidateStreamsForObra(work.imdbId);
+  // A lista pronta da obra vive no `streams.db` do gateway: a invalidação é um
+  // PEDIDO à ponte nativa, fire-and-forget. `false` = ponte em backoff ou
+  // imdbId fora do contrato — não há contagem local para publicar.
+  const requested = invalidateStreamsForObra(work.imdbId);
   metrics.count(`autofetch.brProbe.${state}`);
-  if (cleared > 0) metrics.count('autofetch.brProbe.invalidated', cleared);
-  log.debug(`[br-probe] ${probeIdentity(work)} -> ${state} (${cleared} lista(s) invalidada(s))`);
+  metrics.count(requested ? 'autofetch.brProbe.invalidate.requested' : 'autofetch.brProbe.invalidate.skipped');
+  log.debug(
+    `[br-probe] ${probeIdentity(work)} -> ${state} ` +
+    `(invalidação do streams.db: ${requested ? 'solicitada' : 'não solicitada'})`,
+  );
 }
 
 /**

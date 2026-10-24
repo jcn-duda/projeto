@@ -25,6 +25,8 @@ import jackett from '../src/providers/jackett.js';
 import debrid from '../src/debrid/index.js';
 import { stubFetch } from './helpers/stub.js';
 import { prefix as cachePrefix } from '../src/utils/cache-keys.js';
+import { flushNativeStreamStores } from '../src/utils/streams-store-native.js';
+import { createStreamsBridge } from './helpers/streams-bridge.js';
 
 const A = 'a'.repeat(40);
 const MOVIE = { type: 'movie' as const, imdbId: 'tt0107953' };
@@ -61,7 +63,8 @@ function setup() {
   harvesterLive.reset();
   cache.clearNamespace('harvest');
   cache.clearNamespace('autofetch');
-  cache.clearNamespace('streams');
+  // `streams` é Rust-owned desde o F4.2(c): não há L1 a limpar aqui — cada
+  // teste que olha a lista pronta sobe a ponte dublada.
   cache.clearNamespace('idx');
   harvester.clearQueue();
   return saved;
@@ -242,7 +245,7 @@ test('worker dirigido consulta SÓ a interseção, sequencial, e registra DUAL B
   const chamadas: string[] = [];
   const unitarias: boolean[] = [];
   const opcoes: any[] = [];
-  const stub = stubFetch((url: string) => {
+  const tmdbHandler = (url: string) => {
     if (url.includes('api.themoviedb.org')) {
       return {
         ok: true,
@@ -253,6 +256,16 @@ test('worker dirigido consulta SÓ a interseção, sequencial, e registra DUAL B
       };
     }
     return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const stub = stubFetch(tmdbHandler);
+  // A lista pronta da obra vive no `streams.db`: a ponte dublada é o único
+  // lugar onde a invalidação de `found` pode aparecer. Ela delega o resto
+  // (Cinemeta/TMDB) ao mesmo handler do stub.
+  const streamKey = `${cachePrefix('streams')}movie:tt0107953:cfg`;
+  const bridge = createStreamsBridge({
+    // A entrada nasce DEPOIS do harvest: a própria transição BR do registro já
+    // invalida a obra, e o que este teste isola é a invalidação do `found`.
+    onOther: tmdbHandler,
   });
   jackett.search = (async (_q: string, _t: string, indexers: string[] | null, options: any) => {
     // Uma chamada por indexer: a sonda é sequencial e cada consulta carrega UM.
@@ -281,30 +294,35 @@ test('worker dirigido consulta SÓ a interseção, sequencial, e registra DUAL B
     const idx = releaseIndex.lookup(MOVIE.imdbId, {});
     assert.ok(idx.some((x) => x.isBr && x.dubbed), 'DUAL BR entrou no índice com isBr+dubbed');
 
-    cache.set(`${cachePrefix('streams')}movie:tt0107953:cfg`, { streams: [] }, 3600);
-    const invalidadasAntes = cache.peek(`${cachePrefix('streams')}movie:tt0107953:cfg`);
-    assert.ok(invalidadasAntes, 'lista pronta existe antes de finalizar');
+    assert.equal(bridge.has(streamKey), false, 'o harvest (transição br) já invalidou a obra');
+    bridge.put({ type: 'movie', id: MOVIE.imdbId, key: streamKey });
+    assert.equal(bridge.has(streamKey), true, 'lista pronta existe antes de finalizar');
     brProbe.finalizeBrProbe(MOVIE, 'found');
-    assert.equal(cache.peek(`${cachePrefix('streams')}movie:tt0107953:cfg`), null, 'found invalida a lista da obra');
+    await flushNativeStreamStores();
+    assert.equal(bridge.has(streamKey), false, 'found invalida a lista da obra');
     assert.equal(brProbe.probeBlocksSeeds(MOVIE), false, 'found NÃO bloqueia seeds: o índice decide na próxima abertura');
     assert.equal(brProbe.requestBrProbe(MOVIE).skipped, 'found', 'mas o dedupe de 12h do estado permanece');
   } finally {
+    bridge.restore();
     stub.restore();
     jackett.search = originalSearch;
     restore(s);
   }
 });
 
-test('saída de pending invalida as listas em empty, failed e capped', () => {
+test('saída de pending invalida as listas em empty, failed e capped', async () => {
   const s = setup();
+  const bridge = createStreamsBridge();
   try {
     for (const estado of ['empty', 'failed', 'capped'] as const) {
       const key = `${cachePrefix('streams')}movie:tt0107953:${estado}`;
-      cache.set(key, { streams: [] }, 3600);
+      bridge.put({ type: 'movie', id: MOVIE.imdbId, key });
       brProbe.finalizeBrProbe(MOVIE, estado);
-      assert.equal(cache.peek(key), null, `${estado} invalida a lista da obra`);
+      await flushNativeStreamStores();
+      assert.equal(bridge.has(key), false, `${estado} invalida a lista da obra`);
     }
   } finally {
+    bridge.restore();
     restore(s);
   }
 });

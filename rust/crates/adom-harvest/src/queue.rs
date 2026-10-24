@@ -103,6 +103,11 @@ impl HarvestQueue {
         self.config.enabled = enabled;
     }
 
+    /// Toggle lido pelo chamador (sonda: sem fila ligada não há trabalho).
+    pub fn is_enabled(&self) -> bool {
+        self.config.enabled
+    }
+
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
