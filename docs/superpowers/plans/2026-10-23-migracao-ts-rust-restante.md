@@ -296,12 +296,12 @@ git add scripts/check-rust-lines.mjs rust/.line-budget.json .github/workflows/ru
 git commit -m "refactor(ci): catraca .rs vira ratchet com baseline visivel"
 ```
 
-### Task 0.3: baseline do WIP do usuário — **BLOQUEADA**
+### Task 0.3: baseline do WIP do usuário — ✅ resolvida (`c8fb7ff0`)
 
-As 14 falhas de `npm test` vêm do WIP (streams fora do L1). Enquanto não houver
-decisão do usuário (terminar e commitar × deixar intocado), toda validação de
-fatia roda com **baseline declarada**: as 14 falhas não podem crescer, e
-qualquer falha nova reprova a fatia.
+O usuário autorizou remover o WIP. Ele foi **preservado em dois stashes** e a suíte voltou ao
+baseline limpo: `npm test` **2965/2965**, sem baseline temporária. As 14 falhas listadas abaixo
+(com a numeração antiga) eram do WIP de `streams` fora do L1; a numeração atual do diagnóstico de
+uma retomada da Fase 4.2(c) é 15 falhas e está registrada no bloco "Ainda aberto".
 
 Nomes exatos para diff de baseline (guardar em `test_baseline.txt` local, fora do
 git): LRU do índice (320), season fill "Temporada Completa" (322), clear-cache por
