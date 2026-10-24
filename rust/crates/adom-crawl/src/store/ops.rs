@@ -71,14 +71,12 @@ impl CrawlStore {
     ///
     /// Transação: SELECT da URL mais antiga due + UPDATE para 'inflight'.
     /// Retorna `None` se não há trabalho pendente.
+    ///
+    /// Aceita site `own_pace` (Mico): quem chama é a lane dedicada
+    /// (`motor::mico_lane`), que é a dona do claim e do ritmo desse site. O
+    /// lote paralelo continua fora (`take_next_batch`), para não consumir vaga
+    /// nem cobrar a página no teto agregado.
     pub fn take_next(&self, site: &str) -> Result<Option<UrlRow>, StoreError> {
-        // Roteamento single-owner: site own_pace (Mico) é do MOTOR TS. O sidecar
-        // nunca o reivindica — o PageEngine o recusaria e a recusa queimaria
-        // tentativa (2026-10: ~300 páginas do Mico viraram erro assim). A fila
-        // fica intacta para o TS processar.
-        if crate::site_profiles::is_own_pace(site) {
-            return Ok(None);
-        }
         let now = now_ms();
         let tx = self.conn.unchecked_transaction()?;
 
@@ -139,8 +137,8 @@ impl CrawlStore {
             let collected: Result<Vec<_>, _> = rows.collect();
             collected?
         };
-        // Roteamento single-owner: sites own_pace são processados pelo motor TS;
-        // o sidecar fica só com os demais.
+        // Roteamento single-owner: site own_pace (Mico) é da lane dedicada
+        // (`motor::mico_lane`), que não divide vaga nem teto com os sites HTML.
         let sites: Vec<String> = sites
             .into_iter()
             .filter(|site| !crate::site_profiles::is_own_pace(site))

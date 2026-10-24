@@ -10,6 +10,7 @@
 //! - [`CatalogPage`], [`CatalogType`], [`MicoError`], [`MicoClientConfig`]: tipos.
 //! - [`parse_retry_after`]: extrai `Retry-After` dos headers HTTP.
 
+pub mod api;
 pub mod client;
 pub mod throttle;
 pub mod types;
@@ -17,6 +18,7 @@ pub mod types;
 #[cfg(test)]
 mod tests;
 
+pub use api::{parse_series_meta, MicoApi, MicoFuture, CINEMETA_BASE};
 pub use client::{parse_retry_after, MicoClient};
 pub use throttle::MicoThrottle;
 pub use types::{CatalogPage, CatalogType, MicoClientConfig, MicoError};

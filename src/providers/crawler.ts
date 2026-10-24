@@ -70,22 +70,20 @@ function runtimeFor(id: string): SiteRuntime {
 /** Deps da seleção (em `crawl-select-deps.ts`): o teto agregado entra por closure. */
 const selectDepsFor = selectDepsOf(hourPages);
 
-// Timer rearmável: cadência viva = MENOR `delayMs` dos sites (`withCadence`);
-// o delay global atrasaria o site rápido.
+/** Sites que o motor TS deve trabalhar: os que NÃO têm adaptador no sidecar.
+ *  Hoje é conjunto VAZIO — os nove (oito do Jackett + o Mico) são Rust — mas o
+ *  filtro fica explícito para um adaptador TS futuro e para o dublê de teste. */
+function tsSites(live: CrawlerEffectiveConfig): string[] {
+  return configuredSites(live).filter((id) => !registry.isRustSite(id));
+}
+
+/** Timer rearmável: cadência viva = MENOR `delayMs` dos sites (`withCadence`);
+ * o delay global atrasaria o site rápido. */
 const scheduler = createCrawlScheduler({
   isStarted: () => started,
   tick: () => tick(),
   warn: (message) => log.warn('[crawl] tick falhou:', message),
   onDisabled: () => log.info('[crawl] desativado pela config ao vivo (enabled=false)'),
-});
-
-/** Timer do MODO RUST: SÓ os sites own_pace (Mico) — o sidecar é dono dos
- *  demais e os exclui no claim. Ambos chamam o MESMO `tick()`, que roteia. */
-const ownPaceScheduler = createCrawlScheduler({
-  isStarted: () => started,
-  tick: () => tick(),
-  warn: (message) => log.warn('[crawl] tick ritmo-próprio falhou:', message),
-  onDisabled: () => log.info('[crawl] ritmo próprio desativado pela config ao vivo (enabled=false)'),
 });
 
 /** Resolve o adaptador do site e reflete o resultado no runtime dele. */
@@ -125,15 +123,12 @@ async function runSite(chosen: SiteCandidate): Promise<void> {
  */
 async function tick(): Promise<void> {
   const live = crawlerLive.effective();
-  // Roteamento por modo: em rust o sidecar é dono dos sites normais — o TS
-  // arma o timer RESTRITO aos own_pace (Mico), senão ele deixaria de ser
-  // raspado (o sidecar o recusa no claim). Um só `tick()`, clock certo.
-  const rust = config.crawl.crawlEngine === 'rust';
-  const clock = rust ? ownPaceScheduler : scheduler;
-  // Modo ts: o motor fica com o que não é do sidecar Rust (o Mico).
-  const ids = configuredSites(live).filter(rust ? registry.isOwnPace : (id) => !registry.isRustSite(id));
+  // Roteamento single-owner: os NOVE sites da tabela são do sidecar Rust e o
+  // TS não os toca em NENHUM modo — inclusive o Mico, cujo ritmo próprio roda
+  // na lane `own_pace` de `adom-crawl`. Sobra só id fora da tabela.
+  const ids = tsSites(live);
   // Rearma antes de retorno precoce (cadência não fica presa a freio/pausa).
-  clock.rearm(withCadence(live));
+  scheduler.rearm(withCadence(live));
   if (!live.enabled || paused) return;
   if (ids.length === 0) return;
   // O gate lê `crawl_state` e o store pode não estar aberto (boot desligado não
@@ -194,9 +189,13 @@ function onLiveConfigChange(): void {
     // recuperação `simulated` em toda mudança de config seguinte.
     rt.wasDryRun = cfg.dryRun;
   }
-  // O sync acompanha o MODO: sem isto uma virada de config ao vivo armaria
-  // o timer global em rust e duplicaria trabalho com o sidecar.
-  (config.crawl.crawlEngine === 'rust' ? ownPaceScheduler : scheduler).sync(withCadence(live));
+  // Sem adaptador TS, o timer não tem alvo: desarma em vez de bater vazio a
+  // cada mudança do painel.
+  if (tsSites(live).length === 0) {
+    scheduler.disarm();
+    return;
+  }
+  scheduler.sync(withCadence(live));
 }
 
 /** Recuperações e cursores de um site no boot (processo novo). */
@@ -236,12 +235,13 @@ function start(): void {
     log.warn('[crawl] nenhum site configurado em CRAWL_SITES');
     return;
   }
-  // Motor Rust ativo: o sidecar é dono dos sites normais; o TS arma o timer
-  // SÓ do ritmo próprio (Mico) — o sidecar o exclui no claim e sem isto ele
-  // pararia de ser raspado (nenhum dos dois o processaria).
-  if (config.crawl.crawlEngine === 'rust') {
-    ownPaceScheduler.rearm(withCadence(live));
-    log.info(`[crawl] motor Rust ativo — sidecar assume o loop (TS: ritmo próprio=${ids.filter(registry.isOwnPace).join(',') || 'nenhum'})`);
+  // Motor Rust ativo: o sidecar é dono dos NOVE sites, inclusive o ritmo
+  // próprio do Mico (`motor::mico_lane`). Sem adaptador TS, o motor local não
+  // tem alvo: os cards continuam no painel, mas o loop não arma.
+  if (tsSites(live).length === 0) {
+    log.info(config.crawl.crawlEngine === 'rust'
+      ? '[crawl] sidecar Rust é dono de todos os sites — motor TS sem alvo'
+      : '[crawl] CRAWL_ENGINE=ts é legado: nenhum site tem adaptador TS — nada a raspar');
     return;
   }
   scheduler.rearm(withCadence(live));
@@ -385,7 +385,6 @@ export function _forceDiscoveryForTest(siteId?: string): void {
 /** Estado limpo entre casos (o processo sobe `start()` uma vez só). */
 export function _resetForTest(): void {
   scheduler.disarm();
-  ownPaceScheduler.disarm();
   started = false;
   inflight.clear();
   paused = false;

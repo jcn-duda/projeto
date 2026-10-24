@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::Mutex;
 use tokio::time::{interval, Duration};
 
+use super::mico_lane::MicoLane;
 use super::types::{
     error_work, now_ms, CrawlResultStatus, MotorConfig, MotorStatus, PageEngine, PageOutcome,
     SiteStatus, UnwiredPageEngine,
@@ -59,8 +60,8 @@ pub(super) type StoreHandle = Arc<StdMutex<Option<CrawlStore>>>;
 /// O que cada task precisa: tudo `Arc`/`Clone` para ir dentro do `spawn`.
 #[derive(Clone)]
 pub(super) struct BatchCtx {
-    engine: Arc<dyn PageEngine>,
-    http: Arc<SidecarHttpClient>,
+    pub(super) engine: Arc<dyn PageEngine>,
+    pub(super) http: Arc<SidecarHttpClient>,
     pub(super) store: StoreHandle,
     pub(super) cfg: MotorConfig,
 }
@@ -72,7 +73,7 @@ pub(super) struct TaskReport {
 }
 
 /// Uma task = uma URL: engine com prazo duro → POST → `mark_result`.
-async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
+pub(super) async fn run_one(ctx: BatchCtx, row: UrlRow) -> TaskReport {
     let deadline = Duration::from_millis(ctx.cfg.step_deadline_ms.max(1_000));
     let outcome = match tokio::time::timeout(deadline, ctx.engine.execute(&row)).await {
         Ok(o) => o,
@@ -140,16 +141,18 @@ where
 
 /// Motor do raspador — loop principal.
 pub struct CrawlMotor {
-    config: MotorConfig,
-    http: Arc<SidecarHttpClient>,
-    engine: Arc<dyn PageEngine>,
-    store: StoreHandle,
+    pub(super) config: MotorConfig,
+    pub(super) http: Arc<SidecarHttpClient>,
+    pub(super) engine: Arc<dyn PageEngine>,
+    pub(super) store: StoreHandle,
     running: Arc<Mutex<bool>>,
     global_paused: Arc<Mutex<bool>>,
     pages_this_hour: Arc<Mutex<u32>>,
     hour_started_at: Arc<Mutex<i64>>,
     pause_until: Arc<Mutex<i64>>,
     failure_streak: Arc<Mutex<u32>>,
+    /// Lane de ritmo próprio (Mico). `None` = nenhum site own_pace trabalhado.
+    pub(super) mico: Option<Arc<MicoLane>>,
 }
 
 impl CrawlMotor {
@@ -170,6 +173,7 @@ impl CrawlMotor {
             hour_started_at: Arc::new(Mutex::new(0)),
             pause_until: Arc::new(Mutex::new(0)),
             failure_streak: Arc::new(Mutex::new(0)),
+            mico: None,
         }
     }
 
@@ -230,6 +234,9 @@ impl CrawlMotor {
         if now < *self.pause_until.lock().await {
             return Ok(TickOutcome::Skipped("auto-pausa"));
         }
+        // Ritmo próprio (Mico) ANTES dos freios de site HTML: o adaptador tem o
+        // throttle dele (`MICO_CRAWL_MIN_GAP_MS`) e não divide teto nem vaga.
+        self.spawn_own_pace();
         self.roll_hour_window(now).await;
         if *self.pages_this_hour.lock().await >= self.config.max_per_hour {
             return Ok(TickOutcome::Skipped("teto-horario"));
@@ -250,12 +257,7 @@ impl CrawlMotor {
             return Ok(TickOutcome::Skipped("sem-fila"));
         }
 
-        let ctx = BatchCtx {
-            engine: self.engine.clone(),
-            http: self.http.clone(),
-            store: self.store.clone(),
-            cfg: self.config.clone(),
-        };
+        let ctx = self.batch_ctx();
         let claimed = batch.len();
         let handles: Vec<_> = batch
             .into_iter()
@@ -297,7 +299,7 @@ impl CrawlMotor {
     }
 
     /// Abre e migra o `crawl.db` na primeira necessidade.
-    fn ensure_store(&self) -> Result<(), MotorError> {
+    pub(super) fn ensure_store(&self) -> Result<(), MotorError> {
         let mut guard = self
             .store
             .lock()

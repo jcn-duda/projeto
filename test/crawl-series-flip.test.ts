@@ -44,7 +44,7 @@ const collabs = {
   identify: async (): Promise<import('../src/providers/crawl-identify.js').IdentifyResult> =>
     ({ outcome: 'identified', imdb: 'tt1', reason: 'ok' }),
   record: async (): Promise<import('../src/providers/crawl-recorder.js').RecordReport> =>
-    ({ kept: 0, added: 0, transition: 'none', cleared: 0 }),
+    ({ kept: 0, added: 0, transition: 'none', invalidated: false }),
 };
 
 function claimedRow(): CrawlUrlRow {
@@ -71,7 +71,7 @@ describe('B2: flip dry→live não soma descoberta seca com a gravação real', 
     let recorded = 0;
     const process = createPageProcessor({
       identify: collabs.identify,
-      record: async () => { recorded += 1; return { kept: 0, added: 0, transition: 'none', cleared: 0 }; },
+      record: async () => { recorded += 1; return { kept: 0, added: 0, transition: 'none', invalidated: false }; },
     });
     const slice2: SeriesWorkProgress = { v: 1, doneCards: ['/c1', '/c2', '/c3'], totalCards: 4 };
     // Duas fatias secas com 1 descoberta cada ⅎ acumulado seco 2.

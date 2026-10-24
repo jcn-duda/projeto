@@ -63,7 +63,7 @@ const collabs = {
   identify: async (): Promise<import('../src/providers/crawl-identify.js').IdentifyResult> =>
     ({ outcome: 'identified', imdb: 'tt1', reason: 'ok' }),
   record: async (): Promise<import('../src/providers/crawl-recorder.js').RecordReport> =>
-    ({ kept: 0, added: 0, transition: 'none', cleared: 0 }),
+    ({ kept: 0, added: 0, transition: 'none', invalidated: false }),
 };
 
 function claimedRow(url = SHOW, kind: 'tv_show' | 'movie' = 'tv_show'): CrawlUrlRow {
@@ -78,7 +78,7 @@ describe('crawl-page: desfecho partial (Fase 7 v2)', () => {
       identify: collabs.identify,
       record: async (_s, _o, releases, location) => {
         recorded.push({ location, items: releases.length });
-        return { kept: 0, added: releases.length, transition: 'none', cleared: 0 };
+        return { kept: 0, added: releases.length, transition: 'none', invalidated: false };
       },
     });
     const outcome = await process(partialSite(), claimedRow(), { dryRun: false });
@@ -128,7 +128,7 @@ describe('crawl-page: desfecho partial (Fase 7 v2)', () => {
     let recorded = 0;
     const process = createPageProcessor({
       identify: collabs.identify,
-      record: async () => { recorded += 1; return { kept: 0, added: 0, transition: 'none', cleared: 0 }; },
+      record: async () => { recorded += 1; return { kept: 0, added: 0, transition: 'none', invalidated: false }; },
     });
     const outcome = await process(partialSite(), claimedRow(), { dryRun: true });
     assert.equal(outcome.kind, 'partial');
@@ -291,7 +291,7 @@ describe('crawl-page: conclusão por resume (fatia vazia não vira no-torrent)',
     let recorded = 0;
     const process = createPageProcessor({
       identify: collabs.identify,
-      record: async () => { recorded += 1; return { kept: 0, added: 0, transition: 'none', cleared: 0 }; },
+      record: async () => { recorded += 1; return { kept: 0, added: 0, transition: 'none', invalidated: false }; },
     });
     // Fatia 1 (dry): 1 release descoberta ⅎ partial com dry:1 e acumulado 1.
     const out1 = await process(partialSite(), claimedRow(), { dryRun: true });

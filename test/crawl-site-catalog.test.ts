@@ -125,8 +125,8 @@ describe('crawl catálogo: sites fora do .env', () => {
     // paginada `/pagina/N/` pelo núcleo `crawl-sites/listing-discover.ts` (e no
     // Apache, a ponte pelo NOME do profile `apachetorrent`). `mico` é o NONO e
     // o único que NÃO é card do Jackett — é o addon Stremio Mico Leão Dublado,
-    // com descoberta por paginação simples e URL sintética (Fase 1 do raspador).
-    // Com ele, a lista fecha os NOVE cards (oito BR do Jackett + o Mico).
+    // raspado pela lane de ritmo próprio do sidecar Rust (Fase 6). Todos os
+    // NOVE têm adaptador: oito no lote HTML e o Mico na lane `own_pace`.
     assert.deepEqual(registry.adapterIds(), [
       'vacatorrent', 'nerdfilmes', 'torrentdosfilmesv2', 'comandotorrents', 'redetorrent-cardigann',
       'apachetorrent-cardigann', 'hdrtorrent-cardigann', 'bludv-cardigann', 'mico',

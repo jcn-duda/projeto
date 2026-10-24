@@ -33,6 +33,12 @@ use crate::work_name::read_work_title;
 use build::{build_parsed_outcome, build_release_from_link, parse_mico_content};
 use sites::{bludv_gate_buttons, parse_bludv_links, parse_nerdfilmes_links, parse_tdf_links};
 
+/// Reexporta o parser JSON do Mico para a lane própria (Fase 6). O parse em si
+/// continua único em `page_parser::build` — nenhuma segunda régua.
+pub(crate) fn parse_mico_json(url: &str, is_series: bool, json_text: &str) -> CrawlPageParsed {
+    parse_mico_content(url, is_series, json_text)
+}
+
 /// Normaliza o identificador do site para a chave padrão.
 pub fn canonical_site_id(site: &str) -> &'static str {
     match site.trim().to_lowercase().as_str() {

@@ -26,17 +26,15 @@ compartilha heap com a busca), o sidecar Rust:
 ## Como ativar
 
 O sidecar é o **default**: o entrypoint usa `CRAWL_ENGINE:-rust` e o
-`src/config/crawl.ts` só cai no motor TS com `CRAWL_ENGINE=ts` explícito. Não
-há flag de modo do núcleo no caminho (o antigo `RUST_CORE=off|shadow|on` saiu
-no R7; o núcleo é obrigatório).
+`src/config/crawl.ts` só cai em `ts` com `CRAWL_ENGINE=ts` explícito. Não há
+flag de modo do núcleo no caminho (o antigo `RUST_CORE=off|shadow|on` saiu no
+R7; o núcleo é obrigatório).
 
-Para voltar ao motor TS (a suíte de testes depende do loop TS do Mico):
-
-```bash
-CRAWL_ENGINE=ts
-```
-
-O `crawl.db` é o mesmo (schema compatível). Nenhum dado é perdido na troca.
+Desde a Fase 6 **todos os nove sites** (oito cards do Jackett + o Mico) têm
+adaptador apenas no sidecar. `CRAWL_ENGINE=ts` virou modo LEGADO: o sidecar não
+sobe e o motor TS não tem adaptador para nenhum site da tabela — ele mantém o
+painel, as ações e o status, mas não raspa nada. Por isso o rollback de
+produção é a imagem anterior, não a troca do env (ver "Rollback").
 
 O entrypoint inicia o sidecar antes do addon, aguarda até 10s o healthcheck
 responder e só então sobe o addon. O sidecar **NÃO** entra no `wait -n` do
@@ -100,6 +98,39 @@ O sidecar expõe um servidor HTTP próprio na porta `CRAWL_SIDECAR_PORT`
 As rotas `/status` e `/action` exigem o header `X-Indexer-Test-Token` com o
 valor de `ADMIN_TOKEN`.
 
+## Mico: lane de ritmo próprio (`own_pace`)
+
+O Mico não é site HTML nem card do Jackett: é um addon Stremio público
+consultado por IMDb, com descoberta por catálogo paginado e leitura por
+`/stream/...json`. Ele roda numa lane dedicada do motor
+(`rust/crates/adom-crawl/src/motor/mico_lane.rs`), com dono único de claim e
+de ritmo:
+
+- **fora do teto horário, da janela de ociosidade e das vagas do
+  `CRAWL_MAX_CONCURRENT`** — o único limitador é `MICO_CRAWL_MIN_GAP_MS` do
+  cliente (`mico_net`); pausa global e auto-pausa continuam valendo;
+- **descoberta nativa** (`mico_discovery.rs`): paginação por `skip` com passo
+  FIXO (`stride_at`: 25 até 1000, 50 depois — `metas.length` não é o índice),
+  reconsulta de página vazia intermitente (`MICO_CRAWL_EMPTY_RETRIES`), fim só
+  após vazias seguidas (`MICO_CRAWL_END_AFTER_EMPTIES`) e teto
+  `MICO_CRAWL_MAX_PAGES` por tipo;
+- **varredura completa** (reprocessa o acervo e reenfileira o balde de
+  releitura) só a cada `MICO_CRAWL_FULL_SWEEP_HOURS` horas, com o marcador
+  `full-sweep:<tipo>` em `crawl_state`; entre elas a rodada é incremental e
+  para após `MICO_CRAWL_KNOWN_PAGES_TO_STOP` páginas só com obras já na fila —
+  sai `complete` sem mover o marcador;
+- **leitura** reutiliza `page_parser::parse_mico_content` (streams do TS):
+  filme vira card por IMDb; série lê temporadas/episódios do Cinemeta, segue
+  os botões e grava progresso MONOTÔNICO (`{v,doneCards,totalCards}`) para
+  retomar de onde parou;
+- **claim**: `store::ops::take_next` aceita `own_pace` (o chamador é a lane);
+  `take_next_batch` continua excluindo `own_pace`, então a página do Mico não
+  consome vaga nem é cobrada no teto agregado do lote paralelo.
+
+O `tick_once` dispara a lane em task separada; `MicoLane::try_enter` impede
+dois passos simultâneos (uma série de 40 episódios não é atropelada pelo tick
+seguinte). `MICO_ENABLED=false` desliga a fonte inteira.
+
 ## Schema do crawl.db
 
 O sidecar lê e escreve o **mesmo** `crawl.db` do motor TS. O schema é
@@ -116,9 +147,10 @@ compartilhado, definido em `rust/crates/adom-crawl/src/store/schema.rs`:
   `site`, `key`, `value`, `updated_at`. Chave composta `(site, key)`.
 
 A compatibilidade é garantida pela migration idempotente
-(`store::schema::migrate`). O motor TS e o sidecar Rust podem operar no
-mesmo banco sem conflito — as tabelas são as mesmas, os índices são os
-mesmos.
+(`store::schema::migrate`). As tabelas são as mesmas, os índices são os
+mesmos. Com o corte da Fase 6 o dono de cada site é ÚNICO: os nove sites são
+do sidecar (o Mico pela lane `own_pace`), e o motor TS não reivindica nenhum
+id da tabela.
 
 ## Protetor de link
 
@@ -142,29 +174,42 @@ Reutiliza `decode_entities` do `adom-core` para entidades HTML.
 
 ## Rollback e alternância
 
-Voltar para `CRAWL_ENGINE=ts` é seguro a qualquer momento (é troca de motor,
-não rollback de fatia):
+O rollback de FATIA é **commit/imagem anterior** (não env). `CRAWL_ENGINE=ts`
+não é mais um caminho de raspagem: desde a Fase 6 o TS não tem adaptador para
+nenhum dos nove sites, então com `ts` o sidecar não sobe e nada é raspado.
+Trocar o env não perde dados — o `crawl.db` é o mesmo e o sidecar retoma a
+fila no próximo boot — mas o rollback funcional exige a imagem anterior.
 
-1. O `crawl.db` é o mesmo — o motor TS lê o estado onde o sidecar parou
-2. URLs em `crawl_url` com status `processing` são retomadas pelo TS
+1. O `crawl.db` é o mesmo — o motor anterior lê o estado onde o sidecar parou
+2. URLs em `crawl_url` com status `processing` são retomadas no boot
 3. Resultados já gravados permanecem intactos
-
-Não há migração de dados. O schema é idêntico. O rollback das fatias
-R0–R8 é **commit/imagem anterior**, não env; `CRAWL_ENGINE=ts` é o caminho TS
-que a suíte usa e não reintroduz sombras/canário/frozen.
 
 ## Variáveis de ambiente
 
 | Variável | Default | Descrição |
 |---|---|---|
-| `CRAWL_ENGINE` | `rust` | Motor do raspador: `rust` (sidecar, default do entrypoint/config) ou `ts` (loop Node; a suíte depende dele) |
+| `CRAWL_ENGINE` | `rust` | Motor do raspador: `rust` (sidecar, dono dos nove sites) ou `ts` (LEGADO: sem adaptador TS, não raspa nada) |
 | `CRAWL_SIDECAR_PORT` | `7077` | Porta do healthcheck/status do sidecar |
 | `CRAWL_DB_PATH` | `./data/crawl.db` | Caminho do SQLite compartilhado |
 | `CRAWL_NODE_URL` | `http://127.0.0.1:7100` (entrypoint; default do binário isolado: `7000`) | URL do Node para POST de resultados; no container aponta para a 7100, porque a 7000 é a fachada e recusa `/internal/*` |
 | `JACKETT_TEST_TOKEN` | *(obrigatório)* | Token de autenticação (header `X-Indexer-Test-Token`), o mesmo das rotas de diagnóstico. `ADMIN_TOKEN` é alias (com aviso) |
 | `CRAWL_IDLE_WINDOW_MS` | `60000` | Janela de inatividade para freio (sidecar binário) |
-| `CRAWL_MAX_CONCURRENT` | `4` | Tarefas simultâneas |
+| `CRAWL_MAX_CONCURRENT` | `4` | Tarefas simultâneas (as vagas do lote HTML; a lane do Mico fica fora) |
 | `CRAWL_DELAY_MS` | `1000` | Atraso entre ciclos em ms |
+| `MICO_ENABLED` | `true` | Liga a fonte Mico (lane + leitura de página) no sidecar |
+| `MICO_URL` | `https://mico-leao-dublado-apiv-2.vercel.app` | Base da API do Mico |
+| `MICO_TIMEOUT_MS` | `15000` | Timeout de cada requisição do Mico |
+| `MICO_CRAWL_MIN_GAP_MS` | `1000` | Intervalo mínimo entre chamadas (o ritmo da lane) |
+| `MICO_CRAWL_MAX_PAGES` | `700` | Teto de requisições de catálogo por tipo e rodada |
+| `MICO_CRAWL_EMPTY_RETRIES` | `2` | Reconsultas de uma página vazia intermitente |
+| `MICO_CRAWL_END_AFTER_EMPTIES` | `4` | Vazias seguidas que provam o fim do catálogo |
+| `MICO_CRAWL_KNOWN_PAGES_TO_STOP` | `2` | Páginas só com obras já na fila que encerram o incremental |
+| `MICO_CRAWL_FULL_SWEEP_HOURS` | `24` | Intervalo mínimo entre varreduras completas por tipo |
+| `MICO_CRAWL_REREAD_DAYS` | `14` | Balde de releitura de FILME (série usa 30 fixo) |
+| `MICO_CRAWL_SERIES` | `true` | Descobre séries além de filmes |
+| `MICO_CRAWL_SERIES_MAX_SEASONS` | `2` | Temporadas mais recentes lidas por série |
+| `CRAWL_SERIES_MAX_BUTTONS` | `40` | Episódios por passe de leitura de série (progresso retomável) |
+| `MICO_CRAWL_DISCOVERY_INTERVAL_MS` | `3600000` | Intervalo entre rodadas de descoberta da lane (ms) |
 
 **Nota sobre `idle_window_ms`**: o binário do sidecar lê `CRAWL_IDLE_WINDOW_MS`
 com default 60000ms (1 min). O `MotorConfig` do motor Rust tem default
@@ -201,6 +246,10 @@ isso falando direto com o Node na 7100. O token
 - `rust/crates/adom-crawl/src/store/schema.rs` — DDL e migration do SQLite
 - `rust/crates/adom-crawl/src/store/ops.rs` — operações do CrawlStore
 - `rust/crates/adom-crawl/src/motor/` — motor de crawl (loop, config, types)
+- `rust/crates/adom-crawl/src/motor/mico_lane.rs` — lane de ritmo próprio do Mico (claim + passo)
+- `rust/crates/adom-crawl/src/mico_discovery.rs` — descoberta paginada do Mico (passo fixo, full sweep, incremental)
+- `rust/crates/adom-crawl/src/mico_net/` — cliente HTTP e tipos da API do Mico
+- `rust/crates/adom-crawl/src/mico_page.rs` — leitura de página do Mico (filme/série, progresso)
 - `rust/crates/adom-crawl/src/sidecar/` — cliente HTTP e freio de tráfego
 - `rust/crates/adom-crawl/src/protector.rs` — protetor de link (port Rust)
 - `scripts/entrypoint.sh` — inicia o sidecar quando `CRAWL_ENGINE=rust`
@@ -209,9 +258,13 @@ isso falando direto com o Node na 7100. O token
 
 ## Limites
 
-- O sidecar é o **default** (`CRAWL_ENGINE=rust` no entrypoint/config). O
-  motor TS fica como alternativa operacional porque a suíte de testes depende
-  do loop TS do Mico; não é o caminho de produção.
+- O sidecar é o **default** e o **único** caminho de raspagem. `CRAWL_ENGINE=ts`
+  permanece no contrato das rotas do painel, mas não raspa nenhum site da
+  tabela (não há adaptador TS desde a Fase 6).
+- A descoberta do Mico no Rust não tem um deadline TOTAL como o
+  `CRAWL_DISCOVERY_DEADLINE_MS` do TS: o limite é `MICO_CRAWL_MAX_PAGES` por
+  tipo × timeout de cada requisição. A lane roda em background, fora do passo
+  de linha, então uma varredura longa não trava o lote paralelo.
 - O protetor de link Rust é um módulo novo; o TS continua funcionando. A
   migração do protetor ativo acompanha o motor escolhido.
 - O `crawl.db` é compartilhado, mas o sidecar e o motor TS **não** devem

@@ -3,11 +3,13 @@
 //! Porte do módulo TS `src/providers/crawl-sites/mico-shared.ts:157-189`.
 
 use regex::Regex;
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, RETRY_AFTER};
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, RETRY_AFTER, USER_AGENT};
 use reqwest::Client;
 use serde_json::Value;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::mico::SeriesMeta;
+use crate::mico_net::api::{parse_series_meta, MicoApi, MicoFuture, CINEMETA_BASE};
 use crate::mico_net::throttle::MicoThrottle;
 use crate::mico_net::types::{CatalogPage, CatalogType, MicoClientConfig, MicoError};
 
@@ -147,6 +149,102 @@ impl MicoClient {
     #[doc(hidden)]
     pub fn _throttle(&self) -> &MicoThrottle {
         &self.throttle
+    }
+
+    /// GET JSON cru com o MESMO throttle do catálogo.
+    ///
+    /// `4xx` (exceto 429) devolve `Ok(None)`: é da obra/requisição e não prova
+    /// host caído — mesma semântica do `fetchMicoStreams` do TS. `429`, `5xx`,
+    /// timeout e rede sobem como `Err` (o motor faz backoff).
+    pub async fn get_json(&self, url: &str) -> Result<Option<String>, MicoError> {
+        self.throttle.wait().await;
+        let response = self
+            .client
+            .get(url)
+            .header(ACCEPT, HeaderValue::from_static("application/json"))
+            .timeout(self.timeout)
+            .send()
+            .await;
+        // O gap vale entre INÍCIOS: registra mesmo quando o request falha.
+        self.throttle.record_call();
+        let response = response.map_err(|e| {
+            if e.is_timeout() {
+                MicoError::Timeout
+            } else {
+                MicoError::ConnectionError(e.to_string())
+            }
+        })?;
+        let status = response.status();
+        if status == 429 {
+            let retry_after_ms = parse_retry_after(response.headers()).unwrap_or(0);
+            self.throttle.honor_retry_after(retry_after_ms);
+            return Err(MicoError::RateLimited { retry_after_ms });
+        }
+        if status.is_client_error() {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(MicoError::HttpError {
+                status: status.as_u16(),
+                body,
+            });
+        }
+        response
+            .text()
+            .await
+            .map(Some)
+            .map_err(|e| MicoError::JsonParseError(e.to_string()))
+    }
+
+    /// Metadados de série da Cinemeta (episódios por temporada + datas).
+    pub async fn series_meta(&self, imdb: &str) -> Result<Option<SeriesMeta>, MicoError> {
+        let url = format!("{CINEMETA_BASE}/meta/series/{imdb}.json");
+        let response = self
+            .client
+            .get(&url)
+            .header(ACCEPT, HeaderValue::from_static("application/json"))
+            .header(USER_AGENT, HeaderValue::from_static("stremio-adom/1.0"))
+            .timeout(self.timeout)
+            .send()
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    MicoError::Timeout
+                } else {
+                    MicoError::ConnectionError(e.to_string())
+                }
+            })?;
+        if !response.status().is_success() {
+            return Ok(None);
+        }
+        let text = response
+            .text()
+            .await
+            .map_err(|e| MicoError::JsonParseError(e.to_string()))?;
+        Ok(parse_series_meta(&text))
+    }
+}
+
+impl MicoApi for MicoClient {
+    fn catalog_page<'a>(
+        &'a self,
+        kind: CatalogType,
+        catalog_id: &'a str,
+        skip: usize,
+    ) -> MicoFuture<'a, Result<CatalogPage, MicoError>> {
+        Box::pin(async move { self.fetch_catalog_page(kind, catalog_id, skip).await })
+    }
+
+    fn get_json<'a>(&'a self, url: &'a str) -> MicoFuture<'a, Result<Option<String>, MicoError>> {
+        Box::pin(async move { MicoClient::get_json(self, url).await })
+    }
+
+    fn series_meta<'a>(
+        &'a self,
+        imdb: &'a str,
+    ) -> MicoFuture<'a, Result<Option<SeriesMeta>, MicoError>> {
+        Box::pin(async move { MicoClient::series_meta(self, imdb).await })
     }
 }
 

@@ -193,30 +193,30 @@ fn take_next_batch_serve_quem_esperou_mais() {
     );
 }
 
-// ─── roteamento own_pace (dono único: motor TS) ─────────────────────────
+// ─── roteamento own_pace (dono: lane dedicada) ──────────────
 
 /// Site real com ritmo próprio (o critério vem do perfil de rede, não do id).
 const OWN_PACE: &str = "mico";
 
-/// `take_next` nunca reivindica own_pace: o sidecar não é o dono dele e uma
-/// recusa do engine queimaria tentativa (incidente de 2026-10).
+/// `take_next` ACEITA own_pace: quem chama é a lane dedicada do Mico
+/// (`motor::mico_lane`), dona do claim e do ritmo desse site.
 #[test]
-fn take_next_recusa_own_pace() {
+fn take_next_reivindica_own_pace_para_a_lane() {
     let (store, _dir) = temp_store();
     store
         .upsert_urls(OWN_PACE, &[sample_url("/crawl/movie/tt0000001/")])
         .expect("upsert mico");
 
-    let none = store.take_next(OWN_PACE).expect("take mico");
-    assert!(
-        none.is_none(),
-        "own_pace não pode ser reivindicado pelo Rust"
-    );
+    let row = store
+        .take_next(OWN_PACE)
+        .expect("take mico")
+        .expect("a lane precisa poder reivindicar own_pace");
+    assert_eq!(row.site, OWN_PACE);
+    assert_eq!(row.status, "inflight");
 
-    // A fila fica intacta (pending, sem tentativa queimada) para o TS processar.
     let c = store.counters(OWN_PACE).expect("counters mico");
-    assert_eq!(c.pending, 1);
-    assert_eq!(c.inflight, 0);
+    assert_eq!(c.pending, 0);
+    assert_eq!(c.inflight, 1);
 }
 
 /// `take_next_batch` exclui own_pace SEM consumir vaga do limite: o Mico tem a

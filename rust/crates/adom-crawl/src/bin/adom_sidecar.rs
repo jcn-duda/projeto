@@ -14,6 +14,13 @@
 //! - `CRAWL_IDLE_WINDOW_MS` — janela de inatividade para freio (default: 60000)
 //! - `CRAWL_MAX_CONCURRENT` — tarefas simultâneas (default: 4)
 //! - `CRAWL_DELAY_MS` — atraso entre ciclos em ms (default: 1000)
+//!
+//! # Mico (ritmo próprio)
+//!
+//! `MICO_ENABLED=false` desliga a fonte inteira. Quando ligada, o sidecar roda a
+//! descoberta nativa (`MICO_CRAWL_*`) e a leitura de página do Mico na lane
+//! `own_pace`, fora do teto horário, da janela de ociosidade e das vagas do
+//! `CRAWL_MAX_CONCURRENT`; o único limitador é `MICO_CRAWL_MIN_GAP_MS`.
 
 use std::env;
 use std::process;
@@ -22,8 +29,11 @@ use std::sync::{Arc, Mutex as StdMutex};
 use adom_crawl::gate::{
     FlareProbe, GateExecutor, GateExecutorConfig, GateResolver, HttpGateResolver,
 };
-use adom_crawl::motor::types::MotorConfig;
-use adom_crawl::motor::CrawlMotor;
+use adom_crawl::mico_discovery::MicoCrawlConfig;
+use adom_crawl::mico_net::{MicoClient, MicoClientConfig};
+use adom_crawl::mico_page::{MicoPageEngine, RoutedPageEngine};
+use adom_crawl::motor::types::{MotorConfig, PageEngine};
+use adom_crawl::motor::{CrawlMotor, MicoLane};
 use adom_crawl::page_engine::CrawlPageEngine;
 use adom_crawl::protector_follow::ProtectorFollow;
 use adom_crawl::sidecar::server::AppState;
@@ -128,8 +138,39 @@ async fn main() {
     page_engine.protector = protector;
     // Arc compartilhado: o motor o usa como `PageEngine` e o executor de
     // portões como `FlareProbe` (mesma faixa única do solver).
-    let engine: Arc<CrawlPageEngine> = Arc::new(page_engine);
-    let motor = Arc::new(CrawlMotor::new(config.clone()).with_page_engine(engine.clone()));
+    let html_engine: Arc<CrawlPageEngine> = Arc::new(page_engine);
+
+    // ── 5b. Mico: descoberta nativa + leitura de página (ritmo próprio) ──
+    // O Mico não é site HTML: a fila dele é lida por uma engine própria e o
+    // ritmo é o throttle do cliente. `MICO_ENABLED=false` desliga a fonte.
+    let mico_cfg = mico_config();
+    let mico = (env_or("MICO_ENABLED", "true") != "false").then(|| {
+        let client: Arc<MicoClient> = Arc::new(MicoClient::new(MicoClientConfig {
+            base_url: mico_cfg.base_url.clone(),
+            timeout_ms: env_u64("MICO_TIMEOUT_MS", 15_000),
+            min_gap_ms: env_u64("MICO_CRAWL_MIN_GAP_MS", 1_000),
+        }));
+        let lane = Arc::new(MicoLane::new(client.clone(), mico_cfg.clone()));
+        eprintln!(
+            "[adom-sidecar] mico: lane ligada (base={}, gap={}ms, full_sweep={}h)",
+            mico_cfg.base_url,
+            env_u64("MICO_CRAWL_MIN_GAP_MS", 1_000),
+            mico_cfg.full_sweep_hours
+        );
+        (client, lane)
+    });
+    let engine: Arc<dyn PageEngine> = match &mico {
+        Some((client, _)) => Arc::new(RoutedPageEngine::new(
+            html_engine.clone(),
+            Arc::new(MicoPageEngine::new(client.clone(), &mico_cfg)),
+        )),
+        None => html_engine.clone(),
+    };
+    let mut motor = CrawlMotor::new(config.clone()).with_page_engine(engine);
+    if let Some((_, lane)) = &mico {
+        motor = motor.with_mico(lane.clone());
+    }
+    let motor = Arc::new(motor);
 
     // ── 6. Inicia o servidor HTTP do sidecar ─────────────────────────
     // O servidor roda em background, em loopback, para o painel e entrypoint.
@@ -165,7 +206,7 @@ async fn main() {
             gate_cfg.resolver_port,
             gate_cfg.resolver_timeout_ms,
         ));
-        let flare: Arc<dyn FlareProbe> = engine.clone();
+        let flare: Arc<dyn FlareProbe> = html_engine.clone();
         let executor = Arc::new(GateExecutor::new(
             gate_cfg,
             config,
@@ -216,4 +257,31 @@ fn resolve_auth_token() -> String {
         );
     }
     fallback
+}
+
+/// Config da lane do Mico — mesmos nomes e defaults do `.env` do TS
+/// (`config/providers.ts`, bloco `mico`). `src/config.ts` é do lado Node; aqui
+/// o sidecar lê o ambiente direto.
+fn mico_config() -> MicoCrawlConfig {
+    MicoCrawlConfig {
+        site: "mico".to_string(),
+        base_url: env_or("MICO_URL", "https://mico-leao-dublado-apiv-2.vercel.app")
+            .trim_end_matches('/')
+            .to_string(),
+        max_pages: env_u64("MICO_CRAWL_MAX_PAGES", 700).max(1) as u32,
+        empty_retries: env_u64("MICO_CRAWL_EMPTY_RETRIES", 2) as u32,
+        end_after_empties: env_u64("MICO_CRAWL_END_AFTER_EMPTIES", 4).max(1) as u32,
+        known_pages_to_stop: env_u64("MICO_CRAWL_KNOWN_PAGES_TO_STOP", 2).max(1) as u32,
+        full_sweep_hours: env_u64("MICO_CRAWL_FULL_SWEEP_HOURS", 24).max(1) as i64,
+        reread_days_movie: env_u64("MICO_CRAWL_REREAD_DAYS", 14).max(1) as u32,
+        // `SERIES_REREAD_DAYS` do TS: série custa mais, relê menos.
+        reread_days_series: 30,
+        series_enabled: env_or("MICO_CRAWL_SERIES", "true") != "false",
+        series_max_seasons: env_u64("MICO_CRAWL_SERIES_MAX_SEASONS", 2).max(1) as u32,
+        series_max_buttons: env_u64("CRAWL_SERIES_MAX_BUTTONS", 40).max(1) as u32,
+        // Rodada de descoberta: entre varreduras completas ela é incremental
+        // (do topo, parando em páginas só com obras na fila). Não existe no TS
+        // porque lá a rodada era o próprio ciclo de 60 min do crawler.
+        discovery_interval_ms: env_u64("MICO_CRAWL_DISCOVERY_INTERVAL_MS", 3_600_000) as i64,
+    }
 }

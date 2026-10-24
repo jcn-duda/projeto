@@ -10,9 +10,13 @@
 //! Port Rust do TypeScript `utils/crawl-store-migrate.ts` + `utils/crawl-store.ts`.
 
 mod gate_ops;
+/// Enfileiramento/consulta da lane do Mico (descoberta própria).
+pub mod mico_ops;
 pub mod ops;
 pub mod schema;
 pub mod types;
+/// Identidade de página (`url_key` = caminho da URL) — porta de `crawl-url-key.ts`.
+pub mod url_key;
 
 #[cfg(test)]
 mod tests;
@@ -22,4 +26,5 @@ mod tests;
 mod tests_part2;
 
 // Re-exports para conveniência do consumidor.
+pub use mico_ops::EnqueueReport;
 pub use ops::{CrawlStore, MarkResult, StatusCounters, StoreError, UrlRow};

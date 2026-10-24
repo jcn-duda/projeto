@@ -31,6 +31,10 @@
 
 mod gate_pending;
 pub mod r#loop;
+/// Lane de ritmo próprio (Mico): descoberta própria + leitura de página.
+pub mod mico_lane;
+/// Disparo da lane own_pace dentro do `CrawlMotor` (freios e gancho de teste).
+mod own_pace;
 pub mod types;
 
 #[cfg(test)]
@@ -39,6 +43,7 @@ mod loop_tests;
 mod tests;
 
 // Re-exports para ergonomia.
+pub use mico_lane::{MicoLane, OwnPaceReport};
 pub use r#loop::{CrawlMotor, MotorError, TickOutcome};
 pub use types::{
     error_backoff_ms, error_work, now_ms, CrawlRawItem, CrawlReleaseGroup, CrawlResultStatus,

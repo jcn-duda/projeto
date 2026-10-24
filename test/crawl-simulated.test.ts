@@ -123,7 +123,7 @@ describe('crawl-page: dry-run marca simulated', () => {
 
   test('gravação real na mesma URL: simulated vira done', async () => {
     store.engine().upsertUrls('fake', [movie('/a')], 1);
-    const process = createPageProcessor({ record: async () => ({ kept: 1, added: 1, transition: 'none', cleared: 0 }) });
+    const process = createPageProcessor({ record: async () => ({ kept: 1, added: 1, transition: 'none', invalidated: false }) });
     const row = store.engine().takeNext('fake', 10) as CrawlUrlRow;
     await process(fakeSite(), row, { dryRun: true });
     assert.equal(store.engine().getUrl('fake', '/a')?.status, 'simulated');

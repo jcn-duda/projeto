@@ -110,13 +110,11 @@ export const crawl = () => ({
     process.env.CRAWL_FLARE_STEP_DEADLINE_MS,
     seriesMaxButtonsEnv() * (num(process.env.FLARE_TIMEOUT_MS, 55_000) + 10_000) + 60_000,
   ))),
-  // Prazo DURO da fase de DESCOBERTA (separado do passo de linha). A descoberta
-  // completa do Mico lê DOIS catálogos em sequência (filme + série), ~50 min
-  // CADA na VPS (`mico-shared.ts`), podendo passar de 100 min: o orçamento de
-  // LINHA (~11,7 min) NÃO pode cancelar uma varredura completa boa. Default 2 h
-  // (≈100 min + margem) e configurável; NÃO é um "cap de 30 min". Ao vencer, a
-  // cerca invalida o passo: o adaptador para o laço de páginas e não grava o
-  // marker/cursor, e o vigia fecha a rodada e rearma `nextDiscoverAt=0` (retry).
+  // Prazo DURO da fase de DESCOBERTA do motor TS (separado do passo de linha).
+  // Fica no contrato porque `crawl-step.ts` o lê; desde a Fase 6 não há site
+  // com adaptador TS (os nove, inclusive o Mico, são do sidecar Rust), então o
+  // valor é inerte no produto e serve a um adaptador TS futuro. O Mico no Rust
+  // é limitado por `MICO_CRAWL_MAX_PAGES` e pelo timeout de cada requisição.
   discoveryDeadlineMs: Math.max(60_000, Math.trunc(num(process.env.CRAWL_DISCOVERY_DEADLINE_MS, 2 * 3600_000))),
   // Sites que passam pelo FlareSolverr (um pedido por vez, o MESMO da busca):
   // nunca correm dois juntos.
@@ -132,9 +130,11 @@ export const crawl = () => ({
   // afirmar que cobriu. Dimensionado contra o teto por hora acima: 20 páginas
   // × 20 cards = 400 URLs por rodada, e o acervo inteiro leva ~5 rodadas.
   listingMaxPagesPerRound: Math.max(1, Math.trunc(num(process.env.CRAWL_LISTING_MAX_PAGES_PER_ROUND, 20))),
-  // Motor do raspador: 'rust' (default, sidecar) ou 'ts'. Os oito cards do
-  // Jackett só têm adaptador no sidecar Rust; o TS raspa o Mico nos dois
-  // modos. 'ts' existe para desligar o sidecar (só o Mico continua).
+  // Motor do raspador: 'rust' (default, sidecar) ou 'ts' (LEGADO). Desde a
+  // Fase 6 os nove sites — oito do Jackett + o Mico — têm adaptador no sidecar
+  // e nenhum tem adaptador TS: com 'ts' o sidecar não sobe e o TS não raspa
+  // nada. O knob fica porque as rotas do painel ainda escolhem o caminho das
+  // ações (proxy do sidecar × execução local) e um adaptador TS futuro o usa.
   crawlEngine: process.env.CRAWL_ENGINE === 'ts' ? 'ts' as const : 'rust' as const,
   // Porta do sidecar Rust (quando CRAWL_ENGINE=rust). O sidecar escuta em
   // 127.0.0.1:<porta> e responde /status e /action.

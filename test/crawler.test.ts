@@ -17,10 +17,10 @@ const config = (await import('../src/config.js')).default;
 const store = await import('../src/utils/crawl-store.js');
 const crawler = await import('../src/providers/crawler.js');
 const activity = await import('../src/providers/activity.js');
-const cache = await import('../src/utils/cache.js');
 const releaseIndex = await import('../src/utils/release-index.js');
 const bank = await import('../src/utils/magnet-bank.js');
 const { prefix } = await import('../src/utils/cache-keys.js');
+const { createStreamsBridge } = await import('./helpers/streams-bridge.js');
 import type { CrawlDiscovery, CrawlSite, CrawlUrlRow } from '../src/providers/crawl-types.js';
 import type { RawItem } from '../types/domain.js';
 
@@ -284,24 +284,30 @@ describe('crawler: motor', () => {
     freshCrawl({ dryRun: true });
     const imdb = 'tt7654321';
     const streamKey = `${prefix('streams')}movie:${imdb}:canary`;
-    cache.set(streamKey, { keep: 1 }, 900);
-    store.engine().upsertUrls('fake', [movie('/a')], 1);
-    crawler._setSitesForTest(() => fakeSite({
-      fetchWork: async (url) => ({
-        url, status: 'done', imdb, title: 'Obra', year: 2000, type: 'movie', releases: [item(url)],
-      }),
-    }));
-    crawler._forceDiscoveryForTest();
-    await crawler.tick(); // descoberta
-    await crawler.tick(); // página
-    const row = store.engine().getUrl('fake', '/a') as CrawlUrlRow;
-    // Dry-run NÃO marca done (nada foi gravado): status próprio `simulated`.
-    assert.equal(row.status, 'simulated');
-    assert.equal(row.imdb, imdb);
-    assert.equal(row.releases, 1);
-    assert.equal(releaseIndex.lookupQuiet(imdb, {}).length, 0, 'índice intacto');
-    assert.ok(cache.get(streamKey), 'lista pronta não foi invalidada');
-    assert.equal(bank.isOpen(), false, 'banco vivo não foi aberto');
-    cache.forget(streamKey);
+    // A lista pronta vive no `streams.db`: o canário do dry-run é NÃO pedir
+    // invalidação à ponte (a varredura do L1 do Node não existe mais).
+    const bridge = createStreamsBridge({ entries: [{ type: 'movie', id: imdb, key: streamKey }] });
+    try {
+      store.engine().upsertUrls('fake', [movie('/a')], 1);
+      crawler._setSitesForTest(() => fakeSite({
+        fetchWork: async (url) => ({
+          url, status: 'done', imdb, title: 'Obra', year: 2000, type: 'movie', releases: [item(url)],
+        }),
+      }));
+      crawler._forceDiscoveryForTest();
+      await crawler.tick(); // descoberta
+      await crawler.tick(); // página
+      const row = store.engine().getUrl('fake', '/a') as CrawlUrlRow;
+      // Dry-run NÃO marca done (nada foi gravado): status próprio `simulated`.
+      assert.equal(row.status, 'simulated');
+      assert.equal(row.imdb, imdb);
+      assert.equal(row.releases, 1);
+      assert.equal(releaseIndex.lookupQuiet(imdb, {}).length, 0, 'índice intacto');
+      assert.equal(bridge.count('/streams/invalidate'), 0, 'dry-run não pediu invalidação');
+      assert.equal(bridge.has(streamKey), true, 'lista pronta não foi invalidada');
+      assert.equal(bank.isOpen(), false, 'banco vivo não foi aberto');
+    } finally {
+      bridge.restore();
+    }
   });
 });

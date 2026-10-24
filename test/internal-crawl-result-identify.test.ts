@@ -36,7 +36,7 @@ interface RecordCall {
 
 // Estado do dublê: cada teste configura o resultado e zera as capturas.
 let identifyResult: IdentifyResult = { outcome: 'unidentified', imdb: null, reason: 'duble-nao-configurado' };
-let recordReport: RecordReport = { kept: 1, added: 1, transition: 'none', cleared: 0 };
+let recordReport: RecordReport = { kept: 1, added: 1, transition: 'none', invalidated: false };
 let identifyCalls: IdentifyInput[] = [];
 let recordCalls: RecordCall[] = [];
 
@@ -49,7 +49,7 @@ function setIdentify(result: IdentifyResult): IdentifyInput[] {
 
 /** Configura o relatório do dublê do recorder e zera só a captura dele. */
 function setRecorder(report: Partial<RecordReport> = {}): RecordCall[] {
-  recordReport = { kept: 1, added: 1, transition: 'none', cleared: 0, ...report };
+  recordReport = { kept: 1, added: 1, transition: 'none', invalidated: false, ...report };
   recordCalls = [];
   return recordCalls;
 }

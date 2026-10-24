@@ -214,11 +214,11 @@ async fn tick_entrega_marca_done_e_cobra_o_custo_real() {
     assert_eq!(motor.status().await.pages_this_hour, 2);
 }
 
-/// Roteamento single-owner: o motor Rust NÃO processa site own_pace (Mico).
-/// O claim do store o exclui; se isto regredir, o engine recusaria a página e
-/// queimaria tentativa (incidente de 2026-10: ~300 páginas viraram erro).
+/// Roteamento por lane: o LOTE PARALELO não reivindica site own_pace (Mico).
+/// Quem o trabalha é a lane dedicada (`own_pace_once`), fora do teto e das
+/// vagas; sem lane ligada a fila do Mico fica intacta, sem queimar tentativa.
 #[tokio::test]
-async fn tick_nao_reivindica_own_pace() {
+async fn tick_nao_reivindica_own_pace_no_lote_paralelo() {
     let dir = tempfile::tempdir().expect("tempdir");
     let db = dir.path().join("crawl.db");
     let caminho = db.to_str().unwrap();
@@ -238,8 +238,12 @@ async fn tick_nao_reivindica_own_pace() {
 
     let outcome = motor.tick_once().await.expect("tick");
     assert_eq!(outcome, TickOutcome::Skipped("sem-fila"));
+    assert!(
+        motor.own_pace_once().await.expect("own_pace").is_none(),
+        "sem lane ligada não há passo próprio"
+    );
     let (status, tries, _) = ler_linha(caminho, "tt0000001");
-    assert_eq!(status, "pending", "fila do Mico fica intacta para o TS");
+    assert_eq!(status, "pending", "fila do Mico espera a lane dedicada");
     assert_eq!(tries, 0, "nenhuma tentativa queimada");
     assert_eq!(posts.load(Ordering::SeqCst), 0, "nada entregue ao Node");
 }

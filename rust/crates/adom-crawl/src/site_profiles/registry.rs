@@ -39,9 +39,10 @@ pub fn all_site_configs() -> Vec<&'static SiteNetworkConfig> {
 
 /// O site tem ritmo próprio (ex.: Mico)?
 ///
-/// Roteamento single-owner: o dono de um site `own_pace` é o MOTOR TS. O
-/// sidecar não o reivindica (`store::ops` filtra no claim), não processa nem
-/// o recusa — uma recusa queimaria tentativa de quem não vai trabalhar.
+/// Roteamento single-owner: o dono de um site `own_pace` é a lane dedicada do
+/// motor Rust (`motor::mico_lane`), com adaptador e ritmo próprios. O lote
+/// paralelo o exclui em `store::ops::take_next_batch` (não divide vaga nem
+/// teto agregado) e o `RoutedPageEngine` manda a página para a engine dele.
 pub fn is_own_pace(site_id: &str) -> bool {
     site_network_config(site_id).is_some_and(|c| c.own_pace)
 }

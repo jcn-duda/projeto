@@ -236,7 +236,7 @@ fn status_from(label: &str) -> CrawlResultStatus {
     }
 }
 
-fn release_from(r: &CrawlParsedRelease) -> CrawlRawItem {
+pub(crate) fn release_from(r: &CrawlParsedRelease) -> CrawlRawItem {
     CrawlRawItem {
         title: r.title.clone(),
         // O Node extrai o infoHash do magnet; vazio não é magnet, é ruído.
@@ -269,7 +269,7 @@ pub(crate) fn kind_from(kind: &str) -> String {
 }
 
 /// `CrawlPageParsed` → `CrawlWorkResult`, com o custo medido na esteira.
-fn to_work(row: &UrlRow, parsed: CrawlPageParsed, cost: u32) -> CrawlWorkResult {
+pub(crate) fn to_work(row: &UrlRow, parsed: CrawlPageParsed, cost: u32) -> CrawlWorkResult {
     let kind = parsed
         .work_type
         .clone()

@@ -1,9 +1,10 @@
-// Roteamento single-owner do Mico (own_pace) com CRAWL_ENGINE=rust: o sidecar
-// Rust é o dono dos sites comuns (e os exclui no claim, `store/ops.rs`); o
-// motor TS arma o timer RESTRITO aos own_pace — sem isto o Mico deixava de ser
-// raspado (o engine Rust o recusava queimando tentativa e o TS não armava
-// nada). Estes casos cobrem o lado TS do contrato; o lado Rust tem os casos
-// `take_next_recusa_own_pace` e `take_next_batch_exclui_own_pace_sem_gastar_vaga`.
+// Contrato do corte da Fase 6: o Mico virou `rust: true` no registro e é
+// raspado pela lane de ritmo próprio do sidecar (`adom-crawl::motor::mico_lane`),
+// fora do teto/ociosidade/vagas. O motor TS perdeu o alvo: os NOVE sites da
+// tabela são do sidecar, então `tick()` não reivindica nem processa o Mico em
+// NENHUM modo — antes ele era o único own_pace do TS e o claim do Rust o
+// recusava. O lado Rust do contrato vive em `motor::own_pace::tests` (bypass
+// dos três freios) e `store::tests_part2` (claim exclusive do lote × lane).
 import { test, describe, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -12,6 +13,7 @@ process.env.CACHE_PERSIST = 'false';
 const config = (await import('../src/config.js')).default;
 const store = await import('../src/utils/crawl-store.js');
 const crawler = await import('../src/providers/crawler.js');
+const registry = await import('../src/providers/crawl-sites/registry.js');
 import type { CrawlDiscovery, CrawlSite } from '../src/providers/crawl-types.js';
 import type { RawItem } from '../types/domain.js';
 
@@ -30,14 +32,13 @@ after(() => {
   Object.assign(config.crawl, savedCrawl);
 });
 
-/** Defaults de teste em MODO RUST: o sidecar (processo externo) é o dono do
- * resto — aqui ele é simulado pela AUSÊNCIA de trabalho TS sobre os comuns. */
+/** Defaults de teste: o sidecar (processo externo) é o dono dos nove sites. */
 function freshCrawl(overrides: Record<string, unknown> = {}): void {
   Object.assign(config.crawl, {
     crawlEngine: 'rust',
     enabled: true,
     dryRun: true,
-    sites: ['mico', 'fake'],
+    sites: ['mico'],
     delayMs: 0,
     maxPerHour: 1000,
     idleWindowMs: 0,
@@ -73,30 +74,48 @@ function fakeSiteFor(id: string, onFetch?: () => void): CrawlSite {
   };
 }
 
-describe('crawler em modo rust: dono único do own_pace (Mico)', () => {
-  test('tick restrito: processa SÓ o own_pace; site comum fica para o sidecar', async () => {
-    let fakeFetches = 0;
-    store.engine().upsertUrls('mico', [movie('/crawl/movie/tt1000000/')], 1);
-    store.engine().upsertUrls('fake', [movie('/a')], 1);
-    // O contador é SÓ do site comum: o fetch do próprio Mico não é "vazamento".
-    crawler._setSitesForTest((id) => fakeSiteFor(id, id === 'fake' ? () => { fakeFetches += 1; } : undefined));
-    crawler._forceDiscoveryForTest();
-    await crawler.tick(); // descoberta do Mico (a única fila que o TS enxerga)
-    await crawler.tick(); // página do Mico
-    assert.equal(store.engine().counters('mico').byStatus.simulated, 1, 'o TS processa o own_pace em modo rust');
-    assert.equal(store.engine().counters('fake').byStatus.pending, 1, 'site comum fica para o sidecar');
-    assert.equal(fakeFetches, 0, 'o adaptador do site comum nunca é chamado pelo TS');
-    // O custo do own_pace não consome o TETO AGREGADO (`pagesThisHour` do
-    // status é o contador do SITE ATIVO — aqui o próprio Mico, que tem contador
-    // só para o painel; o agregado do processo é quem não pode ser tocado).
-    assert.equal(crawler.status().pagesThisHourTotal, 0, 'teto agregado não consome com own_pace');
+describe('Fase 6: o Mico é do sidecar Rust em ambos os modos', () => {
+  test('registro: mico é rust, own_pace e sem módulo TS', async () => {
+    assert.equal(registry.isRustSite('mico'), true, 'o motor TS não é mais o dono');
+    assert.equal(registry.isOwnPace('mico'), true, 'ritmo próprio continua declarado (lane do Rust)');
+    assert.equal(registry.siteInfo('mico').adapter, true, 'tem adaptador (no sidecar)');
+    assert.equal(await registry.ensureSite('mico'), null, 'não há adaptador TS para o Mico');
   });
 
-  test('start() retoma a inflight órfã do Mico (claim interrompido)', async () => {
+  for (const mode of ['rust', 'ts'] as const) {
+    test(`modo ${mode}: tick não reivindica nem chama o adaptador do Mico`, async () => {
+      Object.assign(config.crawl, { crawlEngine: mode });
+      let micoFetches = 0;
+      store.engine().upsertUrls('mico', [movie('/crawl/movie/tt1000000/')], 1);
+      // A fábrica de teste devolveria um adaptador para 'mico'; se o motor o
+      // pedisse, o fetch abaixo contaria — o filtro por `isRustSite` é o que
+      // impede o TS de disputar a fila com a lane.
+      crawler._setSitesForTest((id) => fakeSiteFor(id, id === 'mico' ? () => { micoFetches += 1; } : undefined));
+      await crawler.tick();
+      await crawler.tick();
+      assert.equal(store.engine().getUrl('mico', '/crawl/movie/tt1000000/')?.status, 'pending',
+        'a fila do Mico é do sidecar: o TS não a move');
+      assert.equal(micoFetches, 0, 'o adaptador do Mico nunca é chamado pelo TS');
+      assert.equal(crawler.status().pagesThisHourTotal, 0, 'nada é cobrado no teto agregado do TS');
+    });
+  }
+
+  test('id fora da tabela segue no motor TS, provando que o filtro é POR site', async () => {
+    freshCrawl({ sites: ['fake'] });
+    store.engine().upsertUrls('fake', [movie('/a')], 1);
+    crawler._setSitesForTest((id) => fakeSiteFor(id));
+    crawler._forceDiscoveryForTest();
+    await crawler.tick(); // descoberta do dublê (sem URLs)
+    await crawler.tick(); // linha semeada
+    assert.equal(store.engine().counters('fake').byStatus.simulated, 1, 'o dublê continua no motor TS');
+  });
+
+  test('start() retoma a inflight órfã do Mico mesmo sem adaptador TS', async () => {
     store.engine().upsertUrls('mico', [movie('/crawl/movie/tt2000000/')], 1);
     assert.equal(store.engine().takeNext('mico', 2)?.status, 'inflight', 'simula claim interrompido');
     crawler._setSitesForTest((id) => fakeSiteFor(id));
     crawler.start(); // primeSite → requeueInflight em TODOS os sites ativos
-    assert.equal(store.engine().getUrl('mico', '/crawl/movie/tt2000000/')?.status, 'pending', 'inflight órfã volta a pending no modo rust');
+    assert.equal(store.engine().getUrl('mico', '/crawl/movie/tt2000000/')?.status, 'pending',
+      'inflight órfã volta a pending: o sidecar a encontra na próxima rodada');
   });
 });

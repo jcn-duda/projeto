@@ -164,7 +164,7 @@ describe('F5: truncagem de série nunca é done e não vira loop eterno', () => 
     };
     const process = createPageProcessor({
       identify: async () => ({ outcome: 'identified', imdb: 'tt1', reason: 'ok' }),
-      record: async () => ({ kept: 0, added: 0, transition: 'none', cleared: 0 }),
+      record: async () => ({ kept: 0, added: 0, transition: 'none', invalidated: false }),
     });
     for (let i = 0; i < 2; i += 1) {
       const row = store.engine().takeNext('fake', 1) as CrawlUrlRow;

@@ -4,11 +4,12 @@
 // motor.
 //
 // A TABELA é explícita e fechada: os oito cards BR do Jackett mais o addon
-// Mico Leão Dublado (nove no total), cada um com rótulo, módulo e NOME DO
-// EXPORT da fábrica. Nenhuma varredura por `Object.values` chamando função
-// desconhecida — o registro só carrega o que o próprio site exporta, e site sem
-// entrada aparece como indisponível no status em vez de sumir (o operador
-// precisa ver "sem adaptador" como diagnóstico).
+// Mico Leão Dublado (nove no total). Os NOVE são raspados pelo sidecar Rust
+// (`adom-crawl`); a máquina de módulo/export continua existindo como escape
+// para um adaptador TS futuro e para o dublê de teste, mas nenhuma entrada da
+// tabela a usa hoje. Nenhuma varredura por `Object.values` chamando função
+// desconhecida — e site sem entrada aparece como indisponível no status em vez
+// de sumir (o operador precisa ver "sem adaptador" como diagnóstico).
 //
 // A memoização é um MAPA por id (o motor alterna entre sites na mesma rotação;
 // resolver o módulo a cada passo custaria um import por página). O "site
@@ -38,17 +39,6 @@ export interface SiteEntry {
   ownPace?: boolean;
 }
 
-/** Módulos resolvidos por import dinâmico (lazy: o módulo só entra em quem
- *  realmente precisa dele). Os oito cards do Jackett são raspados pelo sidecar
- *  Rust (`adom-crawl`); em TS ficou só o Mico, de ritmo próprio. */
-const BUILTIN_MODULES: Record<string, () => Promise<SiteModule>> = {
-  // NONO site: o Mico NÃO é card do Jackett — é um addon Stremio público (id
-  // virtual `mico`, consultado por IMDb). O adaptador é `crawl-sites/mico.ts`
-  // (o homônimo `../mico.ts` é a busca ao vivo). A entrada só existe com
-  // `config.mico.enabled`: desligado, a fábrica lança e `ensureSite` devolve null.
-  mico: () => import('./mico.js') as unknown as Promise<SiteModule>,
-};
-
 /** Site raspado pelo sidecar Rust: sem módulo TS, mas com adaptador (lá). */
 const RUST = { module: null, exportName: null, rust: true, note: 'raspado pelo sidecar Rust' } as const;
 
@@ -69,8 +59,11 @@ export const SITE_TABLE: SiteEntry[] = [
   { id: 'apachetorrent-cardigann', label: 'ApacheTorrent', ...RUST },
   { id: 'hdrtorrent-cardigann', label: 'HDRTorrent', ...RUST },
   { id: 'bludv-cardigann', label: 'BLUDV', ...RUST },
-  // Ritmo próprio: `MICO_CRAWL_MIN_GAP_MS` (API JSON, sem Jackett/FlareSolverr).
-  { id: 'mico', label: 'Mico Leão Dublado', module: BUILTIN_MODULES.mico, exportName: 'micoCrawlSite', ownPace: true },
+  // NONO site: o Mico NÃO é card do Jackett — é um addon Stremio público (id
+  // virtual `mico`, consultado por IMDb), raspado pela lane de ritmo próprio
+  // do sidecar (`motor::mico_lane`). Ritmo próprio: `MICO_CRAWL_MIN_GAP_MS`
+  // (API JSON, sem Jackett/FlareSolverr).
+  { id: 'mico', label: 'Mico Leão Dublado', ...RUST, ownPace: true },
 ];
 
 const TABLE = new Map<string, SiteEntry>(SITE_TABLE.map((entry) => [entry.id, entry]));
