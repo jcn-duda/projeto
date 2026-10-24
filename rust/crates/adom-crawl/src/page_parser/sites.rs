@@ -152,6 +152,7 @@ pub fn parse_tdf_links(html: &str) -> Vec<ResolverLink> {
 const BLUDV_GATE_HOSTS: &[&str] = &[
     "bludvfilmes.xyz",
     "bludvfilmes1.xyz",
+    "bludvfilmes2.xyz",
     "bludv.net",
     "bludv.xyz",
     "bludv.to",
@@ -211,6 +212,10 @@ mod gate_tests {
     fn reconhece_botao_do_portao() {
         assert!(bludv_is_gate_button(
             "https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609"
+        ));
+        // Domínio para onde o site redireciona desde 2026-10-24.
+        assert!(bludv_is_gate_button(
+            "https://bludvfilmes2.xyz/gate/go/0646028353024d92?p=60609"
         ));
     }
 

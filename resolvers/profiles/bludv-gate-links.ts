@@ -8,7 +8,7 @@ import {
 
 // Lista EXATA e local ao gate; não altera os protetores globais.
 export const BLUDV_GATE_HOSTS: ReadonlySet<string> = new Set([
-  'bludvfilmes.xyz', 'bludvfilmes1.xyz', 'bludv.net', 'bludv.xyz', 'bludv.to',
+  'bludvfilmes.xyz', 'bludvfilmes1.xyz', 'bludvfilmes2.xyz', 'bludv.net', 'bludv.xyz', 'bludv.to',
 ]);
 
 export function safeGateUrl(value: string, base?: string): URL | null {

@@ -121,9 +121,9 @@ fn parse_entry(entry: &str) -> Result<(String, u16), Box<dyn std::error::Error>>
 /// URL primária por site quando `<SITE>_URL` não está no env — a mesma de
 /// `src/config/resolvers.ts`, para Node e Rust buscarem no mesmo domínio.
 const DEFAULT_URLS: &[(&str, &str)] = &[
-    ("bludv", "https://bludvfilmes.xyz"),
+    ("bludv", "https://bludvfilmes2.xyz"),
     ("comandotorrents", "https://comandotorrents.to"),
-    ("nerdfilmes", "https://www.xfilmeshd.org"),
+    ("nerdfilmes", "https://www.xfilmeshd.net"),
     ("torrentdosfilmes", "https://torrentdosfilmes-v2.xyz"),
     ("vacatorrent", "https://vaqueirofilmes1.com"),
     ("redetorrent", "https://www.redetorrent.xyz"),

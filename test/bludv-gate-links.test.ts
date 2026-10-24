@@ -60,6 +60,8 @@ test('BLUDV gate: detector aceita gate canônico, mas nunca legado ou callback',
   assert.equal(isGateUrl(gateUrl()), true);
   assert.equal(isGateUrl(gateUrl(), postUrl), true);
   assert.equal(isGateUrl('/gate/go/aaaaaaaaaaaaaaaa?p=101', postUrl), true);
+  // Domínio para onde o site redireciona desde 2026-10-24.
+  assert.equal(isGateUrl('https://bludvfilmes2.xyz/gate/go/aaaaaaaaaaaaaaaa?p=101', 'https://bludvfilmes2.xyz/post/'), true);
   for (const url of ['https://systemads1.com/go/fixture', magnet, `${postUrl}?gate_error=too_fast`, '']) {
     assert.equal(isGateUrl(url, postUrl), false);
   }

@@ -18,6 +18,7 @@ static GATE_HOSTS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
     vec![
         "bludvfilmes.xyz",
         "bludvfilmes1.xyz",
+        "bludvfilmes2.xyz",
         "bludv.net",
         "bludv.xyz",
         "bludv.to",
@@ -178,6 +179,9 @@ mod tests {
     fn gate_url_valido() {
         let gate = "https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609";
         assert!(is_gate_url(gate, Some("https://bludvfilmes1.xyz/post/")));
+        // Domínio para onde o site redireciona desde 2026-10-24.
+        let novo = "https://bludvfilmes2.xyz/gate/go/0646028353024d92?p=60609";
+        assert!(is_gate_url(novo, Some("https://bludvfilmes2.xyz/post/")));
     }
 
     #[test]

@@ -6,7 +6,7 @@ use std::fmt;
 use adom_core::is_safe_download_url;
 
 /// Host canônico do site (mesmo default do resolvedor).
-pub const BLUDV_DEFAULT_URL: &str = "https://bludvfilmes.xyz";
+pub const BLUDV_DEFAULT_URL: &str = "https://bludvfilmes2.xyz";
 
 /// Timeout padrão (`BLUDV_TIMEOUT_MS`).
 pub const BLUDV_DEFAULT_TIMEOUT_MS: u64 = 8_000;

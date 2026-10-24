@@ -128,6 +128,7 @@ fn build_bludv() -> SiteNetworkConfig {
         candidate_hosts: strings(&[
             "bludvfilmes.xyz",
             "bludvfilmes1.xyz",
+            "bludvfilmes2.xyz",
             "bludv.net",
             "bludv.xyz",
             "bludv.to",
@@ -159,6 +160,7 @@ fn build_nerdfilmes() -> SiteNetworkConfig {
             "filmesviatorrenthd.org",
             "filmesviatorrenthd.net",
             "xfilmeshd.org",
+            "xfilmeshd.net",
         ]),
         protector_suffixes: protector_suffixes(&[]),
         assert_only_suffixes: Vec::new(),

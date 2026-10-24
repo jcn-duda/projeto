@@ -249,7 +249,7 @@ function createParsePosts(options: BludvParsePostsOptions = {}) {
   const staticSiteUrl = typeof options.siteUrl === 'string' ? options.siteUrl : '';
   const getSiteUrl = typeof options.siteUrl === 'function'
     ? options.siteUrl
-    : () => staticSiteUrl || (options.siteSelector ? options.siteSelector.url() : 'https://bludvfilmes.xyz');
+    : () => staticSiteUrl || (options.siteSelector ? options.siteSelector.url() : 'https://bludvfilmes2.xyz');
   const decode = options.decodeEntities || decodeEntities;
   const strip = options.stripTags || ((s: string) => stripTagsShared(s, decode));
   const isGeneric = options.isGenericListPost || isGenericListPost;

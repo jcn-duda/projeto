@@ -211,6 +211,7 @@ fn is_gate_host(host: &str) -> bool {
         host,
         "bludvfilmes.xyz"
             | "bludvfilmes1.xyz"
+            | "bludvfilmes2.xyz"
             | "bludv.net"
             | "bludv.xyz"
             | "bludv.to"

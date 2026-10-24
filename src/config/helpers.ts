@@ -49,7 +49,9 @@ export function indexerList(value: unknown) {
 // Default único do bludv. O resolvedor embutido e o scraper direto leem a
 // MESMA BLUDV_URL; com dois defaults diferentes, quem não define a env fazia
 // os dois buscarem em sites distintos. Trocar de domínio se faz aqui.
-export const BLUDV_DEFAULT_URL = 'https://bludvfilmes.xyz';
+// 2026-10-24: bludvfilmes.xyz e bludvfilmes1.xyz redirecionam (via desafio do
+// Cloudflare) para bludvfilmes2.xyz; os três ficam nas allowlists.
+export const BLUDV_DEFAULT_URL = 'https://bludvfilmes2.xyz';
 
 // Este arquivo roda em dist/src/config (um nível ABAIXO do antigo config.ts
 // único, que ficava em dist/src): subir TRÊS níveis preserva data/cache.db no

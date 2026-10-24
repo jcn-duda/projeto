@@ -25,6 +25,12 @@ fn registry_tem_dominio_vivo_dos_profiles_ts() {
     for (site, host) in [
         ("comandotorrents", "comandotorrents.to"),
         ("nerdfilmes", "xfilmeshd.org"),
+        // 2026-10-24: xfilmeshd.org → 301 → xfilmeshd.net; bludvfilmes(1).xyz
+        // → bludvfilmes2.xyz pelo desafio do Cloudflare. Sem o destino na
+        // allowlist o redirect vira `blocked_host` e a fonte some.
+        ("nerdfilmes", "xfilmeshd.net"),
+        ("bludv-cardigann", "bludvfilmes1.xyz"),
+        ("bludv-cardigann", "bludvfilmes2.xyz"),
         ("torrentdosfilmesv2", "torrentdosfilmes-v2.xyz"),
         ("redetorrent-cardigann", "redetorrent.xyz"),
         ("apachetorrent-cardigann", "apachetorrents.com"),

@@ -92,6 +92,11 @@ fn gate_url_detectado() {
     let gate = "https://bludvfilmes1.xyz/gate/go/0646028353024d92?p=60609";
     assert!(is_gate_url(gate, post));
     assert!(!is_gate_url("https://systemads.example/x", post));
+    // Domínio para onde o site redireciona desde 2026-10-24.
+    assert!(is_gate_url(
+        "https://bludvfilmes2.xyz/gate/go/0646028353024d92?p=60609",
+        "https://bludvfilmes2.xyz/post/"
+    ));
 }
 
 #[test]
