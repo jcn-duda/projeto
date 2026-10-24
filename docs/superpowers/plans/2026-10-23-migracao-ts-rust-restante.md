@@ -73,8 +73,17 @@ commit/imagem anterior (nada de knob por env em caminho de leitura).
 | Fase 5 (inflight) | `f1a4a5e0` | slot único no `HarvestQueue`: enqueue da mesma obra devolve `coalesced`; tick abre/fecha |
 | Fase 4.2(b) | `4a9e01a8` | o Node trata `raw:v1:bludv:` como prefixo ESTRANGEIRO no L1/L2: `get`/`set`/`setMany`/`forget`/`persist`, boot e poda do expirado |
 | Fase 5 (`takeProbe`) | `072f8fc3` | sob tráfego o tick consome só `br_probe`; sem sonda, `SkippedBusy` sem tocar na cabeça |
+| Fase 3.1 (`fileLink`) | `c7c505ee` | `fileLink` sai do tipo, do `rust-remote`, do Premiumize e da medição de cabeçalho — não tinha chamador vivo |
+| Fase 4.2(c) | `4026b545` | `streams` Rust-owned: o L1 do Node não guarda a lista pronta, o trace recomputa no ramo nativo e a invalidação (obra/instalação/clear) vai pela ponte administrativa; `rd-probe` apagado |
+| Fase 6 (Mico) | `b2ee8881` | Mico no sidecar Rust: `mico_discovery`, `mico_page`, `mico_lane`, `own_pace`, `url_key` e registry `rust: true` |
+| Fase 5 (probe) | `b8cace24` | máquina de estado do `br-probe` no `adom-harvest` (17 testes) e `peekRawFor` lendo o envelope `{ items }` |
+| Catraca `.rs` | `02e75284` | 45 fontes acima de 400 reduzidas nos seis crates; baseline do `.line-budget.json` vazio |
 
-Gate local desta rodada: `typecheck` zero · `build` · `npm test` **2965 testes, 2965 pass / 0 fail** (WIP fora do working tree; ver stashes abaixo) · `lint:lines` 758 fontes, 0 acima do teto ·
+Gate local desta rodada (`rust` @ `02e75284`): `typecheck` zero · `build` · `npm test` **2956 testes, 2956 pass / 0 fail** · `test:complete` 337 arquivos + 2 harnesses · `lint:lines` 758 fontes, 0 acima do teto · `check-rust-lines.mjs` (824 fontes, baseline **0**) · `cargo fmt --check` · `cargo clippy --workspace --all-targets --locked -- -D warnings` · `cargo test --workspace --locked` **0 falhas**.
+
+Um flake estrutural apareceu e foi corrigido na raiz: `DeleteConfig::fast()` lia `DEBRID_AL_CLEANUP_KILL` do env do processo (outra suíte liga a variável em paralelo e a fila voltava vazia) — agora `kill: Some(false)`, config de teste hermética.
+
+Gate local da rodada anterior: `typecheck` zero · `build` · `npm test` **2965 testes, 2965 pass / 0 fail** (WIP fora do working tree; ver stashes abaixo) · `lint:lines` 758 fontes, 0 acima do teto ·
 `check-rust-lines.mjs` (741 fontes, baseline 45) · `cargo fmt --check` ·
 `cargo clippy -D warnings` em `adom-store`, `adom-debrid` e `adom-harvest` · `cargo test -p adom-store` (42),
 `-p adom-debrid` (193) e `-p adom-harvest` (49).
@@ -83,12 +92,11 @@ O WIP de `cache*`/`br-gap`/`rd-warmer`/`rd-probe` (e o teste novo de sonda) foi 
 
 Ainda aberto, com o motivo real:
 
-- **Fase 3.1 (matriz)** — `/debrid/files` só Premiumize, e a medição mostra `adapter.fileLink`
-  **sem chamador vivo** em `src/` (só o teste e o `rust-remote` que o embrulha): portar para os
-  outros serviços não teria consumidor. Debrid-Link segue 501 nas duas rotas; decidir se `files`
-  sai no corte da Fase 3.4.
+- **Fase 3.1 (matriz)** — `/debrid/files` só Premiumize. `adapter.fileLink` **saiu** (`c7c505ee`):
+  não tinha chamador vivo em `src/`, só o teste e o `rust-remote` que o embrulhava. Debrid-Link
+  segue 501 nas duas rotas; resta decidir se `files` sai no corte da Fase 3.4.
 - **Fase 3.3/3.4** — canário AllDebrid e apagar corpos Node de `checkCached`/`resolveLink`/
-  `fileLink`/`accountStatus`: **bloqueado por push + autorização**.
+  `accountStatus`: **bloqueado por push + autorização**.
 - **Fase 2.3/2.4** — medir ~1 semana em produção e só então remover `FallbackMetaSource`:
   **bloqueado por push**.
 - **Fase 4.1(b)(c) e 4.3** — ponte de leitura do `davail` (`br-coverage`/painel) e mover a
@@ -96,23 +104,29 @@ Ainda aberto, com o motivo real:
   O WIP não é mais bloqueio: `RUST_OWNED`/`isForeignKey` já estão no HEAD.
   Medição: **não há uma única leitura/escrita de `davail` no Rust** (`grep davail rust/crates` vazio),
   então a ponte de leitura não tem fonte nativa e a escrita continua no Node até a Fase 3.4.
-- **Fase 4.2(c) — `streams:v21` como Rust-owned** (tentado e revertido nesta rodada): generalizar
-  `RUST_OWNED` para `['idx','streams']`, apagar `rd-probe`/`debrid-rd-probe` e entregar
-  `br-gap`/`rd-warmer` à ponte nativa **quebra 15 testes de caminhos vivos** e revela uma dívida
-  real: `recomputeOffline` do `/stream-trace.json` só alcança entrada do L1 de `streams`, e desde o
-  F4.4a ninguém escreve esse L1 — o recompute já é inalcançável em produção e o branch nativo
-  (`fetchNativeStreamTrace`) não recomputa. Os 15: `stream-trace-route` (9), `stream-trace-live` (2),
-  `dashboard-actions` (clear-cache por instalação), `debrid-rust-resolve-apply` (EpisodePickError),
-  `autofetch-recheck` (LRU do índice), `autofetch-season-fill`, `e2e/tier2-cache-storage`.
-  Antes de retomar: (1) fazer o branch nativo do trace recomputar quando `found && trace == null`
-  usando `native.searchMeta`; (2) trocar os canários de L1 (`cache.set(streamsKey)`) por mock da ponte
-  (`/streams/trace`, `/streams/invalidate`, `/streams/clear`); (3) só então apagar `rd-probe`.
+- **Fase 4.2(c) — FECHADA** (`4026b545`). A tentativa anterior foi retomada pela raiz: o ramo
+  nativo do trace passou a recomputar quando `found && trace == null` (via `native.searchMeta`), os
+  canários de L1 viraram mock da ponte (`test/helpers/streams-bridge.ts`: trace/invalidate/clear) e
+  só então `rd-probe` foi apagado. `RUST_OWNED` agora é `['idx','streams']`; `br-gap`, `rd-warmer`,
+  `dub-audit`, `harvest-worker` e `crawl-recorder` trocaram "contagem de entradas removidas" por
+  "pedido aceito pela ponte" (`invalidated: boolean`).
 - **Fase 4.4** — o CAS fechou o lost update; declarar um único executor de `magnet_work` e o
   ensaio de restauração continuam **bloqueados por push**.
-- **Fases 5–7** — colhedor, Mico e o fundo no Rust: em andamento. No `adom-harvest` já
-  existem fila/L2, priorização BR com `BrEvidence`, tick (com `take_probe` sob tráfego),
-  o dedupe 12h, o balde horário durável (`harvest:v1:hour`) e o coalescing em voo; faltam
-  a ponte do `BrEvidence` para o índice e a transferência da fila com consumidor parado.
+- **Fases 5–7** — o `br-probe` já tem máquina de estado no crate (`adom-harvest::probe`, 17 testes)
+  e o Mico já roda no sidecar (`adom-crawl`, `rust: true`). No `adom-harvest` seguem fila/L2,
+  `BrEvidence`, tick (`take_probe` sob tráfego), dedupe 12h, balde horário e coalescing; faltam a
+  ponte do `BrEvidence` para o índice e a transferência da fila com consumidor parado.
+  `dub-audit`/`rd-warmer` seguem no Node (Fase 7).
+
+Dívida residual declarada (medida, não silenciosa):
+
+- **TS do Mico** — `src/providers/crawl-sites/{mico,mico-shared,mico-series}.ts` continuam no
+  repositório **só como legado de teste**: o registro já é `rust: true` e o motor TS nunca os toca
+  em runtime. Quem os mantém vivos é `scripts/crawl-site-probe.ts` (sonda de 40) e os testes
+  `crawl-mico*`, `crawl-site-probe-mico`, `mico-fetch-deadline` e `mico-diag`. Aposentar exige
+  fatia própria: sonda lendo o sidecar, reescrita desses testes e só então apagar os três arquivos.
+- **`CRAWL_ENGINE=ts`** fica (a suíte depende do loop TS dos oito cards), mas o Mico não está mais
+  nesse caminho.
 
 ---
 
@@ -161,7 +175,7 @@ git add .github/workflows/rust.yml
 git commit -m "refactor(ci): golden ausente no esm avisa em vez de pular o job Rust"
 ```
 
-### Task 0.2: catraca `.rs` vira ratchet com baseline — ✅ feito (`89bdc467`)
+### Task 0.2: catraca `.rs` vira ratchet com baseline — ✅ feito (`89bdc467`) e zerada em `02e75284`
 
 **Files:**
 - Create: `scripts/check-rust-lines.mjs`
@@ -682,6 +696,13 @@ Antes de apagar `jackett*.ts`/`search-plan.ts`/`bludv.ts`/`harvest-*`/`harvester
   recuperados; replay idempotente;
 - **só então** apagar por ausência comprovada de consumidor.
 
+**Estado em `b8cace24`:** a coordenação da sonda virou máquina de estado no crate
+(`adom-harvest::probe`, alvo → tentativa → prazo → veredito, 17 testes) e o
+`peekRawFor` do trace lê o envelope `{ items }` do `raw:v1` sem rede (contrato
+`test/warm-cache-contract.test.ts`, 0 hit/0 miss no recompute). Falta apagar os
+corpos TS (`jackett*.ts`/`search-plan.ts`/`bludv.ts`/`harvest-*`), bloqueado pela
+transferência da fila.
+
 ## Fase 6 — Raspador do Mico no Rust
 
 Plugar `mico.rs` + `mico_net` no motor do sidecar **junto** com: scheduler TS
@@ -690,6 +711,15 @@ sweep de 24h, fim por vazias seguidas, progresso monotônico de séries.
 
 Depois: `rust: true` no registro, apagar `crawl-sites/mico*`, `CRAWL_ENGINE=ts` e
 reescrever os testes que dependem do loop TS.
+
+**Estado em `b2ee8881`: feito o runtime, pendente o legado.** No sidecar entraram
+`mico_discovery` (passo fixo 25→50, página vazia intermitente, fim por vazias
+seguidas, `MAX_PAGES`/`EMPTY_RETRIES`/`END_AFTER_EMPTIES`), `mico_page`, `mico_lane`
+(`own_pace` fora das vagas de `CRAWL_MAX_PARALLEL`), `store/url_key` e o registry
+com `rust: true`. `crawler.ts` não agenda mais o Mico. O que **não** foi feito e
+virou dívida declarada: `crawl-sites/mico*` ainda existem para a sonda
+de 40 (`scripts/crawl-site-probe.ts`) e os testes `crawl-mico*`; `CRAWL_ENGINE=ts`
+fica porque a suíte depende do loop TS dos oito cards do Jackett.
 
 Subfase explícita que faltava no plano anterior: **fechar a ingestão do crawl**
 (hoje `engine Rust → POST Node → identify/record → mark_result`). Migrar só o
